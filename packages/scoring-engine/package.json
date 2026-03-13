@@ -1,0 +1,12 @@
+{
+  "name": "@thesis/scoring-engine",
+  "private": true,
+  "version": "0.1.0",
+  "main": "dist/src/index.js",
+  "types": "dist/src/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "lint": "eslint \"src/**/*.ts\"",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  }
+}
