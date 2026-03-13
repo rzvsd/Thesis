@@ -18,7 +18,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: pnpm
 
       - name: Set up pnpm
         uses: pnpm/action-setup@v4
@@ -26,13 +25,13 @@ jobs:
           version: 10.6.1
 
       - name: Install dependencies
-        run: pnpm install --no-frozen-lockfile
+        run: corepack pnpm install --no-frozen-lockfile
 
       - name: Lint
-        run: pnpm lint
+        run: corepack pnpm lint
 
       - name: Typecheck
-        run: pnpm typecheck
+        run: corepack pnpm typecheck
 
       - name: Test
-        run: pnpm test
+        run: corepack pnpm test
