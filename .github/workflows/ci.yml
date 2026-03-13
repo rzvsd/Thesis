@@ -20,10 +20,11 @@ jobs:
           node-version: 20
           cache: pnpm
 
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10.6.1
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Install pnpm
+        run: corepack prepare pnpm@10.6.1 --activate
 
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile
