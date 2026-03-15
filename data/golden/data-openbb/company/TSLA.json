@@ -1,0 +1,13 @@
+{
+  "ticker": "TSLA",
+  "period": "2024-Q4",
+  "provider": "FMP",
+  "data": {
+    "revenue": 25167000000,
+    "gross_margin": 18.1,
+    "operating_income": 1608000000,
+    "net_income": 2794000000,
+    "eps": 0.71,
+    "cash_and_equivalents": 29094000000
+  }
+}

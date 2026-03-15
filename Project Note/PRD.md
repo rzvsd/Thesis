@@ -108,7 +108,8 @@ This is not a minor disclaimer. These boundaries are product doctrine and must s
 
 ### Data sourcing
 
-- Financial data is retrieved from regulated data providers via OpenBB
+- **Company Deep Dive** data is retrieved by Dexter using its native research capabilities (Financial Datasets API, web search, filings)
+- **Market Pulse** data is retrieved from regulated data providers via OpenBB and approved-source news via news-ingest
 - News is retrieved only from a pre-approved list of sources
 - No user-generated content is used as a data source
 - All data carries a retrieval timestamp so users know how recent it is
@@ -373,7 +374,7 @@ This section defines what the product does in non-ideal situations. Every edge c
 
 | Situation | What the system does |
 |---|---|
-| A ticker exists but OpenBB has no data for it | Report is not generated. User sees: *"We don't have sufficient data for this company yet."* |
+| A ticker exists but Dexter cannot retrieve sufficient data for it | Report is not generated. User sees: *"We don't have sufficient data for this company yet."* |
 | Some financial fields are missing (e.g., no debt data) | Affected section is marked "Data incomplete for this section." Other sections are still generated. |
 | News ingest returns no articles for the cycle | Market Pulse news section reads: "No material news was retrieved from approved sources for this period." — not blank, not fabricated. |
 | Macro data provider is down | Affected sections in Market Pulse are marked incomplete. Briefing is still generated and delivered with a flag. |

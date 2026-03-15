@@ -105,26 +105,56 @@ fintech/                            ← this repo
 ├── Project Note/
 ├── Decisions/
 └── apps/, packages/, infra/ ...
-
-github.com/your-fork/dexter         ← separate repo
-github.com/your-fork/openbb         ← separate repo
 ```
 
-**How they connect:**
+---
+
+**Pinned dependency record — OpenBB**
+
+> [!IMPORTANT]
+> Real OpenBB fork URL and pinned commit SHA are now documented.
+> Live OpenBB integration must use this exact pin and still requires deliberate implementation, test coverage, and milestone smoke validation.
+
+- Fork repo: `https://github.com/rzvsd/finBase`
+- Upstream base: `https://github.com/OpenBB-finance/OpenBB`
+- Pinned commit: `dddc3b328284bb953b6e5468b167b39c78490001`
+- Pin owner: `rzvsd`
+- Reason pinned: `M2 data-plane stability / provider wrapper compatibility`
+- Upgrade rule: upgrade only through explicit review + doc update + tested PR
+
+**How it connects:**
+```
+apps/data-openbb/requirements.txt
+  → git+https://github.com/rzvsd/finBase.git@dddc3b328284bb953b6e5468b167b39c78490001#subdirectory=openbb_platform
+```
+
+---
+
+**Pinned dependency record — Dexter**
+
+> [!IMPORTANT]
+> **TODO / BLOCKER:** Real Dexter fork URL and pinned commit SHA are not yet documented.
+> This must be filled before Dexter integration is considered ready (M3).
+
+- Fork repo: `https://github.com/<org-or-user>/<dexter-fork>`
+- Upstream base: `<upstream Dexter repo URL>`
+- Pinned commit: `<40-char commit SHA>`
+- Pin owner: `<name or role>`
+- Reason pinned: `<M3 reasoning-pipeline stability>`
+- Upgrade rule: upgrade only through explicit review + doc update + tested PR
+
+**How it connects:**
 ```
 apps/dexter-worker/package.json
-  → "dexter": "github:your-fork/dexter#pinned-commit"
-
-apps/data-openbb/requirements.txt
-  → git+https://github.com/your-fork/openbb@pinned-commit
+  → "dexter": "github:<org-or-user>/<dexter-fork>#<40-char commit SHA>"
 ```
 
 **Rules:**
 - Never copy OSS code into this monorepo
 - Always pin to a specific commit — never to `main`
 - Upstream changes are reviewed before any upgrade — never auto-pulled
-- Dexter's native data tools are overridden to call `data-openbb` — see `ADR-006`
-- OpenBB is wrapped by `data-openbb` — nothing else calls it directly
+- Dexter upstream OSS is the primary Deep Dive research engine — its native capabilities are preserved (see `ADR-006`)
+- OpenBB is wrapped by `data-openbb` — serves as the primary data source for Market Pulse
 
 ---
 
@@ -149,7 +179,7 @@ When a milestone ends:
 | Rule | Detail |
 |---|---|
 | Mobile → Product API only | Never call OpenBB, Dexter, or internal services directly from mobile |
-| Dexter → Data Plane only | Never call external APIs directly from Dexter |
+| Dexter → Deep Dive only | Dexter is the primary engine for Company Deep Dive; it does not own Market Pulse data |
 | No freestyle JSON | All inter-service data conforms to a contract in `packages/contracts` |
 | No score without evidence | Signal value requires minimum EvidenceItems — see `BLUEBOOK cld.md §9` |
 | No fabricated data | Missing data goes in `missing_fields` or `flags` — never substituted |

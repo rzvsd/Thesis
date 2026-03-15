@@ -5,6 +5,7 @@ export interface CanonicalNewsArticle {
   title: string;
   published_at: string;
   retrieved_at: string;
+  /** Best available normalized article text. RSS summary/excerpt acceptable in v1. */
   body_text: string;
   tickers_mentioned: string[];
   is_approved_source: boolean;

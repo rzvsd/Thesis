@@ -1,0 +1,164 @@
+from __future__ import annotations
+
+import json
+from http import HTTPStatus
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from threading import Thread
+from typing import Any
+from urllib.parse import parse_qs, urlparse
+
+try:
+    from .service import (
+        DEFAULT_PORT,
+        DataOpenBBService,
+        SERVICE_NAME,
+        build_company_response,
+        build_macro_response,
+        get_request_id,
+        health_payload,
+        internal_error_response,
+        log,
+        method_not_allowed_response,
+        not_found_response,
+        schema_error_response,
+    )
+    from .validation import SchemaValidationError
+except ImportError:  # pragma: no cover - supports direct src imports in sibling tests
+    from service import (
+        DEFAULT_PORT,
+        DataOpenBBService,
+        SERVICE_NAME,
+        build_company_response,
+        build_macro_response,
+        get_request_id,
+        health_payload,
+        internal_error_response,
+        log,
+        method_not_allowed_response,
+        not_found_response,
+        schema_error_response,
+    )
+    from validation import SchemaValidationError
+
+
+class DataOpenbbRequestHandler(BaseHTTPRequestHandler):
+    server_version = SERVICE_NAME
+    sys_version = ""
+
+    def do_GET(self) -> None:  # noqa: N802
+        parsed = urlparse(self.path)
+
+        if parsed.path == "/health":
+            payload = health_payload()
+            log("INFO", "Health check OK")
+            self._write_json(HTTPStatus.OK, payload)
+            return
+
+        request_id = get_request_id(self.headers.get("x-request-id"))
+
+        try:
+            service = getattr(self.server, "data_service", None)
+
+            if service is not None:
+                if parsed.path == "/v1/finance/company":
+                    ticker = parse_qs(parsed.query).get("ticker", [""])[0]
+                    status_code, body = service.get_company_finance(ticker, request_id=request_id)
+                    self._write_json(status_code, body, request_id=request_id)
+                    return
+                if parsed.path == "/v1/finance/macro":
+                    scope = parse_qs(parsed.query).get("scope", [""])[0]
+                    status_code, body = service.get_macro(scope, request_id=request_id)
+                    self._write_json(status_code, body, request_id=request_id)
+                    return
+
+            if parsed.path == "/v1/finance/company":
+                response = build_company_response(
+                    ticker=parse_qs(parsed.query).get("ticker", [""])[0],
+                    request_id=request_id,
+                )
+            elif parsed.path == "/v1/finance/macro":
+                response = build_macro_response(
+                    scope=parse_qs(parsed.query).get("scope", [""])[0],
+                    request_id=request_id,
+                )
+            else:
+                response = not_found_response(request_id)
+        except SchemaValidationError as error:
+            response = schema_error_response(request_id, error)
+        except Exception as error:  # pragma: no cover - last-resort safety net
+            response = internal_error_response(request_id, error)
+
+        self._write_json(response.status_code, response.body, request_id=request_id)
+
+    def do_POST(self) -> None:  # noqa: N802
+        request_id = get_request_id(self.headers.get("x-request-id"))
+        response = method_not_allowed_response(request_id)
+        self._write_json(response.status_code, response.body, request_id=request_id)
+
+    def do_PUT(self) -> None:  # noqa: N802
+        self.do_POST()
+
+    def do_PATCH(self) -> None:  # noqa: N802
+        self.do_POST()
+
+    def do_DELETE(self) -> None:  # noqa: N802
+        self.do_POST()
+
+    def log_message(self, format: str, *args: Any) -> None:  # noqa: A003
+        return
+
+    def _write_json(
+        self,
+        status_code: int,
+        payload: dict[str, Any],
+        *,
+        request_id: str | None = None,
+    ) -> None:
+        response_bytes = json.dumps(payload, separators=(",", ":")).encode("utf-8")
+        self.send_response(status_code)
+        self.send_header("content-type", "application/json")
+        self.send_header("content-length", str(len(response_bytes)))
+        if request_id is not None:
+            self.send_header("x-request-id", request_id)
+        self.end_headers()
+        self.wfile.write(response_bytes)
+
+
+def start_server(
+    port: int = DEFAULT_PORT,
+    data_service: DataOpenBBService | None = None,
+) -> ThreadingHTTPServer:
+    server = ThreadingHTTPServer(("0.0.0.0", port), DataOpenbbRequestHandler)
+    setattr(server, "data_service", data_service or DataOpenBBService())
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    setattr(server, "_serve_thread", thread)
+    log("INFO", "Service started")
+    return server
+
+
+def stop_server(server: ThreadingHTTPServer) -> None:
+    server.shutdown()
+    server.server_close()
+    thread = getattr(server, "_serve_thread", None)
+    if thread is not None:
+        thread.join(timeout=5)
+
+
+def main() -> int:
+    try:
+        server = start_server()
+    except Exception as error:  # pragma: no cover - startup failure path
+        log("ERROR", str(error))
+        return 1
+
+    try:
+        getattr(server, "_serve_thread").join()
+    except KeyboardInterrupt:  # pragma: no cover - manual shutdown path
+        stop_server(server)
+
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

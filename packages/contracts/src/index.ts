@@ -2,6 +2,8 @@ export * from "./analysis-report";
 export * from "./analysis-request";
 export * from "./canonical-finance-data";
 export * from "./canonical-news-article";
+export * from "./canonical-macro-data";
 export * from "./evidence-item";
 export * from "./market-pulse-report";
 export * from "./report-section";
+export * from "./service-response";

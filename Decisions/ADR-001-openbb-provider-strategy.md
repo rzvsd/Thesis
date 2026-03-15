@@ -9,7 +9,7 @@
 
 ## Context
 
-OpenBB wraps multiple third-party financial data providers (FMP, Polygon, FRED, Alpha Vantage, and others). Without a defined priority order, `data-openbb` will behave unpredictably when a provider is down, rate-limited, or missing a specific field. We need a declared, documented hierarchy before building the data plane.
+OpenBB wraps multiple third-party financial data providers (FMP, Polygon, Alpha Vantage, and others). Without a defined priority order, `data-openbb` will behave unpredictably when a provider is down, rate-limited, or missing a specific field. We need a declared, documented hierarchy before building the data plane.
 
 ## Decision
 
@@ -17,14 +17,14 @@ OpenBB wraps multiple third-party financial data providers (FMP, Polygon, FRED, 
 |---|---|---|
 | Equity financials (income, balance sheet, cash flow) | FMP (Financial Modeling Prep) | Alpha Vantage |
 | Market and price data (indices, quotes) | Polygon | FMP |
-| Macro data (CPI, NFP, FOMC, rates) | FRED | None — macro has no fallback in v1 |
+| Macro data (CPI, NFP, FOMC, rates) | FMP | None — macro has no fallback in v1 |
 | FX and commodities | Polygon | None in v1 |
 
 ## Rationale
 
 - FMP has the most complete SEC filing and earnings data for US equities
 - Polygon is reliable for real-time and historical market/price data
-- FRED is the authoritative government source for US macro data — no third-party fallback is appropriate
+- FMP is the approved provider for US macro data in v1 — no fallback is appropriate
 - Alpha Vantage as equity fallback covers the most common missing fields when FMP is unavailable
 
 ## Consequences
@@ -32,7 +32,7 @@ OpenBB wraps multiple third-party financial data providers (FMP, Polygon, FRED, 
 - `data-openbb` must implement provider fallback logic per data type
 - Each provider requires its own API key in environment secrets
 - Rate limits differ per provider — Redis rate limiter must be configured independently per provider
-- FRED and FX/commodity failures result in `data_unavailable` for those sections — no substitution
+- Macro and FX/commodity failures result in `data_unavailable` for those sections — no substitution
 
 ## Revisit When
 
