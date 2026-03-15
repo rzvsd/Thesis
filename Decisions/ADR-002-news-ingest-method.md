@@ -21,9 +21,9 @@ Three options were considered:
 
 ## Decision
 
-**Primary method: RSS feeds** for sources that offer them.  
-**Secondary method: news-please HTML scraping** only for approved sources that do not offer RSS, with explicit per-source maintenance accepted.  
-**No third-party news API in v1** — adds cost and an external dependency without sufficient justification at current scale.
+**Primary method: RSS feeds** for sources that offer them. In v1, RSS summary/excerpt is acceptable as the `body_text`.
+**Secondary method: news-please HTML scraping** only for approved sources that do not offer RSS, with explicit per-source maintenance accepted.
+**`body_text` Semantics:** Always a string. Represents the best available normalized text. No third-party news API in v1.
 
 ### Approved Source List (v1)
 
@@ -49,7 +49,9 @@ Three options were considered:
 - `news-ingest` must implement both RSS and HTML scraping paths
 - Each source in the approved list must be configured with its method
 - `is_approved_source: true` is only set for sources on this list
-- Parser failures return empty list with error flag — Dexter treats as `data_unavailable`
+- `body_text` in `CanonicalNewsArticle` is never null.
+- Parser/source failures are represented at the service response level via error flags/envelopes (e.g., `{"data": [], "error": true}`).
+- Dexter treats service-level error flags as `data_unavailable`.
 - Anti-scraping blocks on HTML sources must be handled gracefully — no crashing
 
 ## Revisit When

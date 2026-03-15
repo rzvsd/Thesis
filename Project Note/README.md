@@ -19,7 +19,7 @@ A research and interpretation system for public markets. Not a trading bot.
 
 ## Architecture in One Paragraph
 
-The system is split into three planes. The **Data Plane** (`data-openbb`, `news-ingest`) retrieves and normalizes structured financial and news data. The **Reasoning Plane** (`dexter-worker`) plans, analyzes, and synthesizes that data into schema-validated reports. The **Product Plane** (`product-api`, `mobile`, `scheduler`) delivers those reports to users. The mobile app never touches the data plane directly. Dexter never invents data.
+The system is split into three planes. The **Reasoning Plane** (`dexter-worker`) is the primary engine for Company Deep Dive — it performs autonomous financial research using Dexter upstream OSS. The **Data Plane** (`data-openbb`, `news-ingest`) provides market, macro, and news data primarily for the Market Pulse morning briefing. The **Product Plane** (`product-api`, `mobile`, `scheduler`) orchestrates jobs and delivers reports to users. The mobile app never touches the data or reasoning planes directly. Nothing in the system fabricates data.
 
 Full architecture: [`BLUEBOOK cld.md`](./BLUEBOOK cld.md)
 
@@ -56,9 +56,9 @@ tests/             Integration, smoke, e2e, load
 |---|---|
 | Postgres | System of record |
 | Redis | Queue, cache, locks |
-| Dexter | Analysis and reasoning engine |
-| OpenBB | Financial and macro data |
-| news-ingest | News normalization |
+| Dexter | Primary Deep Dive research engine (upstream OSS) |
+| OpenBB | Market and macro data for Market Pulse |
+| news-ingest | Approved-source news for Market Pulse |
 | Artifact Store | Report blobs (S3-compatible) |
 | Sentry | Errors and operational traces |
 | PostHog | Product analytics and feature flags |
@@ -97,10 +97,10 @@ All work is tracked in Linear. No code is written without a ticket.
 |---|---|
 | M1 — Baseline | Monorepo, contracts, CI |
 | M2 — Data Plane | OpenBB + news ingest |
-| M3 — Dexter Foundation | Reasoning pipeline |
-| M4 — Product API + Job System | Auth, jobs, reports |
-| M5 — Company Deep Dive v1 | Full Deep Dive path |
-| M6 — Market Pulse | Scheduled briefing pipeline |
+| M3 — Dexter Foundation | Dexter upstream integrated as Deep Dive engine |
+| M4 — Product API + Job System | Auth, jobs, reports around Dexter-led Deep Dive |
+| M5 — Company Deep Dive v1 | Dexter-powered Deep Dive path |
+| M6 — Market Pulse | OpenBB + news-ingest-powered briefing pipeline |
 | M7 — Android MVP | Mobile app |
 | M8 — Production Hardening | Observability, resilience, ops |
 

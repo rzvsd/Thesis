@@ -1,0 +1,7 @@
+{
+  "indicator": "us10y_treasury_yield",
+  "value": 4.18,
+  "unit": "percent",
+  "provider": "FMP",
+  "category": "rates"
+}

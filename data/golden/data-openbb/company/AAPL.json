@@ -1,0 +1,15 @@
+{
+  "ticker": "AAPL",
+  "period": "2024-Q4",
+  "provider": "FMP",
+  "data": {
+    "revenue": 124300000000,
+    "gross_margin": 46.2,
+    "operating_income": 42800000000,
+    "net_income": 36330000000,
+    "eps": 2.4,
+    "debt_total": 108000000000,
+    "cash_and_equivalents": 29900000000,
+    "free_cash_flow": 35500000000
+  }
+}

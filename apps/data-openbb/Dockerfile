@@ -1,14 +1,21 @@
-FROM node:20-alpine
+FROM python:3.11-slim
 
-WORKDIR /app
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
 
-RUN corepack enable
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends build-essential git wget \
+    && rm -rf /var/lib/apt/lists/*
 
-COPY . .
+WORKDIR /app/apps/data-openbb
 
-RUN pnpm install --no-frozen-lockfile
-RUN pnpm --filter @thesis/data-openbb build
+COPY apps/data-openbb/requirements.txt /tmp/data-openbb-requirements.txt
+RUN python -m pip install --disable-pip-version-check --no-cache-dir -r /tmp/data-openbb-requirements.txt
+
+COPY apps/data-openbb /app/apps/data-openbb
+COPY data/golden/data-openbb /app/data/golden/data-openbb
+COPY packages/contracts/schemas /app/packages/contracts/schemas
 
 EXPOSE 3003
 
-CMD ["node", "apps/data-openbb/dist/src/server.js"]
+CMD ["python", "-B", "-m", "src.server"]

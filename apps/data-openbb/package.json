@@ -2,15 +2,12 @@
   "name": "@thesis/data-openbb",
   "private": true,
   "version": "0.1.0",
-  "main": "dist/src/server.js",
-  "types": "dist/src/server.d.ts",
+  "main": "src/server.py",
   "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "lint": "eslint \"src/**/*.ts\" \"tests/**/*.ts\"",
-    "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "tsc -p tsconfig.json && node --test dist/tests/*.js"
-  },
-  "dependencies": {
-    "@thesis/shared-types": "workspace:*"
+    "build": "python -B tools/checks.py build",
+    "lint": "python -B tools/checks.py lint",
+    "typecheck": "python -B tools/checks.py typecheck",
+    "test": "python -B -m unittest discover -s tests -p \"test_*.py\" -v",
+    "start": "python -B -m src.server"
   }
 }

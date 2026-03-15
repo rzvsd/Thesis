@@ -72,7 +72,7 @@ The v1 signal is a **research signal** — not a buy/sell recommendation. This d
 
 ## 3. System Planes
 
-The system is divided into three planes with strict layering. A higher plane may not bypass a lower plane to access raw data directly.
+The system is divided into three planes. Routing between planes depends on the product surface.
 
 ```
 ┌─────────────────────────────────────────────┐
@@ -88,7 +88,10 @@ The system is divided into three planes with strict layering. A higher plane may
 └─────────────────────────────────────────────┘
 ```
 
-**Strict layering rule:** The Product Plane calls Dexter. Dexter calls the Data Plane. The Product Plane never calls the Data Plane directly. The mobile app never calls any plane except Product API.
+**Surface-specific routing:**
+- **Company Deep Dive:** Product API → Dexter. Dexter is the primary research engine and manages its own data retrieval.
+- **Market Pulse:** Product API / Scheduler → Data Plane (OpenBB + news-ingest). Data is assembled from the Data Plane and synthesized into the briefing.
+- **Always true:** The mobile app never calls any plane except Product API.
 
 ---
 
@@ -98,9 +101,9 @@ The system is divided into three planes with strict layering. A higher plane may
 |---|---|---|
 | **Postgres** | System of record — durable truth | Infrastructure |
 | **Redis** | Queue, cache, locks, rate limits | Infrastructure |
-| **Dexter** | Reasoning, analysis, synthesis engine | Internal service |
-| **OpenBB** | Financial and macro data plane | Internal service (wraps external providers) |
-| **news-ingest** | News intake and normalization | Internal service |
+| **Dexter** | Primary Deep Dive research engine — planning, analysis, synthesis | Internal service (upstream OSS) |
+| **OpenBB** | Market, macro, and financial data for Market Pulse | Internal service (wraps external providers) |
+| **news-ingest** | Approved-source news intake and normalization for Market Pulse | Internal service |
 | **Artifact Store** | Report artifacts and evidence bundles (S3-compatible) | Infrastructure |
 | **Sentry** | Errors, traces, operational failures | Observability |
 | **PostHog** | Product analytics, feature flags, user behavior | Observability |
@@ -112,9 +115,9 @@ The system is divided into three planes with strict layering. A higher plane may
 |---|---|
 | Postgres | What is the permanent state of the system? |
 | Redis | What is happening right now? |
-| Dexter | What does this data mean? |
-| OpenBB | What are the structured financial facts? |
-| news-ingest | What are people saying? |
+| Dexter | What does this company's data mean? (Deep Dive) |
+| OpenBB | What are the broad market and macro facts? (Market Pulse) |
+| news-ingest | What are people saying? (Market Pulse) |
 | Artifact Store | Where do finished outputs live? |
 | Sentry | What broke? |
 | PostHog | What do users do? |
@@ -130,9 +133,9 @@ The system is divided into three planes with strict layering. A higher plane may
 |---|---|---|
 | **Postgres** | Users, jobs, reports metadata, watchlists, audit events, ticker registry | Queue state, hot cache, temporary locks |
 | **Redis** | Queue, retries, locks, ephemeral cache, rate limits | Durable truth, final reports, user records |
-| **Dexter** | Reasoning, scoring, synthesis, evidence assembly, section generation | Auth, direct mobile access, provider governance, raw data retrieval |
-| **OpenBB** | Finance and macro retrieval, provider abstraction, normalization, key management | Narrative writing, report rendering, importance scoring |
-| **news-ingest** | Article extraction, feed intake, deduplication, normalization | Importance ranking, final conclusions, display logic |
+| **Dexter** | Deep Dive research, analysis, scoring, synthesis, evidence assembly, section generation | Auth, direct mobile access, Market Pulse data assembly |
+| **OpenBB** | Market and macro data retrieval for Market Pulse, provider abstraction, normalization, key management | Company-level Deep Dive analysis, narrative writing, report rendering |
+| **news-ingest** | Approved-source article extraction, feed intake, deduplication, normalization for Market Pulse | Importance ranking, final conclusions, display logic |
 | **Artifact Store** | Serialized report blobs, evidence bundles, file attachments | Structured queries, metadata indexing (that belongs in Postgres) |
 | **Sentry** | Errors, traces, operational failures, API exceptions | Product funnels, prompt lineage, A/B experiments |
 | **PostHog** | Product analytics, feature flags, funnel behavior | Backend error source of truth, LLM tracing |
@@ -140,19 +143,20 @@ The system is divided into three planes with strict layering. A higher plane may
 
 ### Forbidden Overlaps (Hard Rules)
 
-1. **Dexter must not bypass OpenBB** for finance/macro data unless explicitly documented in an ADR.
-2. **The mobile app must never call OpenBB, news-ingest, or Dexter directly.** All traffic routes through Product API.
-3. **PostHog is not the system of record for backend failures.** Sentry is.
-4. **Redis must never become the accidental database.** If a value needs to survive a Redis flush, it belongs in Postgres.
-5. **news-ingest must not decide what matters.** It ingests and normalizes. Dexter ranks and interprets.
-6. **Artifact Store is write-once per report.** Reports are never mutated after storage; a new version creates a new artifact.
-7. **No observability tool overlap without declaring the primary system of record** for that class of event.
+1. **Deep Dive is Dexter-led.** Dexter is the primary research engine for Company Deep Dive and manages its own data retrieval for that surface.
+2. **Market Pulse is Data-Plane-led.** OpenBB + news-ingest are the primary data sources for Market Pulse. Dexter may assist with synthesis if needed, but does not own the pulse data path.
+3. **The mobile app must never call OpenBB, news-ingest, or Dexter directly.** All traffic routes through Product API.
+4. **PostHog is not the system of record for backend failures.** Sentry is.
+5. **Redis must never become the accidental database.** If a value needs to survive a Redis flush, it belongs in Postgres.
+6. **news-ingest must not decide what matters.** It ingests and normalizes. Interpretation belongs to the consuming surface.
+7. **Artifact Store is write-once per report.** Reports are never mutated after storage; a new version creates a new artifact.
+8. **No observability tool overlap without declaring the primary system of record** for that class of event.
 
 ---
 
 ## 6. Dexter Architecture
 
-Dexter is the reasoning engine of the platform. It is not a single LLM call — it is a **planner-executor pipeline** with discrete, observable stages.
+Dexter is an **upstream open-source financial research agent** integrated as the primary engine for Company Deep Dive. It is not a single LLM call — it is a **planner-executor pipeline** with discrete, observable stages and native data retrieval capabilities.
 
 ### 6.1 Structure
 
@@ -163,7 +167,7 @@ AnalysisRequest
   [ Planner ]          Decides which sections to generate and in what order.
       │                Emits a SectionPlan.
       ▼
-  [ Data Assembler ]   Calls OpenBB and news-ingest. Builds a ContextBundle.
+  [ Data Retrieval ]   Uses Dexter's native tools to fetch company-specific data.
       │                Validates completeness. Flags missing data explicitly.
       ▼
   [ Section Executors ]  One executor per report section, run in parallel where safe.
@@ -190,19 +194,19 @@ AnalysisRequest
 ### 6.3 Failure and Degradation Rules
 
 | Failure | Dexter Behavior |
-|---|---|
-| OpenBB returns partial data | Flag affected sections as `data_incomplete`; continue with available data |
-| OpenBB returns no data | Halt that section; surface explicit `data_unavailable` in report |
+|---|---|---|
+| Data source returns partial data | Flag affected sections as `data_incomplete`; continue with available data |
+| Data source returns no data | Halt that section; surface explicit `data_unavailable` in report |
 | LLM call fails (timeout / error) | Retry once with exponential backoff; on second failure, mark section `failed` |
 | Score cannot meet minimum evidence threshold | Emit report without score; surface `signal_insufficient_data` flag |
 | Entire pipeline fails | Mark job `failed` in Postgres; emit error to Sentry; do not surface partial report |
 
 ### 6.4 What Dexter is Not Allowed to Do
 
-- Call any external API directly (all data comes through the Data Plane)
 - Write to Postgres directly (results are returned to Product API for persistence)
 - Invent data when a source is missing (degrade and flag; never fabricate)
 - Execute any code against a live environment
+- Serve as the primary data source for Market Pulse (that belongs to OpenBB + news-ingest)
 
 ---
 
@@ -402,9 +406,22 @@ No service is allowed to invent JSON structure in production. All inter-service 
   title: string
   published_at: string
   retrieved_at: string
-  body_text: string
+  body_text: string           // best available normalized text; RSS summary/excerpt accepted in v1
   tickers_mentioned: string[]
   is_approved_source: boolean
+}
+```
+
+#### `CanonicalMacroData`
+```typescript
+{
+  indicator: string           // e.g. "CPI", "NFP"
+  value: number
+  unit: string                // e.g. "percentage", "absolute"
+  period: string              // e.g. "2024-03"
+  provider: string
+  retrieved_at: string
+  missing_fields: string[]
 }
 ```
 
@@ -434,6 +451,7 @@ No service is allowed to invent JSON structure in production. All inter-service 
 - Every contract is versioned. Breaking changes increment the major version.
 - All contracts live in `packages/contracts` as TypeScript types + JSON Schema.
 - Validation happens at the boundary of every service (on ingress and egress).
+- `body_text` in `CanonicalNewsArticle` must always be a string (no nulls); parser or source failures are handled at the service response level.
 - Prompts must never define production structure. Dexter is told to emit JSON; the schema is enforced by the contract layer, not the prompt.
 - `missing_fields` and `flags` arrays are mandatory, not optional. Explicit degradation is required.
 
@@ -493,36 +511,56 @@ A scheduled daily briefing, generated at a fixed time (e.g., 06:30 EST), answeri
 | `redis` | Queue, cache, locks, rate limits | Private | Ephemeral state |
 | `artifact-store` | Report blobs and evidence bundles (S3-compatible) | Private | Binary/large object storage |
 
+### 11.1 Internal Service API Surface (M2)
+
+Data plane services expose internal REST endpoints, primarily serving the **Market Pulse** pipeline. All success responses follow a `{"data": ...}` envelope.
+
+| Endpoint | Method | Params | Success Envelope | Error Envelope | Primary Consumer |
+|---|---|---|---|---|---|
+| `/v1/finance/company` | `GET` | `ticker` | `{"data": CanonicalFinanceData}` | `{"data": null, "error": string}` | Market Pulse |
+| `/v1/finance/macro` | `GET` | `scope` | `{"data": CanonicalMacroData}` | `{"data": null, "error": string}` | Market Pulse |
+| `/v1/news` | `GET` | `date` | `{"data": CanonicalNewsArticle[]}` | `{"data": [], "error": true}` | Market Pulse |
+
 ---
 
 ## 12. Source-of-Truth Hierarchy
 
-When there is ambiguity about what is true, the system must prefer this order:
+When there is ambiguity about what is true, the system must prefer these orders, depending on the surface:
 
+**Company Deep Dive (Dexter-led):**
 ```
-1. Structured finance/macro data from the governed OpenBB path
-2. Primary text evidence from filings and approved articles
+1. Primary data retrieved by Dexter (financial statements, filings, company data)
+2. Primary text evidence from filings and articles
 3. Dexter synthesis over those inputs
 4. User-facing summary text
 ```
 
-**Why this matters:** This order prevents the product from surfacing unsupported claims. Dexter's synthesis is downstream of data — it cannot override it. User-facing text is downstream of synthesis — it cannot add claims not present in the synthesis.
+**Market Pulse (Data-Plane-led):**
+```
+1. Structured market/macro data from the governed OpenBB path
+2. Approved-source news articles from news-ingest
+3. Synthesis over those inputs
+4. User-facing summary text
+```
+
+**Why this matters:** These orders prevent the product from surfacing unsupported claims. Synthesis is downstream of data — it cannot override it. User-facing text is downstream of synthesis — it cannot add claims not present in the synthesis.
 
 ---
 
 ## 13. Dependency Risk Register
 
-### OpenBB Provider Risk
+### OpenBB Provider Risk (Market Pulse path)
 
-OpenBB is an open-source aggregation library. It wraps third-party data providers (FMP, Polygon, FRED, Alpha Vantage, etc.). This means the platform inherits their rate limits, outages, key management complexity, and pricing changes.
+OpenBB is an open-source aggregation library used in the **Market Pulse** pipeline. It wraps third-party data providers (FMP, Polygon, Alpha Vantage, etc.). This means the Market Pulse path inherits their rate limits, outages, key management complexity, and pricing changes.
 
 | Risk | Mitigation |
 |---|---|
-| Provider outage | `data-openbb` returns `data_unavailable`; Dexter degrades gracefully; no partial or fabricated data |
+| Provider outage | `data-openbb` returns `data_unavailable`; Market Pulse degrades affected sections; no fabricated data |
 | Rate limit breach | Redis rate limiter on `data-openbb` egress; per-provider limit configuration |
 | Provider key rotation | Keys stored in environment secrets (not in code); rotation procedure documented in runbooks |
 | Provider drops a field | `missing_fields` array surfaces this explicitly; smoke tests catch schema drift |
 | OpenBB API breaking change | Pin OpenBB version; upgrade only with a dedicated test run against golden fixtures |
+| **Pending Keys** | **Provider key provisioning is incomplete. Blocks final live Market Pulse smoke validation, but implementation proceeds with fixtures/mocks.** |
 
 ### news-ingest Risk
 
@@ -696,10 +734,10 @@ Every milestone must produce a **deployable, testable increment**. A milestone t
 |---|---|---|
 | **M1 — Baseline** | Monorepo, folder structure, contracts, CI, local docker-compose runs | `docker-compose up` brings all services to healthy; contracts package compiles; CI passes |
 | **M2 — Data Plane** | `data-openbb` and `news-ingest` operational with golden fixture tests | OpenBB returns validated `CanonicalFinanceData` for 3 test tickers; news-ingest returns validated `CanonicalNewsArticle` list; missing-data degradation is tested |
-| **M3 — Dexter Foundation** | Planner and executor pipeline runs with mocked data | Dexter accepts `AnalysisRequest`, runs section executors, produces schema-valid `AnalysisReport`; LangSmith traces visible |
-| **M4 — Product API + Job System** | Auth, job queue, report retrieval | JWT auth flow works end-to-end; job created → queued → picked up → result stored; report retrievable via API |
-| **M5 — Deep Dive v1** | Full Deep Dive path live | All smoke tests for Deep Dive path pass; report renders correctly in a test harness; < 90s SLA validated |
-| **M6 — Market Pulse** | Scheduled pulse pipeline live | Scheduler fires; full pulse pipeline runs; report stored and retrievable; push notification delivered |
+| **M3 — Dexter Foundation** | Dexter upstream integrated as the Deep Dive research engine | Dexter accepts `AnalysisRequest`, runs its research pipeline, produces schema-valid `AnalysisReport`; LangSmith traces visible |
+| **M4 — Product API + Job System** | Auth, job queue, and report retrieval around Dexter-led Deep Dive | JWT auth flow works end-to-end; job created → queued → Dexter picks up → result stored; report retrievable via API |
+| **M5 — Deep Dive v1** | Dexter-powered Deep Dive path live | All smoke tests for Deep Dive path pass; Dexter produces evidence-backed reports; < 90s SLA validated |
+| **M6 — Market Pulse** | OpenBB + news-ingest-powered pulse pipeline live | Scheduler fires; OpenBB + news-ingest provide data; briefing generated, stored, and delivered; push notification sent |
 | **M7 — Android MVP** | Mobile app delivers both surfaces | Deep Dive and Market Pulse render correctly on device; auth flow works; PostHog events firing |
 | **M8 — Production Hardening** | System is observable, resilient, and deployable | All visibility smoke tests pass; failure modes are tested (provider down, LLM timeout); load test at 2× expected peak passes; runbooks written |
 
@@ -720,7 +758,7 @@ No milestone is closed without:
 4. **No score without reasons and evidence.** A signal value without traceable evidence is not allowed.
 5. **No temporary cron scripts** outside the scheduler service.
 6. **No observability overlap** without declaring the primary system of record for that event class.
-7. **No finance/macro retrieval** that bypasses `data-openbb`.
+7. **No Market Pulse data retrieval** that bypasses `data-openbb` and `news-ingest`.
 8. **No new package** in `packages/` used by only one app. Move it into that app.
 9. **No secrets in code or in `infra/envs/`.** All secrets in environment secret management.
 10. **No migration without a rollback script.**

@@ -1,7 +1,7 @@
-# ADR-006: Dexter Integration Strategy
+# ADR-006: Dexter-First Deep Dive Architecture
 
-**Date:** 2026-03  
-**Status:** Accepted  
+**Date:** 2026-03 (revised)  
+**Status:** Accepted (supersedes prior version)  
 **Needed before:** M3  
 **Deciders:** Engineering Lead, AI/Reasoning Engineer
 
@@ -9,36 +9,42 @@
 
 ## Context
 
-Dexter (github.com/virattt/dexter) is an autonomous financial research agent that will serve as the reasoning engine. However, Dexter's native implementation fetches financial data directly via Financial Datasets API and Exa/Tavily web search — bypassing the governed `data-openbb` service entirely. This conflicts with the platform architecture.
+Dexter (github.com/virattt/dexter) is an autonomous financial research agent with native capabilities for company analysis — including data retrieval, planning, section execution, scoring, and synthesis.
 
-Three integration options were evaluated:
+The prior version of this ADR (Option 3) required overriding Dexter's native data-fetching tools to route all data through `data-openbb`. While architecturally clean from a plane-separation perspective, this introduced unnecessary complexity and fought against Dexter's upstream design.
 
-| Option | Description | Architecture impact |
-|---|---|---|
-| **Option 1** | Replace Dexter's data tools with calls to `data-openbb` | Clean — plane separation preserved |
-| **Option 2** | Let Dexter own data retrieval — drop `data-openbb` | Breaks plane separation, loses contract governance |
-| **Option 3** | Run side by side — Dexter calls `data-openbb` as its data source | Clean — preserves architecture, requires deliberate wiring |
+The platform has two product surfaces with fundamentally different data needs:
+
+| Surface | Primary need |
+|---|---|
+| **Company Deep Dive** | Deep, company-specific research and analysis |
+| **Market Pulse** | Broad market/macro data aggregation and news synthesis |
+
+Forcing both surfaces through the same data path created friction without clear benefit.
 
 ## Decision
 
-**Option 3 — Dexter calls `data-openbb` as its governed data source.**
+**Dexter upstream OSS becomes the primary engine for Company Deep Dive. OpenBB + news-ingest become the primary input layer for Market Pulse.**
 
-Dexter's native data-fetching tools (Financial Datasets API, Exa, Tavily) are **overridden in our fork** to route through `data-openbb` instead. Dexter's planning, execution, and self-reflection logic is retained unchanged.
+Specifically:
 
-## What Gets Overridden in the Fork
+- Dexter retains its native research behavior for Deep Dive — its data tools are **not overridden**
+- `data-openbb` provides structured market, macro, and financial data for the **Market Pulse** path
+- `news-ingest` provides approved-source news for the **Market Pulse** path
+- Product API remains the sole public entry point and job orchestrator for both surfaces
 
-| Dexter native tool | Replaced with |
+## What Changed from Prior Version
+
+| Prior ADR-006 | This revision |
 |---|---|
-| `get_income_statements` | `data-openbb` → `CanonicalFinanceData` |
-| `get_balance_sheet` | `data-openbb` → `CanonicalFinanceData` |
-| `get_cash_flow_statements` | `data-openbb` → `CanonicalFinanceData` |
-| Web search (Exa/Tavily) | `news-ingest` → `CanonicalNewsArticle` |
-
-Dexter's planner, section executors, scorer, and synthesizer are **not modified**.
+| Dexter's data tools overridden to call `data-openbb` | Dexter uses its native research tools for Deep Dive |
+| Financial Datasets API / Exa / Tavily keys not provisioned | Dexter's native provider keys are required for Deep Dive |
+| `data-openbb` was the universal data source for all surfaces | `data-openbb` is scoped to Market Pulse |
+| Single data path for both surfaces | Surface-specific data paths |
 
 ## LangSmith Decision
 
-Dexter ships with LangSmith wired in. **LangSmith is retained** as the LLM tracing tool. All references to Langfuse in platform documents are updated to LangSmith.
+Unchanged from prior version. Dexter ships with LangSmith wired in. **LangSmith is retained** as the LLM tracing tool.
 
 ## Fork Pinning
 
@@ -47,13 +53,16 @@ Our fork is pinned to commit `v2026.3.8` (latest stable as of 2026-03). Upstream
 ## Consequences
 
 - `apps/dexter-worker/` contains our Dexter fork as a dependency, pinned to a specific commit
-- Data tool override is the single custom integration point — isolated to one adapter layer
-- `CanonicalFinanceData` and `CanonicalNewsArticle` contracts are the seam between Dexter and the data plane
-- Financial Datasets API, Exa, and Tavily keys are **not provisioned** — they are unused
+- Dexter's native data tools are **retained**, not overridden — Dexter manages its own data retrieval for Deep Dive
+- `data-openbb` and `news-ingest` serve the Market Pulse pipeline — they are not in the Deep Dive critical path
+- Dexter's native provider keys (Financial Datasets API, etc.) must be provisioned for Deep Dive
 - LangSmith account required before M3 begins
+- M3+ documentation rewritten to reflect this split
+- Prior "Dexter must not bypass OpenBB" rule removed
+- M1 and M2 milestones unchanged
 
 ## Revisit When
 
 - Dexter upstream releases a major version with architectural changes
-- Dexter adds native support for external data source injection (eliminating need for override)
 - Platform scale requires replacing Dexter's agent loop with a custom implementation
+- Deep Dive begins requiring data sources that Dexter does not natively support (may warrant selective `data-openbb` integration)

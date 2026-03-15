@@ -10,7 +10,7 @@
     "build": "corepack pnpm -r --if-present build",
     "lint": "corepack pnpm -r --if-present lint",
     "typecheck": "corepack pnpm -r --if-present typecheck",
-    "test": "corepack pnpm -r --if-present test"
+    "test": "corepack pnpm -r --if-present test && python tests/integration/test_m2_data_plane_endpoints.py"
   },
   "devDependencies": {
     "@eslint/js": "^9.22.0",

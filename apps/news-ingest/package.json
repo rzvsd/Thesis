@@ -2,15 +2,10 @@
   "name": "@thesis/news-ingest",
   "private": true,
   "version": "0.1.0",
-  "main": "dist/src/server.js",
-  "types": "dist/src/server.d.ts",
   "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "lint": "eslint \"src/**/*.ts\" \"tests/**/*.ts\"",
-    "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "tsc -p tsconfig.json && node --test dist/tests/*.js"
-  },
-  "dependencies": {
-    "@thesis/shared-types": "workspace:*"
+    "build": "python tools/tasks.py build",
+    "lint": "python tools/tasks.py lint",
+    "typecheck": "python tools/tasks.py typecheck",
+    "test": "python -m pip install --disable-pip-version-check -r requirements.txt && python tools/tasks.py test"
   }
 }

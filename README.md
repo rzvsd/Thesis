@@ -13,6 +13,11 @@ The canonical planning documents currently live under [`Project Note/`](./Projec
 - [Project Note/PRD.md](./Project%20Note/PRD.md)
 - [Project Note/MILESTONES.md](./Project%20Note/MILESTONES.md)
 
+## Current Status & Blockers
+
+- **New Contract:** Added `CanonicalMacroData` for macro-economic indicators.
+- **Provider Keys:** External API key provisioning is currently incomplete. This blocks final live-provider smoke tests, but implementation proceeds using golden fixtures and mocks.
+
 ## Local Commands
 
 ```bash

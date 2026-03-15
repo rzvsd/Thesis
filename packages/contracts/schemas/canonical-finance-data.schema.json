@@ -1,0 +1,37 @@
+{
+  "$id": "CanonicalFinanceData",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "ticker",
+    "period",
+    "provider",
+    "retrieved_at",
+    "data",
+    "missing_fields"
+  ],
+  "properties": {
+    "ticker": { "type": "string" },
+    "period": { "type": "string" },
+    "provider": { "type": "string" },
+    "retrieved_at": { "type": "string", "format": "date-time" },
+    "data": {
+      "type": "object",
+      "properties": {
+        "revenue": { "type": "number" },
+        "gross_margin": { "type": "number" },
+        "operating_income": { "type": "number" },
+        "net_income": { "type": "number" },
+        "eps": { "type": "number" },
+        "debt_total": { "type": "number" },
+        "cash_and_equivalents": { "type": "number" },
+        "free_cash_flow": { "type": "number" }
+      },
+      "additionalProperties": { "type": "number" }
+    },
+    "missing_fields": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  }
+}

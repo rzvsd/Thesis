@@ -34,10 +34,10 @@ No milestone begins until the previous one is closed. Closed means MILESTONES.md
 |---|---|---|
 | M1 | Baseline | Monorepo, contracts, CI, and local environment are all operational |
 | M2 | Data Plane | Financial data and news flow through validated contracts |
-| M3 | Dexter Foundation | Reasoning pipeline runs end-to-end and produces schema-valid output |
-| M4 | Product API + Job System | Auth, job queue, and report retrieval work end-to-end |
-| M5 | Company Deep Dive v1 | A user can request a Deep Dive and receive a complete report within 90 seconds |
-| M6 | Market Pulse | Scheduled morning briefing is generated, stored, and delivered daily |
+| M3 | Dexter Foundation | Dexter upstream integrated as the Deep Dive research engine |
+| M4 | Product API + Job System | Auth, job queue, and report retrieval around Dexter-led Deep Dive |
+| M5 | Company Deep Dive v1 | Dexter-powered Deep Dive delivers evidence-backed reports within 90 seconds |
+| M6 | Market Pulse | OpenBB + news-ingest-powered morning briefing generated, stored, and delivered daily |
 | M7 | Android MVP | Both surfaces work on a real Android device |
 | M8 | Production Hardening | System is observable, resilient under failure, and operationally ready |
 

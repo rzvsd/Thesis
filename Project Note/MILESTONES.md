@@ -31,10 +31,10 @@ Each milestone is a self-contained brief. It defines — in plain language — w
 |---|---|---|
 | M1 | Baseline | The skeleton — all services exist and connect |
 | M2 | Data Plane | Financial data and news flow through validated contracts |
-| M3 | Dexter Foundation | The reasoning pipeline runs end-to-end |
-| M4 | Product API + Job System | Auth, job queue, and report retrieval |
-| M5 | Company Deep Dive v1 | Full Deep Dive path live |
-| M6 | Market Pulse | Scheduled morning briefing pipeline live |
+| M3 | Dexter Foundation | Dexter upstream integrated as the Deep Dive research engine |
+| M4 | Product API + Job System | Auth, job queue, and report retrieval around Dexter-led Deep Dive |
+| M5 | Company Deep Dive v1 | Dexter-powered Deep Dive path live |
+| M6 | Market Pulse | OpenBB + news-ingest-powered morning briefing pipeline live |
 | M7 | Android MVP | Both surfaces work on a real device |
 | M8 | Production Hardening | The system is observable, resilient, and operationally ready |
 
@@ -149,8 +149,9 @@ The system can retrieve structured financial data and normalized news articles, 
 
 | Deliverable | Description |
 |---|---|
-| `data-openbb` service | Retrieves and returns financial/macro data as `CanonicalFinanceData` |
-| `news-ingest` service | Retrieves and returns news articles as `CanonicalNewsArticle` |
+| `data-openbb` service (Finance) | Retrieves and returns company financial data as `CanonicalFinanceData` |
+| `data-openbb` service (Macro) | Retrieves and returns macro data as `CanonicalMacroData` |
+| `news-ingest` service | Retrieves and returns news articles wrapped in a response envelope containing `CanonicalNewsArticle`, using RSS first and `news-please` HTML fallback only for explicitly approved HTML sources |
 | Golden fixtures | Sample validated responses stored in `data/golden/` for use in tests |
 | Missing-data tests | Automated tests that verify degradation behavior when data is absent |
 | Rate limiting | Redis-backed rate limiting on all outbound provider calls |
@@ -160,13 +161,13 @@ The system can retrieve structured financial data and normalized news articles, 
 
 ## Acceptance Criteria
 
-- [ ] `data-openbb` returns a valid `CanonicalFinanceData` object for at least 3 different test tickers
-- [ ] `data-openbb` returns valid macro data (indices, rates, FX) for the current day
+- [ ] `data-openbb` returns a valid `CanonicalFinanceData` object inside the response envelope for at least 3 different test tickers
+- [ ] `data-openbb` returns valid macro data explicitly as a `CanonicalMacroData` object inside the response envelope for the current day
 - [ ] Every `CanonicalFinanceData` response includes a `missing_fields` array — even if empty
 - [ ] When a financial field is unavailable, it appears in `missing_fields` — it is never substituted with a zero or an estimate
-- [ ] `news-ingest` returns a list of valid `CanonicalNewsArticle` objects from at least 2 approved sources
+- [ ] `news-ingest` returns a list of valid `CanonicalNewsArticle` objects inside the response envelope from at least 2 approved sources, using RSS where available and `news-please` HTML fallback only where ADR-002 explicitly requires HTML
 - [ ] Every `CanonicalNewsArticle` includes: source name, URL, title, published timestamp, body text, and `is_approved_source: true`
-- [ ] When a news source is unreachable, the service returns an empty list with an error flag — it does not crash
+- [ ] When a news source is unreachable, the service returns an empty list plus an error flag envelope (e.g. `{"data": [], "error": true}`) — it does not crash
 - [ ] Rate limiting is enforced — exceeding the configured limit returns a rate limit error, not a provider error
 - [ ] Golden fixtures are committed and data plane tests run against them in CI
 
@@ -176,21 +177,25 @@ The system can retrieve structured financial data and normalized news articles, 
 
 **Who runs it:** Engineering Lead or QA.
 
+*Note: Live-provider smoke validation is required for final closeout once provider API keys are provisioned, but implementation can proceed with fixtures/mocks before that.*
+
 ```
 Step 1:  Start data-openbb and news-ingest services locally
-Step 2:  Send a request to data-openbb for ticker "AAPL"
-Step 3:  Confirm — response is a valid CanonicalFinanceData object
+Step 2:  Send GET /v1/finance/company?ticker=AAPL to data-openbb
+Step 3:  Confirm — response envelope (e.g., {"data": {...}}) contains a valid CanonicalFinanceData object
 Step 4:  Confirm — response includes a "missing_fields" array
 Step 5:  Confirm — response includes a "retrieved_at" timestamp
-Step 6:  Send a request to data-openbb for a ticker with no data (use a test dummy)
-Step 7:  Confirm — response includes missing_fields listing all expected fields
-Step 8:  Confirm — no field is filled with a zero or placeholder value
-Step 9:  Send a request to news-ingest for today's articles
-Step 10: Confirm — response is a list of CanonicalNewsArticle objects
-Step 11: Confirm — every article has is_approved_source: true
-Step 12: Simulate provider outage by blocking the provider URL
-Step 13: Confirm — service returns empty list with error flag, does not crash
-Step 14: Run CI — confirm all data plane tests pass
+Step 6:  Send GET /v1/finance/company?ticker=DUMMY to data-openbb
+Step 7:  Confirm — response includes missing_fields listing all expected fields with no filled zeroes
+Step 8:  Send GET /v1/finance/macro?scope=daily to data-openbb
+Step 9:  Confirm — response envelope contains a valid CanonicalMacroData object
+Step 10: Send GET /v1/news?date=2026-03-13 to news-ingest
+Step 11: Confirm — response is an envelope containing a list of CanonicalNewsArticle objects
+Step 12: Confirm — every article has is_approved_source: true
+Step 13: Simulate provider outage by blocking the news provider URL
+Step 14: Send GET /v1/news?date=2026-03-13 to news-ingest again
+Step 15: Confirm — service returns an envelope with an empty list and an error flag ({"data": [], "error": true}), does not crash
+Step 16: Run CI — confirm all data plane tests pass
 ```
 
 **Expected result:** All steps complete. Missing data is declared, not hidden. Services do not crash on provider failure.
@@ -199,7 +204,7 @@ Step 14: Run CI — confirm all data plane tests pass
 
 ## Success
 
-Any downstream service (Dexter) can ask for financial data or news and receive a validated, contract-compliant response. When data is missing, it knows exactly what is missing. The data plane is a reliable, observable foundation.
+Any downstream service (Dexter, Market Pulse pipeline) can ask for financial data or news and receive a validated, contract-compliant response. When data is missing, it knows exactly what is missing. The data plane is a reliable, observable foundation.
 
 ---
 
@@ -209,7 +214,7 @@ Any downstream service (Dexter) can ask for financial data or news and receive a
 |---|---|---|
 | Provider API key invalid or expired | `data-openbb` returns auth errors | All financial data retrieval fails — blocks M3 |
 | Provider rate limit exceeded | Repeated 429 errors from provider | Data retrieval throttled or blocked — add Redis rate limiter |
-| News source blocks the ingester | Empty article lists or HTTP 403 errors | News section in reports will be empty — evaluate RSS fallback |
+| News source blocks the ingester | Empty article lists or HTTP 403 errors | News section in reports will be empty — verify RSS path and `news-please` HTML fallback configuration |
 | Schema validation rejects a valid response | CI test failures on golden fixtures | Contracts may need updating — review before proceeding |
 | `missing_fields` not populated | Manual review catches missing array | Silent data gaps in reports — fix before M3 |
 
@@ -242,9 +247,9 @@ Data Platform Engineer
 # M3_Dexter Foundation
 
 ## Goal
-The reasoning pipeline accepts an analysis request, retrieves data from the data plane, runs it through the analysis stages, and produces a schema-valid report — including correct degradation when data is missing.
+Dexter upstream OSS is integrated into the repository as the primary research engine for Company Deep Dive. The Dexter worker starts, accepts analysis requests, runs its native research pipeline, and produces schema-valid reports — including correct degradation when data is missing.
 
-**Plain English:** This is installing the brain. The pipeline that actually reads the financial data, thinks about it, and writes the report. At this stage it runs with test data — not connected to real users yet. The goal is to confirm that the thinking works correctly before anyone depends on it.
+**Plain English:** This is installing the brain. Dexter is an open-source financial research agent that already knows how to read financial data, think about it, and write a report. This milestone connects it into our system, confirms it works as expected, and sets up observability so we can inspect every run.
 
 ---
 
@@ -252,21 +257,20 @@ The reasoning pipeline accepts an analysis request, retrieves data from the data
 
 | Deliverable | Description |
 |---|---|
-| Dexter's native data tools need to be overridden in fork to call data-openbb instead of Financial Datasets API directly. That needs custom code.
-| Planner stage | Reads the request and decides which sections to generate |
-| Data Assembler stage | Fetches data from data-openbb and news-ingest, builds a context bundle |
-| Section Executors | Runs analysis for each report section, in parallel where safe |
-| Scorer | Computes research signal score with evidence threshold enforcement |
-| Synthesizer | Assembles the final AnalysisReport |
-| Schema validation | Rejects any malformed output before it leaves Dexter |
+| Dexter fork pinned | Upstream Dexter fork pinned to a specific commit in `apps/dexter-worker/` |
+| Dexter worker starts | `dexter-worker` service starts in docker-compose and reaches healthy state |
+| Analysis pipeline | Dexter accepts an `AnalysisRequest` and runs its native planner → data retrieval → section execution → scoring → synthesis pipeline |
+| Schema validation | Output is validated against `AnalysisReport` contract before emit |
 | LangSmith integration | Every Dexter run is visible in LangSmith with full trace |
-| Degradation tests | Automated tests for every failure/degradation scenario |
+| Degradation tests | Automated tests for failure/degradation scenarios (missing data, LLM timeout, score threshold) |
 
 ---
 
 ## Acceptance Criteria
 
-- [ ] Dexter accepts a valid `AnalysisRequest` and completes the full pipeline
+- [ ] Dexter fork is pinned to a specific upstream commit — never to `main`
+- [ ] `dexter-worker` starts in docker-compose and reaches healthy state
+- [ ] Dexter accepts a valid `AnalysisRequest` and completes its native research pipeline
 - [ ] Output is a schema-valid `AnalysisReport` — validation runs automatically before the report is returned
 - [ ] Each section in the report has a `status` field: `complete`, `data_incomplete`, `data_unavailable`, or `failed`
 - [ ] No section is ever left blank — every section either has content or has an explicit status explaining why it does not
@@ -283,30 +287,31 @@ The reasoning pipeline accepts an analysis request, retrieves data from the data
 **Who runs it:** Engineering Lead. Requires LangSmith access to verify traces.
 
 ```
-Step 1:  Prepare a test AnalysisRequest for ticker "MSFT" with mocked data-plane responses
-Step 2:  Send the request to the Dexter pipeline
-Step 3:  Wait for completion (target: under 90 seconds)
-Step 4:  Confirm — response is a valid AnalysisReport (schema validation passes)
-Step 5:  Confirm — all expected sections are present
-Step 6:  Confirm — each section has a "status" field
-Step 7:  Confirm — each scored claim has at least one EvidenceItem in its evidence array
-Step 8:  Open LangSmith — confirm the run appears with prompt version, model, token count, and job ID
-Step 9:  Run test with missing financial data (mock data-openbb returning missing_fields)
-Step 10: Confirm — affected sections show "data_incomplete" status, not blank content
-Step 11: Run test with evidence below scoring threshold
-Step 12: Confirm — signal shows "no_signal" with reason, not a fabricated signal value
-Step 13: Run test simulating LLM timeout on one section
-Step 14: Confirm — that section shows "failed" status; other sections are still complete
-Step 15: Run all automated degradation tests — confirm all pass
+Step 1:  Start dexter-worker via docker-compose. Confirm it reaches healthy state.
+Step 2:  Prepare a test AnalysisRequest for ticker "MSFT"
+Step 3:  Send the request to the Dexter pipeline
+Step 4:  Wait for completion (target: under 90 seconds)
+Step 5:  Confirm — response is a valid AnalysisReport (schema validation passes)
+Step 6:  Confirm — all expected sections are present
+Step 7:  Confirm — each section has a "status" field
+Step 8:  Confirm — each scored claim has at least one EvidenceItem in its evidence array
+Step 9:  Open LangSmith — confirm the run appears with prompt version, model, token count, and job ID
+Step 10: Run test with a ticker that has limited data availability
+Step 11: Confirm — affected sections show "data_incomplete" or "data_unavailable" status, not blank content
+Step 12: Run test with evidence below scoring threshold
+Step 13: Confirm — signal shows "no_signal" with reason, not a fabricated signal value
+Step 14: Run test simulating LLM timeout on one section
+Step 15: Confirm — that section shows "failed" status; other sections are still complete
+Step 16: Run all automated degradation tests — confirm all pass
 ```
 
-**Expected result:** All steps complete. No blank sections. No fabricated signals. All degradation paths handled explicitly.
+**Expected result:** All steps complete. Dexter starts, accepts requests, produces schema-valid output. No blank sections. No fabricated signals. All degradation paths handled explicitly.
 
 ---
 
 ## Success
 
-The reasoning engine works correctly and predictably. Operators can inspect every run in LangSmith. Failures degrade gracefully — the system always produces an honest output, never a fabricated one.
+Dexter upstream is integrated, running, and producing honest, schema-valid research reports. Operators can inspect every run in LangSmith. Failures degrade gracefully — the system always produces an honest output, never a fabricated one.
 
 ---
 
@@ -314,11 +319,12 @@ The reasoning engine works correctly and predictably. Operators can inspect ever
 
 | What breaks | How we detect it | Impact |
 |---|---|---|
+| Dexter worker fails to start | Health check fails in docker-compose | Blocks M4 — cannot proceed until resolved |
+| Dexter's native data retrieval fails | Report sections show `data_unavailable` | Investigate provider keys and network access |
 | LLM returns malformed JSON | Schema validation catches it — section marked `failed` | Report degrades but does not crash |
 | LLM call times out repeatedly | Retry logic exhausted — section marked `failed`, Sentry alert | Report is incomplete — investigate model or network issue |
 | Score produced without sufficient evidence | Automated test catches missing evidence gate | Fabricated signal risk — must fix before M5 |
 | LangSmith trace not appearing | Manual check in LangSmith after test run | Loss of observability — cannot audit model behavior |
-| Prompt string found hardcoded in code | Code review or grep catches it | Prompt version control broken — move to LangSmith immediately |
 
 ---
 
@@ -331,6 +337,8 @@ Dexter is an internal worker — not yet exposed to users. Rollback means redepl
 ## Dependencies
 
 - M2 complete (data plane operational with golden fixtures)
+- Dexter fork created and pinned to a specific upstream commit (see ADR-006)
+- Dexter's native provider keys provisioned (Financial Datasets API, etc.)
 - Anthropic API key provisioned and stored in environment secrets
 - LangSmith account set up and project configured
 - All prompts loaded into LangSmith before pipeline tests begin
@@ -348,9 +356,9 @@ AI/Reasoning Engineer
 # M4_Product API + Job System
 
 ## Goal
-Users can authenticate. Analysis jobs can be created, queued, processed, and retrieved. The full lifecycle of a job — from request to stored result — works end-to-end.
+Users can authenticate. Dexter-led Deep Dive jobs can be created, queued, processed, and retrieved. The full lifecycle of a job — from request to stored result — works end-to-end.
 
-**Plain English:** This is building the front desk and the post room. The front desk checks who you are (auth). The post room takes your request, queues it, routes it to the right worker, and files the result when it comes back. Nothing appears to users yet — but the plumbing that will power the user-facing app is fully operational.
+**Plain English:** This is building the front desk and the post room. The front desk checks who you are (auth). The post room takes your request, queues it, routes it to Dexter, and files the result when it comes back. Nothing appears to users yet — but the plumbing that will power the user-facing app is fully operational.
 
 ---
 
@@ -359,7 +367,7 @@ Users can authenticate. Analysis jobs can be created, queued, processed, and ret
 | Deliverable | Description |
 |---|---|
 | Auth system | Register, login, token refresh, logout — fully operational |
-| Job creation endpoint | `POST /jobs` creates a job and queues it |
+| Job creation endpoint | `POST /jobs` creates a Deep Dive job and queues it |
 | Job status endpoint | `GET /jobs/:id` returns current job status |
 | Report retrieval endpoint | `GET /reports/:id` returns a completed report |
 | Report history endpoint | `GET /reports` returns a user's report list |
@@ -376,7 +384,7 @@ Users can authenticate. Analysis jobs can be created, queued, processed, and ret
 - [ ] A verified user can log in and receive an access token (15-minute TTL) and refresh token (30-day TTL)
 - [ ] The mobile client can silently refresh an expired access token without logging the user out
 - [ ] Logging out invalidates both tokens immediately — a logged-out token cannot be used
-- [ ] `POST /jobs` with a valid auth token and ticker creates a job record in Postgres with status `queued`
+- [ ] `POST /jobs` with a valid auth token and ticker creates a Deep Dive job record in Postgres with status `queued`
 - [ ] The job appears in the Redis queue within 1 second of creation
 - [ ] Dexter worker picks up the job and updates its status to `running` in Postgres
 - [ ] On completion, the report is written to Artifact Store and metadata is written to Postgres
@@ -423,7 +431,7 @@ Step 21: Send a request without an auth token — confirm 401 returned, not a 50
 
 ## Success
 
-Any client (including the Android app in M7) can authenticate, submit a job, poll for status, and retrieve a report — with no manual intervention required. Every failed job is visible to the operations team.
+Any client (including the Android app in M7) can authenticate, submit a Deep Dive job, poll for status, and retrieve a Dexter-generated report — with no manual intervention required. Every failed job is visible to the operations team.
 
 ---
 
@@ -447,7 +455,7 @@ Product API is still in staging — not public. Rollback means redeploying the p
 
 ## Dependencies
 
-- M3 complete (Dexter pipeline operational)
+- M3 complete (Dexter integrated and producing schema-valid reports)
 - ADR-004 accepted: Cloud provider and deployment target decided
 - ADR-005 accepted: Artifact Store implementation decided (S3, GCS, or self-hosted)
 - Email sending provider configured (for verification emails)
@@ -467,9 +475,9 @@ Backend Engineer (Product API)
 # M5_Company Deep Dive v1
 
 ## Goal
-A user can request a Company Deep Dive for any supported ticker and receive a complete, schema-valid, evidence-backed research report within 90 seconds.
+A user can request a Dexter-powered Company Deep Dive for any supported ticker and receive a complete, schema-valid, evidence-backed research report within 90 seconds.
 
-**Plain English:** The first real feature is alive. Everything built in M1–M4 comes together here. A request goes in, the machine thinks, and a full research report comes out — in under 90 seconds, with every claim sourced. This is the first milestone where the product does something a real user would value.
+**Plain English:** The first real feature is alive. Everything built in M1–M4 comes together here. A request goes in, Dexter performs the research, and a full report comes out — in under 90 seconds, with every claim sourced. This is the first milestone where the product does something a real user would value.
 
 ---
 
@@ -477,7 +485,7 @@ A user can request a Company Deep Dive for any supported ticker and receive a co
 
 | Deliverable | Description |
 |---|---|
-| Full Deep Dive pipeline | End-to-end: request → queue → Dexter → data plane → validated report → stored |
+| Full Deep Dive pipeline | End-to-end: request → queue → Dexter research → validated report → stored |
 | Ticker search | User can search by company name or symbol and get results |
 | Report schema enforcement | Every Deep Dive report validated before storage |
 | Evidence enforcement | No section can carry a scored claim without at least one EvidenceItem |
@@ -490,7 +498,7 @@ A user can request a Company Deep Dive for any supported ticker and receive a co
 
 - [ ] Ticker search returns results for any US-listed NYSE or NASDAQ company
 - [ ] An invalid or unsupported ticker returns a clear "not found" message — no crash
-- [ ] A Deep Dive request creates a job, queues it, and the full pipeline runs without manual intervention
+- [ ] A Deep Dive request creates a job, queues it, and Dexter runs the full research pipeline without manual intervention
 - [ ] The generated report contains all expected sections (as listed in PRD §5 Surface A)
 - [ ] Every section has a `status` field — no section is blank or missing
 - [ ] Every scored claim in the report has at least one `EvidenceItem` with a named source
@@ -512,7 +520,7 @@ Step 1:  Search for "Apple Inc" — confirm AAPL appears in results
 Step 2:  Search for a fake ticker "ZZZZ" — confirm "not found" message, no crash
 Step 3:  Select AAPL. Submit a Deep Dive request
 Step 4:  Confirm — job created in Postgres with status "queued"
-Step 5:  Confirm — job moves to "running" within 5 seconds
+Step 5:  Confirm — Dexter picks up the job within 5 seconds
 Step 6:  Wait for completion. Record the elapsed time.
 Step 7:  Confirm — elapsed time is under 90 seconds
 Step 8:  Confirm — job status is "complete" in Postgres
@@ -531,13 +539,13 @@ Step 20: Run 20 consecutive Deep Dive requests for different tickers
 Step 21: Confirm — at least 19 complete within 90 seconds
 ```
 
-**Expected result:** All steps complete. SLA validated. Evidence enforced. No fabricated content.
+**Expected result:** All steps complete. SLA validated. Dexter produces evidence-backed reports. No fabricated content.
 
 ---
 
 ## Success
 
-The core product feature works. An operator or investor can sit down, request a Deep Dive on any US public company, and receive a structured, sourced, honest research report in under 90 seconds.
+The core product feature works. An operator or investor can sit down, request a Deep Dive on any US public company, and receive a Dexter-generated, structured, sourced, honest research report in under 90 seconds.
 
 ---
 
@@ -579,9 +587,9 @@ Engineering Lead + AI/Reasoning Engineer
 # M6_Market Pulse
 
 ## Goal
-A scheduled pipeline runs daily at a configured time, generates a morning briefing covering market moves, macro, and news, stores it, and delivers it to users via push notification.
+A scheduled pipeline runs daily at a configured time, retrieves market and macro data from OpenBB and approved-source news from news-ingest, generates a morning briefing, stores it, and delivers it to users via push notification.
 
-**Plain English:** The morning briefing feature is alive. Every day, before markets open, the system wakes itself up, reads what happened overnight, thinks about it, writes a briefing, and pushes it to every user's phone. No human intervention required.
+**Plain English:** The morning briefing feature is alive. Every day, before markets open, the system wakes itself up, pulls the latest market data and news from the data plane, assembles a briefing, and pushes it to every user's phone. No human intervention required.
 
 ---
 
@@ -590,7 +598,7 @@ A scheduled pipeline runs daily at a configured time, generates a morning briefi
 | Deliverable | Description |
 |---|---|
 | Scheduler service | Fires a pulse job at the configured time every day |
-| Market Pulse pipeline | Dexter generates a `MarketPulseReport` from market, macro, and news data |
+| Market Pulse pipeline | Briefing generated from OpenBB market/macro data and news-ingest approved-source articles |
 | Watchlist overlay | Users with watchlists receive a section highlighting their tickers |
 | Push notification | Notification sent to all registered devices on briefing completion |
 | Historical storage | Past briefings are stored and retrievable |
@@ -602,7 +610,8 @@ A scheduled pipeline runs daily at a configured time, generates a morning briefi
 
 - [ ] Scheduler fires at the configured time within a 2-minute window
 - [ ] Pulse job is created in Postgres and enters the queue automatically — no manual trigger
-- [ ] Pipeline retrieves market move data, macro release data, and news articles for the cycle window
+- [ ] Pipeline retrieves market move data and macro release data from `data-openbb` for the cycle window
+- [ ] Pipeline retrieves approved-source news articles from `news-ingest` for the cycle window
 - [ ] `MarketPulseReport` validates against the `MarketPulseReport` schema with zero errors
 - [ ] Every section in the briefing has a `status` field — no blank sections
 - [ ] If a data source is unavailable, the affected section is marked `data_unavailable` — the rest of the briefing is still generated and delivered
@@ -610,7 +619,7 @@ A scheduled pipeline runs daily at a configured time, generates a morning briefi
 - [ ] Push notification is sent to all users with notification permission granted
 - [ ] Briefing is stored and retrievable via `GET /pulse/latest` and `GET /pulse/:date`
 - [ ] If the pipeline fails entirely, no notification is sent, the previous day's briefing remains accessible, and a Sentry alert fires
-- [ ] A successful run produces a LangSmith trace with full lineage
+- [ ] A successful run produces a LangSmith trace with full lineage (if LLM synthesis is used)
 
 ---
 
@@ -630,7 +639,7 @@ Step 8:  Retrieve the report via GET /pulse/latest
 Step 9:  Confirm — MarketPulseReport is schema-valid
 Step 10: Confirm — all sections are present with status fields
 Step 11: Confirm — no section is blank
-Step 12: Confirm — LangSmith trace is present
+Step 12: Confirm — LangSmith trace is present (if LLM synthesis is used)
 Step 13: Simulate a news-ingest outage (block the source)
 Step 14: Confirm — news section shows "data_unavailable", other sections complete normally
 Step 15: Confirm — briefing is still delivered (with the data_unavailable flag)
@@ -641,13 +650,13 @@ Step 19: Confirm — Sentry alert fires with failure context
 Step 20: Confirm — push notification is delivered to a test device on successful run
 ```
 
-**Expected result:** Scheduler fires autonomously. Briefing is generated, stored, and delivered. Partial data degrades gracefully. Full failure is detected and alerted.
+**Expected result:** Scheduler fires autonomously. OpenBB + news-ingest provide data. Briefing is generated, stored, and delivered. Partial data degrades gracefully. Full failure is detected and alerted.
 
 ---
 
 ## Success
 
-Every morning, without any human action, users receive a structured market briefing on their phone. When data is missing, they receive a partial briefing with clear flags. When the system fails entirely, the operations team is alerted immediately.
+Every morning, without any human action, users receive a structured market briefing assembled from OpenBB market/macro data and approved-source news. When data is missing, they receive a partial briefing with clear flags. When the system fails entirely, the operations team is alerted immediately.
 
 ---
 
@@ -665,13 +674,14 @@ Every morning, without any human action, users receive a structured market brief
 
 ## Rollback
 
-Rollback means disabling the scheduler and redeploying the previous scheduler and Dexter versions. Push notification can be disabled independently. No user data at risk.
+Rollback means disabling the scheduler and redeploying the previous scheduler version. Push notification can be disabled independently. No user data at risk.
 
 ---
 
 ## Dependencies
 
 - M5 complete (Deep Dive pipeline operational and validated)
+- Data plane (M2) operational — `data-openbb` and `news-ingest` providing validated data
 - Push notification provider configured (FCM for Android)
 - Scheduler time zone and delivery window confirmed by Product Lead
 - Approved news source whitelist finalized
@@ -680,7 +690,7 @@ Rollback means disabling the scheduler and redeploying the previous scheduler an
 
 ## Owner
 
-Backend Engineer (Scheduler) + AI/Reasoning Engineer
+Backend Engineer (Scheduler)
 
 ---
 
@@ -837,7 +847,8 @@ The system is observable, resilient under failure, operationally documented, and
 - [ ] A deliberate API exception appears in Sentry within 30 seconds, with correct service name, error message, and stack trace
 - [ ] A user action (Deep Dive request) appears in PostHog with correct user ID and event properties
 - [ ] A Dexter run appears in LangSmith with prompt version, model, token count, section timing, and job ID
-- [ ] **Provider outage test:** Block data-openbb's outbound connections. Confirm — Dexter degrades sections to `data_unavailable`, report is still generated with flags, no fabricated data, Sentry alert fires
+- [ ] **Deep Dive provider outage test:** Block Dexter's native data providers (Financial Datasets API, web search). Submit a Deep Dive request. Confirm — Dexter degrades affected sections to `data_unavailable`, report is still generated with flags, no fabricated data, Sentry alert fires
+- [ ] **Market Pulse provider outage test:** Block `data-openbb`'s outbound connections. Trigger a Market Pulse run. Confirm — affected sections in the briefing are marked `data_unavailable`, briefing is still generated and delivered with flags, Sentry alert fires
 - [ ] **LLM timeout test:** Simulate Anthropic API timeout. Confirm — retry fires once, on second failure section is marked `failed`, Sentry alert fires, job does not hang indefinitely
 - [ ] **Redis flush test:** Flush Redis while a job is in-flight. Confirm — no durable data in Postgres is lost, job either completes or is correctly marked `failed`
 - [ ] **Load test:** 40 concurrent Deep Dive requests (2× peak). Confirm — at least 38 complete within 90 seconds, no service crashes, error rate under 5%
@@ -861,42 +872,50 @@ Step 3:  Submit a Deep Dive request on a test account
 Step 4:  Confirm — PostHog shows the "deep_dive_requested" event with correct properties
 Step 5:  Confirm — LangSmith shows the Dexter trace with all required fields
 
---- Provider Outage ---
-Step 6:  Block data-openbb outbound network access
+--- Deep Dive Provider Outage ---
+Step 6:  Block Dexter's native data providers (Financial Datasets API, web search)
 Step 7:  Submit a Deep Dive request
 Step 8:  Confirm — report generated with affected sections marked "data_unavailable"
 Step 9:  Confirm — no section contains fabricated or estimated data
 Step 10: Confirm — Sentry alert fires for the degraded run
-Step 11: Restore network access
+Step 11: Restore Dexter's provider access
+
+--- Market Pulse Provider Outage ---
+Step 12: Block data-openbb outbound network access
+Step 13: Trigger a Market Pulse run
+Step 14: Confirm — briefing generated with affected sections marked "data_unavailable"
+Step 15: Confirm — briefing is still delivered with flags
+Step 16: Confirm — Sentry alert fires for the degraded run
+Step 17: Restore data-openbb network access
 
 --- LLM Timeout ---
-Step 12: Configure Dexter to simulate Anthropic API timeout on the next call
-Step 13: Submit a Deep Dive request
-Step 14: Confirm — retry fires once automatically
-Step 15: Confirm — on second failure, section is marked "failed", Sentry alert fires
-Step 16: Confirm — job does not hang — it resolves to "failed" within 3 minutes
+Step 18: Configure Dexter to simulate Anthropic API timeout on the next call
+Step 19: Submit a Deep Dive request
+Step 20: Confirm — retry fires once automatically
+Step 21: Confirm — on second failure, section is marked "failed", Sentry alert fires
+Step 22: Confirm — job does not hang — it resolves to "failed" within 3 minutes
 
 --- Redis Flush ---
-Step 17: Start a Deep Dive job. While it is "running", flush Redis
-Step 18: Confirm — no Postgres records are lost or corrupted
-Step 19: Confirm — job either completes or resolves to "failed" with an error message
+Step 23: Start a Deep Dive job. While it is "running", flush Redis
+Step 24: Confirm — no Postgres records are lost or corrupted
+Step 25: Confirm — job either completes or resolves to "failed" with an error message
 
 --- Load Test ---
-Step 20: Fire 40 concurrent Deep Dive requests
-Step 21: Record completion times and error rate
-Step 22: Confirm — at least 38 complete within 90 seconds
-Step 23: Confirm — no service crashes or restarts
+Step 26: Fire 40 concurrent Deep Dive requests
+Step 27: Record completion times and error rate
+Step 28: Confirm — at least 38 complete within 90 seconds
+Step 29: Confirm — no service crashes or restarts
 
 --- Secrets and Deployment ---
-Step 24: Run automated secret scan on the full repository
-Step 25: Confirm — zero secrets found in code
-Step 26: Trigger a deployment via CI/CD pipeline (no manual steps)
-Step 27: Confirm — deployment completes without manual SSH or intervention
+Step 30: Run automated secret scan on the full repository
+Step 31: Confirm — zero secrets found in code
+Step 32: Trigger a deployment via CI/CD pipeline (no manual steps)
+Step 33: Confirm — deployment completes without manual SSH or intervention
 
 --- Backup and Restore ---
-Step 28: Take a database backup
-Step 29: Restore it to a separate test database instance
-Step 30: Run a query to verify data integrity (row counts, spot-check records)
+Step 34: Take a database backup
+Step 35: Restore it to a separate test database instance
+Step 36: Run a query to verify data integrity (row counts, spot-check records)
 ```
 
 **Expected result:** All steps complete. Failures degrade correctly. Load test passes. No secrets in code. Deployment is automated.

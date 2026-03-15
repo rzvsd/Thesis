@@ -52,8 +52,23 @@ services:
       dockerfile: apps/data-openbb/Dockerfile
     environment:
       PORT: 3003
+      REDIS_URL: "${REDIS_URL:-redis://redis:6379/0}"
+      DATA_OPENBB_FIXTURE_MODE: "${DATA_OPENBB_FIXTURE_MODE:-true}"
+      RATE_LIMIT_WINDOW_SECONDS: "${RATE_LIMIT_WINDOW_SECONDS:-60}"
+      RATE_LIMIT_BURST_ALLOWANCE: "${RATE_LIMIT_BURST_ALLOWANCE:-2}"
+      RATE_LIMIT_COOLDOWN_SECONDS: "${RATE_LIMIT_COOLDOWN_SECONDS:-60}"
+      FMP_FINANCE_RATE_LIMIT_PER_MINUTE: "${FMP_FINANCE_RATE_LIMIT_PER_MINUTE:-10}"
+      FMP_MACRO_RATE_LIMIT_PER_MINUTE: "${FMP_MACRO_RATE_LIMIT_PER_MINUTE:-5}"
+      POLYGON_RATE_LIMIT_PER_MINUTE: "${POLYGON_RATE_LIMIT_PER_MINUTE:-5}"
+      ALPHA_VANTAGE_RATE_LIMIT_PER_MINUTE: "${ALPHA_VANTAGE_RATE_LIMIT_PER_MINUTE:-5}"
+      FMP_API_KEY: "${FMP_API_KEY:-}"
+      POLYGON_API_KEY: "${POLYGON_API_KEY:-}"
+      ALPHA_VANTAGE_API_KEY: "${ALPHA_VANTAGE_API_KEY:-}"
     ports:
       - "${DATA_OPENBB_PORT:-3003}:3003"
+    depends_on:
+      redis:
+        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3003/health | grep -q '\"status\":\"ok\"'"]
       interval: 5s
@@ -67,8 +82,17 @@ services:
       dockerfile: apps/news-ingest/Dockerfile
     environment:
       PORT: 3004
+      REDIS_URL: "${REDIS_URL:-redis://redis:6379/0}"
+      NEWS_INGEST_FIXTURE_MODE: "${NEWS_INGEST_FIXTURE_MODE:-true}"
+      RATE_LIMIT_WINDOW_SECONDS: "${RATE_LIMIT_WINDOW_SECONDS:-60}"
+      RATE_LIMIT_BURST_ALLOWANCE: "${RATE_LIMIT_BURST_ALLOWANCE:-2}"
+      RATE_LIMIT_COOLDOWN_SECONDS: "${RATE_LIMIT_COOLDOWN_SECONDS:-60}"
+      NEWS_SOURCE_RATE_LIMIT_PER_MINUTE: "${NEWS_SOURCE_RATE_LIMIT_PER_MINUTE:-5}"
     ports:
       - "${NEWS_INGEST_PORT:-3004}:3004"
+    depends_on:
+      redis:
+        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3004/health | grep -q '\"status\":\"ok\"'"]
       interval: 5s
@@ -86,6 +110,17 @@ services:
       - "${SCHEDULER_PORT:-3005}:3005"
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3005/health | grep -q '\"status\":\"ok\"'"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 3s
       retries: 10
