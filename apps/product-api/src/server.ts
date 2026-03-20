@@ -788,7 +788,7 @@ export function startServer(port: number = loadConfig().port): Server {
       if (method === "POST" && pathname === "/jobs") {
         const body = await readJsonBody<CreateJobRequest>(request);
         const ticker = body.ticker?.trim().toUpperCase();
-        if (!ticker || !/^[A-Z.\-]{1,12}$/.test(ticker)) {
+        if (!ticker || !/^[A-Z.-]{1,12}$/.test(ticker)) {
           sendJson(response, 422, {
             error: "validation_failed",
             error_message: "ticker must be a valid US symbol."

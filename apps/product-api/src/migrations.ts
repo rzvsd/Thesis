@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
-import { Pool } from "pg";
+import type { Pool } from "pg";
 
 const m4MigrationPath = resolve(
   process.cwd(),
