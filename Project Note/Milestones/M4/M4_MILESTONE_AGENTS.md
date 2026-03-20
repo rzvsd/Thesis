@@ -280,6 +280,8 @@ M4 is not done until every item below is checked:
 * [x] Owner signs off
 * [x] Engineering Lead countersigns
 
+Closeout note: acceptance criteria and the full M4 smoke test passed on 2026-03-20 (see §11 and Linear RZV-57).
+
 Sign-off:
 
 * Owner: Rzv_sd (2026-03-20)
