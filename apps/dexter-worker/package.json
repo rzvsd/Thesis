@@ -12,9 +12,11 @@
     "langsmith:push-prompts": "node scripts/sync-langsmith-prompts.mjs"
   },
   "dependencies": {
+    "@sentry/node": "^10.22.0",
     "@thesis/contracts": "workspace:*",
     "@thesis/observability": "workspace:*",
     "dexter": "github:rzvsd/fintech#9e570f88abeded674125a53faaeaded3858dd672",
-    "langsmith": "^0.5.10"
+    "langsmith": "^0.5.10",
+    "redis": "^4.7.1"
   }
 }

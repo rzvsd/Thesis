@@ -1,0 +1,16 @@
+{
+  "$id": "AuditEventPayload",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "request_id": { "type": "string" },
+    "route": { "type": "string" },
+    "job_id": { "type": "string" },
+    "report_id": { "type": "string" },
+    "user_id": { "type": "string" },
+    "ticker": { "type": "string" },
+    "status": { "type": "string" },
+    "reason": { "type": "string" },
+    "error_message": { "type": "string" }
+  }
+}

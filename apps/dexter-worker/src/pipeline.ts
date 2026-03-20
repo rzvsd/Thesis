@@ -416,6 +416,19 @@ export async function runAnalysisPipeline(
   config: DexterConfig
 ): Promise<AnalysisReport> {
   const ticker = request.ticker ?? "";
+  const normalizedTicker = ticker.trim().toUpperCase();
+  if (
+    normalizedTicker.length > 0 &&
+    config.forcedFailureTickers.has(normalizedTicker)
+  ) {
+    logError("Forced ticker failure triggered", {
+      job_id: request.job_id,
+      ticker: normalizedTicker,
+      reason: "forced_failure_ticker"
+    });
+    throw new Error(`Forced failure for ticker ${normalizedTicker}`);
+  }
+
   const scenario = config.fixtureMode ? getFixtureScenario(ticker) : undefined;
   const selectedDefinitions = selectSectionDefinitions(request.options?.sections);
   const plannedExecutableSections = executableSectionDefinitions

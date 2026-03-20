@@ -75,6 +75,17 @@ test("TIMEOUT fixture request marks the failed section and completes the report"
   assert.equal(findSection(report.sections, "executive_summary").status, "complete");
 });
 
+test("forced failure tickers stop processing with a deterministic error", async () => {
+  const config = buildFixtureConfig({
+    DEXTER_FORCE_FAIL_TICKERS: "FAILME"
+  });
+
+  await assert.rejects(
+    () => runAnalysisPipeline(buildRequest("FAILME"), config),
+    /Forced failure for ticker FAILME/
+  );
+});
+
 test("invalid analysis reports are rejected by runtime validation", () => {
   const errors = validateAnalysisReport({
     report_id: "bad-report",

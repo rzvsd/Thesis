@@ -1,0 +1,14 @@
+{
+  "$id": "ReportListItem",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["report_id", "job_id", "type", "schema_version", "created_at"],
+  "properties": {
+    "report_id": { "type": "string" },
+    "job_id": { "type": "string" },
+    "type": { "type": "string", "enum": ["deep_dive", "market_pulse"] },
+    "ticker": { "type": "string" },
+    "schema_version": { "type": "string" },
+    "created_at": { "type": "string", "format": "date-time" }
+  }
+}

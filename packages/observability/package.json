@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
+    "@sentry/node": "^10.22.0",
     "langsmith": "^0.5.10"
   }
 }
