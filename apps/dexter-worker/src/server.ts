@@ -3,6 +3,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { loadConfig } from "./config";
 import { logError, logInfo } from "./logging";
 import { runAnalysisPipeline } from "./pipeline";
+import { startQueueConsumer } from "./queue-consumer";
 import { assertAnalysisRequest, validateAnalysisRequest } from "./schema-validation";
 
 type HealthPayload = { status: "ok" };
@@ -37,6 +38,14 @@ export function startServer(port: number = loadConfig().port): Server {
     ...defaultConfig,
     port
   };
+
+  const queueConsumerPromise = startQueueConsumer(config).catch((error) => {
+    const message = error instanceof Error ? error.message : "Queue consumer failed to start";
+    logError("Queue consumer startup failed", {
+      error_message: message
+    });
+    return undefined;
+  });
 
   const server = createServer(async (request, response) => {
     if (request.method === "GET" && request.url === "/health") {
@@ -85,6 +94,14 @@ export function startServer(port: number = loadConfig().port): Server {
   server.on("error", (error) => {
     const message = error instanceof Error ? error.message : "Unknown startup error";
     logError(message);
+  });
+
+  server.on("close", () => {
+    void queueConsumerPromise.then(async (consumer) => {
+      if (consumer) {
+        await consumer.stop();
+      }
+    });
   });
 
   return server.listen(port);

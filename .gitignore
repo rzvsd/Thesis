@@ -6,3 +6,5 @@ coverage/
 __pycache__/
 *.pyc
 .venv/
+data/artifacts/
+apps/product-api/data/

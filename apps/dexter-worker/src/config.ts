@@ -37,6 +37,19 @@ function parseInteger(value: string | undefined, fallback: number): number {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+function parseTickerSet(value: string | undefined): Set<string> {
+  if (!value) {
+    return new Set<string>();
+  }
+
+  return new Set(
+    value
+      .split(",")
+      .map((entry) => entry.trim().toUpperCase())
+      .filter((entry) => entry.length > 0)
+  );
+}
+
 export interface DexterConfig {
   port: number;
   fixtureMode: boolean;
@@ -58,6 +71,13 @@ export interface DexterConfig {
   langsmithSectionExecutorPrompt: string;
   langsmithSynthesizerPrompt: string;
   simulateTimeoutSection?: string;
+  queueMode: boolean;
+  redisUrl?: string;
+  queueKey: string;
+  queueBlockTimeoutSeconds: number;
+  productApiInternalBaseUrl: string;
+  internalWorkerToken: string;
+  forcedFailureTickers: Set<string>;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): DexterConfig {
@@ -98,7 +118,15 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): DexterConfig {
       env.LANGSMITH_SECTION_EXECUTOR_PROMPT ?? "thesis-m3-section-executor",
     langsmithSynthesizerPrompt:
       env.LANGSMITH_SYNTHESIZER_PROMPT ?? "thesis-m3-synthesizer",
-    simulateTimeoutSection: env.DEXTER_SIMULATE_TIMEOUT_SECTION
+    simulateTimeoutSection: env.DEXTER_SIMULATE_TIMEOUT_SECTION,
+    queueMode: parseBoolean(env.DEXTER_QUEUE_MODE, false),
+    redisUrl: env.REDIS_URL,
+    queueKey: env.REDIS_JOB_QUEUE_KEY ?? "jobs:deep_dive",
+    queueBlockTimeoutSeconds: parseInteger(env.DEXTER_QUEUE_BLOCK_TIMEOUT_SECONDS, 5),
+    productApiInternalBaseUrl:
+      env.PRODUCT_API_INTERNAL_BASE_URL ?? "http://product-api:3001",
+    internalWorkerToken: env.INTERNAL_WORKER_TOKEN ?? "dev-internal-worker-token",
+    forcedFailureTickers: parseTickerSet(env.DEXTER_FORCE_FAIL_TICKERS)
   };
 }
 
@@ -127,6 +155,31 @@ export function validateLiveModeConfig(config: DexterConfig): string[] {
 
   if (!config.langsmithProject || config.langsmithProject.trim().length === 0) {
     errors.push("LANGSMITH_PROJECT is required when DEXTER_FIXTURE_MODE=false");
+  }
+
+  return errors;
+}
+
+export function validateQueueModeConfig(config: DexterConfig): string[] {
+  const errors: string[] = [];
+
+  if (!config.queueMode) {
+    return errors;
+  }
+
+  if (!config.redisUrl || config.redisUrl.trim().length === 0) {
+    errors.push("REDIS_URL is required when DEXTER_QUEUE_MODE=true");
+  }
+
+  if (
+    !config.productApiInternalBaseUrl ||
+    config.productApiInternalBaseUrl.trim().length === 0
+  ) {
+    errors.push("PRODUCT_API_INTERNAL_BASE_URL is required when DEXTER_QUEUE_MODE=true");
+  }
+
+  if (!config.internalWorkerToken || config.internalWorkerToken.trim().length < 16) {
+    errors.push("INTERNAL_WORKER_TOKEN must be set when DEXTER_QUEUE_MODE=true");
   }
 
   return errors;

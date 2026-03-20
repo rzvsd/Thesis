@@ -1,0 +1,335 @@
+import assert from "node:assert/strict";
+import { once } from "node:events";
+import type { AddressInfo } from "node:net";
+import test from "node:test";
+
+import { startServer } from "../src/server";
+
+type JsonObject = Record<string, unknown>;
+
+async function closeServer(server: ReturnType<typeof startServer>): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    server.close((error) => {
+      if (error) {
+        reject(error);
+        return;
+      }
+      resolve();
+    });
+  });
+}
+
+async function requestJson(
+  baseUrl: string,
+  path: string,
+  options: {
+    method: string;
+    body?: JsonObject;
+    headers?: Record<string, string>;
+  }
+): Promise<{ status: number; payload: JsonObject | JsonObject[] }> {
+  const response = await fetch(`${baseUrl}${path}`, {
+    method: options.method,
+    headers: {
+      "content-type": "application/json",
+      ...options.headers
+    },
+    body: options.body ? JSON.stringify(options.body) : undefined
+  });
+  const payload = (await response.json()) as JsonObject | JsonObject[];
+  return {
+    status: response.status,
+    payload
+  };
+}
+
+async function createVerifiedSession(baseUrl: string): Promise<{
+  accessToken: string;
+  internalToken: string;
+}> {
+  const register = await requestJson(baseUrl, "/auth/register", {
+    method: "POST",
+    body: {
+      email: "m4-jobs@example.com",
+      password: "VeryStrongPass1!"
+    }
+  });
+  assert.equal(register.status, 201);
+  const registerPayload = register.payload as JsonObject;
+  const verificationToken = registerPayload.verification_token;
+  assert.equal(typeof verificationToken, "string");
+
+  const verify = await requestJson(baseUrl, "/auth/verify", {
+    method: "POST",
+    body: {
+      token: verificationToken as string
+    }
+  });
+  assert.equal(verify.status, 200);
+
+  const login = await requestJson(baseUrl, "/auth/login", {
+    method: "POST",
+    body: {
+      email: "m4-jobs@example.com",
+      password: "VeryStrongPass1!"
+    }
+  });
+  assert.equal(login.status, 200);
+  const loginPayload = login.payload as JsonObject;
+  const accessToken = loginPayload.access_token;
+  assert.equal(typeof accessToken, "string");
+
+  return {
+    accessToken: accessToken as string,
+    internalToken: process.env.INTERNAL_WORKER_TOKEN ?? "dev-internal-worker-token"
+  };
+}
+
+function sampleReport(jobId: string, reportId: string): JsonObject {
+  return {
+    report_id: reportId,
+    job_id: jobId,
+    schema_version: "1.0.0",
+    type: "deep_dive",
+    ticker: "AAPL",
+    generated_at: "2026-03-20T12:00:00.000Z",
+    confidence: {
+      score: 0.68,
+      label: "medium",
+      limiting_factors: []
+    },
+    signal: {
+      value: "neutral",
+      reasons: ["Evidence threshold met."],
+      evidence: [
+        {
+          evidence_id: "ev-1",
+          source_type: "article",
+          source_name: "fixture-news",
+          excerpt: "Revenue growth remained stable.",
+          retrieved_at: "2026-03-20T12:00:00.000Z",
+          url: "https://example.com/news"
+        }
+      ]
+    },
+    sections: [
+      {
+        section_id: "executive_summary",
+        title: "Executive Summary",
+        body: "Sample deep dive report.",
+        status: "complete",
+        evidence: []
+      }
+    ],
+    flags: [],
+    data_sources: ["fixture-news"]
+  };
+}
+
+test("job lifecycle supports queue -> running -> complete and report retrieval", async () => {
+  const previous = {
+    STORE_BACKEND: process.env.STORE_BACKEND,
+    QUEUE_BACKEND: process.env.QUEUE_BACKEND,
+    AUTH_EXPOSE_VERIFICATION_TOKEN: process.env.AUTH_EXPOSE_VERIFICATION_TOKEN,
+    JWT_SECRET: process.env.JWT_SECRET,
+    INTERNAL_WORKER_TOKEN: process.env.INTERNAL_WORKER_TOKEN
+  };
+  process.env.STORE_BACKEND = "memory";
+  process.env.QUEUE_BACKEND = "memory";
+  process.env.AUTH_EXPOSE_VERIFICATION_TOKEN = "true";
+  process.env.JWT_SECRET = "dev-jwt-secret-change-me";
+  process.env.INTERNAL_WORKER_TOKEN = "dev-internal-worker-token";
+
+  const server = startServer(0);
+  await once(server, "listening");
+  const { port } = server.address() as AddressInfo;
+  const baseUrl = `http://127.0.0.1:${port}`;
+
+  const session = await createVerifiedSession(baseUrl);
+  const authHeader = { authorization: `Bearer ${session.accessToken}` };
+
+  const createJob = await requestJson(baseUrl, "/jobs", {
+    method: "POST",
+    headers: authHeader,
+    body: {
+      ticker: "AAPL"
+    }
+  });
+  assert.equal(createJob.status, 202);
+  const createdJob = createJob.payload as JsonObject;
+  const jobId = createdJob.job_id;
+  assert.equal(typeof jobId, "string");
+  assert.equal(createdJob.status, "queued");
+
+  const claim = await requestJson(baseUrl, `/internal/jobs/${jobId as string}/claim`, {
+    method: "POST",
+    headers: {
+      "x-internal-token": session.internalToken
+    }
+  });
+  assert.equal(claim.status, 200);
+  const claimPayload = claim.payload as JsonObject;
+  const analysisRequest = claimPayload.analysis_request as JsonObject;
+  assert.equal(analysisRequest.job_id, jobId);
+
+  const reportId = "report-m4-1";
+  const complete = await requestJson(baseUrl, `/internal/jobs/${jobId as string}/complete`, {
+    method: "POST",
+    headers: {
+      "x-internal-token": session.internalToken
+    },
+    body: {
+      report: sampleReport(jobId as string, reportId)
+    }
+  });
+  assert.equal(complete.status, 200);
+
+  const readJob = await requestJson(baseUrl, `/jobs/${jobId as string}`, {
+    method: "GET",
+    headers: authHeader
+  });
+  assert.equal(readJob.status, 200);
+  const readJobPayload = readJob.payload as JsonObject;
+  assert.equal(readJobPayload.status, "complete");
+  assert.equal(readJobPayload.report_id, reportId);
+
+  const history = await requestJson(baseUrl, "/reports", {
+    method: "GET",
+    headers: authHeader
+  });
+  assert.equal(history.status, 200);
+  const historyPayload = history.payload as JsonObject[];
+  assert.equal(historyPayload.length, 1);
+  assert.equal(historyPayload[0]?.report_id, reportId);
+
+  const report = await requestJson(baseUrl, `/reports/${reportId}`, {
+    method: "GET",
+    headers: authHeader
+  });
+  assert.equal(report.status, 200);
+  const reportPayload = report.payload as JsonObject;
+  assert.equal(reportPayload.report_id, reportId);
+
+  await closeServer(server);
+  process.env.STORE_BACKEND = previous.STORE_BACKEND;
+  process.env.QUEUE_BACKEND = previous.QUEUE_BACKEND;
+  process.env.AUTH_EXPOSE_VERIFICATION_TOKEN = previous.AUTH_EXPOSE_VERIFICATION_TOKEN;
+  process.env.JWT_SECRET = previous.JWT_SECRET;
+  process.env.INTERNAL_WORKER_TOKEN = previous.INTERNAL_WORKER_TOKEN;
+});
+
+test("protected routes return 401 and rate limit returns 429", async () => {
+  const previous = {
+    STORE_BACKEND: process.env.STORE_BACKEND,
+    QUEUE_BACKEND: process.env.QUEUE_BACKEND,
+    AUTH_EXPOSE_VERIFICATION_TOKEN: process.env.AUTH_EXPOSE_VERIFICATION_TOKEN,
+    JWT_SECRET: process.env.JWT_SECRET,
+    INTERNAL_WORKER_TOKEN: process.env.INTERNAL_WORKER_TOKEN,
+    RATE_LIMIT_MAX_REQUESTS: process.env.RATE_LIMIT_MAX_REQUESTS,
+    RATE_LIMIT_WINDOW_SECONDS: process.env.RATE_LIMIT_WINDOW_SECONDS
+  };
+  process.env.STORE_BACKEND = "memory";
+  process.env.QUEUE_BACKEND = "memory";
+  process.env.AUTH_EXPOSE_VERIFICATION_TOKEN = "true";
+  process.env.JWT_SECRET = "dev-jwt-secret-change-me";
+  process.env.INTERNAL_WORKER_TOKEN = "dev-internal-worker-token";
+  process.env.RATE_LIMIT_MAX_REQUESTS = "1";
+  process.env.RATE_LIMIT_WINDOW_SECONDS = "60";
+
+  const server = startServer(0);
+  await once(server, "listening");
+  const { port } = server.address() as AddressInfo;
+  const baseUrl = `http://127.0.0.1:${port}`;
+
+  const unauthorized = await requestJson(baseUrl, "/jobs", {
+    method: "POST",
+    body: {
+      ticker: "AAPL"
+    }
+  });
+  assert.equal(unauthorized.status, 401);
+
+  const firstRegister = await requestJson(baseUrl, "/auth/register", {
+    method: "POST",
+    body: {
+      email: "ratelimit-a@example.com",
+      password: "VeryStrongPass1!"
+    }
+  });
+  assert.equal(firstRegister.status, 201);
+
+  const secondRegister = await requestJson(baseUrl, "/auth/register", {
+    method: "POST",
+    body: {
+      email: "ratelimit-b@example.com",
+      password: "VeryStrongPass1!"
+    }
+  });
+  assert.equal(secondRegister.status, 429);
+
+  await closeServer(server);
+  process.env.STORE_BACKEND = previous.STORE_BACKEND;
+  process.env.QUEUE_BACKEND = previous.QUEUE_BACKEND;
+  process.env.AUTH_EXPOSE_VERIFICATION_TOKEN = previous.AUTH_EXPOSE_VERIFICATION_TOKEN;
+  process.env.JWT_SECRET = previous.JWT_SECRET;
+  process.env.INTERNAL_WORKER_TOKEN = previous.INTERNAL_WORKER_TOKEN;
+  process.env.RATE_LIMIT_MAX_REQUESTS = previous.RATE_LIMIT_MAX_REQUESTS;
+  process.env.RATE_LIMIT_WINDOW_SECONDS = previous.RATE_LIMIT_WINDOW_SECONDS;
+});
+
+test("internal fail endpoint marks job as failed", async () => {
+  const previous = {
+    STORE_BACKEND: process.env.STORE_BACKEND,
+    QUEUE_BACKEND: process.env.QUEUE_BACKEND,
+    AUTH_EXPOSE_VERIFICATION_TOKEN: process.env.AUTH_EXPOSE_VERIFICATION_TOKEN,
+    JWT_SECRET: process.env.JWT_SECRET,
+    INTERNAL_WORKER_TOKEN: process.env.INTERNAL_WORKER_TOKEN
+  };
+  process.env.STORE_BACKEND = "memory";
+  process.env.QUEUE_BACKEND = "memory";
+  process.env.AUTH_EXPOSE_VERIFICATION_TOKEN = "true";
+  process.env.JWT_SECRET = "dev-jwt-secret-change-me";
+  process.env.INTERNAL_WORKER_TOKEN = "dev-internal-worker-token";
+
+  const server = startServer(0);
+  await once(server, "listening");
+  const { port } = server.address() as AddressInfo;
+  const baseUrl = `http://127.0.0.1:${port}`;
+
+  const session = await createVerifiedSession(baseUrl);
+  const createJob = await requestJson(baseUrl, "/jobs", {
+    method: "POST",
+    headers: { authorization: `Bearer ${session.accessToken}` },
+    body: { ticker: "AAPL" }
+  });
+  assert.equal(createJob.status, 202);
+  const createdJob = createJob.payload as JsonObject;
+  const jobId = createdJob.job_id as string;
+
+  const fail = await requestJson(baseUrl, `/internal/jobs/${jobId}/fail`, {
+    method: "POST",
+    headers: {
+      "x-internal-token": session.internalToken
+    },
+    body: {
+      error_message: "forced failure"
+    }
+  });
+  assert.equal(fail.status, 200);
+
+  const status = await requestJson(baseUrl, `/jobs/${jobId}`, {
+    method: "GET",
+    headers: { authorization: `Bearer ${session.accessToken}` }
+  });
+  assert.equal(status.status, 200);
+  const statusPayload = status.payload as JsonObject;
+  assert.equal(statusPayload.status, "failed");
+  assert.equal(statusPayload.error_message, "forced failure");
+
+  await closeServer(server);
+  process.env.STORE_BACKEND = previous.STORE_BACKEND;
+  process.env.QUEUE_BACKEND = previous.QUEUE_BACKEND;
+  process.env.AUTH_EXPOSE_VERIFICATION_TOKEN = previous.AUTH_EXPOSE_VERIFICATION_TOKEN;
+  process.env.JWT_SECRET = previous.JWT_SECRET;
+  process.env.INTERNAL_WORKER_TOKEN = previous.INTERNAL_WORKER_TOKEN;
+});

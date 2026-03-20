@@ -11,4 +11,4 @@ RUN pnpm --filter @thesis/product-api build
 
 EXPOSE 3001
 
-CMD ["node", "apps/product-api/dist/src/server.js"]
+CMD ["node", "apps/product-api/dist/apps/product-api/src/server.js"]
