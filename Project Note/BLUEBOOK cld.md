@@ -144,7 +144,7 @@ The system is divided into three planes. Routing between planes depends on the p
 ### Forbidden Overlaps (Hard Rules)
 
 1. **Deep Dive is Dexter-led.** Dexter is the primary research engine for Company Deep Dive and manages its own data retrieval for that surface.
-2. **Market Pulse is Data-Plane-led.** OpenBB + news-ingest are the primary data sources for Market Pulse. Dexter may assist with synthesis if needed, but does not own the pulse data path.
+2. **Market Pulse is Data-Plane-led.** OpenBB + news-ingest are the primary data sources for Market Pulse. Dexter does not own or execute the Market Pulse pipeline.
 3. **The mobile app must never call OpenBB, news-ingest, or Dexter directly.** All traffic routes through Product API.
 4. **PostHog is not the system of record for backend failures.** Sentry is.
 5. **Redis must never become the accidental database.** If a value needs to survive a Redis flush, it belongs in Postgres.
@@ -503,7 +503,7 @@ A scheduled daily briefing, generated at a fixed time (e.g., 06:30 EST), answeri
 |---|---|---|---|
 | `mobile-app` | Android user interface | Public client | UI state, local cache |
 | `product-api` | Auth, jobs, history, report retrieval, push | Public (HTTPS) | Auth tokens, job orchestration |
-| `dexter-worker` | Deep dive and pulse reasoning pipeline | Private (internal) | Reasoning pipeline |
+| `dexter-worker` | Company Deep Dive reasoning pipeline | Private (internal) | Reasoning pipeline |
 | `data-openbb` | Normalized finance and macro access | Private (internal) | Provider abstraction |
 | `news-ingest` | Crawl, normalize, deduplicate approved-source news | Private (internal) | Article normalization |
 | `scheduler` | Timed runs and automation (Market Pulse) | Private (internal) | Cron logic, pulse job emission |
@@ -691,15 +691,16 @@ Every milestone must produce a **deployable, testable increment**. A milestone t
 □ Request is accepted by Product API and job is created in Postgres
 □ Job enters Redis queue
 □ Dexter picks up job and begins execution
-□ data-openbb retrieves financial data for the ticker
-□ news-ingest returns normalized articles
+□ Dexter performs native company-specific data retrieval and evidence collection
 □ All active sections execute (or degrade with explicit status)
+□ Each section returns one of: complete / data_incomplete / data_unavailable / failed
+□ Scoring only proceeds when the minimum evidence threshold is met; otherwise signal = no_signal with reason
 □ AnalysisReport validates against contracts/AnalysisReport schema
 □ Evidence references exist for every scored claim
 □ Report artifact is written to Artifact Store
 □ Report metadata is written to Postgres
 □ Mobile app receives job completion notification
-□ Mobile app renders the full report without errors
+□ Mobile app renders the returned report state without errors
 ```
 
 ### Market Pulse Path
@@ -709,7 +710,7 @@ Every milestone must produce a **deployable, testable increment**. A milestone t
 □ Pulse job is created and enters queue
 □ data-openbb returns market move data
 □ news-ingest returns normalized articles within the cycle window
-□ Dexter executes the pulse pipeline
+□ Market Pulse briefing is assembled from `data-openbb` + `news-ingest` inputs
 □ MarketPulseReport validates against schema
 □ Report is stored and retrievable by the mobile app
 □ Mobile home screen renders the morning briefing

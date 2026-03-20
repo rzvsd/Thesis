@@ -4,7 +4,7 @@ import hashlib
 import json
 import os
 import re
-import socket
+import sys
 import urllib.error
 import urllib.request
 import uuid
@@ -17,7 +17,13 @@ from email.utils import parsedate_to_datetime
 from html import unescape
 from pathlib import Path
 from typing import Any, Callable, Literal, TypedDict
-from urllib.parse import urlparse
+
+# Make the shared redis-client package importable.
+_PACKAGES_ROOT = str(Path(__file__).resolve().parents[4] / "packages" / "redis-client")
+if _PACKAGES_ROOT not in sys.path:
+    sys.path.insert(0, _PACKAGES_ROOT)
+
+from client import RedisClient  # noqa: E402
 
 
 SERVICE_NAME = "news-ingest"
@@ -131,63 +137,7 @@ class Settings:
         )
 
 
-class RedisClient:
-    def __init__(self, redis_url: str) -> None:
-        parsed = urlparse(redis_url)
-        self.host = parsed.hostname or "localhost"
-        self.port = parsed.port or 6379
-
-    def _encode(self, *parts: str) -> bytes:
-        payload = [f"*{len(parts)}\r\n".encode("utf8")]
-        for part in parts:
-            encoded = part.encode("utf8")
-            payload.append(f"${len(encoded)}\r\n".encode("utf8"))
-            payload.append(encoded + b"\r\n")
-        return b"".join(payload)
-
-    def _read_line(self, sock: socket.socket) -> bytes:
-        data = bytearray()
-        while not data.endswith(b"\r\n"):
-            chunk = sock.recv(1)
-            if not chunk:
-                raise ConnectionError("redis connection closed")
-            data.extend(chunk)
-        return bytes(data[:-2])
-
-    def _read_response(self, sock: socket.socket) -> Any:
-        prefix = sock.recv(1)
-        if prefix == b"+":
-            return self._read_line(sock).decode("utf8")
-        if prefix == b":":
-            return int(self._read_line(sock))
-        if prefix == b"$":
-            size = int(self._read_line(sock))
-            if size == -1:
-                return None
-            remaining = size + 2
-            data = bytearray()
-            while len(data) < remaining:
-                data.extend(sock.recv(remaining - len(data)))
-            return bytes(data[:-2]).decode("utf8")
-        raise ConnectionError("unsupported redis response")
-
-    def execute(self, *parts: str) -> Any:
-        with socket.create_connection((self.host, self.port), timeout=1.0) as sock:
-            sock.sendall(self._encode(*parts))
-            return self._read_response(sock)
-
-    def get(self, key: str) -> str | None:
-        value = self.execute("GET", key)
-        return None if value is None else str(value)
-
-    def incr(self, key: str) -> int:
-        return int(self.execute("INCR", key))
-
-    def expire(self, key: str, seconds: int) -> None:
-        self.execute("EXPIRE", key, str(seconds))
-
-    def setex(self, key: str, seconds: int, value: str) -> None:
-        self.execute("SETEX", key, str(seconds), value)
+# RedisClient is imported from packages/redis-client (see top of file).
 
 
 class RateLimiter:
@@ -215,8 +165,24 @@ class RateLimiter:
             return
 
 
-SETTINGS = Settings.from_env(os.environ)
-RATE_LIMITER = RateLimiter(SETTINGS)
+# Lazy defaults — avoids module-level side effects.  Callers (including
+# tests) can pass their own settings / rate_limiter to build_news_response.
+_default_settings: Settings | None = None
+_default_rate_limiter: RateLimiter | None = None
+
+
+def _get_default_settings() -> Settings:
+    global _default_settings
+    if _default_settings is None:
+        _default_settings = Settings.from_env(dict(os.environ))
+    return _default_settings
+
+
+def _get_default_rate_limiter() -> RateLimiter:
+    global _default_rate_limiter
+    if _default_rate_limiter is None:
+        _default_rate_limiter = RateLimiter(_get_default_settings())
+    return _default_rate_limiter
 
 
 def log(level: str, message: str, **fields: Any) -> None:
@@ -257,8 +223,8 @@ def load_newsplease() -> Any:
     return NewsPlease
 
 
-def is_fixture_mode() -> bool:
-    return SETTINGS.fixture_mode
+def is_fixture_mode(settings: Settings | None = None) -> bool:
+    return (settings or _get_default_settings()).fixture_mode
 
 
 def repo_root() -> Path:
@@ -549,10 +515,12 @@ def resolve_source_text(
     source: ApprovedSource,
     requested_date: str,
     source_loader: Callable[[ApprovedSource, str], str] | None = None,
+    *,
+    settings: Settings | None = None,
 ) -> str:
     if source_loader is not None:
         return source_loader(source, requested_date)
-    if is_fixture_mode():
+    if is_fixture_mode(settings):
         return fetch_fixture_text(source, requested_date)
     return fetch_remote_text(source)
 
@@ -613,7 +581,11 @@ def build_news_response(
     *,
     source_loader: Callable[[ApprovedSource, str], str] | None = None,
     now: datetime | None = None,
+    settings: Settings | None = None,
+    rate_limiter: RateLimiter | None = None,
 ) -> tuple[int, NewsServiceResponse]:
+    active_settings = settings or _get_default_settings()
+    active_limiter = rate_limiter or _get_default_rate_limiter()
     response_time = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
     retrieved_at = response_time.isoformat().replace("+00:00", "Z")
     request_id = request_id or uuid.uuid4().hex
@@ -632,7 +604,7 @@ def build_news_response(
     try:
         for source in APPROVED_SOURCES:
             ingestion_method = ingestion_method_for(source)
-            RATE_LIMITER.acquire(source.key)
+            active_limiter.acquire(source.key)
             log(
                 "INFO",
                 "Data retrieval started",
@@ -641,7 +613,7 @@ def build_news_response(
                 ingestion_method=ingestion_method,
                 dataset="news",
             )
-            raw_text = resolve_source_text(source, requested_date, source_loader=source_loader)
+            raw_text = resolve_source_text(source, requested_date, source_loader=source_loader, settings=active_settings)
             parsed_articles = parse_source_payload(source, raw_text, requested_date, retrieved_at)
             articles.extend(parsed_articles)
             log(

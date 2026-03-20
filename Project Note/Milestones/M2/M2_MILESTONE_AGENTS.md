@@ -13,7 +13,7 @@
 | **Milestone**      | M2 — Data Plane                            |
 | **Linear Project** | M2 — Data Plane                            |
 | **Owner**          | Data Platform Engineer                     |
-| **Status**         | In Progress                                |
+| **Status**         | Complete                              |
 | **Depends on**     | M1 — Baseline complete (Passed 2026-03-13) |
 
 ---

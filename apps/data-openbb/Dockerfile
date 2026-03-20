@@ -15,6 +15,7 @@ RUN python -m pip install --disable-pip-version-check --no-cache-dir -r /tmp/dat
 COPY apps/data-openbb /app/apps/data-openbb
 COPY data/golden/data-openbb /app/data/golden/data-openbb
 COPY packages/contracts/schemas /app/packages/contracts/schemas
+COPY packages/redis-client /app/packages/redis-client
 
 EXPOSE 3003
 

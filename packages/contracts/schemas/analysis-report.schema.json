@@ -1,0 +1,129 @@
+{
+  "$id": "AnalysisReport",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "report_id",
+    "job_id",
+    "schema_version",
+    "type",
+    "generated_at",
+    "confidence",
+    "sections",
+    "flags",
+    "data_sources"
+  ],
+  "properties": {
+    "report_id": {
+      "type": "string"
+    },
+    "job_id": {
+      "type": "string"
+    },
+    "schema_version": {
+      "type": "string"
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "deep_dive",
+        "market_pulse"
+      ]
+    },
+    "ticker": {
+      "type": "string"
+    },
+    "generated_at": {
+      "type": "string"
+    },
+    "confidence": {
+      "$ref": "ConfidenceBlock"
+    },
+    "signal": {
+      "$ref": "ReportSignal"
+    },
+    "sections": {
+      "type": "array",
+      "items": {
+        "$ref": "ReportSection"
+      }
+    },
+    "flags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "data_sources": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "definitions": {
+    "ConfidenceBlock": {
+      "$id": "ConfidenceBlock",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "score",
+        "label",
+        "limiting_factors"
+      ],
+      "properties": {
+        "score": {
+          "type": "number"
+        },
+        "label": {
+          "type": "string",
+          "enum": [
+            "high",
+            "medium",
+            "low",
+            "insufficient_data"
+          ]
+        },
+        "limiting_factors": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "ReportSignal": {
+      "$id": "ReportSignal",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "value",
+        "reasons",
+        "evidence"
+      ],
+      "properties": {
+        "value": {
+          "type": "string",
+          "enum": [
+            "positive",
+            "neutral",
+            "negative",
+            "no_signal"
+          ]
+        },
+        "reasons": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "$ref": "EvidenceItem"
+          }
+        }
+      }
+    }
+  }
+}
