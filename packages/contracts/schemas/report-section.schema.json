@@ -1,0 +1,38 @@
+{
+  "$id": "ReportSection",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "section_id",
+    "title",
+    "body",
+    "status",
+    "evidence"
+  ],
+  "properties": {
+    "section_id": {
+      "type": "string"
+    },
+    "title": {
+      "type": "string"
+    },
+    "body": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "complete",
+        "data_incomplete",
+        "data_unavailable",
+        "failed"
+      ]
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "$ref": "EvidenceItem"
+      }
+    }
+  }
+}

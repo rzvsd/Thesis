@@ -17,6 +17,7 @@ RUN python -m pip install --no-cache-dir -r /tmp/news-ingest-requirements.txt
 COPY apps/news-ingest /app/apps/news-ingest
 COPY data/golden /app/data/golden
 COPY packages/contracts/schemas /app/packages/contracts/schemas
+COPY packages/redis-client /app/packages/redis-client
 
 ENV PYTHONPATH=/app/apps/news-ingest/src
 

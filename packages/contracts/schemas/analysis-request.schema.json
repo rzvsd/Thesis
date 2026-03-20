@@ -1,0 +1,47 @@
+{
+  "$id": "AnalysisRequest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "request_id",
+    "type",
+    "job_id",
+    "requested_at"
+  ],
+  "properties": {
+    "request_id": {
+      "type": "string"
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "deep_dive",
+        "market_pulse"
+      ]
+    },
+    "ticker": {
+      "type": "string"
+    },
+    "user_id": {
+      "type": "string"
+    },
+    "job_id": {
+      "type": "string"
+    },
+    "requested_at": {
+      "type": "string"
+    },
+    "options": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "sections": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

@@ -2,14 +2,20 @@ from __future__ import annotations
 
 import json
 import os
-import socket
+import sys
 import time
 import uuid
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Mapping
-from urllib.parse import urlparse
+
+# Make the shared redis-client package importable.
+_PACKAGES_ROOT = str(Path(__file__).resolve().parents[3] / "packages" / "redis-client")
+if _PACKAGES_ROOT not in sys.path:
+    sys.path.insert(0, _PACKAGES_ROOT)
+
+from client import RedisClient  # noqa: E402
 
 try:
     from .validation import SchemaValidationError, validate_schema
@@ -100,63 +106,7 @@ class Settings:
         return limits.get(normalized, self.fmp_finance_rate_limit_per_minute)
 
 
-class RedisClient:
-    def __init__(self, redis_url: str) -> None:
-        parsed = urlparse(redis_url)
-        self.host = parsed.hostname or "localhost"
-        self.port = parsed.port or 6379
-
-    def _encode(self, *parts: str) -> bytes:
-        payload = [f"*{len(parts)}\r\n".encode("utf-8")]
-        for part in parts:
-            encoded = part.encode("utf-8")
-            payload.append(f"${len(encoded)}\r\n".encode("utf-8"))
-            payload.append(encoded + b"\r\n")
-        return b"".join(payload)
-
-    def _read_line(self, sock: socket.socket) -> bytes:
-        data = bytearray()
-        while not data.endswith(b"\r\n"):
-            chunk = sock.recv(1)
-            if not chunk:
-                raise ConnectionError("redis connection closed")
-            data.extend(chunk)
-        return bytes(data[:-2])
-
-    def _read_response(self, sock: socket.socket) -> Any:
-        prefix = sock.recv(1)
-        if prefix == b"+":
-            return self._read_line(sock).decode("utf-8")
-        if prefix == b":":
-            return int(self._read_line(sock))
-        if prefix == b"$":
-            size = int(self._read_line(sock))
-            if size == -1:
-                return None
-            remaining = size + 2
-            data = bytearray()
-            while len(data) < remaining:
-                data.extend(sock.recv(remaining - len(data)))
-            return bytes(data[:-2]).decode("utf-8")
-        raise ConnectionError("unsupported redis response")
-
-    def execute(self, *parts: str) -> Any:
-        with socket.create_connection((self.host, self.port), timeout=1.0) as sock:
-            sock.sendall(self._encode(*parts))
-            return self._read_response(sock)
-
-    def get(self, key: str) -> str | None:
-        value = self.execute("GET", key)
-        return None if value is None else str(value)
-
-    def incr(self, key: str) -> int:
-        return int(self.execute("INCR", key))
-
-    def expire(self, key: str, seconds: int) -> None:
-        self.execute("EXPIRE", key, str(seconds))
-
-    def setex(self, key: str, seconds: int, value: str) -> None:
-        self.execute("SETEX", key, str(seconds), value)
+# RedisClient is imported from packages/redis-client (see top of file).
 
 
 class RateLimitExceededError(RuntimeError):

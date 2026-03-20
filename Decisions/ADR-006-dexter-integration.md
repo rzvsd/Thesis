@@ -48,7 +48,7 @@ Unchanged from prior version. Dexter ships with LangSmith wired in. **LangSmith 
 
 ## Fork Pinning
 
-Our fork is pinned to commit `v2026.3.8` (latest stable as of 2026-03). Upstream changes are reviewed before any upgrade — never auto-pulled.
+Our fork `https://github.com/rzvsd/fintech` is pinned to commit `9e570f88abeded674125a53faaeaded3858dd672`. Upstream base is `https://github.com/virattt/dexter`. Upstream changes are reviewed before any upgrade — never auto-pulled.
 
 ## Consequences
 

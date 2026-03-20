@@ -234,10 +234,10 @@ Step 7: Report screen opens automatically
 - Estimated time remaining if available
 - A message explaining what is happening: *"We're retrieving financial data and analyzing recent filings. This takes about 60–90 seconds."*
 
-**What the user sees if it fails:**
+**What the user sees if the pipeline fails entirely:**
 - A clear error message: *"We couldn't complete this report. Please try again."*
 - A retry button
-- No partial or incomplete reports are shown — either the report is complete or it is not shown
+- If the pipeline completes but some sections are missing data, the report is still shown with explicit section statuses and limiting factors
 
 ---
 
@@ -374,7 +374,7 @@ This section defines what the product does in non-ideal situations. Every edge c
 
 | Situation | What the system does |
 |---|---|
-| A ticker exists but Dexter cannot retrieve sufficient data for it | Report is not generated. User sees: *"We don't have sufficient data for this company yet."* |
+| A ticker exists but Dexter cannot retrieve sufficient evidence for a confident signal | Report is still generated if the pipeline completes. Affected sections are marked incomplete or unavailable, and the signal reads *"No Signal — insufficient data."* |
 | Some financial fields are missing (e.g., no debt data) | Affected section is marked "Data incomplete for this section." Other sections are still generated. |
 | News ingest returns no articles for the cycle | Market Pulse news section reads: "No material news was retrieved from approved sources for this period." — not blank, not fabricated. |
 | Macro data provider is down | Affected sections in Market Pulse are marked incomplete. Briefing is still generated and delivered with a flag. |

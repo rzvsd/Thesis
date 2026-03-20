@@ -2,15 +2,19 @@
   "name": "@thesis/dexter-worker",
   "private": true,
   "version": "0.1.0",
-  "main": "dist/src/server.js",
-  "types": "dist/src/server.d.ts",
+  "main": "dist/apps/dexter-worker/src/server.js",
+  "types": "dist/apps/dexter-worker/src/server.d.ts",
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "lint": "eslint \"src/**/*.ts\" \"tests/**/*.ts\"",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "tsc -p tsconfig.json && node --test dist/tests/*.js"
+    "test": "tsc -p tsconfig.json && node --test dist/apps/dexter-worker/tests/health.test.js dist/apps/dexter-worker/tests/pipeline.test.js dist/apps/dexter-worker/tests/server.test.js",
+    "langsmith:push-prompts": "node scripts/sync-langsmith-prompts.mjs"
   },
   "dependencies": {
-    "@thesis/shared-types": "workspace:*"
+    "@thesis/contracts": "workspace:*",
+    "@thesis/observability": "workspace:*",
+    "dexter": "github:rzvsd/fintech#9e570f88abeded674125a53faaeaded3858dd672",
+    "langsmith": "^0.5.10"
   }
 }

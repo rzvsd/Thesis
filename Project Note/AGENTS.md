@@ -133,20 +133,20 @@ apps/data-openbb/requirements.txt
 **Pinned dependency record — Dexter**
 
 > [!IMPORTANT]
-> **TODO / BLOCKER:** Real Dexter fork URL and pinned commit SHA are not yet documented.
-> This must be filled before Dexter integration is considered ready (M3).
+> Real Dexter fork URL and pinned commit SHA are now documented.
+> Dexter integration must use this exact pin and still requires deliberate implementation, test coverage, and milestone smoke validation.
 
-- Fork repo: `https://github.com/<org-or-user>/<dexter-fork>`
-- Upstream base: `<upstream Dexter repo URL>`
-- Pinned commit: `<40-char commit SHA>`
-- Pin owner: `<name or role>`
-- Reason pinned: `<M3 reasoning-pipeline stability>`
+- Fork repo: `https://github.com/rzvsd/fintech`
+- Upstream base: `https://github.com/virattt/dexter`
+- Pinned commit: `9e570f88abeded674125a53faaeaded3858dd672`
+- Pin owner: `rzvsd`
+- Reason pinned: `M3 reasoning-pipeline stability`
 - Upgrade rule: upgrade only through explicit review + doc update + tested PR
 
 **How it connects:**
 ```
 apps/dexter-worker/package.json
-  → "dexter": "github:<org-or-user>/<dexter-fork>#<40-char commit SHA>"
+  → "dexter": "github:rzvsd/fintech#9e570f88abeded674125a53faaeaded3858dd672"
 ```
 
 **Rules:**

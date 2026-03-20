@@ -1,42 +1,90 @@
-import { createServer, type Server } from "node:http";
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 
-const serviceName = "dexter-worker";
-const defaultPort = Number(process.env.PORT ?? "3002");
+import { loadConfig } from "./config";
+import { logError, logInfo } from "./logging";
+import { runAnalysisPipeline } from "./pipeline";
+import { assertAnalysisRequest, validateAnalysisRequest } from "./schema-validation";
+
 type HealthPayload = { status: "ok" };
 
-function log(level: "INFO" | "ERROR", message: string): void {
-  console.log(
-    JSON.stringify({
-      level,
-      service: serviceName,
-      message,
-      timestamp: new Date().toISOString()
-    })
-  );
+async function readJsonBody(request: IncomingMessage): Promise<unknown> {
+  return new Promise((resolve, reject) => {
+    let buffer = "";
+
+    request.setEncoding("utf-8");
+    request.on("data", (chunk) => {
+      buffer += chunk;
+    });
+    request.on("end", () => {
+      try {
+        resolve(JSON.parse(buffer || "{}"));
+      } catch (error) {
+        reject(error);
+      }
+    });
+    request.on("error", reject);
+  });
 }
 
-export function startServer(port: number = defaultPort): Server {
-  const server = createServer((request, response) => {
-    if (request.url === "/health") {
+function sendJson(response: ServerResponse, statusCode: number, payload: unknown): void {
+  response.writeHead(statusCode, { "content-type": "application/json" });
+  response.end(JSON.stringify(payload));
+}
+
+export function startServer(port: number = loadConfig().port): Server {
+  const defaultConfig = loadConfig();
+  const config = {
+    ...defaultConfig,
+    port
+  };
+
+  const server = createServer(async (request, response) => {
+    if (request.method === "GET" && request.url === "/health") {
       const payload: HealthPayload = { status: "ok" };
 
-      log("INFO", "Health check OK");
-      response.writeHead(200, { "content-type": "application/json" });
-      response.end(JSON.stringify(payload));
+      logInfo("Health check OK");
+      sendJson(response, 200, payload);
       return;
     }
 
-    response.writeHead(404, { "content-type": "application/json" });
-    response.end(JSON.stringify({ status: "not_found" }));
+    if (request.method === "POST" && request.url === "/v1/analyze") {
+      try {
+        const body = await readJsonBody(request);
+        const requestErrors = validateAnalysisRequest(body);
+
+        if (requestErrors.length > 0) {
+          sendJson(response, 422, {
+            error: "validation_failed",
+            validation_errors: requestErrors
+          });
+          return;
+        }
+
+        const analysisRequest = assertAnalysisRequest(body);
+        const report = await runAnalysisPipeline(analysisRequest, config);
+        sendJson(response, 200, report);
+        return;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Unknown pipeline error";
+        logError("Unhandled pipeline failure", { error_message: message });
+        sendJson(response, 500, {
+          error: "pipeline_failed",
+          error_message: "Dexter pipeline failed"
+        });
+        return;
+      }
+    }
+
+    sendJson(response, 404, { status: "not_found" });
   });
 
   server.on("listening", () => {
-    log("INFO", "Service started");
+    logInfo("Service started");
   });
 
   server.on("error", (error) => {
     const message = error instanceof Error ? error.message : "Unknown startup error";
-    log("ERROR", message);
+    logError(message);
   });
 
   return server.listen(port);
