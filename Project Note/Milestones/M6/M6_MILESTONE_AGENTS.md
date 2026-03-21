@@ -305,7 +305,7 @@ Notes:
 
 | Issue | Why deferred | Linear ticket | Target milestone |
 |---|---|---|---|
-| Per-user timezone delivery | v1 is fixed-time only; product decision already resolves `06:30 America/New_York` for launch | — | Post-launch / M8 |
+| Per-user timezone delivery | v1 is fixed-time only; product decision already resolves `06:30 America/New_York` for launch | — | Post-launch / later milestone |
 | User-configurable notification time setting | Settings UX belongs to Android product work, not backend pulse plumbing | — | M7 |
 | Mobile notification deep-link polish and richer empty/error states | Device-side UX belongs to the Android milestone | — | M7 |
 | Additional asset classes beyond supported v1 surface | v1 scope is the morning briefing for the approved market/news path; broader coverage is separate product work | — | Post-launch |
