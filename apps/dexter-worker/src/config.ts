@@ -6,7 +6,8 @@ const defaultPort = 3002;
 const defaultSectionTimeoutMs = 70_000;
 const defaultRetrySectionTimeoutMs = 15_000;
 const defaultRetryBackoffMs = 500;
-const defaultSignalEvidenceThreshold = 3;
+const defaultScoredClaimEvidenceThreshold = 1;
+const defaultSignalEvidenceThreshold = 2;
 const defaultAgentMaxIterations = 2;
 const defaultMaxParallelSections = 4;
 const defaultMaxSectionRetries = 0;
@@ -56,12 +57,15 @@ export interface DexterConfig {
   model: string;
   bunBin: string;
   anthropicApiKeyPresent: boolean;
+  financialDatasetsApiKeyPresent: boolean;
+  webSearchProviderKeyPresent: boolean;
   maxAgentIterations: number;
   maxParallelSections: number;
   sectionTimeoutMs: number;
   retrySectionTimeoutMs: number;
   retryBackoffMs: number;
   maxSectionRetries: number;
+  minScoredClaimEvidenceCount: number;
   minSignalEvidenceCount: number;
   promptManifestPath: string;
   langsmithTracingEnabled: boolean;
@@ -89,6 +93,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): DexterConfig {
     model: fixtureMode ? "fixture-dexter-m3" : env.DEXTER_MODEL ?? "",
     bunBin: env.DEXTER_BUN_BIN ?? "bun",
     anthropicApiKeyPresent: Boolean(env.ANTHROPIC_API_KEY),
+    financialDatasetsApiKeyPresent: Boolean(env.FINANCIAL_DATASETS_API_KEY),
+    webSearchProviderKeyPresent: Boolean(
+      env.EXASEARCH_API_KEY || env.PERPLEXITY_API_KEY || env.TAVILY_API_KEY
+    ),
     maxAgentIterations: parseInteger(
       env.DEXTER_AGENT_MAX_ITERATIONS,
       defaultAgentMaxIterations
@@ -104,6 +112,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): DexterConfig {
     ),
     retryBackoffMs: parseInteger(env.DEXTER_RETRY_BACKOFF_MS, defaultRetryBackoffMs),
     maxSectionRetries: parseInteger(env.DEXTER_MAX_SECTION_RETRIES, defaultMaxSectionRetries),
+    minScoredClaimEvidenceCount: parseInteger(
+      env.DEXTER_MIN_SCORED_CLAIM_EVIDENCE_COUNT,
+      defaultScoredClaimEvidenceThreshold
+    ),
     minSignalEvidenceCount: parseInteger(
       env.DEXTER_MIN_SIGNAL_EVIDENCE_COUNT,
       defaultSignalEvidenceThreshold
@@ -143,6 +155,10 @@ export function validateLiveModeConfig(config: DexterConfig): string[] {
 
   if (!config.anthropicApiKeyPresent) {
     errors.push("ANTHROPIC_API_KEY is required when DEXTER_FIXTURE_MODE=false");
+  }
+
+  if (!config.financialDatasetsApiKeyPresent) {
+    errors.push("FINANCIAL_DATASETS_API_KEY is required when DEXTER_FIXTURE_MODE=false");
   }
 
   if (!config.langsmithTracingEnabled) {

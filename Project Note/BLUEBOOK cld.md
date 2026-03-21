@@ -229,6 +229,9 @@ tickers
   symbol          TEXT UNIQUE NOT NULL  -- e.g. AAPL
   exchange        TEXT
   company_name    TEXT
+  listing_status  TEXT                  -- active, delisted, suspended
+  source_feed     TEXT                  -- nasdaqlisted, otherlisted, daily_delta
+  source_updated_at TIMESTAMPTZ
   last_synced_at  TIMESTAMPTZ
 
 watchlists
@@ -502,7 +505,7 @@ A scheduled daily briefing, generated at a fixed time (e.g., 06:30 EST), answeri
 | Service | Purpose | Exposure | Owns |
 |---|---|---|---|
 | `mobile-app` | Android user interface | Public client | UI state, local cache |
-| `product-api` | Auth, jobs, history, report retrieval, push | Public (HTTPS) | Auth tokens, job orchestration |
+| `product-api` | Auth, jobs, history, report retrieval, push, ticker-registry sync | Public (HTTPS) | Auth tokens, job orchestration, ticker registry |
 | `dexter-worker` | Company Deep Dive reasoning pipeline | Private (internal) | Reasoning pipeline |
 | `data-openbb` | Normalized finance and macro access | Private (internal) | Provider abstraction |
 | `news-ingest` | Crawl, normalize, deduplicate approved-source news | Private (internal) | Article normalization |

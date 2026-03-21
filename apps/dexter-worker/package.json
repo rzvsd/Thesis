@@ -8,7 +8,7 @@
     "build": "tsc -p tsconfig.json",
     "lint": "eslint \"src/**/*.ts\" \"tests/**/*.ts\"",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "tsc -p tsconfig.json && node --test dist/apps/dexter-worker/tests/health.test.js dist/apps/dexter-worker/tests/pipeline.test.js dist/apps/dexter-worker/tests/server.test.js",
+    "test": "tsc -p tsconfig.json && node --test dist/apps/dexter-worker/tests/health.test.js dist/apps/dexter-worker/tests/pipeline.test.js dist/apps/dexter-worker/tests/server.test.js dist/apps/dexter-worker/tests/m5-acceptance.test.js",
     "langsmith:push-prompts": "node scripts/sync-langsmith-prompts.mjs"
   },
   "dependencies": {

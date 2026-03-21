@@ -15,3 +15,5 @@ export * from "./market-pulse-report";
 export * from "./report-section";
 export * from "./report-list-item";
 export * from "./service-response";
+export * from "./ticker-registry-entry";
+export * from "./ticker-search-result";

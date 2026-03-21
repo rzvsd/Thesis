@@ -48,6 +48,10 @@ export interface ProductApiConfig {
   internalWorkerToken: string;
   rateLimitWindowSeconds: number;
   rateLimitMaxRequests: number;
+  tickerAutoSyncEnabled: boolean;
+  tickerAutoSyncRunOnStartup: boolean;
+  tickerDeltaSyncIntervalSeconds: number;
+  tickerFullSyncIntervalSeconds: number;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): ProductApiConfig {
@@ -94,7 +98,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ProductApiConf
     exposeVerificationToken: parseBoolean(env.AUTH_EXPOSE_VERIFICATION_TOKEN, false),
     internalWorkerToken,
     rateLimitWindowSeconds: parseInteger(env.RATE_LIMIT_WINDOW_SECONDS, 60),
-    rateLimitMaxRequests: parseInteger(env.RATE_LIMIT_MAX_REQUESTS, 120)
+    rateLimitMaxRequests: parseInteger(env.RATE_LIMIT_MAX_REQUESTS, 120),
+    tickerAutoSyncEnabled: parseBoolean(env.TICKER_AUTO_SYNC_ENABLED, true),
+    tickerAutoSyncRunOnStartup: parseBoolean(env.TICKER_AUTO_SYNC_RUN_ON_STARTUP, true),
+    tickerDeltaSyncIntervalSeconds: parseInteger(env.TICKER_DELTA_SYNC_INTERVAL_SECONDS, 900),
+    tickerFullSyncIntervalSeconds: parseInteger(env.TICKER_FULL_SYNC_INTERVAL_SECONDS, 86400)
   };
 }
 
@@ -115,6 +123,14 @@ export function validateConfig(config: ProductApiConfig): string[] {
 
   if (config.internalWorkerToken.trim().length < 16) {
     errors.push("INTERNAL_WORKER_TOKEN must be at least 16 characters");
+  }
+
+  if (config.tickerDeltaSyncIntervalSeconds <= 0) {
+    errors.push("TICKER_DELTA_SYNC_INTERVAL_SECONDS must be greater than 0");
+  }
+
+  if (config.tickerFullSyncIntervalSeconds <= 0) {
+    errors.push("TICKER_FULL_SYNC_INTERVAL_SECONDS must be greater than 0");
   }
 
   return errors;

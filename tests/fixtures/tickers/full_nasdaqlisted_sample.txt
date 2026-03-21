@@ -1,0 +1,6 @@
+Symbol|Security Name|Market Category|Test Issue|Financial Status|Round Lot Size|ETF|NextShares
+AAPL|Apple Inc. Common Stock|Q|N|N|100|N|N
+MSFT|Microsoft Corporation Common Stock|Q|N|N|100|N|N
+TSLA|Tesla, Inc. Common Stock|Q|N|N|100|N|N
+QQQ|Invesco QQQ Trust, Series 1 ETF|Q|N|N|100|Y|N
+File Creation Time: 032020261200

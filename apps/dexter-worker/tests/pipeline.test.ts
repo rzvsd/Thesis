@@ -41,6 +41,13 @@ test("MSFT fixture request produces a schema-valid report with no blank sections
   assert.equal(report.signal?.value, "positive");
   assert.ok(report.sections.every((section) => section.body.trim().length > 0));
   assert.ok(report.sections.every((section) => section.status.length > 0));
+  assert.equal(findSection(report.sections, "quarter_over_quarter_changes").status, "complete");
+  assert.equal(findSection(report.sections, "year_over_year_changes").status, "complete");
+  assert.equal(findSection(report.sections, "management_commentary").status, "complete");
+  assert.match(
+    findSection(report.sections, "executive_summary").body,
+    /This is a research summary, not financial advice\. Always do your own research\./
+  );
 });
 
 test("LIMITED fixture request degrades affected sections honestly", async () => {
@@ -52,7 +59,7 @@ test("LIMITED fixture request degrades affected sections honestly", async () => 
     "data_unavailable"
   );
   assert.equal(
-    findSection(report.sections, "management_commentary_risk_factors").status,
+    findSection(report.sections, "management_commentary").status,
     "data_incomplete"
   );
 });
@@ -135,13 +142,17 @@ test("live mode validation requires model, Anthropic, and LangSmith settings", (
     DEXTER_MODEL: "",
     LANGSMITH_TRACING: "false",
     LANGSMITH_PROJECT: "",
-    ANTHROPIC_API_KEY: ""
+    ANTHROPIC_API_KEY: "",
+    FINANCIAL_DATASETS_API_KEY: ""
   });
 
   const errors = validateLiveModeConfig(config);
 
   assert.ok(errors.includes("DEXTER_MODEL is required when DEXTER_FIXTURE_MODE=false"));
   assert.ok(errors.includes("ANTHROPIC_API_KEY is required when DEXTER_FIXTURE_MODE=false"));
+  assert.ok(
+    errors.includes("FINANCIAL_DATASETS_API_KEY is required when DEXTER_FIXTURE_MODE=false")
+  );
   assert.ok(errors.includes("LANGSMITH_TRACING=true is required when DEXTER_FIXTURE_MODE=false"));
   assert.ok(errors.includes("LANGSMITH_API_KEY is required when DEXTER_FIXTURE_MODE=false"));
   assert.ok(errors.includes("LANGSMITH_PROJECT is required when DEXTER_FIXTURE_MODE=false"));

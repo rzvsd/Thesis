@@ -31,6 +31,8 @@ import {
 } from "./security";
 import { createProductStore } from "./store-factory";
 import type { ProductStore } from "./store";
+import { assertIncomingAnalysisReport } from "./report-validation";
+import { startTickerSyncScheduler } from "./ticker-sync-scheduler";
 import type { AuditEventRecord, JobRecord } from "./types";
 
 type HealthPayload = { status: "ok" };
@@ -153,6 +155,31 @@ function buildReportListItem(report: {
     schema_version: report.schemaVersion,
     created_at: report.createdAt
   };
+}
+
+async function cleanupStoredReport(
+  runtime: Runtime,
+  reportId: string,
+  artifactKey: string | undefined
+): Promise<void> {
+  const cleanupTasks: Promise<unknown>[] = [];
+
+  if (artifactKey) {
+    cleanupTasks.push(runtime.artifactStore.deleteReport(artifactKey));
+  }
+
+  cleanupTasks.push(runtime.store.deleteReport(reportId));
+
+  const results = await Promise.allSettled(cleanupTasks);
+  results.forEach((result) => {
+    if (result.status === "rejected") {
+      logWarn("Report cleanup warning", {
+        error_message: result.reason instanceof Error ? result.reason.message : String(result.reason),
+        report_id: reportId,
+        artifact_key: artifactKey
+      });
+    }
+  });
 }
 
 async function authenticateAccessToken(
@@ -285,6 +312,19 @@ async function createRuntime(config: ProductApiConfig): Promise<Runtime> {
     maxRequests: config.rateLimitMaxRequests
   });
   const artifactStore = new FilesystemArtifactStore(config.artifactRoot);
+  const tickerSyncScheduler =
+    config.storeBackend === "postgres" && config.tickerAutoSyncEnabled
+      ? startTickerSyncScheduler(
+        store,
+        {
+          enabled: config.tickerAutoSyncEnabled,
+          runOnStartup: config.tickerAutoSyncRunOnStartup,
+          deltaIntervalSeconds: config.tickerDeltaSyncIntervalSeconds,
+          fullIntervalSeconds: config.tickerFullSyncIntervalSeconds
+        },
+        process.env
+      )
+      : undefined;
 
   return {
     config,
@@ -294,6 +334,7 @@ async function createRuntime(config: ProductApiConfig): Promise<Runtime> {
     artifactStore,
     close: async () => {
       await Promise.all([
+        tickerSyncScheduler?.close() ?? Promise.resolve(),
         store.close(),
         queue.close(),
         rateLimiter.close()
@@ -688,8 +729,29 @@ export function startServer(port: number = loadConfig().port): Server {
 
           if (method === "POST" && action === "complete") {
             const body = await readJsonBody<{ report?: AnalysisReport }>(request);
-            const report = body.report;
-            if (!report || report.job_id !== jobId) {
+            if (!body.report) {
+              sendJson(response, 422, {
+                error: "validation_failed",
+                error_message: "A valid report payload with matching job_id is required."
+              });
+              return;
+            }
+            const validationErrors: string[] = [];
+            let report: AnalysisReport;
+            try {
+              report = assertIncomingAnalysisReport(body.report);
+            } catch (error) {
+              const message = error instanceof Error ? error.message : "Unknown report validation error";
+              validationErrors.push(...message.split("; ").filter((entry) => entry.length > 0));
+              sendJson(response, 422, {
+                error: "validation_failed",
+                error_message: "Report failed schema validation before storage.",
+                validation_errors: validationErrors
+              });
+              return;
+            }
+
+            if (report.job_id !== jobId) {
               sendJson(response, 422, {
                 error: "validation_failed",
                 error_message: "A valid report payload with matching job_id is required."
@@ -697,43 +759,74 @@ export function startServer(port: number = loadConfig().port): Server {
               return;
             }
 
-            const artifactKey = await runtime.artifactStore.writeReport(report);
-            await runtime.store.createReport({
-              id: report.report_id,
-              jobId: report.job_id,
-              type: report.type,
-              ticker: report.ticker,
-              schemaVersion: report.schema_version,
-              artifactKey,
-              createdAt: report.generated_at,
-              isCurrent: true
-            });
-            const completed = await runtime.store.markJobComplete(
-              jobId,
-              new Date().toISOString(),
-              report.report_id
-            );
-            if (!completed) {
-              sendJson(response, 404, {
-                error: "job_not_found",
-                error_message: "Job was not found for completion."
+            let artifactKey: string | undefined;
+            try {
+              artifactKey = await runtime.artifactStore.writeReport(report);
+              await runtime.store.createReport({
+                id: report.report_id,
+                jobId: report.job_id,
+                type: report.type,
+                ticker: report.ticker,
+                schemaVersion: report.schema_version,
+                artifactKey,
+                createdAt: report.generated_at,
+                isCurrent: true
+              });
+              const completed = await runtime.store.markJobComplete(
+                jobId,
+                new Date().toISOString(),
+                report.report_id
+              );
+              if (!completed) {
+                await cleanupStoredReport(runtime, report.report_id, artifactKey);
+                await runtime.store.markJobFailed(
+                  jobId,
+                  new Date().toISOString(),
+                  "Job was not found for completion."
+                );
+                sendJson(response, 404, {
+                  error: "job_not_found",
+                  error_message: "Job was not found for completion."
+                });
+                return;
+              }
+
+              await appendAudit(runtime, "job.complete", {
+                request_id: meta.requestId,
+                route: pathname,
+                job_id: completed.id,
+                report_id: report.report_id,
+                status: "complete"
+              }, completed.userId);
+
+              sendJson(response, 200, {
+                status: "ok",
+                report_id: report.report_id
+              });
+              return;
+            } catch (error) {
+              if (artifactKey) {
+                await cleanupStoredReport(runtime, report.report_id, artifactKey);
+              }
+
+              const message = error instanceof Error ? error.message : "Report completion failed";
+              const failed = await runtime.store.markJobFailed(
+                jobId,
+                new Date().toISOString(),
+                message
+              );
+              captureException(new Error(message), {
+                service: serviceName,
+                job_id: jobId
+              });
+              sendJson(response, failed ? 500 : 404, {
+                error: failed ? "internal_error" : "job_not_found",
+                error_message: failed
+                  ? "Product API failed to finalize the report."
+                  : "Job was not found for completion."
               });
               return;
             }
-
-            await appendAudit(runtime, "job.complete", {
-              request_id: meta.requestId,
-              route: pathname,
-              job_id: completed.id,
-              report_id: report.report_id,
-              status: "complete"
-            }, completed.userId);
-
-            sendJson(response, 200, {
-              status: "ok",
-              report_id: report.report_id
-            });
-            return;
           }
 
           if (method === "POST" && action === "fail") {
@@ -785,6 +878,49 @@ export function startServer(port: number = loadConfig().port): Server {
         return;
       }
 
+      if (method === "GET" && (pathname === "/tickers/search" || pathname === "/tickers")) {
+        const query = url.searchParams.get("q")?.trim() ?? "";
+        if (!query) {
+          sendJson(response, 422, {
+            error: "validation_failed",
+            error_message: "query parameter q is required."
+          });
+          return;
+        }
+
+        logInfo("Ticker search requested", {
+          request_id: meta.requestId,
+          user_id: auth.userId,
+          query
+        });
+
+        const results = await runtime.store.searchTickers(query, 25);
+        if (results.length === 0) {
+          logWarn("Ticker not found", {
+            request_id: meta.requestId,
+            user_id: auth.userId,
+            query,
+            reason: "no_supported_match"
+          });
+          sendJson(response, 404, {
+            error: "ticker_not_found",
+            error_message: "Ticker not found in supported NYSE/NASDAQ universe."
+          });
+          return;
+        }
+
+        logInfo("Ticker search succeeded", {
+          request_id: meta.requestId,
+          user_id: auth.userId,
+          query,
+          result_count: results.length
+        });
+        sendJson(response, 200, {
+          data: results
+        });
+        return;
+      }
+
       if (method === "POST" && pathname === "/jobs") {
         const body = await readJsonBody<CreateJobRequest>(request);
         const ticker = body.ticker?.trim().toUpperCase();
@@ -792,6 +928,20 @@ export function startServer(port: number = loadConfig().port): Server {
           sendJson(response, 422, {
             error: "validation_failed",
             error_message: "ticker must be a valid US symbol."
+          });
+          return;
+        }
+
+        const supportedTicker = await runtime.store.getSupportedTicker(ticker);
+        if (!supportedTicker) {
+          logWarn("Ticker not found or unsupported for Deep Dive request", {
+            request_id: meta.requestId,
+            user_id: auth.userId,
+            ticker
+          });
+          sendJson(response, 404, {
+            error: "ticker_not_found",
+            error_message: "Ticker not found in supported NYSE/NASDAQ universe."
           });
           return;
         }

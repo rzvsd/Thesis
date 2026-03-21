@@ -208,6 +208,8 @@ Every morning, at a configured time before markets open, the app generates a bri
 - Each result shows: ticker symbol, company name, exchange
 - Selecting a result goes to the Company Deep Dive request screen
 - If a ticker is not found: show a clear "not found" message, no crash
+- Ticker registry is owned in Postgres and synchronized from official Nasdaq Trader symbol-directory feeds
+- Sync model: nightly full refresh plus daily delta updates for adds/deletes/name/symbol changes
 
 **Supported securities in v1:**
 - US-listed public equities (NYSE, NASDAQ)

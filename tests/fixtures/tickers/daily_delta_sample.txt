@@ -1,0 +1,4 @@
+Daily List Date|Effective Date|Issue Event|Symbol|Company Name|New Symbol|New Company Name|Market Category|Listing Center
+03/20/2026 12:00:00|03/20/2026|Security Additions|NEWT|New Ticker Common Stock|||Q|Q
+03/20/2026 12:00:00|03/20/2026|Issue Deletions|MSFT|Microsoft Corporation Common Stock|||Q|Q
+03/20/2026 12:00:00|03/20/2026|Name/Symbol Changes|AAPL|Apple Inc. Common Stock|AAPX|Apple Inc. Common Stock|Q|Q

@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 
 import type { AnalysisReport } from "../../../packages/contracts/src";
@@ -6,6 +6,7 @@ import type { AnalysisReport } from "../../../packages/contracts/src";
 export interface ArtifactStore {
   writeReport(report: AnalysisReport): Promise<string>;
   readReport(artifactKey: string): Promise<AnalysisReport | undefined>;
+  deleteReport(artifactKey: string): Promise<void>;
 }
 
 export class FilesystemArtifactStore implements ArtifactStore {
@@ -30,6 +31,24 @@ export class FilesystemArtifactStore implements ArtifactStore {
       return JSON.parse(content) as AnalysisReport;
     } catch {
       return undefined;
+    }
+  }
+
+  async deleteReport(artifactKey: string): Promise<void> {
+    const fullPath = resolve(this.root, artifactKey);
+    try {
+      await unlink(fullPath);
+    } catch (error) {
+      if (
+        typeof error === "object" &&
+        error !== null &&
+        "code" in error &&
+        error.code === "ENOENT"
+      ) {
+        return;
+      }
+
+      throw error;
     }
   }
 }

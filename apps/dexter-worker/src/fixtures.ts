@@ -44,9 +44,13 @@ function buildEvidence(
 
 function msftEvidence(): Record<string, EvidenceItem[]> {
   return {
-    qoq_yoy_changes: [
-      buildEvidence("MSFT", "FY2025 Q2 10-Q", "filing", "Revenue increased 15% year over year.", "qoq-1"),
-      buildEvidence("MSFT", "FY2025 Q2 earnings call", "article", "Management highlighted Azure demand resilience.", "qoq-2")
+    quarter_over_quarter_changes: [
+      buildEvidence("MSFT", "FY2025 Q2 10-Q", "filing", "Revenue increased quarter over quarter.", "qoq-1"),
+      buildEvidence("MSFT", "FY2025 Q2 earnings call", "article", "Cloud demand improved sequentially.", "qoq-2")
+    ],
+    year_over_year_changes: [
+      buildEvidence("MSFT", "FY2025 Q2 10-Q", "filing", "Revenue increased 15% year over year.", "yoy-1"),
+      buildEvidence("MSFT", "FY2025 Q2 earnings call", "article", "Management highlighted Azure demand resilience.", "yoy-2")
     ],
     revenue_margin_analysis: [
       buildEvidence("MSFT", "FY2025 Q2 10-Q", "financial_data", "Gross margin expanded by 120 basis points.", "margin-1"),
@@ -59,31 +63,39 @@ function msftEvidence(): Record<string, EvidenceItem[]> {
     acquisitions_major_events: [
       buildEvidence("MSFT", "Company filings", "filing", "No transformative acquisition closed in the quarter.", "events-1")
     ],
-    management_commentary_risk_factors: [
-      buildEvidence("MSFT", "FY2025 Q2 earnings call", "article", "Leadership reiterated AI capex discipline.", "risk-1"),
-      buildEvidence("MSFT", "10-Q risk factors", "filing", "Cybersecurity and competition remain key risks.", "risk-2")
+    management_commentary: [
+      buildEvidence("MSFT", "FY2025 Q2 earnings call", "article", "Leadership reiterated AI capex discipline.", "commentary-1"),
+      buildEvidence("MSFT", "10-Q risk factors", "filing", "Cybersecurity and competition remain key risks.", "commentary-2"),
+      buildEvidence("MSFT", "10-Q risk factors", "filing", "Regulatory and macro volatility remain material uncertainties.", "commentary-3")
     ]
   };
 }
 
 function buildCompleteScenario(ticker: string): FixtureScenario {
   const evidence = msftEvidence();
-  const qoqEvidence = evidence.qoq_yoy_changes ?? [];
+  const qoqEvidence = evidence.quarter_over_quarter_changes ?? [];
+  const yoyEvidence = evidence.year_over_year_changes ?? [];
   const revenueEvidence = evidence.revenue_margin_analysis ?? [];
   const debtEvidence = evidence.debt_liquidity ?? [];
   const eventsEvidence = evidence.acquisitions_major_events ?? [];
-  const riskEvidence = evidence.management_commentary_risk_factors ?? [];
+  const commentaryEvidence = evidence.management_commentary ?? [];
 
   return {
     promptVersion: "fixture-m3-v1",
     model: "fixture-dexter-m3",
     sources: ["dexter-native:financial_search", "dexter-native:read_filings", "dexter-native:web_search"],
     sectionScenarios: {
-      qoq_yoy_changes: {
+      quarter_over_quarter_changes: {
         status: "complete",
         summary:
-          `${ticker} delivered balanced quarter-over-quarter and year-over-year growth, with cloud demand carrying the headline acceleration.`,
+          `${ticker} delivered sequential growth with cloud demand carrying the headline acceleration.`,
         evidence: qoqEvidence
+      },
+      year_over_year_changes: {
+        status: "complete",
+        summary:
+          `${ticker} delivered year-over-year growth with cloud demand carrying the headline acceleration.`,
+        evidence: yoyEvidence
       },
       revenue_margin_analysis: {
         status: "complete",
@@ -103,11 +115,11 @@ function buildCompleteScenario(ticker: string): FixtureScenario {
           `Major event flow was manageable and did not materially distort the core operating picture for ${ticker}.`,
         evidence: eventsEvidence
       },
-      management_commentary_risk_factors: {
+      management_commentary: {
         status: "complete",
         summary:
-          `Management commentary stayed constructive while still acknowledging execution and competitive risk factors for ${ticker}.`,
-        evidence: riskEvidence
+          `Management commentary stayed constructive while still acknowledging execution and risk priorities for ${ticker}.`,
+        evidence: commentaryEvidence
       }
     },
     confidence: {
@@ -126,12 +138,22 @@ function buildCompleteScenario(ticker: string): FixtureScenario {
 
 function buildLimitedScenario(ticker: string): FixtureScenario {
   const base = buildCompleteScenario(ticker);
-  const riskSection = base.sectionScenarios.management_commentary_risk_factors;
+  const yoySection = base.sectionScenarios.year_over_year_changes;
+  const commentarySection = base.sectionScenarios.management_commentary;
 
   return {
     ...base,
     sectionScenarios: {
       ...base.sectionScenarios,
+      year_over_year_changes: {
+        status: "data_incomplete",
+        summary: buildStatusBody(
+          "Year-over-Year Changes",
+          "data_incomplete",
+          "Only partial annual comparison data was available, so the section stays intentionally constrained."
+        ),
+        evidence: yoySection ? yoySection.evidence.slice(0, 1) : []
+      },
       acquisitions_major_events: {
         status: "data_unavailable",
         summary: buildStatusBody(
@@ -141,14 +163,14 @@ function buildLimitedScenario(ticker: string): FixtureScenario {
         ),
         evidence: []
       },
-      management_commentary_risk_factors: {
+      management_commentary: {
         status: "data_incomplete",
         summary: buildStatusBody(
-          "Management Commentary and Risk Factors",
+          "Management Commentary",
           "data_incomplete",
-          "Only partial management commentary was available, so risk interpretation is intentionally constrained."
+          "Only partial management commentary and risk evidence was available, so the section stays intentionally constrained."
         ),
-        evidence: riskSection ? riskSection.evidence.slice(0, 1) : []
+        evidence: commentarySection ? commentarySection.evidence.slice(0, 1) : []
       }
     },
     confidence: {
@@ -168,7 +190,7 @@ function buildLimitedScenario(ticker: string): FixtureScenario {
 function buildNoSignalScenario(ticker: string): FixtureScenario {
   const base = buildCompleteScenario(ticker);
   const eventsSection = base.sectionScenarios.acquisitions_major_events;
-  const riskSection = base.sectionScenarios.management_commentary_risk_factors;
+  const commentarySection = base.sectionScenarios.management_commentary;
 
   return {
     ...base,
@@ -186,17 +208,17 @@ function buildNoSignalScenario(ticker: string): FixtureScenario {
         }),
         evidence: []
       },
-      management_commentary_risk_factors: {
-        ...(riskSection ?? {
+      management_commentary: {
+        ...(commentarySection ?? {
           status: "data_incomplete",
           summary: buildStatusBody(
-            "Management Commentary and Risk Factors",
+            "Management Commentary",
             "data_incomplete",
-            "Only partial management commentary was available."
+            "Only partial management commentary and risk evidence was available."
           ),
           evidence: []
         }),
-        evidence: riskSection ? riskSection.evidence.slice(0, 1) : []
+        evidence: commentarySection ? commentarySection.evidence.slice(0, 1) : []
       }
     },
     confidence: {

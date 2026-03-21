@@ -31,6 +31,8 @@ import {
 } from "./sections";
 
 const schemaVersion = "1.0.0";
+const canonicalDisclaimer =
+  "This is a research summary, not financial advice. Always do your own research.";
 
 interface ExecutedSection {
   section: ReportSection;
@@ -107,8 +109,8 @@ function buildExecutiveSummary(
   const completeCount = sections.filter((section) => section.status === "complete").length;
   const degradedCount = sections.length - completeCount;
   const body = degradedCount === 0
-    ? `${ticker} completed the deep-dive path with all primary sections available. The current research signal is ${signalValue}.`
-    : `${ticker} completed the deep-dive path with ${degradedCount} degraded section(s). The current research signal is ${signalValue}, and the report explicitly notes every gap instead of filling it with assumptions.`;
+    ? `${ticker} completed the deep-dive path with all primary sections available. The current research signal is ${signalValue}. ${canonicalDisclaimer}`
+    : `${ticker} completed the deep-dive path with ${degradedCount} degraded section(s). The current research signal is ${signalValue}, and the report explicitly notes every gap instead of filling it with assumptions. ${canonicalDisclaimer}`;
 
   return {
     section_id: "executive_summary",
@@ -166,10 +168,11 @@ function buildSignal(
   const evidence = collectSignalEvidence(
     sections.filter((section) => section.status === "complete")
   );
+  const requiredEvidenceCount = Math.max(config.minSignalEvidenceCount, 1);
 
-  if (evidence.length < config.minSignalEvidenceCount || scenario?.signalValue === "no_signal") {
+  if (evidence.length < requiredEvidenceCount || scenario?.signalValue === "no_signal") {
     const reasons = scenario?.signalReasons ?? [
-      `Evidence count ${evidence.length} is below the minimum threshold of ${config.minSignalEvidenceCount}.`
+      `Evidence count ${evidence.length} is below the minimum threshold of ${requiredEvidenceCount}.`
     ];
 
     logWarn("Evidence threshold not met", {
@@ -181,14 +184,14 @@ function buildSignal(
     return {
       value: "no_signal",
       reasons,
-      evidence: evidence.slice(0, config.minSignalEvidenceCount)
+      evidence: evidence.slice(0, requiredEvidenceCount)
     };
   }
 
   return {
     value: scenario?.signalValue ?? "neutral",
     reasons: scenario?.signalReasons ?? ["Signal generated from completed sections."],
-    evidence: evidence.slice(0, Math.max(config.minSignalEvidenceCount, 1))
+    evidence: evidence.slice(0, requiredEvidenceCount)
   };
 }
 
@@ -271,6 +274,27 @@ async function executeFixtureSection(
   }
 
   if (
+    sectionScenario.status === "complete" &&
+    sectionScenario.evidence.length < config.minScoredClaimEvidenceCount
+  ) {
+    return {
+      section: {
+        section_id: definition.id,
+        title: definition.title,
+        status: "data_unavailable",
+        body: buildStatusBody(
+          definition.title,
+          "data_unavailable",
+          `The section completed with fewer than ${config.minScoredClaimEvidenceCount} required evidence item(s), so it is downgraded instead of being marked complete.`
+        ),
+        evidence: []
+      },
+      latencyMs: Date.now() - startedAt,
+      tokenCount: 0
+    };
+  }
+
+  if (
     config.simulateTimeoutSection === definition.id ||
     sectionScenario.shouldTimeout
   ) {
@@ -323,7 +347,7 @@ async function executeLiveSection(
     throw new Error("Dexter returned an empty section body");
   }
 
-  if (evidence.length === 0) {
+  if (evidence.length < config.minScoredClaimEvidenceCount) {
     return {
       section: {
         section_id: definition.id,
@@ -332,7 +356,7 @@ async function executeLiveSection(
         body: buildStatusBody(
           definition.title,
           "data_unavailable",
-          "No retrievable evidence was returned by the section executor."
+          `The section returned fewer than ${config.minScoredClaimEvidenceCount} required evidence item(s).`
         ),
         evidence: []
       },
@@ -437,6 +461,22 @@ export async function runAnalysisPipeline(
       (left, right) => (right.executionPriority ?? 0) - (left.executionPriority ?? 0)
     );
   const model = config.fixtureMode ? scenario?.model ?? "fixture-dexter-m3" : config.model;
+
+  if (!config.fixtureMode) {
+    const preflightErrors = validateLiveModeConfig(config);
+    if (preflightErrors.length > 0) {
+      throw new Error(`Dexter live-mode preflight failed: ${preflightErrors.join("; ")}`);
+    }
+
+    if (!config.webSearchProviderKeyPresent) {
+      logWarn("No web search provider key configured for live Dexter run", {
+        job_id: request.job_id,
+        ticker,
+        recommendation:
+          "Set EXASEARCH_API_KEY, PERPLEXITY_API_KEY, or TAVILY_API_KEY to improve event/news coverage."
+      });
+    }
+  }
 
   initSentry({ enabled: false });
   const langSmithRuntime = initLangSmith({
