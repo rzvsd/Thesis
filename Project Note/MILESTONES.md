@@ -487,6 +487,7 @@ A user can request a Dexter-powered Company Deep Dive for any supported ticker a
 |---|---|
 | Full Deep Dive pipeline | End-to-end: request → queue → Dexter research → validated report → stored |
 | Ticker search | User can search by company name or symbol and get results |
+| Ticker registry sync | Official ticker registry is seeded and refreshed from approved Nasdaq source files |
 | Report schema enforcement | Every Deep Dive report validated before storage |
 | Evidence enforcement | No section can carry a scored claim without at least one EvidenceItem |
 | SLA validation | 90-second target validated under realistic conditions in staging |
@@ -498,6 +499,7 @@ A user can request a Dexter-powered Company Deep Dive for any supported ticker a
 
 - [ ] Ticker search returns results for any US-listed NYSE or NASDAQ company
 - [ ] An invalid or unsupported ticker returns a clear "not found" message — no crash
+- [ ] Ticker registry full refresh and daily delta sync path are implemented and validated
 - [ ] A Deep Dive request creates a job, queues it, and Dexter runs the full research pipeline without manual intervention
 - [ ] The generated report contains all expected sections (as listed in PRD §5 Surface A)
 - [ ] Every section has a `status` field — no section is blank or missing
@@ -516,6 +518,10 @@ A user can request a Dexter-powered Company Deep Dive for any supported ticker a
 **Who runs it:** Engineering Lead + Product Lead. Requires LangSmith, Sentry, and Postgres access.
 
 ```
+Ticker Registry Delta Validation (run before Step 1):
+Step 0a: Run full ticker registry sync from official Nasdaq seed feed
+Step 0b: Apply one controlled daily delta fixture with add/update/delete cases
+Step 0c: Confirm - registry reflects expected add/update/delete results after delta sync
 Step 1:  Search for "Apple Inc" — confirm AAPL appears in results
 Step 2:  Search for a fake ticker "ZZZZ" — confirm "not found" message, no crash
 Step 3:  Select AAPL. Submit a Deep Dive request
@@ -572,6 +578,7 @@ Still in staging. No public users. Rollback means redeploying the previous servi
 - M4 complete (auth, job system, report retrieval all operational)
 - Legal disclaimer text reviewed and approved
 - Approved ticker registry seeded with US-listed equities
+- Daily delta ticker sync path approved and validated
 - LangSmith prompts finalized and version-pinned for all Deep Dive sections
 
 ---

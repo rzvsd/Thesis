@@ -333,3 +333,98 @@ test("internal fail endpoint marks job as failed", async () => {
   process.env.JWT_SECRET = previous.JWT_SECRET;
   process.env.INTERNAL_WORKER_TOKEN = previous.INTERNAL_WORKER_TOKEN;
 });
+
+test("failed jobs do not leave a partial report retrievable after a late complete callback", async () => {
+  const previous = {
+    STORE_BACKEND: process.env.STORE_BACKEND,
+    QUEUE_BACKEND: process.env.QUEUE_BACKEND,
+    AUTH_EXPOSE_VERIFICATION_TOKEN: process.env.AUTH_EXPOSE_VERIFICATION_TOKEN,
+    JWT_SECRET: process.env.JWT_SECRET,
+    INTERNAL_WORKER_TOKEN: process.env.INTERNAL_WORKER_TOKEN
+  };
+  process.env.STORE_BACKEND = "memory";
+  process.env.QUEUE_BACKEND = "memory";
+  process.env.AUTH_EXPOSE_VERIFICATION_TOKEN = "true";
+  process.env.JWT_SECRET = "dev-jwt-secret-change-me";
+  process.env.INTERNAL_WORKER_TOKEN = "dev-internal-worker-token";
+
+  const server = startServer(0);
+  await once(server, "listening");
+  const { port } = server.address() as AddressInfo;
+  const baseUrl = `http://127.0.0.1:${port}`;
+
+  const session = await createVerifiedSession(baseUrl);
+  const authHeader = { authorization: `Bearer ${session.accessToken}` };
+
+  const createJob = await requestJson(baseUrl, "/jobs", {
+    method: "POST",
+    headers: authHeader,
+    body: {
+      ticker: "AAPL"
+    }
+  });
+  assert.equal(createJob.status, 202);
+  const createdJob = createJob.payload as JsonObject;
+  const jobId = createdJob.job_id;
+  assert.equal(typeof jobId, "string");
+
+  const claim = await requestJson(baseUrl, `/internal/jobs/${jobId as string}/claim`, {
+    method: "POST",
+    headers: {
+      "x-internal-token": session.internalToken
+    }
+  });
+  assert.equal(claim.status, 200);
+
+  const fail = await requestJson(baseUrl, `/internal/jobs/${jobId as string}/fail`, {
+    method: "POST",
+    headers: {
+      "x-internal-token": session.internalToken
+    },
+    body: {
+      error_message: "forced failure"
+    }
+  });
+  assert.equal(fail.status, 200);
+
+  const lateComplete = await requestJson(baseUrl, `/internal/jobs/${jobId as string}/complete`, {
+    method: "POST",
+    headers: {
+      "x-internal-token": session.internalToken
+    },
+    body: {
+      report: sampleReport(jobId as string, "report-after-fail")
+    }
+  });
+  assert.equal(lateComplete.status, 404);
+
+  const status = await requestJson(baseUrl, `/jobs/${jobId as string}`, {
+    method: "GET",
+    headers: authHeader
+  });
+  assert.equal(status.status, 200);
+  const statusPayload = status.payload as JsonObject;
+  assert.equal(statusPayload.status, "failed");
+  assert.ok(!statusPayload.report_id);
+
+  const history = await requestJson(baseUrl, "/reports", {
+    method: "GET",
+    headers: authHeader
+  });
+  assert.equal(history.status, 200);
+  const historyPayload = history.payload as JsonObject[];
+  assert.equal(historyPayload.length, 0);
+
+  const report = await requestJson(baseUrl, "/reports/report-after-fail", {
+    method: "GET",
+    headers: authHeader
+  });
+  assert.equal(report.status, 404);
+
+  await closeServer(server);
+  process.env.STORE_BACKEND = previous.STORE_BACKEND;
+  process.env.QUEUE_BACKEND = previous.QUEUE_BACKEND;
+  process.env.AUTH_EXPOSE_VERIFICATION_TOKEN = previous.AUTH_EXPOSE_VERIFICATION_TOKEN;
+  process.env.JWT_SECRET = previous.JWT_SECRET;
+  process.env.INTERNAL_WORKER_TOKEN = previous.INTERNAL_WORKER_TOKEN;
+});

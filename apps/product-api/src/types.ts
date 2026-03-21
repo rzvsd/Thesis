@@ -1,4 +1,9 @@
 import type { AnalysisReport, AnalysisRequest } from "../../../packages/contracts/src";
+import type {
+  TickerExchange,
+  TickerListingStatus,
+  TickerSearchResult
+} from "../../../packages/contracts/src";
 
 export type JobType = "deep_dive" | "market_pulse";
 export type JobStatus = "queued" | "running" | "complete" | "failed";
@@ -59,6 +64,44 @@ export interface AuditEventRecord {
   payload: Record<string, unknown>;
   createdAt: string;
 }
+
+export interface TickerRegistryRecord {
+  symbol: string;
+  companyName: string;
+  exchange: TickerExchange;
+  listingStatus: TickerListingStatus;
+  isSupported: boolean;
+  sourceFeed: string;
+  sourceUpdatedAt: string;
+  lastSyncedAt: string;
+  rawPayload: Record<string, unknown>;
+}
+
+export interface TickerRegistryUpsertInput {
+  symbol: string;
+  companyName: string;
+  exchange: TickerExchange;
+  listingStatus: TickerListingStatus;
+  isSupported: boolean;
+  sourceFeed: string;
+  sourceUpdatedAt: string;
+  lastSyncedAt: string;
+  rawPayload?: Record<string, unknown>;
+}
+
+export interface TickerDeltaChange {
+  type: "add" | "delete" | "name_change" | "symbol_change";
+  symbol: string;
+  companyName?: string;
+  newSymbol?: string;
+  newCompanyName?: string;
+  exchange?: TickerExchange;
+  sourceFeed: string;
+  sourceUpdatedAt: string;
+  rawPayload?: Record<string, unknown>;
+}
+
+export type { TickerSearchResult };
 
 export interface InternalClaimResponse {
   job: JobRecord;

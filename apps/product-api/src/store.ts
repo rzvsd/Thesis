@@ -6,6 +6,10 @@ import type {
   JobRecord,
   ReportRecord,
   SessionRecord,
+  TickerDeltaChange,
+  TickerRegistryRecord,
+  TickerRegistryUpsertInput,
+  TickerSearchResult,
   UserRecord,
   VerificationTokenRecord
 } from "./types";
@@ -55,7 +59,24 @@ export interface ProductStore {
   ): Promise<JobRecord | undefined>;
   createReport(input: ReportRecord): Promise<ReportRecord>;
   getReportById(id: string): Promise<ReportRecord | undefined>;
+  deleteReport(id: string): Promise<boolean>;
   listReportsByUser(userId: string): Promise<ReportRecord[]>;
+  searchTickers(query: string, limit: number): Promise<TickerSearchResult[]>;
+  getSupportedTicker(symbol: string): Promise<TickerRegistryRecord | undefined>;
+  replaceTickerRegistry(input: {
+    entries: TickerRegistryUpsertInput[];
+    sourceFeed: string;
+    syncedAt: string;
+  }): Promise<{ upserted: number; deactivated: number }>;
+  applyTickerDelta(input: {
+    changes: TickerDeltaChange[];
+    syncedAt: string;
+  }): Promise<{
+    added: number;
+    deleted: number;
+    updated: number;
+    renamed: number;
+  }>;
   appendAuditEvent(input: AuditEventRecord): Promise<void>;
   close(): Promise<void>;
 }
@@ -135,6 +156,20 @@ function mapReport(row: Record<string, unknown>): ReportRecord {
   };
 }
 
+function mapTicker(row: Record<string, unknown>): TickerRegistryRecord {
+  return {
+    symbol: String(row.symbol),
+    companyName: String(row.company_name),
+    exchange: String(row.exchange) as TickerRegistryRecord["exchange"],
+    listingStatus: String(row.listing_status) as TickerRegistryRecord["listingStatus"],
+    isSupported: Boolean(row.is_supported),
+    sourceFeed: String(row.source_feed),
+    sourceUpdatedAt: asIsoString(row.source_updated_at) ?? new Date().toISOString(),
+    lastSyncedAt: asIsoString(row.last_synced_at) ?? new Date().toISOString(),
+    rawPayload: (row.raw_payload as Record<string, unknown> | undefined) ?? {}
+  };
+}
+
 export class InMemoryStore implements ProductStore {
   private readonly users = new Map<string, UserRecord>();
   private readonly usersByEmail = new Map<string, string>();
@@ -142,7 +177,50 @@ export class InMemoryStore implements ProductStore {
   private readonly sessions = new Map<string, SessionRecord>();
   private readonly jobs = new Map<string, JobRecord>();
   private readonly reports = new Map<string, ReportRecord>();
+  private readonly tickerRegistry = new Map<string, TickerRegistryRecord>();
   private readonly auditEvents: AuditEventRecord[] = [];
+
+  constructor() {
+    const now = new Date().toISOString();
+    const seed: TickerRegistryRecord[] = [
+      {
+        symbol: "AAPL",
+        companyName: "Apple Inc. Common Stock",
+        exchange: "NASDAQ",
+        listingStatus: "active",
+        isSupported: true,
+        sourceFeed: "memory_seed",
+        sourceUpdatedAt: now,
+        lastSyncedAt: now,
+        rawPayload: {}
+      },
+      {
+        symbol: "MSFT",
+        companyName: "Microsoft Corporation Common Stock",
+        exchange: "NASDAQ",
+        listingStatus: "active",
+        isSupported: true,
+        sourceFeed: "memory_seed",
+        sourceUpdatedAt: now,
+        lastSyncedAt: now,
+        rawPayload: {}
+      },
+      {
+        symbol: "TSLA",
+        companyName: "Tesla, Inc. Common Stock",
+        exchange: "NASDAQ",
+        listingStatus: "active",
+        isSupported: true,
+        sourceFeed: "memory_seed",
+        sourceUpdatedAt: now,
+        lastSyncedAt: now,
+        rawPayload: {}
+      }
+    ];
+    for (const entry of seed) {
+      this.tickerRegistry.set(entry.symbol, entry);
+    }
+  }
 
   async createUser(input: {
     email: string;
@@ -314,7 +392,7 @@ export class InMemoryStore implements ProductStore {
     reportId: string
   ): Promise<JobRecord | undefined> {
     const job = this.jobs.get(id);
-    if (!job) {
+    if (!job || (job.status !== "queued" && job.status !== "running")) {
       return undefined;
     }
 
@@ -337,6 +415,21 @@ export class InMemoryStore implements ProductStore {
     return this.reports.get(id);
   }
 
+  async deleteReport(id: string): Promise<boolean> {
+    const report = this.reports.get(id);
+    if (!report) {
+      return false;
+    }
+
+    this.reports.delete(id);
+    for (const job of this.jobs.values()) {
+      if (job.reportId === id) {
+        job.reportId = undefined;
+      }
+    }
+    return true;
+  }
+
   async listReportsByUser(userId: string): Promise<ReportRecord[]> {
     return [...this.reports.values()]
       .filter((report) => {
@@ -344,6 +437,196 @@ export class InMemoryStore implements ProductStore {
         return job?.userId === userId;
       })
       .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+  }
+
+  async searchTickers(query: string, limit: number): Promise<TickerSearchResult[]> {
+    const normalized = query.trim().toUpperCase();
+    if (!normalized) {
+      return [];
+    }
+
+    return [...this.tickerRegistry.values()]
+      .filter(
+        (entry) =>
+          entry.isSupported &&
+          entry.listingStatus === "active" &&
+          (entry.symbol.includes(normalized) ||
+            entry.companyName.toUpperCase().includes(normalized))
+      )
+      .slice(0, limit)
+      .map((entry) => ({
+        symbol: entry.symbol,
+        company_name: entry.companyName,
+        exchange: entry.exchange
+      }));
+  }
+
+  async getSupportedTicker(symbol: string): Promise<TickerRegistryRecord | undefined> {
+    const normalized = symbol.trim().toUpperCase();
+    const entry = this.tickerRegistry.get(normalized);
+    if (!entry || !entry.isSupported || entry.listingStatus !== "active") {
+      return undefined;
+    }
+    return entry;
+  }
+
+  async replaceTickerRegistry(input: {
+    entries: TickerRegistryUpsertInput[];
+    sourceFeed: string;
+    syncedAt: string;
+  }): Promise<{ upserted: number; deactivated: number }> {
+    const incomingSymbols = new Set<string>();
+    for (const entry of input.entries) {
+      const symbol = entry.symbol.trim().toUpperCase();
+      incomingSymbols.add(symbol);
+      this.tickerRegistry.set(symbol, {
+        symbol,
+        companyName: entry.companyName,
+        exchange: entry.exchange,
+        listingStatus: entry.listingStatus,
+        isSupported: entry.isSupported,
+        sourceFeed: entry.sourceFeed || input.sourceFeed,
+        sourceUpdatedAt: entry.sourceUpdatedAt,
+        lastSyncedAt: input.syncedAt,
+        rawPayload: entry.rawPayload ?? {}
+      });
+    }
+
+    let deactivated = 0;
+    for (const [symbol, existing] of this.tickerRegistry.entries()) {
+      if (!incomingSymbols.has(symbol) && existing.listingStatus === "active") {
+        this.tickerRegistry.set(symbol, {
+          ...existing,
+          listingStatus: "delisted",
+          isSupported: false,
+          sourceFeed: input.sourceFeed,
+          lastSyncedAt: input.syncedAt
+        });
+        deactivated += 1;
+      }
+    }
+
+    return {
+      upserted: input.entries.length,
+      deactivated
+    };
+  }
+
+  async applyTickerDelta(input: {
+    changes: TickerDeltaChange[];
+    syncedAt: string;
+  }): Promise<{
+    added: number;
+    deleted: number;
+    updated: number;
+    renamed: number;
+  }> {
+    let added = 0;
+    let deleted = 0;
+    let updated = 0;
+    let renamed = 0;
+
+    for (const change of input.changes) {
+      const symbol = change.symbol.trim().toUpperCase();
+      if (!symbol) {
+        continue;
+      }
+
+      const existing = this.tickerRegistry.get(symbol);
+      if (change.type === "add") {
+        this.tickerRegistry.set(symbol, {
+          symbol,
+          companyName: change.companyName ?? existing?.companyName ?? symbol,
+          exchange: change.exchange ?? existing?.exchange ?? "NASDAQ",
+          listingStatus: "active",
+          isSupported: true,
+          sourceFeed: change.sourceFeed,
+          sourceUpdatedAt: change.sourceUpdatedAt,
+          lastSyncedAt: input.syncedAt,
+          rawPayload: change.rawPayload ?? {}
+        });
+        if (existing) {
+          updated += 1;
+        } else {
+          added += 1;
+        }
+        continue;
+      }
+
+      if (change.type === "delete") {
+        if (existing) {
+          this.tickerRegistry.set(symbol, {
+            ...existing,
+            listingStatus: "delisted",
+            isSupported: false,
+            sourceFeed: change.sourceFeed,
+            sourceUpdatedAt: change.sourceUpdatedAt,
+            lastSyncedAt: input.syncedAt,
+            rawPayload: change.rawPayload ?? existing.rawPayload
+          });
+          deleted += 1;
+        }
+        continue;
+      }
+
+      if (change.type === "name_change") {
+        if (existing) {
+          this.tickerRegistry.set(symbol, {
+            ...existing,
+            companyName: change.newCompanyName ?? change.companyName ?? existing.companyName,
+            sourceFeed: change.sourceFeed,
+            sourceUpdatedAt: change.sourceUpdatedAt,
+            lastSyncedAt: input.syncedAt,
+            rawPayload: change.rawPayload ?? existing.rawPayload
+          });
+          updated += 1;
+        }
+        continue;
+      }
+
+      if (change.type === "symbol_change") {
+        const nextSymbol = change.newSymbol?.trim().toUpperCase();
+        if (!nextSymbol) {
+          continue;
+        }
+
+        if (existing) {
+          this.tickerRegistry.set(symbol, {
+            ...existing,
+            listingStatus: "delisted",
+            isSupported: false,
+            sourceFeed: change.sourceFeed,
+            sourceUpdatedAt: change.sourceUpdatedAt,
+            lastSyncedAt: input.syncedAt,
+            rawPayload: change.rawPayload ?? existing.rawPayload
+          });
+        }
+
+        this.tickerRegistry.set(nextSymbol, {
+          symbol: nextSymbol,
+          companyName:
+            change.newCompanyName ??
+            change.companyName ??
+            existing?.companyName ??
+            nextSymbol,
+          exchange: change.exchange ?? existing?.exchange ?? "NASDAQ",
+          listingStatus: "active",
+          isSupported: true,
+          sourceFeed: change.sourceFeed,
+          sourceUpdatedAt: change.sourceUpdatedAt,
+          lastSyncedAt: input.syncedAt,
+          rawPayload: change.rawPayload ?? {}
+        });
+        renamed += 1;
+      }
+    }
+
+    return {
+      added,
+      deleted,
+      updated,
+      renamed
+    };
   }
 
   async appendAuditEvent(input: AuditEventRecord): Promise<void> {
@@ -580,6 +863,30 @@ export class PostgresStore implements ProductStore {
     return row ? mapReport(row) : undefined;
   }
 
+  async deleteReport(id: string): Promise<boolean> {
+    const client = await this.pool.connect();
+    try {
+      await client.query("begin");
+      const deleteResult = await client.query(
+        "delete from reports where id = $1 returning job_id",
+        [id]
+      );
+      if ((deleteResult.rowCount ?? 0) === 0) {
+        await client.query("rollback");
+        return false;
+      }
+
+      await client.query("update jobs set report_id = null where report_id = $1", [id]);
+      await client.query("commit");
+      return true;
+    } catch (error) {
+      await client.query("rollback");
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
   async listReportsByUser(userId: string): Promise<ReportRecord[]> {
     const result = await this.pool.query(
       `select r.*
@@ -590,6 +897,331 @@ export class PostgresStore implements ProductStore {
       [userId]
     );
     return result.rows.map((row) => mapReport(row as Record<string, unknown>));
+  }
+
+  async searchTickers(query: string, limit: number): Promise<TickerSearchResult[]> {
+    const normalized = query.trim().toUpperCase();
+    if (!normalized) {
+      return [];
+    }
+
+    const likeValue = `%${normalized}%`;
+    const symbolPrefix = `${normalized}%`;
+    const result = await this.pool.query(
+      `select symbol, company_name, exchange
+         from ticker_registry
+        where is_supported = true
+          and listing_status = 'active'
+          and (upper(symbol) like $1 or upper(company_name) like $1)
+        order by
+          case
+            when upper(symbol) = $2 then 0
+            when upper(symbol) like $3 then 1
+            else 2
+          end,
+          symbol asc
+        limit $4`,
+      [likeValue, normalized, symbolPrefix, limit]
+    );
+
+    return result.rows.map((row) => ({
+      symbol: String(row.symbol),
+      company_name: String(row.company_name),
+      exchange: String(row.exchange) as TickerSearchResult["exchange"]
+    }));
+  }
+
+  async getSupportedTicker(symbol: string): Promise<TickerRegistryRecord | undefined> {
+    const normalized = symbol.trim().toUpperCase();
+    if (!normalized) {
+      return undefined;
+    }
+
+    const result = await this.pool.query(
+      `select *
+         from ticker_registry
+        where symbol = $1
+          and is_supported = true
+          and listing_status = 'active'`,
+      [normalized]
+    );
+    const row = result.rows[0] as Record<string, unknown> | undefined;
+    return row ? mapTicker(row) : undefined;
+  }
+
+  async replaceTickerRegistry(input: {
+    entries: TickerRegistryUpsertInput[];
+    sourceFeed: string;
+    syncedAt: string;
+  }): Promise<{ upserted: number; deactivated: number }> {
+    const client = await this.pool.connect();
+    try {
+      await client.query("begin");
+      for (const entry of input.entries) {
+        const symbol = entry.symbol.trim().toUpperCase();
+        if (!symbol) {
+          continue;
+        }
+
+        await client.query(
+          `insert into ticker_registry (
+             symbol,
+             company_name,
+             exchange,
+             listing_status,
+             is_supported,
+             source_feed,
+             source_updated_at,
+             last_synced_at,
+             raw_payload
+           )
+           values ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb)
+           on conflict (symbol) do update set
+             company_name = excluded.company_name,
+             exchange = excluded.exchange,
+             listing_status = excluded.listing_status,
+             is_supported = excluded.is_supported,
+             source_feed = excluded.source_feed,
+             source_updated_at = excluded.source_updated_at,
+             last_synced_at = excluded.last_synced_at,
+             raw_payload = excluded.raw_payload`,
+          [
+            symbol,
+            entry.companyName,
+            entry.exchange,
+            entry.listingStatus,
+            entry.isSupported,
+            entry.sourceFeed || input.sourceFeed,
+            entry.sourceUpdatedAt,
+            input.syncedAt,
+            JSON.stringify(entry.rawPayload ?? {})
+          ]
+        );
+      }
+
+      const symbols = input.entries
+        .map((entry) => entry.symbol.trim().toUpperCase())
+        .filter((symbol) => symbol.length > 0);
+      const deactivateResult = await client.query(
+        `update ticker_registry
+            set listing_status = 'delisted',
+                is_supported = false,
+                source_feed = $1,
+                last_synced_at = $2
+          where listing_status = 'active'
+            and not (symbol = any($3::text[]))`,
+        [input.sourceFeed, input.syncedAt, symbols.length > 0 ? symbols : ["__NONE__"]]
+      );
+
+      await client.query("commit");
+      return {
+        upserted: input.entries.length,
+        deactivated: deactivateResult.rowCount ?? 0
+      };
+    } catch (error) {
+      await client.query("rollback");
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async applyTickerDelta(input: {
+    changes: TickerDeltaChange[];
+    syncedAt: string;
+  }): Promise<{
+    added: number;
+    deleted: number;
+    updated: number;
+    renamed: number;
+  }> {
+    let added = 0;
+    let deleted = 0;
+    let updated = 0;
+    let renamed = 0;
+
+    const client = await this.pool.connect();
+    try {
+      await client.query("begin");
+      for (const change of input.changes) {
+        const symbol = change.symbol.trim().toUpperCase();
+        if (!symbol) {
+          continue;
+        }
+
+        if (change.type === "add") {
+          await client.query(
+            `insert into ticker_registry (
+               symbol,
+               company_name,
+               exchange,
+               listing_status,
+               is_supported,
+               source_feed,
+               source_updated_at,
+               last_synced_at,
+               raw_payload
+             )
+             values ($1, $2, $3, 'active', true, $4, $5, $6, $7::jsonb)
+             on conflict (symbol) do update set
+               company_name = excluded.company_name,
+               exchange = excluded.exchange,
+               listing_status = 'active',
+               is_supported = true,
+               source_feed = excluded.source_feed,
+               source_updated_at = excluded.source_updated_at,
+               last_synced_at = excluded.last_synced_at,
+               raw_payload = excluded.raw_payload`,
+            [
+              symbol,
+              change.companyName ?? symbol,
+              change.exchange ?? "NASDAQ",
+              change.sourceFeed,
+              change.sourceUpdatedAt,
+              input.syncedAt,
+              JSON.stringify(change.rawPayload ?? {})
+            ]
+          );
+          added += 1;
+          continue;
+        }
+
+        if (change.type === "delete") {
+          const result = await client.query(
+            `update ticker_registry
+                set listing_status = 'delisted',
+                    is_supported = false,
+                    source_feed = $2,
+                    source_updated_at = $3,
+                    last_synced_at = $4,
+                    raw_payload = $5::jsonb
+              where symbol = $1`,
+            [
+              symbol,
+              change.sourceFeed,
+              change.sourceUpdatedAt,
+              input.syncedAt,
+              JSON.stringify(change.rawPayload ?? {})
+            ]
+          );
+          if ((result.rowCount ?? 0) > 0) {
+            deleted += 1;
+          }
+          continue;
+        }
+
+        if (change.type === "name_change") {
+          const result = await client.query(
+            `update ticker_registry
+                set company_name = $2,
+                    source_feed = $3,
+                    source_updated_at = $4,
+                    last_synced_at = $5,
+                    raw_payload = $6::jsonb
+              where symbol = $1`,
+            [
+              symbol,
+              change.newCompanyName ?? change.companyName ?? symbol,
+              change.sourceFeed,
+              change.sourceUpdatedAt,
+              input.syncedAt,
+              JSON.stringify(change.rawPayload ?? {})
+            ]
+          );
+          if ((result.rowCount ?? 0) > 0) {
+            updated += 1;
+          }
+          continue;
+        }
+
+        if (change.type === "symbol_change") {
+          const currentResult = await client.query(
+            "select * from ticker_registry where symbol = $1",
+            [symbol]
+          );
+          const current = currentResult.rows[0] as Record<string, unknown> | undefined;
+          const nextSymbol = change.newSymbol?.trim().toUpperCase();
+          if (!nextSymbol) {
+            continue;
+          }
+
+          if (current) {
+            await client.query(
+              `update ticker_registry
+                  set listing_status = 'delisted',
+                      is_supported = false,
+                      source_feed = $2,
+                      source_updated_at = $3,
+                      last_synced_at = $4,
+                      raw_payload = $5::jsonb
+                where symbol = $1`,
+              [
+                symbol,
+                change.sourceFeed,
+                change.sourceUpdatedAt,
+                input.syncedAt,
+                JSON.stringify(change.rawPayload ?? {})
+              ]
+            );
+          }
+
+          const companyName =
+            change.newCompanyName ??
+            change.companyName ??
+            (current ? String(current.company_name) : nextSymbol);
+          const exchange =
+            change.exchange ??
+            (current ? (String(current.exchange) as TickerRegistryRecord["exchange"]) : "NASDAQ");
+
+          await client.query(
+            `insert into ticker_registry (
+               symbol,
+               company_name,
+               exchange,
+               listing_status,
+               is_supported,
+               source_feed,
+               source_updated_at,
+               last_synced_at,
+               raw_payload
+             )
+             values ($1, $2, $3, 'active', true, $4, $5, $6, $7::jsonb)
+             on conflict (symbol) do update set
+               company_name = excluded.company_name,
+               exchange = excluded.exchange,
+               listing_status = 'active',
+               is_supported = true,
+               source_feed = excluded.source_feed,
+               source_updated_at = excluded.source_updated_at,
+               last_synced_at = excluded.last_synced_at,
+               raw_payload = excluded.raw_payload`,
+            [
+              nextSymbol,
+              companyName,
+              exchange,
+              change.sourceFeed,
+              change.sourceUpdatedAt,
+              input.syncedAt,
+              JSON.stringify(change.rawPayload ?? {})
+            ]
+          );
+          renamed += 1;
+        }
+      }
+
+      await client.query("commit");
+      return {
+        added,
+        deleted,
+        updated,
+        renamed
+      };
+    } catch (error) {
+      await client.query("rollback");
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   async appendAuditEvent(input: AuditEventRecord): Promise<void> {

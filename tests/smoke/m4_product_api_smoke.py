@@ -238,7 +238,7 @@ def main() -> int:
             base_url,
             "/jobs",
             method="POST",
-            payload={"ticker": "FAILME"},
+            payload={"ticker": "AAPL"},
             headers={"authorization": f"Bearer {access_token}"},
         )
         assert status == 202

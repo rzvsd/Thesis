@@ -1,0 +1,2 @@
+Daily List Date|Effective Date|Issue Event|Symbol|Company Name|New Symbol|New Company Name|Market Category|Listing Center
+03/20/2026 12:00:00|03/20/2026|Security Additions|FAILME|Failure Fixture Common Stock|||Q|Q

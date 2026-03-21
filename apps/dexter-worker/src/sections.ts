@@ -14,11 +14,21 @@ export interface SectionDefinition {
 export const allSectionDefinitions: readonly SectionDefinition[] = [
   { id: "executive_summary", title: "Executive Summary", derived: true },
   {
-    id: "qoq_yoy_changes",
-    title: "Quarter-over-Quarter and Year-over-Year Changes",
+    id: "quarter_over_quarter_changes",
+    title: "Quarter-over-Quarter Changes",
     derived: false,
     liveGuidance:
-      "Use recent quarterly and annual financial metrics only. Focus on the strongest quarter-over-quarter and year-over-year changes, keep the section concise, and avoid broad web exploration.",
+      "Use the most recent quarterly comparison only. Focus on quarter-over-quarter change, keep the section concise, and avoid broad web exploration.",
+    liveTimeoutMs: 30_000,
+    liveRetryTimeoutMs: 10_000,
+    liveMaxIterations: 1
+  },
+  {
+    id: "year_over_year_changes",
+    title: "Year-over-Year Changes",
+    derived: false,
+    liveGuidance:
+      "Use the most recent year-over-year comparison only. Focus on the strongest annual change, keep the section concise, and avoid broad web exploration.",
     liveTimeoutMs: 30_000,
     liveRetryTimeoutMs: 10_000,
     liveMaxIterations: 1
@@ -55,11 +65,11 @@ export const allSectionDefinitions: readonly SectionDefinition[] = [
     liveMaxIterations: 1
   },
   {
-    id: "management_commentary_risk_factors",
-    title: "Management Commentary and Risk Factors",
+    id: "management_commentary",
+    title: "Management Commentary",
     derived: false,
     liveGuidance:
-      "Use only the latest 10-K/10-Q MD&A and risk-factor evidence from filings. Do not use browser or filesystem tools. Return the 3 most material themes/risks in 3 short bullets (max 140 words total) and stop once enough evidence is found.",
+      "Use only the latest 10-K/10-Q MD&A and risk-factor evidence from filings. Do not use browser or filesystem tools. Return the 3 most material commentary and risk themes in 3 short bullets (max 140 words total) and stop once enough evidence is found.",
     executionPriority: 10,
     liveTimeoutMs: 45_000,
     liveRetryTimeoutMs: 15_000,

@@ -3,14 +3,40 @@ import { resolve } from "node:path";
 
 import type { Pool } from "pg";
 
-const m4MigrationPath = resolve(
-  process.cwd(),
-  "infra",
-  "migrations",
-  "m4_001_auth_jobs.up.sql"
-);
+const migrationFilenames = [
+  "m4_001_auth_jobs.up.sql",
+  "m5_002_ticker_registry.up.sql"
+];
+
+async function readMigrationFile(filename: string): Promise<string> {
+  const candidatePaths = [
+    resolve(process.cwd(), "infra", "migrations", filename),
+    resolve(__dirname, "../../../..", "infra", "migrations", filename),
+    resolve(__dirname, "../../../../../../", "infra", "migrations", filename)
+  ];
+
+  for (const path of candidatePaths) {
+    try {
+      return await readFile(path, "utf-8");
+    } catch (error) {
+      if (
+        typeof error === "object" &&
+        error !== null &&
+        "code" in error &&
+        error.code === "ENOENT"
+      ) {
+        continue;
+      }
+      throw error;
+    }
+  }
+
+  throw new Error(`Migration file not found: ${filename}`);
+}
 
 export async function runM4Migrations(pool: Pool): Promise<void> {
-  const sql = await readFile(m4MigrationPath, "utf-8");
-  await pool.query(sql);
+  for (const filename of migrationFilenames) {
+    const sql = await readMigrationFile(filename);
+    await pool.query(sql);
+  }
 }
