@@ -19,6 +19,11 @@ export interface ProductStore {
   findUserByEmail(email: string): Promise<UserRecord | undefined>;
   findUserById(id: string): Promise<UserRecord | undefined>;
   markUserVerified(userId: string, verifiedAt: string): Promise<UserRecord | undefined>;
+  updateUserDeviceToken(
+    userId: string,
+    deviceToken: string | undefined
+  ): Promise<UserRecord | undefined>;
+  listUsersWithDeviceToken(): Promise<Array<{ userId: string; deviceToken: string }>>;
   createVerificationToken(input: {
     id: string;
     userId: string;
@@ -43,8 +48,14 @@ export interface ProductStore {
     type: JobRecord["type"];
     userId?: string;
     ticker?: string;
+    cycleStart?: string;
+    cycleEnd?: string;
     createdAt: string;
   }): Promise<JobRecord>;
+  findJobByTypeAndCycleStart(
+    type: JobRecord["type"],
+    cycleStart: string
+  ): Promise<JobRecord | undefined>;
   getJob(id: string): Promise<JobRecord | undefined>;
   markJobRunning(id: string, startedAt: string): Promise<JobRecord | undefined>;
   markJobFailed(
@@ -61,6 +72,19 @@ export interface ProductStore {
   getReportById(id: string): Promise<ReportRecord | undefined>;
   deleteReport(id: string): Promise<boolean>;
   listReportsByUser(userId: string): Promise<ReportRecord[]>;
+  getLatestReportByType(type: JobRecord["type"]): Promise<ReportRecord | undefined>;
+  getReportByTypeAndDate(
+    type: JobRecord["type"],
+    date: string
+  ): Promise<ReportRecord | undefined>;
+  listWatchlistTickersByUser(userId: string): Promise<string[]>;
+  addWatchlistTicker(input: {
+    id: string;
+    userId: string;
+    ticker: string;
+    addedAt: string;
+  }): Promise<string[]>;
+  removeWatchlistTicker(userId: string, ticker: string): Promise<string[]>;
   searchTickers(query: string, limit: number): Promise<TickerSearchResult[]>;
   getSupportedTicker(symbol: string): Promise<TickerRegistryRecord | undefined>;
   replaceTickerRegistry(input: {
@@ -103,7 +127,8 @@ function mapUser(row: Record<string, unknown>): UserRecord {
     email: String(row.email),
     passwordHash: String(row.password_hash),
     createdAt: asIsoString(row.created_at) ?? new Date().toISOString(),
-    verifiedAt: asIsoString(row.verified_at)
+    verifiedAt: asIsoString(row.verified_at),
+    deviceToken: row.device_token ? String(row.device_token) : undefined
   };
 }
 
@@ -136,6 +161,8 @@ function mapJob(row: Record<string, unknown>): JobRecord {
     userId: row.user_id ? String(row.user_id) : undefined,
     ticker: row.ticker ? String(row.ticker) : undefined,
     reportId: row.report_id ? String(row.report_id) : undefined,
+    cycleStart: asIsoString(row.cycle_start),
+    cycleEnd: asIsoString(row.cycle_end),
     createdAt: asIsoString(row.created_at) ?? new Date().toISOString(),
     startedAt: asIsoString(row.started_at),
     completedAt: asIsoString(row.completed_at),
@@ -178,6 +205,7 @@ export class InMemoryStore implements ProductStore {
   private readonly jobs = new Map<string, JobRecord>();
   private readonly reports = new Map<string, ReportRecord>();
   private readonly tickerRegistry = new Map<string, TickerRegistryRecord>();
+  private readonly watchlists = new Map<string, Set<string>>();
   private readonly auditEvents: AuditEventRecord[] = [];
 
   constructor() {
@@ -263,6 +291,31 @@ export class InMemoryStore implements ProductStore {
     return user;
   }
 
+  async updateUserDeviceToken(
+    userId: string,
+    deviceToken: string | undefined
+  ): Promise<UserRecord | undefined> {
+    const user = this.users.get(userId);
+    if (!user) {
+      return undefined;
+    }
+    user.deviceToken = deviceToken;
+    return user;
+  }
+
+  async listUsersWithDeviceToken(): Promise<Array<{ userId: string; deviceToken: string }>> {
+    const targets: Array<{ userId: string; deviceToken: string }> = [];
+    for (const user of this.users.values()) {
+      if (user.deviceToken && user.deviceToken.trim().length > 0) {
+        targets.push({
+          userId: user.id,
+          deviceToken: user.deviceToken
+        });
+      }
+    }
+    return targets;
+  }
+
   async createVerificationToken(input: {
     id: string;
     userId: string;
@@ -337,6 +390,8 @@ export class InMemoryStore implements ProductStore {
     type: JobRecord["type"];
     userId?: string;
     ticker?: string;
+    cycleStart?: string;
+    cycleEnd?: string;
     createdAt: string;
   }): Promise<JobRecord> {
     const job: JobRecord = {
@@ -345,10 +400,24 @@ export class InMemoryStore implements ProductStore {
       status: "queued",
       userId: input.userId,
       ticker: input.ticker,
+      cycleStart: input.cycleStart,
+      cycleEnd: input.cycleEnd,
       createdAt: input.createdAt
     };
     this.jobs.set(input.id, job);
     return job;
+  }
+
+  async findJobByTypeAndCycleStart(
+    type: JobRecord["type"],
+    cycleStart: string
+  ): Promise<JobRecord | undefined> {
+    for (const job of this.jobs.values()) {
+      if (job.type === type && job.cycleStart === cycleStart) {
+        return job;
+      }
+    }
+    return undefined;
   }
 
   async getJob(id: string): Promise<JobRecord | undefined> {
@@ -437,6 +506,60 @@ export class InMemoryStore implements ProductStore {
         return job?.userId === userId;
       })
       .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+  }
+
+  async getLatestReportByType(type: JobRecord["type"]): Promise<ReportRecord | undefined> {
+    return [...this.reports.values()]
+      .filter((report) => report.type === type)
+      .sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0];
+  }
+
+  async getReportByTypeAndDate(
+    type: JobRecord["type"],
+    date: string
+  ): Promise<ReportRecord | undefined> {
+    return [...this.reports.values()]
+      .filter((report) => report.type === type && report.createdAt.startsWith(date))
+      .sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0];
+  }
+
+  async listWatchlistTickersByUser(userId: string): Promise<string[]> {
+    const set = this.watchlists.get(userId);
+    if (!set) {
+      return [];
+    }
+    return [...set].sort((left, right) => left.localeCompare(right));
+  }
+
+  async addWatchlistTicker(input: {
+    id: string;
+    userId: string;
+    ticker: string;
+    addedAt: string;
+  }): Promise<string[]> {
+    const normalizedTicker = input.ticker.trim().toUpperCase();
+    let set = this.watchlists.get(input.userId);
+    if (!set) {
+      set = new Set<string>();
+      this.watchlists.set(input.userId, set);
+    }
+    set.add(normalizedTicker);
+    return [...set].sort((left, right) => left.localeCompare(right));
+  }
+
+  async removeWatchlistTicker(userId: string, ticker: string): Promise<string[]> {
+    const set = this.watchlists.get(userId);
+    if (!set) {
+      return [];
+    }
+
+    set.delete(ticker.trim().toUpperCase());
+    if (set.size === 0) {
+      this.watchlists.delete(userId);
+      return [];
+    }
+
+    return [...set].sort((left, right) => left.localeCompare(right));
   }
 
   async searchTickers(query: string, limit: number): Promise<TickerSearchResult[]> {
@@ -695,6 +818,31 @@ export class PostgresStore implements ProductStore {
     return row ? mapUser(row) : undefined;
   }
 
+  async updateUserDeviceToken(
+    userId: string,
+    deviceToken: string | undefined
+  ): Promise<UserRecord | undefined> {
+    const result = await this.pool.query(
+      "update users set device_token = $2 where id = $1 returning *",
+      [userId, deviceToken ?? null]
+    );
+    const row = result.rows[0] as Record<string, unknown> | undefined;
+    return row ? mapUser(row) : undefined;
+  }
+
+  async listUsersWithDeviceToken(): Promise<Array<{ userId: string; deviceToken: string }>> {
+    const result = await this.pool.query(
+      `select id, device_token
+         from users
+        where device_token is not null
+          and length(trim(device_token)) > 0`
+    );
+    return result.rows.map((row) => ({
+      userId: String(row.id),
+      deviceToken: String(row.device_token)
+    }));
+  }
+
   async createVerificationToken(input: {
     id: string;
     userId: string;
@@ -766,15 +914,42 @@ export class PostgresStore implements ProductStore {
     type: JobRecord["type"];
     userId?: string;
     ticker?: string;
+    cycleStart?: string;
+    cycleEnd?: string;
     createdAt: string;
   }): Promise<JobRecord> {
     const result = await this.pool.query(
-      `insert into jobs (id, type, status, user_id, ticker, created_at)
-       values ($1, $2, 'queued', $3, $4, $5)
+      `insert into jobs (id, type, status, user_id, ticker, cycle_start, cycle_end, created_at)
+       values ($1, $2, 'queued', $3, $4, $5, $6, $7)
        returning *`,
-      [input.id, input.type, input.userId ?? null, input.ticker ?? null, input.createdAt]
+      [
+        input.id,
+        input.type,
+        input.userId ?? null,
+        input.ticker ?? null,
+        input.cycleStart ?? null,
+        input.cycleEnd ?? null,
+        input.createdAt
+      ]
     );
     return mapJob(result.rows[0] as Record<string, unknown>);
+  }
+
+  async findJobByTypeAndCycleStart(
+    type: JobRecord["type"],
+    cycleStart: string
+  ): Promise<JobRecord | undefined> {
+    const result = await this.pool.query(
+      `select *
+         from jobs
+        where type = $1
+          and cycle_start = $2::timestamptz
+        order by created_at desc
+        limit 1`,
+      [type, cycleStart]
+    );
+    const row = result.rows[0] as Record<string, unknown> | undefined;
+    return row ? mapJob(row) : undefined;
   }
 
   async getJob(id: string): Promise<JobRecord | undefined> {
@@ -897,6 +1072,71 @@ export class PostgresStore implements ProductStore {
       [userId]
     );
     return result.rows.map((row) => mapReport(row as Record<string, unknown>));
+  }
+
+  async getLatestReportByType(type: JobRecord["type"]): Promise<ReportRecord | undefined> {
+    const result = await this.pool.query(
+      `select *
+         from reports
+        where type = $1
+        order by created_at desc
+        limit 1`,
+      [type]
+    );
+    const row = result.rows[0] as Record<string, unknown> | undefined;
+    return row ? mapReport(row) : undefined;
+  }
+
+  async getReportByTypeAndDate(
+    type: JobRecord["type"],
+    date: string
+  ): Promise<ReportRecord | undefined> {
+    const result = await this.pool.query(
+      `select *
+         from reports
+        where type = $1
+          and (created_at at time zone 'UTC')::date = $2::date
+        order by created_at desc
+        limit 1`,
+      [type, date]
+    );
+    const row = result.rows[0] as Record<string, unknown> | undefined;
+    return row ? mapReport(row) : undefined;
+  }
+
+  async listWatchlistTickersByUser(userId: string): Promise<string[]> {
+    const result = await this.pool.query(
+      `select ticker
+         from watchlists
+        where user_id = $1
+        order by ticker asc`,
+      [userId]
+    );
+    return result.rows.map((row) => String(row.ticker));
+  }
+
+  async addWatchlistTicker(input: {
+    id: string;
+    userId: string;
+    ticker: string;
+    addedAt: string;
+  }): Promise<string[]> {
+    await this.pool.query(
+      `insert into watchlists (id, user_id, ticker, added_at)
+       values ($1, $2, $3, $4)
+       on conflict (user_id, ticker) do update
+         set added_at = excluded.added_at`,
+      [input.id, input.userId, input.ticker.trim().toUpperCase(), input.addedAt]
+    );
+    return this.listWatchlistTickersByUser(input.userId);
+  }
+
+  async removeWatchlistTicker(userId: string, ticker: string): Promise<string[]> {
+    await this.pool.query(
+      "delete from watchlists where user_id = $1 and ticker = $2",
+      [userId, ticker.trim().toUpperCase()]
+    );
+    return this.listWatchlistTickersByUser(userId);
   }
 
   async searchTickers(query: string, limit: number): Promise<TickerSearchResult[]> {

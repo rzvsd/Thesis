@@ -1,7 +1,7 @@
 import { Pool } from "pg";
 
 import type { ProductApiConfig } from "./config";
-import { runM4Migrations } from "./migrations";
+import { runMigrations } from "./migrations";
 import { InMemoryStore, PostgresStore, type ProductStore } from "./store";
 
 export async function createProductStore(config: ProductApiConfig): Promise<ProductStore> {
@@ -16,7 +16,7 @@ export async function createProductStore(config: ProductApiConfig): Promise<Prod
   if (config.autoMigrate) {
     const migrationPool = new Pool({ connectionString: config.databaseUrl });
     try {
-      await runM4Migrations(migrationPool);
+      await runMigrations(migrationPool);
     } finally {
       await migrationPool.end();
     }

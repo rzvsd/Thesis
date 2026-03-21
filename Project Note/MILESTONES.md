@@ -594,7 +594,7 @@ Engineering Lead + AI/Reasoning Engineer
 # M6_Market Pulse
 
 ## Goal
-A scheduled pipeline runs daily at a configured time, retrieves market and macro data from OpenBB and approved-source news from news-ingest, generates a morning briefing, stores it, and delivers it to users via push notification.
+A scheduled pipeline runs daily at 06:30 in America/New_York local wall-clock time (DST-aware), retrieves market and macro data from OpenBB and approved-source news from news-ingest, generates a morning briefing, stores it, and delivers it to users via push notification.
 
 **Plain English:** The morning briefing feature is alive. Every day, before markets open, the system wakes itself up, pulls the latest market data and news from the data plane, assembles a briefing, and pushes it to every user's phone. No human intervention required.
 
@@ -606,8 +606,8 @@ A scheduled pipeline runs daily at a configured time, retrieves market and macro
 |---|---|
 | Scheduler service | Fires a pulse job at the configured time every day |
 | Market Pulse pipeline | Briefing generated from OpenBB market/macro data and news-ingest approved-source articles |
-| Watchlist overlay | Users with watchlists receive a section highlighting their tickers |
-| Push notification | Notification sent to all registered devices on briefing completion |
+| Watchlist overlay | Users with persisted watchlist entries in Postgres receive a section highlighting exact ticker-symbol mentions |
+| Push notification | Notification sent via FCM to users with notification permission and a stored `users.device_token` |
 | Historical storage | Past briefings are stored and retrievable |
 | All Market Pulse smoke tests passing | Every step in the pulse smoke test checklist passes |
 
@@ -615,15 +615,15 @@ A scheduled pipeline runs daily at a configured time, retrieves market and macro
 
 ## Acceptance Criteria
 
-- [ ] Scheduler fires at the configured time within a 2-minute window
+- [ ] Scheduler fires at 06:30 America/New_York local wall-clock time within a 2-minute window
 - [ ] Pulse job is created in Postgres and enters the queue automatically — no manual trigger
 - [ ] Pipeline retrieves market move data and macro release data from `data-openbb` for the cycle window
 - [ ] Pipeline retrieves approved-source news articles from `news-ingest` for the cycle window
 - [ ] `MarketPulseReport` validates against the `MarketPulseReport` schema with zero errors
 - [ ] Every section in the briefing has a `status` field — no blank sections
 - [ ] If a data source is unavailable, the affected section is marked `data_unavailable` — the rest of the briefing is still generated and delivered
-- [ ] Watchlist overlay section is generated for users with at least one watchlist ticker mentioned in today's briefing
-- [ ] Push notification is sent to all users with notification permission granted
+- [ ] Watchlist overlay section is generated for users with at least one persisted watchlist ticker exactly mentioned in today's briefing
+- [ ] Push notification is sent via FCM to users with notification permission granted and a valid stored `users.device_token`
 - [ ] Briefing is stored and retrievable via `GET /pulse/latest` and `GET /pulse/:date`
 - [ ] If the pipeline fails entirely, no notification is sent, the previous day's briefing remains accessible, and a Sentry alert fires
 - [ ] A successful run produces a LangSmith trace with full lineage (if LLM synthesis is used)
@@ -690,7 +690,7 @@ Rollback means disabling the scheduler and redeploying the previous scheduler ve
 - M5 complete (Deep Dive pipeline operational and validated)
 - Data plane (M2) operational — `data-openbb` and `news-ingest` providing validated data
 - Push notification provider configured (FCM for Android)
-- Scheduler time zone and delivery window confirmed by Product Lead
+- Scheduler delivery window confirmed as 06:30 America/New_York local wall-clock time (DST-aware)
 - Approved news source whitelist finalized
 
 ---
