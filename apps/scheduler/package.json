@@ -11,6 +11,7 @@
     "test": "tsc -p tsconfig.json && node --test dist/tests/*.js"
   },
   "dependencies": {
+    "@sentry/node": "^10.22.0",
     "@thesis/shared-types": "workspace:*"
   }
 }

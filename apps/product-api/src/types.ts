@@ -1,4 +1,8 @@
-import type { AnalysisReport, AnalysisRequest } from "../../../packages/contracts/src";
+import type {
+  AnalysisReport,
+  AnalysisRequest,
+  MarketPulseReport
+} from "../../../packages/contracts/src";
 import type {
   TickerExchange,
   TickerListingStatus,
@@ -14,6 +18,7 @@ export interface UserRecord {
   passwordHash: string;
   createdAt: string;
   verifiedAt?: string;
+  deviceToken?: string;
 }
 
 export interface VerificationTokenRecord {
@@ -40,6 +45,8 @@ export interface JobRecord {
   userId?: string;
   ticker?: string;
   reportId?: string;
+  cycleStart?: string;
+  cycleEnd?: string;
   createdAt: string;
   startedAt?: string;
   completedAt?: string;
@@ -110,4 +117,8 @@ export interface InternalClaimResponse {
 
 export interface InternalCompleteRequest {
   report: AnalysisReport;
+}
+
+export interface InternalPulseCompleteRequest {
+  report: MarketPulseReport;
 }

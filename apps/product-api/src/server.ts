@@ -11,6 +11,7 @@ import type {
   AuthTokensResponse,
   CreateJobRequest,
   JobStatusResponse,
+  MarketPulseReport,
   ReportListItem
 } from "../../../packages/contracts/src";
 import { captureException, initSentry } from "../../../packages/observability/src/sentry";
@@ -32,6 +33,9 @@ import {
 import { createProductStore } from "./store-factory";
 import type { ProductStore } from "./store";
 import { assertIncomingAnalysisReport } from "./report-validation";
+import { assertIncomingMarketPulseReport } from "./market-pulse-validation";
+import { buildMarketPulseReport, withWatchlistOverlay } from "./market-pulse";
+import { PushNotifier } from "./push";
 import { startTickerSyncScheduler } from "./ticker-sync-scheduler";
 import type { AuditEventRecord, JobRecord } from "./types";
 
@@ -48,6 +52,7 @@ interface Runtime {
   queue: JobQueue;
   rateLimiter: RateLimiter;
   artifactStore: FilesystemArtifactStore;
+  pushNotifier: PushNotifier;
   close: () => Promise<void>;
 }
 
@@ -82,6 +87,14 @@ function routeBucket(pathname: string): string {
 
   if (pathname.startsWith("/reports/")) {
     return "/reports/:id";
+  }
+
+  if (pathname.startsWith("/pulse/")) {
+    return "/pulse/:date";
+  }
+
+  if (pathname.startsWith("/watchlist/")) {
+    return "/watchlist/:ticker";
   }
 
   return pathname;
@@ -155,6 +168,41 @@ function buildReportListItem(report: {
     schema_version: report.schemaVersion,
     created_at: report.createdAt
   };
+}
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isIsoDateTime(value: string): boolean {
+  return !Number.isNaN(Date.parse(value));
+}
+
+function normalizeDateInput(value: string): string | undefined {
+  const normalized = value.trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(normalized)) {
+    return undefined;
+  }
+  return normalized;
+}
+
+function isMarketPulseReport(report: unknown): report is MarketPulseReport {
+  if (!isObject(report)) {
+    return false;
+  }
+  if (typeof report.report_id !== "string" || typeof report.generated_at !== "string") {
+    return false;
+  }
+  if (!isObject(report.sections)) {
+    return false;
+  }
+  return (
+    isObject(report.sections.market_moves) &&
+    isObject(report.sections.macro_releases) &&
+    isObject(report.sections.rates_fx_commodities) &&
+    isObject(report.sections.news_summary) &&
+    isObject(report.sections.uncertainty_flags)
+  );
 }
 
 async function cleanupStoredReport(
@@ -287,6 +335,154 @@ async function issueTokens(
   };
 }
 
+async function processMarketPulseJob(
+  runtime: Runtime,
+  job: JobRecord
+): Promise<void> {
+  const startedAt = new Date().toISOString();
+  const running = await runtime.store.markJobRunning(job.id, startedAt);
+  if (!running) {
+    return;
+  }
+
+  await appendAudit(
+    runtime,
+    "job.running",
+    {
+      route: "/internal/pulse/dispatch",
+      job_id: running.id,
+      status: "running"
+    },
+    running.userId
+  );
+
+  const fallbackCycleEnd = new Date().toISOString();
+  const fallbackCycleStart = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const cycleStart = running.cycleStart ?? fallbackCycleStart;
+  const cycleEnd = running.cycleEnd ?? fallbackCycleEnd;
+
+  try {
+    if (running.ticker === "FORCE_FAIL") {
+      throw new Error("Forced market pulse failure");
+    }
+
+    const pulseReport = await buildMarketPulseReport({
+      cycleStart,
+      cycleEnd,
+      schemaVersion: runtime.config.marketPulseSchemaVersion,
+      tickers: runtime.config.marketPulseTickers,
+      dataOpenbbBaseUrl: runtime.config.marketPulseDataOpenbbBaseUrl,
+      newsIngestBaseUrl: runtime.config.marketPulseNewsIngestBaseUrl
+    });
+    const report = assertIncomingMarketPulseReport(pulseReport);
+
+    let artifactKey: string | undefined;
+    try {
+      artifactKey = await runtime.artifactStore.writeReport(report);
+      await runtime.store.createReport({
+        id: report.report_id,
+        jobId: running.id,
+        type: "market_pulse",
+        schemaVersion: report.schema_version,
+        artifactKey,
+        createdAt: report.cycle_end,
+        isCurrent: true
+      });
+
+      const completed = await runtime.store.markJobComplete(
+        running.id,
+        new Date().toISOString(),
+        report.report_id
+      );
+      if (!completed) {
+        await cleanupStoredReport(runtime, report.report_id, artifactKey);
+        await runtime.store.markJobFailed(
+          running.id,
+          new Date().toISOString(),
+          "Job was not found for completion."
+        );
+        return;
+      }
+
+      await appendAudit(
+        runtime,
+        "job.complete",
+        {
+          route: "/internal/pulse/dispatch",
+          job_id: completed.id,
+          report_id: report.report_id,
+          status: "complete"
+        },
+        completed.userId
+      );
+
+      const pushTargets = await runtime.store.listUsersWithDeviceToken();
+      const pushResult = await runtime.pushNotifier.sendMarketPulseReady(pushTargets, {
+        reportDate: report.cycle_end.slice(0, 10)
+      });
+
+      for (const invalidUserId of pushResult.invalidTargets) {
+        await runtime.store.updateUserDeviceToken(invalidUserId, undefined);
+      }
+
+      if (pushResult.failed > 0) {
+        const error = new Error("Push delivery partially failed");
+        captureException(error, {
+          service: serviceName,
+          job_id: completed.id,
+          attempted: pushResult.attempted,
+          delivered: pushResult.delivered,
+          failed: pushResult.failed
+        });
+      }
+
+      await appendAudit(
+        runtime,
+        "market_pulse.push_delivery",
+        {
+          route: "/internal/pulse/dispatch",
+          job_id: completed.id,
+          attempted: pushResult.attempted,
+          delivered: pushResult.delivered,
+          failed: pushResult.failed,
+          provider: pushResult.provider
+        },
+        completed.userId
+      );
+    } catch (error) {
+      if (artifactKey) {
+        await cleanupStoredReport(runtime, report.report_id, artifactKey);
+      }
+
+      throw error;
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Market Pulse processing failed";
+    const failed = await runtime.store.markJobFailed(
+      running.id,
+      new Date().toISOString(),
+      message
+    );
+
+    await appendAudit(
+      runtime,
+      "job.failed",
+      {
+        route: "/internal/pulse/dispatch",
+        job_id: running.id,
+        status: "failed",
+        error_message: message
+      },
+      failed?.userId
+    );
+
+    captureException(new Error(message), {
+      service: serviceName,
+      job_id: running.id
+    });
+  }
+}
+
 async function createRuntime(config: ProductApiConfig): Promise<Runtime> {
   const configErrors = validateConfig(config);
   if (configErrors.length > 0) {
@@ -312,6 +508,10 @@ async function createRuntime(config: ProductApiConfig): Promise<Runtime> {
     maxRequests: config.rateLimitMaxRequests
   });
   const artifactStore = new FilesystemArtifactStore(config.artifactRoot);
+  const pushNotifier = new PushNotifier({
+    provider: config.pushProviderMode,
+    fcmServerKey: config.fcmServerKey
+  });
   const tickerSyncScheduler =
     config.storeBackend === "postgres" && config.tickerAutoSyncEnabled
       ? startTickerSyncScheduler(
@@ -332,6 +532,7 @@ async function createRuntime(config: ProductApiConfig): Promise<Runtime> {
     queue,
     rateLimiter,
     artifactStore,
+    pushNotifier,
     close: async () => {
       await Promise.all([
         tickerSyncScheduler?.close() ?? Promise.resolve(),
@@ -683,6 +884,83 @@ export function startServer(port: number = loadConfig().port): Server {
           return;
         }
 
+        if (method === "POST" && pathname === "/internal/pulse/dispatch") {
+          const body = await readJsonBody<{
+            cycle_start?: string;
+            cycle_end?: string;
+            force_fail?: boolean;
+          }>(request);
+          const cycleEnd = body.cycle_end?.trim() || new Date().toISOString();
+          const cycleStart =
+            body.cycle_start?.trim() ||
+            new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+          const forceFail = body.force_fail === true;
+
+          if (!isIsoDateTime(cycleStart) || !isIsoDateTime(cycleEnd)) {
+            sendJson(response, 422, {
+              error: "validation_failed",
+              error_message: "cycle_start and cycle_end must be valid ISO datetime strings."
+            });
+            return;
+          }
+
+          if (Date.parse(cycleStart) >= Date.parse(cycleEnd)) {
+            sendJson(response, 422, {
+              error: "validation_failed",
+              error_message: "cycle_start must be before cycle_end."
+            });
+            return;
+          }
+
+          const existing = await runtime.store.findJobByTypeAndCycleStart(
+            "market_pulse",
+            cycleStart
+          );
+          if (existing && existing.status !== "failed") {
+            sendJson(response, 200, {
+              deduplicated: true,
+              job: buildJobStatusResponse(existing)
+            });
+            return;
+          }
+
+          const createdAt = new Date().toISOString();
+          const job = await runtime.store.createJob({
+            id: createId(),
+            type: "market_pulse",
+            ticker: forceFail ? "FORCE_FAIL" : undefined,
+            cycleStart,
+            cycleEnd,
+            createdAt
+          });
+
+          await appendAudit(runtime, "job.queued", {
+            request_id: meta.requestId,
+            route: pathname,
+            job_id: job.id,
+            status: "queued",
+            cycle_start: cycleStart,
+            cycle_end: cycleEnd
+          });
+
+          logInfo("Pulse job queued", {
+            request_id: meta.requestId,
+            job_id: job.id,
+            cycle_start: cycleStart,
+            cycle_end: cycleEnd
+          });
+
+          setImmediate(() => {
+            void processMarketPulseJob(runtime, job);
+          });
+
+          sendJson(response, 202, {
+            deduplicated: false,
+            job: buildJobStatusResponse(job)
+          });
+          return;
+        }
+
         const parts = pathname.split("/").filter(Boolean);
         if (parts.length === 4 && parts[0] === "internal" && parts[1] === "jobs") {
           const jobId = parts[2];
@@ -707,7 +985,7 @@ export function startServer(port: number = loadConfig().port): Server {
 
             const analysisRequest: AnalysisRequest = {
               request_id: createId(),
-              type: "deep_dive",
+              type: running.type,
               ticker: running.ticker,
               user_id: running.userId,
               job_id: running.id,
@@ -875,6 +1153,238 @@ export function startServer(port: number = loadConfig().port): Server {
           error: "unauthorized",
           error_message: "Authentication required."
         });
+        return;
+      }
+
+      if (method === "POST" && pathname === "/notifications/device-token") {
+        const body = await readJsonBody<{ device_token?: string | null }>(request);
+        const rawToken = body.device_token;
+        const normalizedToken =
+          typeof rawToken === "string" && rawToken.trim().length > 0
+            ? rawToken.trim()
+            : undefined;
+
+        if (normalizedToken && normalizedToken.length < 16) {
+          sendJson(response, 422, {
+            error: "validation_failed",
+            error_message: "device_token must be at least 16 characters."
+          });
+          return;
+        }
+
+        const updated = await runtime.store.updateUserDeviceToken(auth.userId, normalizedToken);
+        if (!updated) {
+          sendJson(response, 404, {
+            error: "user_not_found",
+            error_message: "User not found."
+          });
+          return;
+        }
+
+        await appendAudit(
+          runtime,
+          "notification.device_token_updated",
+          {
+            request_id: meta.requestId,
+            route: pathname,
+            has_token: Boolean(normalizedToken)
+          },
+          auth.userId
+        );
+
+        sendJson(response, 200, {
+          status: "ok",
+          has_device_token: Boolean(normalizedToken)
+        });
+        return;
+      }
+
+      if (method === "GET" && pathname === "/watchlist") {
+        const tickers = await runtime.store.listWatchlistTickersByUser(auth.userId);
+        sendJson(response, 200, {
+          data: tickers
+        });
+        return;
+      }
+
+      if (method === "POST" && pathname === "/watchlist") {
+        const body = await readJsonBody<{ ticker?: string }>(request);
+        const ticker = body.ticker?.trim().toUpperCase();
+        if (!ticker || !/^[A-Z.-]{1,12}$/.test(ticker)) {
+          sendJson(response, 422, {
+            error: "validation_failed",
+            error_message: "ticker must be a valid US symbol."
+          });
+          return;
+        }
+
+        const supportedTicker = await runtime.store.getSupportedTicker(ticker);
+        if (!supportedTicker) {
+          sendJson(response, 404, {
+            error: "ticker_not_found",
+            error_message: "Ticker not found in supported NYSE/NASDAQ universe."
+          });
+          return;
+        }
+
+        const current = await runtime.store.listWatchlistTickersByUser(auth.userId);
+        if (!current.includes(ticker) && current.length >= 20) {
+          sendJson(response, 422, {
+            error: "watchlist_limit_reached",
+            error_message: "Watchlist limit is 20 tickers."
+          });
+          return;
+        }
+
+        const updated = await runtime.store.addWatchlistTicker({
+          id: createId(),
+          userId: auth.userId,
+          ticker,
+          addedAt: new Date().toISOString()
+        });
+
+        await appendAudit(
+          runtime,
+          "watchlist.ticker_added",
+          {
+            request_id: meta.requestId,
+            route: pathname,
+            ticker,
+            watchlist_size: updated.length
+          },
+          auth.userId
+        );
+
+        sendJson(response, 200, {
+          data: updated
+        });
+        return;
+      }
+
+      if (method === "DELETE" && pathname.startsWith("/watchlist/")) {
+        const parts = pathname.split("/").filter(Boolean);
+        if (parts.length !== 2 || parts[0] !== "watchlist") {
+          sendJson(response, 404, { status: "not_found" });
+          return;
+        }
+
+        const ticker = parts[1]?.trim().toUpperCase();
+        if (!ticker || !/^[A-Z.-]{1,12}$/.test(ticker)) {
+          sendJson(response, 422, {
+            error: "validation_failed",
+            error_message: "ticker must be a valid US symbol."
+          });
+          return;
+        }
+
+        const updated = await runtime.store.removeWatchlistTicker(auth.userId, ticker);
+        await appendAudit(
+          runtime,
+          "watchlist.ticker_removed",
+          {
+            request_id: meta.requestId,
+            route: pathname,
+            ticker,
+            watchlist_size: updated.length
+          },
+          auth.userId
+        );
+
+        sendJson(response, 200, {
+          data: updated
+        });
+        return;
+      }
+
+      if (method === "GET" && pathname === "/pulse/latest") {
+        const reportMetadata = await runtime.store.getLatestReportByType("market_pulse");
+        if (!reportMetadata) {
+          sendJson(response, 404, {
+            error: "report_not_found",
+            error_message: "No Market Pulse report is available yet."
+          });
+          return;
+        }
+
+        const report = await runtime.artifactStore.readReport(reportMetadata.artifactKey);
+        if (!report || !isMarketPulseReport(report)) {
+          sendJson(response, 404, {
+            error: "report_not_found",
+            error_message: "Market Pulse report artifact missing."
+          });
+          return;
+        }
+
+        const watchlistTickers = await runtime.store.listWatchlistTickersByUser(auth.userId);
+        const personalized = withWatchlistOverlay(report, watchlistTickers);
+
+        await appendAudit(
+          runtime,
+          "pulse.report_retrieved",
+          {
+            request_id: meta.requestId,
+            route: pathname,
+            report_id: reportMetadata.id,
+            watchlist_size: watchlistTickers.length
+          },
+          auth.userId
+        );
+
+        sendJson(response, 200, personalized);
+        return;
+      }
+
+      if (method === "GET" && pathname.startsWith("/pulse/")) {
+        const parts = pathname.split("/").filter(Boolean);
+        if (parts.length !== 2 || parts[0] !== "pulse") {
+          sendJson(response, 404, { status: "not_found" });
+          return;
+        }
+
+        const reportDate = normalizeDateInput(parts[1] ?? "");
+        if (!reportDate) {
+          sendJson(response, 422, {
+            error: "validation_failed",
+            error_message: "date must be in YYYY-MM-DD format."
+          });
+          return;
+        }
+
+        const reportMetadata = await runtime.store.getReportByTypeAndDate("market_pulse", reportDate);
+        if (!reportMetadata) {
+          sendJson(response, 404, {
+            error: "report_not_found",
+            error_message: "Market Pulse report not found for the requested date."
+          });
+          return;
+        }
+
+        const report = await runtime.artifactStore.readReport(reportMetadata.artifactKey);
+        if (!report || !isMarketPulseReport(report)) {
+          sendJson(response, 404, {
+            error: "report_not_found",
+            error_message: "Market Pulse report artifact missing."
+          });
+          return;
+        }
+
+        const watchlistTickers = await runtime.store.listWatchlistTickersByUser(auth.userId);
+        const personalized = withWatchlistOverlay(report, watchlistTickers);
+
+        await appendAudit(
+          runtime,
+          "pulse.report_retrieved",
+          {
+            request_id: meta.requestId,
+            route: pathname,
+            report_id: reportMetadata.id,
+            date: reportDate,
+            watchlist_size: watchlistTickers.length
+          },
+          auth.userId
+        );
+
+        sendJson(response, 200, personalized);
         return;
       }
 

@@ -222,7 +222,7 @@ users
   email           TEXT UNIQUE NOT NULL
   created_at      TIMESTAMPTZ
   plan            ENUM(free, pro)
-  device_token    TEXT                  -- push notification handle
+  device_token    TEXT                  -- v1 single durable FCM push target per user
 
 tickers
   id              UUID PK
@@ -238,7 +238,7 @@ watchlists
   id              UUID PK
   user_id         UUID FK → users
   ticker_id       UUID FK → tickers
-  added_at        TIMESTAMPTZ
+  added_at        TIMESTAMPTZ           -- persisted backend source for Market Pulse watchlist overlay
 
 jobs
   id              UUID PK
@@ -482,7 +482,7 @@ User requests analysis of one ticker and receives a structured `AnalysisReport`.
 
 ### B. Market Pulse
 
-A scheduled daily briefing, generated at a fixed time (e.g., 06:30 EST), answering:
+A scheduled daily briefing, generated at a fixed time (06:30 in America/New_York local wall-clock time; DST-aware), answering:
 - What moved materially since the last cycle
 - What likely drove those moves
 - What macro data was released
@@ -494,9 +494,9 @@ A scheduled daily briefing, generated at a fixed time (e.g., 06:30 EST), answeri
 - Macro releases (CPI, NFP, FOMC, etc.)
 - Rates, FX, commodities
 - Approved-source news articles (via news-ingest)
-- Optional: watchlist ticker overlays
+- Optional: watchlist ticker overlays from persisted Postgres watchlists (exact ticker-symbol mention matching in v1)
 
-**Delivery:** Push notification to device → opens pre-rendered report. Report is stored and accessible historically.
+**Delivery:** Push notification via FCM to `users.device_token` (single-token model in v1) → opens pre-rendered report. Report is stored and accessible historically.
 
 ---
 
@@ -717,7 +717,7 @@ Every milestone must produce a **deployable, testable increment**. A milestone t
 □ MarketPulseReport validates against schema
 □ Report is stored and retrievable by the mobile app
 □ Mobile home screen renders the morning briefing
-□ Push notification is delivered to registered devices
+□ Push notification is delivered to users with a valid `users.device_token`
 ```
 
 ### Visibility Path

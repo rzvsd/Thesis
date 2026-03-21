@@ -264,19 +264,23 @@ Step 7: Report screen opens automatically
 - User can maintain a list of up to 20 tickers (v1 limit)
 - Adding a ticker: search → tap "Add to Watchlist"
 - Removing a ticker: swipe or tap remove in watchlist screen
+- Watchlist persistence is backend-owned in Postgres starting in M6; watchlist management UI remains M7 scope
 - Watchlist is used to generate the Watchlist Overlay section in Market Pulse
+- v1 overlay detection uses exact ticker-symbol mention matching only (no fuzzy company-name or alias matching)
 
 ---
 
 ### 6.6 Market Pulse Delivery
 
 **Schedule:**
-- Generated once per day at **06:30 EST** (fixed for all users in v1)
+- Generated once per day at **06:30 America/New_York local wall-clock time** (DST handled automatically, fixed for all users in v1)
 - Per-user timezone scheduling is deferred to post-launch
 - User receives a push notification when the briefing is ready
 
 **Push notifications:**
 - User must grant notification permission (requested on first launch)
+- On permission grant, mobile sends the current FCM device token to Product API
+- Product API stores one durable token per user in v1 (`users.device_token` single-token model)
 - If permission is denied, briefing is available in the app but no push notification is sent
 - Notification text: *"Your Morning Pulse is ready. Here's what moved overnight."*
 
@@ -459,7 +463,7 @@ These must be answered before the relevant milestone begins.
 | Is report history visible across devices? | M4 | Product Lead | **Resolved — yes, server-side, restored on reinstall/new device (PRD §9)** |
 
 **Resolved:**
-- Market Pulse delivery time → **06:30 EST fixed for all users in v1** (per-timezone deferred)
+- Market Pulse delivery time → **06:30 America/New_York local wall-clock time** (DST-aware, fixed for all users in v1; per-user timezone deferred)
 - Minimum Android version → **Android 8.0 (API 26)** — see ADR-003
 - Report deletion policy → **Reports are never deleted, only archived** — see ADR-005
 - Auth providers → **Email/password + Google Sign-In (OAuth2)**

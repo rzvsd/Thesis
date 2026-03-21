@@ -26,6 +26,18 @@ function parseInteger(value: string | undefined, fallback: number): number {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+function parseCsv(value: string | undefined, fallback: string[]): string[] {
+  if (!value) {
+    return fallback;
+  }
+
+  const parsed = value
+    .split(",")
+    .map((entry) => entry.trim().toUpperCase())
+    .filter((entry) => entry.length > 0);
+  return parsed.length > 0 ? parsed : fallback;
+}
+
 export type QueueBackend = "redis" | "memory";
 export type StoreBackend = "postgres" | "memory";
 
@@ -52,6 +64,12 @@ export interface ProductApiConfig {
   tickerAutoSyncRunOnStartup: boolean;
   tickerDeltaSyncIntervalSeconds: number;
   tickerFullSyncIntervalSeconds: number;
+  marketPulseDataOpenbbBaseUrl: string;
+  marketPulseNewsIngestBaseUrl: string;
+  marketPulseTickers: string[];
+  marketPulseSchemaVersion: string;
+  pushProviderMode: "stub" | "fcm";
+  fcmServerKey?: string;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): ProductApiConfig {
@@ -102,7 +120,18 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ProductApiConf
     tickerAutoSyncEnabled: parseBoolean(env.TICKER_AUTO_SYNC_ENABLED, true),
     tickerAutoSyncRunOnStartup: parseBoolean(env.TICKER_AUTO_SYNC_RUN_ON_STARTUP, true),
     tickerDeltaSyncIntervalSeconds: parseInteger(env.TICKER_DELTA_SYNC_INTERVAL_SECONDS, 900),
-    tickerFullSyncIntervalSeconds: parseInteger(env.TICKER_FULL_SYNC_INTERVAL_SECONDS, 86400)
+    tickerFullSyncIntervalSeconds: parseInteger(env.TICKER_FULL_SYNC_INTERVAL_SECONDS, 86400),
+    marketPulseDataOpenbbBaseUrl:
+      env.MARKET_PULSE_DATA_OPENBB_BASE_URL?.trim() || "http://data-openbb:3003",
+    marketPulseNewsIngestBaseUrl:
+      env.MARKET_PULSE_NEWS_INGEST_BASE_URL?.trim() || "http://news-ingest:3004",
+    marketPulseTickers: parseCsv(env.MARKET_PULSE_TICKERS, ["AAPL", "MSFT", "TSLA"]),
+    marketPulseSchemaVersion: env.MARKET_PULSE_SCHEMA_VERSION?.trim() || "1.0.0",
+    pushProviderMode:
+      env.PUSH_PROVIDER_MODE?.trim().toLowerCase() === "fcm"
+        ? "fcm"
+        : "stub",
+    fcmServerKey: env.FCM_SERVER_KEY?.trim() || undefined
   };
 }
 
@@ -131,6 +160,14 @@ export function validateConfig(config: ProductApiConfig): string[] {
 
   if (config.tickerFullSyncIntervalSeconds <= 0) {
     errors.push("TICKER_FULL_SYNC_INTERVAL_SECONDS must be greater than 0");
+  }
+
+  if (config.marketPulseTickers.length === 0) {
+    errors.push("MARKET_PULSE_TICKERS must include at least one ticker");
+  }
+
+  if (config.pushProviderMode === "fcm" && !config.fcmServerKey) {
+    errors.push("FCM_SERVER_KEY is required when PUSH_PROVIDER_MODE=fcm");
   }
 
   return errors;

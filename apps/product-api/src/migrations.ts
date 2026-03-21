@@ -5,7 +5,8 @@ import type { Pool } from "pg";
 
 const migrationFilenames = [
   "m4_001_auth_jobs.up.sql",
-  "m5_002_ticker_registry.up.sql"
+  "m5_002_ticker_registry.up.sql",
+  "m6_003_market_pulse.up.sql"
 ];
 
 async function readMigrationFile(filename: string): Promise<string> {
@@ -34,7 +35,7 @@ async function readMigrationFile(filename: string): Promise<string> {
   throw new Error(`Migration file not found: ${filename}`);
 }
 
-export async function runM4Migrations(pool: Pool): Promise<void> {
+export async function runMigrations(pool: Pool): Promise<void> {
   for (const filename of migrationFilenames) {
     const sql = await readMigrationFile(filename);
     await pool.query(sql);

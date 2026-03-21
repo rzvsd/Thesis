@@ -65,6 +65,11 @@ function createConfig(overrides: Partial<ProductApiConfig> = {}): ProductApiConf
     tickerAutoSyncRunOnStartup: true,
     tickerDeltaSyncIntervalSeconds: 900,
     tickerFullSyncIntervalSeconds: 86_400,
+    marketPulseDataOpenbbBaseUrl: "http://data-openbb:3003",
+    marketPulseNewsIngestBaseUrl: "http://news-ingest:3004",
+    marketPulseTickers: ["AAPL", "MSFT", "TSLA"],
+    marketPulseSchemaVersion: "1.0.0",
+    pushProviderMode: "stub",
     ...overrides
   };
 }

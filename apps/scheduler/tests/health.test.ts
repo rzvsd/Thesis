@@ -5,7 +5,13 @@ import test from "node:test";
 
 import { startServer } from "../src/server";
 
-type HealthPayload = { status: "ok" };
+type HealthPayload = {
+  status: "ok";
+  mode: "scheduled" | "test";
+  timezone: string;
+  schedule: string;
+  next_fire_at?: string;
+};
 
 test("GET /health returns the expected payload", async () => {
   const server = startServer(0);
@@ -16,7 +22,10 @@ test("GET /health returns the expected payload", async () => {
   const payload = (await response.json()) as HealthPayload;
 
   assert.equal(response.status, 200);
-  assert.deepEqual(payload, { status: "ok" });
+  assert.equal(payload.status, "ok");
+  assert.equal(typeof payload.mode, "string");
+  assert.equal(typeof payload.timezone, "string");
+  assert.equal(typeof payload.schedule, "string");
 
   await new Promise<void>((resolve, reject) => {
     server.close((error) => {
