@@ -482,7 +482,7 @@ User requests analysis of one ticker and receives a structured `AnalysisReport`.
 
 ### B. Market Pulse
 
-A scheduled daily briefing, generated at a fixed time (06:30 in America/New_York local wall-clock time; DST-aware), answering:
+A scheduled daily briefing, generated at a fixed time (06:30 America/New_York wall-clock time, DST-aware, fixed for all users in v1), answering:
 - What moved materially since the last cycle
 - What likely drove those moves
 - What macro data was released
@@ -743,7 +743,8 @@ Every milestone must produce a **deployable, testable increment**. A milestone t
 | **M5 — Deep Dive v1** | Dexter-powered Deep Dive path live | All smoke tests for Deep Dive path pass; Dexter produces evidence-backed reports; < 90s SLA validated |
 | **M6 — Market Pulse** | OpenBB + news-ingest-powered pulse pipeline live | Scheduler fires; OpenBB + news-ingest provide data; briefing generated, stored, and delivered; push notification sent |
 | **M7 — Android MVP** | Mobile app delivers both surfaces | Deep Dive and Market Pulse render correctly on device; auth flow works; PostHog events firing |
-| **M8 — Production Hardening** | System is observable, resilient, and deployable | All visibility smoke tests pass; failure modes are tested (provider down, LLM timeout); load test at 2× expected peak passes; runbooks written |
+| **M8 — Product Quality / UX Refinement** | Android MVP becomes a coherent, personal, premium-feeling product before hardening | Daily-loop home experience is clear; "My Names" relevance is visible; Pulse and Deep Dive feel connected; premium state handling and history/resume quality are validated |
+| **M9 — Production Hardening** | System is observable, resilient, and deployable | All visibility smoke tests pass; failure modes are tested (provider down, LLM timeout); load test at 2× expected peak passes; runbooks written |
 
 ### Milestone Rule
 

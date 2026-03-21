@@ -10,4 +10,4 @@ After M1: A fully framed building. Every room labeled. Every door in place. The 
  
  The documentation layer Bluebook, Roadmap, PRD, Milestones, ADRs — all committed into the repo. The building has its architectural drawings on the wall, not lost in someone's email. What M1 did NOT build No real data flows. No users. No analysis. No reports. No AI reasoning. 
  
- That all comes in M2 through M8. The simple version M1 answered one question: can a new developer clone this repo, run one command, and have the entire system start correctly on their machine? The answer is now yes. That is what M1 delivered.
+ That all comes in M2 through M9. The simple version M1 answered one question: can a new developer clone this repo, run one command, and have the entire system start correctly on their machine? The answer is now yes. That is what M1 delivered.

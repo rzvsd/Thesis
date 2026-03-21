@@ -21,7 +21,7 @@ Marketing for the app : "Every position needs one"
 ```
 M1 Baseline ──► M2 Data Plane ──► M3 Dexter Foundation ──► M4 Product API
                                                                     │
-                                               M8 Hardening ◄── M7 Android MVP ◄── M6 Market Pulse ◄── M5 Deep Dive
+                              M9 Production Hardening ◄── M8 Product Quality / UX Refinement ◄── M7 Android MVP ◄── M6 Market Pulse ◄── M5 Deep Dive
 ```
 
 No milestone begins until the previous one is closed. Closed means MILESTONES.md sign-off checklist complete — not just demos passing.
@@ -39,7 +39,8 @@ No milestone begins until the previous one is closed. Closed means MILESTONES.md
 | M5 | Company Deep Dive v1 | Dexter-powered Deep Dive delivers evidence-backed reports within 90 seconds |
 | M6 | Market Pulse | OpenBB + news-ingest-powered morning briefing generated, stored, and delivered daily |
 | M7 | Android MVP | Both surfaces work on a real Android device |
-| M8 | Production Hardening | System is observable, resilient under failure, and operationally ready |
+| M8 | Product Quality / UX Refinement | Android MVP becomes coherent, personal, and premium-feeling before hardening |
+| M9 | Production Hardening | System is observable, resilient under failure, and operationally ready for launch |
 
 ---
 

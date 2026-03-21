@@ -19,6 +19,11 @@ This document defines **what** the product does, **who** it is for, and **what t
 
 If something in this document is unclear or missing, that is a gap that must be filled before engineering builds it. A feature that is not defined here should not be built.
 
+**Milestone alignment note:**
+- M7 = Android MVP
+- M8 = Product Quality / UX Refinement
+- M9 = Production Hardening / launch readiness
+
 ---
 
 ## Table of Contents
@@ -267,13 +272,14 @@ Step 7: Report screen opens automatically
 - Watchlist persistence is backend-owned in Postgres starting in M6; watchlist management UI remains M7 scope
 - Watchlist is used to generate the Watchlist Overlay section in Market Pulse
 - v1 overlay detection uses exact ticker-symbol mention matching only (no fuzzy company-name or alias matching)
+- Product-quality refinement may frame watchlist more personally as "My Names" in the UI, but the underlying product model remains a watchlist
 
 ---
 
 ### 6.6 Market Pulse Delivery
 
 **Schedule:**
-- Generated once per day at **06:30 America/New_York local wall-clock time** (DST handled automatically, fixed for all users in v1)
+- Generated once per day at **06:30 America/New_York wall-clock time (DST-aware), fixed for all users in v1**
 - Per-user timezone scheduling is deferred to post-launch
 - User receives a push notification when the briefing is ready
 
@@ -296,10 +302,12 @@ Step 7: Report screen opens automatically
 
 | Setting | Options |
 |---|---|
-| Notification time | Toggle on/off; time picker (default 06:30) |
+| Notifications | On / off toggle for Market Pulse notifications |
 | Notification permission | Link to Android system settings |
 | Account | View email, change password, delete account |
 | About | App version, terms of service, privacy policy, disclaimer |
+
+User-selectable notification time is deferred to a later milestone. In v1, Market Pulse remains fixed at **06:30 America/New_York wall-clock time (DST-aware), fixed for all users in v1**.
 
 ---
 
@@ -316,6 +324,8 @@ Launch app
                           └─► Notification permission prompt
                                 └─► Home screen (Market Pulse tab)
 ```
+
+**Home experience note:** After MVP, the home experience should guide the user through one daily loop: what moved, what matters to my names, and what deserves a deeper look.
 
 ### Flow 2: Requesting a Deep Dive
 
@@ -457,13 +467,13 @@ These must be answered before the relevant milestone begins.
 | Question | Needed By | Owner | Status |
 |---|---|---|---|
 | What is the approved news source whitelist for v1? | M2 | Product Lead | **Resolved — see ADR-002** |
-| What is the pricing model — free, freemium, subscription? | M7 | Founder | Open |
-| Are Deep Dives unlimited or gated by plan? | M7 | Founder | Open |
+| What is the pricing model — free, freemium, subscription? | TBD / future monetization milestone | Founder | Open |
+| Are Deep Dives unlimited or gated by plan? | TBD / future monetization milestone | Founder | Open |
 | What disclaimer language has been reviewed by legal? | M5 | Legal | Open |
 | Is report history visible across devices? | M4 | Product Lead | **Resolved — yes, server-side, restored on reinstall/new device (PRD §9)** |
 
 **Resolved:**
-- Market Pulse delivery time → **06:30 America/New_York local wall-clock time** (DST-aware, fixed for all users in v1; per-user timezone deferred)
+- Market Pulse delivery time → **06:30 America/New_York wall-clock time (DST-aware), fixed for all users in v1**
 - Minimum Android version → **Android 8.0 (API 26)** — see ADR-003
 - Report deletion policy → **Reports are never deleted, only archived** — see ADR-005
 - Auth providers → **Email/password + Google Sign-In (OAuth2)**

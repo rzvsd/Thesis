@@ -102,7 +102,8 @@ All work is tracked in Linear. No code is written without a ticket.
 | M5 — Company Deep Dive v1 | Dexter-powered Deep Dive path |
 | M6 — Market Pulse | OpenBB + news-ingest-powered briefing pipeline |
 | M7 — Android MVP | Mobile app |
-| M8 — Production Hardening | Observability, resilience, ops |
+| M8 — Product Quality / UX Refinement | Daily-loop polish, personalization, premium UX |
+| M9 — Production Hardening | Observability, resilience, launch ops |
 
 **Ticket naming:**
 

@@ -36,7 +36,8 @@ Each milestone is a self-contained brief. It defines — in plain language — w
 | M5 | Company Deep Dive v1 | Dexter-powered Deep Dive path live |
 | M6 | Market Pulse | OpenBB + news-ingest-powered morning briefing pipeline live |
 | M7 | Android MVP | Both surfaces work on a real device |
-| M8 | Production Hardening | The system is observable, resilient, and operationally ready |
+| M8 | Product Quality / UX Refinement | The Android MVP becomes coherent, personal, and premium-feeling before hardening |
+| M9 | Production Hardening | The system is observable, resilient, and operationally ready for launch |
 
 ---
 
@@ -723,7 +724,7 @@ Both product surfaces — Company Deep Dive and Market Pulse — work correctly 
 | Watchlist screens | Add, view, remove tickers |
 | Error states | Every failure has a visible, understandable user-facing message |
 | Empty states | Every screen that can be empty has a clear, helpful empty state |
-| Settings screen | Notification preferences, account management |
+| Settings screen | Notifications on/off, Android system notification settings link, account management, about / terms / privacy / disclaimer |
 | PostHog events | Key user actions are tracked and visible in PostHog |
 | Feature flag | At least one feature is gated by a PostHog feature flag |
 
@@ -742,6 +743,7 @@ Both product surfaces — Company Deep Dive and Market Pulse — work correctly 
 - [ ] Push notification arrives on device when a new briefing is ready
 - [ ] Tapping the notification opens the briefing correctly
 - [ ] Watchlist — add, view, and remove tickers — works correctly
+- [ ] Settings screen supports notifications on/off and a correct link to Android system notification settings; user-selectable notification time is not present in v1
 - [ ] If a Deep Dive fails, user sees a clear error message with a retry button — no blank screen, no crash
 - [ ] If no internet connection, user sees a connectivity message — no crash
 - [ ] App does not crash on any smoke test path
@@ -768,13 +770,14 @@ Step 10: Wait for completion. Confirm — report screen opens automatically
 Step 11: Scroll through report. Confirm — all sections present, signal and confidence visible
 Step 12: Navigate to Watchlist tab. Add AAPL. Confirm — appears in watchlist
 Step 13: Remove AAPL. Confirm — removed from watchlist
-Step 14: Navigate to Settings. Toggle notification time. Confirm — change saves
-Step 15: Log out. Confirm — returned to login screen. Old token no longer works.
-Step 16: Log back in. Confirm — report history is still present
-Step 17: Turn off device internet. Attempt a Deep Dive. Confirm — connectivity message shown, no crash
-Step 18: Restore internet. Retry. Confirm — works correctly
-Step 19: Open PostHog dashboard. Confirm — events for registration, login, Deep Dive, Pulse all present
-Step 20: Confirm — feature flag correctly controls the designated feature
+Step 14: Navigate to Settings. Turn notifications off and on. Confirm — toggle state saves correctly
+Step 15: Tap notification/settings permission link. Confirm — Android system notification settings opens correctly
+Step 16: Log out. Confirm — returned to login screen. Old token no longer works.
+Step 17: Log back in. Confirm — report history is still present
+Step 18: Turn off device internet. Attempt a Deep Dive. Confirm — connectivity message shown, no crash
+Step 19: Restore internet. Retry. Confirm — works correctly
+Step 20: Open PostHog dashboard. Confirm — events for registration, login, Deep Dive, Pulse all present
+Step 21: Confirm — feature flag correctly controls the designated feature
 ```
 
 **Expected result:** All steps complete on a physical device. No crashes. No blank screens. PostHog events firing.
@@ -791,7 +794,7 @@ A real person — including a non-technical stakeholder — can pick up the phon
 
 | What breaks | How we detect it | Impact |
 |---|---|---|
-| App crashes on any smoke test step | Visible on device | Release blocker — must fix before M8 |
+| App crashes on any smoke test step | Visible on device | Release blocker — must fix before M8 begins |
 | Blank screen during report loading | Smoke test step 9 | User experience failure — add loading state |
 | Push notification not received | Smoke test step 5 area (pre-check) | Briefing must be found manually — investigate FCM config |
 | PostHog events not firing | PostHog dashboard shows no events | Loss of product analytics — investigate SDK integration |
@@ -825,7 +828,123 @@ Mobile Engineer + Product Lead
 
 ---
 
-# M8_Production Hardening
+# M8_Product Quality / UX Refinement
+
+## Goal
+Turn the Android MVP into a product that feels coherent, personal, and premium to a real user without changing the core architecture. Market Pulse and Deep Dive should feel like one connected product experience, not two separate features that merely happen to live in the same app.
+
+**Plain English:** M7 proves the app works. M8 makes it feel good enough that a real user would want to come back tomorrow.
+
+---
+
+## Deliverables
+
+| Deliverable | Description |
+|---|---|
+| Daily-loop home experience | Home feels like one flow: what moved, what matters to my names, what deserves a deeper look |
+| My Names UX framing | Watchlist remains the backend model, but the UX presents relevance more personally |
+| Delta-first presentation | Market Pulse and Deep Dive emphasize what changed, why it changed, uncertainty, and follow-up |
+| Premium state handling | Loading, empty, retry, offline, and failure states feel intentional and non-confusing |
+| Push UX refinement | Push copy and tap-through feel relevant, trustworthy, and connected to the in-app experience |
+| First-run and no-data clarity | New users understand the app quickly and empty states always point to a useful next step |
+| History and resume refinement | Prior Pulse and Deep Dive content are easy to revisit with less friction |
+| UX truth via analytics | PostHog validates the main user journey quality, not just event existence |
+
+---
+
+## Acceptance Criteria
+
+- [ ] A new user can open the app and understand the main purpose in under 30 seconds
+- [ ] Home screen clearly communicates the day's market state, what matters to the user's names, and a natural deeper-look path
+- [ ] Market Pulse to Deep Dive transition feels natural and requires no explanation
+- [ ] Deep Dive and Market Pulse presentation both emphasize what changed, why it matters, what is uncertain, and what deserves follow-up
+- [ ] No blank or confusing states remain in the core user journey
+- [ ] Push notification tap lands on the correct screen/state and the push copy feels relevant rather than generic
+- [ ] Watchlist-driven personalization is visible in the UX without introducing portfolio management
+- [ ] History and resume flow works cleanly for both prior Pulse and prior Deep Dive content
+- [ ] PostHog confirms the intended user path can be completed without major dead ends
+- [ ] Product Lead signs off that the app feels coherent and premium, not just functional
+
+---
+
+## Smoke Test
+
+**Who runs it:** Product Lead + Engineering Lead on a physical Android device.
+
+```
+Step 1:  Install the latest APK on a physical Android device
+Step 2:  Launch the app fresh. Confirm — within 30 seconds it is obvious what the app does
+Step 3:  Review the home screen. Confirm — it feels like one loop: what moved, what matters to my names, what deserves a deeper look
+Step 4:  If no watchlist exists, confirm — the empty state explains what to do next instead of leaving a dead end
+Step 5:  Add at least one ticker to watchlist/My Names. Return home. Confirm — personalization is visible in the UX
+Step 6:  Open the latest Market Pulse from the home screen
+Step 7:  Confirm — the briefing emphasizes change, drivers, uncertainty, and follow-up rather than reading like a generic summary
+Step 8:  From that flow, enter a Deep Dive for a relevant ticker
+Step 9:  Confirm — the transition feels natural and does not require explanation
+Step 10: Read the finished Deep Dive top-to-bottom
+Step 11: Confirm — report hierarchy, evidence behavior, signal/confidence placement, and delta framing feel clear
+Step 12: Trigger or receive a push notification and open the Pulse from it
+Step 13: Confirm — the push copy feels relevant and tap-through lands in the correct place
+Step 14: Revisit prior Pulse and prior Deep Dive content from history/resume paths
+Step 15: Confirm — prior content is easy to find and resuming context feels natural
+Step 16: Force one no-data, offline, retry, or degraded state on a main path
+Step 17: Confirm — the state is understandable and the user is never left on a blank or confusing screen
+Step 18: Increase Android system font size and repeat the main reading paths
+Step 19: Confirm — content remains readable and tappable
+Step 20: Review PostHog for the intended journey
+Step 21: Confirm — the expected path is visible and there are no obvious dead-end drop-offs
+Step 22: Ask a non-technical reviewer to complete the main flows without guidance
+Step 23: Confirm — they understand what the app is for and can complete the path without confusion
+```
+
+**Expected result:** The product feels coherent, personal, and premium. No major UX confusion remains on the main user path.
+
+---
+
+## Success
+
+The app no longer feels like a technically correct MVP. It feels like a product that a real user can understand, trust, and return to. Final hardening work can focus on operational readiness instead of obvious product-quality debt.
+
+---
+
+## Failure Modes
+
+| What breaks | How we detect it | Impact |
+|---|---|---|
+| New user still cannot explain the app's purpose quickly | First-run smoke path exceeds 30 seconds to understand | Product shape is unclear — do not move to hardening yet |
+| Home still feels like disconnected features instead of one loop | Product review or non-technical smoke shows confusion | Coherence gap — must be fixed before M9 |
+| Key screens still contain blank, cramped, or visually broken states | Refined smoke test catches layout/UX regressions | User trust issue — must be fixed before M9 |
+| Watchlist relevance is invisible or confusing in the UX | My Names / watchlist smoke steps feel generic or buried | Personalization goal failed — milestone not ready to close |
+| PostHog cannot validate the intended user journey | Analytics review shows dead ends or missing path visibility | Product decisions remain guess-driven — fix before closeout |
+
+---
+
+## Rollback
+
+Rollback means distributing the previously accepted APK/build to testers and reverting only the UX/refinement changes that introduced regressions. Backend services can remain on their current versions unless a supporting API tweak caused the issue.
+
+---
+
+## Dependencies
+
+- M7 complete (Android MVP functional on a real device)
+- M6 complete underneath M7 (Market Pulse pipeline operational)
+- Product surfaces already working end-to-end
+- Approved legal/disclaimer wording available for all user-facing placements
+- PostHog product analytics and at least one feature flag already in place
+- Product Lead available for review and quality sign-off
+
+---
+
+## Owner
+
+Product Lead + Mobile Engineer
+
+---
+
+---
+
+# M9_Production Hardening
 
 ## Goal
 The system is observable, resilient under failure, operationally documented, and validated under load. It is ready for real users.
@@ -949,13 +1068,13 @@ The system can be handed to an operations team — including people who did not 
 
 ## Rollback
 
-M8 is the last milestone before production. If a hardening change itself causes instability, roll back that specific change using the tested rollback procedure. All rollback scripts are confirmed in this milestone — they must work before it closes.
+M9 is the last milestone before production. If a hardening change itself causes instability, roll back that specific change using the tested rollback procedure. All rollback scripts are confirmed in this milestone — they must work before it closes.
 
 ---
 
 ## Dependencies
 
-- M7 complete (Android MVP signed off by Product Lead)
+- M8 complete (Product Quality / UX Refinement signed off)
 - Staging environment mirrors production configuration
 - Production infrastructure provisioned (database, Redis, Artifact Store, services)
 - Operations team (or designated on-call engineer) identified and briefed

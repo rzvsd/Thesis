@@ -65,7 +65,7 @@ Linear is a workspace — things get archived, tickets get closed, history gets 
 Docs and Linear are not two parallel universes. They are the same system. Linear is where the work happens. The docs are what defines it.
 
 **Structure:**
-- Each milestone (M1–M8) = one Linear Project
+- Each milestone (M1–M9) = one Linear Project
 - Each acceptance criteria item in `MILESTONES.md` = one Linear ticket
 - Each smoke test = a checklist on the milestone closure ticket
 - Each milestone Linear project links back to its `Milestones/M#/` folder
