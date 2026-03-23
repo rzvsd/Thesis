@@ -102,9 +102,11 @@ fun ThesisApp(
         if (uiState.tokens == null) {
             AuthScreen(
                 isLoading = uiState.isLoading,
+                currentApiBaseUrl = uiState.apiBaseUrl,
                 verificationToken = uiState.verificationToken,
                 registerStatus = uiState.registerStatus,
                 message = uiState.message,
+                onSaveApiBaseUrl = mainViewModel::updateApiBaseUrl,
                 onRegister = mainViewModel::register,
                 onVerify = mainViewModel::verify,
                 onLogin = mainViewModel::login
@@ -230,13 +232,16 @@ private fun WelcomeScreen(onContinue: () -> Unit) {
 @Composable
 private fun AuthScreen(
     isLoading: Boolean,
+    currentApiBaseUrl: String,
     verificationToken: String?,
     registerStatus: String?,
     message: String?,
+    onSaveApiBaseUrl: (String) -> Unit,
     onRegister: (String, String) -> Unit,
     onVerify: (String) -> Unit,
     onLogin: (String, String) -> Unit
 ) {
+    var apiBaseUrl by rememberSaveable(currentApiBaseUrl) { mutableStateOf(currentApiBaseUrl) }
     var email by rememberSaveable { mutableStateOf("") }
     var password by rememberSaveable { mutableStateOf("") }
     var verifyToken by rememberSaveable { mutableStateOf(verificationToken ?: "") }
@@ -255,6 +260,26 @@ private fun AuthScreen(
     ) {
         Text("Thesis Android MVP", style = MaterialTheme.typography.headlineSmall)
         Text("Register, verify, and login to access Pulse and Deep Dive.")
+        Text("If login/register fails on first run, confirm the Product API URL below.")
+
+        OutlinedTextField(
+            value = apiBaseUrl,
+            onValueChange = { apiBaseUrl = it },
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text("Product API Base URL") },
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                focusedContainerColor = MaterialTheme.colorScheme.surface,
+                unfocusedContainerColor = MaterialTheme.colorScheme.surface
+            )
+        )
+        Button(
+            onClick = { onSaveApiBaseUrl(apiBaseUrl) },
+            enabled = !isLoading
+        ) { Text("Save API URL") }
+
+        HorizontalDivider()
 
         OutlinedTextField(
             value = email,
