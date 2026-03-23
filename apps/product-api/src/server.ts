@@ -416,9 +416,16 @@ async function processMarketPulseJob(
         completed.userId
       );
 
+      let headline: string | undefined = undefined;
+      const firstNewsTitle = report.sections.news_summary.evidence?.[0]?.excerpt;
+      if (firstNewsTitle) {
+        headline = firstNewsTitle;
+      }
+
       const pushTargets = await runtime.store.listUsersWithDeviceToken();
       const pushResult = await runtime.pushNotifier.sendMarketPulseReady(pushTargets, {
-        reportDate: report.cycle_end.slice(0, 10)
+        reportDate: report.cycle_end.slice(0, 10),
+        headline
       });
 
       logInfo("Market Pulse push delivery attempted", {

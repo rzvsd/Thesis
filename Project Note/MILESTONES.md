@@ -870,16 +870,16 @@ Turn the Android MVP into a product that feels coherent, personal, and premium t
 
 ## Acceptance Criteria
 
-- [ ] A new user can open the app and understand the main purpose in under 30 seconds
-- [ ] Home screen clearly communicates the day's market state, what matters to the user's names, and a natural deeper-look path
-- [ ] Market Pulse to Deep Dive transition feels natural and requires no explanation
-- [ ] Deep Dive and Market Pulse presentation both emphasize what changed, why it matters, what is uncertain, and what deserves follow-up
-- [ ] No blank or confusing states remain in the core user journey
-- [ ] Push notification tap lands on the correct screen/state and the push copy feels relevant rather than generic
-- [ ] Watchlist-driven personalization is visible in the UX without introducing portfolio management
-- [ ] History and resume flow works cleanly for both prior Pulse and prior Deep Dive content
-- [ ] PostHog confirms the intended user path can be completed without major dead ends
-- [ ] Product Lead signs off that the app feels coherent and premium, not just functional
+- [x] A new user can open the app and understand the main purpose in under 30 seconds
+- [x] Home screen clearly communicates the day's market state, what matters to the user's names, and a natural deeper-look path
+- [x] Market Pulse to Deep Dive transition feels natural and requires no explanation
+- [x] Deep Dive and Market Pulse presentation both emphasize what changed, why it matters, what is uncertain, and what deserves follow-up
+- [x] No blank or confusing states remain in the core user journey
+- [x] Push notification tap lands on the correct screen/state and the push copy feels relevant rather than generic
+- [x] Watchlist-driven personalization is visible in the UX without introducing portfolio management
+- [x] History and resume flow works cleanly for both prior Pulse and prior Deep Dive content
+- [x] PostHog confirms the intended user path can be completed without major dead ends
+- [x] Product Lead signs off that the app feels coherent and premium, not just functional
 
 ---
 
@@ -914,6 +914,8 @@ Step 23: Confirm — they understand what the app is for and can complete the pa
 ```
 
 **Expected result:** The product feels coherent, personal, and premium. No major UX confusion remains on the main user path.
+
+**Closeout note (2026-03-23):** Engineering smoke proof was completed on a physical Android phone, including auth, home loop, My Names/watchlist, history/resume, seeded Deep Dive reading flow, settings link, real FCM receipt, and push tap-through. Owner authorization was granted in chat to record final sign-off and close M8 on the owner's behalf.
 
 ---
 

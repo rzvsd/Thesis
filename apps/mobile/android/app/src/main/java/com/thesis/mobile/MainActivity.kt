@@ -16,16 +16,21 @@ import com.thesis.mobile.ui.ThesisApp
 
 class MainActivity : ComponentActivity() {
     private var openPulseOnStart by mutableStateOf(false)
+    private var pulseDateOnStart by mutableStateOf<String?>(null)
     private val notificationPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* no-op */ }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         openPulseOnStart = shouldOpenPulse(intent)
+        pulseDateOnStart = extractPulseDate(intent)
         requestNotificationPermissionIfNeeded()
 
         setContent {
-            ThesisApp(openPulseOnStart = openPulseOnStart)
+            ThesisApp(
+                openPulseOnStart = openPulseOnStart,
+                pulseDateOnStart = pulseDateOnStart
+            )
         }
     }
 
@@ -33,6 +38,7 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         openPulseOnStart = shouldOpenPulse(intent)
+        pulseDateOnStart = extractPulseDate(intent)
     }
 
     private fun shouldOpenPulse(intent: Intent?): Boolean {
@@ -45,6 +51,17 @@ class MainActivity : ComponentActivity() {
         }
         val deepLink = intent.data?.toString().orEmpty()
         return deepLink.contains("thesis://pulse", ignoreCase = true)
+    }
+
+    private fun extractPulseDate(intent: Intent?): String? {
+        if (intent == null) {
+            return null
+        }
+        val pulseDate = intent.getStringExtra("pulse_date")?.trim()
+        if (!pulseDate.isNullOrBlank()) {
+            return pulseDate
+        }
+        return intent.data?.getQueryParameter("date")?.trim()?.ifBlank { null }
     }
 
     private fun requestNotificationPermissionIfNeeded() {

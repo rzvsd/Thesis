@@ -6,6 +6,7 @@ import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import com.thesis.mobile.BuildConfig
 import com.thesis.mobile.model.AuthTokens
+import com.thesis.mobile.model.LastViewedReport
 import java.util.UUID
 
 class SessionStore(context: Context) {
@@ -87,6 +88,47 @@ class SessionStore(context: Context) {
         return generated
     }
 
+    fun saveLastViewedReport(
+        reportId: String,
+        label: String,
+        type: String,
+        referenceDate: String? = null
+    ) {
+        prefs.edit()
+            .putString(KEY_LAST_VIEWED_REPORT_ID, reportId)
+            .putString(KEY_LAST_VIEWED_LABEL, label)
+            .putString(KEY_LAST_VIEWED_TYPE, type)
+            .putString(KEY_LAST_VIEWED_REFERENCE_DATE, referenceDate)
+            .putLong(KEY_LAST_VIEWED_TIMESTAMP, System.currentTimeMillis())
+            .apply()
+    }
+
+    fun getLastViewedReport(): LastViewedReport? {
+        val reportId = prefs.getString(KEY_LAST_VIEWED_REPORT_ID, null) ?: return null
+        val label = prefs.getString(KEY_LAST_VIEWED_LABEL, null) ?: return null
+        val type = prefs.getString(KEY_LAST_VIEWED_TYPE, null) ?: return null
+        val referenceDate = prefs.getString(KEY_LAST_VIEWED_REFERENCE_DATE, null)
+        val timestamp = prefs.getLong(KEY_LAST_VIEWED_TIMESTAMP, 0L)
+        
+        val isOld = (System.currentTimeMillis() - timestamp) > 24 * 60 * 60 * 1000L
+        if (isOld) {
+            clearLastViewedReport()
+            return null
+        }
+        
+        return LastViewedReport(reportId, label, type, referenceDate, timestamp)
+    }
+
+    fun clearLastViewedReport() {
+        prefs.edit()
+            .remove(KEY_LAST_VIEWED_REPORT_ID)
+            .remove(KEY_LAST_VIEWED_LABEL)
+            .remove(KEY_LAST_VIEWED_TYPE)
+            .remove(KEY_LAST_VIEWED_REFERENCE_DATE)
+            .remove(KEY_LAST_VIEWED_TIMESTAMP)
+            .apply()
+    }
+
     companion object {
         private const val PREFS_NAME = "thesis_mobile_prefs"
         private const val KEY_ACCESS_TOKEN = "access_token"
@@ -97,5 +139,10 @@ class SessionStore(context: Context) {
         private const val KEY_NOTIFICATIONS_ENABLED = "notifications_enabled"
         private const val KEY_HAS_SEEN_WELCOME = "has_seen_welcome"
         private const val KEY_INSTALLATION_ID = "installation_id"
+        private const val KEY_LAST_VIEWED_REPORT_ID = "last_viewed_report_id"
+        private const val KEY_LAST_VIEWED_LABEL = "last_viewed_label"
+        private const val KEY_LAST_VIEWED_TYPE = "last_viewed_type"
+        private const val KEY_LAST_VIEWED_REFERENCE_DATE = "last_viewed_reference_date"
+        private const val KEY_LAST_VIEWED_TIMESTAMP = "last_viewed_timestamp"
     }
 }

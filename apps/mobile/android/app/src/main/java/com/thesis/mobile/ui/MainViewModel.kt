@@ -8,6 +8,7 @@ import com.google.firebase.messaging.FirebaseMessaging
 import com.thesis.mobile.data.SessionStore
 import com.thesis.mobile.model.AuthTokens
 import com.thesis.mobile.model.DeepDiveReportView
+import com.thesis.mobile.model.LastViewedReport
 import com.thesis.mobile.model.PulseReportView
 import com.thesis.mobile.model.ReportHistoryItem
 import com.thesis.mobile.model.TickerSearchItem
@@ -24,6 +25,7 @@ enum class AppTab {
     PULSE,
     DEEP_DIVE,
     WATCHLIST,
+    HISTORY,
     SETTINGS
 }
 
@@ -42,9 +44,12 @@ data class UiState(
     val selectedTicker: String? = null,
     val jobStatus: String? = null,
     val deepDiveReport: DeepDiveReportView? = null,
+    val deepDiveError: String? = null,
     val pulseReport: PulseReportView? = null,
+    val pulseError: String? = null,
     val reportHistory: List<ReportHistoryItem> = emptyList(),
-    val watchlist: List<String> = emptyList()
+    val watchlist: List<String> = emptyList(),
+    val lastViewedReport: LastViewedReport? = null
 )
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
@@ -65,6 +70,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     init {
         if (state.tokens != null) {
+            state = state.copy(lastViewedReport = sessionStore.getLastViewedReport())
             refreshFeatureFlags()
             refreshPulse()
             refreshReportHistory()
@@ -88,8 +94,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         publish(state.copy(showWelcome = false))
     }
 
-    fun openPulseFromNotification() {
-        setTab(AppTab.PULSE)
+    fun openPulseFromNotification(reportDate: String? = null) {
+        publish(state.copy(currentTab = AppTab.PULSE))
+        if (!reportDate.isNullOrBlank()) {
+            loadPulseByDate(reportDate, rememberAsLastViewed = true)
+        } else {
+            refreshPulse(rememberAsLastViewed = true)
+        }
     }
 
     fun setTab(tab: AppTab) {
@@ -102,7 +113,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         when (tab) {
             AppTab.PULSE -> refreshPulse()
             AppTab.WATCHLIST -> refreshWatchlist()
-            AppTab.DEEP_DIVE -> refreshReportHistory()
+            AppTab.DEEP_DIVE, AppTab.HISTORY -> refreshReportHistory()
             else -> Unit
         }
     }
@@ -168,7 +179,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 client.login(state.apiBaseUrl, email, password)
             }.onSuccess { tokens ->
                 sessionStore.saveTokens(tokens)
-                publish(state.copy(isLoading = false, tokens = tokens, message = "Login successful."))
+                publish(
+                    state.copy(
+                        isLoading = false,
+                        tokens = tokens,
+                        message = "Login successful.",
+                        pulseError = null,
+                        deepDiveError = null
+                    )
+                )
                 refreshFeatureFlags()
                 refreshPulse()
                 refreshReportHistory()
@@ -207,6 +226,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     selectedTicker = null,
                     deepDiveReport = null,
                     pulseReport = null,
+                    pulseError = null,
+                    deepDiveError = null,
                     watchlist = emptyList(),
                     reportHistory = emptyList(),
                     jobStatus = null,
@@ -236,7 +257,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         withAuthorizedCall {
-            publish(state.copy(isLoading = true, deepDiveReport = null, jobStatus = "queued"))
+            publish(
+                state.copy(
+                    isLoading = true,
+                    deepDiveReport = null,
+                    deepDiveError = null,
+                    jobStatus = "queued"
+                )
+            )
             val job = client.createDeepDiveJob(state.apiBaseUrl, requireTokens().accessToken, ticker)
             publish(state.copy(jobStatus = job.status))
             trackEvent(
@@ -258,52 +286,110 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun openHistoryReport(reportId: String) {
-        withAuthorizedCall {
-            val report = client.getDeepDiveReport(state.apiBaseUrl, requireTokens().accessToken, reportId)
-            publish(
-                state.copy(
-                    currentTab = AppTab.DEEP_DIVE,
-                    deepDiveReport = report,
-                    message = "Loaded report from history."
+        viewModelScope.launch {
+            publish(state.copy(isLoading = true, message = null, deepDiveError = null))
+            val error = runAuthorizedWithRefresh {
+                val report = client.getDeepDiveReport(state.apiBaseUrl, requireTokens().accessToken, reportId)
+                publish(
+                    state.copy(
+                        currentTab = AppTab.DEEP_DIVE,
+                        deepDiveReport = report,
+                        message = "Loaded report from history.",
+                        deepDiveError = null
+                    )
                 )
-            )
-            trackEvent(
-                "deep_dive_viewed",
-                mapOf(
-                    "report_id" to report.reportId,
-                    "ticker" to (report.ticker ?: "unknown")
+                val tickerSafe = report.ticker ?: "unknown"
+                sessionStore.saveLastViewedReport(report.reportId, tickerSafe, "DEEP_DIVE")
+                publish(state.copy(lastViewedReport = sessionStore.getLastViewedReport()))
+                trackEvent(
+                    "deep_dive_viewed",
+                    mapOf(
+                        "report_id" to report.reportId,
+                        "ticker" to tickerSafe
+                    )
                 )
-            )
+            }
+            if (error != null) {
+                val message = toMessage(error)
+                publish(state.copy(isLoading = false, message = message, deepDiveError = message))
+            } else {
+                publish(state.copy(isLoading = false))
+            }
         }
     }
 
-    fun refreshPulse() {
-        withAuthorizedCall {
-            val pulse = client.getLatestPulse(state.apiBaseUrl, requireTokens().accessToken)
-            publish(state.copy(pulseReport = pulse))
-            trackEvent(
-                "pulse_viewed",
-                mapOf("report_id" to pulse.reportId)
-            )
+    fun dismissResumeCard() {
+        sessionStore.clearLastViewedReport()
+        publish(state.copy(lastViewedReport = null))
+    }
+
+    fun resumeLastViewed(lastViewedReport: LastViewedReport) {
+        when (lastViewedReport.type) {
+            "PULSE" -> {
+                publish(state.copy(currentTab = AppTab.PULSE))
+                val referenceDate = lastViewedReport.referenceDate
+                if (!referenceDate.isNullOrBlank()) {
+                    loadPulseByDate(referenceDate, rememberAsLastViewed = true)
+                } else {
+                    refreshPulse(rememberAsLastViewed = true)
+                }
+            }
+
+            else -> openHistoryReport(lastViewedReport.reportId)
         }
     }
 
-    fun loadPulseByDate(date: String) {
+    fun refreshPulse(rememberAsLastViewed: Boolean = false) {
+        viewModelScope.launch {
+            publish(state.copy(isLoading = true, message = null, pulseError = null))
+            val error = runAuthorizedWithRefresh {
+                val pulse = client.getLatestPulse(state.apiBaseUrl, requireTokens().accessToken)
+                publish(state.copy(pulseReport = pulse, pulseError = null))
+                if (rememberAsLastViewed) {
+                    rememberPulse(pulse)
+                }
+                trackEvent(
+                    "pulse_viewed",
+                    mapOf("report_id" to pulse.reportId)
+                )
+            }
+            if (error != null) {
+                val message = toMessage(error)
+                publish(state.copy(isLoading = false, message = message, pulseError = message))
+            } else {
+                publish(state.copy(isLoading = false))
+            }
+        }
+    }
+
+    fun loadPulseByDate(date: String, rememberAsLastViewed: Boolean = false) {
         val trimmed = date.trim()
         if (!Regex("^\\d{4}-\\d{2}-\\d{2}$").matches(trimmed)) {
             publish(state.copy(message = "Enter date as YYYY-MM-DD."))
             return
         }
-        withAuthorizedCall {
-            val pulse = client.getPulseByDate(state.apiBaseUrl, requireTokens().accessToken, trimmed)
-            publish(state.copy(pulseReport = pulse, message = "Loaded pulse for $trimmed."))
-            trackEvent(
-                "pulse_viewed",
-                mapOf(
-                    "report_id" to pulse.reportId,
-                    "requested_date" to trimmed
+        viewModelScope.launch {
+            publish(state.copy(isLoading = true, message = null, pulseError = null))
+            val error = runAuthorizedWithRefresh {
+                val pulse = client.getPulseByDate(state.apiBaseUrl, requireTokens().accessToken, trimmed)
+                publish(state.copy(pulseReport = pulse, message = "Loaded pulse for $trimmed.", pulseError = null))
+                if (rememberAsLastViewed) {
+                    rememberPulse(pulse, trimmed)
+                }
+                trackEvent(
+                    "pulse_viewed",
+                    mapOf(
+                        "report_id" to pulse.reportId,
+                        "requested_date" to trimmed
+                    )
                 )
-            )
+            }
+            if (error != null) {
+                val message = toMessage(error)
+                publish(state.copy(isLoading = false, message = message, pulseError = message))
+            } else {
+                publish(state.copy(isLoading = false))
+            }
         }
     }
 
@@ -363,25 +449,31 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                             state.copy(
                                 isLoading = false,
                                 deepDiveReport = report,
-                                message = "Deep Dive ready."
+                                message = "Deep Dive ready.",
+                                deepDiveError = null
                             )
                         )
+                        val tickerSafe = report.ticker ?: "unknown"
+                        sessionStore.saveLastViewedReport(report.reportId, tickerSafe, "DEEP_DIVE")
+                        publish(state.copy(lastViewedReport = sessionStore.getLastViewedReport()))
                         refreshReportHistory()
                         trackEvent(
                             "deep_dive_viewed",
                             mapOf(
                                 "report_id" to report.reportId,
-                                "ticker" to (report.ticker ?: "unknown")
+                                "ticker" to tickerSafe
                             )
                         )
                         return
                     }
                 }
                 "failed" -> {
+                    val failureMessage = status.errorMessage ?: "Deep Dive failed."
                     publish(
                         state.copy(
                             isLoading = false,
-                            message = status.errorMessage ?: "Deep Dive failed."
+                            message = failureMessage,
+                            deepDiveError = failureMessage
                         )
                     )
                     return
@@ -389,28 +481,37 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
             delay(2000)
         }
-        publish(state.copy(isLoading = false, message = "Deep Dive timed out. Please retry."))
+        publish(
+            state.copy(
+                isLoading = false,
+                message = "Deep Dive timed out. Please retry.",
+                deepDiveError = "Deep Dive timed out. Please retry."
+            )
+        )
     }
 
     private fun withAuthorizedCall(block: suspend () -> Unit) {
         viewModelScope.launch {
             publish(state.copy(isLoading = true, message = null))
-            runCatching {
-                block()
-            }.onSuccess {
+            val error = runAuthorizedWithRefresh(block)
+            if (error == null) {
                 publish(state.copy(isLoading = false))
-            }.onFailure { error ->
-                if (error is ProductApiException && error.code == 401 && tryRefreshToken()) {
-                    runCatching { block() }
-                        .onSuccess { publish(state.copy(isLoading = false)) }
-                        .onFailure { secondError ->
-                            publish(state.copy(isLoading = false, message = toMessage(secondError)))
-                        }
-                    return@launch
-                }
+            } else {
                 publish(state.copy(isLoading = false, message = toMessage(error)))
             }
         }
+    }
+
+    private suspend fun runAuthorizedWithRefresh(block: suspend () -> Unit): Throwable? {
+        return runCatching {
+            block()
+        }.recoverCatching { error ->
+            if (error is ProductApiException && error.code == 401 && tryRefreshToken()) {
+                block()
+            } else {
+                throw error
+            }
+        }.exceptionOrNull()
     }
 
     private suspend fun tryRefreshToken(): Boolean {
@@ -499,6 +600,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         is ProductApiException -> error.message
         is IOException -> "No internet connection. Please check network and retry."
         else -> error.message ?: "Unexpected error."
+    }
+
+    private fun rememberPulse(pulse: PulseReportView, fallbackDate: String? = null) {
+        val referenceDate = fallbackDate ?: pulse.generatedAt.take(10)
+        sessionStore.saveLastViewedReport(
+            reportId = pulse.reportId,
+            label = "Morning Pulse",
+            type = "PULSE",
+            referenceDate = referenceDate
+        )
+        publish(state.copy(lastViewedReport = sessionStore.getLastViewedReport()))
     }
 
     private fun publish(newState: UiState) {

@@ -9,9 +9,10 @@ const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(scriptDir, "../../..");
 const qaDir = path.join(rootDir, "qa", "maestro");
 const envPath = path.join(qaDir, ".maestro.env");
-const defaultFlowPath = path.join(qaDir, "flows", "m7_smoke.yaml");
+const defaultFlowPath = path.join(qaDir, "flows", "m8_smoke.yaml");
 const outputRoot = path.join(qaDir, "output");
 const maestroCommand = resolveMaestroCommand();
+const adbCommand = resolveAdbCommand();
 const javaHome = resolveJavaHome();
 
 main().catch((error) => {
@@ -34,6 +35,7 @@ async function main() {
   }
 
   await ensureMaestroAvailable(runtimeEnv);
+  await launchAppWithAdb(runtimeEnv);
 
   const runStamp = new Date().toISOString().replace(/[:.]/g, "-");
   const runDir = path.join(outputRoot, runStamp);
@@ -78,6 +80,72 @@ async function main() {
   }
 
   console.log(`[maestro:smoke] PASS. Summary: ${summaryPath}`);
+}
+
+async function launchAppWithAdb(env) {
+  const serial = env.MAESTRO_DEVICE_SERIAL?.trim();
+  const appId = env.MAESTRO_APP_ID?.trim();
+  if (!serial || !appId) {
+    throw new Error("Missing MAESTRO_DEVICE_SERIAL or MAESTRO_APP_ID for adb app launch.");
+  }
+
+  await ensureDeviceAwake(serial, env);
+  const activity = await resolveLaunchActivity(serial, appId);
+  await runStreaming(adbCommand, ["-s", serial, "shell", "am", "force-stop", appId], env, null, { echo: false });
+  const exitCode = await runStreaming(
+    adbCommand,
+    ["-s", serial, "shell", "am", "start", "-W", "-n", activity],
+    env,
+    null,
+    { echo: false }
+  );
+  if (exitCode !== 0) {
+    throw new Error(`adb could not start ${activity}.`);
+  }
+}
+
+async function ensureDeviceAwake(serial, env) {
+  // Wake and dismiss keyguard so smoke assertions do not start on a black/locked screen.
+  await runStreaming(adbCommand, ["-s", serial, "shell", "input", "keyevent", "224"], env, null, { echo: false });
+  await runStreaming(adbCommand, ["-s", serial, "shell", "wm", "dismiss-keyguard"], env, null, { echo: false });
+  await runStreaming(adbCommand, ["-s", serial, "shell", "input", "keyevent", "82"], env, null, { echo: false });
+}
+
+async function resolveLaunchActivity(serial, appId) {
+  // Emulators can intermittently return transient "broken pipe"/"no activity"
+  // responses while package manager services settle after install/reset.
+  // Retry a few times before failing hard.
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    let output = "";
+    const exitCode = await runStreaming(
+      adbCommand,
+      ["-s", serial, "shell", "cmd", "package", "resolve-activity", "--brief", "--user", "0", appId],
+      process.env,
+      {
+        write: (chunk) => {
+          output += chunk;
+        },
+        end() {}
+      },
+      { echo: false }
+    );
+
+    if (exitCode === 0) {
+      const activity = output
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .at(-1);
+
+      if (activity && activity.includes("/")) {
+        return activity;
+      }
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+  }
+
+  throw new Error(`Unable to resolve launch activity for ${appId}.`);
 }
 
 function resolveFlowPath(env) {
@@ -152,6 +220,19 @@ function resolveJavaHome() {
     }
   }
   return "";
+}
+
+function resolveAdbCommand() {
+  if (process.env.ADB_PATH) {
+    return process.env.ADB_PATH;
+  }
+  if (process.platform === "win32") {
+    const candidate = path.join(process.env.LOCALAPPDATA || "", "Android", "Sdk", "platform-tools", "adb.exe");
+    if (candidate && existsSync(candidate)) {
+      return candidate;
+    }
+  }
+  return "adb";
 }
 
 function applyJavaEnv(env, resolvedJavaHome) {
