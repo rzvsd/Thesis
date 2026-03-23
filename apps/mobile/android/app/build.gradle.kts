@@ -10,7 +10,7 @@ val posthogApiKey = project.findProperty("POSTHOG_API_KEY")?.toString() ?: ""
 val posthogHost = project.findProperty("POSTHOG_HOST")?.toString() ?: "https://us.i.posthog.com"
 val posthogWatchlistFlagKey =
     project.findProperty("POSTHOG_WATCHLIST_FLAG_KEY")?.toString() ?: "m7_watchlist_enabled"
-val apiBaseUrl = project.findProperty("API_BASE_URL")?.toString() ?: "http://192.168.1.114:3001"
+val apiBaseUrl = project.findProperty("API_BASE_URL")?.toString() ?: "http://127.0.0.1:3001"
 val googleServicesJsonExists = file("google-services.json").exists()
 
 android {
