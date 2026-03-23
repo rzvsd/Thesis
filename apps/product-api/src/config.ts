@@ -1,4 +1,5 @@
 import { resolve } from "node:path";
+import { existsSync } from "node:fs";
 
 function parseBoolean(value: string | undefined, fallback: boolean): boolean {
   if (!value) {
@@ -69,7 +70,7 @@ export interface ProductApiConfig {
   marketPulseTickers: string[];
   marketPulseSchemaVersion: string;
   pushProviderMode: "stub" | "fcm";
-  fcmServerKey?: string;
+  googleApplicationCredentials?: string;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): ProductApiConfig {
@@ -131,7 +132,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ProductApiConf
       env.PUSH_PROVIDER_MODE?.trim().toLowerCase() === "fcm"
         ? "fcm"
         : "stub",
-    fcmServerKey: env.FCM_SERVER_KEY?.trim() || undefined
+    googleApplicationCredentials: env.GOOGLE_APPLICATION_CREDENTIALS?.trim() || undefined
   };
 }
 
@@ -166,8 +167,18 @@ export function validateConfig(config: ProductApiConfig): string[] {
     errors.push("MARKET_PULSE_TICKERS must include at least one ticker");
   }
 
-  if (config.pushProviderMode === "fcm" && !config.fcmServerKey) {
-    errors.push("FCM_SERVER_KEY is required when PUSH_PROVIDER_MODE=fcm");
+  if (config.pushProviderMode === "fcm" && !config.googleApplicationCredentials) {
+    errors.push("GOOGLE_APPLICATION_CREDENTIALS is required when PUSH_PROVIDER_MODE=fcm");
+  }
+
+  if (
+    config.pushProviderMode === "fcm" &&
+    config.googleApplicationCredentials &&
+    !existsSync(config.googleApplicationCredentials)
+  ) {
+    errors.push(
+      "GOOGLE_APPLICATION_CREDENTIALS file does not exist for PUSH_PROVIDER_MODE=fcm"
+    );
   }
 
   return errors;

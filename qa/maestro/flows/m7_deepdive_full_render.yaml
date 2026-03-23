@@ -1,0 +1,60 @@
+appId: ${MAESTRO_APP_ID}
+---
+- launchApp:
+    clearState: true
+
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+
+- runFlow:
+    when:
+      visible: "Allow"
+    commands:
+      - tapOn: "Allow"
+
+- assertVisible: "Thesis Android MVP"
+- tapOn: "Email"
+- inputText: "${MAESTRO_TEST_EMAIL}"
+- tapOn: "Password"
+- inputText: "${MAESTRO_TEST_PASSWORD}"
+- tapOn: "Login"
+
+- tapOn: "Deep Dive"
+- assertVisible: "Company Deep Dive"
+- tapOn: "Refresh"
+- tapOn: "Open report"
+- extendedWaitUntil:
+    visible: "Deep Dive Report: ${MAESTRO_DEEP_DIVE_TICKER}"
+    timeout: 45000
+- assertVisible: "Deep Dive Report: ${MAESTRO_DEEP_DIVE_TICKER}"
+
+# Explicit top-level render proof.
+- assertVisible: "Signal: .*"
+- assertVisible: "Confidence: .*"
+
+# Explicit section render proof.
+- assertVisible: "Executive Summary"
+- assertVisible: "Quarter-over-Quarter Changes"
+- assertVisible: "Year-over-Year Changes"
+- scrollUntilVisible:
+    element:
+      text: "Research Signal"
+    direction: DOWN
+    timeout: 60000
+- assertVisible: "Research Signal"
+- scrollUntilVisible:
+    element:
+      text: "Confidence Score and Limiting Factors"
+    direction: DOWN
+    timeout: 60000
+- assertVisible: "Confidence Score and Limiting Factors"
+- scrollUntilVisible:
+    element:
+      text: "Evidence References"
+    direction: DOWN
+    timeout: 60000
+- assertVisible: "Evidence References"
+- assertVisible: "Evidence"

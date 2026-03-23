@@ -8,3 +8,14 @@ __pycache__/
 .venv/
 data/artifacts/
 apps/product-api/data/
+apps/mobile/android/app/google-services.json
+apps/mobile/android/.gradle/
+apps/mobile/android/.idea/
+apps/mobile/android/local.properties
+apps/mobile/android/build/
+apps/mobile/android/**/build/
+*.jks
+*.keystore
+secrets/
+qa/maestro/.maestro.env
+qa/maestro/output/

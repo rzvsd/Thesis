@@ -1,3 +1,6 @@
+import { applicationDefault, getApps, initializeApp } from "firebase-admin/app";
+import { getMessaging, type FirebaseMessagingError } from "firebase-admin/messaging";
+
 export interface PushTarget {
   userId: string;
   deviceToken: string;
@@ -13,21 +16,14 @@ export interface PushDispatchResult {
 
 export interface PushNotifierConfig {
   provider: "stub" | "fcm";
-  fcmServerKey?: string;
-}
-
-interface FcmLegacyResult {
-  error?: string;
-}
-
-interface FcmLegacyResponse {
-  success?: number;
-  failure?: number;
-  results?: FcmLegacyResult[];
+  googleApplicationCredentials?: string;
 }
 
 function isInvalidFcmToken(errorCode: string | undefined): boolean {
-  return errorCode === "InvalidRegistration" || errorCode === "NotRegistered";
+  return (
+    errorCode === "messaging/invalid-registration-token" ||
+    errorCode === "messaging/registration-token-not-registered"
+  );
 }
 
 export class PushNotifier {
@@ -65,7 +61,7 @@ export class PushNotifier {
       };
     }
 
-    if (!this.config.fcmServerKey) {
+    if (!this.config.googleApplicationCredentials) {
       return {
         attempted: targets.length,
         delivered: 0,
@@ -75,49 +71,57 @@ export class PushNotifier {
       };
     }
 
+    process.env.GOOGLE_APPLICATION_CREDENTIALS = this.config.googleApplicationCredentials;
+
+    if (getApps().length === 0) {
+      initializeApp({
+        credential: applicationDefault()
+      });
+    }
+
     let delivered = 0;
     let failed = 0;
     const invalidTargets: string[] = [];
 
-    for (const target of targets) {
-      const response = await fetch("https://fcm.googleapis.com/fcm/send", {
-        method: "POST",
-        headers: {
-          authorization: `key=${this.config.fcmServerKey}`,
-          "content-type": "application/json"
+    try {
+      const title = payload.title ?? "Morning Pulse Ready";
+      const body =
+        payload.body ??
+        "Your Morning Pulse is ready. Here's what moved overnight.";
+
+      const batchResult = await getMessaging().sendEachForMulticast({
+        tokens: targets.map((target) => target.deviceToken),
+        android: {
+          priority: "high"
         },
-        body: JSON.stringify({
-          to: target.deviceToken,
-          notification: {
-            title: payload.title ?? "Morning Pulse Ready",
-            body:
-              payload.body ??
-              "Your Morning Pulse is ready. Here's what moved overnight."
-          },
-          data: {
-            route: "market_pulse",
-            report_date: payload.reportDate
-          }
-        })
+        data: {
+          route: "market_pulse",
+          report_date: payload.reportDate,
+          title,
+          body
+        }
       });
 
-      if (!response.ok) {
-        failed += 1;
-        continue;
-      }
+      delivered = batchResult.successCount;
+      failed = batchResult.failureCount;
 
-      const parsed = (await response.json()) as FcmLegacyResponse;
-      const successCount = parsed.success ?? 0;
-      const failureCount = parsed.failure ?? 0;
-      delivered += successCount;
-      failed += failureCount;
-
-      if (failureCount > 0) {
-        const firstError = parsed.results?.[0]?.error;
-        if (isInvalidFcmToken(firstError)) {
-          invalidTargets.push(target.userId);
+      batchResult.responses.forEach((result, index) => {
+        if (result.success) {
+          return;
         }
-      }
+
+        const errorCode = (result.error as FirebaseMessagingError | undefined)?.code;
+        if (isInvalidFcmToken(errorCode)) {
+          const target = targets[index];
+          if (target) {
+            invalidTargets.push(target.userId);
+          }
+        }
+      });
+    } catch {
+      failed = targets.length;
+      delivered = 0;
+      invalidTargets.length = 0;
     }
 
     return {

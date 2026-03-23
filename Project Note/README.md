@@ -22,6 +22,7 @@ A research and interpretation system for public markets. Not a trading bot.
 The system is split into three planes. The **Reasoning Plane** (`dexter-worker`) is the primary engine for Company Deep Dive — it performs autonomous financial research using Dexter upstream OSS. The **Data Plane** (`data-openbb`, `news-ingest`) provides market, macro, and news data primarily for the Market Pulse morning briefing. The **Product Plane** (`product-api`, `mobile`, `scheduler`) orchestrates jobs and delivers reports to users. The mobile app never touches the data or reasoning planes directly. Nothing in the system fabricates data.
 
 Full architecture: [`BLUEBOOK cld.md`](./BLUEBOOK cld.md)
+Secrets and environment handling: [`Security.md`](./Security.md)
 
 ---
 
@@ -82,6 +83,7 @@ pnpm test:integration
 Prerequisites: Docker, Node.js 20+, Python 3.11+
 
 Environment variables: copy `.env.example` to `.env` and fill in provider keys. Never commit secrets.
+For local-vs-production secret handling, machine-specific files, and Hetzner deployment expectations, see [`Security.md`](./Security.md).
 
 ---
 

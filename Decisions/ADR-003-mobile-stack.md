@@ -35,6 +35,10 @@ The product is Android-first in v1. The stack choice affects API payload design,
 - API payloads must be designed for mobile consumption — no over-fetching
 - iOS expansion requires a separate codebase — shared logic stays in `packages/` as REST contracts
 
+## M7+ Implementation Note
+
+For M7 closeout execution, Kotlin Android remains the source of truth. Any temporary Node health shim is transitional only (Docker/baseline compatibility) and must not be treated as the mobile product implementation. End-to-end smoke automation in this phase is **Maestro only** (no Appium), scoped narrowly to M7 acceptance flows and run through simple wrapper commands.
+
 ## Revisit When
 
 - iOS expansion is prioritized and cross-platform code sharing becomes a material cost concern

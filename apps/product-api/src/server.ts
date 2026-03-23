@@ -421,6 +421,14 @@ async function processMarketPulseJob(
         reportDate: report.cycle_end.slice(0, 10)
       });
 
+      logInfo("Market Pulse push delivery attempted", {
+        job_id: completed.id,
+        attempted: pushResult.attempted,
+        delivered: pushResult.delivered,
+        failed: pushResult.failed,
+        provider: pushResult.provider
+      });
+
       for (const invalidUserId of pushResult.invalidTargets) {
         await runtime.store.updateUserDeviceToken(invalidUserId, undefined);
       }
@@ -510,7 +518,7 @@ async function createRuntime(config: ProductApiConfig): Promise<Runtime> {
   const artifactStore = new FilesystemArtifactStore(config.artifactRoot);
   const pushNotifier = new PushNotifier({
     provider: config.pushProviderMode,
-    fcmServerKey: config.fcmServerKey
+    googleApplicationCredentials: config.googleApplicationCredentials
   });
   const tickerSyncScheduler =
     config.storeBackend === "postgres" && config.tickerAutoSyncEnabled

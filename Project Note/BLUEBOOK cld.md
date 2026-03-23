@@ -4,6 +4,9 @@
 **Last Revised:** 2026-03  
 **Owner:** Platform Architect  
 
+Related operating note for secrets, local-machine config, and deployment handoff:
+`Security.md`
+
 ---
 
 ## Table of Contents
@@ -642,6 +645,7 @@ finance-intelligence-platform/
 │   ├── docker-compose.yml        ← Local development environment
 │   ├── terraform/                ← Cloud infrastructure
 │   └── envs/                     ← Environment configs (no secrets)
+├── secrets/                      ← Local-only secret files (never commit / never push)
 ├── data/
 │   ├── golden/                   ← Golden response fixtures for smoke tests
 │   └── seeds/                    ← Dev database seeds
@@ -659,6 +663,7 @@ finance-intelligence-platform/
 - `apps/` contains independently deployable services and products.
 - `packages/` contains only true shared modules. A package must be used by ≥2 apps to justify existence here.
 - `infra/` contains deployment and environment logic. No business logic.
+- `secrets/` is local-only for developer credential files (for example `firebase-admin.json`); it must stay gitignored and must never be pushed to GitHub.
 - `data/` contains golden datasets and seeds. Never real user data.
 - `tests/` contains cross-service tests. Unit tests live inside each app.
 
@@ -746,6 +751,10 @@ Every milestone must produce a **deployable, testable increment**. A milestone t
 | **M8 — Product Quality / UX Refinement** | Android MVP becomes a coherent, personal, premium-feeling product before hardening | Daily-loop home experience is clear; "My Names" relevance is visible; Pulse and Deep Dive feel connected; premium state handling and history/resume quality are validated |
 | **M9 — Production Hardening** | System is observable, resilient, and deployable | All visibility smoke tests pass; failure modes are tested (provider down, LLM timeout); load test at 2× expected peak passes; runbooks written |
 
+### M7+ Execution Bridge (Delivery Note, Not a Milestone)
+
+M7+ is an execution bridge used only to complete M7 end-to-end validation on real devices. It introduces no new architecture, no service-boundary changes, and no contract ownership changes. M7+ mobile smoke automation is Maestro-only (no Appium), stored under `qa/maestro/`, and run through a simple setup command plus smoke command. The bridge is complete when device connectivity, push delivery proof, and full M7 smoke evidence are recorded; after stabilization, the temporary Node mobile shim is removed or relocated.
+
 ### Milestone Rule
 
 No milestone is closed without:
@@ -765,7 +774,7 @@ No milestone is closed without:
 6. **No observability overlap** without declaring the primary system of record for that event class.
 7. **No Market Pulse data retrieval** that bypasses `data-openbb` and `news-ingest`.
 8. **No new package** in `packages/` used by only one app. Move it into that app.
-9. **No secrets in code or in `infra/envs/`.** All secrets in environment secret management.
+9. **No secrets in code, in `infra/envs/`, or committed from local secret folders (for example `secrets/`).** All secrets in environment secret management; local secret files must stay gitignored and must never be pushed to GitHub.
 10. **No migration without a rollback script.**
 
 ---

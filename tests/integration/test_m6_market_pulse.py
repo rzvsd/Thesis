@@ -318,6 +318,8 @@ class M6MarketPulseIntegrationTests(unittest.TestCase):
         access_token, internal_token = self.create_verified_session()
         auth_headers = {"authorization": f"Bearer {access_token}"}
         internal_headers = {"x-internal-token": internal_token}
+        degraded_cycle_day = "2099-01-01"
+        failed_cycle_day = "2099-01-02"
 
         token_status, _ = self.request_json(
             "/notifications/device-token",
@@ -352,13 +354,13 @@ class M6MarketPulseIntegrationTests(unittest.TestCase):
             method="POST",
             headers=internal_headers,
             payload={
-                "cycle_start": "2026-03-22T00:00:00.000Z",
-                "cycle_end": "2026-03-22T23:59:00.000Z",
+                "cycle_start": f"{degraded_cycle_day}T00:00:00.000Z",
+                "cycle_end": f"{degraded_cycle_day}T23:59:00.000Z",
             },
         )
         self.assertEqual(dispatch_status, 202)
 
-        degraded_report = self.wait_for_report("/pulse/2026-03-22", access_token)
+        degraded_report = self.wait_for_report(f"/pulse/{degraded_cycle_day}", access_token)
         self.assertEqual(degraded_report["sections"]["news_summary"]["status"], "data_unavailable")
         self.assertIn("data_unavailable:news_summary", degraded_report["flags"])
 
@@ -368,8 +370,8 @@ class M6MarketPulseIntegrationTests(unittest.TestCase):
             method="POST",
             headers=internal_headers,
             payload={
-                "cycle_start": "2026-03-23T00:00:00.000Z",
-                "cycle_end": "2026-03-23T23:59:00.000Z",
+                "cycle_start": f"{failed_cycle_day}T00:00:00.000Z",
+                "cycle_end": f"{failed_cycle_day}T23:59:00.000Z",
                 "force_fail": True,
             },
         )
@@ -377,7 +379,7 @@ class M6MarketPulseIntegrationTests(unittest.TestCase):
         time.sleep(0.8)
 
         missing_status, _ = self.request_json(
-            "/pulse/2026-03-23",
+            f"/pulse/{failed_cycle_day}",
             headers=auth_headers,
         )
         self.assertEqual(missing_status, 404)
@@ -387,7 +389,7 @@ class M6MarketPulseIntegrationTests(unittest.TestCase):
             headers=auth_headers,
         )
         self.assertEqual(latest_status, 200)
-        self.assertEqual(str(latest_payload["cycle_end"])[:10], "2026-03-22")
+        self.assertEqual(str(latest_payload["cycle_end"])[:10], degraded_cycle_day)
 
 
 if __name__ == "__main__":

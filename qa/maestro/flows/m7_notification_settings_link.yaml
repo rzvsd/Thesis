@@ -1,0 +1,27 @@
+appId: ${MAESTRO_APP_ID}
+---
+- launchApp:
+    clearState: true
+
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+
+- runFlow:
+    when:
+      visible: "Allow"
+    commands:
+      - tapOn: "Allow"
+
+- assertVisible: "Thesis Android MVP"
+- tapOn: "Email"
+- inputText: "${MAESTRO_TEST_EMAIL}"
+- tapOn: "Password"
+- inputText: "${MAESTRO_TEST_PASSWORD}"
+- tapOn: "Login"
+
+- tapOn: "Settings"
+- assertVisible: "Settings"
+- tapOn: "Open Android Notification Settings"
