@@ -183,7 +183,7 @@ When a milestone ends:
 | No freestyle JSON | All inter-service data conforms to a contract in `packages/contracts` |
 | No score without evidence | Signal value requires minimum EvidenceItems — see `BLUEBOOK cld.md §9` |
 | No fabricated data | Missing data goes in `missing_fields` or `flags` — never substituted |
-| No secrets in code | All secrets in environment variables — never hardcoded, never committed |
+| No secrets in code | All secrets in environment variables — never hardcoded, never committed; local secret folders (for example `secrets/`) must stay gitignored and never be pushed to GitHub |
 
 ---
 
@@ -233,7 +233,7 @@ Never log secrets, tokens, or PII.
 4. Access a database directly from mobile or Dexter
 5. Deploy manually — CI/CD only
 6. Merge to main without CI passing
-7. Commit any file containing a real secret
+7. Commit any file containing a real secret (including anything under local secret folders such as `secrets/`)
 8. Build a Linear ticket that has no corresponding item in `MILESTONES.md`
 9. Upgrade Dexter or OpenBB fork without a deliberate review
 

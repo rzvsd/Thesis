@@ -1,0 +1,45 @@
+appId: ${MAESTRO_APP_ID}
+---
+- launchApp:
+    clearState: true
+
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+
+- runFlow:
+    when:
+      visible: "Allow"
+    commands:
+      - tapOn: "Allow"
+
+- assertVisible: "Thesis Android MVP"
+- tapOn: "Email"
+- inputText: "${MAESTRO_TEST_EMAIL}"
+- tapOn: "Password"
+- inputText: "${MAESTRO_TEST_PASSWORD}"
+- tapOn: "Login"
+
+- tapOn: "Deep Dive"
+- assertVisible: "Company Deep Dive"
+- tapOn: "Refresh"
+- tapOn: "Open report"
+- extendedWaitUntil:
+    visible: "Deep Dive Report: .*"
+    timeout: 45000
+- assertVisible: "Deep Dive Report: .*"
+
+# Header proof.
+- assertVisible: "Signal: .*"
+- assertVisible: "Confidence: .*"
+
+# Dynamic section-title proof from API (first and last section title of latest report).
+- assertVisible: "${MAESTRO_REPORT_FIRST_SECTION}"
+- scrollUntilVisible:
+    element:
+      text: "${MAESTRO_REPORT_LAST_SECTION}"
+    direction: DOWN
+    timeout: 90000
+- assertVisible: "${MAESTRO_REPORT_LAST_SECTION}"

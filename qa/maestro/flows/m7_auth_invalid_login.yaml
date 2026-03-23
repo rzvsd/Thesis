@@ -1,0 +1,30 @@
+appId: ${MAESTRO_APP_ID}
+---
+- launchApp:
+    clearState: true
+
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+
+- runFlow:
+    when:
+      visible: "Allow"
+    commands:
+      - tapOn: "Allow"
+
+- extendedWaitUntil:
+    visible: "Thesis Android MVP"
+    timeout: 20000
+- assertVisible: "Thesis Android MVP"
+- tapOn: "Email"
+- inputText: "${MAESTRO_TEST_EMAIL}"
+- tapOn: "Password"
+- inputText: "WrongPassword123!"
+- tapOn: "Login"
+- extendedWaitUntil:
+    visible: "Invalid credentials."
+    timeout: 20000
+- assertVisible: "Invalid credentials."

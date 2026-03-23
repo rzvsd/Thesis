@@ -1,0 +1,41 @@
+appId: ${MAESTRO_APP_ID}
+---
+- launchApp:
+    clearState: true
+
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+
+- runFlow:
+    when:
+      visible: "Allow"
+    commands:
+      - tapOn: "Allow"
+
+- assertVisible: "Thesis Android MVP"
+- tapOn: "Email"
+- inputText: "${MAESTRO_TEST_EMAIL}"
+- tapOn: "Password"
+- inputText: "${MAESTRO_TEST_PASSWORD}"
+- tapOn: "Login"
+
+- tapOn: "Settings"
+- assertVisible: "Settings"
+- tapOn: "Product API Base URL"
+- repeat:
+    times: 48
+    commands:
+      - eraseText
+- inputText: "http://offline.invalid:3001/"
+- tapOn: "Save API URL"
+- pressKey: "back"
+
+- tapOn: "Pulse"
+- tapOn: "Refresh Latest Pulse"
+- extendedWaitUntil:
+    visible: "No internet connection. Please check network and retry."
+    timeout: 45000
+- assertVisible: "No internet connection. Please check network and retry."

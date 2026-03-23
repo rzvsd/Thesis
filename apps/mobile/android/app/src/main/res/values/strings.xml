@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Thesis</string>
+    <string name="m7_bootstrap_title">Thesis Android MVP</string>
+    <string name="m7_bootstrap_subtitle">Kotlin Android app bootstrap is active for M7 implementation.</string>
+    <string name="pulse_notification_channel_name">Morning Pulse</string>
+    <string name="pulse_notification_title">Your Morning Pulse is ready</string>
+    <string name="pulse_notification_body">Here is what moved overnight.</string>
+</resources>

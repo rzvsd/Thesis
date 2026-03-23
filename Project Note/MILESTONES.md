@@ -23,6 +23,10 @@ Each milestone is a self-contained brief. It defines — in plain language — w
 - **Rollback** — How to undo this milestone's changes safely if something goes wrong after the fact.
 - **Dependencies** — What must be true before this milestone can begin.
 
+**Global secret-file rule (all milestones):**
+- Local credential folders (for example `secrets/`) are local-only and must never be committed or pushed to GitHub.
+- Any milestone smoke run that depends on local secret files must still pass repository secret-scan checks.
+
 ---
 
 ## Milestone Index
@@ -818,6 +822,18 @@ The app is in beta / staging — not on the Play Store yet. Rollback means distr
 - PostHog mobile SDK integrated and project configured
 - Legal disclaimer text approved and incorporated into app
 
+## M7+ Execution Bridge (Not a New Milestone)
+
+M7+ is an execution bridge used to finish M7 validation and closeout. It does not add new product scope, does not change architecture ownership, and does not change milestone numbering.
+
+- Physical-device API connectivity path is proven and documented (USB `adb reverse` or equivalent)
+- Mobile Firebase app credentials are wired so FCM push receive + tap-through can be validated
+- Full M7 smoke test is rerun with evidence artifacts (device proof, PostHog proof, and failure-path proof)
+- Smoke automation for M7+ uses Maestro only (no Appium), scoped to M7 acceptance paths
+- Maestro flows and run outputs are stored in `qa/maestro/`
+- M7+ smoke can be run with one setup command and one smoke command (`pnpm qa:maestro:prepare` then `pnpm qa:maestro:smoke`)
+- The temporary Node health shim remains transitional only and is removed or relocated after M7 stabilization
+
 ---
 
 ## Owner
@@ -980,7 +996,7 @@ The system is observable, resilient under failure, operationally documented, and
 - [ ] **Load test:** 40 concurrent Deep Dive requests (2× peak). Confirm — at least 38 complete within 90 seconds, no service crashes, error rate under 5%
 - [ ] Runbook exists and is executable for: provider outage, failed jobs, Redis flush, deployment rollback, database restore
 - [ ] Rollback procedure tested for each of: product-api, dexter-worker, data-openbb, news-ingest, scheduler, mobile app
-- [ ] Zero secrets found in code repository (automated secret scan passes)
+- [ ] Zero secrets found in code repository, and no local `secrets/` folder contents are tracked by git (automated secret scan passes)
 - [ ] Database backup restored successfully to a test environment — data integrity verified
 - [ ] Production deployment is triggered via CI/CD — no manual SSH or file upload to servers
 

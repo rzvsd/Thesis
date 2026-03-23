@@ -1,0 +1,65 @@
+appId: ${MAESTRO_APP_ID}
+---
+- launchApp:
+    clearState: true
+
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+
+- runFlow:
+    when:
+      visible: "Allow"
+    commands:
+      - tapOn: "Allow"
+
+- extendedWaitUntil:
+    visible: "Thesis Android MVP"
+    timeout: 20000
+- assertVisible: "Thesis Android MVP"
+- tapOn: "Email"
+- inputText: "${MAESTRO_TEST_EMAIL}"
+- tapOn: "Password"
+- inputText: "${MAESTRO_TEST_PASSWORD}"
+- tapOn: "Login"
+
+- assertVisible: "Pulse"
+- assertVisible: "Deep Dive"
+- assertVisible: "Settings"
+
+- tapOn: "Deep Dive"
+- assertVisible: "Company Deep Dive"
+- tapOn: "Refresh"
+- tapOn: "Open report"
+- extendedWaitUntil:
+    visible: "Deep Dive Report: ${MAESTRO_DEEP_DIVE_TICKER}"
+    timeout: 30000
+- assertVisible: "Deep Dive Report: ${MAESTRO_DEEP_DIVE_TICKER}"
+
+- tapOn: "Pulse"
+- assertVisible: "Market Pulse"
+- tapOn: "Refresh Latest Pulse"
+- extendedWaitUntil:
+    visible: "Generated at: .*"
+    timeout: 45000
+- assertVisible: "Generated at: .*"
+
+- tapOn: "Watchlist"
+- assertVisible: "Watchlist"
+- tapOn: "Ticker"
+- inputText: "${MAESTRO_DEEP_DIVE_TICKER}"
+- tapOn: "Add"
+- assertVisible: "${MAESTRO_DEEP_DIVE_TICKER}"
+- tapOn: "Remove"
+
+- tapOn: "Settings"
+- assertVisible: "Settings"
+- assertVisible: "Open Android Notification Settings"
+- assertVisible: "Product API Base URL"
+- tapOn: "Logout"
+- extendedWaitUntil:
+    visible: "Thesis Android MVP"
+    timeout: 20000
+- assertVisible: "Thesis Android MVP"

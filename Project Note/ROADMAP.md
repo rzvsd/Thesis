@@ -26,6 +26,9 @@ M1 Baseline ──► M2 Data Plane ──► M3 Dexter Foundation ──► M4 
 
 No milestone begins until the previous one is closed. Closed means MILESTONES.md sign-off checklist complete — not just demos passing.
 
+**M7+ execution note (not a new milestone):**  
+Use a short M7 closeout bridge focused on end-to-end proof only: real-device connectivity, push validation, and smoke automation with **Maestro only** (no Appium). Keep it lightweight and run-ready with one setup command plus one smoke command, and keep flows/artifacts in `qa/maestro/`.
+
 ---
 
 ## Milestones

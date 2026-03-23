@@ -23,6 +23,7 @@ If something in this document is unclear or missing, that is a gap that must be 
 - M7 = Android MVP
 - M8 = Product Quality / UX Refinement
 - M9 = Production Hardening / launch readiness
+- M7+ = execution bridge for M7 closeout only (not a new milestone): finish real-device end-to-end validation evidence, including API connectivity path proof and push delivery proof, with Maestro-only smoke automation
 
 ---
 
@@ -444,6 +445,7 @@ These are requirements about *how* the product behaves, not what it does.
 - No financial data is stored on the device beyond what is needed to render the current screen
 - All API endpoints require authentication except registration and login
 - Rate limiting on all public endpoints
+- Local credential files (for example `secrets/firebase-admin.json`) are local-only artifacts, must remain gitignored, and must never be committed or pushed to GitHub
 
 ### Privacy
 

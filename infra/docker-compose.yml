@@ -38,10 +38,13 @@ services:
       SENTRY_DSN: "${SENTRY_DSN:-}"
       RATE_LIMIT_WINDOW_SECONDS: "${RATE_LIMIT_WINDOW_SECONDS:-60}"
       RATE_LIMIT_MAX_REQUESTS: "${RATE_LIMIT_MAX_REQUESTS:-120}"
+      PUSH_PROVIDER_MODE: "${PUSH_PROVIDER_MODE:-stub}"
+      GOOGLE_APPLICATION_CREDENTIALS: "/run/secrets/firebase-admin.json"
     ports:
       - "${PRODUCT_API_PORT:-3001}:3001"
     volumes:
       - "../data/artifacts:/app/data/artifacts"
+      - "../secrets:/run/secrets:ro"
     depends_on:
       redis:
         condition: service_healthy

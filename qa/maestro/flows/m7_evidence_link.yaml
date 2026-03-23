@@ -1,0 +1,37 @@
+appId: ${MAESTRO_APP_ID}
+---
+- launchApp:
+    clearState: true
+
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+
+- runFlow:
+    when:
+      visible: "Allow"
+    commands:
+      - tapOn: "Allow"
+
+- assertVisible: "Thesis Android MVP"
+- tapOn: "Email"
+- inputText: "${MAESTRO_TEST_EMAIL}"
+- tapOn: "Password"
+- inputText: "${MAESTRO_TEST_PASSWORD}"
+- tapOn: "Login"
+
+- tapOn: "Deep Dive"
+- assertVisible: "Company Deep Dive"
+- tapOn: "Refresh"
+- tapOn: "Open report"
+- extendedWaitUntil:
+    visible: "Deep Dive Report: ${MAESTRO_DEEP_DIVE_TICKER}"
+    timeout: 30000
+- scrollUntilVisible:
+    element:
+      text: "Open Source"
+    direction: DOWN
+    timeout: 30000
+- tapOn: "Open Source"
