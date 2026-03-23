@@ -1,0 +1,399 @@
+# M8 Step-by-Step Execution Plan
+
+> This is the blueprint. Each step tells you: **what to do**, **what prompt to use in Stitch**, and **what I (Antigravity) do next**.
+
+---
+
+## How This Works — The Loop
+
+```
+For each screen:
+  1. YOU → generate the visual in Stitch using the prompt below
+  2. YOU → export/copy the Stitch code
+  3. YOU → paste it here or place it in the project folder
+  4. ME  → wire it into ThesisApp.kt, connect to real data, add state management
+  5. US  → review on device, iterate
+```
+
+---
+
+## Phase 1: Design System Foundation
+
+> [!IMPORTANT]
+> Do this FIRST. Everything else builds on these tokens.
+
+### Step 1 — Dark Palette + Typography Tokens
+
+**What I (Antigravity) do:**
+Create a `ThesisTheme.kt` file with:
+- Dark color scheme (`#0A0E1A` background, `#4F8CFF` accent, `#00D68F` positive, `#FF5C5C` negative)
+- Light color scheme fallback
+- Typography scale using Google Fonts (Inter or Outfit)
+- Spacing constants, corner radius, elevation
+- Apply in [ThesisApp.kt](file:///C:/BOTS/Thesis/fintech/apps/mobile/android/app/src/main/java/com/thesis/mobile/ui/ThesisApp.kt) replacing the current `thesisLightColors`
+
+**Files modified:**
+- `[NEW]` `ui/theme/ThesisTheme.kt`
+- `[MODIFY]` [ui/ThesisApp.kt](file:///C:/BOTS/Thesis/fintech/apps/mobile/android/app/src/main/java/com/thesis/mobile/ui/ThesisApp.kt) — replace `lightColorScheme(...)` with `ThesisTheme { ... }`
+
+**No Stitch needed** — this is pure code, I do it directly.
+
+---
+
+### Step 2 — Component Library
+
+**What I (Antigravity) do:**
+Build reusable Compose components:
+
+| Component | What it does |
+|---|---|
+| `ConfidenceRing` | Canvas-drawn ring that fills/glows based on 0.0–1.0 score |
+| `SignalBadge` | Colored chip: Positive (green), Negative (red), Neutral (gray), No Signal |
+| `DeltaIndicator` | `▲ +2.3%` green or `▼ -1.2%` red inline text |
+| `EvidenceDots` | Row of small circles showing evidence count per section |
+| `ShimmerCard` | Skeleton placeholder card with shimmer animation |
+| `EmptyStateView` | Icon + message + CTA button — reusable for all empty states |
+| `SectionAccordion` | Expandable section card with title, status badge, collapse toggle |
+
+**Files created:**
+- `[NEW]` `ui/components/ConfidenceRing.kt`
+- `[NEW]` `ui/components/SignalBadge.kt`
+- `[NEW]` `ui/components/DeltaIndicator.kt`
+- `[NEW]` `ui/components/EvidenceDots.kt`
+- `[NEW]` `ui/components/ShimmerCard.kt`
+- `[NEW]` `ui/components/EmptyStateView.kt`
+- `[NEW]` `ui/components/SectionAccordion.kt`
+
+**No Stitch needed** — these are coded directly.
+
+---
+
+## Phase 2: Screen Designs (Stitch + Antigravity)
+
+> [!TIP]
+> **Stitch prompting tips for all screens below:**
+> - Always specify "dark mode, premium finance app"
+> - Always say "Jetpack Compose, Material3, Android"
+> - Reference specific colors: "background #0A0E1A, accent #4F8CFF, positive #00D68F, negative #FF5C5C"
+> - Say "no device frames, just the screen content"
+> - Be spatial: describe layout top-to-bottom
+
+---
+
+### Step 3 — Home Morning Loop Screen
+
+**Stitch Prompt:**
+```
+Design a dark-mode premium finance app home screen for Android using Jetpack Compose Material3.
+
+Background: #0A0E1A. Cards: #141A2E. Accent: #4F8CFF. Positive: #00D68F. Negative: #FF5C5C.
+Text: #E8ECF4 primary, #8B95A8 secondary.
+
+The screen is a single scrollable narrative with these sections from top to bottom:
+
+1. TOP: Personalized greeting — "Good morning, [name]" with today's date. Below it, a one-line market hook like "Markets opened lower on CPI data"
+
+2. WHAT MOVED section — Show 3-4 major index cards in a horizontal scrollable row. Each card shows: index name (S&P 500), delta value (▼ 1.2%), and a mini sparkline. Green for positive, red for negative.
+
+3. YOUR NAMES section — A card with header "Your Names" showing 2-3 ticker items the user follows. Each shows ticker symbol, a colored dot (red/green), and a short context line like "mentioned in 3 stories". If no names, show an empty state card: "Add names you follow to see them here" with an add button.
+
+4. WORTH A DEEPER LOOK section — A card suggesting a Deep Dive with a relevant prompt like "CPI beat may affect TSLA margins" and a prominent action button "Run Deep Dive →"
+
+5. BOTTOM: Two small text links: "Full Pulse" and "History"
+
+Bottom nav bar with 3 items: Home (active), Deep Dive, Settings. No device frame. Just the screen.
+```
+
+**What I (Antigravity) do after:**
+- Take the generated layout structure
+- Create `[NEW]` `ui/screens/HomeScreen.kt`
+- Wire it to `MainViewModel` — pull real Pulse data, watchlist cross-reference, and history
+- Replace the current [PulseTab](file:///C:/BOTS/Thesis/fintech/apps/mobile/android/app/src/main/java/com/thesis/mobile/ui/ThesisApp.kt#348-400) as the home tab
+- Add navigation between Home → Full Pulse → Deep Dive
+
+---
+
+### Step 4 — Deep Dive Report Screen
+
+**Stitch Prompt:**
+```
+Design a dark-mode premium finance report screen for Android using Jetpack Compose Material3.
+
+Background: #0A0E1A. Cards: #141A2E. Accent: #4F8CFF. Positive: #00D68F. Negative: #FF5C5C.
+
+This is a Deep Dive research report for a stock (TSLA). Layout top to bottom:
+
+1. TOP HEADER: Ticker "TSLA" large, company name "Tesla Inc" smaller, date "March 23, 2026"
+   - A small badge "✦ In your names" if the ticker is in the user's watchlist
+
+2. SIGNAL BLOCK: Large colored signal indicator showing "NEGATIVE" in red. Next to it, a circular confidence ring filled to about 60%, label "Medium". Below: "3 limiting factors"
+
+3. WHAT CHANGED section — Card with icon 📌, body text: "Revenue down 8% QoQ. Margin compression accelerating." Subtle emphasis styling.
+
+4. WHY IT MATTERS section — Card with icon ⚡, body text about drivers.
+
+5. WHAT'S UNCERTAIN section — Card with icon ❓, body text about unknowns. Slightly muted styling to convey uncertainty.
+
+6. FULL SECTIONS — Collapsible accordion list:
+   - "Revenue & Margins" with status dot (green = complete)
+   - "Debt & Liquidity" with status dot
+   - "Management Commentary" with status dot
+   - "Evidence (12 sources)" with evidence dot cluster
+
+7. BOTTOM: Disclaimer text in small gray: "Research summary, not financial advice."
+
+No device frame. Just the screen content.
+```
+
+**What I (Antigravity) do after:**
+- Create `[NEW]` `ui/screens/DeepDiveReportScreen.kt`
+- Wire to existing [DeepDiveReportView](file:///C:/BOTS/Thesis/fintech/apps/mobile/android/app/src/main/java/com/thesis/mobile/model/Models.kt#43-51) model
+- Parse sections into the three-act structure (What Changed / Why / Uncertain) from section titles
+- Implement collapsible `SectionAccordion` for full sections
+- Integrate `ConfidenceRing` and `SignalBadge` components
+
+---
+
+### Step 5 — Deep Dive Loading / "Dexter is Thinking" Screen
+
+**Stitch Prompt:**
+```
+Design a dark-mode loading screen for an AI-powered finance report generator. Android, Jetpack Compose, Material3.
+
+Background: #0A0E1A. Accent: #4F8CFF.
+
+Center of screen shows a multi-step progress pipeline:
+
+  ✓  Searching filings...           (completed — green check, slightly faded)
+  ⟳  Analyzing fundamentals...      (current — accent blue, gently pulsing glow)
+  ○  Reading recent news...         (pending — gray circle)
+  ○  Writing synthesis...           (pending — gray circle)
+
+Below the pipeline: "Estimated time: ~60 seconds" in muted text.
+Below that: a subtle text "Powered by Dexter" in very small muted text.
+
+The whole thing feels calm, trustworthy, intelligent — not just a spinner.
+No device frame.
+```
+
+**What I (Antigravity) do after:**
+- Create `[NEW]` `ui/screens/DeepDiveLoadingScreen.kt`
+- Replace the current `CircularProgressIndicator` in the Deep Dive flow
+- Optionally animate the stages if the backend provides job progress updates (or fake the progression over ~60s)
+
+---
+
+### Step 6 — Welcome / First-Run Screen
+
+**Stitch Prompt:**
+```
+Design a dark-mode welcome/onboarding screen for a premium finance intelligence app called "Thesis". Android, Jetpack Compose, Material3.
+
+Background: #0A0E1A. Accent: #4F8CFF.
+
+Top: App logo or stylized "T" mark, then "Thesis" in large elegant typography.
+Below: Tagline "Every position needs one" in muted accent text.
+
+Middle: Three benefit cards stacked vertically with icons:
+  1. 📰 "Morning Pulse" — "What moved overnight, before markets open"
+  2. 🔍 "Deep Dive" — "Evidence-backed research on any US company in 90 seconds"
+  3. ✦ "Your Names" — "Follow what matters to you across everything"
+
+Each card: dark surface (#141A2E), subtle border, icon on the left, text on the right.
+
+Bottom: A prominent "Get Started" button in accent blue (#4F8CFF), full width, rounded corners.
+Below button: small text "Already have an account? Log in" as a text link.
+
+Premium, minimal, intelligent feel. No device frame.
+```
+
+**What I (Antigravity) do after:**
+- Create `[NEW]` `ui/screens/WelcomeScreen.kt` (replace current [WelcomeScreen](file:///C:/BOTS/Thesis/fintech/apps/mobile/android/app/src/main/java/com/thesis/mobile/ui/ThesisApp.kt#210-231) composable)
+- Wire "Get Started" → Register flow, "Log in" → Login flow
+
+---
+
+### Step 7 — Auth / Login Screen
+
+**Stitch Prompt:**
+```
+Design a dark-mode login screen for a premium finance app called "Thesis". Android, Jetpack Compose, Material3.
+
+Background: #0A0E1A. Accent: #4F8CFF. Error: #FF5C5C.
+
+Top: Small "Thesis" text logo, then "Welcome back" as heading.
+
+Email field: dark outlined text field (#141A2E fill, #2A3150 border), white text, "Email" placeholder.
+Password field: same style, "Password" placeholder, eye icon to toggle visibility.
+
+Below fields: "Forgot password?" text link in muted text (right-aligned).
+
+Primary button: "Log In" full width, accent blue, rounded.
+Below: "Don't have an account? Register" text link.
+
+At the very bottom: "This is a research tool, not financial advice" in small muted gray text.
+
+Clean, minimal, trustworthy. No device frame.
+```
+
+**What I (Antigravity) do after:**
+- Create `[NEW]` `ui/screens/AuthScreen.kt` (replace current [AuthScreen](file:///C:/BOTS/Thesis/fintech/apps/mobile/android/app/src/main/java/com/thesis/mobile/ui/ThesisApp.kt#232-347) composable)
+- Wire to existing `MainViewModel::login`, `MainViewModel::register`
+
+---
+
+### Step 8 — Smart Empty States
+
+**Stitch Prompt:**
+```
+Design 4 dark-mode empty state cards for a finance app. Each one is a standalone card on background #0A0E1A, card surface #141A2E, accent #4F8CFF.
+
+Card 1 — "No Pulse Yet":
+  Icon: 📰 (or sunrise icon)
+  Text: "Your morning pulse arrives daily at 6:30 AM ET. Check back then — or explore a company now."
+  Button: "Run a Deep Dive →"
+
+Card 2 — "No Deep Dives Yet":
+  Icon: 🔍
+  Text: "Search any US stock ticker and get an evidence-backed report in 90 seconds."
+  Button: "Search a company →"
+
+Card 3 — "No Names Yet":
+  Icon: ✦
+  Text: "Names you follow will appear throughout Thesis — in your morning pulse and in reports. Add up to 20."
+  Button: "Add your first name →"
+
+Card 4 — "You're Offline":
+  Icon: 📡 (or wifi-off icon)
+  Text: "You're offline. Reports you've already opened are still available. We'll sync when you reconnect."
+  No button.
+
+Each card: centered layout, icon above, text centered below, button at bottom. Premium feel.
+```
+
+**What I (Antigravity) do after:**
+- Integrate into `HomeScreen`, [DeepDiveTab](file:///C:/BOTS/Thesis/fintech/apps/mobile/android/app/src/main/java/com/thesis/mobile/ui/ThesisApp.kt#401-500), [WatchlistTab](file:///C:/BOTS/Thesis/fintech/apps/mobile/android/app/src/main/java/com/thesis/mobile/ui/ThesisApp.kt#501-555) replacing current bare text
+
+---
+
+## Phase 3: Interaction Polish
+
+### Step 9 — Timeline History View
+
+**Stitch Prompt:**
+```
+Design a dark-mode report history timeline for a finance app. Android, Jetpack Compose, Material3.
+
+Background: #0A0E1A. Cards: #141A2E. Accent: #4F8CFF.
+
+The screen shows a vertical timeline of past reports grouped by day:
+
+── TODAY ──
+  📰 Market Pulse — March 23  (small card, tap to open)
+  🔍 TSLA Deep Dive — Signal dot: red (Negative)
+
+── YESTERDAY ──
+  📰 Market Pulse — March 22
+  🔍 AAPL Deep Dive — Signal dot: green (Positive)
+  🔍 MSFT Deep Dive — Signal dot: gray (Neutral)
+
+── MARCH 20 ──
+  📰 Market Pulse — March 20
+
+Each item is a small horizontal card with an icon, title, date, and signal color dot on the right. A subtle vertical line connects the timeline dots.
+
+Top of screen: "Your History" heading.
+Premium, scannable, minimal. No device frame.
+```
+
+**What I (Antigravity) do after:**
+- Create `[NEW]` `ui/screens/HistoryScreen.kt`
+- Group existing [ReportHistoryItem](file:///C:/BOTS/Thesis/fintech/apps/mobile/android/app/src/main/java/com/thesis/mobile/model/Models.kt#58-65) list by date
+- Add signal color dot per report
+
+---
+
+### Step 10 — Push Notification Copy
+
+**No Stitch needed.** Backend code change:
+
+- Modify the FCM notification payload in Product API to include a `headline` field
+- Mobile then uses it as the notification title, e.g.:
+  - *"Markets opened lower on CPI surprise. TSLA in the news."*
+  - Falls back to generic copy if headline is missing
+
+**Files modified:**
+- `[MODIFY]` `apps/product-api/` — FCM send logic (add headline to payload)
+- `[MODIFY]` `apps/mobile/android/.../ThesisFirebaseMessagingService.kt` — read headline field
+
+---
+
+### Step 11 — Resume Intelligence
+
+**No Stitch needed.** Pure Compose code:
+
+- Save last-viewed report ID and type to `SharedPreferences`
+- On app launch: if a saved resume point exists and it's < 24h old, show a subtle card at the top of home:
+  - *"You were reading the TSLA Deep Dive. Pick up where you left off?"* + [Resume →]
+
+**Files modified:**
+- `[MODIFY]` `ui/MainViewModel.kt` — add resume state tracking
+- `[MODIFY]` `ui/screens/HomeScreen.kt` — show resume card
+
+---
+
+### Step 12 — Micro-Animations
+
+**No Stitch needed.** Pure Compose animation code:
+
+| Animation | Implementation |
+|---|---|
+| Card section entrance | `AnimatedVisibility` with `slideInVertically` + `fadeIn` |
+| Confidence ring fill | `animateFloatAsState` from 0 → actual score |
+| Pull-to-refresh | Custom `PullRefreshIndicator` with Thesis branding |
+| Signal reveal | Brief `scale` + `fadeIn` when the signal appears |
+| Skeleton → content | Cross-fade from shimmer cards to real content |
+| Tab transition | `Crossfade` or `AnimatedContent` between tabs |
+
+**Files modified:**
+- Various component and screen files — sprinkle animations in
+
+---
+
+## Phase 4: Validation
+
+### Step 13 — Test & Ship
+
+| Validation | How |
+|---|---|
+| **Physical device test** | Install APK, run through full M8 smoke test from MILESTONES.md (23 steps) |
+| **PostHog journey check** | Verify events: onboard → home → pulse → deep_dive → history confirmed in PostHog |
+| **Non-technical tester** | Someone unfamiliar with the app completes the main flow without guidance |
+| **Product Lead sign-off** | Recorded approval that the app feels coherent and premium |
+
+---
+
+## Quick Reference — Execution Order
+
+| # | Step | Tool | Time |
+|---|---|---|---|
+| 1 | Design system tokens | Antigravity codes directly | ~30 min |
+| 2 | Component library | Antigravity codes directly | ~1-2 hours |
+| 3 | Home screen | **Stitch** → Antigravity wires | ~2 hours |
+| 4 | Deep Dive report | **Stitch** → Antigravity wires | ~2 hours |
+| 5 | Loading screen | **Stitch** → Antigravity wires | ~45 min |
+| 6 | Welcome screen | **Stitch** → Antigravity wires | ~1 hour |
+| 7 | Auth screen | **Stitch** → Antigravity wires | ~45 min |
+| 8 | Empty states | **Stitch** → Antigravity wires | ~1 hour |
+| 9 | History timeline | **Stitch** → Antigravity wires | ~1 hour |
+| 10 | Push copy | Antigravity codes directly | ~30 min |
+| 11 | Resume intelligence | Antigravity codes directly | ~30 min |
+| 12 | Micro-animations | Antigravity codes directly | ~1-2 hours |
+| 13 | Validation | Physical device + PostHog | ~2 hours |
+
+**Total estimated implementation time: ~15-18 hours of work**
+
+---
+
+> [!TIP]
+> **Recommended workflow:** Do Steps 1-2 first (I code them now). Then you take Steps 3-9 into Stitch one at a time, paste the results back, and I wire each one up. Steps 10-12 I code directly. Step 13 we do together on device.

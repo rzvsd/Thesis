@@ -34,7 +34,6 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -55,10 +54,17 @@ import com.thesis.mobile.model.EvidenceView
 import com.thesis.mobile.model.PulseReportView
 import com.thesis.mobile.model.ReportHistoryItem
 import com.thesis.mobile.model.SectionView
+import com.thesis.mobile.ui.screens.DeepDiveScreen
+import com.thesis.mobile.ui.screens.HistoryScreen
+import com.thesis.mobile.ui.screens.HomeScreen
+import com.thesis.mobile.ui.screens.WelcomeScreen
+import com.thesis.mobile.ui.theme.ThesisTheme
+import androidx.compose.material.icons.filled.History
 
 @Composable
 fun ThesisApp(
     openPulseOnStart: Boolean = false,
+    pulseDateOnStart: String? = null,
     mainViewModel: MainViewModel = viewModel()
 ) {
     var uiState by remember { mutableStateOf(mainViewModel.state) }
@@ -69,9 +75,9 @@ fun ThesisApp(
         onDispose {}
     }
 
-    LaunchedEffect(openPulseOnStart, uiState.tokens) {
+    LaunchedEffect(openPulseOnStart, pulseDateOnStart, uiState.tokens) {
         if (openPulseOnStart && uiState.tokens != null) {
-            mainViewModel.openPulseFromNotification()
+            mainViewModel.openPulseFromNotification(pulseDateOnStart)
         }
     }
 
@@ -83,20 +89,10 @@ fun ThesisApp(
         }
     }
 
-    val thesisLightColors = lightColorScheme(
-        primary = Color(0xFF1E3A8A),
-        onPrimary = Color.White,
-        background = Color(0xFFFFFFFF),
-        onBackground = Color(0xFF0F172A),
-        surface = Color(0xFFFFFFFF),
-        onSurface = Color(0xFF0F172A),
-        error = Color(0xFFB00020)
-    )
-
-    MaterialTheme(colorScheme = thesisLightColors) {
+    ThesisTheme {
         if (uiState.showWelcome) {
             WelcomeScreen(onContinue = mainViewModel::completeWelcome)
-            return@MaterialTheme
+            return@ThesisTheme
         }
 
         if (uiState.tokens == null) {
@@ -111,7 +107,7 @@ fun ThesisApp(
                 onVerify = mainViewModel::verify,
                 onLogin = mainViewModel::login
             )
-            return@MaterialTheme
+            return@ThesisTheme
         }
 
         val visibleTabs = remember(uiState.watchlistFeatureEnabled) {
@@ -121,6 +117,7 @@ fun ThesisApp(
                 if (uiState.watchlistFeatureEnabled) {
                     add(TabItem.Watchlist)
                 }
+                add(TabItem.History)
                 add(TabItem.Settings)
             }
         }
@@ -156,24 +153,33 @@ fun ThesisApp(
                 }
             } else {
                 when (uiState.currentTab) {
-                    AppTab.PULSE -> PulseTab(
-                        padding = padding,
+                    AppTab.PULSE -> HomeScreen(
                         pulse = uiState.pulseReport,
-                        onRefresh = mainViewModel::refreshPulse,
-                        onLoadByDate = mainViewModel::loadPulseByDate
-                    )
-                    AppTab.DEEP_DIVE -> DeepDiveTab(
+                        watchlist = uiState.watchlist,
                         padding = padding,
+                        lastViewedReport = uiState.lastViewedReport,
+                        pulseError = uiState.pulseError,
+                        onOpenHistory = { mainViewModel.setTab(AppTab.HISTORY) },
+                        onRunDeepDive = { ticker ->
+                            mainViewModel.selectTicker(ticker)
+                            mainViewModel.setTab(AppTab.DEEP_DIVE)
+                            mainViewModel.runDeepDive()
+                        },
+                        onManageNames = { mainViewModel.setTab(AppTab.WATCHLIST) },
+                        onRetryPulse = mainViewModel::refreshPulse,
+                        onResumeLastViewed = { mainViewModel.resumeLastViewed(it) },
+                        onDismissResume = { mainViewModel.dismissResumeCard() }
+                    )
+                    AppTab.DEEP_DIVE -> DeepDiveScreen(
                         report = uiState.deepDiveReport,
-                        history = uiState.reportHistory,
-                        tickers = uiState.tickers,
-                        selectedTicker = uiState.selectedTicker,
-                        jobStatus = uiState.jobStatus,
-                        onSearch = mainViewModel::searchTickers,
-                        onSelectTicker = mainViewModel::selectTicker,
-                        onRun = mainViewModel::runDeepDive,
-                        onRefreshHistory = mainViewModel::refreshReportHistory,
-                        onOpenHistoryReport = mainViewModel::openHistoryReport
+                        isLoading = uiState.isLoading,
+                        errorMessage = uiState.deepDiveError,
+                        tickerState = uiState.selectedTicker ?: "",
+                        watchlist = uiState.watchlist,
+                        onTickerChange = mainViewModel::selectTicker,
+                        onRunReport = mainViewModel::runDeepDive,
+                        onBack = { mainViewModel.setTab(AppTab.PULSE) },
+                        padding = padding
                     )
                     AppTab.WATCHLIST -> WatchlistTab(
                         padding = padding,
@@ -181,6 +187,21 @@ fun ThesisApp(
                         onRefresh = mainViewModel::refreshWatchlist,
                         onAdd = mainViewModel::addWatchlistTicker,
                         onRemove = mainViewModel::removeWatchlistTicker
+                    )
+                    AppTab.HISTORY -> HistoryScreen(
+                        historyItems = uiState.reportHistory,
+                        onBack = { mainViewModel.setTab(AppTab.PULSE) },
+                        onOpenReport = { item ->
+                            if (item.type == "deep_dive") {
+                                mainViewModel.openHistoryReport(item.reportId)
+                            } else {
+                                mainViewModel.loadPulseByDate(
+                                    item.createdAt.take(10),
+                                    rememberAsLastViewed = true
+                                )
+                                mainViewModel.setTab(AppTab.PULSE)
+                            }
+                        }
                     )
                     AppTab.SETTINGS -> SettingsTab(
                         padding = padding,
@@ -203,31 +224,12 @@ private enum class TabItem(
 ) {
     Pulse(AppTab.PULSE, "Pulse", Icons.Filled.Notifications),
     DeepDive(AppTab.DEEP_DIVE, "Deep Dive", Icons.Filled.Search),
+    History(AppTab.HISTORY, "History", Icons.Filled.History),
     Watchlist(AppTab.WATCHLIST, "Watchlist", Icons.Filled.List),
     Settings(AppTab.SETTINGS, "Settings", Icons.Filled.Settings)
 }
 
-@Composable
-private fun WelcomeScreen(onContinue: () -> Unit) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(24.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
-    ) {
-        Spacer(modifier = Modifier.height(24.dp))
-        Text("Welcome to Thesis", style = MaterialTheme.typography.headlineSmall)
-        Text("Every position needs one.")
-        Text("What you can do here:")
-        Text("1. Read a morning market pulse before open.")
-        Text("2. Run a Company Deep Dive with evidence-backed sections.")
-        Text("3. Track names that matter to you through watchlist context.")
-        Spacer(modifier = Modifier.height(12.dp))
-        Button(onClick = onContinue) {
-            Text("Continue")
-        }
-    }
-}
+
 
 @Composable
 private fun AuthScreen(

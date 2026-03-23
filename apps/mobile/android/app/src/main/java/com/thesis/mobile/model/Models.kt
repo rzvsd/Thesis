@@ -62,3 +62,11 @@ data class ReportHistoryItem(
     val ticker: String?,
     val createdAt: String
 )
+
+data class LastViewedReport(
+    val reportId: String,
+    val label: String,
+    val type: String,
+    val referenceDate: String? = null,
+    val timestampMs: Long
+)

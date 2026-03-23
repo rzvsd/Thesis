@@ -3,6 +3,8 @@
 **Derived from:** `MILESTONES.md -> M8` and `Milestones/M8/M8_MILESTONE_AGENTS.md`  
 **Purpose:** Concrete implementation sequencing for M8. This document does not change scope. It translates the finalized milestone definition into an execution-ready plan.
 
+**Repair companion:** `Milestones/M8/M8_REPAIR.md` records the stabilization order required after the first M8 implementation pass introduced compile and wiring regressions.
+
 ---
 
 ## 1. Recommended Ticket Order

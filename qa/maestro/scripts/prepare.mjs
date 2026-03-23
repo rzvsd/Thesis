@@ -239,10 +239,6 @@ async function triggerPulseDispatch(baseUrl, token, day, accessToken) {
 }
 
 async function ensureAdbReverse(adb, serial, baseUrl) {
-  if (isEmulator(serial)) {
-    log("Emulator detected. Skipping adb reverse.");
-    return;
-  }
   const port = resolvedPort(baseUrl);
   log(`Applying adb reverse tcp:${port} -> tcp:${port}.`);
   await run(adb, ["-s", serial, "reverse", `tcp:${port}`, `tcp:${port}`], { capture: false });

@@ -30,7 +30,8 @@ class ThesisFirebaseMessagingService : FirebaseMessagingService() {
         ensureChannel()
 
         val contentTitle =
-            message.data["title"]
+            message.data["headline"]
+                ?: message.data["title"]
                 ?: message.notification?.title
                 ?: getString(R.string.pulse_notification_title)
         val contentBody =
@@ -40,6 +41,7 @@ class ThesisFirebaseMessagingService : FirebaseMessagingService() {
         val launchIntent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
             putExtra("open_tab", "pulse")
+            putExtra("pulse_date", message.data["report_date"])
         }
         val pendingIntent = PendingIntent.getActivity(
             this,

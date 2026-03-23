@@ -39,6 +39,7 @@ export class PushNotifier {
       reportDate: string;
       title?: string;
       body?: string;
+      headline?: string;
     }
   ): Promise<PushDispatchResult> {
     if (targets.length === 0) {
@@ -98,7 +99,8 @@ export class PushNotifier {
           route: "market_pulse",
           report_date: payload.reportDate,
           title,
-          body
+          body,
+          ...(payload.headline ? { headline: payload.headline } : {})
         }
       });
 
