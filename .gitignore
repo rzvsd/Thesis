@@ -19,3 +19,4 @@ apps/mobile/android/**/build/
 secrets/
 qa/maestro/.maestro.env
 qa/maestro/output/
+artifacts/

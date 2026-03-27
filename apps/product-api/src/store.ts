@@ -57,6 +57,14 @@ export interface ProductStore {
     cycleStart: string
   ): Promise<JobRecord | undefined>;
   getJob(id: string): Promise<JobRecord | undefined>;
+  listRecoverableQueuedDeepDiveJobs(
+    createdBeforeIso: string,
+    limit: number
+  ): Promise<JobRecord[]>;
+  listTimedOutRunningDeepDiveJobs(
+    startedBeforeIso: string,
+    limit: number
+  ): Promise<JobRecord[]>;
   markJobRunning(id: string, startedAt: string): Promise<JobRecord | undefined>;
   markJobFailed(
     id: string,
@@ -422,6 +430,50 @@ export class InMemoryStore implements ProductStore {
 
   async getJob(id: string): Promise<JobRecord | undefined> {
     return this.jobs.get(id);
+  }
+
+  async listRecoverableQueuedDeepDiveJobs(
+    createdBeforeIso: string,
+    limit: number
+  ): Promise<JobRecord[]> {
+    const createdBefore = Date.parse(createdBeforeIso);
+    if (Number.isNaN(createdBefore) || limit <= 0) {
+      return [];
+    }
+
+    return [...this.jobs.values()]
+      .filter((job) => (
+        job.type === "deep_dive" &&
+        job.status === "queued" &&
+        Date.parse(job.createdAt) <= createdBefore
+      ))
+      .sort((left, right) => left.createdAt.localeCompare(right.createdAt))
+      .slice(0, limit);
+  }
+
+  async listTimedOutRunningDeepDiveJobs(
+    startedBeforeIso: string,
+    limit: number
+  ): Promise<JobRecord[]> {
+    const startedBefore = Date.parse(startedBeforeIso);
+    if (Number.isNaN(startedBefore) || limit <= 0) {
+      return [];
+    }
+
+    return [...this.jobs.values()]
+      .filter((job) => {
+        if (job.type !== "deep_dive" || job.status !== "running") {
+          return false;
+        }
+        const startedAt = Date.parse(job.startedAt ?? job.createdAt);
+        return !Number.isNaN(startedAt) && startedAt <= startedBefore;
+      })
+      .sort((left, right) => {
+        const leftStarted = left.startedAt ?? left.createdAt;
+        const rightStarted = right.startedAt ?? right.createdAt;
+        return leftStarted.localeCompare(rightStarted);
+      })
+      .slice(0, limit);
   }
 
   async markJobRunning(id: string, startedAt: string): Promise<JobRecord | undefined> {
@@ -956,6 +1008,48 @@ export class PostgresStore implements ProductStore {
     const result = await this.pool.query("select * from jobs where id = $1", [id]);
     const row = result.rows[0] as Record<string, unknown> | undefined;
     return row ? mapJob(row) : undefined;
+  }
+
+  async listRecoverableQueuedDeepDiveJobs(
+    createdBeforeIso: string,
+    limit: number
+  ): Promise<JobRecord[]> {
+    if (limit <= 0) {
+      return [];
+    }
+
+    const result = await this.pool.query(
+      `select *
+         from jobs
+        where type = 'deep_dive'
+          and status = 'queued'
+          and created_at <= $1::timestamptz
+        order by created_at asc
+        limit $2`,
+      [createdBeforeIso, limit]
+    );
+    return result.rows.map((row) => mapJob(row as Record<string, unknown>));
+  }
+
+  async listTimedOutRunningDeepDiveJobs(
+    startedBeforeIso: string,
+    limit: number
+  ): Promise<JobRecord[]> {
+    if (limit <= 0) {
+      return [];
+    }
+
+    const result = await this.pool.query(
+      `select *
+         from jobs
+        where type = 'deep_dive'
+          and status = 'running'
+          and coalesce(started_at, created_at) <= $1::timestamptz
+        order by coalesce(started_at, created_at) asc
+        limit $2`,
+      [startedBeforeIso, limit]
+    );
+    return result.rows.map((row) => mapJob(row as Record<string, unknown>));
   }
 
   async markJobRunning(id: string, startedAt: string): Promise<JobRecord | undefined> {

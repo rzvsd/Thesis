@@ -1,3 +1,7 @@
 # Pinned OpenBB fork for governed live data-plane integration.
 # Upgrade only through explicit review, doc update, and a tested PR.
 git+https://github.com/rzvsd/finBase.git@dddc3b328284bb953b6e5468b167b39c78490001#subdirectory=openbb_platform
+huggingface_hub
+pyarrow
+psycopg[binary]
+python-dotenv

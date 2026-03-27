@@ -8,6 +8,7 @@
     "lint": "python -B tools/checks.py lint",
     "typecheck": "python -B tools/checks.py typecheck",
     "test": "python -B -m unittest discover -s tests -p \"test_*.py\" -v",
-    "start": "python -B -m src.server"
+    "start": "python -B -m src.server",
+    "m0:load": "python -B -m src.historical_loader"
   }
 }
