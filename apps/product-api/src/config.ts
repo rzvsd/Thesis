@@ -71,6 +71,13 @@ export interface ProductApiConfig {
   marketPulseSchemaVersion: string;
   pushProviderMode: "stub" | "fcm";
   googleApplicationCredentials?: string;
+  jobRecoveryEnabled: boolean;
+  jobRecoveryRunOnStartup: boolean;
+  jobRecoveryIntervalSeconds: number;
+  jobRecoveryBatchSize: number;
+  jobRecoveryQueuedStaleSeconds: number;
+  jobRecoveryRunningTimeoutSeconds: number;
+  jobRecoveryRequeueCooldownSeconds: number;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): ProductApiConfig {
@@ -132,7 +139,20 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ProductApiConf
       env.PUSH_PROVIDER_MODE?.trim().toLowerCase() === "fcm"
         ? "fcm"
         : "stub",
-    googleApplicationCredentials: env.GOOGLE_APPLICATION_CREDENTIALS?.trim() || undefined
+    googleApplicationCredentials: env.GOOGLE_APPLICATION_CREDENTIALS?.trim() || undefined,
+    jobRecoveryEnabled: parseBoolean(env.JOB_RECOVERY_ENABLED, true),
+    jobRecoveryRunOnStartup: parseBoolean(env.JOB_RECOVERY_RUN_ON_STARTUP, true),
+    jobRecoveryIntervalSeconds: parseInteger(env.JOB_RECOVERY_INTERVAL_SECONDS, 30),
+    jobRecoveryBatchSize: parseInteger(env.JOB_RECOVERY_BATCH_SIZE, 100),
+    jobRecoveryQueuedStaleSeconds: parseInteger(env.JOB_RECOVERY_QUEUED_STALE_SECONDS, 20),
+    jobRecoveryRunningTimeoutSeconds: parseInteger(
+      env.JOB_RECOVERY_RUNNING_TIMEOUT_SECONDS,
+      180
+    ),
+    jobRecoveryRequeueCooldownSeconds: parseInteger(
+      env.JOB_RECOVERY_REQUEUE_COOLDOWN_SECONDS,
+      60
+    )
   };
 }
 
@@ -165,6 +185,26 @@ export function validateConfig(config: ProductApiConfig): string[] {
 
   if (config.marketPulseTickers.length === 0) {
     errors.push("MARKET_PULSE_TICKERS must include at least one ticker");
+  }
+
+  if (config.jobRecoveryIntervalSeconds <= 0) {
+    errors.push("JOB_RECOVERY_INTERVAL_SECONDS must be greater than 0");
+  }
+
+  if (config.jobRecoveryBatchSize <= 0) {
+    errors.push("JOB_RECOVERY_BATCH_SIZE must be greater than 0");
+  }
+
+  if (config.jobRecoveryQueuedStaleSeconds <= 0) {
+    errors.push("JOB_RECOVERY_QUEUED_STALE_SECONDS must be greater than 0");
+  }
+
+  if (config.jobRecoveryRunningTimeoutSeconds <= 0) {
+    errors.push("JOB_RECOVERY_RUNNING_TIMEOUT_SECONDS must be greater than 0");
+  }
+
+  if (config.jobRecoveryRequeueCooldownSeconds <= 0) {
+    errors.push("JOB_RECOVERY_REQUEUE_COOLDOWN_SECONDS must be greater than 0");
   }
 
   if (config.pushProviderMode === "fcm" && !config.googleApplicationCredentials) {

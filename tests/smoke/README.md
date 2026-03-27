@@ -1,6 +1,7 @@
 # Smoke Tests
 
 `m2_data_plane_smoke.py` is the committed helper for the M2 data-plane smoke checklist.
+`m0_historical_loader_smoke.py` is the committed helper for M0 deterministic mapper + fixture sanity checks.
 `m5_ticker_registry_delta_smoke.py` is the committed helper for the M5 ticker-registry full+delta smoke path.
 `m5_dexter_deep_dive_smoke.py` is the committed helper for the M5 Dexter deep-dive smoke path.
 `m5_company_deep_dive_smoke.py` is the committed helper for the full M5 company deep-dive smoke path (ticker search -> job -> report -> failure path -> SLA loop).
@@ -8,6 +9,7 @@
 Usage:
 
 ```bash
+python tests/smoke/m0_historical_loader_smoke.py
 python tests/smoke/m2_data_plane_smoke.py
 ```
 
@@ -17,6 +19,14 @@ Expected local defaults:
 - `news-ingest` at `http://127.0.0.1:3004`
 
 The helper validates the documented endpoint shapes and highlights the manual outage step that still needs an operator-triggered source block during smoke execution.
+
+M0 helper usage:
+
+```bash
+python tests/smoke/m0_historical_loader_smoke.py
+```
+
+The helper checks M0 migration files, the checked-in universe + XBRL mapping artifacts, and deterministic fixture mapping behavior for the SEC parser path.
 
 M5 helper usage:
 

@@ -142,8 +142,8 @@ Full Linear rules: [`AGENTS.md`](./AGENTS.md)
 | [`BLUEBOOK cld.md`](./BLUEBOOK cld.md) | Architecture, ownership, contracts, doctrine |
 | [`ROADMAP.md`](./ROADMAP.md) | Milestones and delivery plan |
 | [`DECISIONS/`](./DECISIONS/) | Architecture Decision Records |
-| [`docs/runbooks/`](./docs/runbooks/) | Operational procedures | * this is not used yet, path will be created as we develop the app
-| [`docs/testing-doctrine.md`](./docs/testing-doctrine.md) | Testing standards | * this is not used yet, path will be created as we develop the app
+| [`docs/runbooks/`](../../docs/runbooks/) | Operational procedures | Active in M9 hardening (`INDEX.md` + executable smoke runner) |
+| [`docs/testing-doctrine.md`](../../docs/testing-doctrine.md) | Testing standards | Core testing doctrine for cross-service work |
 
 ---
 

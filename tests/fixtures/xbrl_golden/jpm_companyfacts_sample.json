@@ -1,0 +1,32 @@
+{
+  "facts": {
+    "us-gaap": {
+      "Revenues": {
+        "units": {
+          "USD": [
+            {
+              "val": 43000,
+              "fy": 2024,
+              "fp": "Q4",
+              "form": "10-Q",
+              "filed": "2024-10-14"
+            }
+          ]
+        }
+      },
+      "NetIncomeLoss": {
+        "units": {
+          "USD": [
+            {
+              "val": 13200,
+              "fy": 2024,
+              "fp": "Q4",
+              "form": "10-Q",
+              "filed": "2024-10-14"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

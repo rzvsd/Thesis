@@ -258,6 +258,7 @@ test("market pulse dispatch stores reports, personalizes watchlist overlay, and 
     AUTH_EXPOSE_VERIFICATION_TOKEN: process.env.AUTH_EXPOSE_VERIFICATION_TOKEN,
     JWT_SECRET: process.env.JWT_SECRET,
     INTERNAL_WORKER_TOKEN: process.env.INTERNAL_WORKER_TOKEN,
+    SENTRY_DSN: process.env.SENTRY_DSN,
     MARKET_PULSE_DATA_OPENBB_BASE_URL: process.env.MARKET_PULSE_DATA_OPENBB_BASE_URL,
     MARKET_PULSE_NEWS_INGEST_BASE_URL: process.env.MARKET_PULSE_NEWS_INGEST_BASE_URL,
     MARKET_PULSE_TICKERS: process.env.MARKET_PULSE_TICKERS,
@@ -269,113 +270,135 @@ test("market pulse dispatch stores reports, personalizes watchlist overlay, and 
   process.env.AUTH_EXPOSE_VERIFICATION_TOKEN = "true";
   process.env.JWT_SECRET = "dev-jwt-secret-change-me";
   process.env.INTERNAL_WORKER_TOKEN = "dev-internal-worker-token";
+  process.env.SENTRY_DSN = "https://public@example.com/1";
   process.env.MARKET_PULSE_DATA_OPENBB_BASE_URL = openbbMock.baseUrl;
   process.env.MARKET_PULSE_NEWS_INGEST_BASE_URL = newsMock.baseUrl;
   process.env.MARKET_PULSE_TICKERS = "AAPL,MSFT";
   process.env.MARKET_PULSE_SCHEMA_VERSION = "1.0.0";
   process.env.PUSH_PROVIDER_MODE = "stub";
 
-  const server = startServer(0);
-  await once(server, "listening");
-  const { port } = server.address() as AddressInfo;
-  const baseUrl = `http://127.0.0.1:${port}`;
-  const session = await createVerifiedSession(baseUrl);
+  const capturedErrors: string[] = [];
+  const originalConsoleError = console.error;
+  console.error = (...args: unknown[]) => {
+    capturedErrors.push(
+      args.map((entry) => String(entry)).join(" ")
+    );
+    originalConsoleError(...args);
+  };
 
-  const authHeaders = { authorization: `Bearer ${session.accessToken}` };
-  const internalHeaders = { "x-internal-token": session.internalToken };
+  let server: Server | undefined;
+  try {
+    server = startServer(0);
+    await once(server, "listening");
+    const { port } = server.address() as AddressInfo;
+    const baseUrl = `http://127.0.0.1:${port}`;
+    const session = await createVerifiedSession(baseUrl);
 
-  const tokenRegistration = await requestJson(baseUrl, "/notifications/device-token", {
-    method: "POST",
-    headers: authHeaders,
-    body: {
-      device_token: "fcm_token_1234567890123456"
+    const authHeaders = { authorization: `Bearer ${session.accessToken}` };
+    const internalHeaders = { "x-internal-token": session.internalToken };
+
+    const tokenRegistration = await requestJson(baseUrl, "/notifications/device-token", {
+      method: "POST",
+      headers: authHeaders,
+      body: {
+        device_token: "fcm_token_1234567890123456"
+      }
+    });
+    assert.equal(tokenRegistration.status, 200);
+
+    const addWatchlist = await requestJson(baseUrl, "/watchlist", {
+      method: "POST",
+      headers: authHeaders,
+      body: {
+        ticker: "AAPL"
+      }
+    });
+    assert.equal(addWatchlist.status, 200);
+
+    const dispatchSuccess = await requestJson(baseUrl, "/internal/pulse/dispatch", {
+      method: "POST",
+      headers: internalHeaders,
+      body: {
+        cycle_start: "2026-03-21T00:00:00.000Z",
+        cycle_end: "2026-03-21T23:59:00.000Z"
+      }
+    });
+    assert.equal(dispatchSuccess.status, 202);
+
+    const firstReport = await waitForPulseReport(
+      baseUrl,
+      session.accessToken,
+      "/pulse/2026-03-21"
+    );
+    assert.equal(firstReport.sections.news_summary.status, "complete");
+    assert.equal(firstReport.sections.market_moves.status, "complete");
+    assert.ok(firstReport.sections.watchlist_overlay);
+    assert.match(firstReport.sections.watchlist_overlay?.body ?? "", /AAPL/);
+
+    newsState.outage = true;
+    const dispatchDegraded = await requestJson(baseUrl, "/internal/pulse/dispatch", {
+      method: "POST",
+      headers: internalHeaders,
+      body: {
+        cycle_start: "2026-03-22T00:00:00.000Z",
+        cycle_end: "2026-03-22T23:59:00.000Z"
+      }
+    });
+    assert.equal(dispatchDegraded.status, 202);
+
+    const degradedReport = await waitForPulseReport(
+      baseUrl,
+      session.accessToken,
+      "/pulse/2026-03-22"
+    );
+    assert.equal(degradedReport.sections.news_summary.status, "data_unavailable");
+    assert.ok(degradedReport.flags.includes("data_unavailable:news_summary"));
+    const degradedSentryLog = capturedErrors.some((line) =>
+      line.includes('"message":"Sentry capture"') &&
+      line.includes("Market Pulse degraded with unavailable data")
+    );
+    assert.equal(degradedSentryLog, true);
+
+    newsState.outage = false;
+    const dispatchFail = await requestJson(baseUrl, "/internal/pulse/dispatch", {
+      method: "POST",
+      headers: internalHeaders,
+      body: {
+        cycle_start: "2026-03-23T00:00:00.000Z",
+        cycle_end: "2026-03-23T23:59:00.000Z",
+        force_fail: true
+      }
+    });
+    assert.equal(dispatchFail.status, 202);
+
+    await new Promise((resolve) => setTimeout(resolve, 600));
+
+    const missingFailedDay = await requestJson(baseUrl, "/pulse/2026-03-23", {
+      headers: authHeaders
+    });
+    assert.equal(missingFailedDay.status, 404);
+
+    const latestAfterFailure = await requestJson(baseUrl, "/pulse/latest", {
+      headers: authHeaders
+    });
+    assert.equal(latestAfterFailure.status, 200);
+    const latestPayload = latestAfterFailure.payload as unknown as MarketPulseReport;
+    assert.equal(latestPayload.cycle_end.slice(0, 10), "2026-03-22");
+  } finally {
+    console.error = originalConsoleError;
+    if (server) {
+      await closeServer(server);
     }
-  });
-  assert.equal(tokenRegistration.status, 200);
-
-  const addWatchlist = await requestJson(baseUrl, "/watchlist", {
-    method: "POST",
-    headers: authHeaders,
-    body: {
-      ticker: "AAPL"
-    }
-  });
-  assert.equal(addWatchlist.status, 200);
-
-  const dispatchSuccess = await requestJson(baseUrl, "/internal/pulse/dispatch", {
-    method: "POST",
-    headers: internalHeaders,
-    body: {
-      cycle_start: "2026-03-21T00:00:00.000Z",
-      cycle_end: "2026-03-21T23:59:00.000Z"
-    }
-  });
-  assert.equal(dispatchSuccess.status, 202);
-
-  const firstReport = await waitForPulseReport(
-    baseUrl,
-    session.accessToken,
-    "/pulse/2026-03-21"
-  );
-  assert.equal(firstReport.sections.news_summary.status, "complete");
-  assert.equal(firstReport.sections.market_moves.status, "complete");
-  assert.ok(firstReport.sections.watchlist_overlay);
-  assert.match(firstReport.sections.watchlist_overlay?.body ?? "", /AAPL/);
-
-  newsState.outage = true;
-  const dispatchDegraded = await requestJson(baseUrl, "/internal/pulse/dispatch", {
-    method: "POST",
-    headers: internalHeaders,
-    body: {
-      cycle_start: "2026-03-22T00:00:00.000Z",
-      cycle_end: "2026-03-22T23:59:00.000Z"
-    }
-  });
-  assert.equal(dispatchDegraded.status, 202);
-
-  const degradedReport = await waitForPulseReport(
-    baseUrl,
-    session.accessToken,
-    "/pulse/2026-03-22"
-  );
-  assert.equal(degradedReport.sections.news_summary.status, "data_unavailable");
-  assert.ok(degradedReport.flags.includes("data_unavailable:news_summary"));
-
-  newsState.outage = false;
-  const dispatchFail = await requestJson(baseUrl, "/internal/pulse/dispatch", {
-    method: "POST",
-    headers: internalHeaders,
-    body: {
-      cycle_start: "2026-03-23T00:00:00.000Z",
-      cycle_end: "2026-03-23T23:59:00.000Z",
-      force_fail: true
-    }
-  });
-  assert.equal(dispatchFail.status, 202);
-
-  await new Promise((resolve) => setTimeout(resolve, 600));
-
-  const missingFailedDay = await requestJson(baseUrl, "/pulse/2026-03-23", {
-    headers: authHeaders
-  });
-  assert.equal(missingFailedDay.status, 404);
-
-  const latestAfterFailure = await requestJson(baseUrl, "/pulse/latest", {
-    headers: authHeaders
-  });
-  assert.equal(latestAfterFailure.status, 200);
-  const latestPayload = latestAfterFailure.payload as unknown as MarketPulseReport;
-  assert.equal(latestPayload.cycle_end.slice(0, 10), "2026-03-22");
-
-  await closeServer(server);
-  await closeServer(openbbMock.server);
-  await closeServer(newsMock.server);
+    await closeServer(openbbMock.server);
+    await closeServer(newsMock.server);
+  }
 
   process.env.STORE_BACKEND = previous.STORE_BACKEND;
   process.env.QUEUE_BACKEND = previous.QUEUE_BACKEND;
   process.env.AUTH_EXPOSE_VERIFICATION_TOKEN = previous.AUTH_EXPOSE_VERIFICATION_TOKEN;
   process.env.JWT_SECRET = previous.JWT_SECRET;
   process.env.INTERNAL_WORKER_TOKEN = previous.INTERNAL_WORKER_TOKEN;
+  process.env.SENTRY_DSN = previous.SENTRY_DSN;
   process.env.MARKET_PULSE_DATA_OPENBB_BASE_URL = previous.MARKET_PULSE_DATA_OPENBB_BASE_URL;
   process.env.MARKET_PULSE_NEWS_INGEST_BASE_URL = previous.MARKET_PULSE_NEWS_INGEST_BASE_URL;
   process.env.MARKET_PULSE_TICKERS = previous.MARKET_PULSE_TICKERS;

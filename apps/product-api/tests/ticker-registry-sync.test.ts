@@ -70,6 +70,13 @@ function createConfig(overrides: Partial<ProductApiConfig> = {}): ProductApiConf
     marketPulseTickers: ["AAPL", "MSFT", "TSLA"],
     marketPulseSchemaVersion: "1.0.0",
     pushProviderMode: "stub",
+    jobRecoveryEnabled: true,
+    jobRecoveryRunOnStartup: true,
+    jobRecoveryIntervalSeconds: 30,
+    jobRecoveryBatchSize: 100,
+    jobRecoveryQueuedStaleSeconds: 20,
+    jobRecoveryRunningTimeoutSeconds: 180,
+    jobRecoveryRequeueCooldownSeconds: 60,
     ...overrides
   };
 }

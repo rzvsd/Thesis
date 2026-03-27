@@ -1,0 +1,110 @@
+{
+  "schema_version": "1.0.0",
+  "notes": "Deterministic us-gaap concept mapping for M0 historical SEC ingest. Ordered arrays are priority fallbacks; first usable concept wins per canonical field and period.",
+  "canonical_fields": {
+    "revenue": [
+      "Revenues",
+      "RevenueFromContractWithCustomerExcludingAssessedTax",
+      "SalesRevenueNet",
+      "SalesRevenueGoodsNet",
+      "RevenuesNetOfInterestExpense"
+    ],
+    "cost_of_revenue": [
+      "CostOfRevenue",
+      "CostOfGoodsAndServicesSold",
+      "CostOfGoodsSold"
+    ],
+    "gross_profit": [
+      "GrossProfit"
+    ],
+    "operating_income": [
+      "OperatingIncomeLoss"
+    ],
+    "net_income": [
+      "NetIncomeLoss",
+      "ProfitLoss"
+    ],
+    "eps_basic": [
+      "EarningsPerShareBasic",
+      "IncomeLossFromContinuingOperationsPerBasicShare"
+    ],
+    "eps_diluted": [
+      "EarningsPerShareDiluted",
+      "IncomeLossFromContinuingOperationsPerDilutedShare"
+    ],
+    "total_assets": [
+      "Assets"
+    ],
+    "total_liabilities": [
+      "Liabilities"
+    ],
+    "shareholders_equity": [
+      "StockholdersEquity",
+      "StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest"
+    ],
+    "total_equity": [
+      "StockholdersEquity",
+      "StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest"
+    ],
+    "operating_cash_flow": [
+      "NetCashProvidedByUsedInOperatingActivities",
+      "NetCashProvidedByUsedInOperatingActivitiesContinuingOperations"
+    ],
+    "capital_expenditure": [
+      "PaymentsToAcquirePropertyPlantAndEquipment",
+      "CapitalExpendituresIncurredButNotYetPaid",
+      "PaymentsToAcquireProductiveAssets"
+    ],
+    "depreciation_amortization": [
+      "DepreciationDepletionAndAmortization",
+      "DepreciationAndAmortization",
+      "Depreciation",
+      "AmortizationOfIntangibleAssets"
+    ],
+    "interest_expense": [
+      "InterestExpense",
+      "InterestAndDebtExpense"
+    ],
+    "income_tax_expense": [
+      "IncomeTaxExpenseBenefit",
+      "IncomeTaxesPaid"
+    ],
+    "pretax_income": [
+      "IncomeBeforeTax",
+      "IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest"
+    ],
+    "shares_outstanding": [
+      "CommonStockSharesOutstanding",
+      "WeightedAverageNumberOfSharesOutstandingBasic",
+      "WeightedAverageNumberOfDilutedSharesOutstanding"
+    ],
+    "debt_total": [
+      "DebtCurrent",
+      "LongTermDebt",
+      "LongTermDebtNoncurrent",
+      "LongTermDebtAndCapitalLeaseObligationsCurrent",
+      "LongTermDebtAndCapitalLeaseObligations"
+    ],
+    "cash_and_equivalents": [
+      "CashAndCashEquivalentsAtCarryingValue",
+      "CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents"
+    ]
+  },
+  "unit_hints": {
+    "eps_basic": [
+      "USD/shares",
+      "pure"
+    ],
+    "eps_diluted": [
+      "USD/shares",
+      "pure"
+    ],
+    "shares_outstanding": [
+      "shares"
+    ],
+    "default": [
+      "USD",
+      "pure"
+    ]
+  }
+}

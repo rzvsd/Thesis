@@ -37,6 +37,7 @@ import { assertIncomingMarketPulseReport } from "./market-pulse-validation";
 import { buildMarketPulseReport, withWatchlistOverlay } from "./market-pulse";
 import { PushNotifier } from "./push";
 import { startTickerSyncScheduler } from "./ticker-sync-scheduler";
+import { startJobRecoveryScheduler } from "./job-recovery-scheduler";
 import type { AuditEventRecord, JobRecord } from "./types";
 
 type HealthPayload = { status: "ok" };
@@ -416,6 +417,21 @@ async function processMarketPulseJob(
         completed.userId
       );
 
+      const unavailableFlags = report.flags.filter((flag) =>
+        flag.startsWith("data_unavailable:")
+      );
+      if (unavailableFlags.length > 0) {
+        const message = "Market Pulse degraded with unavailable data";
+        captureException(new Error(message), {
+          service: serviceName,
+          job_id: completed.id,
+          report_id: report.report_id,
+          cycle_start: report.cycle_start,
+          cycle_end: report.cycle_end,
+          unavailable_flags: unavailableFlags
+        });
+      }
+
       let headline: string | undefined = undefined;
       const firstNewsTitle = report.sections.news_summary.evidence?.[0]?.excerpt;
       if (firstNewsTitle) {
@@ -540,6 +556,7 @@ async function createRuntime(config: ProductApiConfig): Promise<Runtime> {
         process.env
       )
       : undefined;
+  const jobRecoveryScheduler = startJobRecoveryScheduler(store, queue, config);
 
   return {
     config,
@@ -551,6 +568,7 @@ async function createRuntime(config: ProductApiConfig): Promise<Runtime> {
     close: async () => {
       await Promise.all([
         tickerSyncScheduler?.close() ?? Promise.resolve(),
+        jobRecoveryScheduler.close(),
         store.close(),
         queue.close(),
         rateLimiter.close()
