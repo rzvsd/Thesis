@@ -1,0 +1,76 @@
+name: deploy-production
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Git ref to deploy (branch, tag, or SHA)"
+        required: false
+        default: "main"
+  push:
+    branches:
+      - main
+    paths:
+      - "apps/**"
+      - "packages/**"
+      - "infra/**"
+      - "docker-compose.yml"
+      - ".github/workflows/deploy-production.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+
+    steps:
+      - name: Resolve deployment ref
+        id: resolve_ref
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "ref=${{ github.event.inputs.ref }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "ref=${{ github.sha }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Deploy to production host over CI
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.PROD_SSH_HOST }}
+          username: ${{ secrets.PROD_SSH_USER }}
+          key: ${{ secrets.PROD_SSH_PRIVATE_KEY }}
+          script_stop: true
+          command_timeout: 30m
+          script: |
+            set -euo pipefail
+
+            REPO_DIR="${{ secrets.PROD_REPO_DIR }}"
+            DEPLOY_REF="${{ steps.resolve_ref.outputs.ref }}"
+
+            if [ -z "$REPO_DIR" ]; then
+              echo "PROD_REPO_DIR is not configured."
+              exit 1
+            fi
+
+            cd "$REPO_DIR"
+            git fetch --all --tags --prune
+            git checkout "$DEPLOY_REF"
+            git reset --hard "$DEPLOY_REF"
+
+            docker compose pull || true
+            docker compose up -d --build
+            docker compose ps
+
+            curl -fsS http://localhost:3001/health >/dev/null
+            curl -fsS http://localhost:3003/health >/dev/null
+            curl -fsS http://localhost:3004/health >/dev/null
+            curl -fsS http://localhost:3005/health >/dev/null
+
+            echo "Deployment completed for ref: $DEPLOY_REF"
