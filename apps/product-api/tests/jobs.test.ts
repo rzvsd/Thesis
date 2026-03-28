@@ -89,7 +89,7 @@ function sampleReport(jobId: string, reportId: string): JsonObject {
   return {
     report_id: reportId,
     job_id: jobId,
-    schema_version: "1.0.0",
+    schema_version: "2.0",
     type: "deep_dive",
     ticker: "AAPL",
     generated_at: "2026-03-20T12:00:00.000Z",
@@ -112,7 +112,24 @@ function sampleReport(jobId: string, reportId: string): JsonObject {
         }
       ]
     },
+    historical_context: {
+      latest_period: "2025-Q4",
+      prior_quarter_period: "2025-Q3",
+      year_ago_period: "2024-Q4",
+      transcript_period: "2025-Q4",
+      financial_snapshot_count: 6,
+      transcript_count: 2,
+      transcript_available: true,
+      missing_reasons: []
+    },
     sections: [
+      {
+        section_id: "thesis_statement",
+        title: "Thesis Statement",
+        body: "AAPL thesis statement sample.",
+        status: "complete",
+        evidence: []
+      },
       {
         section_id: "executive_summary",
         title: "Executive Summary",
@@ -123,6 +140,48 @@ function sampleReport(jobId: string, reportId: string): JsonObject {
     ],
     flags: [],
     data_sources: ["fixture-news"]
+  };
+}
+
+async function createVerifiedSessionWithEmail(baseUrl: string, email: string): Promise<{
+  accessToken: string;
+  internalToken: string;
+}> {
+  const register = await requestJson(baseUrl, "/auth/register", {
+    method: "POST",
+    body: {
+      email,
+      password: "VeryStrongPass1!"
+    }
+  });
+  assert.equal(register.status, 201);
+  const registerPayload = register.payload as JsonObject;
+  const verificationToken = registerPayload.verification_token;
+  assert.equal(typeof verificationToken, "string");
+
+  const verify = await requestJson(baseUrl, "/auth/verify", {
+    method: "POST",
+    body: {
+      token: verificationToken as string
+    }
+  });
+  assert.equal(verify.status, 200);
+
+  const login = await requestJson(baseUrl, "/auth/login", {
+    method: "POST",
+    body: {
+      email,
+      password: "VeryStrongPass1!"
+    }
+  });
+  assert.equal(login.status, 200);
+  const loginPayload = login.payload as JsonObject;
+  const accessToken = loginPayload.access_token;
+  assert.equal(typeof accessToken, "string");
+
+  return {
+    accessToken: accessToken as string,
+    internalToken: process.env.INTERNAL_WORKER_TOKEN ?? "dev-internal-worker-token"
   };
 }
 
@@ -427,4 +486,83 @@ test("failed jobs do not leave a partial report retrievable after a late complet
   process.env.AUTH_EXPOSE_VERIFICATION_TOKEN = previous.AUTH_EXPOSE_VERIFICATION_TOKEN;
   process.env.JWT_SECRET = previous.JWT_SECRET;
   process.env.INTERNAL_WORKER_TOKEN = previous.INTERNAL_WORKER_TOKEN;
+});
+
+test("M2 reuse returns the same report_id for a second user without queueing a new run", async () => {
+  const previous = {
+    STORE_BACKEND: process.env.STORE_BACKEND,
+    QUEUE_BACKEND: process.env.QUEUE_BACKEND,
+    AUTH_EXPOSE_VERIFICATION_TOKEN: process.env.AUTH_EXPOSE_VERIFICATION_TOKEN,
+    JWT_SECRET: process.env.JWT_SECRET,
+    INTERNAL_WORKER_TOKEN: process.env.INTERNAL_WORKER_TOKEN,
+    DEEP_DIVE_REUSE_FRESHNESS_HOURS: process.env.DEEP_DIVE_REUSE_FRESHNESS_HOURS
+  };
+  process.env.STORE_BACKEND = "memory";
+  process.env.QUEUE_BACKEND = "memory";
+  process.env.AUTH_EXPOSE_VERIFICATION_TOKEN = "true";
+  process.env.JWT_SECRET = "dev-jwt-secret-change-me";
+  process.env.INTERNAL_WORKER_TOKEN = "dev-internal-worker-token";
+  process.env.DEEP_DIVE_REUSE_FRESHNESS_HOURS = "24";
+
+  const server = startServer(0);
+  await once(server, "listening");
+  const { port } = server.address() as AddressInfo;
+  const baseUrl = `http://127.0.0.1:${port}`;
+
+  const sessionA = await createVerifiedSessionWithEmail(baseUrl, "m2-reuse-a@example.com");
+  const sessionB = await createVerifiedSessionWithEmail(baseUrl, "m2-reuse-b@example.com");
+
+  const createA = await requestJson(baseUrl, "/jobs", {
+    method: "POST",
+    headers: { authorization: `Bearer ${sessionA.accessToken}` },
+    body: { ticker: "AAPL" }
+  });
+  assert.equal(createA.status, 202);
+  const jobIdA = (createA.payload as JsonObject).job_id as string;
+
+  const claimA = await requestJson(baseUrl, `/internal/jobs/${jobIdA}/claim`, {
+    method: "POST",
+    headers: { "x-internal-token": sessionA.internalToken }
+  });
+  assert.equal(claimA.status, 200);
+
+  const reportId = "report-m2-reuse-1";
+  const completeA = await requestJson(baseUrl, `/internal/jobs/${jobIdA}/complete`, {
+    method: "POST",
+    headers: { "x-internal-token": sessionA.internalToken },
+    body: { report: sampleReport(jobIdA, reportId) }
+  });
+  assert.equal(completeA.status, 200);
+
+  const createB = await requestJson(baseUrl, "/jobs", {
+    method: "POST",
+    headers: { authorization: `Bearer ${sessionB.accessToken}` },
+    body: { ticker: "AAPL" }
+  });
+  assert.equal(createB.status, 200);
+  const createBPayload = createB.payload as JsonObject;
+  assert.equal(createBPayload.status, "complete");
+  assert.equal(createBPayload.report_id, reportId);
+
+  const reportsB = await requestJson(baseUrl, "/reports", {
+    method: "GET",
+    headers: { authorization: `Bearer ${sessionB.accessToken}` }
+  });
+  assert.equal(reportsB.status, 200);
+  const reportRows = reportsB.payload as JsonObject[];
+  assert.ok(reportRows.some((row) => row.report_id === reportId));
+
+  const getReportB = await requestJson(baseUrl, `/reports/${reportId}`, {
+    method: "GET",
+    headers: { authorization: `Bearer ${sessionB.accessToken}` }
+  });
+  assert.equal(getReportB.status, 200);
+
+  await closeServer(server);
+  process.env.STORE_BACKEND = previous.STORE_BACKEND;
+  process.env.QUEUE_BACKEND = previous.QUEUE_BACKEND;
+  process.env.AUTH_EXPOSE_VERIFICATION_TOKEN = previous.AUTH_EXPOSE_VERIFICATION_TOKEN;
+  process.env.JWT_SECRET = previous.JWT_SECRET;
+  process.env.INTERNAL_WORKER_TOKEN = previous.INTERNAL_WORKER_TOKEN;
+  process.env.DEEP_DIVE_REUSE_FRESHNESS_HOURS = previous.DEEP_DIVE_REUSE_FRESHNESS_HOURS;
 });

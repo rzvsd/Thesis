@@ -60,6 +60,8 @@ export interface ReportRecord {
   ticker?: string;
   schemaVersion: string;
   artifactKey: string;
+  fingerprint?: string;
+  freshnessExpiresAt?: string;
   createdAt: string;
   isCurrent: boolean;
 }

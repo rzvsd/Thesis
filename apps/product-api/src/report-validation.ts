@@ -133,6 +133,46 @@ export function validateIncomingAnalysisReport(report: unknown): string[] {
     }
   }
 
+  if (report.historical_context !== undefined) {
+    if (!isObject(report.historical_context)) {
+      errors.push("historical_context must be an object when provided");
+    } else {
+      if (typeof report.historical_context.financial_snapshot_count !== "number") {
+        errors.push("historical_context.financial_snapshot_count must be a number");
+      }
+      if (typeof report.historical_context.transcript_count !== "number") {
+        errors.push("historical_context.transcript_count must be a number");
+      }
+      if (typeof report.historical_context.transcript_available !== "boolean") {
+        errors.push("historical_context.transcript_available must be a boolean");
+      }
+      if (!isStringArray(report.historical_context.missing_reasons)) {
+        errors.push("historical_context.missing_reasons must be an array of strings");
+      }
+    }
+  }
+
+  if (report.valuation !== undefined) {
+    if (!isObject(report.valuation)) {
+      errors.push("valuation must be an object when provided");
+    } else if (!isObject(report.valuation.assumptions)) {
+      errors.push("valuation.assumptions must be an object");
+    } else {
+      if (report.valuation.assumptions.methodology !== "deterministic_dcf") {
+        errors.push("valuation.assumptions.methodology must be deterministic_dcf");
+      }
+      if (typeof report.valuation.assumptions.projection_years !== "number") {
+        errors.push("valuation.assumptions.projection_years must be a number");
+      }
+      if (typeof report.valuation.assumptions.terminal_growth_rate !== "number") {
+        errors.push("valuation.assumptions.terminal_growth_rate must be a number");
+      }
+      if (typeof report.valuation.assumptions.wacc !== "number") {
+        errors.push("valuation.assumptions.wacc must be a number");
+      }
+    }
+  }
+
   if (!Array.isArray(report.sections) || report.sections.length === 0) {
     errors.push("sections must be a non-empty array");
   } else {

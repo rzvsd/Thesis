@@ -69,6 +69,7 @@ export interface ProductApiConfig {
   marketPulseNewsIngestBaseUrl: string;
   marketPulseTickers: string[];
   marketPulseSchemaVersion: string;
+  deepDiveReuseFreshnessHours: number;
   pushProviderMode: "stub" | "fcm";
   googleApplicationCredentials?: string;
   jobRecoveryEnabled: boolean;
@@ -135,6 +136,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ProductApiConf
       env.MARKET_PULSE_NEWS_INGEST_BASE_URL?.trim() || "http://news-ingest:3004",
     marketPulseTickers: parseCsv(env.MARKET_PULSE_TICKERS, ["AAPL", "MSFT", "TSLA"]),
     marketPulseSchemaVersion: env.MARKET_PULSE_SCHEMA_VERSION?.trim() || "1.0.0",
+    deepDiveReuseFreshnessHours: parseInteger(env.DEEP_DIVE_REUSE_FRESHNESS_HOURS, 24),
     pushProviderMode:
       env.PUSH_PROVIDER_MODE?.trim().toLowerCase() === "fcm"
         ? "fcm"
@@ -185,6 +187,10 @@ export function validateConfig(config: ProductApiConfig): string[] {
 
   if (config.marketPulseTickers.length === 0) {
     errors.push("MARKET_PULSE_TICKERS must include at least one ticker");
+  }
+
+  if (config.deepDiveReuseFreshnessHours <= 0) {
+    errors.push("DEEP_DIVE_REUSE_FRESHNESS_HOURS must be greater than 0");
   }
 
   if (config.jobRecoveryIntervalSeconds <= 0) {
