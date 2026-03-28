@@ -12,7 +12,7 @@ Phase 2 evolves Thesis from a working MVP into a paid product with institutional
 |---|---|
 | **Analyst-Grade Reports** | Deep Dives with QoQ comparisons, segment breakdowns, management commentary, and a one-line Thesis Statement |
 | **5+ Years Historical Data** | Quarterly financials, annual data, earnings transcripts for S&P 500 tickers |
-| **Fear & Greed Index** | Custom 10-input composite sentiment gauge with charts and historical trends |
+| **Fear & Greed Index** | Deterministic 6-signal composite sentiment gauge (market-data only) with charts and historical trends |
 | **Monetization** | Free/Pro tiers with RevenueCat, gating premium features |
 | **Smart Notifications** | Personalized FCM: earnings previews, contrarian alerts, weekly intelligence digest |
 | **3-Tab UX** | Today (time-aware) / Research (Deep Dive engine) / You (profile + watchlist + settings) |

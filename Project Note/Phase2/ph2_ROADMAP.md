@@ -49,7 +49,7 @@ No milestone begins until the previous one is closed. Closed means the `ph2_MILE
 | M0 | Open-Source Data Foundation | Postgres historical tables bulk-loaded from SEC EDGAR + HuggingFace transcripts ($0 backfill path) | ph2_ADR-001 |
 | M1 | Historical Data Pipeline | Contracts, `/v1/historical/*` APIs, migration registration, nightly SEC-aligned delta on M0 corpus | Roadmap A2 |
 | M2 | Report Quality Engine | Deep Dives read like analyst-grade reports with QoQ, YoY, segments, and a Thesis Statement | Roadmap A1 |
-| M3 | Fear & Greed Index Engine | Custom 10-input composite market sentiment index calculated nightly | Idea 2 (backend) |
+| M3 | Fear & Greed Index Engine | Deterministic 6-signal market-data composite index calculated nightly | Idea 2 (backend) |
 | M4 | Monetization & Subscription | RevenueCat with server-authoritative Free/Pro tiers enforced across all gated features | Roadmap A3 |
 | M5 | Calendar & Smart Notifications | Earnings calendar, personalized FCM, contrarian alerts, weekly intelligence digest | Roadmap B3 + B4 + B5 + Idea 1 |
 | M6 | 3-Tab Navigation Redesign | Today / Research / You architecture with explicit migration from the current 5-tab app | UX Architecture |

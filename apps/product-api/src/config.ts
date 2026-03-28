@@ -69,6 +69,13 @@ export interface ProductApiConfig {
   marketPulseNewsIngestBaseUrl: string;
   marketPulseTickers: string[];
   marketPulseSchemaVersion: string;
+  sentimentSchemaVersion: string;
+  sentimentYahooBaseUrl: string;
+  sentimentFredBaseUrl: string;
+  sentimentFredApiKey?: string;
+  sentimentBreadthUniverseLimit: number;
+  sentimentBreadthConcurrency: number;
+  sentimentMinimumAvailableInputs: number;
   deepDiveReuseFreshnessHours: number;
   pushProviderMode: "stub" | "fcm";
   googleApplicationCredentials?: string;
@@ -136,6 +143,15 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ProductApiConf
       env.MARKET_PULSE_NEWS_INGEST_BASE_URL?.trim() || "http://news-ingest:3004",
     marketPulseTickers: parseCsv(env.MARKET_PULSE_TICKERS, ["AAPL", "MSFT", "TSLA"]),
     marketPulseSchemaVersion: env.MARKET_PULSE_SCHEMA_VERSION?.trim() || "1.0.0",
+    sentimentSchemaVersion: env.SENTIMENT_SCHEMA_VERSION?.trim() || "1.0.0",
+    sentimentYahooBaseUrl:
+      env.SENTIMENT_YAHOO_BASE_URL?.trim() || "https://query1.finance.yahoo.com",
+    sentimentFredBaseUrl:
+      env.SENTIMENT_FRED_BASE_URL?.trim() || "https://api.stlouisfed.org/fred",
+    sentimentFredApiKey: env.SENTIMENT_FRED_API_KEY?.trim() || undefined,
+    sentimentBreadthUniverseLimit: parseInteger(env.SENTIMENT_BREADTH_UNIVERSE_LIMIT, 500),
+    sentimentBreadthConcurrency: parseInteger(env.SENTIMENT_BREADTH_CONCURRENCY, 8),
+    sentimentMinimumAvailableInputs: parseInteger(env.SENTIMENT_MIN_AVAILABLE_INPUTS, 3),
     deepDiveReuseFreshnessHours: parseInteger(env.DEEP_DIVE_REUSE_FRESHNESS_HOURS, 24),
     pushProviderMode:
       env.PUSH_PROVIDER_MODE?.trim().toLowerCase() === "fcm"
@@ -187,6 +203,18 @@ export function validateConfig(config: ProductApiConfig): string[] {
 
   if (config.marketPulseTickers.length === 0) {
     errors.push("MARKET_PULSE_TICKERS must include at least one ticker");
+  }
+
+  if (config.sentimentBreadthUniverseLimit <= 0) {
+    errors.push("SENTIMENT_BREADTH_UNIVERSE_LIMIT must be greater than 0");
+  }
+
+  if (config.sentimentBreadthConcurrency <= 0) {
+    errors.push("SENTIMENT_BREADTH_CONCURRENCY must be greater than 0");
+  }
+
+  if (config.sentimentMinimumAvailableInputs <= 0) {
+    errors.push("SENTIMENT_MIN_AVAILABLE_INPUTS must be greater than 0");
   }
 
   if (config.deepDiveReuseFreshnessHours <= 0) {

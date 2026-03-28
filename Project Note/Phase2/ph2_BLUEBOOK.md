@@ -62,11 +62,11 @@ These must be defined in `packages/contracts` before any service produces or con
 
 | Schema Name | Purpose | Producer | Consumer |
 |---|---|---|---|
-| `CanonicalFinancialSnapshot` | Historical quarterly and annual data from **SEC-mapped** JSONB `data` (incl. D&A, interest, effective tax rate where mapping allows). `analyst_estimates` / `guidance` optional in schema; **M0/M1 leave NULL** — M2 LLM for outlook. **Beta** computed at M2 from returns via **`data-openbb`**, not stored in historical rows | `product-api` historical store + SEC ingest (M0/M1) | `dexter-worker`, `product-api` |
+| `CanonicalFinancialSnapshot` | Historical quarterly and annual data from **SEC-mapped** JSONB `data` (incl. D&A, interest, effective tax rate where mapping allows). `analyst_estimates` / `guidance` optional in schema; **M0/M1 leave NULL** ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â M2 LLM for outlook. **Beta** computed at M2 from returns via **`data-openbb`**, not stored in historical rows | `product-api` historical store + SEC ingest (M0/M1) | `dexter-worker`, `product-api` |
 | `CanonicalTranscript` | Earnings call transcript text with completeness flag | `data-openbb` / historical-data path | `dexter-worker`, `product-api` |
 | `TickerCoverage` | Per-ticker sync health: snapshot count, transcript count, latest period, guidance/estimates availability, last sync status, backfill tier | `data-openbb` / backfill + delta sync | `product-api`, `dexter-worker` (M2 pre-check) |
-| `FearGreedSnapshot` | Daily 0–100 composite index + sub-scores + missing_inputs audit trail | `scheduler` / `fear-greed-engine` | `product-api`, `mobile` |
-| `AnalysisReport` (v2) | **M2 versioned extension** of the Phase 1 contract — adds optional `historical_context` metadata, optional `valuation` metadata (structured DCF output from deterministic code), and new section types (Thesis Statement, What Changed, Valuation). `schema_version` bumped to `"2.0"`. All new fields optional for backward compatibility. | `dexter-worker` | `product-api`, `mobile` |
+| `FearGreedSnapshot` | Daily 0-100 deterministic composite index + sub-scores + missing_inputs audit trail | `scheduler` / `fear-greed-engine` | `product-api`, `mobile` |
+| `AnalysisReport` (v2) | **M2 versioned extension** of the Phase 1 contract ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â adds optional `historical_context` metadata, optional `valuation` metadata (structured DCF output from deterministic code), and new section types (Thesis Statement, What Changed, Valuation). `schema_version` bumped to `"2.0"`. All new fields optional for backward compatibility. | `dexter-worker` | `product-api`, `mobile` |
 | `SubscriptionTier` | Enum: `FREE`, `PRO` | `product-api` | `product-api`, `mobile` |
 | `CalendarEvent` | Timestamped corporate events such as earnings | `data-openbb` | `scheduler`, `product-api`, `mobile` |
 | `ContrarianAlertAnchor` | Persisted thesis/signal anchor used for alert evaluation | `product-api` | `scheduler`, `product-api` |
@@ -113,20 +113,20 @@ Phase 1 relied on on-the-fly API calls. Phase 2 requires local persistence of hi
 
 ### M0 vs M1
 
-- **M0** creates `ph2m0_*` migrations and **bulk-loads** from **SEC EDGAR** (`data.sec.gov` XBRL) and **HuggingFace** `kurry/sp500_earnings_transcripts` (see `ph2_MILESTONES.md → M0`, `ph2_ADR-001`).
+- **M0** creates `ph2m0_*` migrations and **bulk-loads** from **SEC EDGAR** (`data.sec.gov` XBRL) and **HuggingFace** `kurry/sp500_earnings_transcripts` (see `ph2_MILESTONES.md ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ M0`, `ph2_ADR-001`).
 - **M1** registers those migrations, ships contracts and **`GET /v1/historical/*`**, and runs **nightly delta sync** (SEC + agreed transcript strategy). M1 does not re-run the initial bulk backfill.
 
 ### Storage
 
-- `financial_snapshots`: JSONB `data` with quarterly/annual metrics from **SEC mapping**; optional DCF-oriented keys where XBRL allows (D&A, interest, effective tax rate). **Beta** is not stored here — M2 derives it from price returns via **`data-openbb`**.
+- `financial_snapshots`: JSONB `data` with quarterly/annual metrics from **SEC mapping**; optional DCF-oriented keys where XBRL allows (D&A, interest, effective tax rate). **Beta** is not stored here ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â M2 derives it from price returns via **`data-openbb`**.
 - `transcripts`: earnings call text from the **HF bulk dataset** (and M1 delta policy). Schema column `provider` documents the source (e.g. `huggingface_kurry`).
-- `analyst_estimates` and `guidance` columns exist for forward compatibility; **M0/M1 ingestion keeps them NULL** — no third-party consensus store (see `ph2_ADR-001`).
+- `analyst_estimates` and `guidance` columns exist for forward compatibility; **M0/M1 ingestion keeps them NULL** ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â no third-party consensus store (see `ph2_ADR-001`).
 
 ### Deterministic DCF (M2; reused in M7)
 
 - Core valuation math lives in **`apps/dexter-worker/src/dcf/`** as pure functions (no LLM). Inputs: `CanonicalFinancialSnapshot[]` from historical APIs plus **current spot price** and shares outstanding from the existing live-data path; **beta** from return series using **`data-openbb`** prices where required.
 - M2 adds a **Valuation** report section whose numbers are **only** those emitted by the DCF module; the LLM narrates and contextualizes.
-- M7 **What-If** scenarios that adjust DCF assumptions re-run the **same** deterministic logic (module may be extracted to a shared package or invoked from `product-api` if engineering chooses — contract is “same math as M2”).
+- M7 **What-If** scenarios that adjust DCF assumptions re-run the **same** deterministic logic (module may be extracted to a shared package or invoked from `product-api` if engineering chooses ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â contract is ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“same math as M2ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â).
 
 ### Update frequency
 
@@ -145,28 +145,36 @@ Historical enrichment must degrade safely. If history is missing for a ticker, P
 
 ## 6. Fear & Greed Index Architecture
 
-**Candidate inputs:** VIX, put/call ratios, moving-average breadth, new highs/lows, sector momentum, credit spreads, ETF flows, social sentiment, and other approved inputs. The exact approved list is an open decision — see `M3_MILESTONE_AGENTS_ph2.md` Gated Pre-Condition G1.
+**Approved M3 inputs (locked):**
+- VIX (`^VIX`, yfinance)
+- S&P 500 momentum (`^GSPC` vs 125-day SMA, yfinance)
+- Market breadth (% of supported universe above 200-day SMA, yfinance batch download)
+- Safe-haven demand (SPY vs TLT 20-day return differential, yfinance)
+- Junk-bond spread (`BAMLH0A0HYM2`, FRED)
+- Yield curve (`T10Y2Y`, FRED)
+
+**Deferred from M3 by design:** put/call ratio, social sentiment, and news-sentiment factors.
 
 ### Engine
 
 - A pure function in `packages/fear-greed-engine`
-- Takes normalized inputs (each mapped to a 0–100 sub-score), applies defined weighting (G2), and outputs a composite 0–100 score plus a label (`extreme_fear`, `fear`, `neutral`, `greed`, `extreme_greed`)
-- Label thresholds: 0–20 Extreme Fear, 21–40 Fear, 41–60 Neutral, 61–80 Greed, 81–100 Extreme Greed
+- Takes normalized inputs (each mapped to a 0-100 sub-score), applies equal weighting (1/6 each), and outputs a composite 0-100 score plus a label (`extreme_fear`, `fear`, `neutral`, `greed`, `extreme_greed`)
+- Label thresholds: 0-20 Extreme Fear, 21-40 Fear, 41-60 Neutral, 61-80 Greed, 81-100 Extreme Greed
 - Must be deterministic: same inputs always produce the same score
 
 ### Degradation
 
-- If one or more inputs are unavailable, behavior is governed by the agreed degradation policy (G4)
+- If one or more inputs are unavailable, missing inputs are skipped and remaining inputs are re-weighted (minimum three inputs required to publish a score)
 - Every snapshot includes a `missing_inputs` array and per-input `available` flag in `sub_scores`
-- No fabricated scores — if too many inputs are missing, the calculation fails explicitly for that day
+- No fabricated scores; if too many inputs are missing, the calculation fails explicitly for that day
 
 ### Storage and serving
 
-- Nightly snapshot saved to `fear_greed_snapshots` (see §8 for schema)
-- Scheduler cron at 17:00 America/New_York; skips non-trading days
+- Nightly snapshot saved to `fear_greed_daily` (see section 8 for schema)
+- Scheduler cron at 18:00 America/New_York (DST-aware wall-clock time); skips non-trading days
 - `product-api` serves two endpoints:
-  - `GET /v1/market/fear-greed` — latest + 90-day history
-  - `GET /v1/market/fear-greed/latest` — most recent snapshot only
+  - `GET /v1/sentiment/current` - most recent snapshot only
+  - `GET /v1/sentiment/history?days=90` - latest N-day historical series
 - See `Decisions/ph2_ADR-002-fear-greed-engine.md` for the full architecture decision
 
 ---
@@ -214,7 +222,7 @@ Any Phase 2 milestone that changes the working app must re-run the affected Phas
 
 ## 8. Phase 2 Data Model Extensions
 
-These extend the Phase 1 data model defined in `BLUEBOOK cld.md §7`. Phase 1 core entities (`users`, `tickers`, `watchlists`, `jobs`, `reports`, `audit_events`) remain unchanged. Phase 2 adds new tables only — no ALTER statements on existing Phase 1 tables.
+These extend the Phase 1 data model defined in `BLUEBOOK cld.md ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â§7`. Phase 1 core entities (`users`, `tickers`, `watchlists`, `jobs`, `reports`, `audit_events`) remain unchanged. Phase 2 adds new tables only ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â no ALTER statements on existing Phase 1 tables.
 
 ### `financial_snapshots` (M0 DDL; M1 serve/sync)
 
@@ -247,7 +255,7 @@ financial_snapshots
 
 **Design notes:**
 - `snapshot_id` is a deterministic hash so that backfill and delta sync can use upsert-on-conflict (INSERT ... ON CONFLICT DO UPDATE) for idempotency.
-- `data` is JSONB matching `CanonicalFinancialSnapshot.data`, populated from **SEC XBRL** mapping. Optional keys for DCF (when derivable) include `depreciation_amortization`, `interest_expense`, `effective_tax_rate`. **Beta** is not stored — M2 computes from **`data-openbb`** returns.
+- `data` is JSONB matching `CanonicalFinancialSnapshot.data`, populated from **SEC XBRL** mapping. Optional keys for DCF (when derivable) include `depreciation_amortization`, `interest_expense`, `effective_tax_rate`. **Beta** is not stored ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â M2 computes from **`data-openbb`** returns.
 - `analyst_estimates` and `guidance` remain **NULL** for M0/M1 loads per `ph2_ADR-001`. M2 does not rely on stored consensus rows.
 - `missing_fields` only covers absent fields within `data`.
 
@@ -292,13 +300,13 @@ ticker_coverage
   has_estimates       BOOLEAN NOT NULL DEFAULT false  -- typically false when analyst_estimates JSONB unused (ph2_ADR-001)
   last_synced_at      TIMESTAMPTZ NOT NULL   -- timestamp of the last successful (or attempted) sync for this ticker
   last_sync_status    TEXT NOT NULL          -- "success", "partial", or "failed"
-  backfill_tier       INTEGER NOT NULL       -- 1, 2, or 3 — which priority tier this ticker belongs to
+  backfill_tier       INTEGER NOT NULL       -- 1, 2, or 3 ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â which priority tier this ticker belongs to
   created_at          TIMESTAMPTZ NOT NULL DEFAULT now()
   updated_at          TIMESTAMPTZ NOT NULL DEFAULT now()
 ```
 
 **Indexes:**
-- Primary key on `(ticker)` — single-row lookups are O(1)
+- Primary key on `(ticker)` ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â single-row lookups are O(1)
 
 **Design notes:**
 - This table is updated atomically (upsert) at the end of each ticker's backfill and after each nightly delta sync. It always reflects current reality.
@@ -306,10 +314,10 @@ ticker_coverage
 - `last_sync_status: "partial"` means some data was written but some ingest steps failed. The ticker has data but it may be incomplete.
 - `backfill_tier` enables the **M0** tiered load order: Tier 1 first so M1/M2 can start before the full universe completes.
 
-### `fear_greed_snapshots` (M3)
+### `fear_greed_daily` (M3)
 
 ```
-fear_greed_snapshots
+fear_greed_daily
   id                  TEXT PK                 -- deterministic hash of market_date
   score               NUMERIC(5,2) NOT NULL   -- 0.00 to 100.00
   label               TEXT NOT NULL           -- "extreme_fear", "fear", "neutral", "greed", "extreme_greed"
@@ -326,7 +334,7 @@ fear_greed_snapshots
 
 **Design notes:**
 - `id` is a deterministic hash of `market_date` so nightly calculation is idempotent (upsert on conflict).
-- `sub_scores` JSONB preserves the full audit trail — any consumer can verify how the composite was derived.
+- `sub_scores` JSONB preserves the full audit trail ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â any consumer can verify how the composite was derived.
 - `missing_inputs` is mandatory. An empty array means all approved inputs were available for that day's calculation.
 
 ### `calendar_events` (M5)
@@ -364,7 +372,7 @@ contrarian_alert_anchors
 
 The subscription schema design is an open decision (see `M4_MILESTONE_AGENTS_ph2.md` Gated Pre-Condition G4). Two options:
 
-**Option A — new `subscriptions` table:**
+**Option A ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â new `subscriptions` table:**
 ```
 subscriptions
   user_id             TEXT PK REFERENCES users(id) ON DELETE CASCADE
@@ -375,7 +383,7 @@ subscriptions
   created_at          TIMESTAMPTZ NOT NULL DEFAULT now()
 ```
 
-**Option B — columns on existing `users` table:**
+**Option B ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â columns on existing `users` table:**
 ```
 ALTER TABLE users
   ADD COLUMN tier TEXT NOT NULL DEFAULT 'FREE',
@@ -407,7 +415,7 @@ notification_preferences
 
 ### Design Principles (extending Phase 1)
 
-- All new primary keys are deterministic hashes or UUIDs — no sequential integer IDs.
+- All new primary keys are deterministic hashes or UUIDs ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â no sequential integer IDs.
 - New tables use `created_at` and `updated_at` where appropriate.
 - JSONB is used for flexible nested structures (`data`, `segments`, `sub_scores`); TEXT is used for large unstructured content (`body_text`).
 - Every table that supports upsert has a UNIQUE constraint suitable for ON CONFLICT.
@@ -417,7 +425,7 @@ notification_preferences
 
 ## 9. Phase 2 Dependency Risk Register
 
-This extends the Phase 1 Dependency Risk Register (`BLUEBOOK cld.md §13`). Phase 1 risks (OpenBB provider risk, news-ingest risk, LLM provider risk) still apply and are not repeated here.
+This extends the Phase 1 Dependency Risk Register (`BLUEBOOK cld.md ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â§13`). Phase 1 risks (OpenBB provider risk, news-ingest risk, LLM provider risk) still apply and are not repeated here.
 
 ### Historical Data Ingest Risk (M0 / M1)
 
@@ -425,19 +433,19 @@ Structured history comes from **SEC EDGAR**; transcripts from **HuggingFace** bu
 
 | Risk | Mitigation |
 |---|---|
-| SEC blocks or throttles requests (403/429) | Compliant `User-Agent`, **≤10 req/s** to `data.sec.gov`; backoff; staging IP allowlisting if needed |
-| XBRL mapping drift or filer-specific tags | Versioned mapping tables; golden fixtures per ticker; `missing_fields` explicit; never silent LLM “fixes” to numbers |
+| SEC blocks or throttles requests (403/429) | Compliant `User-Agent`, **ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â°Ãƒâ€šÃ‚Â¤10 req/s** to `data.sec.gov`; backoff; staging IP allowlisting if needed |
+| XBRL mapping drift or filer-specific tags | Versioned mapping tables; golden fixtures per ticker; `missing_fields` explicit; never silent LLM ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“fixesÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â to numbers |
 | HF dataset revision changes | Pin revision + document checksum; loader fails closed on mismatch |
-| Filing lag vs earnings day | Product uses **live `data-openbb`** for headline quarter; historical DB for trend — documented in M1 |
+| Filing lag vs earnings day | Product uses **live `data-openbb`** for headline quarter; historical DB for trend ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â documented in M1 |
 | Nightly delta partial failure | `ticker_coverage.last_sync_status`; Sentry; idempotent upsert |
 
 ### Transcript Corpus Risk (M0 / M1)
 
 | Risk | Mitigation |
 |---|---|
-| Dataset does not cover all tickers or periods | Coverage targets in `ph2_MILESTONES.md → M0`; graceful degradation in M2 |
+| Dataset does not cover all tickers or periods | Coverage targets in `ph2_MILESTONES.md ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ M0`; graceful degradation in M2 |
 | Truncated or partial text | `is_complete: false`; M2 treats as partial evidence |
-| Delta path for new quarters | **Gated M1** decision — must stay within legal/ToS constraints (no unapproved paid bulk API) |
+| Delta path for new quarters | **Gated M1** decision ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â must stay within legal/ToS constraints (no unapproved paid bulk API) |
 
 ### RevenueCat Risk (M4)
 
@@ -452,21 +460,21 @@ Structured history comes from **SEC EDGAR**; transcripts from **HuggingFace** bu
 | Risk | Mitigation |
 |---|---|
 | Earnings dates are wrong or missing | Calendar data is advisory, not trade-triggering; notifications include "expected" language; multiple source cross-check if available |
-| Provider does not cover all tickers | Calendar events are best-effort; missing events do not break the app — they simply don't trigger a notification |
+| Provider does not cover all tickers | Calendar events are best-effort; missing events do not break the app ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â they simply don't trigger a notification |
 
 ---
 
 ## 10. Phase 2 Scale Assumptions
 
-These extend the Phase 1 scale assumptions (`BLUEBOOK cld.md §14`). Phase 1 assumptions (< 10,000 users, < 1,000 DAU, < 20 concurrent Deep Dives, etc.) remain the baseline.
+These extend the Phase 1 scale assumptions (`BLUEBOOK cld.md ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â§14`). Phase 1 assumptions (< 10,000 users, < 1,000 DAU, < 20 concurrent Deep Dives, etc.) remain the baseline.
 
 ### Storage Growth (M0 corpus)
 
 | Dataset | Estimate |
 |---|---|
-| `financial_snapshots` at S&P 500 scale | 500 tickers × 25 periods × ~5KB/row ≈ 62 MB |
-| `transcripts` at S&P 500 scale | 500 tickers × 20 transcripts × ~50KB/row ≈ 500 MB |
-| Annual growth (new quarters + new filings) | ~4 quarters × 500 tickers × 5KB + transcripts ≈ 60 MB/year |
+| `financial_snapshots` at S&P 500 scale | 500 tickers ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â 25 periods ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â ~5KB/row ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â°Ãƒâ€¹Ã¢â‚¬Â  62 MB |
+| `transcripts` at S&P 500 scale | 500 tickers ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â 20 transcripts ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â ~50KB/row ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â°Ãƒâ€¹Ã¢â‚¬Â  500 MB |
+| Annual growth (new quarters + new filings) | ~4 quarters ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â 500 tickers ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â 5KB + transcripts ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â°Ãƒâ€¹Ã¢â‚¬Â  60 MB/year |
 | `financial_snapshots` + `transcripts` at 12 months | < 700 MB total |
 
 **Implication:** Storage is not a concern. A single Postgres instance handles this easily within Phase 1's < 50GB assumption.
@@ -487,9 +495,9 @@ These extend the Phase 1 scale assumptions (`BLUEBOOK cld.md §14`). Phase 1 ass
 |---|---|
 | M0 bulk | One-time SEC `companyfacts` fetches per CIK (rate-limited client); HF download bandwidth |
 | M1 nightly delta | SEC re-fetch or diff per active CIK within 10 req/s budget |
-| Ongoing $ | **$0** for SEC; HF dataset is open — infra/bandwidth only |
+| Ongoing $ | **$0** for SEC; HF dataset is open ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â infra/bandwidth only |
 
-**Implication:** No commercial “historical backfill” API subscription is required for the stored corpus. Phase 1 **`data-openbb`** usage for **live** quotes and **M2 beta** remains governed by Phase 1 ADRs.
+**Implication:** No commercial ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“historical backfillÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â API subscription is required for the stored corpus. Phase 1 **`data-openbb`** usage for **live** quotes and **M2 beta** remains governed by Phase 1 ADRs.
 
 ### Monetization Scale (M4)
 

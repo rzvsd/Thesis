@@ -12,6 +12,7 @@ export * from "./canonical-macro-data";
 export * from "./canonical-transcript";
 export * from "./create-job-request";
 export * from "./evidence-item";
+export * from "./fear-greed-snapshot";
 export * from "./job-status-response";
 export * from "./market-pulse-report";
 export * from "./report-section";
