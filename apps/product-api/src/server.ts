@@ -36,6 +36,7 @@ import { assertIncomingAnalysisReport } from "./report-validation";
 import { assertIncomingMarketPulseReport } from "./market-pulse-validation";
 import { buildMarketPulseReport, withWatchlistOverlay } from "./market-pulse";
 import { PushNotifier } from "./push";
+import { buildFearGreedSnapshot, isUsTradingDay } from "./sentiment";
 import { startTickerSyncScheduler } from "./ticker-sync-scheduler";
 import { startJobRecoveryScheduler } from "./job-recovery-scheduler";
 import type { AuditEventRecord, JobRecord } from "./types";
@@ -193,6 +194,38 @@ function normalizeDateInput(value: string): string | undefined {
     return undefined;
   }
   return normalized;
+}
+
+function parsePositiveInteger(
+  value: string | undefined,
+  fallback: number,
+  minimum: number,
+  maximum: number
+): number | undefined {
+  if (!value) {
+    return fallback;
+  }
+
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed)) {
+    return undefined;
+  }
+
+  if (parsed < minimum || parsed > maximum) {
+    return undefined;
+  }
+
+  return parsed;
+}
+
+function dateInTimeZone(date: Date, timeZone: string): string {
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  });
+  return formatter.format(date);
 }
 
 function deepDiveFingerprint(input: {
@@ -1015,6 +1048,89 @@ export function startServer(port: number = loadConfig().port): Server {
           return;
         }
 
+        if (method === "POST" && pathname === "/internal/sentiment/dispatch") {
+          const body = await readJsonBody<{ market_date?: string }>(request);
+          const fallbackDate = dateInTimeZone(new Date(), "America/New_York");
+          const marketDate = normalizeDateInput(body.market_date ?? fallbackDate);
+          if (!marketDate) {
+            sendJson(response, 422, {
+              error: "validation_failed",
+              error_message: "market_date must be in YYYY-MM-DD format."
+            });
+            return;
+          }
+
+          if (!isUsTradingDay(marketDate)) {
+            await appendAudit(runtime, "sentiment.skipped_non_trading_day", {
+              request_id: meta.requestId,
+              route: pathname,
+              market_date: marketDate
+            });
+
+            logInfo("Sentiment dispatch skipped on non-trading day", {
+              request_id: meta.requestId,
+              market_date: marketDate
+            });
+
+            sendJson(response, 200, {
+              status: "skipped",
+              market_date: marketDate,
+              reason: "non_trading_day"
+            });
+            return;
+          }
+
+          try {
+            const snapshot = await buildFearGreedSnapshot({
+              marketDate,
+              store: runtime.store,
+              yahooBaseUrl: runtime.config.sentimentYahooBaseUrl,
+              fredBaseUrl: runtime.config.sentimentFredBaseUrl,
+              fredApiKey: runtime.config.sentimentFredApiKey,
+              breadthUniverseLimit: runtime.config.sentimentBreadthUniverseLimit,
+              breadthConcurrency: runtime.config.sentimentBreadthConcurrency,
+              minimumAvailableInputs: runtime.config.sentimentMinimumAvailableInputs
+            });
+            const persisted = await runtime.store.upsertFearGreedSnapshot({ snapshot });
+
+            await appendAudit(runtime, "sentiment.snapshot_upserted", {
+              request_id: meta.requestId,
+              route: pathname,
+              market_date: marketDate,
+              score: persisted.snapshot.score,
+              label: persisted.snapshot.label,
+              created: persisted.created,
+              missing_inputs_count: persisted.snapshot.missing_inputs.length
+            });
+
+            sendJson(response, 200, {
+              status: persisted.created ? "created" : "updated",
+              market_date: marketDate,
+              score: persisted.snapshot.score,
+              label: persisted.snapshot.label,
+              missing_inputs: persisted.snapshot.missing_inputs
+            });
+          } catch (error) {
+            const message = error instanceof Error ? error.message : "Sentiment dispatch failed";
+            await appendAudit(runtime, "sentiment.dispatch_failed", {
+              request_id: meta.requestId,
+              route: pathname,
+              market_date: marketDate,
+              error_message: message
+            });
+            captureException(new Error(message), {
+              service: serviceName,
+              route: pathname,
+              market_date: marketDate
+            });
+            sendJson(response, 503, {
+              error: "sentiment_unavailable",
+              error_message: "Sentiment snapshot could not be generated."
+            });
+          }
+          return;
+        }
+
         const parts = pathname.split("/").filter(Boolean);
         if (parts.length === 4 && parts[0] === "internal" && parts[1] === "jobs") {
           const jobId = parts[2];
@@ -1309,6 +1425,63 @@ export function startServer(port: number = loadConfig().port): Server {
         sendJson(response, 401, {
           error: "unauthorized",
           error_message: "Authentication required."
+        });
+        return;
+      }
+
+      if (method === "GET" && pathname === "/v1/sentiment/current") {
+        const snapshot = await runtime.store.getLatestFearGreedSnapshot();
+        if (!snapshot) {
+          sendJson(response, 404, {
+            error: "sentiment_not_found",
+            error_message: "No sentiment snapshot is available yet."
+          });
+          return;
+        }
+
+        await appendAudit(
+          runtime,
+          "sentiment.current_retrieved",
+          {
+            request_id: meta.requestId,
+            route: pathname,
+            market_date: snapshot.market_date,
+            score: snapshot.score
+          },
+          auth.userId
+        );
+
+        sendJson(response, 200, {
+          data: snapshot
+        });
+        return;
+      }
+
+      if (method === "GET" && pathname === "/v1/sentiment/history") {
+        const days = parsePositiveInteger(url.searchParams.get("days") ?? undefined, 90, 1, 365);
+        if (days === undefined) {
+          sendJson(response, 422, {
+            error: "validation_failed",
+            error_message: "days must be an integer between 1 and 365."
+          });
+          return;
+        }
+
+        const history = await runtime.store.listFearGreedHistory(days);
+        await appendAudit(
+          runtime,
+          "sentiment.history_retrieved",
+          {
+            request_id: meta.requestId,
+            route: pathname,
+            days,
+            row_count: history.length
+          },
+          auth.userId
+        );
+
+        sendJson(response, 200, {
+          data: history
         });
         return;
       }

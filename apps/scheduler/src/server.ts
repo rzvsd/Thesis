@@ -4,7 +4,8 @@ import { captureException, initSentry } from "./sentry";
 import {
   computeCycleWindowForRun,
   computeNextScheduledRun,
-  computeTestModeCycleWindow
+  computeTestModeCycleWindow,
+  getZonedDateTimeParts
 } from "./scheduling";
 
 const serviceName = "scheduler";
@@ -18,6 +19,8 @@ interface SchedulerConfig {
   scheduleTimeZone: string;
   scheduleHour: number;
   scheduleMinute: number;
+  sentimentScheduleHour: number;
+  sentimentScheduleMinute: number;
   historicalSyncHour: number;
   historicalSyncMinute: number;
   testMode: boolean;
@@ -26,6 +29,7 @@ interface SchedulerConfig {
 
 interface SchedulerState {
   nextPulseFireAt?: string;
+  nextSentimentFireAt?: string;
   nextHistoricalSyncAt?: string;
   mode: "scheduled" | "test";
 }
@@ -35,9 +39,11 @@ type HealthPayload = {
   mode: SchedulerState["mode"];
   timezone: string;
   schedule: string;
+  sentiment_schedule: string;
   historical_sync_schedule: string;
   next_fire_at?: string;
   next_pulse_fire_at?: string;
+  next_sentiment_fire_at?: string;
   next_historical_sync_at?: string;
 };
 
@@ -77,6 +83,9 @@ function parseScheduleClock(
 
 function loadConfig(env: NodeJS.ProcessEnv = process.env): SchedulerConfig {
   const schedule = parseScheduleClock(env.SCHEDULER_DELIVERY_TIME_LOCAL ?? "06:30");
+  const sentimentSchedule = parseScheduleClock(
+    env.SCHEDULER_SENTIMENT_TIME_LOCAL ?? "18:00"
+  );
   const historicalSyncSchedule = parseScheduleClock(
     env.SCHEDULER_HISTORICAL_SYNC_TIME_LOCAL ?? "01:00"
   );
@@ -95,6 +104,8 @@ function loadConfig(env: NodeJS.ProcessEnv = process.env): SchedulerConfig {
     scheduleTimeZone: env.SCHEDULER_TIMEZONE?.trim() || "America/New_York",
     scheduleHour: schedule.hour,
     scheduleMinute: schedule.minute,
+    sentimentScheduleHour: sentimentSchedule.hour,
+    sentimentScheduleMinute: sentimentSchedule.minute,
     historicalSyncHour: historicalSyncSchedule.hour,
     historicalSyncMinute: historicalSyncSchedule.minute,
     testMode,
@@ -102,6 +113,13 @@ function loadConfig(env: NodeJS.ProcessEnv = process.env): SchedulerConfig {
       ? testFireInSeconds
       : 120
   };
+}
+
+function marketDateInTimeZone(date: Date, timeZone: string): string {
+  const parts = getZonedDateTimeParts(date, timeZone);
+  const month = String(parts.month).padStart(2, "0");
+  const day = String(parts.day).padStart(2, "0");
+  return `${parts.year}-${month}-${day}`;
 }
 
 async function dispatchPulseJob(
@@ -131,6 +149,34 @@ async function dispatchPulseJob(
     cycle_start: cycleWindow.cycleStart,
     cycle_end: cycleWindow.cycleEnd,
     deduplicated: payload.deduplicated
+  });
+}
+
+async function dispatchSentimentJob(
+  config: SchedulerConfig,
+  marketDate: string
+): Promise<void> {
+  const response = await fetch(`${config.productApiInternalBaseUrl}/internal/sentiment/dispatch`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-internal-token": config.internalWorkerToken
+    },
+    body: JSON.stringify({
+      market_date: marketDate
+    })
+  });
+
+  const payload = (await response.json()) as Record<string, unknown>;
+  if (!response.ok) {
+    throw new Error(
+      `Sentiment dispatch failed with status ${response.status}: ${JSON.stringify(payload)}`
+    );
+  }
+
+  log("INFO", "Sentiment dispatch accepted", {
+    market_date: marketDate,
+    status: payload.status
   });
 }
 
@@ -180,6 +226,7 @@ export function startServer(port: number = defaultPort): Server {
     mode: config.testMode ? "test" : "scheduled"
   };
   let pulseTimer: NodeJS.Timeout | undefined;
+  let sentimentTimer: NodeJS.Timeout | undefined;
   let historicalSyncTimer: NodeJS.Timeout | undefined;
   let testFired = false;
   let shuttingDown = false;
@@ -255,6 +302,58 @@ export function startServer(port: number = defaultPort): Server {
     }, delayMs);
   };
 
+  const scheduleSentimentNext = (): void => {
+    if (shuttingDown || config.testMode) {
+      state.nextSentimentFireAt = undefined;
+      return;
+    }
+
+    if (sentimentTimer) {
+      clearTimeout(sentimentTimer);
+      sentimentTimer = undefined;
+    }
+
+    const now = new Date();
+    const runAt = computeNextScheduledRun(
+      now,
+      config.scheduleTimeZone,
+      config.sentimentScheduleHour,
+      config.sentimentScheduleMinute
+    );
+    const delayMs = Math.max(0, runAt.getTime() - now.getTime());
+    state.nextSentimentFireAt = runAt.toISOString();
+
+    sentimentTimer = setTimeout(async () => {
+      if (shuttingDown) {
+        return;
+      }
+
+      const marketDate = marketDateInTimeZone(runAt, config.scheduleTimeZone);
+      log("INFO", "Sentiment schedule fired", {
+        mode: state.mode,
+        market_date: marketDate,
+        scheduled_for: runAt.toISOString()
+      });
+
+      try {
+        await dispatchSentimentJob(config, marketDate);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Sentiment dispatch failed";
+        log("ERROR", "Sentiment dispatch failed", {
+          error_message: message,
+          market_date: marketDate
+        });
+        captureException(new Error(message), {
+          service: serviceName,
+          market_date: marketDate,
+          target: "product-api"
+        });
+      }
+
+      scheduleSentimentNext();
+    }, delayMs);
+  };
+
   const scheduleHistoricalSyncNext = (): void => {
     if (shuttingDown || config.testMode) {
       state.nextHistoricalSyncAt = undefined;
@@ -313,11 +412,15 @@ export function startServer(port: number = defaultPort): Server {
         schedule: `${String(config.scheduleHour).padStart(2, "0")}:${String(
           config.scheduleMinute
         ).padStart(2, "0")}`,
+        sentiment_schedule: `${String(config.sentimentScheduleHour).padStart(2, "0")}:${String(
+          config.sentimentScheduleMinute
+        ).padStart(2, "0")}`,
         historical_sync_schedule: `${String(config.historicalSyncHour).padStart(2, "0")}:${String(
           config.historicalSyncMinute
         ).padStart(2, "0")}`,
         next_fire_at: state.nextPulseFireAt,
         next_pulse_fire_at: state.nextPulseFireAt,
+        next_sentiment_fire_at: state.nextSentimentFireAt,
         next_historical_sync_at: state.nextHistoricalSyncAt
       };
 
@@ -337,11 +440,15 @@ export function startServer(port: number = defaultPort): Server {
       schedule_time_local: `${String(config.scheduleHour).padStart(2, "0")}:${String(
         config.scheduleMinute
       ).padStart(2, "0")}`,
+      sentiment_schedule_time_local: `${String(config.sentimentScheduleHour).padStart(2, "0")}:${String(
+        config.sentimentScheduleMinute
+      ).padStart(2, "0")}`,
       historical_sync_time_local: `${String(config.historicalSyncHour).padStart(2, "0")}:${String(
         config.historicalSyncMinute
       ).padStart(2, "0")}`
     });
     schedulePulseNext();
+    scheduleSentimentNext();
     scheduleHistoricalSyncNext();
   });
 
@@ -355,6 +462,10 @@ export function startServer(port: number = defaultPort): Server {
     if (pulseTimer) {
       clearTimeout(pulseTimer);
       pulseTimer = undefined;
+    }
+    if (sentimentTimer) {
+      clearTimeout(sentimentTimer);
+      sentimentTimer = undefined;
     }
     if (historicalSyncTimer) {
       clearTimeout(historicalSyncTimer);

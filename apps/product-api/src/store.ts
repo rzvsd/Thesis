@@ -3,6 +3,7 @@ import { Pool } from "pg";
 import type {
   CanonicalFinancialSnapshot,
   CanonicalTranscript,
+  FearGreedSnapshot,
   TickerCoverage
 } from "../../../packages/contracts/src";
 
@@ -99,6 +100,13 @@ export interface ProductStore {
   listHistoricalFinancialSnapshotsByTicker(ticker: string): Promise<CanonicalFinancialSnapshot[]>;
   listHistoricalTranscriptsByTicker(ticker: string): Promise<CanonicalTranscript[]>;
   getTickerCoverageByTicker(ticker: string): Promise<TickerCoverage | undefined>;
+  listTickerCoverageTickers(limit: number): Promise<string[]>;
+  upsertFearGreedSnapshot(input: {
+    snapshot: FearGreedSnapshot;
+  }): Promise<{ snapshot: FearGreedSnapshot; created: boolean }>;
+  getFearGreedSnapshotByMarketDate(marketDate: string): Promise<FearGreedSnapshot | undefined>;
+  getLatestFearGreedSnapshot(): Promise<FearGreedSnapshot | undefined>;
+  listFearGreedHistory(days: number): Promise<FearGreedSnapshot[]>;
   listWatchlistTickersByUser(userId: string): Promise<string[]>;
   addWatchlistTicker(input: {
     id: string;
@@ -289,6 +297,20 @@ function mapTickerCoverage(row: Record<string, unknown>): TickerCoverage {
   };
 }
 
+function mapFearGreedSnapshot(row: Record<string, unknown>): FearGreedSnapshot {
+  return {
+    id: String(row.id),
+    market_date: String(row.market_date),
+    score: Number(row.score),
+    label: String(row.label) as FearGreedSnapshot["label"],
+    sub_scores: Array.isArray(row.sub_scores)
+      ? (row.sub_scores as FearGreedSnapshot["sub_scores"])
+      : [],
+    missing_inputs: asStringArray(row.missing_inputs),
+    calculated_at: asIsoString(row.calculated_at) ?? new Date().toISOString()
+  };
+}
+
 export class InMemoryStore implements ProductStore {
   private readonly users = new Map<string, UserRecord>();
   private readonly usersByEmail = new Map<string, string>();
@@ -302,6 +324,7 @@ export class InMemoryStore implements ProductStore {
   private readonly historicalFinancialsByTicker = new Map<string, CanonicalFinancialSnapshot[]>();
   private readonly historicalTranscriptsByTicker = new Map<string, CanonicalTranscript[]>();
   private readonly historicalCoverageByTicker = new Map<string, TickerCoverage>();
+  private readonly fearGreedByMarketDate = new Map<string, FearGreedSnapshot>();
 
   constructor() {
     const now = new Date().toISOString();
@@ -774,6 +797,71 @@ export class InMemoryStore implements ProductStore {
       return undefined;
     }
     return { ...coverage };
+  }
+
+  async listTickerCoverageTickers(limit: number): Promise<string[]> {
+    return [...this.historicalCoverageByTicker.keys()]
+      .map((ticker) => ticker.trim().toUpperCase())
+      .filter((ticker) => ticker.length > 0)
+      .sort((left, right) => left.localeCompare(right))
+      .slice(0, Math.max(1, limit));
+  }
+
+  async upsertFearGreedSnapshot(input: {
+    snapshot: FearGreedSnapshot;
+  }): Promise<{ snapshot: FearGreedSnapshot; created: boolean }> {
+    const key = input.snapshot.market_date;
+    const created = !this.fearGreedByMarketDate.has(key);
+    const stored: FearGreedSnapshot = {
+      ...input.snapshot,
+      sub_scores: input.snapshot.sub_scores.map((item) => ({ ...item })),
+      missing_inputs: [...input.snapshot.missing_inputs]
+    };
+    this.fearGreedByMarketDate.set(key, stored);
+    return {
+      snapshot: stored,
+      created
+    };
+  }
+
+  async getFearGreedSnapshotByMarketDate(
+    marketDate: string
+  ): Promise<FearGreedSnapshot | undefined> {
+    const snapshot = this.fearGreedByMarketDate.get(marketDate);
+    if (!snapshot) {
+      return undefined;
+    }
+    return {
+      ...snapshot,
+      sub_scores: snapshot.sub_scores.map((item) => ({ ...item })),
+      missing_inputs: [...snapshot.missing_inputs]
+    };
+  }
+
+  async getLatestFearGreedSnapshot(): Promise<FearGreedSnapshot | undefined> {
+    const latestDate = [...this.fearGreedByMarketDate.keys()]
+      .sort((left, right) => right.localeCompare(left))[0];
+    if (!latestDate) {
+      return undefined;
+    }
+    return this.getFearGreedSnapshotByMarketDate(latestDate);
+  }
+
+  async listFearGreedHistory(days: number): Promise<FearGreedSnapshot[]> {
+    const limit = Math.max(1, days);
+    const dates = [...this.fearGreedByMarketDate.keys()]
+      .sort((left, right) => right.localeCompare(left))
+      .slice(0, limit)
+      .sort((left, right) => left.localeCompare(right));
+
+    const snapshots: FearGreedSnapshot[] = [];
+    for (const date of dates) {
+      const snapshot = await this.getFearGreedSnapshotByMarketDate(date);
+      if (snapshot) {
+        snapshots.push(snapshot);
+      }
+    }
+    return snapshots;
   }
 
   async listWatchlistTickersByUser(userId: string): Promise<string[]> {
@@ -1480,6 +1568,105 @@ export class PostgresStore implements ProductStore {
     );
     const row = result.rows[0] as Record<string, unknown> | undefined;
     return row ? mapTickerCoverage(row) : undefined;
+  }
+
+  async listTickerCoverageTickers(limit: number): Promise<string[]> {
+    const boundedLimit = Math.max(1, limit);
+    const result = await this.pool.query(
+      `select ticker
+         from ticker_coverage
+        where last_sync_status in ('success', 'partial')
+        order by backfill_tier asc, ticker asc
+        limit $1`,
+      [boundedLimit]
+    );
+    return result.rows.map((row) => String(row.ticker).trim().toUpperCase());
+  }
+
+  async upsertFearGreedSnapshot(input: {
+    snapshot: FearGreedSnapshot;
+  }): Promise<{ snapshot: FearGreedSnapshot; created: boolean }> {
+    const existing = await this.getFearGreedSnapshotByMarketDate(input.snapshot.market_date);
+
+    await this.pool.query(
+      `insert into fear_greed_daily (
+         id,
+         market_date,
+         score,
+         label,
+         sub_scores,
+         missing_inputs,
+         calculated_at
+       )
+       values ($1, $2::date, $3, $4, $5::jsonb, $6::jsonb, $7::timestamptz)
+       on conflict (market_date) do update set
+         id = excluded.id,
+         score = excluded.score,
+         label = excluded.label,
+         sub_scores = excluded.sub_scores,
+         missing_inputs = excluded.missing_inputs,
+         calculated_at = excluded.calculated_at`,
+      [
+        input.snapshot.id,
+        input.snapshot.market_date,
+        input.snapshot.score,
+        input.snapshot.label,
+        JSON.stringify(input.snapshot.sub_scores),
+        JSON.stringify(input.snapshot.missing_inputs),
+        input.snapshot.calculated_at
+      ]
+    );
+
+    const snapshot = await this.getFearGreedSnapshotByMarketDate(input.snapshot.market_date);
+    if (!snapshot) {
+      throw new Error("Failed to load stored fear_greed_daily snapshot after upsert");
+    }
+
+    return {
+      snapshot,
+      created: existing === undefined
+    };
+  }
+
+  async getFearGreedSnapshotByMarketDate(
+    marketDate: string
+  ): Promise<FearGreedSnapshot | undefined> {
+    const result = await this.pool.query(
+      `select *
+         from fear_greed_daily
+        where market_date = $1::date
+        limit 1`,
+      [marketDate]
+    );
+    const row = result.rows[0] as Record<string, unknown> | undefined;
+    return row ? mapFearGreedSnapshot(row) : undefined;
+  }
+
+  async getLatestFearGreedSnapshot(): Promise<FearGreedSnapshot | undefined> {
+    const result = await this.pool.query(
+      `select *
+         from fear_greed_daily
+        order by market_date desc
+        limit 1`
+    );
+    const row = result.rows[0] as Record<string, unknown> | undefined;
+    return row ? mapFearGreedSnapshot(row) : undefined;
+  }
+
+  async listFearGreedHistory(days: number): Promise<FearGreedSnapshot[]> {
+    const boundedDays = Math.max(1, days);
+    const result = await this.pool.query(
+      `select *
+         from (
+           select *
+             from fear_greed_daily
+            order by market_date desc
+            limit $1
+         ) as latest
+        order by market_date asc`,
+      [boundedDays]
+    );
+    return result.rows.map((row) => mapFearGreedSnapshot(row as Record<string, unknown>));
   }
 
   async listWatchlistTickersByUser(userId: string): Promise<string[]> {
