@@ -69,6 +69,7 @@ function createConfig(overrides: Partial<ProductApiConfig> = {}): ProductApiConf
     marketPulseNewsIngestBaseUrl: "http://news-ingest:3004",
     marketPulseTickers: ["AAPL", "MSFT", "TSLA"],
     marketPulseSchemaVersion: "1.0.0",
+    deepDiveReuseFreshnessHours: 24,
     pushProviderMode: "stub",
     jobRecoveryEnabled: true,
     jobRecoveryRunOnStartup: true,

@@ -82,7 +82,13 @@ export interface ProductStore {
     reportId: string
   ): Promise<JobRecord | undefined>;
   createReport(input: ReportRecord): Promise<ReportRecord>;
+  findReusableDeepDiveReport(input: {
+    ticker: string;
+    fingerprint: string;
+    nowIso: string;
+  }): Promise<ReportRecord | undefined>;
   getReportById(id: string): Promise<ReportRecord | undefined>;
+  hasReportAccessForUser(userId: string, reportId: string): Promise<boolean>;
   deleteReport(id: string): Promise<boolean>;
   listReportsByUser(userId: string): Promise<ReportRecord[]>;
   getLatestReportByType(type: JobRecord["type"]): Promise<ReportRecord | undefined>;
@@ -194,6 +200,8 @@ function mapReport(row: Record<string, unknown>): ReportRecord {
     ticker: row.ticker ? String(row.ticker) : undefined,
     schemaVersion: String(row.schema_version),
     artifactKey: String(row.artifact_key),
+    fingerprint: row.fingerprint ? String(row.fingerprint) : undefined,
+    freshnessExpiresAt: asIsoString(row.freshness_expires_at),
     createdAt: asIsoString(row.created_at) ?? new Date().toISOString(),
     isCurrent: Boolean(row.is_current)
   };
@@ -680,8 +688,31 @@ export class InMemoryStore implements ProductStore {
     return input;
   }
 
+  async findReusableDeepDiveReport(input: {
+    ticker: string;
+    fingerprint: string;
+    nowIso: string;
+  }): Promise<ReportRecord | undefined> {
+    return [...this.reports.values()]
+      .filter((report) =>
+        report.type === "deep_dive" &&
+        report.ticker === input.ticker &&
+        report.fingerprint === input.fingerprint &&
+        report.freshnessExpiresAt !== undefined &&
+        Date.parse(report.freshnessExpiresAt) > Date.parse(input.nowIso))
+      .sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0];
+  }
+
   async getReportById(id: string): Promise<ReportRecord | undefined> {
     return this.reports.get(id);
+  }
+
+  async hasReportAccessForUser(userId: string, reportId: string): Promise<boolean> {
+    return [...this.jobs.values()].some((job) =>
+      job.userId === userId &&
+      job.status === "complete" &&
+      job.reportId === reportId
+    );
   }
 
   async deleteReport(id: string): Promise<boolean> {
@@ -700,11 +731,17 @@ export class InMemoryStore implements ProductStore {
   }
 
   async listReportsByUser(userId: string): Promise<ReportRecord[]> {
+    const accessibleReportIds = new Set(
+      [...this.jobs.values()]
+        .filter((job) =>
+          job.userId === userId &&
+          job.status === "complete" &&
+          job.reportId !== undefined)
+        .map((job) => job.reportId as string)
+    );
+
     return [...this.reports.values()]
-      .filter((report) => {
-        const job = this.jobs.get(report.jobId);
-        return job?.userId === userId;
-      })
+      .filter((report) => accessibleReportIds.has(report.id))
       .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
   }
 
@@ -1273,8 +1310,10 @@ export class PostgresStore implements ProductStore {
 
   async createReport(input: ReportRecord): Promise<ReportRecord> {
     const result = await this.pool.query(
-      `insert into reports (id, job_id, type, ticker, schema_version, artifact_key, created_at, is_current)
-       values ($1, $2, $3, $4, $5, $6, $7, $8)
+      `insert into reports (
+         id, job_id, type, ticker, schema_version, artifact_key, fingerprint, freshness_expires_at, created_at, is_current
+       )
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        returning *`,
       [
         input.id,
@@ -1283,6 +1322,8 @@ export class PostgresStore implements ProductStore {
         input.ticker ?? null,
         input.schemaVersion,
         input.artifactKey,
+        input.fingerprint ?? null,
+        input.freshnessExpiresAt ?? null,
         input.createdAt,
         input.isCurrent
       ]
@@ -1290,10 +1331,43 @@ export class PostgresStore implements ProductStore {
     return mapReport(result.rows[0] as Record<string, unknown>);
   }
 
+  async findReusableDeepDiveReport(input: {
+    ticker: string;
+    fingerprint: string;
+    nowIso: string;
+  }): Promise<ReportRecord | undefined> {
+    const result = await this.pool.query(
+      `select *
+         from reports
+        where type = 'deep_dive'
+          and ticker = $1
+          and fingerprint = $2
+          and freshness_expires_at > $3::timestamptz
+        order by created_at desc
+        limit 1`,
+      [input.ticker, input.fingerprint, input.nowIso]
+    );
+    const row = result.rows[0] as Record<string, unknown> | undefined;
+    return row ? mapReport(row) : undefined;
+  }
+
   async getReportById(id: string): Promise<ReportRecord | undefined> {
     const result = await this.pool.query("select * from reports where id = $1", [id]);
     const row = result.rows[0] as Record<string, unknown> | undefined;
     return row ? mapReport(row) : undefined;
+  }
+
+  async hasReportAccessForUser(userId: string, reportId: string): Promise<boolean> {
+    const result = await this.pool.query(
+      `select 1
+         from jobs
+        where user_id = $1
+          and status = 'complete'
+          and report_id = $2
+        limit 1`,
+      [userId, reportId]
+    );
+    return (result.rowCount ?? 0) > 0;
   }
 
   async deleteReport(id: string): Promise<boolean> {
@@ -1322,10 +1396,11 @@ export class PostgresStore implements ProductStore {
 
   async listReportsByUser(userId: string): Promise<ReportRecord[]> {
     const result = await this.pool.query(
-      `select r.*
+      `select distinct r.*
          from reports r
-         join jobs j on j.id = r.job_id
+         join jobs j on j.report_id = r.id
         where j.user_id = $1
+          and j.status = 'complete'
         order by r.created_at desc`,
       [userId]
     );

@@ -219,6 +219,46 @@ export function validateAnalysisReport(value: unknown): string[] {
     }
   }
 
+  if (value.historical_context !== undefined) {
+    if (!isObject(value.historical_context)) {
+      errors.push("historical_context must be an object when provided");
+    } else {
+      if (typeof value.historical_context.financial_snapshot_count !== "number") {
+        errors.push("historical_context.financial_snapshot_count must be a number");
+      }
+      if (typeof value.historical_context.transcript_count !== "number") {
+        errors.push("historical_context.transcript_count must be a number");
+      }
+      if (typeof value.historical_context.transcript_available !== "boolean") {
+        errors.push("historical_context.transcript_available must be a boolean");
+      }
+      if (!isStringArray(value.historical_context.missing_reasons)) {
+        errors.push("historical_context.missing_reasons must be an array of strings");
+      }
+    }
+  }
+
+  if (value.valuation !== undefined) {
+    if (!isObject(value.valuation)) {
+      errors.push("valuation must be an object when provided");
+    } else if (!isObject(value.valuation.assumptions)) {
+      errors.push("valuation.assumptions must be an object");
+    } else {
+      if (value.valuation.assumptions.methodology !== "deterministic_dcf") {
+        errors.push("valuation.assumptions.methodology must be deterministic_dcf");
+      }
+      if (typeof value.valuation.assumptions.projection_years !== "number") {
+        errors.push("valuation.assumptions.projection_years must be a number");
+      }
+      if (typeof value.valuation.assumptions.terminal_growth_rate !== "number") {
+        errors.push("valuation.assumptions.terminal_growth_rate must be a number");
+      }
+      if (typeof value.valuation.assumptions.wacc !== "number") {
+        errors.push("valuation.assumptions.wacc must be a number");
+      }
+    }
+  }
+
   if (!Array.isArray(value.sections) || value.sections.length === 0) {
     errors.push("sections must be a non-empty array");
   } else {

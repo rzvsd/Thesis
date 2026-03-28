@@ -12,6 +12,9 @@ export interface SectionDefinition {
 }
 
 export const allSectionDefinitions: readonly SectionDefinition[] = [
+  { id: "thesis_statement", title: "Thesis Statement", derived: true },
+  { id: "what_changed", title: "What Changed", derived: true },
+  { id: "valuation", title: "Valuation", derived: true },
   { id: "executive_summary", title: "Executive Summary", derived: true },
   {
     id: "quarter_over_quarter_changes",

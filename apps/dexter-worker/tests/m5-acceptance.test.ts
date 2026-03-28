@@ -10,6 +10,9 @@ import { validateAnalysisReport } from "../src/schema-validation";
 const DISCLAIMER_TEXT = "This is a research summary, not financial advice. Always do your own research.";
 
 const EXPECTED_SECTION_TITLES = [
+  "Thesis Statement",
+  "What Changed",
+  "Valuation",
   "Executive Summary",
   "Quarter-over-Quarter Changes",
   "Year-over-Year Changes",

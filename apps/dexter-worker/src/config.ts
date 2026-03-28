@@ -125,11 +125,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): DexterConfig {
     langsmithTracingEnabled: parseBoolean(env.LANGSMITH_TRACING, false),
     langsmithProject: env.LANGSMITH_PROJECT,
     langsmithApiKeyPresent: Boolean(env.LANGSMITH_API_KEY),
-    langsmithPlannerPrompt: env.LANGSMITH_PLANNER_PROMPT ?? "thesis-m3-planner",
+    langsmithPlannerPrompt: env.LANGSMITH_PLANNER_PROMPT ?? "thesis-m2-planner",
     langsmithSectionExecutorPrompt:
-      env.LANGSMITH_SECTION_EXECUTOR_PROMPT ?? "thesis-m3-section-executor",
+      env.LANGSMITH_SECTION_EXECUTOR_PROMPT ?? "thesis-m2-section-executor",
     langsmithSynthesizerPrompt:
-      env.LANGSMITH_SYNTHESIZER_PROMPT ?? "thesis-m3-synthesizer",
+      env.LANGSMITH_SYNTHESIZER_PROMPT ?? "thesis-m2-synthesizer",
     simulateTimeoutSection: env.DEXTER_SIMULATE_TIMEOUT_SECTION,
     queueMode: parseBoolean(env.DEXTER_QUEUE_MODE, false),
     redisUrl: env.REDIS_URL,

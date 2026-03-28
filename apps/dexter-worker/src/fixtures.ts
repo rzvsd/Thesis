@@ -1,4 +1,6 @@
 import type {
+  CanonicalFinancialSnapshot,
+  CanonicalTranscript,
   ConfidenceBlock,
   EvidenceItem,
   ReportSectionStatus,
@@ -23,6 +25,12 @@ export interface FixtureScenario {
   signalValue: SignalValue;
   signalReasons: string[];
   flags: string[];
+}
+
+export interface FixtureHistoricalContext {
+  financials: CanonicalFinancialSnapshot[];
+  transcripts: CanonicalTranscript[];
+  spotPrice?: number;
 }
 
 function buildEvidence(
@@ -261,6 +269,170 @@ function buildTimeoutScenario(ticker: string): FixtureScenario {
   };
 }
 
+function buildFixtureHistoricalContext(ticker: string): FixtureHistoricalContext {
+  const normalizedTicker = ticker.trim().toUpperCase();
+  const retrievedAt = "2026-03-20T08:00:00.000Z";
+
+  if (normalizedTicker === "LIMITED" || normalizedTicker === "ZZZZ") {
+    return {
+      financials: [
+        {
+          snapshot_id: `${normalizedTicker}-2025-q4`,
+          ticker: normalizedTicker,
+          period: "2025-Q4",
+          period_type: "quarterly",
+          fiscal_year: 2025,
+          fiscal_quarter: 4,
+          provider: "fixture_historical",
+          retrieved_at: retrievedAt,
+          data: {
+            revenue: 20_400_000_000,
+            net_income: 1_200_000_000
+          },
+          missing_fields: ["eps", "operating_margin", "free_cash_flow", "shares_outstanding"]
+        }
+      ],
+      transcripts: []
+    };
+  }
+
+  return {
+    financials: [
+      {
+        snapshot_id: `${normalizedTicker}-2025-q4`,
+        ticker: normalizedTicker,
+        period: "2025-Q4",
+        period_type: "quarterly",
+        fiscal_year: 2025,
+        fiscal_quarter: 4,
+        provider: "fixture_historical",
+        retrieved_at: retrievedAt,
+        data: {
+          revenue: 69_632_000_000,
+          net_income: 24_667_000_000,
+          eps: 3.3,
+          operating_margin: 44.1,
+          free_cash_flow: 22_400_000_000,
+          shares_outstanding: 7_420_000_000
+        },
+        segments: [
+          {
+            segment_name: "Cloud",
+            revenue: 29_100_000_000,
+            operating_income: 12_400_000_000
+          },
+          {
+            segment_name: "Productivity",
+            revenue: 19_700_000_000,
+            operating_income: 9_100_000_000
+          }
+        ],
+        missing_fields: []
+      },
+      {
+        snapshot_id: `${normalizedTicker}-2025-q3`,
+        ticker: normalizedTicker,
+        period: "2025-Q3",
+        period_type: "quarterly",
+        fiscal_year: 2025,
+        fiscal_quarter: 3,
+        provider: "fixture_historical",
+        retrieved_at: retrievedAt,
+        data: {
+          revenue: 64_700_000_000,
+          net_income: 22_800_000_000,
+          eps: 3.05,
+          operating_margin: 42.2,
+          free_cash_flow: 20_900_000_000,
+          shares_outstanding: 7_425_000_000
+        },
+        missing_fields: []
+      },
+      {
+        snapshot_id: `${normalizedTicker}-2024-q4`,
+        ticker: normalizedTicker,
+        period: "2024-Q4",
+        period_type: "quarterly",
+        fiscal_year: 2024,
+        fiscal_quarter: 4,
+        provider: "fixture_historical",
+        retrieved_at: retrievedAt,
+        data: {
+          revenue: 62_000_000_000,
+          net_income: 21_350_000_000,
+          eps: 2.91,
+          operating_margin: 40.5,
+          free_cash_flow: 19_400_000_000,
+          shares_outstanding: 7_450_000_000
+        },
+        missing_fields: []
+      },
+      {
+        snapshot_id: `${normalizedTicker}-2025-fy`,
+        ticker: normalizedTicker,
+        period: "2025-FY",
+        period_type: "annual",
+        fiscal_year: 2025,
+        provider: "fixture_historical",
+        retrieved_at: retrievedAt,
+        data: {
+          free_cash_flow: 84_100_000_000,
+          shares_outstanding: 7_420_000_000,
+          effective_tax_rate: 0.18
+        },
+        missing_fields: []
+      },
+      {
+        snapshot_id: `${normalizedTicker}-2024-fy`,
+        ticker: normalizedTicker,
+        period: "2024-FY",
+        period_type: "annual",
+        fiscal_year: 2024,
+        provider: "fixture_historical",
+        retrieved_at: retrievedAt,
+        data: {
+          free_cash_flow: 78_800_000_000,
+          shares_outstanding: 7_450_000_000,
+          effective_tax_rate: 0.19
+        },
+        missing_fields: []
+      },
+      {
+        snapshot_id: `${normalizedTicker}-2023-fy`,
+        ticker: normalizedTicker,
+        period: "2023-FY",
+        period_type: "annual",
+        fiscal_year: 2023,
+        provider: "fixture_historical",
+        retrieved_at: retrievedAt,
+        data: {
+          free_cash_flow: 72_600_000_000,
+          shares_outstanding: 7_480_000_000,
+          effective_tax_rate: 0.2
+        },
+        missing_fields: []
+      }
+    ],
+    transcripts: [
+      {
+        transcript_id: `${normalizedTicker}-2025-q4`,
+        ticker: normalizedTicker,
+        period: "2025-Q4",
+        fiscal_year: 2025,
+        fiscal_quarter: 4,
+        call_date: "2026-01-24",
+        provider: "fixture_transcript",
+        retrieved_at: retrievedAt,
+        body_text:
+          "Management highlighted durable cloud demand and disciplined AI infrastructure spend while maintaining margin focus.",
+        word_count: 15,
+        is_complete: true
+      }
+    ],
+    spotPrice: 428.52
+  };
+}
+
 export function getFixtureScenario(ticker: string): FixtureScenario {
   const normalized = ticker.trim().toUpperCase();
 
@@ -276,4 +448,8 @@ export function getFixtureScenario(ticker: string): FixtureScenario {
     default:
       return buildCompleteScenario(normalized);
   }
+}
+
+export function getFixtureHistoricalContext(ticker: string): FixtureHistoricalContext {
+  return buildFixtureHistoricalContext(ticker);
 }

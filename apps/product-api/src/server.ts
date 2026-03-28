@@ -195,6 +195,19 @@ function normalizeDateInput(value: string): string | undefined {
   return normalized;
 }
 
+function deepDiveFingerprint(input: {
+  ticker: string;
+  schemaVersion: string;
+  latestPeriod?: string;
+}): string {
+  const latestPeriod = input.latestPeriod?.trim().toUpperCase() || "LATEST_UNKNOWN";
+  return `${input.ticker.trim().toUpperCase()}|${input.schemaVersion.trim()}|${latestPeriod}`;
+}
+
+function addHours(iso: string, hours: number): string {
+  return new Date(Date.parse(iso) + hours * 60 * 60 * 1000).toISOString();
+}
+
 function isMarketPulseReport(report: unknown): report is MarketPulseReport {
   if (!isObject(report)) {
     return false;
@@ -1080,6 +1093,18 @@ export function startServer(port: number = loadConfig().port): Server {
 
             let artifactKey: string | undefined;
             try {
+              const reportFingerprint =
+                report.type === "deep_dive" && report.ticker
+                  ? deepDiveFingerprint({
+                    ticker: report.ticker,
+                    schemaVersion: report.schema_version,
+                    latestPeriod: report.historical_context?.latest_period
+                  })
+                  : undefined;
+              const freshnessExpiresAt = reportFingerprint
+                ? addHours(new Date().toISOString(), runtime.config.deepDiveReuseFreshnessHours)
+                : undefined;
+
               artifactKey = await runtime.artifactStore.writeReport(report);
               await runtime.store.createReport({
                 id: report.report_id,
@@ -1088,6 +1113,8 @@ export function startServer(port: number = loadConfig().port): Server {
                 ticker: report.ticker,
                 schemaVersion: report.schema_version,
                 artifactKey,
+                fingerprint: reportFingerprint,
+                freshnessExpiresAt,
                 createdAt: report.generated_at,
                 isCurrent: true
               });
@@ -1586,7 +1613,68 @@ export function startServer(port: number = loadConfig().port): Server {
           return;
         }
 
-        const createdAt = new Date().toISOString();
+        const nowIso = new Date().toISOString();
+        const coverage = await runtime.store.getTickerCoverageByTicker(ticker);
+        const fingerprint = deepDiveFingerprint({
+          ticker,
+          schemaVersion: "2.0",
+          latestPeriod: coverage?.latest_period ?? undefined
+        });
+        const reusable = await runtime.store.findReusableDeepDiveReport({
+          ticker,
+          fingerprint,
+          nowIso
+        });
+
+        if (reusable) {
+          const reuseJob = await runtime.store.createJob({
+            id: createId(),
+            type: "deep_dive",
+            userId: auth.userId,
+            ticker,
+            createdAt: nowIso
+          });
+          const completed = await runtime.store.markJobComplete(
+            reuseJob.id,
+            nowIso,
+            reusable.id
+          );
+          if (!completed) {
+            sendJson(response, 500, {
+              error: "internal_error",
+              error_message: "Failed to attach reusable report."
+            });
+            return;
+          }
+
+          await appendAudit(
+            runtime,
+            "job.reused",
+            {
+              request_id: meta.requestId,
+              route: pathname,
+              job_id: completed.id,
+              report_id: reusable.id,
+              ticker,
+              fingerprint
+            },
+            auth.userId
+          );
+
+          logInfo("Deep dive report reused", {
+            request_id: meta.requestId,
+            user_id: auth.userId,
+            job_id: completed.id,
+            report_id: reusable.id,
+            ticker,
+            fingerprint
+          });
+
+          sendJson(response, 200, buildJobStatusResponse(completed));
+          return;
+        }
+
+        const createdAt = nowIso;
         const job = await runtime.store.createJob({
           id: createId(),
           type: "deep_dive",
@@ -1697,8 +1785,8 @@ export function startServer(port: number = loadConfig().port): Server {
           return;
         }
 
-        const job = await runtime.store.getJob(reportMetadata.jobId);
-        if (!job || job.userId !== auth.userId || job.status !== "complete") {
+        const hasAccess = await runtime.store.hasReportAccessForUser(auth.userId, reportMetadata.id);
+        if (!hasAccess) {
           sendJson(response, 404, {
             error: "report_not_found",
             error_message: "Report not found."
@@ -1718,7 +1806,7 @@ export function startServer(port: number = loadConfig().port): Server {
         await appendAudit(runtime, "report.retrieved", {
           request_id: meta.requestId,
           route: pathname,
-          job_id: job.id,
+          job_id: reportMetadata.jobId,
           report_id: reportMetadata.id
         }, auth.userId);
 

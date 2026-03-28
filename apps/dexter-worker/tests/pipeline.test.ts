@@ -37,10 +37,14 @@ test("MSFT fixture request produces a schema-valid report with no blank sections
   const report = await runAnalysisPipeline(buildRequest("MSFT"), buildFixtureConfig());
 
   assert.equal(validateAnalysisReport(report).length, 0);
+  assert.equal(report.schema_version, "2.0");
   assert.equal(report.type, "deep_dive");
   assert.equal(report.signal?.value, "positive");
   assert.ok(report.sections.every((section) => section.body.trim().length > 0));
   assert.ok(report.sections.every((section) => section.status.length > 0));
+  assert.equal(report.sections[0]?.section_id, "thesis_statement");
+  assert.equal(findSection(report.sections, "what_changed").status, "complete");
+  assert.equal(findSection(report.sections, "valuation").status, "complete");
   assert.equal(findSection(report.sections, "quarter_over_quarter_changes").status, "complete");
   assert.equal(findSection(report.sections, "year_over_year_changes").status, "complete");
   assert.equal(findSection(report.sections, "management_commentary").status, "complete");
@@ -54,6 +58,8 @@ test("LIMITED fixture request degrades affected sections honestly", async () => 
   const report = await runAnalysisPipeline(buildRequest("LIMITED"), buildFixtureConfig());
 
   assert.equal(report.signal?.value, "no_signal");
+  assert.equal(findSection(report.sections, "what_changed").status, "data_incomplete");
+  assert.equal(findSection(report.sections, "valuation").status, "data_incomplete");
   assert.equal(
     findSection(report.sections, "acquisitions_major_events").status,
     "data_unavailable"
@@ -130,9 +136,9 @@ test("invalid analysis reports are rejected by runtime validation", () => {
 test("fixture mode loads prompts from the local manifest", async () => {
   const prompts = await loadRuntimePrompts(buildFixtureConfig());
 
-  assert.equal(prompts.planner.version, "m3-planner-fixture-v1");
-  assert.equal(prompts.sectionExecutor.version, "m3-section-fixture-v2");
-  assert.equal(prompts.synthesizer.version, "m3-synthesizer-fixture-v1");
+  assert.equal(prompts.planner.version, "m2-planner-fixture-v1");
+  assert.equal(prompts.sectionExecutor.version, "m2-section-fixture-v1");
+  assert.equal(prompts.synthesizer.version, "m2-synthesizer-fixture-v1");
 });
 
 test("live mode validation requires model, Anthropic, and LangSmith settings", () => {

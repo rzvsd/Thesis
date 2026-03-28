@@ -3,10 +3,13 @@ import { randomUUID } from "node:crypto";
 import type {
   AnalysisReport,
   AnalysisRequest,
+  CanonicalFinancialSnapshot,
+  CanonicalTranscript,
   ConfidenceBlock,
   EvidenceItem,
   ReportSection,
-  SignalValue
+  SignalValue,
+  ValuationBlock
 } from "../../../packages/contracts/src";
 import {
   awaitPendingLangSmithTraces,
@@ -17,7 +20,14 @@ import {
 } from "../../../packages/observability/src";
 
 import { type DexterConfig, validateLiveModeConfig } from "./config";
-import { getFixtureScenario, type FixtureScenario } from "./fixtures";
+import { buildComparisons } from "./comparisons";
+import { computeDeterministicDcf } from "./dcf";
+import {
+  getFixtureHistoricalContext,
+  getFixtureScenario,
+  type FixtureScenario
+} from "./fixtures";
+import { loadHistoricalContext } from "./historical-context";
 import { runLiveDexterQuery } from "./live-dexter";
 import { logError, logInfo, logWarn } from "./logging";
 import { loadRuntimePrompts, renderPrompt, type LoadedPrompts } from "./prompt-store";
@@ -30,9 +40,20 @@ import {
   type SectionDefinition
 } from "./sections";
 
-const schemaVersion = "1.0.0";
+const schemaVersion = "2.0";
 const canonicalDisclaimer =
   "This is a research summary, not financial advice. Always do your own research.";
+
+interface M2SectionContext {
+  latest?: CanonicalFinancialSnapshot;
+  priorQuarter?: CanonicalFinancialSnapshot;
+  yearAgo?: CanonicalFinancialSnapshot;
+  latestTranscript?: CanonicalTranscript;
+  financials: CanonicalFinancialSnapshot[];
+  transcripts: CanonicalTranscript[];
+  context: NonNullable<AnalysisReport["historical_context"]>;
+  spotPrice?: number;
+}
 
 interface ExecutedSection {
   section: ReportSection;
@@ -89,6 +110,262 @@ function buildEvidenceFromToolCalls(
         url
       };
     });
+}
+
+function formatNumber(value: number | undefined): string {
+  if (value === undefined || Number.isNaN(value)) {
+    return "n/a";
+  }
+
+  return new Intl.NumberFormat("en-US", {
+    notation: "compact",
+    maximumFractionDigits: 2
+  }).format(value);
+}
+
+function formatPercent(value: number | undefined): string {
+  if (value === undefined || Number.isNaN(value)) {
+    return "n/a";
+  }
+  return `${value.toFixed(2)}%`;
+}
+
+function transcriptQuote(transcript: CanonicalTranscript | undefined): string | undefined {
+  if (!transcript) {
+    return undefined;
+  }
+
+  const normalized = transcript.body_text
+    .replace(/\s+/g, " ")
+    .trim();
+  if (normalized.length === 0) {
+    return undefined;
+  }
+
+  const sentence = normalized.split(/[.!?]/).find((entry) => entry.trim().length > 20);
+  return sentence?.trim() ?? normalized.slice(0, 180);
+}
+
+function buildHistoricalEvidence(context: M2SectionContext): EvidenceItem[] {
+  const evidence: EvidenceItem[] = [];
+  const retrievedAt = new Date().toISOString();
+
+  if (context.latest) {
+    evidence.push({
+      evidence_id: `historical-${context.latest.snapshot_id}`,
+      source_type: "financial_data",
+      source_name: `historical:${context.latest.provider}`,
+      excerpt: `${context.latest.ticker} ${context.latest.period} snapshot`,
+      retrieved_at: retrievedAt
+    });
+  }
+
+  const transcript = context.latestTranscript;
+  if (transcript) {
+    evidence.push({
+      evidence_id: `transcript-${transcript.transcript_id}`,
+      source_type: "article",
+      source_name: `historical:${transcript.provider}`,
+      excerpt: `${transcript.ticker} ${transcript.period} earnings call transcript`,
+      retrieved_at: retrievedAt
+    });
+  }
+
+  return evidence;
+}
+
+function buildThesisStatementSection(
+  ticker: string,
+  context: M2SectionContext
+): ReportSection {
+  const latestPeriod = context.latest?.period ?? "latest period";
+  const qoqMissing = context.priorQuarter === undefined;
+  const yoyMissing = context.yearAgo === undefined;
+  const basis = [
+    `${ticker} thesis: the current quarter (${latestPeriod}) shows execution strength, but conviction should track whether reported momentum survives the next filing cycle.`,
+    qoqMissing
+      ? "Quarter-over-quarter context is currently unavailable."
+      : "Quarter-over-quarter context is available and included below.",
+    yoyMissing
+      ? "Year-over-year context is currently unavailable."
+      : "Year-over-year context is available and included below."
+  ].join(" ");
+
+  return {
+    section_id: "thesis_statement",
+    title: "Thesis Statement",
+    body: basis,
+    status: "complete",
+    evidence: buildHistoricalEvidence(context).slice(0, 2)
+  };
+}
+
+function buildWhatChangedSection(context: M2SectionContext): ReportSection {
+  const comparisons = buildComparisons({
+    latest: context.latest,
+    priorQuarter: context.priorQuarter,
+    yearAgo: context.yearAgo
+  });
+  const missing: string[] = [];
+
+  const qoqLines = comparisons.qoq.map((metric) => {
+    if (metric.direction === "unavailable") {
+      missing.push(`QoQ ${metric.metric}: ${metric.missing_reason ?? "missing."}`);
+      return `QoQ ${metric.metric}: unavailable`;
+    }
+
+    return `QoQ ${metric.metric}: ${formatNumber(metric.current)} vs ${formatNumber(metric.reference)} (${formatPercent(metric.percent_change)})`;
+  });
+
+  const yoyLines = comparisons.yoy.map((metric) => {
+    if (metric.direction === "unavailable") {
+      missing.push(`YoY ${metric.metric}: ${metric.missing_reason ?? "missing."}`);
+      return `YoY ${metric.metric}: unavailable`;
+    }
+
+    return `YoY ${metric.metric}: ${formatNumber(metric.current)} vs ${formatNumber(metric.reference)} (${formatPercent(metric.percent_change)})`;
+  });
+
+  const segmentLine = context.latest?.segments && context.latest.segments.length > 0
+    ? `Segment context: ${context.latest.segments
+      .slice(0, 3)
+      .map((segment) => `${segment.segment_name} (${formatNumber(segment.revenue)} revenue)`)
+      .join(", ")}.`
+    : "Segment context unavailable in the current historical snapshot.";
+  if (!context.latest?.segments || context.latest.segments.length === 0) {
+    missing.push("Segment data unavailable.");
+  }
+
+  const quote = transcriptQuote(context.latestTranscript);
+  const quoteLine = quote
+    ? `Management quote: "${quote}."`
+    : "Transcript quote unavailable for the latest quarter.";
+  if (!quote) {
+    missing.push("Transcript quote unavailable.");
+  }
+
+  const status = missing.length > 0 ? "data_incomplete" : "complete";
+  const detail = missing.length > 0
+    ? ` Missing details: ${missing.join(" ")}`
+    : "";
+
+  return {
+    section_id: "what_changed",
+    title: "What Changed",
+    body: `${qoqLines.join(" ")} ${yoyLines.join(" ")} ${segmentLine} ${quoteLine}${detail}`.trim(),
+    status,
+    evidence: buildHistoricalEvidence(context)
+  };
+}
+
+function buildValuationSection(
+  ticker: string,
+  context: M2SectionContext
+): { section: ReportSection; valuation?: ValuationBlock } {
+  const dcfResult = computeDeterministicDcf({
+    snapshots: context.financials,
+    spotPrice: context.spotPrice
+  });
+
+  if (!dcfResult.valuation) {
+    return {
+      section: {
+        section_id: "valuation",
+        title: "Valuation",
+        body: `Valuation is degraded for ${ticker}: ${
+          dcfResult.degradedReason ?? "deterministic DCF inputs were insufficient."
+        }`,
+        status: "data_incomplete",
+        evidence: buildHistoricalEvidence(context)
+      },
+      valuation: {
+        assumptions: {
+          methodology: "deterministic_dcf",
+          projection_years: 5,
+          terminal_growth_rate: 0.025,
+          wacc: 0.1
+        },
+        degraded_reason: dcfResult.degradedReason ?? "Deterministic DCF inputs insufficient."
+      }
+    };
+  }
+
+  const valuation = dcfResult.valuation;
+  const body = [
+    `Deterministic DCF fair-value mid: ${formatNumber(valuation.fair_value_mid)} per share`,
+    `(range ${formatNumber(valuation.fair_value_low)} to ${formatNumber(valuation.fair_value_high)}).`,
+    valuation.spot_price !== undefined
+      ? `Spot reference: ${formatNumber(valuation.spot_price)}; implied upside ${formatPercent(valuation.implied_upside_pct)}.`
+      : "Spot reference unavailable from the current live quote path; valuation is still computed from historical cash-flow data.",
+    `Assumptions: WACC ${formatPercent(valuation.assumptions.wacc * 100)}, terminal growth ${formatPercent(valuation.assumptions.terminal_growth_rate * 100)}, projection horizon ${valuation.assumptions.projection_years} years.`
+  ].join(" ");
+
+  return {
+    section: {
+      section_id: "valuation",
+      title: "Valuation",
+      body,
+      status: "complete",
+      evidence: buildHistoricalEvidence(context)
+    },
+    valuation
+  };
+}
+
+async function resolveM2SectionContext(
+  request: AnalysisRequest,
+  config: DexterConfig
+): Promise<M2SectionContext> {
+  if (config.fixtureMode) {
+    const fixture = getFixtureHistoricalContext(request.ticker ?? "MSFT");
+    const latestQuarterly = fixture.financials
+      .filter((snapshot) => snapshot.period_type === "quarterly")
+      .sort((left, right) => {
+        const yearDiff = right.fiscal_year - left.fiscal_year;
+        if (yearDiff !== 0) {
+          return yearDiff;
+        }
+        return (right.fiscal_quarter ?? 0) - (left.fiscal_quarter ?? 0);
+      });
+    const latest = latestQuarterly[0];
+    const priorQuarter = latestQuarterly[1];
+    const yearAgo = latestQuarterly.find((snapshot) =>
+      snapshot.fiscal_year === (latest?.fiscal_year ?? 0) - 1 &&
+      snapshot.fiscal_quarter === latest?.fiscal_quarter
+    );
+    const transcript = fixture.transcripts[0];
+
+    return {
+      latest,
+      priorQuarter,
+      yearAgo,
+      latestTranscript: transcript,
+      financials: fixture.financials,
+      transcripts: fixture.transcripts,
+      spotPrice: fixture.spotPrice,
+      context: {
+        latest_period: latest?.period,
+        prior_quarter_period: priorQuarter?.period,
+        year_ago_period: yearAgo?.period,
+        transcript_period: transcript?.period,
+        financial_snapshot_count: fixture.financials.length,
+        transcript_count: fixture.transcripts.length,
+        transcript_available: transcript !== undefined,
+        missing_reasons: []
+      }
+    };
+  }
+
+  const loaded = await loadHistoricalContext(request, config);
+  return {
+    latest: loaded.latest,
+    priorQuarter: loaded.priorQuarter,
+    yearAgo: loaded.yearAgo,
+    latestTranscript: loaded.latestTranscript,
+    financials: loaded.financials,
+    transcripts: loaded.transcripts,
+    context: loaded.context
+  };
 }
 
 function sleep(delayMs: number): Promise<void> {
@@ -461,6 +738,7 @@ export async function runAnalysisPipeline(
       (left, right) => (right.executionPriority ?? 0) - (left.executionPriority ?? 0)
     );
   const model = config.fixtureMode ? scenario?.model ?? "fixture-dexter-m3" : config.model;
+  const m2Context = await resolveM2SectionContext(request, config);
 
   if (!config.fixtureMode) {
     const preflightErrors = validateLiveModeConfig(config);
@@ -668,7 +946,11 @@ export async function runAnalysisPipeline(
         ? ["Live mode has not yet extracted structured evidence items for scoring."]
         : ["Live mode still depends on external provider and model health."]
   };
+  const valuationSection = buildValuationSection(ticker, m2Context);
   const derivedSections: ReportSection[] = [
+    buildThesisStatementSection(ticker, m2Context),
+    buildWhatChangedSection(m2Context),
+    valuationSection.section,
     buildExecutiveSummary(ticker, executedSections, signal.value),
     buildResearchSignalSection(signal.value, signal.reasons, signal.evidence),
     buildConfidenceSection(confidence),
@@ -711,6 +993,8 @@ export async function runAnalysisPipeline(
     generated_at: new Date().toISOString(),
     confidence,
     signal,
+    historical_context: m2Context.context,
+    valuation: valuationSection.valuation,
     sections: orderedSections,
     flags: buildFlags(scenario, orderedSections, signal.value, traceMode),
     data_sources: buildDataSources(scenario, orderedSections)
