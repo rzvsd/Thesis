@@ -1,0 +1,101 @@
+{
+  "$id": "CanonicalFinancialSnapshot",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "snapshot_id",
+    "ticker",
+    "period",
+    "period_type",
+    "fiscal_year",
+    "provider",
+    "retrieved_at",
+    "data",
+    "missing_fields"
+  ],
+  "properties": {
+    "snapshot_id": { "type": "string" },
+    "ticker": { "type": "string" },
+    "period": { "type": "string" },
+    "period_type": { "type": "string", "enum": ["quarterly", "annual"] },
+    "fiscal_year": { "type": "number" },
+    "fiscal_quarter": { "type": "number" },
+    "provider": { "type": "string" },
+    "filing_date": { "type": "string" },
+    "retrieved_at": { "type": "string", "format": "date-time" },
+    "data": {
+      "type": "object",
+      "properties": {
+        "revenue": { "type": "number" },
+        "cost_of_revenue": { "type": "number" },
+        "gross_profit": { "type": "number" },
+        "gross_margin": { "type": "number" },
+        "operating_income": { "type": "number" },
+        "operating_margin": { "type": "number" },
+        "net_income": { "type": "number" },
+        "eps": { "type": "number" },
+        "eps_diluted": { "type": "number" },
+        "ebitda": { "type": "number" },
+        "debt_total": { "type": "number" },
+        "debt_long_term": { "type": "number" },
+        "cash_and_equivalents": { "type": "number" },
+        "total_assets": { "type": "number" },
+        "total_liabilities": { "type": "number" },
+        "shareholders_equity": { "type": "number" },
+        "free_cash_flow": { "type": "number" },
+        "operating_cash_flow": { "type": "number" },
+        "capital_expenditure": { "type": "number" },
+        "shares_outstanding": { "type": "number" },
+        "depreciation_amortization": { "type": "number" },
+        "interest_expense": { "type": "number" },
+        "effective_tax_rate": { "type": "number" }
+      },
+      "additionalProperties": { "type": "number" }
+    },
+    "segments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["segment_name"],
+        "properties": {
+          "segment_name": { "type": "string" },
+          "revenue": { "type": "number" },
+          "operating_income": { "type": "number" }
+        },
+        "additionalProperties": {
+          "oneOf": [{ "type": "string" }, { "type": "number" }]
+        }
+      }
+    },
+    "analyst_estimates": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "revenue_estimate": { "type": "number" },
+        "eps_estimate": { "type": "number" },
+        "revenue_beat": { "type": "number" },
+        "eps_beat": { "type": "number" },
+        "revenue_beat_pct": { "type": "number" },
+        "eps_beat_pct": { "type": "number" },
+        "num_analysts": { "type": "number" }
+      }
+    },
+    "guidance": {
+      "type": "object",
+      "required": ["next_period"],
+      "additionalProperties": false,
+      "properties": {
+        "next_period": { "type": "string" },
+        "revenue_low": { "type": "number" },
+        "revenue_high": { "type": "number" },
+        "eps_low": { "type": "number" },
+        "eps_high": { "type": "number" },
+        "guidance_notes": { "type": "string" }
+      }
+    },
+    "missing_fields": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  }
+}

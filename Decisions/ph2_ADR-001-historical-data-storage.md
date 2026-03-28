@@ -42,7 +42,7 @@ We will build a local historical data store in PostgreSQL with three tables, **t
 ### Delta sync (M1)
 
 - Nightly `scheduler` job (01:00 America/New_York, DST-aware) refreshes **SEC**-mapped snapshots per universe CIK/ticker using the **same deterministic mapper** as M0.
-- **Transcript delta** strategy is a **gated M1** decision (e.g. periodic HF refresh vs other allowed source) — still **no paid transcript API** that violates ToS for this path.
+- Weekly transcript refresh runs from the approved HuggingFace dataset (`kurry/sp500_earnings_transcripts`) using unpinned `main` HEAD and idempotent upsert. The resolved HF snapshot revision is logged on each run for traceability.
 - **Latest quarter on earnings day** for headline figures continues to come from **live OpenBB** (Phase 1), not from Postgres filing lag.
 
 ### Open sub-decisions
@@ -51,7 +51,7 @@ Tracked as gated pre-conditions in `M0_MILESTONE_AGENTS_ph2.md` and `M1_MILESTON
 
 | # | Sub-Decision | Status | Owner |
 |---|---|---|---|
-| G1 | **Transcript delta after M0 bulk** — how new quarters are added without a paid API | **OPEN** in M1 | Product Lead + Data Engineer |
+| G1 | **Transcript delta after M0 bulk** — weekly HF refresh from unpinned `main` + idempotent upsert + logged resolved snapshot revision | **RESOLVED** (2026-03-27) | Product Lead + Data Engineer |
 | G2 | **Backfill universe** — exact ticker/CIK list | **RESOLVED** (`S&P 500`, `data/sp500_universe.csv`) | Product Lead |
 | G3 | **XBRL mapping strategy** — deterministic mapping approach | **RESOLVED** (`data/xbrl_concept_map.json`, edgartools-informed) | Data Engineer |
 

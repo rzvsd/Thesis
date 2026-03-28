@@ -506,7 +506,8 @@ def ingest_hf_transcripts(
     *,
     tickers_filter: set[str],
     chunk_size: int = 500,
-) -> tuple[int, int]:
+    revision_override: str | None = None,
+) -> tuple[int, int, str | None]:
     _require_dependency("huggingface_hub")
     _require_dependency("pyarrow")
     from huggingface_hub import snapshot_download  # type: ignore
@@ -516,10 +517,16 @@ def ingest_hf_transcripts(
         snapshot_download(
             repo_id=config.hf_dataset_id,
             repo_type="dataset",
-            revision=config.hf_revision,
+            revision=revision_override if revision_override is not None else config.hf_revision,
             allow_patterns=["parquet_files/*.parquet", "README.md", "LICENSE*"],
         )
     )
+    snapshot_revision: str | None = None
+    parts = list(snapshot_path.parts)
+    if "snapshots" in parts:
+        index = parts.index("snapshots")
+        if index + 1 < len(parts):
+            snapshot_revision = parts[index + 1]
     parquet_files = sorted((snapshot_path / "parquet_files").glob("*.parquet"))
     if not parquet_files:
         raise RuntimeError(f"No parquet files found in HF snapshot: {snapshot_path}")
@@ -561,7 +568,7 @@ def ingest_hf_transcripts(
     if chunk:
         written_rows += upsert_transcripts(conn, chunk)
 
-    return written_rows, total_source_rows
+    return written_rows, total_source_rows, snapshot_revision
 
 
 def _jsonb(value: Any) -> Any:
@@ -801,7 +808,7 @@ def run_loader(args: argparse.Namespace) -> int:
                         error=str(error),
                     )
 
-            written_transcripts, hf_source_rows = ingest_hf_transcripts(
+            written_transcripts, hf_source_rows, hf_snapshot_revision = ingest_hf_transcripts(
                 conn,
                 config,
                 tickers_filter={entry.ticker for entry in tier_rows},
@@ -822,6 +829,7 @@ def run_loader(args: argparse.Namespace) -> int:
                 snapshot_rows=tier_financial_rows,
                 transcript_rows=written_transcripts,
                 hf_source_rows=hf_source_rows,
+                hf_snapshot_revision=hf_snapshot_revision,
                 coverage_rows=coverage_rows,
             )
 

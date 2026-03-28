@@ -4,7 +4,8 @@ import json
 import os
 import unittest
 from unittest.mock import patch
-from urllib.request import urlopen
+from urllib.error import HTTPError
+from urllib.request import Request, urlopen
 
 from src.server import start_server, stop_server
 from src.service import (
@@ -55,6 +56,27 @@ class DataOpenbbEndpointTests(unittest.TestCase):
             payload = json.loads(response.read().decode("utf-8"))
             return response.status, payload
 
+    def post_json(
+        self,
+        path: str,
+        *,
+        body: dict[str, object] | None = None,
+        headers: dict[str, str] | None = None,
+    ) -> tuple[int, dict[str, object]]:
+        payload = json.dumps(body or {}).encode("utf-8")
+        request = Request(
+            f"{self.base_url}{path}",
+            method="POST",
+            data=payload,
+            headers={
+                "content-type": "application/json",
+                **(headers or {}),
+            },
+        )
+        with urlopen(request) as response:
+            parsed = json.loads(response.read().decode("utf-8"))
+            return response.status, parsed
+
     def test_health_returns_expected_payload(self) -> None:
         status, payload = self.request_json("/health")
 
@@ -100,6 +122,36 @@ class DataOpenbbEndpointTests(unittest.TestCase):
         self.assertEqual(finance_data["provider"], "FMP")
         self.assertEqual(sorted(finance_data["missing_fields"]), sorted(FINANCE_FIELDS))
         self.assertEqual(finance_data["data"], {})
+
+    def test_internal_historical_sync_requires_internal_token(self) -> None:
+        with self.assertRaises(HTTPError) as context:
+            self.post_json("/internal/historical/sync", body={"include_transcripts": False})
+        self.assertEqual(context.exception.code, 401)
+
+    @patch("src.service.run_historical_delta_sync")
+    def test_internal_historical_sync_runs_with_internal_token(self, mocked_sync: object) -> None:
+        mocked_sync.return_value = {
+            "sec_rows_written": 10,
+            "sec_ticker_failures": 0,
+            "coverage_rows": 3,
+            "include_transcripts": False,
+            "transcript_rows_written": 0,
+            "transcript_source_rows": 0,
+            "transcript_sync_status": "skipped",
+            "transcript_snapshot_revision": None,
+        }
+
+        status, payload = self.post_json(
+            "/internal/historical/sync",
+            body={"include_transcripts": False},
+            headers={"x-internal-token": "dev-internal-worker-token"},
+        )
+
+        self.assertEqual(status, 200)
+        self.assertTrue(payload["ok"])
+        data = payload["data"]
+        self.assertIsInstance(data, dict)
+        self.assertEqual(data["include_transcripts"], False)
 
 
 class DataOpenbbLiveModeTests(unittest.TestCase):

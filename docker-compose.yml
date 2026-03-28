@@ -23,7 +23,7 @@ services:
     environment:
       PORT: 3001
       STORE_BACKEND: "${STORE_BACKEND:-postgres}"
-      DATABASE_URL: "${DATABASE_URL:-postgres://postgres:postgres@postgres:5432/thesis}"
+      DATABASE_URL: "${DATABASE_URL_DOCKER:-postgres://postgres:postgres@postgres:5432/thesis}"
       AUTO_MIGRATE: "${AUTO_MIGRATE:-true}"
       QUEUE_BACKEND: "${QUEUE_BACKEND:-redis}"
       REDIS_URL: "${REDIS_URL:-redis://redis:6379/0}"
@@ -135,6 +135,9 @@ services:
     environment:
       PORT: 3003
       REDIS_URL: "${REDIS_URL:-redis://redis:6379/0}"
+      DATABASE_URL: "${DATABASE_URL_DOCKER:-postgres://postgres:postgres@postgres:5432/thesis}"
+      INTERNAL_WORKER_TOKEN: "${INTERNAL_WORKER_TOKEN:-dev-internal-worker-token}"
+      SEC_USER_AGENT: "${SEC_USER_AGENT:-ThesisFintech/1.0 (ops@thesis.local)}"
       DATA_OPENBB_FIXTURE_MODE: "${DATA_OPENBB_FIXTURE_MODE:-true}"
       RATE_LIMIT_WINDOW_SECONDS: "${RATE_LIMIT_WINDOW_SECONDS:-60}"
       RATE_LIMIT_BURST_ALLOWANCE: "${RATE_LIMIT_BURST_ALLOWANCE:-2}"
@@ -146,10 +149,15 @@ services:
       FMP_API_KEY: "${FMP_API_KEY:-}"
       POLYGON_API_KEY: "${POLYGON_API_KEY:-}"
       ALPHA_VANTAGE_API_KEY: "${ALPHA_VANTAGE_API_KEY:-}"
+      M1_HF_REVISION: "${M1_HF_REVISION:-main}"
+      M1_TRANSCRIPT_SYNC_TIMEZONE: "${M1_TRANSCRIPT_SYNC_TIMEZONE:-America/New_York}"
+      M1_TRANSCRIPT_SYNC_WEEKDAY: "${M1_TRANSCRIPT_SYNC_WEEKDAY:-6}"
     ports:
       - "${DATA_OPENBB_PORT:-3003}:3003"
     depends_on:
       redis:
+        condition: service_healthy
+      postgres:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3003/health | grep -q '\"status\":\"ok\"'"]
@@ -189,9 +197,11 @@ services:
     environment:
       PORT: 3005
       PRODUCT_API_INTERNAL_BASE_URL: "${PRODUCT_API_INTERNAL_BASE_URL:-http://product-api:3001}"
+      DATA_OPENBB_INTERNAL_BASE_URL: "${DATA_OPENBB_INTERNAL_BASE_URL:-http://data-openbb:3003}"
       INTERNAL_WORKER_TOKEN: "${INTERNAL_WORKER_TOKEN:-dev-internal-worker-token}"
       SCHEDULER_TIMEZONE: "${SCHEDULER_TIMEZONE:-America/New_York}"
       SCHEDULER_DELIVERY_TIME_LOCAL: "${SCHEDULER_DELIVERY_TIME_LOCAL:-06:30}"
+      SCHEDULER_HISTORICAL_SYNC_TIME_LOCAL: "${SCHEDULER_HISTORICAL_SYNC_TIME_LOCAL:-01:00}"
       SCHEDULER_TEST_MODE: "${SCHEDULER_TEST_MODE:-false}"
       SCHEDULER_TEST_FIRE_IN_SECONDS: "${SCHEDULER_TEST_FIRE_IN_SECONDS:-120}"
       SENTRY_DSN: "${SENTRY_DSN:-}"

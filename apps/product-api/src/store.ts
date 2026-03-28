@@ -1,5 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
+import type {
+  CanonicalFinancialSnapshot,
+  CanonicalTranscript,
+  TickerCoverage
+} from "../../../packages/contracts/src";
 
 import type {
   AuditEventRecord,
@@ -85,6 +90,9 @@ export interface ProductStore {
     type: JobRecord["type"],
     date: string
   ): Promise<ReportRecord | undefined>;
+  listHistoricalFinancialSnapshotsByTicker(ticker: string): Promise<CanonicalFinancialSnapshot[]>;
+  listHistoricalTranscriptsByTicker(ticker: string): Promise<CanonicalTranscript[]>;
+  getTickerCoverageByTicker(ticker: string): Promise<TickerCoverage | undefined>;
   listWatchlistTickersByUser(userId: string): Promise<string[]>;
   addWatchlistTicker(input: {
     id: string;
@@ -205,6 +213,74 @@ function mapTicker(row: Record<string, unknown>): TickerRegistryRecord {
   };
 }
 
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return undefined;
+  }
+  return value as Record<string, unknown>;
+}
+
+function asStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.filter((item): item is string => typeof item === "string");
+}
+
+function mapHistoricalFinancialSnapshot(row: Record<string, unknown>): CanonicalFinancialSnapshot {
+  const data = asRecord(row.data) ?? {};
+  const segments = Array.isArray(row.segments) ? (row.segments as CanonicalFinancialSnapshot["segments"]) : undefined;
+  const analystEstimates = asRecord(row.analyst_estimates) as CanonicalFinancialSnapshot["analyst_estimates"] | undefined;
+  const guidance = asRecord(row.guidance) as CanonicalFinancialSnapshot["guidance"] | undefined;
+  return {
+    snapshot_id: String(row.snapshot_id),
+    ticker: String(row.ticker),
+    period: String(row.period),
+    period_type: String(row.period_type) as CanonicalFinancialSnapshot["period_type"],
+    fiscal_year: Number(row.fiscal_year),
+    fiscal_quarter: row.fiscal_quarter == null ? undefined : Number(row.fiscal_quarter),
+    provider: String(row.provider),
+    filing_date: row.filing_date == null ? undefined : String(row.filing_date),
+    retrieved_at: asIsoString(row.retrieved_at) ?? new Date().toISOString(),
+    data: data as CanonicalFinancialSnapshot["data"],
+    segments,
+    analyst_estimates: analystEstimates,
+    guidance,
+    missing_fields: asStringArray(row.missing_fields)
+  };
+}
+
+function mapHistoricalTranscript(row: Record<string, unknown>): CanonicalTranscript {
+  return {
+    transcript_id: String(row.transcript_id),
+    ticker: String(row.ticker),
+    period: String(row.period),
+    fiscal_year: Number(row.fiscal_year),
+    fiscal_quarter: Number(row.fiscal_quarter),
+    call_date: String(row.call_date),
+    provider: String(row.provider),
+    retrieved_at: asIsoString(row.retrieved_at) ?? new Date().toISOString(),
+    body_text: String(row.body_text ?? ""),
+    word_count: Number(row.word_count ?? 0),
+    is_complete: Boolean(row.is_complete)
+  };
+}
+
+function mapTickerCoverage(row: Record<string, unknown>): TickerCoverage {
+  return {
+    ticker: String(row.ticker),
+    snapshot_count: Number(row.snapshot_count ?? 0),
+    transcript_count: Number(row.transcript_count ?? 0),
+    latest_period: row.latest_period == null ? null : String(row.latest_period),
+    earliest_period: row.earliest_period == null ? null : String(row.earliest_period),
+    has_guidance: Boolean(row.has_guidance),
+    has_estimates: Boolean(row.has_estimates),
+    last_synced_at: asIsoString(row.last_synced_at) ?? new Date().toISOString(),
+    last_sync_status: String(row.last_sync_status) as TickerCoverage["last_sync_status"],
+    backfill_tier: Number(row.backfill_tier) as TickerCoverage["backfill_tier"]
+  };
+}
+
 export class InMemoryStore implements ProductStore {
   private readonly users = new Map<string, UserRecord>();
   private readonly usersByEmail = new Map<string, string>();
@@ -215,6 +291,9 @@ export class InMemoryStore implements ProductStore {
   private readonly tickerRegistry = new Map<string, TickerRegistryRecord>();
   private readonly watchlists = new Map<string, Set<string>>();
   private readonly auditEvents: AuditEventRecord[] = [];
+  private readonly historicalFinancialsByTicker = new Map<string, CanonicalFinancialSnapshot[]>();
+  private readonly historicalTranscriptsByTicker = new Map<string, CanonicalTranscript[]>();
+  private readonly historicalCoverageByTicker = new Map<string, TickerCoverage>();
 
   constructor() {
     const now = new Date().toISOString();
@@ -256,6 +335,75 @@ export class InMemoryStore implements ProductStore {
     for (const entry of seed) {
       this.tickerRegistry.set(entry.symbol, entry);
     }
+
+    const retrievedAt = now;
+    const aaplFinancials: CanonicalFinancialSnapshot[] = [
+      {
+        snapshot_id: "memory-aapl-2025-q4",
+        ticker: "AAPL",
+        period: "2025-Q4",
+        period_type: "quarterly",
+        fiscal_year: 2025,
+        fiscal_quarter: 4,
+        provider: "sec_edgar",
+        filing_date: "2026-01-30",
+        retrieved_at: retrievedAt,
+        data: {
+          revenue: 143756000000,
+          net_income: 42097000000,
+          eps_diluted: 2.4
+        },
+        missing_fields: []
+      },
+      {
+        snapshot_id: "memory-aapl-2025-q3",
+        ticker: "AAPL",
+        period: "2025-Q3",
+        period_type: "quarterly",
+        fiscal_year: 2025,
+        fiscal_quarter: 3,
+        provider: "sec_edgar",
+        filing_date: "2025-10-31",
+        retrieved_at: retrievedAt,
+        data: {
+          revenue: 124300000000,
+          net_income: 36330000000,
+          eps_diluted: 2.18
+        },
+        missing_fields: []
+      }
+    ];
+
+    const aaplTranscripts: CanonicalTranscript[] = [
+      {
+        transcript_id: "memory-aapl-2025-q4",
+        ticker: "AAPL",
+        period: "2025-Q4",
+        fiscal_year: 2025,
+        fiscal_quarter: 4,
+        call_date: "2026-01-30",
+        provider: "huggingface_kurry",
+        retrieved_at: retrievedAt,
+        body_text: "Apple management discussed strong Services growth and product demand.",
+        word_count: 11,
+        is_complete: true
+      }
+    ];
+
+    this.historicalFinancialsByTicker.set("AAPL", aaplFinancials);
+    this.historicalTranscriptsByTicker.set("AAPL", aaplTranscripts);
+    this.historicalCoverageByTicker.set("AAPL", {
+      ticker: "AAPL",
+      snapshot_count: aaplFinancials.length,
+      transcript_count: aaplTranscripts.length,
+      latest_period: "2025-Q4",
+      earliest_period: "2025-Q3",
+      has_guidance: false,
+      has_estimates: false,
+      last_synced_at: retrievedAt,
+      last_sync_status: "success",
+      backfill_tier: 1
+    });
   }
 
   async createUser(input: {
@@ -573,6 +721,22 @@ export class InMemoryStore implements ProductStore {
     return [...this.reports.values()]
       .filter((report) => report.type === type && report.createdAt.startsWith(date))
       .sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0];
+  }
+
+  async listHistoricalFinancialSnapshotsByTicker(ticker: string): Promise<CanonicalFinancialSnapshot[]> {
+    return [...(this.historicalFinancialsByTicker.get(ticker.trim().toUpperCase()) ?? [])];
+  }
+
+  async listHistoricalTranscriptsByTicker(ticker: string): Promise<CanonicalTranscript[]> {
+    return [...(this.historicalTranscriptsByTicker.get(ticker.trim().toUpperCase()) ?? [])];
+  }
+
+  async getTickerCoverageByTicker(ticker: string): Promise<TickerCoverage | undefined> {
+    const coverage = this.historicalCoverageByTicker.get(ticker.trim().toUpperCase());
+    if (!coverage) {
+      return undefined;
+    }
+    return { ...coverage };
   }
 
   async listWatchlistTickersByUser(userId: string): Promise<string[]> {
@@ -1196,6 +1360,51 @@ export class PostgresStore implements ProductStore {
     );
     const row = result.rows[0] as Record<string, unknown> | undefined;
     return row ? mapReport(row) : undefined;
+  }
+
+  async listHistoricalFinancialSnapshotsByTicker(ticker: string): Promise<CanonicalFinancialSnapshot[]> {
+    const normalizedTicker = ticker.trim().toUpperCase();
+    if (!normalizedTicker) {
+      return [];
+    }
+    const result = await this.pool.query(
+      `select *
+         from financial_snapshots
+        where ticker = $1
+        order by fiscal_year desc, fiscal_quarter desc nulls last, period_type asc`,
+      [normalizedTicker]
+    );
+    return result.rows.map((row) => mapHistoricalFinancialSnapshot(row as Record<string, unknown>));
+  }
+
+  async listHistoricalTranscriptsByTicker(ticker: string): Promise<CanonicalTranscript[]> {
+    const normalizedTicker = ticker.trim().toUpperCase();
+    if (!normalizedTicker) {
+      return [];
+    }
+    const result = await this.pool.query(
+      `select *
+         from transcripts
+        where ticker = $1
+        order by fiscal_year desc, fiscal_quarter desc`,
+      [normalizedTicker]
+    );
+    return result.rows.map((row) => mapHistoricalTranscript(row as Record<string, unknown>));
+  }
+
+  async getTickerCoverageByTicker(ticker: string): Promise<TickerCoverage | undefined> {
+    const normalizedTicker = ticker.trim().toUpperCase();
+    if (!normalizedTicker) {
+      return undefined;
+    }
+    const result = await this.pool.query(
+      `select *
+         from ticker_coverage
+        where ticker = $1`,
+      [normalizedTicker]
+    );
+    const row = result.rows[0] as Record<string, unknown> | undefined;
+    return row ? mapTickerCoverage(row) : undefined;
   }
 
   async listWatchlistTickersByUser(userId: string): Promise<string[]> {

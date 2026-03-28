@@ -115,6 +115,14 @@ function parseBearerToken(request: IncomingMessage): string | undefined {
   return token;
 }
 
+function hasInternalToken(request: IncomingMessage, expectedToken: string): boolean {
+  const header = request.headers["x-internal-token"];
+  if (typeof header !== "string") {
+    return false;
+  }
+  return header === expectedToken;
+}
+
 async function readJsonBody<T>(request: IncomingMessage): Promise<T> {
   return new Promise((resolve, reject) => {
     let body = "";
@@ -1177,6 +1185,95 @@ export function startServer(port: number = loadConfig().port): Server {
         }
 
         sendJson(response, 404, { status: "not_found" });
+        return;
+      }
+
+      if (
+        method === "GET" &&
+        (pathname === "/v1/historical/financials" ||
+          pathname === "/v1/historical/transcripts" ||
+          pathname === "/v1/historical/coverage")
+      ) {
+        const internalRequest = hasInternalToken(request, runtime.config.internalWorkerToken);
+        const historicalAuth = internalRequest
+          ? undefined
+          : await authenticateAccessToken(runtime, request);
+        if (!internalRequest && !historicalAuth) {
+          sendJson(response, 401, {
+            error: "unauthorized",
+            error_message: "Authentication required."
+          });
+          return;
+        }
+
+        const ticker = url.searchParams.get("ticker")?.trim().toUpperCase() ?? "";
+        if (!ticker || !/^[A-Z.-]{1,12}$/.test(ticker)) {
+          sendJson(response, 422, {
+            error: "validation_failed",
+            error_message: "ticker query parameter is required and must be a valid US symbol."
+          });
+          return;
+        }
+
+        if (pathname === "/v1/historical/financials") {
+          const snapshots = await runtime.store.listHistoricalFinancialSnapshotsByTicker(ticker);
+          await appendAudit(
+            runtime,
+            "historical.financials_retrieved",
+            {
+              request_id: meta.requestId,
+              route: pathname,
+              ticker,
+              internal_request: internalRequest,
+              row_count: snapshots.length
+            },
+            historicalAuth?.userId
+          );
+          sendJson(response, 200, {
+            data: snapshots,
+            missing: snapshots.length === 0
+          });
+          return;
+        }
+
+        if (pathname === "/v1/historical/transcripts") {
+          const transcripts = await runtime.store.listHistoricalTranscriptsByTicker(ticker);
+          await appendAudit(
+            runtime,
+            "historical.transcripts_retrieved",
+            {
+              request_id: meta.requestId,
+              route: pathname,
+              ticker,
+              internal_request: internalRequest,
+              row_count: transcripts.length
+            },
+            historicalAuth?.userId
+          );
+          sendJson(response, 200, {
+            data: transcripts,
+            missing: transcripts.length === 0
+          });
+          return;
+        }
+
+        const coverage = await runtime.store.getTickerCoverageByTicker(ticker);
+        await appendAudit(
+          runtime,
+          "historical.coverage_retrieved",
+          {
+            request_id: meta.requestId,
+            route: pathname,
+            ticker,
+            internal_request: internalRequest,
+            found: Boolean(coverage)
+          },
+          historicalAuth?.userId
+        );
+        sendJson(response, 200, {
+          data: coverage ?? null,
+          missing: coverage === undefined
+        });
         return;
       }
 
