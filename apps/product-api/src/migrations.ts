@@ -6,7 +6,10 @@ import type { Pool } from "pg";
 const migrationFilenames = [
   "m4_001_auth_jobs.up.sql",
   "m5_002_ticker_registry.up.sql",
-  "m6_003_market_pulse.up.sql"
+  "m6_003_market_pulse.up.sql",
+  "ph2m0_004_financial_snapshots.up.sql",
+  "ph2m0_005_transcripts.up.sql",
+  "ph2m0_006_ticker_coverage.up.sql"
 ];
 
 async function readMigrationFile(filename: string): Promise<string> {

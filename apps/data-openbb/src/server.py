@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from threading import Thread
@@ -20,6 +21,7 @@ try:
         log,
         method_not_allowed_response,
         not_found_response,
+        error_response,
         schema_error_response,
     )
     from .validation import SchemaValidationError
@@ -36,6 +38,7 @@ except ImportError:  # pragma: no cover - supports direct src imports in sibling
         log,
         method_not_allowed_response,
         not_found_response,
+        error_response,
         schema_error_response,
     )
     from validation import SchemaValidationError
@@ -91,7 +94,49 @@ class DataOpenbbRequestHandler(BaseHTTPRequestHandler):
         self._write_json(response.status_code, response.body, request_id=request_id)
 
     def do_POST(self) -> None:  # noqa: N802
+        parsed = urlparse(self.path)
         request_id = get_request_id(self.headers.get("x-request-id"))
+        if parsed.path == "/internal/historical/sync":
+            expected_token = os.environ.get("INTERNAL_WORKER_TOKEN", "dev-internal-worker-token")
+            if self.headers.get("x-internal-token", "") != expected_token:
+                response = error_response(
+                    status_code=401,
+                    request_id=request_id,
+                    message="internal authentication required",
+                    error_code="AUTH_ERROR",
+                )
+                self._write_json(response.status_code, response.body, request_id=request_id)
+                return
+
+            try:
+                body = self._read_json_body()
+            except json.JSONDecodeError:
+                response = error_response(
+                    status_code=422,
+                    request_id=request_id,
+                    message="request body must be valid JSON",
+                )
+                self._write_json(response.status_code, response.body, request_id=request_id)
+                return
+
+            include_transcripts_raw = body.get("include_transcripts") if isinstance(body, dict) else None
+            if include_transcripts_raw is not None and not isinstance(include_transcripts_raw, bool):
+                response = error_response(
+                    status_code=422,
+                    request_id=request_id,
+                    message="include_transcripts must be a boolean when provided",
+                )
+                self._write_json(response.status_code, response.body, request_id=request_id)
+                return
+
+            service = getattr(self.server, "data_service", None) or DataOpenBBService()
+            status_code, response_payload = service.run_historical_sync(
+                request_id=request_id,
+                include_transcripts=include_transcripts_raw if isinstance(include_transcripts_raw, bool) else None,
+            )
+            self._write_json(status_code, response_payload, request_id=request_id)
+            return
+
         response = method_not_allowed_response(request_id)
         self._write_json(response.status_code, response.body, request_id=request_id)
 
@@ -122,6 +167,15 @@ class DataOpenbbRequestHandler(BaseHTTPRequestHandler):
             self.send_header("x-request-id", request_id)
         self.end_headers()
         self.wfile.write(response_bytes)
+
+    def _read_json_body(self) -> dict[str, Any]:
+        content_length = int(self.headers.get("content-length", "0") or "0")
+        if content_length <= 0:
+            return {}
+        raw = self.rfile.read(content_length)
+        if not raw:
+            return {}
+        return json.loads(raw.decode("utf-8"))
 
 
 def start_server(

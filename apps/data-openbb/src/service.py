@@ -19,8 +19,10 @@ from client import RedisClient  # noqa: E402
 
 try:
     from .validation import SchemaValidationError, validate_schema
+    from .historical_sync import run_historical_delta_sync
 except ImportError:  # pragma: no cover - supports direct src imports in sibling tests
     from validation import SchemaValidationError, validate_schema
+    from historical_sync import run_historical_delta_sync
 
 
 SERVICE_NAME = "data-openbb"
@@ -616,6 +618,57 @@ class DataOpenBBService:
             rate_limit_key=MACRO_RATE_LIMIT_KEY,
             request_id=request_id,
             func=lambda: self._macro_response(scope, request_id),
+        )
+
+    def run_historical_sync(
+        self,
+        *,
+        request_id: str,
+        include_transcripts: bool | None = None,
+    ) -> tuple[int, dict[str, Any]]:
+        started_at = time.perf_counter()
+        log(
+            "INFO",
+            "Historical delta sync requested",
+            request_id=request_id,
+            include_transcripts=include_transcripts,
+        )
+
+        try:
+            summary = run_historical_delta_sync(include_transcripts=include_transcripts)
+        except Exception as error:
+            log(
+                "ERROR",
+                "Historical delta sync failed",
+                request_id=request_id,
+                error_message=str(error),
+            )
+            response = error_response(
+                status_code=500,
+                request_id=request_id,
+                message="historical delta sync failed",
+                error_code="INTERNAL_ERROR",
+                error=error,
+            )
+            return response.status_code, response.body
+
+        latency_ms = int((time.perf_counter() - started_at) * 1000)
+        log(
+            "INFO",
+            "Historical delta sync succeeded",
+            request_id=request_id,
+            latency_ms=latency_ms,
+            sec_rows_written=summary.get("sec_rows_written"),
+            transcript_rows_written=summary.get("transcript_rows_written"),
+            transcript_sync_status=summary.get("transcript_sync_status"),
+            transcript_snapshot_revision=summary.get("transcript_snapshot_revision"),
+        )
+
+        return 200, success_response(
+            request_id=request_id,
+            data=summary,
+            provider="sec_edgar",
+            retrieved_at=iso_timestamp(),
         )
 
     def _with_rate_limit(

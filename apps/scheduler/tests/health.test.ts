@@ -10,7 +10,10 @@ type HealthPayload = {
   mode: "scheduled" | "test";
   timezone: string;
   schedule: string;
+  historical_sync_schedule: string;
   next_fire_at?: string;
+  next_pulse_fire_at?: string;
+  next_historical_sync_at?: string;
 };
 
 test("GET /health returns the expected payload", async () => {
@@ -26,6 +29,7 @@ test("GET /health returns the expected payload", async () => {
   assert.equal(typeof payload.mode, "string");
   assert.equal(typeof payload.timezone, "string");
   assert.equal(typeof payload.schedule, "string");
+  assert.equal(typeof payload.historical_sync_schedule, "string");
 
   await new Promise<void>((resolve, reject) => {
     server.close((error) => {

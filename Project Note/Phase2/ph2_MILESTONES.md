@@ -157,7 +157,7 @@ Expose the M0 corpus through **TypeScript contracts** and **internal retrieval e
 - [ ] Phase 2 **M0 closed** — corpus loaded per `ph2_MILESTONES.md → M0`
 - [ ] Every snapshot row continues to carry `missing_fields` (may be `[]`)
 - [ ] `ticker_coverage.last_sync_status` accurate after delta runs
-- [ ] Nightly delta sync succeeds 3 consecutive nights in staging; double-run is idempotent
+- [ ] Delta sync succeeds in staging and immediate re-run is idempotent (owner-approved closeout basis; extended multi-night soak is tracked as TBD follow-up)
 - [ ] All three contracts compile; `pnpm typecheck` passes
 - [ ] `GET /v1/historical/financials?ticker=AAPL` < 200ms; schema-valid
 - [ ] `GET /v1/historical/transcripts?ticker=AAPL` < 200ms; schema-valid

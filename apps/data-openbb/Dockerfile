@@ -14,6 +14,8 @@ RUN python -m pip install --disable-pip-version-check --no-cache-dir -r /tmp/dat
 
 COPY apps/data-openbb /app/apps/data-openbb
 COPY data/golden/data-openbb /app/data/golden/data-openbb
+COPY data/sp500_universe.csv /app/data/sp500_universe.csv
+COPY data/xbrl_concept_map.json /app/data/xbrl_concept_map.json
 COPY packages/contracts/schemas /app/packages/contracts/schemas
 COPY packages/redis-client /app/packages/redis-client
 
