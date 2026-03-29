@@ -762,6 +762,10 @@ export function startServer(port: number = loadConfig().port): Server {
     ...loadConfig(),
     port
   };
+  const configErrors = validateConfig(config);
+  if (configErrors.length > 0) {
+    throw new Error(`Invalid configuration: ${configErrors.join("; ")}`);
+  }
   const runtimePromise = createRuntime(config);
 
   const server = createServer(async (request, response) => {
@@ -1664,8 +1668,21 @@ export function startServer(port: number = loadConfig().port): Server {
       if (method === "POST" && pathname === "/v1/user/sync-tier") {
         const body = await readJsonBody<{ revenuecat_app_user_id?: string }>(request);
         const existing = await runtime.store.getUserSubscription(auth.userId);
+        const requestedAppUserId = body.revenuecat_app_user_id?.trim();
+        const allowedAppUserIds = new Set<string>([auth.userId]);
+        if (existing.revenuecatAppUserId) {
+          allowedAppUserIds.add(existing.revenuecatAppUserId);
+        }
+        if (requestedAppUserId && !allowedAppUserIds.has(requestedAppUserId)) {
+          sendJson(response, 403, {
+            error: "forbidden",
+            error_message: "revenuecat_app_user_id is not bound to the authenticated user."
+          });
+          return;
+        }
+
         const appUserId =
-          body.revenuecat_app_user_id?.trim() ||
+          requestedAppUserId ||
           existing.revenuecatAppUserId ||
           auth.userId;
 
@@ -2083,9 +2100,14 @@ export function startServer(port: number = loadConfig().port): Server {
         const subscription = await runtime.store.getUserSubscription(auth.userId);
         const deepDiveLimit = dailyDeepDiveLimitForTier(subscription.tier);
         const usageDate = dateInTimeZone(new Date(), runtime.config.subscriptionTimezone);
+        let usageReserved = false;
         if (deepDiveLimit > 0) {
-          const usedToday = await runtime.store.getDailyDeepDiveUsage(auth.userId, usageDate);
-          if (usedToday >= deepDiveLimit) {
+          const reservation = await runtime.store.reserveDailyDeepDiveUsage(
+            auth.userId,
+            usageDate,
+            deepDiveLimit
+          );
+          if (!reservation.allowed) {
             sendJson(
               response,
               403,
@@ -2096,6 +2118,7 @@ export function startServer(port: number = loadConfig().port): Server {
             );
             return;
           }
+          usageReserved = true;
         }
 
         const nowIso = new Date().toISOString();
@@ -2112,15 +2135,26 @@ export function startServer(port: number = loadConfig().port): Server {
         });
 
         if (reusable) {
-          const reuseJob = await runtime.store.createJob({
-            id: createId(),
-            type: "deep_dive",
-            userId: auth.userId,
-            ticker,
-            createdAt: nowIso
-          });
+          let reuseJob: JobRecord;
+          try {
+            reuseJob = await runtime.store.createJob({
+              id: createId(),
+              type: "deep_dive",
+              userId: auth.userId,
+              ticker,
+              createdAt: nowIso
+            });
+          } catch (error) {
+            if (usageReserved) {
+              await runtime.store.releaseDailyDeepDiveUsage(auth.userId, usageDate);
+            }
+            throw error;
+          }
           const reusableArtifact = await runtime.artifactStore.readReport(reusable.artifactKey);
           if (!reusableArtifact || !("job_id" in reusableArtifact)) {
+            if (usageReserved) {
+              await runtime.store.releaseDailyDeepDiveUsage(auth.userId, usageDate);
+            }
             await runtime.store.markJobFailed(
               reuseJob.id,
               new Date().toISOString(),
@@ -2163,6 +2197,9 @@ export function startServer(port: number = loadConfig().port): Server {
             );
             if (!completed) {
               await cleanupStoredReport(runtime, persisted.id, artifactKey);
+              if (usageReserved) {
+                await runtime.store.releaseDailyDeepDiveUsage(auth.userId, usageDate);
+              }
               await runtime.store.markJobFailed(
                 reuseJob.id,
                 new Date().toISOString(),
@@ -2198,15 +2235,14 @@ export function startServer(port: number = loadConfig().port): Server {
               fingerprint
             });
 
-            if (deepDiveLimit > 0) {
-              await runtime.store.incrementDailyDeepDiveUsage(auth.userId, usageDate);
-            }
-
             sendJson(response, 200, buildJobStatusResponse(completed));
             return;
           } catch (error) {
             if (artifactKey) {
               await cleanupStoredReport(runtime, reusedReportId, artifactKey);
+            }
+            if (usageReserved) {
+              await runtime.store.releaseDailyDeepDiveUsage(auth.userId, usageDate);
             }
             const message = error instanceof Error ? error.message : "Reusable report handling failed";
             await runtime.store.markJobFailed(
@@ -2228,17 +2264,28 @@ export function startServer(port: number = loadConfig().port): Server {
         }
 
         const createdAt = nowIso;
-        const job = await runtime.store.createJob({
-          id: createId(),
-          type: "deep_dive",
-          userId: auth.userId,
-          ticker,
-          createdAt
-        });
+        let job: JobRecord;
+        try {
+          job = await runtime.store.createJob({
+            id: createId(),
+            type: "deep_dive",
+            userId: auth.userId,
+            ticker,
+            createdAt
+          });
+        } catch (error) {
+          if (usageReserved) {
+            await runtime.store.releaseDailyDeepDiveUsage(auth.userId, usageDate);
+          }
+          throw error;
+        }
 
         try {
           await runtime.queue.publish(job.id);
         } catch (error) {
+          if (usageReserved) {
+            await runtime.store.releaseDailyDeepDiveUsage(auth.userId, usageDate);
+          }
           const message = error instanceof Error ? error.message : "Queue publish failed";
           const failedJob = await runtime.store.markJobFailed(
             job.id,
@@ -2278,10 +2325,6 @@ export function startServer(port: number = loadConfig().port): Server {
           job_id: job.id,
           ticker
         });
-
-        if (deepDiveLimit > 0) {
-          await runtime.store.incrementDailyDeepDiveUsage(auth.userId, usageDate);
-        }
 
         sendJson(response, 202, buildJobStatusResponse(job));
         return;

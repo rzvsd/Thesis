@@ -189,6 +189,17 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ProductApiConf
 export function validateConfig(config: ProductApiConfig): string[] {
   const errors: string[] = [];
 
+  const isValidTimeZone = (value: string): boolean => {
+    try {
+      new Intl.DateTimeFormat("en-CA", {
+        timeZone: value
+      }).format(new Date());
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
   if (config.storeBackend === "postgres" && !config.databaseUrl) {
     errors.push("DATABASE_URL is required when STORE_BACKEND=postgres");
   }
@@ -235,6 +246,8 @@ export function validateConfig(config: ProductApiConfig): string[] {
 
   if (config.subscriptionTimezone.trim().length === 0) {
     errors.push("SUBSCRIPTION_TIMEZONE must not be empty");
+  } else if (!isValidTimeZone(config.subscriptionTimezone)) {
+    errors.push("SUBSCRIPTION_TIMEZONE must be a valid IANA timezone");
   }
 
   if (
