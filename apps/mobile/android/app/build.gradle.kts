@@ -11,6 +11,8 @@ val posthogHost = project.findProperty("POSTHOG_HOST")?.toString() ?: "https://u
 val posthogWatchlistFlagKey =
     project.findProperty("POSTHOG_WATCHLIST_FLAG_KEY")?.toString() ?: "m7_watchlist_enabled"
 val apiBaseUrl = project.findProperty("API_BASE_URL")?.toString() ?: "http://127.0.0.1:3001"
+val revenueCatPublicAndroidKey =
+    project.findProperty("REVENUECAT_PUBLIC_ANDROID_KEY")?.toString() ?: ""
 val googleServicesJsonExists = file("google-services.json").exists()
 
 android {
@@ -33,6 +35,11 @@ android {
             "String",
             "POSTHOG_WATCHLIST_FLAG_KEY",
             "\"${escapeBuildString(posthogWatchlistFlagKey)}\""
+        )
+        buildConfigField(
+            "String",
+            "REVENUECAT_PUBLIC_ANDROID_KEY",
+            "\"${escapeBuildString(revenueCatPublicAndroidKey)}\""
         )
     }
 
@@ -87,6 +94,7 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.8.1")
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
+    implementation("com.revenuecat.purchases:purchases:9.28.1")
     implementation(platform("com.google.firebase:firebase-bom:33.9.0"))
     implementation("com.google.firebase:firebase-messaging-ktx")
 

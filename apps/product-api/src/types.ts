@@ -1,7 +1,8 @@
 import type {
   AnalysisReport,
   AnalysisRequest,
-  MarketPulseReport
+  MarketPulseReport,
+  SubscriptionTier
 } from "../../../packages/contracts/src";
 import type {
   TickerExchange,
@@ -19,6 +20,14 @@ export interface UserRecord {
   createdAt: string;
   verifiedAt?: string;
   deviceToken?: string;
+}
+
+export interface UserSubscriptionRecord {
+  userId: string;
+  tier: SubscriptionTier;
+  revenuecatAppUserId?: string;
+  billingPeriodEnd?: string;
+  updatedAt: string;
 }
 
 export interface VerificationTokenRecord {

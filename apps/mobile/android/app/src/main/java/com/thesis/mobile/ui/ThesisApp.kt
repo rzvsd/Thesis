@@ -1,5 +1,6 @@
 package com.thesis.mobile.ui
 
+import android.app.Activity
 import android.content.Intent
 import android.provider.Settings
 import androidx.compose.foundation.layout.Arrangement
@@ -19,6 +20,7 @@ import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
@@ -34,6 +36,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -54,6 +57,7 @@ import com.thesis.mobile.model.EvidenceView
 import com.thesis.mobile.model.PulseReportView
 import com.thesis.mobile.model.ReportHistoryItem
 import com.thesis.mobile.model.SectionView
+import com.thesis.mobile.model.UserProfileView
 import com.thesis.mobile.ui.screens.DeepDiveScreen
 import com.thesis.mobile.ui.screens.HistoryScreen
 import com.thesis.mobile.ui.screens.HomeScreen
@@ -206,13 +210,38 @@ fun ThesisApp(
                     AppTab.SETTINGS -> SettingsTab(
                         padding = padding,
                         currentApiBaseUrl = uiState.apiBaseUrl,
+                        profile = uiState.userProfile,
+                        subscriptionOffers = uiState.subscriptionOffers,
+                        subscriptionActionInFlight = uiState.subscriptionActionInFlight,
                         notificationsEnabled = uiState.notificationsEnabled,
                         onSetNotifications = mainViewModel::setNotificationsEnabled,
                         onSaveApiBaseUrl = mainViewModel::updateApiBaseUrl,
+                        onSyncTier = mainViewModel::syncTierFromServer,
+                        onRefreshOffers = mainViewModel::refreshSubscriptionOffers,
+                        onStartPurchase = mainViewModel::startPurchase,
+                        onRestorePurchases = mainViewModel::restorePurchases,
                         onLogout = mainViewModel::logout
                     )
                 }
             }
+        }
+
+        if (!uiState.paywallFeature.isNullOrBlank()) {
+            val activity = (LocalContext.current as? Activity)
+            UpgradeRequiredDialog(
+                feature = uiState.paywallFeature,
+                onDismiss = mainViewModel::dismissPaywall,
+                subscriptionOffers = uiState.subscriptionOffers,
+                subscriptionActionInFlight = uiState.subscriptionActionInFlight,
+                onSyncTier = { mainViewModel.syncTierFromServer() },
+                onStartPurchase = { preferredType ->
+                    if (activity != null) {
+                        mainViewModel.startPurchase(activity, preferredType)
+                    }
+                },
+                onRestorePurchases = mainViewModel::restorePurchases,
+                onRefreshOffers = mainViewModel::refreshSubscriptionOffers
+            )
         }
     }
 }
@@ -345,6 +374,61 @@ private fun AuthScreen(
             enabled = !isLoading
         ) { Text("Verify Account") }
     }
+}
+
+@Composable
+private fun UpgradeRequiredDialog(
+    feature: String?,
+    subscriptionOffers: List<com.thesis.mobile.model.SubscriptionOfferView>,
+    subscriptionActionInFlight: Boolean,
+    onDismiss: () -> Unit,
+    onSyncTier: () -> Unit,
+    onStartPurchase: (String?) -> Unit,
+    onRestorePurchases: () -> Unit,
+    onRefreshOffers: () -> Unit
+) {
+    val normalizedFeature = feature?.replace("_", " ") ?: "premium feature"
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Upgrade Required") },
+        text = {
+            Text(
+                "This action needs Pro access ($normalizedFeature). " +
+                    "If you upgraded in Google Play, tap \"I upgraded\" to refresh."
+            )
+        },
+        confirmButton = {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                val monthly = subscriptionOffers.firstOrNull { it.packageType == "MONTHLY" }
+                val yearly = subscriptionOffers.firstOrNull { it.packageType == "ANNUAL" }
+                TextButton(
+                    onClick = { onStartPurchase("MONTHLY") },
+                    enabled = monthly != null && !subscriptionActionInFlight
+                ) { Text("Buy Monthly") }
+                TextButton(
+                    onClick = { onStartPurchase("YEARLY") },
+                    enabled = yearly != null && !subscriptionActionInFlight
+                ) { Text("Buy Yearly") }
+                TextButton(
+                    onClick = onRestorePurchases,
+                    enabled = !subscriptionActionInFlight
+                ) { Text("Restore Purchases") }
+            }
+        },
+        dismissButton = {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                TextButton(onClick = onRefreshOffers) {
+                    Text("Refresh offers")
+                }
+                TextButton(onClick = onSyncTier) {
+                    Text("I upgraded")
+                }
+                TextButton(onClick = onDismiss) {
+                    Text("Not now")
+                }
+            }
+        }
+    )
 }
 
 @Composable
@@ -559,12 +643,20 @@ private fun WatchlistTab(
 private fun SettingsTab(
     padding: PaddingValues,
     currentApiBaseUrl: String,
+    profile: UserProfileView?,
+    subscriptionOffers: List<com.thesis.mobile.model.SubscriptionOfferView>,
+    subscriptionActionInFlight: Boolean,
     notificationsEnabled: Boolean,
     onSetNotifications: (Boolean) -> Unit,
     onSaveApiBaseUrl: (String) -> Unit,
+    onSyncTier: () -> Unit,
+    onRefreshOffers: () -> Unit,
+    onStartPurchase: (Activity, String?) -> Unit,
+    onRestorePurchases: () -> Unit,
     onLogout: () -> Unit
 ) {
     val context = LocalContext.current
+    val activity = context as? Activity
     var baseUrl by rememberSaveable(currentApiBaseUrl) { mutableStateOf(currentApiBaseUrl) }
 
     LazyColumn(
@@ -597,6 +689,62 @@ private fun SettingsTab(
                 context.startActivity(intent)
             }) {
                 Text("Open Android Notification Settings")
+            }
+        }
+        item {
+            HorizontalDivider()
+            Text("Subscription", fontWeight = FontWeight.Bold)
+            Text("Tier: ${profile?.tier ?: "FREE"}")
+            if (!profile?.billingPeriodEnd.isNullOrBlank()) {
+                Text("Billing period end: ${profile?.billingPeriodEnd}")
+            }
+            Text("Watchlist limit: ${profile?.watchlistLimit ?: 5}")
+            val deepDiveLimit = profile?.dailyDeepDiveLimit ?: 1
+            val deepDiveText = if (deepDiveLimit < 0) "Unlimited" else "$deepDiveLimit / day"
+            Text("Deep Dive limit: $deepDiveText")
+            if (profile != null && deepDiveLimit >= 0) {
+                Text("Deep Dives remaining today: ${profile.deepDivesRemainingToday}")
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = onSyncTier, enabled = !subscriptionActionInFlight) {
+                    Text("Refresh subscription")
+                }
+                Button(onClick = onRefreshOffers, enabled = !subscriptionActionInFlight) {
+                    Text("Refresh offers")
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(
+                    onClick = { if (activity != null) onStartPurchase(activity, "MONTHLY") },
+                    enabled = activity != null && !subscriptionActionInFlight
+                ) {
+                    Text("Buy monthly")
+                }
+                Button(
+                    onClick = { if (activity != null) onStartPurchase(activity, "YEARLY") },
+                    enabled = activity != null && !subscriptionActionInFlight
+                ) {
+                    Text("Buy yearly")
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = onRestorePurchases, enabled = !subscriptionActionInFlight) {
+                    Text("Restore purchases")
+                }
+                Button(onClick = {
+                    val intent = Intent(Intent.ACTION_VIEW).apply {
+                        data = android.net.Uri.parse("https://play.google.com/store/account/subscriptions")
+                    }
+                    context.startActivity(intent)
+                }) {
+                    Text("Manage subscription")
+                }
+            }
+            if (subscriptionOffers.isNotEmpty()) {
+                Text(
+                    "Available offers: ${subscriptionOffers.joinToString { it.title }}",
+                    style = MaterialTheme.typography.bodySmall
+                )
             }
         }
         item {

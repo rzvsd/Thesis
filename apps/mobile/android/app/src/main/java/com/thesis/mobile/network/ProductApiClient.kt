@@ -9,6 +9,7 @@ import com.thesis.mobile.model.RegisterResult
 import com.thesis.mobile.model.ReportHistoryItem
 import com.thesis.mobile.model.SectionView
 import com.thesis.mobile.model.TickerSearchItem
+import com.thesis.mobile.model.UserProfileView
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
@@ -184,6 +185,33 @@ class ProductApiClient {
             (0 until data.length()).mapNotNull { index -> data.optString(index) }
         }
 
+    suspend fun getUserProfile(baseUrl: String, accessToken: String): UserProfileView =
+        withContext(Dispatchers.IO) {
+            val json = requestJson(baseUrl, "GET", "/v1/user/profile", accessToken = accessToken)
+            val data = json.optJSONObject("data") ?: JSONObject()
+            parseUserProfile(data)
+        }
+
+    suspend fun syncUserTier(
+        baseUrl: String,
+        accessToken: String,
+        revenuecatAppUserId: String?
+    ): UserProfileView = withContext(Dispatchers.IO) {
+        val body = JSONObject()
+        if (!revenuecatAppUserId.isNullOrBlank()) {
+            body.put("revenuecat_app_user_id", revenuecatAppUserId.trim())
+        }
+        val json = requestJson(
+            baseUrl,
+            "POST",
+            "/v1/user/sync-tier",
+            accessToken = accessToken,
+            body = body
+        )
+        val data = json.optJSONObject("data") ?: JSONObject()
+        parseUserProfile(data)
+    }
+
     private fun parsePulseReport(json: JSONObject): PulseReportView {
         val sectionsObj = json.optJSONObject("sections") ?: JSONObject()
         val preferredOrder = listOf(
@@ -252,6 +280,17 @@ class ProductApiClient {
             errorMessage = json.optNullableString("error_message")
         )
 
+    private fun parseUserProfile(data: JSONObject): UserProfileView =
+        UserProfileView(
+            userId = data.optString("user_id"),
+            email = data.optString("email"),
+            tier = data.optString("tier", "FREE"),
+            billingPeriodEnd = data.optNullableString("billing_period_end"),
+            watchlistLimit = data.optInt("watchlist_limit", 5),
+            dailyDeepDiveLimit = data.optInt("daily_deep_dive_limit", 1),
+            deepDivesRemainingToday = data.optInt("deep_dives_remaining_today", 0)
+        )
+
     @Throws(IOException::class, ProductApiException::class)
     private fun requestJson(
         baseUrl: String,
@@ -293,7 +332,9 @@ class ProductApiClient {
             if (!response.isSuccessful) {
                 val message = payload.optString("error_message")
                     .ifBlank { payload.optString("error").ifBlank { "Request failed." } }
-                throw ProductApiException(response.code, message)
+                val errorCode = payload.optNullableString("error")
+                val feature = payload.optNullableString("feature")
+                throw ProductApiException(response.code, message, errorCode, feature)
             }
             return payload
         }
@@ -344,4 +385,9 @@ class ProductApiClient {
     }
 }
 
-class ProductApiException(val code: Int, override val message: String) : RuntimeException(message)
+class ProductApiException(
+    val code: Int,
+    override val message: String,
+    val errorCode: String? = null,
+    val feature: String? = null
+) : RuntimeException(message)
