@@ -46,7 +46,7 @@ function toDateKey(date: Date): string {
   return `${year}-${month}-${day}`;
 }
 
-function parseMarketDate(marketDate: string): Date | undefined {
+function parseStrictMarketDate(marketDate: string): Date | undefined {
   const normalized = marketDate.trim();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(normalized)) {
     return undefined;
@@ -55,7 +55,20 @@ function parseMarketDate(marketDate: string): Date | undefined {
   if (Number.isNaN(parsed.getTime())) {
     return undefined;
   }
+  if (toDateKey(parsed) !== normalized) {
+    return undefined;
+  }
   return parsed;
+}
+
+function addUtcDays(date: Date, days: number): Date {
+  const next = new Date(date.getTime());
+  next.setUTCDate(next.getUTCDate() + days);
+  return next;
+}
+
+function toEpochSeconds(date: Date): string {
+  return Math.floor(date.getTime() / 1000).toString();
 }
 
 function observedDate(year: number, month: number, day: number): Date {
@@ -130,7 +143,7 @@ function usMarketHolidays(year: number): Set<string> {
 }
 
 export function isUsTradingDay(marketDate: string): boolean {
-  const parsed = parseMarketDate(marketDate);
+  const parsed = parseStrictMarketDate(marketDate);
   if (!parsed) {
     return false;
   }
@@ -142,6 +155,10 @@ export function isUsTradingDay(marketDate: string): boolean {
 
   const holidays = usMarketHolidays(parsed.getUTCFullYear());
   return !holidays.has(toDateKey(parsed));
+}
+
+export function isValidMarketDate(marketDate: string): boolean {
+  return parseStrictMarketDate(marketDate) !== undefined;
 }
 
 function requiredValues(series: Array<number | null>, minimum: number): number[] {
@@ -156,10 +173,17 @@ function requiredValues(series: Array<number | null>, minimum: number): number[]
 
 async function fetchYahooCloseSeries(
   baseUrl: string,
-  symbol: string
+  symbol: string,
+  marketDate: string
 ): Promise<Array<number | null>> {
+  const parsedMarketDate = parseStrictMarketDate(marketDate);
+  if (!parsedMarketDate) {
+    throw new Error("marketDate must be a valid YYYY-MM-DD calendar date");
+  }
+
   const url = new URL(`${baseUrl.replace(/\/$/, "")}/v8/finance/chart/${encodeURIComponent(symbol)}`);
-  url.searchParams.set("range", "1y");
+  url.searchParams.set("period1", toEpochSeconds(addUtcDays(parsedMarketDate, -420)));
+  url.searchParams.set("period2", toEpochSeconds(addUtcDays(parsedMarketDate, 1)));
   url.searchParams.set("interval", "1d");
   url.searchParams.set("events", "history");
   url.searchParams.set("includeAdjustedClose", "true");
@@ -197,8 +221,14 @@ function percentChange(latest: number, previous: number): number {
 async function fetchFredLatestValue(
   baseUrl: string,
   seriesId: string,
+  marketDate: string,
   apiKey?: string
 ): Promise<{ value: number; date: string }> {
+  const parsedMarketDate = parseStrictMarketDate(marketDate);
+  if (!parsedMarketDate) {
+    throw new Error("marketDate must be a valid YYYY-MM-DD calendar date");
+  }
+
   if (!apiKey) {
     throw new Error("SENTIMENT_FRED_API_KEY is required for FRED signals");
   }
@@ -209,6 +239,7 @@ async function fetchFredLatestValue(
   url.searchParams.set("limit", "30");
   url.searchParams.set("file_type", "json");
   url.searchParams.set("api_key", apiKey);
+  url.searchParams.set("observation_end", toDateKey(parsedMarketDate));
 
   const response = await fetch(url.toString());
   if (!response.ok) {
@@ -277,15 +308,16 @@ export async function buildFearGreedSnapshot(
 ): Promise<FearGreedSnapshot> {
   const nowIso = new Date().toISOString();
   const marketDate = options.marketDate.trim();
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(marketDate)) {
-    throw new Error("marketDate must be in YYYY-MM-DD format");
+  const parsedMarketDate = parseStrictMarketDate(marketDate);
+  if (!parsedMarketDate) {
+    throw new Error("marketDate must be a valid YYYY-MM-DD calendar date");
   }
 
   const signals: SignalInput[] = [];
 
   try {
     const vixSeries = requiredValues(
-      await fetchYahooCloseSeries(options.yahooBaseUrl, "^VIX"),
+      await fetchYahooCloseSeries(options.yahooBaseUrl, "^VIX", marketDate),
       30
     );
     const vixLatest = vixSeries[vixSeries.length - 1] as number;
@@ -309,7 +341,7 @@ export async function buildFearGreedSnapshot(
 
   try {
     const spSeries = requiredValues(
-      await fetchYahooCloseSeries(options.yahooBaseUrl, "^GSPC"),
+      await fetchYahooCloseSeries(options.yahooBaseUrl, "^GSPC", marketDate),
       200
     );
     const latest = spSeries[spSeries.length - 1] as number;
@@ -335,8 +367,8 @@ export async function buildFearGreedSnapshot(
 
   try {
     const [spySeries, tltSeries] = await Promise.all([
-      fetchYahooCloseSeries(options.yahooBaseUrl, "SPY"),
-      fetchYahooCloseSeries(options.yahooBaseUrl, "TLT")
+      fetchYahooCloseSeries(options.yahooBaseUrl, "SPY", marketDate),
+      fetchYahooCloseSeries(options.yahooBaseUrl, "TLT", marketDate)
     ]);
     const spyValues = requiredValues(spySeries, 30);
     const tltValues = requiredValues(tltSeries, 30);
@@ -381,7 +413,7 @@ export async function buildFearGreedSnapshot(
       async (ticker): Promise<boolean | undefined> => {
         try {
           const series = requiredValues(
-            await fetchYahooCloseSeries(options.yahooBaseUrl, ticker),
+            await fetchYahooCloseSeries(options.yahooBaseUrl, ticker, marketDate),
             210
           );
           const latest = series[series.length - 1] as number;
@@ -425,6 +457,7 @@ export async function buildFearGreedSnapshot(
     const junkSpread = await fetchFredLatestValue(
       options.fredBaseUrl,
       "BAMLH0A0HYM2",
+      marketDate,
       options.fredApiKey
     );
     signals.push({
@@ -450,6 +483,7 @@ export async function buildFearGreedSnapshot(
     const yieldCurve = await fetchFredLatestValue(
       options.fredBaseUrl,
       "T10Y2Y",
+      marketDate,
       options.fredApiKey
     );
     signals.push({

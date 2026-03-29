@@ -38,7 +38,7 @@ import { assertIncomingAnalysisReport } from "./report-validation";
 import { assertIncomingMarketPulseReport } from "./market-pulse-validation";
 import { buildMarketPulseReport, withWatchlistOverlay } from "./market-pulse";
 import { PushNotifier } from "./push";
-import { buildFearGreedSnapshot, isUsTradingDay } from "./sentiment";
+import { buildFearGreedSnapshot, isUsTradingDay, isValidMarketDate } from "./sentiment";
 import { startTickerSyncScheduler } from "./ticker-sync-scheduler";
 import { startJobRecoveryScheduler } from "./job-recovery-scheduler";
 import {
@@ -199,6 +199,9 @@ function isIsoDateTime(value: string): boolean {
 function normalizeDateInput(value: string): string | undefined {
   const normalized = value.trim();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(normalized)) {
+    return undefined;
+  }
+  if (!isValidMarketDate(normalized)) {
     return undefined;
   }
   return normalized;
@@ -365,6 +368,22 @@ function isMarketPulseReport(report: unknown): report is MarketPulseReport {
     isObject(report.sections.news_summary) &&
     isObject(report.sections.uncertainty_flags)
   );
+}
+
+function cloneReusableDeepDiveReport(
+  report: AnalysisReport,
+  overrides: {
+    reportId: string;
+    jobId: string;
+    generatedAt: string;
+  }
+): AnalysisReport {
+  return {
+    ...report,
+    report_id: overrides.reportId,
+    job_id: overrides.jobId,
+    generated_at: overrides.generatedAt
+  };
 }
 
 async function cleanupStoredReport(
@@ -743,6 +762,10 @@ export function startServer(port: number = loadConfig().port): Server {
     ...loadConfig(),
     port
   };
+  const configErrors = validateConfig(config);
+  if (configErrors.length > 0) {
+    throw new Error(`Invalid configuration: ${configErrors.join("; ")}`);
+  }
   const runtimePromise = createRuntime(config);
 
   const server = createServer(async (request, response) => {
@@ -1645,8 +1668,21 @@ export function startServer(port: number = loadConfig().port): Server {
       if (method === "POST" && pathname === "/v1/user/sync-tier") {
         const body = await readJsonBody<{ revenuecat_app_user_id?: string }>(request);
         const existing = await runtime.store.getUserSubscription(auth.userId);
+        const requestedAppUserId = body.revenuecat_app_user_id?.trim();
+        const allowedAppUserIds = new Set<string>([auth.userId]);
+        if (existing.revenuecatAppUserId) {
+          allowedAppUserIds.add(existing.revenuecatAppUserId);
+        }
+        if (requestedAppUserId && !allowedAppUserIds.has(requestedAppUserId)) {
+          sendJson(response, 403, {
+            error: "forbidden",
+            error_message: "revenuecat_app_user_id is not bound to the authenticated user."
+          });
+          return;
+        }
+
         const appUserId =
-          body.revenuecat_app_user_id?.trim() ||
+          requestedAppUserId ||
           existing.revenuecatAppUserId ||
           auth.userId;
 
@@ -2064,9 +2100,14 @@ export function startServer(port: number = loadConfig().port): Server {
         const subscription = await runtime.store.getUserSubscription(auth.userId);
         const deepDiveLimit = dailyDeepDiveLimitForTier(subscription.tier);
         const usageDate = dateInTimeZone(new Date(), runtime.config.subscriptionTimezone);
+        let usageReserved = false;
         if (deepDiveLimit > 0) {
-          const usedToday = await runtime.store.getDailyDeepDiveUsage(auth.userId, usageDate);
-          if (usedToday >= deepDiveLimit) {
+          const reservation = await runtime.store.reserveDailyDeepDiveUsage(
+            auth.userId,
+            usageDate,
+            deepDiveLimit
+          );
+          if (!reservation.allowed) {
             sendJson(
               response,
               403,
@@ -2077,6 +2118,7 @@ export function startServer(port: number = loadConfig().port): Server {
             );
             return;
           }
+          usageReserved = true;
         }
 
         const nowIso = new Date().toISOString();
@@ -2093,69 +2135,157 @@ export function startServer(port: number = loadConfig().port): Server {
         });
 
         if (reusable) {
-          const reuseJob = await runtime.store.createJob({
-            id: createId(),
-            type: "deep_dive",
-            userId: auth.userId,
-            ticker,
-            createdAt: nowIso
+          let reuseJob: JobRecord;
+          try {
+            reuseJob = await runtime.store.createJob({
+              id: createId(),
+              type: "deep_dive",
+              userId: auth.userId,
+              ticker,
+              createdAt: nowIso
+            });
+          } catch (error) {
+            if (usageReserved) {
+              await runtime.store.releaseDailyDeepDiveUsage(auth.userId, usageDate);
+            }
+            throw error;
+          }
+          const reusableArtifact = await runtime.artifactStore.readReport(reusable.artifactKey);
+          if (!reusableArtifact || !("job_id" in reusableArtifact)) {
+            if (usageReserved) {
+              await runtime.store.releaseDailyDeepDiveUsage(auth.userId, usageDate);
+            }
+            await runtime.store.markJobFailed(
+              reuseJob.id,
+              new Date().toISOString(),
+              "Reusable report artifact missing."
+            );
+            sendJson(response, 404, {
+              error: "report_not_found",
+              error_message: "Reusable report artifact missing."
+            });
+            return;
+          }
+
+          const reusableReport = assertIncomingAnalysisReport(reusableArtifact);
+          const reusedReportId = createId();
+          const reusedReport = cloneReusableDeepDiveReport(reusableReport, {
+            reportId: reusedReportId,
+            jobId: reuseJob.id,
+            generatedAt: nowIso
           });
-          const completed = await runtime.store.markJobComplete(
-            reuseJob.id,
-            nowIso,
-            reusable.id
-          );
-          if (!completed) {
+
+          let artifactKey: string | undefined;
+          try {
+            artifactKey = await runtime.artifactStore.writeReport(reusedReport);
+            const persisted = await runtime.store.createReport({
+              id: reusedReport.report_id,
+              jobId: reuseJob.id,
+              type: reusedReport.type,
+              ticker: reusedReport.ticker,
+              schemaVersion: reusedReport.schema_version,
+              artifactKey,
+              fingerprint: reusable.fingerprint,
+              freshnessExpiresAt: reusable.freshnessExpiresAt,
+              createdAt: reusedReport.generated_at,
+              isCurrent: true
+            });
+            const completed = await runtime.store.markJobComplete(
+              reuseJob.id,
+              nowIso,
+              persisted.id
+            );
+            if (!completed) {
+              await cleanupStoredReport(runtime, persisted.id, artifactKey);
+              if (usageReserved) {
+                await runtime.store.releaseDailyDeepDiveUsage(auth.userId, usageDate);
+              }
+              await runtime.store.markJobFailed(
+                reuseJob.id,
+                new Date().toISOString(),
+                "Failed to attach reusable report."
+              );
+              sendJson(response, 500, {
+                error: "internal_error",
+                error_message: "Failed to attach reusable report."
+              });
+              return;
+            }
+
+            await appendAudit(
+              runtime,
+              "job.reused",
+              {
+                request_id: meta.requestId,
+                route: pathname,
+                job_id: completed.id,
+                report_id: persisted.id,
+                ticker,
+                fingerprint
+              },
+              auth.userId
+            );
+
+            logInfo("Deep dive report reused", {
+              request_id: meta.requestId,
+              user_id: auth.userId,
+              job_id: completed.id,
+              report_id: persisted.id,
+              ticker,
+              fingerprint
+            });
+
+            sendJson(response, 200, buildJobStatusResponse(completed));
+            return;
+          } catch (error) {
+            if (artifactKey) {
+              await cleanupStoredReport(runtime, reusedReportId, artifactKey);
+            }
+            if (usageReserved) {
+              await runtime.store.releaseDailyDeepDiveUsage(auth.userId, usageDate);
+            }
+            const message = error instanceof Error ? error.message : "Reusable report handling failed";
+            await runtime.store.markJobFailed(
+              reuseJob.id,
+              new Date().toISOString(),
+              message
+            );
+            captureException(new Error(message), {
+              service: serviceName,
+              request_id: meta.requestId,
+              route: pathname
+            });
             sendJson(response, 500, {
               error: "internal_error",
               error_message: "Failed to attach reusable report."
             });
             return;
           }
-
-          await appendAudit(
-            runtime,
-            "job.reused",
-            {
-              request_id: meta.requestId,
-              route: pathname,
-              job_id: completed.id,
-              report_id: reusable.id,
-              ticker,
-              fingerprint
-            },
-            auth.userId
-          );
-
-          logInfo("Deep dive report reused", {
-            request_id: meta.requestId,
-            user_id: auth.userId,
-            job_id: completed.id,
-            report_id: reusable.id,
-            ticker,
-            fingerprint
-          });
-
-          if (deepDiveLimit > 0) {
-            await runtime.store.incrementDailyDeepDiveUsage(auth.userId, usageDate);
-          }
-
-          sendJson(response, 200, buildJobStatusResponse(completed));
-          return;
         }
 
         const createdAt = nowIso;
-        const job = await runtime.store.createJob({
-          id: createId(),
-          type: "deep_dive",
-          userId: auth.userId,
-          ticker,
-          createdAt
-        });
+        let job: JobRecord;
+        try {
+          job = await runtime.store.createJob({
+            id: createId(),
+            type: "deep_dive",
+            userId: auth.userId,
+            ticker,
+            createdAt
+          });
+        } catch (error) {
+          if (usageReserved) {
+            await runtime.store.releaseDailyDeepDiveUsage(auth.userId, usageDate);
+          }
+          throw error;
+        }
 
         try {
           await runtime.queue.publish(job.id);
         } catch (error) {
+          if (usageReserved) {
+            await runtime.store.releaseDailyDeepDiveUsage(auth.userId, usageDate);
+          }
           const message = error instanceof Error ? error.message : "Queue publish failed";
           const failedJob = await runtime.store.markJobFailed(
             job.id,
@@ -2195,10 +2325,6 @@ export function startServer(port: number = loadConfig().port): Server {
           job_id: job.id,
           ticker
         });
-
-        if (deepDiveLimit > 0) {
-          await runtime.store.incrementDailyDeepDiveUsage(auth.userId, usageDate);
-        }
 
         sendJson(response, 202, buildJobStatusResponse(job));
         return;

@@ -42,6 +42,12 @@ export interface ProductStore {
     updatedAt: string;
   }): Promise<UserSubscriptionRecord>;
   getDailyDeepDiveUsage(userId: string, usageDate: string): Promise<number>;
+  reserveDailyDeepDiveUsage(
+    userId: string,
+    usageDate: string,
+    limit: number
+  ): Promise<{ allowed: boolean; requestCount: number }>;
+  releaseDailyDeepDiveUsage(userId: string, usageDate: string): Promise<number>;
   incrementDailyDeepDiveUsage(userId: string, usageDate: string): Promise<number>;
   createVerificationToken(input: {
     id: string;
@@ -630,6 +636,53 @@ export class InMemoryStore implements ProductStore {
     return perUser.get(usageDate) ?? 0;
   }
 
+  async reserveDailyDeepDiveUsage(
+    userId: string,
+    usageDate: string,
+    limit: number
+  ): Promise<{ allowed: boolean; requestCount: number }> {
+    let perUser = this.deepDiveDailyUsage.get(userId);
+    if (!perUser) {
+      perUser = new Map<string, number>();
+      this.deepDiveDailyUsage.set(userId, perUser);
+    }
+
+    const current = perUser.get(usageDate) ?? 0;
+    if (current >= limit) {
+      return {
+        allowed: false,
+        requestCount: current
+      };
+    }
+
+    const next = current + 1;
+    perUser.set(usageDate, next);
+    return {
+      allowed: true,
+      requestCount: next
+    };
+  }
+
+  async releaseDailyDeepDiveUsage(userId: string, usageDate: string): Promise<number> {
+    const perUser = this.deepDiveDailyUsage.get(userId);
+    if (!perUser) {
+      return 0;
+    }
+
+    const current = perUser.get(usageDate) ?? 0;
+    if (current <= 1) {
+      perUser.delete(usageDate);
+      if (perUser.size === 0) {
+        this.deepDiveDailyUsage.delete(userId);
+      }
+      return 0;
+    }
+
+    const next = current - 1;
+    perUser.set(usageDate, next);
+    return next;
+  }
+
   async incrementDailyDeepDiveUsage(userId: string, usageDate: string): Promise<number> {
     let perUser = this.deepDiveDailyUsage.get(userId);
     if (!perUser) {
@@ -861,7 +914,10 @@ export class InMemoryStore implements ProductStore {
         report.ticker === input.ticker &&
         report.fingerprint === input.fingerprint &&
         report.freshnessExpiresAt !== undefined &&
-        Date.parse(report.freshnessExpiresAt) > Date.parse(input.nowIso))
+        Date.parse(report.freshnessExpiresAt) > Date.parse(input.nowIso) &&
+        [...this.jobs.values()].some((job) =>
+          job.status === "complete" && job.reportId === report.id
+        ))
       .sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0];
   }
 
@@ -1408,6 +1464,52 @@ export class PostgresStore implements ProductStore {
     return row?.request_count ? Number(row.request_count) : 0;
   }
 
+  async reserveDailyDeepDiveUsage(
+    userId: string,
+    usageDate: string,
+    limit: number
+  ): Promise<{ allowed: boolean; requestCount: number }> {
+    const nowIso = new Date().toISOString();
+    const result = await this.pool.query(
+      `insert into deep_dive_daily_usage (user_id, usage_date, request_count, created_at, updated_at)
+       values ($1, $2::date, 1, $4, $4)
+       on conflict (user_id, usage_date) do update set
+         request_count = deep_dive_daily_usage.request_count + 1,
+         updated_at = excluded.updated_at
+       where deep_dive_daily_usage.request_count < $3
+       returning request_count`,
+      [userId, usageDate, limit, nowIso]
+    );
+    const row = result.rows[0] as Record<string, unknown> | undefined;
+    if (!row?.request_count) {
+      const requestCount = await this.getDailyDeepDiveUsage(userId, usageDate);
+      return {
+        allowed: false,
+        requestCount
+      };
+    }
+
+    return {
+      allowed: true,
+      requestCount: Number(row.request_count)
+    };
+  }
+
+  async releaseDailyDeepDiveUsage(userId: string, usageDate: string): Promise<number> {
+    const nowIso = new Date().toISOString();
+    const result = await this.pool.query(
+      `update deep_dive_daily_usage
+          set request_count = greatest(request_count - 1, 0),
+              updated_at = $3
+        where user_id = $1
+          and usage_date = $2::date
+      returning request_count`,
+      [userId, usageDate, nowIso]
+    );
+    const row = result.rows[0] as Record<string, unknown> | undefined;
+    return row?.request_count ? Number(row.request_count) : 0;
+  }
+
   async incrementDailyDeepDiveUsage(userId: string, usageDate: string): Promise<number> {
     const nowIso = new Date().toISOString();
     const result = await this.pool.query(
@@ -1664,13 +1766,19 @@ export class PostgresStore implements ProductStore {
     nowIso: string;
   }): Promise<ReportRecord | undefined> {
     const result = await this.pool.query(
-      `select *
-         from reports
-        where type = 'deep_dive'
-          and ticker = $1
-          and fingerprint = $2
-          and freshness_expires_at > $3::timestamptz
-        order by created_at desc
+      `select r.*
+         from reports r
+        where r.type = 'deep_dive'
+          and r.ticker = $1
+          and r.fingerprint = $2
+          and r.freshness_expires_at > $3::timestamptz
+          and exists (
+            select 1
+              from jobs j
+             where j.report_id = r.id
+               and j.status = 'complete'
+          )
+        order by r.created_at desc
         limit 1`,
       [input.ticker, input.fingerprint, input.nowIso]
     );

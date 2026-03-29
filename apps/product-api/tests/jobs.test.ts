@@ -488,7 +488,7 @@ test("failed jobs do not leave a partial report retrievable after a late complet
   process.env.INTERNAL_WORKER_TOKEN = previous.INTERNAL_WORKER_TOKEN;
 });
 
-test("M2 reuse returns the same report_id for a second user without queueing a new run", async () => {
+test("M2 reuse returns a cloned report for a second user without queueing a new run", async () => {
   const previous = {
     STORE_BACKEND: process.env.STORE_BACKEND,
     QUEUE_BACKEND: process.env.QUEUE_BACKEND,
@@ -542,7 +542,12 @@ test("M2 reuse returns the same report_id for a second user without queueing a n
   assert.equal(createB.status, 200);
   const createBPayload = createB.payload as JsonObject;
   assert.equal(createBPayload.status, "complete");
-  assert.equal(createBPayload.report_id, reportId);
+  const reusedReportId = createBPayload.report_id as string;
+  const reusedJobId = createBPayload.job_id as string;
+  assert.equal(typeof reusedReportId, "string");
+  assert.equal(typeof reusedJobId, "string");
+  assert.notEqual(reusedReportId, reportId);
+  assert.notEqual(reusedJobId, jobIdA);
 
   const reportsB = await requestJson(baseUrl, "/reports", {
     method: "GET",
@@ -550,13 +555,89 @@ test("M2 reuse returns the same report_id for a second user without queueing a n
   });
   assert.equal(reportsB.status, 200);
   const reportRows = reportsB.payload as JsonObject[];
-  assert.ok(reportRows.some((row) => row.report_id === reportId));
+  assert.ok(reportRows.some((row) => row.report_id === reusedReportId));
+  assert.ok(!reportRows.some((row) => row.report_id === reportId));
 
-  const getReportB = await requestJson(baseUrl, `/reports/${reportId}`, {
+  const getReportB = await requestJson(baseUrl, `/reports/${reusedReportId}`, {
     method: "GET",
     headers: { authorization: `Bearer ${sessionB.accessToken}` }
   });
   assert.equal(getReportB.status, 200);
+  const getReportBPayload = getReportB.payload as JsonObject;
+  assert.equal(getReportBPayload.report_id, reusedReportId);
+  assert.equal(getReportBPayload.job_id, reusedJobId);
+
+  await closeServer(server);
+  process.env.STORE_BACKEND = previous.STORE_BACKEND;
+  process.env.QUEUE_BACKEND = previous.QUEUE_BACKEND;
+  process.env.AUTH_EXPOSE_VERIFICATION_TOKEN = previous.AUTH_EXPOSE_VERIFICATION_TOKEN;
+  process.env.JWT_SECRET = previous.JWT_SECRET;
+  process.env.INTERNAL_WORKER_TOKEN = previous.INTERNAL_WORKER_TOKEN;
+  process.env.DEEP_DIVE_REUSE_FRESHNESS_HOURS = previous.DEEP_DIVE_REUSE_FRESHNESS_HOURS;
+});
+
+test("M2 reuse excludes failed-origin reports and queues a fresh run", async () => {
+  const previous = {
+    STORE_BACKEND: process.env.STORE_BACKEND,
+    QUEUE_BACKEND: process.env.QUEUE_BACKEND,
+    AUTH_EXPOSE_VERIFICATION_TOKEN: process.env.AUTH_EXPOSE_VERIFICATION_TOKEN,
+    JWT_SECRET: process.env.JWT_SECRET,
+    INTERNAL_WORKER_TOKEN: process.env.INTERNAL_WORKER_TOKEN,
+    DEEP_DIVE_REUSE_FRESHNESS_HOURS: process.env.DEEP_DIVE_REUSE_FRESHNESS_HOURS
+  };
+  process.env.STORE_BACKEND = "memory";
+  process.env.QUEUE_BACKEND = "memory";
+  process.env.AUTH_EXPOSE_VERIFICATION_TOKEN = "true";
+  process.env.JWT_SECRET = "dev-jwt-secret-change-me";
+  process.env.INTERNAL_WORKER_TOKEN = "dev-internal-worker-token";
+  process.env.DEEP_DIVE_REUSE_FRESHNESS_HOURS = "24";
+
+  const server = startServer(0);
+  await once(server, "listening");
+  const { port } = server.address() as AddressInfo;
+  const baseUrl = `http://127.0.0.1:${port}`;
+
+  const sessionA = await createVerifiedSessionWithEmail(baseUrl, "m2-reuse-failed-a@example.com");
+  const sessionB = await createVerifiedSessionWithEmail(baseUrl, "m2-reuse-failed-b@example.com");
+
+  const createA = await requestJson(baseUrl, "/jobs", {
+    method: "POST",
+    headers: { authorization: `Bearer ${sessionA.accessToken}` },
+    body: { ticker: "AAPL" }
+  });
+  assert.equal(createA.status, 202);
+  const jobIdA = (createA.payload as JsonObject).job_id as string;
+
+  const claimA = await requestJson(baseUrl, `/internal/jobs/${jobIdA}/claim`, {
+    method: "POST",
+    headers: { "x-internal-token": sessionA.internalToken }
+  });
+  assert.equal(claimA.status, 200);
+
+  const reportId = "report-m2-reuse-failed-1";
+  const completeA = await requestJson(baseUrl, `/internal/jobs/${jobIdA}/complete`, {
+    method: "POST",
+    headers: { "x-internal-token": sessionA.internalToken },
+    body: { report: sampleReport(jobIdA, reportId) }
+  });
+  assert.equal(completeA.status, 200);
+
+  const failA = await requestJson(baseUrl, `/internal/jobs/${jobIdA}/fail`, {
+    method: "POST",
+    headers: { "x-internal-token": sessionA.internalToken },
+    body: { error_message: "Late failure after completion." }
+  });
+  assert.equal(failA.status, 200);
+
+  const createB = await requestJson(baseUrl, "/jobs", {
+    method: "POST",
+    headers: { authorization: `Bearer ${sessionB.accessToken}` },
+    body: { ticker: "AAPL" }
+  });
+  assert.equal(createB.status, 202);
+  const createBPayload = createB.payload as JsonObject;
+  assert.equal(createBPayload.status, "queued");
+  assert.equal(typeof createBPayload.job_id, "string");
 
   await closeServer(server);
   process.env.STORE_BACKEND = previous.STORE_BACKEND;
