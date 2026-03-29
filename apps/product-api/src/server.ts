@@ -38,7 +38,7 @@ import { assertIncomingAnalysisReport } from "./report-validation";
 import { assertIncomingMarketPulseReport } from "./market-pulse-validation";
 import { buildMarketPulseReport, withWatchlistOverlay } from "./market-pulse";
 import { PushNotifier } from "./push";
-import { buildFearGreedSnapshot, isUsTradingDay } from "./sentiment";
+import { buildFearGreedSnapshot, isUsTradingDay, isValidMarketDate } from "./sentiment";
 import { startTickerSyncScheduler } from "./ticker-sync-scheduler";
 import { startJobRecoveryScheduler } from "./job-recovery-scheduler";
 import {
@@ -199,6 +199,9 @@ function isIsoDateTime(value: string): boolean {
 function normalizeDateInput(value: string): string | undefined {
   const normalized = value.trim();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(normalized)) {
+    return undefined;
+  }
+  if (!isValidMarketDate(normalized)) {
     return undefined;
   }
   return normalized;
@@ -365,6 +368,22 @@ function isMarketPulseReport(report: unknown): report is MarketPulseReport {
     isObject(report.sections.news_summary) &&
     isObject(report.sections.uncertainty_flags)
   );
+}
+
+function cloneReusableDeepDiveReport(
+  report: AnalysisReport,
+  overrides: {
+    reportId: string;
+    jobId: string;
+    generatedAt: string;
+  }
+): AnalysisReport {
+  return {
+    ...report,
+    report_id: overrides.reportId,
+    job_id: overrides.jobId,
+    generated_at: overrides.generatedAt
+  };
 }
 
 async function cleanupStoredReport(
@@ -2100,48 +2119,112 @@ export function startServer(port: number = loadConfig().port): Server {
             ticker,
             createdAt: nowIso
           });
-          const completed = await runtime.store.markJobComplete(
-            reuseJob.id,
-            nowIso,
-            reusable.id
-          );
-          if (!completed) {
+          const reusableArtifact = await runtime.artifactStore.readReport(reusable.artifactKey);
+          if (!reusableArtifact || !("job_id" in reusableArtifact)) {
+            await runtime.store.markJobFailed(
+              reuseJob.id,
+              new Date().toISOString(),
+              "Reusable report artifact missing."
+            );
+            sendJson(response, 404, {
+              error: "report_not_found",
+              error_message: "Reusable report artifact missing."
+            });
+            return;
+          }
+
+          const reusableReport = assertIncomingAnalysisReport(reusableArtifact);
+          const reusedReportId = createId();
+          const reusedReport = cloneReusableDeepDiveReport(reusableReport, {
+            reportId: reusedReportId,
+            jobId: reuseJob.id,
+            generatedAt: nowIso
+          });
+
+          let artifactKey: string | undefined;
+          try {
+            artifactKey = await runtime.artifactStore.writeReport(reusedReport);
+            const persisted = await runtime.store.createReport({
+              id: reusedReport.report_id,
+              jobId: reuseJob.id,
+              type: reusedReport.type,
+              ticker: reusedReport.ticker,
+              schemaVersion: reusedReport.schema_version,
+              artifactKey,
+              fingerprint: reusable.fingerprint,
+              freshnessExpiresAt: reusable.freshnessExpiresAt,
+              createdAt: reusedReport.generated_at,
+              isCurrent: true
+            });
+            const completed = await runtime.store.markJobComplete(
+              reuseJob.id,
+              nowIso,
+              persisted.id
+            );
+            if (!completed) {
+              await cleanupStoredReport(runtime, persisted.id, artifactKey);
+              await runtime.store.markJobFailed(
+                reuseJob.id,
+                new Date().toISOString(),
+                "Failed to attach reusable report."
+              );
+              sendJson(response, 500, {
+                error: "internal_error",
+                error_message: "Failed to attach reusable report."
+              });
+              return;
+            }
+
+            await appendAudit(
+              runtime,
+              "job.reused",
+              {
+                request_id: meta.requestId,
+                route: pathname,
+                job_id: completed.id,
+                report_id: persisted.id,
+                ticker,
+                fingerprint
+              },
+              auth.userId
+            );
+
+            logInfo("Deep dive report reused", {
+              request_id: meta.requestId,
+              user_id: auth.userId,
+              job_id: completed.id,
+              report_id: persisted.id,
+              ticker,
+              fingerprint
+            });
+
+            if (deepDiveLimit > 0) {
+              await runtime.store.incrementDailyDeepDiveUsage(auth.userId, usageDate);
+            }
+
+            sendJson(response, 200, buildJobStatusResponse(completed));
+            return;
+          } catch (error) {
+            if (artifactKey) {
+              await cleanupStoredReport(runtime, reusedReportId, artifactKey);
+            }
+            const message = error instanceof Error ? error.message : "Reusable report handling failed";
+            await runtime.store.markJobFailed(
+              reuseJob.id,
+              new Date().toISOString(),
+              message
+            );
+            captureException(new Error(message), {
+              service: serviceName,
+              request_id: meta.requestId,
+              route: pathname
+            });
             sendJson(response, 500, {
               error: "internal_error",
               error_message: "Failed to attach reusable report."
             });
             return;
           }
-
-          await appendAudit(
-            runtime,
-            "job.reused",
-            {
-              request_id: meta.requestId,
-              route: pathname,
-              job_id: completed.id,
-              report_id: reusable.id,
-              ticker,
-              fingerprint
-            },
-            auth.userId
-          );
-
-          logInfo("Deep dive report reused", {
-            request_id: meta.requestId,
-            user_id: auth.userId,
-            job_id: completed.id,
-            report_id: reusable.id,
-            ticker,
-            fingerprint
-          });
-
-          if (deepDiveLimit > 0) {
-            await runtime.store.incrementDailyDeepDiveUsage(auth.userId, usageDate);
-          }
-
-          sendJson(response, 200, buildJobStatusResponse(completed));
-          return;
         }
 
         const createdAt = nowIso;

@@ -861,7 +861,10 @@ export class InMemoryStore implements ProductStore {
         report.ticker === input.ticker &&
         report.fingerprint === input.fingerprint &&
         report.freshnessExpiresAt !== undefined &&
-        Date.parse(report.freshnessExpiresAt) > Date.parse(input.nowIso))
+        Date.parse(report.freshnessExpiresAt) > Date.parse(input.nowIso) &&
+        [...this.jobs.values()].some((job) =>
+          job.status === "complete" && job.reportId === report.id
+        ))
       .sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0];
   }
 
@@ -1664,13 +1667,19 @@ export class PostgresStore implements ProductStore {
     nowIso: string;
   }): Promise<ReportRecord | undefined> {
     const result = await this.pool.query(
-      `select *
-         from reports
-        where type = 'deep_dive'
-          and ticker = $1
-          and fingerprint = $2
-          and freshness_expires_at > $3::timestamptz
-        order by created_at desc
+      `select r.*
+         from reports r
+        where r.type = 'deep_dive'
+          and r.ticker = $1
+          and r.fingerprint = $2
+          and r.freshness_expires_at > $3::timestamptz
+          and exists (
+            select 1
+              from jobs j
+             where j.report_id = r.id
+               and j.status = 'complete'
+          )
+        order by r.created_at desc
         limit 1`,
       [input.ticker, input.fingerprint, input.nowIso]
     );

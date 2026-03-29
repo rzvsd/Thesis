@@ -18,7 +18,12 @@ function buildSeries(start: number, length = 260, step = 1): number[] {
   return Array.from({ length }, (_, index) => Number((start + index * step).toFixed(4)));
 }
 
-async function startMarketDataMock(): Promise<{ server: Server; baseUrl: string }> {
+async function startMarketDataMock(): Promise<{
+  server: Server;
+  baseUrl: string;
+  yahooRequests: URL[];
+  fredRequests: URL[];
+}> {
   const seriesBySymbol: Record<string, number[]> = {
     "^VIX": buildSeries(20, 260, 0.05),
     "^GSPC": buildSeries(4000, 260, 2),
@@ -26,11 +31,14 @@ async function startMarketDataMock(): Promise<{ server: Server; baseUrl: string 
     TLT: buildSeries(95, 260, -0.05),
     AAPL: buildSeries(180, 260, 0.4)
   };
+  const yahooRequests: URL[] = [];
+  const fredRequests: URL[] = [];
 
   const server = createServer((request, response) => {
     const url = new URL(request.url ?? "/", "http://127.0.0.1");
 
     if (url.pathname.startsWith("/v8/finance/chart/")) {
+      yahooRequests.push(url);
       const rawSymbol = url.pathname.split("/").pop() ?? "";
       const symbol = decodeURIComponent(rawSymbol);
       const series = seriesBySymbol[symbol];
@@ -59,6 +67,7 @@ async function startMarketDataMock(): Promise<{ server: Server; baseUrl: string 
     }
 
     if (url.pathname === "/series/observations") {
+      fredRequests.push(url);
       const seriesId = url.searchParams.get("series_id") ?? "";
       if (seriesId === "BAMLH0A0HYM2") {
         sendJson(response, 200, {
@@ -96,7 +105,9 @@ async function startMarketDataMock(): Promise<{ server: Server; baseUrl: string 
   const address = server.address() as AddressInfo;
   return {
     server,
-    baseUrl: `http://127.0.0.1:${address.port}`
+    baseUrl: `http://127.0.0.1:${address.port}`,
+    yahooRequests,
+    fredRequests
   };
 }
 
@@ -259,6 +270,22 @@ test("internal sentiment dispatch stores deterministic snapshots and serves curr
     });
     assert.equal(weekendDispatch.status, 200);
     assert.equal(weekendDispatch.payload.status, "skipped");
+
+    assert.ok(
+      marketMock.yahooRequests.every((request) => {
+        const period1 = request.searchParams.get("period1");
+        const period2 = request.searchParams.get("period2");
+        return (
+          typeof period1 === "string" &&
+          typeof period2 === "string" &&
+          !request.searchParams.has("range") &&
+          Number(period1) < Number(period2)
+        );
+      })
+    );
+    assert.ok(
+      marketMock.fredRequests.every((request) => request.searchParams.get("observation_end") === "2026-03-20")
+    );
   } finally {
     if (server) {
       await closeServer(server);
@@ -275,6 +302,51 @@ test("internal sentiment dispatch stores deterministic snapshots and serves curr
     process.env.SENTIMENT_BREADTH_UNIVERSE_LIMIT = previous.SENTIMENT_BREADTH_UNIVERSE_LIMIT;
     process.env.SENTIMENT_BREADTH_CONCURRENCY = previous.SENTIMENT_BREADTH_CONCURRENCY;
     process.env.SENTIMENT_MIN_AVAILABLE_INPUTS = previous.SENTIMENT_MIN_AVAILABLE_INPUTS;
+  }
+});
+
+test("internal sentiment dispatch rejects impossible calendar dates", async () => {
+  const previous = {
+    STORE_BACKEND: process.env.STORE_BACKEND,
+    QUEUE_BACKEND: process.env.QUEUE_BACKEND,
+    AUTH_EXPOSE_VERIFICATION_TOKEN: process.env.AUTH_EXPOSE_VERIFICATION_TOKEN,
+    JWT_SECRET: process.env.JWT_SECRET,
+    INTERNAL_WORKER_TOKEN: process.env.INTERNAL_WORKER_TOKEN
+  };
+  process.env.STORE_BACKEND = "memory";
+  process.env.QUEUE_BACKEND = "memory";
+  process.env.AUTH_EXPOSE_VERIFICATION_TOKEN = "true";
+  process.env.JWT_SECRET = "dev-jwt-secret-change-me";
+  process.env.INTERNAL_WORKER_TOKEN = "dev-internal-worker-token";
+
+  let server: Server | undefined;
+  try {
+    server = startServer(0);
+    await once(server, "listening");
+    const { port } = server.address() as AddressInfo;
+    const baseUrl = `http://127.0.0.1:${port}`;
+
+    const response = await requestJson(baseUrl, "/internal/sentiment/dispatch", {
+      method: "POST",
+      headers: {
+        "x-internal-token": "dev-internal-worker-token"
+      },
+      body: {
+        market_date: "2026-02-30"
+      }
+    });
+
+    assert.equal(response.status, 422);
+    assert.equal(response.payload.error, "validation_failed");
+  } finally {
+    if (server) {
+      await closeServer(server);
+    }
+    process.env.STORE_BACKEND = previous.STORE_BACKEND;
+    process.env.QUEUE_BACKEND = previous.QUEUE_BACKEND;
+    process.env.AUTH_EXPOSE_VERIFICATION_TOKEN = previous.AUTH_EXPOSE_VERIFICATION_TOKEN;
+    process.env.JWT_SECRET = previous.JWT_SECRET;
+    process.env.INTERNAL_WORKER_TOKEN = previous.INTERNAL_WORKER_TOKEN;
   }
 });
 
