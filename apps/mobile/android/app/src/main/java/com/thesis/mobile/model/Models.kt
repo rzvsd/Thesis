@@ -70,3 +70,19 @@ data class LastViewedReport(
     val referenceDate: String? = null,
     val timestampMs: Long
 )
+
+data class UserProfileView(
+    val userId: String,
+    val email: String,
+    val tier: String,
+    val billingPeriodEnd: String?,
+    val watchlistLimit: Int,
+    val dailyDeepDiveLimit: Int,
+    val deepDivesRemainingToday: Int
+)
+
+data class SubscriptionOfferView(
+    val packageType: String,
+    val identifier: String,
+    val title: String
+)

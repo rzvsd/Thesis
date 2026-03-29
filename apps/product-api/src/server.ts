@@ -12,7 +12,9 @@ import type {
   CreateJobRequest,
   JobStatusResponse,
   MarketPulseReport,
-  ReportListItem
+  ReportListItem,
+  SubscriptionTier,
+  UserProfile
 } from "../../../packages/contracts/src";
 import { captureException, initSentry } from "../../../packages/observability/src/sentry";
 
@@ -39,7 +41,13 @@ import { PushNotifier } from "./push";
 import { buildFearGreedSnapshot, isUsTradingDay } from "./sentiment";
 import { startTickerSyncScheduler } from "./ticker-sync-scheduler";
 import { startJobRecoveryScheduler } from "./job-recovery-scheduler";
-import type { AuditEventRecord, JobRecord } from "./types";
+import {
+  fetchRevenueCatSubscriberSnapshot,
+  hashRevenueCatAppUserId,
+  parseRevenueCatWebhookEvent,
+  verifyRevenueCatWebhookSecret
+} from "./revenuecat";
+import type { AuditEventRecord, JobRecord, UserSubscriptionRecord } from "./types";
 
 type HealthPayload = { status: "ok" };
 
@@ -239,6 +247,105 @@ function deepDiveFingerprint(input: {
 
 function addHours(iso: string, hours: number): string {
   return new Date(Date.parse(iso) + hours * 60 * 60 * 1000).toISOString();
+}
+
+function watchlistLimitForTier(tier: SubscriptionTier): number {
+  return tier === "PRO" ? 20 : 5;
+}
+
+function dailyDeepDiveLimitForTier(tier: SubscriptionTier): number {
+  return tier === "PRO" ? -1 : 1;
+}
+
+function remainingDeepDives(limit: number, usedToday: number): number {
+  if (limit < 0) {
+    return -1;
+  }
+  return Math.max(0, limit - usedToday);
+}
+
+function shouldGrantProFromWebhookEvent(eventType: string): boolean {
+  return [
+    "INITIAL_PURCHASE",
+    "RENEWAL",
+    "UNCANCELLATION",
+    "NON_RENEWING_PURCHASE",
+    "PRODUCT_CHANGE",
+    "SUBSCRIPTION_EXTENDED"
+  ].includes(eventType);
+}
+
+function shouldExpireFromWebhookEvent(eventType: string): boolean {
+  return ["EXPIRATION", "BILLING_ISSUE", "SUBSCRIPTION_PAUSED"].includes(eventType);
+}
+
+function buildUpgradeRequiredPayload(feature: string, errorMessage: string): Record<string, unknown> {
+  return {
+    error: "upgrade_required",
+    feature,
+    error_message: errorMessage
+  };
+}
+
+async function buildUserProfile(
+  runtime: Runtime,
+  userId: string
+): Promise<UserProfile | undefined> {
+  const user = await runtime.store.findUserById(userId);
+  if (!user) {
+    return undefined;
+  }
+
+  const subscription = await runtime.store.getUserSubscription(userId);
+  const watchlistLimit = watchlistLimitForTier(subscription.tier);
+  const deepDiveLimit = dailyDeepDiveLimitForTier(subscription.tier);
+  const usageDate = dateInTimeZone(new Date(), runtime.config.subscriptionTimezone);
+  const usedToday =
+    deepDiveLimit < 0
+      ? 0
+      : await runtime.store.getDailyDeepDiveUsage(userId, usageDate);
+
+  return {
+    user_id: user.id,
+    email: user.email,
+    tier: subscription.tier,
+    billing_period_end: subscription.billingPeriodEnd,
+    watchlist_limit: watchlistLimit,
+    daily_deep_dive_limit: deepDiveLimit,
+    deep_dives_remaining_today: remainingDeepDives(deepDiveLimit, usedToday)
+  };
+}
+
+function applyWebhookEventToSubscription(
+  current: UserSubscriptionRecord,
+  eventType: string,
+  billingPeriodEnd: string | undefined
+): { tier: SubscriptionTier; billingPeriodEnd?: string } {
+  if (shouldGrantProFromWebhookEvent(eventType)) {
+    return {
+      tier: "PRO",
+      billingPeriodEnd
+    };
+  }
+
+  if (eventType === "CANCELLATION") {
+    return {
+      tier: "PRO",
+      billingPeriodEnd: billingPeriodEnd ?? current.billingPeriodEnd
+    };
+  }
+
+  if (shouldExpireFromWebhookEvent(eventType)) {
+    return {
+      tier: "FREE",
+      billingPeriodEnd: undefined
+    };
+  }
+
+  return {
+    tier: current.tier,
+    billingPeriodEnd: current.billingPeriodEnd
+  };
 }
 
 function isMarketPulseReport(report: unknown): report is MarketPulseReport {
@@ -1420,11 +1527,173 @@ export function startServer(port: number = loadConfig().port): Server {
         return;
       }
 
+      if (method === "POST" && pathname === "/v1/webhooks/revenuecat") {
+        const authorizationHeader =
+          typeof request.headers.authorization === "string"
+            ? request.headers.authorization
+            : undefined;
+        if (
+          !verifyRevenueCatWebhookSecret(
+            authorizationHeader,
+            runtime.config.revenuecatWebhookSecret
+          )
+        ) {
+          sendJson(response, 401, {
+            error: "unauthorized",
+            error_message: "Invalid RevenueCat webhook secret."
+          });
+          return;
+        }
+
+        const payload = await readJsonBody<unknown>(request);
+        const parsedEvent = parseRevenueCatWebhookEvent(payload);
+        if (!parsedEvent) {
+          sendJson(response, 422, {
+            error: "validation_failed",
+            error_message: "Invalid RevenueCat webhook payload."
+          });
+          return;
+        }
+
+        const directUser = await runtime.store.findUserById(parsedEvent.appUserId);
+        const mappedUserId = directUser
+          ? directUser.id
+          : await runtime.store.findUserIdByRevenuecatAppUserId(parsedEvent.appUserId);
+        if (!mappedUserId) {
+          logWarn("RevenueCat webhook user not found", {
+            route: pathname,
+            event_type: parsedEvent.eventType,
+            revenuecat_user_id_hash: hashRevenueCatAppUserId(parsedEvent.appUserId)
+          });
+          sendJson(response, 202, {
+            status: "ignored",
+            reason: "user_not_found"
+          });
+          return;
+        }
+
+        const current = await runtime.store.getUserSubscription(mappedUserId);
+        const next = applyWebhookEventToSubscription(
+          current,
+          parsedEvent.eventType,
+          parsedEvent.billingPeriodEnd
+        );
+        const updated = await runtime.store.upsertUserSubscription({
+          userId: mappedUserId,
+          tier: next.tier,
+          billingPeriodEnd: next.billingPeriodEnd,
+          revenuecatAppUserId: parsedEvent.appUserId,
+          updatedAt: new Date().toISOString()
+        });
+
+        await appendAudit(
+          runtime,
+          "subscription.webhook_processed",
+          {
+            request_id: meta.requestId,
+            route: pathname,
+            event_type: parsedEvent.eventType,
+            tier: updated.tier,
+            billing_period_end: updated.billingPeriodEnd,
+            revenuecat_user_id_hash: hashRevenueCatAppUserId(parsedEvent.appUserId)
+          },
+          mappedUserId
+        );
+
+        sendJson(response, 200, {
+          status: "ok"
+        });
+        return;
+      }
+
       const auth = await authenticateAccessToken(runtime, request);
       if (!auth) {
         sendJson(response, 401, {
           error: "unauthorized",
           error_message: "Authentication required."
+        });
+        return;
+      }
+
+      if (method === "GET" && pathname === "/v1/user/profile") {
+        const profile = await buildUserProfile(runtime, auth.userId);
+        if (!profile) {
+          sendJson(response, 404, {
+            error: "user_not_found",
+            error_message: "User not found."
+          });
+          return;
+        }
+
+        await appendAudit(
+          runtime,
+          "subscription.profile_retrieved",
+          {
+            request_id: meta.requestId,
+            route: pathname,
+            tier: profile.tier
+          },
+          auth.userId
+        );
+
+        sendJson(response, 200, {
+          data: profile
+        });
+        return;
+      }
+
+      if (method === "POST" && pathname === "/v1/user/sync-tier") {
+        const body = await readJsonBody<{ revenuecat_app_user_id?: string }>(request);
+        const existing = await runtime.store.getUserSubscription(auth.userId);
+        const appUserId =
+          body.revenuecat_app_user_id?.trim() ||
+          existing.revenuecatAppUserId ||
+          auth.userId;
+
+        let snapshot;
+        try {
+          snapshot = await fetchRevenueCatSubscriberSnapshot(runtime.config, appUserId);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : "Failed to sync tier.";
+          sendJson(response, 503, {
+            error: "sync_unavailable",
+            error_message: message
+          });
+          return;
+        }
+
+        const updated = await runtime.store.upsertUserSubscription({
+          userId: auth.userId,
+          tier: snapshot.tier,
+          billingPeriodEnd: snapshot.billingPeriodEnd,
+          revenuecatAppUserId: snapshot.appUserId,
+          updatedAt: new Date().toISOString()
+        });
+
+        const profile = await buildUserProfile(runtime, auth.userId);
+        if (!profile) {
+          sendJson(response, 404, {
+            error: "user_not_found",
+            error_message: "User not found."
+          });
+          return;
+        }
+
+        await appendAudit(
+          runtime,
+          "subscription.sync_tier_completed",
+          {
+            request_id: meta.requestId,
+            route: pathname,
+            tier: updated.tier,
+            billing_period_end: updated.billingPeriodEnd,
+            revenuecat_user_id_hash: hashRevenueCatAppUserId(snapshot.appUserId)
+          },
+          auth.userId
+        );
+
+        sendJson(response, 200, {
+          data: profile
         });
         return;
       }
@@ -1558,11 +1827,17 @@ export function startServer(port: number = loadConfig().port): Server {
         }
 
         const current = await runtime.store.listWatchlistTickersByUser(auth.userId);
-        if (!current.includes(ticker) && current.length >= 20) {
-          sendJson(response, 422, {
-            error: "watchlist_limit_reached",
-            error_message: "Watchlist limit is 20 tickers."
-          });
+        const subscription = await runtime.store.getUserSubscription(auth.userId);
+        const watchlistLimit = watchlistLimitForTier(subscription.tier);
+        if (!current.includes(ticker) && current.length >= watchlistLimit) {
+          sendJson(
+            response,
+            403,
+            buildUpgradeRequiredPayload(
+              "watchlist_cap",
+              `Watchlist limit reached for ${subscription.tier} tier (${watchlistLimit}).`
+            )
+          );
           return;
         }
 
@@ -1786,6 +2061,24 @@ export function startServer(port: number = loadConfig().port): Server {
           return;
         }
 
+        const subscription = await runtime.store.getUserSubscription(auth.userId);
+        const deepDiveLimit = dailyDeepDiveLimitForTier(subscription.tier);
+        const usageDate = dateInTimeZone(new Date(), runtime.config.subscriptionTimezone);
+        if (deepDiveLimit > 0) {
+          const usedToday = await runtime.store.getDailyDeepDiveUsage(auth.userId, usageDate);
+          if (usedToday >= deepDiveLimit) {
+            sendJson(
+              response,
+              403,
+              buildUpgradeRequiredPayload(
+                "deep_dive_daily_limit",
+                `Daily Deep Dive limit reached for ${subscription.tier} tier (${deepDiveLimit}/day).`
+              )
+            );
+            return;
+          }
+        }
+
         const nowIso = new Date().toISOString();
         const coverage = await runtime.store.getTickerCoverageByTicker(ticker);
         const fingerprint = deepDiveFingerprint({
@@ -1843,6 +2136,10 @@ export function startServer(port: number = loadConfig().port): Server {
             fingerprint
           });
 
+          if (deepDiveLimit > 0) {
+            await runtime.store.incrementDailyDeepDiveUsage(auth.userId, usageDate);
+          }
+
           sendJson(response, 200, buildJobStatusResponse(completed));
           return;
         }
@@ -1898,6 +2195,10 @@ export function startServer(port: number = loadConfig().port): Server {
           job_id: job.id,
           ticker
         });
+
+        if (deepDiveLimit > 0) {
+          await runtime.store.incrementDailyDeepDiveUsage(auth.userId, usageDate);
+        }
 
         sendJson(response, 202, buildJobStatusResponse(job));
         return;

@@ -18,6 +18,8 @@ export * from "./market-pulse-report";
 export * from "./report-section";
 export * from "./report-list-item";
 export * from "./service-response";
+export * from "./subscription-tier";
 export * from "./ticker-coverage";
 export * from "./ticker-registry-entry";
 export * from "./ticker-search-result";
+export * from "./user-profile";

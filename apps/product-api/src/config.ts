@@ -77,6 +77,12 @@ export interface ProductApiConfig {
   sentimentBreadthConcurrency: number;
   sentimentMinimumAvailableInputs: number;
   deepDiveReuseFreshnessHours: number;
+  subscriptionTimezone: string;
+  revenuecatApiBaseUrl: string;
+  revenuecatPublicAndroidKey?: string;
+  revenuecatServerApiKey?: string;
+  revenuecatWebhookSecret?: string;
+  revenuecatEntitlementId?: string;
   pushProviderMode: "stub" | "fcm";
   googleApplicationCredentials?: string;
   jobRecoveryEnabled: boolean;
@@ -153,6 +159,12 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ProductApiConf
     sentimentBreadthConcurrency: parseInteger(env.SENTIMENT_BREADTH_CONCURRENCY, 8),
     sentimentMinimumAvailableInputs: parseInteger(env.SENTIMENT_MIN_AVAILABLE_INPUTS, 3),
     deepDiveReuseFreshnessHours: parseInteger(env.DEEP_DIVE_REUSE_FRESHNESS_HOURS, 24),
+    subscriptionTimezone: env.SUBSCRIPTION_TIMEZONE?.trim() || "America/New_York",
+    revenuecatApiBaseUrl: env.REVENUECAT_API_BASE_URL?.trim() || "https://api.revenuecat.com/v1",
+    revenuecatPublicAndroidKey: env.REVENUECAT_PUBLIC_ANDROID_KEY?.trim() || undefined,
+    revenuecatServerApiKey: env.REVENUECAT_SERVER_API_KEY?.trim() || undefined,
+    revenuecatWebhookSecret: env.REVENUECAT_WEBHOOK_SECRET?.trim() || undefined,
+    revenuecatEntitlementId: env.REVENUECAT_ENTITLEMENT_ID?.trim() || undefined,
     pushProviderMode:
       env.PUSH_PROVIDER_MODE?.trim().toLowerCase() === "fcm"
         ? "fcm"
@@ -219,6 +231,18 @@ export function validateConfig(config: ProductApiConfig): string[] {
 
   if (config.deepDiveReuseFreshnessHours <= 0) {
     errors.push("DEEP_DIVE_REUSE_FRESHNESS_HOURS must be greater than 0");
+  }
+
+  if (config.subscriptionTimezone.trim().length === 0) {
+    errors.push("SUBSCRIPTION_TIMEZONE must not be empty");
+  }
+
+  if (
+    Boolean(config.revenuecatServerApiKey) !== Boolean(config.revenuecatEntitlementId)
+  ) {
+    errors.push(
+      "REVENUECAT_SERVER_API_KEY and REVENUECAT_ENTITLEMENT_ID must be set together"
+    );
   }
 
   if (config.jobRecoveryIntervalSeconds <= 0) {

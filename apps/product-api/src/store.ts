@@ -4,6 +4,7 @@ import type {
   CanonicalFinancialSnapshot,
   CanonicalTranscript,
   FearGreedSnapshot,
+  SubscriptionTier,
   TickerCoverage
 } from "../../../packages/contracts/src";
 
@@ -17,6 +18,7 @@ import type {
   TickerRegistryUpsertInput,
   TickerSearchResult,
   UserRecord,
+  UserSubscriptionRecord,
   VerificationTokenRecord
 } from "./types";
 
@@ -30,6 +32,17 @@ export interface ProductStore {
     deviceToken: string | undefined
   ): Promise<UserRecord | undefined>;
   listUsersWithDeviceToken(): Promise<Array<{ userId: string; deviceToken: string }>>;
+  getUserSubscription(userId: string): Promise<UserSubscriptionRecord>;
+  findUserIdByRevenuecatAppUserId(revenuecatAppUserId: string): Promise<string | undefined>;
+  upsertUserSubscription(input: {
+    userId: string;
+    tier: SubscriptionTier;
+    revenuecatAppUserId?: string;
+    billingPeriodEnd?: string;
+    updatedAt: string;
+  }): Promise<UserSubscriptionRecord>;
+  getDailyDeepDiveUsage(userId: string, usageDate: string): Promise<number>;
+  incrementDailyDeepDiveUsage(userId: string, usageDate: string): Promise<number>;
   createVerificationToken(input: {
     id: string;
     userId: string;
@@ -215,6 +228,18 @@ function mapReport(row: Record<string, unknown>): ReportRecord {
   };
 }
 
+function mapSubscription(row: Record<string, unknown>): UserSubscriptionRecord {
+  return {
+    userId: String(row.user_id),
+    tier: String(row.tier) as SubscriptionTier,
+    revenuecatAppUserId: row.revenuecat_app_user_id
+      ? String(row.revenuecat_app_user_id)
+      : undefined,
+    billingPeriodEnd: asIsoString(row.billing_period_end),
+    updatedAt: asIsoString(row.updated_at) ?? new Date().toISOString()
+  };
+}
+
 function mapTicker(row: Record<string, unknown>): TickerRegistryRecord {
   return {
     symbol: String(row.symbol),
@@ -314,6 +339,9 @@ function mapFearGreedSnapshot(row: Record<string, unknown>): FearGreedSnapshot {
 export class InMemoryStore implements ProductStore {
   private readonly users = new Map<string, UserRecord>();
   private readonly usersByEmail = new Map<string, string>();
+  private readonly subscriptions = new Map<string, UserSubscriptionRecord>();
+  private readonly userIdsByRevenuecatAppUserId = new Map<string, string>();
+  private readonly deepDiveDailyUsage = new Map<string, Map<string, number>>();
   private readonly verificationTokensByHash = new Map<string, VerificationTokenRecord>();
   private readonly sessions = new Map<string, SessionRecord>();
   private readonly jobs = new Map<string, JobRecord>();
@@ -354,6 +382,50 @@ export class InMemoryStore implements ProductStore {
       {
         symbol: "TSLA",
         companyName: "Tesla, Inc. Common Stock",
+        exchange: "NASDAQ",
+        listingStatus: "active",
+        isSupported: true,
+        sourceFeed: "memory_seed",
+        sourceUpdatedAt: now,
+        lastSyncedAt: now,
+        rawPayload: {}
+      },
+      {
+        symbol: "NVDA",
+        companyName: "NVIDIA Corporation Common Stock",
+        exchange: "NASDAQ",
+        listingStatus: "active",
+        isSupported: true,
+        sourceFeed: "memory_seed",
+        sourceUpdatedAt: now,
+        lastSyncedAt: now,
+        rawPayload: {}
+      },
+      {
+        symbol: "AMZN",
+        companyName: "Amazon.com, Inc. Common Stock",
+        exchange: "NASDAQ",
+        listingStatus: "active",
+        isSupported: true,
+        sourceFeed: "memory_seed",
+        sourceUpdatedAt: now,
+        lastSyncedAt: now,
+        rawPayload: {}
+      },
+      {
+        symbol: "META",
+        companyName: "Meta Platforms, Inc. Class A Common Stock",
+        exchange: "NASDAQ",
+        listingStatus: "active",
+        isSupported: true,
+        sourceFeed: "memory_seed",
+        sourceUpdatedAt: now,
+        lastSyncedAt: now,
+        rawPayload: {}
+      },
+      {
+        symbol: "GOOGL",
+        companyName: "Alphabet Inc. Class A Common Stock",
         exchange: "NASDAQ",
         listingStatus: "active",
         isSupported: true,
@@ -501,6 +573,73 @@ export class InMemoryStore implements ProductStore {
       }
     }
     return targets;
+  }
+
+  async getUserSubscription(userId: string): Promise<UserSubscriptionRecord> {
+    const existing = this.subscriptions.get(userId);
+    if (existing) {
+      return existing;
+    }
+
+    const created: UserSubscriptionRecord = {
+      userId,
+      tier: "FREE",
+      updatedAt: new Date().toISOString()
+    };
+    this.subscriptions.set(userId, created);
+    return created;
+  }
+
+  async findUserIdByRevenuecatAppUserId(revenuecatAppUserId: string): Promise<string | undefined> {
+    return this.userIdsByRevenuecatAppUserId.get(revenuecatAppUserId.trim()) ?? undefined;
+  }
+
+  async upsertUserSubscription(input: {
+    userId: string;
+    tier: SubscriptionTier;
+    revenuecatAppUserId?: string;
+    billingPeriodEnd?: string;
+    updatedAt: string;
+  }): Promise<UserSubscriptionRecord> {
+    const previous = this.subscriptions.get(input.userId);
+    const nextRevenuecatAppUserId = input.revenuecatAppUserId?.trim() || previous?.revenuecatAppUserId;
+    const subscription: UserSubscriptionRecord = {
+      userId: input.userId,
+      tier: input.tier,
+      revenuecatAppUserId: nextRevenuecatAppUserId,
+      billingPeriodEnd: input.billingPeriodEnd,
+      updatedAt: input.updatedAt
+    };
+
+    this.subscriptions.set(input.userId, subscription);
+    if (previous?.revenuecatAppUserId && previous.revenuecatAppUserId !== nextRevenuecatAppUserId) {
+      this.userIdsByRevenuecatAppUserId.delete(previous.revenuecatAppUserId);
+    }
+    if (nextRevenuecatAppUserId) {
+      this.userIdsByRevenuecatAppUserId.set(nextRevenuecatAppUserId, input.userId);
+    }
+
+    return subscription;
+  }
+
+  async getDailyDeepDiveUsage(userId: string, usageDate: string): Promise<number> {
+    const perUser = this.deepDiveDailyUsage.get(userId);
+    if (!perUser) {
+      return 0;
+    }
+    return perUser.get(usageDate) ?? 0;
+  }
+
+  async incrementDailyDeepDiveUsage(userId: string, usageDate: string): Promise<number> {
+    let perUser = this.deepDiveDailyUsage.get(userId);
+    if (!perUser) {
+      perUser = new Map<string, number>();
+      this.deepDiveDailyUsage.set(userId, perUser);
+    }
+
+    const next = (perUser.get(usageDate) ?? 0) + 1;
+    perUser.set(usageDate, next);
+    return next;
   }
 
   async createVerificationToken(input: {
@@ -1182,6 +1321,106 @@ export class PostgresStore implements ProductStore {
       userId: String(row.id),
       deviceToken: String(row.device_token)
     }));
+  }
+
+  async getUserSubscription(userId: string): Promise<UserSubscriptionRecord> {
+    await this.pool.query(
+      `insert into subscriptions (user_id, tier, updated_at)
+       values ($1, 'FREE', $2)
+       on conflict (user_id) do nothing`,
+      [userId, new Date().toISOString()]
+    );
+
+    const result = await this.pool.query(
+      `select *
+         from subscriptions
+        where user_id = $1
+        limit 1`,
+      [userId]
+    );
+    const row = result.rows[0] as Record<string, unknown> | undefined;
+    if (!row) {
+      return {
+        userId,
+        tier: "FREE",
+        updatedAt: new Date().toISOString()
+      };
+    }
+    return mapSubscription(row);
+  }
+
+  async findUserIdByRevenuecatAppUserId(revenuecatAppUserId: string): Promise<string | undefined> {
+    const result = await this.pool.query(
+      `select user_id
+         from subscriptions
+        where revenuecat_app_user_id = $1
+        limit 1`,
+      [revenuecatAppUserId.trim()]
+    );
+    const row = result.rows[0] as Record<string, unknown> | undefined;
+    return row?.user_id ? String(row.user_id) : undefined;
+  }
+
+  async upsertUserSubscription(input: {
+    userId: string;
+    tier: SubscriptionTier;
+    revenuecatAppUserId?: string;
+    billingPeriodEnd?: string;
+    updatedAt: string;
+  }): Promise<UserSubscriptionRecord> {
+    const result = await this.pool.query(
+      `insert into subscriptions (
+         user_id,
+         tier,
+         revenuecat_app_user_id,
+         billing_period_end,
+         updated_at,
+         created_at
+       )
+       values ($1, $2, $3, $4, $5, $5)
+       on conflict (user_id) do update set
+         tier = excluded.tier,
+         revenuecat_app_user_id = coalesce(excluded.revenuecat_app_user_id, subscriptions.revenuecat_app_user_id),
+         billing_period_end = excluded.billing_period_end,
+         updated_at = excluded.updated_at
+       returning *`,
+      [
+        input.userId,
+        input.tier,
+        input.revenuecatAppUserId?.trim() || null,
+        input.billingPeriodEnd ?? null,
+        input.updatedAt
+      ]
+    );
+    return mapSubscription(result.rows[0] as Record<string, unknown>);
+  }
+
+  async getDailyDeepDiveUsage(userId: string, usageDate: string): Promise<number> {
+    const result = await this.pool.query(
+      `select request_count
+         from deep_dive_daily_usage
+        where user_id = $1
+          and usage_date = $2::date
+        limit 1`,
+      [userId, usageDate]
+    );
+    const row = result.rows[0] as Record<string, unknown> | undefined;
+    return row?.request_count ? Number(row.request_count) : 0;
+  }
+
+  async incrementDailyDeepDiveUsage(userId: string, usageDate: string): Promise<number> {
+    const nowIso = new Date().toISOString();
+    const result = await this.pool.query(
+      `insert into deep_dive_daily_usage (user_id, usage_date, request_count, created_at, updated_at)
+       values ($1, $2::date, 1, $3, $3)
+       on conflict (user_id, usage_date) do update set
+         request_count = deep_dive_daily_usage.request_count + 1,
+         updated_at = excluded.updated_at
+       returning request_count`,
+      [userId, usageDate, nowIso]
+    );
+    const row = result.rows[0] as Record<string, unknown> | undefined;
+    return row?.request_count ? Number(row.request_count) : 1;
   }
 
   async createVerificationToken(input: {

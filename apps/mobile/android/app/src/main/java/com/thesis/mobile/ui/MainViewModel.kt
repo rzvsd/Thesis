@@ -1,17 +1,22 @@
 package com.thesis.mobile.ui
 
 import android.app.Application
+import android.app.Activity
 import android.util.Base64
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.firebase.messaging.FirebaseMessaging
+import com.revenuecat.purchases.PackageType
+import com.thesis.mobile.billing.RevenueCatBilling
 import com.thesis.mobile.data.SessionStore
 import com.thesis.mobile.model.AuthTokens
 import com.thesis.mobile.model.DeepDiveReportView
 import com.thesis.mobile.model.LastViewedReport
 import com.thesis.mobile.model.PulseReportView
 import com.thesis.mobile.model.ReportHistoryItem
+import com.thesis.mobile.model.SubscriptionOfferView
 import com.thesis.mobile.model.TickerSearchItem
+import com.thesis.mobile.model.UserProfileView
 import com.thesis.mobile.network.ProductApiClient
 import com.thesis.mobile.network.ProductApiException
 import com.thesis.mobile.observability.MobileTelemetry
@@ -49,7 +54,11 @@ data class UiState(
     val pulseError: String? = null,
     val reportHistory: List<ReportHistoryItem> = emptyList(),
     val watchlist: List<String> = emptyList(),
-    val lastViewedReport: LastViewedReport? = null
+    val lastViewedReport: LastViewedReport? = null,
+    val userProfile: UserProfileView? = null,
+    val paywallFeature: String? = null,
+    val subscriptionOffers: List<SubscriptionOfferView> = emptyList(),
+    val subscriptionActionInFlight: Boolean = false
 )
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
@@ -72,6 +81,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         if (state.tokens != null) {
             state = state.copy(lastViewedReport = sessionStore.getLastViewedReport())
             refreshFeatureFlags()
+            refreshUserProfile()
+            refreshSubscriptionOffers()
             refreshPulse()
             refreshReportHistory()
             viewModelScope.launch {
@@ -189,6 +200,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     )
                 )
                 refreshFeatureFlags()
+                refreshUserProfile()
+                refreshSubscriptionOffers()
                 refreshPulse()
                 refreshReportHistory()
                 syncPushToken()
@@ -218,6 +231,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             runCatching {
                 client.logout(state.apiBaseUrl, current.accessToken, current.refreshToken)
             }
+            runCatching {
+                RevenueCatBilling.logOutSafely()
+            }
             sessionStore.clearTokens()
             publish(
                 state.copy(
@@ -232,9 +248,134 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     reportHistory = emptyList(),
                     jobStatus = null,
                     watchlistFeatureEnabled = true,
+                    userProfile = null,
+                    paywallFeature = null,
+                    subscriptionOffers = emptyList(),
                     message = "Logged out."
                 )
             )
+        }
+    }
+
+    fun dismissPaywall() {
+        publish(state.copy(paywallFeature = null))
+    }
+
+    fun syncTierFromServer(revenuecatAppUserId: String? = null) {
+        withAuthorizedCall {
+            val profile = client.syncUserTier(
+                state.apiBaseUrl,
+                requireTokens().accessToken,
+                revenuecatAppUserId
+            )
+            publish(
+                state.copy(
+                    userProfile = profile,
+                    paywallFeature = null,
+                    message = "Subscription status refreshed."
+                )
+            )
+        }
+    }
+
+    fun refreshSubscriptionOffers() {
+        viewModelScope.launch {
+            val appUserId = parseJwtSubject(state.tokens?.accessToken)
+            val configured = runCatching {
+                RevenueCatBilling.configureIfPossible(getApplication(), appUserId)
+            }.getOrDefault(false)
+
+            if (!configured) {
+                publish(state.copy(subscriptionOffers = emptyList()))
+                return@launch
+            }
+
+            val offers = runCatching {
+                val offerings = RevenueCatBilling.getOfferings()
+                val monthly = RevenueCatBilling.pickPreferredPackage(offerings, PackageType.MONTHLY)
+                val annual = RevenueCatBilling.pickPreferredPackage(offerings, PackageType.ANNUAL)
+                listOfNotNull(monthly, annual)
+                    .distinctBy { it.identifier }
+                    .map { pack ->
+                        SubscriptionOfferView(
+                            packageType = pack.packageType.name,
+                            identifier = pack.identifier,
+                            title = pack.product.title.ifBlank { pack.identifier }
+                        )
+                    }
+            }.getOrElse {
+                emptyList()
+            }
+
+            publish(state.copy(subscriptionOffers = offers))
+        }
+    }
+
+    fun startPurchase(activity: Activity, preferredType: String? = null) {
+        withAuthorizedCall {
+            val appUserId = parseJwtSubject(requireTokens().accessToken)
+            if (!RevenueCatBilling.configureIfPossible(getApplication(), appUserId)) {
+                publish(state.copy(message = "In-app purchases are not configured for this build."))
+                return@withAuthorizedCall
+            }
+
+            publish(state.copy(subscriptionActionInFlight = true))
+            try {
+                val offerings = RevenueCatBilling.getOfferings()
+                val packageType = when (preferredType?.uppercase()) {
+                    "MONTHLY" -> PackageType.MONTHLY
+                    "ANNUAL", "YEARLY" -> PackageType.ANNUAL
+                    else -> PackageType.MONTHLY
+                }
+                val selected = RevenueCatBilling.pickPreferredPackage(offerings, packageType)
+                    ?: throw IllegalStateException("No subscription package is currently available.")
+                val customerInfo = RevenueCatBilling.purchase(activity, selected)
+                val profile = client.syncUserTier(
+                    state.apiBaseUrl,
+                    requireTokens().accessToken,
+                    customerInfo.originalAppUserId
+                )
+                publish(
+                    state.copy(
+                        userProfile = profile,
+                        paywallFeature = null,
+                        message = "Purchase completed. Subscription upgraded."
+                    )
+                )
+                refreshSubscriptionOffers()
+            } finally {
+                publish(state.copy(subscriptionActionInFlight = false))
+            }
+        }
+    }
+
+    fun restorePurchases() {
+        withAuthorizedCall {
+            val appUserId = parseJwtSubject(requireTokens().accessToken)
+            if (!RevenueCatBilling.configureIfPossible(getApplication(), appUserId)) {
+                publish(state.copy(message = "In-app purchases are not configured for this build."))
+                return@withAuthorizedCall
+            }
+
+            publish(state.copy(subscriptionActionInFlight = true))
+            try {
+                val customerInfo = RevenueCatBilling.restorePurchases()
+                val profile = client.syncUserTier(
+                    state.apiBaseUrl,
+                    requireTokens().accessToken,
+                    customerInfo.originalAppUserId
+                )
+                publish(
+                    state.copy(
+                        userProfile = profile,
+                        paywallFeature = null,
+                        message = "Purchases restored."
+                    )
+                )
+                refreshSubscriptionOffers()
+            } finally {
+                publish(state.copy(subscriptionActionInFlight = false))
+            }
         }
     }
 
@@ -497,7 +638,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             if (error == null) {
                 publish(state.copy(isLoading = false))
             } else {
-                publish(state.copy(isLoading = false, message = toMessage(error)))
+                val upgrade = (error as? ProductApiException)
+                    ?.takeIf { it.code == 403 && it.errorCode == "upgrade_required" }
+                if (upgrade != null) {
+                    publish(
+                        state.copy(
+                            isLoading = false,
+                            paywallFeature = upgrade.feature ?: "pro_features",
+                            message = upgrade.message
+                        )
+                    )
+                } else {
+                    publish(state.copy(isLoading = false, message = toMessage(error)))
+                }
             }
         }
     }
@@ -543,6 +696,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
         runCatching {
             client.updateDeviceToken(state.apiBaseUrl, tokens.accessToken, firebaseToken)
+        }
+    }
+
+    private fun refreshUserProfile() {
+        withAuthorizedCall {
+            val profile = client.getUserProfile(state.apiBaseUrl, requireTokens().accessToken)
+            publish(state.copy(userProfile = profile))
         }
     }
 
