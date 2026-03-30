@@ -2,7 +2,7 @@ appId: ${MAESTRO_APP_ID}
 ---
 
 - launchApp:
-    optional: true
+    clearState: true
 
 - runFlow:
     when:
@@ -34,10 +34,6 @@ appId: ${MAESTRO_APP_ID}
     commands:
       - tapOn: "Wait"
 
-- extendedWaitUntil:
-    visible: "Thesis Android MVP"
-    timeout: 20000
-- assertVisible: "Thesis Android MVP"
 - tapOn: "Email"
 - inputText: "${MAESTRO_TEST_EMAIL}"
 - tapOn: "Password"
@@ -46,30 +42,29 @@ appId: ${MAESTRO_APP_ID}
 - tapOn: "Login"
 
 - extendedWaitUntil:
-    visible: "Good morning"
+    visible: "What Moved"
     timeout: 30000
-- assertVisible: "Pulse"
-- assertVisible: "Deep Dive"
-- assertVisible: "Watchlist"
-- assertVisible: "History"
-- assertVisible: "Settings"
-- assertVisible: "Good morning"
+- assertVisible: "Today"
+- assertVisible: "Research"
+- assertVisible: "Portfolio"
+- assertVisible: "What Moved"
 
-- tapOn: "Watchlist"
-- assertVisible: "Watchlist"
+- tapOn: "Portfolio"
+- assertVisible: "My Names"
 - tapOn: "Ticker"
 - inputText: "${MAESTRO_DEEP_DIVE_TICKER}"
 - hideKeyboard
 - tapOn: "Add"
 - assertVisible: "${MAESTRO_DEEP_DIVE_TICKER}"
 
-- tapOn: "Pulse"
+- tapOn: "Today"
 - extendedWaitUntil:
     visible: "My Names"
     timeout: 15000
 - assertVisible: "My Names"
 - assertVisible: "${MAESTRO_DEEP_DIVE_TICKER}"
 
+- tapOn: "Research"
 - tapOn: "History"
 - extendedWaitUntil:
     visible: "${MAESTRO_DEEP_DIVE_TICKER} Deep Dive"
@@ -82,9 +77,9 @@ appId: ${MAESTRO_APP_ID}
     timeout: 30000
 - assertVisible: "${MAESTRO_DEEP_DIVE_TICKER}"
 - assertVisible: "CURRENT SIGNAL"
-- assertVisible: "Deep Dive Modules"
+- assertVisible: "THESIS STATEMENT"
 
-- tapOn: "Pulse"
+- tapOn: "Today"
 - scrollUntilVisible:
     element:
       text: "FULL PULSE"
@@ -92,13 +87,7 @@ appId: ${MAESTRO_APP_ID}
 - assertVisible: "FULL PULSE"
 - assertVisible: "HISTORY"
 
+- tapOn: "Portfolio"
 - tapOn: "Settings"
 - assertVisible: "Settings"
 - assertVisible: "Open Android Notification Settings"
-- assertVisible: "Product API Base URL"
-- tapOn: "Logout"
-
-- extendedWaitUntil:
-    visible: "Thesis Android MVP"
-    timeout: 20000
-- assertVisible: "Thesis Android MVP"

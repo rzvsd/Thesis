@@ -14,6 +14,8 @@ import type {
   MarketPulseReport,
   NotificationType,
   ReportListItem,
+  ScenarioRequest,
+  ScenarioResponse,
   SubscriptionTier,
   UserProfile
 } from "../../../packages/contracts/src";
@@ -661,6 +663,103 @@ function cloneReusableDeepDiveReport(
     report_id: overrides.reportId,
     job_id: overrides.jobId,
     generated_at: overrides.generatedAt
+  };
+}
+
+function deterministicValuationFactor(assumptions: {
+  terminal_growth_rate: number;
+  wacc: number;
+}): number {
+  return (1 + assumptions.terminal_growth_rate) / (assumptions.wacc - assumptions.terminal_growth_rate);
+}
+
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+function clampNumber(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
+
+function roundTo(value: number, decimals: number = 4): number {
+  const multiplier = 10 ** decimals;
+  return Math.round(value * multiplier) / multiplier;
+}
+
+function computeScenarioResponse(
+  reportId: string,
+  valuation: NonNullable<AnalysisReport["valuation"]>,
+  overrides: NonNullable<ScenarioRequest["overrides"]>
+): ScenarioResponse {
+  const base = {
+    fair_value_mid: valuation.fair_value_mid,
+    fair_value_low: valuation.fair_value_low,
+    fair_value_high: valuation.fair_value_high,
+    spot_price: valuation.spot_price,
+    implied_upside_pct: valuation.implied_upside_pct,
+    assumptions: { ...valuation.assumptions },
+    degraded_reason: valuation.degraded_reason
+  };
+
+  const scenarioAssumptions = {
+    ...valuation.assumptions,
+    projection_years:
+      overrides.projection_years ?? valuation.assumptions.projection_years,
+    terminal_growth_rate:
+      overrides.terminal_growth_rate ?? valuation.assumptions.terminal_growth_rate,
+    wacc: overrides.wacc ?? valuation.assumptions.wacc
+  };
+
+  const hasBaseMid = isFiniteNumber(valuation.fair_value_mid);
+  if (!hasBaseMid) {
+    return {
+      report_id: reportId,
+      base,
+      scenario: {
+        fair_value_mid: undefined,
+        fair_value_low: undefined,
+        fair_value_high: undefined,
+        spot_price: valuation.spot_price,
+        implied_upside_pct: undefined,
+        assumptions: scenarioAssumptions,
+        degraded_reason:
+          valuation.degraded_reason ??
+          "Base valuation fair value is unavailable for scenario recomputation."
+      }
+    };
+  }
+
+  const baseFactor = deterministicValuationFactor(valuation.assumptions);
+  const scenarioFactor = deterministicValuationFactor(scenarioAssumptions);
+  const projectionRatioRaw =
+    scenarioAssumptions.projection_years / valuation.assumptions.projection_years;
+  const projectionRatio = clampNumber(projectionRatioRaw, 0.5, 1.5);
+  const scaling = (scenarioFactor / baseFactor) * projectionRatio;
+
+  const scenarioMid = roundTo((valuation.fair_value_mid as number) * scaling, 4);
+  const scenarioLow = isFiniteNumber(valuation.fair_value_low)
+    ? roundTo(valuation.fair_value_low * scaling, 4)
+    : undefined;
+  const scenarioHigh = isFiniteNumber(valuation.fair_value_high)
+    ? roundTo(valuation.fair_value_high * scaling, 4)
+    : undefined;
+
+  const spotPrice = isFiniteNumber(valuation.spot_price) ? valuation.spot_price : undefined;
+  const impliedUpsidePct = spotPrice
+    ? roundTo(((scenarioMid - spotPrice) / spotPrice) * 100, 4)
+    : undefined;
+
+  return {
+    report_id: reportId,
+    base,
+    scenario: {
+      fair_value_mid: scenarioMid,
+      fair_value_low: scenarioLow,
+      fair_value_high: scenarioHigh,
+      spot_price: spotPrice,
+      implied_upside_pct: impliedUpsidePct,
+      assumptions: scenarioAssumptions
+    }
   };
 }
 
@@ -3172,6 +3271,225 @@ export function startServer(port: number = loadConfig().port): Server {
 
         sendJson(response, 200, report);
         return;
+      }
+
+      if ((method === "GET" || method === "PUT") && pathname.startsWith("/v1/reports/")) {
+        const parts = pathname.split("/").filter(Boolean);
+        if (parts.length === 4 && parts[0] === "v1" && parts[1] === "reports" && parts[3] === "note") {
+          const reportId = parts[2];
+          if (!reportId) {
+            sendJson(response, 404, { status: "not_found" });
+            return;
+          }
+
+          const reportMetadata = await runtime.store.getReportById(reportId);
+          if (!reportMetadata) {
+            sendJson(response, 404, {
+              error: "report_not_found",
+              error_message: "Report not found."
+            });
+            return;
+          }
+
+          const hasAccess = await runtime.store.hasReportAccessForUser(auth.userId, reportMetadata.id);
+          if (!hasAccess) {
+            sendJson(response, 404, {
+              error: "report_not_found",
+              error_message: "Report not found."
+            });
+            return;
+          }
+
+          if (method === "GET") {
+            const existing = await runtime.store.getReportNote(reportId, auth.userId);
+            if (!existing) {
+              sendJson(response, 404, {
+                error: "note_not_found",
+                error_message: "No note is saved for this report."
+              });
+              return;
+            }
+            sendJson(response, 200, {
+              data: {
+                report_id: reportId,
+                content: existing.content,
+                updated_at: existing.updatedAt
+              }
+            });
+            return;
+          }
+
+          const body = await readJsonBody<{ content?: unknown }>(request);
+          if (typeof body.content !== "string") {
+            sendJson(response, 422, {
+              error: "validation_failed",
+              error_message: "content must be a string."
+            });
+            return;
+          }
+
+          const content = body.content.trim();
+          if (content.length > 10_000) {
+            sendJson(response, 422, {
+              error: "validation_failed",
+              error_message: "content must be at most 10000 characters."
+            });
+            return;
+          }
+
+          const updated = await runtime.store.upsertReportNote({
+            reportId,
+            userId: auth.userId,
+            content,
+            updatedAt: new Date().toISOString()
+          });
+
+          await appendAudit(runtime, "report.note_upserted", {
+            request_id: meta.requestId,
+            route: pathname,
+            report_id: reportId,
+            content_length: content.length
+          }, auth.userId);
+
+          sendJson(response, 200, {
+            data: {
+              report_id: reportId,
+              content: updated.content,
+              updated_at: updated.updatedAt
+            }
+          });
+          return;
+        }
+      }
+
+      if (method === "POST" && pathname.startsWith("/v1/reports/")) {
+        const parts = pathname.split("/").filter(Boolean);
+        if (parts.length === 4 && parts[0] === "v1" && parts[1] === "reports" && parts[3] === "scenario") {
+          const reportId = parts[2];
+          if (!reportId) {
+            sendJson(response, 404, { status: "not_found" });
+            return;
+          }
+
+          const reportMetadata = await runtime.store.getReportById(reportId);
+          if (!reportMetadata) {
+            sendJson(response, 404, {
+              error: "report_not_found",
+              error_message: "Report not found."
+            });
+            return;
+          }
+
+          const hasAccess = await runtime.store.hasReportAccessForUser(auth.userId, reportMetadata.id);
+          if (!hasAccess) {
+            sendJson(response, 404, {
+              error: "report_not_found",
+              error_message: "Report not found."
+            });
+            return;
+          }
+
+          const subscription = await runtime.store.getUserSubscription(auth.userId);
+          if (subscription.tier !== "PRO") {
+            sendJson(
+              response,
+              403,
+              buildUpgradeRequiredPayload(
+                "what_if_scenario",
+                "What-If scenarios are available on the Pro tier."
+              )
+            );
+            return;
+          }
+
+          const artifact = await runtime.artifactStore.readReport(reportMetadata.artifactKey);
+          if (!artifact || !("job_id" in artifact)) {
+            sendJson(response, 404, {
+              error: "report_not_found",
+              error_message: "Report artifact missing."
+            });
+            return;
+          }
+
+          const report = assertIncomingAnalysisReport(artifact);
+          if (report.type !== "deep_dive") {
+            sendJson(response, 422, {
+              error: "validation_failed",
+              error_message: "Scenario requests are only supported for Deep Dive reports."
+            });
+            return;
+          }
+
+          if (!report.valuation) {
+            sendJson(response, 422, {
+              error: "scenario_unavailable",
+              error_message: "Valuation block is required for scenario analysis."
+            });
+            return;
+          }
+
+          const body = await readJsonBody<ScenarioRequest>(request);
+          const overridesRaw = body.overrides ?? {};
+          const projectionYears = overridesRaw.projection_years;
+          const terminalGrowth = overridesRaw.terminal_growth_rate;
+          const wacc = overridesRaw.wacc;
+
+          if (projectionYears !== undefined) {
+            if (!isFiniteNumber(projectionYears) || !Number.isInteger(projectionYears) || projectionYears < 1 || projectionYears > 30) {
+              sendJson(response, 422, {
+                error: "validation_failed",
+                error_message: "projection_years must be an integer between 1 and 30."
+              });
+              return;
+            }
+          }
+          if (terminalGrowth !== undefined) {
+            if (!isFiniteNumber(terminalGrowth) || terminalGrowth < -0.2 || terminalGrowth > 0.2) {
+              sendJson(response, 422, {
+                error: "validation_failed",
+                error_message: "terminal_growth_rate must be between -0.2 and 0.2."
+              });
+              return;
+            }
+          }
+          if (wacc !== undefined) {
+            if (!isFiniteNumber(wacc) || wacc <= 0 || wacc > 1) {
+              sendJson(response, 422, {
+                error: "validation_failed",
+                error_message: "wacc must be between 0 and 1."
+              });
+              return;
+            }
+          }
+
+          const mergedWacc = wacc ?? report.valuation.assumptions.wacc;
+          const mergedGrowth = terminalGrowth ?? report.valuation.assumptions.terminal_growth_rate;
+          if (mergedWacc <= mergedGrowth) {
+            sendJson(response, 422, {
+              error: "validation_failed",
+              error_message: "wacc must be greater than terminal_growth_rate."
+            });
+            return;
+          }
+
+          const scenario = computeScenarioResponse(reportId, report.valuation, {
+            projection_years: projectionYears,
+            terminal_growth_rate: terminalGrowth,
+            wacc
+          });
+
+          await appendAudit(runtime, "report.scenario_generated", {
+            request_id: meta.requestId,
+            route: pathname,
+            report_id: reportId,
+            has_projection_years_override: projectionYears !== undefined,
+            has_terminal_growth_override: terminalGrowth !== undefined,
+            has_wacc_override: wacc !== undefined
+          }, auth.userId);
+
+          sendJson(response, 200, scenario);
+          return;
+        }
       }
 
       sendJson(response, 404, { status: "not_found" });
