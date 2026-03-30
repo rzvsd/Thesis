@@ -29,15 +29,13 @@ import java.io.IOException
 import java.net.URI
 
 enum class AppTab {
-    PULSE,
-    DEEP_DIVE,
-    WATCHLIST,
-    HISTORY,
-    SETTINGS
+    TODAY,
+    RESEARCH,
+    PORTFOLIO
 }
 
 data class UiState(
-    val currentTab: AppTab = AppTab.PULSE,
+    val currentTab: AppTab = AppTab.TODAY,
     val showWelcome: Boolean = false,
     val apiBaseUrl: String = "",
     val notificationsEnabled: Boolean = true,
@@ -110,7 +108,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun openPulseFromNotification(reportDate: String? = null) {
-        publish(state.copy(currentTab = AppTab.PULSE))
+        publish(state.copy(currentTab = AppTab.TODAY))
         if (!reportDate.isNullOrBlank()) {
             loadPulseByDate(reportDate, rememberAsLastViewed = true)
         } else {
@@ -119,17 +117,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun setTab(tab: AppTab) {
-        if (tab == AppTab.WATCHLIST && !state.watchlistFeatureEnabled) {
-            publish(state.copy(message = "Watchlist is currently disabled by feature flag."))
-            return
-        }
-
         publish(state.copy(currentTab = tab))
         when (tab) {
-            AppTab.PULSE -> refreshPulse()
-            AppTab.WATCHLIST -> refreshWatchlist()
-            AppTab.DEEP_DIVE, AppTab.HISTORY -> refreshReportHistory()
-            else -> Unit
+            AppTab.TODAY -> refreshPulse()
+            AppTab.RESEARCH -> refreshReportHistory()
+            AppTab.PORTFOLIO -> {
+                refreshWatchlist()
+                refreshUserProfile()
+                refreshNotificationPreferences()
+            }
         }
     }
 
@@ -476,7 +472,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val report = client.getDeepDiveReport(state.apiBaseUrl, requireTokens().accessToken, reportId)
                 publish(
                     state.copy(
-                        currentTab = AppTab.DEEP_DIVE,
+                        currentTab = AppTab.RESEARCH,
                         deepDiveReport = report,
                         message = "Loaded report from history.",
                         deepDiveError = null
@@ -510,7 +506,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun resumeLastViewed(lastViewedReport: LastViewedReport) {
         when (lastViewedReport.type) {
             "PULSE" -> {
-                publish(state.copy(currentTab = AppTab.PULSE))
+                publish(state.copy(currentTab = AppTab.TODAY))
                 val referenceDate = lastViewedReport.referenceDate
                 if (!referenceDate.isNullOrBlank()) {
                     loadPulseByDate(referenceDate, rememberAsLastViewed = true)
@@ -771,11 +767,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             val value = runCatching { telemetry.fetchWatchlistFlag(distinctId()) }.getOrNull()
             if (value != null) {
-                val safeTab = if (!value && state.currentTab == AppTab.WATCHLIST) AppTab.PULSE else state.currentTab
                 publish(
                     state.copy(
                         watchlistFeatureEnabled = value,
-                        currentTab = safeTab
+                        currentTab = state.currentTab
                     )
                 )
             }

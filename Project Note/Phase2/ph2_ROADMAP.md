@@ -52,7 +52,7 @@ No milestone begins until the previous one is closed. Closed means the `ph2_MILE
 | M3 | Fear & Greed Index Engine | Deterministic 6-signal market-data composite index calculated nightly | Idea 2 (backend) |
 | M4 | Monetization & Subscription | RevenueCat with server-authoritative Free/Pro tiers enforced across all gated features | Roadmap A3 |
 | M5 | Calendar & Smart Notifications | Earnings calendar, personalized FCM, contrarian alerts, weekly intelligence digest | Roadmap B3 + B4 + B5 + Idea 1 |
-| M6 | 3-Tab Navigation Redesign | Today / Research / You architecture with explicit migration from the current 5-tab app | UX Architecture |
+| M6 | 3-Tab Navigation Redesign | Today / Research / Portfolio architecture with explicit migration from the current 5-tab app | UX Architecture |
 | M7 | Report UI & Interactive Features | Richer Deep Dive UX backed by contract/model expansion, not mock-only UI | Roadmap A5 + C3 |
 | M8 | Fear & Greed UI & Weekly Digest | Fear & Greed dashboard with charts + weekly intelligence digest email | Idea 1 + Idea 2 (UI) |
 | M9 | Offline, Security & Launch Prep | Room caching, cert pinning, ProGuard, PostHog dashboards | Roadmap A6 + A8 + C8 |
@@ -77,7 +77,8 @@ Phase 2 is only safe if the team treats certain milestones as explicit extension
 ### M6 - 3-Tab Navigation
 
 - This milestone refactors a working 5-tab Android app.
-- Before UI implementation begins, the team must map the current Pulse / Deep Dive / Watchlist / History / Settings flows into Today / Research / You.
+- Before UI implementation begins, the team must map the current Pulse / Deep Dive / Watchlist / History / Settings flows into Today / Research / Portfolio.
+- `Portfolio` is a user-facing navigation label only. It does not introduce real holdings or portfolio-management scope.
 - Deep links, push opens, history resume, and settings access must remain reachable throughout the refactor.
 
 ### M7 - Report UX

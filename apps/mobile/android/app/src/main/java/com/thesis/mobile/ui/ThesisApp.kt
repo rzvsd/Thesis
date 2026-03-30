@@ -15,7 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
@@ -67,6 +67,16 @@ import com.thesis.mobile.ui.screens.WelcomeScreen
 import com.thesis.mobile.ui.theme.ThesisTheme
 import androidx.compose.material.icons.filled.History
 
+private enum class ResearchMode {
+    DEEP_DIVE,
+    HISTORY
+}
+
+private enum class PortfolioMode {
+    MY_NAMES,
+    SETTINGS
+}
+
 @Composable
 fun ThesisApp(
     launchTarget: LaunchTarget? = null,
@@ -75,6 +85,8 @@ fun ThesisApp(
 ) {
     var uiState by remember { mutableStateOf(mainViewModel.state) }
     val snackbarHostState = remember { SnackbarHostState() }
+    var researchMode by rememberSaveable { mutableStateOf(ResearchMode.DEEP_DIVE) }
+    var portfolioMode by rememberSaveable { mutableStateOf(PortfolioMode.MY_NAMES) }
 
     DisposableEffect(mainViewModel) {
         mainViewModel.observe { state -> uiState = state }
@@ -94,7 +106,8 @@ fun ThesisApp(
                 if (ticker.isNotBlank()) {
                     mainViewModel.selectTicker(ticker)
                 }
-                mainViewModel.setTab(AppTab.DEEP_DIVE)
+                researchMode = ResearchMode.DEEP_DIVE
+                mainViewModel.setTab(AppTab.RESEARCH)
             }
         }
 
@@ -133,17 +146,7 @@ fun ThesisApp(
             return@ThesisTheme
         }
 
-        val visibleTabs = remember(uiState.watchlistFeatureEnabled) {
-            buildList {
-                add(TabItem.Pulse)
-                add(TabItem.DeepDive)
-                if (uiState.watchlistFeatureEnabled) {
-                    add(TabItem.Watchlist)
-                }
-                add(TabItem.History)
-                add(TabItem.Settings)
-            }
-        }
+        val visibleTabs = remember { listOf(TabItem.Today, TabItem.Research, TabItem.Portfolio) }
 
         Scaffold(
             snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -152,7 +155,15 @@ fun ThesisApp(
                     visibleTabs.forEach { tab ->
                         NavigationBarItem(
                             selected = uiState.currentTab == tab.target,
-                            onClick = { mainViewModel.setTab(tab.target) },
+                            onClick = {
+                                if (tab.target == AppTab.RESEARCH) {
+                                    researchMode = ResearchMode.DEEP_DIVE
+                                }
+                                if (tab.target == AppTab.PORTFOLIO && !uiState.watchlistFeatureEnabled) {
+                                    portfolioMode = PortfolioMode.SETTINGS
+                                }
+                                mainViewModel.setTab(tab.target)
+                            },
                             icon = { Icon(tab.icon, contentDescription = tab.label) },
                             label = { Text(tab.label) }
                         )
@@ -176,58 +187,60 @@ fun ThesisApp(
                 }
             } else {
                 when (uiState.currentTab) {
-                    AppTab.PULSE -> HomeScreen(
+                    AppTab.TODAY -> HomeScreen(
                         pulse = uiState.pulseReport,
                         watchlist = uiState.watchlist,
                         padding = padding,
                         lastViewedReport = uiState.lastViewedReport,
                         pulseError = uiState.pulseError,
-                        onOpenHistory = { mainViewModel.setTab(AppTab.HISTORY) },
+                        onOpenHistory = {
+                            researchMode = ResearchMode.HISTORY
+                            mainViewModel.setTab(AppTab.RESEARCH)
+                        },
                         onRunDeepDive = { ticker ->
                             mainViewModel.selectTicker(ticker)
-                            mainViewModel.setTab(AppTab.DEEP_DIVE)
+                            researchMode = ResearchMode.DEEP_DIVE
+                            mainViewModel.setTab(AppTab.RESEARCH)
                             mainViewModel.runDeepDive()
                         },
-                        onManageNames = { mainViewModel.setTab(AppTab.WATCHLIST) },
+                        onManageNames = {
+                            portfolioMode = PortfolioMode.MY_NAMES
+                            mainViewModel.setTab(AppTab.PORTFOLIO)
+                        },
                         onRetryPulse = mainViewModel::refreshPulse,
                         onResumeLastViewed = { mainViewModel.resumeLastViewed(it) },
                         onDismissResume = { mainViewModel.dismissResumeCard() }
                     )
-                    AppTab.DEEP_DIVE -> DeepDiveScreen(
-                        report = uiState.deepDiveReport,
+                    AppTab.RESEARCH -> ResearchTab(
+                        mode = researchMode,
+                        onSetMode = { researchMode = it },
+                        padding = padding,
+                        reportHistory = uiState.reportHistory,
+                        deepDiveReport = uiState.deepDiveReport,
                         isLoading = uiState.isLoading,
-                        errorMessage = uiState.deepDiveError,
-                        tickerState = uiState.selectedTicker ?: "",
+                        deepDiveError = uiState.deepDiveError,
+                        selectedTicker = uiState.selectedTicker ?: "",
                         watchlist = uiState.watchlist,
                         onTickerChange = mainViewModel::selectTicker,
                         onRunReport = mainViewModel::runDeepDive,
-                        onBack = { mainViewModel.setTab(AppTab.PULSE) },
-                        padding = padding
-                    )
-                    AppTab.WATCHLIST -> WatchlistTab(
-                        padding = padding,
-                        items = uiState.watchlist,
-                        onRefresh = mainViewModel::refreshWatchlist,
-                        onAdd = mainViewModel::addWatchlistTicker,
-                        onRemove = mainViewModel::removeWatchlistTicker
-                    )
-                    AppTab.HISTORY -> HistoryScreen(
-                        historyItems = uiState.reportHistory,
-                        onBack = { mainViewModel.setTab(AppTab.PULSE) },
-                        onOpenReport = { item ->
-                            if (item.type == "deep_dive") {
-                                mainViewModel.openHistoryReport(item.reportId)
-                            } else {
-                                mainViewModel.loadPulseByDate(
-                                    item.createdAt.take(10),
-                                    rememberAsLastViewed = true
-                                )
-                                mainViewModel.setTab(AppTab.PULSE)
-                            }
+                        onOpenHistoryReport = mainViewModel::openHistoryReport,
+                        onOpenPulseHistory = { date ->
+                            mainViewModel.loadPulseByDate(
+                                date = date,
+                                rememberAsLastViewed = true
+                            )
+                            mainViewModel.setTab(AppTab.TODAY)
                         }
                     )
-                    AppTab.SETTINGS -> SettingsTab(
+                    AppTab.PORTFOLIO -> PortfolioTab(
+                        mode = portfolioMode,
+                        onSetMode = { portfolioMode = it },
+                        watchlistFeatureEnabled = uiState.watchlistFeatureEnabled,
                         padding = padding,
+                        watchlist = uiState.watchlist,
+                        onRefreshWatchlist = mainViewModel::refreshWatchlist,
+                        onAddWatchlistTicker = mainViewModel::addWatchlistTicker,
+                        onRemoveWatchlistTicker = mainViewModel::removeWatchlistTicker,
                         currentApiBaseUrl = uiState.apiBaseUrl,
                         profile = uiState.userProfile,
                         subscriptionOffers = uiState.subscriptionOffers,
@@ -272,13 +285,161 @@ private enum class TabItem(
     val label: String,
     val icon: androidx.compose.ui.graphics.vector.ImageVector
 ) {
-    Pulse(AppTab.PULSE, "Pulse", Icons.Filled.Notifications),
-    DeepDive(AppTab.DEEP_DIVE, "Deep Dive", Icons.Filled.Search),
-    History(AppTab.HISTORY, "History", Icons.Filled.History),
-    Watchlist(AppTab.WATCHLIST, "Watchlist", Icons.Filled.List),
-    Settings(AppTab.SETTINGS, "Settings", Icons.Filled.Settings)
+    Today(AppTab.TODAY, "Today", Icons.Filled.Notifications),
+    Research(AppTab.RESEARCH, "Research", Icons.Filled.Search),
+    Portfolio(AppTab.PORTFOLIO, "Portfolio", Icons.AutoMirrored.Filled.List)
 }
 
+
+@Composable
+private fun ResearchTab(
+    mode: ResearchMode,
+    onSetMode: (ResearchMode) -> Unit,
+    padding: PaddingValues,
+    reportHistory: List<ReportHistoryItem>,
+    deepDiveReport: DeepDiveReportView?,
+    isLoading: Boolean,
+    deepDiveError: String?,
+    selectedTicker: String,
+    watchlist: List<String>,
+    onTickerChange: (String) -> Unit,
+    onRunReport: () -> Unit,
+    onOpenHistoryReport: (String) -> Unit,
+    onOpenPulseHistory: (String) -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(padding)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Button(
+                onClick = { onSetMode(ResearchMode.DEEP_DIVE) },
+                enabled = mode != ResearchMode.DEEP_DIVE
+            ) {
+                Text("Deep Dive")
+            }
+            Button(
+                onClick = { onSetMode(ResearchMode.HISTORY) },
+                enabled = mode != ResearchMode.HISTORY
+            ) {
+                Text("History")
+            }
+        }
+
+        when (mode) {
+            ResearchMode.DEEP_DIVE -> DeepDiveScreen(
+                report = deepDiveReport,
+                isLoading = isLoading,
+                errorMessage = deepDiveError,
+                tickerState = selectedTicker,
+                watchlist = watchlist,
+                onTickerChange = onTickerChange,
+                onRunReport = onRunReport,
+                onBack = { onSetMode(ResearchMode.HISTORY) },
+                padding = PaddingValues()
+            )
+
+            ResearchMode.HISTORY -> HistoryScreen(
+                historyItems = reportHistory,
+                onBack = { onSetMode(ResearchMode.DEEP_DIVE) },
+                onOpenReport = { item ->
+                    if (item.type == "deep_dive") {
+                        onOpenHistoryReport(item.reportId)
+                        onSetMode(ResearchMode.DEEP_DIVE)
+                    } else {
+                        onOpenPulseHistory(item.createdAt.take(10))
+                    }
+                }
+            )
+        }
+    }
+}
+
+@Composable
+private fun PortfolioTab(
+    mode: PortfolioMode,
+    onSetMode: (PortfolioMode) -> Unit,
+    watchlistFeatureEnabled: Boolean,
+    padding: PaddingValues,
+    watchlist: List<String>,
+    onRefreshWatchlist: () -> Unit,
+    onAddWatchlistTicker: (String) -> Unit,
+    onRemoveWatchlistTicker: (String) -> Unit,
+    currentApiBaseUrl: String,
+    profile: UserProfileView?,
+    subscriptionOffers: List<com.thesis.mobile.model.SubscriptionOfferView>,
+    subscriptionActionInFlight: Boolean,
+    notificationsEnabled: Boolean,
+    notificationPreferences: List<NotificationPreferenceView>,
+    onSetNotifications: (Boolean) -> Unit,
+    onSetNotificationPreference: (String, Boolean) -> Unit,
+    onSaveApiBaseUrl: (String) -> Unit,
+    onSyncTier: () -> Unit,
+    onRefreshOffers: () -> Unit,
+    onStartPurchase: (Activity, String?) -> Unit,
+    onRestorePurchases: () -> Unit,
+    onLogout: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(padding)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Button(
+                onClick = { onSetMode(PortfolioMode.MY_NAMES) },
+                enabled = mode != PortfolioMode.MY_NAMES && watchlistFeatureEnabled
+            ) {
+                Text("My Names")
+            }
+            Button(
+                onClick = { onSetMode(PortfolioMode.SETTINGS) },
+                enabled = mode != PortfolioMode.SETTINGS
+            ) {
+                Text("Settings")
+            }
+        }
+
+        if (mode == PortfolioMode.MY_NAMES && watchlistFeatureEnabled) {
+            WatchlistTab(
+                padding = PaddingValues(),
+                items = watchlist,
+                onRefresh = onRefreshWatchlist,
+                onAdd = onAddWatchlistTicker,
+                onRemove = onRemoveWatchlistTicker
+            )
+        } else {
+            SettingsTab(
+                padding = PaddingValues(),
+                currentApiBaseUrl = currentApiBaseUrl,
+                profile = profile,
+                subscriptionOffers = subscriptionOffers,
+                subscriptionActionInFlight = subscriptionActionInFlight,
+                notificationsEnabled = notificationsEnabled,
+                notificationPreferences = notificationPreferences,
+                onSetNotifications = onSetNotifications,
+                onSetNotificationPreference = onSetNotificationPreference,
+                onSaveApiBaseUrl = onSaveApiBaseUrl,
+                onSyncTier = onSyncTier,
+                onRefreshOffers = onRefreshOffers,
+                onStartPurchase = onStartPurchase,
+                onRestorePurchases = onRestorePurchases,
+                onLogout = onLogout
+            )
+        }
+    }
+}
 
 
 @Composable

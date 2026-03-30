@@ -52,8 +52,10 @@ import com.thesis.mobile.ui.theme.ThesisColors
 import com.thesis.mobile.ui.theme.ThesisDimens
 import com.thesis.mobile.ui.theme.ThesisTypography
 import java.time.Instant
+import java.time.LocalTime
 import java.time.LocalDate
 import java.time.ZoneId
+import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 
 @Composable
@@ -72,9 +74,13 @@ fun HomeScreen(
 ) {
     var showFullPulse by rememberSaveable { mutableStateOf(false) }
     val dateLabel = remember { LocalDate.now().format(DateTimeFormatter.ofPattern("EEEE, MMM d")) }
+    val phase = remember { resolveTodayPhase() }
     val pulseSections = pulse?.sections.orEmpty()
     val visiblePulseSections = pulseSections.filterNot { isWatchlistOverlay(it) }
-    val pulseLead = derivePulseLead(pulse)
+    val todayPlan = remember(phase, visiblePulseSections) {
+        buildTodayPlan(phase, visiblePulseSections)
+    }
+    val pulseLead = derivePulseLead(pulse, phase)
     val pulseTimestamp = pulse?.generatedAt?.let(::formatTimestamp)
     val lastViewedTicker = lastViewedReport?.takeIf { it.type == "DEEP_DIVE" }?.label
     val insight = deriveInsight(pulse, watchlist, lastViewedTicker)
@@ -90,6 +96,7 @@ fun HomeScreen(
             Spacer(modifier = Modifier.height(ThesisDimens.ScreenPaddingTop))
             GreetingSection(
                 dateLabel = dateLabel,
+                phaseTitle = phase.title,
                 pulseLead = pulseLead,
                 pulseTimestamp = pulseTimestamp
             )
@@ -140,7 +147,10 @@ fun HomeScreen(
 
             else -> {
                 item {
-                    WhatMovedSection(sections = visiblePulseSections.take(3))
+                    WhatMovedSection(
+                        subtitle = todayPlan.subtitle,
+                        sections = todayPlan.prioritySections.take(4)
+                    )
                 }
             }
         }
@@ -182,6 +192,7 @@ fun HomeScreen(
 @Composable
 private fun GreetingSection(
     dateLabel: String,
+    phaseTitle: String,
     pulseLead: String,
     pulseTimestamp: String?
 ) {
@@ -192,7 +203,7 @@ private fun GreetingSection(
             color = ThesisColors.TextSecondaryDark
         )
         Text(
-            text = "Good morning",
+            text = phaseTitle,
             style = ThesisTypography.displayLarge,
             color = ThesisColors.TextPrimaryDark,
             modifier = Modifier.padding(top = ThesisDimens.SpacingXs, bottom = ThesisDimens.SpacingLg)
@@ -214,11 +225,14 @@ private fun GreetingSection(
 }
 
 @Composable
-private fun WhatMovedSection(sections: List<SectionView>) {
+private fun WhatMovedSection(
+    subtitle: String,
+    sections: List<SectionView>
+) {
     Column {
         SectionHeader(
             title = "What Moved",
-            subtitle = "Built from the latest Market Pulse"
+            subtitle = subtitle
         )
         if (sections.isEmpty()) {
             PulseInfoCard(
@@ -642,12 +656,76 @@ private data class InsightCardModel(
     val body: String
 )
 
-private fun derivePulseLead(pulse: PulseReportView?): String {
+private enum class TodayPhase(val title: String) {
+    PRE_MARKET("Pre-market"),
+    MARKET_HOURS("Market hours"),
+    AFTER_HOURS("After hours")
+}
+
+private data class TodayPlan(
+    val subtitle: String,
+    val prioritySections: List<SectionView>
+)
+
+private fun derivePulseLead(pulse: PulseReportView?, phase: TodayPhase): String {
     if (pulse == null) {
-        return "Your daily Market Pulse will appear here once the morning cycle completes."
+        return when (phase) {
+            TodayPhase.PRE_MARKET -> "Build your plan before the opening bell."
+            TodayPhase.MARKET_HOURS -> "Live market context will appear here as today unfolds."
+            TodayPhase.AFTER_HOURS -> "Review what changed and prepare for tomorrow."
+        }
     }
     val leadSection = pulse.sections.firstOrNull { !isWatchlistOverlay(it) } ?: return "Today’s pulse is ready."
     return "${leadSection.title}: ${summarizeBody(leadSection.body)}"
+}
+
+private fun resolveTodayPhase(now: ZonedDateTime = ZonedDateTime.now(ZoneId.of("America/New_York"))): TodayPhase {
+    val time = now.toLocalTime()
+    return when {
+        time.isBefore(LocalTime.of(9, 30)) -> TodayPhase.PRE_MARKET
+        time.isBefore(LocalTime.of(16, 0)) -> TodayPhase.MARKET_HOURS
+        else -> TodayPhase.AFTER_HOURS
+    }
+}
+
+private fun buildTodayPlan(phase: TodayPhase, sections: List<SectionView>): TodayPlan {
+    if (sections.isEmpty()) {
+        return TodayPlan(
+            subtitle = "Waiting for the next Pulse cycle.",
+            prioritySections = emptyList()
+        )
+    }
+
+    val fearGreed = sections.firstOrNull { containsAny(it, "fear", "greed", "sentiment") }
+    val earnings = sections.firstOrNull { containsAny(it, "earnings", "calendar") }
+    val contrarian = sections.firstOrNull { containsAny(it, "contrarian", "alert") }
+    val marketMoves = sections.firstOrNull { containsAny(it, "market", "moves", "pulse") }
+    val weeklyDigest = sections.firstOrNull { containsAny(it, "weekly", "digest") }
+
+    val priorityOrder = when (phase) {
+        TodayPhase.PRE_MARKET -> listOf(fearGreed, earnings, contrarian, marketMoves, weeklyDigest)
+        TodayPhase.MARKET_HOURS -> listOf(marketMoves, fearGreed, contrarian, earnings, weeklyDigest)
+        TodayPhase.AFTER_HOURS -> listOf(marketMoves, fearGreed, earnings, weeklyDigest, contrarian)
+    }
+
+    val prioritized = priorityOrder.filterNotNull()
+    val remaining = sections.filterNot { prioritized.contains(it) }
+
+    val subtitle = when (phase) {
+        TodayPhase.PRE_MARKET -> "Priority: sentiment -> tomorrow reports -> overnight risk context."
+        TodayPhase.MARKET_HOURS -> "Priority: current moves -> sentiment -> active risk context."
+        TodayPhase.AFTER_HOURS -> "Priority: closing wrap -> sentiment -> tomorrow earnings setup."
+    }
+
+    return TodayPlan(
+        subtitle = subtitle,
+        prioritySections = prioritized + remaining
+    )
+}
+
+private fun containsAny(section: SectionView, vararg tokens: String): Boolean {
+    val haystack = "${section.title} ${section.body}".lowercase()
+    return tokens.any { token -> haystack.contains(token.lowercase()) }
 }
 
 private fun deriveInsight(

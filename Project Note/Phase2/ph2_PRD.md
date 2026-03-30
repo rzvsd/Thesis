@@ -48,10 +48,14 @@ The focus shifts to:
 
 ### 2.3 3-Tab Architecture (M6)
 
-- **Today Tab:** time-aware. Shows Morning Pulse pre-market. Shows watchlist movers during market hours. Shows recap and tomorrow context after market close.
-- **Research Tab:** the entry point for Deep Dives. Contains search, recent report history, and suggested names based on catalysts.
-- **You Tab:** unified profile. Contains subscription status, watchlist/My Names management, and app settings.
-- **Migration rule:** M6 is a refactor of the working current navigation. Existing Pulse, Deep Dive, Watchlist, History, and Settings flows must be explicitly remapped into the 3-tab structure before the old layout is retired.
+- **Today Tab:** time-aware. It always has content and re-prioritizes the same core surfaces by market state.
+  - Pre-market: Fear & Greed current score plus yesterday delta, earnings preview for watchlist names, overnight alerts, and the latest Morning Pulse summary.
+  - Market hours: current Market Pulse, Fear & Greed summary, active contrarian alerts, and earnings reminders for today/tomorrow.
+  - After hours: end-of-day Pulse wrap, final daily Fear & Greed reading, tomorrow's earnings preview, and weekly digest teaser on Sunday.
+- **Research Tab:** the entry point for Deep Dives. Contains search, recent report history, the Deep Dive report result, and the "Run a Deep Dive" path.
+- **Portfolio Tab:** unified personal space. Contains subscription status, watchlist/My Names management, notification/settings surfaces, and account controls.
+- **Portfolio naming rule:** `Portfolio` is a user-facing navigation label only. It does not introduce real holdings, cost basis, brokerage connectivity, or portfolio-performance tracking.
+- **Migration rule:** M6 is an atomic refactor of the working current navigation. Existing Pulse, Deep Dive, Watchlist, History, and Settings flows must be explicitly remapped into the 3-tab structure before the old layout is retired. There is no adapter-layer coexistence plan in the approved M6 path.
 
 ### 2.4 Fear & Greed Index (M3, M8)
 
