@@ -15,7 +15,7 @@ Phase 2 evolves Thesis from a working MVP into a paid product with institutional
 | **Fear & Greed Index** | Deterministic 6-signal composite sentiment gauge (market-data only) with charts and historical trends |
 | **Monetization** | Free/Pro tiers with RevenueCat, gating premium features |
 | **Smart Notifications** | Personalized FCM: earnings previews, contrarian alerts, weekly intelligence digest |
-| **3-Tab UX** | Today (time-aware) / Research (Deep Dive engine) / You (profile + watchlist + settings) |
+| **3-Tab UX** | Today (time-aware) / Research (Deep Dive engine + history) / Portfolio (personal space: watchlist, subscription, settings) |
 | **Export & Share** | PDF reports, branded share cards, investment memo format, user notes on reports |
 | **What-If Scenarios** | Scenario analysis on Deep Dive reports |
 | **Offline Mode** | Room caching + WorkManager prefetch for subway-friendly experience |
@@ -59,7 +59,8 @@ Before starting the milestone sequence below, implementers should internalize th
 
 1. M4 must extend Phase 1 auth and user state without breaking register, verify, login, logout, Pulse, watchlist, push registration, or history.
 2. M5 contrarian alerts need a server-side persisted alert anchor. They cannot be computed from whichever report the user last opened on device.
-3. M6 must begin with a screen-mapping plan from the existing Pulse / Deep Dive / Watchlist / History / Settings model into Today / Research / You.
+3. M6 must begin with a screen-mapping plan from the existing Pulse / Deep Dive / Watchlist / History / Settings model into Today / Research / Portfolio.
+Portfolio is a navigation label only, not real holdings or brokerage tracking.
 4. M7 must define the report contract or adapter plan before the new screen is built. Export, notes, scenarios, and votes each need explicit storage or endpoint ownership.
 
 ---

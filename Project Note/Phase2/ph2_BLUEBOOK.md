@@ -199,11 +199,13 @@ Phase 2 only makes sense if it preserves the current working app while extending
 
 - The current app is a working 5-tab Android app, not a blank shell
 - Before deleting or hiding current tabs, define the destination mapping:
-  - Pulse -> Today
+  - Market Pulse -> Today
   - Deep Dive + search -> Research
-  - Watchlist/My Names -> You (or a named sub-surface inside You)
-  - History -> Research or You, but explicitly chosen
-  - Settings -> You
+  - Watchlist/My Names -> Portfolio
+  - History -> Research
+  - Settings -> Portfolio
+- `Portfolio` is UX framing only. It is not a real holdings, brokerage, or P&L surface.
+- M6 uses an approved atomic switch. There is no adapter-layer coexistence plan for this milestone.
 - Notification deep links and resume paths must keep landing on reachable screens
 
 ### M7 guardrail - contract/model evolution

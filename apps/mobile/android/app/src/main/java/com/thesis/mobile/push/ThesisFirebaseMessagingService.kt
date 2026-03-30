@@ -31,8 +31,8 @@ class ThesisFirebaseMessagingService : FirebaseMessagingService() {
 
         val notificationType = message.data["notification_type"]?.trim().orEmpty()
         val openTab = when (notificationType) {
-            "earnings_preview", "contrarian_alert" -> "deep_dive"
-            "weekly_digest", "market_pulse_ready" -> "pulse"
+            "contrarian_alert" -> "deep_dive"
+            "earnings_preview", "weekly_digest", "market_pulse_ready" -> "pulse"
             else -> message.data["route"]?.trim().orEmpty().ifBlank { "pulse" }
         }
 

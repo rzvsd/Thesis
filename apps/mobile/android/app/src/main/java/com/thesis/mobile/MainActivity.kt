@@ -58,12 +58,12 @@ class MainActivity : ComponentActivity() {
 
         val shouldOpenPulse =
             normalizedTab == "pulse" ||
+                normalizedType == "earnings_preview" ||
                 normalizedType == "market_pulse_ready" ||
                 normalizedType == "weekly_digest" ||
                 intent.data?.toString().orEmpty().contains("thesis://pulse", ignoreCase = true)
         val shouldOpenDeepDive =
             normalizedTab == "deep_dive" ||
-                normalizedType == "earnings_preview" ||
                 normalizedType == "contrarian_alert" ||
                 intent.data?.toString().orEmpty().contains("thesis://deep-dive", ignoreCase = true)
 

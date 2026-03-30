@@ -72,7 +72,8 @@ These are not optional interpretations. They are the safe implementation path.
 
 - Do not treat M6 as a tab rename.
 - The current Phase 1 Android app already has working Pulse, Deep Dive, Watchlist, History, and Settings flows.
-- M6 must begin with a screen-mapping plan from the current navigation model to `Today / Research / You`.
+- M6 must begin with a screen-mapping plan from the current navigation model to `Today / Research / Portfolio`.
+- `Portfolio` is UX framing only. It does not authorize holdings, P&L, brokerage, or real portfolio-tracking scope.
 - No old screen is deleted until the mapped destination is reachable and smoke-tested.
 
 ### M7 - Report UX requires contract/model expansion

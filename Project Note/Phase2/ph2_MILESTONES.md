@@ -31,7 +31,7 @@ Each milestone defines what is being built, what must be true for it to close, a
 | M3 | Fear & Greed Index Engine | Deterministic 6-signal market-data sentiment index |
 | M4 | Monetization & Subscription | Free/Pro tier enforcement with payment processing |
 | M5 | Calendar & Smart Notifications | Earnings calendar, personalized push, weekly digest, contrarian alerts |
-| M6 | 3-Tab Navigation Redesign | Today / Research / You architecture with explicit migration from the current app |
+| M6 | 3-Tab Navigation Redesign | Today / Research / Portfolio architecture with explicit migration from the current app |
 | M7 | Report UI & Interactive Features | New report layout with scenarios, export, notes, and richer report interactions |
 | M8 | Fear & Greed UI & Weekly Digest | Visual Fear & Greed dashboard and weekly intelligence digest email |
 | M9 | Offline, Security & Launch Prep | Caching, hardening, analytics dashboards |
@@ -767,7 +767,7 @@ Scheduler Engineer + Product API Engineer + Mobile Engineer
 
 ## Goal
 
-Replace the current navigation with the 3-tab architecture defined in `UX_ARCHITECTURE.md`: Today / Research / You.
+Replace the current navigation with the 3-tab architecture defined in `UX_ARCHITECTURE.md`: Today / Research / Portfolio.
 
 **Implementation reality:** This is a real refactor of the current working 5-tab Android app, not a tab rename.
 
@@ -775,21 +775,22 @@ Replace the current navigation with the 3-tab architecture defined in `UX_ARCHIT
 
 | Deliverable | Description |
 |---|---|
-| Navigation migration map | Explicit mapping from current Pulse / Deep Dive / Watchlist / History / Settings flows into Today / Research / You |
-| Today tab | Time-aware layout based on market day state |
-| Research tab | Search, recent Deep Dives, and report history entry points |
-| You tab | Profile, subscription status, watchlist/My Names management, settings |
+| Navigation migration map | Explicit mapping from current Pulse / Deep Dive / Watchlist / History / Settings flows into Today / Research / Portfolio |
+| Today tab | Time-aware layout with pre-market / market-hours / after-hours prioritization and no empty market-closed state |
+| Research tab | Search, recent Deep Dives, report history, and report-result entry points |
+| Portfolio tab | Personal space for subscription status, watchlist/My Names management, notification settings, and app settings |
 | Deep-link migration | Notification opens and resume paths land on the new reachable destination |
-| Transitional adapter layer if needed | Temporary compatibility logic while old and new navigation coexist |
+| Atomic switch migration | One PR replaces the old navigation; no adapter-layer coexistence plan |
 
 ## Acceptance Criteria
 
-- [ ] App launches with 3 tabs: Today, Research, You
-- [ ] Today shows the correct pre-market, market-hours, and after-hours layout states
+- [ ] App launches with 3 tabs: Today, Research, Portfolio
+- [ ] Today shows the correct pre-market, market-hours, and after-hours layout states and never degrades to an empty "markets closed" shell
 - [ ] Research supports search and recent report access
-- [ ] You exposes subscription, watchlist/My Names, and settings
+- [ ] Research is the canonical home for report history and reopened Deep Dives
+- [ ] Portfolio exposes subscription, watchlist/My Names, notification settings, and app settings
 - [ ] All existing functionality remains reachable with no regression
-- [ ] Deep links from notifications open the correct tab and state
+- [ ] Deep links from notifications open the correct tab and state (`market_pulse_ready` and `earnings_preview` -> Today; Deep Dive and contrarian paths -> Research)
 - [ ] History/resume flow still works after the navigation change
 - [ ] Navigation transitions remain smooth
 
@@ -804,18 +805,18 @@ Replace the current navigation with the 3-tab architecture defined in `UX_ARCHIT
 
 ## Smoke Test
 
-1. Launch app and confirm Today / Research / You are present
+1. Launch app and confirm Today / Research / Portfolio are present
 2. Verify Today content changes appropriately across mocked or controlled time states
 3. Search and open a Deep Dive from Research
 4. Open prior report history from the new structure
-5. Manage watchlist/My Names from You
-6. Open settings from You
-7. Trigger a notification and confirm tap-through lands on the right new destination
+5. Manage watchlist/My Names from Portfolio
+6. Open settings from Portfolio
+7. Trigger each notification type and confirm tap-through lands on the approved new destination
 8. Re-run the Phase 1 Pulse, History, Watchlist, and Settings checks
 
 ## Success
 
-The app launches with Today / Research / You. Every Phase 1 flow is reachable in the new structure ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â verified on a real device. Notification deep-links land on the correct tab. History resume still works. The navigation feels smooth and intentional, not bolted on.
+The app launches with Today / Research / Portfolio. Every Phase 1 flow is reachable in the new structure ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â verified on a real device. Notification deep-links land on the correct tab. History resume still works. The navigation feels smooth and intentional, not bolted on. `Portfolio` reads as the user's personal space, not as an unfinished placeholder label.
 
 ---
 

@@ -1,0 +1,102 @@
+appId: ${MAESTRO_APP_ID}
+---
+
+- launchApp:
+    clearState: false
+
+- runFlow:
+    when:
+      visible: "System UI isn't responding"
+    commands:
+      - tapOn: "Wait"
+
+- runFlow:
+    when:
+      visible: "Get Started"
+    commands:
+      - tapOn: "Get Started"
+
+- runFlow:
+    when:
+      visible: "Allow"
+    commands:
+      - tapOn: "Allow"
+
+- runFlow:
+    when:
+      visible: "Thesis Android MVP"
+    commands:
+      - tapOn: "Email"
+      - inputText: "${MAESTRO_TEST_EMAIL}"
+      - tapOn: "Password"
+      - inputText: "${MAESTRO_TEST_PASSWORD}"
+      - hideKeyboard
+      - tapOn: "Login"
+
+- extendedWaitUntil:
+    visible: "Today"
+    timeout: 40000
+- assertVisible: "Today"
+- assertVisible: "Research"
+- assertVisible: "Portfolio"
+
+- tapOn: "Portfolio"
+- assertVisible: "My Names"
+- assertVisible: "Settings"
+
+- runFlow:
+    when:
+      visible: "My Names"
+    commands:
+      - tapOn: "My Names"
+      - tapOn: "Ticker"
+      - eraseText
+      - inputText: "${MAESTRO_DEEP_DIVE_TICKER}"
+      - hideKeyboard
+      - tapOn: "Add"
+      - assertVisible: "${MAESTRO_DEEP_DIVE_TICKER}"
+
+- tapOn: "Settings"
+- assertVisible: "Settings"
+- assertVisible: "Open Android Notification Settings"
+- scrollUntilVisible:
+    element:
+      text: "Product API Base URL"
+    direction: DOWN
+- assertVisible: "Product API Base URL"
+
+- tapOn: "Today"
+- extendedWaitUntil:
+    visible: "What Moved"
+    timeout: 20000
+- assertVisible: "My Names"
+- scrollUntilVisible:
+    element:
+      text: "FULL PULSE"
+    direction: DOWN
+- assertVisible: "FULL PULSE"
+
+- tapOn: "Research"
+- assertVisible: "Deep Dive"
+- assertVisible: "History"
+- tapOn: "History"
+- extendedWaitUntil:
+    visible: "Your History"
+    timeout: 20000
+- assertVisible: "Your History"
+- tapOn: "Deep Dive"
+- assertVisible: "Ticker Symbol (e.g. AAPL)"
+- assertVisible: "Run Deep Dive"
+
+- tapOn: "Portfolio"
+- tapOn: "Settings"
+- scrollUntilVisible:
+    element:
+      text: "Logout"
+    direction: DOWN
+- tapOn: "Logout"
+
+- extendedWaitUntil:
+    visible: "Thesis Android MVP"
+    timeout: 20000
+- assertVisible: "Thesis Android MVP"
