@@ -96,6 +96,57 @@ class DataOpenbbRequestHandler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:  # noqa: N802
         parsed = urlparse(self.path)
         request_id = get_request_id(self.headers.get("x-request-id"))
+        if parsed.path == "/internal/calendar/earnings":
+            expected_token = os.environ.get("INTERNAL_WORKER_TOKEN", "dev-internal-worker-token")
+            if self.headers.get("x-internal-token", "") != expected_token:
+                response = error_response(
+                    status_code=401,
+                    request_id=request_id,
+                    message="internal authentication required",
+                    error_code="AUTH_ERROR",
+                )
+                self._write_json(response.status_code, response.body, request_id=request_id)
+                return
+
+            try:
+                body = self._read_json_body()
+            except json.JSONDecodeError:
+                response = error_response(
+                    status_code=422,
+                    request_id=request_id,
+                    message="request body must be valid JSON",
+                )
+                self._write_json(response.status_code, response.body, request_id=request_id)
+                return
+
+            start_date = body.get("start_date") if isinstance(body, dict) else None
+            end_date = body.get("end_date") if isinstance(body, dict) else None
+            if start_date is not None and not isinstance(start_date, str):
+                response = error_response(
+                    status_code=422,
+                    request_id=request_id,
+                    message="start_date must be a YYYY-MM-DD string when provided",
+                )
+                self._write_json(response.status_code, response.body, request_id=request_id)
+                return
+            if end_date is not None and not isinstance(end_date, str):
+                response = error_response(
+                    status_code=422,
+                    request_id=request_id,
+                    message="end_date must be a YYYY-MM-DD string when provided",
+                )
+                self._write_json(response.status_code, response.body, request_id=request_id)
+                return
+
+            service = getattr(self.server, "data_service", None) or DataOpenBBService()
+            status_code, response_payload = service.get_calendar_earnings(
+                start_date=start_date if isinstance(start_date, str) else None,
+                end_date=end_date if isinstance(end_date, str) else None,
+                request_id=request_id,
+            )
+            self._write_json(status_code, response_payload, request_id=request_id)
+            return
+
         if parsed.path == "/internal/historical/sync":
             expected_token = os.environ.get("INTERNAL_WORKER_TOKEN", "dev-internal-worker-token")
             if self.headers.get("x-internal-token", "") != expected_token:

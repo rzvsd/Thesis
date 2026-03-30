@@ -12,10 +12,12 @@ import type {
   CreateJobRequest,
   JobStatusResponse,
   MarketPulseReport,
+  NotificationType,
   ReportListItem,
   SubscriptionTier,
   UserProfile
 } from "../../../packages/contracts/src";
+import { notificationTypes } from "../../../packages/contracts/src";
 import { captureException, initSentry } from "../../../packages/observability/src/sentry";
 
 import { FilesystemArtifactStore } from "./artifact-store";
@@ -39,6 +41,7 @@ import { assertIncomingMarketPulseReport } from "./market-pulse-validation";
 import { buildMarketPulseReport, withWatchlistOverlay } from "./market-pulse";
 import { PushNotifier } from "./push";
 import { buildFearGreedSnapshot, isUsTradingDay, isValidMarketDate } from "./sentiment";
+import { fetchLatestClosePrice, fetchLatestClosePrices } from "./market-prices";
 import { startTickerSyncScheduler } from "./ticker-sync-scheduler";
 import { startJobRecoveryScheduler } from "./job-recovery-scheduler";
 import {
@@ -47,7 +50,11 @@ import {
   parseRevenueCatWebhookEvent,
   verifyRevenueCatWebhookSecret
 } from "./revenuecat";
-import type { AuditEventRecord, JobRecord, UserSubscriptionRecord } from "./types";
+import type {
+  AuditEventRecord,
+  JobRecord,
+  UserSubscriptionRecord
+} from "./types";
 
 type HealthPayload = { status: "ok" };
 
@@ -71,7 +78,139 @@ interface RequestMeta {
   pathname: string;
 }
 
+interface CalendarEventSource {
+  ticker: string;
+  event_type: "earnings";
+  event_date: string;
+  event_time?: "before_market" | "after_market" | "during_market";
+  provider?: string;
+  retrieved_at?: string;
+}
+
 const serviceName = "product-api";
+const contrarianMoveThresholdPct = 5;
+const contrarianAnchorWindowDays = 90;
+const weeklyDigestLookaheadDays = 7;
+const notificationTypeList = [...notificationTypes];
+
+function isNotificationType(value: string): value is NotificationType {
+  return notificationTypeList.includes(value as NotificationType);
+}
+
+function addDaysToIsoDate(baseDate: string, days: number): string {
+  const base = new Date(`${baseDate}T12:00:00.000Z`);
+  base.setUTCDate(base.getUTCDate() + days);
+  return base.toISOString().slice(0, 10);
+}
+
+function isWeekendIsoDate(value: string): boolean {
+  const utcNoon = new Date(`${value}T12:00:00.000Z`);
+  if (Number.isNaN(utcNoon.getTime())) {
+    return false;
+  }
+  const day = utcNoon.getUTCDay();
+  return day === 0 || day === 6;
+}
+
+function isSundayIsoDate(value: string): boolean {
+  const utcNoon = new Date(`${value}T12:00:00.000Z`);
+  if (Number.isNaN(utcNoon.getTime())) {
+    return false;
+  }
+  return utcNoon.getUTCDay() === 0;
+}
+
+function nextBusinessDate(baseDate: string): string {
+  let candidate = addDaysToIsoDate(baseDate, 1);
+  while (isWeekendIsoDate(candidate)) {
+    candidate = addDaysToIsoDate(candidate, 1);
+  }
+  return candidate;
+}
+
+function asContrarianSignal(value: string | undefined): "positive" | "neutral" | "negative" | undefined {
+  if (value === "positive" || value === "neutral" || value === "negative") {
+    return value;
+  }
+  return undefined;
+}
+
+function notificationTypeLabel(type: NotificationType): string {
+  switch (type) {
+    case "earnings_preview":
+      return "Earnings preview";
+    case "contrarian_alert":
+      return "Contrarian alert";
+    case "weekly_digest":
+      return "Weekly digest";
+    case "market_pulse_ready":
+      return "Market Pulse";
+  }
+}
+
+function notificationRoute(type: NotificationType): string {
+  if (type === "weekly_digest" || type === "market_pulse_ready") {
+    return "pulse";
+  }
+  return "deep_dive";
+}
+
+function notificationTitle(type: NotificationType, ticker?: string): string {
+  if (!ticker) {
+    return notificationTypeLabel(type);
+  }
+  return `${notificationTypeLabel(type)}: ${ticker}`;
+}
+
+interface InternalJsonResponse<T> {
+  status: number;
+  ok: boolean;
+  payload: T;
+}
+
+async function fetchInternalJson<T>(
+  url: string,
+  body: Record<string, unknown> | undefined,
+  internalToken: string
+): Promise<InternalJsonResponse<T>> {
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-internal-token": internalToken
+    },
+    body: body ? JSON.stringify(body) : "{}"
+  });
+  const payload = (await response.json()) as T;
+  return {
+    status: response.status,
+    ok: response.ok,
+    payload
+  };
+}
+
+function toNotificationPreferenceView(
+  userId: string,
+  tier: SubscriptionTier,
+  rows: Array<{ type: NotificationType; enabled: boolean }>
+): {
+  user_id: string;
+  tier: SubscriptionTier;
+  preferences: Array<{ type: NotificationType; enabled: boolean }>;
+} {
+  const byType = new Map<NotificationType, boolean>();
+  for (const row of rows) {
+    byType.set(row.type, row.enabled);
+  }
+  return {
+    user_id: userId,
+    tier,
+    preferences: notificationTypeList.map((type) => ({
+      type,
+      enabled: byType.get(type) ?? true
+    }))
+  };
+}
 
 function sendJson(response: ServerResponse, statusCode: number, payload: unknown): void {
   response.writeHead(statusCode, { "content-type": "application/json" });
@@ -351,6 +490,145 @@ function applyWebhookEventToSubscription(
   };
 }
 
+async function fetchCalendarEventsFromDataOpenbb(
+  runtime: Runtime,
+  input: {
+    requestId: string;
+    startDate: string;
+    endDate: string;
+  }
+): Promise<CalendarEventSource[]> {
+  const response = await fetchInternalJson<Record<string, unknown>>(
+    `${runtime.config.marketPulseDataOpenbbBaseUrl}/internal/calendar/earnings`,
+    {
+      start_date: input.startDate,
+      end_date: input.endDate
+    },
+    runtime.config.internalWorkerToken
+  );
+
+  if (!response.ok) {
+    throw new Error(
+      `calendar source failed with status ${response.status}: ${JSON.stringify(response.payload)}`
+    );
+  }
+
+  const data = isObject(response.payload.data) ? response.payload.data : undefined;
+  const eventsRaw = data?.events;
+  if (!Array.isArray(eventsRaw)) {
+    return [];
+  }
+
+  const events: CalendarEventSource[] = [];
+  for (const row of eventsRaw) {
+    if (!isObject(row)) {
+      continue;
+    }
+    const ticker = typeof row.ticker === "string" ? row.ticker.trim().toUpperCase() : "";
+    const eventDate = typeof row.event_date === "string" ? row.event_date.trim() : "";
+    if (!ticker || !eventDate || !/^\d{4}-\d{2}-\d{2}$/.test(eventDate)) {
+      continue;
+    }
+    const eventTimeRaw = typeof row.event_time === "string" ? row.event_time.trim() : undefined;
+    const eventTime =
+      eventTimeRaw === "before_market" ||
+      eventTimeRaw === "after_market" ||
+      eventTimeRaw === "during_market"
+        ? eventTimeRaw
+        : undefined;
+    const provider = typeof row.provider === "string" ? row.provider : "yfinance";
+    const retrievedAt =
+      typeof row.retrieved_at === "string" && row.retrieved_at.trim().length > 0
+        ? row.retrieved_at
+        : new Date().toISOString();
+    events.push({
+      ticker,
+      event_type: "earnings",
+      event_date: eventDate,
+      event_time: eventTime,
+      provider,
+      retrieved_at: retrievedAt
+    });
+  }
+  return events;
+}
+
+async function createContrarianAnchorFromReport(
+  runtime: Runtime,
+  input: {
+    report: AnalysisReport;
+    userId?: string;
+    requestId: string;
+    route: string;
+  }
+): Promise<void> {
+  const { report, userId } = input;
+  if (report.type !== "deep_dive" || !userId || !report.ticker) {
+    return;
+  }
+  const signalValue = asContrarianSignal(report.signal?.value);
+  if (!signalValue) {
+    return;
+  }
+
+  const ticker = report.ticker.trim().toUpperCase();
+  let anchorPrice: number | undefined;
+  try {
+    anchorPrice = await fetchLatestClosePrice(runtime.config.sentimentYahooBaseUrl, ticker);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "anchor price lookup failed";
+    logWarn("Contrarian anchor skipped due to missing anchor price", {
+      request_id: input.requestId,
+      route: input.route,
+      ticker,
+      error_message: message
+    });
+    await appendAudit(runtime, "contrarian.anchor_skipped", {
+      request_id: input.requestId,
+      route: input.route,
+      ticker,
+      signal_value: signalValue,
+      reason: "anchor_price_unavailable"
+    }, userId);
+    return;
+  }
+
+  if (!anchorPrice || !Number.isFinite(anchorPrice) || anchorPrice <= 0) {
+    await appendAudit(runtime, "contrarian.anchor_skipped", {
+      request_id: input.requestId,
+      route: input.route,
+      ticker,
+      signal_value: signalValue,
+      reason: "anchor_price_invalid"
+    }, userId);
+    return;
+  }
+
+  const anchoredAt = new Date().toISOString();
+  const expiresAt = addHours(anchoredAt, contrarianAnchorWindowDays * 24);
+  await runtime.store.createContrarianAlertAnchor({
+    id: createId(),
+    userId,
+    ticker,
+    reportId: report.report_id,
+    signalValue,
+    anchorPrice,
+    anchoredAt,
+    expiresAt,
+    isActive: true
+  });
+
+  await appendAudit(runtime, "contrarian.anchor_created", {
+    request_id: input.requestId,
+    route: input.route,
+    report_id: report.report_id,
+    ticker,
+    signal_value: signalValue,
+    anchor_price: anchorPrice,
+    expires_at: expiresAt
+  }, userId);
+}
+
 function isMarketPulseReport(report: unknown): report is MarketPulseReport {
   if (!isObject(report)) {
     return false;
@@ -618,7 +896,9 @@ async function processMarketPulseJob(
         headline = firstNewsTitle;
       }
 
-      const pushTargets = await runtime.store.listUsersWithDeviceToken();
+      const pushTargets = await runtime.store.listUsersWithDeviceTokenByNotificationType({
+        notificationType: "market_pulse_ready"
+      });
       const pushResult = await runtime.pushNotifier.sendMarketPulseReady(pushTargets, {
         reportDate: report.cycle_end.slice(0, 10),
         headline
@@ -1261,6 +1541,389 @@ export function startServer(port: number = loadConfig().port): Server {
           return;
         }
 
+        if (method === "POST" && pathname === "/internal/calendar/sync") {
+          const body = await readJsonBody<{ start_date?: string; end_date?: string }>(request);
+          const startDate =
+            normalizeDateInput(
+              body.start_date ?? dateInTimeZone(new Date(), runtime.config.subscriptionTimezone)
+            ) ??
+            dateInTimeZone(new Date(), runtime.config.subscriptionTimezone);
+          const endDate =
+            normalizeDateInput(body.end_date ?? addDaysToIsoDate(startDate, 14)) ??
+            addDaysToIsoDate(startDate, 14);
+          if (
+            Date.parse(`${startDate}T00:00:00.000Z`) >
+            Date.parse(`${endDate}T00:00:00.000Z`)
+          ) {
+            sendJson(response, 422, {
+              error: "validation_failed",
+              error_message: "start_date must be on or before end_date."
+            });
+            return;
+          }
+
+          let events: CalendarEventSource[];
+          try {
+            events = await fetchCalendarEventsFromDataOpenbb(runtime, {
+              requestId: meta.requestId,
+              startDate,
+              endDate
+            });
+          } catch (error) {
+            const message =
+              error instanceof Error ? error.message : "Calendar source unavailable.";
+            sendJson(response, 503, {
+              error: "calendar_unavailable",
+              error_message: message
+            });
+            return;
+          }
+
+          if (events.length === 0) {
+            logWarn("Calendar sync returned no usable events", {
+              request_id: meta.requestId,
+              route: pathname,
+              start_date: startDate,
+              end_date: endDate
+            });
+          }
+          const supportedTickers = new Set(
+            await runtime.store.listTickerCoverageTickers(10_000)
+          );
+          const filtered = events.filter((event) => supportedTickers.has(event.ticker));
+          const upserted = await runtime.store.upsertCalendarEvents(
+            filtered.map((event) => ({
+              id: createId(),
+              ticker: event.ticker.trim().toUpperCase(),
+              eventType: "earnings",
+              eventDate: event.event_date,
+              eventTime: event.event_time,
+              provider: event.provider ?? "yfinance",
+              retrievedAt: event.retrieved_at ?? new Date().toISOString()
+            }))
+          );
+
+          await appendAudit(runtime, "calendar.sync_completed", {
+            request_id: meta.requestId,
+            route: pathname,
+            start_date: startDate,
+            end_date: endDate,
+            source_rows: events.length,
+            supported_rows: filtered.length,
+            events_upserted: upserted.upserted
+          });
+
+          logInfo("Calendar sync complete", {
+            request_id: meta.requestId,
+            start_date: startDate,
+            end_date: endDate,
+            source_rows: events.length,
+            supported_rows: filtered.length,
+            events_upserted: upserted.upserted
+          });
+
+          sendJson(response, 200, {
+            status: "ok",
+            start_date: startDate,
+            end_date: endDate,
+            source_rows: events.length,
+            supported_rows: filtered.length,
+            events_upserted: upserted.upserted
+          });
+          return;
+        }
+
+        if (method === "POST" && pathname === "/internal/notifications/earnings-preview") {
+          const body = await readJsonBody<{ as_of?: string }>(request);
+          const today = normalizeDateInput(
+            body.as_of ?? dateInTimeZone(new Date(), runtime.config.subscriptionTimezone)
+          ) ?? dateInTimeZone(new Date(), runtime.config.subscriptionTimezone);
+          const nextBiz = nextBusinessDate(today);
+          const recipients = await runtime.store.listUsersWithDeviceTokenByNotificationType({
+            notificationType: "earnings_preview"
+          });
+
+          let attempted = 0;
+          let delivered = 0;
+          let failed = 0;
+          const sentTickers: string[] = [];
+
+          for (const recipient of recipients) {
+            const watchlist = await runtime.store.listWatchlistTickersByUser(recipient.userId);
+            if (watchlist.length === 0) {
+              continue;
+            }
+
+            const events = await runtime.store.listUpcomingCalendarEventsByTickers({
+              tickers: watchlist,
+              fromDate: nextBiz,
+              toDate: nextBiz,
+              eventType: "earnings"
+            });
+            if (events.length === 0) {
+              continue;
+            }
+
+            const uniqueTickers = [...new Set(events.map((event) => event.ticker.trim().toUpperCase()))];
+            const leadTicker = uniqueTickers[0];
+            if (!leadTicker) {
+              continue;
+            }
+
+            const pushResult = await runtime.pushNotifier.sendNotification(
+              [
+                {
+                  userId: recipient.userId,
+                  deviceToken: recipient.deviceToken
+                }
+              ],
+              {
+                notificationType: "earnings_preview",
+                route: notificationRoute("earnings_preview"),
+                title: notificationTitle("earnings_preview", leadTicker),
+                body: `${uniqueTickers.join(", ")} is expected to report soon. Tap to run a Deep Dive.`,
+                data: {
+                  ticker: leadTicker,
+                  tickers: uniqueTickers.join(","),
+                  report_date: nextBiz
+                }
+              }
+            );
+
+            attempted += pushResult.attempted;
+            delivered += pushResult.delivered;
+            failed += pushResult.failed;
+            for (const invalidUserId of pushResult.invalidTargets) {
+              await runtime.store.updateUserDeviceToken(invalidUserId, undefined);
+            }
+            sentTickers.push(...uniqueTickers);
+          }
+
+          await appendAudit(runtime, "earnings_preview.dispatched", {
+            request_id: meta.requestId,
+            route: pathname,
+            attempted,
+            delivered,
+            failed,
+            ticker_count: sentTickers.length
+          });
+
+          sendJson(response, 200, {
+            status: "ok",
+            attempted,
+            delivered,
+            failed,
+            ticker_count: sentTickers.length
+          });
+          return;
+        }
+
+        if (method === "POST" && pathname === "/internal/notifications/contrarian/evaluate") {
+          const body = await readJsonBody<{ as_of?: string }>(request);
+          const asOf =
+            normalizeDateInput(body.as_of ?? dateInTimeZone(new Date(), runtime.config.subscriptionTimezone)) ??
+            dateInTimeZone(new Date(), runtime.config.subscriptionTimezone);
+          const asOfEndIso = new Date(`${asOf}T23:59:59.999Z`).toISOString();
+          const expiredCount = await runtime.store.deactivateExpiredContrarianAlertAnchors(
+            asOfEndIso
+          );
+          const recipients = await runtime.store.listUsersWithDeviceTokenByNotificationType({
+            notificationType: "contrarian_alert"
+          });
+          const recipientIds = new Set(recipients.map((entry) => entry.userId));
+          const anchors = (await runtime.store.listActiveContrarianAlertAnchors(
+            asOfEndIso
+          )).filter((anchor) => recipientIds.has(anchor.userId));
+          const prices = await fetchLatestClosePrices(
+            runtime.config.sentimentYahooBaseUrl,
+            anchors.map((anchor) => anchor.ticker),
+            6
+          );
+
+          let attempted = 0;
+          let delivered = 0;
+          let failed = 0;
+          let fired = 0;
+          for (const anchor of anchors) {
+            if (anchor.signalValue === "neutral") {
+              await runtime.store.deactivateContrarianAlertAnchor(
+                anchor.id,
+                new Date().toISOString()
+              );
+              continue;
+            }
+            const currentPrice = prices.get(anchor.ticker);
+            if (!currentPrice) {
+              continue;
+            }
+
+            const movePct = ((currentPrice - anchor.anchorPrice) / anchor.anchorPrice) * 100;
+            const shouldFire =
+              (anchor.signalValue === "positive" && movePct <= -contrarianMoveThresholdPct) ||
+              (anchor.signalValue === "negative" && movePct >= contrarianMoveThresholdPct);
+            if (!shouldFire) {
+              continue;
+            }
+
+            const target = recipients.find((entry) => entry.userId === anchor.userId);
+            if (!target) {
+              continue;
+            }
+
+            const pushResult = await runtime.pushNotifier.sendNotification(
+              [
+                {
+                  userId: target.userId,
+                  deviceToken: target.deviceToken
+                }
+              ],
+              {
+                notificationType: "contrarian_alert",
+                route: notificationRoute("contrarian_alert"),
+                title: notificationTitle("contrarian_alert", anchor.ticker),
+                body: `Your thesis on ${anchor.ticker} (${anchor.signalValue}) is diverging by ${Math.abs(movePct).toFixed(1)}%. Tap to review the Deep Dive.`,
+                data: {
+                  ticker: anchor.ticker,
+                  report_id: anchor.reportId ?? "",
+                  signal_value: anchor.signalValue,
+                  move_pct: movePct.toFixed(2)
+                }
+              }
+            );
+
+            attempted += pushResult.attempted;
+            delivered += pushResult.delivered;
+            failed += pushResult.failed;
+            fired += 1;
+            for (const invalidUserId of pushResult.invalidTargets) {
+              await runtime.store.updateUserDeviceToken(invalidUserId, undefined);
+            }
+            await runtime.store.deactivateContrarianAlertAnchor(
+              anchor.id,
+              new Date().toISOString()
+            );
+          }
+
+          await appendAudit(runtime, "contrarian.alerts_evaluated", {
+            request_id: meta.requestId,
+            route: pathname,
+            as_of: asOf,
+            expired_count: expiredCount,
+            fired,
+            attempted,
+            delivered,
+            failed
+          });
+
+          sendJson(response, 200, {
+            status: "ok",
+            as_of: asOf,
+            expired_count: expiredCount,
+            fired,
+            attempted,
+            delivered,
+            failed
+          });
+          return;
+        }
+
+        if (method === "POST" && pathname === "/internal/notifications/weekly-digest") {
+          const body = await readJsonBody<{ digest_date?: string }>(request);
+          const digestDate =
+            normalizeDateInput(body.digest_date ?? dateInTimeZone(new Date(), runtime.config.subscriptionTimezone)) ??
+            dateInTimeZone(new Date(), runtime.config.subscriptionTimezone);
+          const isScheduleSunday = isSundayIsoDate(digestDate);
+          if (!isScheduleSunday) {
+            sendJson(response, 200, {
+              status: "skipped",
+              digest_date: digestDate,
+              reason: "not_weekly_digest_day"
+            });
+            return;
+          }
+          const recipients = await runtime.store.listUsersWithDeviceTokenByNotificationType({
+            notificationType: "weekly_digest",
+            tier: "PRO"
+          });
+          const latestFearGreed = await runtime.store.getLatestFearGreedSnapshot();
+
+          let attempted = 0;
+          let delivered = 0;
+          let failed = 0;
+          for (const recipient of recipients) {
+            const watchlist = await runtime.store.listWatchlistTickersByUser(recipient.userId);
+            const upcomingEvents = watchlist.length > 0
+              ? await runtime.store.listUpcomingCalendarEventsByTickers({
+                  tickers: watchlist,
+                  fromDate: digestDate,
+                  toDate: addDaysToIsoDate(digestDate, weeklyDigestLookaheadDays),
+                  eventType: "earnings"
+                })
+              : [];
+            const watchlistCount = watchlist.length;
+            const upcomingCount = upcomingEvents.length;
+            const digestParts = [
+              latestFearGreed
+                ? `Fear & Greed: ${latestFearGreed.score} (${latestFearGreed.label}).`
+                : "Fear & Greed data is not ready yet.",
+              watchlistCount > 0
+                ? `${watchlistCount} watchlist names matter this week.`
+                : "Your watchlist is empty.",
+              upcomingCount > 0
+                ? `${upcomingCount} watchlist names report soon.`
+                : "No watchlist earnings are due soon."
+            ];
+
+            const pushResult = await runtime.pushNotifier.sendNotification(
+              [
+                {
+                  userId: recipient.userId,
+                  deviceToken: recipient.deviceToken
+                }
+              ],
+              {
+                notificationType: "weekly_digest",
+                route: notificationRoute("weekly_digest"),
+                title: notificationTitle("weekly_digest"),
+                body: digestParts.join(" "),
+                data: {
+                  digest_date: digestDate,
+                  fear_greed_score: latestFearGreed ? String(latestFearGreed.score) : "",
+                  fear_greed_label: latestFearGreed?.label ?? "",
+                  watchlist_count: String(watchlistCount),
+                  upcoming_earnings_count: String(upcomingCount)
+                }
+              }
+            );
+
+            attempted += pushResult.attempted;
+            delivered += pushResult.delivered;
+            failed += pushResult.failed;
+            for (const invalidUserId of pushResult.invalidTargets) {
+              await runtime.store.updateUserDeviceToken(invalidUserId, undefined);
+            }
+          }
+
+          await appendAudit(runtime, "weekly_digest.dispatched", {
+            request_id: meta.requestId,
+            route: pathname,
+            digest_date: digestDate,
+            sunday_schedule: isScheduleSunday,
+            attempted,
+            delivered,
+            failed
+          });
+
+          sendJson(response, 200, {
+            status: "ok",
+            digest_date: digestDate,
+            attempted,
+            delivered,
+            failed
+          });
+          return;
+        }
+
         const parts = pathname.split("/").filter(Boolean);
         if (parts.length === 4 && parts[0] === "internal" && parts[1] === "jobs") {
           const jobId = parts[2];
@@ -1390,6 +2053,13 @@ export function startServer(port: number = loadConfig().port): Server {
                 report_id: report.report_id,
                 status: "complete"
               }, completed.userId);
+
+              await createContrarianAnchorFromReport(runtime, {
+                report,
+                userId: completed.userId,
+                requestId: meta.requestId,
+                route: pathname
+              });
 
               sendJson(response, 200, {
                 status: "ok",
@@ -1834,6 +2504,89 @@ export function startServer(port: number = loadConfig().port): Server {
         return;
       }
 
+      if (method === "GET" && pathname === "/v1/user/notification-preferences") {
+        const subscription = await runtime.store.getUserSubscription(auth.userId);
+        const preferences = await runtime.store.getNotificationPreferences(auth.userId);
+        const view = toNotificationPreferenceView(auth.userId, subscription.tier, preferences);
+
+        await appendAudit(
+          runtime,
+          "notification.preferences_retrieved",
+          {
+            request_id: meta.requestId,
+            route: pathname,
+            preference_count: view.preferences.length
+          },
+          auth.userId
+        );
+
+        sendJson(response, 200, {
+          data: view
+        });
+        return;
+      }
+
+      if (method === "PUT" && pathname === "/v1/user/notification-preferences") {
+        const body = await readJsonBody<{
+          preferences?: Array<{ type?: string; enabled?: unknown }>;
+        }>(request);
+        const updatesRaw = Array.isArray(body.preferences) ? body.preferences : [];
+        if (updatesRaw.length === 0) {
+          sendJson(response, 422, {
+            error: "validation_failed",
+            error_message: "preferences must include at least one notification type update."
+          });
+          return;
+        }
+
+        const updates: Array<{ type: NotificationType; enabled: boolean }> = [];
+        for (const row of updatesRaw) {
+          const typeRaw = typeof row.type === "string" ? row.type.trim() : "";
+          if (!typeRaw || !isNotificationType(typeRaw)) {
+            sendJson(response, 422, {
+              error: "validation_failed",
+              error_message: `Unsupported notification type: ${typeRaw || "(empty)"}`
+            });
+            return;
+          }
+          if (typeof row.enabled !== "boolean") {
+            sendJson(response, 422, {
+              error: "validation_failed",
+              error_message: `enabled must be boolean for type ${typeRaw}.`
+            });
+            return;
+          }
+          updates.push({
+            type: typeRaw,
+            enabled: row.enabled
+          });
+        }
+
+        const updatedRows = await runtime.store.upsertNotificationPreferences({
+          userId: auth.userId,
+          preferences: updates,
+          updatedAt: new Date().toISOString()
+        });
+        const subscription = await runtime.store.getUserSubscription(auth.userId);
+        const view = toNotificationPreferenceView(auth.userId, subscription.tier, updatedRows);
+
+        await appendAudit(
+          runtime,
+          "notification.preferences_updated",
+          {
+            request_id: meta.requestId,
+            route: pathname,
+            updated_types: updates.map((entry) => entry.type)
+          },
+          auth.userId
+        );
+
+        sendJson(response, 200, {
+          data: view
+        });
+        return;
+      }
+
       if (method === "GET" && pathname === "/watchlist") {
         const tickers = await runtime.store.listWatchlistTickersByUser(auth.userId);
         sendJson(response, 200, {
@@ -2225,6 +2978,13 @@ export function startServer(port: number = loadConfig().port): Server {
               },
               auth.userId
             );
+
+            await createContrarianAnchorFromReport(runtime, {
+              report: reusedReport,
+              userId: auth.userId,
+              requestId: meta.requestId,
+              route: pathname
+            });
 
             logInfo("Deep dive report reused", {
               request_id: meta.requestId,

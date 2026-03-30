@@ -12,7 +12,10 @@ const migrationFilenames = [
   "ph2m0_006_ticker_coverage.up.sql",
   "ph2m2_007_report_reuse.up.sql",
   "ph2m3_008_fear_greed_daily.up.sql",
-  "ph2m4_009_subscriptions.up.sql"
+  "ph2m4_009_subscriptions.up.sql",
+  "ph2m5_010_calendar_events.up.sql",
+  "ph2m5_011_contrarian_anchors.up.sql",
+  "ph2m5_012_notification_preferences.up.sql"
 ];
 
 async function readMigrationFile(filename: string): Promise<string> {

@@ -52,8 +52,10 @@ import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.thesis.mobile.LaunchTarget
 import com.thesis.mobile.model.DeepDiveReportView
 import com.thesis.mobile.model.EvidenceView
+import com.thesis.mobile.model.NotificationPreferenceView
 import com.thesis.mobile.model.PulseReportView
 import com.thesis.mobile.model.ReportHistoryItem
 import com.thesis.mobile.model.SectionView
@@ -67,8 +69,8 @@ import androidx.compose.material.icons.filled.History
 
 @Composable
 fun ThesisApp(
-    openPulseOnStart: Boolean = false,
-    pulseDateOnStart: String? = null,
+    launchTarget: LaunchTarget? = null,
+    onLaunchHandled: () -> Unit = {},
     mainViewModel: MainViewModel = viewModel()
 ) {
     var uiState by remember { mutableStateOf(mainViewModel.state) }
@@ -79,10 +81,24 @@ fun ThesisApp(
         onDispose {}
     }
 
-    LaunchedEffect(openPulseOnStart, pulseDateOnStart, uiState.tokens) {
-        if (openPulseOnStart && uiState.tokens != null) {
-            mainViewModel.openPulseFromNotification(pulseDateOnStart)
+    LaunchedEffect(launchTarget?.requestId, uiState.tokens) {
+        val target = launchTarget ?: return@LaunchedEffect
+        if (uiState.tokens == null) {
+            return@LaunchedEffect
         }
+
+        when (target.tab) {
+            "pulse" -> mainViewModel.openPulseFromNotification(target.pulseDate)
+            "deep_dive" -> {
+                val ticker = target.ticker?.trim().orEmpty()
+                if (ticker.isNotBlank()) {
+                    mainViewModel.selectTicker(ticker)
+                }
+                mainViewModel.setTab(AppTab.DEEP_DIVE)
+            }
+        }
+
+        onLaunchHandled()
     }
 
     LaunchedEffect(uiState.message, uiState.tokens) {
@@ -95,7 +111,10 @@ fun ThesisApp(
 
     ThesisTheme {
         if (uiState.showWelcome) {
-            WelcomeScreen(onContinue = mainViewModel::completeWelcome)
+            WelcomeScreen(
+                onContinue = mainViewModel::completeWelcome,
+                onLoginClick = mainViewModel::completeWelcome
+            )
             return@ThesisTheme
         }
 
@@ -214,7 +233,9 @@ fun ThesisApp(
                         subscriptionOffers = uiState.subscriptionOffers,
                         subscriptionActionInFlight = uiState.subscriptionActionInFlight,
                         notificationsEnabled = uiState.notificationsEnabled,
+                        notificationPreferences = uiState.notificationPreferences,
                         onSetNotifications = mainViewModel::setNotificationsEnabled,
+                        onSetNotificationPreference = mainViewModel::setNotificationPreference,
                         onSaveApiBaseUrl = mainViewModel::updateApiBaseUrl,
                         onSyncTier = mainViewModel::syncTierFromServer,
                         onRefreshOffers = mainViewModel::refreshSubscriptionOffers,
@@ -298,6 +319,8 @@ private fun AuthScreen(
             onValueChange = { apiBaseUrl = it },
             modifier = Modifier.fillMaxWidth(),
             label = { Text("Product API Base URL") },
+            placeholder = { Text("http://192.168.1.114:3001") },
+            singleLine = true,
             colors = OutlinedTextFieldDefaults.colors(
                 focusedTextColor = MaterialTheme.colorScheme.onSurface,
                 unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
@@ -647,7 +670,9 @@ private fun SettingsTab(
     subscriptionOffers: List<com.thesis.mobile.model.SubscriptionOfferView>,
     subscriptionActionInFlight: Boolean,
     notificationsEnabled: Boolean,
+    notificationPreferences: List<NotificationPreferenceView>,
     onSetNotifications: (Boolean) -> Unit,
+    onSetNotificationPreference: (String, Boolean) -> Unit,
     onSaveApiBaseUrl: (String) -> Unit,
     onSyncTier: () -> Unit,
     onRefreshOffers: () -> Unit,
@@ -681,6 +706,14 @@ private fun SettingsTab(
                 )
             }
         }
+        if (!notificationsEnabled) {
+            item {
+                Text(
+                    "Push is disabled while notifications are off.",
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+        }
         item {
             Button(onClick = {
                 val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
@@ -689,6 +722,18 @@ private fun SettingsTab(
                 context.startActivity(intent)
             }) {
                 Text("Open Android Notification Settings")
+            }
+        }
+        item {
+            HorizontalDivider()
+            Text("Notification Types", fontWeight = FontWeight.Bold)
+            notificationPreferences.forEach { preference ->
+                NotificationPreferenceRow(
+                    type = preference.type,
+                    enabled = preference.enabled,
+                    notificationsEnabled = notificationsEnabled,
+                    onToggle = { enabled -> onSetNotificationPreference(preference.type, enabled) }
+                )
             }
         }
         item {
@@ -752,7 +797,9 @@ private fun SettingsTab(
                 value = baseUrl,
                 onValueChange = { baseUrl = it },
                 modifier = Modifier.fillMaxWidth(),
-                label = { Text("Product API Base URL") }
+                label = { Text("Product API Base URL") },
+                placeholder = { Text("http://192.168.1.114:3001") },
+                singleLine = true
             )
         }
         item {
@@ -768,6 +815,42 @@ private fun SettingsTab(
         item {
             Button(onClick = onLogout) { Text("Logout") }
         }
+    }
+}
+
+@Composable
+private fun NotificationPreferenceRow(
+    type: String,
+    enabled: Boolean,
+    notificationsEnabled: Boolean,
+    onToggle: (Boolean) -> Unit
+) {
+    val label = when (type) {
+        "earnings_preview" -> "Earnings preview"
+        "contrarian_alert" -> "Contrarian alert"
+        "weekly_digest" -> "Weekly digest"
+        "market_pulse_ready" -> "Market Pulse ready"
+        else -> type.replace('_', ' ').replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+    }
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(label)
+            if (!notificationsEnabled) {
+                Text(
+                    "Global notifications are off. This preference will apply when they are re-enabled.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+        Switch(
+            checked = enabled,
+            onCheckedChange = onToggle
+        )
     }
 }
 

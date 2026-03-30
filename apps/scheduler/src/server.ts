@@ -23,6 +23,14 @@ interface SchedulerConfig {
   sentimentScheduleMinute: number;
   historicalSyncHour: number;
   historicalSyncMinute: number;
+  calendarSyncHour: number;
+  calendarSyncMinute: number;
+  earningsPreviewHour: number;
+  earningsPreviewMinute: number;
+  contrarianEvalHour: number;
+  contrarianEvalMinute: number;
+  weeklyDigestHour: number;
+  weeklyDigestMinute: number;
   testMode: boolean;
   testFireInSeconds: number;
 }
@@ -31,6 +39,10 @@ interface SchedulerState {
   nextPulseFireAt?: string;
   nextSentimentFireAt?: string;
   nextHistoricalSyncAt?: string;
+  nextCalendarSyncAt?: string;
+  nextEarningsPreviewAt?: string;
+  nextContrarianEvalAt?: string;
+  nextWeeklyDigestAt?: string;
   mode: "scheduled" | "test";
 }
 
@@ -41,10 +53,18 @@ type HealthPayload = {
   schedule: string;
   sentiment_schedule: string;
   historical_sync_schedule: string;
+  calendar_sync_schedule: string;
+  earnings_preview_schedule: string;
+  contrarian_eval_schedule: string;
+  weekly_digest_schedule: string;
   next_fire_at?: string;
   next_pulse_fire_at?: string;
   next_sentiment_fire_at?: string;
   next_historical_sync_at?: string;
+  next_calendar_sync_at?: string;
+  next_earnings_preview_at?: string;
+  next_contrarian_eval_at?: string;
+  next_weekly_digest_at?: string;
 };
 
 function log(
@@ -81,6 +101,10 @@ function parseScheduleClock(
   return { hour, minute };
 }
 
+function formatClock(hour: number, minute: number): string {
+  return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+}
+
 function loadConfig(env: NodeJS.ProcessEnv = process.env): SchedulerConfig {
   const schedule = parseScheduleClock(env.SCHEDULER_DELIVERY_TIME_LOCAL ?? "06:30");
   const sentimentSchedule = parseScheduleClock(
@@ -88,6 +112,18 @@ function loadConfig(env: NodeJS.ProcessEnv = process.env): SchedulerConfig {
   );
   const historicalSyncSchedule = parseScheduleClock(
     env.SCHEDULER_HISTORICAL_SYNC_TIME_LOCAL ?? "01:00"
+  );
+  const calendarSyncSchedule = parseScheduleClock(
+    env.SCHEDULER_CALENDAR_SYNC_TIME_LOCAL ?? "22:00"
+  );
+  const earningsPreviewSchedule = parseScheduleClock(
+    env.SCHEDULER_EARNINGS_PREVIEW_TIME_LOCAL ?? "06:30"
+  );
+  const contrarianEvalSchedule = parseScheduleClock(
+    env.SCHEDULER_CONTRARIAN_EVAL_TIME_LOCAL ?? "18:00"
+  );
+  const weeklyDigestSchedule = parseScheduleClock(
+    env.SCHEDULER_WEEKLY_DIGEST_TIME_LOCAL ?? "18:00"
   );
   const testMode =
     (env.SCHEDULER_TEST_MODE ?? "").trim().toLowerCase() === "true" ||
@@ -108,6 +144,14 @@ function loadConfig(env: NodeJS.ProcessEnv = process.env): SchedulerConfig {
     sentimentScheduleMinute: sentimentSchedule.minute,
     historicalSyncHour: historicalSyncSchedule.hour,
     historicalSyncMinute: historicalSyncSchedule.minute,
+    calendarSyncHour: calendarSyncSchedule.hour,
+    calendarSyncMinute: calendarSyncSchedule.minute,
+    earningsPreviewHour: earningsPreviewSchedule.hour,
+    earningsPreviewMinute: earningsPreviewSchedule.minute,
+    contrarianEvalHour: contrarianEvalSchedule.hour,
+    contrarianEvalMinute: contrarianEvalSchedule.minute,
+    weeklyDigestHour: weeklyDigestSchedule.hour,
+    weeklyDigestMinute: weeklyDigestSchedule.minute,
     testMode,
     testFireInSeconds: Number.isFinite(testFireInSeconds) && testFireInSeconds > 0
       ? testFireInSeconds
@@ -210,6 +254,85 @@ async function dispatchHistoricalSync(config: SchedulerConfig): Promise<void> {
   });
 }
 
+async function dispatchProductApiJob(
+  config: SchedulerConfig,
+  route: string,
+  body: Record<string, unknown>,
+  label: string
+): Promise<Record<string, unknown>> {
+  const response = await fetch(`${config.productApiInternalBaseUrl}${route}`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-internal-token": config.internalWorkerToken
+    },
+    body: JSON.stringify(body)
+  });
+
+  const payload = (await response.json()) as Record<string, unknown>;
+  if (!response.ok) {
+    throw new Error(
+      `${label} dispatch failed with status ${response.status}: ${JSON.stringify(payload)}`
+    );
+  }
+
+  return payload;
+}
+
+async function dispatchCalendarSync(config: SchedulerConfig): Promise<void> {
+  const payload = await dispatchProductApiJob(config, "/internal/calendar/sync", {}, "Calendar sync");
+  log("INFO", "Calendar sync accepted", {
+    status: payload.status,
+    events_upserted: payload.events_upserted,
+    source_rows: payload.source_rows,
+    supported_rows: payload.supported_rows
+  });
+}
+
+async function dispatchEarningsPreview(config: SchedulerConfig): Promise<void> {
+  const payload = await dispatchProductApiJob(
+    config,
+    "/internal/notifications/earnings-preview",
+    {},
+    "Earnings preview"
+  );
+  log("INFO", "Earnings preview accepted", {
+    attempted: payload.attempted,
+    delivered: payload.delivered,
+    failed: payload.failed
+  });
+}
+
+async function dispatchContrarianEvaluation(config: SchedulerConfig): Promise<void> {
+  const payload = await dispatchProductApiJob(
+    config,
+    "/internal/notifications/contrarian/evaluate",
+    {},
+    "Contrarian evaluation"
+  );
+  log("INFO", "Contrarian evaluation accepted", {
+    attempted: payload.attempted,
+    delivered: payload.delivered,
+    failed: payload.failed,
+    fired: payload.fired
+  });
+}
+
+async function dispatchWeeklyDigest(config: SchedulerConfig): Promise<void> {
+  const payload = await dispatchProductApiJob(
+    config,
+    "/internal/notifications/weekly-digest",
+    {},
+    "Weekly digest"
+  );
+  log("INFO", "Weekly digest accepted", {
+    status: payload.status,
+    attempted: payload.attempted,
+    delivered: payload.delivered,
+    failed: payload.failed
+  });
+}
+
 export function startServer(port: number = defaultPort): Server {
   const config = loadConfig({
     ...process.env,
@@ -228,6 +351,10 @@ export function startServer(port: number = defaultPort): Server {
   let pulseTimer: NodeJS.Timeout | undefined;
   let sentimentTimer: NodeJS.Timeout | undefined;
   let historicalSyncTimer: NodeJS.Timeout | undefined;
+  let calendarSyncTimer: NodeJS.Timeout | undefined;
+  let earningsPreviewTimer: NodeJS.Timeout | undefined;
+  let contrarianEvalTimer: NodeJS.Timeout | undefined;
+  let weeklyDigestTimer: NodeJS.Timeout | undefined;
   let testFired = false;
   let shuttingDown = false;
 
@@ -403,25 +530,261 @@ export function startServer(port: number = defaultPort): Server {
     }, delayMs);
   };
 
+  const scheduleCalendarSyncNext = (): void => {
+    if (shuttingDown || (config.testMode && testFired)) {
+      state.nextCalendarSyncAt = undefined;
+      return;
+    }
+
+    if (calendarSyncTimer) {
+      clearTimeout(calendarSyncTimer);
+      calendarSyncTimer = undefined;
+    }
+
+    const now = new Date();
+    const runAt = config.testMode
+      ? new Date(now.getTime() + config.testFireInSeconds * 1000)
+      : computeNextScheduledRun(
+          now,
+          config.scheduleTimeZone,
+          config.calendarSyncHour,
+          config.calendarSyncMinute
+        );
+    const delayMs = Math.max(0, runAt.getTime() - now.getTime());
+    state.nextCalendarSyncAt = runAt.toISOString();
+
+    calendarSyncTimer = setTimeout(async () => {
+      if (shuttingDown) {
+        return;
+      }
+
+      if (config.testMode) {
+        testFired = true;
+      }
+
+      log("INFO", "Calendar sync schedule fired", {
+        mode: state.mode,
+        scheduled_for: runAt.toISOString()
+      });
+
+      try {
+        await dispatchCalendarSync(config);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Calendar sync dispatch failed";
+        log("ERROR", "Calendar sync dispatch failed", {
+          error_message: message
+        });
+        captureException(new Error(message), {
+          service: serviceName,
+          scheduled_for: runAt.toISOString(),
+          target: "product-api",
+          route: "/internal/calendar/sync"
+        });
+      }
+
+      scheduleCalendarSyncNext();
+    }, delayMs);
+  };
+
+  const scheduleEarningsPreviewNext = (): void => {
+    if (shuttingDown || (config.testMode && testFired)) {
+      state.nextEarningsPreviewAt = undefined;
+      return;
+    }
+
+    if (earningsPreviewTimer) {
+      clearTimeout(earningsPreviewTimer);
+      earningsPreviewTimer = undefined;
+    }
+
+    const now = new Date();
+    const runAt = config.testMode
+      ? new Date(now.getTime() + config.testFireInSeconds * 1000)
+      : computeNextScheduledRun(
+          now,
+          config.scheduleTimeZone,
+          config.earningsPreviewHour,
+          config.earningsPreviewMinute
+        );
+    const delayMs = Math.max(0, runAt.getTime() - now.getTime());
+    state.nextEarningsPreviewAt = runAt.toISOString();
+
+    earningsPreviewTimer = setTimeout(async () => {
+      if (shuttingDown) {
+        return;
+      }
+
+      if (config.testMode) {
+        testFired = true;
+      }
+
+      log("INFO", "Earnings preview schedule fired", {
+        mode: state.mode,
+        scheduled_for: runAt.toISOString()
+      });
+
+      try {
+        await dispatchEarningsPreview(config);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Earnings preview dispatch failed";
+        log("ERROR", "Earnings preview dispatch failed", {
+          error_message: message
+        });
+        captureException(new Error(message), {
+          service: serviceName,
+          scheduled_for: runAt.toISOString(),
+          target: "product-api",
+          route: "/internal/notifications/earnings-preview"
+        });
+      }
+
+      scheduleEarningsPreviewNext();
+    }, delayMs);
+  };
+
+  const scheduleContrarianEvalNext = (): void => {
+    if (shuttingDown || (config.testMode && testFired)) {
+      state.nextContrarianEvalAt = undefined;
+      return;
+    }
+
+    if (contrarianEvalTimer) {
+      clearTimeout(contrarianEvalTimer);
+      contrarianEvalTimer = undefined;
+    }
+
+    const now = new Date();
+    const runAt = config.testMode
+      ? new Date(now.getTime() + config.testFireInSeconds * 1000)
+      : computeNextScheduledRun(
+          now,
+          config.scheduleTimeZone,
+          config.contrarianEvalHour,
+          config.contrarianEvalMinute
+        );
+    const delayMs = Math.max(0, runAt.getTime() - now.getTime());
+    state.nextContrarianEvalAt = runAt.toISOString();
+
+    contrarianEvalTimer = setTimeout(async () => {
+      if (shuttingDown) {
+        return;
+      }
+
+      if (config.testMode) {
+        testFired = true;
+      }
+
+      log("INFO", "Contrarian evaluation schedule fired", {
+        mode: state.mode,
+        scheduled_for: runAt.toISOString()
+      });
+
+      try {
+        await dispatchContrarianEvaluation(config);
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : "Contrarian evaluation dispatch failed";
+        log("ERROR", "Contrarian evaluation dispatch failed", {
+          error_message: message
+        });
+        captureException(new Error(message), {
+          service: serviceName,
+          scheduled_for: runAt.toISOString(),
+          target: "product-api",
+          route: "/internal/notifications/contrarian/evaluate"
+        });
+      }
+
+      scheduleContrarianEvalNext();
+    }, delayMs);
+  };
+
+  const scheduleWeeklyDigestNext = (): void => {
+    if (shuttingDown || (config.testMode && testFired)) {
+      state.nextWeeklyDigestAt = undefined;
+      return;
+    }
+
+    if (weeklyDigestTimer) {
+      clearTimeout(weeklyDigestTimer);
+      weeklyDigestTimer = undefined;
+    }
+
+    const now = new Date();
+    const runAt = config.testMode
+      ? new Date(now.getTime() + config.testFireInSeconds * 1000)
+      : computeNextScheduledRun(
+          now,
+          config.scheduleTimeZone,
+          config.weeklyDigestHour,
+          config.weeklyDigestMinute
+        );
+    const delayMs = Math.max(0, runAt.getTime() - now.getTime());
+    state.nextWeeklyDigestAt = runAt.toISOString();
+
+    weeklyDigestTimer = setTimeout(async () => {
+      if (shuttingDown) {
+        return;
+      }
+
+      if (config.testMode) {
+        testFired = true;
+      }
+
+      log("INFO", "Weekly digest schedule fired", {
+        mode: state.mode,
+        scheduled_for: runAt.toISOString()
+      });
+
+      try {
+        await dispatchWeeklyDigest(config);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Weekly digest dispatch failed";
+        log("ERROR", "Weekly digest dispatch failed", {
+          error_message: message
+        });
+        captureException(new Error(message), {
+          service: serviceName,
+          scheduled_for: runAt.toISOString(),
+          target: "product-api",
+          route: "/internal/notifications/weekly-digest"
+        });
+      }
+
+      scheduleWeeklyDigestNext();
+    }, delayMs);
+  };
+
   const server = createServer((request, response) => {
     if (request.url === "/health") {
       const payload: HealthPayload = {
         status: "ok",
         mode: state.mode,
         timezone: config.scheduleTimeZone,
-        schedule: `${String(config.scheduleHour).padStart(2, "0")}:${String(
-          config.scheduleMinute
-        ).padStart(2, "0")}`,
-        sentiment_schedule: `${String(config.sentimentScheduleHour).padStart(2, "0")}:${String(
-          config.sentimentScheduleMinute
-        ).padStart(2, "0")}`,
-        historical_sync_schedule: `${String(config.historicalSyncHour).padStart(2, "0")}:${String(
-          config.historicalSyncMinute
-        ).padStart(2, "0")}`,
+        schedule: formatClock(config.scheduleHour, config.scheduleMinute),
+        sentiment_schedule: formatClock(config.sentimentScheduleHour, config.sentimentScheduleMinute),
+        historical_sync_schedule: formatClock(config.historicalSyncHour, config.historicalSyncMinute),
+        calendar_sync_schedule: formatClock(config.calendarSyncHour, config.calendarSyncMinute),
+        earnings_preview_schedule: formatClock(
+          config.earningsPreviewHour,
+          config.earningsPreviewMinute
+        ),
+        contrarian_eval_schedule: formatClock(
+          config.contrarianEvalHour,
+          config.contrarianEvalMinute
+        ),
+        weekly_digest_schedule: formatClock(
+          config.weeklyDigestHour,
+          config.weeklyDigestMinute
+        ),
         next_fire_at: state.nextPulseFireAt,
         next_pulse_fire_at: state.nextPulseFireAt,
         next_sentiment_fire_at: state.nextSentimentFireAt,
-        next_historical_sync_at: state.nextHistoricalSyncAt
+        next_historical_sync_at: state.nextHistoricalSyncAt,
+        next_calendar_sync_at: state.nextCalendarSyncAt,
+        next_earnings_preview_at: state.nextEarningsPreviewAt,
+        next_contrarian_eval_at: state.nextContrarianEvalAt,
+        next_weekly_digest_at: state.nextWeeklyDigestAt
       };
 
       response.writeHead(200, { "content-type": "application/json" });
@@ -447,10 +810,14 @@ export function startServer(port: number = defaultPort): Server {
         config.historicalSyncMinute
       ).padStart(2, "0")}`
     });
-    schedulePulseNext();
-    scheduleSentimentNext();
-    scheduleHistoricalSyncNext();
-  });
+      schedulePulseNext();
+      scheduleSentimentNext();
+      scheduleHistoricalSyncNext();
+      scheduleCalendarSyncNext();
+      scheduleEarningsPreviewNext();
+      scheduleContrarianEvalNext();
+      scheduleWeeklyDigestNext();
+    });
 
   server.on("error", (error) => {
     const message = error instanceof Error ? error.message : "Unknown startup error";
@@ -470,6 +837,22 @@ export function startServer(port: number = defaultPort): Server {
     if (historicalSyncTimer) {
       clearTimeout(historicalSyncTimer);
       historicalSyncTimer = undefined;
+    }
+    if (calendarSyncTimer) {
+      clearTimeout(calendarSyncTimer);
+      calendarSyncTimer = undefined;
+    }
+    if (earningsPreviewTimer) {
+      clearTimeout(earningsPreviewTimer);
+      earningsPreviewTimer = undefined;
+    }
+    if (contrarianEvalTimer) {
+      clearTimeout(contrarianEvalTimer);
+      contrarianEvalTimer = undefined;
+    }
+    if (weeklyDigestTimer) {
+      clearTimeout(weeklyDigestTimer);
+      weeklyDigestTimer = undefined;
     }
   });
 

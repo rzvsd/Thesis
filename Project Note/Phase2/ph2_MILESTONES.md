@@ -680,18 +680,18 @@ Make the app time-aware and proactive. Add calendar data, personalized push, con
 | Calendar events table | PostgreSQL event storage |
 | Personalized FCM templates | Named notification templates with dynamic content |
 | Notification preference model | Durable user preferences for enabled notification types |
-| Contrarian alert anchor model | Persisted server-side record with user, ticker, signal, anchor time, and expiry |
+| Contrarian alert anchor model | Persisted server-side record with user, ticker, signal, anchor_price, anchor time, and expiry |
 | Contrarian alert cron | Scheduler job that evaluates anchors against market moves |
 | Weekly digest builder | Scheduled aggregation of major events and insights |
-| Weekly digest delivery | Email or other approved delivery path for Pro users |
+| Weekly digest delivery | FCM push delivery path for Pro users (with deep-link destination) |
 
 ## Acceptance Criteria
 
 - [ ] Earnings calendar shows correct upcoming dates for the supported universe
 - [ ] User receives a personalized push when a watchlist name reports soon
-- [ ] Contrarian alert fires only from persisted anchors and only within the defined validity window
+- [ ] Contrarian alert fires only from persisted anchors using a 5% cumulative opposite move from anchor_price and only within the 90-day validity window
 - [ ] Weekly digest arrives with correct content on the approved cadence
-- [ ] User can disable the supported notification types
+- [ ] User can disable the supported notification types (`earnings_preview`, `contrarian_alert`, `weekly_digest`, `market_pulse_ready`)
 - [ ] All notifications deep-link to the correct screen in the app
 - [ ] Existing Phase 1 push registration and tap-through still work
 
@@ -711,7 +711,7 @@ Make the app time-aware and proactive. Add calendar data, personalized push, con
 5. Create a valid contrarian anchor from a completed Deep Dive
 6. Simulate or detect the threshold move and confirm the alert fires
 7. Disable the relevant preference and confirm the alert stops
-8. Trigger the weekly digest path and confirm the output contains the expected sections
+8. Trigger the weekly digest path and confirm the output contains the expected sections and is delivered via FCM push
 9. Re-run the Phase 1 push and Pulse regression checks
 
 ## Success
