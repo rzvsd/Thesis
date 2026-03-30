@@ -1,6 +1,6 @@
-# AGENTS.md — Phase 2 M5 Calendar & Smart Notifications
-**Milestone:** Phase 2 M5 — Calendar & Smart Notifications  
-**Inherits from:** Root `AGENTS.md`, then `Project Note/Phase2/ph2_AGENTS.md` — read both first.  
+﻿# AGENTS.md â€” Phase 2 M5 Calendar & Smart Notifications
+**Milestone:** Phase 2 M5 â€” Calendar & Smart Notifications  
+**Inherits from:** Root `AGENTS.md`, then `Project Note/Phase2/ph2_AGENTS.md` â€” read both first.  
 **Location:** `Project Note/Phase2/Milestones/M5/M5_MILESTONE_AGENTS_ph2.md`
 
 ---
@@ -9,10 +9,10 @@
 
 | Field | Value |
 |---|---|
-| **Milestone** | Phase 2 M5 — Calendar & Smart Notifications |
-| **Linear Project** | Phase 2 M5 — Calendar & Smart Notifications |
+| **Milestone** | Phase 2 M5 â€” Calendar & Smart Notifications |
+| **Linear Project** | Phase 2 M5 â€” Calendar & Smart Notifications |
 | **Owner** | Scheduler Engineer + Product API Engineer + Mobile Engineer |
-| **Status** | Planned |
+| **Status** | In Progress (technical validation complete; formal closeout pending CI/sign-off) |
 | **Depends on** | Phase 2 M4 closed; FCM credentials operational (Phase 1 push path already working) |
 
 ---
@@ -23,11 +23,12 @@ These decisions **must be resolved before any code is written** for this milesto
 
 | # | Decision | Current Status | Owner | Needed By |
 |---|---|---|---|---|
-| G1 | **Calendar data source.** Which provider supplies upcoming earnings dates? (Independent of M0/M1 SEC historical store — e.g. OpenBB-wrapped calendar, exchange feed, or other approved API.) What are the endpoints, rate limits, cost, and ToS for server-side use? | **OPEN** | Data Engineer + Product Lead | Before M5 kickoff |
-| G2 | **Contrarian alert threshold.** What price move triggers a contrarian alert? (e.g., stock drops ≥ 5% while user's thesis was "positive"). Must be a concrete number, not "significant move." | **OPEN** | Product Lead | Before M5 kickoff |
-| G3 | **Contrarian alert validity window.** How long does an anchor remain active? (e.g., 30 days, 90 days). After expiry, no more alerts fire for that anchor. | **OPEN** | Product Lead | Before M5 kickoff |
-| G4 | **Weekly digest delivery channel.** Email, push notification, or in-app? PRD §2.5 says "scheduled summary for Pro users" but doesn't specify delivery. Email requires an email service (SendGrid, SES). Push is simpler but limited in content. | **OPEN** | Product Lead | Before M5 kickoff |
-| G5 | **Notification type inventory.** Exact list of notification types users can enable/disable (e.g., earnings_preview, contrarian_alert, weekly_digest, market_pulse_ready). Each type needs a named FCM template. | **OPEN** | Product Lead + Mobile Engineer | Before M5 kickoff |
+| G1 | **Calendar data source.** Which provider supplies upcoming earnings dates? (Independent of M0/M1 SEC historical store â€” e.g. OpenBB-wrapped calendar, exchange feed, or other approved API.) What are the endpoints, rate limits, cost, and ToS for server-side use? | **RESOLVED:** yfinance `Calendars` batch source (`yf.Calendars(start,end).get_earnings_calendar()`), filtered to `ticker_coverage` supported universe. No API key, $0. | Data Engineer + Product Lead | Done |
+| G2 | **Contrarian alert threshold.** What price move triggers a contrarian alert? (e.g., stock drops â‰¥ 5% while user's thesis was "positive"). Must be a concrete number, not "significant move." | **RESOLVED:** 5% cumulative move from `anchor_price` in opposite direction of thesis. | Product Lead | Done |
+| G3 | **Contrarian alert validity window.** How long does an anchor remain active? (e.g., 30 days, 90 days). After expiry, no more alerts fire for that anchor. | **RESOLVED:** 90 days from `anchored_at`. | Product Lead | Done |
+| G4 | **Weekly digest delivery channel.** Email, push notification, or in-app? PRD Â§2.5 says "scheduled summary for Pro users" but doesn't specify delivery. Email requires an email service (SendGrid, SES). Push is simpler but limited in content. | **RESOLVED:** FCM push notification with deep-link to digest destination. | Product Lead | Done |
+| G5 | **Notification type inventory.** Exact list of notification types users can enable/disable (e.g., earnings_preview, contrarian_alert, weekly_digest, market_pulse_ready). Each type needs a named FCM template. | **RESOLVED:** `earnings_preview`, `contrarian_alert`, `weekly_digest`, `market_pulse_ready` | Product Lead + Mobile Engineer | Done |
+| G6 | **Anchor-proof mode.** Can Phase 1 Deep Dive reports create M5 contrarian anchors, or must this wait for Deep Dive v2? | **RESOLVED:** Phase 1 completed Deep Dive reports are valid anchor sources when they carry a signal value. | Product Lead + Engineering Lead | Done |
 
 **Rule:** Do not begin coding with placeholder thresholds, assumed delivery channels, or ad-hoc notification types. The anchor model, scheduler evaluation logic, FCM templates, and preference UI all depend on concrete answers.
 
@@ -35,12 +36,12 @@ These decisions **must be resolved before any code is written** for this milesto
 
 ## 1. What This Milestone Is Building
 
-The proactive intelligence layer that makes the app time-aware and personalized. At the end of this milestone, the app knows when watchlist companies report earnings and nudges the user beforehand. If the market moves against a user's thesis, a contrarian alert fires from a durable server-side anchor — never from transient app memory. Pro users receive a weekly digest summarizing the best insights. Users control which notification types they receive.
+The proactive intelligence layer that makes the app time-aware and personalized. At the end of this milestone, the app knows when watchlist companies report earnings and nudges the user beforehand. If the market moves against a user's thesis, a contrarian alert fires from a durable server-side anchor â€” never from transient app memory. Pro users receive a weekly digest summarizing the best insights. Users control which notification types they receive.
 
 This milestone adds new tables (`calendar_events`, `contrarian_alert_anchors`, `notification_preferences`), new scheduler cron jobs, new FCM notification templates, and mobile preference UI. It must not break the working Phase 1 push registration, notification receipt, tap-through deep-links, or any existing product flow.
 
 **Plain English summary for non-technical audit:**  
-Before M5, the app waits for you to open it. After M5, it comes to you — telling you when your companies report, when the market disagrees with your thesis, and giving Pro users a weekly briefing. You control what it tells you, and it never makes up a reason to notify you.
+Before M5, the app waits for you to open it. After M5, it comes to you â€” telling you when your companies report, when the market disagrees with your thesis, and giving Pro users a weekly briefing. You control what it tells you, and it never makes up a reason to notify you.
 
 ---
 
@@ -48,50 +49,50 @@ Before M5, the app waits for you to open it. After M5, it comes to you — telli
 
 ### Phase 1 docs
 
-- `Project Note/Phase1/BLUEBOOK cld.md` — FCM push architecture, scheduler, deep-link model
-- `Project Note/Phase1/MILESTONES.md` — Phase 1 M8 (Push & Notifications) as regression baseline
+- `Project Note/Phase1/BLUEBOOK cld.md` â€” FCM push architecture, scheduler, deep-link model
+- `Project Note/Phase1/MILESTONES.md` â€” Phase 1 M8 (Push & Notifications) as regression baseline
 
 ### Phase 2 docs
 
-- `Project Note/Phase2/ph2_AGENTS.md` — High-Risk Rule for M5 (persisted thesis anchor)
-- `Project Note/Phase2/ph2_BLUEBOOK.md` — §7 M5 Guardrail (anchor model), §8 Data Model (`calendar_events`, `contrarian_alert_anchors`)
-- `Project Note/Phase2/ph2_MILESTONES.md` — Phase 2 M5 acceptance criteria
-- `Project Note/Phase2/ph2_PRD.md` — §2.5 Smart Notifications
+- `Project Note/Phase2/ph2_AGENTS.md` â€” High-Risk Rule for M5 (persisted thesis anchor)
+- `Project Note/Phase2/ph2_BLUEBOOK.md` â€” Â§7 M5 Guardrail (anchor model), Â§8 Data Model (`calendar_events`, `contrarian_alert_anchors`)
+- `Project Note/Phase2/ph2_MILESTONES.md` â€” Phase 2 M5 acceptance criteria
+- `Project Note/Phase2/ph2_PRD.md` â€” Â§2.5 Smart Notifications
 
 ### Current code surfaces
 
-- `apps/scheduler/src/scheduling.ts` — cron and cycle-window logic
-- `apps/scheduler/src/server.ts` — scheduler entry point (existing Market Pulse cron)
-- `apps/product-api/src/server.ts` — existing push token registration route
-- `apps/product-api/src/store.ts` — user and watchlist queries
-- `apps/mobile/android/app/src/main/java/com/thesis/mobile/ui/MainViewModel.kt` — push handling
-- `apps/mobile/android/app/src/main/java/com/thesis/mobile/network/ProductApiClient.kt` — API client
+- `apps/scheduler/src/scheduling.ts` â€” cron and cycle-window logic
+- `apps/scheduler/src/server.ts` â€” scheduler entry point (existing Market Pulse cron)
+- `apps/product-api/src/server.ts` â€” existing push token registration route
+- `apps/product-api/src/store.ts` â€” user and watchlist queries
+- `apps/mobile/android/app/src/main/java/com/thesis/mobile/ui/MainViewModel.kt` â€” push handling
+- `apps/mobile/android/app/src/main/java/com/thesis/mobile/network/ProductApiClient.kt` â€” API client
 
 ---
 
-## 3. Scope — What Is In
+## 3. Scope â€” What Is In
 
-- [ ] **Migration** `infra/migrations/ph2m5_008_calendar_events.up.sql` and `.down.sql` — creates `calendar_events` table per Bluebook §8 schema
-- [ ] **Migration** `infra/migrations/ph2m5_009_contrarian_anchors.up.sql` and `.down.sql` — creates `contrarian_alert_anchors` table per Bluebook §8 schema
-- [ ] **Migration** `infra/migrations/ph2m5_010_notification_preferences.up.sql` and `.down.sql` — creates `notification_preferences` table (user_id, type, enabled, updated_at)
-- [ ] All three migrations registered in `apps/product-api/src/migrations.ts`
-- [ ] **Calendar sync cron:** Nightly job (after existing syncs) that fetches upcoming earnings dates from the G1 provider and upserts into `calendar_events`
-- [ ] **Earnings-preview notification:** When a watchlist ticker has an earnings date within 1 business day, the scheduler sends a personalized FCM push: "MSFT reports tomorrow. Tap to run a Deep Dive." Deep-links to the ticker's Deep Dive screen.
-- [ ] **Contrarian alert anchor creation:** When a Deep Dive completes and produces a signal (`positive`, `neutral`, `negative`), `product-api` creates a `contrarian_alert_anchors` row with the user, ticker, signal value, anchor time, and expiry (G3 window).
-- [ ] **Contrarian alert evaluation cron:** Scheduler job (daily or more frequent per design) checks active anchors against current market price. If the price move exceeds the G2 threshold in the opposite direction of the thesis signal, fire a push notification.
-- [ ] **Contrarian alert expiry:** Anchors with `expires_at < now()` are automatically deactivated (`is_active = false`); no alerts fire for expired anchors.
-- [ ] **Notification preference model:** `GET /v1/user/notification-preferences` and `PUT /v1/user/notification-preferences` endpoints for reading and updating per-type preferences.
-- [ ] **Mobile notification settings UI:** Settings screen lists each notification type (G5) with toggles. Changes call the preference API.
-- [ ] **Weekly digest builder:** Scheduled aggregation of the week's top insights (e.g., biggest movers in watchlist, Fear & Greed trend, upcoming earnings). Pro users only.
-- [ ] **Weekly digest delivery:** Delivered via the G4 channel on the agreed cadence (e.g., Sunday evening).
-- [ ] **All notifications deep-link correctly:** Each notification type opens the correct screen in the app.
-- [ ] **Phase 1 regression:** Push token registration, notification receipt, tap-through to Pulse/target screen, and watchlist personalization all still work.
+- [x] **Migration** `infra/migrations/ph2m5_010_calendar_events.up.sql` and `.down.sql` â€” creates `calendar_events` table per Bluebook Â§8 schema
+- [x] **Migration** `infra/migrations/ph2m5_011_contrarian_anchors.up.sql` and `.down.sql` â€” creates `contrarian_alert_anchors` table per Bluebook Â§8 schema
+- [x] **Migration** `infra/migrations/ph2m5_012_notification_preferences.up.sql` and `.down.sql` â€” creates `notification_preferences` table (user_id, type, enabled, updated_at)
+- [x] All three migrations registered in `apps/product-api/src/migrations.ts`
+- [x] **Calendar sync cron:** Nightly job (after existing syncs) that fetches upcoming earnings dates from the G1 provider and upserts into `calendar_events`
+- [x] **Earnings-preview notification:** When a watchlist ticker has an earnings date within 1 business day, the scheduler sends a personalized FCM push: "MSFT reports tomorrow. Tap to run a Deep Dive." Deep-links to the ticker's Deep Dive screen.
+- [x] **Contrarian alert anchor creation:** When a Deep Dive completes and produces a signal (`positive`, `neutral`, `negative`), `product-api` creates a `contrarian_alert_anchors` row with the user, ticker, signal value, **anchor_price**, anchor time, and expiry (G3 window).
+- [x] **Contrarian alert evaluation cron:** Scheduler job (daily or more frequent per design) checks active anchors against current market price. If the price move exceeds the G2 threshold in the opposite direction of the thesis signal, fire a push notification.
+- [x] **Contrarian alert expiry:** Anchors with `expires_at < now()` are automatically deactivated (`is_active = false`); no alerts fire for expired anchors.
+- [x] **Notification preference model:** `GET /v1/user/notification-preferences` and `PUT /v1/user/notification-preferences` endpoints for reading and updating per-type preferences.
+- [x] **Mobile notification settings UI:** Settings screen lists each notification type (G5) with toggles. Changes call the preference API.
+- [x] **Weekly digest builder:** Scheduled aggregation of the week's top insights (e.g., biggest movers in watchlist, Fear & Greed trend, upcoming earnings). Pro users only.
+- [x] **Weekly digest delivery:** Delivered via FCM push on the agreed cadence (e.g., Sunday evening).
+- [x] **All notifications deep-link correctly:** Each notification type opens the correct screen in the app.
+- [x] **Phase 1 regression:** Push token registration, notification receipt, tap-through to Pulse/target screen, and watchlist personalization all still work.
 
-Full deliverables and acceptance criteria: `ph2_MILESTONES.md → M5`
+Full deliverables and acceptance criteria: `ph2_MILESTONES.md â†’ M5`
 
 ---
 
-## 4. Scope — What Is Out
+## 4. Scope â€” What Is Out
 
 | Out of scope | Reason |
 |---|---|
@@ -109,10 +110,10 @@ Full deliverables and acceptance criteria: `ph2_MILESTONES.md → M5`
 
 | Service | Folder | What you are doing in it |
 |---|---|---|
-| Infra | `infra/migrations/` | Add `ph2m5_008`, `ph2m5_009`, `ph2m5_010` migration files |
+| Infra | `infra/migrations/` | Add `ph2m5_010`, `ph2m5_011`, `ph2m5_012` migration files |
 | Product API | `apps/product-api/src/` | Register migrations; add preference endpoints; add anchor creation logic on Deep Dive completion; add calendar query functions |
 | Scheduler | `apps/scheduler/src/` | Add calendar sync cron, earnings-preview notification cron, contrarian alert evaluation cron, weekly digest cron |
-| Data path | `apps/data-openbb/src/` | Add calendar data fetcher for the G1 provider |
+| Data path | `apps/data-openbb/src/` | Add yfinance `Calendars` batch fetcher and internal sync endpoint for G1 |
 | Contracts | `packages/contracts/src/` | Add `CalendarEvent`, `ContrarianAlertAnchor`, `NotificationPreference` contracts if needed |
 | Mobile app | `apps/mobile/` | Add notification settings UI with toggles; ensure deep-link handling for new notification types |
 
@@ -122,7 +123,7 @@ Full deliverables and acceptance criteria: `ph2_MILESTONES.md → M5`
 
 ## 6. Contracts You Are Touching
 
-### `CalendarEvent` — NEW
+### `CalendarEvent` â€” NEW
 
 File: `packages/contracts/src/calendar-event.ts`
 
@@ -138,7 +139,7 @@ File: `packages/contracts/src/calendar-event.ts`
 }
 ```
 
-### `ContrarianAlertAnchor` — NEW
+### `ContrarianAlertAnchor` â€” NEW
 
 File: `packages/contracts/src/contrarian-alert-anchor.ts`
 
@@ -149,13 +150,14 @@ File: `packages/contracts/src/contrarian-alert-anchor.ts`
   ticker: string
   report_id?: string           // FK to reports.id, nullable
   signal_value: "positive" | "neutral" | "negative"
+  anchor_price: number
   anchored_at: string          // ISO 8601
   expires_at: string           // ISO 8601
   is_active: boolean
 }
 ```
 
-### `NotificationPreference` — NEW
+### `NotificationPreference` â€” NEW
 
 ```typescript
 {
@@ -176,7 +178,7 @@ File: `packages/contracts/src/contrarian-alert-anchor.ts`
 
 ## 7. Linear Ticket Rules for This Milestone
 
-**Project:** Phase 2 M5 — Calendar & Smart Notifications
+**Project:** Phase 2 M5 â€” Calendar & Smart Notifications
 
 **Ticket naming:**
 ```
@@ -211,9 +213,9 @@ File: `packages/contracts/src/contrarian-alert-anchor.ts`
 ### Calendar Data Provider
 
 ```
-Provider:                            [G1] — potentially included in M1 data plan
-Additional API calls per night:      1 call for universe earnings calendar
-Monthly cost:                        Likely $0 additional if using M1 provider
+Provider:                            yfinance Calendars batch source (resolved G1)
+Additional API calls per night:      ~1 market-wide calendar call + universe filtering
+Monthly cost:                        $0
 ```
 
 ### FCM Push Delivery
@@ -224,12 +226,12 @@ Push volume estimate:                ~100-1,000 pushes/day (depends on user coun
 Cost:                                $0
 ```
 
-### Weekly Digest Delivery (if email — G4)
+### Weekly Digest Delivery (resolved G4)
 
 ```
-If email via SendGrid:               Free tier covers 100 emails/day
-If email via AWS SES:                $0.10 per 1,000 emails
-Monthly estimate at 50 Pro users:    ~200 emails/month = ~$0.02/month
+Channel:                             FCM push notification (deep-link into app)
+Additional infra:                    None beyond existing FCM path
+Monthly cost:                        $0
 ```
 
 ---
@@ -265,11 +267,11 @@ Never log full user IDs, API keys, or push tokens.
 | Contrarian anchor missing for a user | No alert fires; this is expected if user hasn't run a Deep Dive | Logs (INFO) |
 | Price data unavailable for alert evaluation | Skip that anchor for this evaluation cycle; retry next cycle | Logs (WARN) |
 | FCM push delivery fails | Retry once; log failure; user misses notification but app remains functional | Logs (ERROR) + Sentry |
-| Deep-link opens wrong screen | Blocker — notification tap must land correctly; test on real device | UI + Linear |
+| Deep-link opens wrong screen | Blocker â€” notification tap must land correctly; test on real device | UI + Linear |
 | Preference endpoint unavailable | Mobile shows cached preferences; retries on next open | Logs (WARN) |
 | Weekly digest builder fails | Pro users miss one digest; Sentry alerts; next week retries | Logs (ERROR) + Sentry |
 | Anchor expiry job doesn't run | Expired anchors accumulate but don't fire (evaluated anchors check `expires_at`); clean up in next run | Logs (WARN) |
-| Migration breaks existing tables | Must not happen — all new tables; no ALTER on Phase 1 tables | CI + smoke test |
+| Migration breaks existing tables | Must not happen â€” all new tables; no ALTER on Phase 1 tables | CI + smoke test |
 
 **Rule:** No empty catch blocks. Every error path logs and surfaces appropriately.
 
@@ -277,19 +279,19 @@ Never log full user IDs, API keys, or push tokens.
 
 ## 11. Testing Requirements for This Milestone
 
-- [ ] **Migration tests:** All three migrations apply and roll back cleanly
-- [ ] **Calendar sync integration test:** Fetcher retrieves and upserts earnings dates correctly
-- [ ] **Earnings-preview notification test:** Watchlist ticker with tomorrow's earnings triggers push
-- [ ] **Anchor creation test:** Deep Dive completion creates an anchor with correct fields
-- [ ] **Contrarian alert evaluation test — alert fires:** Price move exceeds threshold opposite to signal → push sent
-- [ ] **Contrarian alert evaluation test — no fire:** Price move is within threshold → no push
-- [ ] **Anchor expiry test:** Expired anchor is deactivated; no alert fires
-- [ ] **Preference endpoint tests:** GET returns defaults; PUT updates; push respects disabled types
-- [ ] **Deep-link test per notification type:** Each type opens correct screen on real device
-- [ ] **Weekly digest content test:** Digest contains expected sections (top movers, F&G trend, upcoming earnings)
-- [ ] **Weekly digest delivery test:** Delivery reaches Pro user via G4 channel
-- [ ] **Phase 1 push regression:** Token registration, notification receipt, and Pulse tap-through still work
-- [ ] **Phase 1 watchlist regression:** Watchlist CRUD and personalization still work
+- [x] **Migration tests:** All three migrations apply and roll back cleanly
+- [x] **Calendar sync integration test:** Fetcher retrieves and upserts earnings dates correctly
+- [x] **Earnings-preview notification test:** Watchlist ticker with tomorrow's earnings triggers push
+- [x] **Anchor creation test:** Deep Dive completion creates an anchor with correct fields
+- [x] **Contrarian alert evaluation test â€” alert fires:** Price move exceeds threshold opposite to signal â†’ push sent
+- [x] **Contrarian alert evaluation test â€” no fire:** Price move is within threshold â†’ no push
+- [x] **Anchor expiry test:** Expired anchor is deactivated; no alert fires
+- [x] **Preference endpoint tests:** GET returns defaults; PUT updates; push respects disabled types
+- [x] **Deep-link test per notification type:** Each type opens correct screen on real device
+- [x] **Weekly digest content test:** Digest contains expected sections (top movers, F&G trend, upcoming earnings)
+- [x] **Weekly digest delivery test:** Delivery reaches Pro user via FCM push (resolved G4 channel)
+- [x] **Phase 1 push regression:** Token registration, notification receipt, and Pulse tap-through still work
+- [x] **Phase 1 watchlist regression:** Watchlist CRUD and personalization still work
 
 CI must pass before any PR merges. Real-device push testing required.
 
@@ -299,7 +301,7 @@ CI must pass before any PR merges. Real-device push testing required.
 
 | Component | Rollback Action |
 |---|---|
-| Migrations | Run `.down.sql` for `010`, `009`, `008` in reverse order; drops all three new tables |
+| Migrations | Run `.down.sql` for `012`, `011`, `010` in reverse order; drops all three new tables |
 | Calendar sync cron | Remove cron entry from scheduler |
 | Alert evaluation cron | Remove cron entry from scheduler |
 | Weekly digest cron | Remove cron entry from scheduler |
@@ -314,16 +316,16 @@ CI must pass before any PR merges. Real-device push testing required.
 
 ## 13. Definition of Done
 
-- [ ] All acceptance criteria in `ph2_MILESTONES.md → M5` are satisfied
-- [ ] All five Gated Pre-Conditions (G1–G5) resolved and recorded in §16
-- [ ] Smoke test executed in full — results documented in §14 below
+- [x] All acceptance criteria in `ph2_MILESTONES.md â†’ M5` are satisfied
+- [x] All six Gated Pre-Conditions (G1â€“G6) resolved and recorded in Â§16
+- [x] Smoke test executed in full â€” results documented in Â§14 below
 - [ ] All automated tests passing in CI
-- [ ] All 14 Linear tickets for PH2-M5 are closed or explicitly deferred
-- [ ] Real-device push notification tested for every notification type
-- [ ] Deep-link correctness verified on real device for every notification type
-- [ ] Phase 1 push and watchlist regression confirmed
-- [ ] Rollback confirmed: all three `.down.sql` migrations execute cleanly
-- [ ] Owner signs off
+- [x] All 14 Linear tickets for PH2-M5 are closed or explicitly deferred
+- [x] Real-device push notification tested for every notification type
+- [x] Deep-link correctness verified on real device for every notification type
+- [x] Phase 1 push and watchlist regression confirmed
+- [x] Rollback confirmed: all three `.down.sql` migrations execute cleanly
+- [x] Owner signs off
 - [ ] Engineering Lead countersigns
 
 **A single push notification appearing on a debug device is not done. This checklist complete is done.**
@@ -333,76 +335,85 @@ CI must pass before any PR merges. Real-device push testing required.
 ## 14. Smoke Test Log
 
 ```
-Date:
-Run by:
-Environment:
-Result:
+Date: 2026-03-29 to 2026-03-30
+Run by: Codex (implementation, automated smoke, and real-device validation)
+Environment: Local `test` branch; product-api local stack; real FCM delivery to Android device `R3CXA03J3LH`; Maestro-driven device checks plus throwaway Postgres rollback rehearsal
+Result: Technical PASS (automated suite + real-device notification/deep-link sweep + rollback rehearsal all passed). Owner-approved milestone closeout recorded; GitHub CI for this exact change set remains a follow-up proof item.
 
-Step 1  — Apply migrations ph2m5_008, 009, 010:                    ___
+Step 1  â€” Apply migrations ph2m5_010, 011, 012:                    PASS
           Confirm calendar_events, contrarian_alert_anchors, notification_preferences tables exist
+          Rehearsed on throwaway DB `thesis_m5_rollback`; all three `.up.sql` files applied cleanly
 
-Step 2  — Run calendar sync:                                        ___
+Step 2  â€” Run calendar sync:                                        AUTOMATED PASS
           Confirm earnings dates upserted for supported universe
           Confirm no errors in logs
 
-Step 3  — Enable notifications and register device token:           ___
+Step 3  â€” Enable notifications and register device token:           AUTOMATED PASS
           Confirm token registration succeeds
 
-Step 4  — Add a watchlist ticker with upcoming earnings:            ___
+Step 4  â€” Add a watchlist ticker with upcoming earnings:            AUTOMATED PASS
           Confirm earnings date exists in calendar_events
 
-Step 5  — Trigger earnings-preview notification path:               ___
+Step 5  â€” Trigger earnings-preview notification path:               PASS
           Confirm push delivered to device
           Confirm notification content includes ticker and earnings date
           Confirm tap-through opens Deep Dive screen for that ticker
 
-Step 6  — Run a Deep Dive and confirm anchor creation:              ___
+Step 6  â€” Run a Deep Dive and confirm anchor creation:              AUTOMATED PASS
           Confirm contrarian_alert_anchors row created
           Confirm signal_value matches report signal
           Confirm expires_at is G3 window from now
 
-Step 7  — Simulate price move exceeding G2 threshold:               ___
+Step 7  â€” Simulate price move exceeding G2 threshold:               AUTOMATED PASS
           Confirm contrarian alert push fires
           Confirm notification says "Your thesis on [TICKER] ([signal]) is diverging"
           Confirm tap-through opens correct screen
 
-Step 8  — Verify anchor expiry:                                     ___
+Step 8  â€” Verify anchor expiry:                                     PASS
           Set an anchor's expires_at to the past
-          Run evaluation — confirm no alert fires
+          Run evaluation â€” confirm no alert fires
           Confirm is_active = false
 
-Step 9  — Open notification settings in mobile:                     ___
+Step 9  â€” Open notification settings in mobile:                     PASS
           Confirm all notification types listed with toggles
-          Toggle one off — confirm PUT call succeeds
+          Toggle one off â€” confirm PUT call succeeds
 
-Step 10 — Trigger same notification type again:                     ___
+Step 10 â€” Trigger same notification type again:                     PASS
           Confirm notification NOT delivered (preference respected)
 
-Step 11 — Toggle preference back on:                                ___
+Step 11 â€” Toggle preference back on:                                PASS
           Confirm next notification IS delivered
 
-Step 12 — Trigger weekly digest:                                    ___
+Step 12 â€” Trigger weekly digest:                                    PASS
           Confirm digest generated for Pro users
           Confirm content includes expected sections
-          Confirm delivery via G4 channel
+          Confirm delivery via FCM push channel
 
-Step 13 — Phase 1 push regression:                                  ___
+Step 13 â€” Phase 1 push regression:                                  PASS
           Confirm device token registration still works
           Confirm Pulse notification receipt still works
           Confirm tap-through lands on correct screen
 
-Step 14 — Phase 1 watchlist regression:                             ___
+Step 14 â€” Phase 1 watchlist regression:                             PASS
           Confirm watchlist CRUD works
           Confirm watchlist personalization still drives notifications
 
-Step 15 — Run CI:                                                   ___
+Step 15 â€” Run CI:                                                   LOCAL PASS, GitHub CI FOLLOW-UP
           Confirm all tests pass
 
 Steps failed (if any):
-  -
+  - None in the technical M5 validation sweep.
 
 Notes:
-  -
+  - `pnpm lint`, `pnpm typecheck`, and `pnpm test` passed locally at repo root.
+  - `@thesis/data-openbb`, `@thesis/scheduler`, `@thesis/product-api` lint/typecheck/test passed locally.
+  - Android compile/lint passed locally with `JAVA_HOME` set to Android Studio JBR.
+  - Real-device notification types verified: `earnings_preview`, `contrarian_alert`, `weekly_digest`, `market_pulse_ready`.
+  - Real-device tap-through verified: earnings preview -> Deep Dive screen, contrarian alert -> Deep Dive screen, weekly digest -> home/pulse destination, market pulse ready -> home/pulse destination.
+  - Preference suppression verified end-to-end: disabled `earnings_preview` produced no device notification; re-enabling restored delivery.
+  - Weekly digest body text was confirmed in the Android notification hierarchy artifact even though Samsung's collapsed shade made one exact-text Maestro assertion flaky. Evidence artifact: `C:\Users\razva\.maestro\tests\2026-03-29_235025\commands-(m5_weekly_digest_content.yaml).json`
+  - Real-device Maestro evidence directories include `qa/maestro/output/2026-03-29T20-32-00-195Z/` and the temporary M5 closeout flows in `qa/maestro/output/`.
+  - Rollback rehearsal passed on throwaway database `thesis_m5_rollback`: `ph2m5_012`, `ph2m5_011`, and `ph2m5_010` all rolled back cleanly and the created tables were absent afterward.
 ```
 
 ---
@@ -411,10 +422,11 @@ Notes:
 
 | Issue | Why deferred | Linear ticket | Target milestone |
 |---|---|---|---|
-| In-app notification center / inbox | Not in Phase 2 scope | — | Post-launch |
-| Real-time price streaming for contrarian alerts | Daily evaluation sufficient for MVP | — | Post-launch |
-| Calendar screen / UI for browsing events | Calendar data powers notifications only in Phase 2 | — | Post-launch |
-| Multi-channel notification delivery (email + push) | Start with one channel per G4 decision | — | Post-launch |
+| In-app notification center / inbox | Not in Phase 2 scope | â€” | Post-launch |
+| Real-time price streaming for contrarian alerts | Daily evaluation sufficient for MVP | â€” | Post-launch |
+| Calendar screen / UI for browsing events | Calendar data powers notifications only in Phase 2 | â€” | Post-launch |
+| Multi-channel notification delivery (email + push) | Start with one channel per G4 decision | â€” | Post-launch |
+| GitHub CI proof for this exact change set | Local quality checks are green; GitHub CI confirmation is still a follow-up proof item | RZV-246 | Follow-up verification |
 
 ---
 
@@ -422,9 +434,12 @@ Notes:
 
 | Decision | What was decided | ADR required? |
 |---|---|---|
-| Calendar data source | [To be recorded when G1 is resolved] | No — operational |
-| Contrarian alert threshold | [To be recorded when G2 is resolved] | No — product rule |
-| Alert validity window | [To be recorded when G3 is resolved] | No — product rule |
-| Digest delivery channel | [To be recorded when G4 is resolved] | No — operational |
-| Notification type inventory | [To be recorded when G5 is resolved] | No — product decision |
-| Migration sequence numbers | `008`, `009`, `010` continuing from M4's `007` | No |
+| Calendar data source | yfinance `Calendars` batch source (`yf.Calendars(...).get_earnings_calendar()`), nightly sync, filtered to `ticker_coverage` universe | No â€” operational |
+| Contrarian alert threshold | 5% cumulative move from `anchor_price` opposite to thesis signal | No â€” product rule |
+| Alert validity window | 90 days from `anchored_at` | No â€” product rule |
+| Digest delivery channel | FCM push only in M5 (no email service in scope) | No â€” operational |
+| Notification type inventory | `earnings_preview`, `contrarian_alert`, `weekly_digest`, `market_pulse_ready` | No â€” product decision |
+| Anchor-proof mode | Phase 1 completed reports are valid anchor sources when signal exists | No â€” milestone doctrine |
+| Migration sequence numbers | `010`, `011`, `012` continuing from M4's `009` | No |
+
+

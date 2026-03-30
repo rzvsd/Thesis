@@ -8,28 +8,33 @@ import android.os.Bundle
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.core.content.ContextCompat
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.core.content.ContextCompat
 import com.thesis.mobile.ui.ThesisApp
 
+data class LaunchTarget(
+    val tab: String,
+    val pulseDate: String? = null,
+    val ticker: String? = null,
+    val requestId: Long = System.nanoTime()
+)
+
 class MainActivity : ComponentActivity() {
-    private var openPulseOnStart by mutableStateOf(false)
-    private var pulseDateOnStart by mutableStateOf<String?>(null)
+    private var launchTarget by mutableStateOf<LaunchTarget?>(null)
     private val notificationPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* no-op */ }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        openPulseOnStart = shouldOpenPulse(intent)
-        pulseDateOnStart = extractPulseDate(intent)
+        applyLaunchIntent(intent)
         requestNotificationPermissionIfNeeded()
 
         setContent {
             ThesisApp(
-                openPulseOnStart = openPulseOnStart,
-                pulseDateOnStart = pulseDateOnStart
+                launchTarget = launchTarget,
+                onLaunchHandled = { launchTarget = null }
             )
         }
     }
@@ -37,20 +42,44 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        openPulseOnStart = shouldOpenPulse(intent)
-        pulseDateOnStart = extractPulseDate(intent)
+        applyLaunchIntent(intent)
     }
 
-    private fun shouldOpenPulse(intent: Intent?): Boolean {
+    private fun applyLaunchIntent(intent: Intent?) {
         if (intent == null) {
-            return false
+            launchTarget = null
+            return
         }
+
         val openTab = intent.getStringExtra("open_tab")
-        if (openTab.equals("pulse", ignoreCase = true)) {
-            return true
+        val notificationType = intent.getStringExtra("notification_type")
+        val normalizedTab = openTab?.trim()?.lowercase()
+        val normalizedType = notificationType?.trim()?.lowercase()
+
+        val shouldOpenPulse =
+            normalizedTab == "pulse" ||
+                normalizedType == "market_pulse_ready" ||
+                normalizedType == "weekly_digest" ||
+                intent.data?.toString().orEmpty().contains("thesis://pulse", ignoreCase = true)
+        val shouldOpenDeepDive =
+            normalizedTab == "deep_dive" ||
+                normalizedType == "earnings_preview" ||
+                normalizedType == "contrarian_alert" ||
+                intent.data?.toString().orEmpty().contains("thesis://deep-dive", ignoreCase = true)
+
+        launchTarget = when {
+            shouldOpenPulse -> LaunchTarget(
+                tab = "pulse",
+                pulseDate = extractPulseDate(intent)
+            )
+
+            shouldOpenDeepDive -> LaunchTarget(
+                tab = "deep_dive",
+                ticker = extractDeepDiveTicker(intent)
+            )
+
+            else -> null
         }
-        val deepLink = intent.data?.toString().orEmpty()
-        return deepLink.contains("thesis://pulse", ignoreCase = true)
     }
 
     private fun extractPulseDate(intent: Intent?): String? {
@@ -62,6 +91,17 @@ class MainActivity : ComponentActivity() {
             return pulseDate
         }
         return intent.data?.getQueryParameter("date")?.trim()?.ifBlank { null }
+    }
+
+    private fun extractDeepDiveTicker(intent: Intent?): String? {
+        if (intent == null) {
+            return null
+        }
+        val ticker = intent.getStringExtra("ticker")?.trim()
+        if (!ticker.isNullOrBlank()) {
+            return ticker.uppercase()
+        }
+        return intent.data?.getQueryParameter("ticker")?.trim()?.uppercase()?.ifBlank { null }
     }
 
     private fun requestNotificationPermissionIfNeeded() {

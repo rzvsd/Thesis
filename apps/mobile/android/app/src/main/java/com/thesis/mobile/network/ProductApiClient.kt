@@ -4,6 +4,7 @@ import com.thesis.mobile.model.AuthTokens
 import com.thesis.mobile.model.DeepDiveReportView
 import com.thesis.mobile.model.EvidenceView
 import com.thesis.mobile.model.JobStatus
+import com.thesis.mobile.model.NotificationPreferenceView
 import com.thesis.mobile.model.PulseReportView
 import com.thesis.mobile.model.RegisterResult
 import com.thesis.mobile.model.ReportHistoryItem
@@ -76,6 +77,44 @@ class ProductApiClient {
                 body = body
             )
         }
+
+    suspend fun getNotificationPreferences(
+        baseUrl: String,
+        accessToken: String
+    ): List<NotificationPreferenceView> = withContext(Dispatchers.IO) {
+        val json = requestJson(
+            baseUrl,
+            "GET",
+            "/v1/user/notification-preferences",
+            accessToken = accessToken
+        )
+        parseNotificationPreferences(json)
+    }
+
+    suspend fun updateNotificationPreference(
+        baseUrl: String,
+        accessToken: String,
+        notificationType: String,
+        enabled: Boolean
+    ): List<NotificationPreferenceView> = withContext(Dispatchers.IO) {
+        val body = JSONObject()
+            .put(
+                "preferences",
+                JSONArray().put(
+                    JSONObject()
+                        .put("type", notificationType)
+                        .put("enabled", enabled)
+                )
+            )
+        val json = requestJson(
+            baseUrl,
+            "PUT",
+            "/v1/user/notification-preferences",
+            accessToken = accessToken,
+            body = body
+        )
+        parseNotificationPreferences(json)
+    }
 
     suspend fun searchTickers(baseUrl: String, accessToken: String, query: String): List<TickerSearchItem> =
         withContext(Dispatchers.IO) {
@@ -290,6 +329,52 @@ class ProductApiClient {
             dailyDeepDiveLimit = data.optInt("daily_deep_dive_limit", 1),
             deepDivesRemainingToday = data.optInt("deep_dives_remaining_today", 0)
         )
+
+    private fun parseNotificationPreferences(json: JSONObject): List<NotificationPreferenceView> {
+        val data = when {
+            json.has("data") && json.opt("data") is JSONObject -> json.optJSONObject("data")
+            else -> json
+        } ?: JSONObject()
+
+        val rows = when {
+            data.has("preferences") && data.opt("preferences") is JSONArray ->
+                data.optJSONArray("preferences") ?: JSONArray()
+            data.has("data") && data.opt("data") is JSONArray ->
+                data.optJSONArray("data") ?: JSONArray()
+            json.opt("data") is JSONArray ->
+                json.optJSONArray("data") ?: JSONArray()
+            else -> JSONArray()
+        }
+
+        if (rows.length() > 0) {
+            return (0 until rows.length()).mapNotNull { index ->
+                rows.optJSONObject(index)?.let { row ->
+                    val type = row.optString("type")
+                        .ifBlank { row.optString("notification_type") }
+                        .trim()
+                    if (type.isBlank()) {
+                        return@let null
+                    }
+                    NotificationPreferenceView(
+                        type = type,
+                        enabled = row.optBoolean("enabled", true)
+                    )
+                }
+            }
+        }
+
+        val type = data.optString("type").ifBlank { data.optString("notification_type") }.trim()
+        return if (type.isBlank()) {
+            emptyList()
+        } else {
+            listOf(
+                NotificationPreferenceView(
+                    type = type,
+                    enabled = data.optBoolean("enabled", true)
+                )
+            )
+        }
+    }
 
     @Throws(IOException::class, ProductApiException::class)
     private fun requestJson(

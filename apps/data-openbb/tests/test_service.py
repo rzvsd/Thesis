@@ -28,15 +28,20 @@ class FakeLiveClient:
         *,
         company_records: tuple[dict[str, object], dict[str, object], dict[str, object]] | None = None,
         macro_records: tuple[list[dict[str, object]], dict[str, object]] | None = None,
+        calendar_records: list[dict[str, object]] | None = None,
     ) -> None:
         self.company_records = company_records or ({}, {}, {})
         self.macro_records = macro_records or ([], {})
+        self.calendar_records = calendar_records or []
 
     def fetch_company_records(self, ticker: str) -> tuple[dict[str, object], dict[str, object], dict[str, object]]:  # noqa: ARG002
         return self.company_records
 
     def fetch_macro_records(self) -> tuple[list[dict[str, object]], dict[str, object]]:
         return self.macro_records
+
+    def fetch_earnings_calendar_rows(self, start_date: str, end_date: str) -> list[dict[str, object]]:  # noqa: ARG002
+        return self.calendar_records
 
 
 class DataOpenbbEndpointTests(unittest.TestCase):
@@ -127,6 +132,31 @@ class DataOpenbbEndpointTests(unittest.TestCase):
         with self.assertRaises(HTTPError) as context:
             self.post_json("/internal/historical/sync", body={"include_transcripts": False})
         self.assertEqual(context.exception.code, 401)
+
+    def test_internal_calendar_earnings_requires_internal_token(self) -> None:
+        with self.assertRaises(HTTPError) as context:
+            self.post_json("/internal/calendar/earnings", body={"start_date": "2026-03-21"})
+        self.assertEqual(context.exception.code, 401)
+
+    def test_internal_calendar_earnings_returns_service_response_envelope(self) -> None:
+        status, payload = self.post_json(
+            "/internal/calendar/earnings",
+            body={"start_date": "2026-03-21", "end_date": "2026-04-04"},
+            headers={"x-internal-token": "dev-internal-worker-token"},
+        )
+
+        self.assertEqual(status, 200)
+        self.assertTrue(payload["ok"])
+        self.assertFalse(payload["error_flag"])
+        self.assertEqual(payload["provider"], "yfinance")
+        calendar_data = payload["data"]
+        self.assertIsInstance(calendar_data, dict)
+        self.assertIn("events", calendar_data)
+        self.assertIsInstance(calendar_data["events"], list)
+        self.assertGreaterEqual(len(calendar_data["events"]), 1)
+        first_event = calendar_data["events"][0]
+        self.assertEqual(first_event["provider"], "yfinance")
+        self.assertRegex(first_event["event_date"], r"^\d{4}-\d{2}-\d{2}$")
 
     @patch("src.service.run_historical_delta_sync")
     def test_internal_historical_sync_runs_with_internal_token(self, mocked_sync: object) -> None:
@@ -257,6 +287,38 @@ class DataOpenbbLiveModeTests(unittest.TestCase):
         self.assertFalse(payload["ok"])
         self.assertEqual(payload["error_code"], "AUTH_ERROR")
         self.assertEqual(payload["provider"], "FMP")
+
+    def test_live_calendar_normalizes_yfinance_rows(self) -> None:
+        settings = Settings(fixture_mode=False)
+        service = DataOpenBBService(
+            settings=settings,
+            rate_limiter=NoopRateLimiter(),
+            live_client=FakeLiveClient(
+                calendar_records=[
+                    {
+                        "ticker": "AAPL",
+                        "event_date": "2026-04-02T08:00:00-04:00",
+                        "event_time": "before market open",
+                    },
+                    {
+                        "symbol": "MSFT",
+                        "date": "2026-04-03",
+                        "when": "after market close",
+                    },
+                ],
+            ),
+        )
+
+        status, payload = service.get_calendar_earnings("2026-04-01", "2026-04-10", request_id="req-live-calendar")
+
+        self.assertEqual(status, 200)
+        self.assertTrue(payload["ok"])
+        calendar_data = payload["data"]
+        self.assertIsInstance(calendar_data, dict)
+        events = calendar_data["events"]
+        self.assertEqual([event["ticker"] for event in events], ["AAPL", "MSFT"])
+        self.assertEqual(events[0]["event_time"], "before_market")
+        self.assertEqual(events[1]["event_time"], "after_market")
 
     def test_rate_limiter_keeps_fmp_finance_and_macro_buckets_separate(self) -> None:
         class FakeRedisClient:

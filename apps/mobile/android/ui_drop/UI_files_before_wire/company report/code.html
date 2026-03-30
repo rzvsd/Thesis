@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "surface-variant": "#313442",
+              "on-surface": "#dfe2f3",
+              "surface-container-highest": "#313442",
+              "on-error": "#690005",
+              "outline-variant": "#424753",
+              "on-tertiary-container": "#00311d",
+              "surface": "#121826",
+              "tertiary-container": "#00a56d",
+              "tertiary": "#27e199",
+              "on-background": "#dfe2f3",
+              "primary-fixed": "#d9e2ff",
+              "on-primary-fixed": "#001a43",
+              "inverse-primary": "#0059c6",
+              "primary": "#4F8CFF",
+              "on-primary-fixed-variant": "#004398",
+              "surface-container-lowest": "#0A0E1A",
+              "on-tertiary-fixed": "#002112",
+              "background": "#0A0E1A",
+              "surface-dim": "#0A0E1A",
+              "outline": "#8c909f",
+              "on-surface-variant": "#c2c6d6",
+              "error": "#ffb4ab",
+              "tertiary-fixed-dim": "#27e199",
+              "tertiary-fixed": "#54feb3",
+              "on-error-container": "#ffdad6",
+              "secondary": "#bdc7db",
+              "on-secondary-fixed": "#121c2b",
+              "on-secondary-container": "#abb5c9",
+              "surface-container": "#121826",
+              "primary-container": "#1B2A4A",
+              "secondary-fixed-dim": "#bdc7db",
+              "on-tertiary": "#003822",
+              "inverse-on-surface": "#2c303d",
+              "on-primary-container": "#D1E1FF",
+              "error-container": "#93000a",
+              "surface-tint": "#4F8CFF",
+              "surface-container-low": "#121826",
+              "on-tertiary-fixed-variant": "#005234",
+              "surface-container-high": "#1B2333",
+              "on-secondary-fixed-variant": "#3d4758",
+              "surface-bright": "#262E3D",
+              "on-primary": "#FFFFFF",
+              "primary-fixed-dim": "#4F8CFF",
+              "on-secondary": "#273141",
+              "inverse-surface": "#dfe2f3",
+              "secondary-container": "#3d4758",
+              "secondary-fixed": "#d9e3f8"
+            },
+            fontFamily: {
+              "headline": ["Manrope"],
+              "body": ["Inter"],
+              "label": ["Inter"]
+            },
+            borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem", "2xl": "1rem"},
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .glass-panel {
+            background: rgba(18, 24, 38, 0.8);
+            backdrop-filter: blur(20px);
+        }
+        body {
+            min-height: 100dvh;
+        }
+    </style>
+</head>
+<body class="bg-surface-container-lowest text-on-surface font-body selection:bg-primary/30 min-h-screen pb-40">
+<!-- TopAppBar -->
+<header class="fixed top-0 w-full z-50 bg-[#0A0E1A]/80 backdrop-blur-md flex items-center justify-between px-6 h-16 shadow-none border-b border-outline-variant/10">
+<button class="text-primary hover:bg-surface-container-high transition-colors p-2 rounded-full active:scale-95 duration-200">
+<span class="material-symbols-outlined">arrow_back</span>
+</button>
+<h1 class="font-headline font-bold tracking-tight text-xl text-on-surface">AAPL</h1>
+<div class="flex items-center gap-1 bg-surface-container-high p-1 rounded-full border border-outline-variant/20">
+<button class="p-1.5 rounded-full text-tertiary bg-tertiary/10">
+<span class="material-symbols-outlined text-[18px]" style="font-variation-settings: 'FILL' 1;">trending_up</span>
+</button>
+<button class="p-1.5 rounded-full text-on-surface-variant/40 hover:text-on-surface transition-colors">
+<span class="material-symbols-outlined text-[18px]">trending_down</span>
+</button>
+</div>
+</header>
+<main class="pt-24 px-6 max-w-5xl mx-auto space-y-8">
+<!-- Hero Header -->
+<section class="flex flex-col md:flex-row md:items-end justify-between gap-6">
+<div class="space-y-4">
+<h2 class="font-headline text-7xl md:text-8xl font-extrabold tracking-tighter text-on-surface">AAPL</h2>
+<div class="flex items-center gap-3">
+<span class="inline-flex items-center px-4 py-1.5 rounded-full bg-tertiary/20 text-tertiary text-[10px] font-bold tracking-widest uppercase">
+                    SIGNAL: POSITIVE
+                </span>
+<span class="text-on-surface-variant text-xs font-medium">Updated 2h ago</span>
+</div>
+</div>
+<!-- Confidence Score Ring -->
+<div class="relative w-32 h-32 flex items-center justify-center">
+<svg class="w-full h-full transform -rotate-90">
+<circle class="text-surface-container-high" cx="64" cy="64" fill="transparent" r="58" stroke="currentColor" stroke-width="8"></circle>
+<circle class="text-tertiary" cx="64" cy="64" fill="transparent" r="58" stroke="currentColor" stroke-dasharray="364.4" stroke-dashoffset="54.6" stroke-width="8"></circle>
+</svg>
+<div class="absolute inset-0 flex flex-col items-center justify-center">
+<span class="font-headline text-3xl font-bold">85%</span>
+<span class="font-label text-xs font-bold uppercase tracking-widest text-on-surface-variant">Confidence</span>
+</div>
+</div>
+</section>
+<!-- Thesis Statement Card -->
+<section class="bg-surface-container-low rounded-2xl p-6 border border-outline-variant/15 relative overflow-hidden">
+<div class="absolute top-0 left-0 w-1.5 h-full bg-primary"></div>
+<p class="font-headline text-xl font-bold leading-relaxed text-on-surface">
+            Apple's services revenue growth offset hardware headwinds, signaling a pivot to higher-margin ecosystem lock-in. 
+            Supply chain resilience in India provides a long-term risk hedge. 
+        </p>
+</section>
+<!-- Action Row: Compact 3-Column Row -->
+<section class="grid grid-cols-3 gap-3">
+<button class="flex flex-col items-center justify-center gap-1.5 py-3 rounded-xl bg-surface-container-high border border-outline-variant/10 hover:border-primary/30 transition-all active:scale-95">
+<span class="material-symbols-outlined text-primary">picture_as_pdf</span>
+<span class="text-[10px] font-bold uppercase tracking-wider">PDF</span>
+</button>
+<button class="flex flex-col items-center justify-center gap-1.5 py-3 rounded-xl bg-surface-container-high border border-outline-variant/10 hover:border-primary/30 transition-all active:scale-95">
+<span class="material-symbols-outlined text-primary">description</span>
+<span class="text-[10px] font-bold uppercase tracking-wider">Memo</span>
+</button>
+<button class="flex flex-col items-center justify-center gap-1.5 py-3 rounded-xl bg-surface-container-high border border-outline-variant/10 hover:border-primary/30 transition-all active:scale-95">
+<span class="material-symbols-outlined text-primary">share</span>
+<span class="text-[10px] font-bold uppercase tracking-wider">Share</span>
+</button>
+</section>
+<!-- Analysis Accordions -->
+<section class="space-y-3">
+<!-- Expanded Section -->
+<div class="bg-surface rounded-2xl overflow-hidden border border-outline-variant/15">
+<button class="w-full flex items-center justify-between p-5 bg-surface-container-high/40">
+<span class="font-headline font-bold">What Changed (QoQ)</span>
+<span class="material-symbols-outlined text-primary">expand_less</span>
+</button>
+<div class="p-5 pt-2 space-y-4">
+<ul class="space-y-4 text-sm text-on-surface-variant leading-relaxed">
+<li class="flex gap-4">
+<span class="material-symbols-outlined text-tertiary text-lg shrink-0" style="font-variation-settings: 'FILL' 1;">add_circle</span>
+<p><strong class="text-on-surface">Service Revenue High:</strong> Reached $23.1B, proving ecosystem monetization strength.</p>
+</li>
+<li class="flex gap-4">
+<span class="material-symbols-outlined text-tertiary text-lg shrink-0" style="font-variation-settings: 'FILL' 1;">trending_up</span>
+<p><strong class="text-on-surface">Gross Margin Expansion:</strong> Expanded to 45.2% due to services mix shift.</p>
+</li>
+<li class="flex gap-4">
+<span class="material-symbols-outlined text-error text-lg shrink-0" style="font-variation-settings: 'FILL' 1;">do_not_disturb_on</span>
+<p><strong class="text-on-surface">iPhone Guidance:</strong> Softened expectations due to delayed cycles in emerging markets.</p>
+</li>
+</ul>
+</div>
+</div>
+<!-- Collapsed Sections -->
+<div class="bg-surface rounded-2xl border border-outline-variant/15">
+<button class="w-full flex items-center justify-between p-5 hover:bg-surface-container-high/30 transition-colors">
+<span class="font-headline font-bold text-on-surface/80">Why It Matters</span>
+<span class="material-symbols-outlined text-on-surface-variant">expand_more</span>
+</button>
+</div>
+<div class="bg-surface rounded-2xl border border-outline-variant/15">
+<button class="w-full flex items-center justify-between p-5 hover:bg-surface-container-high/30 transition-colors">
+<span class="font-headline font-bold text-on-surface/80">Evidence Trail</span>
+<span class="material-symbols-outlined text-on-surface-variant">expand_more</span>
+</button>
+</div>
+</section>
+<!-- User Notes -->
+<section class="space-y-3">
+<h3 class="font-headline font-bold text-[10px] tracking-[0.2em] uppercase text-on-surface-variant ml-1">Personal Analyst Notes</h3>
+<div class="bg-surface-container-high rounded-2xl border border-outline-variant/15 flex flex-col">
+<textarea class="w-full bg-transparent border-none focus:ring-0 min-h-[140px] text-sm text-on-surface placeholder:text-on-surface-variant/30 p-5 font-body resize-none" placeholder="Enter your personal analysis..."></textarea>
+<div class="p-4 border-t border-outline-variant/10 flex justify-end">
+<button class="bg-primary hover:bg-primary/90 text-on-primary text-xs font-bold px-5 py-2.5 rounded-full transition-all active:scale-95 shadow-lg shadow-primary/10">
+                    Save Note
+                </button>
+</div>
+</div>
+</section>
+</main>
+<!-- Scenario Engine (Bottom Sticky) -->
+<div class="fixed bottom-8 left-0 w-full px-6 z-40">
+<div class="max-w-3xl mx-auto glass-panel border border-white/5 rounded-full p-1.5 flex items-center gap-2 shadow-2xl">
+<div class="flex-1 px-4">
+<input class="w-full bg-transparent border-none focus:ring-0 text-sm text-on-surface placeholder:text-on-surface-variant/50" placeholder="Ask a what-if scenario..." type="text"/>
+</div>
+<button class="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-on-primary shadow-lg shadow-primary/20 hover:brightness-110 active:scale-90 transition-all">
+<span class="material-symbols-outlined text-[20px]" style="font-variation-settings: 'FILL' 1;">bolt</span>
+</button>
+</div>
+</div>
+</body></html>

@@ -192,7 +192,7 @@ Phase 2 only makes sense if it preserves the current working app while extending
 ### M5 guardrail - persisted thesis anchor
 
 - Contrarian alerts must evaluate a durable server-side anchor record
-- The anchor must at minimum store: `user_id`, `ticker`, `report_id` or source signal ID, `signal_value`, `anchored_at`, `expires_at`
+- The anchor must at minimum store: `user_id`, `ticker`, `report_id` or source signal ID, `signal_value`, `anchor_price`, `anchored_at`, `expires_at`
 - Do not compute alerts from app memory or "last viewed report"
 
 ### M6 guardrail - navigation migration
@@ -353,6 +353,11 @@ calendar_events
   UNIQUE (ticker, event_type, event_date)
 ```
 
+**Design notes:**
+- M5 uses yfinance `Calendars` batch retrieval for upcoming earnings events.
+- Sync is filtered to the supported universe from `ticker_coverage`.
+- Data is advisory; notification copy must use expectation wording (for example, "is expected to report").
+
 ### `contrarian_alert_anchors` (M5)
 
 ```
@@ -362,6 +367,7 @@ contrarian_alert_anchors
   ticker              TEXT NOT NULL
   report_id           TEXT                    -- FK to reports.id, nullable if signal is from a non-report source
   signal_value        TEXT NOT NULL           -- "positive", "neutral", "negative"
+  anchor_price        NUMERIC NOT NULL        -- close price at anchor creation, used for percentage-move evaluation
   anchored_at         TIMESTAMPTZ NOT NULL
   expires_at          TIMESTAMPTZ NOT NULL
   is_active           BOOLEAN NOT NULL DEFAULT true
@@ -412,6 +418,7 @@ notification_preferences
 **Design notes:**
 - Default is all notification types enabled for new users.
 - Scheduler checks preferences before sending any push notification.
+- M5 notification inventory is fixed: `earnings_preview`, `contrarian_alert`, `weekly_digest`, `market_pulse_ready`.
 
 ### Design Principles (extending Phase 1)
 

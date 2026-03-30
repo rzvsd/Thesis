@@ -66,7 +66,7 @@ These are not optional interpretations. They are the safe implementation path.
 
 - Do not derive contrarian alerts from transient mobile state, last screen visited, or ad-hoc notification memory.
 - A server-side persisted anchor record must exist for any alert the scheduler evaluates.
-- The anchor must reference the user, ticker, source report or signal, anchored signal value, and timestamps needed to decide whether the alert window is still valid.
+- The anchor must reference the user, ticker, source report or signal, anchored signal value, `anchor_price`, and timestamps needed to decide whether the alert window is still valid.
 
 ### M6 - 3-tab navigation is a real refactor
 

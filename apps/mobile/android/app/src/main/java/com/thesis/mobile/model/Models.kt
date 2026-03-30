@@ -81,6 +81,11 @@ data class UserProfileView(
     val deepDivesRemainingToday: Int
 )
 
+data class NotificationPreferenceView(
+    val type: String,
+    val enabled: Boolean
+)
+
 data class SubscriptionOfferView(
     val packageType: String,
     val identifier: String,

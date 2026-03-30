@@ -29,10 +29,13 @@ SERVICE_NAME = "data-openbb"
 DEFAULT_PORT = int(os.environ.get("PORT", "3003"))
 FINANCE_DATASET = "company_finance"
 MACRO_DATASET = "macro_daily"
+CALENDAR_DATASET = "earnings_calendar"
 COMPANY_PROVIDER = "FMP"
 MACRO_PROVIDER = "FMP"
+CALENDAR_PROVIDER = "yfinance"
 COMPANY_RATE_LIMIT_KEY = "FMP_FINANCE"
 MACRO_RATE_LIMIT_KEY = "FMP_MACRO"
+CALENDAR_RATE_LIMIT_KEY = "YFINANCE_CALENDAR"
 MACRO_INDICATOR = "us10y_treasury_yield"
 MACRO_TENOR_FIELD = "year_10"
 FINANCE_FIELDS = [
@@ -48,6 +51,7 @@ FINANCE_FIELDS = [
 FIXTURE_ROOT = Path(__file__).resolve().parents[3] / "data" / "golden" / "data-openbb"
 COMPANY_FIXTURE_ROOT = FIXTURE_ROOT / "company"
 MACRO_FIXTURE_ROOT = FIXTURE_ROOT / "macro"
+CALENDAR_FIXTURE_ROOT = FIXTURE_ROOT / "calendar"
 
 
 @dataclass(frozen=True)
@@ -66,6 +70,7 @@ class Settings:
     rate_limit_cooldown_seconds: int = 60
     fmp_finance_rate_limit_per_minute: int = 10
     fmp_macro_rate_limit_per_minute: int = 5
+    yfinance_rate_limit_per_minute: int = 60
     polygon_rate_limit_per_minute: int = 5
     alpha_vantage_rate_limit_per_minute: int = 5
 
@@ -92,6 +97,7 @@ class Settings:
                 read_int("FMP_RATE_LIMIT_PER_MINUTE", 10),
             ),
             fmp_macro_rate_limit_per_minute=read_int("FMP_MACRO_RATE_LIMIT_PER_MINUTE", 5),
+            yfinance_rate_limit_per_minute=read_int("YFINANCE_RATE_LIMIT_PER_MINUTE", 60),
             polygon_rate_limit_per_minute=read_int("POLYGON_RATE_LIMIT_PER_MINUTE", 5),
             alpha_vantage_rate_limit_per_minute=read_int("ALPHA_VANTAGE_RATE_LIMIT_PER_MINUTE", 5),
         )
@@ -102,6 +108,8 @@ class Settings:
             "FMP": self.fmp_finance_rate_limit_per_minute,
             "FMP_FINANCE": self.fmp_finance_rate_limit_per_minute,
             "FMP_MACRO": self.fmp_macro_rate_limit_per_minute,
+            "YFINANCE": self.yfinance_rate_limit_per_minute,
+            "YFINANCE_CALENDAR": self.yfinance_rate_limit_per_minute,
             "POLYGON": self.polygon_rate_limit_per_minute,
             "ALPHA_VANTAGE": self.alpha_vantage_rate_limit_per_minute,
         }
@@ -357,6 +365,237 @@ def _normalize_macro_records(
     return payload
 
 
+def _load_calendar_fixture_payload() -> dict[str, Any]:
+    fixture = _load_json_fixture(
+        CALENDAR_FIXTURE_ROOT / "earnings.json",
+        default_factory=lambda: {
+            "events": [
+                {
+                    "ticker": "AAPL",
+                    "event_date": today_period(),
+                    "event_time": "after_market",
+                    "provider": CALENDAR_PROVIDER,
+                }
+            ]
+        },
+    )
+    events = fixture.get("events", [])
+    if not isinstance(events, list):
+        raise SchemaValidationError("calendar fixture events must be an array")
+    normalized_events = [
+        event
+        for event in events
+        if isinstance(event, dict)
+    ]
+    payload = {
+        "events": normalized_events,
+    }
+    validate_schema("service-response", {
+        "ok": True,
+        "data": payload,
+        "error_flag": False,
+    })
+    return payload
+
+
+def _coerce_calendar_date(value: Any) -> str | None:
+    if isinstance(value, datetime):
+        return value.date().isoformat()
+    if isinstance(value, date):
+        return value.isoformat()
+    if not isinstance(value, str):
+        return None
+
+    text = value.strip()
+    if not text:
+        return None
+
+    candidates = [text, text.replace("/", "-")]
+    for candidate in candidates:
+        try:
+            parsed = datetime.fromisoformat(candidate.replace("Z", "+00:00"))
+        except ValueError:
+            parsed = None
+        if parsed is not None:
+            return parsed.date().isoformat()
+
+    for pattern in ("%Y-%m-%d", "%Y-%m-%d %H:%M:%S", "%m/%d/%Y", "%m/%d/%Y %H:%M:%S", "%Y/%m/%d"):
+        try:
+            parsed = datetime.strptime(text, pattern)
+        except ValueError:
+            continue
+        return parsed.date().isoformat()
+
+    return None
+
+
+def _normalize_iso_date(value: str | None) -> str | None:
+    if not isinstance(value, str):
+        return None
+    text = value.strip()
+    if not text or len(text) != 10:
+        return None
+    try:
+        parsed = datetime.strptime(text, "%Y-%m-%d")
+    except ValueError:
+        return None
+    return parsed.date().isoformat()
+
+
+def _add_days_to_iso_date(value: str, days: int) -> str:
+    parsed = datetime.strptime(value, "%Y-%m-%d")
+    return (parsed + timedelta(days=days)).date().isoformat()
+
+
+def _coerce_calendar_event_time(value: Any) -> str | None:
+    if value is None:
+        return None
+    if isinstance(value, str):
+        text = value.strip().lower()
+        if not text:
+            return None
+        if any(token in text for token in ("before market", "before open", "pre-market", "premarket", "bmo")):
+            return "before_market"
+        if any(token in text for token in ("after market", "after close", "post-market", "postmarket", "amc")):
+            return "after_market"
+        if any(token in text for token in ("during market", "intraday", "market hours")):
+            return "during_market"
+        parsed_date = _coerce_calendar_date(text)
+        if parsed_date is not None and "t" in text:
+            try:
+                parsed = datetime.fromisoformat(text.replace("z", "Z").replace("Z", "+00:00"))
+            except ValueError:
+                parsed = None
+            if parsed is not None:
+                hour = parsed.hour
+                minute = parsed.minute
+                if hour < 9 or (hour == 9 and minute < 30):
+                    return "before_market"
+                if hour >= 16:
+                    return "after_market"
+                return "during_market"
+        return None
+    if isinstance(value, datetime):
+        hour = value.hour
+        minute = value.minute
+        if hour < 9 or (hour == 9 and minute < 30):
+            return "before_market"
+        if hour >= 16:
+            return "after_market"
+        return "during_market"
+    return None
+
+
+def _calendar_row_candidates(raw_result: Any) -> list[dict[str, Any]]:
+    if raw_result is None:
+        return []
+
+    if hasattr(raw_result, "reset_index") and hasattr(raw_result, "to_dict"):
+        try:
+            records = raw_result.reset_index().to_dict(orient="records")
+        except Exception:
+            records = []
+        if isinstance(records, list):
+            return [dict(item) for item in records if isinstance(item, Mapping)]
+
+    if isinstance(raw_result, Mapping):
+        for key in ("events", "data", "calendar", "records", "results"):
+            value = raw_result.get(key)
+            if isinstance(value, list):
+                return [dict(item) for item in value if isinstance(item, Mapping)]
+            if isinstance(value, Mapping):
+                return [dict(value)]
+
+        if raw_result and all(isinstance(value, Mapping) for value in raw_result.values()):
+            rows: list[dict[str, Any]] = []
+            for key, value in raw_result.items():
+                row = dict(value)
+                row.setdefault("ticker", key)
+                rows.append(row)
+            return rows
+
+    if isinstance(raw_result, list):
+        return [dict(item) for item in raw_result if isinstance(item, Mapping)]
+
+    return []
+
+
+def _normalize_earnings_calendar_rows(
+    rows: list[dict[str, Any]],
+    *,
+    start_date: str,
+    end_date: str,
+) -> list[dict[str, Any]]:
+    normalized: list[dict[str, Any]] = []
+    for row in rows:
+        ticker_raw = next(
+            (
+                row.get(key)
+                for key in ("ticker", "symbol", "index", "Ticker", "Symbol")
+                if isinstance(row.get(key), str) and row.get(key)
+            ),
+            None,
+        )
+        ticker = str(ticker_raw).strip().upper() if ticker_raw is not None else ""
+
+        event_date_raw = next(
+            (
+                row.get(key)
+                for key in (
+                    "event_date",
+                    "date",
+                    "earnings_date",
+                    "Earnings Date",
+                    "EarningsDate",
+                    "startdatetime",
+                    "startDate",
+                )
+                if row.get(key) is not None
+            ),
+            None,
+        )
+        event_date = _coerce_calendar_date(event_date_raw)
+        if not ticker or not event_date:
+            continue
+        if event_date < start_date or event_date > end_date:
+            continue
+
+        time_raw = next(
+            (
+                row.get(key)
+                for key in (
+                    "event_time",
+                    "time",
+                    "when",
+                    "timing",
+                    "earnings_call_time",
+                    "earnings_call",
+                    "call_time",
+                    "Earnings Call Time",
+                )
+                if row.get(key) is not None
+            ),
+            None,
+        )
+        event_time = _coerce_calendar_event_time(time_raw)
+        if event_time is None:
+            event_time = _coerce_calendar_event_time(event_date_raw)
+
+        normalized.append(
+            {
+                "ticker": ticker,
+                "event_type": "earnings",
+                "event_date": event_date,
+                **({"event_time": event_time} if event_time is not None else {}),
+                "provider": CALENDAR_PROVIDER,
+                "retrieved_at": iso_timestamp(),
+            }
+        )
+
+    normalized.sort(key=lambda item: (item["event_date"], item["ticker"]))
+    return normalized
+
+
 def _fixture_company_payload(ticker: str) -> dict[str, Any]:
     fixture = _load_json_fixture(
         COMPANY_FIXTURE_ROOT / f"{ticker}.json",
@@ -587,6 +826,25 @@ class OpenBBLiveClient:
             allow_empty=False,
         )
 
+    def fetch_earnings_calendar_rows(self, start_date: str, end_date: str) -> list[dict[str, Any]]:
+        try:
+            import yfinance as yf  # type: ignore
+        except ImportError as error:
+            raise ProviderIntegrationError(
+                CALENDAR_PROVIDER,
+                error_code="INTERNAL_ERROR",
+                status_code=500,
+                message="yfinance is not installed for live calendar mode.",
+            ) from error
+
+        try:
+            calendars = yf.Calendars(start_date, end_date)
+            raw_result = calendars.get_earnings_calendar()
+        except Exception as error:  # pragma: no cover - exercised in service tests via fake client
+            raise self._classify_error(CALENDAR_PROVIDER, "Calendars.get_earnings_calendar", error) from error
+
+        return _calendar_row_candidates(raw_result)
+
 
 class DataOpenBBService:
     def __init__(
@@ -618,6 +876,19 @@ class DataOpenBBService:
             rate_limit_key=MACRO_RATE_LIMIT_KEY,
             request_id=request_id,
             func=lambda: self._macro_response(scope, request_id),
+        )
+
+    def get_calendar_earnings(
+        self,
+        start_date: str | None,
+        end_date: str | None,
+        request_id: str,
+    ) -> tuple[int, dict[str, Any]]:
+        return self._with_rate_limit(
+            provider=CALENDAR_PROVIDER,
+            rate_limit_key=CALENDAR_RATE_LIMIT_KEY,
+            request_id=request_id,
+            func=lambda: self._calendar_earnings_response(start_date, end_date, request_id),
         )
 
     def run_historical_sync(
@@ -834,6 +1105,76 @@ class DataOpenBBService:
         )
         return 200, response
 
+    def _calendar_earnings_response(
+        self,
+        start_date: str | None,
+        end_date: str | None,
+        request_id: str,
+    ) -> tuple[int, dict[str, Any]]:
+        normalized_start = _normalize_iso_date(start_date) or today_period()
+        normalized_end = _normalize_iso_date(end_date) or _add_days_to_iso_date(normalized_start, 14)
+
+        if normalized_start > normalized_end:
+            response = error_response(
+                status_code=422,
+                request_id=request_id,
+                message="start_date must be on or before end_date.",
+                provider=CALENDAR_PROVIDER,
+            )
+            return response.status_code, response.body
+
+        started_at = time.perf_counter()
+        log(
+            "INFO",
+            "Data retrieval started",
+            request_id=request_id,
+            provider=CALENDAR_PROVIDER,
+            dataset=CALENDAR_DATASET,
+        )
+
+        try:
+            payload = build_calendar_payload(
+                start_date=normalized_start,
+                end_date=normalized_end,
+                service=self,
+            )
+        except ProviderIntegrationError as error:
+            log(
+                "ERROR",
+                "Source unreachable / parser failed",
+                request_id=request_id,
+                provider=error.provider,
+                dataset=CALENDAR_DATASET,
+                error_message=str(error),
+            )
+            response = error_response(
+                status_code=error.status_code,
+                request_id=request_id,
+                message=str(error),
+                error_code=error.error_code,
+                provider=error.provider,
+            )
+            return response.status_code, response.body
+
+        latency_ms = int((time.perf_counter() - started_at) * 1000)
+        log(
+            "INFO",
+            "Data retrieval succeeded",
+            request_id=request_id,
+            provider=CALENDAR_PROVIDER,
+            dataset=CALENDAR_DATASET,
+            record_count=len(payload["events"]),
+            latency_ms=latency_ms,
+        )
+
+        response = success_response(
+            request_id=request_id,
+            data=payload,
+            provider=CALENDAR_PROVIDER,
+            retrieved_at=iso_timestamp(),
+        )
+        return 200, response
+
 
 _default_service: DataOpenBBService | None = None
 
@@ -978,3 +1319,28 @@ def build_macro_payload(*, service: DataOpenBBService | None = None) -> dict[str
 
     records, metadata = active_service.live_client().fetch_macro_records()
     return _normalize_macro_records(records, metadata)
+
+
+def build_calendar_payload(
+    *,
+    start_date: str,
+    end_date: str,
+    service: DataOpenBBService | None = None,
+) -> dict[str, Any]:
+    active_service = service or default_service()
+    if active_service.settings.fixture_mode:
+        fixture_payload = _load_calendar_fixture_payload()
+        events = _normalize_earnings_calendar_rows(
+            [dict(event) for event in fixture_payload.get("events", []) if isinstance(event, dict)],
+            start_date=start_date,
+            end_date=end_date,
+        )
+        return {
+            "events": events,
+        }
+
+    rows = active_service.live_client().fetch_earnings_calendar_rows(start_date, end_date)
+    events = _normalize_earnings_calendar_rows(rows, start_date=start_date, end_date=end_date)
+    return {
+        "events": events,
+    }

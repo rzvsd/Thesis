@@ -12,6 +12,7 @@ import com.thesis.mobile.data.SessionStore
 import com.thesis.mobile.model.AuthTokens
 import com.thesis.mobile.model.DeepDiveReportView
 import com.thesis.mobile.model.LastViewedReport
+import com.thesis.mobile.model.NotificationPreferenceView
 import com.thesis.mobile.model.PulseReportView
 import com.thesis.mobile.model.ReportHistoryItem
 import com.thesis.mobile.model.SubscriptionOfferView
@@ -25,6 +26,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import org.json.JSONObject
 import java.io.IOException
+import java.net.URI
 
 enum class AppTab {
     PULSE,
@@ -40,6 +42,7 @@ data class UiState(
     val apiBaseUrl: String = "",
     val notificationsEnabled: Boolean = true,
     val watchlistFeatureEnabled: Boolean = true,
+    val notificationPreferences: List<NotificationPreferenceView> = defaultNotificationPreferences(),
     val tokens: AuthTokens? = null,
     val verificationToken: String? = null,
     val registerStatus: String? = null,
@@ -82,6 +85,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             state = state.copy(lastViewedReport = sessionStore.getLastViewedReport())
             refreshFeatureFlags()
             refreshUserProfile()
+            refreshNotificationPreferences()
             refreshSubscriptionOffers()
             refreshPulse()
             refreshReportHistory()
@@ -130,7 +134,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun updateApiBaseUrl(newUrl: String) {
-        val normalized = newUrl.trim().trimEnd('/')
+        val normalized = normalizeApiBaseUrl(newUrl)
+        if (normalized == null) {
+            publish(
+                state.copy(
+                    message = "Enter one valid Product API URL, for example http://192.168.1.114:3001"
+                )
+            )
+            return
+        }
+
         sessionStore.saveApiBaseUrl(normalized)
         publish(state.copy(apiBaseUrl = normalized, message = "API base URL saved."))
     }
@@ -140,6 +153,34 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         publish(state.copy(notificationsEnabled = enabled))
         viewModelScope.launch {
             syncPushToken()
+        }
+    }
+
+    fun setNotificationPreference(notificationType: String, enabled: Boolean) {
+        val normalizedType = notificationType.trim()
+        if (normalizedType.isBlank()) {
+            return
+        }
+
+        viewModelScope.launch {
+            val error = runAuthorizedWithRefresh {
+                val preferences = client.updateNotificationPreference(
+                    state.apiBaseUrl,
+                    requireTokens().accessToken,
+                    normalizedType,
+                    enabled
+                )
+                publish(
+                    state.copy(
+                        notificationPreferences = mergeNotificationPreferences(preferences),
+                        message = "Notification preference saved."
+                    )
+                )
+            }
+
+            if (error != null) {
+                publish(state.copy(message = toMessage(error)))
+            }
         }
     }
 
@@ -201,6 +242,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 )
                 refreshFeatureFlags()
                 refreshUserProfile()
+                refreshNotificationPreferences()
                 refreshSubscriptionOffers()
                 refreshPulse()
                 refreshReportHistory()
@@ -246,6 +288,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     deepDiveError = null,
                     watchlist = emptyList(),
                     reportHistory = emptyList(),
+                    notificationPreferences = defaultNotificationPreferences(),
                     jobStatus = null,
                     watchlistFeatureEnabled = true,
                     userProfile = null,
@@ -674,7 +717,25 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }.onSuccess { newTokens ->
             sessionStore.saveTokens(newTokens)
             publish(state.copy(tokens = newTokens))
+            refreshNotificationPreferences()
         }.isSuccess
+    }
+
+    private fun refreshNotificationPreferences() {
+        val tokens = state.tokens ?: return
+        viewModelScope.launch {
+            val error = runAuthorizedWithRefresh {
+                val preferences = client.getNotificationPreferences(
+                    state.apiBaseUrl,
+                    tokens.accessToken
+                )
+                publish(state.copy(notificationPreferences = mergeNotificationPreferences(preferences)))
+            }
+
+            if (error != null) {
+                return@launch
+            }
+        }
     }
 
     private suspend fun syncPushToken() {
@@ -776,5 +837,68 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private fun publish(newState: UiState) {
         state = newState
         observer?.invoke(state)
+    }
+
+    private fun mergeNotificationPreferences(
+        fetched: List<NotificationPreferenceView>
+    ): List<NotificationPreferenceView> {
+        val byType = fetched.associateBy { it.type.trim() }
+        return notificationPreferenceTypes.map { type ->
+            byType[type] ?: NotificationPreferenceView(type = type, enabled = true)
+        }
+    }
+
+    companion object {
+        private val notificationPreferenceTypes = listOf(
+            "earnings_preview",
+            "contrarian_alert",
+            "weekly_digest",
+            "market_pulse_ready"
+        )
+    }
+}
+
+private fun defaultNotificationPreferences(): List<NotificationPreferenceView> =
+    listOf(
+        NotificationPreferenceView(type = "earnings_preview", enabled = true),
+        NotificationPreferenceView(type = "contrarian_alert", enabled = true),
+        NotificationPreferenceView(type = "weekly_digest", enabled = true),
+        NotificationPreferenceView(type = "market_pulse_ready", enabled = true)
+    )
+
+internal fun normalizeApiBaseUrl(input: String): String? {
+    val trimmed = input.trim().trimEnd('/')
+    if (trimmed.isBlank()) {
+        return null
+    }
+    if ("""https?://""".toRegex(RegexOption.IGNORE_CASE).findAll(trimmed).count() != 1) {
+        return null
+    }
+    if (trimmed.any(Char::isWhitespace)) {
+        return null
+    }
+
+    val uri = runCatching { URI(trimmed) }.getOrNull() ?: return null
+    val scheme = uri.scheme?.lowercase() ?: return null
+    if (scheme != "http" && scheme != "https") {
+        return null
+    }
+
+    val host = uri.host ?: return null
+    if (uri.query != null || uri.fragment != null) {
+        return null
+    }
+
+    val port = if (uri.port >= 0) ":${uri.port}" else ""
+    val path = uri.rawPath?.trimEnd('/').orEmpty()
+
+    return buildString {
+        append(scheme)
+        append("://")
+        append(host)
+        append(port)
+        if (path.isNotBlank() && path != "/") {
+            append(path)
+        }
     }
 }

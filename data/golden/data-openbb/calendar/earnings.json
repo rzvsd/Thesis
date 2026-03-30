@@ -1,0 +1,16 @@
+{
+  "events": [
+    {
+      "ticker": "AAPL",
+      "event_date": "2026-03-31",
+      "event_time": "after_market",
+      "provider": "yfinance"
+    },
+    {
+      "ticker": "MSFT",
+      "event_date": "2026-04-02",
+      "event_time": "before_market",
+      "provider": "yfinance"
+    }
+  ]
+}

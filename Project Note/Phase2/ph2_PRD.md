@@ -72,7 +72,9 @@ The focus shifts to:
 
 - **Earnings Previews:** "MSFT reports tomorrow. Tap to run a Deep Dive before the call."
 - **Contrarian Alerts:** "Your thesis on AAPL (Positive) is diverging. The stock is down 6% today."
-- **Weekly Digest:** a scheduled summary for Pro users covering the best recent insights and upcoming catalysts.
+- **Weekly Digest:** a scheduled summary for Pro users covering the best recent insights and upcoming catalysts, delivered via FCM push with deep-link destination.
+- **Contrarian rule (M5):** fire only when a persisted anchor moves 5% cumulatively in the opposite direction from `anchor_price`, within a 90-day validity window.
+- **Notification inventory (M5):** `earnings_preview`, `contrarian_alert`, `weekly_digest`, `market_pulse_ready`.
 - **Persistence rule:** contrarian alerts must evaluate a persisted server-side thesis anchor, not whichever report the user last opened locally.
 
 ---

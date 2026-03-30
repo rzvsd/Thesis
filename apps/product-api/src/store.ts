@@ -1,16 +1,24 @@
 import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
+import { notificationTypes } from "../../../packages/contracts/src";
 import type {
+  CalendarEventTime,
+  CalendarEventType,
   CanonicalFinancialSnapshot,
   CanonicalTranscript,
+  ContrarianSignalValue,
   FearGreedSnapshot,
+  NotificationType,
   SubscriptionTier,
   TickerCoverage
 } from "../../../packages/contracts/src";
 
 import type {
   AuditEventRecord,
+  CalendarEventRecord,
+  ContrarianAlertAnchorRecord,
   JobRecord,
+  NotificationPreferenceRecord,
   ReportRecord,
   SessionRecord,
   TickerDeltaChange,
@@ -126,6 +134,28 @@ export interface ProductStore {
   getFearGreedSnapshotByMarketDate(marketDate: string): Promise<FearGreedSnapshot | undefined>;
   getLatestFearGreedSnapshot(): Promise<FearGreedSnapshot | undefined>;
   listFearGreedHistory(days: number): Promise<FearGreedSnapshot[]>;
+  upsertCalendarEvents(events: CalendarEventRecord[]): Promise<{ upserted: number }>;
+  listUpcomingCalendarEventsByTickers(input: {
+    tickers: string[];
+    fromDate: string;
+    toDate: string;
+    eventType?: CalendarEventType;
+  }): Promise<CalendarEventRecord[]>;
+  createContrarianAlertAnchor(input: ContrarianAlertAnchorRecord): Promise<ContrarianAlertAnchorRecord>;
+  listActiveContrarianAlertAnchors(asOfIso: string): Promise<ContrarianAlertAnchorRecord[]>;
+  deactivateContrarianAlertAnchor(id: string, updatedAt: string): Promise<ContrarianAlertAnchorRecord | undefined>;
+  deactivateExpiredContrarianAlertAnchors(asOfIso: string): Promise<number>;
+  getNotificationPreferences(userId: string): Promise<NotificationPreferenceRecord[]>;
+  upsertNotificationPreferences(input: {
+    userId: string;
+    preferences: Array<{ type: NotificationType; enabled: boolean }>;
+    updatedAt: string;
+  }): Promise<NotificationPreferenceRecord[]>;
+  listUsersWithDeviceTokenByNotificationType(input: {
+    notificationType: NotificationType;
+    tier?: SubscriptionTier;
+    userIds?: string[];
+  }): Promise<Array<{ userId: string; deviceToken: string }>>;
   listWatchlistTickersByUser(userId: string): Promise<string[]>;
   addWatchlistTicker(input: {
     id: string;
@@ -342,6 +372,49 @@ function mapFearGreedSnapshot(row: Record<string, unknown>): FearGreedSnapshot {
   };
 }
 
+const defaultNotificationTypeList = [...notificationTypes];
+
+function isNotificationType(value: string): value is NotificationType {
+  return defaultNotificationTypeList.includes(value as NotificationType);
+}
+
+function mapCalendarEvent(row: Record<string, unknown>): CalendarEventRecord {
+  const eventTimeRaw = row.event_time == null ? undefined : String(row.event_time);
+  const eventTime = eventTimeRaw as CalendarEventTime | undefined;
+  return {
+    id: String(row.id),
+    ticker: String(row.ticker),
+    eventType: String(row.event_type) as CalendarEventType,
+    eventDate: String(row.event_date),
+    eventTime,
+    provider: String(row.provider),
+    retrievedAt: asIsoString(row.retrieved_at) ?? new Date().toISOString()
+  };
+}
+
+function mapContrarianAnchor(row: Record<string, unknown>): ContrarianAlertAnchorRecord {
+  return {
+    id: String(row.id),
+    userId: String(row.user_id),
+    ticker: String(row.ticker),
+    reportId: row.report_id ? String(row.report_id) : undefined,
+    signalValue: String(row.signal_value) as ContrarianSignalValue,
+    anchorPrice: Number(row.anchor_price),
+    anchoredAt: asIsoString(row.anchored_at) ?? new Date().toISOString(),
+    expiresAt: asIsoString(row.expires_at) ?? new Date().toISOString(),
+    isActive: Boolean(row.is_active)
+  };
+}
+
+function mapNotificationPreference(row: Record<string, unknown>): NotificationPreferenceRecord {
+  return {
+    userId: String(row.user_id),
+    type: String(row.notification_type) as NotificationType,
+    enabled: Boolean(row.enabled),
+    updatedAt: asIsoString(row.updated_at) ?? new Date().toISOString()
+  };
+}
+
 export class InMemoryStore implements ProductStore {
   private readonly users = new Map<string, UserRecord>();
   private readonly usersByEmail = new Map<string, string>();
@@ -359,6 +432,12 @@ export class InMemoryStore implements ProductStore {
   private readonly historicalTranscriptsByTicker = new Map<string, CanonicalTranscript[]>();
   private readonly historicalCoverageByTicker = new Map<string, TickerCoverage>();
   private readonly fearGreedByMarketDate = new Map<string, FearGreedSnapshot>();
+  private readonly calendarEvents = new Map<string, CalendarEventRecord>();
+  private readonly contrarianAnchors = new Map<string, ContrarianAlertAnchorRecord>();
+  private readonly notificationPreferencesByUser = new Map<
+    string,
+    Map<NotificationType, NotificationPreferenceRecord>
+  >();
 
   constructor() {
     const now = new Date().toISOString();
@@ -579,6 +658,24 @@ export class InMemoryStore implements ProductStore {
       }
     }
     return targets;
+  }
+
+  private ensureDefaultNotificationPreferences(userId: string): Map<NotificationType, NotificationPreferenceRecord> {
+    let preferences = this.notificationPreferencesByUser.get(userId);
+    if (!preferences) {
+      preferences = new Map<NotificationType, NotificationPreferenceRecord>();
+      const now = new Date().toISOString();
+      for (const type of defaultNotificationTypeList) {
+        preferences.set(type, {
+          userId,
+          type,
+          enabled: true,
+          updatedAt: now
+        });
+      }
+      this.notificationPreferencesByUser.set(userId, preferences);
+    }
+    return preferences;
   }
 
   async getUserSubscription(userId: string): Promise<UserSubscriptionRecord> {
@@ -1057,6 +1154,182 @@ export class InMemoryStore implements ProductStore {
       }
     }
     return snapshots;
+  }
+
+  async upsertCalendarEvents(events: CalendarEventRecord[]): Promise<{ upserted: number }> {
+    for (const event of events) {
+      const ticker = event.ticker.trim().toUpperCase();
+      const key = `${ticker}:${event.eventType}:${event.eventDate}`;
+      this.calendarEvents.set(key, {
+        ...event,
+        ticker
+      });
+    }
+    return {
+      upserted: events.length
+    };
+  }
+
+  async listUpcomingCalendarEventsByTickers(input: {
+    tickers: string[];
+    fromDate: string;
+    toDate: string;
+    eventType?: CalendarEventType;
+  }): Promise<CalendarEventRecord[]> {
+    const tickerSet = new Set(
+      input.tickers
+        .map((ticker) => ticker.trim().toUpperCase())
+        .filter((ticker) => ticker.length > 0)
+    );
+    if (tickerSet.size === 0) {
+      return [];
+    }
+
+    const fromTime = Date.parse(`${input.fromDate}T00:00:00.000Z`);
+    const toTime = Date.parse(`${input.toDate}T23:59:59.999Z`);
+    if (Number.isNaN(fromTime) || Number.isNaN(toTime) || fromTime > toTime) {
+      return [];
+    }
+
+    return [...this.calendarEvents.values()]
+      .filter((event) => {
+        if (!tickerSet.has(event.ticker.trim().toUpperCase())) {
+          return false;
+        }
+        if (input.eventType && event.eventType !== input.eventType) {
+          return false;
+        }
+        const eventTime = Date.parse(`${event.eventDate}T00:00:00.000Z`);
+        return !Number.isNaN(eventTime) && eventTime >= fromTime && eventTime <= toTime;
+      })
+      .sort((left, right) => {
+        const byDate = left.eventDate.localeCompare(right.eventDate);
+        if (byDate !== 0) {
+          return byDate;
+        }
+        return left.ticker.localeCompare(right.ticker);
+      });
+  }
+
+  async createContrarianAlertAnchor(
+    input: ContrarianAlertAnchorRecord
+  ): Promise<ContrarianAlertAnchorRecord> {
+    const stored: ContrarianAlertAnchorRecord = {
+      ...input,
+      ticker: input.ticker.trim().toUpperCase()
+    };
+    this.contrarianAnchors.set(stored.id, stored);
+    return { ...stored };
+  }
+
+  async listActiveContrarianAlertAnchors(asOfIso: string): Promise<ContrarianAlertAnchorRecord[]> {
+    const asOf = Date.parse(asOfIso);
+    if (Number.isNaN(asOf)) {
+      return [];
+    }
+
+    return [...this.contrarianAnchors.values()]
+      .filter((anchor) =>
+        anchor.isActive &&
+        Date.parse(anchor.expiresAt) >= asOf
+      )
+      .sort((left, right) => left.anchoredAt.localeCompare(right.anchoredAt))
+      .map((anchor) => ({ ...anchor }));
+  }
+
+  async deactivateContrarianAlertAnchor(
+    id: string,
+    updatedAt: string
+  ): Promise<ContrarianAlertAnchorRecord | undefined> {
+    void updatedAt;
+    const existing = this.contrarianAnchors.get(id);
+    if (!existing) {
+      return undefined;
+    }
+
+    existing.isActive = false;
+    return { ...existing };
+  }
+
+  async deactivateExpiredContrarianAlertAnchors(asOfIso: string): Promise<number> {
+    const asOf = Date.parse(asOfIso);
+    if (Number.isNaN(asOf)) {
+      return 0;
+    }
+
+    let updated = 0;
+    for (const anchor of this.contrarianAnchors.values()) {
+      if (!anchor.isActive) {
+        continue;
+      }
+      if (Date.parse(anchor.expiresAt) < asOf) {
+        anchor.isActive = false;
+        updated += 1;
+      }
+    }
+    return updated;
+  }
+
+  async getNotificationPreferences(userId: string): Promise<NotificationPreferenceRecord[]> {
+    const preferences = this.ensureDefaultNotificationPreferences(userId);
+    return [...preferences.values()].map((entry) => ({ ...entry }));
+  }
+
+  async upsertNotificationPreferences(input: {
+    userId: string;
+    preferences: Array<{ type: NotificationType; enabled: boolean }>;
+    updatedAt: string;
+  }): Promise<NotificationPreferenceRecord[]> {
+    const preferences = this.ensureDefaultNotificationPreferences(input.userId);
+    for (const update of input.preferences) {
+      if (!isNotificationType(update.type)) {
+        continue;
+      }
+      preferences.set(update.type, {
+        userId: input.userId,
+        type: update.type,
+        enabled: update.enabled,
+        updatedAt: input.updatedAt
+      });
+    }
+    return [...preferences.values()].map((entry) => ({ ...entry }));
+  }
+
+  async listUsersWithDeviceTokenByNotificationType(input: {
+    notificationType: NotificationType;
+    tier?: SubscriptionTier;
+    userIds?: string[];
+  }): Promise<Array<{ userId: string; deviceToken: string }>> {
+    const normalizedUserIds = input.userIds
+      ? new Set(input.userIds.map((userId) => userId.trim()))
+      : undefined;
+    const targets: Array<{ userId: string; deviceToken: string }> = [];
+
+    for (const user of this.users.values()) {
+      if (!user.deviceToken || user.deviceToken.trim().length === 0) {
+        continue;
+      }
+      if (normalizedUserIds && !normalizedUserIds.has(user.id)) {
+        continue;
+      }
+      if (input.tier) {
+        const subscription = await this.getUserSubscription(user.id);
+        if (subscription.tier !== input.tier) {
+          continue;
+        }
+      }
+      const preferences = this.ensureDefaultNotificationPreferences(user.id);
+      const preference = preferences.get(input.notificationType);
+      if (!preference || !preference.enabled) {
+        continue;
+      }
+      targets.push({
+        userId: user.id,
+        deviceToken: user.deviceToken
+      });
+    }
+
+    return targets;
   }
 
   async listWatchlistTickersByUser(userId: string): Promise<string[]> {
@@ -2014,6 +2287,249 @@ export class PostgresStore implements ProductStore {
       [boundedDays]
     );
     return result.rows.map((row) => mapFearGreedSnapshot(row as Record<string, unknown>));
+  }
+
+  async upsertCalendarEvents(events: CalendarEventRecord[]): Promise<{ upserted: number }> {
+    if (events.length === 0) {
+      return { upserted: 0 };
+    }
+
+    for (const event of events) {
+      await this.pool.query(
+        `insert into calendar_events (
+           id,
+           ticker,
+           event_type,
+           event_date,
+           event_time,
+           provider,
+           retrieved_at,
+           updated_at
+         )
+         values ($1, $2, $3, $4::date, $5, $6, $7::timestamptz, $8::timestamptz)
+         on conflict (ticker, event_type, event_date) do update set
+           id = excluded.id,
+           event_time = excluded.event_time,
+           provider = excluded.provider,
+           retrieved_at = excluded.retrieved_at,
+           updated_at = excluded.updated_at`,
+        [
+          event.id,
+          event.ticker.trim().toUpperCase(),
+          event.eventType,
+          event.eventDate,
+          event.eventTime ?? null,
+          event.provider,
+          event.retrievedAt,
+          new Date().toISOString()
+        ]
+      );
+    }
+
+    return {
+      upserted: events.length
+    };
+  }
+
+  async listUpcomingCalendarEventsByTickers(input: {
+    tickers: string[];
+    fromDate: string;
+    toDate: string;
+    eventType?: CalendarEventType;
+  }): Promise<CalendarEventRecord[]> {
+    const tickers = input.tickers
+      .map((ticker) => ticker.trim().toUpperCase())
+      .filter((ticker) => ticker.length > 0);
+    if (tickers.length === 0) {
+      return [];
+    }
+
+    const result = await this.pool.query(
+      `select *
+         from calendar_events
+        where ticker = any($1::text[])
+          and event_date >= $2::date
+          and event_date <= $3::date
+          and ($4::text is null or event_type = $4::text)
+        order by event_date asc, ticker asc`,
+      [tickers, input.fromDate, input.toDate, input.eventType ?? null]
+    );
+
+    return result.rows.map((row) => mapCalendarEvent(row as Record<string, unknown>));
+  }
+
+  async createContrarianAlertAnchor(
+    input: ContrarianAlertAnchorRecord
+  ): Promise<ContrarianAlertAnchorRecord> {
+    const result = await this.pool.query(
+      `insert into contrarian_alert_anchors (
+         id,
+         user_id,
+         ticker,
+         report_id,
+         signal_value,
+         anchor_price,
+         anchored_at,
+         expires_at,
+         is_active,
+         updated_at
+       )
+       values ($1, $2, $3, $4, $5, $6, $7::timestamptz, $8::timestamptz, $9, $10::timestamptz)
+       returning *`,
+      [
+        input.id,
+        input.userId,
+        input.ticker.trim().toUpperCase(),
+        input.reportId ?? null,
+        input.signalValue,
+        input.anchorPrice,
+        input.anchoredAt,
+        input.expiresAt,
+        input.isActive,
+        new Date().toISOString()
+      ]
+    );
+    return mapContrarianAnchor(result.rows[0] as Record<string, unknown>);
+  }
+
+  async listActiveContrarianAlertAnchors(asOfIso: string): Promise<ContrarianAlertAnchorRecord[]> {
+    const result = await this.pool.query(
+      `select *
+         from contrarian_alert_anchors
+        where is_active = true
+          and expires_at >= $1::timestamptz
+        order by anchored_at asc`,
+      [asOfIso]
+    );
+    return result.rows.map((row) => mapContrarianAnchor(row as Record<string, unknown>));
+  }
+
+  async deactivateContrarianAlertAnchor(
+    id: string,
+    updatedAt: string
+  ): Promise<ContrarianAlertAnchorRecord | undefined> {
+    const result = await this.pool.query(
+      `update contrarian_alert_anchors
+          set is_active = false,
+              updated_at = $2::timestamptz
+        where id = $1
+        returning *`,
+      [id, updatedAt]
+    );
+    const row = result.rows[0] as Record<string, unknown> | undefined;
+    return row ? mapContrarianAnchor(row) : undefined;
+  }
+
+  async deactivateExpiredContrarianAlertAnchors(asOfIso: string): Promise<number> {
+    const result = await this.pool.query(
+      `update contrarian_alert_anchors
+          set is_active = false,
+              updated_at = $2::timestamptz
+        where is_active = true
+          and expires_at < $1::timestamptz`,
+      [asOfIso, asOfIso]
+    );
+    return result.rowCount ?? 0;
+  }
+
+  async getNotificationPreferences(userId: string): Promise<NotificationPreferenceRecord[]> {
+    const result = await this.pool.query(
+      `select *
+         from notification_preferences
+        where user_id = $1`,
+      [userId]
+    );
+
+    const existing = new Map<NotificationType, NotificationPreferenceRecord>();
+    for (const row of result.rows) {
+      const preference = mapNotificationPreference(row as Record<string, unknown>);
+      existing.set(preference.type, preference);
+    }
+
+    const now = new Date().toISOString();
+    const merged: NotificationPreferenceRecord[] = [];
+    for (const type of defaultNotificationTypeList) {
+      const current = existing.get(type);
+      if (current) {
+        merged.push(current);
+      } else {
+        merged.push({
+          userId,
+          type,
+          enabled: true,
+          updatedAt: now
+        });
+      }
+    }
+
+    return merged;
+  }
+
+  async upsertNotificationPreferences(input: {
+    userId: string;
+    preferences: Array<{ type: NotificationType; enabled: boolean }>;
+    updatedAt: string;
+  }): Promise<NotificationPreferenceRecord[]> {
+    if (input.preferences.length === 0) {
+      return this.getNotificationPreferences(input.userId);
+    }
+
+    for (const preference of input.preferences) {
+      await this.pool.query(
+        `insert into notification_preferences (
+           id,
+           user_id,
+           notification_type,
+           enabled,
+           updated_at,
+           created_at
+         )
+         values ($1, $2, $3, $4, $5::timestamptz, $5::timestamptz)
+         on conflict (user_id, notification_type) do update set
+           enabled = excluded.enabled,
+           updated_at = excluded.updated_at`,
+        [
+          randomUUID(),
+          input.userId,
+          preference.type,
+          preference.enabled,
+          input.updatedAt
+        ]
+      );
+    }
+
+    return this.getNotificationPreferences(input.userId);
+  }
+
+  async listUsersWithDeviceTokenByNotificationType(input: {
+    notificationType: NotificationType;
+    tier?: SubscriptionTier;
+    userIds?: string[];
+  }): Promise<Array<{ userId: string; deviceToken: string }>> {
+    const userIds = (input.userIds ?? [])
+      .map((userId) => userId.trim())
+      .filter((userId) => userId.length > 0);
+
+    const result = await this.pool.query(
+      `select u.id, u.device_token
+         from users u
+         left join notification_preferences np
+           on np.user_id = u.id
+          and np.notification_type = $1
+         left join subscriptions s
+           on s.user_id = u.id
+        where u.device_token is not null
+          and length(trim(u.device_token)) > 0
+          and coalesce(np.enabled, true) = true
+          and ($2::text is null or s.tier = $2::text)
+          and ($3::text[] is null or u.id = any($3::text[]))`,
+      [input.notificationType, input.tier ?? null, userIds.length > 0 ? userIds : null]
+    );
+
+    return result.rows.map((row) => ({
+      userId: String(row.id),
+      deviceToken: String(row.device_token)
+    }));
   }
 
   async listWatchlistTickersByUser(userId: string): Promise<string[]> {

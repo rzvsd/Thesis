@@ -29,6 +29,13 @@ class ThesisFirebaseMessagingService : FirebaseMessagingService() {
         super.onMessageReceived(message)
         ensureChannel()
 
+        val notificationType = message.data["notification_type"]?.trim().orEmpty()
+        val openTab = when (notificationType) {
+            "earnings_preview", "contrarian_alert" -> "deep_dive"
+            "weekly_digest", "market_pulse_ready" -> "pulse"
+            else -> message.data["route"]?.trim().orEmpty().ifBlank { "pulse" }
+        }
+
         val contentTitle =
             message.data["headline"]
                 ?: message.data["title"]
@@ -40,7 +47,9 @@ class ThesisFirebaseMessagingService : FirebaseMessagingService() {
                 ?: getString(R.string.pulse_notification_body)
         val launchIntent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
-            putExtra("open_tab", "pulse")
+            putExtra("open_tab", openTab)
+            putExtra("notification_type", notificationType)
+            putExtra("ticker", message.data["ticker"])
             putExtra("pulse_date", message.data["report_date"])
         }
         val pendingIntent = PendingIntent.getActivity(

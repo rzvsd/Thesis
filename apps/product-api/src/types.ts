@@ -1,7 +1,11 @@
 import type {
   AnalysisReport,
   AnalysisRequest,
+  CalendarEventTime,
+  CalendarEventType,
+  ContrarianSignalValue,
   MarketPulseReport,
+  NotificationType,
   SubscriptionTier
 } from "../../../packages/contracts/src";
 import type {
@@ -120,6 +124,35 @@ export interface TickerDeltaChange {
 }
 
 export type { TickerSearchResult };
+
+export interface CalendarEventRecord {
+  id: string;
+  ticker: string;
+  eventType: CalendarEventType;
+  eventDate: string;
+  eventTime?: CalendarEventTime;
+  provider: string;
+  retrievedAt: string;
+}
+
+export interface ContrarianAlertAnchorRecord {
+  id: string;
+  userId: string;
+  ticker: string;
+  reportId?: string;
+  signalValue: ContrarianSignalValue;
+  anchorPrice: number;
+  anchoredAt: string;
+  expiresAt: string;
+  isActive: boolean;
+}
+
+export interface NotificationPreferenceRecord {
+  userId: string;
+  type: NotificationType;
+  enabled: boolean;
+  updatedAt: string;
+}
 
 export interface InternalClaimResponse {
   job: JobRecord;

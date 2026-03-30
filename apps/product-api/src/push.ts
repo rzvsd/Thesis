@@ -1,5 +1,6 @@
 import { applicationDefault, getApps, initializeApp } from "firebase-admin/app";
 import { getMessaging, type FirebaseMessagingError } from "firebase-admin/messaging";
+import type { NotificationType } from "../../../packages/contracts/src";
 
 export interface PushTarget {
   userId: string;
@@ -17,6 +18,14 @@ export interface PushDispatchResult {
 export interface PushNotifierConfig {
   provider: "stub" | "fcm";
   googleApplicationCredentials?: string;
+}
+
+export interface NotificationPushPayload {
+  notificationType: NotificationType;
+  route: string;
+  title: string;
+  body: string;
+  data?: Record<string, string>;
 }
 
 function isInvalidFcmToken(errorCode: string | undefined): boolean {
@@ -41,6 +50,24 @@ export class PushNotifier {
       body?: string;
       headline?: string;
     }
+  ): Promise<PushDispatchResult> {
+    return this.sendNotification(targets, {
+      notificationType: "market_pulse_ready",
+      route: "market_pulse",
+      title: payload.title ?? "Morning Pulse Ready",
+      body:
+        payload.body ??
+        "Your Morning Pulse is ready. Here's what moved overnight.",
+      data: {
+        report_date: payload.reportDate,
+        ...(payload.headline ? { headline: payload.headline } : {})
+      }
+    });
+  }
+
+  async sendNotification(
+    targets: PushTarget[],
+    payload: NotificationPushPayload
   ): Promise<PushDispatchResult> {
     if (targets.length === 0) {
       return {
@@ -85,22 +112,17 @@ export class PushNotifier {
     const invalidTargets: string[] = [];
 
     try {
-      const title = payload.title ?? "Morning Pulse Ready";
-      const body =
-        payload.body ??
-        "Your Morning Pulse is ready. Here's what moved overnight.";
-
       const batchResult = await getMessaging().sendEachForMulticast({
         tokens: targets.map((target) => target.deviceToken),
         android: {
           priority: "high"
         },
         data: {
-          route: "market_pulse",
-          report_date: payload.reportDate,
-          title,
-          body,
-          ...(payload.headline ? { headline: payload.headline } : {})
+          route: payload.route,
+          title: payload.title,
+          body: payload.body,
+          notification_type: payload.notificationType,
+          ...(payload.data ?? {})
         }
       });
 

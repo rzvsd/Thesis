@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&amp;family=Manrope:wght@600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "inverse-surface": "#dfe2f3",
+              "on-tertiary-fixed-variant": "#005234",
+              "inverse-on-surface": "#2c303d",
+              "primary": "#afc6ff",
+              "on-primary": "#002d6c",
+              "on-error-container": "#ffdad6",
+              "tertiary-container": "#00a56d",
+              "on-tertiary": "#003822",
+              "tertiary-fixed": "#54feb3",
+              "on-secondary-fixed-variant": "#3d4758",
+              "primary-container": "#528dff",
+              "tertiary": "#27e199",
+              "error": "#ffb4ab",
+              "surface-container-high": "#262a37",
+              "secondary-fixed-dim": "#bdc7db",
+              "on-tertiary-container": "#00311d",
+              "on-secondary": "#273141",
+              "surface-container": "#1b1f2c",
+              "on-error": "#690005",
+              "on-secondary-container": "#abb5c9",
+              "on-primary-fixed-variant": "#004398",
+              "secondary": "#bdc7db",
+              "secondary-container": "#3d4758",
+              "on-primary-fixed": "#001a43",
+              "on-primary-container": "#00275f",
+              "error-container": "#93000a",
+              "on-surface": "#dfe2f3",
+              "surface-tint": "#afc6ff",
+              "primary-fixed": "#d9e2ff",
+              "surface-container-highest": "#313442",
+              "outline-variant": "#424753",
+              "on-background": "#dfe2f3",
+              "surface-container-lowest": "#0a0e1a",
+              "on-surface-variant": "#c2c6d6",
+              "background": "#0f131f",
+              "surface-dim": "#0f131f",
+              "on-tertiary-fixed": "#002112",
+              "outline": "#8c909f",
+              "on-secondary-fixed": "#121c2b",
+              "surface": "#0f131f",
+              "inverse-primary": "#0059c6",
+              "secondary-fixed": "#d9e3f8",
+              "surface-bright": "#353946",
+              "tertiary-fixed-dim": "#27e199",
+              "surface-container-low": "#171b28",
+              "surface-variant": "#313442",
+              "primary-fixed-dim": "#afc6ff"
+            },
+            fontFamily: {
+              "headline": ["Manrope"],
+              "body": ["Inter"],
+              "label": ["Inter"]
+            },
+            borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem"},
+          },
+        },
+      }
+    </script>
+<style>
+        body {
+            background-color: #0A0E1A;
+            color: #DFE2F3;
+            -webkit-font-smoothing: antialiased;
+        }
+        .glass-panel {
+            background: rgba(23, 27, 40, 0.4);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+        }
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .sentiment-arc {
+            stroke-dasharray: 282.7;
+            stroke-dashoffset: 70;
+            transition: stroke-dashoffset 1s ease-in-out;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+</head>
+<body class="font-body selection:bg-primary/30 selection:text-primary">
+<!-- Top Navigation Bar (The Anchor) -->
+<header class="fixed top-0 z-50 w-full bg-[#0F131F] dark:bg-[#0A0E1A] flex justify-between items-center px-6 h-16">
+<div class="flex items-center gap-4">
+<span class="material-symbols-outlined text-[#4F8CFF] dark:text-[#AFC6FF] transition-colors active:scale-95 duration-200 ease-out cursor-pointer">arrow_back</span>
+<h1 class="text-xl font-extrabold tracking-tighter text-[#DFE2F3] font-headline uppercase">Market Sentiment</h1>
+</div>
+<div class="flex items-center gap-6">
+<nav class="hidden md:flex items-center gap-8">
+<a class="text-[#4F8CFF] font-semibold text-sm tracking-wide" href="#">DASHBOARD</a>
+<a class="text-[#C2C6D6] hover:bg-[#171B28] dark:hover:bg-[#262A37] transition-colors px-2 py-1 rounded text-sm tracking-wide" href="#">ANALYTICS</a>
+<a class="text-[#C2C6D6] hover:bg-[#171B28] dark:hover:bg-[#262A37] transition-colors px-2 py-1 rounded text-sm tracking-wide" href="#">REPORTS</a>
+</nav>
+<span class="material-symbols-outlined text-[#4F8CFF] dark:text-[#AFC6FF] transition-colors active:scale-95 duration-200 ease-out cursor-pointer">share</span>
+</div>
+</header>
+<main class="pt-24 pb-12 px-6 max-w-7xl mx-auto space-y-12">
+<!-- Hero Section: Glassmorphic Gauge -->
+<section class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-end">
+<div class="lg:col-span-7 space-y-6">
+<div class="space-y-1">
+<span class="text-on-surface-variant font-label text-xs tracking-widest uppercase opacity-70">Current Market Climate</span>
+<h2 class="text-5xl font-extrabold font-headline tracking-tighter">Extreme Optimism</h2>
+</div>
+<div class="relative glass-panel rounded-full p-8 overflow-hidden border border-outline-variant/10">
+<!-- Gauge Graphic -->
+<div class="flex justify-center items-center py-4">
+<svg class="w-full max-w-md transform rotate-0" viewbox="0 0 200 100">
+<path d="M 20 90 A 80 80 0 0 1 180 90" fill="none" stroke="#171B28" stroke-linecap="round" stroke-width="12"></path>
+<path class="sentiment-arc" d="M 20 90 A 80 80 0 0 1 180 90" fill="none" stroke="url(#gaugeGradient)" stroke-dasharray="251.3" stroke-dashoffset="60" stroke-linecap="round" stroke-width="12"></path>
+<defs>
+<lineargradient id="gaugeGradient" x1="0%" x2="100%" y1="0%" y2="0%">
+<stop offset="0%" style="stop-color:#FFB4AB;stop-opacity:1"></stop>
+<stop offset="50%" style="stop-color:#AFC6FF;stop-opacity:1"></stop>
+<stop offset="100%" style="stop-color:#27E199;stop-opacity:1"></stop>
+</lineargradient>
+</defs>
+</svg>
+<div class="absolute bottom-12 text-center">
+<span class="block text-4xl font-black font-headline text-primary">82</span>
+<span class="text-[10px] tracking-[0.2em] font-label text-on-surface-variant uppercase">Index Score</span>
+</div>
+</div>
+</div>
+</div>
+<div class="lg:col-span-5 space-y-4">
+<div class="bg-surface-container-low p-6 rounded-xl space-y-6">
+<div class="flex justify-between items-start">
+<h3 class="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Momentum History</h3>
+<span class="text-tertiary text-xs font-medium flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">trending_up</span>
+                            +12.4%
+                        </span>
+</div>
+<!-- Minimal Chart -->
+<div class="h-32 w-full flex items-end gap-1">
+<div class="bg-primary/20 hover:bg-primary transition-all rounded-t-sm w-full h-[40%]"></div>
+<div class="bg-primary/20 hover:bg-primary transition-all rounded-t-sm w-full h-[45%]"></div>
+<div class="bg-primary/20 hover:bg-primary transition-all rounded-t-sm w-full h-[60%]"></div>
+<div class="bg-primary/20 hover:bg-primary transition-all rounded-t-sm w-full h-[55%]"></div>
+<div class="bg-primary/20 hover:bg-primary transition-all rounded-t-sm w-full h-[70%]"></div>
+<div class="bg-primary/20 hover:bg-primary transition-all rounded-t-sm w-full h-[85%]"></div>
+<div class="bg-primary/20 hover:bg-primary transition-all rounded-t-sm w-full h-[80%]"></div>
+<div class="bg-primary/20 hover:bg-primary transition-all rounded-t-sm w-full h-[95%]"></div>
+<div class="bg-primary rounded-t-sm w-full h-full shadow-[0_-8px_16px_rgba(175,198,255,0.2)]"></div>
+</div>
+</div>
+</div>
+</section>
+<!-- Indicators Table -->
+<section class="space-y-4">
+<header class="flex justify-between items-end border-b border-outline-variant/10 pb-4">
+<h2 class="text-xs font-black tracking-[0.3em] uppercase text-on-surface-variant">Key Sentiment Indicators</h2>
+<div class="flex gap-4">
+<button class="text-[10px] font-bold tracking-widest text-primary border-b border-primary pb-1">7 DAYS</button>
+<button class="text-[10px] font-bold tracking-widest text-on-surface-variant hover:text-on-surface pb-1 transition-colors">30 DAYS</button>
+</div>
+</header>
+<div class="space-y-1">
+<!-- Data Row 1 -->
+<div class="group flex items-center justify-between p-4 bg-surface-container-lowest hover:bg-surface-container-low transition-all duration-300 rounded-lg cursor-pointer">
+<div class="flex items-center gap-6 w-1/3">
+<span class="material-symbols-outlined text-tertiary opacity-40 group-hover:opacity-100 transition-opacity">circle</span>
+<div>
+<p class="text-sm font-semibold tracking-tight">Social Media Hype</p>
+<p class="text-[10px] text-on-surface-variant uppercase font-medium">Aggregated Sentiment</p>
+</div>
+</div>
+<div class="w-1/3 flex justify-center">
+<svg class="opacity-60 group-hover:opacity-100 transition-opacity" fill="none" height="24" viewbox="0 0 100 24" width="100">
+<path d="M0 20C10 18 15 5 25 8C35 11 40 2 50 12C60 22 75 4 85 8C95 12 100 5 100 5" stroke="#27E199" stroke-linecap="round" stroke-width="1.5"></path>
+</svg>
+</div>
+<div class="w-1/3 text-right">
+<p class="text-lg font-black font-headline">94/100</p>
+<p class="text-[10px] text-tertiary uppercase font-bold tracking-wider">Bullish</p>
+</div>
+</div>
+<!-- Data Row 2 -->
+<div class="group flex items-center justify-between p-4 bg-surface-container-lowest hover:bg-surface-container-low transition-all duration-300 rounded-lg cursor-pointer">
+<div class="flex items-center gap-6 w-1/3">
+<span class="material-symbols-outlined text-primary opacity-40 group-hover:opacity-100 transition-opacity">change_history</span>
+<div>
+<p class="text-sm font-semibold tracking-tight">VIX Volatility Index</p>
+<p class="text-[10px] text-on-surface-variant uppercase font-medium">Risk Assessment</p>
+</div>
+</div>
+<div class="w-1/3 flex justify-center">
+<svg class="opacity-60 group-hover:opacity-100 transition-opacity" fill="none" height="24" viewbox="0 0 100 24" width="100">
+<path d="M0 5C10 8 20 20 35 18C50 16 60 5 75 10C90 15 100 12 100 12" stroke="#AFC6FF" stroke-linecap="round" stroke-width="1.5"></path>
+</svg>
+</div>
+<div class="w-1/3 text-right">
+<p class="text-lg font-black font-headline">14.2</p>
+<p class="text-[10px] text-primary uppercase font-bold tracking-wider">Neutral</p>
+</div>
+</div>
+<!-- Data Row 3 -->
+<div class="group flex items-center justify-between p-4 bg-surface-container-lowest hover:bg-surface-container-low transition-all duration-300 rounded-lg cursor-pointer">
+<div class="flex items-center gap-6 w-1/3">
+<span class="material-symbols-outlined text-error opacity-40 group-hover:opacity-100 transition-opacity">square</span>
+<div>
+<p class="text-sm font-semibold tracking-tight">Institutional Outflows</p>
+<p class="text-[10px] text-on-surface-variant uppercase font-medium">Large Wallet Movement</p>
+</div>
+</div>
+<div class="w-1/3 flex justify-center">
+<svg class="opacity-60 group-hover:opacity-100 transition-opacity" fill="none" height="24" viewbox="0 0 100 24" width="100">
+<path d="M0 2C15 8 25 15 40 22C55 18 70 20 85 18C95 15 100 20 100 20" stroke="#FFB4AB" stroke-linecap="round" stroke-width="1.5"></path>
+</svg>
+</div>
+<div class="w-1/3 text-right">
+<p class="text-lg font-black font-headline">-$2.4B</p>
+<p class="text-[10px] text-error uppercase font-bold tracking-wider">Bearish</p>
+</div>
+</div>
+</div>
+</section>
+<!-- Insights Grid (Bento) -->
+<section class="grid grid-cols-1 md:grid-cols-3 gap-6">
+<div class="md:col-span-2 bg-surface-container-high rounded-2xl p-8 relative overflow-hidden group">
+<div class="relative z-10 space-y-4">
+<span class="inline-block px-3 py-1 bg-tertiary/10 text-tertiary text-[10px] font-bold rounded-full tracking-widest uppercase">Executive Summary</span>
+<h3 class="text-2xl font-bold font-headline max-w-md leading-tight">The market decoupling from fundamental indicators suggests a retail-driven momentum surge.</h3>
+<p class="text-on-surface-variant text-sm max-w-lg leading-relaxed">Current data suggests that while institutional players are reducing exposure, retail sentiment remains at historic highs, driven primarily by generative AI market positioning and favorable interest rate expectations.</p>
+<div class="pt-4 flex items-center gap-4">
+<button class="px-6 py-2.5 bg-gradient-to-br from-primary to-primary-container text-on-primary font-bold text-xs rounded-xl tracking-wider transition-transform active:scale-95">VIEW DEEP DIVE</button>
+<button class="px-6 py-2.5 border border-outline-variant/20 hover:border-outline-variant transition-colors text-on-surface font-bold text-xs rounded-xl tracking-wider">NOTIFY ME</button>
+</div>
+</div>
+<!-- Abstract visual element -->
+<div class="absolute -right-20 -bottom-20 w-80 h-80 bg-primary/5 rounded-full blur-[80px] group-hover:bg-primary/10 transition-colors duration-700"></div>
+</div>
+<div class="bg-surface-container-low rounded-2xl p-8 flex flex-col justify-between border border-outline-variant/5">
+<div class="space-y-1">
+<h3 class="text-xs font-black uppercase tracking-widest text-on-surface-variant">System Status</h3>
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-tertiary animate-pulse"></span>
+<p class="text-sm font-medium">Real-time Feed Active</p>
+</div>
+</div>
+<div class="mt-8">
+<img class="rounded-xl w-full h-32 object-cover opacity-60 grayscale hover:grayscale-0 transition-all duration-500" data-alt="abstract digital visualization of data streams flowing through a dark space with neon blue highlights and bokeh effects" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBQPSth2a-IzYRRfhOXjIWuqWrVTSvlXHKOts2qW-Of-z6d1hWDrBJsUvP6o4b-X7z4cc8cIEoHPoIdb4O35LRqor8MbsysNbqOn3xOs7yl-_gEGsqEW2C52DV7y9-U8XUblUPVstexHeruVLuAl3dAg5dL4SSuOIjmrEpEt4Wdtx8P3JC_x0_C-cSNsQpPxdTfaodGlDMc3xGhife2zSvxHQxImEuyIvuwdPcak6GUlV2-2qjzrPvM-p0WeRxe_yFZWMqPF-TCXo0"/>
+</div>
+<div class="mt-4 pt-4 border-t border-outline-variant/10">
+<p class="text-[10px] text-on-surface-variant uppercase font-bold tracking-tighter">Last synced: 14:02:45 UTC</p>
+</div>
+</div>
+</section>
+<!-- Footer Meta -->
+<footer class="flex flex-col md:flex-row justify-between items-center pt-12 border-t border-outline-variant/10 gap-8">
+<div class="flex items-center gap-8">
+<div class="text-center md:text-left">
+<p class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Global Heat</p>
+<p class="text-sm font-semibold">Extreme High</p>
+</div>
+<div class="text-center md:text-left">
+<p class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Liquidity</p>
+<p class="text-sm font-semibold">Restricted</p>
+</div>
+<div class="text-center md:text-left">
+<p class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Volatility</p>
+<p class="text-sm font-semibold">Low</p>
+</div>
+</div>
+<div class="flex gap-4">
+<div class="w-10 h-10 rounded-xl bg-surface-container-high flex items-center justify-center hover:bg-surface-container-highest transition-colors cursor-pointer border border-outline-variant/10">
+<span class="material-symbols-outlined text-sm">terminal</span>
+</div>
+<div class="w-10 h-10 rounded-xl bg-surface-container-high flex items-center justify-center hover:bg-surface-container-highest transition-colors cursor-pointer border border-outline-variant/10">
+<span class="material-symbols-outlined text-sm">shield</span>
+</div>
+<div class="w-10 h-10 rounded-xl bg-surface-container-high flex items-center justify-center hover:bg-surface-container-highest transition-colors cursor-pointer border border-outline-variant/10">
+<span class="material-symbols-outlined text-sm">download</span>
+</div>
+</div>
+</footer><div class="mt-16 pt-8 pb-12 text-center">
+<p class="font-body text-[11px] leading-relaxed text-outline max-w-2xl mx-auto uppercase tracking-wider px-6 opacity-80">
+        INSTITUTIONAL GRADE INTELLIGENCE: Sentiment data aggregated from 40+ exchanges, social sentiment engines, and derivatives order books. Updates every 60s. All rights reserved by Sovereign Global.
+    </p>
+</div>
+</main>
+<!-- Background Subtle Textures -->
+<div class="fixed inset-0 pointer-events-none overflow-hidden -z-10">
+<div class="absolute top-0 right-0 w-[800px] h-[800px] bg-primary/5 blur-[120px] rounded-full translate-x-1/3 -translate-y-1/3"></div>
+<div class="absolute bottom-0 left-0 w-[600px] h-[600px] bg-tertiary/5 blur-[100px] rounded-full -translate-x-1/4 translate-y-1/4"></div>
+</div>
+</body></html>
