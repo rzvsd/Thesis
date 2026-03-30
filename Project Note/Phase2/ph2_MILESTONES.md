@@ -877,19 +877,19 @@ Redesign the Deep Dive report layout to match the UX Architecture vision and add
 | Notes persistence | Named storage model for per-report notes |
 | What-If scenario flow | Defined request/response ownership and UI flow; DCF-style sliders re-run M2 deterministic module with structured assumption deltas |
 | Export surfaces | PDF, share card, and investment memo with named artifact generation ownership |
-| Community sentiment vote | Aggregated vote UI with backend storage and retrieval plan if retained in scope |
+| Community sentiment vote | Deferred to post-launch; tracked as explicit M7 deferral |
 
 ## Acceptance Criteria
 
-- [ ] Report sections are collapsible and render from real report data
-- [ ] Thesis Statement and richer comparison context render correctly
-- [ ] User can add and edit notes on a report
-- [ ] Notes persist across app restart
-- [ ] What-If scenario flow returns a response within the agreed limit; DCF-parameter scenarios use deterministic recomputation (same logic as M2 `dcf/`), not LLM math
-- [ ] Export outputs are generated and open correctly
-- [ ] Any retained community sentiment UI shows aggregate data only
-- [ ] All export features are gated behind Pro subscription
-- [ ] Existing `/reports/:id` consumers and history open paths still work
+- [x] Report sections are collapsible and render from real report data
+- [x] Thesis Statement and richer comparison context render correctly
+- [x] User can add and edit notes on a report
+- [x] Notes persist across app restart
+- [x] What-If scenario flow returns a response within the agreed limit; DCF-parameter scenarios use deterministic recomputation (same logic as M2 `dcf/`), not LLM math
+- [x] Export outputs are generated and open correctly
+- [x] Community sentiment voting remains deferred (no partial in-app implementation in M7)
+- [x] All export features are gated behind Pro subscription
+- [x] Existing `/reports/:id` consumers and history open paths still work
 
 ## Phase 1 Regression Obligations
 
@@ -935,7 +935,7 @@ A Pro user opens a Deep Dive and sees an interactive, analyst-grade report Ãƒ�
 M7 touches mobile UI and potentially server endpoints.
 
 1. Revert mobile to M6 report screen
-2. Run `ph2m7_011_report_notes.down.sql` if notes migration was applied
+2. Run `ph2m7_013_report_notes.down.sql` if notes migration was applied
 3. Remove notes, scenario, and export endpoints from `product-api` if they were added
 4. Remove new contracts from `packages/contracts/src/`
 

@@ -26,14 +26,21 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -41,6 +48,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.thesis.mobile.model.DeepDiveReportView
 import com.thesis.mobile.model.EvidenceView
+import com.thesis.mobile.model.ScenarioResultView
 import com.thesis.mobile.model.SectionView
 import com.thesis.mobile.ui.components.ConfidenceRing
 import com.thesis.mobile.ui.components.DeepDiveUnavailableState
@@ -58,6 +66,17 @@ fun DeepDiveScreen(
     report: DeepDiveReportView?,
     isLoading: Boolean,
     errorMessage: String?,
+    userTier: String?,
+    reportNoteDraft: String,
+    noteUpdatedAt: String?,
+    isSavingNote: Boolean,
+    onReportNoteChange: (String) -> Unit,
+    onSaveReportNote: () -> Unit,
+    scenarioResult: ScenarioResultView?,
+    isRunningScenario: Boolean,
+    onRunScenario: (Int?, Double?, Double?) -> Unit,
+    onRequireUpgrade: (String) -> Unit,
+    onNotify: (String) -> Unit,
     tickerState: String,
     watchlist: List<String>,
     onTickerChange: (String) -> Unit,
@@ -83,6 +102,17 @@ fun DeepDiveScreen(
 
     DeepDiveReportState(
         report = report,
+        userTier = userTier,
+        reportNoteDraft = reportNoteDraft,
+        noteUpdatedAt = noteUpdatedAt,
+        isSavingNote = isSavingNote,
+        onReportNoteChange = onReportNoteChange,
+        onSaveReportNote = onSaveReportNote,
+        scenarioResult = scenarioResult,
+        isRunningScenario = isRunningScenario,
+        onRunScenario = onRunScenario,
+        onRequireUpgrade = onRequireUpgrade,
+        onNotify = onNotify,
         watchlist = watchlist,
         onBack = onBack,
         padding = padding
@@ -155,6 +185,17 @@ private fun DeepDiveSearchState(
 @Composable
 private fun DeepDiveReportState(
     report: DeepDiveReportView,
+    userTier: String?,
+    reportNoteDraft: String,
+    noteUpdatedAt: String?,
+    isSavingNote: Boolean,
+    onReportNoteChange: (String) -> Unit,
+    onSaveReportNote: () -> Unit,
+    scenarioResult: ScenarioResultView?,
+    isRunningScenario: Boolean,
+    onRunScenario: (Int?, Double?, Double?) -> Unit,
+    onRequireUpgrade: (String) -> Unit,
+    onNotify: (String) -> Unit,
     watchlist: List<String>,
     onBack: () -> Unit,
     padding: PaddingValues
@@ -162,6 +203,8 @@ private fun DeepDiveReportState(
     val ticker = report.ticker ?: "Ticker"
     val isWatched = report.ticker != null && watchlist.contains(report.ticker)
     val highlights = deriveHighlights(report)
+    val context = LocalContext.current
+    val isPro = userTier.equals("PRO", ignoreCase = true)
 
     Box(
         modifier = Modifier
@@ -180,6 +223,17 @@ private fun DeepDiveReportState(
         ) {
             item {
                 HeaderSection(ticker = ticker, isWatched = isWatched)
+            }
+
+            report.thesisStatement?.takeIf { it.isNotBlank() }?.let { thesis ->
+                item {
+                    SummarySection(
+                        title = "Thesis Statement",
+                        icon = Icons.Default.PushPin,
+                        iconColor = ThesisColors.AccentBlue,
+                        content = thesis
+                    )
+                }
             }
 
             item {
@@ -212,6 +266,7 @@ private fun DeepDiveReportState(
                 SectionAccordion(
                     title = section.title,
                     statusText = section.status ?: "UNKNOWN",
+                    initiallyExpanded = section.status.equals("complete", ignoreCase = true),
                     content = {
                         Column(verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingMd)) {
                             Text(
@@ -236,6 +291,47 @@ private fun DeepDiveReportState(
                         }
                     },
                     modifier = Modifier.padding(bottom = ThesisDimens.SpacingSm)
+                )
+            }
+
+            item {
+                NotesSection(
+                    noteDraft = reportNoteDraft,
+                    noteUpdatedAt = noteUpdatedAt,
+                    isSaving = isSavingNote,
+                    onNoteChange = onReportNoteChange,
+                    onSave = onSaveReportNote
+                )
+            }
+
+            item {
+                ScenarioSection(
+                    isPro = isPro,
+                    valuation = report.valuation,
+                    isRunning = isRunningScenario,
+                    scenarioResult = scenarioResult,
+                    onRunScenario = onRunScenario,
+                    onRequireUpgrade = onRequireUpgrade
+                )
+            }
+
+            item {
+                ExportSection(
+                    isPro = isPro,
+                    onRequireUpgrade = onRequireUpgrade,
+                    onNotify = onNotify,
+                    onExportPdf = {
+                        val artifact = createPdfExport(context, report, ReportExportType.FULL_REPORT)
+                        shareExport(context, artifact)
+                    },
+                    onExportCard = {
+                        val artifact = createShareCard(context, report)
+                        shareExport(context, artifact)
+                    },
+                    onExportMemo = {
+                        val artifact = createPdfExport(context, report, ReportExportType.INVESTMENT_MEMO)
+                        shareExport(context, artifact)
+                    }
                 )
             }
 
@@ -465,6 +561,221 @@ private fun EvidenceList(evidence: List<EvidenceView>) {
                         color = ThesisColors.AccentBlueLight
                     )
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun NotesSection(
+    noteDraft: String,
+    noteUpdatedAt: String?,
+    isSaving: Boolean,
+    onNoteChange: (String) -> Unit,
+    onSave: () -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)) {
+        Text(
+            text = "My Notes",
+            style = ThesisTypography.headlineMedium.copy(fontWeight = FontWeight.Bold),
+            color = ThesisColors.TextPrimaryDark
+        )
+        OutlinedTextField(
+            value = noteDraft,
+            onValueChange = onNoteChange,
+            modifier = Modifier.fillMaxWidth(),
+            minLines = 4,
+            maxLines = 8,
+            label = { Text("Add your notes for this report") }
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = noteUpdatedAt?.let { "Last saved: $it" } ?: "No saved note yet.",
+                style = ThesisTypography.labelSmall,
+                color = ThesisColors.TextTertiaryDark
+            )
+            Button(onClick = onSave, enabled = !isSaving) {
+                Text(if (isSaving) "Saving..." else "Save Note")
+            }
+        }
+    }
+}
+
+@Composable
+private fun ScenarioSection(
+    isPro: Boolean,
+    valuation: com.thesis.mobile.model.ValuationDisplayView?,
+    isRunning: Boolean,
+    scenarioResult: ScenarioResultView?,
+    onRunScenario: (Int?, Double?, Double?) -> Unit,
+    onRequireUpgrade: (String) -> Unit
+) {
+    var projectionYearsText by remember(valuation?.assumptions?.projectionYears) {
+        mutableStateOf(valuation?.assumptions?.projectionYears?.toString().orEmpty())
+    }
+    var terminalGrowthText by remember(valuation?.assumptions?.terminalGrowthRate) {
+        mutableStateOf(valuation?.assumptions?.terminalGrowthRate?.toString().orEmpty())
+    }
+    var waccText by remember(valuation?.assumptions?.wacc) {
+        mutableStateOf(valuation?.assumptions?.wacc?.toString().orEmpty())
+    }
+
+    LaunchedEffect(valuation?.assumptions?.projectionYears, valuation?.assumptions?.terminalGrowthRate, valuation?.assumptions?.wacc) {
+        projectionYearsText = valuation?.assumptions?.projectionYears?.toString().orEmpty()
+        terminalGrowthText = valuation?.assumptions?.terminalGrowthRate?.toString().orEmpty()
+        waccText = valuation?.assumptions?.wacc?.toString().orEmpty()
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)) {
+        Text(
+            text = "What-If Scenario",
+            style = ThesisTypography.headlineMedium.copy(fontWeight = FontWeight.Bold),
+            color = ThesisColors.TextPrimaryDark
+        )
+        Text(
+            text = "Adjust deterministic DCF assumptions and compare base vs scenario outputs.",
+            style = ThesisTypography.bodySmall,
+            color = ThesisColors.TextSecondaryDark
+        )
+
+        if (valuation == null) {
+            Text(
+                text = "Valuation data is unavailable for this report.",
+                style = ThesisTypography.bodySmall,
+                color = ThesisColors.TextTertiaryDark
+            )
+            return@Column
+        }
+
+        OutlinedTextField(
+            value = projectionYearsText,
+            onValueChange = { projectionYearsText = it },
+            label = { Text("Projection years") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
+        )
+        OutlinedTextField(
+            value = terminalGrowthText,
+            onValueChange = { terminalGrowthText = it },
+            label = { Text("Terminal growth rate") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
+        )
+        OutlinedTextField(
+            value = waccText,
+            onValueChange = { waccText = it },
+            label = { Text("WACC") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        Button(
+            onClick = {
+                if (!isPro) {
+                    onRequireUpgrade("what_if_scenario")
+                    return@Button
+                }
+                onRunScenario(
+                    projectionYearsText.toIntOrNull(),
+                    terminalGrowthText.toDoubleOrNull(),
+                    waccText.toDoubleOrNull()
+                )
+            },
+            enabled = !isRunning,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(if (isRunning) "Running..." else "Run Scenario")
+        }
+
+        scenarioResult?.let { result ->
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(ThesisDimens.CardCornerRadius))
+                    .background(ThesisColors.DarkSurfaceHigh)
+                    .border(1.dp, ThesisColors.DarkBorder, RoundedCornerShape(ThesisDimens.CardCornerRadius))
+                    .padding(ThesisDimens.CardPadding)
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingXs)) {
+                    Text(
+                        text = "Scenario Result",
+                        style = ThesisTypography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                        color = ThesisColors.TextPrimaryDark
+                    )
+                    Text(
+                        text = "Base fair value: ${result.base.fairValueMid?.let { String.format("%.2f", it) } ?: "n/a"}",
+                        style = ThesisTypography.bodySmall,
+                        color = ThesisColors.TextSecondaryDark
+                    )
+                    Text(
+                        text = "Scenario fair value: ${result.scenario.fairValueMid?.let { String.format("%.2f", it) } ?: "n/a"}",
+                        style = ThesisTypography.bodySmall,
+                        color = ThesisColors.TextSecondaryDark
+                    )
+                    Text(
+                        text = "Scenario implied upside: ${result.scenario.impliedUpsidePct?.let { String.format("%.2f%%", it) } ?: "n/a"}",
+                        style = ThesisTypography.bodySmall,
+                        color = ThesisColors.TextSecondaryDark
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ExportSection(
+    isPro: Boolean,
+    onRequireUpgrade: (String) -> Unit,
+    onNotify: (String) -> Unit,
+    onExportPdf: () -> Unit,
+    onExportCard: () -> Unit,
+    onExportMemo: () -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)) {
+        Text(
+            text = "Export",
+            style = ThesisTypography.headlineMedium.copy(fontWeight = FontWeight.Bold),
+            color = ThesisColors.TextPrimaryDark
+        )
+        Text(
+            text = "Create a PDF, share card, or investment memo from this report.",
+            style = ThesisTypography.bodySmall,
+            color = ThesisColors.TextSecondaryDark
+        )
+
+        fun runExport(action: () -> Unit) {
+            if (!isPro) {
+                onRequireUpgrade("report_export")
+                return
+            }
+            runCatching { action() }
+                .onSuccess { onNotify("Export generated.") }
+                .onFailure { onNotify(it.message ?: "Export failed.") }
+        }
+
+        Row(horizontalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)) {
+            OutlinedButton(
+                onClick = { runExport(onExportPdf) },
+                modifier = Modifier.weight(1f)
+            ) {
+                Text("PDF")
+            }
+            OutlinedButton(
+                onClick = { runExport(onExportCard) },
+                modifier = Modifier.weight(1f)
+            ) {
+                Text("Share Card")
+            }
+            OutlinedButton(
+                onClick = { runExport(onExportMemo) },
+                modifier = Modifier.weight(1f)
+            ) {
+                Text("Memo")
             }
         }
     }

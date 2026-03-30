@@ -1,0 +1,53 @@
+appId: ${MAESTRO_APP_ID}
+---
+- launchApp:
+    clearState: true
+
+- runFlow:
+    when:
+      visible: "Get Started"
+    commands:
+      - tapOn: "Get Started"
+
+- tapOn: "Email"
+- inputText: "${MAESTRO_TEST_EMAIL}"
+- tapOn: "Password"
+- inputText: "${MAESTRO_TEST_PASSWORD}"
+- hideKeyboard
+- tapOn: "Login"
+
+- extendedWaitUntil:
+    visible: "Research"
+    timeout: 30000
+
+- tapOn: "Research"
+- tapOn: "History"
+- extendedWaitUntil:
+    visible: "${MAESTRO_DEEP_DIVE_TICKER} Deep Dive"
+    timeout: 45000
+- tapOn: "${MAESTRO_DEEP_DIVE_TICKER} Deep Dive"
+
+- extendedWaitUntil:
+    visible: "THESIS STATEMENT"
+    timeout: 45000
+
+- scrollUntilVisible:
+    element:
+      text: "Export"
+    direction: DOWN
+    timeout: 60000
+
+- assertVisible: "Export"
+- tapOn: "PDF"
+- waitForAnimationToEnd
+- back
+
+- tapOn: "Share Card"
+- waitForAnimationToEnd
+- back
+
+- tapOn: "Memo"
+- waitForAnimationToEnd
+- back
+
+- assertVisible: "Export"

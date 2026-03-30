@@ -154,6 +154,13 @@ export interface NotificationPreferenceRecord {
   updatedAt: string;
 }
 
+export interface ReportNoteRecord {
+  reportId: string;
+  userId: string;
+  content: string;
+  updatedAt: string;
+}
+
 export interface InternalClaimResponse {
   job: JobRecord;
   analysisRequest: AnalysisRequest;

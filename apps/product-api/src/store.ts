@@ -19,6 +19,7 @@ import type {
   ContrarianAlertAnchorRecord,
   JobRecord,
   NotificationPreferenceRecord,
+  ReportNoteRecord,
   ReportRecord,
   SessionRecord,
   TickerDeltaChange,
@@ -146,6 +147,13 @@ export interface ProductStore {
   deactivateContrarianAlertAnchor(id: string, updatedAt: string): Promise<ContrarianAlertAnchorRecord | undefined>;
   deactivateExpiredContrarianAlertAnchors(asOfIso: string): Promise<number>;
   getNotificationPreferences(userId: string): Promise<NotificationPreferenceRecord[]>;
+  getReportNote(reportId: string, userId: string): Promise<ReportNoteRecord | undefined>;
+  upsertReportNote(input: {
+    reportId: string;
+    userId: string;
+    content: string;
+    updatedAt: string;
+  }): Promise<ReportNoteRecord>;
   upsertNotificationPreferences(input: {
     userId: string;
     preferences: Array<{ type: NotificationType; enabled: boolean }>;
@@ -415,6 +423,15 @@ function mapNotificationPreference(row: Record<string, unknown>): NotificationPr
   };
 }
 
+function mapReportNote(row: Record<string, unknown>): ReportNoteRecord {
+  return {
+    reportId: String(row.report_id),
+    userId: String(row.user_id),
+    content: String(row.content ?? ""),
+    updatedAt: asIsoString(row.updated_at) ?? new Date().toISOString()
+  };
+}
+
 export class InMemoryStore implements ProductStore {
   private readonly users = new Map<string, UserRecord>();
   private readonly usersByEmail = new Map<string, string>();
@@ -434,6 +451,7 @@ export class InMemoryStore implements ProductStore {
   private readonly fearGreedByMarketDate = new Map<string, FearGreedSnapshot>();
   private readonly calendarEvents = new Map<string, CalendarEventRecord>();
   private readonly contrarianAnchors = new Map<string, ContrarianAlertAnchorRecord>();
+  private readonly reportNotes = new Map<string, ReportNoteRecord>();
   private readonly notificationPreferencesByUser = new Map<
     string,
     Map<NotificationType, NotificationPreferenceRecord>
@@ -1293,6 +1311,32 @@ export class InMemoryStore implements ProductStore {
       });
     }
     return [...preferences.values()].map((entry) => ({ ...entry }));
+  }
+
+  async getReportNote(
+    reportId: string,
+    userId: string
+  ): Promise<ReportNoteRecord | undefined> {
+    const key = `${reportId}:${userId}`;
+    const note = this.reportNotes.get(key);
+    return note ? { ...note } : undefined;
+  }
+
+  async upsertReportNote(input: {
+    reportId: string;
+    userId: string;
+    content: string;
+    updatedAt: string;
+  }): Promise<ReportNoteRecord> {
+    const key = `${input.reportId}:${input.userId}`;
+    const note: ReportNoteRecord = {
+      reportId: input.reportId,
+      userId: input.userId,
+      content: input.content,
+      updatedAt: input.updatedAt
+    };
+    this.reportNotes.set(key, note);
+    return { ...note };
   }
 
   async listUsersWithDeviceTokenByNotificationType(input: {
@@ -2463,6 +2507,39 @@ export class PostgresStore implements ProductStore {
     }
 
     return merged;
+  }
+
+  async getReportNote(
+    reportId: string,
+    userId: string
+  ): Promise<ReportNoteRecord | undefined> {
+    const result = await this.pool.query(
+      `select *
+         from report_notes
+        where report_id = $1
+          and user_id = $2`,
+      [reportId, userId]
+    );
+    const row = result.rows[0] as Record<string, unknown> | undefined;
+    return row ? mapReportNote(row) : undefined;
+  }
+
+  async upsertReportNote(input: {
+    reportId: string;
+    userId: string;
+    content: string;
+    updatedAt: string;
+  }): Promise<ReportNoteRecord> {
+    const result = await this.pool.query(
+      `insert into report_notes (report_id, user_id, content, updated_at)
+       values ($1, $2, $3, $4::timestamptz)
+       on conflict (report_id, user_id) do update set
+         content = excluded.content,
+         updated_at = excluded.updated_at
+       returning *`,
+      [input.reportId, input.userId, input.content, input.updatedAt]
+    );
+    return mapReportNote(result.rows[0] as Record<string, unknown>);
   }
 
   async upsertNotificationPreferences(input: {

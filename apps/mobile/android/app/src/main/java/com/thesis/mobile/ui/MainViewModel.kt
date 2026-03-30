@@ -14,7 +14,10 @@ import com.thesis.mobile.model.DeepDiveReportView
 import com.thesis.mobile.model.LastViewedReport
 import com.thesis.mobile.model.NotificationPreferenceView
 import com.thesis.mobile.model.PulseReportView
+import com.thesis.mobile.model.ReportNoteView
 import com.thesis.mobile.model.ReportHistoryItem
+import com.thesis.mobile.model.ScenarioOverridesView
+import com.thesis.mobile.model.ScenarioResultView
 import com.thesis.mobile.model.SubscriptionOfferView
 import com.thesis.mobile.model.TickerSearchItem
 import com.thesis.mobile.model.UserProfileView
@@ -51,6 +54,11 @@ data class UiState(
     val jobStatus: String? = null,
     val deepDiveReport: DeepDiveReportView? = null,
     val deepDiveError: String? = null,
+    val reportNote: ReportNoteView? = null,
+    val reportNoteDraft: String = "",
+    val isSavingNote: Boolean = false,
+    val scenarioResult: ScenarioResultView? = null,
+    val isRunningScenario: Boolean = false,
     val pulseReport: PulseReportView? = null,
     val pulseError: String? = null,
     val reportHistory: List<ReportHistoryItem> = emptyList(),
@@ -100,6 +108,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun clearMessage() {
         publish(state.copy(message = null))
+    }
+
+    fun notifyUser(message: String) {
+        publish(state.copy(message = message))
     }
 
     fun completeWelcome() {
@@ -279,6 +291,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     tickers = emptyList(),
                     selectedTicker = null,
                     deepDiveReport = null,
+                    reportNote = null,
+                    reportNoteDraft = "",
+                    isSavingNote = false,
+                    scenarioResult = null,
+                    isRunningScenario = false,
                     pulseReport = null,
                     pulseError = null,
                     deepDiveError = null,
@@ -298,6 +315,115 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun dismissPaywall() {
         publish(state.copy(paywallFeature = null))
+    }
+
+    fun requestFeatureUpgrade(feature: String) {
+        publish(
+            state.copy(
+                paywallFeature = feature,
+                message = "Upgrade to Pro to use this feature."
+            )
+        )
+    }
+
+    fun updateReportNoteDraft(content: String) {
+        publish(state.copy(reportNoteDraft = content))
+    }
+
+    fun saveReportNote() {
+        val report = state.deepDiveReport
+        if (report == null) {
+            publish(state.copy(message = "Open a report before saving notes."))
+            return
+        }
+
+        viewModelScope.launch {
+            publish(state.copy(isSavingNote = true, message = null))
+            val error = runAuthorizedWithRefresh {
+                val saved = client.saveReportNote(
+                    state.apiBaseUrl,
+                    requireTokens().accessToken,
+                    report.reportId,
+                    state.reportNoteDraft
+                )
+                publish(
+                    state.copy(
+                        reportNote = saved,
+                        reportNoteDraft = saved.content,
+                        message = "Note saved."
+                    )
+                )
+                trackEvent(
+                    "deep_dive_note_saved",
+                    mapOf(
+                        "report_id" to report.reportId,
+                        "content_length" to saved.content.length
+                    )
+                )
+            }
+            if (error != null) {
+                publish(state.copy(message = toMessage(error)))
+            }
+            publish(state.copy(isSavingNote = false))
+        }
+    }
+
+    fun runScenario(
+        projectionYears: Int?,
+        terminalGrowthRate: Double?,
+        wacc: Double?
+    ) {
+        val report = state.deepDiveReport
+        if (report == null) {
+            publish(state.copy(message = "Open a report before running a scenario."))
+            return
+        }
+
+        viewModelScope.launch {
+            publish(state.copy(isRunningScenario = true, message = null))
+            val error = runAuthorizedWithRefresh {
+                val scenario = client.runScenario(
+                    state.apiBaseUrl,
+                    requireTokens().accessToken,
+                    report.reportId,
+                    ScenarioOverridesView(
+                        projectionYears = projectionYears,
+                        terminalGrowthRate = terminalGrowthRate,
+                        wacc = wacc
+                    )
+                )
+                publish(
+                    state.copy(
+                        scenarioResult = scenario,
+                        message = "Scenario updated."
+                    )
+                )
+                trackEvent(
+                    "deep_dive_scenario_run",
+                    mapOf(
+                        "report_id" to report.reportId,
+                        "has_projection_years" to (projectionYears != null),
+                        "has_terminal_growth_rate" to (terminalGrowthRate != null),
+                        "has_wacc" to (wacc != null)
+                    )
+                )
+            }
+            if (error != null) {
+                val upgrade = (error as? ProductApiException)
+                    ?.takeIf { it.code == 403 && it.errorCode == "upgrade_required" }
+                if (upgrade != null) {
+                    publish(
+                        state.copy(
+                            paywallFeature = upgrade.feature ?: "what_if_scenario",
+                            message = upgrade.message
+                        )
+                    )
+                } else {
+                    publish(state.copy(message = toMessage(error)))
+                }
+            }
+            publish(state.copy(isRunningScenario = false))
+        }
     }
 
     fun syncTierFromServer(revenuecatAppUserId: String? = null) {
@@ -441,6 +567,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 state.copy(
                     isLoading = true,
                     deepDiveReport = null,
+                    reportNote = null,
+                    reportNoteDraft = "",
+                    isSavingNote = false,
+                    scenarioResult = null,
+                    isRunningScenario = false,
                     deepDiveError = null,
                     jobStatus = "queued"
                 )
@@ -470,10 +601,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             publish(state.copy(isLoading = true, message = null, deepDiveError = null))
             val error = runAuthorizedWithRefresh {
                 val report = client.getDeepDiveReport(state.apiBaseUrl, requireTokens().accessToken, reportId)
+                val note = runCatching {
+                    client.getReportNote(state.apiBaseUrl, requireTokens().accessToken, report.reportId)
+                }.getOrNull()
                 publish(
                     state.copy(
                         currentTab = AppTab.RESEARCH,
                         deepDiveReport = report,
+                        reportNote = note,
+                        reportNoteDraft = note?.content ?: "",
+                        isSavingNote = false,
+                        scenarioResult = null,
+                        isRunningScenario = false,
                         message = "Loaded report from history.",
                         deepDiveError = null
                     )
@@ -625,10 +764,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                             requireTokens().accessToken,
                             reportId
                         )
+                        val note = runCatching {
+                            client.getReportNote(state.apiBaseUrl, requireTokens().accessToken, report.reportId)
+                        }.getOrNull()
                         publish(
                             state.copy(
                                 isLoading = false,
                                 deepDiveReport = report,
+                                reportNote = note,
+                                reportNoteDraft = note?.content ?: "",
+                                isSavingNote = false,
+                                scenarioResult = null,
+                                isRunningScenario = false,
                                 message = "Deep Dive ready.",
                                 deepDiveError = null
                             )

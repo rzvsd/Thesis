@@ -7,10 +7,14 @@ import com.thesis.mobile.model.JobStatus
 import com.thesis.mobile.model.NotificationPreferenceView
 import com.thesis.mobile.model.PulseReportView
 import com.thesis.mobile.model.RegisterResult
+import com.thesis.mobile.model.ReportNoteView
 import com.thesis.mobile.model.ReportHistoryItem
+import com.thesis.mobile.model.ScenarioOverridesView
+import com.thesis.mobile.model.ScenarioResultView
 import com.thesis.mobile.model.SectionView
 import com.thesis.mobile.model.TickerSearchItem
 import com.thesis.mobile.model.UserProfileView
+import com.thesis.mobile.model.ReportViewMapper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
@@ -150,19 +154,67 @@ class ProductApiClient {
     suspend fun getDeepDiveReport(baseUrl: String, accessToken: String, reportId: String): DeepDiveReportView =
         withContext(Dispatchers.IO) {
             val json = requestJson(baseUrl, "GET", "/reports/$reportId", accessToken = accessToken)
-            val sectionsJson = json.optJSONArray("sections") ?: JSONArray()
-            val sections = (0 until sectionsJson.length()).mapNotNull { index ->
-                sectionsJson.optJSONObject(index)?.let(::parseSection)
-            }
-            DeepDiveReportView(
-                reportId = json.optString("report_id"),
-                ticker = json.optNullableString("ticker"),
-                signalValue = json.optJSONObject("signal")?.optNullableString("value"),
-                confidenceLabel = json.optJSONObject("confidence")?.optNullableString("label"),
-                confidenceScore = json.optJSONObject("confidence")?.optDouble("score"),
-                sections = sections
-            )
+            ReportViewMapper.mapAnalysisReport(json)
         }
+
+    suspend fun getReportNote(
+        baseUrl: String,
+        accessToken: String,
+        reportId: String
+    ): ReportNoteView? = withContext(Dispatchers.IO) {
+        runCatching {
+            val json = requestJson(baseUrl, "GET", "/v1/reports/$reportId/note", accessToken = accessToken)
+            ReportViewMapper.mapReportNote(json)
+        }.getOrElse { error ->
+            if (error is ProductApiException && error.code == 404 && error.errorCode == "note_not_found") {
+                null
+            } else {
+                throw error
+            }
+        }
+    }
+
+    suspend fun saveReportNote(
+        baseUrl: String,
+        accessToken: String,
+        reportId: String,
+        content: String
+    ): ReportNoteView = withContext(Dispatchers.IO) {
+        val body = JSONObject().put("content", content)
+        val json = requestJson(
+            baseUrl,
+            "PUT",
+            "/v1/reports/$reportId/note",
+            accessToken = accessToken,
+            body = body
+        )
+        ReportViewMapper.mapReportNote(json)
+            ?: throw ProductApiException(500, "Note response was missing expected fields.")
+    }
+
+    suspend fun runScenario(
+        baseUrl: String,
+        accessToken: String,
+        reportId: String,
+        overrides: ScenarioOverridesView
+    ): ScenarioResultView = withContext(Dispatchers.IO) {
+        val payload = JSONObject()
+        val overrideJson = JSONObject()
+        overrides.projectionYears?.let { overrideJson.put("projection_years", it) }
+        overrides.terminalGrowthRate?.let { overrideJson.put("terminal_growth_rate", it) }
+        overrides.wacc?.let { overrideJson.put("wacc", it) }
+        payload.put("overrides", overrideJson)
+
+        val json = requestJson(
+            baseUrl,
+            "POST",
+            "/v1/reports/$reportId/scenario",
+            accessToken = accessToken,
+            body = payload
+        )
+        ReportViewMapper.mapScenarioResult(json)
+            ?: throw ProductApiException(500, "Scenario response was missing expected fields.")
+    }
 
     suspend fun getLatestPulse(baseUrl: String, accessToken: String): PulseReportView =
         withContext(Dispatchers.IO) {
