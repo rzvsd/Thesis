@@ -116,6 +116,27 @@ data class PulseReportView(
     val sections: List<SectionView>
 )
 
+data class SentimentSubScoreView(
+    val inputName: String,
+    val provider: String,
+    val available: Boolean,
+    val weight: Double,
+    val normalizedScore: Double? = null,
+    val rawValue: Double? = null,
+    val retrievedAt: String? = null,
+    val notes: String? = null
+)
+
+data class SentimentSnapshotView(
+    val id: String,
+    val marketDate: String,
+    val score: Double,
+    val label: String,
+    val subScores: List<SentimentSubScoreView> = emptyList(),
+    val missingInputs: List<String> = emptyList(),
+    val calculatedAt: String
+)
+
 data class ReportHistoryItem(
     val reportId: String,
     val jobId: String,

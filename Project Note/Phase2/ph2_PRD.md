@@ -3,7 +3,7 @@
 **Version:** 1.2  
 **Status:** Active  
 **Owner:** Product Lead  
-**Last Revised:** 2026-03  
+**Last Revised:** 2026-04  
 
 > **Note:** This document defines the new product requirements for Phase 2. The core user flows and definitions from the Phase 1 PRD still apply unless explicitly modified here.
 
@@ -29,8 +29,9 @@ The focus shifts to:
 
 ### 2.1 Subscription Tiers (M4)
 
-- **Free Tier:** 1 Deep Dive per day, Morning Pulse delivered at 12:00 PM America/New_York, watchlist capped at 5 names, no export features.
-- **Pro Tier:** unlimited Deep Dives, Morning Pulse delivered before 6:30 AM America/New_York, watchlist capped at 20 names, PDF export, Share Cards, Investment Memos, and What-If Scenarios included.
+- **Free Tier:** 1 Deep Dive per day, watchlist capped at 5 names, no export features.
+- **Pro Tier:** unlimited Deep Dives, watchlist capped at 20 names, PDF export, Share Cards, Investment Memos, and What-If Scenarios included.
+- **Morning Pulse timing rule (v1):** delivery timing is fixed for all users (no tier-based timing split). Mobile prefetch targets 06:00 America/New_York wall-clock time with WorkManager flexibility; users see the freshest available Pulse with explicit timestamp.
 - **Requirement:** Paywall must clearly explain what is gated and offer a seamless Google Play upgrade path.
 - **Server truth rule:** entitlement state is enforced by `product-api`, not only by the mobile SDK. RevenueCat SDK may initiate purchase, but server-side tier state is the canonical gating source.
 
@@ -114,7 +115,7 @@ These extend the Phase 1 non-functional requirements (`PRD.md Â§10`). Phase 1 
 | Historical financial data staleness | At most ~24 hours (nightly delta sync at 01:00 ET) |
 | Fear & Greed index staleness | At most ~24 hours (nightly calculation after market close; 18:00 America/New_York DST-aware scheduler window) |
 | Earnings calendar freshness | At most ~24 hours (nightly sync) |
-| Morning Pulse freshness | Same as Phase 1 â€” generated daily at 06:30 ET |
+| Morning Pulse freshness | Fixed v1 schedule for all users (America/New_York DST-aware); mobile prefetch target 06:00 with a 05:30-06:30 execution window and explicit "last updated" timestamp |
 
 ### Data Completeness
 
@@ -134,6 +135,16 @@ These extend the Phase 1 non-functional requirements (`PRD.md Â§10`). Phase 1 
 | Phase 1 path preservation | Deep Dive and Market Pulse must continue to meet their Phase 1 SLA after every Phase 2 milestone |
 
 ---
+
+### M9 Hardening Lock
+
+| Area | Locked behavior |
+|---|---|
+| Certificate pinning | Pin intermediate CA for one approved production API host; keep current + backup pin; release fails closed; debug bypass is allowed for local diagnostics |
+| Morning prefetch | WorkManager daily 24h period + 1h flex, targeting 06:00 America/New_York (effective 05:30-06:30) |
+| Cache retention | Pulse latest only; Fear & Greed current + 90-day history; Deep Dive LRU(25) with note-attached reports pinned |
+| Biometric lock | Optional (default OFF); triggers only after >= 5 minutes in background; fallback supports device credential |
+| Analytics proof | M9 closeout requires 5 PostHog dashboards and 3 funnels populated from real smoke events |
 
 ## 5. Edge Cases
 

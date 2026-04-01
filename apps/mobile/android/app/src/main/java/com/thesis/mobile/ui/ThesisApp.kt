@@ -63,9 +63,17 @@ import com.thesis.mobile.model.UserProfileView
 import com.thesis.mobile.ui.screens.DeepDiveScreen
 import com.thesis.mobile.ui.screens.HistoryScreen
 import com.thesis.mobile.ui.screens.HomeScreen
+import com.thesis.mobile.ui.screens.SentimentDashboardScreen
 import com.thesis.mobile.ui.screens.WelcomeScreen
+import com.thesis.mobile.ui.screens.WeeklyDigestScreen
 import com.thesis.mobile.ui.theme.ThesisTheme
 import androidx.compose.material.icons.filled.History
+
+private enum class TodayMode {
+    HOME,
+    SENTIMENT_DASHBOARD,
+    WEEKLY_DIGEST
+}
 
 private enum class ResearchMode {
     DEEP_DIVE,
@@ -85,6 +93,8 @@ fun ThesisApp(
 ) {
     var uiState by remember { mutableStateOf(mainViewModel.state) }
     val snackbarHostState = remember { SnackbarHostState() }
+    var todayMode by rememberSaveable { mutableStateOf(TodayMode.HOME) }
+    var weeklyDigestDate by rememberSaveable { mutableStateOf<String?>(null) }
     var researchMode by rememberSaveable { mutableStateOf(ResearchMode.DEEP_DIVE) }
     var portfolioMode by rememberSaveable { mutableStateOf(PortfolioMode.MY_NAMES) }
 
@@ -100,7 +110,17 @@ fun ThesisApp(
         }
 
         when (target.tab) {
-            "pulse" -> mainViewModel.openPulseFromNotification(target.pulseDate)
+            "pulse" -> {
+                mainViewModel.openPulseFromNotification(target.pulseDate)
+                if (target.notificationType == "weekly_digest") {
+                    todayMode = TodayMode.WEEKLY_DIGEST
+                    weeklyDigestDate = target.digestDate
+                    mainViewModel.openWeeklyDigest(fromPush = true)
+                } else {
+                    todayMode = TodayMode.HOME
+                    weeklyDigestDate = null
+                }
+            }
             "deep_dive" -> {
                 val ticker = target.ticker?.trim().orEmpty()
                 if (ticker.isNotBlank()) {
@@ -156,6 +176,9 @@ fun ThesisApp(
                         NavigationBarItem(
                             selected = uiState.currentTab == tab.target,
                             onClick = {
+                                if (tab.target == AppTab.TODAY) {
+                                    todayMode = TodayMode.HOME
+                                }
                                 if (tab.target == AppTab.RESEARCH) {
                                     researchMode = ResearchMode.DEEP_DIVE
                                 }
@@ -187,30 +210,67 @@ fun ThesisApp(
                 }
             } else {
                 when (uiState.currentTab) {
-                    AppTab.TODAY -> HomeScreen(
-                        pulse = uiState.pulseReport,
-                        watchlist = uiState.watchlist,
-                        padding = padding,
-                        lastViewedReport = uiState.lastViewedReport,
-                        pulseError = uiState.pulseError,
-                        onOpenHistory = {
-                            researchMode = ResearchMode.HISTORY
-                            mainViewModel.setTab(AppTab.RESEARCH)
-                        },
-                        onRunDeepDive = { ticker ->
-                            mainViewModel.selectTicker(ticker)
-                            researchMode = ResearchMode.DEEP_DIVE
-                            mainViewModel.setTab(AppTab.RESEARCH)
-                            mainViewModel.runDeepDive()
-                        },
-                        onManageNames = {
-                            portfolioMode = PortfolioMode.MY_NAMES
-                            mainViewModel.setTab(AppTab.PORTFOLIO)
-                        },
-                        onRetryPulse = mainViewModel::refreshPulse,
-                        onResumeLastViewed = { mainViewModel.resumeLastViewed(it) },
-                        onDismissResume = { mainViewModel.dismissResumeCard() }
-                    )
+                    AppTab.TODAY -> when (todayMode) {
+                        TodayMode.HOME -> HomeScreen(
+                            pulse = uiState.pulseReport,
+                            sentimentCurrent = uiState.sentimentCurrent,
+                            sentimentHistory = uiState.sentimentHistory,
+                            sentimentError = uiState.sentimentError,
+                            watchlist = uiState.watchlist,
+                            padding = padding,
+                            lastViewedReport = uiState.lastViewedReport,
+                            pulseError = uiState.pulseError,
+                            onOpenHistory = {
+                                researchMode = ResearchMode.HISTORY
+                                mainViewModel.setTab(AppTab.RESEARCH)
+                            },
+                            onRunDeepDive = { ticker ->
+                                mainViewModel.selectTicker(ticker)
+                                researchMode = ResearchMode.DEEP_DIVE
+                                mainViewModel.setTab(AppTab.RESEARCH)
+                                mainViewModel.runDeepDive()
+                            },
+                            onManageNames = {
+                                portfolioMode = PortfolioMode.MY_NAMES
+                                mainViewModel.setTab(AppTab.PORTFOLIO)
+                            },
+                            onRetryPulse = mainViewModel::refreshPulse,
+                            onOpenSentimentDashboard = {
+                                todayMode = TodayMode.SENTIMENT_DASHBOARD
+                                mainViewModel.openSentimentDashboard()
+                            },
+                            onOpenWeeklyDigest = {
+                                todayMode = TodayMode.WEEKLY_DIGEST
+                                weeklyDigestDate = uiState.sentimentCurrent?.marketDate
+                                mainViewModel.openWeeklyDigest(fromPush = false)
+                            },
+                            onResumeLastViewed = { mainViewModel.resumeLastViewed(it) },
+                            onDismissResume = { mainViewModel.dismissResumeCard() }
+                        )
+
+                        TodayMode.SENTIMENT_DASHBOARD -> SentimentDashboardScreen(
+                            current = uiState.sentimentCurrent,
+                            history = uiState.sentimentHistory,
+                            selectedRangeDays = uiState.sentimentRangeDays,
+                            sentimentError = uiState.sentimentError,
+                            onSelectRange = { rangeDays ->
+                                mainViewModel.openSentimentDashboard(rangeDays)
+                            },
+                            onBack = { todayMode = TodayMode.HOME }
+                        )
+
+                        TodayMode.WEEKLY_DIGEST -> WeeklyDigestScreen(
+                            digestDate = weeklyDigestDate,
+                            sentimentCurrent = uiState.sentimentCurrent,
+                            watchlist = uiState.watchlist,
+                            pulse = uiState.pulseReport,
+                            onOpenDashboard = {
+                                todayMode = TodayMode.SENTIMENT_DASHBOARD
+                                mainViewModel.openSentimentDashboard()
+                            },
+                            onBack = { todayMode = TodayMode.HOME }
+                        )
+                    }
                     AppTab.RESEARCH -> ResearchTab(
                         mode = researchMode,
                         onSetMode = { researchMode = it },

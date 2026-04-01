@@ -12,6 +12,8 @@ import com.thesis.mobile.model.ReportHistoryItem
 import com.thesis.mobile.model.ScenarioOverridesView
 import com.thesis.mobile.model.ScenarioResultView
 import com.thesis.mobile.model.SectionView
+import com.thesis.mobile.model.SentimentSnapshotView
+import com.thesis.mobile.model.SentimentSubScoreView
 import com.thesis.mobile.model.TickerSearchItem
 import com.thesis.mobile.model.UserProfileView
 import com.thesis.mobile.model.ReportViewMapper
@@ -233,6 +235,52 @@ class ProductApiClient {
             )
         }
 
+    suspend fun getCurrentSentiment(
+        baseUrl: String,
+        accessToken: String
+    ): SentimentSnapshotView? = withContext(Dispatchers.IO) {
+        runCatching {
+            val json = requestJson(
+                baseUrl,
+                "GET",
+                "/v1/sentiment/current",
+                accessToken = accessToken
+            )
+            mapSentimentSnapshot(json.optJSONObject("data"))
+        }.getOrElse { error ->
+            if (error is ProductApiException && error.code == 404 && error.errorCode == "sentiment_not_found") {
+                null
+            } else {
+                throw error
+            }
+        }
+    }
+
+    suspend fun getSentimentHistory(
+        baseUrl: String,
+        accessToken: String,
+        days: Int
+    ): List<SentimentSnapshotView> = withContext(Dispatchers.IO) {
+        runCatching {
+            val json = requestJson(
+                baseUrl,
+                "GET",
+                "/v1/sentiment/history?days=$days",
+                accessToken = accessToken
+            )
+            val rows = json.optJSONArray("data") ?: JSONArray()
+            (0 until rows.length()).mapNotNull { index ->
+                mapSentimentSnapshot(rows.optJSONObject(index))
+            }
+        }.getOrElse { error ->
+            if (error is ProductApiException && error.code == 404 && error.errorCode == "sentiment_not_found") {
+                emptyList()
+            } else {
+                throw error
+            }
+        }
+    }
+
     suspend fun listReports(baseUrl: String, accessToken: String): List<ReportHistoryItem> =
         withContext(Dispatchers.IO) {
             val rows = requestJsonArray(baseUrl, "GET", "/reports", accessToken = accessToken)
@@ -316,6 +364,7 @@ class ProductApiClient {
         val sections = preferredOrder.mapNotNull { key ->
             sectionsObj.optJSONObject(key)?.let { row ->
                 SectionView(
+                    sectionId = row.optNullableString("section_id") ?: key,
                     title = row.optString("title", key),
                     body = row.optString("body", ""),
                     status = row.optNullableString("status"),
@@ -428,6 +477,59 @@ class ProductApiClient {
         }
     }
 
+    private fun mapSentimentSnapshot(row: JSONObject?): SentimentSnapshotView? {
+        if (row == null) {
+            return null
+        }
+
+        val id = row.optString("id").ifBlank { return null }
+        val marketDate = row.optString("market_date").ifBlank { return null }
+        val score = row.optNullableDouble("score") ?: return null
+        val label = row.optString("label").ifBlank { return null }
+        val calculatedAt = row.optString("calculated_at").ifBlank { return null }
+
+        val subScoresJson = row.optJSONArray("sub_scores") ?: JSONArray()
+        val subScores = (0 until subScoresJson.length()).mapNotNull { index ->
+            mapSentimentSubScore(subScoresJson.optJSONObject(index))
+        }
+        val missingInputsJson = row.optJSONArray("missing_inputs") ?: JSONArray()
+        val missingInputs = (0 until missingInputsJson.length()).mapNotNull { index ->
+            missingInputsJson.optString(index).takeIf { it.isNotBlank() }
+        }
+
+        return SentimentSnapshotView(
+            id = id,
+            marketDate = marketDate,
+            score = score,
+            label = label,
+            subScores = subScores,
+            missingInputs = missingInputs,
+            calculatedAt = calculatedAt
+        )
+    }
+
+    private fun mapSentimentSubScore(row: JSONObject?): SentimentSubScoreView? {
+        if (row == null) {
+            return null
+        }
+
+        val inputName = row.optString("input_name").ifBlank { return null }
+        val provider = row.optString("provider").ifBlank { return null }
+        val available = row.optBoolean("available", false)
+        val weight = row.optNullableDouble("weight") ?: return null
+
+        return SentimentSubScoreView(
+            inputName = inputName,
+            provider = provider,
+            available = available,
+            weight = weight,
+            normalizedScore = row.optNullableDouble("normalized_score"),
+            rawValue = row.optNullableDouble("raw_value"),
+            retrievedAt = row.optNullableString("retrieved_at"),
+            notes = row.optNullableString("notes")
+        )
+    }
+
     @Throws(IOException::class, ProductApiException::class)
     private fun requestJson(
         baseUrl: String,
@@ -519,6 +621,14 @@ class ProductApiClient {
     private fun JSONObject.optNullableString(key: String): String? {
         val value = optString(key, "")
         return if (value.isBlank()) null else value
+    }
+
+    private fun JSONObject.optNullableDouble(key: String): Double? {
+        if (!has(key) || isNull(key)) {
+            return null
+        }
+        val value = optDouble(key, Double.NaN)
+        return if (value.isNaN()) null else value
     }
 }
 

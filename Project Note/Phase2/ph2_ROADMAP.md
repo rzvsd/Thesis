@@ -2,7 +2,7 @@
 
 **Version:** 1.2  
 **Status:** Active  
-**Last Revised:** 2026-03  
+**Last Revised:** 2026-04  
 **Related Documents:** ph2_BLUEBOOK.md, ph2_MILESTONES.md, ph2_PRD.md, new_PRODUCT_ROADMAP.md, UX_ARCHITECTURE.md
 
 > This document is the map for Phase 2. It shows what we build and in what order.  
@@ -54,8 +54,8 @@ No milestone begins until the previous one is closed. Closed means the `ph2_MILE
 | M5 | Calendar & Smart Notifications | Earnings calendar, personalized FCM, contrarian alerts, weekly intelligence digest | Roadmap B3 + B4 + B5 + Idea 1 |
 | M6 | 3-Tab Navigation Redesign | Today / Research / Portfolio architecture with explicit migration from the current 5-tab app | UX Architecture |
 | M7 | Report UI & Interactive Features | Richer Deep Dive UX backed by contract/model expansion, not mock-only UI | Roadmap A5 + C3 |
-| M8 | Fear & Greed UI & Weekly Digest | Fear & Greed dashboard with charts + weekly intelligence digest email | Idea 1 + Idea 2 (UI) |
-| M9 | Offline, Security & Launch Prep | Room caching, cert pinning, ProGuard, PostHog dashboards | Roadmap A6 + A8 + C8 |
+| M8 | Fear & Greed UI & Weekly Digest | Fear & Greed dashboard with charts + weekly in-app digest with push entry path | Idea 1 + Idea 2 (UI) |
+| M9 | Offline, Security & Launch Prep | Room caching, 06:00 ET prefetch window, cert pinning, biometric lock, ProGuard, PostHog dashboards/funnels | Roadmap A6 + A8 + C8 |
 
 ---
 

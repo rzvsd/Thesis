@@ -9,8 +9,10 @@ The core value proposition of the Android app is delivering the "Morning Pulse" 
 ## Decision
 We will implement local-first caching on the Android client (Phase 2 M9).
 - **Storage:** Android Room (SQLite) will serve as the local cache.
-- **Prefetch:** Android `WorkManager` will be configured to fire a background network request between 5 AM and 6:30 AM ET every morning to silently download the day's Morning Pulse.
-- **UX Fallback:** When the app is opened, it immediately displays the `Room` cache. A background sync will attempt to fetch updates; if it fails, the UI will display an "Offline - showing last synced data" indicator.
+- **Retention policy:** Keep exactly one Pulse (latest), keep Fear & Greed current snapshot plus 90-day history, and keep Deep Dive reports in LRU(25). Reports with user notes are pinned and are not evicted by LRU.
+- **Prefetch:** Android `WorkManager` runs daily with a 24-hour period and 1-hour flex window, targeting **06:00 America/New_York** (effective execution window 05:30-06:30 ET, DST-aware).
+- **UX Fallback:** On app open, immediately render cached content and attempt background sync. If sync fails, keep previous cache and show explicit freshness text ("Offline - showing last synced data").
+- **Settings rule:** No manual "clear cache" user control is required in M9.
 
 ## Consequences
 **Positive:**
@@ -20,4 +22,4 @@ We will implement local-first caching on the Android client (Phase 2 M9).
 
 **Negative:**
 - Adds complexity to the Android codebase (requires managing single-source-of-truth states between API, Room, and Compose UI).
-- Background execution in Android is heavily restricted by OEM battery optimizers (Samsung, Xiaomi, etc.); the WorkManager prefetch is not guaranteed to fire perfectly at 5 AM on aggressively optimized devices.
+- Background execution in Android is heavily restricted by OEM battery optimizers (Samsung, Xiaomi, etc.); WorkManager prefetch is inexact by design and may execute later in the defined window.

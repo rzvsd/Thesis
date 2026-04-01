@@ -48,7 +48,7 @@ The highest-risk milestones are:
 | M5 | Calendar & Smart Notifications | Backend / Services |
 | M6 | 3-Tab Navigation Redesign | Mobile / UX |
 | M7 | Report UI & Interactive Features | Mobile / UX |
-| M8 | Fear & Greed UI & Weekly Digest | Mobile / UX + Email |
+| M8 | Fear & Greed UI & Weekly Digest | Mobile / UX + Push |
 | M9 | Offline, Security & Launch Prep | Infrastructure / Hardening |
 
 ---

@@ -19,6 +19,7 @@ const testEmail = process.env.MAESTRO_TEST_EMAIL || autoEmail();
 const registerEmail = process.env.MAESTRO_REGISTER_EMAIL || autoEmail();
 const adbCommand = resolveAdbCommand();
 const javaHome = resolveJavaHome();
+const requireDeepDiveSeed = process.env.MAESTRO_REQUIRE_DEEP_DIVE_SEED === "true";
 
 const state = {
   apiBaseUrl,
@@ -30,6 +31,7 @@ const state = {
   testPassword,
   deviceSerial: process.env.MAESTRO_DEVICE_SERIAL || "",
   seededReportId: "",
+  deepDiveAvailable: false,
   pulseDate: todayUtcDate()
 };
 
@@ -62,7 +64,18 @@ async function main() {
   const accessToken = requiredString(loginResult.access_token, "access_token missing from /auth/login.");
 
   log(`Seeding Deep Dive report for ${state.deepDiveTicker}.`);
-  state.seededReportId = await seedDeepDiveReport(state.apiBaseUrl, accessToken, state.deepDiveTicker);
+  try {
+    state.seededReportId = await seedDeepDiveReport(state.apiBaseUrl, accessToken, state.deepDiveTicker);
+    state.deepDiveAvailable = true;
+  } catch (error) {
+    if (requireDeepDiveSeed) {
+      throw error;
+    }
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn(`[maestro:prepare] WARN: Deep Dive seed skipped (${message})`);
+    state.seededReportId = "";
+    state.deepDiveAvailable = false;
+  }
 
   log("Triggering market pulse dispatch attempt.");
   await triggerPulseDispatch(state.apiBaseUrl, state.internalToken, state.pulseDate, accessToken);
@@ -294,7 +307,8 @@ async function writeEnvFile(filePath, values) {
     `MAESTRO_TEST_PASSWORD=${values.testPassword}`,
     `MAESTRO_DEEP_DIVE_TICKER=${values.deepDiveTicker}`,
     `MAESTRO_PULSE_DATE=${values.pulseDate}`,
-    `MAESTRO_SEEDED_REPORT_ID=${values.seededReportId}`
+    `MAESTRO_SEEDED_REPORT_ID=${values.seededReportId}`,
+    `MAESTRO_DEEP_DIVE_AVAILABLE=${values.deepDiveAvailable ? "true" : "false"}`
   ];
   await writeFile(filePath, `${lines.join("\n")}\n`, "utf8");
 }

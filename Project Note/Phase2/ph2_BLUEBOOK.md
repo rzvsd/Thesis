@@ -2,7 +2,7 @@
 
 **Version:** 1.2  
 **Status:** Living Document  
-**Last Revised:** 2026-03  
+**Last Revised:** 2026-04  
 **Owner:** Platform Architect
 
 > **Note:** This document extends - it does not replace - the original `BLUEBOOK cld.md` from Phase 1. Base architecture, ownership, and core service boundaries remain unchanged.
@@ -215,6 +215,15 @@ Phase 2 only makes sense if it preserves the current working app while extending
   - a versioned contract expansion, or
   - an explicit adapter layer from the current contract to a richer mobile view model
 - Notes, scenarios, export, and sentiment vote each need named storage and endpoint ownership before the screen is considered implementation-ready
+
+### M9 guardrail - launch hardening decisions
+
+- Certificate pinning is fixed to one approved production API host and pins the intermediate CA (current + backup).
+- Release builds fail closed on pin mismatch; debug builds allow bypass for local diagnostics.
+- Offline retention is fixed: latest Pulse, Fear & Greed current + 90-day history, Deep Dive LRU(25) with note-pinned exceptions.
+- Morning prefetch is fixed to a 06:00 America/New_York target with WorkManager 24h period + 1h flex (05:30-06:30).
+- Biometric lock is optional, default OFF, triggers only after >= 5 minutes background, and must support device credential fallback.
+- M9 closeout requires PostHog evidence for 5 dashboards and 3 funnels from real smoke data.
 
 ### Regression obligation
 

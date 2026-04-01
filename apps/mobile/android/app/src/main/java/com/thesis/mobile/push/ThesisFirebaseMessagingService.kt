@@ -51,6 +51,7 @@ class ThesisFirebaseMessagingService : FirebaseMessagingService() {
             putExtra("notification_type", notificationType)
             putExtra("ticker", message.data["ticker"])
             putExtra("pulse_date", message.data["report_date"])
+            putExtra("digest_date", message.data["digest_date"])
         }
         val pendingIntent = PendingIntent.getActivity(
             this,

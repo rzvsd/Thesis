@@ -2,7 +2,7 @@
 
 **Version:** 1.2  
 **Status:** Active  
-**Last Revised:** 2026-03  
+**Last Revised:** 2026-04  
 **Related Documents:** ph2_ROADMAP.md, ph2_BLUEBOOK.md, ph2_PRD.md
 
 ---
@@ -33,8 +33,8 @@ Each milestone defines what is being built, what must be true for it to close, a
 | M5 | Calendar & Smart Notifications | Earnings calendar, personalized push, weekly digest, contrarian alerts |
 | M6 | 3-Tab Navigation Redesign | Today / Research / Portfolio architecture with explicit migration from the current app |
 | M7 | Report UI & Interactive Features | New report layout with scenarios, export, notes, and richer report interactions |
-| M8 | Fear & Greed UI & Weekly Digest | Visual Fear & Greed dashboard and weekly intelligence digest email |
-| M9 | Offline, Security & Launch Prep | Caching, hardening, analytics dashboards |
+| M8 | Fear & Greed UI & Weekly Digest | Visual Fear & Greed dashboard and weekly in-app digest with push entry path |
+| M9 | Offline, Security & Launch Prep | Caching, hardening, analytics dashboards/funnels |
 
 ---
 
@@ -973,22 +973,22 @@ Build the visual dashboard for the Fear & Greed index and finalize the weekly in
 
 | Deliverable | Description |
 |---|---|
-| Fear & Greed dashboard screen | Gauge visualization, sub-score breakdown, historical chart |
+| Fear & Greed dashboard screen | Gauge visualization (Compose Canvas), sub-score breakdown, historical chart |
 | Sentiment labels | Extreme Fear / Fear / Neutral / Greed / Extreme Greed |
-| Historical trend chart | Interactive line chart with multiple range views |
+| Historical trend chart | Interactive line chart with multiple range views (Vico in Compose) |
 | Input breakdown | Visible sub-score breakdown |
-| Weekly digest template | Branded digest with major signals and catalysts |
+| Weekly digest template | Branded in-app digest content with FCM push entry path (no email dependency in M8) |
 | Today-tab Fear & Greed card | Summary card showing current score and direction |
 
 ## Acceptance Criteria
 
-- [ ] Fear & Greed dashboard is accessible from the app
-- [ ] Gauge displays correct score with correct label
-- [ ] Historical chart renders the expected data range
-- [ ] All sub-inputs are visible with scores
-- [ ] Weekly digest renders correctly in the supported clients
-- [ ] Fear & Greed is accessible to all users
-- [ ] Today shows the Fear & Greed summary card
+- [x] Fear & Greed dashboard is accessible from the app
+- [x] Gauge displays correct score with correct label
+- [x] Historical chart renders the expected data range
+- [x] All sub-inputs are visible with scores
+- [x] Weekly digest renders correctly in the in-app digest surface and opens correctly from push deep-link
+- [x] Fear & Greed is accessible to all users
+- [x] Today shows the Fear & Greed summary card
 
 ## Dependencies
 
@@ -1001,31 +1001,33 @@ Build the visual dashboard for the Fear & Greed index and finalize the weekly in
 
 ## Goal
 
-Harden the app for public release with offline caching, security measures, and analytics readiness.
+Harden the app for public release with deterministic offline behavior, certificate-pinned transport, biometric safeguards, and launch-grade analytics proof.
 
 ## Deliverables
 
 | Deliverable | Description |
 |---|---|
-| Room database | Local cache for viewed reports and latest Pulse |
-| WorkManager prefetch | Scheduled Morning Pulse prefetch for offline reading |
+| Room database | Local cache policy: latest Pulse only, Fear & Greed current + 90-day history, Deep Dive LRU(25) with note-pinned reports exempt from eviction |
+| WorkManager prefetch | Daily prefetch targeted at 06:00 America/New_York wall-clock time using a 24h interval and 1h flex window (05:30-06:30 ET) |
 | Offline indicator | Visible offline freshness state |
-| Certificate pinning | HTTPS pinning for `product-api` |
+| Certificate pinning | Pin intermediate CA (current + backup) for production `product-api` host; release fail-closed, debug pinning disabled |
 | ProGuard/R8 config | Code shrinking and obfuscation |
-| Biometric lock | Optional fingerprint/face lock |
-| PostHog dashboards | Core product and funnel dashboards |
+| Biometric lock | Optional lock enabled by user; triggers on foreground return after >= 5 minutes; uses `BIOMETRIC_STRONG or DEVICE_CREDENTIAL` fallback |
+| PostHog dashboards | 5 launch dashboards (Acquisition, Engagement, Retention, Monetization, Health) plus 3 required funnels |
 
 ## Acceptance Criteria
 
-- [ ] Previously viewed reports are available in airplane mode
-- [ ] Morning Pulse is prefetched and available offline on schedule
-- [ ] Offline badge displays correct freshness
-- [ ] MITM proxy attack fails due to certificate pinning
+- [ ] Previously viewed reports are available in airplane mode with LRU retention behavior matching policy
+- [ ] Morning Pulse prefetch runs in the 05:30-06:30 America/New_York window and loads latest available data
+- [ ] Offline badge displays accurate freshness timestamp ("last updated")
+- [ ] MITM proxy attack fails due to certificate pinning in release build
 - [ ] Release build is obfuscated
-- [ ] Biometric lock can be enabled and disabled
-- [ ] PostHog dashboards show the required product signals
-- [ ] Full end-to-end physical-device test passes
+- [ ] Biometric lock can be enabled and disabled; returns from background under 5 minutes do not force unlock
+- [ ] Biometric prompt supports device credential fallback when biometric is unavailable/fails
+- [ ] PostHog dashboards and funnels are populated with real staging smoke data
+- [ ] Full end-to-end physical-device test passes and evidence is attached to closeout
 
 ## Dependencies
 
 - All prior Phase 2 milestones are closed
+- M9 hardening decisions are locked (pinning, prefetch window, cache policy, biometric behavior, PostHog dashboard/funnel proof)
