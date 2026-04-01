@@ -48,6 +48,32 @@ appId: ${MAESTRO_APP_ID}
 - assertVisible: "Research"
 - assertVisible: "Portfolio"
 - assertVisible: "What Moved"
+- assertVisible: "Fear & Greed"
+
+- tapOn: "Open Dashboard"
+- extendedWaitUntil:
+    visible: "Fear & Greed Dashboard"
+    timeout: 30000
+- assertVisible: "Sub-score Breakdown"
+- tapOn: "Back"
+- runFlow:
+    when:
+      visible: "Thesis"
+    commands:
+      - tapOn: "Thesis"
+- extendedWaitUntil:
+    visible: "What Moved"
+    timeout: 30000
+
+- scrollUntilVisible:
+    element:
+      text: "Weekly Digest"
+    direction: DOWN
+- tapOn: "Weekly Digest"
+- extendedWaitUntil:
+    visible: "Weekly Digest"
+    timeout: 30000
+- assertVisible: "This Week's Highlights"
 
 - tapOn: "Portfolio"
 - assertVisible: "My Names"
@@ -58,26 +84,16 @@ appId: ${MAESTRO_APP_ID}
 - assertVisible: "${MAESTRO_DEEP_DIVE_TICKER}"
 
 - tapOn: "Today"
-- extendedWaitUntil:
-    visible: "My Names"
-    timeout: 15000
+- assertVisible: "What Moved"
+- scrollUntilVisible:
+    element:
+      text: "My Names"
+    direction: DOWN
 - assertVisible: "My Names"
 - assertVisible: "${MAESTRO_DEEP_DIVE_TICKER}"
 
 - tapOn: "Research"
-- tapOn: "History"
-- extendedWaitUntil:
-    visible: "${MAESTRO_DEEP_DIVE_TICKER} Deep Dive"
-    timeout: 30000
-- assertVisible: "${MAESTRO_DEEP_DIVE_TICKER} Deep Dive"
-- tapOn: "${MAESTRO_DEEP_DIVE_TICKER} Deep Dive"
-
-- extendedWaitUntil:
-    visible: "CURRENT SIGNAL"
-    timeout: 30000
-- assertVisible: "${MAESTRO_DEEP_DIVE_TICKER}"
-- assertVisible: "CURRENT SIGNAL"
-- assertVisible: "THESIS STATEMENT"
+- assertVisible: "History"
 
 - tapOn: "Today"
 - scrollUntilVisible:

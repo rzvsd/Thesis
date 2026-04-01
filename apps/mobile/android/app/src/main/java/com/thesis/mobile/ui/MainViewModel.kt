@@ -18,6 +18,7 @@ import com.thesis.mobile.model.ReportNoteView
 import com.thesis.mobile.model.ReportHistoryItem
 import com.thesis.mobile.model.ScenarioOverridesView
 import com.thesis.mobile.model.ScenarioResultView
+import com.thesis.mobile.model.SentimentSnapshotView
 import com.thesis.mobile.model.SubscriptionOfferView
 import com.thesis.mobile.model.TickerSearchItem
 import com.thesis.mobile.model.UserProfileView
@@ -61,6 +62,10 @@ data class UiState(
     val isRunningScenario: Boolean = false,
     val pulseReport: PulseReportView? = null,
     val pulseError: String? = null,
+    val sentimentCurrent: SentimentSnapshotView? = null,
+    val sentimentHistory: List<SentimentSnapshotView> = emptyList(),
+    val sentimentRangeDays: Int = 30,
+    val sentimentError: String? = null,
     val reportHistory: List<ReportHistoryItem> = emptyList(),
     val watchlist: List<String> = emptyList(),
     val lastViewedReport: LastViewedReport? = null,
@@ -94,6 +99,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             refreshNotificationPreferences()
             refreshSubscriptionOffers()
             refreshPulse()
+            refreshSentiment()
             refreshReportHistory()
             viewModelScope.launch {
                 syncPushToken()
@@ -131,7 +137,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun setTab(tab: AppTab) {
         publish(state.copy(currentTab = tab))
         when (tab) {
-            AppTab.TODAY -> refreshPulse()
+            AppTab.TODAY -> {
+                refreshPulse()
+                refreshSentiment()
+            }
             AppTab.RESEARCH -> refreshReportHistory()
             AppTab.PORTFOLIO -> {
                 refreshWatchlist()
@@ -253,6 +262,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 refreshNotificationPreferences()
                 refreshSubscriptionOffers()
                 refreshPulse()
+                refreshSentiment()
                 refreshReportHistory()
                 syncPushToken()
                 trackEvent(
@@ -298,6 +308,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     isRunningScenario = false,
                     pulseReport = null,
                     pulseError = null,
+                    sentimentCurrent = null,
+                    sentimentHistory = emptyList(),
+                    sentimentRangeDays = 30,
+                    sentimentError = null,
                     deepDiveError = null,
                     watchlist = emptyList(),
                     reportHistory = emptyList(),
@@ -712,6 +726,57 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun refreshSentiment(days: Int = state.sentimentRangeDays) {
+        val normalizedDays = normalizeSentimentRange(days)
+        viewModelScope.launch {
+            val error = runAuthorizedWithRefresh {
+                val current = client.getCurrentSentiment(
+                    state.apiBaseUrl,
+                    requireTokens().accessToken
+                )
+                val history = client.getSentimentHistory(
+                    state.apiBaseUrl,
+                    requireTokens().accessToken,
+                    normalizedDays
+                ).sortedByDescending { it.marketDate }
+                publish(
+                    state.copy(
+                        sentimentCurrent = current,
+                        sentimentHistory = history,
+                        sentimentRangeDays = normalizedDays,
+                        sentimentError = null
+                    )
+                )
+            }
+            if (error != null) {
+                publish(
+                    state.copy(
+                        sentimentCurrent = null,
+                        sentimentHistory = emptyList(),
+                        sentimentRangeDays = normalizedDays,
+                        sentimentError = toMessage(error)
+                    )
+                )
+            }
+        }
+    }
+
+    fun openSentimentDashboard(rangeDays: Int = state.sentimentRangeDays) {
+        val normalizedDays = normalizeSentimentRange(rangeDays)
+        refreshSentiment(normalizedDays)
+        trackEvent(
+            "sentiment_dashboard_opened",
+            mapOf("range_days" to normalizedDays)
+        )
+    }
+
+    fun openWeeklyDigest(fromPush: Boolean) {
+        trackEvent(
+            "weekly_digest_opened",
+            mapOf("from_push" to fromPush)
+        )
+    }
+
     fun refreshWatchlist() {
         withAuthorizedCall {
             val items = client.getWatchlist(state.apiBaseUrl, requireTokens().accessToken)
@@ -989,6 +1054,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             byType[type] ?: NotificationPreferenceView(type = type, enabled = true)
         }
     }
+
+    private fun normalizeSentimentRange(days: Int): Int =
+        when (days) {
+            7, 30, 90 -> days
+            in Int.MIN_VALUE..7 -> 7
+            in 8..30 -> 30
+            else -> 90
+        }
 
     companion object {
         private val notificationPreferenceTypes = listOf(

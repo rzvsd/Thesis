@@ -44,6 +44,7 @@ import androidx.compose.ui.unit.sp
 import com.thesis.mobile.model.LastViewedReport
 import com.thesis.mobile.model.PulseReportView
 import com.thesis.mobile.model.SectionView
+import com.thesis.mobile.model.SentimentSnapshotView
 import com.thesis.mobile.ui.components.NoNamesEmptyState
 import com.thesis.mobile.ui.components.NoPulseEmptyState
 import com.thesis.mobile.ui.components.OfflineEmptyState
@@ -61,6 +62,9 @@ import java.time.format.DateTimeFormatter
 @Composable
 fun HomeScreen(
     pulse: PulseReportView?,
+    sentimentCurrent: SentimentSnapshotView?,
+    sentimentHistory: List<SentimentSnapshotView>,
+    sentimentError: String?,
     watchlist: List<String>,
     padding: PaddingValues,
     lastViewedReport: LastViewedReport? = null,
@@ -69,6 +73,8 @@ fun HomeScreen(
     onRunDeepDive: (String) -> Unit,
     onManageNames: () -> Unit,
     onRetryPulse: () -> Unit,
+    onOpenSentimentDashboard: () -> Unit,
+    onOpenWeeklyDigest: () -> Unit,
     onResumeLastViewed: ((LastViewedReport) -> Unit)? = null,
     onDismissResume: (() -> Unit)? = null
 ) {
@@ -99,6 +105,16 @@ fun HomeScreen(
                 phaseTitle = phase.title,
                 pulseLead = pulseLead,
                 pulseTimestamp = pulseTimestamp
+            )
+        }
+
+        item {
+            SentimentSummaryCard(
+                current = sentimentCurrent,
+                history = sentimentHistory,
+                sentimentError = sentimentError,
+                onOpenDashboard = onOpenSentimentDashboard,
+                onOpenWeeklyDigest = onOpenWeeklyDigest
             )
         }
 
@@ -220,6 +236,105 @@ private fun GreetingSection(
                 color = ThesisColors.TextTertiaryDark,
                 modifier = Modifier.padding(top = ThesisDimens.SpacingSm)
             )
+        }
+    }
+}
+
+@Composable
+private fun SentimentSummaryCard(
+    current: SentimentSnapshotView?,
+    history: List<SentimentSnapshotView>,
+    sentimentError: String?,
+    onOpenDashboard: () -> Unit,
+    onOpenWeeklyDigest: () -> Unit
+) {
+    val sentimentLabel = formatSentimentLabel(current?.label)
+    val direction = deriveSentimentDirection(current, history)
+    val scoreText = current?.score?.let { it.toInt().toString() } ?: "--"
+    val marketDate = current?.marketDate
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
+        colors = CardDefaults.cardColors(containerColor = ThesisColors.DarkSurfaceHigh),
+        border = androidx.compose.foundation.BorderStroke(1.dp, ThesisColors.DarkBorder)
+    ) {
+        Column(
+            modifier = Modifier.padding(ThesisDimens.CardPadding),
+            verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingMd)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Fear & Greed",
+                        style = ThesisTypography.headlineMedium.copy(fontWeight = FontWeight.Bold),
+                        color = ThesisColors.TextPrimaryDark
+                    )
+                    Text(
+                        text = when {
+                            !sentimentError.isNullOrBlank() -> "Temporarily unavailable"
+                            marketDate.isNullOrBlank() -> "No sentiment snapshot yet"
+                            else -> "Market date $marketDate"
+                        },
+                        style = ThesisTypography.bodySmall,
+                        color = ThesisColors.TextTertiaryDark
+                    )
+                }
+                Column(horizontalAlignment = Alignment.End) {
+                    Text(
+                        text = scoreText,
+                        style = ThesisTypography.displayMedium,
+                        color = ThesisColors.TextPrimaryDark
+                    )
+                    Text(
+                        text = sentimentLabel,
+                        style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                        color = sentimentColor(current?.label)
+                    )
+                }
+            }
+
+            if (!direction.isNullOrBlank()) {
+                Text(
+                    text = direction,
+                    style = ThesisTypography.bodySmall,
+                    color = ThesisColors.TextSecondaryDark
+                )
+            }
+
+            if (!sentimentError.isNullOrBlank()) {
+                Text(
+                    text = sentimentError,
+                    style = ThesisTypography.bodySmall,
+                    color = ThesisColors.SignalWarning
+                )
+            }
+
+            Row(horizontalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)) {
+                Button(
+                    onClick = onOpenDashboard,
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = ThesisColors.AccentBlue,
+                        contentColor = Color.White
+                    )
+                ) {
+                    Text("Open Dashboard")
+                }
+                Button(
+                    onClick = onOpenWeeklyDigest,
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = ThesisColors.DarkSurface,
+                        contentColor = ThesisColors.TextPrimaryDark
+                    )
+                ) {
+                    Text("Weekly Digest")
+                }
+            }
         }
     }
 }
@@ -726,6 +841,47 @@ private fun buildTodayPlan(phase: TodayPhase, sections: List<SectionView>): Toda
 private fun containsAny(section: SectionView, vararg tokens: String): Boolean {
     val haystack = "${section.title} ${section.body}".lowercase()
     return tokens.any { token -> haystack.contains(token.lowercase()) }
+}
+
+private fun formatSentimentLabel(label: String?): String =
+    when (label?.lowercase()) {
+        "extreme_fear" -> "Extreme Fear"
+        "fear" -> "Fear"
+        "neutral" -> "Neutral"
+        "greed" -> "Greed"
+        "extreme_greed" -> "Extreme Greed"
+        else -> "Unavailable"
+    }
+
+private fun sentimentColor(label: String?): Color =
+    when (label?.lowercase()) {
+        "extreme_fear", "fear" -> ThesisColors.SignalNegative
+        "greed", "extreme_greed" -> ThesisColors.SignalPositive
+        "neutral" -> ThesisColors.SignalNeutral
+        else -> ThesisColors.TextTertiaryDark
+    }
+
+private fun deriveSentimentDirection(
+    current: SentimentSnapshotView?,
+    history: List<SentimentSnapshotView>
+): String? {
+    if (current == null || history.size < 2) {
+        return null
+    }
+    val sorted = history.sortedByDescending { it.marketDate }
+    val baseline = sorted.firstOrNull { it.marketDate != current.marketDate } ?: sorted.getOrNull(1) ?: return null
+    val delta = current.score - baseline.score
+    val direction = when {
+        delta > 0.5 -> "up"
+        delta < -0.5 -> "down"
+        else -> "flat"
+    }
+    val deltaText = kotlin.math.abs(delta).toInt()
+    return when (direction) {
+        "up" -> "Sentiment up $deltaText point(s) versus the previous reading."
+        "down" -> "Sentiment down $deltaText point(s) versus the previous reading."
+        else -> "Sentiment is flat versus the previous reading."
+    }
 }
 
 private fun deriveInsight(

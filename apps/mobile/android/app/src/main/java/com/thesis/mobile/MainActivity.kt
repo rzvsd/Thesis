@@ -17,6 +17,8 @@ import com.thesis.mobile.ui.ThesisApp
 data class LaunchTarget(
     val tab: String,
     val pulseDate: String? = null,
+    val digestDate: String? = null,
+    val notificationType: String? = null,
     val ticker: String? = null,
     val requestId: Long = System.nanoTime()
 )
@@ -70,12 +72,15 @@ class MainActivity : ComponentActivity() {
         launchTarget = when {
             shouldOpenPulse -> LaunchTarget(
                 tab = "pulse",
-                pulseDate = extractPulseDate(intent)
+                pulseDate = extractPulseDate(intent),
+                digestDate = extractDigestDate(intent),
+                notificationType = normalizedType
             )
 
             shouldOpenDeepDive -> LaunchTarget(
                 tab = "deep_dive",
-                ticker = extractDeepDiveTicker(intent)
+                ticker = extractDeepDiveTicker(intent),
+                notificationType = normalizedType
             )
 
             else -> null
@@ -102,6 +107,17 @@ class MainActivity : ComponentActivity() {
             return ticker.uppercase()
         }
         return intent.data?.getQueryParameter("ticker")?.trim()?.uppercase()?.ifBlank { null }
+    }
+
+    private fun extractDigestDate(intent: Intent?): String? {
+        if (intent == null) {
+            return null
+        }
+        val digestDate = intent.getStringExtra("digest_date")?.trim()
+        if (!digestDate.isNullOrBlank()) {
+            return digestDate
+        }
+        return intent.data?.getQueryParameter("digest_date")?.trim()?.ifBlank { null }
     }
 
     private fun requestNotificationPermissionIfNeeded() {
