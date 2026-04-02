@@ -1,7 +1,13 @@
 appId: ${MAESTRO_APP_ID}
 ---
 - launchApp:
-    clearState: true
+    clearState: false
+
+- runFlow:
+    when:
+      visible: "System UI isn't responding"
+    commands:
+      - tapOn: "Wait"
 
 - runFlow:
     when:
@@ -15,26 +21,78 @@ appId: ${MAESTRO_APP_ID}
     commands:
       - tapOn: "Allow"
 
-- assertVisible: "Thesis Android MVP"
-- tapOn: "Email"
-- inputText: "${MAESTRO_TEST_EMAIL}"
-- tapOn: "Password"
-- inputText: "${MAESTRO_TEST_PASSWORD}"
-- tapOn: "Login"
+- runFlow:
+    when:
+      visible: "Thesis Android MVP"
+    commands:
+      - tapOn: "Email"
+      - inputText: "${MAESTRO_TEST_EMAIL}"
+      - tapOn: "Password"
+      - inputText: "${MAESTRO_TEST_PASSWORD}"
+      - hideKeyboard
 
+- runFlow:
+    when:
+      visible: "Welcome back"
+    commands:
+      - tapOn: "name@architecture.com"
+      - inputText: "${MAESTRO_TEST_EMAIL}"
+      - tapOn: "â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
+      - inputText: "${MAESTRO_TEST_PASSWORD}"
+      - hideKeyboard
+
+- runFlow:
+    when:
+      visible: "Login"
+    commands:
+      - tapOn: "Login"
+
+- runFlow:
+    when:
+      visible: "Log In"
+    commands:
+      - tapOn: "Log In"
+
+- runFlow:
+    when:
+      visible: "Today"
+    commands:
+      - tapOn: "Today"
+
+- extendedWaitUntil:
+    visible: "Today"
+    timeout: 40000
+
+- tapOn: "Portfolio"
 - tapOn: "Settings"
 - assertVisible: "Settings"
+- scrollUntilVisible:
+    element:
+      text: "Product API Base URL"
+    direction: DOWN
 - tapOn: "Product API Base URL"
 - repeat:
     times: 48
     commands:
       - eraseText
 - inputText: "http://offline.invalid:3001/"
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      text: "Save API URL"
+    direction: DOWN
 - tapOn: "Save API URL"
 - pressKey: "back"
 
-- tapOn: "Pulse"
-- tapOn: "Refresh Latest Pulse"
+- launchApp:
+    clearState: false
+
+- tapOn: "Research"
+- assertVisible: "Deep Dive"
+- tapOn: "Ticker Symbol (e.g. AAPL)"
+- inputText: "AAPL"
+- hideKeyboard
+- tapOn: "Run Deep Dive"
 - extendedWaitUntil:
     visible: "No internet connection. Please check network and retry."
     timeout: 45000

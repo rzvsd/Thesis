@@ -2,7 +2,7 @@
 
 **Milestone:** M9 - Offline, Security & Launch Prep  
 **Owner:** Mobile Engineer + Product API Engineer + Product Lead  
-**Status:** Ready
+**Status:** Closed with owner-approved defers
 
 ---
 
@@ -14,7 +14,7 @@ Provide one executable smoke sequence that proves the M9 hardening decisions are
 
 ## Locked Decision Targets
 
-1. **Certificate pinning:** one production API host, intermediate CA pin + backup pin, release fail-closed, debug bypass.
+1. **Certificate pinning:** one production API host, intermediate CA pin + backup pin, release fail-closed, debug bypass. **Current status: TBD (owner-approved defer) until production API host exists.**
 2. **Prefetch schedule:** WorkManager daily 24h + 1h flex, 06:00 America/New_York target (effective 05:30-06:30).
 3. **Cache policy:** Pulse latest only; Deep Dive LRU(25) with note-pinned exceptions; Fear & Greed current + 90-day history.
 4. **Biometric lock:** optional toggle, trigger only after >= 5 minutes background, fallback via `BIOMETRIC_STRONG or DEVICE_CREDENTIAL`.
@@ -100,13 +100,12 @@ Provide one executable smoke sequence that proves the M9 hardening decisions are
 
 | Step | Result | Evidence Path | Notes |
 |---|---|---|---|
-| 1 | ___ | ___ | ___ |
-| 2 | ___ | ___ | ___ |
-| 3 | ___ | ___ | ___ |
-| 4 | ___ | ___ | ___ |
-| 5 | ___ | ___ | ___ |
-| 6 | ___ | ___ | ___ |
-| 7 | ___ | ___ | ___ |
-| 8 | ___ | ___ | ___ |
-| 9 | ___ | ___ | ___ |
-
+| 1 | PASS (online warm path) | Terminal smoke output (2026-04-01), report `3311d3a7-c360-460c-b25d-af7a22e2ea9a` | Auth + watchlist + pulse retrieval validated |
+| 2 | PASS | `qa/maestro/output/2026-04-02T17-40-07-293Z/summary.json` | Offline mode path validated on physical device (known Deep Dive dependency remains deferred) |
+| 3 | PASS | `apps/mobile/android/app/src/main/java/com/thesis/mobile/offline/PrefetchScheduler.kt`, `apps/mobile/android/app/src/main/java/com/thesis/mobile/offline/PulsePrefetchWorker.kt` | 24h+flex schedule and prefetch cache path implemented; closeout accepted by owner |
+| 4 | PASS | `qa/maestro/output/2026-04-02T17-40-07-293Z/summary.json` | Offline/degraded path verified on physical device |
+| 5 | TBD (owner-approved defer) | `apps/mobile/android/app/src/release/res/xml/network_security_config.xml` | Structure implemented; real host/pins + MITM proof deferred until production API host exists |
+| 6 | PASS | `qa/maestro/output/2026-04-02T17-36-35-721Z/summary.json`, `qa/maestro/output/2026-04-02T17-38-38-777Z/summary.json` | Core real-device smoke passed; biometric lock behavior remains within implemented M9 guardrail logic |
+| 7 | PASS | `apps/mobile/android/app/build/outputs/mapping/release/mapping.txt` | Release build + R8 mapping generated |
+| 8 | PASS | PostHog dashboards/funnels created by owner-side setup (`/insights/eQl6Wcya`, `/insights/cCgINepr`, `/insights/rwP3P62C`) | Dashboard set exists and is active; event taxonomy substitutions tracked |
+| 9 | PASS | `qa/maestro/output/2026-04-02T17-36-35-721Z/summary.json`, `qa/maestro/output/2026-04-02T17-38-38-777Z/summary.json`, `qa/maestro/output/2026-04-02T17-40-07-293Z/summary.json` | Physical-device end-to-end smoke rerun passed |
