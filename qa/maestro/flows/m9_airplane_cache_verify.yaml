@@ -1,0 +1,38 @@
+appId: ${MAESTRO_APP_ID}
+---
+- launchApp:
+    clearState: false
+
+- runFlow:
+    when:
+      visible: "System UI isn't responding"
+    commands:
+      - tapOn: "Wait"
+
+- extendedWaitUntil:
+    visible: "Today"
+    timeout: 30000
+- assertVisible: "What Moved"
+
+- runFlow:
+    when:
+      visible: "Offline cache"
+    commands:
+      - assertVisible: "Offline cache"
+
+- tapOn: "Research"
+- assertVisible: "History"
+- tapOn: "History"
+- extendedWaitUntil:
+    visible: "Your History"
+    timeout: 30000
+- scrollUntilVisible:
+    element:
+      text: "AAPL"
+    direction: DOWN
+    timeout: 30000
+- tapOn: "AAPL"
+- extendedWaitUntil:
+    visible: "Deep Dive Report: AAPL"
+    timeout: 30000
+- assertVisible: "Deep Dive Report: AAPL"

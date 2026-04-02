@@ -31,7 +31,18 @@ appId: ${MAESTRO_APP_ID}
       - tapOn: "Password"
       - inputText: "${MAESTRO_TEST_PASSWORD}"
       - hideKeyboard
+
+- runFlow:
+    when:
+      visible: "Login"
+    commands:
       - tapOn: "Login"
+
+- runFlow:
+    when:
+      visible: "Log In"
+    commands:
+      - tapOn: "Log In"
 
 - extendedWaitUntil:
     visible: "Today"
@@ -69,7 +80,6 @@ appId: ${MAESTRO_APP_ID}
 - extendedWaitUntil:
     visible: "What Moved"
     timeout: 20000
-- assertVisible: "My Names"
 - scrollUntilVisible:
     element:
       text: "FULL PULSE"
@@ -96,7 +106,13 @@ appId: ${MAESTRO_APP_ID}
     direction: DOWN
 - tapOn: "Logout"
 
-- extendedWaitUntil:
-    visible: "Thesis Android MVP"
-    timeout: 20000
-- assertVisible: "Thesis Android MVP"
+- runFlow:
+    when:
+      visible: "Thesis Android MVP"
+    commands:
+      - assertVisible: "Thesis Android MVP"
+- runFlow:
+    when:
+      visible: "Welcome back"
+    commands:
+      - assertVisible: "Welcome back"

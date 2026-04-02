@@ -1,0 +1,64 @@
+appId: ${MAESTRO_APP_ID}
+---
+- launchApp:
+    clearState: true
+
+- runFlow:
+    when:
+      visible: "System UI isn't responding"
+    commands:
+      - tapOn: "Wait"
+
+- runFlow:
+    when:
+      visible: "Get Started"
+    commands:
+      - tapOn: "Get Started"
+
+- runFlow:
+    when:
+      visible: "Allow"
+    commands:
+      - tapOn: "Allow"
+
+- tapOn: "Email"
+- inputText: "${MAESTRO_TEST_EMAIL}"
+- tapOn: "Password"
+- inputText: "${MAESTRO_TEST_PASSWORD}"
+- hideKeyboard
+- runFlow:
+    when:
+      visible: "Login"
+    commands:
+      - tapOn: "Login"
+- runFlow:
+    when:
+      visible: "Log In"
+    commands:
+      - tapOn: "Log In"
+
+- extendedWaitUntil:
+    visible: "Today"
+    timeout: 30000
+- assertVisible: "What Moved"
+
+- tapOn: "Research"
+- assertVisible: "History"
+- tapOn: "History"
+- extendedWaitUntil:
+    visible: "Your History"
+    timeout: 30000
+- scrollUntilVisible:
+    element:
+      text: "AAPL"
+    direction: DOWN
+    timeout: 30000
+- tapOn: "AAPL"
+- extendedWaitUntil:
+    visible: "Deep Dive Report: AAPL"
+    timeout: 30000
+- assertVisible: "Deep Dive Report: AAPL"
+
+- tapOn: "Back"
+- tapOn: "Today"
+- assertVisible: "What Moved"

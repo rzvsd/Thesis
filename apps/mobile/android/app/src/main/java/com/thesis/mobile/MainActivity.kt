@@ -6,13 +6,20 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
+import androidx.fragment.app.FragmentActivity
+import androidx.compose.ui.platform.ComposeView
+import com.thesis.mobile.data.SessionStore
+import com.thesis.mobile.observability.MobileTelemetry
+import com.thesis.mobile.offline.PrefetchScheduler
+import com.thesis.mobile.security.AppLockManager
 import com.thesis.mobile.ui.ThesisApp
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 data class LaunchTarget(
     val tab: String,
@@ -23,8 +30,13 @@ data class LaunchTarget(
     val requestId: Long = System.nanoTime()
 )
 
-class MainActivity : ComponentActivity() {
+class MainActivity : FragmentActivity() {
     private var launchTarget by mutableStateOf<LaunchTarget?>(null)
+    private val sessionStore by lazy { SessionStore(applicationContext) }
+    private val appLockManager by lazy { AppLockManager(this, sessionStore) }
+    private val telemetry by lazy { MobileTelemetry() }
+    private val ioScope = CoroutineScope(Dispatchers.IO)
+    private var unlockPromptInFlight = false
     private val notificationPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* no-op */ }
 
@@ -32,19 +44,62 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         applyLaunchIntent(intent)
         requestNotificationPermissionIfNeeded()
-
-        setContent {
-            ThesisApp(
-                launchTarget = launchTarget,
-                onLaunchHandled = { launchTarget = null }
+        if (sessionStore.loadTokens() != null) {
+            PrefetchScheduler.schedule(applicationContext)
+        } else {
+            PrefetchScheduler.cancel(applicationContext)
+        }
+        ioScope.launch {
+            telemetry.capture(
+                event = "app_opened",
+                distinctId = sessionStore.getInstallationId(),
+                properties = mapOf("source" to "activity_on_create")
             )
         }
+
+        setContentView(
+            ComposeView(this).apply {
+                setContent {
+                    ThesisApp(
+                        launchTarget = launchTarget,
+                        onLaunchHandled = { launchTarget = null }
+                    )
+                }
+            }
+        )
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
         applyLaunchIntent(intent)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (unlockPromptInFlight) {
+            return
+        }
+        val hasAuthenticatedSession = sessionStore.loadTokens() != null
+        if (!appLockManager.shouldPromptForUnlock(hasAuthenticatedSession)) {
+            return
+        }
+        unlockPromptInFlight = true
+        appLockManager.promptForUnlock { unlocked ->
+            unlockPromptInFlight = false
+            if (unlocked) {
+                appLockManager.clearBackgroundMarker()
+            } else {
+                finish()
+            }
+        }
+    }
+
+    override fun onStop() {
+        super.onStop()
+        if (!isChangingConfigurations) {
+            sessionStore.saveAppBackgroundedAtMs(System.currentTimeMillis())
+        }
     }
 
     private fun applyLaunchIntent(intent: Intent?) {
@@ -84,6 +139,20 @@ class MainActivity : ComponentActivity() {
             )
 
             else -> null
+        }
+
+        launchTarget?.let { target ->
+            ioScope.launch {
+                telemetry.capture(
+                    event = "push_opened",
+                    distinctId = sessionStore.getInstallationId(),
+                    properties = mapOf(
+                        "notification_type" to target.notificationType,
+                        "tab" to target.tab,
+                        "ticker" to target.ticker
+                    )
+                )
+            }
         }
     }
 

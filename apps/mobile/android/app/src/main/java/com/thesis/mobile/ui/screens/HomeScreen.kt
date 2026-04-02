@@ -62,6 +62,8 @@ import java.time.format.DateTimeFormatter
 @Composable
 fun HomeScreen(
     pulse: PulseReportView?,
+    pulseLoadedFromCache: Boolean,
+    pulseFreshnessText: String?,
     sentimentCurrent: SentimentSnapshotView?,
     sentimentHistory: List<SentimentSnapshotView>,
     sentimentError: String?,
@@ -104,7 +106,9 @@ fun HomeScreen(
                 dateLabel = dateLabel,
                 phaseTitle = phase.title,
                 pulseLead = pulseLead,
-                pulseTimestamp = pulseTimestamp
+                pulseTimestamp = pulseTimestamp,
+                pulseLoadedFromCache = pulseLoadedFromCache,
+                pulseFreshnessText = pulseFreshnessText
             )
         }
 
@@ -210,7 +214,9 @@ private fun GreetingSection(
     dateLabel: String,
     phaseTitle: String,
     pulseLead: String,
-    pulseTimestamp: String?
+    pulseTimestamp: String?,
+    pulseLoadedFromCache: Boolean,
+    pulseFreshnessText: String?
 ) {
     Column {
         Text(
@@ -235,6 +241,14 @@ private fun GreetingSection(
                 style = ThesisTypography.labelMedium,
                 color = ThesisColors.TextTertiaryDark,
                 modifier = Modifier.padding(top = ThesisDimens.SpacingSm)
+            )
+        }
+        if (!pulseFreshnessText.isNullOrBlank()) {
+            Text(
+                text = pulseFreshnessText,
+                style = ThesisTypography.labelMedium,
+                color = if (pulseLoadedFromCache) ThesisColors.SignalWarning else ThesisColors.TextSecondaryDark,
+                modifier = Modifier.padding(top = ThesisDimens.SpacingXs)
             )
         }
     }

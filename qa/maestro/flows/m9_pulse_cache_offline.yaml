@@ -1,0 +1,81 @@
+appId: ${MAESTRO_APP_ID}
+---
+- launchApp:
+    clearState: false
+
+- runFlow:
+    when:
+      visible: "System UI isn't responding"
+    commands:
+      - tapOn: "Wait"
+
+- runFlow:
+    when:
+      visible: "Login"
+    commands:
+      - tapOn: "Email"
+      - inputText: "${MAESTRO_TEST_EMAIL}"
+      - tapOn: "Password"
+      - inputText: "${MAESTRO_TEST_PASSWORD}"
+      - hideKeyboard
+      - tapOn: "Login"
+
+- runFlow:
+    when:
+      visible: "Log In"
+    commands:
+      - tapOn: "Email"
+      - inputText: "${MAESTRO_TEST_EMAIL}"
+      - tapOn: "Password"
+      - inputText: "${MAESTRO_TEST_PASSWORD}"
+      - hideKeyboard
+      - tapOn: "Log In"
+
+- runFlow:
+    when:
+      visible: "Allow"
+    commands:
+      - tapOn: "Allow"
+
+- runFlow:
+    when:
+      visible: "Allow Thesis to send you notifications?"
+    commands:
+      - tapOn: "Allow"
+
+- extendedWaitUntil:
+    visible: "Today"
+    timeout: 30000
+- assertVisible: "What Moved"
+
+- tapOn: "Portfolio"
+- tapOn: "Settings"
+- scrollUntilVisible:
+    element:
+      text: "Product API Base URL"
+    direction: DOWN
+    timeout: 30000
+- tapOn: "Product API Base URL"
+- repeat:
+    times: 48
+    commands:
+      - eraseText
+- inputText: "http://offline.invalid:3001"
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      text: "Save API URL"
+    direction: DOWN
+    timeout: 30000
+- tapOn: "Save API URL"
+- pressKey: Back
+
+- launchApp:
+    clearState: false
+- tapOn: "Today"
+- assertVisible: "What Moved"
+- runFlow:
+    when:
+      visible: "Offline cache"
+    commands:
+      - assertVisible: "Offline cache"

@@ -213,6 +213,8 @@ fun ThesisApp(
                     AppTab.TODAY -> when (todayMode) {
                         TodayMode.HOME -> HomeScreen(
                             pulse = uiState.pulseReport,
+                            pulseLoadedFromCache = uiState.pulseLoadedFromCache,
+                            pulseFreshnessText = uiState.pulseFreshnessText,
                             sentimentCurrent = uiState.sentimentCurrent,
                             sentimentHistory = uiState.sentimentHistory,
                             sentimentError = uiState.sentimentError,
@@ -317,8 +319,11 @@ fun ThesisApp(
                         subscriptionOffers = uiState.subscriptionOffers,
                         subscriptionActionInFlight = uiState.subscriptionActionInFlight,
                         notificationsEnabled = uiState.notificationsEnabled,
+                        biometricSupported = uiState.biometricSupported,
+                        biometricLockEnabled = uiState.biometricLockEnabled,
                         notificationPreferences = uiState.notificationPreferences,
                         onSetNotifications = mainViewModel::setNotificationsEnabled,
+                        onSetBiometricLockEnabled = mainViewModel::setBiometricLockEnabled,
                         onSetNotificationPreference = mainViewModel::setNotificationPreference,
                         onSaveApiBaseUrl = mainViewModel::updateApiBaseUrl,
                         onSyncTier = mainViewModel::syncTierFromServer,
@@ -469,8 +474,11 @@ private fun PortfolioTab(
     subscriptionOffers: List<com.thesis.mobile.model.SubscriptionOfferView>,
     subscriptionActionInFlight: Boolean,
     notificationsEnabled: Boolean,
+    biometricSupported: Boolean,
+    biometricLockEnabled: Boolean,
     notificationPreferences: List<NotificationPreferenceView>,
     onSetNotifications: (Boolean) -> Unit,
+    onSetBiometricLockEnabled: (Boolean) -> Unit,
     onSetNotificationPreference: (String, Boolean) -> Unit,
     onSaveApiBaseUrl: (String) -> Unit,
     onSyncTier: () -> Unit,
@@ -520,8 +528,11 @@ private fun PortfolioTab(
                 subscriptionOffers = subscriptionOffers,
                 subscriptionActionInFlight = subscriptionActionInFlight,
                 notificationsEnabled = notificationsEnabled,
+                biometricSupported = biometricSupported,
+                biometricLockEnabled = biometricLockEnabled,
                 notificationPreferences = notificationPreferences,
                 onSetNotifications = onSetNotifications,
+                onSetBiometricLockEnabled = onSetBiometricLockEnabled,
                 onSetNotificationPreference = onSetNotificationPreference,
                 onSaveApiBaseUrl = onSaveApiBaseUrl,
                 onSyncTier = onSyncTier,
@@ -924,8 +935,11 @@ private fun SettingsTab(
     subscriptionOffers: List<com.thesis.mobile.model.SubscriptionOfferView>,
     subscriptionActionInFlight: Boolean,
     notificationsEnabled: Boolean,
+    biometricSupported: Boolean,
+    biometricLockEnabled: Boolean,
     notificationPreferences: List<NotificationPreferenceView>,
     onSetNotifications: (Boolean) -> Unit,
+    onSetBiometricLockEnabled: (Boolean) -> Unit,
     onSetNotificationPreference: (String, Boolean) -> Unit,
     onSaveApiBaseUrl: (String) -> Unit,
     onSyncTier: () -> Unit,
@@ -957,6 +971,26 @@ private fun SettingsTab(
                 Switch(
                     checked = notificationsEnabled,
                     onCheckedChange = onSetNotifications
+                )
+            }
+        }
+        if (biometricSupported) {
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text("Biometric lock")
+                    Switch(
+                        checked = biometricLockEnabled,
+                        onCheckedChange = onSetBiometricLockEnabled
+                    )
+                }
+            }
+            item {
+                Text(
+                    "When enabled, Thesis asks for fingerprint or device PIN after 5 minutes in background.",
+                    style = MaterialTheme.typography.bodySmall
                 )
             }
         }

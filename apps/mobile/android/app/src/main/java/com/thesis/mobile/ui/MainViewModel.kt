@@ -3,6 +3,7 @@ package com.thesis.mobile.ui
 import android.app.Application
 import android.app.Activity
 import android.util.Base64
+import androidx.biometric.BiometricManager
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.firebase.messaging.FirebaseMessaging
@@ -25,12 +26,17 @@ import com.thesis.mobile.model.UserProfileView
 import com.thesis.mobile.network.ProductApiClient
 import com.thesis.mobile.network.ProductApiException
 import com.thesis.mobile.observability.MobileTelemetry
+import com.thesis.mobile.offline.OfflineCacheStore
+import com.thesis.mobile.offline.PrefetchScheduler
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import org.json.JSONObject
 import java.io.IOException
 import java.net.URI
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 enum class AppTab {
     TODAY,
@@ -61,6 +67,8 @@ data class UiState(
     val scenarioResult: ScenarioResultView? = null,
     val isRunningScenario: Boolean = false,
     val pulseReport: PulseReportView? = null,
+    val pulseLoadedFromCache: Boolean = false,
+    val pulseFreshnessText: String? = null,
     val pulseError: String? = null,
     val sentimentCurrent: SentimentSnapshotView? = null,
     val sentimentHistory: List<SentimentSnapshotView> = emptyList(),
@@ -69,6 +77,8 @@ data class UiState(
     val reportHistory: List<ReportHistoryItem> = emptyList(),
     val watchlist: List<String> = emptyList(),
     val lastViewedReport: LastViewedReport? = null,
+    val biometricSupported: Boolean = false,
+    val biometricLockEnabled: Boolean = false,
     val userProfile: UserProfileView? = null,
     val paywallFeature: String? = null,
     val subscriptionOffers: List<SubscriptionOfferView> = emptyList(),
@@ -78,6 +88,7 @@ data class UiState(
 class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val sessionStore = SessionStore(application.applicationContext)
     private val client = ProductApiClient()
+    private val cacheStore = OfflineCacheStore.getInstance(application.applicationContext)
     private val telemetry = MobileTelemetry()
     private val installationDistinctId = sessionStore.getInstallationId()
 
@@ -85,6 +96,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         showWelcome = !sessionStore.hasSeenWelcome(),
         apiBaseUrl = sessionStore.loadApiBaseUrl(),
         notificationsEnabled = sessionStore.areNotificationsEnabled(),
+        biometricSupported = isBiometricSupported(application),
+        biometricLockEnabled = sessionStore.isBiometricLockEnabled(),
         tokens = sessionStore.loadTokens()
     )
         private set
@@ -93,6 +106,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     init {
         if (state.tokens != null) {
+            PrefetchScheduler.schedule(getApplication<Application>().applicationContext)
             state = state.copy(lastViewedReport = sessionStore.getLastViewedReport())
             refreshFeatureFlags()
             refreshUserProfile()
@@ -118,6 +132,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun notifyUser(message: String) {
         publish(state.copy(message = message))
+        if (message.startsWith("Export generated", ignoreCase = true)) {
+            trackEvent("export_generated")
+        }
     }
 
     fun completeWelcome() {
@@ -173,6 +190,22 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun setBiometricLockEnabled(enabled: Boolean) {
+        if (enabled && !state.biometricSupported) {
+            publish(state.copy(message = "Biometric lock is not available on this device."))
+            return
+        }
+
+        sessionStore.saveBiometricLockEnabled(enabled)
+        publish(
+            state.copy(
+                biometricLockEnabled = enabled,
+                message = if (enabled) "Biometric lock enabled." else "Biometric lock disabled."
+            )
+        )
+        trackEvent("biometric_lock_toggled", mapOf("enabled" to enabled))
+    }
+
     fun setNotificationPreference(notificationType: String, enabled: Boolean) {
         val normalizedType = notificationType.trim()
         if (normalizedType.isBlank()) {
@@ -222,6 +255,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         "result" to result.status
                     )
                 )
+                trackEvent(
+                    "user_registered",
+                    mapOf(
+                        "method" to "email_password",
+                        "result" to result.status
+                    )
+                )
             }.onFailure { error ->
                 publish(state.copy(isLoading = false, message = toMessage(error)))
             }
@@ -265,6 +305,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 refreshSentiment()
                 refreshReportHistory()
                 syncPushToken()
+                PrefetchScheduler.schedule(getApplication<Application>().applicationContext)
                 trackEvent(
                     "login_completed",
                     mapOf("method" to "email_password")
@@ -279,8 +320,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             val current = state.tokens
             if (current == null) {
+                cacheStore.clearAll()
+                sessionStore.clearLastViewedReport()
                 sessionStore.clearTokens()
-                publish(state.copy(tokens = null, message = "Logged out."))
+                PrefetchScheduler.cancel(getApplication<Application>().applicationContext)
+                publish(
+                    state.copy(
+                        tokens = null,
+                        lastViewedReport = null,
+                        message = "Logged out."
+                    )
+                )
                 return@launch
             }
 
@@ -294,6 +344,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             runCatching {
                 RevenueCatBilling.logOutSafely()
             }
+            PrefetchScheduler.cancel(getApplication<Application>().applicationContext)
+            cacheStore.clearAll()
+            sessionStore.clearLastViewedReport()
             sessionStore.clearTokens()
             publish(
                 state.copy(
@@ -307,6 +360,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     scenarioResult = null,
                     isRunningScenario = false,
                     pulseReport = null,
+                    pulseLoadedFromCache = false,
+                    pulseFreshnessText = null,
                     pulseError = null,
                     sentimentCurrent = null,
                     sentimentHistory = emptyList(),
@@ -316,6 +371,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     watchlist = emptyList(),
                     reportHistory = emptyList(),
                     notificationPreferences = defaultNotificationPreferences(),
+                    lastViewedReport = null,
                     jobStatus = null,
                     watchlistFeatureEnabled = true,
                     userProfile = null,
@@ -337,6 +393,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 paywallFeature = feature,
                 message = "Upgrade to Pro to use this feature."
             )
+        )
+        trackEvent(
+            "paywall_shown",
+            mapOf("feature" to feature)
         )
     }
 
@@ -367,6 +427,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         message = "Note saved."
                     )
                 )
+                cacheStore.setDeepDiveNotePinned(report.reportId, saved.content.isNotBlank())
                 trackEvent(
                     "deep_dive_note_saved",
                     mapOf(
@@ -420,6 +481,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         "has_terminal_growth_rate" to (terminalGrowthRate != null),
                         "has_wacc" to (wacc != null)
                     )
+                )
+                trackEvent(
+                    "what_if_requested",
+                    mapOf("report_id" to report.reportId)
                 )
             }
             if (error != null) {
@@ -508,6 +573,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 val selected = RevenueCatBilling.pickPreferredPackage(offerings, packageType)
                     ?: throw IllegalStateException("No subscription package is currently available.")
+                trackEvent(
+                    "purchase_started",
+                    mapOf(
+                        "package_type" to selected.packageType.name,
+                        "identifier" to selected.identifier
+                    )
+                )
                 val customerInfo = RevenueCatBilling.purchase(activity, selected)
                 val profile = client.syncUserTier(
                     state.apiBaseUrl,
@@ -519,6 +591,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         userProfile = profile,
                         paywallFeature = null,
                         message = "Purchase completed. Subscription upgraded."
+                    )
+                )
+                trackEvent(
+                    "purchase_completed",
+                    mapOf(
+                        "tier" to profile.tier,
+                        "billing_period_end" to profile.billingPeriodEnd
                     )
                 )
                 refreshSubscriptionOffers()
@@ -599,6 +678,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     "job_id" to job.jobId
                 )
             )
+            trackEvent(
+                "deep_dive_started",
+                mapOf(
+                    "ticker" to ticker.uppercase(),
+                    "job_id" to job.jobId
+                )
+            )
             pollDeepDiveJob(job.jobId)
         }
     }
@@ -618,6 +704,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val note = runCatching {
                     client.getReportNote(state.apiBaseUrl, requireTokens().accessToken, report.reportId)
                 }.getOrNull()
+                cacheStore.cacheDeepDive(report, notePinned = !note?.content.isNullOrBlank())
                 publish(
                     state.copy(
                         currentTab = AppTab.RESEARCH,
@@ -641,10 +728,56 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         "ticker" to tickerSafe
                     )
                 )
+                trackEvent(
+                    "report_opened",
+                    mapOf(
+                        "report_id" to report.reportId,
+                        "source" to "history_network"
+                    )
+                )
             }
             if (error != null) {
-                val message = toMessage(error)
-                publish(state.copy(isLoading = false, message = message, deepDiveError = message))
+                val cached = cacheStore.getCachedDeepDive(reportId)
+                if (cached != null) {
+                    publish(
+                        state.copy(
+                            isLoading = false,
+                            currentTab = AppTab.RESEARCH,
+                            deepDiveReport = cached,
+                            reportNote = null,
+                            reportNoteDraft = "",
+                            isSavingNote = false,
+                            scenarioResult = null,
+                            isRunningScenario = false,
+                            message = "Loaded cached report (offline).",
+                            deepDiveError = null
+                        )
+                    )
+                    trackEvent(
+                        "cache_hit",
+                        mapOf(
+                            "artifact" to "deep_dive",
+                            "report_id" to reportId
+                        )
+                    )
+                    trackEvent(
+                        "report_opened",
+                        mapOf(
+                            "report_id" to reportId,
+                            "source" to "history_cache"
+                        )
+                    )
+                } else {
+                    trackEvent(
+                        "cache_miss",
+                        mapOf(
+                            "artifact" to "deep_dive",
+                            "report_id" to reportId
+                        )
+                    )
+                    val message = toMessage(error)
+                    publish(state.copy(isLoading = false, message = message, deepDiveError = message))
+                }
             } else {
                 publish(state.copy(isLoading = false))
             }
@@ -677,7 +810,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             publish(state.copy(isLoading = true, message = null, pulseError = null))
             val error = runAuthorizedWithRefresh {
                 val pulse = client.getLatestPulse(state.apiBaseUrl, requireTokens().accessToken)
-                publish(state.copy(pulseReport = pulse, pulseError = null))
+                cacheStore.cachePulse(pulse)
+                publish(
+                    state.copy(
+                        pulseReport = pulse,
+                        pulseLoadedFromCache = false,
+                        pulseFreshnessText = formatPulseFreshness(pulse.generatedAt, fromCache = false),
+                        pulseError = null
+                    )
+                )
                 if (rememberAsLastViewed) {
                     rememberPulse(pulse)
                 }
@@ -685,10 +826,52 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     "pulse_viewed",
                     mapOf("report_id" to pulse.reportId)
                 )
+                trackEvent(
+                    "pulse_opened",
+                    mapOf(
+                        "report_id" to pulse.reportId,
+                        "source" to "network"
+                    )
+                )
             }
             if (error != null) {
-                val message = toMessage(error)
-                publish(state.copy(isLoading = false, message = message, pulseError = message))
+                val cachedPulse = cacheStore.getCachedPulse()
+                if (cachedPulse != null) {
+                    publish(
+                        state.copy(
+                            isLoading = false,
+                            pulseReport = cachedPulse,
+                            pulseLoadedFromCache = true,
+                            pulseFreshnessText = formatPulseFreshness(cachedPulse.generatedAt, fromCache = true),
+                            pulseError = null,
+                            message = "Showing cached pulse while network is unavailable."
+                        )
+                    )
+                    if (rememberAsLastViewed) {
+                        rememberPulse(cachedPulse)
+                    }
+                    trackEvent(
+                        "cache_hit",
+                        mapOf(
+                            "artifact" to "pulse_latest",
+                            "report_id" to cachedPulse.reportId
+                        )
+                    )
+                    trackEvent(
+                        "pulse_opened",
+                        mapOf(
+                            "report_id" to cachedPulse.reportId,
+                            "source" to "cache"
+                        )
+                    )
+                } else {
+                    trackEvent(
+                        "cache_miss",
+                        mapOf("artifact" to "pulse_latest")
+                    )
+                    val message = toMessage(error)
+                    publish(state.copy(isLoading = false, message = message, pulseError = message))
+                }
             } else {
                 publish(state.copy(isLoading = false))
             }
@@ -705,7 +888,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             publish(state.copy(isLoading = true, message = null, pulseError = null))
             val error = runAuthorizedWithRefresh {
                 val pulse = client.getPulseByDate(state.apiBaseUrl, requireTokens().accessToken, trimmed)
-                publish(state.copy(pulseReport = pulse, message = "Loaded pulse for $trimmed.", pulseError = null))
+                publish(
+                    state.copy(
+                        pulseReport = pulse,
+                        pulseLoadedFromCache = false,
+                        pulseFreshnessText = formatPulseFreshness(pulse.generatedAt, fromCache = false),
+                        message = "Loaded pulse for $trimmed.",
+                        pulseError = null
+                    )
+                )
                 if (rememberAsLastViewed) {
                     rememberPulse(pulse, trimmed)
                 }
@@ -714,6 +905,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     mapOf(
                         "report_id" to pulse.reportId,
                         "requested_date" to trimmed
+                    )
+                )
+                trackEvent(
+                    "pulse_opened",
+                    mapOf(
+                        "report_id" to pulse.reportId,
+                        "requested_date" to trimmed,
+                        "source" to "network"
                     )
                 )
             }
@@ -739,6 +938,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     requireTokens().accessToken,
                     normalizedDays
                 ).sortedByDescending { it.marketDate }
+                cacheStore.cacheSentiment(current, history)
                 publish(
                     state.copy(
                         sentimentCurrent = current,
@@ -749,14 +949,41 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 )
             }
             if (error != null) {
-                publish(
-                    state.copy(
-                        sentimentCurrent = null,
-                        sentimentHistory = emptyList(),
-                        sentimentRangeDays = normalizedDays,
-                        sentimentError = toMessage(error)
+                val cachedCurrent = cacheStore.getCachedSentimentCurrent()
+                val cachedHistory = cacheStore.getCachedSentimentHistory(normalizedDays)
+                if (cachedCurrent != null || cachedHistory.isNotEmpty()) {
+                    publish(
+                        state.copy(
+                            sentimentCurrent = cachedCurrent,
+                            sentimentHistory = cachedHistory,
+                            sentimentRangeDays = normalizedDays,
+                            sentimentError = "Showing cached sentiment while network is unavailable."
+                        )
                     )
-                )
+                    trackEvent(
+                        "cache_hit",
+                        mapOf(
+                            "artifact" to "sentiment",
+                            "range_days" to normalizedDays
+                        )
+                    )
+                } else {
+                    trackEvent(
+                        "cache_miss",
+                        mapOf(
+                            "artifact" to "sentiment",
+                            "range_days" to normalizedDays
+                        )
+                    )
+                    publish(
+                        state.copy(
+                            sentimentCurrent = null,
+                            sentimentHistory = emptyList(),
+                            sentimentRangeDays = normalizedDays,
+                            sentimentError = toMessage(error)
+                        )
+                    )
+                }
             }
         }
     }
@@ -797,6 +1024,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 normalized
             )
             publish(state.copy(watchlist = items, message = "$normalized added to watchlist."))
+            trackEvent(
+                "watchlist_ticker_added",
+                mapOf("ticker" to normalized)
+            )
         }
     }
 
@@ -832,6 +1063,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         val note = runCatching {
                             client.getReportNote(state.apiBaseUrl, requireTokens().accessToken, report.reportId)
                         }.getOrNull()
+                        cacheStore.cacheDeepDive(report, notePinned = !note?.content.isNullOrBlank())
                         publish(
                             state.copy(
                                 isLoading = false,
@@ -854,6 +1086,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                             mapOf(
                                 "report_id" to report.reportId,
                                 "ticker" to tickerSafe
+                            )
+                        )
+                        trackEvent(
+                            "report_opened",
+                            mapOf(
+                                "report_id" to report.reportId,
+                                "source" to "deep_dive_complete"
                             )
                         )
                         return
@@ -1024,10 +1263,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private fun requireTokens(): AuthTokens =
         state.tokens ?: throw ProductApiException(401, "Authentication required.")
 
-    private fun toMessage(error: Throwable): String = when (error) {
-        is ProductApiException -> error.message
-        is IOException -> "No internet connection. Please check network and retry."
-        else -> error.message ?: "Unexpected error."
+    private fun toMessage(error: Throwable): String {
+        trackApiError(error)
+        return when (error) {
+            is ProductApiException -> error.message
+            is IOException -> "No internet connection. Please check network and retry."
+            else -> error.message ?: "Unexpected error."
+        }
     }
 
     private fun rememberPulse(pulse: PulseReportView, fallbackDate: String? = null) {
@@ -1063,6 +1305,36 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             else -> 90
         }
 
+    private fun formatPulseFreshness(generatedAt: String, fromCache: Boolean): String {
+        val parsed = runCatching {
+            Instant.parse(generatedAt)
+                .atZone(ZoneId.of("America/New_York"))
+                .format(DateTimeFormatter.ofPattern("MMM d, HH:mm z"))
+        }.getOrElse { generatedAt }
+        return if (fromCache) {
+            "Offline cache • Last updated $parsed"
+        } else {
+            "Last updated $parsed"
+        }
+    }
+
+    private fun trackApiError(error: Throwable) {
+        val apiError = error as? ProductApiException
+        viewModelScope.launch {
+            runCatching {
+                telemetry.capture(
+                    event = "api_error",
+                    distinctId = distinctId(),
+                    properties = mapOf(
+                        "http_code" to apiError?.code,
+                        "error_code" to apiError?.errorCode,
+                        "message" to (error.message ?: error::class.java.simpleName)
+                    )
+                )
+            }
+        }
+    }
+
     companion object {
         private val notificationPreferenceTypes = listOf(
             "earnings_preview",
@@ -1071,6 +1343,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             "market_pulse_ready"
         )
     }
+}
+
+private fun isBiometricSupported(application: Application): Boolean {
+    val authenticators =
+        BiometricManager.Authenticators.BIOMETRIC_STRONG or
+            BiometricManager.Authenticators.DEVICE_CREDENTIAL
+    val manager = BiometricManager.from(application.applicationContext)
+    return manager.canAuthenticate(authenticators) == BiometricManager.BIOMETRIC_SUCCESS
 }
 
 private fun defaultNotificationPreferences(): List<NotificationPreferenceView> =

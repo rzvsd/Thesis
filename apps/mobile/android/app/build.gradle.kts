@@ -1,6 +1,7 @@
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
+    id("com.google.devtools.ksp")
 }
 
 fun escapeBuildString(value: String): String = value.replace("\\", "\\\\").replace("\"", "\\\"")
@@ -10,7 +11,9 @@ val posthogApiKey = project.findProperty("POSTHOG_API_KEY")?.toString() ?: ""
 val posthogHost = project.findProperty("POSTHOG_HOST")?.toString() ?: "https://us.i.posthog.com"
 val posthogWatchlistFlagKey =
     project.findProperty("POSTHOG_WATCHLIST_FLAG_KEY")?.toString() ?: "m7_watchlist_enabled"
-val apiBaseUrl = project.findProperty("API_BASE_URL")?.toString() ?: "http://127.0.0.1:3001"
+val apiBaseUrlOverride = project.findProperty("API_BASE_URL")?.toString()?.trim()?.takeIf { it.isNotBlank() }
+val apiBaseUrlDebug = apiBaseUrlOverride ?: "http://127.0.0.1:3001"
+val apiBaseUrlRelease = apiBaseUrlOverride ?: "https://api.thesis.example.com"
 val revenueCatPublicAndroidKey =
     project.findProperty("REVENUECAT_PUBLIC_ANDROID_KEY")?.toString() ?: ""
 val googleServicesJsonExists = file("google-services.json").exists()
@@ -27,7 +30,6 @@ android {
         versionName = "0.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        buildConfigField("String", "API_BASE_URL", "\"${escapeBuildString(apiBaseUrl)}\"")
         buildConfigField("boolean", "POSTHOG_ENABLED", posthogEnabled.toString())
         buildConfigField("String", "POSTHOG_API_KEY", "\"${escapeBuildString(posthogApiKey)}\"")
         buildConfigField("String", "POSTHOG_HOST", "\"${escapeBuildString(posthogHost)}\"")
@@ -44,8 +46,15 @@ android {
     }
 
     buildTypes {
+        debug {
+            manifestPlaceholders["usesCleartextTraffic"] = "true"
+            buildConfigField("String", "API_BASE_URL", "\"${escapeBuildString(apiBaseUrlDebug)}\"")
+        }
         release {
-            isMinifyEnabled = false
+            manifestPlaceholders["usesCleartextTraffic"] = "false"
+            buildConfigField("String", "API_BASE_URL", "\"${escapeBuildString(apiBaseUrlRelease)}\"")
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -94,6 +103,11 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.8.1")
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
+    implementation("androidx.work:work-runtime-ktx:2.9.1")
+    implementation("androidx.room:room-runtime:2.6.1")
+    implementation("androidx.room:room-ktx:2.6.1")
+    ksp("androidx.room:room-compiler:2.6.1")
+    implementation("androidx.biometric:biometric:1.1.0")
     implementation("com.revenuecat.purchases:purchases:9.28.1")
     implementation(platform("com.google.firebase:firebase-bom:33.9.0"))
     implementation("com.google.firebase:firebase-messaging-ktx")

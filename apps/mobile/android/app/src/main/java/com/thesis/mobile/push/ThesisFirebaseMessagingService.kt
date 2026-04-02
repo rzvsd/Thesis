@@ -13,6 +13,7 @@ import com.thesis.mobile.MainActivity
 import com.thesis.mobile.R
 import com.thesis.mobile.data.SessionStore
 import com.thesis.mobile.network.ProductApiClient
+import com.thesis.mobile.observability.MobileTelemetry
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -71,6 +72,19 @@ class ThesisFirebaseMessagingService : FirebaseMessagingService() {
 
         val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         manager.notify(NOTIFICATION_ID, notification)
+        ioScope.launch {
+            runCatching {
+                MobileTelemetry().capture(
+                    event = "push_delivered",
+                    distinctId = SessionStore(applicationContext).getInstallationId(),
+                    properties = mapOf(
+                        "notification_type" to notificationType,
+                        "open_tab" to openTab,
+                        "ticker" to message.data["ticker"]
+                    )
+                )
+            }
+        }
     }
 
     private fun syncToken(token: String) {

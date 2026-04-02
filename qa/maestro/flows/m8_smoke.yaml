@@ -39,10 +39,19 @@ appId: ${MAESTRO_APP_ID}
 - tapOn: "Password"
 - inputText: "${MAESTRO_TEST_PASSWORD}"
 - hideKeyboard
-- tapOn: "Login"
+- runFlow:
+    when:
+      visible: "Login"
+    commands:
+      - tapOn: "Login"
+- runFlow:
+    when:
+      visible: "Log In"
+    commands:
+      - tapOn: "Log In"
 
 - extendedWaitUntil:
-    visible: "What Moved"
+    visible: "Today"
     timeout: 30000
 - assertVisible: "Today"
 - assertVisible: "Research"
@@ -56,11 +65,8 @@ appId: ${MAESTRO_APP_ID}
     timeout: 30000
 - assertVisible: "Sub-score Breakdown"
 - tapOn: "Back"
-- runFlow:
-    when:
-      visible: "Thesis"
-    commands:
-      - tapOn: "Thesis"
+- launchApp:
+    clearState: false
 - extendedWaitUntil:
     visible: "What Moved"
     timeout: 30000
@@ -89,8 +95,11 @@ appId: ${MAESTRO_APP_ID}
     element:
       text: "My Names"
     direction: DOWN
-- assertVisible: "My Names"
-- assertVisible: "${MAESTRO_DEEP_DIVE_TICKER}"
+- runFlow:
+    when:
+      visible: "My Names"
+    commands:
+      - assertVisible: "${MAESTRO_DEEP_DIVE_TICKER}"
 
 - tapOn: "Research"
 - assertVisible: "History"

@@ -129,6 +129,18 @@ class SessionStore(context: Context) {
             .apply()
     }
 
+    fun saveBiometricLockEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_BIOMETRIC_LOCK_ENABLED, enabled).apply()
+    }
+
+    fun isBiometricLockEnabled(): Boolean = prefs.getBoolean(KEY_BIOMETRIC_LOCK_ENABLED, false)
+
+    fun saveAppBackgroundedAtMs(value: Long) {
+        prefs.edit().putLong(KEY_APP_BACKGROUNDED_AT_MS, value).apply()
+    }
+
+    fun getAppBackgroundedAtMs(): Long = prefs.getLong(KEY_APP_BACKGROUNDED_AT_MS, 0L)
+
     companion object {
         private const val PREFS_NAME = "thesis_mobile_prefs"
         private const val KEY_ACCESS_TOKEN = "access_token"
@@ -144,5 +156,7 @@ class SessionStore(context: Context) {
         private const val KEY_LAST_VIEWED_TYPE = "last_viewed_type"
         private const val KEY_LAST_VIEWED_REFERENCE_DATE = "last_viewed_reference_date"
         private const val KEY_LAST_VIEWED_TIMESTAMP = "last_viewed_timestamp"
+        private const val KEY_BIOMETRIC_LOCK_ENABLED = "biometric_lock_enabled"
+        private const val KEY_APP_BACKGROUNDED_AT_MS = "app_backgrounded_at_ms"
     }
 }
