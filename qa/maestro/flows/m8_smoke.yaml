@@ -1,4 +1,4 @@
-appId: ${MAESTRO_APP_ID}
+﻿appId: ${MAESTRO_APP_ID}
 ---
 
 - launchApp:
@@ -18,6 +18,12 @@ appId: ${MAESTRO_APP_ID}
 
 - runFlow:
     when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+
+- runFlow:
+    when:
       visible: "Allow"
     commands:
       - tapOn: "Allow"
@@ -34,16 +40,21 @@ appId: ${MAESTRO_APP_ID}
     commands:
       - tapOn: "Wait"
 
-- tapOn: "Email"
+- tapOn: "you@example.com"
 - inputText: "${MAESTRO_TEST_EMAIL}"
-- tapOn: "Password"
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      text: "Enter password"
+    direction: DOWN
+- tapOn: "Enter password"
 - inputText: "${MAESTRO_TEST_PASSWORD}"
 - hideKeyboard
 - runFlow:
     when:
       visible: "Login"
     commands:
-      - tapOn: "Login"
+      - tapOn: "Log In"
 - runFlow:
     when:
       visible: "Log In"
@@ -59,7 +70,7 @@ appId: ${MAESTRO_APP_ID}
 - assertVisible: "What Moved"
 - assertVisible: "Fear & Greed"
 
-- tapOn: "Open Dashboard"
+- tapOn: "Dashboard"
 - extendedWaitUntil:
     visible: "Fear & Greed Dashboard"
     timeout: 30000
@@ -79,7 +90,7 @@ appId: ${MAESTRO_APP_ID}
 - extendedWaitUntil:
     visible: "Weekly Digest"
     timeout: 30000
-- assertVisible: "This Week's Highlights"
+- assertVisible: "Latest digest"
 
 - tapOn: "Portfolio"
 - assertVisible: "My Names"
@@ -89,6 +100,8 @@ appId: ${MAESTRO_APP_ID}
 - tapOn: "Add"
 - assertVisible: "${MAESTRO_DEEP_DIVE_TICKER}"
 
+- tapOn: "Today"
+- assertVisible: "Weekly Digest"
 - tapOn: "Today"
 - assertVisible: "What Moved"
 - scrollUntilVisible:
@@ -115,4 +128,7 @@ appId: ${MAESTRO_APP_ID}
 - tapOn: "Portfolio"
 - tapOn: "Settings"
 - assertVisible: "Settings"
-- assertVisible: "Open Android Notification Settings"
+- assertVisible: "System Notification Settings"
+
+
+

@@ -1,6 +1,8 @@
 package com.thesis.mobile.ui.screens
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,6 +17,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.ExperimentalMaterialApi
+import androidx.compose.material.pullrefresh.PullRefreshIndicator
+import androidx.compose.material.pullrefresh.pullRefresh
+import androidx.compose.material.pullrefresh.rememberPullRefreshState
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Button
@@ -24,11 +30,16 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
@@ -43,10 +54,14 @@ import com.patrykandpatrick.vico.core.entry.ChartEntryModelProducer
 import com.patrykandpatrick.vico.core.entry.entryOf
 import com.thesis.mobile.model.SentimentSnapshotView
 import com.thesis.mobile.model.SentimentSubScoreView
+import com.thesis.mobile.ui.theme.HeadingFont
 import com.thesis.mobile.ui.theme.ThesisColors
 import com.thesis.mobile.ui.theme.ThesisDimens
 import com.thesis.mobile.ui.theme.ThesisTypography
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
+@OptIn(ExperimentalMaterialApi::class)
 @Composable
 fun SentimentDashboardScreen(
     current: SentimentSnapshotView?,
@@ -54,10 +69,25 @@ fun SentimentDashboardScreen(
     selectedRangeDays: Int,
     sentimentError: String?,
     onSelectRange: (Int) -> Unit,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onRefresh: (() -> Unit)? = null
 ) {
     val chartRows = remember(history) { history.sortedBy { it.marketDate } }
     val modelProducer = remember { ChartEntryModelProducer() }
+    var isRefreshing by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    val pullRefreshState = rememberPullRefreshState(
+        refreshing = isRefreshing,
+        onRefresh = {
+            isRefreshing = true
+            onRefresh?.invoke() ?: onSelectRange(selectedRangeDays)
+            scope.launch {
+                delay(1800L)
+                isRefreshing = false
+            }
+        }
+    )
+
     LaunchedEffect(chartRows) {
         val entries = chartRows.mapIndexed { index, row ->
             entryOf(index.toFloat(), row.score.toFloat())
@@ -65,118 +95,208 @@ fun SentimentDashboardScreen(
         modelProducer.setEntries(entries)
     }
 
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(
-            start = ThesisDimens.ScreenPaddingHorizontal,
-            end = ThesisDimens.ScreenPaddingHorizontal,
-            top = ThesisDimens.ScreenPaddingTop,
-            bottom = ThesisDimens.ScreenPaddingBottom
-        ),
-        verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingLg)
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(ThesisColors.Background)
     ) {
-        item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .pullRefresh(pullRefreshState)
+        ) {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(
+                    start = ThesisDimens.ScreenPaddingHorizontal,
+                    end = ThesisDimens.ScreenPaddingHorizontal,
+                    top = 56.dp + ThesisDimens.ScreenPaddingTop,
+                    bottom = ThesisDimens.ScreenPaddingBottom
+                ),
+                verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingLg)
             ) {
-                Button(
-                    onClick = onBack,
-                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(
-                        containerColor = ThesisColors.DarkSurface,
-                        contentColor = ThesisColors.TextPrimaryDark
-                    )
-                ) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    Spacer(modifier = Modifier.size(8.dp))
-                    Text("Back")
-                }
-                Text(
-                    text = "Fear & Greed Dashboard",
-                    style = ThesisTypography.headlineMedium.copy(fontWeight = FontWeight.Bold),
-                    color = ThesisColors.TextPrimaryDark
-                )
-            }
-        }
-
-        item {
-            SentimentGaugeCard(current = current, sentimentError = sentimentError)
-        }
-
-        item {
-            SentimentRangeSelector(
-                selectedRangeDays = selectedRangeDays,
-                onSelectRange = onSelectRange
-            )
-        }
-
-        item {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
-                colors = CardDefaults.cardColors(containerColor = ThesisColors.DarkSurfaceHigh)
-            ) {
-                Column(modifier = Modifier.padding(ThesisDimens.CardPadding)) {
-                    Text(
-                        text = "Trend",
-                        style = ThesisTypography.headlineMedium.copy(fontWeight = FontWeight.Bold),
-                        color = ThesisColors.TextPrimaryDark
-                    )
-                    Text(
-                        text = "Last $selectedRangeDays day sentiment history.",
-                        style = ThesisTypography.bodySmall,
-                        color = ThesisColors.TextSecondaryDark
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    if (chartRows.isEmpty()) {
+                item {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
                         Text(
-                            text = "No sentiment history available for this range yet.",
-                            style = ThesisTypography.bodySmall,
-                            color = ThesisColors.TextTertiaryDark
+                            text = if (current == null) "--" else current.score.toInt().toString(),
+                            style = ThesisTypography.displayLarge.copy(
+                                fontFamily = HeadingFont,
+                                fontWeight = FontWeight.Normal
+                            ),
+                            color = ThesisColors.TextPrimary
                         )
-                    } else {
-                        Chart(
-                            chart = lineChart(),
-                            chartModelProducer = modelProducer,
-                            startAxis = rememberStartAxis(),
-                            bottomAxis = rememberBottomAxis(),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(220.dp)
+                        Spacer(modifier = Modifier.height(ThesisDimens.SpacingSm))
+                        Text(
+                            text = formatDashboardLabel(current?.label),
+                            style = ThesisTypography.headlineMedium.copy(fontWeight = FontWeight.Medium),
+                            color = dashboardLabelColor(current?.label)
+                        )
+                        Spacer(modifier = Modifier.height(ThesisDimens.SpacingXs))
+                        Text(
+                            text = current?.marketDate ?: "No data available",
+                            style = ThesisTypography.labelSmall,
+                            color = ThesisColors.TextMuted
                         )
                     }
                 }
-            }
-        }
 
-        item {
-            Text(
-                text = "Sub-score Breakdown",
-                style = ThesisTypography.headlineMedium.copy(fontWeight = FontWeight.Bold),
-                color = ThesisColors.TextPrimaryDark
+                item {
+                    SentimentGaugeCard(current = current, sentimentError = sentimentError)
+                }
+
+                item {
+                    SentimentRangeSelector(
+                        selectedRangeDays = selectedRangeDays,
+                        onSelectRange = onSelectRange
+                    )
+                }
+
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
+                        colors = CardDefaults.cardColors(containerColor = ThesisColors.Surface),
+                        border = androidx.compose.foundation.BorderStroke(ThesisDimens.BorderWidth, ThesisColors.Border)
+                    ) {
+                        Column(modifier = Modifier.padding(ThesisDimens.CardPadding)) {
+                            Text(
+                                text = "Trend",
+                                style = ThesisTypography.headlineMedium.copy(fontWeight = FontWeight.Medium),
+                                color = ThesisColors.TextPrimary
+                            )
+                            Text(
+                                text = "Last $selectedRangeDays day sentiment history.",
+                                style = ThesisTypography.bodySmall,
+                                color = ThesisColors.TextMuted
+                            )
+                            Spacer(modifier = Modifier.height(12.dp))
+                            if (chartRows.isEmpty()) {
+                                Text(
+                                    text = "No sentiment history available for this range yet.",
+                                    style = ThesisTypography.bodySmall,
+                                    color = ThesisColors.TextMuted
+                                )
+                            } else {
+                                Chart(
+                                    chart = lineChart(),
+                                    chartModelProducer = modelProducer,
+                                    startAxis = rememberStartAxis(),
+                                    bottomAxis = rememberBottomAxis(),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(220.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+
+                item {
+                    Text(
+                        text = "Sub-score Breakdown",
+                        style = ThesisTypography.headlineMedium.copy(fontWeight = FontWeight.Medium),
+                        color = ThesisColors.TextPrimary
+                    )
+                }
+
+                if (current?.subScores.isNullOrEmpty()) {
+                    item {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
+                            colors = CardDefaults.cardColors(containerColor = ThesisColors.Surface),
+                            border = androidx.compose.foundation.BorderStroke(ThesisDimens.BorderWidth, ThesisColors.Border)
+                        ) {
+                            Text(
+                                text = "Sub-scores are not available yet.",
+                                style = ThesisTypography.bodySmall,
+                                color = ThesisColors.TextMuted,
+                                modifier = Modifier.padding(ThesisDimens.CardPadding)
+                            )
+                        }
+                    }
+                } else {
+                    items(current?.subScores.orEmpty()) { subScore ->
+                        SubScoreRow(subScore = subScore)
+                    }
+                }
+
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
+                        colors = CardDefaults.cardColors(containerColor = ThesisColors.Surface),
+                        border = androidx.compose.foundation.BorderStroke(ThesisDimens.BorderWidth, ThesisColors.Border)
+                    ) {
+                        Column(modifier = Modifier.padding(ThesisDimens.CardPadding)) {
+                            Text(
+                                text = "Recent History",
+                                style = ThesisTypography.headlineMedium.copy(fontWeight = FontWeight.Medium),
+                                color = ThesisColors.TextPrimary
+                            )
+                            Spacer(modifier = Modifier.height(ThesisDimens.SpacingMd))
+                            if (chartRows.isEmpty()) {
+                                Text(
+                                    text = "No recent readings available.",
+                                    style = ThesisTypography.bodySmall,
+                                    color = ThesisColors.TextMuted
+                                )
+                            } else {
+                                chartRows.sortedByDescending { it.marketDate }.take(10).forEachIndexed { index, snap ->
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = snap.marketDate,
+                                            style = ThesisTypography.labelMedium,
+                                            color = ThesisColors.TextMuted
+                                        )
+                                        Text(
+                                            text = snap.score.toInt().toString(),
+                                            style = ThesisTypography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                                            color = ThesisColors.TextPrimary
+                                        )
+                                    }
+                                    if (index < chartRows.sortedByDescending { it.marketDate }.take(10).lastIndex) {
+                                        Spacer(modifier = Modifier.height(ThesisDimens.SpacingSm))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            PullRefreshIndicator(
+                refreshing = isRefreshing,
+                state = pullRefreshState,
+                modifier = Modifier.align(Alignment.TopCenter),
+                backgroundColor = ThesisColors.Surface,
+                contentColor = ThesisColors.Primary
             )
         }
 
-        if (current?.subScores.isNullOrEmpty()) {
-            item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
-                    colors = CardDefaults.cardColors(containerColor = ThesisColors.DarkSurface)
-                ) {
-                    Text(
-                        text = "Sub-scores are not available yet.",
-                        style = ThesisTypography.bodySmall,
-                        color = ThesisColors.TextSecondaryDark,
-                        modifier = Modifier.padding(ThesisDimens.CardPadding)
-                    )
-                }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp)
+                .background(ThesisColors.Background.copy(alpha = 0.97f))
+                .padding(horizontal = ThesisDimens.SpacingSm),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            androidx.compose.material3.IconButton(onClick = onBack) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = ThesisColors.Primary)
             }
-        } else {
-            items(current?.subScores.orEmpty()) { subScore ->
-                SubScoreRow(subScore = subScore)
-            }
+            Text(
+                text = "Fear & Greed Dashboard",
+                style = ThesisTypography.headlineMedium.copy(fontWeight = FontWeight.Medium),
+                color = ThesisColors.TextPrimary
+            )
         }
     }
 }
@@ -187,18 +307,34 @@ private fun SentimentRangeSelector(
     onSelectRange: (Int) -> Unit
 ) {
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        listOf(7, 30, 90).forEach { option ->
+        listOf(7, 14, 30, 90).forEach { option ->
             val selected = selectedRangeDays == option
             AssistChip(
                 onClick = { onSelectRange(option) },
                 label = { Text("$option days") },
                 colors = AssistChipDefaults.assistChipColors(
-                    containerColor = if (selected) ThesisColors.AccentBlue.copy(alpha = 0.2f) else ThesisColors.DarkSurface,
-                    labelColor = if (selected) ThesisColors.AccentBlueLight else ThesisColors.TextSecondaryDark
+                    containerColor = if (selected) ThesisColors.Primary.copy(alpha = 0.12f) else ThesisColors.Surface,
+                    labelColor = if (selected) ThesisColors.Primary else ThesisColors.TextMuted
                 )
             )
         }
     }
+}
+
+private fun formatDashboardLabel(label: String?): String = when (label?.lowercase()) {
+    "extreme_fear" -> "Extreme Fear"
+    "fear" -> "Fear"
+    "neutral" -> "Neutral"
+    "greed" -> "Greed"
+    "extreme_greed" -> "Extreme Greed"
+    else -> "Unavailable"
+}
+
+private fun dashboardLabelColor(label: String?): Color = when (label?.lowercase()) {
+    "extreme_fear", "fear" -> ThesisColors.SignalNegative
+    "greed", "extreme_greed" -> ThesisColors.SignalPositive
+    "neutral" -> ThesisColors.SignalNeutral
+    else -> ThesisColors.TextMuted
 }
 
 @Composable
@@ -227,7 +363,8 @@ private fun SentimentGaugeCard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
-        colors = CardDefaults.cardColors(containerColor = ThesisColors.DarkSurfaceHigh)
+        colors = CardDefaults.cardColors(containerColor = ThesisColors.Surface),
+        border = androidx.compose.foundation.BorderStroke(ThesisDimens.BorderWidth, ThesisColors.Border)
     ) {
         Column(
             modifier = Modifier
@@ -237,8 +374,8 @@ private fun SentimentGaugeCard(
         ) {
             Text(
                 text = "Current Sentiment",
-                style = ThesisTypography.headlineMedium.copy(fontWeight = FontWeight.Bold),
-                color = ThesisColors.TextPrimaryDark
+                style = ThesisTypography.headlineMedium.copy(fontWeight = FontWeight.Medium),
+                color = ThesisColors.TextPrimary
             )
             Spacer(modifier = Modifier.height(16.dp))
             Box(
@@ -273,7 +410,7 @@ private fun SentimentGaugeCard(
                     Text(
                         text = if (current == null) "--" else clampedScore.toInt().toString(),
                         style = ThesisTypography.displayMedium,
-                        color = ThesisColors.TextPrimaryDark
+                        color = ThesisColors.TextPrimary
                     )
                     Text(
                         text = label,
@@ -300,7 +437,8 @@ private fun SubScoreRow(subScore: SentimentSubScoreView) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
-        colors = CardDefaults.cardColors(containerColor = ThesisColors.DarkSurface)
+        colors = CardDefaults.cardColors(containerColor = ThesisColors.Surface),
+        border = androidx.compose.foundation.BorderStroke(ThesisDimens.BorderWidth, ThesisColors.Border)
     ) {
         Row(
             modifier = Modifier
@@ -312,20 +450,20 @@ private fun SubScoreRow(subScore: SentimentSubScoreView) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = subScore.inputName.replace('_', ' '),
-                    style = ThesisTypography.bodyLarge.copy(fontWeight = FontWeight.Bold),
-                    color = ThesisColors.TextPrimaryDark
+                    style = ThesisTypography.bodyLarge.copy(fontWeight = FontWeight.Medium),
+                    color = ThesisColors.TextPrimary
                 )
                 Text(
                     text = "Provider: ${subScore.provider}",
                     style = ThesisTypography.bodySmall,
-                    color = ThesisColors.TextTertiaryDark
+                    color = ThesisColors.TextMuted
                 )
             }
             Column(horizontalAlignment = Alignment.End) {
                 Text(
                     text = scoreText,
-                    style = ThesisTypography.headlineMedium.copy(fontWeight = FontWeight.Bold),
-                    color = if (subScore.available) ThesisColors.TextPrimaryDark else ThesisColors.TextTertiaryDark
+                    style = ThesisTypography.headlineMedium.copy(fontWeight = FontWeight.Medium),
+                    color = if (subScore.available) ThesisColors.TextPrimary else ThesisColors.TextMuted
                 )
                 Text(
                     text = if (subScore.available) "available" else "missing",

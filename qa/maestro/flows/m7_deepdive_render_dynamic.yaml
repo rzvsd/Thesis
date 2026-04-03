@@ -1,4 +1,4 @@
-appId: ${MAESTRO_APP_ID}
+﻿appId: ${MAESTRO_APP_ID}
 ---
 - launchApp:
     clearState: true
@@ -16,11 +16,11 @@ appId: ${MAESTRO_APP_ID}
       - tapOn: "Allow"
 
 - assertVisible: "Thesis Android MVP"
-- tapOn: "Email"
+- tapOn: "you@example.com"
 - inputText: "${MAESTRO_TEST_EMAIL}"
-- tapOn: "Password"
+- tapOn: "Enter password"
 - inputText: "${MAESTRO_TEST_PASSWORD}"
-- tapOn: "Login"
+- tapOn: "Log In"
 
 - tapOn: "Deep Dive"
 - assertVisible: "Company Deep Dive"
@@ -43,3 +43,6 @@ appId: ${MAESTRO_APP_ID}
     direction: DOWN
     timeout: 90000
 - assertVisible: "${MAESTRO_REPORT_LAST_SECTION}"
+
+
+

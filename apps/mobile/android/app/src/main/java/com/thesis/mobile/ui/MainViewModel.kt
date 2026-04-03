@@ -299,6 +299,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 )
                 refreshFeatureFlags()
                 refreshUserProfile()
+                refreshWatchlist()
                 refreshNotificationPreferences()
                 refreshSubscriptionOffers()
                 refreshPulse()

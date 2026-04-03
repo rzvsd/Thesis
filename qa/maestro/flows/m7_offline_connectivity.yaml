@@ -1,4 +1,4 @@
-appId: ${MAESTRO_APP_ID}
+﻿appId: ${MAESTRO_APP_ID}
 ---
 - launchApp:
     clearState: false
@@ -25,9 +25,9 @@ appId: ${MAESTRO_APP_ID}
     when:
       visible: "Thesis Android MVP"
     commands:
-      - tapOn: "Email"
+      - tapOn: "you@example.com"
       - inputText: "${MAESTRO_TEST_EMAIL}"
-      - tapOn: "Password"
+      - tapOn: "Enter password"
       - inputText: "${MAESTRO_TEST_PASSWORD}"
       - hideKeyboard
 
@@ -37,7 +37,7 @@ appId: ${MAESTRO_APP_ID}
     commands:
       - tapOn: "name@architecture.com"
       - inputText: "${MAESTRO_TEST_EMAIL}"
-      - tapOn: "â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
+      - tapOn: "Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢"
       - inputText: "${MAESTRO_TEST_PASSWORD}"
       - hideKeyboard
 
@@ -45,7 +45,7 @@ appId: ${MAESTRO_APP_ID}
     when:
       visible: "Login"
     commands:
-      - tapOn: "Login"
+      - tapOn: "Log In"
 
 - runFlow:
     when:
@@ -97,3 +97,6 @@ appId: ${MAESTRO_APP_ID}
     visible: "No internet connection. Please check network and retry."
     timeout: 45000
 - assertVisible: "No internet connection. Please check network and retry."
+
+
+

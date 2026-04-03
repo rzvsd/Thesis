@@ -2,6 +2,7 @@ package com.thesis.mobile.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,7 +15,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
@@ -22,12 +22,12 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.HelpOutline
 import androidx.compose.material.icons.filled.PushPin
-import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -48,8 +48,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.thesis.mobile.model.DeepDiveReportView
 import com.thesis.mobile.model.EvidenceView
+import com.thesis.mobile.model.ReportHistoryItem
 import com.thesis.mobile.model.ScenarioResultView
-import com.thesis.mobile.model.SectionView
+import com.thesis.mobile.model.ValuationDisplayView
 import com.thesis.mobile.ui.components.ConfidenceRing
 import com.thesis.mobile.ui.components.DeepDiveUnavailableState
 import com.thesis.mobile.ui.components.EvidenceDots
@@ -57,6 +58,8 @@ import com.thesis.mobile.ui.components.NoDeepDivesEmptyState
 import com.thesis.mobile.ui.components.OfflineEmptyState
 import com.thesis.mobile.ui.components.SectionAccordion
 import com.thesis.mobile.ui.components.SignalBadge
+import com.thesis.mobile.ui.components.ThesisButton
+import com.thesis.mobile.ui.theme.HeadingFont
 import com.thesis.mobile.ui.theme.ThesisColors
 import com.thesis.mobile.ui.theme.ThesisDimens
 import com.thesis.mobile.ui.theme.ThesisTypography
@@ -66,6 +69,7 @@ fun DeepDiveScreen(
     report: DeepDiveReportView?,
     isLoading: Boolean,
     errorMessage: String?,
+    recentHistory: List<ReportHistoryItem>,
     userTier: String?,
     reportNoteDraft: String,
     noteUpdatedAt: String?,
@@ -77,6 +81,8 @@ fun DeepDiveScreen(
     onRunScenario: (Int?, Double?, Double?) -> Unit,
     onRequireUpgrade: (String) -> Unit,
     onNotify: (String) -> Unit,
+    onOpenHistoryReport: (String) -> Unit,
+    onOpenPulseHistory: (String) -> Unit,
     tickerState: String,
     watchlist: List<String>,
     onTickerChange: (String) -> Unit,
@@ -92,8 +98,11 @@ fun DeepDiveScreen(
                 tickerState = tickerState,
                 isLoading = isLoading,
                 errorMessage = errorMessage,
+                recentHistory = recentHistory,
                 onTickerChange = onTickerChange,
                 onRunReport = onRunReport,
+                onOpenHistoryReport = onOpenHistoryReport,
+                onOpenPulseHistory = onOpenPulseHistory,
                 padding = padding
             )
         }
@@ -124,8 +133,11 @@ private fun DeepDiveSearchState(
     tickerState: String,
     isLoading: Boolean,
     errorMessage: String?,
+    recentHistory: List<ReportHistoryItem>,
     onTickerChange: (String) -> Unit,
     onRunReport: () -> Unit,
+    onOpenHistoryReport: (String) -> Unit,
+    onOpenPulseHistory: (String) -> Unit,
     padding: PaddingValues
 ) {
     Box(
@@ -149,36 +161,123 @@ private fun DeepDiveSearchState(
 
         NoDeepDivesEmptyState {
             Column(modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    text = "Start new research or reopen something you already explored.",
+                    style = ThesisTypography.bodyMedium,
+                    color = ThesisColors.TextMuted
+                )
+                Spacer(modifier = Modifier.height(ThesisDimens.SpacingLg))
                 OutlinedTextField(
                     value = tickerState,
                     onValueChange = onTickerChange,
                     label = { Text("Ticker Symbol (e.g. AAPL)") },
                     singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
+                    colors = deepDiveFieldColors()
                 )
                 Spacer(modifier = Modifier.height(ThesisDimens.SpacingLg))
-
-                Button(
+                ThesisButton(
+                    text = if (isLoading) "Running..." else "Run Deep Dive",
                     onClick = onRunReport,
-                    enabled = !isLoading && tickerState.isNotBlank(),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(56.dp)
+                    enabled = !isLoading && tickerState.isNotBlank()
                 ) {
                     if (isLoading) {
                         CircularProgressIndicator(
-                            modifier = Modifier.size(24.dp),
-                            color = ThesisColors.TextPrimaryDark
+                            modifier = Modifier.size(20.dp),
+                            color = ThesisColors.TextInverse,
+                            strokeWidth = 2.dp
                         )
                     } else {
                         Text(
                             text = "Run Deep Dive",
-                            style = ThesisTypography.labelLarge
+                            style = ThesisTypography.labelLarge.copy(fontWeight = FontWeight.Medium),
+                            color = ThesisColors.TextInverse
                         )
                     }
                 }
+                if (recentHistory.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(ThesisDimens.SpacingXl))
+                    Text(
+                        text = "Continue Research",
+                        style = ThesisTypography.labelLarge.copy(fontWeight = FontWeight.Medium),
+                        color = ThesisColors.TextPrimary
+                    )
+                    Spacer(modifier = Modifier.height(ThesisDimens.SpacingSm))
+                    recentHistory
+                        .sortedByDescending { it.createdAt }
+                        .take(3)
+                        .forEach { item ->
+                            RecentResearchCard(
+                                item = item,
+                                onClick = {
+                                    if (item.type == "deep_dive") {
+                                        onOpenHistoryReport(item.reportId)
+                                    } else {
+                                        onOpenPulseHistory(item.createdAt.take(10))
+                                    }
+                                }
+                            )
+                            Spacer(modifier = Modifier.height(ThesisDimens.SpacingSm))
+                        }
+                }
             }
         }
+    }
+}
+
+@Composable
+private fun RecentResearchCard(
+    item: ReportHistoryItem,
+    onClick: () -> Unit
+) {
+    val title = if (item.type == "deep_dive") {
+        item.ticker?.let { "$it Deep Dive" } ?: "Deep Dive"
+    } else {
+        "Market Pulse"
+    }
+    val subtitle = if (item.type == "deep_dive") {
+        "Open your last report"
+    } else {
+        "Open the saved pulse for ${item.createdAt.take(10)}"
+    }
+    val dateLabel = item.createdAt.take(10)
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(ThesisDimens.CardCornerRadius))
+            .background(ThesisColors.Surface)
+            .border(
+                width = ThesisDimens.BorderWidth,
+                color = ThesisColors.Border,
+                shape = RoundedCornerShape(ThesisDimens.CardCornerRadius)
+            )
+            .clickable(onClick = onClick)
+            .padding(ThesisDimens.SpacingMd),
+        verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingXs)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = title,
+                style = ThesisTypography.labelLarge.copy(fontWeight = FontWeight.Medium),
+                color = ThesisColors.TextPrimary
+            )
+            Text(
+                text = dateLabel,
+                style = ThesisTypography.labelSmall,
+                color = ThesisColors.TextMuted
+            )
+        }
+        Text(
+            text = subtitle,
+            style = ThesisTypography.bodySmall,
+            color = ThesisColors.TextMuted
+        )
     }
 }
 
@@ -215,14 +314,19 @@ private fun DeepDiveReportState(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(
                 top = 56.dp + ThesisDimens.ScreenPaddingTop,
-                bottom = ThesisDimens.ScreenPaddingBottom + 80.dp,
+                bottom = ThesisDimens.ScreenPaddingBottom + 96.dp,
                 start = ThesisDimens.ScreenPaddingHorizontal,
                 end = ThesisDimens.ScreenPaddingHorizontal
             ),
             verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingXxl)
         ) {
             item {
-                HeaderSection(ticker = ticker, isWatched = isWatched)
+                HeaderSection(
+                    ticker = ticker,
+                    isWatched = isWatched,
+                    schemaVersion = report.schemaVersion,
+                    isLegacy = report.isLegacy
+                )
             }
 
             report.thesisStatement?.takeIf { it.isNotBlank() }?.let { thesis ->
@@ -236,9 +340,9 @@ private fun DeepDiveReportState(
                 }
             }
 
-            item {
-                SignalBlockSection(report = report)
-            }
+            item { SignalBlockSection(report = report) }
+
+            item { ResearchSnapshotCard(report = report) }
 
             items(highlights.size) { index ->
                 val highlight = highlights[index]
@@ -255,8 +359,11 @@ private fun DeepDiveReportState(
                 item {
                     Text(
                         text = "Deep Dive Modules",
-                        style = ThesisTypography.headlineMedium.copy(fontWeight = FontWeight.Bold),
-                        color = ThesisColors.TextPrimaryDark
+                        style = ThesisTypography.headlineLarge.copy(
+                            fontFamily = HeadingFont,
+                            fontWeight = FontWeight.Normal
+                        ),
+                        color = ThesisColors.TextPrimary
                     )
                 }
             }
@@ -272,7 +379,7 @@ private fun DeepDiveReportState(
                             Text(
                                 text = section.body.ifBlank { "No section summary returned." },
                                 style = ThesisTypography.bodyMedium,
-                                color = ThesisColors.TextSecondaryDark
+                                color = ThesisColors.TextSecondary
                             )
 
                             if (section.evidence.isNotEmpty()) {
@@ -282,7 +389,7 @@ private fun DeepDiveReportState(
                                     Text(
                                         text = "${section.evidence.size} sources",
                                         style = ThesisTypography.labelSmall,
-                                        color = ThesisColors.TextTertiaryDark
+                                        color = ThesisColors.TextMuted
                                     )
                                 }
 
@@ -340,7 +447,7 @@ private fun DeepDiveReportState(
                 Text(
                     text = "This is a research summary, not financial advice. Always do your own research.",
                     style = ThesisTypography.labelSmall,
-                    color = ThesisColors.TextTertiaryDark,
+                    color = ThesisColors.TextMuted,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -351,7 +458,7 @@ private fun DeepDiveReportState(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(56.dp)
-                .background(ThesisColors.DarkBackground.copy(alpha = 0.95f))
+                .background(ThesisColors.Background.copy(alpha = 0.97f))
                 .padding(horizontal = ThesisDimens.SpacingSm),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
@@ -361,13 +468,13 @@ private fun DeepDiveReportState(
                     Icon(
                         imageVector = Icons.Default.ArrowBack,
                         contentDescription = "Back",
-                        tint = ThesisColors.AccentBlue
+                        tint = ThesisColors.Primary
                     )
                 }
                 Text(
                     text = ticker,
-                    style = ThesisTypography.headlineLarge.copy(fontWeight = FontWeight.Bold),
-                    color = ThesisColors.TextPrimaryDark
+                    style = ThesisTypography.headlineMedium.copy(fontWeight = FontWeight.Medium),
+                    color = ThesisColors.TextPrimary
                 )
             }
 
@@ -377,50 +484,72 @@ private fun DeepDiveReportState(
 }
 
 @Composable
-private fun HeaderSection(ticker: String, isWatched: Boolean) {
-    Column(verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingMd)) {
+private fun HeaderSection(
+    ticker: String,
+    isWatched: Boolean,
+    schemaVersion: String,
+    isLegacy: Boolean
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.Top
         ) {
-            Column {
-                Text(
-                    text = ticker,
-                    style = ThesisTypography.displayLarge.copy(fontSize = 44.sp, fontWeight = FontWeight.ExtraBold),
-                    color = ThesisColors.TextPrimaryDark
-                )
-                Text(
-                    text = "Evidence-backed company research",
-                    style = ThesisTypography.bodyMedium,
-                    color = ThesisColors.TextSecondaryDark
-                )
-            }
+            Text(
+                text = ticker,
+                style = ThesisTypography.displayLarge.copy(
+                    fontFamily = HeadingFont,
+                    fontSize = 44.sp,
+                    fontWeight = FontWeight.Normal
+                ),
+                color = ThesisColors.TextPrimary
+            )
 
             if (isWatched) {
                 Row(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(percent = 50))
-                        .background(ThesisColors.AccentBlue.copy(alpha = 0.1f))
-                        .border(1.dp, ThesisColors.AccentBlue.copy(alpha = 0.2f), RoundedCornerShape(percent = 50))
-                        .padding(horizontal = ThesisDimens.SpacingMd, vertical = ThesisDimens.SpacingXs),
+                        .clip(RoundedCornerShape(ThesisDimens.SignalBadgeCorner))
+                        .background(ThesisColors.Primary.copy(alpha = 0.1f))
+                        .border(
+                            ThesisDimens.BorderWidth,
+                            ThesisColors.Primary.copy(alpha = 0.2f),
+                            RoundedCornerShape(ThesisDimens.SignalBadgeCorner)
+                        )
+                        .padding(horizontal = ThesisDimens.SpacingSm, vertical = ThesisDimens.SpacingXs),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
                         imageVector = Icons.Default.AutoAwesome,
                         contentDescription = null,
-                        tint = ThesisColors.AccentBlue,
-                        modifier = Modifier.size(14.dp)
+                        tint = ThesisColors.Primary,
+                        modifier = Modifier.size(12.dp)
                     )
                     Spacer(modifier = Modifier.size(ThesisDimens.SpacingXs))
                     Text(
-                        text = "In My Names",
-                        style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Bold, letterSpacing = 1.sp),
-                        color = ThesisColors.AccentBlue
+                        text = "IN MY NAMES",
+                        style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Medium),
+                        color = ThesisColors.Primary
                     )
                 }
             }
         }
+
+        Text(
+            text = if (isLegacy) {
+                "Legacy report surfaced in the emergent layout"
+            } else {
+                "Evidence-backed company research"
+            },
+            style = ThesisTypography.bodyMedium,
+            color = ThesisColors.TextSecondary
+        )
+
+        Text(
+            text = "Schema v$schemaVersion",
+            style = ThesisTypography.labelSmall,
+            color = ThesisColors.TextMuted
+        )
     }
 }
 
@@ -428,15 +557,17 @@ private fun HeaderSection(ticker: String, isWatched: Boolean) {
 private fun SignalBlockSection(report: DeepDiveReportView) {
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingMd)
+        horizontalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)
     ) {
+        val shape = RoundedCornerShape(ThesisDimens.CardCornerRadius)
+
         Box(
             modifier = Modifier
                 .weight(1f)
-                .height(156.dp)
-                .clip(RoundedCornerShape(ThesisDimens.CardCornerRadius))
+                .height(140.dp)
+                .clip(shape)
                 .background(signalContainerColor(report.signalValue))
-                .border(2.dp, signalBorderColor(report.signalValue), RoundedCornerShape(ThesisDimens.CardCornerRadius))
+                .border(ThesisDimens.BorderWidth, signalBorderColor(report.signalValue), shape)
                 .padding(ThesisDimens.CardPadding)
         ) {
             Column(
@@ -444,14 +575,14 @@ private fun SignalBlockSection(report: DeepDiveReportView) {
                 verticalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
-                    text = "CURRENT SIGNAL",
-                    style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp),
+                    text = "SIGNAL",
+                    style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Medium),
                     color = signalTextColor(report.signalValue)
                 )
                 SignalBadge(signalValue = report.signalValue)
                 Text(
                     text = report.signalValue?.uppercase() ?: "NO SIGNAL",
-                    style = ThesisTypography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                    style = ThesisTypography.bodyMedium.copy(fontWeight = FontWeight.Medium),
                     color = signalTextColor(report.signalValue)
                 )
             }
@@ -460,9 +591,10 @@ private fun SignalBlockSection(report: DeepDiveReportView) {
         Box(
             modifier = Modifier
                 .weight(1f)
-                .height(156.dp)
-                .clip(RoundedCornerShape(ThesisDimens.CardCornerRadius))
-                .background(ThesisColors.DarkSurfaceHigh)
+                .height(140.dp)
+                .clip(shape)
+                .background(ThesisColors.Surface)
+                .border(ThesisDimens.BorderWidth, ThesisColors.Border, shape)
                 .padding(ThesisDimens.CardPadding),
             contentAlignment = Alignment.Center
         ) {
@@ -472,23 +604,90 @@ private fun SignalBlockSection(report: DeepDiveReportView) {
             ) {
                 ConfidenceRing(
                     score = (report.confidenceScore ?: 0.0).toFloat(),
-                    modifier = Modifier.size(64.dp)
+                    modifier = Modifier.size(56.dp)
                 )
                 Spacer(modifier = Modifier.size(ThesisDimens.SpacingMd))
                 Column {
                     Text(
                         text = "CONFIDENCE",
-                        style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Bold, letterSpacing = 1.sp),
-                        color = ThesisColors.TextTertiaryDark
+                        style = ThesisTypography.labelSmall,
+                        color = ThesisColors.TextMuted
                     )
                     Text(
                         text = report.confidenceLabel?.uppercase() ?: "UNKNOWN",
-                        style = ThesisTypography.headlineMedium.copy(fontWeight = FontWeight.Bold),
-                        color = ThesisColors.TextPrimaryDark
+                        style = ThesisTypography.headlineMedium.copy(fontWeight = FontWeight.Medium),
+                        color = ThesisColors.TextPrimary
                     )
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun ResearchSnapshotCard(report: DeepDiveReportView) {
+    val shape = RoundedCornerShape(ThesisDimens.CardCornerRadius)
+
+    Column(verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)) {
+        Text(
+            text = "Research Snapshot",
+            style = ThesisTypography.headlineMedium.copy(fontWeight = FontWeight.Medium),
+            color = ThesisColors.TextPrimary
+        )
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(shape)
+                .background(ThesisColors.Surface)
+                .border(ThesisDimens.BorderWidth, ThesisColors.Border, shape)
+                .padding(ThesisDimens.CardPadding)
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingMd)) {
+                if (report.signalReasons.isNotEmpty()) {
+                    SnapshotRow(
+                        label = "WHY THIS SIGNAL",
+                        value = report.signalReasons.joinToString(separator = " | ")
+                    )
+                }
+
+                report.valuation?.let { valuation ->
+                    SnapshotRow(
+                        label = "VALUATION",
+                        value = valuationSummary(valuation)
+                    )
+                }
+
+                report.historical?.let { historical ->
+                    SnapshotRow(
+                        label = "HISTORICAL CONTEXT",
+                        value = historicalSummary(historical)
+                    )
+                }
+
+                report.confidence?.limitingFactors?.takeIf { it.isNotEmpty() }?.let { factors ->
+                    SnapshotRow(
+                        label = "LIMITING FACTORS",
+                        value = factors.joinToString(separator = " | ")
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SnapshotRow(label: String, value: String) {
+    Column(verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingXs)) {
+        Text(
+            text = label,
+            style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Medium),
+            color = ThesisColors.TextMuted
+        )
+        Text(
+            text = value,
+            style = ThesisTypography.bodyMedium,
+            color = ThesisColors.TextPrimary
+        )
     }
 }
 
@@ -500,6 +699,7 @@ private fun SummarySection(
     content: String,
     isCaution: Boolean = false
 ) {
+    val shape = RoundedCornerShape(ThesisDimens.CardCornerRadius)
     Column {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -514,23 +714,27 @@ private fun SummarySection(
             Spacer(modifier = Modifier.size(ThesisDimens.SpacingSm))
             Text(
                 text = title.uppercase(),
-                style = ThesisTypography.labelMedium.copy(fontWeight = FontWeight.Bold, letterSpacing = 1.sp),
-                color = ThesisColors.TextSecondaryDark
+                style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Medium),
+                color = ThesisColors.TextMuted
             )
         }
 
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(ThesisDimens.CardCornerRadius))
-                .background(if (isCaution) ThesisColors.DarkSurface else ThesisColors.DarkSurfaceHigh)
-                .border(2.dp, iconColor.copy(alpha = 0.4f), RoundedCornerShape(ThesisDimens.CardCornerRadius))
-                .padding(ThesisDimens.SpacingLg)
+                .clip(shape)
+                .background(ThesisColors.Surface)
+                .border(
+                    ThesisDimens.BorderWidth,
+                    if (isCaution) ThesisColors.SignalWarning.copy(alpha = 0.2f) else iconColor.copy(alpha = 0.2f),
+                    shape
+                )
+                .padding(ThesisDimens.CardPadding)
         ) {
             Text(
                 text = content,
                 style = ThesisTypography.bodyLarge,
-                color = if (isCaution) ThesisColors.TextSecondaryDark else ThesisColors.TextPrimaryDark,
+                color = if (isCaution) ThesisColors.TextSecondary else ThesisColors.TextPrimary,
                 fontStyle = if (isCaution) FontStyle.Italic else FontStyle.Normal
             )
         }
@@ -544,21 +748,21 @@ private fun EvidenceList(evidence: List<EvidenceView>) {
             Column {
                 Text(
                     text = "Source: ${item.sourceName}",
-                    style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                    color = ThesisColors.TextPrimaryDark
+                    style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Medium),
+                    color = ThesisColors.TextPrimary
                 )
                 if (item.excerpt.isNotBlank()) {
                     Text(
                         text = item.excerpt,
                         style = ThesisTypography.bodySmall,
-                        color = ThesisColors.TextSecondaryDark
+                        color = ThesisColors.TextMuted
                     )
                 }
                 if (!item.url.isNullOrBlank()) {
                     Text(
                         text = item.url,
                         style = ThesisTypography.labelSmall,
-                        color = ThesisColors.AccentBlueLight
+                        color = ThesisColors.Primary
                     )
                 }
             }
@@ -577,8 +781,8 @@ private fun NotesSection(
     Column(verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)) {
         Text(
             text = "My Notes",
-            style = ThesisTypography.headlineMedium.copy(fontWeight = FontWeight.Bold),
-            color = ThesisColors.TextPrimaryDark
+            style = ThesisTypography.headlineMedium.copy(fontWeight = FontWeight.Medium),
+            color = ThesisColors.TextPrimary
         )
         OutlinedTextField(
             value = noteDraft,
@@ -586,7 +790,9 @@ private fun NotesSection(
             modifier = Modifier.fillMaxWidth(),
             minLines = 4,
             maxLines = 8,
-            label = { Text("Add your notes for this report") }
+            label = { Text("Add your notes for this report") },
+            shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
+            colors = deepDiveFieldColors()
         )
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -596,11 +802,14 @@ private fun NotesSection(
             Text(
                 text = noteUpdatedAt?.let { "Last saved: $it" } ?: "No saved note yet.",
                 style = ThesisTypography.labelSmall,
-                color = ThesisColors.TextTertiaryDark
+                color = ThesisColors.TextMuted
             )
-            Button(onClick = onSave, enabled = !isSaving) {
-                Text(if (isSaving) "Saving..." else "Save Note")
-            }
+            ThesisButton(
+                text = if (isSaving) "Saving..." else "Save Note",
+                onClick = onSave,
+                enabled = !isSaving,
+                modifier = Modifier.fillMaxWidth().weight(0.45f, fill = false)
+            )
         }
     }
 }
@@ -608,7 +817,7 @@ private fun NotesSection(
 @Composable
 private fun ScenarioSection(
     isPro: Boolean,
-    valuation: com.thesis.mobile.model.ValuationDisplayView?,
+    valuation: ValuationDisplayView?,
     isRunning: Boolean,
     scenarioResult: ScenarioResultView?,
     onRunScenario: (Int?, Double?, Double?) -> Unit,
@@ -633,20 +842,20 @@ private fun ScenarioSection(
     Column(verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)) {
         Text(
             text = "What-If Scenario",
-            style = ThesisTypography.headlineMedium.copy(fontWeight = FontWeight.Bold),
-            color = ThesisColors.TextPrimaryDark
+            style = ThesisTypography.headlineMedium.copy(fontWeight = FontWeight.Medium),
+            color = ThesisColors.TextPrimary
         )
         Text(
-            text = "Adjust deterministic DCF assumptions and compare base vs scenario outputs.",
+            text = "Adjust DCF assumptions and compare outputs.",
             style = ThesisTypography.bodySmall,
-            color = ThesisColors.TextSecondaryDark
+            color = ThesisColors.TextMuted
         )
 
         if (valuation == null) {
             Text(
-                text = "Valuation data is unavailable for this report.",
+                text = "Valuation data unavailable.",
                 style = ThesisTypography.bodySmall,
-                color = ThesisColors.TextTertiaryDark
+                color = ThesisColors.TextMuted
             )
             return@Column
         }
@@ -656,28 +865,35 @@ private fun ScenarioSection(
             onValueChange = { projectionYearsText = it },
             label = { Text("Projection years") },
             singleLine = true,
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
+            colors = deepDiveFieldColors()
         )
         OutlinedTextField(
             value = terminalGrowthText,
             onValueChange = { terminalGrowthText = it },
             label = { Text("Terminal growth rate") },
             singleLine = true,
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
+            colors = deepDiveFieldColors()
         )
         OutlinedTextField(
             value = waccText,
             onValueChange = { waccText = it },
             label = { Text("WACC") },
             singleLine = true,
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
+            colors = deepDiveFieldColors()
         )
 
-        Button(
+        ThesisButton(
+            text = if (isRunning) "Running..." else "Run Scenario",
             onClick = {
                 if (!isPro) {
                     onRequireUpgrade("what_if_scenario")
-                    return@Button
+                    return@ThesisButton
                 }
                 onRunScenario(
                     projectionYearsText.toIntOrNull(),
@@ -685,41 +901,39 @@ private fun ScenarioSection(
                     waccText.toDoubleOrNull()
                 )
             },
-            enabled = !isRunning,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text(if (isRunning) "Running..." else "Run Scenario")
-        }
+            enabled = !isRunning
+        )
 
         scenarioResult?.let { result ->
+            val shape = RoundedCornerShape(ThesisDimens.CardCornerRadius)
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(ThesisDimens.CardCornerRadius))
-                    .background(ThesisColors.DarkSurfaceHigh)
-                    .border(1.dp, ThesisColors.DarkBorder, RoundedCornerShape(ThesisDimens.CardCornerRadius))
+                    .clip(shape)
+                    .background(ThesisColors.Surface)
+                    .border(ThesisDimens.BorderWidth, ThesisColors.Border, shape)
                     .padding(ThesisDimens.CardPadding)
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingXs)) {
                     Text(
                         text = "Scenario Result",
-                        style = ThesisTypography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                        color = ThesisColors.TextPrimaryDark
+                        style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Medium),
+                        color = ThesisColors.TextPrimary
                     )
                     Text(
-                        text = "Base fair value: ${result.base.fairValueMid?.let { String.format("%.2f", it) } ?: "n/a"}",
+                        text = "Base fair value: ${formatMaybeNumber(result.base.fairValueMid)}",
                         style = ThesisTypography.bodySmall,
-                        color = ThesisColors.TextSecondaryDark
+                        color = ThesisColors.TextMuted
                     )
                     Text(
-                        text = "Scenario fair value: ${result.scenario.fairValueMid?.let { String.format("%.2f", it) } ?: "n/a"}",
+                        text = "Scenario fair value: ${formatMaybeNumber(result.scenario.fairValueMid)}",
                         style = ThesisTypography.bodySmall,
-                        color = ThesisColors.TextSecondaryDark
+                        color = ThesisColors.TextMuted
                     )
                     Text(
-                        text = "Scenario implied upside: ${result.scenario.impliedUpsidePct?.let { String.format("%.2f%%", it) } ?: "n/a"}",
+                        text = "Implied upside: ${formatMaybePercent(result.scenario.impliedUpsidePct)}",
                         style = ThesisTypography.bodySmall,
-                        color = ThesisColors.TextSecondaryDark
+                        color = ThesisColors.SignalPositive
                     )
                 }
             }
@@ -739,13 +953,13 @@ private fun ExportSection(
     Column(verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)) {
         Text(
             text = "Export",
-            style = ThesisTypography.headlineMedium.copy(fontWeight = FontWeight.Bold),
-            color = ThesisColors.TextPrimaryDark
+            style = ThesisTypography.headlineMedium.copy(fontWeight = FontWeight.Medium),
+            color = ThesisColors.TextPrimary
         )
         Text(
-            text = "Create a PDF, share card, or investment memo from this report.",
+            text = "PDF, share card, or investment memo.",
             style = ThesisTypography.bodySmall,
-            color = ThesisColors.TextSecondaryDark
+            color = ThesisColors.TextMuted
         )
 
         fun runExport(action: () -> Unit) {
@@ -761,21 +975,36 @@ private fun ExportSection(
         Row(horizontalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)) {
             OutlinedButton(
                 onClick = { runExport(onExportPdf) },
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
+                border = androidx.compose.foundation.BorderStroke(
+                    ThesisDimens.BorderWidth,
+                    ThesisColors.Border
+                )
             ) {
-                Text("PDF")
+                Text(text = "PDF", color = ThesisColors.TextPrimary)
             }
             OutlinedButton(
                 onClick = { runExport(onExportCard) },
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
+                border = androidx.compose.foundation.BorderStroke(
+                    ThesisDimens.BorderWidth,
+                    ThesisColors.Border
+                )
             ) {
-                Text("Share Card")
+                Text(text = "Card", color = ThesisColors.TextPrimary)
             }
             OutlinedButton(
                 onClick = { runExport(onExportMemo) },
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
+                border = androidx.compose.foundation.BorderStroke(
+                    ThesisDimens.BorderWidth,
+                    ThesisColors.Border
+                )
             ) {
-                Text("Memo")
+                Text(text = "Memo", color = ThesisColors.TextPrimary)
             }
         }
     }
@@ -792,16 +1021,16 @@ private data class HighlightCard(
 private fun deriveHighlights(report: DeepDiveReportView): List<HighlightCard> {
     val sections = report.sections.filter { it.body.isNotBlank() }
     val lead = sections.getOrNull(0)?.body?.let(::summarize)
-        ?: "This report is available, but the lead section did not return a usable summary."
+        ?: "Report available. Lead section did not return a usable summary."
     val support = sections.getOrNull(1)?.body?.let(::summarize)
-        ?: "Review the report modules below for the supporting evidence behind this signal."
+        ?: "Review modules below for supporting evidence."
     val caution = sections
-        .filter { !it.status.isNullOrBlank() && it.status != "complete" }
+        .filter { !it.status.isNullOrBlank() && !it.status.equals("complete", ignoreCase = true) }
         .joinToString(separator = ", ") { it.title }
         .ifBlank {
             report.confidenceLabel?.let {
-                "Confidence is ${it.lowercase()}. Review the evidence modules before acting on the signal."
-            } ?: "Confidence details are limited. Review the evidence modules before acting on the signal."
+                "Confidence is ${it.lowercase()}. Review evidence before acting."
+            } ?: "Confidence details limited. Review evidence."
         }
 
     return listOf(
@@ -809,7 +1038,7 @@ private fun deriveHighlights(report: DeepDiveReportView): List<HighlightCard> {
             title = "Lead Finding",
             content = lead,
             icon = Icons.Default.PushPin,
-            iconColor = ThesisColors.AccentBlue
+            iconColor = ThesisColors.Primary
         ),
         HighlightCard(
             title = "Supporting Context",
@@ -832,23 +1061,69 @@ private fun summarize(text: String, limit: Int = 180): String {
     if (normalized.isBlank()) {
         return "No summary returned."
     }
-    return if (normalized.length <= limit) normalized else normalized.take(limit - 1).trimEnd() + "…"
+    return if (normalized.length <= limit) {
+        normalized
+    } else {
+        normalized.take(limit - 3).trimEnd() + "..."
+    }
 }
 
+private fun valuationSummary(valuation: ValuationDisplayView): String {
+    val parts = buildList {
+        valuation.spotPrice?.let { add("Spot ${formatMaybeNumber(it)}") }
+        valuation.fairValueMid?.let { add("Fair value ${formatMaybeNumber(it)}") }
+        valuation.impliedUpsidePct?.let { add("Upside ${formatMaybePercent(it)}") }
+        valuation.degradedReason?.takeIf { it.isNotBlank() }?.let { add(it) }
+    }
+    return parts.joinToString(separator = " | ").ifBlank { "Valuation data unavailable." }
+}
+
+private fun historicalSummary(historical: com.thesis.mobile.model.HistoricalDisplayView): String {
+    val parts = buildList {
+        historical.latestPeriod?.let { add("Latest $it") }
+        historical.priorQuarterPeriod?.let { add("QoQ ref $it") }
+        historical.yearAgoPeriod?.let { add("YoY ref $it") }
+        add("${historical.financialSnapshotCount} financial snapshots")
+        add("${historical.transcriptCount} transcripts")
+    }
+    return parts.joinToString(separator = " | ")
+}
+
+private fun formatMaybeNumber(value: Double?): String {
+    return value?.let { String.format("%.2f", it) } ?: "n/a"
+}
+
+private fun formatMaybePercent(value: Double?): String {
+    return value?.let { String.format("%.2f%%", it) } ?: "n/a"
+}
+
+@Composable
+private fun deepDiveFieldColors() = OutlinedTextFieldDefaults.colors(
+    focusedContainerColor = ThesisColors.Surface,
+    unfocusedContainerColor = ThesisColors.Surface,
+    focusedBorderColor = ThesisColors.Primary,
+    unfocusedBorderColor = ThesisColors.Border,
+    focusedTextColor = ThesisColors.TextPrimary,
+    unfocusedTextColor = ThesisColors.TextPrimary,
+    cursorColor = ThesisColors.Primary,
+    focusedLabelColor = ThesisColors.Primary,
+    unfocusedLabelColor = ThesisColors.TextMuted
+)
+
 private fun signalContainerColor(signal: String?): Color = when (signal?.uppercase()) {
-    "POSITIVE" -> ThesisColors.SignalPositive.copy(alpha = 0.15f)
-    "NEGATIVE" -> ThesisColors.SignalNegative.copy(alpha = 0.15f)
-    else -> ThesisColors.DarkSurfaceHigh
+    "POSITIVE" -> ThesisColors.SignalPositive.copy(alpha = 0.08f)
+    "NEGATIVE" -> ThesisColors.SignalNegative.copy(alpha = 0.08f)
+    else -> ThesisColors.Surface
 }
 
 private fun signalBorderColor(signal: String?): Color = when (signal?.uppercase()) {
-    "POSITIVE" -> ThesisColors.SignalPositive.copy(alpha = 0.35f)
-    "NEGATIVE" -> ThesisColors.SignalNegative.copy(alpha = 0.35f)
-    else -> ThesisColors.DarkBorder
+    "POSITIVE" -> ThesisColors.SignalPositive.copy(alpha = 0.2f)
+    "NEGATIVE" -> ThesisColors.SignalNegative.copy(alpha = 0.2f)
+    else -> ThesisColors.Border
 }
 
 private fun signalTextColor(signal: String?): Color = when (signal?.uppercase()) {
     "POSITIVE" -> ThesisColors.SignalPositive
     "NEGATIVE" -> ThesisColors.SignalNegative
-    else -> ThesisColors.TextPrimaryDark
+    else -> ThesisColors.TextPrimary
 }

@@ -1,4 +1,4 @@
-appId: ${MAESTRO_APP_ID}
+﻿appId: ${MAESTRO_APP_ID}
 ---
 - launchApp:
     clearState: false
@@ -36,3 +36,6 @@ appId: ${MAESTRO_APP_ID}
     visible: "Deep Dive Report: AAPL"
     timeout: 30000
 - assertVisible: "Deep Dive Report: AAPL"
+
+
+

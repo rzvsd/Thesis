@@ -1,4 +1,4 @@
-appId: ${MAESTRO_APP_ID}
+﻿appId: ${MAESTRO_APP_ID}
 ---
 
 - launchApp:
@@ -37,17 +37,20 @@ appId: ${MAESTRO_APP_ID}
 - extendedWaitUntil:
     visible: "Thesis Android MVP"
     timeout: 20000
-- tapOn: "Email"
+- tapOn: "you@example.com"
 - inputText: "${MAESTRO_TEST_EMAIL}"
-- tapOn: "Password"
+- tapOn: "Enter password"
 - inputText: "${MAESTRO_TEST_PASSWORD}"
 - hideKeyboard
-- tapOn: "Login"
+- tapOn: "Log In"
 
 - extendedWaitUntil:
     visible: "Good morning"
     timeout: 30000
 - assertVisible: "Settings"
 - tapOn: "Settings"
-- assertVisible: "Open Android Notification Settings"
-- tapOn: "Open Android Notification Settings"
+- assertVisible: "System Notification Settings"
+- tapOn: "System Notification Settings"
+
+
+

@@ -3,6 +3,7 @@ package com.thesis.mobile.ui.components
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -25,14 +26,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.text.font.FontWeight
 import com.thesis.mobile.ui.theme.ThesisColors
 import com.thesis.mobile.ui.theme.ThesisDimens
 import com.thesis.mobile.ui.theme.ThesisTypography
 
-/**
- * An expandable card to hold the "FULL SECTIONS" of a report, allowing detail readers to dig in
- * without overwhelming the delta-first presentation layer.
- */
 @Composable
 fun SectionAccordion(
     title: String,
@@ -44,16 +42,20 @@ fun SectionAccordion(
     var isExpanded by rememberSaveable { mutableStateOf(initiallyExpanded) }
     val rotateAnim by animateFloatAsState(
         targetValue = if (isExpanded) 180f else 0f,
-        label = "accordion_arrow_rotation"
+        label = "accordion_arrow"
     )
 
     Column(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(ThesisDimens.CardCornerRadius))
-            .background(ThesisColors.DarkSurface)
+            .background(ThesisColors.Surface)
+            .border(
+                ThesisDimens.BorderWidth,
+                ThesisColors.Border,
+                RoundedCornerShape(ThesisDimens.CardCornerRadius)
+            )
     ) {
-        // Header Row
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -65,15 +67,15 @@ fun SectionAccordion(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = title,
-                    style = ThesisTypography.headlineMedium,
-                    color = ThesisColors.TextPrimaryDark
+                    style = ThesisTypography.headlineMedium.copy(fontWeight = FontWeight.Medium),
+                    color = ThesisColors.TextPrimary
                 )
                 if (!statusText.isNullOrBlank()) {
                     Spacer(modifier = Modifier.height(ThesisDimens.SpacingXs))
                     Text(
-                        text = "Status: $statusText",
-                        style = ThesisTypography.bodySmall,
-                        color = ThesisColors.TextTertiaryDark
+                        text = statusText.uppercase(),
+                        style = ThesisTypography.labelSmall,
+                        color = ThesisColors.TextMuted
                     )
                 }
             }
@@ -81,12 +83,11 @@ fun SectionAccordion(
             Icon(
                 imageVector = Icons.Default.KeyboardArrowDown,
                 contentDescription = if (isExpanded) "Collapse" else "Expand",
-                tint = ThesisColors.TextSecondaryDark,
+                tint = ThesisColors.Primary,
                 modifier = Modifier.rotate(rotateAnim)
             )
         }
 
-        // Expanded Content
         AnimatedVisibility(visible = isExpanded) {
             Column(
                 modifier = Modifier

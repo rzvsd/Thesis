@@ -1,4 +1,4 @@
-appId: ${MAESTRO_APP_ID}
+﻿appId: ${MAESTRO_APP_ID}
 ---
 - launchApp:
     clearState: true
@@ -16,9 +16,9 @@ appId: ${MAESTRO_APP_ID}
       - tapOn: "Allow"
 
 - assertVisible: "Thesis Android MVP"
-- tapOn: "Email"
+- tapOn: "you@example.com"
 - inputText: "${MAESTRO_REGISTER_EMAIL}"
-- tapOn: "Password"
+- tapOn: "Enter password"
 - inputText: "${MAESTRO_TEST_PASSWORD}"
 - tapOn: "Register"
 - extendedWaitUntil:
@@ -27,8 +27,11 @@ appId: ${MAESTRO_APP_ID}
 - assertVisible: "Register status: .*"
 - pressKey: "back"
 - tapOn: "Verify Account"
-- tapOn: "Login"
+- tapOn: "Log In"
 - extendedWaitUntil:
     visible: "Pulse"
     timeout: 30000
 - assertVisible: "Pulse"
+
+
+

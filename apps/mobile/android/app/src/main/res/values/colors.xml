@@ -1,6 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="primary_blue">#1E3A8A</color>
-    <color name="surface_white">#FFFFFF</color>
-    <color name="text_primary">#111827</color>
+    <color name="thesis_background">#FF0A0A0A</color>
+    <color name="thesis_surface">#FF121212</color>
+    <color name="thesis_primary">#FFC5A059</color>
+    <color name="thesis_text">#FFF5F5F5</color>
+    <color name="primary_blue">#FFC5A059</color>
+    <color name="surface_white">#FF0A0A0A</color>
+    <color name="text_primary">#FFF5F5F5</color>
+    <color name="ic_launcher_background">#FF0A0A0A</color>
 </resources>

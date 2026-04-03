@@ -1,4 +1,4 @@
-appId: ${MAESTRO_APP_ID}
+﻿appId: ${MAESTRO_APP_ID}
 ---
 
 - runFlow:
@@ -35,14 +35,17 @@ appId: ${MAESTRO_APP_ID}
     when:
       visible: "Email"
     commands:
-      - tapOn: "Email"
+      - tapOn: "you@example.com"
       - inputText: "${MAESTRO_TEST_EMAIL}"
-      - tapOn: "Password"
+      - tapOn: "Enter password"
       - inputText: "${MAESTRO_TEST_PASSWORD}"
       - hideKeyboard
-      - tapOn: "Login"
+      - tapOn: "Log In"
 
 - extendedWaitUntil:
     visible: "Weekly Digest"
     timeout: 30000
-- assertVisible: "This Week's Highlights"
+- assertVisible: "Latest digest"
+
+
+

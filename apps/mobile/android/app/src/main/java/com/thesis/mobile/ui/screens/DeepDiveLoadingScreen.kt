@@ -1,12 +1,18 @@
 package com.thesis.mobile.ui.screens
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Canvas
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -15,7 +21,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -24,135 +29,79 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Insights
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import com.thesis.mobile.ui.components.PlasmaOrb
+import com.thesis.mobile.ui.theme.HeadingFont
 import com.thesis.mobile.ui.theme.ThesisColors
 import com.thesis.mobile.ui.theme.ThesisDimens
 import com.thesis.mobile.ui.theme.ThesisTypography
-import kotlin.math.cos
-import kotlin.math.sin
+import kotlinx.coroutines.delay
 
-// Plasma palette — blue, teal, cyan ONLY. No purple.
-private val PlasmaBlue = Color(0xFF4F8CFF)
-private val PlasmaTeal = Color(0xFF27E199)
-private val PlasmaCyan = Color(0xFF00C2FF)
-private val PlasmaDeepBlue = Color(0xFF1A3A6F)
+private data class PipelineStepData(
+    val title: String,
+    val description: String,
+    val durationMs: Long
+)
+
+private val pipelineSteps = listOf(
+    PipelineStepData("Searching filings", "SEC 10-K, 10-Q, 8-K", 4000),
+    PipelineStepData("Analyzing fundamentals", "Revenue, margins, cash flow", 6000),
+    PipelineStepData("Reading recent news", "Earnings calls, analyst notes", 5000),
+    PipelineStepData("Writing synthesis", "Building your report", 3000)
+)
 
 @Composable
 fun DeepDiveLoadingScreen(modifier: Modifier = Modifier) {
-    val infiniteTransition = rememberInfiniteTransition(label = "plasma")
+    var currentStepIndex by remember { mutableIntStateOf(0) }
+    var stepsVisible by remember { mutableStateOf(false) }
+    var orbVisible by remember { mutableStateOf(false) }
+    var headerVisible by remember { mutableStateOf(false) }
 
-    // Animate blob positions with different speeds for organic feel
-    val phase1 by infiniteTransition.animateFloat(
-        initialValue = 0f, targetValue = 360f,
-        animationSpec = infiniteRepeatable(tween(12000, easing = LinearEasing), RepeatMode.Restart),
-        label = "phase1"
-    )
-    val phase2 by infiniteTransition.animateFloat(
-        initialValue = 0f, targetValue = 360f,
-        animationSpec = infiniteRepeatable(tween(8000, easing = LinearEasing), RepeatMode.Restart),
-        label = "phase2"
-    )
-    val phase3 by infiniteTransition.animateFloat(
-        initialValue = 0f, targetValue = 360f,
-        animationSpec = infiniteRepeatable(tween(15000, easing = LinearEasing), RepeatMode.Restart),
-        label = "phase3"
-    )
-    val phase4 by infiniteTransition.animateFloat(
-        initialValue = 0f, targetValue = 360f,
-        animationSpec = infiniteRepeatable(tween(10000, easing = LinearEasing), RepeatMode.Restart),
-        label = "phase4"
-    )
+    LaunchedEffect(Unit) {
+        delay(200)
+        orbVisible = true
+        delay(400)
+        headerVisible = true
+        delay(300)
+        stepsVisible = true
+        for (i in pipelineSteps.indices) {
+            currentStepIndex = i
+            delay(pipelineSteps[i].durationMs)
+        }
+    }
 
-    // Spinner rotation
-    val spinnerRotation by infiniteTransition.animateFloat(
-        initialValue = 0f, targetValue = 360f,
-        animationSpec = infiniteRepeatable(tween(2000, easing = LinearEasing), RepeatMode.Restart),
-        label = "spinner"
+    val transition = rememberInfiniteTransition(label = "loading")
+    val orbPulse by transition.animateFloat(
+        initialValue = 0.85f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(3000, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "orbPulse"
     )
 
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(ThesisColors.DarkBackground)
+            .background(ThesisColors.Background)
     ) {
-        // ═══════════════════════════════════════════════
-        //  PLASMA BACKGROUND — Canvas-drawn animated blobs
-        // ═══════════════════════════════════════════════
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            val w = size.width
-            val h = size.height
-
-            // Blob 1 — large electric blue, top-left drift
-            val b1x = w * 0.2f + cos(Math.toRadians(phase1.toDouble())).toFloat() * w * 0.15f
-            val b1y = h * 0.15f + sin(Math.toRadians(phase1.toDouble())).toFloat() * h * 0.1f
-            drawCircle(
-                brush = Brush.radialGradient(
-                    colors = listOf(PlasmaBlue.copy(alpha = 0.25f), Color.Transparent),
-                    center = Offset(b1x, b1y),
-                    radius = w * 0.45f
-                ),
-                radius = w * 0.45f,
-                center = Offset(b1x, b1y)
-            )
-
-            // Blob 2 — teal, bottom-right drift
-            val b2x = w * 0.8f + sin(Math.toRadians(phase2.toDouble())).toFloat() * w * 0.12f
-            val b2y = h * 0.75f + cos(Math.toRadians(phase2.toDouble())).toFloat() * h * 0.08f
-            drawCircle(
-                brush = Brush.radialGradient(
-                    colors = listOf(PlasmaTeal.copy(alpha = 0.18f), Color.Transparent),
-                    center = Offset(b2x, b2y),
-                    radius = w * 0.40f
-                ),
-                radius = w * 0.40f,
-                center = Offset(b2x, b2y)
-            )
-
-            // Blob 3 — cyan, center drift
-            val b3x = w * 0.5f + cos(Math.toRadians(phase3.toDouble())).toFloat() * w * 0.2f
-            val b3y = h * 0.4f + sin(Math.toRadians(phase3.toDouble())).toFloat() * h * 0.15f
-            drawCircle(
-                brush = Brush.radialGradient(
-                    colors = listOf(PlasmaCyan.copy(alpha = 0.15f), Color.Transparent),
-                    center = Offset(b3x, b3y),
-                    radius = w * 0.35f
-                ),
-                radius = w * 0.35f,
-                center = Offset(b3x, b3y)
-            )
-
-            // Blob 4 — deep blue, slow orbiting center-bottom
-            val b4x = w * 0.4f + sin(Math.toRadians(phase4.toDouble())).toFloat() * w * 0.18f
-            val b4y = h * 0.6f + cos(Math.toRadians(phase4.toDouble())).toFloat() * h * 0.12f
-            drawCircle(
-                brush = Brush.radialGradient(
-                    colors = listOf(PlasmaDeepBlue.copy(alpha = 0.3f), Color.Transparent),
-                    center = Offset(b4x, b4y),
-                    radius = w * 0.5f
-                ),
-                radius = w * 0.5f,
-                center = Offset(b4x, b4y)
-            )
-        }
-
-        // ═══════════════════════════════════════════════
-        //  FOREGROUND CONTENT — floating over the plasma
-        // ═══════════════════════════════════════════════
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -160,193 +109,221 @@ fun DeepDiveLoadingScreen(modifier: Modifier = Modifier) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            // Engine label
-            Text(
-                text = "THESIS INTELLIGENCE ENGINE",
-                style = ThesisTypography.labelSmall.copy(
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 2.sp
-                ),
-                color = ThesisColors.TextTertiaryDark,
-                modifier = Modifier.padding(bottom = 24.dp)
-            )
-
-            // Brand orb
-            Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(bottom = 32.dp)) {
-                // Glow behind the orb
-                Box(
-                    modifier = Modifier
-                        .size(100.dp)
-                        .background(PlasmaBlue.copy(alpha = 0.15f), CircleShape)
+            AnimatedVisibility(
+                visible = headerVisible,
+                enter = fadeIn(tween(800)) + slideInVertically(tween(800)) { -20 }
+            ) {
+                Text(
+                    text = "THESIS INTELLIGENCE ENGINE",
+                    style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Medium),
+                    color = ThesisColors.TextMuted,
+                    modifier = Modifier.padding(bottom = 32.dp)
                 )
-                Box(
-                    modifier = Modifier
-                        .size(80.dp)
-                        .clip(CircleShape)
-                        .background(ThesisColors.DarkSurfaceHigh)
-                        .border(1.dp, PlasmaBlue.copy(alpha = 0.3f), CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Insights,
-                        contentDescription = null,
-                        tint = PlasmaBlue,
-                        modifier = Modifier.size(40.dp)
+            }
+
+            AnimatedVisibility(
+                visible = orbVisible,
+                enter = fadeIn(tween(1200))
+            ) {
+                PlasmaOrb(
+                    modifier = Modifier,
+                    size = (180 * orbPulse).dp,
+                    intensity = 0.7f + (currentStepIndex.toFloat() / pipelineSteps.size.toFloat()) * 0.3f
+                )
+            }
+
+            Spacer(modifier = Modifier.height(40.dp))
+
+            AnimatedVisibility(
+                visible = headerVisible,
+                enter = fadeIn(tween(800, delayMillis = 200)) + slideInVertically(tween(800, delayMillis = 200)) { 30 }
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = "Generating Intelligence",
+                        style = ThesisTypography.headlineLarge.copy(
+                            fontFamily = HeadingFont,
+                            fontWeight = FontWeight.Normal
+                        ),
+                        color = ThesisColors.TextPrimary
+                    )
+                    Spacer(modifier = Modifier.height(ThesisDimens.SpacingSm))
+                    Text(
+                        text = "Synthesizing filings, news & alternative data",
+                        style = ThesisTypography.bodyMedium,
+                        color = ThesisColors.TextMuted,
+                        textAlign = TextAlign.Center
                     )
                 }
             }
 
-            // Title
-            Text(
-                text = "Generating Intelligence",
-                style = ThesisTypography.headlineLarge.copy(fontWeight = FontWeight.Bold),
-                color = ThesisColors.TextPrimaryDark
-            )
-            Spacer(modifier = Modifier.height(ThesisDimens.SpacingSm))
-            Text(
-                text = "Synthesizing filings, news & alternative data...",
-                style = ThesisTypography.bodyMedium,
-                color = ThesisColors.TextSecondaryDark,
-                modifier = Modifier.padding(bottom = 40.dp)
-            )
+            Spacer(modifier = Modifier.height(48.dp))
 
-            // ── Pipeline ──
-            Box(modifier = Modifier.width(300.dp)) {
-                // Vertical track
-                Box(
-                    modifier = Modifier
-                        .padding(start = 11.dp, top = 16.dp, bottom = 16.dp)
-                        .width(2.dp)
-                        .height(220.dp)
-                        .background(ThesisColors.DarkBorder.copy(alpha = 0.4f))
-                )
-                // Active segment
-                Box(
-                    modifier = Modifier
-                        .padding(start = 11.dp, top = 48.dp)
-                        .width(2.dp)
-                        .height(24.dp)
-                        .background(PlasmaTeal.copy(alpha = 0.6f))
-                )
-
-                Column(verticalArrangement = Arrangement.spacedBy(28.dp)) {
-                    PipelineStep("Searching filings...", "COMPLETED", StepState.COMPLETED)
-                    PipelineStep("Analyzing fundamentals...", "PROCESSING", StepState.ACTIVE, spinnerRotation)
-                    PipelineStep("Reading recent news...", "QUEUED", StepState.PENDING)
-                    PipelineStep("Writing synthesis...", "QUEUED", StepState.PENDING)
+            AnimatedVisibility(
+                visible = stepsVisible,
+                enter = fadeIn(tween(600, delayMillis = 100)) + slideInVertically(tween(600, delayMillis = 100)) { 40 }
+            ) {
+                Column(
+                    modifier = Modifier.width(280.dp),
+                    verticalArrangement = Arrangement.spacedBy(24.dp)
+                ) {
+                    pipelineSteps.forEachIndexed { index, step ->
+                        val state = when {
+                            index < currentStepIndex -> StepState.COMPLETED
+                            index == currentStepIndex -> StepState.ACTIVE
+                            else -> StepState.PENDING
+                        }
+                        PipelineStepRow(
+                            title = step.title,
+                            description = step.description,
+                            state = state,
+                            index = index
+                        )
+                    }
                 }
             }
 
             Spacer(modifier = Modifier.height(40.dp))
 
-            // ETA Pill
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(50))
-                    .background(ThesisColors.DarkSurfaceHigh)
-                    .border(1.dp, ThesisColors.DarkBorder, RoundedCornerShape(50))
-                    .padding(horizontal = ThesisDimens.SpacingLg, vertical = ThesisDimens.SpacingSm)
+            AnimatedVisibility(
+                visible = stepsVisible,
+                enter = fadeIn(tween(600, delayMillis = 400))
             ) {
+                val etaText = when {
+                    currentStepIndex >= pipelineSteps.size - 1 -> "Finishing up..."
+                    currentStepIndex >= 2 -> "~30 seconds"
+                    currentStepIndex >= 1 -> "~45 seconds"
+                    else -> "~60 seconds"
+                }
                 Text(
-                    text = "Estimated time: ~60 seconds",
+                    text = etaText,
                     style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Medium),
-                    color = ThesisColors.TextSecondaryDark
+                    color = ThesisColors.TextMuted,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(ThesisDimens.CardCornerRadius))
+                        .background(ThesisColors.Surface)
+                        .border(
+                            ThesisDimens.BorderWidth,
+                            ThesisColors.Border,
+                            RoundedCornerShape(ThesisDimens.CardCornerRadius)
+                        )
+                        .padding(horizontal = ThesisDimens.SpacingLg, vertical = ThesisDimens.SpacingSm)
                 )
             }
         }
     }
 }
 
-// ─── Pipeline internals ───
-
 private enum class StepState { COMPLETED, ACTIVE, PENDING }
 
 @Composable
-private fun PipelineStep(
-    title: String,
-    status: String,
-    state: StepState,
-    spinnerRotation: Float = 0f
-) {
-    val alpha = when (state) {
-        StepState.COMPLETED -> 0.6f
+private fun PipelineStepRow(title: String, description: String, state: StepState, index: Int) {
+    val alphaTarget = when (state) {
+        StepState.COMPLETED -> 0.45f
         StepState.ACTIVE -> 1f
-        StepState.PENDING -> 0.4f
+        StepState.PENDING -> 0.25f
     }
+    val alpha by animateFloatAsState(
+        targetValue = alphaTarget,
+        animationSpec = tween(500),
+        label = "stepAlpha$index"
+    )
+
+    val transition = rememberInfiniteTransition(label = "active$index")
+    val activePulse by transition.animateFloat(
+        initialValue = 0.7f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1200, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "activePulse$index"
+    )
 
     Row(
         verticalAlignment = Alignment.Top,
-        modifier = Modifier.padding(start = 0.dp)
+        modifier = Modifier.alpha(alpha)
     ) {
-        // Step indicator
         Box(modifier = Modifier.size(24.dp), contentAlignment = Alignment.Center) {
             when (state) {
                 StepState.COMPLETED -> {
                     Icon(
-                        imageVector = Icons.Default.CheckCircle,
-                        contentDescription = null,
-                        tint = PlasmaTeal.copy(alpha = alpha),
+                        Icons.Default.CheckCircle,
+                        contentDescription = "Completed",
+                        tint = ThesisColors.SignalPositive,
                         modifier = Modifier.fillMaxSize()
                     )
                 }
+
                 StepState.ACTIVE -> {
                     Box(
                         modifier = Modifier
-                            .fillMaxSize()
+                            .size((20 * activePulse).dp)
                             .clip(CircleShape)
-                            .background(PlasmaBlue),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(12.dp)
-                                .rotate(spinnerRotation)
-                                .border(2.dp, Color.White.copy(alpha = 0.8f), CircleShape)
-                        )
-                    }
+                            .background(ThesisColors.Primary)
+                    )
+                    Box(
+                        modifier = Modifier
+                            .size(8.dp)
+                            .clip(CircleShape)
+                            .background(ThesisColors.TextInverse)
+                    )
                 }
+
                 StepState.PENDING -> {
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
                             .clip(CircleShape)
-                            .background(ThesisColors.DarkSurface)
-                            .border(1.dp, ThesisColors.DarkBorder, CircleShape),
+                            .background(ThesisColors.Surface)
+                            .border(ThesisDimens.BorderWidth, ThesisColors.Border, CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
                         Box(
                             modifier = Modifier
                                 .size(6.dp)
                                 .clip(CircleShape)
-                                .background(ThesisColors.DarkBorder)
+                                .background(ThesisColors.Border)
                         )
                     }
                 }
             }
         }
 
-        Spacer(modifier = Modifier.width(24.dp))
+        Spacer(modifier = Modifier.width(20.dp))
 
         Column {
             Text(
                 text = title,
                 style = ThesisTypography.bodyMedium.copy(
-                    fontWeight = if (state == StepState.ACTIVE) FontWeight.Bold else FontWeight.Medium
+                    fontWeight = if (state == StepState.ACTIVE) FontWeight.Medium else FontWeight.Normal
                 ),
                 color = when (state) {
-                    StepState.ACTIVE -> PlasmaBlue
-                    else -> ThesisColors.TextPrimaryDark.copy(alpha = alpha)
+                    StepState.ACTIVE -> ThesisColors.Primary
+                    else -> ThesisColors.TextPrimary
                 }
             )
             Text(
-                text = status,
-                style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Bold, letterSpacing = 1.sp),
+                text = when (state) {
+                    StepState.COMPLETED -> "COMPLETED"
+                    StepState.ACTIVE -> "PROCESSING"
+                    StepState.PENDING -> "QUEUED"
+                },
+                style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Medium),
                 color = when (state) {
-                    StepState.COMPLETED -> PlasmaTeal
-                    StepState.ACTIVE -> PlasmaCyan
-                    StepState.PENDING -> ThesisColors.TextTertiaryDark
-                }.copy(alpha = alpha)
+                    StepState.COMPLETED -> ThesisColors.SignalPositive
+                    StepState.ACTIVE -> ThesisColors.Primary
+                    StepState.PENDING -> ThesisColors.TextMuted
+                }
             )
+            if (state == StepState.ACTIVE) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = description,
+                    style = ThesisTypography.bodySmall,
+                    color = ThesisColors.TextMuted
+                )
+            }
         }
     }
 }
