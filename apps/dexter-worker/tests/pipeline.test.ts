@@ -48,6 +48,10 @@ test("MSFT fixture request produces a schema-valid report with no blank sections
   assert.equal(findSection(report.sections, "quarter_over_quarter_changes").status, "complete");
   assert.equal(findSection(report.sections, "year_over_year_changes").status, "complete");
   assert.equal(findSection(report.sections, "management_commentary").status, "complete");
+  assert.equal(report.trust_metadata?.freshness_state, "fresh");
+  assert.ok((report.trust_metadata?.evidence_count ?? 0) > 0);
+  assert.equal(report.trust_metadata?.thesis_drift.status, "available");
+  assert.ok((report.trust_metadata?.quote_provenance.length ?? 0) > 0);
   assert.match(
     findSection(report.sections, "executive_summary").body,
     /This is a research summary, not financial advice\. Always do your own research\./
@@ -68,6 +72,9 @@ test("LIMITED fixture request degrades affected sections honestly", async () => 
     findSection(report.sections, "management_commentary").status,
     "data_incomplete"
   );
+  assert.equal(report.trust_metadata?.thesis_drift.status, "unavailable");
+  assert.equal(report.trust_metadata?.valuation_state, "degraded");
+  assert.ok((report.trust_metadata?.missing_data_notes.length ?? 0) > 0);
 });
 
 test("NOSIG fixture request returns no_signal with an explicit reason", async () => {

@@ -77,6 +77,42 @@ data class HistoricalDisplayView(
     val transcriptCount: Int = 0
 )
 
+data class TrustContradictionView(
+    val id: String,
+    val description: String,
+    val severity: String
+)
+
+data class TrustQuoteProvenanceView(
+    val quote: String,
+    val sourceName: String,
+    val sourceType: String,
+    val sourcePeriod: String? = null,
+    val transcriptId: String? = null,
+    val retrievedAt: String? = null
+)
+
+data class TrustThesisDriftView(
+    val status: String,
+    val summary: String,
+    val reasons: List<String> = emptyList(),
+    val comparableReportId: String? = null,
+    val comparableGeneratedAt: String? = null,
+    val comparableSchemaVersion: String? = null
+)
+
+data class TrustMetadataView(
+    val generatedAt: String? = null,
+    val freshnessState: String? = null,
+    val evidenceCount: Int? = null,
+    val contradictionState: String? = null,
+    val contradictions: List<TrustContradictionView> = emptyList(),
+    val valuationState: String? = null,
+    val missingDataNotes: List<String> = emptyList(),
+    val quoteProvenance: List<TrustQuoteProvenanceView> = emptyList(),
+    val thesisDrift: TrustThesisDriftView? = null
+)
+
 data class ReportNoteView(
     val content: String,
     val updatedAt: String
@@ -107,6 +143,7 @@ data class DeepDiveReportView(
     val confidenceScore: Double?,
     val valuation: ValuationDisplayView? = null,
     val historical: HistoricalDisplayView? = null,
+    val trustMetadata: TrustMetadataView? = null,
     val sections: List<SectionView>
 )
 

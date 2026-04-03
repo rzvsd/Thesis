@@ -9,6 +9,7 @@ import type {
   EvidenceItem,
   ReportSection,
   SignalValue,
+  TrustMetadata,
   ValuationBlock
 } from "../../../packages/contracts/src";
 import {
@@ -27,7 +28,10 @@ import {
   getFixtureScenario,
   type FixtureScenario
 } from "./fixtures";
-import { loadHistoricalContext } from "./historical-context";
+import {
+  loadHistoricalContext,
+  type ComparableDeepDiveSummary
+} from "./historical-context";
 import { runLiveDexterQuery } from "./live-dexter";
 import { logError, logInfo, logWarn } from "./logging";
 import { loadRuntimePrompts, renderPrompt, type LoadedPrompts } from "./prompt-store";
@@ -52,6 +56,7 @@ interface M2SectionContext {
   financials: CanonicalFinancialSnapshot[];
   transcripts: CanonicalTranscript[];
   context: NonNullable<AnalysisReport["historical_context"]>;
+  comparableReport?: ComparableDeepDiveSummary;
   spotPrice?: number;
 }
 
@@ -317,7 +322,8 @@ async function resolveM2SectionContext(
   config: DexterConfig
 ): Promise<M2SectionContext> {
   if (config.fixtureMode) {
-    const fixture = getFixtureHistoricalContext(request.ticker ?? "MSFT");
+    const fixtureTicker = normalizedTickerForFixture(request.ticker ?? "MSFT");
+    const fixture = getFixtureHistoricalContext(fixtureTicker);
     const latestQuarterly = fixture.financials
       .filter((snapshot) => snapshot.period_type === "quarterly")
       .sort((left, right) => {
@@ -342,6 +348,20 @@ async function resolveM2SectionContext(
       latestTranscript: transcript,
       financials: fixture.financials,
       transcripts: fixture.transcripts,
+      comparableReport: fixtureTicker === "LIMITED"
+        ? undefined
+        : {
+            report_id: `${fixtureTicker}-prior-thesis`,
+            generated_at: "2026-01-15T09:00:00.000Z",
+            schema_version: "2.0",
+            ticker: fixtureTicker,
+            signal_value: "neutral",
+            confidence_label: "medium",
+            confidence_score: 0.58,
+            thesis_statement:
+              "Prior thesis: execution was stable but lacked strong directional confirmation.",
+            valuation_mid: fixture.spotPrice ? fixture.spotPrice * 1.04 : undefined
+          },
       spotPrice: fixture.spotPrice,
       context: {
         latest_period: latest?.period,
@@ -364,8 +384,14 @@ async function resolveM2SectionContext(
     latestTranscript: loaded.latestTranscript,
     financials: loaded.financials,
     transcripts: loaded.transcripts,
+    comparableReport: loaded.comparableReport,
     context: loaded.context
   };
+}
+
+function normalizedTickerForFixture(ticker: string): string {
+  const normalized = ticker.trim().toUpperCase();
+  return normalized.length > 0 ? normalized : "MSFT";
 }
 
 function sleep(delayMs: number): Promise<void> {
@@ -514,6 +540,259 @@ function buildDataSources(
     sources.add(item.source_name);
   });
   return [...sources];
+}
+
+function uniqueEvidenceItems(sections: ReportSection[]): EvidenceItem[] {
+  const deduped = new Map<string, EvidenceItem>();
+  for (const section of sections) {
+    for (const item of section.evidence) {
+      const key = item.evidence_id.trim().length > 0
+        ? item.evidence_id
+        : `${item.source_name}|${item.excerpt.slice(0, 64)}`;
+      if (!deduped.has(key)) {
+        deduped.set(key, item);
+      }
+    }
+  }
+  return [...deduped.values()];
+}
+
+function freshnessStateFromSources(
+  context: M2SectionContext,
+  generatedAt: string
+): { state: TrustMetadata["freshness_state"]; note: string } {
+  const candidates = [context.latest?.retrieved_at, context.latestTranscript?.retrieved_at]
+    .filter((entry): entry is string => typeof entry === "string" && !Number.isNaN(Date.parse(entry)));
+
+  if (candidates.length === 0) {
+    return {
+      state: "stale",
+      note: "Source freshness could not be verified from retrievable timestamps."
+    };
+  }
+
+  const newestSourceIso = [...candidates].sort((left, right) =>
+    Date.parse(right) - Date.parse(left))[0] ?? generatedAt;
+  const ageDays = Math.max(
+    0,
+    Math.floor((Date.parse(generatedAt) - Date.parse(newestSourceIso)) / (24 * 60 * 60 * 1000))
+  );
+  if (ageDays <= 45) {
+    return {
+      state: "fresh",
+      note: `Latest source timestamp is ${ageDays} day(s) old.`
+    };
+  }
+  if (ageDays <= 120) {
+    return {
+      state: "degraded",
+      note: `Latest source timestamp is ${ageDays} day(s) old and may be stale for fast-moving narratives.`
+    };
+  }
+  return {
+    state: "stale",
+    note: `Latest source timestamp is ${ageDays} day(s) old and should be treated as stale.`
+  };
+}
+
+function quoteProvenanceFromContext(
+  context: M2SectionContext
+): TrustMetadata["quote_provenance"] {
+  const transcript = context.latestTranscript;
+  const quote = transcriptQuote(transcript);
+  if (!transcript || !quote) {
+    return [];
+  }
+
+  return [
+    {
+      quote,
+      source_name: `transcript:${transcript.provider}`,
+      source_type: "article",
+      source_period: transcript.period,
+      transcript_id: transcript.transcript_id,
+      retrieved_at: transcript.retrieved_at
+    }
+  ];
+}
+
+function contradictionSummaryFromContext(
+  context: M2SectionContext,
+  signalValue: SignalValue
+): TrustMetadata["contradictions"] {
+  const contradictions: TrustMetadata["contradictions"] = [];
+  const comparisons = buildComparisons({
+    latest: context.latest,
+    priorQuarter: context.priorQuarter,
+    yearAgo: context.yearAgo
+  });
+
+  const qoqRevenue = comparisons.qoq.find((entry) => entry.metric === "revenue");
+  const qoqNetIncome = comparisons.qoq.find((entry) => entry.metric === "net_income");
+  if (qoqRevenue?.direction === "up" && qoqNetIncome?.direction === "down") {
+    contradictions.push({
+      id: "qoq_revenue_vs_profitability",
+      description:
+        "Quarter-over-quarter revenue improved while net income declined, which weakens conviction in operating quality.",
+      severity: "medium"
+    });
+  }
+
+  const yoyRevenue = comparisons.yoy.find((entry) => entry.metric === "revenue");
+  const yoyFreeCashFlow = comparisons.yoy.find((entry) => entry.metric === "free_cash_flow");
+  if (yoyRevenue?.direction === "up" && yoyFreeCashFlow?.direction === "down") {
+    contradictions.push({
+      id: "yoy_revenue_vs_cashflow",
+      description:
+        "Year-over-year revenue improved while free cash flow declined, signaling possible quality dilution in growth.",
+      severity: "medium"
+    });
+  }
+
+  if (
+    signalValue === "positive" &&
+    yoyRevenue?.direction === "down"
+  ) {
+    contradictions.push({
+      id: "signal_vs_yoy_revenue",
+      description:
+        "Signal is positive while year-over-year revenue is down, so directional confidence should be treated as fragile.",
+      severity: "high"
+    });
+  }
+
+  if (
+    signalValue === "negative" &&
+    yoyRevenue?.direction === "up"
+  ) {
+    contradictions.push({
+      id: "negative_signal_vs_yoy_revenue",
+      description:
+        "Signal is negative while year-over-year revenue is up, so downside conviction may be overstated.",
+      severity: "high"
+    });
+  }
+
+  return contradictions;
+}
+
+function buildThesisDriftSummary(input: {
+  comparable?: ComparableDeepDiveSummary;
+  currentSignal: SignalValue;
+  currentConfidence: ConfidenceBlock;
+  currentThesis?: string;
+}): TrustMetadata["thesis_drift"] {
+  const comparable = input.comparable;
+  if (!comparable) {
+    return {
+      status: "unavailable",
+      summary:
+        "Comparable prior thesis is unavailable in the 120-day lookback window.",
+      reasons: ["No comparable completed report was found for this ticker and schema family."]
+    };
+  }
+
+  const reasons: string[] = [];
+  if (
+    comparable.signal_value &&
+    comparable.signal_value !== input.currentSignal
+  ) {
+    reasons.push(
+      `Signal shifted from ${comparable.signal_value} to ${input.currentSignal}.`
+    );
+  } else {
+    reasons.push(`Signal remained ${input.currentSignal}.`);
+  }
+
+  if (typeof comparable.confidence_score === "number") {
+    const delta = input.currentConfidence.score - comparable.confidence_score;
+    if (Math.abs(delta) >= 0.1) {
+      reasons.push(
+        `Confidence moved by ${(delta * 100).toFixed(1)} points versus the prior thesis.`
+      );
+    } else {
+      reasons.push("Confidence remained broadly stable versus the prior thesis.");
+    }
+  }
+
+  if (
+    comparable.thesis_statement &&
+    input.currentThesis &&
+    comparable.thesis_statement.trim().toLowerCase() !==
+      input.currentThesis.trim().toLowerCase()
+  ) {
+    reasons.push("Core thesis framing changed materially from the prior report.");
+  }
+
+  return {
+    status: "available",
+    summary: `Compared with the prior thesis from ${comparable.generated_at.slice(0, 10)}, ${reasons.join(" ")}`,
+    reasons,
+    comparable_report_id: comparable.report_id,
+    comparable_generated_at: comparable.generated_at,
+    comparable_schema_version: comparable.schema_version
+  };
+}
+
+function buildTrustMetadata(input: {
+  generatedAt: string;
+  context: M2SectionContext;
+  sections: ReportSection[];
+  signal: NonNullable<AnalysisReport["signal"]>;
+  confidence: ConfidenceBlock;
+  valuation?: ValuationBlock;
+  thesisStatement?: string;
+}): TrustMetadata {
+  const allEvidence = uniqueEvidenceItems(input.sections);
+  const freshness = freshnessStateFromSources(input.context, input.generatedAt);
+  const contradictions = contradictionSummaryFromContext(input.context, input.signal.value);
+  const valuationState: TrustMetadata["valuation_state"] =
+    input.valuation === undefined
+      ? "omitted"
+      : input.valuation.fair_value_mid === undefined || input.valuation.degraded_reason
+        ? "degraded"
+        : "available";
+
+  const missingDataNotes = [...input.context.context.missing_reasons];
+  missingDataNotes.push(freshness.note);
+
+  if (valuationState === "omitted") {
+    missingDataNotes.push("Valuation block omitted due to insufficient deterministic DCF inputs.");
+  } else if (valuationState === "degraded") {
+    missingDataNotes.push(
+      input.valuation?.degraded_reason ??
+        "Valuation block is degraded because deterministic DCF inputs are partial."
+    );
+  }
+
+  const degradedSections = input.sections
+    .filter((section) => section.status !== "complete")
+    .map((section) => section.title);
+  if (degradedSections.length > 0) {
+    missingDataNotes.push(`Degraded report sections: ${degradedSections.join(", ")}.`);
+  }
+
+  const quoteProvenance = quoteProvenanceFromContext(input.context);
+  if (quoteProvenance.length === 0) {
+    missingDataNotes.push("No traceable management quote was available in the latest transcript context.");
+  }
+
+  return {
+    generated_at: input.generatedAt,
+    freshness_state: freshness.state,
+    evidence_count: allEvidence.length,
+    contradiction_state: contradictions.length > 0 ? "present" : "none",
+    contradictions,
+    valuation_state: valuationState,
+    missing_data_notes: [...new Set(missingDataNotes)],
+    quote_provenance: quoteProvenance,
+    thesis_drift: buildThesisDriftSummary({
+      comparable: input.context.comparableReport,
+      currentSignal: input.signal.value,
+      currentConfidence: input.confidence,
+      currentThesis: input.thesisStatement
+    })
+  };
 }
 
 function orderSections(sections: ReportSection[]): ReportSection[] {
@@ -984,21 +1263,50 @@ export async function runAnalysisPipeline(
     });
   }
 
+  const generatedAt = new Date().toISOString();
+  const thesisStatement = derivedSections.find((section) => section.section_id === "thesis_statement")?.body;
+  const trustMetadata = buildTrustMetadata({
+    generatedAt,
+    context: m2Context,
+    sections: orderedSections,
+    signal,
+    confidence,
+    valuation: valuationSection.valuation,
+    thesisStatement
+  });
+
   const report: AnalysisReport = {
     report_id: randomUUID(),
     job_id: request.job_id,
     schema_version: schemaVersion,
     type: "deep_dive",
     ticker,
-    generated_at: new Date().toISOString(),
+    generated_at: generatedAt,
     confidence,
     signal,
     historical_context: m2Context.context,
     valuation: valuationSection.valuation,
+    trust_metadata: trustMetadata,
     sections: orderedSections,
     flags: buildFlags(scenario, orderedSections, signal.value, traceMode),
     data_sources: buildDataSources(scenario, orderedSections)
   };
+
+  logInfo("Trust metadata generated", {
+    job_id: request.job_id,
+    ticker,
+    freshness_state: trustMetadata.freshness_state,
+    evidence_count: trustMetadata.evidence_count,
+    contradiction_state: trustMetadata.contradiction_state,
+    valuation_state: trustMetadata.valuation_state
+  });
+  if (trustMetadata.thesis_drift.status === "unavailable") {
+    logWarn("Thesis-drift summary unavailable", {
+      job_id: request.job_id,
+      ticker,
+      reason: trustMetadata.thesis_drift.reasons.join(" ")
+    });
+  }
 
   const validationErrors = validateAnalysisReport(report);
   if (validationErrors.length > 0) {

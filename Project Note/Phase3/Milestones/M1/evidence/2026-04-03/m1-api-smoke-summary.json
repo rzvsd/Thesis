@@ -1,0 +1,9 @@
+﻿{
+    "generated_at":  "2026-04-03T17:56:55.2741803+03:00",
+    "report1_has_trust_metadata":  true,
+    "report1_has_quote_provenance":  true,
+    "report1_has_valuation_state":  true,
+    "report2_has_thesis_drift":  true,
+    "limited_has_degraded_or_no_signal":  true,
+    "comparable_endpoint_missing":  false
+}

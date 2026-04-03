@@ -20,3 +20,9 @@ secrets/
 qa/maestro/.maestro.env
 qa/maestro/output/
 artifacts/
+tmp/
+tmp_mobile*.png
+Project Note/Phase3/Milestones/*/evidence/**/env.used
+Project Note/Phase3/Milestones/*/evidence/**/local-service-pids.json
+Project Note/Phase3/Milestones/*/evidence/**/*local*.log
+Project Note/Phase3/Milestones/*/evidence/**/run-*.ps1

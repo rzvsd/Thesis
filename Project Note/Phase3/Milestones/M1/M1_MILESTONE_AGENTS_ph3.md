@@ -12,7 +12,7 @@
 | **Milestone** | Phase 3 M1 - Intelligence Trust and Deep Dive Credibility |
 | **Linear Project** | Phase 3 M1 - Intelligence Trust and Deep Dive Credibility |
 | **Owner** | Reasoning Engineer + Product API Engineer + Mobile Engineer + Product Lead |
-| **Status** | Planned |
+| **Status** | Completed |
 | **Depends on** | Phase 2 M2, M7, and M9 closed; current Deep Dive flow operational |
 
 ---
@@ -84,13 +84,13 @@ M1 makes the report explain not only what it thinks, but why it thinks it, how f
 
 ## 3. Scope - What Is In
 
-- [ ] Trust metadata on Deep Dive outputs
-- [ ] Quote provenance and evidence-depth visibility
-- [ ] Thesis-drift summary when a comparable prior report exists
-- [ ] Contradiction/conflict surfacing
-- [ ] Valuation guardrail behavior and trust presentation
-- [ ] Quality evaluation pack and pass thresholds
-- [ ] Mobile trust rendering for the report experience
+- [x] Trust metadata on Deep Dive outputs
+- [x] Quote provenance and evidence-depth visibility
+- [x] Thesis-drift summary when a comparable prior report exists
+- [x] Contradiction/conflict surfacing
+- [x] Valuation guardrail behavior and trust presentation
+- [x] Quality evaluation pack and pass thresholds
+- [x] Mobile trust rendering for the report experience
 
 Full acceptance source: `Project Note/Phase3/ph3_MILESTONES.md -> M1`
 
@@ -182,11 +182,11 @@ No secrets, no tokens, no PII.
 
 ## 10. Testing Requirements
 
-- [ ] Integration tests for trust metadata payload shape
-- [ ] Evaluation-pack script committed and executable
-- [ ] Real-device verification for trust rendering in the Deep Dive screen
-- [ ] Existing Deep Dive request/retrieval regression smoke re-run
-- [ ] `pnpm typecheck` and relevant tests pass
+- [x] Integration tests for trust metadata payload shape
+- [x] Evaluation-pack script committed and executable
+- [x] Real-device verification for trust rendering in the Deep Dive screen
+- [x] Existing Deep Dive request/retrieval regression smoke re-run
+- [x] `pnpm typecheck` and relevant tests pass
 
 Detailed execution lives in `M1_SMOKE_PLAN_ph3.md`.
 
@@ -194,10 +194,10 @@ Detailed execution lives in `M1_SMOKE_PLAN_ph3.md`.
 
 ## 11. Definition Of Done
 
-- [ ] All M1 acceptance criteria in `ph3_MILESTONES.md` are satisfied
-- [ ] Smoke plan executed with evidence
-- [ ] Quality evaluation pack passes agreed thresholds
-- [ ] Existing Deep Dive regressions still pass
+- [x] All M1 acceptance criteria in `ph3_MILESTONES.md` are satisfied
+- [x] Smoke plan executed with evidence
+- [x] Quality evaluation pack passes agreed thresholds
+- [x] Existing Deep Dive regressions still pass
 - [ ] Linear tickets closed or explicitly deferred
 - [ ] Product Lead sign-off recorded
 - [ ] Engineering Lead countersign recorded
@@ -207,13 +207,19 @@ Detailed execution lives in `M1_SMOKE_PLAN_ph3.md`.
 ## 12. Smoke Test Log
 
 ```text
-Date:
-Run by:
-Environment:
-Result:
+Date: 2026-04-03
+Run by: Codex
+Environment: Local Product API on :3101 + local Dexter worker on :3102 backed by repo Postgres/Redis; physical Android device R3CXA03J3LH
+Result: PASS
 
 Notes:
-- 
+- API trust proof: `Project Note/Phase3/Milestones/M1/evidence/2026-04-03/m1-report-aapl-1.json`
+- Comparable thesis-drift proof: `Project Note/Phase3/Milestones/M1/evidence/2026-04-03/m1-report-aapl-2-comparable.json`
+- Honest degradation proof: `Project Note/Phase3/Milestones/M1/evidence/2026-04-03/m1-report-limited.json`
+- Comparable endpoint proof: `Project Note/Phase3/Milestones/M1/evidence/2026-04-03/m1-comparable-endpoint.json`
+- Evaluation pack artifact: `apps/dexter-worker/eval/artifacts/m1-quality-pack-result.json`
+- Device smoke summary/log: `Project Note/Phase3/Milestones/M1/evidence/2026-04-03/summary.json`, `Project Note/Phase3/Milestones/M1/evidence/2026-04-03/maestro.log`
+- Device screenshot: `Project Note/Phase3/Milestones/M1/evidence/2026-04-03/ph3_m1_pass.png`
 ```
 
 ---
@@ -222,7 +228,7 @@ Notes:
 
 | Issue | Why Deferred | Linear Ticket | Target Milestone |
 |---|---|---|---|
-| None yet | - | - | - |
+| Phase 3 M1 retrospective issue set could not be created after implementation because the Linear workspace hit its free issue limit | Linear project exists (`Phase 3 M1 — Intelligence Trust and Deep Dive Credibility`), but ticket creation returned `Usage limit exceeded`; do not mark ticket hygiene complete until workspace capacity is available or an alternate owner-approved tracking path is chosen | TBD | Milestone closeout hygiene |
 
 ---
 

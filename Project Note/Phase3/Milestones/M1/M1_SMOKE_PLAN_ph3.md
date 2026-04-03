@@ -2,7 +2,7 @@
 
 **Milestone:** M1 - Intelligence Trust and Deep Dive Credibility  
 **Owner:** Reasoning Engineer + Product API Engineer + Mobile Engineer + Product Lead  
-**Status:** Planned
+**Status:** Passed
 
 ---
 
@@ -57,12 +57,12 @@ Prove that Deep Dive trust behavior is visible, accurate, and regression-safe.
 
 | Step | Result | Evidence Path | Notes |
 |---|---|---|---|
-| 1 | TBD |  |  |
-| 2 | TBD |  |  |
-| 3 | TBD |  |  |
-| 4 | TBD |  |  |
-| 5 | TBD |  |  |
-| 6 | TBD |  |  |
-| 7 | TBD |  |  |
-| 8 | TBD |  |  |
-| 9 | TBD |  |  |
+| 1 | PASS | `Project Note/Phase3/Milestones/M1/evidence/2026-04-03/m1-report-aapl-1.json` | Fresh AAPL report completed through local Product API + fixture Dexter queue path. |
+| 2 | PASS | `Project Note/Phase3/Milestones/M1/evidence/2026-04-03/m1-api-smoke-summary.json` | `trust_metadata` present with freshness, evidence count, contradiction state, and valuation state. |
+| 3 | PASS | `Project Note/Phase3/Milestones/M1/evidence/2026-04-03/ph3_m1_pass.png` | Physical-device Android screenshot captured after successful Maestro M1 trust flow. |
+| 4 | PASS | `Project Note/Phase3/Milestones/M1/evidence/2026-04-03/m1-report-aapl-1.json` | Quote provenance rendered from report payload and verified in the Android smoke flow. |
+| 5 | PASS | `Project Note/Phase3/Milestones/M1/evidence/2026-04-03/m1-report-aapl-1.json` | Valuation assumptions/state present and surfaced without fabricating missing inputs. |
+| 6 | PASS | `Project Note/Phase3/Milestones/M1/evidence/2026-04-03/m1-report-aapl-2-comparable.json` | Comparable follow-up report includes thesis-drift summary. |
+| 7 | PASS | `Project Note/Phase3/Milestones/M1/evidence/2026-04-03/m1-report-limited.json` | Partial-data fixture degrades honestly (`valuation_state=degraded` / no-signal path). |
+| 8 | PASS | `apps/dexter-worker/eval/artifacts/m1-quality-pack-result.json` | 20-ticker M1 evaluation pack completed successfully. |
+| 9 | PASS | `Project Note/Phase3/Milestones/M1/evidence/2026-04-03/maestro.log` | Inherited Deep Dive UI path still opens and renders correctly on physical device. |

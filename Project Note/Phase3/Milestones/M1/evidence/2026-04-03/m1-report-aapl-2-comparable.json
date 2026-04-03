@@ -1,0 +1,413 @@
+﻿{
+    "report_id":  "f90159bc-9385-4764-80a1-af2fba68fee4",
+    "job_id":  "8beb4867-59d6-47b3-87de-8bbc75dde6b0",
+    "schema_version":  "2.0",
+    "type":  "deep_dive",
+    "ticker":  "AAPL",
+    "generated_at":  "2026-04-03T14:55:30.483Z",
+    "confidence":  {
+                       "score":  0.83,
+                       "label":  "high",
+                       "limiting_factors":  [
+                                                "Market conditions can still compress multiples despite strong execution."
+                                            ]
+                   },
+    "signal":  {
+                   "value":  "positive",
+                   "reasons":  [
+                                   "Revenue quality improved while margins expanded.",
+                                   "Liquidity and balance-sheet posture remain strong."
+                               ],
+                   "evidence":  [
+                                    {
+                                        "evidence_id":  "msft-events-1",
+                                        "source_type":  "filing",
+                                        "source_name":  "Company filings",
+                                        "excerpt":  "No transformative acquisition closed in the quarter.",
+                                        "retrieved_at":  "2026-03-15T08:00:00.000Z",
+                                        "url":  "https://example.com/msft/events-1"
+                                    },
+                                    {
+                                        "evidence_id":  "msft-commentary-1",
+                                        "source_type":  "article",
+                                        "source_name":  "FY2025 Q2 earnings call",
+                                        "excerpt":  "Leadership reiterated AI capex discipline.",
+                                        "retrieved_at":  "2026-03-15T08:00:00.000Z",
+                                        "url":  "https://example.com/msft/commentary-1"
+                                    }
+                                ]
+               },
+    "historical_context":  {
+                               "latest_period":  "2025-Q4",
+                               "prior_quarter_period":  "2025-Q3",
+                               "year_ago_period":  "2024-Q4",
+                               "transcript_period":  "2025-Q4",
+                               "financial_snapshot_count":  6,
+                               "transcript_count":  1,
+                               "transcript_available":  true,
+                               "missing_reasons":  [
+
+                                                   ]
+                           },
+    "valuation":  {
+                      "fair_value_mid":  206.09514254734827,
+                      "fair_value_low":  175.18087116524603,
+                      "fair_value_high":  237.0094139294505,
+                      "spot_price":  428.52,
+                      "implied_upside_pct":  -51.90536204906462,
+                      "assumptions":  {
+                                          "methodology":  "deterministic_dcf",
+                                          "projection_years":  5,
+                                          "terminal_growth_rate":  0.025,
+                                          "wacc":  0.095,
+                                          "beta":  1,
+                                          "effective_tax_rate":  0.18,
+                                          "shares_outstanding":  7420000000
+                                      }
+                  },
+    "trust_metadata":  {
+                           "generated_at":  "2026-04-03T14:55:30.483Z",
+                           "freshness_state":  "fresh",
+                           "evidence_count":  14,
+                           "contradiction_state":  "none",
+                           "contradictions":  [
+
+                                              ],
+                           "valuation_state":  "available",
+                           "missing_data_notes":  [
+                                                      "Latest source timestamp is 14 day(s) old."
+                                                  ],
+                           "quote_provenance":  [
+                                                    {
+                                                        "quote":  "Management highlighted durable cloud demand and disciplined AI infrastructure spend while maintaining margin focus",
+                                                        "source_name":  "transcript:fixture_transcript",
+                                                        "source_type":  "article",
+                                                        "source_period":  "2025-Q4",
+                                                        "transcript_id":  "AAPL-2025-q4",
+                                                        "retrieved_at":  "2026-03-20T08:00:00.000Z"
+                                                    }
+                                                ],
+                           "thesis_drift":  {
+                                                "status":  "available",
+                                                "summary":  "Compared with the prior thesis from 2026-01-15, Signal shifted from neutral to positive. Confidence moved by 25.0 points versus the prior thesis. Core thesis framing changed materially from the prior report.",
+                                                "reasons":  [
+                                                                "Signal shifted from neutral to positive.",
+                                                                "Confidence moved by 25.0 points versus the prior thesis.",
+                                                                "Core thesis framing changed materially from the prior report."
+                                                            ],
+                                                "comparable_report_id":  "AAPL-prior-thesis",
+                                                "comparable_generated_at":  "2026-01-15T09:00:00.000Z",
+                                                "comparable_schema_version":  "2.0"
+                                            }
+                       },
+    "sections":  [
+                     {
+                         "section_id":  "thesis_statement",
+                         "title":  "Thesis Statement",
+                         "body":  "AAPL thesis: the current quarter (2025-Q4) shows execution strength, but conviction should track whether reported momentum survives the next filing cycle. Quarter-over-quarter context is available and included below. Year-over-year context is available and included below.",
+                         "status":  "complete",
+                         "evidence":  [
+                                          {
+                                              "evidence_id":  "historical-AAPL-2025-q4",
+                                              "source_type":  "financial_data",
+                                              "source_name":  "historical:fixture_historical",
+                                              "excerpt":  "AAPL 2025-Q4 snapshot",
+                                              "retrieved_at":  "2026-04-03T14:55:30.477Z"
+                                          },
+                                          {
+                                              "evidence_id":  "transcript-AAPL-2025-q4",
+                                              "source_type":  "article",
+                                              "source_name":  "historical:fixture_transcript",
+                                              "excerpt":  "AAPL 2025-Q4 earnings call transcript",
+                                              "retrieved_at":  "2026-04-03T14:55:30.477Z"
+                                          }
+                                      ]
+                     },
+                     {
+                         "section_id":  "what_changed",
+                         "title":  "What Changed",
+                         "body":  "QoQ revenue: 69.63B vs 64.7B (7.62%) QoQ eps: 3.3 vs 3.05 (8.20%) QoQ net_income: 24.67B vs 22.8B (8.19%) QoQ operating_margin: 44.1 vs 42.2 (4.50%) QoQ free_cash_flow: 22.4B vs 20.9B (7.18%) YoY revenue: 69.63B vs 62B (12.31%) YoY eps: 3.3 vs 2.91 (13.40%) YoY net_income: 24.67B vs 21.35B (15.54%) YoY operating_margin: 44.1 vs 40.5 (8.89%) YoY free_cash_flow: 22.4B vs 19.4B (15.46%) Segment context: Cloud (29.1B revenue), Productivity (19.7B revenue). Management quote: \"Management highlighted durable cloud demand and disciplined AI infrastructure spend while maintaining margin focus.\"",
+                         "status":  "complete",
+                         "evidence":  [
+                                          {
+                                              "evidence_id":  "historical-AAPL-2025-q4",
+                                              "source_type":  "financial_data",
+                                              "source_name":  "historical:fixture_historical",
+                                              "excerpt":  "AAPL 2025-Q4 snapshot",
+                                              "retrieved_at":  "2026-04-03T14:55:30.482Z"
+                                          },
+                                          {
+                                              "evidence_id":  "transcript-AAPL-2025-q4",
+                                              "source_type":  "article",
+                                              "source_name":  "historical:fixture_transcript",
+                                              "excerpt":  "AAPL 2025-Q4 earnings call transcript",
+                                              "retrieved_at":  "2026-04-03T14:55:30.482Z"
+                                          }
+                                      ]
+                     },
+                     {
+                         "section_id":  "valuation",
+                         "title":  "Valuation",
+                         "body":  "Deterministic DCF fair-value mid: 206.1 per share (range 175.18 to 237.01). Spot reference: 428.52; implied upside -51.91%. Assumptions: WACC 9.50%, terminal growth 2.50%, projection horizon 5 years.",
+                         "status":  "complete",
+                         "evidence":  [
+                                          {
+                                              "evidence_id":  "historical-AAPL-2025-q4",
+                                              "source_type":  "financial_data",
+                                              "source_name":  "historical:fixture_historical",
+                                              "excerpt":  "AAPL 2025-Q4 snapshot",
+                                              "retrieved_at":  "2026-04-03T14:55:30.477Z"
+                                          },
+                                          {
+                                              "evidence_id":  "transcript-AAPL-2025-q4",
+                                              "source_type":  "article",
+                                              "source_name":  "historical:fixture_transcript",
+                                              "excerpt":  "AAPL 2025-Q4 earnings call transcript",
+                                              "retrieved_at":  "2026-04-03T14:55:30.477Z"
+                                          }
+                                      ]
+                     },
+                     {
+                         "section_id":  "executive_summary",
+                         "title":  "Executive Summary",
+                         "body":  "AAPL completed the deep-dive path with all primary sections available. The current research signal is positive. This is a research summary, not financial advice. Always do your own research.",
+                         "status":  "complete",
+                         "evidence":  [
+                                          {
+                                              "evidence_id":  "msft-events-1",
+                                              "source_type":  "filing",
+                                              "source_name":  "Company filings",
+                                              "excerpt":  "No transformative acquisition closed in the quarter.",
+                                              "retrieved_at":  "2026-03-15T08:00:00.000Z",
+                                              "url":  "https://example.com/msft/events-1"
+                                          },
+                                          {
+                                              "evidence_id":  "msft-commentary-1",
+                                              "source_type":  "article",
+                                              "source_name":  "FY2025 Q2 earnings call",
+                                              "excerpt":  "Leadership reiterated AI capex discipline.",
+                                              "retrieved_at":  "2026-03-15T08:00:00.000Z",
+                                              "url":  "https://example.com/msft/commentary-1"
+                                          },
+                                          {
+                                              "evidence_id":  "msft-commentary-2",
+                                              "source_type":  "filing",
+                                              "source_name":  "10-Q risk factors",
+                                              "excerpt":  "Cybersecurity and competition remain key risks.",
+                                              "retrieved_at":  "2026-03-15T08:00:00.000Z",
+                                              "url":  "https://example.com/msft/commentary-2"
+                                          }
+                                      ]
+                     },
+                     {
+                         "section_id":  "quarter_over_quarter_changes",
+                         "title":  "Quarter-over-Quarter Changes",
+                         "status":  "complete",
+                         "body":  "AAPL delivered sequential growth with cloud demand carrying the headline acceleration.",
+                         "evidence":  [
+                                          {
+                                              "evidence_id":  "msft-qoq-1",
+                                              "source_type":  "filing",
+                                              "source_name":  "FY2025 Q2 10-Q",
+                                              "excerpt":  "Revenue increased quarter over quarter.",
+                                              "retrieved_at":  "2026-03-15T08:00:00.000Z",
+                                              "url":  "https://example.com/msft/qoq-1"
+                                          },
+                                          {
+                                              "evidence_id":  "msft-qoq-2",
+                                              "source_type":  "article",
+                                              "source_name":  "FY2025 Q2 earnings call",
+                                              "excerpt":  "Cloud demand improved sequentially.",
+                                              "retrieved_at":  "2026-03-15T08:00:00.000Z",
+                                              "url":  "https://example.com/msft/qoq-2"
+                                          }
+                                      ]
+                     },
+                     {
+                         "section_id":  "year_over_year_changes",
+                         "title":  "Year-over-Year Changes",
+                         "status":  "complete",
+                         "body":  "AAPL delivered year-over-year growth with cloud demand carrying the headline acceleration.",
+                         "evidence":  [
+                                          {
+                                              "evidence_id":  "msft-yoy-1",
+                                              "source_type":  "filing",
+                                              "source_name":  "FY2025 Q2 10-Q",
+                                              "excerpt":  "Revenue increased 15% year over year.",
+                                              "retrieved_at":  "2026-03-15T08:00:00.000Z",
+                                              "url":  "https://example.com/msft/yoy-1"
+                                          },
+                                          {
+                                              "evidence_id":  "msft-yoy-2",
+                                              "source_type":  "article",
+                                              "source_name":  "FY2025 Q2 earnings call",
+                                              "excerpt":  "Management highlighted Azure demand resilience.",
+                                              "retrieved_at":  "2026-03-15T08:00:00.000Z",
+                                              "url":  "https://example.com/msft/yoy-2"
+                                          }
+                                      ]
+                     },
+                     {
+                         "section_id":  "revenue_margin_analysis",
+                         "title":  "Revenue and Margin Analysis",
+                         "status":  "complete",
+                         "body":  "AAPL expanded margins alongside revenue, suggesting operating leverage rather than one-off accounting noise.",
+                         "evidence":  [
+                                          {
+                                              "evidence_id":  "msft-margin-1",
+                                              "source_type":  "financial_data",
+                                              "source_name":  "FY2025 Q2 10-Q",
+                                              "excerpt":  "Gross margin expanded by 120 basis points.",
+                                              "retrieved_at":  "2026-03-15T08:00:00.000Z",
+                                              "url":  "https://example.com/msft/margin-1"
+                                          },
+                                          {
+                                              "evidence_id":  "msft-margin-2",
+                                              "source_type":  "financial_data",
+                                              "source_name":  "FY2025 Q2 10-Q",
+                                              "excerpt":  "Operating income outpaced revenue growth.",
+                                              "retrieved_at":  "2026-03-15T08:00:00.000Z",
+                                              "url":  "https://example.com/msft/margin-2"
+                                          }
+                                      ]
+                     },
+                     {
+                         "section_id":  "debt_liquidity",
+                         "title":  "Debt and Liquidity",
+                         "status":  "complete",
+                         "body":  "AAPL remains liquid and conservatively financed, with cash coverage that limits near-term balance-sheet stress.",
+                         "evidence":  [
+                                          {
+                                              "evidence_id":  "msft-debt-1",
+                                              "source_type":  "financial_data",
+                                              "source_name":  "FY2025 Q2 balance sheet",
+                                              "excerpt":  "Cash and short-term investments exceed total debt.",
+                                              "retrieved_at":  "2026-03-15T08:00:00.000Z",
+                                              "url":  "https://example.com/msft/debt-1"
+                                          },
+                                          {
+                                              "evidence_id":  "msft-debt-2",
+                                              "source_type":  "financial_data",
+                                              "source_name":  "FY2025 Q2 cash flow",
+                                              "excerpt":  "Free cash flow remained positive.",
+                                              "retrieved_at":  "2026-03-15T08:00:00.000Z",
+                                              "url":  "https://example.com/msft/debt-2"
+                                          }
+                                      ]
+                     },
+                     {
+                         "section_id":  "acquisitions_major_events",
+                         "title":  "Acquisitions and Major Events",
+                         "status":  "complete",
+                         "body":  "Major event flow was manageable and did not materially distort the core operating picture for AAPL.",
+                         "evidence":  [
+                                          {
+                                              "evidence_id":  "msft-events-1",
+                                              "source_type":  "filing",
+                                              "source_name":  "Company filings",
+                                              "excerpt":  "No transformative acquisition closed in the quarter.",
+                                              "retrieved_at":  "2026-03-15T08:00:00.000Z",
+                                              "url":  "https://example.com/msft/events-1"
+                                          }
+                                      ]
+                     },
+                     {
+                         "section_id":  "management_commentary",
+                         "title":  "Management Commentary",
+                         "status":  "complete",
+                         "body":  "Management commentary stayed constructive while still acknowledging execution and risk priorities for AAPL.",
+                         "evidence":  [
+                                          {
+                                              "evidence_id":  "msft-commentary-1",
+                                              "source_type":  "article",
+                                              "source_name":  "FY2025 Q2 earnings call",
+                                              "excerpt":  "Leadership reiterated AI capex discipline.",
+                                              "retrieved_at":  "2026-03-15T08:00:00.000Z",
+                                              "url":  "https://example.com/msft/commentary-1"
+                                          },
+                                          {
+                                              "evidence_id":  "msft-commentary-2",
+                                              "source_type":  "filing",
+                                              "source_name":  "10-Q risk factors",
+                                              "excerpt":  "Cybersecurity and competition remain key risks.",
+                                              "retrieved_at":  "2026-03-15T08:00:00.000Z",
+                                              "url":  "https://example.com/msft/commentary-2"
+                                          },
+                                          {
+                                              "evidence_id":  "msft-commentary-3",
+                                              "source_type":  "filing",
+                                              "source_name":  "10-Q risk factors",
+                                              "excerpt":  "Regulatory and macro volatility remain material uncertainties.",
+                                              "retrieved_at":  "2026-03-15T08:00:00.000Z",
+                                              "url":  "https://example.com/msft/commentary-3"
+                                          }
+                                      ]
+                     },
+                     {
+                         "section_id":  "research_signal",
+                         "title":  "Research Signal",
+                         "body":  "Research signal: positive. Revenue quality improved while margins expanded. Liquidity and balance-sheet posture remain strong.",
+                         "status":  "complete",
+                         "evidence":  [
+                                          {
+                                              "evidence_id":  "msft-events-1",
+                                              "source_type":  "filing",
+                                              "source_name":  "Company filings",
+                                              "excerpt":  "No transformative acquisition closed in the quarter.",
+                                              "retrieved_at":  "2026-03-15T08:00:00.000Z",
+                                              "url":  "https://example.com/msft/events-1"
+                                          },
+                                          {
+                                              "evidence_id":  "msft-commentary-1",
+                                              "source_type":  "article",
+                                              "source_name":  "FY2025 Q2 earnings call",
+                                              "excerpt":  "Leadership reiterated AI capex discipline.",
+                                              "retrieved_at":  "2026-03-15T08:00:00.000Z",
+                                              "url":  "https://example.com/msft/commentary-1"
+                                          }
+                                      ]
+                     },
+                     {
+                         "section_id":  "confidence_score",
+                         "title":  "Confidence Score and Limiting Factors",
+                         "body":  "Confidence score 0.83 (high). Limiting factors: Market conditions can still compress multiples despite strong execution.",
+                         "status":  "complete",
+                         "evidence":  [
+
+                                      ]
+                     },
+                     {
+                         "section_id":  "evidence_references",
+                         "title":  "Evidence References",
+                         "body":  "Company filings: No transformative acquisition closed in the quarter.\nFY2025 Q2 earnings call: Leadership reiterated AI capex discipline.",
+                         "status":  "complete",
+                         "evidence":  [
+                                          {
+                                              "evidence_id":  "msft-events-1",
+                                              "source_type":  "filing",
+                                              "source_name":  "Company filings",
+                                              "excerpt":  "No transformative acquisition closed in the quarter.",
+                                              "retrieved_at":  "2026-03-15T08:00:00.000Z",
+                                              "url":  "https://example.com/msft/events-1"
+                                          },
+                                          {
+                                              "evidence_id":  "msft-commentary-1",
+                                              "source_type":  "article",
+                                              "source_name":  "FY2025 Q2 earnings call",
+                                              "excerpt":  "Leadership reiterated AI capex discipline.",
+                                              "retrieved_at":  "2026-03-15T08:00:00.000Z",
+                                              "url":  "https://example.com/msft/commentary-1"
+                                          }
+                                      ]
+                     }
+                 ],
+    "flags":  [
+                  "fixture_mode",
+                  "langsmith_trace_mock"
+              ],
+    "data_sources":  [
+                         "dexter-native:financial_search",
+                         "dexter-native:read_filings",
+                         "dexter-native:web_search"
+                     ]
+}

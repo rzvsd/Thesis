@@ -33,6 +33,7 @@ object ReportViewMapper {
             confidenceScore = payload.optJSONObject("confidence")?.optNullableDouble("score"),
             valuation = mapValuation(payload.optJSONObject("valuation")),
             historical = mapHistorical(payload.optJSONObject("historical_context")),
+            trustMetadata = mapTrustMetadata(payload.optJSONObject("trust_metadata")),
             sections = sections
         )
     }
@@ -128,6 +129,84 @@ object ReportViewMapper {
             yearAgoPeriod = row.optNullableString("year_ago_period"),
             financialSnapshotCount = row.optInt("financial_snapshot_count", 0),
             transcriptCount = row.optInt("transcript_count", 0)
+        )
+    }
+
+    private fun mapTrustMetadata(row: JSONObject?): TrustMetadataView? {
+        if (row == null) {
+            return null
+        }
+        return TrustMetadataView(
+            generatedAt = row.optNullableString("generated_at"),
+            freshnessState = row.optNullableString("freshness_state"),
+            evidenceCount = row.optNullableInt("evidence_count"),
+            contradictionState = row.optNullableString("contradiction_state"),
+            contradictions = mapTrustContradictions(row.optJSONArray("contradictions")),
+            valuationState = row.optNullableString("valuation_state"),
+            missingDataNotes = mapStringArray(row.optJSONArray("missing_data_notes")),
+            quoteProvenance = mapQuoteProvenance(row.optJSONArray("quote_provenance")),
+            thesisDrift = mapThesisDrift(row.optJSONObject("thesis_drift"))
+        )
+    }
+
+    private fun mapTrustContradictions(row: JSONArray?): List<TrustContradictionView> {
+        if (row == null) {
+            return emptyList()
+        }
+        return (0 until row.length()).mapNotNull { index ->
+            row.optJSONObject(index)?.let { entry ->
+                val description = entry.optString("description", "").trim()
+                if (description.isBlank()) {
+                    null
+                } else {
+                    TrustContradictionView(
+                        id = entry.optString("id", "contradiction-$index"),
+                        description = description,
+                        severity = entry.optString("severity", "medium")
+                    )
+                }
+            }
+        }
+    }
+
+    private fun mapQuoteProvenance(row: JSONArray?): List<TrustQuoteProvenanceView> {
+        if (row == null) {
+            return emptyList()
+        }
+        return (0 until row.length()).mapNotNull { index ->
+            row.optJSONObject(index)?.let { entry ->
+                val quote = entry.optString("quote", "").trim()
+                if (quote.isBlank()) {
+                    null
+                } else {
+                    TrustQuoteProvenanceView(
+                        quote = quote,
+                        sourceName = entry.optString("source_name", "Unknown source"),
+                        sourceType = entry.optString("source_type", "article"),
+                        sourcePeriod = entry.optNullableString("source_period"),
+                        transcriptId = entry.optNullableString("transcript_id"),
+                        retrievedAt = entry.optNullableString("retrieved_at")
+                    )
+                }
+            }
+        }
+    }
+
+    private fun mapThesisDrift(row: JSONObject?): TrustThesisDriftView? {
+        if (row == null) {
+            return null
+        }
+        val summary = row.optString("summary", "").trim()
+        if (summary.isBlank()) {
+            return null
+        }
+        return TrustThesisDriftView(
+            status = row.optString("status", "unavailable"),
+            summary = summary,
+            reasons = mapStringArray(row.optJSONArray("reasons")),
+            comparableReportId = row.optNullableString("comparable_report_id"),
+            comparableGeneratedAt = row.optNullableString("comparable_generated_at"),
+            comparableSchemaVersion = row.optNullableString("comparable_schema_version")
         )
     }
 

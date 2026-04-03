@@ -1,0 +1,103 @@
+appId: ${MAESTRO_APP_ID}
+---
+- launchApp:
+    clearState: true
+
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+
+- runFlow:
+    when:
+      visible: "Get Started"
+    commands:
+      - tapOn: "Get Started"
+
+- runFlow:
+    when:
+      visible: "Allow"
+    commands:
+      - tapOn: "Allow"
+
+- tapOn: "name@example.com"
+- inputText: "${MAESTRO_TEST_EMAIL}"
+- tapOn: "Enter password"
+- inputText: "${MAESTRO_TEST_PASSWORD}"
+- pressKey: Back
+- scrollUntilVisible:
+    element:
+      text: "Log In"
+    direction: DOWN
+    timeout: 30000
+- tapOn: "Log In"
+- extendedWaitUntil:
+    visible: "Research"
+    timeout: 30000
+
+- tapOn: "Research"
+- runFlow:
+    when:
+      visible: "History"
+    commands:
+      - tapOn: "Deep Dive"
+- runFlow:
+    when:
+      visible: "Not now"
+    commands:
+      - tapOn: "Not now"
+- runFlow:
+    when:
+      visible: "AAPL Deep Dive"
+    commands:
+      - tapOn: "AAPL Deep Dive"
+- runFlow:
+    when:
+      visible: "Ticker Symbol (e.g. AAPL)"
+    commands:
+      - tapOn: "Ticker Symbol (e.g. AAPL)"
+      - inputText: "AAPL"
+      - pressKey: Back
+      - tapOn: "Run Deep Dive"
+- extendedWaitUntil:
+    visible: "Trust & Freshness"
+    timeout: 120000
+
+- assertVisible: "Trust & Freshness"
+- assertVisible: "Freshness"
+- assertVisible: "Evidence"
+- assertVisible: "Contradiction"
+- assertVisible: "Valuation"
+
+- scrollUntilVisible:
+    element:
+      text: "THESIS DRIFT"
+    direction: DOWN
+    timeout: 60000
+- assertVisible: "THESIS DRIFT"
+
+- scrollUntilVisible:
+    element:
+      text: "QUOTE PROVENANCE"
+    direction: DOWN
+    timeout: 60000
+- assertVisible: "QUOTE PROVENANCE"

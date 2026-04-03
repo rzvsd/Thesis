@@ -50,6 +50,7 @@ import com.thesis.mobile.model.DeepDiveReportView
 import com.thesis.mobile.model.EvidenceView
 import com.thesis.mobile.model.ReportHistoryItem
 import com.thesis.mobile.model.ScenarioResultView
+import com.thesis.mobile.model.TrustMetadataView
 import com.thesis.mobile.model.ValuationDisplayView
 import com.thesis.mobile.ui.components.ConfidenceRing
 import com.thesis.mobile.ui.components.DeepDiveUnavailableState
@@ -329,6 +330,12 @@ private fun DeepDiveReportState(
                 )
             }
 
+            report.trustMetadata?.let { trust ->
+                item {
+                    TrustOverviewSection(trust = trust)
+                }
+            }
+
             report.thesisStatement?.takeIf { it.isNotBlank() }?.let { thesis ->
                 item {
                     SummarySection(
@@ -550,6 +557,132 @@ private fun HeaderSection(
             style = ThesisTypography.labelSmall,
             color = ThesisColors.TextMuted
         )
+    }
+}
+
+@Composable
+private fun TrustOverviewSection(trust: TrustMetadataView) {
+    val shape = RoundedCornerShape(ThesisDimens.CardCornerRadius)
+
+    Column(verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)) {
+        Text(
+            text = "Trust & Freshness",
+            style = ThesisTypography.headlineMedium.copy(fontWeight = FontWeight.Medium),
+            color = ThesisColors.TextPrimary
+        )
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(shape)
+                .background(ThesisColors.Surface)
+                .border(ThesisDimens.BorderWidth, ThesisColors.Border, shape)
+                .padding(ThesisDimens.CardPadding)
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingMd)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)
+                ) {
+                    TrustBadge(
+                        label = "Freshness",
+                        value = trust.freshnessState?.uppercase() ?: "UNKNOWN",
+                        color = trustStateColor(trust.freshnessState),
+                        modifier = Modifier.weight(1f)
+                    )
+                    TrustBadge(
+                        label = "Evidence",
+                        value = "${trust.evidenceCount ?: 0}",
+                        color = ThesisColors.AccentBlue,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)
+                ) {
+                    TrustBadge(
+                        label = "Contradiction",
+                        value = trust.contradictionState?.uppercase() ?: "UNKNOWN",
+                        color = if (trust.contradictionState.equals("present", ignoreCase = true)) {
+                            ThesisColors.SignalNegative
+                        } else {
+                            ThesisColors.SignalPositive
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
+                    TrustBadge(
+                        label = "Valuation",
+                        value = trust.valuationState?.uppercase() ?: "UNKNOWN",
+                        color = when {
+                            trust.valuationState.equals("available", ignoreCase = true) -> ThesisColors.SignalPositive
+                            trust.valuationState.equals("degraded", ignoreCase = true) -> ThesisColors.SignalWarning
+                            else -> ThesisColors.TextMuted
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+
+                trust.thesisDrift?.summary?.takeIf { it.isNotBlank() }?.let { summary ->
+                    SnapshotRow(label = "THESIS DRIFT", value = summary)
+                }
+
+                if (trust.quoteProvenance.isNotEmpty()) {
+                    val quote = trust.quoteProvenance.first()
+                    SnapshotRow(
+                        label = "QUOTE PROVENANCE",
+                        value = "\"${quote.quote}\" — ${quote.sourceName}" +
+                            (quote.sourcePeriod?.let { " ($it)" } ?: "")
+                    )
+                }
+
+                trust.missingDataNotes.firstOrNull()?.takeIf { it.isNotBlank() }?.let { note ->
+                    SnapshotRow(label = "LIMITS", value = note)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TrustBadge(
+    label: String,
+    value: String,
+    color: Color,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(ThesisDimens.SignalBadgeCorner))
+            .background(color.copy(alpha = 0.12f))
+            .border(
+                ThesisDimens.BorderWidth,
+                color.copy(alpha = 0.3f),
+                RoundedCornerShape(ThesisDimens.SignalBadgeCorner)
+            )
+            .padding(horizontal = ThesisDimens.SpacingSm, vertical = ThesisDimens.SpacingSm)
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingXs)) {
+            Text(
+                text = label.uppercase(),
+                style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Medium),
+                color = ThesisColors.TextMuted
+            )
+            Text(
+                text = value,
+                style = ThesisTypography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                color = color
+            )
+        }
+    }
+}
+
+private fun trustStateColor(state: String?): Color {
+    return when {
+        state.equals("fresh", ignoreCase = true) -> ThesisColors.SignalPositive
+        state.equals("degraded", ignoreCase = true) -> ThesisColors.SignalWarning
+        state.equals("stale", ignoreCase = true) -> ThesisColors.SignalNegative
+        else -> ThesisColors.TextMuted
     }
 }
 

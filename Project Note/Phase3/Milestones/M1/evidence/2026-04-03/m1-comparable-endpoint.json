@@ -1,0 +1,49 @@
+﻿{
+    "missing":  false,
+    "data":  {
+                 "report_id":  "f90159bc-9385-4764-80a1-af2fba68fee4",
+                 "generated_at":  "2026-04-03T14:55:30.483Z",
+                 "schema_version":  "2.0",
+                 "ticker":  "AAPL",
+                 "signal_value":  "positive",
+                 "confidence_label":  "high",
+                 "confidence_score":  0.83,
+                 "thesis_statement":  "AAPL thesis: the current quarter (2025-Q4) shows execution strength, but conviction should track whether reported momentum survives the next filing cycle. Quarter-over-quarter context is available and included below. Year-over-year context is available and included below.",
+                 "valuation_mid":  206.09514254734827,
+                 "trust_metadata":  {
+                                        "generated_at":  "2026-04-03T14:55:30.483Z",
+                                        "freshness_state":  "fresh",
+                                        "evidence_count":  14,
+                                        "contradiction_state":  "none",
+                                        "contradictions":  [
+
+                                                           ],
+                                        "valuation_state":  "available",
+                                        "missing_data_notes":  [
+                                                                   "Latest source timestamp is 14 day(s) old."
+                                                               ],
+                                        "quote_provenance":  [
+                                                                 {
+                                                                     "quote":  "Management highlighted durable cloud demand and disciplined AI infrastructure spend while maintaining margin focus",
+                                                                     "source_name":  "transcript:fixture_transcript",
+                                                                     "source_type":  "article",
+                                                                     "source_period":  "2025-Q4",
+                                                                     "transcript_id":  "AAPL-2025-q4",
+                                                                     "retrieved_at":  "2026-03-20T08:00:00.000Z"
+                                                                 }
+                                                             ],
+                                        "thesis_drift":  {
+                                                             "status":  "available",
+                                                             "summary":  "Compared with the prior thesis from 2026-01-15, Signal shifted from neutral to positive. Confidence moved by 25.0 points versus the prior thesis. Core thesis framing changed materially from the prior report.",
+                                                             "reasons":  [
+                                                                             "Signal shifted from neutral to positive.",
+                                                                             "Confidence moved by 25.0 points versus the prior thesis.",
+                                                                             "Core thesis framing changed materially from the prior report."
+                                                                         ],
+                                                             "comparable_report_id":  "AAPL-prior-thesis",
+                                                             "comparable_generated_at":  "2026-01-15T09:00:00.000Z",
+                                                             "comparable_schema_version":  "2.0"
+                                                         }
+                                    }
+             }
+}

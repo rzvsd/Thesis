@@ -92,6 +92,56 @@ function validateReportSection(value: unknown, path: string, errors: string[]): 
   return true;
 }
 
+function validateTrustMetadata(value: unknown, path: string, errors: string[]): void {
+  if (!isObject(value)) {
+    errors.push(`${path} must be an object`);
+    return;
+  }
+
+  if (!isIsoDateTime(value.generated_at)) {
+    errors.push(`${path}.generated_at must be an ISO datetime string`);
+  }
+  if (!["fresh", "degraded", "stale"].includes(String(value.freshness_state))) {
+    errors.push(`${path}.freshness_state must be valid`);
+  }
+  if (typeof value.evidence_count !== "number" || value.evidence_count < 0) {
+    errors.push(`${path}.evidence_count must be a non-negative number`);
+  }
+  if (!["none", "present"].includes(String(value.contradiction_state))) {
+    errors.push(`${path}.contradiction_state must be valid`);
+  }
+  if (!["available", "degraded", "omitted"].includes(String(value.valuation_state))) {
+    errors.push(`${path}.valuation_state must be valid`);
+  }
+  if (!isStringArray(value.missing_data_notes)) {
+    errors.push(`${path}.missing_data_notes must be an array of strings`);
+  }
+
+  if (!Array.isArray(value.contradictions)) {
+    errors.push(`${path}.contradictions must be an array`);
+  }
+  if (!Array.isArray(value.quote_provenance)) {
+    errors.push(`${path}.quote_provenance must be an array`);
+  }
+
+  if (!isObject(value.thesis_drift)) {
+    errors.push(`${path}.thesis_drift must be an object`);
+  } else {
+    if (!["available", "unavailable"].includes(String(value.thesis_drift.status))) {
+      errors.push(`${path}.thesis_drift.status must be valid`);
+    }
+    if (
+      typeof value.thesis_drift.summary !== "string" ||
+      value.thesis_drift.summary.trim().length === 0
+    ) {
+      errors.push(`${path}.thesis_drift.summary must be a non-empty string`);
+    }
+    if (!isStringArray(value.thesis_drift.reasons)) {
+      errors.push(`${path}.thesis_drift.reasons must be an array of strings`);
+    }
+  }
+}
+
 export function validateAnalysisRequest(value: unknown): string[] {
   const errors: string[] = [];
 
@@ -257,6 +307,10 @@ export function validateAnalysisReport(value: unknown): string[] {
         errors.push("valuation.assumptions.wacc must be a number");
       }
     }
+  }
+
+  if (value.trust_metadata !== undefined) {
+    validateTrustMetadata(value.trust_metadata, "trust_metadata", errors);
   }
 
   if (!Array.isArray(value.sections) || value.sections.length === 0) {
