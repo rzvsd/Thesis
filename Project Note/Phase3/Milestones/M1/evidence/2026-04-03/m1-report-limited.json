@@ -1,0 +1,349 @@
+﻿{
+    "report_id":  "36ed5d31-baa7-4fc3-a93e-95c318844fe6",
+    "job_id":  "m1-limited-job-1871594646",
+    "schema_version":  "2.0",
+    "type":  "deep_dive",
+    "ticker":  "LIMITED",
+    "generated_at":  "2026-04-03T14:56:54.093Z",
+    "confidence":  {
+                       "score":  0.42,
+                       "label":  "insufficient_data",
+                       "limiting_factors":  [
+                                                "Management commentary was only partially available.",
+                                                "Approved event coverage was unavailable for one section."
+                                            ]
+                   },
+    "signal":  {
+                   "value":  "no_signal",
+                   "reasons":  [
+                                   "Minimum evidence threshold not met across the degraded sections."
+                               ],
+                   "evidence":  [
+                                    {
+                                        "evidence_id":  "msft-qoq-1",
+                                        "source_type":  "filing",
+                                        "source_name":  "FY2025 Q2 10-Q",
+                                        "excerpt":  "Revenue increased quarter over quarter.",
+                                        "retrieved_at":  "2026-03-15T08:00:00.000Z",
+                                        "url":  "https://example.com/msft/qoq-1"
+                                    },
+                                    {
+                                        "evidence_id":  "msft-qoq-2",
+                                        "source_type":  "article",
+                                        "source_name":  "FY2025 Q2 earnings call",
+                                        "excerpt":  "Cloud demand improved sequentially.",
+                                        "retrieved_at":  "2026-03-15T08:00:00.000Z",
+                                        "url":  "https://example.com/msft/qoq-2"
+                                    }
+                                ]
+               },
+    "historical_context":  {
+                               "latest_period":  "2025-Q4",
+                               "financial_snapshot_count":  1,
+                               "transcript_count":  0,
+                               "transcript_available":  false,
+                               "missing_reasons":  [
+
+                                                   ]
+                           },
+    "valuation":  {
+                      "assumptions":  {
+                                          "methodology":  "deterministic_dcf",
+                                          "projection_years":  5,
+                                          "terminal_growth_rate":  0.025,
+                                          "wacc":  0.1
+                                      },
+                      "degraded_reason":  "At least 3 annual free-cash-flow points are required for DCF."
+                  },
+    "trust_metadata":  {
+                           "generated_at":  "2026-04-03T14:56:54.093Z",
+                           "freshness_state":  "fresh",
+                           "evidence_count":  9,
+                           "contradiction_state":  "none",
+                           "contradictions":  [
+
+                                              ],
+                           "valuation_state":  "degraded",
+                           "missing_data_notes":  [
+                                                      "Latest source timestamp is 14 day(s) old.",
+                                                      "At least 3 annual free-cash-flow points are required for DCF.",
+                                                      "Degraded report sections: What Changed, Valuation, Year-over-Year Changes, Acquisitions and Major Events, Management Commentary.",
+                                                      "No traceable management quote was available in the latest transcript context."
+                                                  ],
+                           "quote_provenance":  [
+
+                                                ],
+                           "thesis_drift":  {
+                                                "status":  "unavailable",
+                                                "summary":  "Comparable prior thesis is unavailable in the 120-day lookback window.",
+                                                "reasons":  [
+                                                                "No comparable completed report was found for this ticker and schema family."
+                                                            ]
+                                            }
+                       },
+    "sections":  [
+                     {
+                         "section_id":  "thesis_statement",
+                         "title":  "Thesis Statement",
+                         "body":  "LIMITED thesis: the current quarter (2025-Q4) shows execution strength, but conviction should track whether reported momentum survives the next filing cycle. Quarter-over-quarter context is currently unavailable. Year-over-year context is currently unavailable.",
+                         "status":  "complete",
+                         "evidence":  [
+                                          {
+                                              "evidence_id":  "historical-LIMITED-2025-q4",
+                                              "source_type":  "financial_data",
+                                              "source_name":  "historical:fixture_historical",
+                                              "excerpt":  "LIMITED 2025-Q4 snapshot",
+                                              "retrieved_at":  "2026-04-03T14:56:54.016Z"
+                                          }
+                                      ]
+                     },
+                     {
+                         "section_id":  "what_changed",
+                         "title":  "What Changed",
+                         "body":  "QoQ revenue: unavailable QoQ eps: unavailable QoQ net_income: unavailable QoQ operating_margin: unavailable QoQ free_cash_flow: unavailable YoY revenue: unavailable YoY eps: unavailable YoY net_income: unavailable YoY operating_margin: unavailable YoY free_cash_flow: unavailable Segment context unavailable in the current historical snapshot. Transcript quote unavailable for the latest quarter. Missing details: QoQ revenue: Prior-quarter snapshot missing. QoQ eps: Prior-quarter snapshot missing. QoQ net_income: Prior-quarter snapshot missing. QoQ operating_margin: Prior-quarter snapshot missing. QoQ free_cash_flow: Prior-quarter snapshot missing. YoY revenue: Year-ago-quarter snapshot missing. YoY eps: Year-ago-quarter snapshot missing. YoY net_income: Year-ago-quarter snapshot missing. YoY operating_margin: Year-ago-quarter snapshot missing. YoY free_cash_flow: Year-ago-quarter snapshot missing. Segment data unavailable. Transcript quote unavailable.",
+                         "status":  "data_incomplete",
+                         "evidence":  [
+                                          {
+                                              "evidence_id":  "historical-LIMITED-2025-q4",
+                                              "source_type":  "financial_data",
+                                              "source_name":  "historical:fixture_historical",
+                                              "excerpt":  "LIMITED 2025-Q4 snapshot",
+                                              "retrieved_at":  "2026-04-03T14:56:54.037Z"
+                                          }
+                                      ]
+                     },
+                     {
+                         "section_id":  "valuation",
+                         "title":  "Valuation",
+                         "body":  "Valuation is degraded for LIMITED: At least 3 annual free-cash-flow points are required for DCF.",
+                         "status":  "data_incomplete",
+                         "evidence":  [
+                                          {
+                                              "evidence_id":  "historical-LIMITED-2025-q4",
+                                              "source_type":  "financial_data",
+                                              "source_name":  "historical:fixture_historical",
+                                              "excerpt":  "LIMITED 2025-Q4 snapshot",
+                                              "retrieved_at":  "2026-04-03T14:56:54.014Z"
+                                          }
+                                      ]
+                     },
+                     {
+                         "section_id":  "executive_summary",
+                         "title":  "Executive Summary",
+                         "body":  "LIMITED completed the deep-dive path with 3 degraded section(s). The current research signal is no_signal, and the report explicitly notes every gap instead of filling it with assumptions. This is a research summary, not financial advice. Always do your own research.",
+                         "status":  "complete",
+                         "evidence":  [
+                                          {
+                                              "evidence_id":  "msft-commentary-1",
+                                              "source_type":  "article",
+                                              "source_name":  "FY2025 Q2 earnings call",
+                                              "excerpt":  "Leadership reiterated AI capex discipline.",
+                                              "retrieved_at":  "2026-03-15T08:00:00.000Z",
+                                              "url":  "https://example.com/msft/commentary-1"
+                                          },
+                                          {
+                                              "evidence_id":  "msft-qoq-1",
+                                              "source_type":  "filing",
+                                              "source_name":  "FY2025 Q2 10-Q",
+                                              "excerpt":  "Revenue increased quarter over quarter.",
+                                              "retrieved_at":  "2026-03-15T08:00:00.000Z",
+                                              "url":  "https://example.com/msft/qoq-1"
+                                          },
+                                          {
+                                              "evidence_id":  "msft-qoq-2",
+                                              "source_type":  "article",
+                                              "source_name":  "FY2025 Q2 earnings call",
+                                              "excerpt":  "Cloud demand improved sequentially.",
+                                              "retrieved_at":  "2026-03-15T08:00:00.000Z",
+                                              "url":  "https://example.com/msft/qoq-2"
+                                          }
+                                      ]
+                     },
+                     {
+                         "section_id":  "quarter_over_quarter_changes",
+                         "title":  "Quarter-over-Quarter Changes",
+                         "status":  "complete",
+                         "body":  "LIMITED delivered sequential growth with cloud demand carrying the headline acceleration.",
+                         "evidence":  [
+                                          {
+                                              "evidence_id":  "msft-qoq-1",
+                                              "source_type":  "filing",
+                                              "source_name":  "FY2025 Q2 10-Q",
+                                              "excerpt":  "Revenue increased quarter over quarter.",
+                                              "retrieved_at":  "2026-03-15T08:00:00.000Z",
+                                              "url":  "https://example.com/msft/qoq-1"
+                                          },
+                                          {
+                                              "evidence_id":  "msft-qoq-2",
+                                              "source_type":  "article",
+                                              "source_name":  "FY2025 Q2 earnings call",
+                                              "excerpt":  "Cloud demand improved sequentially.",
+                                              "retrieved_at":  "2026-03-15T08:00:00.000Z",
+                                              "url":  "https://example.com/msft/qoq-2"
+                                          }
+                                      ]
+                     },
+                     {
+                         "section_id":  "year_over_year_changes",
+                         "title":  "Year-over-Year Changes",
+                         "status":  "data_incomplete",
+                         "body":  "Year-over-Year Changes is partially available. Year-over-Year Changes is partially available. Only partial annual comparison data was available, so the section stays intentionally constrained.",
+                         "evidence":  [
+                                          {
+                                              "evidence_id":  "msft-yoy-1",
+                                              "source_type":  "filing",
+                                              "source_name":  "FY2025 Q2 10-Q",
+                                              "excerpt":  "Revenue increased 15% year over year.",
+                                              "retrieved_at":  "2026-03-15T08:00:00.000Z",
+                                              "url":  "https://example.com/msft/yoy-1"
+                                          }
+                                      ]
+                     },
+                     {
+                         "section_id":  "revenue_margin_analysis",
+                         "title":  "Revenue and Margin Analysis",
+                         "status":  "complete",
+                         "body":  "LIMITED expanded margins alongside revenue, suggesting operating leverage rather than one-off accounting noise.",
+                         "evidence":  [
+                                          {
+                                              "evidence_id":  "msft-margin-1",
+                                              "source_type":  "financial_data",
+                                              "source_name":  "FY2025 Q2 10-Q",
+                                              "excerpt":  "Gross margin expanded by 120 basis points.",
+                                              "retrieved_at":  "2026-03-15T08:00:00.000Z",
+                                              "url":  "https://example.com/msft/margin-1"
+                                          },
+                                          {
+                                              "evidence_id":  "msft-margin-2",
+                                              "source_type":  "financial_data",
+                                              "source_name":  "FY2025 Q2 10-Q",
+                                              "excerpt":  "Operating income outpaced revenue growth.",
+                                              "retrieved_at":  "2026-03-15T08:00:00.000Z",
+                                              "url":  "https://example.com/msft/margin-2"
+                                          }
+                                      ]
+                     },
+                     {
+                         "section_id":  "debt_liquidity",
+                         "title":  "Debt and Liquidity",
+                         "status":  "complete",
+                         "body":  "LIMITED remains liquid and conservatively financed, with cash coverage that limits near-term balance-sheet stress.",
+                         "evidence":  [
+                                          {
+                                              "evidence_id":  "msft-debt-1",
+                                              "source_type":  "financial_data",
+                                              "source_name":  "FY2025 Q2 balance sheet",
+                                              "excerpt":  "Cash and short-term investments exceed total debt.",
+                                              "retrieved_at":  "2026-03-15T08:00:00.000Z",
+                                              "url":  "https://example.com/msft/debt-1"
+                                          },
+                                          {
+                                              "evidence_id":  "msft-debt-2",
+                                              "source_type":  "financial_data",
+                                              "source_name":  "FY2025 Q2 cash flow",
+                                              "excerpt":  "Free cash flow remained positive.",
+                                              "retrieved_at":  "2026-03-15T08:00:00.000Z",
+                                              "url":  "https://example.com/msft/debt-2"
+                                          }
+                                      ]
+                     },
+                     {
+                         "section_id":  "acquisitions_major_events",
+                         "title":  "Acquisitions and Major Events",
+                         "status":  "data_unavailable",
+                         "body":  "Acquisitions and Major Events could not be completed because the required data was unavailable. Acquisitions and Major Events could not be completed because the required data was unavailable. Approved source retrieval returned no reliable event record for the requested period.",
+                         "evidence":  [
+
+                                      ]
+                     },
+                     {
+                         "section_id":  "management_commentary",
+                         "title":  "Management Commentary",
+                         "status":  "data_incomplete",
+                         "body":  "Management Commentary is partially available. Management Commentary is partially available. Only partial management commentary and risk evidence was available, so the section stays intentionally constrained.",
+                         "evidence":  [
+                                          {
+                                              "evidence_id":  "msft-commentary-1",
+                                              "source_type":  "article",
+                                              "source_name":  "FY2025 Q2 earnings call",
+                                              "excerpt":  "Leadership reiterated AI capex discipline.",
+                                              "retrieved_at":  "2026-03-15T08:00:00.000Z",
+                                              "url":  "https://example.com/msft/commentary-1"
+                                          }
+                                      ]
+                     },
+                     {
+                         "section_id":  "research_signal",
+                         "title":  "Research Signal",
+                         "body":  "Research signal: no_signal. Minimum evidence threshold not met across the degraded sections.",
+                         "status":  "complete",
+                         "evidence":  [
+                                          {
+                                              "evidence_id":  "msft-qoq-1",
+                                              "source_type":  "filing",
+                                              "source_name":  "FY2025 Q2 10-Q",
+                                              "excerpt":  "Revenue increased quarter over quarter.",
+                                              "retrieved_at":  "2026-03-15T08:00:00.000Z",
+                                              "url":  "https://example.com/msft/qoq-1"
+                                          },
+                                          {
+                                              "evidence_id":  "msft-qoq-2",
+                                              "source_type":  "article",
+                                              "source_name":  "FY2025 Q2 earnings call",
+                                              "excerpt":  "Cloud demand improved sequentially.",
+                                              "retrieved_at":  "2026-03-15T08:00:00.000Z",
+                                              "url":  "https://example.com/msft/qoq-2"
+                                          }
+                                      ]
+                     },
+                     {
+                         "section_id":  "confidence_score",
+                         "title":  "Confidence Score and Limiting Factors",
+                         "body":  "Confidence score 0.42 (insufficient_data). Limiting factors: Management commentary was only partially available. Approved event coverage was unavailable for one section.",
+                         "status":  "complete",
+                         "evidence":  [
+
+                                      ]
+                     },
+                     {
+                         "section_id":  "evidence_references",
+                         "title":  "Evidence References",
+                         "body":  "FY2025 Q2 10-Q: Revenue increased quarter over quarter.\nFY2025 Q2 earnings call: Cloud demand improved sequentially.",
+                         "status":  "complete",
+                         "evidence":  [
+                                          {
+                                              "evidence_id":  "msft-qoq-1",
+                                              "source_type":  "filing",
+                                              "source_name":  "FY2025 Q2 10-Q",
+                                              "excerpt":  "Revenue increased quarter over quarter.",
+                                              "retrieved_at":  "2026-03-15T08:00:00.000Z",
+                                              "url":  "https://example.com/msft/qoq-1"
+                                          },
+                                          {
+                                              "evidence_id":  "msft-qoq-2",
+                                              "source_type":  "article",
+                                              "source_name":  "FY2025 Q2 earnings call",
+                                              "excerpt":  "Cloud demand improved sequentially.",
+                                              "retrieved_at":  "2026-03-15T08:00:00.000Z",
+                                              "url":  "https://example.com/msft/qoq-2"
+                                          }
+                                      ]
+                     }
+                 ],
+    "flags":  [
+                  "fixture_mode",
+                  "signal_insufficient_data",
+                  "section_data_unavailable",
+                  "what_changed:data_incomplete",
+                  "valuation:data_incomplete",
+                  "year_over_year_changes:data_incomplete",
+                  "acquisitions_major_events:data_unavailable",
+                  "management_commentary:data_incomplete",
+                  "langsmith_trace_mock"
+              ],
+    "data_sources":  [
+                         "dexter-native:financial_search",
+                         "dexter-native:read_filings",
+                         "dexter-native:web_search"
+                     ]
+}

@@ -1,0 +1,45 @@
+Running on R3CXA03J3LH
+ > Flow ph3_m1_smoke
+Launch app "${MAESTRO_APP_ID}" with clear state... COMPLETED
+Run flow when "Continue" is visible...
+  Tap on "Continue"... COMPLETED
+Run flow when "Continue" is visible... COMPLETED
+Run flow when "Continue" is visible...
+  Tap on "Continue"... COMPLETED
+Run flow when "Continue" is visible... COMPLETED
+Run flow when "Continue" is visible...
+  Tap on "Continue"... COMPLETED
+Run flow when "Continue" is visible... COMPLETED
+Run flow when "Skip" is visible...
+Run flow when "Skip" is visible... SKIPPED
+Run flow when "Get Started" is visible...
+  Tap on "Get Started"... COMPLETED
+Run flow when "Get Started" is visible... COMPLETED
+Run flow when "Allow" is visible...
+Run flow when "Allow" is visible... SKIPPED
+Tap on "you@example.com"... COMPLETED
+Input text ${MAESTRO_TEST_EMAIL}... COMPLETED
+Tap on "PASSWORD"... COMPLETED
+Input text ${MAESTRO_TEST_PASSWORD}... COMPLETED
+Press Back key... COMPLETED
+Scrolling DOWN until "Log In" is visible with speed 40, visibility percentage 100%, timeout 30000 ms, with centering disabled... COMPLETED
+Tap on "Log In"... COMPLETED
+Assert that "Research" is visible... COMPLETED
+Tap on "Research"... COMPLETED
+Run flow when "History" is visible...
+  Tap on "Deep Dive"... COMPLETED
+Run flow when "History" is visible... COMPLETED
+Run flow when "Not now" is visible...
+Run flow when "Not now" is visible... SKIPPED
+Scrolling DOWN until "AAPL Deep Dive" is visible with speed 40, visibility percentage 100%, timeout 30000 ms, with centering disabled... COMPLETED
+Tap on "AAPL Deep Dive"... COMPLETED
+Assert that "Trust & Freshness" is visible... COMPLETED
+Assert that "Trust & Freshness" is visible... COMPLETED
+Assert that "Freshness" is visible... COMPLETED
+Assert that "Evidence" is visible... COMPLETED
+Assert that "Contradiction" is visible... COMPLETED
+Assert that "Valuation" is visible... COMPLETED
+Scrolling DOWN until "THESIS DRIFT" is visible with speed 40, visibility percentage 100%, timeout 60000 ms, with centering disabled... COMPLETED
+Assert that "THESIS DRIFT" is visible... COMPLETED
+Scrolling DOWN until "QUOTE PROVENANCE" is visible with speed 40, visibility percentage 100%, timeout 60000 ms, with centering disabled... COMPLETED
+Assert that "QUOTE PROVENANCE" is visible... COMPLETED

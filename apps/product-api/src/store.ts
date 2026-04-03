@@ -116,6 +116,11 @@ export interface ProductStore {
     fingerprint: string;
     nowIso: string;
   }): Promise<ReportRecord | undefined>;
+  findLatestComparableDeepDiveReport(input: {
+    ticker: string;
+    schemaMajor: number;
+    sinceIso: string;
+  }): Promise<ReportRecord | undefined>;
   getReportById(id: string): Promise<ReportRecord | undefined>;
   hasReportAccessForUser(userId: string, reportId: string): Promise<boolean>;
   deleteReport(id: string): Promise<boolean>;
@@ -190,6 +195,15 @@ export interface ProductStore {
   }>;
   appendAuditEvent(input: AuditEventRecord): Promise<void>;
   close(): Promise<void>;
+}
+
+function extractSchemaMajor(schemaVersion: string): number | undefined {
+  const raw = schemaVersion.trim().split(".")[0];
+  if (!raw) {
+    return undefined;
+  }
+  const parsed = Number.parseInt(raw, 10);
+  return Number.isFinite(parsed) ? parsed : undefined;
 }
 
 function asIsoString(value: unknown): string | undefined {
@@ -1030,6 +1044,23 @@ export class InMemoryStore implements ProductStore {
         report.fingerprint === input.fingerprint &&
         report.freshnessExpiresAt !== undefined &&
         Date.parse(report.freshnessExpiresAt) > Date.parse(input.nowIso) &&
+        [...this.jobs.values()].some((job) =>
+          job.status === "complete" && job.reportId === report.id
+        ))
+      .sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0];
+  }
+
+  async findLatestComparableDeepDiveReport(input: {
+    ticker: string;
+    schemaMajor: number;
+    sinceIso: string;
+  }): Promise<ReportRecord | undefined> {
+    return [...this.reports.values()]
+      .filter((report) =>
+        report.type === "deep_dive" &&
+        report.ticker === input.ticker &&
+        extractSchemaMajor(report.schemaVersion) === input.schemaMajor &&
+        Date.parse(report.createdAt) >= Date.parse(input.sinceIso) &&
         [...this.jobs.values()].some((job) =>
           job.status === "complete" && job.reportId === report.id
         ))
@@ -2098,6 +2129,32 @@ export class PostgresStore implements ProductStore {
         order by r.created_at desc
         limit 1`,
       [input.ticker, input.fingerprint, input.nowIso]
+    );
+    const row = result.rows[0] as Record<string, unknown> | undefined;
+    return row ? mapReport(row) : undefined;
+  }
+
+  async findLatestComparableDeepDiveReport(input: {
+    ticker: string;
+    schemaMajor: number;
+    sinceIso: string;
+  }): Promise<ReportRecord | undefined> {
+    const result = await this.pool.query(
+      `select r.*
+         from reports r
+        where r.type = 'deep_dive'
+          and r.ticker = $1
+          and split_part(r.schema_version, '.', 1) = $2
+          and r.created_at >= $3::timestamptz
+          and exists (
+            select 1
+              from jobs j
+             where j.report_id = r.id
+               and j.status = 'complete'
+          )
+        order by r.created_at desc
+        limit 1`,
+      [input.ticker, String(input.schemaMajor), input.sinceIso]
     );
     const row = result.rows[0] as Record<string, unknown> | undefined;
     return row ? mapReport(row) : undefined;

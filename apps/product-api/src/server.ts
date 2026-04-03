@@ -170,6 +170,19 @@ interface InternalJsonResponse<T> {
   payload: T;
 }
 
+interface ComparableDeepDiveSummary {
+  report_id: string;
+  generated_at: string;
+  schema_version: string;
+  ticker?: string;
+  signal_value?: string;
+  confidence_label?: string;
+  confidence_score?: number;
+  thesis_statement?: string;
+  valuation_mid?: number;
+  trust_metadata?: AnalysisReport["trust_metadata"];
+}
+
 async function fetchInternalJson<T>(
   url: string,
   body: Record<string, unknown> | undefined,
@@ -378,6 +391,34 @@ function dateInTimeZone(date: Date, timeZone: string): string {
     day: "2-digit"
   });
   return formatter.format(date);
+}
+
+function subtractDaysIso(days: number): string {
+  return new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+}
+
+function extractThesisStatement(report: AnalysisReport): string | undefined {
+  const section = report.sections.find((entry) =>
+    entry.section_id === "thesis_statement" ||
+    entry.title.trim().toLowerCase() === "thesis statement"
+  );
+  const body = section?.body?.trim();
+  return body && body.length > 0 ? body : undefined;
+}
+
+function toComparableSummary(report: AnalysisReport): ComparableDeepDiveSummary {
+  return {
+    report_id: report.report_id,
+    generated_at: report.generated_at,
+    schema_version: report.schema_version,
+    ticker: report.ticker,
+    signal_value: report.signal?.value,
+    confidence_label: report.confidence?.label,
+    confidence_score: report.confidence?.score,
+    thesis_statement: extractThesisStatement(report),
+    valuation_mid: report.valuation?.fair_value_mid,
+    trust_metadata: report.trust_metadata
+  };
 }
 
 function deepDiveFingerprint(input: {
@@ -1476,6 +1517,82 @@ export function startServer(port: number = loadConfig().port): Server {
           sendJson(response, 401, {
             error: "unauthorized",
             error_message: "Internal token mismatch."
+          });
+          return;
+        }
+
+        if (method === "GET" && pathname === "/internal/reports/comparable-latest") {
+          const ticker = url.searchParams.get("ticker")?.trim().toUpperCase() ?? "";
+          if (!ticker || !/^[A-Z.-]{1,12}$/.test(ticker)) {
+            sendJson(response, 422, {
+              error: "validation_failed",
+              error_message: "ticker query parameter is required and must be a valid US symbol."
+            });
+            return;
+          }
+
+          const schemaMajorRaw = url.searchParams.get("schema_major")?.trim() ?? "2";
+          const schemaMajor = Number.parseInt(schemaMajorRaw, 10);
+          if (!Number.isFinite(schemaMajor) || schemaMajor < 1 || schemaMajor > 20) {
+            sendJson(response, 422, {
+              error: "validation_failed",
+              error_message: "schema_major must be an integer between 1 and 20."
+            });
+            return;
+          }
+
+          const lookbackDays = parsePositiveInteger(
+            url.searchParams.get("lookback_days")?.trim() ?? undefined,
+            120,
+            1,
+            365
+          );
+          if (lookbackDays === undefined) {
+            sendJson(response, 422, {
+              error: "validation_failed",
+              error_message: "lookback_days must be an integer between 1 and 365."
+            });
+            return;
+          }
+
+          const sinceIso = subtractDaysIso(lookbackDays);
+          const comparable = await runtime.store.findLatestComparableDeepDiveReport({
+            ticker,
+            schemaMajor,
+            sinceIso
+          });
+
+          if (!comparable) {
+            sendJson(response, 200, {
+              missing: true,
+              data: null
+            });
+            return;
+          }
+
+          const artifact = await runtime.artifactStore.readReport(comparable.artifactKey);
+          if (!artifact || !("job_id" in artifact)) {
+            sendJson(response, 200, {
+              missing: true,
+              data: null
+            });
+            return;
+          }
+
+          let report: AnalysisReport;
+          try {
+            report = assertIncomingAnalysisReport(artifact);
+          } catch {
+            sendJson(response, 200, {
+              missing: true,
+              data: null
+            });
+            return;
+          }
+
+          sendJson(response, 200, {
+            missing: false,
+            data: toComparableSummary(report)
           });
           return;
         }

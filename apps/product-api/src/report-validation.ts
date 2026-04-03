@@ -69,6 +69,102 @@ function validateSection(value: unknown, path: string, errors: string[]): void {
   }
 }
 
+function validateTrustMetadata(value: unknown, path: string, errors: string[]): void {
+  if (!isObject(value)) {
+    errors.push(`${path} must be an object`);
+    return;
+  }
+
+  if (!isIsoDateTime(value.generated_at)) {
+    errors.push(`${path}.generated_at must be an ISO datetime string`);
+  }
+  if (!["fresh", "degraded", "stale"].includes(String(value.freshness_state))) {
+    errors.push(`${path}.freshness_state must be valid`);
+  }
+  if (typeof value.evidence_count !== "number" || value.evidence_count < 0) {
+    errors.push(`${path}.evidence_count must be a non-negative number`);
+  }
+  if (!["none", "present"].includes(String(value.contradiction_state))) {
+    errors.push(`${path}.contradiction_state must be valid`);
+  }
+  if (!["available", "degraded", "omitted"].includes(String(value.valuation_state))) {
+    errors.push(`${path}.valuation_state must be valid`);
+  }
+  if (!isStringArray(value.missing_data_notes)) {
+    errors.push(`${path}.missing_data_notes must be an array of strings`);
+  }
+
+  if (!Array.isArray(value.contradictions)) {
+    errors.push(`${path}.contradictions must be an array`);
+  } else {
+    value.contradictions.forEach((item, index) => {
+      if (!isObject(item)) {
+        errors.push(`${path}.contradictions[${index}] must be an object`);
+        return;
+      }
+      if (typeof item.id !== "string" || item.id.trim().length === 0) {
+        errors.push(`${path}.contradictions[${index}].id must be a non-empty string`);
+      }
+      if (typeof item.description !== "string" || item.description.trim().length === 0) {
+        errors.push(
+          `${path}.contradictions[${index}].description must be a non-empty string`
+        );
+      }
+      if (!["low", "medium", "high"].includes(String(item.severity))) {
+        errors.push(`${path}.contradictions[${index}].severity must be valid`);
+      }
+    });
+  }
+
+  if (!Array.isArray(value.quote_provenance)) {
+    errors.push(`${path}.quote_provenance must be an array`);
+  } else {
+    value.quote_provenance.forEach((item, index) => {
+      if (!isObject(item)) {
+        errors.push(`${path}.quote_provenance[${index}] must be an object`);
+        return;
+      }
+      if (typeof item.quote !== "string" || item.quote.trim().length === 0) {
+        errors.push(`${path}.quote_provenance[${index}].quote must be a non-empty string`);
+      }
+      if (typeof item.source_name !== "string" || item.source_name.trim().length === 0) {
+        errors.push(
+          `${path}.quote_provenance[${index}].source_name must be a non-empty string`
+        );
+      }
+      if (
+        !["filing", "article", "financial_data", "macro_data"].includes(
+          String(item.source_type)
+        )
+      ) {
+        errors.push(`${path}.quote_provenance[${index}].source_type must be valid`);
+      }
+      if (item.retrieved_at !== undefined && !isIsoDateTime(item.retrieved_at)) {
+        errors.push(
+          `${path}.quote_provenance[${index}].retrieved_at must be an ISO datetime string`
+        );
+      }
+    });
+  }
+
+  if (!isObject(value.thesis_drift)) {
+    errors.push(`${path}.thesis_drift must be an object`);
+  } else {
+    if (!["available", "unavailable"].includes(String(value.thesis_drift.status))) {
+      errors.push(`${path}.thesis_drift.status must be valid`);
+    }
+    if (
+      typeof value.thesis_drift.summary !== "string" ||
+      value.thesis_drift.summary.trim().length === 0
+    ) {
+      errors.push(`${path}.thesis_drift.summary must be a non-empty string`);
+    }
+    if (!isStringArray(value.thesis_drift.reasons)) {
+      errors.push(`${path}.thesis_drift.reasons must be an array of strings`);
+    }
+  }
+}
+
 export function validateIncomingAnalysisReport(report: unknown): string[] {
   const errors: string[] = [];
 
@@ -171,6 +267,10 @@ export function validateIncomingAnalysisReport(report: unknown): string[] {
         errors.push("valuation.assumptions.wacc must be a number");
       }
     }
+  }
+
+  if (report.trust_metadata !== undefined) {
+    validateTrustMetadata(report.trust_metadata, "trust_metadata", errors);
   }
 
   if (!Array.isArray(report.sections) || report.sections.length === 0) {

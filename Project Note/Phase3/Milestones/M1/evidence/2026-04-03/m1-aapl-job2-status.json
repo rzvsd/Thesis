@@ -1,0 +1,10 @@
+﻿{
+    "job_id":  "8beb4867-59d6-47b3-87de-8bbc75dde6b0",
+    "type":  "deep_dive",
+    "status":  "complete",
+    "ticker":  "AAPL",
+    "report_id":  "f90159bc-9385-4764-80a1-af2fba68fee4",
+    "created_at":  "2026-04-03T14:55:30.019Z",
+    "started_at":  "2026-04-03T14:55:30.353Z",
+    "completed_at":  "2026-04-03T14:55:30.542Z"
+}

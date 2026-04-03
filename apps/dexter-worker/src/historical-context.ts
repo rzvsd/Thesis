@@ -13,6 +13,18 @@ interface HistoricalEnvelope<T> {
   missing?: boolean;
 }
 
+export interface ComparableDeepDiveSummary {
+  report_id: string;
+  generated_at: string;
+  schema_version: string;
+  ticker?: string;
+  signal_value?: string;
+  confidence_label?: string;
+  confidence_score?: number;
+  thesis_statement?: string;
+  valuation_mid?: number;
+}
+
 export interface HistoricalContextResult {
   context: HistoricalContextBlock;
   latest?: CanonicalFinancialSnapshot;
@@ -21,6 +33,7 @@ export interface HistoricalContextResult {
   latestTranscript?: CanonicalTranscript;
   financials: CanonicalFinancialSnapshot[];
   transcripts: CanonicalTranscript[];
+  comparableReport?: ComparableDeepDiveSummary;
 }
 
 async function fetchHistoricalEnvelope<T>(
@@ -46,6 +59,44 @@ async function fetchHistoricalEnvelope<T>(
     }
 
     return (await response.json()) as HistoricalEnvelope<T>;
+  } catch {
+    return undefined;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function fetchComparableSummary(
+  config: DexterConfig,
+  ticker: string,
+  schemaMajor: number = 2,
+  lookbackDays: number = 120
+): Promise<ComparableDeepDiveSummary | undefined> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 1_500);
+  try {
+    const response = await fetch(
+      `${config.productApiInternalBaseUrl}/internal/reports/comparable-latest?ticker=${encodeURIComponent(ticker)}&schema_major=${schemaMajor}&lookback_days=${lookbackDays}`,
+      {
+        method: "GET",
+        headers: {
+          "x-internal-token": config.internalWorkerToken
+        },
+        signal: controller.signal
+      }
+    );
+    if (!response.ok) {
+      return undefined;
+    }
+
+    const payload = (await response.json()) as {
+      missing?: boolean;
+      data?: ComparableDeepDiveSummary | null;
+    };
+    if (payload.missing || !payload.data) {
+      return undefined;
+    }
+    return payload.data;
   } catch {
     return undefined;
   } finally {
@@ -112,21 +163,22 @@ export async function loadHistoricalContext(
   if (!ticker) {
     return {
       context: {
-        financial_snapshot_count: 0,
-        transcript_count: 0,
-        transcript_available: false,
-        missing_reasons: ["Ticker missing on analysis request."]
-      },
+      financial_snapshot_count: 0,
+      transcript_count: 0,
+      transcript_available: false,
+      missing_reasons: ["Ticker missing on analysis request."]
+    },
       latest: undefined,
       priorQuarter: undefined,
       yearAgo: undefined,
       latestTranscript: undefined,
       financials: [],
-      transcripts: []
+      transcripts: [],
+      comparableReport: undefined
     };
   }
 
-  const [financialEnvelope, transcriptEnvelope] = await Promise.all([
+  const [financialEnvelope, transcriptEnvelope, comparableReport] = await Promise.all([
     fetchHistoricalEnvelope<CanonicalFinancialSnapshot>(
       config,
       "/v1/historical/financials",
@@ -136,7 +188,8 @@ export async function loadHistoricalContext(
       config,
       "/v1/historical/transcripts",
       ticker
-    )
+    ),
+    fetchComparableSummary(config, ticker)
   ]);
 
   const financials = Array.isArray(financialEnvelope?.data)
@@ -195,6 +248,7 @@ export async function loadHistoricalContext(
     yearAgo,
     latestTranscript: transcript,
     financials,
-    transcripts
+    transcripts,
+    comparableReport
   };
 }

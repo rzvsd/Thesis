@@ -49,6 +49,48 @@ export interface ValuationBlock {
   degraded_reason?: string;
 }
 
+export type TrustFreshnessState = "fresh" | "degraded" | "stale";
+export type TrustContradictionState = "none" | "present";
+export type TrustValuationState = "available" | "degraded" | "omitted";
+export type TrustThesisDriftStatus = "available" | "unavailable";
+
+export interface TrustQuoteProvenance {
+  quote: string;
+  source_name: string;
+  source_type: EvidenceItem["source_type"];
+  source_period?: string;
+  transcript_id?: string;
+  source_url?: string;
+  retrieved_at?: string;
+}
+
+export interface TrustContradiction {
+  id: string;
+  description: string;
+  severity: "low" | "medium" | "high";
+}
+
+export interface TrustThesisDriftSummary {
+  status: TrustThesisDriftStatus;
+  summary: string;
+  reasons: string[];
+  comparable_report_id?: string;
+  comparable_generated_at?: string;
+  comparable_schema_version?: string;
+}
+
+export interface TrustMetadata {
+  generated_at: string;
+  freshness_state: TrustFreshnessState;
+  evidence_count: number;
+  contradiction_state: TrustContradictionState;
+  contradictions: TrustContradiction[];
+  valuation_state: TrustValuationState;
+  missing_data_notes: string[];
+  quote_provenance: TrustQuoteProvenance[];
+  thesis_drift: TrustThesisDriftSummary;
+}
+
 export interface AnalysisReport {
   report_id: string;
   job_id: string;
@@ -60,6 +102,7 @@ export interface AnalysisReport {
   signal?: ReportSignal;
   historical_context?: HistoricalContextBlock;
   valuation?: ValuationBlock;
+  trust_metadata?: TrustMetadata;
   sections: ReportSection[];
   flags: string[];
   data_sources: string[];
@@ -182,6 +225,96 @@ export const analysisReportSchema = {
             beta: { type: "number" },
             effective_tax_rate: { type: "number" },
             shares_outstanding: { type: "number" }
+          }
+        }
+      }
+    },
+    trust_metadata: {
+      type: "object",
+      additionalProperties: false,
+      required: [
+        "generated_at",
+        "freshness_state",
+        "evidence_count",
+        "contradiction_state",
+        "contradictions",
+        "valuation_state",
+        "missing_data_notes",
+        "quote_provenance",
+        "thesis_drift"
+      ],
+      properties: {
+        generated_at: { type: "string" },
+        freshness_state: {
+          type: "string",
+          enum: ["fresh", "degraded", "stale"]
+        },
+        evidence_count: { type: "number" },
+        contradiction_state: {
+          type: "string",
+          enum: ["none", "present"]
+        },
+        contradictions: {
+          type: "array",
+          items: {
+            type: "object",
+            additionalProperties: false,
+            required: ["id", "description", "severity"],
+            properties: {
+              id: { type: "string" },
+              description: { type: "string" },
+              severity: {
+                type: "string",
+                enum: ["low", "medium", "high"]
+              }
+            }
+          }
+        },
+        valuation_state: {
+          type: "string",
+          enum: ["available", "degraded", "omitted"]
+        },
+        missing_data_notes: {
+          type: "array",
+          items: { type: "string" }
+        },
+        quote_provenance: {
+          type: "array",
+          items: {
+            type: "object",
+            additionalProperties: false,
+            required: ["quote", "source_name", "source_type"],
+            properties: {
+              quote: { type: "string" },
+              source_name: { type: "string" },
+              source_type: {
+                type: "string",
+                enum: ["filing", "article", "financial_data", "macro_data"]
+              },
+              source_period: { type: "string" },
+              transcript_id: { type: "string" },
+              source_url: { type: "string" },
+              retrieved_at: { type: "string" }
+            }
+          }
+        },
+        thesis_drift: {
+          type: "object",
+          additionalProperties: false,
+          required: ["status", "summary", "reasons"],
+          properties: {
+            status: {
+              type: "string",
+              enum: ["available", "unavailable"]
+            },
+            summary: { type: "string" },
+            reasons: {
+              type: "array",
+              items: { type: "string" }
+            },
+            comparable_report_id: { type: "string" },
+            comparable_generated_at: { type: "string" },
+            comparable_schema_version: { type: "string" }
           }
         }
       }

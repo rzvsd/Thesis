@@ -1,0 +1,27 @@
+{
+  "version": "m1-quality-pack-v1",
+  "description": "Phase 3 M1 trust and credibility evaluation pack (fixture-mode baseline).",
+  "tickers": [
+    "MSFT",
+    "AAPL",
+    "NVDA",
+    "AMZN",
+    "META",
+    "GOOGL",
+    "ORCL",
+    "TSLA",
+    "JPM",
+    "V",
+    "MA",
+    "XOM",
+    "CVX",
+    "UNH",
+    "HD",
+    "COST",
+    "ADBE",
+    "NFLX",
+    "LIMITED",
+    "NOSIG"
+  ]
+}
+
