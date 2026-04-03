@@ -7,6 +7,7 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -14,8 +15,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -24,10 +23,6 @@ import androidx.compose.ui.graphics.Brush
 import com.thesis.mobile.ui.theme.ThesisColors
 import com.thesis.mobile.ui.theme.ThesisDimens
 
-/**
- * A beautiful animated skeleton loader for reports and sections.
- * Gives the impression that Dexter is building the report live.
- */
 @Composable
 fun ShimmerCard(
     modifier: Modifier = Modifier,
@@ -44,13 +39,10 @@ fun ShimmerCard(
         initialValue = 0f,
         targetValue = 1000f,
         animationSpec = infiniteRepeatable(
-            animation = tween(
-                durationMillis = 1500,
-                easing = FastOutSlowInEasing
-            ),
+            animation = tween(1500, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Restart
         ),
-        label = "shimmer_translate_anim"
+        label = "shimmer_translate"
     )
 
     val brush = Brush.linearGradient(
@@ -59,13 +51,15 @@ fun ShimmerCard(
         end = Offset(x = translateAnim.value, y = translateAnim.value)
     )
 
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
-        colors = CardDefaults.cardColors(containerColor = ThesisColors.DarkSurface)
+    val shape = RoundedCornerShape(ThesisDimens.CardCornerRadius)
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(ThesisColors.Surface)
+            .border(ThesisDimens.BorderWidth, ThesisColors.Border, shape)
     ) {
         Column(modifier = Modifier.padding(ThesisDimens.CardPadding)) {
-            // Title skeleton
             Box(
                 modifier = Modifier
                     .fillMaxWidth(if (isLarge) 0.8f else 0.4f)
@@ -76,7 +70,6 @@ fun ShimmerCard(
 
             Spacer(modifier = Modifier.height(ThesisDimens.SpacingLg))
 
-            // Body lines
             repeat(if (isLarge) 4 else 2) {
                 Box(
                     modifier = Modifier

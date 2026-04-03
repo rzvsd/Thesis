@@ -13,17 +13,11 @@ import com.thesis.mobile.ui.theme.ThesisColors
 import com.thesis.mobile.ui.theme.ThesisDimens
 import com.thesis.mobile.ui.theme.ThesisTypography
 
-/**
- * Visual confidence indicator.
- * Fills a ring from 0 to 1 based on the confidence score.
- * Example: 0.8 shows an 80% filled blue ring.
- */
 @Composable
 fun ConfidenceRing(
     score: Float,
     modifier: Modifier = Modifier
 ) {
-    // Clamp between 0 and 1
     val safeScore = score.coerceIn(0f, 1f)
     val sweepAngle = safeScore * 360f
 
@@ -32,38 +26,35 @@ fun ConfidenceRing(
         contentAlignment = Alignment.Center
     ) {
         Canvas(modifier = Modifier.size(ThesisDimens.ConfidenceRingSize)) {
-            // Background track
             drawArc(
-                color = ThesisColors.ConfidenceRingBg,
+                color = ThesisColors.Border,
                 startAngle = 0f,
                 sweepAngle = 360f,
                 useCenter = false,
                 style = Stroke(
                     width = ThesisDimens.ConfidenceRingStroke.toPx(),
-                    cap = StrokeCap.Round
+                    cap = StrokeCap.Butt
                 )
             )
 
-            // Foreground progress (starts at top: -90 degrees)
             if (sweepAngle > 0) {
                 drawArc(
-                    color = ThesisColors.AccentBlue,
+                    color = ThesisColors.Primary,
                     startAngle = -90f,
                     sweepAngle = sweepAngle,
                     useCenter = false,
                     style = Stroke(
                         width = ThesisDimens.ConfidenceRingStroke.toPx(),
-                        cap = StrokeCap.Round
+                        cap = StrokeCap.Butt
                     )
                 )
             }
         }
 
-        // Optional numeric display in the center
         Text(
             text = "${(safeScore * 10).toInt()}/10",
             style = ThesisTypography.labelSmall,
-            color = ThesisColors.TextSecondaryDark
+            color = ThesisColors.TextSecondary
         )
     }
 }

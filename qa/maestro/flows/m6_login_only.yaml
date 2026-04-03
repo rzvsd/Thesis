@@ -1,4 +1,4 @@
-appId: ${MAESTRO_APP_ID}
+﻿appId: ${MAESTRO_APP_ID}
 ---
 
 - launchApp:
@@ -26,14 +26,17 @@ appId: ${MAESTRO_APP_ID}
     when:
       visible: "Thesis Android MVP"
     commands:
-      - tapOn: "Email"
+      - tapOn: "you@example.com"
       - inputText: "${MAESTRO_TEST_EMAIL}"
-      - tapOn: "Password"
+      - tapOn: "Enter password"
       - inputText: "${MAESTRO_TEST_PASSWORD}"
       - hideKeyboard
-      - tapOn: "Login"
+      - tapOn: "Log In"
 
 - extendedWaitUntil:
     visible: "Today"
     timeout: 40000
 - assertVisible: "Today"
+
+
+

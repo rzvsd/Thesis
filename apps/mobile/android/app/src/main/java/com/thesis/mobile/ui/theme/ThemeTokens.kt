@@ -5,131 +5,155 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
+val HeadingFont: FontFamily = FontFamily.Serif
+val BodyFont: FontFamily = FontFamily.Default
+val MonoFont: FontFamily = FontFamily.Monospace
+
 object ThesisColors {
-    val AccentBlue = Color(0xFF4F8CFF)
-    val AccentBlueDark = Color(0xFF2E68D9)
-    val AccentBlueLight = Color(0xFF88B2FF)
+    val Background = Color(0xFF0A0A0A)
+    val Surface = Color(0xFF121212)
+    val SurfaceElevated = Color(0xFF1A1A1A)
+    val SurfaceOverlay = Color(0xFF1E1E1E)
 
-    val DarkBackground = Color(0xFF0A0E1A)
-    val DarkSurface = Color(0xFF141A2E)
-    val DarkSurfaceHigh = Color(0xFF1B2238)
-    val DarkCardAlt = Color(0xFF12182A)
-    val DarkBorder = Color(0xFF2A344E)
+    val Border = Color(0xFF262626)
+    val BorderSubtle = Color(0xFF1F1F1F)
 
-    val LightBackground = Color(0xFFF5F7FB)
-    val LightSurface = Color(0xFFFFFFFF)
+    val Primary = Color(0xFFC5A059)
+    val PrimaryHover = Color(0xFFD4AF37)
+    val PrimaryMuted = Color(0xFFC5A059).copy(alpha = 0.15f)
 
-    val SignalPositive = Color(0xFF00D68F)
-    val SignalNegative = Color(0xFFFF5C5C)
+    val TextPrimary = Color(0xFFF5F5F5)
+    val TextSecondary = Color(0xFFAAAAAA)
+    val TextMuted = Color(0xFF888888)
+    val TextInverse = Color(0xFF0A0A0A)
+
+    val SignalPositive = Color(0xFF4ADE80)
+    val SignalNegative = Color(0xFFF87171)
     val SignalNeutral = Color(0xFF9CA3AF)
-    val SignalWarning = Color(0xFFFFC857)
+    val SignalWarning = Color(0xFFFBBF24)
 
-    val Error = Color(0xFFB42318)
-    val ErrorDark = Color(0xFFFF6B6B)
+    val Error = Color(0xFFF87171)
     val OnError = Color.White
 
-    val TextPrimaryDark = Color(0xFFE8ECF4)
-    val TextSecondaryDark = Color(0xFFB6BECE)
-    val TextTertiaryDark = Color(0xFF8B95A8)
-    val TextPrimaryLight = Color(0xFF111827)
-    val TextPrimary = TextPrimaryDark
-    val TextMuted = TextTertiaryDark
+    val Shimmer = Color(0xFF1A1A1A)
+    val ShimmerHighlight = Color(0xFF2A2A2A)
 
-    val ConfidenceRingBg = Color(0xFF24304B)
-    val Shimmer = Color(0xFF1B2238)
-    val ShimmerHighlight = Color(0xFF2B3550)
+    // Compatibility aliases for the existing UI surfaces we have not ported yet.
+    val DarkBackground = Background
+    val DarkSurface = Surface
+    val DarkSurfaceHigh = SurfaceElevated
+    val DarkCardAlt = SurfaceOverlay
+    val DarkBorder = Border
+    val TextPrimaryDark = TextPrimary
+    val TextSecondaryDark = TextSecondary
+    val TextTertiaryDark = TextMuted
+    val AccentBlue = Primary
+    val AccentBlueDark = PrimaryHover
+    val AccentBlueLight = Primary
+    val ConfidenceRingBg = Color(0xFF1A1A1A)
+    val LightBackground = Color(0xFFF5F5F5)
+    val LightSurface = Color(0xFFFFFFFF)
+    val TextPrimaryLight = Color(0xFF111827)
+    val ErrorDark = Error
 }
 
 object ThesisDimens {
     val ScreenPaddingHorizontal = 20.dp
-    val ScreenPaddingTop = 12.dp
-    val ScreenPaddingBottom = 20.dp
+    val ScreenPaddingTop = 16.dp
+    val ScreenPaddingBottom = 24.dp
 
-    val CardCornerRadius = 20.dp
-    val CardPadding = 18.dp
+    val CardCornerRadius = 4.dp
+    val CardCornerRadiusMd = 8.dp
+    val CardPadding = 20.dp
 
     val SpacingXs = 4.dp
     val SpacingSm = 8.dp
     val SpacingMd = 12.dp
     val SpacingLg = 16.dp
-    val SpacingXxl = 24.dp
+    val SpacingXl = 20.dp
+    val SpacingXxl = 28.dp
+    val SpacingSection = 40.dp
 
-    val SignalBadgeCorner = 999.dp
-    val SignalBadgePaddingH = 12.dp
-    val SignalBadgePaddingV = 6.dp
+    val SignalBadgeCorner = 2.dp
+    val SignalBadgePaddingH = 10.dp
+    val SignalBadgePaddingV = 4.dp
 
     val ConfidenceRingSize = 56.dp
-    val ConfidenceRingStroke = 6.dp
-    val EvidenceDotSize = 7.dp
+    val ConfidenceRingStroke = 3.dp
+    val EvidenceDotSize = 6.dp
     val EvidenceDotSpacing = 4.dp
     val ShimmerLineHeight = 14.dp
-}
 
-private val thesisFont = FontFamily.Default
+    val BorderWidth = 1.dp
+}
 
 val ThesisTypography = Typography(
     displayLarge = TextStyle(
-        fontFamily = thesisFont,
-        fontWeight = FontWeight.Black,
-        fontSize = 42.sp,
-        lineHeight = 48.sp
+        fontFamily = HeadingFont,
+        fontWeight = FontWeight.Normal,
+        fontSize = 40.sp,
+        lineHeight = 44.sp,
+        letterSpacing = (-0.5).sp
     ),
     displayMedium = TextStyle(
-        fontFamily = thesisFont,
-        fontWeight = FontWeight.ExtraBold,
-        fontSize = 32.sp,
-        lineHeight = 38.sp
+        fontFamily = HeadingFont,
+        fontWeight = FontWeight.Normal,
+        fontSize = 30.sp,
+        lineHeight = 36.sp,
+        letterSpacing = (-0.3).sp
     ),
     headlineLarge = TextStyle(
-        fontFamily = thesisFont,
-        fontWeight = FontWeight.Bold,
+        fontFamily = HeadingFont,
+        fontWeight = FontWeight.Normal,
         fontSize = 24.sp,
-        lineHeight = 30.sp
+        lineHeight = 30.sp,
+        letterSpacing = (-0.2).sp
     ),
     headlineMedium = TextStyle(
-        fontFamily = thesisFont,
-        fontWeight = FontWeight.SemiBold,
+        fontFamily = BodyFont,
+        fontWeight = FontWeight.Medium,
         fontSize = 18.sp,
         lineHeight = 24.sp
     ),
     bodyLarge = TextStyle(
-        fontFamily = thesisFont,
+        fontFamily = BodyFont,
         fontWeight = FontWeight.Normal,
         fontSize = 16.sp,
-        lineHeight = 24.sp
+        lineHeight = 26.sp
     ),
     bodyMedium = TextStyle(
-        fontFamily = thesisFont,
+        fontFamily = BodyFont,
         fontWeight = FontWeight.Normal,
         fontSize = 14.sp,
-        lineHeight = 20.sp
+        lineHeight = 22.sp
     ),
     bodySmall = TextStyle(
-        fontFamily = thesisFont,
+        fontFamily = BodyFont,
         fontWeight = FontWeight.Normal,
         fontSize = 12.sp,
         lineHeight = 18.sp
     ),
     labelLarge = TextStyle(
-        fontFamily = thesisFont,
+        fontFamily = BodyFont,
         fontWeight = FontWeight.Medium,
         fontSize = 14.sp,
         lineHeight = 18.sp
     ),
     labelMedium = TextStyle(
-        fontFamily = thesisFont,
-        fontWeight = FontWeight.Medium,
+        fontFamily = MonoFont,
+        fontWeight = FontWeight.Normal,
         fontSize = 12.sp,
-        lineHeight = 16.sp
+        lineHeight = 16.sp,
+        letterSpacing = 0.5.sp
     ),
     labelSmall = TextStyle(
-        fontFamily = thesisFont,
-        fontWeight = FontWeight.Medium,
+        fontFamily = MonoFont,
+        fontWeight = FontWeight.Normal,
         fontSize = 11.sp,
-        lineHeight = 14.sp
+        lineHeight = 14.sp,
+        letterSpacing = 1.sp
     )
 )

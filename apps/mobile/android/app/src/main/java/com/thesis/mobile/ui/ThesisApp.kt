@@ -3,7 +3,11 @@ package com.thesis.mobile.ui
 import android.app.Activity
 import android.content.Intent
 import android.provider.Settings
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -12,13 +16,19 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Newspaper
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -26,9 +36,11 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
@@ -45,12 +57,20 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.style.TextAlign
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.thesis.mobile.LaunchTarget
 import com.thesis.mobile.model.DeepDiveReportView
@@ -63,11 +83,17 @@ import com.thesis.mobile.model.UserProfileView
 import com.thesis.mobile.ui.screens.DeepDiveScreen
 import com.thesis.mobile.ui.screens.HistoryScreen
 import com.thesis.mobile.ui.screens.HomeScreen
+import com.thesis.mobile.ui.screens.OnboardingScreen
 import com.thesis.mobile.ui.screens.SentimentDashboardScreen
 import com.thesis.mobile.ui.screens.WelcomeScreen
 import com.thesis.mobile.ui.screens.WeeklyDigestScreen
+import com.thesis.mobile.ui.theme.HeadingFont
+import com.thesis.mobile.ui.theme.ThesisColors
+import com.thesis.mobile.ui.theme.ThesisDimens
 import com.thesis.mobile.ui.theme.ThesisTheme
+import com.thesis.mobile.ui.theme.ThesisTypography
 import androidx.compose.material.icons.filled.History
+import androidx.compose.foundation.text.KeyboardOptions
 
 private enum class TodayMode {
     HOME,
@@ -144,10 +170,7 @@ fun ThesisApp(
 
     ThesisTheme {
         if (uiState.showWelcome) {
-            WelcomeScreen(
-                onContinue = mainViewModel::completeWelcome,
-                onLoginClick = mainViewModel::completeWelcome
-            )
+            OnboardingScreen(onComplete = mainViewModel::completeWelcome)
             return@ThesisTheme
         }
 
@@ -167,6 +190,12 @@ fun ThesisApp(
         }
 
         val visibleTabs = remember { listOf(TabItem.Today, TabItem.Research, TabItem.Portfolio) }
+        val preferredResearchRoot = when {
+            uiState.deepDiveReport != null -> ResearchMode.DEEP_DIVE
+            !uiState.selectedTicker.isNullOrBlank() -> ResearchMode.DEEP_DIVE
+            uiState.reportHistory.isNotEmpty() -> ResearchMode.HISTORY
+            else -> ResearchMode.DEEP_DIVE
+        }
 
         Scaffold(
             snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -176,14 +205,25 @@ fun ThesisApp(
                         NavigationBarItem(
                             selected = uiState.currentTab == tab.target,
                             onClick = {
-                                if (tab.target == AppTab.TODAY) {
+                                val isCurrentTab = uiState.currentTab == tab.target
+                                if (isCurrentTab && tab.target == AppTab.TODAY) {
                                     todayMode = TodayMode.HOME
                                 }
-                                if (tab.target == AppTab.RESEARCH) {
-                                    researchMode = ResearchMode.DEEP_DIVE
+                                if (isCurrentTab && tab.target == AppTab.RESEARCH) {
+                                    researchMode = preferredResearchRoot
+                                } else if (
+                                    tab.target == AppTab.RESEARCH &&
+                                    researchMode == ResearchMode.DEEP_DIVE &&
+                                    uiState.deepDiveReport == null &&
+                                    uiState.selectedTicker.isNullOrBlank() &&
+                                    uiState.reportHistory.isNotEmpty()
+                                ) {
+                                    researchMode = ResearchMode.HISTORY
                                 }
                                 if (tab.target == AppTab.PORTFOLIO && !uiState.watchlistFeatureEnabled) {
                                     portfolioMode = PortfolioMode.SETTINGS
+                                } else if (isCurrentTab && tab.target == AppTab.PORTFOLIO) {
+                                    portfolioMode = PortfolioMode.MY_NAMES
                                 }
                                 mainViewModel.setTab(tab.target)
                             },
@@ -246,7 +286,12 @@ fun ThesisApp(
                                 weeklyDigestDate = uiState.sentimentCurrent?.marketDate
                                 mainViewModel.openWeeklyDigest(fromPush = false)
                             },
-                            onResumeLastViewed = { mainViewModel.resumeLastViewed(it) },
+                            onResumeLastViewed = {
+                                if (it.type == "DEEP_DIVE") {
+                                    researchMode = ResearchMode.DEEP_DIVE
+                                }
+                                mainViewModel.resumeLastViewed(it)
+                            },
                             onDismissResume = { mainViewModel.dismissResumeCard() }
                         )
 
@@ -398,25 +443,27 @@ private fun ResearchTab(
         modifier = Modifier
             .fillMaxSize()
             .padding(padding)
+            .background(ThesisColors.Background)
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                .padding(
+                    horizontal = ThesisDimens.ScreenPaddingHorizontal,
+                    vertical = ThesisDimens.SpacingMd
+                ),
+            horizontalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)
         ) {
-            Button(
-                onClick = { onSetMode(ResearchMode.DEEP_DIVE) },
-                enabled = mode != ResearchMode.DEEP_DIVE
-            ) {
-                Text("Deep Dive")
-            }
-            Button(
-                onClick = { onSetMode(ResearchMode.HISTORY) },
-                enabled = mode != ResearchMode.HISTORY
-            ) {
-                Text("History")
-            }
+            SegmentButton(
+                label = "Deep Dive",
+                isSelected = mode == ResearchMode.DEEP_DIVE,
+                onClick = { onSetMode(ResearchMode.DEEP_DIVE) }
+            )
+            SegmentButton(
+                label = "History",
+                isSelected = mode == ResearchMode.HISTORY,
+                onClick = { onSetMode(ResearchMode.HISTORY) }
+            )
         }
 
         when (mode) {
@@ -425,6 +472,7 @@ private fun ResearchTab(
                 isLoading = isLoading,
                 errorMessage = deepDiveError,
                 tickerState = selectedTicker,
+                recentHistory = reportHistory,
                 watchlist = watchlist,
                 onTickerChange = onTickerChange,
                 onRunReport = onRunReport,
@@ -439,7 +487,17 @@ private fun ResearchTab(
                 onRunScenario = onRunScenario,
                 onRequireUpgrade = onRequireUpgrade,
                 onNotify = onNotify,
-                onBack = { onSetMode(ResearchMode.HISTORY) },
+                onOpenHistoryReport = onOpenHistoryReport,
+                onOpenPulseHistory = onOpenPulseHistory,
+                onBack = {
+                    onSetMode(
+                        if (reportHistory.isNotEmpty()) {
+                            ResearchMode.HISTORY
+                        } else {
+                            ResearchMode.DEEP_DIVE
+                        }
+                    )
+                },
                 padding = PaddingValues()
             )
 
@@ -455,6 +513,95 @@ private fun ResearchTab(
                     }
                 }
             )
+        }
+    }
+}
+
+@Composable
+private fun PortfolioSummaryCard(
+    profile: UserProfileView,
+    watchlistCount: Int,
+    watchlistFeatureEnabled: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val shape = RoundedCornerShape(ThesisDimens.CardCornerRadius)
+    val deepDiveLimit = profile.dailyDeepDiveLimit
+    val deepDiveLabel = if (deepDiveLimit < 0) {
+        "Unlimited"
+    } else {
+        "${profile.deepDivesRemainingToday} left today"
+    }
+
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(ThesisColors.Surface)
+            .border(ThesisDimens.BorderWidth, ThesisColors.Border, shape)
+            .padding(ThesisDimens.CardPadding),
+        verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingXs)) {
+                Text(
+                    text = "Portfolio",
+                    style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Medium),
+                    color = ThesisColors.TextMuted
+                )
+                Text(
+                    text = profile.email,
+                    style = ThesisTypography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                    color = ThesisColors.TextPrimary
+                )
+            }
+            Text(
+                text = profile.tier,
+                style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Medium),
+                color = ThesisColors.Primary,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(ThesisDimens.SignalBadgeCorner))
+                    .background(ThesisColors.Primary.copy(alpha = 0.1f))
+                    .padding(horizontal = ThesisDimens.SpacingSm, vertical = ThesisDimens.SpacingXs)
+            )
+        }
+
+        HorizontalDivider(color = ThesisColors.Border)
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingXs)) {
+                Text(
+                    text = if (watchlistFeatureEnabled) "My Names" else "Names unavailable",
+                    style = ThesisTypography.bodySmall,
+                    color = ThesisColors.TextMuted
+                )
+                Text(
+                    text = if (watchlistFeatureEnabled) "$watchlistCount tracked" else "Feature disabled",
+                    style = ThesisTypography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                    color = ThesisColors.TextPrimary
+                )
+            }
+            Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingXs)
+            ) {
+                Text(
+                    text = "Deep Dives",
+                    style = ThesisTypography.bodySmall,
+                    color = ThesisColors.TextMuted
+                )
+                Text(
+                    text = deepDiveLabel,
+                    style = ThesisTypography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                    color = ThesisColors.TextPrimary
+                )
+            }
         }
     }
 }
@@ -491,25 +638,41 @@ private fun PortfolioTab(
         modifier = Modifier
             .fillMaxSize()
             .padding(padding)
+            .background(ThesisColors.Background)
     ) {
+        profile?.let { profileView ->
+            PortfolioSummaryCard(
+                profile = profileView,
+                watchlistCount = watchlist.size,
+                watchlistFeatureEnabled = watchlistFeatureEnabled,
+                modifier = Modifier.padding(
+                    start = ThesisDimens.ScreenPaddingHorizontal,
+                    end = ThesisDimens.ScreenPaddingHorizontal,
+                    top = ThesisDimens.SpacingMd
+                )
+            )
+        }
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                .padding(
+                    horizontal = ThesisDimens.ScreenPaddingHorizontal,
+                    vertical = ThesisDimens.SpacingMd
+                ),
+            horizontalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)
         ) {
-            Button(
-                onClick = { onSetMode(PortfolioMode.MY_NAMES) },
-                enabled = mode != PortfolioMode.MY_NAMES && watchlistFeatureEnabled
-            ) {
-                Text("My Names")
+            if (watchlistFeatureEnabled) {
+                SegmentButton(
+                    label = "My Names",
+                    isSelected = mode == PortfolioMode.MY_NAMES,
+                    onClick = { onSetMode(PortfolioMode.MY_NAMES) }
+                )
             }
-            Button(
-                onClick = { onSetMode(PortfolioMode.SETTINGS) },
-                enabled = mode != PortfolioMode.SETTINGS
-            ) {
-                Text("Settings")
-            }
+            SegmentButton(
+                label = "Settings",
+                isSelected = mode == PortfolioMode.SETTINGS,
+                onClick = { onSetMode(PortfolioMode.SETTINGS) }
+            )
         }
 
         if (mode == PortfolioMode.MY_NAMES && watchlistFeatureEnabled) {
@@ -545,6 +708,35 @@ private fun PortfolioTab(
     }
 }
 
+@Composable
+private fun SegmentButton(
+    label: String,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    val shape = RoundedCornerShape(ThesisDimens.CardCornerRadius)
+    Text(
+        text = label,
+        style = ThesisTypography.labelLarge.copy(
+            fontWeight = if (isSelected) FontWeight.Medium else FontWeight.Normal
+        ),
+        color = if (isSelected) ThesisColors.Primary else ThesisColors.TextMuted,
+        modifier = Modifier
+            .clip(shape)
+            .background(if (isSelected) ThesisColors.Primary.copy(alpha = 0.1f) else Color.Transparent)
+            .border(
+                ThesisDimens.BorderWidth,
+                if (isSelected) ThesisColors.Primary.copy(alpha = 0.3f) else ThesisColors.Border,
+                shape
+            )
+            .clickable(enabled = !isSelected) { onClick() }
+            .padding(
+                horizontal = ThesisDimens.SpacingXl,
+                vertical = ThesisDimens.SpacingSm
+            )
+    )
+}
+
 
 @Composable
 private fun AuthScreen(
@@ -562,6 +754,12 @@ private fun AuthScreen(
     var email by rememberSaveable { mutableStateOf("") }
     var password by rememberSaveable { mutableStateOf("") }
     var verifyToken by rememberSaveable { mutableStateOf(verificationToken ?: "") }
+    var passwordVisible by rememberSaveable { mutableStateOf(false) }
+    var isLoginMode by rememberSaveable { mutableStateOf(true) }
+    var showApiConfig by rememberSaveable { mutableStateOf(false) }
+    var showVerificationPanel by rememberSaveable {
+        mutableStateOf(!verificationToken.isNullOrBlank() || !registerStatus.isNullOrBlank())
+    }
 
     LaunchedEffect(verificationToken) {
         if (!verificationToken.isNullOrBlank()) {
@@ -569,98 +767,392 @@ private fun AuthScreen(
         }
     }
 
-    Column(
+    LaunchedEffect(registerStatus, verificationToken) {
+        if (!registerStatus.isNullOrBlank() || !verificationToken.isNullOrBlank()) {
+            isLoginMode = false
+            showVerificationPanel = true
+        }
+    }
+
+    LaunchedEffect(message) {
+        val normalized = message?.lowercase().orEmpty()
+        if ("verified" in normalized) {
+            isLoginMode = true
+            showVerificationPanel = false
+            verifyToken = ""
+        }
+    }
+
+    val statusColor = when {
+        message.isNullOrBlank() -> ThesisColors.TextMuted
+        message.contains("success", ignoreCase = true) ||
+            message.contains("verified", ignoreCase = true) ||
+            message.contains("saved", ignoreCase = true) ||
+            message.contains("created", ignoreCase = true) -> ThesisColors.SignalPositive
+        else -> ThesisColors.SignalNegative
+    }
+
+    val tfShape = RoundedCornerShape(ThesisDimens.CardCornerRadius)
+    val tfColors = OutlinedTextFieldDefaults.colors(
+        focusedContainerColor = ThesisColors.Surface,
+        unfocusedContainerColor = ThesisColors.Surface,
+        focusedBorderColor = ThesisColors.Primary,
+        unfocusedBorderColor = ThesisColors.Border,
+        focusedTextColor = ThesisColors.TextPrimary,
+        unfocusedTextColor = ThesisColors.TextPrimary,
+        cursorColor = ThesisColors.Primary,
+        focusedLabelColor = ThesisColors.Primary,
+        unfocusedLabelColor = ThesisColors.TextMuted,
+        focusedPlaceholderColor = ThesisColors.TextMuted.copy(alpha = 0.6f),
+        unfocusedPlaceholderColor = ThesisColors.TextMuted.copy(alpha = 0.6f)
+    )
+
+    Box(
         modifier = Modifier
             .fillMaxSize()
-            .padding(20.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+            .background(ThesisColors.Background)
     ) {
-        Text("Thesis Android MVP", style = MaterialTheme.typography.headlineSmall)
-        Text("Register, verify, and login to access Pulse and Deep Dive.")
-        Text("If login/register fails on first run, confirm the Product API URL below.")
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(horizontal = 24.dp, vertical = 48.dp),
+            verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingLg),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            item {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.padding(top = 32.dp, bottom = 16.dp)
+                ) {
+                    Text(
+                        text = "Thesis",
+                        style = ThesisTypography.displayLarge.copy(
+                            fontFamily = HeadingFont,
+                            fontSize = 36.sp,
+                            fontWeight = FontWeight.Normal,
+                            letterSpacing = (-1).sp
+                        ),
+                        color = ThesisColors.TextPrimary
+                    )
+                    Spacer(modifier = Modifier.height(ThesisDimens.SpacingSm))
+                    Text(
+                        text = "Financial intelligence",
+                        style = ThesisTypography.bodyLarge,
+                        color = ThesisColors.TextMuted
+                    )
+                }
+            }
 
-        OutlinedTextField(
-            value = apiBaseUrl,
-            onValueChange = { apiBaseUrl = it },
-            modifier = Modifier.fillMaxWidth(),
-            label = { Text("Product API Base URL") },
-            placeholder = { Text("http://192.168.1.114:3001") },
-            singleLine = true,
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
-                focusedContainerColor = MaterialTheme.colorScheme.surface,
-                unfocusedContainerColor = MaterialTheme.colorScheme.surface
-            )
-        )
-        Button(
-            onClick = { onSaveApiBaseUrl(apiBaseUrl) },
-            enabled = !isLoading
-        ) { Text("Save API URL") }
+            item {
+                AuthValueCard()
+            }
 
-        HorizontalDivider()
+            item {
+                Column {
+                    Text(
+                        text = "CONFIGURE API",
+                        style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Medium),
+                        color = ThesisColors.Primary,
+                        modifier = Modifier.clickable { showApiConfig = !showApiConfig }
+                    )
+                    if (showApiConfig) {
+                        Spacer(modifier = Modifier.height(ThesisDimens.SpacingSm))
+                        OutlinedTextField(
+                            value = apiBaseUrl,
+                            onValueChange = { apiBaseUrl = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            label = { Text("API Base URL") },
+                            singleLine = true,
+                            shape = tfShape,
+                            colors = tfColors
+                        )
+                        Spacer(modifier = Modifier.height(ThesisDimens.SpacingSm))
+                        Button(
+                            onClick = { onSaveApiBaseUrl(apiBaseUrl) },
+                            enabled = !isLoading,
+                            shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
+                            colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                                containerColor = ThesisColors.SurfaceElevated,
+                                contentColor = ThesisColors.TextPrimary
+                            ),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(44.dp)
+                        ) {
+                            Text("Save URL", style = ThesisTypography.labelLarge)
+                        }
+                    }
+                }
+            }
 
-        OutlinedTextField(
-            value = email,
-            onValueChange = { email = it },
-            modifier = Modifier.fillMaxWidth(),
-            label = { Text("Email") },
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
-                focusedContainerColor = MaterialTheme.colorScheme.surface,
-                unfocusedContainerColor = MaterialTheme.colorScheme.surface
-            )
-        )
-        OutlinedTextField(
-            value = password,
-            onValueChange = { password = it },
-            modifier = Modifier.fillMaxWidth(),
-            label = { Text("Password") },
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
-                focusedContainerColor = MaterialTheme.colorScheme.surface,
-                unfocusedContainerColor = MaterialTheme.colorScheme.surface
-            )
-        )
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingMd)) {
+                    Text(
+                        text = "EMAIL",
+                        style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Medium),
+                        color = ThesisColors.TextMuted
+                    )
+                    OutlinedTextField(
+                        value = email,
+                        onValueChange = { email = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        placeholder = { Text("you@example.com", color = ThesisColors.TextMuted.copy(alpha = 0.5f)) },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                        singleLine = true,
+                        shape = tfShape,
+                        colors = tfColors
+                    )
+                    Text(
+                        text = "PASSWORD",
+                        style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Medium),
+                        color = ThesisColors.TextMuted
+                    )
+                    OutlinedTextField(
+                        value = password,
+                        onValueChange = { password = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        placeholder = { Text("Enter password", color = ThesisColors.TextMuted.copy(alpha = 0.5f)) },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                        singleLine = true,
+                        shape = tfShape,
+                        colors = tfColors,
+                        visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                        trailingIcon = {
+                            IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                                Icon(
+                                    imageVector = if (passwordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                    contentDescription = null,
+                                    tint = ThesisColors.TextMuted
+                                )
+                            }
+                        }
+                    )
+                }
+            }
 
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(
-                onClick = { onRegister(email, password) },
-                enabled = !isLoading
-            ) { Text("Register") }
-            Button(
-                onClick = { onLogin(email, password) },
-                enabled = !isLoading
-            ) { Text("Login") }
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingMd)) {
+                    if (isLoginMode) {
+                        Button(
+                            onClick = { onLogin(email, password) },
+                            enabled = !isLoading && email.isNotBlank() && password.isNotBlank(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(52.dp),
+                            shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
+                            colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                                containerColor = ThesisColors.Primary,
+                                contentColor = ThesisColors.TextInverse,
+                                disabledContainerColor = ThesisColors.Primary.copy(alpha = 0.3f)
+                            )
+                        ) {
+                            if (isLoading) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(20.dp),
+                                    color = ThesisColors.TextInverse,
+                                    strokeWidth = 2.dp
+                                )
+                            } else {
+                                Text(
+                                    text = "Log In",
+                                    style = ThesisTypography.labelLarge.copy(fontWeight = FontWeight.Medium)
+                                )
+                            }
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Text(
+                                text = "Don't have an account? ",
+                                style = ThesisTypography.bodyMedium,
+                                color = ThesisColors.TextMuted
+                            )
+                            Text(
+                                text = "Register",
+                                style = ThesisTypography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                                color = ThesisColors.Primary,
+                                modifier = Modifier.clickable { isLoginMode = false }
+                            )
+                        }
+                    } else {
+                        Button(
+                            onClick = { onRegister(email, password) },
+                            enabled = !isLoading && email.isNotBlank() && password.isNotBlank(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(52.dp),
+                            shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
+                            colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                                containerColor = ThesisColors.Primary,
+                                contentColor = ThesisColors.TextInverse,
+                                disabledContainerColor = ThesisColors.Primary.copy(alpha = 0.3f)
+                            )
+                        ) {
+                            Text(
+                                text = "Register",
+                                style = ThesisTypography.labelLarge.copy(fontWeight = FontWeight.Medium)
+                            )
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Text(
+                                text = "Already have an account? ",
+                                style = ThesisTypography.bodyMedium,
+                                color = ThesisColors.TextMuted
+                            )
+                            Text(
+                                text = "Log in",
+                                style = ThesisTypography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                                color = ThesisColors.Primary,
+                                modifier = Modifier.clickable { isLoginMode = true }
+                            )
+                        }
+                    }
+                }
+            }
+
+            if (!registerStatus.isNullOrBlank()) {
+                item {
+                    Text(
+                        text = "Status: $registerStatus",
+                        style = ThesisTypography.bodySmall,
+                        color = ThesisColors.Primary
+                    )
+                }
+            }
+            if (!message.isNullOrBlank()) {
+                item {
+                    Text(
+                        text = message,
+                        style = ThesisTypography.bodySmall,
+                        color = statusColor,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+
+            if (showVerificationPanel) {
+                item {
+                    Column(verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)) {
+                        HorizontalDivider(color = ThesisColors.Border)
+                        Text(
+                            text = "VERIFY ACCOUNT",
+                            style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Medium),
+                            color = ThesisColors.TextMuted
+                        )
+                        OutlinedTextField(
+                            value = verifyToken,
+                            onValueChange = { verifyToken = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            label = { Text("Verification token") },
+                            singleLine = true,
+                            shape = tfShape,
+                            colors = tfColors
+                        )
+                        Button(
+                            onClick = { onVerify(verifyToken) },
+                            enabled = !isLoading,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(44.dp),
+                            shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
+                            colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                                containerColor = ThesisColors.SurfaceElevated,
+                                contentColor = ThesisColors.TextPrimary
+                            )
+                        ) {
+                            Text("Verify Account")
+                        }
+                    }
+                }
+            }
+
+            item {
+                Spacer(modifier = Modifier.height(32.dp))
+                Text(
+                    text = "THIS IS A RESEARCH TOOL, NOT FINANCIAL ADVICE",
+                    style = ThesisTypography.labelSmall,
+                    color = ThesisColors.TextMuted.copy(alpha = 0.3f),
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
         }
+    }
+}
 
-        if (!registerStatus.isNullOrBlank()) {
-            Text("Register status: $registerStatus")
-        }
-        if (!message.isNullOrBlank()) {
-            Text(message, color = MaterialTheme.colorScheme.error)
-        }
-
-        HorizontalDivider()
-
-        OutlinedTextField(
-            value = verifyToken,
-            onValueChange = { verifyToken = it },
-            modifier = Modifier.fillMaxWidth(),
-            label = { Text("Verification token") },
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
-                focusedContainerColor = MaterialTheme.colorScheme.surface,
-                unfocusedContainerColor = MaterialTheme.colorScheme.surface
-            )
+@Composable
+private fun AuthValueCard() {
+    val shape = RoundedCornerShape(ThesisDimens.CardCornerRadius)
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(ThesisColors.Surface)
+            .border(ThesisDimens.BorderWidth, ThesisColors.Border, shape)
+            .padding(ThesisDimens.CardPadding),
+        verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)
+    ) {
+        Text(
+            text = "WHAT YOU GET",
+            style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Medium),
+            color = ThesisColors.TextMuted
         )
-        Button(
-            onClick = { onVerify(verifyToken) },
-            enabled = !isLoading
-        ) { Text("Verify Account") }
+        AuthBenefitRow(
+            icon = Icons.Default.Newspaper,
+            title = "Morning Pulse",
+            description = "What moved overnight before markets open."
+        )
+        HorizontalDivider(color = ThesisColors.Border)
+        AuthBenefitRow(
+            icon = Icons.Default.Search,
+            title = "Deep Dive",
+            description = "Evidence-backed research on any US company."
+        )
+        HorizontalDivider(color = ThesisColors.Border)
+        AuthBenefitRow(
+            icon = Icons.Default.AutoAwesome,
+            title = "My Names",
+            description = "Follow what matters across everything."
+        )
+    }
+}
+
+@Composable
+private fun AuthBenefitRow(
+    icon: ImageVector,
+    title: String,
+    description: String
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingMd),
+        verticalAlignment = Alignment.Top
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = ThesisColors.Primary,
+            modifier = Modifier.padding(top = 2.dp)
+        )
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingXs)
+        ) {
+            Text(
+                text = title,
+                style = ThesisTypography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                color = ThesisColors.TextPrimary
+            )
+            Text(
+                text = description,
+                style = ThesisTypography.bodySmall,
+                color = ThesisColors.TextMuted
+            )
+        }
     }
 }
 
@@ -677,42 +1169,67 @@ private fun UpgradeRequiredDialog(
 ) {
     val normalizedFeature = feature?.replace("_", " ") ?: "premium feature"
     AlertDialog(
+        containerColor = ThesisColors.Surface,
+        titleContentColor = ThesisColors.TextPrimary,
+        textContentColor = ThesisColors.TextSecondary,
         onDismissRequest = onDismiss,
-        title = { Text("Upgrade Required") },
+        title = {
+            Text(
+                text = "Upgrade to Pro",
+                style = ThesisTypography.headlineLarge.copy(
+                    fontFamily = HeadingFont,
+                    fontWeight = FontWeight.Normal
+                )
+            )
+        },
         text = {
             Text(
-                "This action needs Pro access ($normalizedFeature). " +
-                    "If you upgraded in Google Play, tap \"I upgraded\" to refresh."
+                "$normalizedFeature requires Pro. If you already upgraded, tap refresh below.",
+                style = ThesisTypography.bodyMedium
             )
         },
         confirmButton = {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                val monthly = subscriptionOffers.firstOrNull { it.packageType == "MONTHLY" }
-                val yearly = subscriptionOffers.firstOrNull { it.packageType == "ANNUAL" }
-                TextButton(
+            Column(verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingXs)) {
+                Button(
                     onClick = { onStartPurchase("MONTHLY") },
-                    enabled = monthly != null && !subscriptionActionInFlight
-                ) { Text("Buy Monthly") }
-                TextButton(
+                    enabled = subscriptionOffers.any { it.packageType == "MONTHLY" } && !subscriptionActionInFlight,
+                    shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
+                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                        containerColor = ThesisColors.Primary,
+                        contentColor = ThesisColors.TextInverse
+                    )
+                ) {
+                    Text("Monthly")
+                }
+                Button(
                     onClick = { onStartPurchase("YEARLY") },
-                    enabled = yearly != null && !subscriptionActionInFlight
-                ) { Text("Buy Yearly") }
+                    enabled = subscriptionOffers.any { it.packageType == "ANNUAL" } && !subscriptionActionInFlight,
+                    shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
+                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                        containerColor = ThesisColors.Primary,
+                        contentColor = ThesisColors.TextInverse
+                    )
+                ) {
+                    Text("Yearly")
+                }
                 TextButton(
                     onClick = onRestorePurchases,
                     enabled = !subscriptionActionInFlight
-                ) { Text("Restore Purchases") }
+                ) {
+                    Text("Restore", color = ThesisColors.Primary)
+                }
             }
         },
         dismissButton = {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingXs)) {
                 TextButton(onClick = onRefreshOffers) {
-                    Text("Refresh offers")
+                    Text("Refresh offers", color = ThesisColors.TextMuted)
                 }
                 TextButton(onClick = onSyncTier) {
-                    Text("I upgraded")
+                    Text("I upgraded", color = ThesisColors.Primary)
                 }
                 TextButton(onClick = onDismiss) {
-                    Text("Not now")
+                    Text("Not now", color = ThesisColors.TextMuted)
                 }
             }
         }
@@ -881,47 +1398,153 @@ private fun WatchlistTab(
     onRemove: (String) -> Unit
 ) {
     var tickerInput by rememberSaveable { mutableStateOf("") }
+    val tfColors = OutlinedTextFieldDefaults.colors(
+        focusedContainerColor = ThesisColors.Surface,
+        unfocusedContainerColor = ThesisColors.Surface,
+        focusedBorderColor = ThesisColors.Primary,
+        unfocusedBorderColor = ThesisColors.Border,
+        focusedTextColor = ThesisColors.TextPrimary,
+        unfocusedTextColor = ThesisColors.TextPrimary,
+        cursorColor = ThesisColors.Primary,
+        focusedLabelColor = ThesisColors.Primary,
+        unfocusedLabelColor = ThesisColors.TextMuted
+    )
 
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
             .padding(padding)
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
+            .background(ThesisColors.Background),
+        contentPadding = PaddingValues(
+            horizontal = ThesisDimens.ScreenPaddingHorizontal,
+            vertical = ThesisDimens.SpacingLg
+        ),
+        verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingMd)
     ) {
         item {
-            Text("Watchlist", style = MaterialTheme.typography.headlineSmall)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(
+                text = "My Names",
+                style = ThesisTypography.headlineLarge.copy(
+                    fontFamily = HeadingFont,
+                    fontWeight = FontWeight.Normal
+                ),
+                color = ThesisColors.TextPrimary
+            )
+            Spacer(modifier = Modifier.height(ThesisDimens.SpacingSm))
+            Text(
+                text = "Track up to 20 companies across Thesis.",
+                style = ThesisTypography.bodyMedium,
+                color = ThesisColors.TextMuted
+            )
+        }
+        item {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)
+            ) {
                 OutlinedTextField(
                     value = tickerInput,
                     onValueChange = { tickerInput = it.uppercase() },
-                    label = { Text("Ticker") }
+                    modifier = Modifier.weight(1f),
+                    label = { Text("Ticker") },
+                    singleLine = true,
+                    shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
+                    colors = tfColors
                 )
-                Button(onClick = { onAdd(tickerInput) }) { Text("Add") }
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = onRefresh) { Text("Refresh") }
+                Button(
+                    onClick = {
+                        if (tickerInput.isNotBlank()) {
+                            onAdd(tickerInput)
+                            tickerInput = ""
+                        }
+                    },
+                    shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
+                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                        containerColor = ThesisColors.Primary,
+                        contentColor = ThesisColors.TextInverse
+                    ),
+                    modifier = Modifier.height(52.dp)
+                ) {
+                    Text("Add")
+                }
             }
         }
 
         if (items.isEmpty()) {
-            item { Text("No watchlist tickers yet.") }
+            item {
+                val shape = RoundedCornerShape(ThesisDimens.CardCornerRadius)
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(shape)
+                        .background(ThesisColors.Surface)
+                        .border(ThesisDimens.BorderWidth, ThesisColors.Border, shape)
+                        .padding(ThesisDimens.CardPadding)
+                ) {
+                    Text(
+                        text = "No names tracked yet. Add a ticker above.",
+                        style = ThesisTypography.bodyMedium,
+                        color = ThesisColors.TextMuted
+                    )
+                }
+            }
         } else {
-            items(items) { ticker ->
-                Card(modifier = Modifier.fillMaxWidth()) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(12.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(ticker)
-                        AssistChip(
-                            onClick = { onRemove(ticker) },
-                            label = { Text("Remove") }
-                        )
+            item {
+                val shape = RoundedCornerShape(ThesisDimens.CardCornerRadius)
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(shape)
+                        .background(ThesisColors.Surface)
+                        .border(ThesisDimens.BorderWidth, ThesisColors.Border, shape)
+                ) {
+                    items.forEachIndexed { index, ticker ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(
+                                    horizontal = ThesisDimens.CardPadding,
+                                    vertical = ThesisDimens.SpacingLg
+                                ),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = ticker,
+                                style = ThesisTypography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                                color = ThesisColors.TextPrimary
+                            )
+                            Text(
+                                text = "REMOVE",
+                                style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Medium),
+                                color = ThesisColors.SignalNegative,
+                                modifier = Modifier.clickable { onRemove(ticker) }
+                            )
+                        }
+                        if (index < items.lastIndex) {
+                            HorizontalDivider(
+                                color = ThesisColors.Border,
+                                thickness = ThesisDimens.BorderWidth,
+                                modifier = Modifier.padding(horizontal = ThesisDimens.CardPadding)
+                            )
+                        }
                     }
                 }
+            }
+        }
+        item {
+            OutlinedButton(
+                onClick = onRefresh,
+                shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
+                border = androidx.compose.foundation.BorderStroke(
+                    ThesisDimens.BorderWidth,
+                    ThesisColors.Border
+                ),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(44.dp)
+            ) {
+                Text("Refresh Watchlist", color = ThesisColors.TextMuted)
             }
         }
     }
@@ -951,157 +1574,334 @@ private fun SettingsTab(
     val context = LocalContext.current
     val activity = context as? Activity
     var baseUrl by rememberSaveable(currentApiBaseUrl) { mutableStateOf(currentApiBaseUrl) }
+    val switchColors = androidx.compose.material3.SwitchDefaults.colors(
+        checkedThumbColor = ThesisColors.Primary,
+        checkedTrackColor = ThesisColors.Primary.copy(alpha = 0.2f),
+        uncheckedThumbColor = ThesisColors.TextMuted,
+        uncheckedTrackColor = ThesisColors.SurfaceElevated
+    )
 
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
             .padding(padding)
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+            .background(ThesisColors.Background),
+        contentPadding = PaddingValues(
+            horizontal = ThesisDimens.ScreenPaddingHorizontal,
+            vertical = ThesisDimens.SpacingLg
+        ),
+        verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingXl)
     ) {
         item {
-            Text("Settings", style = MaterialTheme.typography.headlineSmall)
+            Text(
+                text = "Settings",
+                style = ThesisTypography.headlineLarge.copy(
+                    fontFamily = HeadingFont,
+                    fontWeight = FontWeight.Normal
+                ),
+                color = ThesisColors.TextPrimary
+            )
         }
         item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
+            val shape = RoundedCornerShape(ThesisDimens.CardCornerRadius)
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(shape)
+                    .background(ThesisColors.Surface)
+                    .border(ThesisDimens.BorderWidth, ThesisColors.Border, shape)
+                    .padding(ThesisDimens.CardPadding),
+                verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)
             ) {
-                Text("Notifications")
-                Switch(
-                    checked = notificationsEnabled,
-                    onCheckedChange = onSetNotifications
+                Text(
+                    text = "NOTIFICATIONS",
+                    style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Medium),
+                    color = ThesisColors.TextMuted
                 )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Push Notifications",
+                        style = ThesisTypography.bodyMedium,
+                        color = ThesisColors.TextPrimary
+                    )
+                    Switch(
+                        checked = notificationsEnabled,
+                        onCheckedChange = onSetNotifications,
+                        colors = switchColors
+                    )
+                }
+
+                if (biometricSupported) {
+                    HorizontalDivider(color = ThesisColors.Border)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Biometric Lock",
+                                style = ThesisTypography.bodyMedium,
+                                color = ThesisColors.TextPrimary
+                            )
+                            Text(
+                                text = "Require fingerprint after 5 min idle",
+                                style = ThesisTypography.bodySmall,
+                                color = ThesisColors.TextMuted
+                            )
+                        }
+                        Switch(
+                            checked = biometricLockEnabled,
+                            onCheckedChange = onSetBiometricLockEnabled,
+                            colors = switchColors
+                        )
+                    }
+                }
+
+                if (notificationsEnabled) {
+                    HorizontalDivider(color = ThesisColors.Border)
+                    notificationPreferences.forEach { preference ->
+                        NotificationPreferenceRow(
+                            type = preference.type,
+                            enabled = preference.enabled,
+                            notificationsEnabled = notificationsEnabled,
+                            onToggle = { enabled -> onSetNotificationPreference(preference.type, enabled) },
+                            switchColors = switchColors
+                        )
+                    }
+                }
+
+                Button(
+                    onClick = {
+                        val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+                            putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+                        }
+                        context.startActivity(intent)
+                    },
+                    shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
+                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                        containerColor = ThesisColors.SurfaceElevated,
+                        contentColor = ThesisColors.TextMuted
+                    ),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(40.dp)
+                ) {
+                    Text("System Notification Settings", style = ThesisTypography.labelLarge)
+                }
             }
         }
-        if (biometricSupported) {
-            item {
+        item {
+            val shape = RoundedCornerShape(ThesisDimens.CardCornerRadius)
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(shape)
+                    .background(ThesisColors.Surface)
+                    .border(ThesisDimens.BorderWidth, ThesisColors.Border, shape)
+                    .padding(ThesisDimens.CardPadding),
+                verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingMd)
+            ) {
+                Text(
+                    text = "SUBSCRIPTION",
+                    style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Medium),
+                    color = ThesisColors.TextMuted
+                )
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Text("Biometric lock")
-                    Switch(
-                        checked = biometricLockEnabled,
-                        onCheckedChange = onSetBiometricLockEnabled
+                    Text("Tier", style = ThesisTypography.bodyMedium, color = ThesisColors.TextPrimary)
+                    Text(
+                        text = profile?.tier ?: "FREE",
+                        style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Medium),
+                        color = ThesisColors.Primary,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(ThesisDimens.SignalBadgeCorner))
+                            .background(ThesisColors.Primary.copy(alpha = 0.1f))
+                            .padding(horizontal = ThesisDimens.SpacingSm, vertical = ThesisDimens.SpacingXs)
                     )
                 }
-            }
-            item {
-                Text(
-                    "When enabled, Thesis asks for fingerprint or device PIN after 5 minutes in background.",
-                    style = MaterialTheme.typography.bodySmall
-                )
-            }
-        }
-        if (!notificationsEnabled) {
-            item {
-                Text(
-                    "Push is disabled while notifications are off.",
-                    style = MaterialTheme.typography.bodySmall
-                )
-            }
-        }
-        item {
-            Button(onClick = {
-                val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
-                    putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
-                }
-                context.startActivity(intent)
-            }) {
-                Text("Open Android Notification Settings")
-            }
-        }
-        item {
-            HorizontalDivider()
-            Text("Notification Types", fontWeight = FontWeight.Bold)
-            notificationPreferences.forEach { preference ->
-                NotificationPreferenceRow(
-                    type = preference.type,
-                    enabled = preference.enabled,
-                    notificationsEnabled = notificationsEnabled,
-                    onToggle = { enabled -> onSetNotificationPreference(preference.type, enabled) }
-                )
-            }
-        }
-        item {
-            HorizontalDivider()
-            Text("Subscription", fontWeight = FontWeight.Bold)
-            Text("Tier: ${profile?.tier ?: "FREE"}")
-            if (!profile?.billingPeriodEnd.isNullOrBlank()) {
-                Text("Billing period end: ${profile?.billingPeriodEnd}")
-            }
-            Text("Watchlist limit: ${profile?.watchlistLimit ?: 5}")
-            val deepDiveLimit = profile?.dailyDeepDiveLimit ?: 1
-            val deepDiveText = if (deepDiveLimit < 0) "Unlimited" else "$deepDiveLimit / day"
-            Text("Deep Dive limit: $deepDiveText")
-            if (profile != null && deepDiveLimit >= 0) {
-                Text("Deep Dives remaining today: ${profile.deepDivesRemainingToday}")
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = onSyncTier, enabled = !subscriptionActionInFlight) {
-                    Text("Refresh subscription")
-                }
-                Button(onClick = onRefreshOffers, enabled = !subscriptionActionInFlight) {
-                    Text("Refresh offers")
-                }
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(
-                    onClick = { if (activity != null) onStartPurchase(activity, "MONTHLY") },
-                    enabled = activity != null && !subscriptionActionInFlight
+                val deepDiveLimit = profile?.dailyDeepDiveLimit ?: 1
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Text("Buy monthly")
+                    Text("Deep Dives", style = ThesisTypography.bodyMedium, color = ThesisColors.TextPrimary)
+                    Text(
+                        if (deepDiveLimit < 0) "Unlimited" else "${profile?.deepDivesRemainingToday ?: 0} / $deepDiveLimit today",
+                        style = ThesisTypography.bodySmall,
+                        color = ThesisColors.TextMuted
+                    )
                 }
-                Button(
-                    onClick = { if (activity != null) onStartPurchase(activity, "YEARLY") },
-                    enabled = activity != null && !subscriptionActionInFlight
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Text("Buy yearly")
+                    Text("Names limit", style = ThesisTypography.bodyMedium, color = ThesisColors.TextPrimary)
+                    Text("${profile?.watchlistLimit ?: 5}", style = ThesisTypography.bodySmall, color = ThesisColors.TextMuted)
                 }
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = onRestorePurchases, enabled = !subscriptionActionInFlight) {
-                    Text("Restore purchases")
-                }
-                Button(onClick = {
-                    val intent = Intent(Intent.ACTION_VIEW).apply {
-                        data = android.net.Uri.parse("https://play.google.com/store/account/subscriptions")
+                if (!profile?.billingPeriodEnd.isNullOrBlank()) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("Billing period end", style = ThesisTypography.bodyMedium, color = ThesisColors.TextPrimary)
+                        Text(profile?.billingPeriodEnd ?: "", style = ThesisTypography.bodySmall, color = ThesisColors.TextMuted)
                     }
-                    context.startActivity(intent)
-                }) {
-                    Text("Manage subscription")
+                }
+                HorizontalDivider(color = ThesisColors.Border)
+                Row(horizontalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)) {
+                    Button(
+                        onClick = { if (activity != null) onStartPurchase(activity, "MONTHLY") },
+                        enabled = activity != null && !subscriptionActionInFlight,
+                        modifier = Modifier.weight(1f).height(40.dp),
+                        shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
+                        colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                            containerColor = ThesisColors.Primary,
+                            contentColor = ThesisColors.TextInverse
+                        )
+                    ) {
+                        Text("Monthly", style = ThesisTypography.labelLarge)
+                    }
+                    Button(
+                        onClick = { if (activity != null) onStartPurchase(activity, "YEARLY") },
+                        enabled = activity != null && !subscriptionActionInFlight,
+                        modifier = Modifier.weight(1f).height(40.dp),
+                        shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
+                        colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                            containerColor = ThesisColors.Primary,
+                            contentColor = ThesisColors.TextInverse
+                        )
+                    ) {
+                        Text("Yearly", style = ThesisTypography.labelLarge)
+                    }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)) {
+                    OutlinedButton(
+                        onClick = onSyncTier,
+                        enabled = !subscriptionActionInFlight,
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
+                        border = androidx.compose.foundation.BorderStroke(
+                            ThesisDimens.BorderWidth,
+                            ThesisColors.Border
+                        )
+                    ) {
+                        Text("Refresh", color = ThesisColors.TextMuted)
+                    }
+                    OutlinedButton(
+                        onClick = onRestorePurchases,
+                        enabled = !subscriptionActionInFlight,
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
+                        border = androidx.compose.foundation.BorderStroke(
+                            ThesisDimens.BorderWidth,
+                            ThesisColors.Border
+                        )
+                    ) {
+                        Text("Restore", color = ThesisColors.TextMuted)
+                    }
+                }
+                if (subscriptionOffers.isNotEmpty()) {
+                    Text(
+                        text = "Available offers: ${subscriptionOffers.joinToString { it.title }}",
+                        style = ThesisTypography.bodySmall,
+                        color = ThesisColors.TextMuted
+                    )
+                }
+                TextButton(onClick = onRefreshOffers, enabled = !subscriptionActionInFlight) {
+                    Text("Refresh offers", color = ThesisColors.Primary)
                 }
             }
-            if (subscriptionOffers.isNotEmpty()) {
+        }
+        item {
+            val shape = RoundedCornerShape(ThesisDimens.CardCornerRadius)
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(shape)
+                    .background(ThesisColors.Surface)
+                    .border(ThesisDimens.BorderWidth, ThesisColors.Border, shape)
+                    .padding(ThesisDimens.CardPadding),
+                verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)
+            ) {
                 Text(
-                    "Available offers: ${subscriptionOffers.joinToString { it.title }}",
-                    style = MaterialTheme.typography.bodySmall
+                    text = "DEVELOPER",
+                    style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Medium),
+                    color = ThesisColors.TextMuted
+                )
+                OutlinedTextField(
+                    value = baseUrl,
+                    onValueChange = { baseUrl = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("API Base URL") },
+                    singleLine = true,
+                    shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedContainerColor = ThesisColors.SurfaceElevated,
+                        unfocusedContainerColor = ThesisColors.SurfaceElevated,
+                        focusedBorderColor = ThesisColors.Primary,
+                        unfocusedBorderColor = ThesisColors.Border,
+                        focusedTextColor = ThesisColors.TextPrimary,
+                        unfocusedTextColor = ThesisColors.TextPrimary,
+                        cursorColor = ThesisColors.Primary,
+                        focusedLabelColor = ThesisColors.Primary,
+                        unfocusedLabelColor = ThesisColors.TextMuted
+                    )
+                )
+                Button(
+                    onClick = { onSaveApiBaseUrl(baseUrl) },
+                    shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
+                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                        containerColor = ThesisColors.SurfaceElevated,
+                        contentColor = ThesisColors.TextPrimary
+                    ),
+                    modifier = Modifier.fillMaxWidth().height(40.dp)
+                ) {
+                    Text("Save API URL")
+                }
+            }
+        }
+        item {
+            val shape = RoundedCornerShape(ThesisDimens.CardCornerRadius)
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(shape)
+                    .background(ThesisColors.Surface)
+                    .border(ThesisDimens.BorderWidth, ThesisColors.Border, shape)
+                    .padding(ThesisDimens.CardPadding),
+                verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)
+            ) {
+                Text(
+                    text = "ABOUT",
+                    style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Medium),
+                    color = ThesisColors.TextMuted
+                )
+                Text(
+                    text = "This is a research summary, not financial advice. Always do your own research.",
+                    style = ThesisTypography.bodyMedium,
+                    color = ThesisColors.TextPrimary
                 )
             }
         }
         item {
-            OutlinedTextField(
-                value = baseUrl,
-                onValueChange = { baseUrl = it },
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text("Product API Base URL") },
-                placeholder = { Text("http://192.168.1.114:3001") },
-                singleLine = true
-            )
-        }
-        item {
-            Button(onClick = { onSaveApiBaseUrl(baseUrl) }) {
-                Text("Save API URL")
+            Button(
+                onClick = onLogout,
+                shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
+                colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                    containerColor = ThesisColors.SignalNegative.copy(alpha = 0.16f),
+                    contentColor = ThesisColors.SignalNegative
+                ),
+                modifier = Modifier.fillMaxWidth().height(44.dp)
+            ) {
+                Text("Logout")
             }
-        }
-        item {
-            HorizontalDivider()
-            Text("About", fontWeight = FontWeight.Bold)
-            Text("This is a research summary, not financial advice. Always do your own research.")
-        }
-        item {
-            Button(onClick = onLogout) { Text("Logout") }
         }
     }
 }
@@ -1111,7 +1911,8 @@ private fun NotificationPreferenceRow(
     type: String,
     enabled: Boolean,
     notificationsEnabled: Boolean,
-    onToggle: (Boolean) -> Unit
+    onToggle: (Boolean) -> Unit,
+    switchColors: androidx.compose.material3.SwitchColors
 ) {
     val label = when (type) {
         "earnings_preview" -> "Earnings preview"
@@ -1123,21 +1924,23 @@ private fun NotificationPreferenceRow(
 
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(label)
+            Text(label, style = ThesisTypography.bodyMedium, color = ThesisColors.TextPrimary)
             if (!notificationsEnabled) {
                 Text(
                     "Global notifications are off. This preference will apply when they are re-enabled.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    style = ThesisTypography.bodySmall,
+                    color = ThesisColors.TextMuted
                 )
             }
         }
         Switch(
             checked = enabled,
-            onCheckedChange = onToggle
+            onCheckedChange = onToggle,
+            colors = switchColors
         )
     }
 }

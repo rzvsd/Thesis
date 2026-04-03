@@ -1,7 +1,6 @@
 package com.thesis.mobile.ui.screens
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -13,13 +12,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.Mail
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
@@ -39,9 +34,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.blur
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -50,6 +42,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.thesis.mobile.ui.theme.HeadingFont
 import com.thesis.mobile.ui.theme.ThesisColors
 import com.thesis.mobile.ui.theme.ThesisDimens
 import com.thesis.mobile.ui.theme.ThesisTypography
@@ -68,26 +61,8 @@ fun LoginScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(ThesisColors.DarkBackground)
+            .background(ThesisColors.Background)
     ) {
-        // Ambient glow blobs (mesh background)
-        Box(
-            modifier = Modifier
-                .size(300.dp)
-                .align(Alignment.TopStart)
-                .padding(16.dp)
-                .blur(80.dp)
-                .background(ThesisColors.AccentBlue.copy(alpha = 0.07f), CircleShape)
-        )
-        Box(
-            modifier = Modifier
-                .size(200.dp)
-                .align(Alignment.BottomEnd)
-                .padding(16.dp)
-                .blur(64.dp)
-                .background(ThesisColors.SignalPositive.copy(alpha = 0.04f), CircleShape)
-        )
-
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -95,141 +70,87 @@ fun LoginScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            // Logo
-            Box(contentAlignment = Alignment.Center) {
-                // Glow
-                Box(
-                    modifier = Modifier
-                        .size(80.dp)
-                        .blur(40.dp)
-                        .background(ThesisColors.AccentBlue.copy(alpha = 0.2f), CircleShape)
-                )
-                // Circle logo
-                Box(
-                    modifier = Modifier
-                        .size(64.dp)
-                        .clip(CircleShape)
-                        .background(
-                            Brush.linearGradient(
-                                colors = listOf(ThesisColors.AccentBlueLight, ThesisColors.AccentBlueDark)
-                            )
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "T",
-                        style = ThesisTypography.displayLarge.copy(
-                            fontSize = 32.sp,
-                            fontWeight = FontWeight.Black
-                        ),
-                        color = Color.White
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(ThesisDimens.SpacingXxl))
-
-            // Title
+            Text(
+                text = "Thesis",
+                style = ThesisTypography.displayLarge.copy(
+                    fontFamily = HeadingFont,
+                    fontSize = 36.sp,
+                    fontWeight = FontWeight.Normal,
+                    letterSpacing = (-1).sp
+                ),
+                color = ThesisColors.TextPrimary
+            )
+            Spacer(modifier = Modifier.height(ThesisDimens.SpacingSm))
             Text(
                 text = "Welcome back",
-                style = ThesisTypography.headlineLarge.copy(fontWeight = FontWeight.Bold),
-                color = ThesisColors.TextPrimaryDark
-            )
-            Spacer(modifier = Modifier.height(ThesisDimens.SpacingXs))
-            Text(
-                text = "Continue your financial architecture.",
-                style = ThesisTypography.bodyMedium,
-                color = ThesisColors.TextSecondaryDark
+                style = ThesisTypography.bodyLarge,
+                color = ThesisColors.TextMuted
             )
 
-            Spacer(modifier = Modifier.height(40.dp))
+            Spacer(modifier = Modifier.height(48.dp))
 
-            // Email Label
             Text(
                 text = "EMAIL",
-                style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp),
-                color = ThesisColors.TextSecondaryDark,
+                style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Medium),
+                color = ThesisColors.TextMuted,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(start = 16.dp, bottom = 6.dp)
+                    .padding(bottom = 8.dp)
             )
-            // Email Field
             OutlinedTextField(
                 value = email,
                 onValueChange = { email = it },
                 modifier = Modifier.fillMaxWidth(),
                 placeholder = {
-                    Text(
-                        text = "name@architecture.com",
-                        color = ThesisColors.TextTertiaryDark
-                    )
-                },
-                leadingIcon = {
-                    Icon(
-                        imageVector = Icons.Default.Mail,
-                        contentDescription = null,
-                        tint = ThesisColors.AccentBlue,
-                        modifier = Modifier.size(20.dp)
-                    )
+                    Text("name@example.com", color = ThesisColors.TextMuted.copy(alpha = 0.5f))
                 },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                shape = CircleShape,
+                shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedContainerColor = ThesisColors.DarkSurfaceHigh,
-                    unfocusedContainerColor = ThesisColors.DarkSurfaceHigh,
-                    focusedBorderColor = ThesisColors.AccentBlue,
-                    unfocusedBorderColor = ThesisColors.DarkBorder,
-                    focusedTextColor = ThesisColors.TextPrimaryDark,
-                    unfocusedTextColor = ThesisColors.TextPrimaryDark,
-                    cursorColor = ThesisColors.AccentBlue
+                    focusedContainerColor = ThesisColors.Surface,
+                    unfocusedContainerColor = ThesisColors.Surface,
+                    focusedBorderColor = ThesisColors.Primary,
+                    unfocusedBorderColor = ThesisColors.Border,
+                    focusedTextColor = ThesisColors.TextPrimary,
+                    unfocusedTextColor = ThesisColors.TextPrimary,
+                    cursorColor = ThesisColors.Primary
                 )
             )
 
-            Spacer(modifier = Modifier.height(ThesisDimens.SpacingLg))
+            Spacer(modifier = Modifier.height(ThesisDimens.SpacingXl))
 
-            // Password label row
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 6.dp),
+                    .padding(bottom = 8.dp),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
                     text = "PASSWORD",
-                    style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp),
-                    color = ThesisColors.TextSecondaryDark
+                    style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Medium),
+                    color = ThesisColors.TextMuted
                 )
                 Text(
                     text = "Forgot password?",
-                    style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                    color = ThesisColors.AccentBlue,
+                    style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Medium),
+                    color = ThesisColors.Primary,
                     modifier = Modifier.clickable { }
                 )
             }
-
-            // Password Field
             OutlinedTextField(
                 value = password,
                 onValueChange = { password = it },
                 modifier = Modifier.fillMaxWidth(),
                 placeholder = {
-                    Text(text = "••••••••", color = ThesisColors.TextTertiaryDark)
-                },
-                leadingIcon = {
-                    Icon(
-                        imageVector = Icons.Default.Lock,
-                        contentDescription = null,
-                        tint = ThesisColors.AccentBlue,
-                        modifier = Modifier.size(20.dp)
-                    )
+                    Text("Enter password", color = ThesisColors.TextMuted.copy(alpha = 0.5f))
                 },
                 trailingIcon = {
                     IconButton(onClick = { passwordVisible = !passwordVisible }) {
                         Icon(
                             imageVector = if (passwordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
                             contentDescription = null,
-                            tint = ThesisColors.TextTertiaryDark,
+                            tint = ThesisColors.TextMuted,
                             modifier = Modifier.size(20.dp)
                         )
                     }
@@ -237,55 +158,48 @@ fun LoginScreen(
                 visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                shape = CircleShape,
+                shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedContainerColor = ThesisColors.DarkSurfaceHigh,
-                    unfocusedContainerColor = ThesisColors.DarkSurfaceHigh,
-                    focusedBorderColor = ThesisColors.AccentBlue,
-                    unfocusedBorderColor = ThesisColors.DarkBorder,
-                    focusedTextColor = ThesisColors.TextPrimaryDark,
-                    unfocusedTextColor = ThesisColors.TextPrimaryDark,
-                    cursorColor = ThesisColors.AccentBlue
+                    focusedContainerColor = ThesisColors.Surface,
+                    unfocusedContainerColor = ThesisColors.Surface,
+                    focusedBorderColor = ThesisColors.Primary,
+                    unfocusedBorderColor = ThesisColors.Border,
+                    focusedTextColor = ThesisColors.TextPrimary,
+                    unfocusedTextColor = ThesisColors.TextPrimary,
+                    cursorColor = ThesisColors.Primary
                 )
             )
 
             Spacer(modifier = Modifier.height(ThesisDimens.SpacingXxl))
 
-            // Log In Button
             Button(
                 onClick = { onLogin(email, password) },
                 enabled = !isLoading && email.isNotBlank() && password.isNotBlank(),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(56.dp),
-                shape = CircleShape,
-                colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
-                contentPadding = androidx.compose.foundation.layout.PaddingValues()
+                    .height(52.dp),
+                shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = ThesisColors.Primary,
+                    contentColor = ThesisColors.TextInverse,
+                    disabledContainerColor = ThesisColors.Primary.copy(alpha = 0.3f),
+                    disabledContentColor = ThesisColors.TextInverse.copy(alpha = 0.5f)
+                )
             ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(
-                            Brush.linearGradient(
-                                colors = listOf(ThesisColors.AccentBlueLight, ThesisColors.AccentBlueDark)
-                            ),
-                            shape = CircleShape
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (isLoading) {
-                        CircularProgressIndicator(modifier = Modifier.size(24.dp), color = Color.White)
-                    } else {
-                        Text(
-                            text = "Log In",
-                            style = ThesisTypography.headlineMedium.copy(fontWeight = FontWeight.Bold),
-                            color = Color.White
-                        )
-                    }
+                if (isLoading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        color = ThesisColors.TextInverse,
+                        strokeWidth = 2.dp
+                    )
+                } else {
+                    Text(
+                        text = "Log In",
+                        style = ThesisTypography.labelLarge.copy(fontWeight = FontWeight.Medium)
+                    )
                 }
             }
 
-            // Error message
             if (!message.isNullOrBlank()) {
                 Spacer(modifier = Modifier.height(ThesisDimens.SpacingMd))
                 Text(
@@ -299,29 +213,27 @@ fun LoginScreen(
 
             Spacer(modifier = Modifier.height(ThesisDimens.SpacingXxl))
 
-            // Divider
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 HorizontalDivider(
                     modifier = Modifier.weight(1f),
-                    color = ThesisColors.DarkBorder.copy(alpha = 0.5f)
+                    color = ThesisColors.Border
                 )
                 Text(
                     text = "  or  ",
                     style = ThesisTypography.labelSmall,
-                    color = ThesisColors.TextTertiaryDark
+                    color = ThesisColors.TextMuted
                 )
                 HorizontalDivider(
                     modifier = Modifier.weight(1f),
-                    color = ThesisColors.DarkBorder.copy(alpha = 0.5f)
+                    color = ThesisColors.Border
                 )
             }
 
             Spacer(modifier = Modifier.height(ThesisDimens.SpacingXxl))
 
-            // Register link
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.clickable { onRegisterClick() }
@@ -329,25 +241,24 @@ fun LoginScreen(
                 Text(
                     text = "Don't have an account? ",
                     style = ThesisTypography.bodyMedium,
-                    color = ThesisColors.TextSecondaryDark
+                    color = ThesisColors.TextMuted
                 )
                 Text(
                     text = "Register",
-                    style = ThesisTypography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                    color = ThesisColors.AccentBlue
+                    style = ThesisTypography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                    color = ThesisColors.Primary
                 )
             }
         }
 
-        // Footer disclaimer
         Text(
             text = "THIS IS A RESEARCH TOOL, NOT FINANCIAL ADVICE",
-            style = ThesisTypography.labelSmall.copy(letterSpacing = 1.sp),
-            color = ThesisColors.TextTertiaryDark.copy(alpha = 0.4f),
+            style = ThesisTypography.labelSmall,
+            color = ThesisColors.TextMuted.copy(alpha = 0.3f),
             textAlign = TextAlign.Center,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .padding(bottom = 24.dp, start = 24.dp, end = 24.dp)
+                .padding(bottom = 20.dp, start = 24.dp, end = 24.dp)
         )
     }
 }

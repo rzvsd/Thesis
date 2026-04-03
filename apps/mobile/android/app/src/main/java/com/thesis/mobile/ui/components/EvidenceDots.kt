@@ -12,9 +12,6 @@ import androidx.compose.ui.draw.clip
 import com.thesis.mobile.ui.theme.ThesisColors
 import com.thesis.mobile.ui.theme.ThesisDimens
 
-/**
- * A visual cluster of dots representing the number of evidence items attached to a section.
- */
 @Composable
 fun EvidenceDots(
     count: Int,
@@ -26,13 +23,12 @@ fun EvidenceDots(
         modifier = modifier,
         horizontalArrangement = Arrangement.spacedBy(ThesisDimens.EvidenceDotSpacing)
     ) {
-        val displayCount = count.coerceAtMost(5) // Cap visually at 5 dots
+        val displayCount = count.coerceAtMost(5)
         repeat(displayCount) { i ->
             val color = if (i == 4 && count > 5) {
-                // Last dot if there are more
-                ThesisColors.AccentBlue
+                ThesisColors.Primary
             } else {
-                ThesisColors.TextTertiaryDark.copy(alpha = 0.6f)
+                ThesisColors.TextMuted.copy(alpha = 0.5f)
             }
 
             Box(

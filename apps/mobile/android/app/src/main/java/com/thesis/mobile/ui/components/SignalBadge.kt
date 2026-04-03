@@ -12,9 +12,6 @@ import com.thesis.mobile.ui.theme.ThesisColors
 import com.thesis.mobile.ui.theme.ThesisDimens
 import com.thesis.mobile.ui.theme.ThesisTypography
 
-/**
- * Strongly typed badge for showing Dexter's signal output.
- */
 @Composable
 fun SignalBadge(
     signalValue: String?,
@@ -24,23 +21,23 @@ fun SignalBadge(
 
     val (bgColor, textColor, displayText) = when (uppercaseSignal) {
         "POSITIVE" -> Triple(
-            ThesisColors.SignalPositive.copy(alpha = 0.15f),
+            ThesisColors.SignalPositive.copy(alpha = 0.12f),
             ThesisColors.SignalPositive,
             "POSITIVE"
         )
         "NEGATIVE" -> Triple(
-            ThesisColors.SignalNegative.copy(alpha = 0.15f),
+            ThesisColors.SignalNegative.copy(alpha = 0.12f),
             ThesisColors.SignalNegative,
             "NEGATIVE"
         )
         "NEUTRAL" -> Triple(
-            ThesisColors.SignalNeutral.copy(alpha = 0.15f),
-            ThesisColors.TextPrimaryDark,
+            ThesisColors.SignalNeutral.copy(alpha = 0.12f),
+            ThesisColors.TextSecondary,
             "NEUTRAL"
         )
         else -> Triple(
-            ThesisColors.DarkBorder,
-            ThesisColors.TextSecondaryDark,
+            ThesisColors.Border,
+            ThesisColors.TextMuted,
             "NO SIGNAL"
         )
     }
@@ -48,7 +45,7 @@ fun SignalBadge(
     Text(
         text = displayText,
         color = textColor,
-        style = ThesisTypography.labelMedium.copy(fontWeight = FontWeight.Bold),
+        style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Medium),
         modifier = modifier
             .clip(RoundedCornerShape(ThesisDimens.SignalBadgeCorner))
             .background(bgColor)

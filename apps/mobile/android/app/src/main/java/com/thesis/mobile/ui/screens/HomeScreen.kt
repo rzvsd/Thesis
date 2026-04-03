@@ -9,38 +9,44 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Insights
 import androidx.compose.material.icons.filled.TrendingUp
+import androidx.compose.material.pullrefresh.PullRefreshIndicator
+import androidx.compose.material.pullrefresh.pullRefresh
+import androidx.compose.material.pullrefresh.rememberPullRefreshState
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.thesis.mobile.model.LastViewedReport
 import com.thesis.mobile.model.PulseReportView
 import com.thesis.mobile.model.SectionView
@@ -49,16 +55,20 @@ import com.thesis.mobile.ui.components.NoNamesEmptyState
 import com.thesis.mobile.ui.components.NoPulseEmptyState
 import com.thesis.mobile.ui.components.OfflineEmptyState
 import com.thesis.mobile.ui.components.PulseUnavailableState
+import com.thesis.mobile.ui.theme.HeadingFont
 import com.thesis.mobile.ui.theme.ThesisColors
 import com.thesis.mobile.ui.theme.ThesisDimens
 import com.thesis.mobile.ui.theme.ThesisTypography
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.time.Instant
-import java.time.LocalTime
 import java.time.LocalDate
+import java.time.LocalTime
 import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 
+@OptIn(ExperimentalMaterialApi::class)
 @Composable
 fun HomeScreen(
     pulse: PulseReportView?,
@@ -93,164 +103,170 @@ fun HomeScreen(
     val lastViewedTicker = lastViewedReport?.takeIf { it.type == "DEEP_DIVE" }?.label
     val insight = deriveInsight(pulse, watchlist, lastViewedTicker)
 
-    LazyColumn(
-        modifier = Modifier
-            .padding(padding)
-            .padding(horizontal = ThesisDimens.ScreenPaddingHorizontal),
-        verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingXxl),
-        contentPadding = PaddingValues(bottom = ThesisDimens.ScreenPaddingBottom)
-    ) {
-        item {
-            Spacer(modifier = Modifier.height(ThesisDimens.ScreenPaddingTop))
-            GreetingSection(
-                dateLabel = dateLabel,
-                phaseTitle = phase.title,
-                pulseLead = pulseLead,
-                pulseTimestamp = pulseTimestamp,
-                pulseLoadedFromCache = pulseLoadedFromCache,
-                pulseFreshnessText = pulseFreshnessText
-            )
-        }
-
-        item {
-            SentimentSummaryCard(
-                current = sentimentCurrent,
-                history = sentimentHistory,
-                sentimentError = sentimentError,
-                onOpenDashboard = onOpenSentimentDashboard,
-                onOpenWeeklyDigest = onOpenWeeklyDigest
-            )
-        }
-
-        if (lastViewedReport != null && onResumeLastViewed != null && onDismissResume != null) {
-            item {
-                ResumeCard(
-                    title = resumeTitle(lastViewedReport),
-                    onResume = { onResumeLastViewed(lastViewedReport) },
-                    onDismiss = onDismissResume
-                )
+    var isRefreshing by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    val pullRefreshState = rememberPullRefreshState(
+        refreshing = isRefreshing,
+        onRefresh = {
+            isRefreshing = true
+            onRetryPulse()
+            scope.launch {
+                delay(1800L)
+                isRefreshing = false
             }
         }
+    )
 
-        when {
-            pulse == null && !pulseError.isNullOrBlank() -> {
-                item {
-                    if (pulseError.contains("No internet connection", ignoreCase = true)) {
-                        OfflineEmptyState(onRetry = onRetryPulse)
-                    } else {
-                        PulseUnavailableState(
-                            message = pulseError,
-                            onRetry = onRetryPulse
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(padding)
+            .pullRefresh(pullRefreshState)
+    ) {
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = ThesisDimens.ScreenPaddingHorizontal),
+            verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSection),
+            contentPadding = PaddingValues(bottom = ThesisDimens.ScreenPaddingBottom)
+        ) {
+            item {
+                Spacer(modifier = Modifier.height(ThesisDimens.ScreenPaddingTop))
+                Column {
+                    Text(
+                        text = dateLabel.uppercase(),
+                        style = ThesisTypography.labelSmall,
+                        color = ThesisColors.TextMuted
+                    )
+                    Spacer(modifier = Modifier.height(ThesisDimens.SpacingSm))
+                    Text(
+                        text = phase.title,
+                        style = ThesisTypography.displayLarge.copy(
+                            fontFamily = HeadingFont,
+                            fontWeight = FontWeight.Normal
+                        ),
+                        color = ThesisColors.TextPrimary
+                    )
+                    Spacer(modifier = Modifier.height(ThesisDimens.SpacingMd))
+                    Text(
+                        text = pulseLead,
+                        style = ThesisTypography.bodyLarge,
+                        color = ThesisColors.TextSecondary
+                    )
+                    if (!pulseTimestamp.isNullOrBlank()) {
+                        Spacer(modifier = Modifier.height(ThesisDimens.SpacingSm))
+                        Text(
+                            text = "Updated $pulseTimestamp",
+                            style = ThesisTypography.labelSmall,
+                            color = ThesisColors.TextMuted
+                        )
+                    }
+                    if (!pulseFreshnessText.isNullOrBlank()) {
+                        Spacer(modifier = Modifier.height(ThesisDimens.SpacingXs))
+                        Text(
+                            text = pulseFreshnessText,
+                            style = ThesisTypography.labelSmall,
+                            color = if (pulseLoadedFromCache) ThesisColors.SignalWarning else ThesisColors.TextMuted
                         )
                     }
                 }
             }
 
-            pulse == null && watchlist.isEmpty() -> {
-                item {
-                    NoNamesEmptyState(onAddName = onManageNames)
-                }
-            }
-
-            pulse == null -> {
-                val fallbackTicker = lastViewedTicker ?: watchlist.firstOrNull()
-                item {
-                    NoPulseEmptyState(
-                        onRunDeepDive = {
-                            if (!fallbackTicker.isNullOrBlank()) {
-                                onRunDeepDive(fallbackTicker)
-                            }
-                        }
-                    )
-                }
-            }
-
-            else -> {
-                item {
-                    WhatMovedSection(
-                        subtitle = todayPlan.subtitle,
-                        sections = todayPlan.prioritySections.take(4)
-                    )
-                }
-            }
-        }
-
-        item {
-            YourNamesSection(
-                watchlist = watchlist,
-                pulse = pulse,
-                onManageNames = onManageNames,
-                onRunDeepDive = onRunDeepDive
-            )
-        }
-
-        if (insight != null) {
             item {
-                InsightAlertSection(
-                    insight = insight,
+                SentimentSummaryCard(
+                    current = sentimentCurrent,
+                    history = sentimentHistory,
+                    sentimentError = sentimentError,
+                    onOpenDashboard = onOpenSentimentDashboard,
+                    onOpenWeeklyDigest = onOpenWeeklyDigest
+                )
+            }
+
+            if (lastViewedReport != null && onResumeLastViewed != null && onDismissResume != null) {
+                item {
+                    ResumeCard(
+                        title = resumeTitle(lastViewedReport),
+                        onResume = { onResumeLastViewed(lastViewedReport) },
+                        onDismiss = onDismissResume
+                    )
+                }
+            }
+
+            when {
+                pulse == null && !pulseError.isNullOrBlank() -> {
+                    item {
+                        if (pulseError.contains("No internet connection", ignoreCase = true)) {
+                            OfflineEmptyState(onRetry = onRetryPulse)
+                        } else {
+                            PulseUnavailableState(message = pulseError, onRetry = onRetryPulse)
+                        }
+                    }
+                }
+
+                pulse == null && watchlist.isEmpty() -> {
+                    item { NoNamesEmptyState(onAddName = onManageNames) }
+                }
+
+                pulse == null -> {
+                    val fallbackTicker = lastViewedTicker ?: watchlist.firstOrNull()
+                    item {
+                        NoPulseEmptyState(
+                            onRunDeepDive = {
+                                if (!fallbackTicker.isNullOrBlank()) {
+                                    onRunDeepDive(fallbackTicker)
+                                }
+                            }
+                        )
+                    }
+                }
+
+                else -> {
+                    item {
+                        WhatMovedSection(
+                            subtitle = todayPlan.subtitle,
+                            sections = todayPlan.prioritySections.take(4)
+                        )
+                    }
+                }
+            }
+
+            item {
+                YourNamesSection(
+                    watchlist = watchlist,
+                    pulse = pulse,
+                    onManageNames = onManageNames,
                     onRunDeepDive = onRunDeepDive
+                )
+            }
+
+            if (insight != null) {
+                item {
+                    InsightAlertSection(insight = insight, onRunDeepDive = onRunDeepDive)
+                }
+            }
+
+            if (showFullPulse && pulse != null) {
+                item {
+                    FullPulseSection(sections = pulseSections)
+                }
+            }
+
+            item {
+                BottomLinksSection(
+                    showFullPulse = showFullPulse,
+                    onToggleFullPulse = { showFullPulse = !showFullPulse },
+                    onOpenHistory = onOpenHistory
                 )
             }
         }
 
-        if (showFullPulse && pulse != null) {
-            item {
-                FullPulseSection(sections = pulseSections)
-            }
-        }
-
-        item {
-            BottomLinksSection(
-                showFullPulse = showFullPulse,
-                onToggleFullPulse = { showFullPulse = !showFullPulse },
-                onOpenHistory = onOpenHistory
-            )
-        }
-    }
-}
-
-@Composable
-private fun GreetingSection(
-    dateLabel: String,
-    phaseTitle: String,
-    pulseLead: String,
-    pulseTimestamp: String?,
-    pulseLoadedFromCache: Boolean,
-    pulseFreshnessText: String?
-) {
-    Column {
-        Text(
-            text = dateLabel.uppercase(),
-            style = ThesisTypography.labelSmall.copy(letterSpacing = 2.sp),
-            color = ThesisColors.TextSecondaryDark
+        PullRefreshIndicator(
+            refreshing = isRefreshing,
+            state = pullRefreshState,
+            modifier = Modifier.align(Alignment.TopCenter),
+            backgroundColor = ThesisColors.Surface,
+            contentColor = ThesisColors.Primary
         )
-        Text(
-            text = phaseTitle,
-            style = ThesisTypography.displayLarge,
-            color = ThesisColors.TextPrimaryDark,
-            modifier = Modifier.padding(top = ThesisDimens.SpacingXs, bottom = ThesisDimens.SpacingLg)
-        )
-        Text(
-            text = pulseLead,
-            style = ThesisTypography.bodyLarge,
-            color = ThesisColors.TextSecondaryDark
-        )
-        if (!pulseTimestamp.isNullOrBlank()) {
-            Text(
-                text = "Updated $pulseTimestamp",
-                style = ThesisTypography.labelMedium,
-                color = ThesisColors.TextTertiaryDark,
-                modifier = Modifier.padding(top = ThesisDimens.SpacingSm)
-            )
-        }
-        if (!pulseFreshnessText.isNullOrBlank()) {
-            Text(
-                text = pulseFreshnessText,
-                style = ThesisTypography.labelMedium,
-                color = if (pulseLoadedFromCache) ThesisColors.SignalWarning else ThesisColors.TextSecondaryDark,
-                modifier = Modifier.padding(top = ThesisDimens.SpacingXs)
-            )
-        }
     }
 }
 
@@ -266,88 +282,108 @@ private fun SentimentSummaryCard(
     val direction = deriveSentimentDirection(current, history)
     val scoreText = current?.score?.let { it.toInt().toString() } ?: "--"
     val marketDate = current?.marketDate
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
-        colors = CardDefaults.cardColors(containerColor = ThesisColors.DarkSurfaceHigh),
-        border = androidx.compose.foundation.BorderStroke(1.dp, ThesisColors.DarkBorder)
+
+    val shape = RoundedCornerShape(ThesisDimens.CardCornerRadius)
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(ThesisColors.Surface)
+            .border(ThesisDimens.BorderWidth, ThesisColors.Border, shape)
+            .padding(ThesisDimens.CardPadding),
+        verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingMd)
     ) {
-        Column(
-            modifier = Modifier.padding(ThesisDimens.CardPadding),
-            verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingMd)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.Top
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Fear & Greed",
+                    style = ThesisTypography.headlineLarge.copy(
+                        fontFamily = HeadingFont,
+                        fontWeight = FontWeight.Normal
+                    ),
+                    color = ThesisColors.TextPrimary
+                )
+                Spacer(modifier = Modifier.height(ThesisDimens.SpacingXs))
+                Text(
+                    text = when {
+                        !sentimentError.isNullOrBlank() -> "Temporarily unavailable"
+                        marketDate.isNullOrBlank() -> "No snapshot yet"
+                        else -> marketDate
+                    },
+                    style = ThesisTypography.labelSmall,
+                    color = ThesisColors.TextMuted
+                )
+            }
+            Column(horizontalAlignment = Alignment.End) {
+                Text(
+                    text = scoreText,
+                    style = ThesisTypography.displayMedium.copy(
+                        fontFamily = HeadingFont,
+                        fontWeight = FontWeight.Normal
+                    ),
+                    color = ThesisColors.TextPrimary
+                )
+                Text(
+                    text = sentimentLabel,
+                    style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Medium),
+                    color = sentimentColor(current?.label)
+                )
+            }
+        }
+
+        if (!direction.isNullOrBlank()) {
+            Text(
+                text = direction,
+                style = ThesisTypography.bodySmall,
+                color = ThesisColors.TextMuted
+            )
+        }
+        if (!sentimentError.isNullOrBlank()) {
+            Text(
+                text = sentimentError,
+                style = ThesisTypography.bodySmall,
+                color = ThesisColors.SignalWarning
+            )
+        }
+
+        HorizontalDivider(color = ThesisColors.Border, thickness = ThesisDimens.BorderWidth)
+
+        Row(horizontalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)) {
+            Button(
+                onClick = onOpenDashboard,
+                modifier = Modifier
+                    .weight(1f)
+                    .height(48.dp),
+                shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = ThesisColors.Primary,
+                    contentColor = ThesisColors.TextInverse
+                )
             ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = "Fear & Greed",
-                        style = ThesisTypography.headlineMedium.copy(fontWeight = FontWeight.Bold),
-                        color = ThesisColors.TextPrimaryDark
-                    )
-                    Text(
-                        text = when {
-                            !sentimentError.isNullOrBlank() -> "Temporarily unavailable"
-                            marketDate.isNullOrBlank() -> "No sentiment snapshot yet"
-                            else -> "Market date $marketDate"
-                        },
-                        style = ThesisTypography.bodySmall,
-                        color = ThesisColors.TextTertiaryDark
-                    )
-                }
-                Column(horizontalAlignment = Alignment.End) {
-                    Text(
-                        text = scoreText,
-                        style = ThesisTypography.displayMedium,
-                        color = ThesisColors.TextPrimaryDark
-                    )
-                    Text(
-                        text = sentimentLabel,
-                        style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                        color = sentimentColor(current?.label)
-                    )
-                }
-            }
-
-            if (!direction.isNullOrBlank()) {
                 Text(
-                    text = direction,
-                    style = ThesisTypography.bodySmall,
-                    color = ThesisColors.TextSecondaryDark
+                    text = "Dashboard",
+                    style = ThesisTypography.labelLarge.copy(fontWeight = FontWeight.Medium)
                 )
             }
-
-            if (!sentimentError.isNullOrBlank()) {
-                Text(
-                    text = sentimentError,
-                    style = ThesisTypography.bodySmall,
-                    color = ThesisColors.SignalWarning
+            Button(
+                onClick = onOpenWeeklyDigest,
+                modifier = Modifier
+                    .weight(1f)
+                    .height(48.dp),
+                shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = ThesisColors.SurfaceElevated,
+                    contentColor = ThesisColors.TextPrimary
                 )
-            }
-
-            Row(horizontalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)) {
-                Button(
-                    onClick = onOpenDashboard,
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = ThesisColors.AccentBlue,
-                        contentColor = Color.White
-                    )
-                ) {
-                    Text("Open Dashboard")
-                }
-                Button(
-                    onClick = onOpenWeeklyDigest,
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = ThesisColors.DarkSurface,
-                        contentColor = ThesisColors.TextPrimaryDark
-                    )
-                ) {
-                    Text("Weekly Digest")
-                }
+            ) {
+                Text(
+                    text = "Weekly Digest",
+                    style = ThesisTypography.labelLarge.copy(fontWeight = FontWeight.Medium)
+                )
             }
         }
     }
@@ -359,20 +395,17 @@ private fun WhatMovedSection(
     sections: List<SectionView>
 ) {
     Column {
-        SectionHeader(
-            title = "What Moved",
-            subtitle = subtitle
-        )
+        SectionHeader(title = "What Moved", subtitle = subtitle)
+        Spacer(modifier = Modifier.height(ThesisDimens.SpacingLg))
         if (sections.isEmpty()) {
             PulseInfoCard(
-                title = "Waiting on today’s pulse",
-                body = "The daily cycle has not produced section output yet.",
+                title = "Waiting on today's pulse",
+                body = "The daily cycle has not produced output yet.",
                 status = null
             )
             return
         }
-
-        Column(verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingLg)) {
+        Column(verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)) {
             sections.forEach { section ->
                 PulseInfoCard(
                     title = section.title,
@@ -395,25 +428,27 @@ private fun YourNamesSection(
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.Bottom
         ) {
-            Column {
-                Text(
-                    text = "My Names",
-                    style = ThesisTypography.headlineLarge,
-                    color = ThesisColors.TextPrimaryDark
-                )
-                Text(
-                    text = "Your watchlist, framed around today’s pulse.",
-                    style = ThesisTypography.bodySmall,
-                    color = ThesisColors.TextTertiaryDark
-                )
-            }
+            Text(
+                text = "My Names",
+                style = ThesisTypography.headlineLarge.copy(
+                    fontFamily = HeadingFont,
+                    fontWeight = FontWeight.Normal
+                ),
+                color = ThesisColors.TextPrimary
+            )
             Text(
                 text = "MANAGE",
-                style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Bold, letterSpacing = 1.sp),
-                color = ThesisColors.AccentBlueLight,
-                modifier = Modifier.clickable { onManageNames() }
+                style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Medium),
+                color = ThesisColors.Primary,
+                modifier = Modifier
+                    .clickable { onManageNames() }
+                    .padding(ThesisDimens.SpacingMd)
+                    .semantics {
+                        contentDescription = "Manage watchlist names"
+                        role = Role.Button
+                    }
             )
         }
 
@@ -422,46 +457,55 @@ private fun YourNamesSection(
             return
         }
 
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
-            colors = CardDefaults.cardColors(containerColor = ThesisColors.DarkSurfaceHigh),
-            border = androidx.compose.foundation.BorderStroke(1.dp, ThesisColors.DarkBorder)
+        val shape = RoundedCornerShape(ThesisDimens.CardCornerRadius)
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(shape)
+                .background(ThesisColors.Surface)
+                .border(ThesisDimens.BorderWidth, ThesisColors.Border, shape)
         ) {
-            Column(
-                modifier = Modifier.padding(ThesisDimens.CardPadding),
-                verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingLg)
-            ) {
-                watchlist.take(5).forEach { ticker ->
-                    val context = describeWatchlistContext(ticker, pulse)
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onRunDeepDive(ticker) },
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = ticker,
-                                style = ThesisTypography.headlineMedium.copy(fontWeight = FontWeight.Bold),
-                                color = ThesisColors.TextPrimaryDark
-                            )
-                            Text(
-                                text = context,
-                                style = ThesisTypography.bodySmall,
-                                color = ThesisColors.TextSecondaryDark,
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                        Spacer(modifier = Modifier.size(ThesisDimens.SpacingMd))
+            watchlist.take(5).forEachIndexed { index, ticker ->
+                val context = describeWatchlistContext(ticker, pulse)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onRunDeepDive(ticker) }
+                        .padding(
+                            horizontal = ThesisDimens.CardPadding,
+                            vertical = ThesisDimens.SpacingLg
+                        )
+                        .semantics { contentDescription = "Open $ticker deep dive" },
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "OPEN",
-                            style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                            color = ThesisColors.AccentBlue
+                            text = ticker,
+                            style = ThesisTypography.headlineMedium.copy(fontWeight = FontWeight.Medium),
+                            color = ThesisColors.TextPrimary
+                        )
+                        Text(
+                            text = context,
+                            style = ThesisTypography.bodySmall,
+                            color = ThesisColors.TextMuted,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
+                    Spacer(modifier = Modifier.size(ThesisDimens.SpacingMd))
+                    Text(
+                        text = "OPEN",
+                        style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Medium),
+                        color = ThesisColors.Primary
+                    )
+                }
+                if (index < watchlist.take(5).lastIndex) {
+                    HorizontalDivider(
+                        color = ThesisColors.Border,
+                        thickness = ThesisDimens.BorderWidth,
+                        modifier = Modifier.padding(horizontal = ThesisDimens.CardPadding)
+                    )
                 }
             }
         }
@@ -473,118 +517,76 @@ private fun InsightAlertSection(
     insight: InsightCardModel,
     onRunDeepDive: (String) -> Unit
 ) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
-        border = androidx.compose.foundation.BorderStroke(1.dp, ThesisColors.AccentBlue.copy(alpha = 0.2f))
+    val shape = RoundedCornerShape(ThesisDimens.CardCornerRadius)
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(ThesisColors.Surface)
+            .border(ThesisDimens.BorderWidth, ThesisColors.Primary.copy(alpha = 0.3f), shape)
+            .padding(ThesisDimens.CardPadding),
+        verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingMd)
     ) {
-        Box(
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = Icons.Default.Insights,
+                contentDescription = null,
+                tint = ThesisColors.Primary,
+                modifier = Modifier.size(16.dp)
+            )
+            Spacer(modifier = Modifier.size(ThesisDimens.SpacingSm))
+            Text(
+                text = "DESERVES A DEEPER LOOK",
+                style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Medium),
+                color = ThesisColors.Primary
+            )
+        }
+        Text(
+            text = insight.title,
+            style = ThesisTypography.headlineLarge.copy(
+                fontFamily = HeadingFont,
+                fontWeight = FontWeight.Normal
+            ),
+            color = ThesisColors.TextPrimary
+        )
+        Text(
+            text = insight.body,
+            style = ThesisTypography.bodyMedium,
+            color = ThesisColors.TextMuted
+        )
+        Button(
+            onClick = { onRunDeepDive(insight.ticker) },
             modifier = Modifier
                 .fillMaxWidth()
-                .background(
-                    Brush.linearGradient(
-                        colors = listOf(ThesisColors.DarkSurfaceHigh, ThesisColors.DarkSurface)
-                    )
-                )
+                .height(48.dp),
+            shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = ThesisColors.Primary,
+                contentColor = ThesisColors.TextInverse
+            )
         ) {
-            Column(modifier = Modifier.padding(ThesisDimens.SpacingXxl)) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(percent = 50))
-                        .background(ThesisColors.AccentBlue.copy(alpha = 0.1f))
-                        .padding(horizontal = ThesisDimens.SpacingMd, vertical = ThesisDimens.SpacingXs)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Insights,
-                        contentDescription = null,
-                        tint = ThesisColors.AccentBlue,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.size(ThesisDimens.SpacingXs))
-                    Text(
-                        text = "DESERVES A DEEPER LOOK",
-                        style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Black, letterSpacing = 1.5.sp),
-                        color = ThesisColors.AccentBlue
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(ThesisDimens.SpacingLg))
-
-                Text(
-                    text = insight.title,
-                    style = ThesisTypography.displayMedium,
-                    color = ThesisColors.TextPrimaryDark
-                )
-
-                Spacer(modifier = Modifier.height(ThesisDimens.SpacingSm))
-
-                Text(
-                    text = insight.body,
-                    style = ThesisTypography.bodyMedium,
-                    color = ThesisColors.TextSecondaryDark
-                )
-
-                Spacer(modifier = Modifier.height(ThesisDimens.SpacingXxl))
-
-                Button(
-                    onClick = { onRunDeepDive(insight.ticker) },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(56.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = ThesisColors.AccentBlue,
-                        contentColor = Color.White
-                    )
-                ) {
-                    Text(
-                        text = "Run ${insight.ticker} Deep Dive",
-                        style = ThesisTypography.labelLarge.copy(fontWeight = FontWeight.Bold)
-                    )
-                }
-            }
+            Text(
+                text = "Run ${insight.ticker} Deep Dive",
+                style = ThesisTypography.labelLarge.copy(fontWeight = FontWeight.Medium)
+            )
         }
     }
 }
 
 @Composable
 private fun FullPulseSection(sections: List<SectionView>) {
-    Column(verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingLg)) {
+    Column(verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)) {
         SectionHeader(
             title = "Full Pulse",
             subtitle = "Every section from the current daily briefing."
         )
+        Spacer(modifier = Modifier.height(ThesisDimens.SpacingMd))
         sections.forEach { section ->
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
-                colors = CardDefaults.cardColors(containerColor = ThesisColors.DarkSurface),
-                border = androidx.compose.foundation.BorderStroke(1.dp, ThesisColors.DarkBorder)
-            ) {
-                Column(
-                    modifier = Modifier.padding(ThesisDimens.CardPadding),
-                    verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = section.title,
-                            style = ThesisTypography.headlineMedium.copy(fontWeight = FontWeight.Bold),
-                            color = ThesisColors.TextPrimaryDark
-                        )
-                        StatusPill(status = section.status)
-                    }
-                    Text(
-                        text = section.body.ifBlank { "No section text returned." },
-                        style = ThesisTypography.bodyMedium,
-                        color = ThesisColors.TextSecondaryDark
-                    )
-                }
-            }
+            PulseInfoCard(
+                title = section.title,
+                body = section.body.ifBlank { "No section text returned." },
+                status = section.status
+            )
         }
     }
 }
@@ -602,39 +604,54 @@ private fun BottomLinksSection(
     ) {
         Text(
             text = if (showFullPulse) "HIDE FULL PULSE" else "FULL PULSE",
-            style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Black, letterSpacing = 1.5.sp),
-            color = ThesisColors.AccentBlueLight,
-            modifier = Modifier.clickable { onToggleFullPulse() }
-        )
-        Spacer(modifier = Modifier.size(ThesisDimens.SpacingXxl))
-        Box(
+            style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Medium),
+            color = ThesisColors.Primary,
             modifier = Modifier
-                .size(4.dp)
-                .clip(CircleShape)
-                .background(ThesisColors.DarkBorder)
+                .clickable { onToggleFullPulse() }
+                .padding(ThesisDimens.SpacingMd)
+                .semantics {
+                    contentDescription = if (showFullPulse) "Hide full pulse" else "Show full pulse"
+                    role = Role.Button
+                }
         )
-        Spacer(modifier = Modifier.size(ThesisDimens.SpacingXxl))
+        Spacer(modifier = Modifier.size(ThesisDimens.SpacingLg))
+        Text(
+            text = "/",
+            style = ThesisTypography.labelSmall,
+            color = ThesisColors.Border
+        )
+        Spacer(modifier = Modifier.size(ThesisDimens.SpacingLg))
         Text(
             text = "HISTORY",
-            style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Black, letterSpacing = 1.5.sp),
-            color = ThesisColors.AccentBlueLight,
-            modifier = Modifier.clickable { onOpenHistory() }
+            style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Medium),
+            color = ThesisColors.Primary,
+            modifier = Modifier
+                .clickable { onOpenHistory() }
+                .padding(ThesisDimens.SpacingMd)
+                .semantics {
+                    contentDescription = "Open report history"
+                    role = Role.Button
+                }
         )
     }
 }
 
 @Composable
 private fun SectionHeader(title: String, subtitle: String) {
-    Column(verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingXs)) {
+    Column {
         Text(
             text = title,
-            style = ThesisTypography.headlineLarge,
-            color = ThesisColors.TextPrimaryDark
+            style = ThesisTypography.headlineLarge.copy(
+                fontFamily = HeadingFont,
+                fontWeight = FontWeight.Normal
+            ),
+            color = ThesisColors.TextPrimary
         )
+        Spacer(modifier = Modifier.height(ThesisDimens.SpacingXs))
         Text(
             text = subtitle,
             style = ThesisTypography.bodySmall,
-            color = ThesisColors.TextTertiaryDark
+            color = ThesisColors.TextMuted
         )
     }
 }
@@ -645,131 +662,97 @@ private fun PulseInfoCard(
     body: String,
     status: String?
 ) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
-        colors = CardDefaults.cardColors(containerColor = ThesisColors.DarkSurface),
-        border = androidx.compose.foundation.BorderStroke(1.dp, ThesisColors.DarkBorder)
+    val shape = RoundedCornerShape(ThesisDimens.CardCornerRadius)
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(ThesisColors.Surface)
+            .border(ThesisDimens.BorderWidth, ThesisColors.Border, shape)
+            .padding(ThesisDimens.CardPadding),
+        verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)
     ) {
-        Column(
-            modifier = Modifier.padding(ThesisDimens.CardPadding),
-            verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = title,
-                    style = ThesisTypography.headlineMedium.copy(fontWeight = FontWeight.Bold),
-                    color = ThesisColors.TextPrimaryDark,
-                    modifier = Modifier.weight(1f)
-                )
-                Spacer(modifier = Modifier.size(ThesisDimens.SpacingSm))
-                StatusPill(status = status)
-            }
             Text(
-                text = body,
-                style = ThesisTypography.bodyMedium,
-                color = ThesisColors.TextSecondaryDark
+                text = title,
+                style = ThesisTypography.headlineMedium.copy(fontWeight = FontWeight.Medium),
+                color = ThesisColors.TextPrimary,
+                modifier = Modifier.weight(1f)
             )
+            Spacer(modifier = Modifier.size(ThesisDimens.SpacingSm))
+            StatusPill(status = status)
         }
+        Text(
+            text = body,
+            style = ThesisTypography.bodyMedium,
+            color = ThesisColors.TextSecondary
+        )
     }
 }
 
 @Composable
 private fun StatusPill(status: String?) {
     val (background, textColor, label) = when (status?.lowercase()) {
-        "complete" -> Triple(
-            ThesisColors.SignalPositive.copy(alpha = 0.15f),
-            ThesisColors.SignalPositive,
-            "COMPLETE"
-        )
-        "data_incomplete" -> Triple(
-            ThesisColors.SignalWarning.copy(alpha = 0.15f),
-            ThesisColors.SignalWarning,
-            "PARTIAL"
-        )
-        "data_unavailable", "failed" -> Triple(
-            ThesisColors.SignalNegative.copy(alpha = 0.15f),
-            ThesisColors.SignalNegative,
-            "UNAVAILABLE"
-        )
-        else -> Triple(
-            ThesisColors.DarkBorder,
-            ThesisColors.TextSecondaryDark,
-            status?.uppercase() ?: "LIVE"
-        )
+        "complete" -> Triple(ThesisColors.SignalPositive.copy(alpha = 0.1f), ThesisColors.SignalPositive, "COMPLETE")
+        "data_incomplete" -> Triple(ThesisColors.SignalWarning.copy(alpha = 0.1f), ThesisColors.SignalWarning, "PARTIAL")
+        "data_unavailable", "failed" -> Triple(ThesisColors.SignalNegative.copy(alpha = 0.1f), ThesisColors.SignalNegative, "UNAVAILABLE")
+        else -> Triple(ThesisColors.SurfaceElevated, ThesisColors.TextMuted, status?.uppercase() ?: "LIVE")
     }
-
     Text(
         text = label,
-        style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Bold, letterSpacing = 1.sp),
+        style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Medium),
         color = textColor,
         modifier = Modifier
-            .clip(RoundedCornerShape(percent = 50))
+            .clip(RoundedCornerShape(ThesisDimens.SignalBadgeCorner))
             .background(background)
-            .padding(horizontal = ThesisDimens.SpacingMd, vertical = ThesisDimens.SpacingXs)
+            .padding(horizontal = ThesisDimens.SpacingSm, vertical = ThesisDimens.SpacingXs)
     )
 }
 
 @Composable
-private fun ResumeCard(
-    title: String,
-    onResume: () -> Unit,
-    onDismiss: () -> Unit
-) {
-    Card(
+private fun ResumeCard(title: String, onResume: () -> Unit, onDismiss: () -> Unit) {
+    val shape = RoundedCornerShape(ThesisDimens.CardCornerRadius)
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onResume() },
-        shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
-        colors = CardDefaults.cardColors(containerColor = ThesisColors.DarkCardAlt),
-        border = androidx.compose.foundation.BorderStroke(1.dp, ThesisColors.AccentBlue.copy(alpha = 0.35f))
+            .clickable { onResume() }
+            .clip(shape)
+            .background(ThesisColors.Surface)
+            .border(ThesisDimens.BorderWidth, ThesisColors.Primary.copy(alpha = 0.2f), shape)
+            .padding(horizontal = ThesisDimens.CardPadding, vertical = ThesisDimens.SpacingLg),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = ThesisDimens.SpacingLg, vertical = ThesisDimens.SpacingMd),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(36.dp)
-                    .clip(CircleShape)
-                    .background(ThesisColors.AccentBlue.copy(alpha = 0.15f)),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Default.History,
-                    contentDescription = null,
-                    tint = ThesisColors.AccentBlue,
-                    modifier = Modifier.size(18.dp)
-                )
-            }
-            Spacer(modifier = Modifier.size(ThesisDimens.SpacingMd))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "Pick up where you left off",
-                    style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Medium),
-                    color = ThesisColors.TextMuted
-                )
-                Text(
-                    text = title,
-                    style = ThesisTypography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                    color = ThesisColors.TextPrimary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
+        Icon(
+            imageVector = Icons.Default.History,
+            contentDescription = null,
+            tint = ThesisColors.Primary,
+            modifier = Modifier.size(18.dp)
+        )
+        Spacer(modifier = Modifier.size(ThesisDimens.SpacingMd))
+        Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = "DISMISS",
-                style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                color = ThesisColors.AccentBlue,
-                modifier = Modifier.clickable { onDismiss() }
+                text = "Pick up where you left off",
+                style = ThesisTypography.labelSmall,
+                color = ThesisColors.TextMuted
+            )
+            Text(
+                text = title,
+                style = ThesisTypography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                color = ThesisColors.TextPrimary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
         }
+        Text(
+            text = "DISMISS",
+            style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Medium),
+            color = ThesisColors.Primary,
+            modifier = Modifier.clickable { onDismiss() }
+        )
     }
 }
 
@@ -779,11 +762,7 @@ private fun resumeTitle(lastViewedReport: LastViewedReport): String =
         else -> "${lastViewedReport.label} Deep Dive"
     }
 
-private data class InsightCardModel(
-    val ticker: String,
-    val title: String,
-    val body: String
-)
+private data class InsightCardModel(val ticker: String, val title: String, val body: String)
 
 private enum class TodayPhase(val title: String) {
     PRE_MARKET("Pre-market"),
@@ -791,20 +770,15 @@ private enum class TodayPhase(val title: String) {
     AFTER_HOURS("After hours")
 }
 
-private data class TodayPlan(
-    val subtitle: String,
-    val prioritySections: List<SectionView>
-)
+private data class TodayPlan(val subtitle: String, val prioritySections: List<SectionView>)
 
 private fun derivePulseLead(pulse: PulseReportView?, phase: TodayPhase): String {
-    if (pulse == null) {
-        return when (phase) {
-            TodayPhase.PRE_MARKET -> "Build your plan before the opening bell."
-            TodayPhase.MARKET_HOURS -> "Live market context will appear here as today unfolds."
-            TodayPhase.AFTER_HOURS -> "Review what changed and prepare for tomorrow."
-        }
+    if (pulse == null) return when (phase) {
+        TodayPhase.PRE_MARKET -> "Build your plan before the opening bell."
+        TodayPhase.MARKET_HOURS -> "Live market context will appear here as today unfolds."
+        TodayPhase.AFTER_HOURS -> "Review what changed and prepare for tomorrow."
     }
-    val leadSection = pulse.sections.firstOrNull { !isWatchlistOverlay(it) } ?: return "Today’s pulse is ready."
+    val leadSection = pulse.sections.firstOrNull { !isWatchlistOverlay(it) } ?: return "Today's pulse is ready."
     return "${leadSection.title}: ${summarizeBody(leadSection.body)}"
 }
 
@@ -818,119 +792,76 @@ private fun resolveTodayPhase(now: ZonedDateTime = ZonedDateTime.now(ZoneId.of("
 }
 
 private fun buildTodayPlan(phase: TodayPhase, sections: List<SectionView>): TodayPlan {
-    if (sections.isEmpty()) {
-        return TodayPlan(
-            subtitle = "Waiting for the next Pulse cycle.",
-            prioritySections = emptyList()
-        )
-    }
-
+    if (sections.isEmpty()) return TodayPlan("Waiting for the next Pulse cycle.", emptyList())
     val fearGreed = sections.firstOrNull { containsAny(it, "fear", "greed", "sentiment") }
     val earnings = sections.firstOrNull { containsAny(it, "earnings", "calendar") }
     val contrarian = sections.firstOrNull { containsAny(it, "contrarian", "alert") }
     val marketMoves = sections.firstOrNull { containsAny(it, "market", "moves", "pulse") }
     val weeklyDigest = sections.firstOrNull { containsAny(it, "weekly", "digest") }
-
     val priorityOrder = when (phase) {
         TodayPhase.PRE_MARKET -> listOf(fearGreed, earnings, contrarian, marketMoves, weeklyDigest)
         TodayPhase.MARKET_HOURS -> listOf(marketMoves, fearGreed, contrarian, earnings, weeklyDigest)
         TodayPhase.AFTER_HOURS -> listOf(marketMoves, fearGreed, earnings, weeklyDigest, contrarian)
     }
-
     val prioritized = priorityOrder.filterNotNull()
     val remaining = sections.filterNot { prioritized.contains(it) }
-
     val subtitle = when (phase) {
-        TodayPhase.PRE_MARKET -> "Priority: sentiment -> tomorrow reports -> overnight risk context."
-        TodayPhase.MARKET_HOURS -> "Priority: current moves -> sentiment -> active risk context."
-        TodayPhase.AFTER_HOURS -> "Priority: closing wrap -> sentiment -> tomorrow earnings setup."
+        TodayPhase.PRE_MARKET -> "Sentiment, tomorrow reports, overnight risk."
+        TodayPhase.MARKET_HOURS -> "Current moves, sentiment, active risk."
+        TodayPhase.AFTER_HOURS -> "Closing wrap, sentiment, tomorrow setup."
     }
-
-    return TodayPlan(
-        subtitle = subtitle,
-        prioritySections = prioritized + remaining
-    )
+    return TodayPlan(subtitle, prioritized + remaining)
 }
 
 private fun containsAny(section: SectionView, vararg tokens: String): Boolean {
     val haystack = "${section.title} ${section.body}".lowercase()
-    return tokens.any { token -> haystack.contains(token.lowercase()) }
+    return tokens.any { haystack.contains(it.lowercase()) }
 }
 
-private fun formatSentimentLabel(label: String?): String =
-    when (label?.lowercase()) {
-        "extreme_fear" -> "Extreme Fear"
-        "fear" -> "Fear"
-        "neutral" -> "Neutral"
-        "greed" -> "Greed"
-        "extreme_greed" -> "Extreme Greed"
-        else -> "Unavailable"
-    }
+private fun formatSentimentLabel(label: String?): String = when (label?.lowercase()) {
+    "extreme_fear" -> "Extreme Fear"
+    "fear" -> "Fear"
+    "neutral" -> "Neutral"
+    "greed" -> "Greed"
+    "extreme_greed" -> "Extreme Greed"
+    else -> "Unavailable"
+}
 
-private fun sentimentColor(label: String?): Color =
-    when (label?.lowercase()) {
-        "extreme_fear", "fear" -> ThesisColors.SignalNegative
-        "greed", "extreme_greed" -> ThesisColors.SignalPositive
-        "neutral" -> ThesisColors.SignalNeutral
-        else -> ThesisColors.TextTertiaryDark
-    }
+private fun sentimentColor(label: String?): Color = when (label?.lowercase()) {
+    "extreme_fear", "fear" -> ThesisColors.SignalNegative
+    "greed", "extreme_greed" -> ThesisColors.SignalPositive
+    "neutral" -> ThesisColors.SignalNeutral
+    else -> ThesisColors.TextMuted
+}
 
-private fun deriveSentimentDirection(
-    current: SentimentSnapshotView?,
-    history: List<SentimentSnapshotView>
-): String? {
-    if (current == null || history.size < 2) {
-        return null
-    }
+private fun deriveSentimentDirection(current: SentimentSnapshotView?, history: List<SentimentSnapshotView>): String? {
+    if (current == null || history.size < 2) return null
     val sorted = history.sortedByDescending { it.marketDate }
     val baseline = sorted.firstOrNull { it.marketDate != current.marketDate } ?: sorted.getOrNull(1) ?: return null
     val delta = current.score - baseline.score
-    val direction = when {
-        delta > 0.5 -> "up"
-        delta < -0.5 -> "down"
-        else -> "flat"
-    }
     val deltaText = kotlin.math.abs(delta).toInt()
-    return when (direction) {
-        "up" -> "Sentiment up $deltaText point(s) versus the previous reading."
-        "down" -> "Sentiment down $deltaText point(s) versus the previous reading."
-        else -> "Sentiment is flat versus the previous reading."
+    return when {
+        delta > 0.5 -> "Sentiment up $deltaText pt vs prior."
+        delta < -0.5 -> "Sentiment down $deltaText pt vs prior."
+        else -> "Sentiment flat vs prior."
     }
 }
 
-private fun deriveInsight(
-    pulse: PulseReportView?,
-    watchlist: List<String>,
-    lastViewedTicker: String?
-): InsightCardModel? {
+private fun deriveInsight(pulse: PulseReportView?, watchlist: List<String>, lastViewedTicker: String?): InsightCardModel? {
     val candidateTicker = lastViewedTicker ?: watchlist.firstOrNull() ?: return null
     val matchingSection = pulse?.sections?.firstOrNull { sectionContainsTicker(it, candidateTicker) }
-    val title = if (matchingSection != null) {
-        "$candidateTicker showed up in ${matchingSection.title}"
-    } else {
-        "$candidateTicker is ready for a fresh look"
-    }
-    val body = matchingSection?.body?.let(::summarizeBody)
-        ?: "Run a current Deep Dive to connect today’s pulse with the latest company-specific evidence."
+    val title = if (matchingSection != null) "$candidateTicker appeared in ${matchingSection.title}" else "$candidateTicker is ready for a fresh look"
+    val body = matchingSection?.body?.let(::summarizeBody) ?: "Run a current Deep Dive to connect today's pulse with the latest evidence."
     return InsightCardModel(candidateTicker, title, body)
 }
 
 private fun describeWatchlistContext(ticker: String, pulse: PulseReportView?): String {
-    if (pulse == null) {
-        return "Saved to your watchlist and ready for a Deep Dive."
-    }
-
+    if (pulse == null) return "On your watchlist. Ready for a Deep Dive."
     val matchingSection = pulse.sections.firstOrNull { sectionContainsTicker(it, ticker) }
-    if (matchingSection != null) {
-        return "Mentioned in ${matchingSection.title.lowercase()}: ${summarizeBody(matchingSection.body)}"
-    }
-
+    if (matchingSection != null) return "In ${matchingSection.title.lowercase()}: ${summarizeBody(matchingSection.body)}"
     val overlay = pulse.sections.firstOrNull(::isWatchlistOverlay)
-    if (overlay != null && sectionContainsTicker(overlay, ticker)) {
-        return summarizeBody(overlay.body)
-    }
-
-    return "Tracked in your watchlist and ready for a company Deep Dive."
+    if (overlay != null && sectionContainsTicker(overlay, ticker)) return summarizeBody(overlay.body)
+    return "Tracked. Ready for a Deep Dive."
 }
 
 private fun sectionContainsTicker(section: SectionView, ticker: String): Boolean {
@@ -939,30 +870,24 @@ private fun sectionContainsTicker(section: SectionView, ticker: String): Boolean
         append(section.title.uppercase())
         append(' ')
         append(section.body.uppercase())
-        section.evidence.forEach { evidence ->
+        section.evidence.forEach {
             append(' ')
-            append(evidence.excerpt.uppercase())
+            append(it.excerpt.uppercase())
         }
     }
     return pattern.containsMatchIn(haystack)
 }
 
-private fun isWatchlistOverlay(section: SectionView): Boolean =
-    section.title.contains("watchlist", ignoreCase = true)
+private fun isWatchlistOverlay(section: SectionView): Boolean = section.title.contains("watchlist", ignoreCase = true)
 
 private fun summarizeBody(body: String, limit: Int = 140): String {
     val normalized = body.replace(Regex("\\s+"), " ").trim()
-    if (normalized.isBlank()) {
-        return "No section summary was returned."
-    }
+    if (normalized.isBlank()) return "No section summary was returned."
     val sentence = normalized.split(". ").firstOrNull().orEmpty().trim().trimEnd('.')
     val candidate = if (sentence.isNotBlank()) sentence else normalized
-    return if (candidate.length <= limit) candidate else candidate.take(limit - 1).trimEnd() + "…"
+    return if (candidate.length <= limit) candidate else candidate.take(limit - 1).trimEnd() + "\u2026"
 }
 
-private fun formatTimestamp(raw: String): String =
-    runCatching {
-        Instant.parse(raw)
-            .atZone(ZoneId.systemDefault())
-            .format(DateTimeFormatter.ofPattern("MMM d, HH:mm"))
-    }.getOrElse { raw }
+private fun formatTimestamp(raw: String): String = runCatching {
+    Instant.parse(raw).atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("MMM d, HH:mm"))
+}.getOrElse { raw }

@@ -6,6 +6,7 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.RectF
 import android.graphics.pdf.PdfDocument
 import androidx.core.content.FileProvider
 import com.thesis.mobile.model.DeepDiveReportView
@@ -32,29 +33,41 @@ internal fun createPdfExport(
     val page = document.startPage(PdfDocument.PageInfo.Builder(1080, 1920, 1).create())
     val canvas = page.canvas
 
-    canvas.drawColor(Color.parseColor("#0B111B"))
+    canvas.drawColor(ExportPalette.Background)
 
     val titlePaint = Paint().apply {
-        color = Color.WHITE
+        color = ExportPalette.TextPrimary
         textSize = 44f
         isFakeBoldText = true
         isAntiAlias = true
     }
     val bodyPaint = Paint().apply {
-        color = Color.parseColor("#D8DEE9")
+        color = ExportPalette.TextSecondary
         textSize = 28f
         isAntiAlias = true
     }
     val labelPaint = Paint().apply {
-        color = Color.parseColor("#8EA4BF")
+        color = ExportPalette.TextMuted
         textSize = 24f
         isFakeBoldText = true
+        isAntiAlias = true
+    }
+    val accentPaint = Paint().apply {
+        color = ExportPalette.Accent
+        isAntiAlias = true
+    }
+    val panelPaint = Paint().apply {
+        color = ExportPalette.Surface
         isAntiAlias = true
     }
 
     var y = 90f
     val left = 60f
     val maxWidth = 960f
+
+    canvas.drawRoundRect(RectF(left, y - 18f, left + 140f, y - 6f), 10f, 10f, accentPaint)
+    canvas.drawText("THESIS", left, y + 32f, labelPaint)
+    y += 64f
 
     val title = when (type) {
         ReportExportType.FULL_REPORT -> "Thesis Deep Dive Report"
@@ -63,17 +76,19 @@ internal fun createPdfExport(
     canvas.drawText(title, left, y, titlePaint)
     y += 52f
 
-    canvas.drawText("Ticker: ${report.ticker ?: "N/A"}", left, y, labelPaint)
+    canvas.drawRoundRect(RectF(left, y - 12f, left + maxWidth, y + 108f), 28f, 28f, panelPaint)
+    val metaLeft = left + 28f
+    canvas.drawText("Ticker: ${report.ticker ?: "N/A"}", metaLeft, y, labelPaint)
     y += 36f
-    canvas.drawText("Signal: ${report.signalValue?.uppercase() ?: "NO_SIGNAL"}", left, y, labelPaint)
+    canvas.drawText("Signal: ${report.signalValue?.uppercase() ?: "NO_SIGNAL"}", metaLeft, y, labelPaint)
     y += 36f
     canvas.drawText(
         "Confidence: ${report.confidenceLabel?.uppercase() ?: "UNKNOWN"} (${report.confidenceScore?.let { String.format("%.2f", it) } ?: "n/a"})",
-        left,
+        metaLeft,
         y,
         labelPaint
     )
-    y += 48f
+    y += 68f
 
     val thesis = report.thesisStatement?.takeIf { it.isNotBlank() }
         ?: report.sections.firstOrNull { it.body.isNotBlank() }?.body
@@ -110,20 +125,21 @@ internal fun createPdfExport(
 
         canvas.drawText("Reasoning", left, y, labelPaint)
         y += 34f
-        val reasons = report.signalReasons.take(4).joinToString(separator = "\n• ", prefix = "• ")
-            .ifBlank { "• Evidence-backed synthesis not available in this report." }
+        val reasons = report.signalReasons.take(4).joinToString(separator = "\n- ", prefix = "- ")
+            .ifBlank { "- Evidence-backed synthesis not available in this report." }
         y = drawWrappedText(canvas, reasons, left, y, maxWidth, bodyPaint)
     }
 
     val disclaimerPaint = Paint().apply {
-        color = Color.parseColor("#8EA4BF")
+        color = ExportPalette.TextMuted
         textSize = 20f
         isAntiAlias = true
     }
+    canvas.drawRoundRect(RectF(left, 1800f, left + maxWidth, 1888f), 24f, 24f, panelPaint)
     canvas.drawText(
         "This is a research summary, not financial advice. Always do your own research.",
-        left,
-        1860f,
+        left + 24f,
+        1852f,
         disclaimerPaint
     )
 
@@ -150,27 +166,38 @@ internal fun createPdfExport(
 internal fun createShareCard(context: Context, report: DeepDiveReportView): ExportArtifact {
     val bitmap = Bitmap.createBitmap(1080, 1080, Bitmap.Config.ARGB_8888)
     val canvas = Canvas(bitmap)
-    canvas.drawColor(Color.parseColor("#0B111B"))
+    canvas.drawColor(ExportPalette.Background)
 
     val titlePaint = Paint().apply {
-        color = Color.WHITE
+        color = ExportPalette.TextPrimary
         textSize = 56f
         isFakeBoldText = true
         isAntiAlias = true
     }
     val labelPaint = Paint().apply {
-        color = Color.parseColor("#8EA4BF")
+        color = ExportPalette.TextMuted
         textSize = 30f
         isAntiAlias = true
     }
     val bodyPaint = Paint().apply {
-        color = Color.parseColor("#D8DEE9")
+        color = ExportPalette.TextSecondary
         textSize = 36f
+        isAntiAlias = true
+    }
+    val accentPaint = Paint().apply {
+        color = ExportPalette.Accent
+        isAntiAlias = true
+    }
+    val panelPaint = Paint().apply {
+        color = ExportPalette.Surface
         isAntiAlias = true
     }
 
     val left = 72f
     var y = 120f
+    canvas.drawRoundRect(RectF(left, y - 28f, left + 156f, y - 12f), 10f, 10f, accentPaint)
+    canvas.drawText("THESIS", left, y + 28f, labelPaint)
+    y += 72f
     canvas.drawText(report.ticker ?: "Ticker", left, y, titlePaint)
     y += 56f
     canvas.drawText("Thesis Signal: ${report.signalValue?.uppercase() ?: "NO_SIGNAL"}", left, y, labelPaint)
@@ -186,9 +213,11 @@ internal fun createShareCard(context: Context, report: DeepDiveReportView): Expo
     val summary = report.thesisStatement?.takeIf { it.isNotBlank() }
         ?: report.sections.firstOrNull { it.body.isNotBlank() }?.body
         ?: "No summary available."
-    drawWrappedText(canvas, summarizeForCard(summary), left, y, 936f, bodyPaint)
+    canvas.drawRoundRect(RectF(left, y - 18f, 1008f, 860f), 36f, 36f, panelPaint)
+    drawWrappedText(canvas, summarizeForCard(summary), left + 28f, y + 32f, 880f, bodyPaint)
 
-    canvas.drawText("Thesis App", left, 1010f, labelPaint)
+    canvas.drawText("Thesis App", left, 984f, labelPaint)
+    canvas.drawText("Research, not advice", left, 1020f, labelPaint)
 
     val outputDir = File(context.cacheDir, "exports").apply { mkdirs() }
     val output = File(outputDir, "share-card-${report.reportId}-${System.currentTimeMillis()}.png")
@@ -258,9 +287,18 @@ private fun drawWrappedText(
 
 private fun summarizeForCard(text: String): String {
     val normalized = text.replace(Regex("\\s+"), " ").trim()
-    if (normalized.length <= 180) {
-        return normalized
+    return if (normalized.length <= 180) {
+        normalized
+    } else {
+        normalized.take(177).trimEnd() + "..."
     }
-    return normalized.take(177).trimEnd() + "..."
 }
 
+private object ExportPalette {
+    val Background: Int = Color.parseColor("#0B111B")
+    val Surface: Int = Color.parseColor("#121D2B")
+    val Accent: Int = Color.parseColor("#D5A021")
+    val TextPrimary: Int = Color.parseColor("#FFFFFF")
+    val TextSecondary: Int = Color.parseColor("#D8DEE9")
+    val TextMuted: Int = Color.parseColor("#8EA4BF")
+}
