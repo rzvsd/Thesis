@@ -32,8 +32,8 @@ class ThesisFirebaseMessagingService : FirebaseMessagingService() {
 
         val notificationType = message.data["notification_type"]?.trim().orEmpty()
         val openTab = when (notificationType) {
-            "contrarian_alert" -> "deep_dive"
-            "earnings_preview", "weekly_digest", "market_pulse_ready" -> "pulse"
+            "contrarian_alert", "earnings_preview" -> "deep_dive"
+            "weekly_digest", "market_pulse_ready" -> "pulse"
             else -> message.data["route"]?.trim().orEmpty().ifBlank { "pulse" }
         }
 
@@ -60,6 +60,17 @@ class ThesisFirebaseMessagingService : FirebaseMessagingService() {
             launchIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
+        val dismissIntent = Intent(this, NotificationDismissReceiver::class.java).apply {
+            putExtra(NotificationDismissReceiver.EXTRA_NOTIFICATION_TYPE, notificationType)
+            putExtra(NotificationDismissReceiver.EXTRA_OPEN_TAB, openTab)
+            putExtra(NotificationDismissReceiver.EXTRA_TICKER, message.data["ticker"])
+        }
+        val dismissPendingIntent = PendingIntent.getBroadcast(
+            this,
+            dismissRequestCode(notificationType, message.data["ticker"]),
+            dismissIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
 
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_dialog_info)
@@ -68,6 +79,7 @@ class ThesisFirebaseMessagingService : FirebaseMessagingService() {
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setAutoCancel(true)
             .setContentIntent(pendingIntent)
+            .setDeleteIntent(dismissPendingIntent)
             .build()
 
         val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
@@ -125,5 +137,10 @@ class ThesisFirebaseMessagingService : FirebaseMessagingService() {
     companion object {
         const val CHANNEL_ID = "morning_pulse"
         private const val NOTIFICATION_ID = 7301
+
+        private fun dismissRequestCode(notificationType: String, ticker: String?): Int {
+            val seed = "${notificationType.trim().lowercase()}|${ticker.orEmpty().trim().uppercase()}"
+            return seed.hashCode()
+        }
     }
 }
