@@ -146,6 +146,11 @@ fun ThesisApp(
                     todayMode = TodayMode.HOME
                     weeklyDigestDate = null
                 }
+                mainViewModel.trackPushDeepLinkLanded(
+                    targetTab = "today",
+                    notificationType = target.notificationType,
+                    ticker = target.ticker
+                )
             }
             "deep_dive" -> {
                 val ticker = target.ticker?.trim().orEmpty()
@@ -154,6 +159,11 @@ fun ThesisApp(
                 }
                 researchMode = ResearchMode.DEEP_DIVE
                 mainViewModel.setTab(AppTab.RESEARCH)
+                mainViewModel.trackPushDeepLinkLanded(
+                    targetTab = "research",
+                    notificationType = target.notificationType,
+                    ticker = target.ticker
+                )
             }
         }
 
@@ -259,6 +269,7 @@ fun ThesisApp(
                             sentimentHistory = uiState.sentimentHistory,
                             sentimentError = uiState.sentimentError,
                             watchlist = uiState.watchlist,
+                            monitorSnapshots = uiState.monitorSnapshots,
                             padding = padding,
                             lastViewedReport = uiState.lastViewedReport,
                             pulseError = uiState.pulseError,
@@ -310,6 +321,7 @@ fun ThesisApp(
                             digestDate = weeklyDigestDate,
                             sentimentCurrent = uiState.sentimentCurrent,
                             watchlist = uiState.watchlist,
+                            monitorSnapshots = uiState.monitorSnapshots,
                             pulse = uiState.pulseReport,
                             onOpenDashboard = {
                                 todayMode = TodayMode.SENTIMENT_DASHBOARD
@@ -340,6 +352,7 @@ fun ThesisApp(
                         onSaveReportNote = mainViewModel::saveReportNote,
                         onRunScenario = mainViewModel::runScenario,
                         onRequireUpgrade = mainViewModel::requestFeatureUpgrade,
+                        onSubmitReportFeedback = mainViewModel::submitReportFeedback,
                         onNotify = mainViewModel::notifyUser,
                         onOpenHistoryReport = mainViewModel::openHistoryReport,
                         onOpenPulseHistory = { date ->
@@ -375,6 +388,7 @@ fun ThesisApp(
                         onRefreshOffers = mainViewModel::refreshSubscriptionOffers,
                         onStartPurchase = mainViewModel::startPurchase,
                         onRestorePurchases = mainViewModel::restorePurchases,
+                        onSubmitSubscriptionFeedback = mainViewModel::submitSubscriptionFeedback,
                         onLogout = mainViewModel::logout
                     )
                 }
@@ -435,6 +449,7 @@ private fun ResearchTab(
     onSaveReportNote: () -> Unit,
     onRunScenario: (Int?, Double?, Double?) -> Unit,
     onRequireUpgrade: (String) -> Unit,
+    onSubmitReportFeedback: (String, String) -> Unit,
     onNotify: (String) -> Unit,
     onOpenHistoryReport: (String) -> Unit,
     onOpenPulseHistory: (String) -> Unit
@@ -486,6 +501,7 @@ private fun ResearchTab(
                 isRunningScenario = isRunningScenario,
                 onRunScenario = onRunScenario,
                 onRequireUpgrade = onRequireUpgrade,
+                onSubmitReportFeedback = onSubmitReportFeedback,
                 onNotify = onNotify,
                 onOpenHistoryReport = onOpenHistoryReport,
                 onOpenPulseHistory = onOpenPulseHistory,
@@ -632,6 +648,7 @@ private fun PortfolioTab(
     onRefreshOffers: () -> Unit,
     onStartPurchase: (Activity, String?) -> Unit,
     onRestorePurchases: () -> Unit,
+    onSubmitSubscriptionFeedback: (String, String, String, Boolean) -> Unit,
     onLogout: () -> Unit
 ) {
     Column(
@@ -702,6 +719,7 @@ private fun PortfolioTab(
                 onRefreshOffers = onRefreshOffers,
                 onStartPurchase = onStartPurchase,
                 onRestorePurchases = onRestorePurchases,
+                onSubmitSubscriptionFeedback = onSubmitSubscriptionFeedback,
                 onLogout = onLogout
             )
         }
@@ -1569,11 +1587,15 @@ private fun SettingsTab(
     onRefreshOffers: () -> Unit,
     onStartPurchase: (Activity, String?) -> Unit,
     onRestorePurchases: () -> Unit,
+    onSubmitSubscriptionFeedback: (String, String, String, Boolean) -> Unit,
     onLogout: () -> Unit
 ) {
     val context = LocalContext.current
     val activity = context as? Activity
     var baseUrl by rememberSaveable(currentApiBaseUrl) { mutableStateOf(currentApiBaseUrl) }
+    var subscriptionFeedbackFlow by rememberSaveable { mutableStateOf("cancel") }
+    var subscriptionFeedbackCode by rememberSaveable { mutableStateOf("cancel_price") }
+    var subscriptionFeedbackMessage by rememberSaveable { mutableStateOf("") }
     val switchColors = androidx.compose.material3.SwitchDefaults.colors(
         checkedThumbColor = ThesisColors.Primary,
         checkedTrackColor = ThesisColors.Primary.copy(alpha = 0.2f),
@@ -1816,6 +1838,133 @@ private fun SettingsTab(
                 }
                 TextButton(onClick = onRefreshOffers, enabled = !subscriptionActionInFlight) {
                     Text("Refresh offers", color = ThesisColors.Primary)
+                }
+
+                HorizontalDivider(color = ThesisColors.Border)
+                Text(
+                    text = "FEEDBACK",
+                    style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Medium),
+                    color = ThesisColors.TextMuted
+                )
+                Text(
+                    text = "Tell us why you might cancel or downgrade so we can improve the Pro value.",
+                    style = ThesisTypography.bodySmall,
+                    color = ThesisColors.TextMuted
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)) {
+                    OutlinedButton(
+                        onClick = { subscriptionFeedbackFlow = "cancel" },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
+                        border = androidx.compose.foundation.BorderStroke(
+                            ThesisDimens.BorderWidth,
+                            if (subscriptionFeedbackFlow == "cancel") ThesisColors.Primary else ThesisColors.Border
+                        )
+                    ) {
+                        Text(
+                            "Cancel",
+                            color = if (subscriptionFeedbackFlow == "cancel") ThesisColors.Primary else ThesisColors.TextMuted
+                        )
+                    }
+                    OutlinedButton(
+                        onClick = { subscriptionFeedbackFlow = "downgrade" },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
+                        border = androidx.compose.foundation.BorderStroke(
+                            ThesisDimens.BorderWidth,
+                            if (subscriptionFeedbackFlow == "downgrade") ThesisColors.Primary else ThesisColors.Border
+                        )
+                    ) {
+                        Text(
+                            "Downgrade",
+                            color = if (subscriptionFeedbackFlow == "downgrade") ThesisColors.Primary else ThesisColors.TextMuted
+                        )
+                    }
+                }
+
+                val feedbackOptions = listOf(
+                    "cancel_price" to "Price",
+                    "cancel_low_value" to "Low value",
+                    "cancel_too_noisy" to "Too noisy",
+                    "cancel_other" to "Other"
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)) {
+                    feedbackOptions.take(2).forEach { (code, label) ->
+                        OutlinedButton(
+                            onClick = { subscriptionFeedbackCode = code },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
+                            border = androidx.compose.foundation.BorderStroke(
+                                ThesisDimens.BorderWidth,
+                                if (subscriptionFeedbackCode == code) ThesisColors.Primary else ThesisColors.Border
+                            )
+                        ) {
+                            Text(
+                                label,
+                                color = if (subscriptionFeedbackCode == code) ThesisColors.Primary else ThesisColors.TextMuted
+                            )
+                        }
+                    }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)) {
+                    feedbackOptions.drop(2).forEach { (code, label) ->
+                        OutlinedButton(
+                            onClick = { subscriptionFeedbackCode = code },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
+                            border = androidx.compose.foundation.BorderStroke(
+                                ThesisDimens.BorderWidth,
+                                if (subscriptionFeedbackCode == code) ThesisColors.Primary else ThesisColors.Border
+                            )
+                        ) {
+                            Text(
+                                label,
+                                color = if (subscriptionFeedbackCode == code) ThesisColors.Primary else ThesisColors.TextMuted
+                            )
+                        }
+                    }
+                }
+
+                OutlinedTextField(
+                    value = subscriptionFeedbackMessage,
+                    onValueChange = { subscriptionFeedbackMessage = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Optional context") },
+                    minLines = 2,
+                    maxLines = 4,
+                    shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedContainerColor = ThesisColors.SurfaceElevated,
+                        unfocusedContainerColor = ThesisColors.SurfaceElevated,
+                        focusedBorderColor = ThesisColors.Primary,
+                        unfocusedBorderColor = ThesisColors.Border,
+                        focusedTextColor = ThesisColors.TextPrimary,
+                        unfocusedTextColor = ThesisColors.TextPrimary,
+                        cursorColor = ThesisColors.Primary,
+                        focusedLabelColor = ThesisColors.Primary,
+                        unfocusedLabelColor = ThesisColors.TextMuted
+                    )
+                )
+
+                Button(
+                    onClick = {
+                        onSubmitSubscriptionFeedback(
+                            subscriptionFeedbackCode,
+                            "settings_subscription_${subscriptionFeedbackFlow}",
+                            subscriptionFeedbackMessage,
+                            true
+                        )
+                        subscriptionFeedbackMessage = ""
+                    },
+                    enabled = !subscriptionActionInFlight,
+                    shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
+                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                        containerColor = ThesisColors.SurfaceElevated,
+                        contentColor = ThesisColors.TextPrimary
+                    ),
+                    modifier = Modifier.fillMaxWidth().height(40.dp)
+                ) {
+                    Text("Submit Feedback", style = ThesisTypography.labelLarge)
                 }
             }
         }

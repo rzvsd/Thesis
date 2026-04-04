@@ -25,6 +25,8 @@ export * from "./scenario-request";
 export * from "./service-response";
 export * from "./subscription-tier";
 export * from "./ticker-coverage";
+export * from "./thesis-monitor-snapshot";
 export * from "./ticker-registry-entry";
 export * from "./ticker-search-result";
+export * from "./user-feedback";
 export * from "./user-profile";

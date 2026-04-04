@@ -81,6 +81,7 @@ fun DeepDiveScreen(
     isRunningScenario: Boolean,
     onRunScenario: (Int?, Double?, Double?) -> Unit,
     onRequireUpgrade: (String) -> Unit,
+    onSubmitReportFeedback: (String, String) -> Unit,
     onNotify: (String) -> Unit,
     onOpenHistoryReport: (String) -> Unit,
     onOpenPulseHistory: (String) -> Unit,
@@ -122,6 +123,7 @@ fun DeepDiveScreen(
         isRunningScenario = isRunningScenario,
         onRunScenario = onRunScenario,
         onRequireUpgrade = onRequireUpgrade,
+        onSubmitReportFeedback = onSubmitReportFeedback,
         onNotify = onNotify,
         watchlist = watchlist,
         onBack = onBack,
@@ -295,6 +297,7 @@ private fun DeepDiveReportState(
     isRunningScenario: Boolean,
     onRunScenario: (Int?, Double?, Double?) -> Unit,
     onRequireUpgrade: (String) -> Unit,
+    onSubmitReportFeedback: (String, String) -> Unit,
     onNotify: (String) -> Unit,
     watchlist: List<String>,
     onBack: () -> Unit,
@@ -426,6 +429,12 @@ private fun DeepDiveReportState(
                     scenarioResult = scenarioResult,
                     onRunScenario = onRunScenario,
                     onRequireUpgrade = onRequireUpgrade
+                )
+            }
+
+            item {
+                ReportFeedbackSection(
+                    onSubmit = onSubmitReportFeedback
                 )
             }
 
@@ -1071,6 +1080,91 @@ private fun ScenarioSection(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun ReportFeedbackSection(
+    onSubmit: (String, String) -> Unit
+) {
+    val options = listOf(
+        "useful" to "Useful",
+        "confusing" to "Confusing",
+        "generic" to "Too Generic",
+        "stale" to "Stale",
+        "bug_report" to "Bug Report"
+    )
+    var selectedCode by remember { mutableStateOf("useful") }
+    var feedbackMessage by remember { mutableStateOf("") }
+
+    Column(verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)) {
+        Text(
+            text = "Report Feedback",
+            style = ThesisTypography.headlineMedium.copy(fontWeight = FontWeight.Medium),
+            color = ThesisColors.TextPrimary
+        )
+        Text(
+            text = "Tell us if this report was helpful or what needs fixing.",
+            style = ThesisTypography.bodySmall,
+            color = ThesisColors.TextMuted
+        )
+
+        Row(horizontalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)) {
+            options.take(3).forEach { (code, label) ->
+                OutlinedButton(
+                    onClick = { selectedCode = code },
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
+                    border = androidx.compose.foundation.BorderStroke(
+                        ThesisDimens.BorderWidth,
+                        if (selectedCode == code) ThesisColors.Primary else ThesisColors.Border
+                    )
+                ) {
+                    Text(
+                        text = label,
+                        color = if (selectedCode == code) ThesisColors.Primary else ThesisColors.TextMuted
+                    )
+                }
+            }
+        }
+
+        Row(horizontalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)) {
+            options.drop(3).forEach { (code, label) ->
+                OutlinedButton(
+                    onClick = { selectedCode = code },
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
+                    border = androidx.compose.foundation.BorderStroke(
+                        ThesisDimens.BorderWidth,
+                        if (selectedCode == code) ThesisColors.Primary else ThesisColors.Border
+                    )
+                ) {
+                    Text(
+                        text = label,
+                        color = if (selectedCode == code) ThesisColors.Primary else ThesisColors.TextMuted
+                    )
+                }
+            }
+        }
+
+        OutlinedTextField(
+            value = feedbackMessage,
+            onValueChange = { feedbackMessage = it },
+            label = { Text("Optional details") },
+            modifier = Modifier.fillMaxWidth(),
+            minLines = 2,
+            maxLines = 4,
+            shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
+            colors = deepDiveFieldColors()
+        )
+
+        ThesisButton(
+            text = "Send Feedback",
+            onClick = {
+                onSubmit(selectedCode, feedbackMessage)
+                feedbackMessage = ""
+            }
+        )
     }
 }
 

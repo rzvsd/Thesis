@@ -14,6 +14,7 @@ import com.thesis.mobile.model.ScenarioResultView
 import com.thesis.mobile.model.SectionView
 import com.thesis.mobile.model.SentimentSnapshotView
 import com.thesis.mobile.model.SentimentSubScoreView
+import com.thesis.mobile.model.ThesisMonitorSnapshotView
 import com.thesis.mobile.model.TickerSearchItem
 import com.thesis.mobile.model.UserProfileView
 import com.thesis.mobile.model.ReportViewMapper
@@ -194,6 +195,64 @@ class ProductApiClient {
             ?: throw ProductApiException(500, "Note response was missing expected fields.")
     }
 
+    suspend fun submitReportFeedback(
+        baseUrl: String,
+        accessToken: String,
+        reportId: String,
+        ticker: String?,
+        code: String,
+        sourceSurface: String,
+        message: String? = null,
+        severity: String = "normal"
+    ): String = withContext(Dispatchers.IO) {
+        val body = JSONObject()
+            .put("report_id", reportId)
+            .put("code", code)
+            .put("source_surface", sourceSurface)
+            .put("severity", severity)
+        if (!ticker.isNullOrBlank()) {
+            body.put("ticker", ticker.trim().uppercase())
+        }
+        if (!message.isNullOrBlank()) {
+            body.put("message", message.trim())
+        }
+
+        val json = requestJson(
+            baseUrl,
+            "POST",
+            "/v1/feedback/report",
+            accessToken = accessToken,
+            body = body
+        )
+        json.optJSONObject("data")?.optString("feedback_id").orEmpty()
+    }
+
+    suspend fun submitSubscriptionFeedback(
+        baseUrl: String,
+        accessToken: String,
+        code: String,
+        sourceSurface: String,
+        message: String? = null,
+        severity: String = "normal"
+    ): String = withContext(Dispatchers.IO) {
+        val body = JSONObject()
+            .put("code", code)
+            .put("source_surface", sourceSurface)
+            .put("severity", severity)
+        if (!message.isNullOrBlank()) {
+            body.put("message", message.trim())
+        }
+
+        val json = requestJson(
+            baseUrl,
+            "POST",
+            "/v1/feedback/subscription",
+            accessToken = accessToken,
+            body = body
+        )
+        json.optJSONObject("data")?.optString("feedback_id").orEmpty()
+    }
+
     suspend fun runScenario(
         baseUrl: String,
         accessToken: String,
@@ -278,6 +337,40 @@ class ProductApiClient {
             } else {
                 throw error
             }
+        }
+    }
+
+    suspend fun getMonitorSnapshots(
+        baseUrl: String,
+        accessToken: String
+    ): List<ThesisMonitorSnapshotView> = withContext(Dispatchers.IO) {
+        val json = requestJson(
+            baseUrl,
+            "GET",
+            "/v1/user/monitor-snapshots",
+            accessToken = accessToken
+        )
+        val rows = json.optJSONArray("data") ?: JSONArray()
+        (0 until rows.length()).mapNotNull { index ->
+            val row = rows.optJSONObject(index) ?: return@mapNotNull null
+            val ticker = row.optString("ticker").trim().uppercase()
+            if (ticker.isBlank()) {
+                return@mapNotNull null
+            }
+            val state = row.optString("state").trim()
+            if (state.isBlank()) {
+                return@mapNotNull null
+            }
+            ThesisMonitorSnapshotView(
+                ticker = ticker,
+                state = state,
+                reason = row.optString("reason").ifBlank { "No explanation available yet." },
+                score = row.optNullableDouble("score") ?: 0.0,
+                reportId = row.optNullableString("report_id"),
+                reportGeneratedAt = row.optNullableString("report_generated_at"),
+                reportSchemaVersion = row.optNullableString("report_schema_version"),
+                updatedAt = row.optString("updated_at").ifBlank { "" }
+            )
         }
     }
 

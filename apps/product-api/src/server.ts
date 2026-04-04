@@ -10,16 +10,28 @@ import type {
   AuthRegisterRequest,
   AuthTokensResponse,
   CreateJobRequest,
+  FeedbackSeverity,
   JobStatusResponse,
   MarketPulseReport,
   NotificationType,
+  ReportFeedbackCode,
+  ReportFeedbackSubmission,
   ReportListItem,
   ScenarioRequest,
   ScenarioResponse,
+  SubscriptionFeedbackCode,
+  SubscriptionFeedbackSubmission,
   SubscriptionTier,
+  ThesisMonitorSnapshot,
   UserProfile
 } from "../../../packages/contracts/src";
-import { notificationTypes } from "../../../packages/contracts/src";
+import {
+  feedbackSeverityLevels,
+  feedbackTriageStatuses,
+  notificationTypes,
+  reportFeedbackCodes,
+  subscriptionFeedbackCodes
+} from "../../../packages/contracts/src";
 import { captureException, initSentry } from "../../../packages/observability/src/sentry";
 
 import { FilesystemArtifactStore } from "./artifact-store";
@@ -55,6 +67,8 @@ import {
 import type {
   AuditEventRecord,
   JobRecord,
+  ThesisMonitorSnapshotRecord,
+  UserFeedbackQueueRecord,
   UserSubscriptionRecord
 } from "./types";
 
@@ -93,10 +107,31 @@ const serviceName = "product-api";
 const contrarianMoveThresholdPct = 5;
 const contrarianAnchorWindowDays = 90;
 const weeklyDigestLookaheadDays = 7;
+const monitorFreshnessWindowDays = 14;
 const notificationTypeList = [...notificationTypes];
+const reportFeedbackCodeList = [...reportFeedbackCodes];
+const subscriptionFeedbackCodeList = [...subscriptionFeedbackCodes];
+const feedbackSeverityList = [...feedbackSeverityLevels];
+const feedbackTriageStatusList = [...feedbackTriageStatuses];
 
 function isNotificationType(value: string): value is NotificationType {
   return notificationTypeList.includes(value as NotificationType);
+}
+
+function isReportFeedbackCode(value: string): value is ReportFeedbackCode {
+  return reportFeedbackCodeList.includes(value as ReportFeedbackCode);
+}
+
+function isSubscriptionFeedbackCode(value: string): value is SubscriptionFeedbackCode {
+  return subscriptionFeedbackCodeList.includes(value as SubscriptionFeedbackCode);
+}
+
+function isFeedbackSeverity(value: string): value is FeedbackSeverity {
+  return feedbackSeverityList.includes(value as FeedbackSeverity);
+}
+
+function isFeedbackTriageStatus(value: string): value is (typeof feedbackTriageStatusList)[number] {
+  return feedbackTriageStatusList.includes(value as (typeof feedbackTriageStatusList)[number]);
 }
 
 function addDaysToIsoDate(baseDate: string, days: number): string {
@@ -181,6 +216,12 @@ interface ComparableDeepDiveSummary {
   thesis_statement?: string;
   valuation_mid?: number;
   trust_metadata?: AnalysisReport["trust_metadata"];
+}
+
+interface MonitorStateSummary {
+  state: ThesisMonitorSnapshot["state"];
+  reason: string;
+  score: number;
 }
 
 async function fetchInternalJson<T>(
@@ -419,6 +460,42 @@ function toComparableSummary(report: AnalysisReport): ComparableDeepDiveSummary 
     valuation_mid: report.valuation?.fair_value_mid,
     trust_metadata: report.trust_metadata
   };
+}
+
+function toFeedbackQueueView(record: UserFeedbackQueueRecord): Record<string, unknown> {
+  return {
+    id: record.id,
+    user_id: record.userId,
+    feedback_type: record.feedbackType,
+    code: record.code,
+    severity: record.severity,
+    source_surface: record.sourceSurface,
+    user_tier: record.userTier,
+    report_id: record.reportId ?? null,
+    ticker: record.ticker ?? null,
+    message: record.message,
+    metadata: record.metadata,
+    triage_status: record.triageStatus,
+    route_status: record.routeStatus,
+    triage_owner: record.triageOwner ?? null,
+    triaged_at: record.triagedAt ?? null,
+    created_at: record.createdAt,
+    updated_at: record.updatedAt
+  };
+}
+
+function normalizeFeedbackMessage(value: unknown, maxLength = 2_000): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  const trimmed = value.trim();
+  if (trimmed.length === 0) {
+    return "";
+  }
+  if (trimmed.length > maxLength) {
+    return undefined;
+  }
+  return trimmed;
 }
 
 function deepDiveFingerprint(input: {
@@ -670,6 +747,242 @@ async function createContrarianAnchorFromReport(
     anchor_price: anchorPrice,
     expires_at: expiresAt
   }, userId);
+}
+
+function clampScore(value: number | undefined): number {
+  if (!Number.isFinite(value)) {
+    return 0.5;
+  }
+  return clampNumber(value as number, 0, 1);
+}
+
+function summarizeMonitorState(
+  report: AnalysisReport,
+  asOfIso: string
+): MonitorStateSummary {
+  const trust = report.trust_metadata;
+  const score = clampScore(report.confidence?.score);
+  const generatedAtMs = Date.parse(report.generated_at);
+  const staleCutoffMs = Date.parse(asOfIso) - monitorFreshnessWindowDays * 24 * 60 * 60 * 1000;
+  const driftSummary = trust?.thesis_drift?.summary?.toLowerCase() ?? "";
+  const driftUnavailable = trust?.thesis_drift?.status === "unavailable";
+  const contradictionPresent =
+    trust?.contradiction_state === "present" ||
+    (trust?.contradictions?.length ?? 0) > 0;
+
+  if (
+    trust?.freshness_state === "stale" ||
+    contradictionPresent ||
+    !Number.isFinite(generatedAtMs) ||
+    generatedAtMs < staleCutoffMs ||
+    report.signal?.value === "no_signal"
+  ) {
+    return {
+      state: "unresolved",
+      reason:
+        contradictionPresent
+          ? "Evidence is conflicting and needs review."
+          : "Evidence is stale or insufficient to confirm thesis state.",
+      score
+    };
+  }
+
+  if (
+    driftSummary.includes("weaken") ||
+    driftSummary.includes("deteriorat") ||
+    driftSummary.includes("risk") ||
+    report.signal?.value === "negative"
+  ) {
+    return {
+      state: "weakened",
+      reason: "Latest evidence weakens the prior thesis.",
+      score
+    };
+  }
+
+  if (
+    driftSummary.includes("improv") ||
+    driftSummary.includes("strengthen")
+  ) {
+    return {
+      state: "improved",
+      reason: "Latest evidence strengthens conviction versus the prior thesis.",
+      score
+    };
+  }
+
+  if (report.signal?.value === "positive" && !driftUnavailable) {
+    return {
+      state: "improved",
+      reason: "Signal and drift are both supportive of the thesis direction.",
+      score
+    };
+  }
+
+  return {
+    state: "intact",
+    reason: "Latest evidence remains broadly consistent with the prior thesis.",
+    score
+  };
+}
+
+function isAnalysisReport(value: unknown): value is AnalysisReport {
+  if (!isObject(value)) {
+    return false;
+  }
+  if (typeof value.report_id !== "string" || typeof value.generated_at !== "string") {
+    return false;
+  }
+  if (value.type !== "deep_dive" && value.type !== "market_pulse") {
+    return false;
+  }
+  if (!Array.isArray(value.sections)) {
+    return false;
+  }
+  return true;
+}
+
+async function upsertUnresolvedSnapshot(
+  runtime: Runtime,
+  input: {
+    userId: string;
+    ticker: string;
+    reason: string;
+    updatedAt: string;
+  }
+): Promise<ThesisMonitorSnapshotRecord> {
+  return runtime.store.upsertThesisMonitorSnapshot({
+    userId: input.userId,
+    ticker: input.ticker.trim().toUpperCase(),
+    state: "unresolved",
+    reason: input.reason,
+    score: 0,
+    updatedAt: input.updatedAt
+  });
+}
+
+async function upsertSnapshotFromReport(
+  runtime: Runtime,
+  input: {
+    userId: string;
+    ticker: string;
+    report: AnalysisReport;
+    asOfIso: string;
+    updatedAt: string;
+  }
+): Promise<ThesisMonitorSnapshotRecord> {
+  const summary = summarizeMonitorState(input.report, input.asOfIso);
+  return runtime.store.upsertThesisMonitorSnapshot({
+    userId: input.userId,
+    ticker: input.ticker.trim().toUpperCase(),
+    state: summary.state,
+    reason: summary.reason,
+    score: summary.score,
+    reportId: input.report.report_id,
+    reportGeneratedAt: input.report.generated_at,
+    reportSchemaVersion: input.report.schema_version,
+    updatedAt: input.updatedAt
+  });
+}
+
+async function recomputeThesisMonitorSnapshots(
+  runtime: Runtime,
+  input: {
+    asOfIso: string;
+    userIds?: string[];
+  }
+): Promise<{
+  users: number;
+  names: number;
+  unresolved: number;
+  updated: number;
+}> {
+  const usersWithWatchlist = await runtime.store.listUsersWithWatchlist();
+  const filterUserIds = input.userIds
+    ? new Set(input.userIds.map((userId) => userId.trim()).filter((userId) => userId.length > 0))
+    : undefined;
+  const updatedAt = new Date().toISOString();
+  let users = 0;
+  let names = 0;
+  let unresolved = 0;
+  let updated = 0;
+
+  for (const entry of usersWithWatchlist) {
+    if (filterUserIds && !filterUserIds.has(entry.userId)) {
+      continue;
+    }
+    if (entry.tickers.length === 0) {
+      continue;
+    }
+
+    users += 1;
+    names += entry.tickers.length;
+
+    const reports = (await runtime.store.listReportsByUser(entry.userId))
+      .filter((report) => report.type === "deep_dive")
+      .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+
+    for (const ticker of entry.tickers) {
+      const latest = reports.find((report) => report.ticker === ticker);
+      if (!latest) {
+        await upsertUnresolvedSnapshot(runtime, {
+          userId: entry.userId,
+          ticker,
+          reason: "No completed Deep Dive exists yet for this name.",
+          updatedAt
+        });
+        unresolved += 1;
+        updated += 1;
+        continue;
+      }
+
+      let storedReport: unknown;
+      try {
+        storedReport = await runtime.artifactStore.readReport(latest.artifactKey);
+      } catch {
+        await upsertUnresolvedSnapshot(runtime, {
+          userId: entry.userId,
+          ticker,
+          reason: "Report artifact is unavailable and cannot be evaluated.",
+          updatedAt
+        });
+        unresolved += 1;
+        updated += 1;
+        continue;
+      }
+
+      if (!isAnalysisReport(storedReport) || storedReport.type !== "deep_dive") {
+        await upsertUnresolvedSnapshot(runtime, {
+          userId: entry.userId,
+          ticker,
+          reason: "Latest Deep Dive is not readable in monitor format.",
+          updatedAt
+        });
+        unresolved += 1;
+        updated += 1;
+        continue;
+      }
+
+      const snapshot = await upsertSnapshotFromReport(runtime, {
+        userId: entry.userId,
+        ticker,
+        report: storedReport,
+        asOfIso: input.asOfIso,
+        updatedAt
+      });
+      if (snapshot.state === "unresolved") {
+        unresolved += 1;
+      }
+      updated += 1;
+    }
+  }
+
+  return {
+    users,
+    names,
+    unresolved,
+    updated
+  };
 }
 
 function isMarketPulseReport(report: unknown): report is MarketPulseReport {
@@ -1885,6 +2198,7 @@ export function startServer(port: number = loadConfig().port): Server {
             if (!leadTicker) {
               continue;
             }
+            const reasonText = `${uniqueTickers.join(", ")} is expected to report by next market session.`;
 
             const pushResult = await runtime.pushNotifier.sendNotification(
               [
@@ -1897,11 +2211,14 @@ export function startServer(port: number = loadConfig().port): Server {
                 notificationType: "earnings_preview",
                 route: notificationRoute("earnings_preview"),
                 title: notificationTitle("earnings_preview", leadTicker),
-                body: `${uniqueTickers.join(", ")} is expected to report soon. Tap to run a Deep Dive.`,
+                body: `${reasonText} Tap to run a Deep Dive.`,
                 data: {
                   ticker: leadTicker,
                   tickers: uniqueTickers.join(","),
-                  report_date: nextBiz
+                  report_date: nextBiz,
+                  reason_code: "earnings_preview_due",
+                  reason_text: reasonText,
+                  deep_link_target: "deep_dive"
                 }
               }
             );
@@ -2002,7 +2319,10 @@ export function startServer(port: number = loadConfig().port): Server {
                   ticker: anchor.ticker,
                   report_id: anchor.reportId ?? "",
                   signal_value: anchor.signalValue,
-                  move_pct: movePct.toFixed(2)
+                  move_pct: movePct.toFixed(2),
+                  reason_code: "thesis_shift_detected",
+                  reason_text: `Price moved ${Math.abs(movePct).toFixed(1)}% against your ${anchor.signalValue} thesis.`,
+                  deep_link_target: "deep_dive"
                 }
               }
             );
@@ -2089,6 +2409,9 @@ export function startServer(port: number = loadConfig().port): Server {
                 ? `${upcomingCount} watchlist names report soon.`
                 : "No watchlist earnings are due soon."
             ];
+            const reasonText = watchlistCount > 0
+              ? `${watchlistCount} followed names and ${upcomingCount} upcoming earnings were summarized.`
+              : "Your weekly market summary was prepared.";
 
             const pushResult = await runtime.pushNotifier.sendNotification(
               [
@@ -2107,7 +2430,10 @@ export function startServer(port: number = loadConfig().port): Server {
                   fear_greed_score: latestFearGreed ? String(latestFearGreed.score) : "",
                   fear_greed_label: latestFearGreed?.label ?? "",
                   watchlist_count: String(watchlistCount),
-                  upcoming_earnings_count: String(upcomingCount)
+                  upcoming_earnings_count: String(upcomingCount),
+                  reason_code: "weekly_summary_ready",
+                  reason_text: reasonText,
+                  deep_link_target: "pulse"
                 }
               }
             );
@@ -2136,6 +2462,103 @@ export function startServer(port: number = loadConfig().port): Server {
             attempted,
             delivered,
             failed
+          });
+          return;
+        }
+
+        if (method === "POST" && pathname === "/internal/monitor/recompute") {
+          const body = await readJsonBody<{ as_of?: string; user_ids?: string[] }>(request);
+          const asOfDate =
+            normalizeDateInput(
+              body.as_of ?? dateInTimeZone(new Date(), runtime.config.subscriptionTimezone)
+            ) ?? dateInTimeZone(new Date(), runtime.config.subscriptionTimezone);
+          const asOfIso = new Date(`${asOfDate}T12:00:00.000Z`).toISOString();
+          const userIds = Array.isArray(body.user_ids)
+            ? body.user_ids
+                .map((value) => (typeof value === "string" ? value.trim() : ""))
+                .filter((value) => value.length > 0)
+            : undefined;
+
+          const result = await recomputeThesisMonitorSnapshots(runtime, {
+            asOfIso,
+            userIds
+          });
+
+          await appendAudit(runtime, "monitor.recomputed", {
+            request_id: meta.requestId,
+            route: pathname,
+            as_of: asOfDate,
+            users: result.users,
+            names: result.names,
+            unresolved: result.unresolved,
+            updated: result.updated
+          });
+
+          sendJson(response, 200, {
+            status: "ok",
+            as_of: asOfDate,
+            ...result
+          });
+          return;
+        }
+
+        if (method === "GET" && pathname === "/internal/feedback/queue") {
+          const limit = parsePositiveInteger(url.searchParams.get("limit") ?? undefined, 50, 1, 500);
+          if (limit === undefined) {
+            sendJson(response, 422, {
+              error: "validation_failed",
+              error_message: "limit must be an integer between 1 and 500."
+            });
+            return;
+          }
+
+          const feedbackTypeRaw = url.searchParams.get("feedback_type")?.trim() ?? "";
+          if (
+            feedbackTypeRaw.length > 0 &&
+            feedbackTypeRaw !== "report" &&
+            feedbackTypeRaw !== "subscription"
+          ) {
+            sendJson(response, 422, {
+              error: "validation_failed",
+              error_message: "feedback_type must be report or subscription when provided."
+            });
+            return;
+          }
+
+          const triageStatusRaw = url.searchParams.get("triage_status")?.trim() ?? "";
+          if (triageStatusRaw.length > 0 && !isFeedbackTriageStatus(triageStatusRaw)) {
+            sendJson(response, 422, {
+              error: "validation_failed",
+              error_message:
+                "triage_status must be one of: new, reviewed, routed, resolved, dismissed."
+            });
+            return;
+          }
+
+          const tierRaw = url.searchParams.get("user_tier")?.trim().toUpperCase() ?? "";
+          if (tierRaw.length > 0 && tierRaw !== "FREE" && tierRaw !== "PRO") {
+            sendJson(response, 422, {
+              error: "validation_failed",
+              error_message: "user_tier must be FREE or PRO when provided."
+            });
+            return;
+          }
+
+          const sourceSurface = url.searchParams.get("source_surface")?.trim();
+          const rows = await runtime.store.listUserFeedbackQueue({
+            limit,
+            feedbackType: feedbackTypeRaw.length > 0
+              ? (feedbackTypeRaw as "report" | "subscription")
+              : undefined,
+            triageStatus: triageStatusRaw.length > 0
+              ? (triageStatusRaw as "new" | "reviewed" | "routed" | "resolved" | "dismissed")
+              : undefined,
+            userTier: tierRaw.length > 0 ? (tierRaw as SubscriptionTier) : undefined,
+            sourceSurface: sourceSurface && sourceSurface.length > 0 ? sourceSurface : undefined
+          });
+
+          sendJson(response, 200, {
+            data: rows.map((row) => toFeedbackQueueView(row))
           });
           return;
         }
@@ -2276,6 +2699,27 @@ export function startServer(port: number = loadConfig().port): Server {
                 requestId: meta.requestId,
                 route: pathname
               });
+
+              if (report.type === "deep_dive" && completed.userId && report.ticker) {
+                const normalizedTicker = report.ticker.trim().toUpperCase();
+                const watchlist = await runtime.store.listWatchlistTickersByUser(completed.userId);
+                if (watchlist.includes(normalizedTicker)) {
+                  const snapshot = await upsertSnapshotFromReport(runtime, {
+                    userId: completed.userId,
+                    ticker: normalizedTicker,
+                    report,
+                    asOfIso: new Date().toISOString(),
+                    updatedAt: new Date().toISOString()
+                  });
+                  await appendAudit(runtime, "monitor.snapshot_upserted", {
+                    request_id: meta.requestId,
+                    route: pathname,
+                    ticker: normalizedTicker,
+                    state: snapshot.state,
+                    score: snapshot.score
+                  }, completed.userId);
+                }
+              }
 
               sendJson(response, 200, {
                 status: "ok",
@@ -2620,6 +3064,214 @@ export function startServer(port: number = loadConfig().port): Server {
         return;
       }
 
+      if (method === "POST" && pathname === "/v1/feedback/report") {
+        const body = await readJsonBody<ReportFeedbackSubmission>(request);
+        const reportId = body.report_id?.trim();
+        if (!reportId) {
+          sendJson(response, 422, {
+            error: "validation_failed",
+            error_message: "report_id is required."
+          });
+          return;
+        }
+
+        const codeRaw = body.code?.trim();
+        if (!codeRaw || !isReportFeedbackCode(codeRaw)) {
+          sendJson(response, 422, {
+            error: "validation_failed",
+            error_message: "code must be one of: useful, confusing, generic, stale, bug_report."
+          });
+          return;
+        }
+
+        const sourceSurface = body.source_surface?.trim();
+        if (!sourceSurface || sourceSurface.length > 100) {
+          sendJson(response, 422, {
+            error: "validation_failed",
+            error_message: "source_surface is required and must be at most 100 characters."
+          });
+          return;
+        }
+
+        const severityRaw = body.severity?.trim() ?? "normal";
+        if (!isFeedbackSeverity(severityRaw)) {
+          sendJson(response, 422, {
+            error: "validation_failed",
+            error_message: "severity must be one of: normal, high, blocker."
+          });
+          return;
+        }
+
+        const message = normalizeFeedbackMessage(body.message);
+        if (body.message !== undefined && message === undefined) {
+          sendJson(response, 422, {
+            error: "validation_failed",
+            error_message: "message must be at most 2000 characters."
+          });
+          return;
+        }
+
+        const reportMetadata = await runtime.store.getReportById(reportId);
+        if (!reportMetadata) {
+          sendJson(response, 404, {
+            error: "report_not_found",
+            error_message: "Report not found."
+          });
+          return;
+        }
+
+        const hasAccess = await runtime.store.hasReportAccessForUser(auth.userId, reportMetadata.id);
+        if (!hasAccess) {
+          sendJson(response, 404, {
+            error: "report_not_found",
+            error_message: "Report not found."
+          });
+          return;
+        }
+
+        const subscription = await runtime.store.getUserSubscription(auth.userId);
+        const ticker =
+          body.ticker?.trim().toUpperCase() ||
+          reportMetadata.ticker?.trim().toUpperCase() ||
+          undefined;
+        const nowIso = new Date().toISOString();
+        const queued = await runtime.store.enqueueUserFeedback({
+          id: createId(),
+          userId: auth.userId,
+          feedbackType: "report",
+          code: codeRaw,
+          severity: severityRaw,
+          sourceSurface,
+          userTier: subscription.tier,
+          reportId,
+          ticker,
+          message: message ?? "",
+          metadata: {
+            request_id: meta.requestId,
+            report_type: reportMetadata.type,
+            report_schema_version: reportMetadata.schemaVersion
+          },
+          triageStatus: "new",
+          routeStatus: "pending",
+          createdAt: nowIso,
+          updatedAt: nowIso
+        });
+
+        await appendAudit(
+          runtime,
+          "feedback.report_submitted",
+          {
+            request_id: meta.requestId,
+            route: pathname,
+            feedback_id: queued.id,
+            report_id: reportId,
+            code: codeRaw,
+            severity: severityRaw,
+            source_surface: sourceSurface,
+            user_tier: subscription.tier
+          },
+          auth.userId
+        );
+
+        sendJson(response, 202, {
+          data: {
+            feedback_id: queued.id,
+            status: "queued_for_review",
+            triage_status: queued.triageStatus,
+            route_status: queued.routeStatus,
+            created_at: queued.createdAt
+          }
+        });
+        return;
+      }
+
+      if (method === "POST" && pathname === "/v1/feedback/subscription") {
+        const body = await readJsonBody<SubscriptionFeedbackSubmission>(request);
+
+        const codeRaw = body.code?.trim();
+        if (!codeRaw || !isSubscriptionFeedbackCode(codeRaw)) {
+          sendJson(response, 422, {
+            error: "validation_failed",
+            error_message:
+              "code must be one of: cancel_price, cancel_low_value, cancel_too_noisy, cancel_other."
+          });
+          return;
+        }
+
+        const sourceSurface = body.source_surface?.trim();
+        if (!sourceSurface || sourceSurface.length > 100) {
+          sendJson(response, 422, {
+            error: "validation_failed",
+            error_message: "source_surface is required and must be at most 100 characters."
+          });
+          return;
+        }
+
+        const severityRaw = body.severity?.trim() ?? "normal";
+        if (!isFeedbackSeverity(severityRaw)) {
+          sendJson(response, 422, {
+            error: "validation_failed",
+            error_message: "severity must be one of: normal, high, blocker."
+          });
+          return;
+        }
+
+        const message = normalizeFeedbackMessage(body.message);
+        if (body.message !== undefined && message === undefined) {
+          sendJson(response, 422, {
+            error: "validation_failed",
+            error_message: "message must be at most 2000 characters."
+          });
+          return;
+        }
+
+        const subscription = await runtime.store.getUserSubscription(auth.userId);
+        const nowIso = new Date().toISOString();
+        const queued = await runtime.store.enqueueUserFeedback({
+          id: createId(),
+          userId: auth.userId,
+          feedbackType: "subscription",
+          code: codeRaw,
+          severity: severityRaw,
+          sourceSurface,
+          userTier: subscription.tier,
+          message: message ?? "",
+          metadata: {
+            request_id: meta.requestId
+          },
+          triageStatus: "new",
+          routeStatus: "pending",
+          createdAt: nowIso,
+          updatedAt: nowIso
+        });
+
+        await appendAudit(
+          runtime,
+          "feedback.subscription_submitted",
+          {
+            request_id: meta.requestId,
+            route: pathname,
+            feedback_id: queued.id,
+            code: codeRaw,
+            severity: severityRaw,
+            source_surface: sourceSurface,
+            user_tier: subscription.tier
+          },
+          auth.userId
+        );
+
+        sendJson(response, 202, {
+          data: {
+            feedback_id: queued.id,
+            status: "queued_for_review",
+            triage_status: queued.triageStatus,
+            route_status: queued.routeStatus,
+            created_at: queued.createdAt
+          }
+        });
+        return;
+      }
+
       if (method === "GET" && pathname === "/v1/sentiment/current") {
         const snapshot = await runtime.store.getLatestFearGreedSnapshot();
         if (!snapshot) {
@@ -2799,6 +3451,35 @@ export function startServer(port: number = loadConfig().port): Server {
 
         sendJson(response, 200, {
           data: view
+        });
+        return;
+      }
+
+      if (method === "GET" && pathname === "/v1/user/monitor-snapshots") {
+        const snapshots = await runtime.store.listThesisMonitorSnapshotsByUser(auth.userId);
+        await appendAudit(
+          runtime,
+          "monitor.snapshots_retrieved",
+          {
+            request_id: meta.requestId,
+            route: pathname,
+            snapshot_count: snapshots.length
+          },
+          auth.userId
+        );
+
+        sendJson(response, 200, {
+          data: snapshots.map((snapshot) => ({
+            user_id: snapshot.userId,
+            ticker: snapshot.ticker,
+            state: snapshot.state,
+            reason: snapshot.reason,
+            score: snapshot.score,
+            report_id: snapshot.reportId,
+            report_generated_at: snapshot.reportGeneratedAt,
+            report_schema_version: snapshot.reportSchemaVersion,
+            updated_at: snapshot.updatedAt
+          }))
         });
         return;
       }

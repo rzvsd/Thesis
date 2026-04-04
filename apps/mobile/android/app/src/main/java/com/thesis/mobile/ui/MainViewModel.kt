@@ -21,6 +21,7 @@ import com.thesis.mobile.model.ScenarioOverridesView
 import com.thesis.mobile.model.ScenarioResultView
 import com.thesis.mobile.model.SentimentSnapshotView
 import com.thesis.mobile.model.SubscriptionOfferView
+import com.thesis.mobile.model.ThesisMonitorSnapshotView
 import com.thesis.mobile.model.TickerSearchItem
 import com.thesis.mobile.model.UserProfileView
 import com.thesis.mobile.network.ProductApiClient
@@ -74,6 +75,7 @@ data class UiState(
     val sentimentHistory: List<SentimentSnapshotView> = emptyList(),
     val sentimentRangeDays: Int = 30,
     val sentimentError: String? = null,
+    val monitorSnapshots: List<ThesisMonitorSnapshotView> = emptyList(),
     val reportHistory: List<ReportHistoryItem> = emptyList(),
     val watchlist: List<String> = emptyList(),
     val lastViewedReport: LastViewedReport? = null,
@@ -114,6 +116,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             refreshSubscriptionOffers()
             refreshPulse()
             refreshSentiment()
+            refreshMonitorSnapshots()
             refreshReportHistory()
             viewModelScope.launch {
                 syncPushToken()
@@ -157,6 +160,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             AppTab.TODAY -> {
                 refreshPulse()
                 refreshSentiment()
+                refreshMonitorSnapshots()
             }
             AppTab.RESEARCH -> refreshReportHistory()
             AppTab.PORTFOLIO -> {
@@ -185,9 +189,24 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun setNotificationsEnabled(enabled: Boolean) {
         sessionStore.saveNotificationsEnabled(enabled)
         publish(state.copy(notificationsEnabled = enabled))
+        trackEvent(
+            if (enabled) "notifications_enabled_global" else "notifications_disabled_global",
+            mapOf("enabled" to enabled)
+        )
         viewModelScope.launch {
             syncPushToken()
         }
+    }
+
+    fun trackPushDeepLinkLanded(targetTab: String, notificationType: String?, ticker: String?) {
+        trackEvent(
+            "push_deep_link_landed",
+            mapOf(
+                "target_tab" to targetTab,
+                "notification_type" to notificationType,
+                "ticker" to ticker
+            )
+        )
     }
 
     fun setBiometricLockEnabled(enabled: Boolean) {
@@ -225,6 +244,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         notificationPreferences = mergeNotificationPreferences(preferences),
                         message = "Notification preference saved."
                     )
+                )
+                trackEvent(
+                    if (enabled) "notification_family_enabled" else "notification_family_muted",
+                    mapOf("notification_type" to normalizedType, "enabled" to enabled)
                 )
             }
 
@@ -304,6 +327,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 refreshSubscriptionOffers()
                 refreshPulse()
                 refreshSentiment()
+                refreshMonitorSnapshots()
                 refreshReportHistory()
                 syncPushToken()
                 PrefetchScheduler.schedule(getApplication<Application>().applicationContext)
@@ -368,6 +392,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     sentimentHistory = emptyList(),
                     sentimentRangeDays = 30,
                     sentimentError = null,
+                    monitorSnapshots = emptyList(),
                     deepDiveError = null,
                     watchlist = emptyList(),
                     reportHistory = emptyList(),
@@ -399,6 +424,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             "paywall_shown",
             mapOf("feature" to feature)
         )
+        if (feature.contains("win_back", ignoreCase = true)) {
+            trackEvent(
+                "win_back_prompt_shown",
+                mapOf("feature" to feature)
+            )
+        }
     }
 
     fun updateReportNoteDraft(content: String) {
@@ -441,6 +472,88 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 publish(state.copy(message = toMessage(error)))
             }
             publish(state.copy(isSavingNote = false))
+        }
+    }
+
+    fun submitReportFeedback(code: String, message: String = "") {
+        val report = state.deepDiveReport
+        if (report == null) {
+            publish(state.copy(message = "Open a report before sending feedback."))
+            return
+        }
+
+        viewModelScope.launch {
+            publish(state.copy(message = null))
+            val error = runAuthorizedWithRefresh {
+                val feedbackId = client.submitReportFeedback(
+                    baseUrl = state.apiBaseUrl,
+                    accessToken = requireTokens().accessToken,
+                    reportId = report.reportId,
+                    ticker = report.ticker,
+                    code = code,
+                    sourceSurface = "deep_dive_report",
+                    message = message.ifBlank { null },
+                    severity = if (code == "bug_report") "high" else "normal"
+                )
+                trackEvent(
+                    "report_feedback_submitted",
+                    mapOf(
+                        "feedback_id" to feedbackId,
+                        "report_id" to report.reportId,
+                        "ticker" to report.ticker,
+                        "code" to code
+                    )
+                )
+                trackEvent(
+                    "trust_feedback_submitted",
+                    mapOf(
+                        "report_id" to report.reportId,
+                        "code" to code
+                    )
+                )
+                publish(state.copy(message = "Feedback submitted. Thank you."))
+            }
+
+            if (error != null) {
+                publish(state.copy(message = toMessage(error)))
+            }
+        }
+    }
+
+    fun submitSubscriptionFeedback(
+        code: String,
+        sourceSurface: String,
+        message: String = "",
+        promptWinBack: Boolean = false
+    ) {
+        viewModelScope.launch {
+            publish(state.copy(message = null))
+            val error = runAuthorizedWithRefresh {
+                val feedbackId = client.submitSubscriptionFeedback(
+                    baseUrl = state.apiBaseUrl,
+                    accessToken = requireTokens().accessToken,
+                    code = code,
+                    sourceSurface = sourceSurface,
+                    message = message.ifBlank { null },
+                    severity = "normal"
+                )
+                val isDowngrade = sourceSurface.contains("downgrade", ignoreCase = true)
+                trackEvent(
+                    if (isDowngrade) "downgrade_reason_submitted" else "cancel_reason_submitted",
+                    mapOf(
+                        "feedback_id" to feedbackId,
+                        "code" to code,
+                        "source_surface" to sourceSurface
+                    )
+                )
+                publish(state.copy(message = "Subscription feedback submitted."))
+                if (promptWinBack) {
+                    requestFeatureUpgrade("win_back_offer")
+                }
+            }
+            if (error != null) {
+                publish(state.copy(message = toMessage(error)))
+            }
         }
     }
 
@@ -575,6 +688,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val selected = RevenueCatBilling.pickPreferredPackage(offerings, packageType)
                     ?: throw IllegalStateException("No subscription package is currently available.")
                 trackEvent(
+                    "paywall_cta_clicked",
+                    mapOf(
+                        "feature" to (state.paywallFeature ?: "general_upgrade"),
+                        "package_type" to selected.packageType.name
+                    )
+                )
+                trackEvent(
                     "purchase_started",
                     mapOf(
                         "package_type" to selected.packageType.name,
@@ -602,6 +722,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     )
                 )
                 refreshSubscriptionOffers()
+            } catch (error: Throwable) {
+                trackEvent(
+                    "purchase_failed",
+                    mapOf(
+                        "feature" to (state.paywallFeature ?: "general_upgrade"),
+                        "reason" to (error.message ?: error::class.java.simpleName)
+                    )
+                )
+                throw error
             } finally {
                 publish(state.copy(subscriptionActionInFlight = false))
             }
@@ -618,6 +747,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
             publish(state.copy(subscriptionActionInFlight = true))
             try {
+                trackEvent("restore_started")
                 val customerInfo = RevenueCatBilling.restorePurchases()
                 val profile = client.syncUserTier(
                     state.apiBaseUrl,
@@ -631,7 +761,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         message = "Purchases restored."
                     )
                 )
+                trackEvent(
+                    "restore_completed",
+                    mapOf(
+                        "tier" to profile.tier,
+                        "billing_period_end" to profile.billingPeriodEnd
+                    )
+                )
                 refreshSubscriptionOffers()
+            } catch (error: Throwable) {
+                trackEvent(
+                    "restore_failed",
+                    mapOf("reason" to (error.message ?: error::class.java.simpleName))
+                )
+                throw error
             } finally {
                 publish(state.copy(subscriptionActionInFlight = false))
             }
@@ -1009,6 +1152,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         withAuthorizedCall {
             val items = client.getWatchlist(state.apiBaseUrl, requireTokens().accessToken)
             publish(state.copy(watchlist = items))
+            refreshMonitorSnapshots()
         }
     }
 
@@ -1029,6 +1173,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 "watchlist_ticker_added",
                 mapOf("ticker" to normalized)
             )
+            refreshMonitorSnapshots()
         }
     }
 
@@ -1045,6 +1190,23 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 normalized
             )
             publish(state.copy(watchlist = items, message = "$normalized removed from watchlist."))
+            refreshMonitorSnapshots()
+        }
+    }
+
+    fun refreshMonitorSnapshots() {
+        val tokens = state.tokens ?: return
+        viewModelScope.launch {
+            val error = runAuthorizedWithRefresh {
+                val snapshots = client.getMonitorSnapshots(
+                    state.apiBaseUrl,
+                    tokens.accessToken
+                )
+                publish(state.copy(monitorSnapshots = snapshots))
+            }
+            if (error != null) {
+                return@launch
+            }
         }
     }
 
@@ -1082,6 +1244,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         sessionStore.saveLastViewedReport(report.reportId, tickerSafe, "DEEP_DIVE")
                         publish(state.copy(lastViewedReport = sessionStore.getLastViewedReport()))
                         refreshReportHistory()
+                        refreshMonitorSnapshots()
                         trackEvent(
                             "deep_dive_viewed",
                             mapOf(

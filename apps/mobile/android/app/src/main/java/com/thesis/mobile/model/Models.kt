@@ -165,13 +165,24 @@ data class SentimentSubScoreView(
 )
 
 data class SentimentSnapshotView(
-    val id: String,
-    val marketDate: String,
-    val score: Double,
+  val id: String,
+  val marketDate: String,
+  val score: Double,
     val label: String,
     val subScores: List<SentimentSubScoreView> = emptyList(),
     val missingInputs: List<String> = emptyList(),
-    val calculatedAt: String
+  val calculatedAt: String
+)
+
+data class ThesisMonitorSnapshotView(
+    val ticker: String,
+    val state: String,
+    val reason: String,
+    val score: Double,
+    val reportId: String? = null,
+    val reportGeneratedAt: String? = null,
+    val reportSchemaVersion: String? = null,
+    val updatedAt: String
 )
 
 data class ReportHistoryItem(

@@ -51,6 +51,7 @@ import com.thesis.mobile.model.LastViewedReport
 import com.thesis.mobile.model.PulseReportView
 import com.thesis.mobile.model.SectionView
 import com.thesis.mobile.model.SentimentSnapshotView
+import com.thesis.mobile.model.ThesisMonitorSnapshotView
 import com.thesis.mobile.ui.components.NoNamesEmptyState
 import com.thesis.mobile.ui.components.NoPulseEmptyState
 import com.thesis.mobile.ui.components.OfflineEmptyState
@@ -78,6 +79,7 @@ fun HomeScreen(
     sentimentHistory: List<SentimentSnapshotView>,
     sentimentError: String?,
     watchlist: List<String>,
+    monitorSnapshots: List<ThesisMonitorSnapshotView>,
     padding: PaddingValues,
     lastViewedReport: LastViewedReport? = null,
     pulseError: String? = null,
@@ -101,7 +103,7 @@ fun HomeScreen(
     val pulseLead = derivePulseLead(pulse, phase)
     val pulseTimestamp = pulse?.generatedAt?.let(::formatTimestamp)
     val lastViewedTicker = lastViewedReport?.takeIf { it.type == "DEEP_DIVE" }?.label
-    val insight = deriveInsight(pulse, watchlist, lastViewedTicker)
+    val insight = deriveInsight(pulse, watchlist, monitorSnapshots, lastViewedTicker)
 
     var isRefreshing by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
@@ -234,6 +236,7 @@ fun HomeScreen(
                 YourNamesSection(
                     watchlist = watchlist,
                     pulse = pulse,
+                    monitorSnapshots = monitorSnapshots,
                     onManageNames = onManageNames,
                     onRunDeepDive = onRunDeepDive
                 )
@@ -421,6 +424,7 @@ private fun WhatMovedSection(
 private fun YourNamesSection(
     watchlist: List<String>,
     pulse: PulseReportView?,
+    monitorSnapshots: List<ThesisMonitorSnapshotView>,
     onManageNames: () -> Unit,
     onRunDeepDive: (String) -> Unit
 ) {
@@ -466,7 +470,7 @@ private fun YourNamesSection(
                 .border(ThesisDimens.BorderWidth, ThesisColors.Border, shape)
         ) {
             watchlist.take(5).forEachIndexed { index, ticker ->
-                val context = describeWatchlistContext(ticker, pulse)
+                val context = describeWatchlistContext(ticker, pulse, monitorSnapshots)
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -847,15 +851,38 @@ private fun deriveSentimentDirection(current: SentimentSnapshotView?, history: L
     }
 }
 
-private fun deriveInsight(pulse: PulseReportView?, watchlist: List<String>, lastViewedTicker: String?): InsightCardModel? {
+private fun deriveInsight(
+    pulse: PulseReportView?,
+    watchlist: List<String>,
+    monitorSnapshots: List<ThesisMonitorSnapshotView>,
+    lastViewedTicker: String?
+): InsightCardModel? {
     val candidateTicker = lastViewedTicker ?: watchlist.firstOrNull() ?: return null
+    val monitor = monitorSnapshots.firstOrNull { it.ticker.equals(candidateTicker, ignoreCase = true) }
     val matchingSection = pulse?.sections?.firstOrNull { sectionContainsTicker(it, candidateTicker) }
-    val title = if (matchingSection != null) "$candidateTicker appeared in ${matchingSection.title}" else "$candidateTicker is ready for a fresh look"
-    val body = matchingSection?.body?.let(::summarizeBody) ?: "Run a current Deep Dive to connect today's pulse with the latest evidence."
+    val title = when {
+        monitor != null -> "$candidateTicker thesis is ${monitor.state}"
+        matchingSection != null -> "$candidateTicker appeared in ${matchingSection.title}"
+        else -> "$candidateTicker is ready for a fresh look"
+    }
+    val body = when {
+        monitor != null -> monitor.reason
+        matchingSection != null -> summarizeBody(matchingSection.body)
+        else -> "Run a current Deep Dive to connect today's pulse with the latest evidence."
+    }
     return InsightCardModel(candidateTicker, title, body)
 }
 
-private fun describeWatchlistContext(ticker: String, pulse: PulseReportView?): String {
+private fun describeWatchlistContext(
+    ticker: String,
+    pulse: PulseReportView?,
+    monitorSnapshots: List<ThesisMonitorSnapshotView>
+): String {
+    val monitor = monitorSnapshots.firstOrNull { it.ticker.equals(ticker, ignoreCase = true) }
+    if (monitor != null) {
+        val label = monitor.state.replaceFirstChar { it.uppercase() }
+        return "$label: ${monitor.reason}"
+    }
     if (pulse == null) return "On your watchlist. Ready for a Deep Dive."
     val matchingSection = pulse.sections.firstOrNull { sectionContainsTicker(it, ticker) }
     if (matchingSection != null) return "In ${matchingSection.title.lowercase()}: ${summarizeBody(matchingSection.body)}"

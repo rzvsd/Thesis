@@ -12,7 +12,7 @@
 | **Milestone** | Phase 3 M3 - Monetization, Growth Instrumentation and Feedback |
 | **Linear Project** | Phase 3 M3 - Monetization, Growth Instrumentation and Feedback |
 | **Owner** | Product Lead + Product API Engineer + Mobile Engineer + Analytics Owner |
-| **Status** | Planned |
+| **Status** | Complete (Owner-approved TBD remains on staging purchase/restore) |
 | **Depends on** | Phase 3 M2 closed; existing RevenueCat/server-truth monetization path operational |
 
 ---
@@ -63,6 +63,7 @@ M3 makes sure the app can explain why users should pay, and lets the team learn 
 - `Project Note/Phase3/ph3_PRD.md`
 - `Project Note/Phase3/ph3_MILESTONES.md`
 - `Project Note/Phase3/Milestones/M3/M3_SMOKE_PLAN_ph3.md`
+- `Project Note/Phase3/Milestones/M3/M3_EVENT_SEMANTICS_ph3.md`
 
 ### Current code surfaces
 
@@ -76,11 +77,11 @@ M3 makes sure the app can explain why users should pay, and lets the team learn 
 
 ## 3. Scope - What Is In
 
-- [ ] Premium ladder revision in product copy and server enforcement
-- [ ] Contextual paywall improvements
-- [ ] Growth event taxonomy and named dashboard/funnel ownership
-- [ ] In-app report feedback and cancellation/downgrade capture
-- [ ] Experiment-ready path for premium messaging or flow variants
+- [x] Premium ladder revision in product copy and server enforcement
+- [x] Contextual paywall improvements
+- [x] Growth event taxonomy and named dashboard/funnel ownership
+- [x] In-app report feedback and cancellation/downgrade capture
+- [x] Experiment-ready path for premium messaging or flow variants
 
 Full acceptance source: `Project Note/Phase3/ph3_MILESTONES.md -> M3`
 
@@ -164,10 +165,10 @@ Full acceptance source: `Project Note/Phase3/ph3_MILESTONES.md -> M3`
 
 ## 10. Testing Requirements
 
-- [ ] Integration tests for feedback ingestion and paywall context endpoints
-- [ ] Staging validation for upgrade/restore server truth
-- [ ] Dashboard/funnel validation from smoke-generated events
-- [ ] Auth/profile/entitlement regression smoke re-run
+- [x] Integration tests for feedback ingestion and paywall context endpoints
+- [ ] Staging validation for upgrade/restore server truth (Owner-approved TBD)
+- [x] Dashboard/funnel validation from smoke-generated events (Owner-approved)
+- [x] Auth/profile/entitlement regression smoke re-run
 
 Detailed execution lives in `M3_SMOKE_PLAN_ph3.md`.
 
@@ -175,26 +176,31 @@ Detailed execution lives in `M3_SMOKE_PLAN_ph3.md`.
 
 ## 11. Definition Of Done
 
-- [ ] All M3 acceptance criteria in `ph3_MILESTONES.md` are satisfied
-- [ ] Smoke plan executed with evidence
-- [ ] Dashboards and funnels have named owners
-- [ ] Existing entitlement regressions still pass
-- [ ] Linear tickets closed or explicitly deferred
-- [ ] Product Lead sign-off recorded
-- [ ] Engineering Lead countersign recorded
+- [x] All M3 acceptance criteria in `ph3_MILESTONES.md` are satisfied except owner-approved TBD items
+- [x] Smoke plan executed with evidence
+- [x] Dashboards and funnels have named owners
+- [x] Existing entitlement regressions still pass
+- [x] Linear tickets closed or explicitly deferred
+- [x] Product Lead sign-off recorded
+- [x] Engineering Lead countersign recorded
 
 ---
 
 ## 12. Smoke Test Log
 
 ```text
-Date:
-Run by:
-Environment:
-Result:
+Date: 2026-04-04
+Run by: Codex agent
+Environment: local dev (Product API memory backend + Android debug compile)
+Result: Complete with owner-approved TBD on live staging purchase/restore proof
 
 Notes:
-- 
+- Product API typecheck passed.
+- Product API test suite passed, including m3-feedback queue coverage.
+- Android debug Kotlin compile passed.
+- Free-tier premium boundary, paywall UX, and feedback queue persistence were validated with physical-device + API evidence.
+- PostHog dashboards/funnels approved by owner for this cycle.
+- Staging purchase/restore validation remains deferred as owner-approved TBD.
 ```
 
 ---
@@ -203,7 +209,8 @@ Notes:
 
 | Issue | Why Deferred | Linear Ticket | Target Milestone |
 |---|---|---|---|
-| None yet | - | - | - |
+| Live staging purchase proof | Owner-approved temporary defer until billing test cycle window | TBD | Phase 3 M3 closeout follow-up |
+| Live restore proof | Owner-approved temporary defer until billing test cycle window | TBD | Phase 3 M3 closeout follow-up |
 
 ---
 

@@ -1,0 +1,16 @@
+appId: ${MAESTRO_APP_ID}
+---
+
+- runFlow:
+    when:
+      visible: "System UI isn't responding"
+    commands:
+      - tapOn: "Wait"
+
+- extendedWaitUntil:
+    visible: "Run Deep Dive"
+    timeout: 25000
+
+- assertVisible: "Run Deep Dive"
+- assertVisible: "ORCL"
+- takeScreenshot: m2_step7_deep_link_landing

@@ -37,6 +37,7 @@ import androidx.compose.material.icons.filled.LightMode
 import com.thesis.mobile.model.PulseReportView
 import com.thesis.mobile.model.SectionView
 import com.thesis.mobile.model.SentimentSnapshotView
+import com.thesis.mobile.model.ThesisMonitorSnapshotView
 import com.thesis.mobile.ui.theme.HeadingFont
 import com.thesis.mobile.ui.theme.ThesisColors
 import com.thesis.mobile.ui.theme.ThesisDimens
@@ -47,6 +48,7 @@ fun WeeklyDigestScreen(
     digestDate: String?,
     sentimentCurrent: SentimentSnapshotView?,
     watchlist: List<String>,
+    monitorSnapshots: List<ThesisMonitorSnapshotView>,
     pulse: PulseReportView?,
     onOpenDashboard: () -> Unit,
     onBack: () -> Unit
@@ -147,8 +149,11 @@ fun WeeklyDigestScreen(
                         )
                         Row(horizontalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)) {
                             watchlist.take(8).forEach { ticker ->
+                                val state = monitorSnapshots.firstOrNull {
+                                    it.ticker.equals(ticker, ignoreCase = true)
+                                }?.state?.replaceFirstChar { it.uppercase() }
                                 Text(
-                                    text = ticker,
+                                    text = if (state.isNullOrBlank()) ticker else "$ticker · $state",
                                     style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Medium),
                                     color = ThesisColors.TextPrimary,
                                     modifier = Modifier

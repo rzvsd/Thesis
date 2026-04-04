@@ -1,0 +1,78 @@
+appId: ${MAESTRO_APP_ID}
+---
+
+- launchApp:
+    clearState: true
+
+- runFlow:
+    when:
+      visible: "System UI isn't responding"
+    commands:
+      - tapOn: "Wait"
+
+- runFlow:
+    when:
+      visible: "Get Started"
+    commands:
+      - tapOn: "Get Started"
+
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+
+- runFlow:
+    when:
+      visible: "Allow"
+    commands:
+      - tapOn: "Allow"
+
+- tapOn: "you@example.com"
+- inputText: "${MAESTRO_TEST_EMAIL}"
+- hideKeyboard
+- tapOn: "Enter password"
+- inputText: "${MAESTRO_TEST_PASSWORD}"
+- hideKeyboard
+- tapOn: "Log In"
+
+- extendedWaitUntil:
+    visible: "Today"
+    timeout: 30000
+
+- tapOn: "Portfolio"
+- assertVisible: "My Names"
+- tapOn: "Ticker"
+- inputText: "META"
+- hideKeyboard
+- tapOn: "Add"
+
+- extendedWaitUntil:
+    visible: "Upgrade to Pro"
+    timeout: 20000
+
+- assertVisible: "Monthly"
+- assertVisible: "Yearly"
+- takeScreenshot: ph3_m3_paywall_dialog
+
+- tapOn: "Not now"
+- assertVisible: "My Names"
+- tapOn: "Settings"
+- assertVisible: "Settings"
+
+- scrollUntilVisible:
+    element:
+      text: "FEEDBACK"
+    direction: DOWN
+
+- assertVisible: "FEEDBACK"
+- tapOn: "Price"
+- tapOn: "Optional context"
+- inputText: "M3 Maestro cancel feedback"
+- hideKeyboard
+- tapOn: "Submit Feedback"
+
+- extendedWaitUntil:
+    visible: "Subscription feedback submitted."
+    timeout: 15000
+- takeScreenshot: ph3_m3_feedback_submit

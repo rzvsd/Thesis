@@ -7,8 +7,13 @@ import type {
   CanonicalFinancialSnapshot,
   CanonicalTranscript,
   ContrarianSignalValue,
+  FeedbackSeverity,
+  FeedbackTriageStatus,
+  FeedbackRouteStatus,
   FearGreedSnapshot,
   NotificationType,
+  ReportFeedbackCode,
+  SubscriptionFeedbackCode,
   SubscriptionTier,
   TickerCoverage
 } from "../../../packages/contracts/src";
@@ -19,6 +24,8 @@ import type {
   ContrarianAlertAnchorRecord,
   JobRecord,
   NotificationPreferenceRecord,
+  ThesisMonitorSnapshotRecord,
+  UserFeedbackQueueRecord,
   ReportNoteRecord,
   ReportRecord,
   SessionRecord,
@@ -159,16 +166,45 @@ export interface ProductStore {
     content: string;
     updatedAt: string;
   }): Promise<ReportNoteRecord>;
+  enqueueUserFeedback(input: {
+    id: string;
+    userId: string;
+    feedbackType: "report" | "subscription";
+    code: ReportFeedbackCode | SubscriptionFeedbackCode;
+    severity: FeedbackSeverity;
+    sourceSurface: string;
+    userTier: SubscriptionTier;
+    reportId?: string;
+    ticker?: string;
+    message: string;
+    metadata?: Record<string, unknown>;
+    triageStatus: FeedbackTriageStatus;
+    routeStatus: FeedbackRouteStatus;
+    triageOwner?: string;
+    triagedAt?: string;
+    createdAt: string;
+    updatedAt: string;
+  }): Promise<UserFeedbackQueueRecord>;
+  listUserFeedbackQueue(input: {
+    limit: number;
+    feedbackType?: "report" | "subscription";
+    triageStatus?: FeedbackTriageStatus;
+    userTier?: SubscriptionTier;
+    sourceSurface?: string;
+  }): Promise<UserFeedbackQueueRecord[]>;
   upsertNotificationPreferences(input: {
     userId: string;
     preferences: Array<{ type: NotificationType; enabled: boolean }>;
     updatedAt: string;
   }): Promise<NotificationPreferenceRecord[]>;
+  upsertThesisMonitorSnapshot(input: ThesisMonitorSnapshotRecord): Promise<ThesisMonitorSnapshotRecord>;
+  listThesisMonitorSnapshotsByUser(userId: string): Promise<ThesisMonitorSnapshotRecord[]>;
   listUsersWithDeviceTokenByNotificationType(input: {
     notificationType: NotificationType;
     tier?: SubscriptionTier;
     userIds?: string[];
   }): Promise<Array<{ userId: string; deviceToken: string }>>;
+  listUsersWithWatchlist(): Promise<Array<{ userId: string; tickers: string[] }>>;
   listWatchlistTickersByUser(userId: string): Promise<string[]>;
   addWatchlistTicker(input: {
     id: string;
@@ -313,6 +349,18 @@ function mapTicker(row: Record<string, unknown>): TickerRegistryRecord {
 }
 
 function asRecord(value: unknown): Record<string, unknown> | undefined {
+  if (typeof value === "string" && value.trim().length > 0) {
+    try {
+      const parsed = JSON.parse(value);
+      if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) {
+        return parsed as Record<string, unknown>;
+      }
+      return undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     return undefined;
   }
@@ -437,11 +485,47 @@ function mapNotificationPreference(row: Record<string, unknown>): NotificationPr
   };
 }
 
+function mapThesisMonitorSnapshot(row: Record<string, unknown>): ThesisMonitorSnapshotRecord {
+  return {
+    userId: String(row.user_id),
+    ticker: String(row.ticker),
+    state: String(row.state) as ThesisMonitorSnapshotRecord["state"],
+    reason: String(row.reason ?? ""),
+    score: Number(row.score ?? 0),
+    reportId: row.report_id ? String(row.report_id) : undefined,
+    reportGeneratedAt: asIsoString(row.report_generated_at),
+    reportSchemaVersion: row.report_schema_version ? String(row.report_schema_version) : undefined,
+    updatedAt: asIsoString(row.updated_at) ?? new Date().toISOString()
+  };
+}
+
 function mapReportNote(row: Record<string, unknown>): ReportNoteRecord {
   return {
     reportId: String(row.report_id),
     userId: String(row.user_id),
     content: String(row.content ?? ""),
+    updatedAt: asIsoString(row.updated_at) ?? new Date().toISOString()
+  };
+}
+
+function mapUserFeedbackQueueRecord(row: Record<string, unknown>): UserFeedbackQueueRecord {
+  return {
+    id: String(row.id),
+    userId: String(row.user_id),
+    feedbackType: String(row.feedback_type) as UserFeedbackQueueRecord["feedbackType"],
+    code: String(row.code) as UserFeedbackQueueRecord["code"],
+    severity: String(row.severity) as UserFeedbackQueueRecord["severity"],
+    sourceSurface: String(row.source_surface),
+    userTier: String(row.user_tier) as SubscriptionTier,
+    reportId: row.report_id ? String(row.report_id) : undefined,
+    ticker: row.ticker ? String(row.ticker) : undefined,
+    message: String(row.message ?? ""),
+    metadata: asRecord(row.metadata) ?? {},
+    triageStatus: String(row.triage_status) as UserFeedbackQueueRecord["triageStatus"],
+    routeStatus: String(row.route_status) as UserFeedbackQueueRecord["routeStatus"],
+    triageOwner: row.triage_owner ? String(row.triage_owner) : undefined,
+    triagedAt: asIsoString(row.triaged_at),
+    createdAt: asIsoString(row.created_at) ?? new Date().toISOString(),
     updatedAt: asIsoString(row.updated_at) ?? new Date().toISOString()
   };
 }
@@ -466,6 +550,8 @@ export class InMemoryStore implements ProductStore {
   private readonly calendarEvents = new Map<string, CalendarEventRecord>();
   private readonly contrarianAnchors = new Map<string, ContrarianAlertAnchorRecord>();
   private readonly reportNotes = new Map<string, ReportNoteRecord>();
+  private readonly userFeedbackQueue = new Map<string, UserFeedbackQueueRecord>();
+  private readonly thesisMonitorSnapshots = new Map<string, ThesisMonitorSnapshotRecord>();
   private readonly notificationPreferencesByUser = new Map<
     string,
     Map<NotificationType, NotificationPreferenceRecord>
@@ -1344,6 +1430,25 @@ export class InMemoryStore implements ProductStore {
     return [...preferences.values()].map((entry) => ({ ...entry }));
   }
 
+  async upsertThesisMonitorSnapshot(
+    input: ThesisMonitorSnapshotRecord
+  ): Promise<ThesisMonitorSnapshotRecord> {
+    const key = `${input.userId}:${input.ticker.trim().toUpperCase()}`;
+    const next: ThesisMonitorSnapshotRecord = {
+      ...input,
+      ticker: input.ticker.trim().toUpperCase()
+    };
+    this.thesisMonitorSnapshots.set(key, next);
+    return { ...next };
+  }
+
+  async listThesisMonitorSnapshotsByUser(userId: string): Promise<ThesisMonitorSnapshotRecord[]> {
+    return [...this.thesisMonitorSnapshots.values()]
+      .filter((snapshot) => snapshot.userId === userId)
+      .sort((left, right) => left.ticker.localeCompare(right.ticker))
+      .map((snapshot) => ({ ...snapshot }));
+  }
+
   async getReportNote(
     reportId: string,
     userId: string
@@ -1368,6 +1473,51 @@ export class InMemoryStore implements ProductStore {
     };
     this.reportNotes.set(key, note);
     return { ...note };
+  }
+
+  async enqueueUserFeedback(input: {
+    id: string;
+    userId: string;
+    feedbackType: "report" | "subscription";
+    code: ReportFeedbackCode | SubscriptionFeedbackCode;
+    severity: FeedbackSeverity;
+    sourceSurface: string;
+    userTier: SubscriptionTier;
+    reportId?: string;
+    ticker?: string;
+    message: string;
+    metadata?: Record<string, unknown>;
+    triageStatus: FeedbackTriageStatus;
+    routeStatus: FeedbackRouteStatus;
+    triageOwner?: string;
+    triagedAt?: string;
+    createdAt: string;
+    updatedAt: string;
+  }): Promise<UserFeedbackQueueRecord> {
+    const record: UserFeedbackQueueRecord = {
+      ...input,
+      ticker: input.ticker?.trim().toUpperCase(),
+      metadata: { ...(input.metadata ?? {}) }
+    };
+    this.userFeedbackQueue.set(record.id, record);
+    return { ...record, metadata: { ...record.metadata } };
+  }
+
+  async listUserFeedbackQueue(input: {
+    limit: number;
+    feedbackType?: "report" | "subscription";
+    triageStatus?: FeedbackTriageStatus;
+    userTier?: SubscriptionTier;
+    sourceSurface?: string;
+  }): Promise<UserFeedbackQueueRecord[]> {
+    return [...this.userFeedbackQueue.values()]
+      .filter((row) => !input.feedbackType || row.feedbackType === input.feedbackType)
+      .filter((row) => !input.triageStatus || row.triageStatus === input.triageStatus)
+      .filter((row) => !input.userTier || row.userTier === input.userTier)
+      .filter((row) => !input.sourceSurface || row.sourceSurface === input.sourceSurface)
+      .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
+      .slice(0, Math.max(1, input.limit))
+      .map((row) => ({ ...row, metadata: { ...row.metadata } }));
   }
 
   async listUsersWithDeviceTokenByNotificationType(input: {
@@ -1405,6 +1555,15 @@ export class InMemoryStore implements ProductStore {
     }
 
     return targets;
+  }
+
+  async listUsersWithWatchlist(): Promise<Array<{ userId: string; tickers: string[] }>> {
+    return [...this.watchlists.entries()]
+      .map(([userId, tickers]) => ({
+        userId,
+        tickers: [...tickers].sort((left, right) => left.localeCompare(right))
+      }))
+      .filter((entry) => entry.tickers.length > 0);
   }
 
   async listWatchlistTickersByUser(userId: string): Promise<string[]> {
@@ -2599,6 +2758,101 @@ export class PostgresStore implements ProductStore {
     return mapReportNote(result.rows[0] as Record<string, unknown>);
   }
 
+  async enqueueUserFeedback(input: {
+    id: string;
+    userId: string;
+    feedbackType: "report" | "subscription";
+    code: ReportFeedbackCode | SubscriptionFeedbackCode;
+    severity: FeedbackSeverity;
+    sourceSurface: string;
+    userTier: SubscriptionTier;
+    reportId?: string;
+    ticker?: string;
+    message: string;
+    metadata?: Record<string, unknown>;
+    triageStatus: FeedbackTriageStatus;
+    routeStatus: FeedbackRouteStatus;
+    triageOwner?: string;
+    triagedAt?: string;
+    createdAt: string;
+    updatedAt: string;
+  }): Promise<UserFeedbackQueueRecord> {
+    const result = await this.pool.query(
+      `insert into user_feedback_queue (
+         id,
+         user_id,
+         feedback_type,
+         code,
+         severity,
+         source_surface,
+         user_tier,
+         report_id,
+         ticker,
+         message,
+         metadata,
+         triage_status,
+         route_status,
+         triage_owner,
+         triaged_at,
+         created_at,
+         updated_at
+       )
+       values (
+         $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
+         $11::jsonb, $12, $13, $14, $15::timestamptz,
+         $16::timestamptz, $17::timestamptz
+       )
+       returning *`,
+      [
+        input.id,
+        input.userId,
+        input.feedbackType,
+        input.code,
+        input.severity,
+        input.sourceSurface,
+        input.userTier,
+        input.reportId ?? null,
+        input.ticker?.trim().toUpperCase() ?? null,
+        input.message,
+        JSON.stringify(input.metadata ?? {}),
+        input.triageStatus,
+        input.routeStatus,
+        input.triageOwner ?? null,
+        input.triagedAt ?? null,
+        input.createdAt,
+        input.updatedAt
+      ]
+    );
+    return mapUserFeedbackQueueRecord(result.rows[0] as Record<string, unknown>);
+  }
+
+  async listUserFeedbackQueue(input: {
+    limit: number;
+    feedbackType?: "report" | "subscription";
+    triageStatus?: FeedbackTriageStatus;
+    userTier?: SubscriptionTier;
+    sourceSurface?: string;
+  }): Promise<UserFeedbackQueueRecord[]> {
+    const result = await this.pool.query(
+      `select *
+         from user_feedback_queue
+        where ($1::text is null or feedback_type = $1::text)
+          and ($2::text is null or triage_status = $2::text)
+          and ($3::text is null or user_tier = $3::text)
+          and ($4::text is null or source_surface = $4::text)
+        order by created_at desc
+        limit $5`,
+      [
+        input.feedbackType ?? null,
+        input.triageStatus ?? null,
+        input.userTier ?? null,
+        input.sourceSurface ?? null,
+        Math.max(1, input.limit)
+      ]
+    );
+    return result.rows.map((row) => mapUserFeedbackQueueRecord(row as Record<string, unknown>));
+  }
+
   async upsertNotificationPreferences(input: {
     userId: string;
     preferences: Array<{ type: NotificationType; enabled: boolean }>;
@@ -2635,6 +2889,57 @@ export class PostgresStore implements ProductStore {
     return this.getNotificationPreferences(input.userId);
   }
 
+  async upsertThesisMonitorSnapshot(
+    input: ThesisMonitorSnapshotRecord
+  ): Promise<ThesisMonitorSnapshotRecord> {
+    const result = await this.pool.query(
+      `insert into thesis_monitor_snapshots (
+         user_id,
+         ticker,
+         state,
+         reason,
+         score,
+         report_id,
+         report_generated_at,
+         report_schema_version,
+         updated_at
+       )
+       values ($1, $2, $3, $4, $5, $6, $7::timestamptz, $8, $9::timestamptz)
+       on conflict (user_id, ticker) do update set
+         state = excluded.state,
+         reason = excluded.reason,
+         score = excluded.score,
+         report_id = excluded.report_id,
+         report_generated_at = excluded.report_generated_at,
+         report_schema_version = excluded.report_schema_version,
+         updated_at = excluded.updated_at
+       returning *`,
+      [
+        input.userId,
+        input.ticker.trim().toUpperCase(),
+        input.state,
+        input.reason,
+        input.score,
+        input.reportId ?? null,
+        input.reportGeneratedAt ?? null,
+        input.reportSchemaVersion ?? null,
+        input.updatedAt
+      ]
+    );
+    return mapThesisMonitorSnapshot(result.rows[0] as Record<string, unknown>);
+  }
+
+  async listThesisMonitorSnapshotsByUser(userId: string): Promise<ThesisMonitorSnapshotRecord[]> {
+    const result = await this.pool.query(
+      `select *
+         from thesis_monitor_snapshots
+        where user_id = $1
+        order by ticker asc`,
+      [userId]
+    );
+    return result.rows.map((row) => mapThesisMonitorSnapshot(row as Record<string, unknown>));
+  }
+
   async listUsersWithDeviceTokenByNotificationType(input: {
     notificationType: NotificationType;
     tier?: SubscriptionTier;
@@ -2663,6 +2968,21 @@ export class PostgresStore implements ProductStore {
     return result.rows.map((row) => ({
       userId: String(row.id),
       deviceToken: String(row.device_token)
+    }));
+  }
+
+  async listUsersWithWatchlist(): Promise<Array<{ userId: string; tickers: string[] }>> {
+    const result = await this.pool.query(
+      `select user_id, array_agg(ticker order by ticker asc) as tickers
+         from watchlists
+        group by user_id`
+    );
+
+    return result.rows.map((row) => ({
+      userId: String(row.user_id),
+      tickers: Array.isArray(row.tickers)
+        ? row.tickers.map((value: unknown) => String(value))
+        : []
     }));
   }
 

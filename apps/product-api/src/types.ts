@@ -4,11 +4,17 @@ import type {
   CalendarEventTime,
   CalendarEventType,
   ContrarianSignalValue,
+  FeedbackRouteStatus,
+  FeedbackSeverity,
+  FeedbackTriageStatus,
   MarketPulseReport,
   NotificationType,
+  ReportFeedbackCode,
+  SubscriptionFeedbackCode,
   SubscriptionTier
 } from "../../../packages/contracts/src";
 import type {
+  ThesisMonitorState,
   TickerExchange,
   TickerListingStatus,
   TickerSearchResult
@@ -154,10 +160,42 @@ export interface NotificationPreferenceRecord {
   updatedAt: string;
 }
 
+export interface ThesisMonitorSnapshotRecord {
+  userId: string;
+  ticker: string;
+  state: ThesisMonitorState;
+  reason: string;
+  score: number;
+  reportId?: string;
+  reportGeneratedAt?: string;
+  reportSchemaVersion?: string;
+  updatedAt: string;
+}
+
 export interface ReportNoteRecord {
   reportId: string;
   userId: string;
   content: string;
+  updatedAt: string;
+}
+
+export interface UserFeedbackQueueRecord {
+  id: string;
+  userId: string;
+  feedbackType: "report" | "subscription";
+  code: ReportFeedbackCode | SubscriptionFeedbackCode;
+  severity: FeedbackSeverity;
+  sourceSurface: string;
+  userTier: SubscriptionTier;
+  reportId?: string;
+  ticker?: string;
+  message: string;
+  metadata: Record<string, unknown>;
+  triageStatus: FeedbackTriageStatus;
+  routeStatus: FeedbackRouteStatus;
+  triageOwner?: string;
+  triagedAt?: string;
+  createdAt: string;
   updatedAt: string;
 }
 

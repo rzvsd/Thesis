@@ -290,6 +290,20 @@ async function dispatchCalendarSync(config: SchedulerConfig): Promise<void> {
 }
 
 async function dispatchEarningsPreview(config: SchedulerConfig): Promise<void> {
+  const monitorPayload = await dispatchProductApiJob(
+    config,
+    "/internal/monitor/recompute",
+    {},
+    "Monitor recompute"
+  );
+  log("INFO", "Monitor recompute accepted", {
+    status: monitorPayload.status,
+    users: monitorPayload.users,
+    names: monitorPayload.names,
+    unresolved: monitorPayload.unresolved,
+    updated: monitorPayload.updated
+  });
+
   const payload = await dispatchProductApiJob(
     config,
     "/internal/notifications/earnings-preview",

@@ -12,7 +12,7 @@
 | **Milestone** | Phase 3 M2 - Daily Loop, Position Monitoring and Re-engagement |
 | **Linear Project** | Phase 3 M2 - Daily Loop, Position Monitoring and Re-engagement |
 | **Owner** | Mobile Engineer + Scheduler Engineer + Product API Engineer + Product Lead |
-| **Status** | Planned |
+| **Status** | In Progress |
 | **Depends on** | Phase 3 M1 closed; current Today/Pulse/notification paths operational |
 
 ---
@@ -164,6 +164,7 @@ Full acceptance source: `Project Note/Phase3/ph3_MILESTONES.md -> M2`
 | Today personalized | INFO | `{ service, user_state, prioritized_item_count, timestamp }` |
 | Notification sent | INFO | `{ service, family, reason_code, ticker, timestamp }` |
 | Notification throttled | INFO | `{ service, family, reason, timestamp }` |
+| Notification dismissed | INFO | `{ notification_type, open_tab, ticker }` |
 | Notification muted or disabled | INFO | `{ service, family, state, timestamp }` |
 | Notification deep-link mismatch | ERROR | `{ service, family, target, timestamp }` |
 
@@ -196,13 +197,21 @@ Detailed execution lives in `M2_SMOKE_PLAN_ph3.md`.
 ## 12. Smoke Test Log
 
 ```text
-Date:
-Run by:
-Environment:
-Result:
+Date: 2026-04-04
+Run by: Codex
+Environment: Local dev (memory-store tests + Android debug compile)
+Result: In progress - backend and scheduler automation green; physical-device smoke pending
 
 Notes:
-- 
+- Implemented `thesis_monitor_snapshots` persistence and `/v1/user/monitor-snapshots` endpoint.
+- Added internal recompute route and scheduler-triggered pre-market recompute dispatch.
+- Added automated regression proof: `apps/product-api/tests/m2-monitoring.test.ts`.
+- Android build compiles with monitor payload wiring in Today + Weekly Digest surfaces.
+- Added Android `push_dismissed` instrumentation via notification delete-intent receiver.
+- Device smoke progression:
+  - Mute-path verification passed (`attempted=1` before mute, `attempted=0` after mute).
+  - Earnings-preview deep-link intent landing now routes to Deep Dive (`ORCL`, `Run Deep Dive`) after cold-start.
+  - Owner-confirmed live push receipt and tap-through for ORCL on physical device after backend FCM mode re-enable.
 ```
 
 ---

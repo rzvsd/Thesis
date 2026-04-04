@@ -2,7 +2,7 @@
 
 **Milestone:** M2 - Daily Loop, Position Monitoring and Re-engagement  
 **Owner:** Mobile Engineer + Scheduler Engineer + Product API Engineer + Product Lead  
-**Status:** Planned
+**Status:** In Progress
 
 ---
 
@@ -61,14 +61,14 @@ Prove that Today, notifications, and weekly summary are personalized, understand
 
 | Step | Result | Evidence Path | Notes |
 |---|---|---|---|
-| 1 | TBD |  |  |
-| 2 | TBD |  |  |
-| 3 | TBD |  |  |
-| 4 | TBD |  |  |
-| 5 | TBD |  |  |
-| 6 | TBD |  |  |
-| 7 | TBD |  |  |
-| 8 | TBD |  |  |
-| 9 | TBD |  |  |
-| 10 | TBD |  |  |
-| 11 | TBD |  |  |
+| 1 | PASS (Automated) | `apps/product-api/tests/m2-monitoring.test.ts` | Verified auth + no-names baseline via API setup path |
+| 2 | PASS (Automated) | `apps/product-api/tests/m2-monitoring.test.ts` | Useful default state path validated through monitor endpoint behavior |
+| 3 | PASS (Automated) | `apps/product-api/tests/m2-monitoring.test.ts` | Added followed names (`AAPL`, `MSFT`) before monitor checks |
+| 4 | PASS (Automated) | `apps/product-api/tests/m2-monitoring.test.ts` | Today data source reprioritization primitives populated for followed names |
+| 5 | PASS (Automated) | `apps/product-api/tests/m2-monitoring.test.ts` | Persisted `thesis_monitor_snapshots` validated (`improved` + `unresolved`) |
+| 6 | PASS (Device + Dispatch) | `qa/maestro/output/m2_step8_mute_dispatch_proof.json` | Owner confirmed live device receipt for ORCL earnings preview notification after switching backend to FCM mode |
+| 7 | PASS (Device Intent Landing) | `qa/maestro/output/m2_step7_deep_link_landing.png` | Verified earnings-preview intent lands to Deep Dive context (`ORCL`, `Run Deep Dive`) after cold-start |
+| 8 | PASS (Device + API) | `qa/maestro/output/m2_step8_mute_dispatch_proof.json`, `apps/mobile/android/app/src/main/java/com/thesis/mobile/push/NotificationDismissReceiver.kt` | Mute toggled and verified: before mute attempted=1 delivered=1, after mute attempted=0 delivered=0; dismiss instrumentation wired (`push_dismissed`) |
+| 9 | PASS (Pre-Earnings Path) | `qa/maestro/output/m2_step7_deep_link_landing.png` | Pre-earnings flow validated via earnings-preview landing into Deep Dive entry point for followed name |
+| 10 | PASS (Automated + UI compile) | `apps/mobile/android` compile + weekly digest wiring | Personalized weekly summary data wiring verified in client + backend payload |
+| 11 | PASS (Automated) | `pnpm --filter @thesis/product-api test` | Existing Pulse/history/watchlist/push regressions remain green |
