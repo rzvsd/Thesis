@@ -66,8 +66,8 @@ Prove that Thesis has enough real-world evidence to justify a launch decision.
 - `corepack pnpm typecheck` PASS
 - `corepack pnpm test` PASS
 - Fresh same-day Maestro attempt for M5 rehearsal:
-  - `corepack pnpm qa:maestro:prepare` FAIL (`No connected Android device found`)
-  - Existing release-candidate physical-device evidence from M4 remains valid and satisfies M5 rehearsal gate
+  - `corepack pnpm qa:maestro:prepare` PASS (device `R3CXA03J3LH`)
+  - `corepack pnpm qa:maestro:smoke` PASS (`qa/maestro/output/2026-04-05T08-43-19-862Z/summary.json`)
 
 ---
 
@@ -79,7 +79,7 @@ Prove that Thesis has enough real-world evidence to justify a launch decision.
 | 2 | PASS | `artifacts/ph3/m3/2026-04-04T17-49-00/m3_api_summary.json`, `artifacts/ph3/m3/2026-04-04T20-48-26/m3_manual_feedback_verify.json` | Existing M3 queue proof confirms feedback routing into Product API-owned durable queue. |
 | 3 | PASS | `Project Note/Phase3/Milestones/M5/M5_WEEKLY_REVIEW_TEMPLATE_ph3.md`, `Project Note/Phase3/Milestones/M5/m5_staged_scorecard_input.json` | Weekly review template exists and is populated with a staged rehearsal record. |
 | 4 | PASS | `Project Note/Phase3/Milestones/M5/M5_LAUNCH_SCORECARD_ph3.md` | Scorecard covers required KPI set and compares each metric against launch thresholds. |
-| 5 | PASS | `artifacts/m4/maestro/2026-04-05T09-34-44/five-pass-summary.json`, `artifacts/m5/launch-gate/2026-04-05T10-17-54/summary.json` | Final launch rehearsal gate uses latest release-candidate physical-device proof plus M5 launch-gate consolidation run. |
+| 5 | PASS | `artifacts/m4/maestro/2026-04-05T09-34-44/five-pass-summary.json`, `qa/maestro/output/2026-04-05T08-43-19-862Z/summary.json`, `artifacts/m5/launch-gate/2026-04-05T10-17-54/summary.json` | Final launch rehearsal gate uses both prior five-pass release-candidate proof and a fresh same-day physical-device smoke run. |
 | 6 | PASS | `Project Note/Phase3/Milestones/M5/M5_GO_NO_GO_CHECKLIST_ph3.md` | Checklist includes explicit thresholds, blocker gate, and signer fields. |
 | 7 | PASS | `Project Note/Phase3/Milestones/M5/M5_DECISION_2026-04-05.md`, `artifacts/m5/launch-gate/2026-04-05T10-17-54/summary.json` | Final launch decision and rationale are recorded with evidence links and launch-gate result. |
 

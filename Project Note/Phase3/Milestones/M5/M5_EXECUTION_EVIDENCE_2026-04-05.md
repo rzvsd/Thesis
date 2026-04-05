@@ -23,7 +23,8 @@
 
 ## Device Rehearsal Note
 
-- `corepack pnpm qa:maestro:prepare` was attempted and failed because no Android device was detected at execution time.
-- M5 launch decision therefore uses the latest valid M4 physical-device evidence plus the M5 launch-gate consolidation run.
+- `corepack pnpm qa:maestro:prepare` PASS (device `R3CXA03J3LH`)
+- `corepack pnpm qa:maestro:smoke` PASS  
+  Evidence: `qa/maestro/output/2026-04-05T08-43-19-862Z/summary.json`
 
 
