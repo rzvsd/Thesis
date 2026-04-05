@@ -1,6 +1,6 @@
 # Runbooks
 
-This folder contains executable operational procedures for M9 hardening.
+This folder contains executable operational procedures for hardening milestones (M4 and M9).
 
 Start here:
 - [INDEX.md](./INDEX.md) — smoke-step mapping, owners, and rollback commands
@@ -25,4 +25,10 @@ Optional (includes backup/restore validation):
 corepack pnpm runbooks:m9:smoke:backup
 ```
 
-Artifacts are written under `artifacts/m9/<timestamp>/`.
+M4 alert/readiness smoke:
+
+```powershell
+corepack pnpm runbooks:m4:smoke
+```
+
+Artifacts are written under `artifacts/m4/runbooks/<timestamp>/` and `artifacts/m9/<timestamp>/`.

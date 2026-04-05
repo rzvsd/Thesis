@@ -4,6 +4,7 @@ import type { NotificationType } from "../../../packages/contracts/src";
 
 export interface PushTarget {
   userId: string;
+  installationId: string;
   deviceToken: string;
 }
 
@@ -11,7 +12,7 @@ export interface PushDispatchResult {
   attempted: number;
   delivered: number;
   failed: number;
-  invalidTargets: string[];
+  invalidTargets: PushTarget[];
   provider: "stub" | "fcm";
 }
 
@@ -109,7 +110,7 @@ export class PushNotifier {
 
     let delivered = 0;
     let failed = 0;
-    const invalidTargets: string[] = [];
+    const invalidTargets: PushTarget[] = [];
 
     try {
       const batchResult = await getMessaging().sendEachForMulticast({
@@ -138,7 +139,7 @@ export class PushNotifier {
         if (isInvalidFcmToken(errorCode)) {
           const target = targets[index];
           if (target) {
-            invalidTargets.push(target.userId);
+            invalidTargets.push(target);
           }
         }
       });

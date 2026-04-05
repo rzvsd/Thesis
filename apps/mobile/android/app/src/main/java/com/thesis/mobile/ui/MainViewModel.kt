@@ -361,7 +361,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
             runCatching {
                 // Unregister device before token clear to avoid stale push subscriptions.
-                client.updateDeviceToken(state.apiBaseUrl, current.accessToken, null)
+                client.updateDeviceToken(
+                    state.apiBaseUrl,
+                    current.accessToken,
+                    null,
+                    sessionStore.getInstallationId()
+                )
             }
             runCatching {
                 client.logout(state.apiBaseUrl, current.accessToken, current.refreshToken)
@@ -1353,7 +1358,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val tokens = state.tokens ?: return
         if (!state.notificationsEnabled) {
             runCatching {
-                client.updateDeviceToken(state.apiBaseUrl, tokens.accessToken, null)
+                client.updateDeviceToken(
+                    state.apiBaseUrl,
+                    tokens.accessToken,
+                    null,
+                    sessionStore.getInstallationId()
+                )
             }
             return
         }
@@ -1367,7 +1377,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         runCatching {
-            client.updateDeviceToken(state.apiBaseUrl, tokens.accessToken, firebaseToken)
+            client.updateDeviceToken(
+                state.apiBaseUrl,
+                tokens.accessToken,
+                firebaseToken,
+                sessionStore.getInstallationId()
+            )
         }
     }
 

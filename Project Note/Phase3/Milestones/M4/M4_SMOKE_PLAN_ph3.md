@@ -2,7 +2,7 @@
 
 **Milestone:** M4 - Mobile Reliability, Security and Operational Readiness  
 **Owner:** Mobile Engineer + Platform Engineer + Product API Engineer + QA Lead  
-**Status:** Planned
+**Status:** Closed (owner-approved TBD defer recorded)
 
 ---
 
@@ -64,13 +64,13 @@ Prove that Thesis behaves like a real release candidate and that the practical l
 
 | Step | Result | Evidence Path | Notes |
 |---|---|---|---|
-| 1 | TBD |  |  |
-| 2 | TBD |  |  |
-| 3 | TBD |  |  |
-| 4 | TBD |  |  |
-| 5 | TBD |  |  |
-| 6 | TBD |  |  |
-| 7 | TBD |  |  |
-| 8 | TBD |  |  |
-| 9 | TBD |  |  |
-| 10 | TBD |  |  |
+| 1 | PASS | `pnpm qa:maestro:prepare` console output; `qa/maestro/.maestro.env` | Prepare now succeeds on connected physical device `R3CXA03J3LH` and writes runtime env for canonical flow. |
+| 2 | PASS | `qa/maestro/output/2026-04-05T06-26-25-420Z/summary.json` | Canonical Phase 3 M4 flow (`ph3_m4_smoke.yaml`) passes on physical device. |
+| 3 | PASS | `artifacts/m4/maestro/2026-04-05T09-34-44/five-pass-summary.json` | Five consecutive physical-device Maestro smoke runs pass (same flow + same device). |
+| 4 | PASS | `artifacts/m4/e2e/2026-04-04T22-10-40/summary.json` | `pnpm test:e2e` passes core auth/deep-dive/pulse/notification flow. |
+| 5 | PASS | `artifacts/m4/load/2026-04-04T21-57-01/summary.json` | `pnpm test:load` passes all mandatory scenarios and thresholds. |
+| 6 | PASS | `apps/mobile/android/app/build.gradle.kts`, `apps/mobile/android/app/src/release/res/xml/network_security_config.xml` | Release build now fails closed unless real release URL/host/pins are provided via release properties. |
+| 7 | PASS (TBD DEFER APPROVED) | `apps/mobile/android/app/src/release/res/xml/network_security_config.xml`, `apps/mobile/android/app/build.gradle.kts` | Placeholder pins removed and release property validation is fail-closed. Signed-release runtime pinning proof is explicitly deferred as owner-approved TBD closeout follow-up. |
+| 8 | PASS | `apps/product-api/tests/m4-push-devices.test.ts` | Multi-device push behavior validated (install-scoped registration + targeted unregister). |
+| 9 | PASS | `artifacts/m4/runbooks/2026-04-05T01-09-39/summary.json` | API/queue/notification/stale-job alert hooks and runbook readiness smoke pass. |
+| 10 | PASS | Root `pnpm test` run output | Full inherited regression chain and integration suites pass after M4 changes. |
