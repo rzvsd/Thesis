@@ -18,6 +18,7 @@
     "qa:maestro:prepare": "node qa/maestro/scripts/prepare.mjs",
     "qa:maestro:smoke": "node qa/maestro/scripts/run-smoke.mjs",
     "runbooks:m4:smoke": "powershell -ExecutionPolicy Bypass -File scripts/runbooks/smoke-m4-ops.ps1",
+    "runbooks:m5:smoke": "powershell -ExecutionPolicy Bypass -File scripts/runbooks/smoke-m5-launch-gate.ps1",
     "runbooks:m9:smoke": "powershell -ExecutionPolicy Bypass -File scripts/runbooks/smoke-hardening.ps1",
     "runbooks:m9:smoke:backup": "powershell -ExecutionPolicy Bypass -File scripts/runbooks/smoke-hardening.ps1 -RunBackupRestore"
   },

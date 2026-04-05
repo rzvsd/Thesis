@@ -1,0 +1,26 @@
+{
+  "generated_at": "2026-04-05T10:20:00+03:00",
+  "mode": "staged_rehearsal",
+  "source": "phase3-m5-launch-gate",
+  "scorecard_metrics": {
+    "beta_invite_acceptances": 42,
+    "beta_activated_users": 19,
+    "repeat_use_proxy_users_7d": 14,
+    "repeat_use_proxy_pct": 73.68,
+    "crash_free_sessions_pct": 99.82,
+    "push_receiving_users": 120,
+    "notification_disablement_users": 8,
+    "trust_complaints_total_week": 5,
+    "severe_trust_clusters_unresolved": 0,
+    "conversion_proxy_pct": 22.4,
+    "churn_signal_pct": 4.1,
+    "unresolved_sev1_blockers": 0,
+    "five_pass_rc_smoke_green": true
+  },
+  "notes": [
+    "Activation threshold target >= 35%.",
+    "Notification disablement threshold target < 15%.",
+    "Crash-free threshold target >= 99.5%.",
+    "All launch-gate blocker thresholds are green for this staged rehearsal."
+  ]
+}

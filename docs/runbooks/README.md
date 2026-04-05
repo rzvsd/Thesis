@@ -31,4 +31,10 @@ M4 alert/readiness smoke:
 corepack pnpm runbooks:m4:smoke
 ```
 
-Artifacts are written under `artifacts/m4/runbooks/<timestamp>/` and `artifacts/m9/<timestamp>/`.
+M5 launch-gate smoke:
+
+```powershell
+corepack pnpm runbooks:m5:smoke
+```
+
+Artifacts are written under `artifacts/m4/runbooks/<timestamp>/`, `artifacts/m5/launch-gate/<timestamp>/`, and `artifacts/m9/<timestamp>/`.
