@@ -56,6 +56,15 @@ export interface ProductApiConfig {
   databaseUrl?: string;
   autoMigrate: boolean;
   artifactRoot: string;
+  artifactStoreMode: "filesystem" | "s3";
+  artifactS3Bucket?: string;
+  artifactS3Region?: string;
+  artifactS3Endpoint?: string;
+  artifactS3AccessKeyId?: string;
+  artifactS3SecretAccessKey?: string;
+  artifactS3ForcePathStyle: boolean;
+  artifactS3Prefix: string;
+  artifactRequireDurable: boolean;
   emailProviderMode: "stub";
   exposeVerificationToken: boolean;
   internalWorkerToken: string;
@@ -119,6 +128,15 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ProductApiConf
 
   const jwtSecret = env.JWT_SECRET ?? "dev-jwt-secret-change-me";
   const internalWorkerToken = env.INTERNAL_WORKER_TOKEN ?? "dev-internal-worker-token";
+  const artifactStoreModeRaw = env.ARTIFACT_STORE_MODE?.trim().toLowerCase();
+  const artifactStoreMode: "filesystem" | "s3" =
+    artifactStoreModeRaw === "s3"
+      ? "s3"
+      : artifactStoreModeRaw === "filesystem"
+        ? "filesystem"
+        : env.ARTIFACT_S3_BUCKET?.trim()
+          ? "s3"
+          : "filesystem";
 
   return {
     port,
@@ -134,6 +152,15 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ProductApiConf
     databaseUrl,
     autoMigrate: parseBoolean(env.AUTO_MIGRATE, true),
     artifactRoot: env.ARTIFACT_ROOT ?? resolve(process.cwd(), "data", "artifacts"),
+    artifactStoreMode,
+    artifactS3Bucket: env.ARTIFACT_S3_BUCKET?.trim() || undefined,
+    artifactS3Region: env.ARTIFACT_S3_REGION?.trim() || undefined,
+    artifactS3Endpoint: env.ARTIFACT_S3_ENDPOINT?.trim() || undefined,
+    artifactS3AccessKeyId: env.ARTIFACT_S3_ACCESS_KEY_ID?.trim() || undefined,
+    artifactS3SecretAccessKey: env.ARTIFACT_S3_SECRET_ACCESS_KEY?.trim() || undefined,
+    artifactS3ForcePathStyle: parseBoolean(env.ARTIFACT_S3_FORCE_PATH_STYLE, false),
+    artifactS3Prefix: env.ARTIFACT_S3_PREFIX?.trim() || "reports",
+    artifactRequireDurable: parseBoolean(env.ARTIFACT_REQUIRE_DURABLE, false),
     emailProviderMode: "stub",
     exposeVerificationToken: parseBoolean(env.AUTH_EXPOSE_VERIFICATION_TOKEN, false),
     internalWorkerToken,
@@ -202,6 +229,26 @@ export function validateConfig(config: ProductApiConfig): string[] {
 
   if (config.storeBackend === "postgres" && !config.databaseUrl) {
     errors.push("DATABASE_URL is required when STORE_BACKEND=postgres");
+  }
+
+  if (config.artifactStoreMode === "s3") {
+    if (!config.artifactS3Bucket) {
+      errors.push("ARTIFACT_S3_BUCKET is required when ARTIFACT_STORE_MODE=s3");
+    }
+    if (!config.artifactS3Region) {
+      errors.push("ARTIFACT_S3_REGION is required when ARTIFACT_STORE_MODE=s3");
+    }
+    if (Boolean(config.artifactS3AccessKeyId) !== Boolean(config.artifactS3SecretAccessKey)) {
+      errors.push(
+        "ARTIFACT_S3_ACCESS_KEY_ID and ARTIFACT_S3_SECRET_ACCESS_KEY must be set together"
+      );
+    }
+  }
+
+  if (config.artifactStoreMode === "filesystem" && config.artifactRequireDurable) {
+    errors.push(
+      "ARTIFACT_STORE_MODE=s3 is required when ARTIFACT_REQUIRE_DURABLE=true"
+    );
   }
 
   if (config.queueBackend === "redis" && !config.redisUrl) {

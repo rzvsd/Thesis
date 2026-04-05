@@ -46,7 +46,7 @@ Important:
 ## What `smoke` does
 
 1. Loads vars from `qa/maestro/.maestro.env`.
-2. Runs the configured flow (default `qa/maestro/flows/m8_smoke.yaml`).
+2. Runs the configured flow (default `qa/maestro/flows/ph3_m4_smoke.yaml`).
 3. Stores run logs and summary under `qa/maestro/output/<timestamp>/`.
 
 ## Key flows
@@ -54,6 +54,7 @@ Important:
 - `m7_smoke.yaml` - M7 report/UI smoke
 - `m8_smoke.yaml` - M8 Fear & Greed dashboard + weekly digest + tab/regression smoke
 - `m8_weekly_digest_deeplink.yaml` - focused weekly digest deep-link verification
+- `ph3_m4_smoke.yaml` - Phase 3 M4 release-candidate smoke path (Today -> Research -> Portfolio -> Weekly Digest -> History)
 
 ## Optional env overrides
 

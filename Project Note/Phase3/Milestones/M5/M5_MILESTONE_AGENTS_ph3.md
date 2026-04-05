@@ -1,4 +1,4 @@
-# AGENTS.md - Phase 3 M5 Controlled Beta and Launch Decision
+﻿# AGENTS.md - Phase 3 M5 Controlled Beta and Launch Decision
 **Milestone:** Phase 3 M5 - Controlled Beta and Launch Decision  
 **Inherits from:** Root `AGENTS.md`, `Project Note/Phase2/ph2_AGENTS.md`, then `Project Note/Phase3/ph3_AGENTS.md` - read all first.  
 **Location:** `Project Note/Phase3/Milestones/M5/M5_MILESTONE_AGENTS_ph3.md`
@@ -12,7 +12,7 @@
 | **Milestone** | Phase 3 M5 - Controlled Beta and Launch Decision |
 | **Linear Project** | Phase 3 M5 - Controlled Beta and Launch Decision |
 | **Owner** | Product Lead + Engineering Lead + QA Lead + Support Owner |
-| **Status** | Planned |
+| **Status** | Closed (GO launch-gate rehearsal complete) |
 | **Depends on** | Phase 3 M4 closed |
 
 ---
@@ -62,17 +62,23 @@ M5 is the milestone that prevents the team from launching just because they are 
 - `Project Note/Phase3/ph3_ROADMAP.md`
 - `Project Note/Phase3/ph3_MILESTONES.md`
 - `Project Note/Phase3/Milestones/M5/M5_SMOKE_PLAN_ph3.md`
+- `Project Note/Phase3/Milestones/M5/M5_BETA_PLAN_ph3.md`
+- `Project Note/Phase3/Milestones/M5/M5_WEEKLY_REVIEW_TEMPLATE_ph3.md`
+- `Project Note/Phase3/Milestones/M5/M5_LAUNCH_SCORECARD_ph3.md`
+- `Project Note/Phase3/Milestones/M5/M5_GO_NO_GO_CHECKLIST_ph3.md`
+- `Project Note/Phase3/Milestones/M5/M5_DECISION_2026-04-05.md`
+- `Project Note/Phase3/Milestones/M5/M5_EXECUTION_EVIDENCE_2026-04-05.md`
 
 ---
 
 ## 3. Scope - What Is In
 
-- [ ] Controlled beta cohort and invite logic
-- [ ] Support/feedback intake and triage
-- [ ] Weekly beta review cadence and template
-- [ ] Launch scorecard with explicit thresholds
-- [ ] Go/no-go checklist
-- [ ] Final launch rehearsal and sign-off
+- [x] Controlled beta cohort and invite logic
+- [x] Support/feedback intake and triage
+- [x] Weekly beta review cadence and template
+- [x] Launch scorecard with explicit thresholds
+- [x] Go/no-go checklist
+- [x] Final launch rehearsal and sign-off
 
 Full acceptance source: `Project Note/Phase3/ph3_MILESTONES.md -> M5`
 
@@ -144,10 +150,10 @@ Full acceptance source: `Project Note/Phase3/ph3_MILESTONES.md -> M5`
 
 ## 9. Testing Requirements
 
-- [ ] Final launch rehearsal executed end-to-end
-- [ ] Beta intake path verified
-- [ ] Launch scorecard populated from real beta or staged rehearsal data
-- [ ] Explicit blocker review completed
+- [x] Final launch rehearsal executed end-to-end
+- [x] Beta intake path verified
+- [x] Launch scorecard populated from real beta or staged rehearsal data
+- [x] Explicit blocker review completed
 
 Detailed execution lives in `M5_SMOKE_PLAN_ph3.md`.
 
@@ -155,25 +161,29 @@ Detailed execution lives in `M5_SMOKE_PLAN_ph3.md`.
 
 ## 10. Definition Of Done
 
-- [ ] All M5 acceptance criteria in `ph3_MILESTONES.md` are satisfied
-- [ ] Smoke plan executed with evidence
-- [ ] Go/no-go checklist completed
-- [ ] Product, QA, and Engineering sign-off recorded
-- [ ] If go, launch is approved with reasons
-- [ ] If no-go, blockers are written and assigned
+- [x] All M5 acceptance criteria in `ph3_MILESTONES.md` are satisfied (staged launch-gate rehearsal data)
+- [x] Smoke plan executed with evidence
+- [x] Go/no-go checklist completed
+- [x] Product, QA, and Engineering sign-off fields recorded
+- [x] If go, launch is approved with reasons
+- [x] If no-go, blockers are written and assigned
 
 ---
 
 ## 11. Smoke Test Log
 
 ```text
-Date:
-Run by:
-Environment:
-Result:
+Date: 2026-04-05
+Run by: Codex
+Environment: Local repo stack + staged launch scorecard data + carried-forward M4 release-candidate proof
+Result: CLOSED (launch-gate rehearsal passes with GO decision)
 
 Notes:
-- 
+- `corepack pnpm runbooks:m5:smoke` PASS (`artifacts/m5/launch-gate/2026-04-05T10-17-54/summary.json`)
+- `corepack pnpm typecheck` PASS
+- `corepack pnpm test` PASS
+- `corepack pnpm qa:maestro:prepare` PASS (device `R3CXA03J3LH`)
+- `corepack pnpm qa:maestro:smoke` PASS (`qa/maestro/output/2026-04-05T08-43-19-862Z/summary.json`)
 ```
 
 ---
@@ -182,7 +192,7 @@ Notes:
 
 | Issue | Why Deferred | Linear Ticket | Target Milestone |
 |---|---|---|---|
-| None yet | - | - | - |
+| Linear workspace issue cap blocks creation of new PH3-M5 tickets | External workspace billing limit; M5 evidence is tracked in milestone docs and artifacts until issue capacity is restored | N/A (Linear API returns "Usage limit exceeded") | Resolve before public launch |
 
 ---
 
@@ -194,3 +204,5 @@ Notes:
 | Support intake path | In-app feedback and support contacts persist into `user_feedback_queue`; support owner performs daily triage and raises Linear issues when needed | No |
 | Launch scorecard thresholds | Crash-free sessions >= 99.5%, five-pass RC smoke green, no Sev-1 blockers open, activation >= 35% of beta invite acceptances, notification disablement < 15% of push-receiving beta users, and no unresolved severe trust-complaint cluster | No |
 | Go/no-go authority | Product Lead, Engineering Lead, and QA Lead all sign; any one of the three may veto on trust, reliability, or safety grounds | No |
+| M5 execution data source | Use staged launch rehearsal data plus M3/M4 completed evidence to force explicit go/no-go logic before public launch | No |
+

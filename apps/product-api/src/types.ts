@@ -32,6 +32,19 @@ export interface UserRecord {
   deviceToken?: string;
 }
 
+export interface UserDeviceRecord {
+  id: string;
+  userId: string;
+  installationId: string;
+  deviceToken: string;
+  platform: string;
+  lastSeenAt: string;
+  createdAt: string;
+  updatedAt: string;
+  invalidatedAt?: string;
+  invalidationReason?: string;
+}
+
 export interface UserSubscriptionRecord {
   userId: string;
   tier: SubscriptionTier;

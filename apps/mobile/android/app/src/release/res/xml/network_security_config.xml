@@ -1,14 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
-    <!--
-      Replace host + pins before production release.
-      Pins must be SHA-256 of the approved intermediate CA public keys.
-    -->
     <domain-config cleartextTrafficPermitted="false">
-        <domain includeSubdomains="true">api.thesis.example.com</domain>
+        <domain includeSubdomains="true">@string/release_api_host</domain>
         <pin-set expiration="2028-01-01">
-            <pin digest="SHA-256">AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=</pin>
-            <pin digest="SHA-256">BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB=</pin>
+            <pin digest="SHA-256">@string/release_cert_pin_primary</pin>
+            <pin digest="SHA-256">@string/release_cert_pin_backup</pin>
         </pin-set>
     </domain-config>
 </network-security-config>

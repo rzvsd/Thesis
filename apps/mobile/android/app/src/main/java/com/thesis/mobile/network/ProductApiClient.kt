@@ -73,9 +73,18 @@ class ProductApiClient {
             requestJson(baseUrl, "POST", "/auth/logout", accessToken = accessToken, body = body)
         }
 
-    suspend fun updateDeviceToken(baseUrl: String, accessToken: String, deviceToken: String?) =
+    suspend fun updateDeviceToken(
+        baseUrl: String,
+        accessToken: String,
+        deviceToken: String?,
+        installationId: String,
+        platform: String = "android"
+    ) =
         withContext(Dispatchers.IO) {
-            val body = JSONObject().put("device_token", deviceToken)
+            val body = JSONObject()
+                .put("device_token", deviceToken)
+                .put("installation_id", installationId)
+                .put("platform", platform)
             requestJson(
                 baseUrl,
                 "POST",

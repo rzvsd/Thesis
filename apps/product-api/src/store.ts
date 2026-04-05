@@ -33,6 +33,7 @@ import type {
   TickerRegistryRecord,
   TickerRegistryUpsertInput,
   TickerSearchResult,
+  UserDeviceRecord,
   UserRecord,
   UserSubscriptionRecord,
   VerificationTokenRecord
@@ -47,6 +48,29 @@ export interface ProductStore {
     userId: string,
     deviceToken: string | undefined
   ): Promise<UserRecord | undefined>;
+  upsertUserDevice(input: {
+    userId: string;
+    installationId: string;
+    deviceToken: string;
+    platform: string;
+    updatedAt: string;
+  }): Promise<UserDeviceRecord | undefined>;
+  invalidateUserDeviceByInstallation(input: {
+    userId: string;
+    installationId: string;
+    invalidatedAt: string;
+    reason: string;
+  }): Promise<boolean>;
+  invalidateUserDevicesByUser(input: {
+    userId: string;
+    invalidatedAt: string;
+    reason: string;
+  }): Promise<number>;
+  invalidateUserDeviceByToken(input: {
+    deviceToken: string;
+    invalidatedAt: string;
+    reason: string;
+  }): Promise<number>;
   listUsersWithDeviceToken(): Promise<Array<{ userId: string; deviceToken: string }>>;
   getUserSubscription(userId: string): Promise<UserSubscriptionRecord>;
   findUserIdByRevenuecatAppUserId(revenuecatAppUserId: string): Promise<string | undefined>;
@@ -203,7 +227,7 @@ export interface ProductStore {
     notificationType: NotificationType;
     tier?: SubscriptionTier;
     userIds?: string[];
-  }): Promise<Array<{ userId: string; deviceToken: string }>>;
+  }): Promise<Array<{ userId: string; installationId: string; deviceToken: string }>>;
   listUsersWithWatchlist(): Promise<Array<{ userId: string; tickers: string[] }>>;
   listWatchlistTickersByUser(userId: string): Promise<string[]>;
   addWatchlistTicker(input: {
@@ -266,6 +290,23 @@ function mapUser(row: Record<string, unknown>): UserRecord {
     createdAt: asIsoString(row.created_at) ?? new Date().toISOString(),
     verifiedAt: asIsoString(row.verified_at),
     deviceToken: row.device_token ? String(row.device_token) : undefined
+  };
+}
+
+function mapUserDevice(row: Record<string, unknown>): UserDeviceRecord {
+  return {
+    id: String(row.id),
+    userId: String(row.user_id),
+    installationId: String(row.installation_id),
+    deviceToken: String(row.device_token),
+    platform: String(row.platform ?? "android"),
+    lastSeenAt: asIsoString(row.last_seen_at) ?? new Date().toISOString(),
+    createdAt: asIsoString(row.created_at) ?? new Date().toISOString(),
+    updatedAt: asIsoString(row.updated_at) ?? new Date().toISOString(),
+    invalidatedAt: asIsoString(row.invalidated_at),
+    invalidationReason: row.invalidation_reason
+      ? String(row.invalidation_reason)
+      : undefined
   };
 }
 
@@ -532,6 +573,7 @@ function mapUserFeedbackQueueRecord(row: Record<string, unknown>): UserFeedbackQ
 
 export class InMemoryStore implements ProductStore {
   private readonly users = new Map<string, UserRecord>();
+  private readonly userDevicesByUser = new Map<string, Map<string, UserDeviceRecord>>();
   private readonly usersByEmail = new Map<string, string>();
   private readonly subscriptions = new Map<string, UserSubscriptionRecord>();
   private readonly userIdsByRevenuecatAppUserId = new Map<string, string>();
@@ -761,21 +803,211 @@ export class InMemoryStore implements ProductStore {
     if (!user) {
       return undefined;
     }
-    user.deviceToken = deviceToken;
+    if (!deviceToken || deviceToken.trim().length === 0) {
+      await this.invalidateUserDevicesByUser({
+        userId,
+        invalidatedAt: new Date().toISOString(),
+        reason: "legacy_unset"
+      });
+      user.deviceToken = undefined;
+      return user;
+    }
+
+    const normalized = deviceToken.trim();
+    user.deviceToken = normalized;
+    await this.upsertUserDevice({
+      userId,
+      installationId: `legacy:${userId}`,
+      deviceToken: normalized,
+      platform: "android",
+      updatedAt: new Date().toISOString()
+    });
     return user;
   }
 
   async listUsersWithDeviceToken(): Promise<Array<{ userId: string; deviceToken: string }>> {
     const targets: Array<{ userId: string; deviceToken: string }> = [];
-    for (const user of this.users.values()) {
-      if (user.deviceToken && user.deviceToken.trim().length > 0) {
+    for (const devices of this.userDevicesByUser.values()) {
+      for (const device of devices.values()) {
+        if (device.invalidatedAt) {
+          continue;
+        }
         targets.push({
-          userId: user.id,
-          deviceToken: user.deviceToken
+          userId: device.userId,
+          deviceToken: device.deviceToken
         });
       }
     }
     return targets;
+  }
+
+  async upsertUserDevice(input: {
+    userId: string;
+    installationId: string;
+    deviceToken: string;
+    platform: string;
+    updatedAt: string;
+  }): Promise<UserDeviceRecord | undefined> {
+    const user = this.users.get(input.userId);
+    if (!user) {
+      return undefined;
+    }
+
+    const normalizedInstallation = input.installationId.trim();
+    const normalizedToken = input.deviceToken.trim();
+    if (normalizedInstallation.length === 0 || normalizedToken.length === 0) {
+      return undefined;
+    }
+
+    const invalidatedAt = input.updatedAt;
+    for (const devices of this.userDevicesByUser.values()) {
+      for (const device of devices.values()) {
+        if (device.invalidatedAt) {
+          continue;
+        }
+        if (
+          device.deviceToken === normalizedToken &&
+          (device.userId !== input.userId || device.installationId !== normalizedInstallation)
+        ) {
+          device.invalidatedAt = invalidatedAt;
+          device.invalidationReason = "token_rotated";
+          device.updatedAt = invalidatedAt;
+        }
+      }
+    }
+
+    let userDevices = this.userDevicesByUser.get(input.userId);
+    if (!userDevices) {
+      userDevices = new Map<string, UserDeviceRecord>();
+      this.userDevicesByUser.set(input.userId, userDevices);
+    }
+
+    const existing = userDevices.get(normalizedInstallation);
+    const createdAt = existing?.createdAt ?? input.updatedAt;
+    const id = existing?.id ?? randomUUID();
+    const record: UserDeviceRecord = {
+      id,
+      userId: input.userId,
+      installationId: normalizedInstallation,
+      deviceToken: normalizedToken,
+      platform: input.platform.trim().toLowerCase() || "android",
+      lastSeenAt: input.updatedAt,
+      createdAt,
+      updatedAt: input.updatedAt,
+      invalidatedAt: undefined,
+      invalidationReason: undefined
+    };
+    userDevices.set(normalizedInstallation, record);
+    return { ...record };
+  }
+
+  async invalidateUserDeviceByInstallation(input: {
+    userId: string;
+    installationId: string;
+    invalidatedAt: string;
+    reason: string;
+  }): Promise<boolean> {
+    const devices = this.userDevicesByUser.get(input.userId);
+    if (!devices) {
+      return false;
+    }
+    const device = devices.get(input.installationId.trim());
+    if (!device || device.invalidatedAt) {
+      return false;
+    }
+    device.invalidatedAt = input.invalidatedAt;
+    device.invalidationReason = input.reason;
+    device.updatedAt = input.invalidatedAt;
+    return true;
+  }
+
+  async invalidateUserDevicesByUser(input: {
+    userId: string;
+    invalidatedAt: string;
+    reason: string;
+  }): Promise<number> {
+    const devices = this.userDevicesByUser.get(input.userId);
+    if (!devices) {
+      return 0;
+    }
+    let changed = 0;
+    for (const device of devices.values()) {
+      if (device.invalidatedAt) {
+        continue;
+      }
+      device.invalidatedAt = input.invalidatedAt;
+      device.invalidationReason = input.reason;
+      device.updatedAt = input.invalidatedAt;
+      changed += 1;
+    }
+    return changed;
+  }
+
+  async invalidateUserDeviceByToken(input: {
+    deviceToken: string;
+    invalidatedAt: string;
+    reason: string;
+  }): Promise<number> {
+    let changed = 0;
+    for (const devices of this.userDevicesByUser.values()) {
+      for (const device of devices.values()) {
+        if (device.invalidatedAt) {
+          continue;
+        }
+        if (device.deviceToken !== input.deviceToken) {
+          continue;
+        }
+        device.invalidatedAt = input.invalidatedAt;
+        device.invalidationReason = input.reason;
+        device.updatedAt = input.invalidatedAt;
+        changed += 1;
+      }
+    }
+    return changed;
+  }
+
+  async listUsersWithDeviceTokenByNotificationType(input: {
+    notificationType: NotificationType;
+    tier?: SubscriptionTier;
+    userIds?: string[];
+  }): Promise<Array<{ userId: string; installationId: string; deviceToken: string }>> {
+    const normalizedUserIds = input.userIds
+      ? new Set(input.userIds.map((userId) => userId.trim()))
+      : undefined;
+
+    const pushTargets: Array<{ userId: string; installationId: string; deviceToken: string }> = [];
+    for (const user of this.users.values()) {
+      if (normalizedUserIds && !normalizedUserIds.has(user.id)) {
+        continue;
+      }
+      if (input.tier) {
+        const subscription = await this.getUserSubscription(user.id);
+        if (subscription.tier !== input.tier) {
+          continue;
+        }
+      }
+      const preferences = this.ensureDefaultNotificationPreferences(user.id);
+      const preference = preferences.get(input.notificationType);
+      if (!preference || !preference.enabled) {
+        continue;
+      }
+      const devices = this.userDevicesByUser.get(user.id);
+      if (!devices) {
+        continue;
+      }
+      for (const device of devices.values()) {
+        if (device.invalidatedAt) {
+          continue;
+        }
+        pushTargets.push({
+          userId: user.id,
+          installationId: device.installationId,
+          deviceToken: device.deviceToken
+        });
+      }
+    }
+
+    return pushTargets;
   }
 
   private ensureDefaultNotificationPreferences(userId: string): Map<NotificationType, NotificationPreferenceRecord> {
@@ -1520,43 +1752,6 @@ export class InMemoryStore implements ProductStore {
       .map((row) => ({ ...row, metadata: { ...row.metadata } }));
   }
 
-  async listUsersWithDeviceTokenByNotificationType(input: {
-    notificationType: NotificationType;
-    tier?: SubscriptionTier;
-    userIds?: string[];
-  }): Promise<Array<{ userId: string; deviceToken: string }>> {
-    const normalizedUserIds = input.userIds
-      ? new Set(input.userIds.map((userId) => userId.trim()))
-      : undefined;
-    const targets: Array<{ userId: string; deviceToken: string }> = [];
-
-    for (const user of this.users.values()) {
-      if (!user.deviceToken || user.deviceToken.trim().length === 0) {
-        continue;
-      }
-      if (normalizedUserIds && !normalizedUserIds.has(user.id)) {
-        continue;
-      }
-      if (input.tier) {
-        const subscription = await this.getUserSubscription(user.id);
-        if (subscription.tier !== input.tier) {
-          continue;
-        }
-      }
-      const preferences = this.ensureDefaultNotificationPreferences(user.id);
-      const preference = preferences.get(input.notificationType);
-      if (!preference || !preference.enabled) {
-        continue;
-      }
-      targets.push({
-        userId: user.id,
-        deviceToken: user.deviceToken
-      });
-    }
-
-    return targets;
-  }
-
   async listUsersWithWatchlist(): Promise<Array<{ userId: string; tickers: string[] }>> {
     return [...this.watchlists.entries()]
       .map(([userId, tickers]) => ({
@@ -1865,9 +2060,33 @@ export class PostgresStore implements ProductStore {
     userId: string,
     deviceToken: string | undefined
   ): Promise<UserRecord | undefined> {
+    const user = await this.findUserById(userId);
+    if (!user) {
+      return undefined;
+    }
+
+    const nowIso = new Date().toISOString();
+    if (!deviceToken || deviceToken.trim().length === 0) {
+      await this.invalidateUserDevicesByUser({
+        userId,
+        invalidatedAt: nowIso,
+        reason: "legacy_unset"
+      });
+      await this.pool.query("update users set device_token = null where id = $1", [userId]);
+      return this.findUserById(userId);
+    }
+
+    const normalizedToken = deviceToken.trim();
+    await this.upsertUserDevice({
+      userId,
+      installationId: `legacy:${userId}`,
+      deviceToken: normalizedToken,
+      platform: "android",
+      updatedAt: nowIso
+    });
     const result = await this.pool.query(
       "update users set device_token = $2 where id = $1 returning *",
-      [userId, deviceToken ?? null]
+      [userId, normalizedToken]
     );
     const row = result.rows[0] as Record<string, unknown> | undefined;
     return row ? mapUser(row) : undefined;
@@ -1875,15 +2094,132 @@ export class PostgresStore implements ProductStore {
 
   async listUsersWithDeviceToken(): Promise<Array<{ userId: string; deviceToken: string }>> {
     const result = await this.pool.query(
-      `select id, device_token
-         from users
-        where device_token is not null
+      `select user_id, device_token
+         from user_devices
+        where invalidated_at is null
           and length(trim(device_token)) > 0`
     );
     return result.rows.map((row) => ({
-      userId: String(row.id),
+      userId: String(row.user_id),
       deviceToken: String(row.device_token)
     }));
+  }
+
+  async upsertUserDevice(input: {
+    userId: string;
+    installationId: string;
+    deviceToken: string;
+    platform: string;
+    updatedAt: string;
+  }): Promise<UserDeviceRecord | undefined> {
+    const normalizedInstallation = input.installationId.trim();
+    const normalizedToken = input.deviceToken.trim();
+    if (normalizedInstallation.length === 0 || normalizedToken.length === 0) {
+      return undefined;
+    }
+
+    const user = await this.findUserById(input.userId);
+    if (!user) {
+      return undefined;
+    }
+
+    await this.pool.query(
+      `update user_devices
+          set invalidated_at = $2,
+              invalidation_reason = 'token_rotated',
+              updated_at = $2
+        where device_token = $1
+          and invalidated_at is null
+          and not (user_id = $3 and installation_id = $4)`,
+      [normalizedToken, input.updatedAt, input.userId, normalizedInstallation]
+    );
+
+    const result = await this.pool.query(
+      `insert into user_devices (
+         id,
+         user_id,
+         installation_id,
+         device_token,
+         platform,
+         last_seen_at,
+         created_at,
+         updated_at,
+         invalidated_at,
+         invalidation_reason
+       )
+       values ($1, $2, $3, $4, $5, $6, $6, $6, null, null)
+       on conflict (user_id, installation_id) do update set
+         device_token = excluded.device_token,
+         platform = excluded.platform,
+         last_seen_at = excluded.last_seen_at,
+         updated_at = excluded.updated_at,
+         invalidated_at = null,
+         invalidation_reason = null
+       returning *`,
+      [
+        randomUUID(),
+        input.userId,
+        normalizedInstallation,
+        normalizedToken,
+        input.platform.trim().toLowerCase() || "android",
+        input.updatedAt
+      ]
+    );
+    const row = result.rows[0] as Record<string, unknown> | undefined;
+    return row ? mapUserDevice(row) : undefined;
+  }
+
+  async invalidateUserDeviceByInstallation(input: {
+    userId: string;
+    installationId: string;
+    invalidatedAt: string;
+    reason: string;
+  }): Promise<boolean> {
+    const result = await this.pool.query(
+      `update user_devices
+          set invalidated_at = $3,
+              invalidation_reason = $4,
+              updated_at = $3
+        where user_id = $1
+          and installation_id = $2
+          and invalidated_at is null`,
+      [input.userId, input.installationId.trim(), input.invalidatedAt, input.reason]
+    );
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  async invalidateUserDevicesByUser(input: {
+    userId: string;
+    invalidatedAt: string;
+    reason: string;
+  }): Promise<number> {
+    const result = await this.pool.query(
+      `update user_devices
+          set invalidated_at = $2,
+              invalidation_reason = $3,
+              updated_at = $2
+        where user_id = $1
+          and invalidated_at is null`,
+      [input.userId, input.invalidatedAt, input.reason]
+    );
+    return result.rowCount ?? 0;
+  }
+
+  async invalidateUserDeviceByToken(input: {
+    deviceToken: string;
+    invalidatedAt: string;
+    reason: string;
+  }): Promise<number> {
+    const result = await this.pool.query(
+      `update user_devices
+          set invalidated_at = $2,
+              invalidation_reason = $3,
+              updated_at = $2
+        where device_token = $1
+          and invalidated_at is null`,
+      [input.deviceToken.trim(), input.invalidatedAt, input.reason]
+    );
+    return result.rowCount ?? 0;
   }
 
   async getUserSubscription(userId: string): Promise<UserSubscriptionRecord> {
@@ -2944,29 +3280,30 @@ export class PostgresStore implements ProductStore {
     notificationType: NotificationType;
     tier?: SubscriptionTier;
     userIds?: string[];
-  }): Promise<Array<{ userId: string; deviceToken: string }>> {
+  }): Promise<Array<{ userId: string; installationId: string; deviceToken: string }>> {
     const userIds = (input.userIds ?? [])
       .map((userId) => userId.trim())
       .filter((userId) => userId.length > 0);
 
     const result = await this.pool.query(
-      `select u.id, u.device_token
-         from users u
+      `select ud.user_id, ud.installation_id, ud.device_token
+         from user_devices ud
          left join notification_preferences np
-           on np.user_id = u.id
+           on np.user_id = ud.user_id
           and np.notification_type = $1
          left join subscriptions s
-           on s.user_id = u.id
-        where u.device_token is not null
-          and length(trim(u.device_token)) > 0
+           on s.user_id = ud.user_id
+        where ud.invalidated_at is null
+          and length(trim(ud.device_token)) > 0
           and coalesce(np.enabled, true) = true
           and ($2::text is null or s.tier = $2::text)
-          and ($3::text[] is null or u.id = any($3::text[]))`,
+          and ($3::text[] is null or ud.user_id = any($3::text[]))`,
       [input.notificationType, input.tier ?? null, userIds.length > 0 ? userIds : null]
     );
 
     return result.rows.map((row) => ({
-      userId: String(row.id),
+      userId: String(row.user_id),
+      installationId: String(row.installation_id),
       deviceToken: String(row.device_token)
     }));
   }

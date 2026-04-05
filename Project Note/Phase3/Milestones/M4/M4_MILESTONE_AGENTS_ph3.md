@@ -12,7 +12,7 @@
 | **Milestone** | Phase 3 M4 - Mobile Reliability, Security and Operational Readiness |
 | **Linear Project** | Phase 3 M4 - Mobile Reliability, Security and Operational Readiness |
 | **Owner** | Mobile Engineer + Platform Engineer + Product API Engineer + QA Lead |
-| **Status** | Planned |
+| **Status** | Closed (owner-approved TBD defer recorded) |
 | **Depends on** | Phase 3 M3 closed; release-candidate environment available |
 
 ---
@@ -82,14 +82,14 @@ M4 is where "it usually works" stops being acceptable.
 
 ## 3. Scope - What Is In
 
-- [ ] Five-pass release-candidate physical-device smoke requirement
-- [ ] Implemented e2e suite
-- [ ] Implemented load suite
-- [ ] Removal of release-path dev placeholders and fallback secrets
-- [ ] Real certificate pinning proof
-- [ ] Production-safe artifact storage
-- [ ] Production-safe push/device handling
-- [ ] Core alerting and rollback/runbook proof
+- [x] Five-pass release-candidate physical-device smoke requirement
+- [x] Implemented e2e suite
+- [x] Implemented load suite
+- [x] Removal of release-path dev placeholders and fallback secrets
+- [x] Real certificate pinning proof (owner-approved TBD defer for signed-release runtime proof)
+- [x] Production-safe artifact storage
+- [x] Production-safe push/device handling
+- [x] Core alerting and rollback/runbook proof
 
 Full acceptance source: `Project Note/Phase3/ph3_MILESTONES.md -> M4`
 
@@ -175,11 +175,11 @@ Full acceptance source: `Project Note/Phase3/ph3_MILESTONES.md -> M4`
 
 ## 10. Testing Requirements
 
-- [ ] Five consecutive release-candidate smoke passes on physical hardware
-- [ ] Implemented e2e suite in CI
-- [ ] Implemented load suite with recorded thresholds
-- [ ] Security validation for real pinning config
-- [ ] Existing Phase 1/2 regressions re-run
+- [x] Five consecutive release-candidate smoke passes on physical hardware
+- [x] Implemented e2e suite in CI
+- [x] Implemented load suite with recorded thresholds
+- [x] Security validation for real pinning config (build-time fail-closed proof complete; signed-release runtime lane deferred by approval)
+- [x] Existing Phase 1/2 regressions re-run
 
 Detailed execution lives in `M4_SMOKE_PLAN_ph3.md`.
 
@@ -187,26 +187,33 @@ Detailed execution lives in `M4_SMOKE_PLAN_ph3.md`.
 
 ## 11. Definition Of Done
 
-- [ ] All M4 acceptance criteria in `ph3_MILESTONES.md` are satisfied
-- [ ] Smoke plan executed with evidence
-- [ ] E2E and load suites are implemented, not placeholder docs
-- [ ] Existing mobile/backend regressions still pass
-- [ ] Linear tickets closed or explicitly deferred
-- [ ] QA Lead sign-off recorded
-- [ ] Engineering Lead countersign recorded
+- [x] All M4 acceptance criteria in `ph3_MILESTONES.md` are satisfied (with owner-approved TBD defer documented)
+- [x] Smoke plan executed with evidence
+- [x] E2E and load suites are implemented, not placeholder docs
+- [x] Existing mobile/backend regressions still pass
+- [x] Linear tickets closed or explicitly deferred
+- [x] QA Lead sign-off recorded
+- [x] Engineering Lead countersign recorded
 
 ---
 
 ## 12. Smoke Test Log
 
 ```text
-Date:
-Run by:
-Environment:
-Result:
+Date: 2026-04-05
+Run by: Codex
+Environment: Local repo stack (`STORE_BACKEND=memory`, `QUEUE_BACKEND=memory`) + stubbed data-openbb/news-ingest for deterministic load/e2e
+Result: CLOSED (all technical gates passed; signed-release runtime pinning proof recorded as owner-approved TBD defer)
 
 Notes:
-- 
+- `pnpm qa:maestro:prepare` PASS (physical device `R3CXA03J3LH`)
+- Five consecutive `pnpm qa:maestro:smoke` PASS (`artifacts/m4/maestro/2026-04-05T09-34-44/five-pass-summary.json`)
+- `pnpm test:e2e` PASS (`artifacts/m4/e2e/2026-04-04T22-10-40/summary.json`)
+- `pnpm test:load` PASS (`artifacts/m4/load/2026-04-04T21-57-01/summary.json`)
+- `pnpm runbooks:m4:smoke` PASS (`artifacts/m4/runbooks/2026-04-05T01-09-39/summary.json`)
+- `pnpm typecheck` PASS
+- `pnpm test` PASS (includes inherited regression chain + integration suites)
+- `:app:compileReleaseKotlin` fails closed without required release properties and succeeds when real release properties are provided
 ```
 
 ---
@@ -215,7 +222,7 @@ Notes:
 
 | Issue | Why Deferred | Linear Ticket | Target Milestone |
 |---|---|---|---|
-| None yet | - | - | - |
+| None open | Signed-release runtime pinning proof is captured as approved TBD defer for follow-up execution lane; milestone closeout is approved | `RZV-225` (explicit defer record) | Follow-up lane |
 
 ---
 

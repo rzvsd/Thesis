@@ -34,7 +34,7 @@ import {
 } from "../../../packages/contracts/src";
 import { captureException, initSentry } from "../../../packages/observability/src/sentry";
 
-import { FilesystemArtifactStore } from "./artifact-store";
+import { createArtifactStore, type ArtifactStore } from "./artifact-store";
 import { loadConfig, validateConfig, type ProductApiConfig } from "./config";
 import { logError, logInfo, logWarn } from "./logging";
 import { createJobQueue, type JobQueue } from "./queue";
@@ -84,7 +84,7 @@ interface Runtime {
   store: ProductStore;
   queue: JobQueue;
   rateLimiter: RateLimiter;
-  artifactStore: FilesystemArtifactStore;
+  artifactStore: ArtifactStore;
   pushNotifier: PushNotifier;
   close: () => Promise<void>;
 }
@@ -170,6 +170,21 @@ function asContrarianSignal(value: string | undefined): "positive" | "neutral" |
     return value;
   }
   return undefined;
+}
+
+function groupPushTargetsByUser(
+  targets: Array<{ userId: string; installationId: string; deviceToken: string }>
+): Map<string, Array<{ userId: string; installationId: string; deviceToken: string }>> {
+  const grouped = new Map<string, Array<{ userId: string; installationId: string; deviceToken: string }>>();
+  for (const target of targets) {
+    const existing = grouped.get(target.userId);
+    if (existing) {
+      existing.push(target);
+      continue;
+    }
+    grouped.set(target.userId, [target]);
+  }
+  return grouped;
 }
 
 function notificationTypeLabel(type: NotificationType): string {
@@ -1365,8 +1380,13 @@ async function processMarketPulseJob(
         provider: pushResult.provider
       });
 
-      for (const invalidUserId of pushResult.invalidTargets) {
-        await runtime.store.updateUserDeviceToken(invalidUserId, undefined);
+      for (const invalidTarget of pushResult.invalidTargets) {
+        await runtime.store.invalidateUserDeviceByInstallation({
+          userId: invalidTarget.userId,
+          installationId: invalidTarget.installationId,
+          invalidatedAt: new Date().toISOString(),
+          reason: "fcm_invalid_registration"
+        });
       }
 
       if (pushResult.failed > 0) {
@@ -1451,7 +1471,7 @@ async function createRuntime(config: ProductApiConfig): Promise<Runtime> {
     windowSeconds: config.rateLimitWindowSeconds,
     maxRequests: config.rateLimitMaxRequests
   });
-  const artifactStore = new FilesystemArtifactStore(config.artifactRoot);
+  const artifactStore = createArtifactStore(config);
   const pushNotifier = new PushNotifier({
     provider: config.pushProviderMode,
     googleApplicationCredentials: config.googleApplicationCredentials
@@ -2171,14 +2191,15 @@ export function startServer(port: number = loadConfig().port): Server {
           const recipients = await runtime.store.listUsersWithDeviceTokenByNotificationType({
             notificationType: "earnings_preview"
           });
+          const recipientsByUser = groupPushTargetsByUser(recipients);
 
           let attempted = 0;
           let delivered = 0;
           let failed = 0;
           const sentTickers: string[] = [];
 
-          for (const recipient of recipients) {
-            const watchlist = await runtime.store.listWatchlistTickersByUser(recipient.userId);
+          for (const [userId, userTargets] of recipientsByUser.entries()) {
+            const watchlist = await runtime.store.listWatchlistTickersByUser(userId);
             if (watchlist.length === 0) {
               continue;
             }
@@ -2201,12 +2222,7 @@ export function startServer(port: number = loadConfig().port): Server {
             const reasonText = `${uniqueTickers.join(", ")} is expected to report by next market session.`;
 
             const pushResult = await runtime.pushNotifier.sendNotification(
-              [
-                {
-                  userId: recipient.userId,
-                  deviceToken: recipient.deviceToken
-                }
-              ],
+              userTargets,
               {
                 notificationType: "earnings_preview",
                 route: notificationRoute("earnings_preview"),
@@ -2226,10 +2242,33 @@ export function startServer(port: number = loadConfig().port): Server {
             attempted += pushResult.attempted;
             delivered += pushResult.delivered;
             failed += pushResult.failed;
-            for (const invalidUserId of pushResult.invalidTargets) {
-              await runtime.store.updateUserDeviceToken(invalidUserId, undefined);
+            for (const invalidTarget of pushResult.invalidTargets) {
+              await runtime.store.invalidateUserDeviceByInstallation({
+                userId: invalidTarget.userId,
+                installationId: invalidTarget.installationId,
+                invalidatedAt: new Date().toISOString(),
+                reason: "fcm_invalid_registration"
+              });
             }
             sentTickers.push(...uniqueTickers);
+          }
+
+          if (failed > 0) {
+            const message = "Earnings preview notification delivery partially failed";
+            logError(message, {
+              request_id: meta.requestId,
+              route: pathname,
+              attempted,
+              delivered,
+              failed
+            });
+            captureException(new Error(message), {
+              service: serviceName,
+              route: pathname,
+              attempted,
+              delivered,
+              failed
+            });
           }
 
           await appendAudit(runtime, "earnings_preview.dispatched", {
@@ -2263,6 +2302,7 @@ export function startServer(port: number = loadConfig().port): Server {
           const recipients = await runtime.store.listUsersWithDeviceTokenByNotificationType({
             notificationType: "contrarian_alert"
           });
+          const recipientsByUser = groupPushTargetsByUser(recipients);
           const recipientIds = new Set(recipients.map((entry) => entry.userId));
           const anchors = (await runtime.store.listActiveContrarianAlertAnchors(
             asOfEndIso
@@ -2298,18 +2338,13 @@ export function startServer(port: number = loadConfig().port): Server {
               continue;
             }
 
-            const target = recipients.find((entry) => entry.userId === anchor.userId);
-            if (!target) {
+            const userTargets = recipientsByUser.get(anchor.userId);
+            if (!userTargets || userTargets.length === 0) {
               continue;
             }
 
             const pushResult = await runtime.pushNotifier.sendNotification(
-              [
-                {
-                  userId: target.userId,
-                  deviceToken: target.deviceToken
-                }
-              ],
+              userTargets,
               {
                 notificationType: "contrarian_alert",
                 route: notificationRoute("contrarian_alert"),
@@ -2331,13 +2366,38 @@ export function startServer(port: number = loadConfig().port): Server {
             delivered += pushResult.delivered;
             failed += pushResult.failed;
             fired += 1;
-            for (const invalidUserId of pushResult.invalidTargets) {
-              await runtime.store.updateUserDeviceToken(invalidUserId, undefined);
+            for (const invalidTarget of pushResult.invalidTargets) {
+              await runtime.store.invalidateUserDeviceByInstallation({
+                userId: invalidTarget.userId,
+                installationId: invalidTarget.installationId,
+                invalidatedAt: new Date().toISOString(),
+                reason: "fcm_invalid_registration"
+              });
             }
             await runtime.store.deactivateContrarianAlertAnchor(
               anchor.id,
               new Date().toISOString()
             );
+          }
+
+          if (failed > 0) {
+            const message = "Contrarian notification delivery partially failed";
+            logError(message, {
+              request_id: meta.requestId,
+              route: pathname,
+              attempted,
+              delivered,
+              failed,
+              fired
+            });
+            captureException(new Error(message), {
+              service: serviceName,
+              route: pathname,
+              attempted,
+              delivered,
+              failed,
+              fired
+            });
           }
 
           await appendAudit(runtime, "contrarian.alerts_evaluated", {
@@ -2381,13 +2441,14 @@ export function startServer(port: number = loadConfig().port): Server {
             notificationType: "weekly_digest",
             tier: "PRO"
           });
+          const recipientsByUser = groupPushTargetsByUser(recipients);
           const latestFearGreed = await runtime.store.getLatestFearGreedSnapshot();
 
           let attempted = 0;
           let delivered = 0;
           let failed = 0;
-          for (const recipient of recipients) {
-            const watchlist = await runtime.store.listWatchlistTickersByUser(recipient.userId);
+          for (const [userId, userTargets] of recipientsByUser.entries()) {
+            const watchlist = await runtime.store.listWatchlistTickersByUser(userId);
             const upcomingEvents = watchlist.length > 0
               ? await runtime.store.listUpcomingCalendarEventsByTickers({
                   tickers: watchlist,
@@ -2414,12 +2475,7 @@ export function startServer(port: number = loadConfig().port): Server {
               : "Your weekly market summary was prepared.";
 
             const pushResult = await runtime.pushNotifier.sendNotification(
-              [
-                {
-                  userId: recipient.userId,
-                  deviceToken: recipient.deviceToken
-                }
-              ],
+              userTargets,
               {
                 notificationType: "weekly_digest",
                 route: notificationRoute("weekly_digest"),
@@ -2441,9 +2497,34 @@ export function startServer(port: number = loadConfig().port): Server {
             attempted += pushResult.attempted;
             delivered += pushResult.delivered;
             failed += pushResult.failed;
-            for (const invalidUserId of pushResult.invalidTargets) {
-              await runtime.store.updateUserDeviceToken(invalidUserId, undefined);
+            for (const invalidTarget of pushResult.invalidTargets) {
+              await runtime.store.invalidateUserDeviceByInstallation({
+                userId: invalidTarget.userId,
+                installationId: invalidTarget.installationId,
+                invalidatedAt: new Date().toISOString(),
+                reason: "fcm_invalid_registration"
+              });
             }
+          }
+
+          if (failed > 0) {
+            const message = "Weekly digest notification delivery partially failed";
+            logError(message, {
+              request_id: meta.requestId,
+              route: pathname,
+              digest_date: digestDate,
+              attempted,
+              delivered,
+              failed
+            });
+            captureException(new Error(message), {
+              service: serviceName,
+              route: pathname,
+              digest_date: digestDate,
+              attempted,
+              delivered,
+              failed
+            });
           }
 
           await appendAudit(runtime, "weekly_digest.dispatched", {
@@ -3330,12 +3411,26 @@ export function startServer(port: number = loadConfig().port): Server {
       }
 
       if (method === "POST" && pathname === "/notifications/device-token") {
-        const body = await readJsonBody<{ device_token?: string | null }>(request);
+        const body = await readJsonBody<{
+          device_token?: string | null;
+          installation_id?: string | null;
+          platform?: string | null;
+        }>(request);
         const rawToken = body.device_token;
+        const rawInstallationId = body.installation_id;
+        const rawPlatform = body.platform;
         const normalizedToken =
           typeof rawToken === "string" && rawToken.trim().length > 0
             ? rawToken.trim()
             : undefined;
+        const normalizedInstallationId =
+          typeof rawInstallationId === "string" && rawInstallationId.trim().length > 0
+            ? rawInstallationId.trim()
+            : undefined;
+        const normalizedPlatform =
+          typeof rawPlatform === "string" && rawPlatform.trim().length > 0
+            ? rawPlatform.trim().toLowerCase()
+            : "android";
 
         if (normalizedToken && normalizedToken.length < 16) {
           sendJson(response, 422, {
@@ -3345,11 +3440,83 @@ export function startServer(port: number = loadConfig().port): Server {
           return;
         }
 
-        const updated = await runtime.store.updateUserDeviceToken(auth.userId, normalizedToken);
-        if (!updated) {
+        if (normalizedInstallationId && normalizedInstallationId.length < 8) {
+          sendJson(response, 422, {
+            error: "validation_failed",
+            error_message: "installation_id must be at least 8 characters."
+          });
+          return;
+        }
+
+        if (normalizedPlatform.length > 32) {
+          sendJson(response, 422, {
+            error: "validation_failed",
+            error_message: "platform must be 32 characters or fewer."
+          });
+          return;
+        }
+
+        const effectiveInstallationId = normalizedInstallationId ?? `legacy:${auth.userId}`;
+        const nowIso = new Date().toISOString();
+
+        const user = await runtime.store.findUserById(auth.userId);
+        if (!user) {
           sendJson(response, 404, {
             error: "user_not_found",
             error_message: "User not found."
+          });
+          return;
+        }
+
+        if (!normalizedToken) {
+          if (normalizedInstallationId) {
+            await runtime.store.invalidateUserDeviceByInstallation({
+              userId: auth.userId,
+              installationId: effectiveInstallationId,
+              invalidatedAt: nowIso,
+              reason: "client_unregistered"
+            });
+          } else {
+            await runtime.store.invalidateUserDevicesByUser({
+              userId: auth.userId,
+              invalidatedAt: nowIso,
+              reason: "legacy_unset"
+            });
+            await runtime.store.updateUserDeviceToken(auth.userId, undefined);
+          }
+
+          await appendAudit(
+            runtime,
+            "notification.device_token_updated",
+            {
+              request_id: meta.requestId,
+              route: pathname,
+              has_token: false,
+              installation_id: effectiveInstallationId,
+              platform: normalizedPlatform
+            },
+            auth.userId
+          );
+
+          sendJson(response, 200, {
+            status: "ok",
+            has_device_token: false,
+            installation_id: effectiveInstallationId
+          });
+          return;
+        }
+
+        const device = await runtime.store.upsertUserDevice({
+          userId: auth.userId,
+          installationId: effectiveInstallationId,
+          deviceToken: normalizedToken,
+          platform: normalizedPlatform,
+          updatedAt: nowIso
+        });
+        if (!device) {
+          sendJson(response, 500, {
+            error: "device_registration_failed",
+            error_message: "Unable to register device token."
           });
           return;
         }
@@ -3360,14 +3527,17 @@ export function startServer(port: number = loadConfig().port): Server {
           {
             request_id: meta.requestId,
             route: pathname,
-            has_token: Boolean(normalizedToken)
+            has_token: true,
+            installation_id: effectiveInstallationId,
+            platform: normalizedPlatform
           },
           auth.userId
         );
 
         sendJson(response, 200, {
           status: "ok",
-          has_device_token: Boolean(normalizedToken)
+          has_device_token: true,
+          installation_id: effectiveInstallationId
         });
         return;
       }

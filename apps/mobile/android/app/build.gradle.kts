@@ -5,15 +5,80 @@ plugins {
 }
 
 fun escapeBuildString(value: String): String = value.replace("\\", "\\\\").replace("\"", "\\\"")
+fun requiredReleaseProp(
+    key: String,
+    releaseTaskRequested: Boolean
+): String {
+    val value = project.findProperty(key)?.toString()?.trim()
+    if (!releaseTaskRequested) {
+        return value ?: ""
+    }
+    if (value.isNullOrBlank()) {
+        throw GradleException("Missing required release property: $key")
+    }
+    return value
+}
+
+fun ensureNoReleasePlaceholder(value: String, fieldName: String) {
+    val normalized = value.lowercase()
+    if (
+        normalized.contains("example.com") ||
+        normalized.contains("placeholder") ||
+        normalized.contains("localhost") ||
+        normalized.contains("127.0.0.1")
+    ) {
+        throw GradleException("$fieldName contains a forbidden release placeholder value: $value")
+    }
+}
+
+fun ensureSha256Pin(pin: String, fieldName: String) {
+    val pattern = Regex("^[A-Za-z0-9+/]{43}=$")
+    if (!pattern.matches(pin)) {
+        throw GradleException("$fieldName must be a base64-encoded SHA-256 pin (43 chars + '=')")
+    }
+    if (
+        pin == "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=" ||
+        pin == "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB="
+    ) {
+        throw GradleException("$fieldName uses a forbidden placeholder pin value")
+    }
+}
 
 val posthogEnabled = (project.findProperty("POSTHOG_ENABLED")?.toString() ?: "false").toBoolean()
 val posthogApiKey = project.findProperty("POSTHOG_API_KEY")?.toString() ?: ""
 val posthogHost = project.findProperty("POSTHOG_HOST")?.toString() ?: "https://us.i.posthog.com"
 val posthogWatchlistFlagKey =
     project.findProperty("POSTHOG_WATCHLIST_FLAG_KEY")?.toString() ?: "m7_watchlist_enabled"
+val releaseTaskRequested = gradle.startParameter.taskNames.any { task ->
+    task.contains("release", ignoreCase = true)
+}
 val apiBaseUrlOverride = project.findProperty("API_BASE_URL")?.toString()?.trim()?.takeIf { it.isNotBlank() }
 val apiBaseUrlDebug = apiBaseUrlOverride ?: "http://127.0.0.1:3001"
-val apiBaseUrlRelease = apiBaseUrlOverride ?: "https://api.thesis.example.com"
+val apiBaseUrlRelease = requiredReleaseProp(
+    "API_BASE_URL_RELEASE",
+    releaseTaskRequested = releaseTaskRequested
+)
+val releaseApiHost = requiredReleaseProp(
+    "RELEASE_API_HOST",
+    releaseTaskRequested = releaseTaskRequested
+)
+val releaseCertPinPrimary = requiredReleaseProp(
+    "RELEASE_CERT_PIN_PRIMARY",
+    releaseTaskRequested = releaseTaskRequested
+)
+val releaseCertPinBackup = requiredReleaseProp(
+    "RELEASE_CERT_PIN_BACKUP",
+    releaseTaskRequested = releaseTaskRequested
+)
+if (releaseTaskRequested) {
+    ensureNoReleasePlaceholder(apiBaseUrlRelease, "API_BASE_URL_RELEASE")
+    if (!apiBaseUrlRelease.startsWith("https://")) {
+        throw GradleException("API_BASE_URL_RELEASE must use https://")
+    }
+    ensureNoReleasePlaceholder(releaseApiHost, "RELEASE_API_HOST")
+    ensureSha256Pin(releaseCertPinPrimary, "RELEASE_CERT_PIN_PRIMARY")
+    ensureSha256Pin(releaseCertPinBackup, "RELEASE_CERT_PIN_BACKUP")
+}
 val revenueCatPublicAndroidKey =
     project.findProperty("REVENUECAT_PUBLIC_ANDROID_KEY")?.toString() ?: ""
 val googleServicesJsonExists = file("google-services.json").exists()
@@ -53,6 +118,9 @@ android {
         release {
             manifestPlaceholders["usesCleartextTraffic"] = "false"
             buildConfigField("String", "API_BASE_URL", "\"${escapeBuildString(apiBaseUrlRelease)}\"")
+            resValue("string", "release_api_host", escapeBuildString(releaseApiHost))
+            resValue("string", "release_cert_pin_primary", escapeBuildString(releaseCertPinPrimary))
+            resValue("string", "release_cert_pin_backup", escapeBuildString(releaseCertPinBackup))
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(

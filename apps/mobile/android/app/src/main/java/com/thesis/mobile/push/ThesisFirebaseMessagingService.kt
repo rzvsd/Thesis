@@ -112,7 +112,8 @@ class ThesisFirebaseMessagingService : FirebaseMessagingService() {
                 ProductApiClient().updateDeviceToken(
                     baseUrl = baseUrl,
                     accessToken = auth.accessToken,
-                    deviceToken = token
+                    deviceToken = token,
+                    installationId = sessionStore.getInstallationId()
                 )
             }
         }
