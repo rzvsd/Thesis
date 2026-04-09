@@ -25,6 +25,7 @@ import com.thesis.mobile.model.SubscriptionOfferView
 import com.thesis.mobile.model.ThesisMonitorSnapshotView
 import com.thesis.mobile.model.TickerSearchItem
 import com.thesis.mobile.model.UserProfileView
+import com.thesis.mobile.model.WarRoomView
 import com.thesis.mobile.network.ProductApiClient
 import com.thesis.mobile.network.ProductApiException
 import com.thesis.mobile.observability.MobileTelemetry
@@ -81,6 +82,8 @@ data class UiState(
     val alertLedger: List<AlertLedgerItemView> = emptyList(),
     val inboxError: String? = null,
     val monitorSnapshots: List<ThesisMonitorSnapshotView> = emptyList(),
+    val warRoom: WarRoomView? = null,
+    val warRoomError: String? = null,
     val reportHistory: List<ReportHistoryItem> = emptyList(),
     val watchlist: List<String> = emptyList(),
     val lastViewedReport: LastViewedReport? = null,
@@ -215,7 +218,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         targetTab: String,
         notificationType: String?,
         ticker: String?,
-        alertId: String? = null
+        alertId: String? = null,
+        warRoomId: String? = null
     ) {
         trackEvent(
             "push_deep_link_landed",
@@ -223,7 +227,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 "target_tab" to targetTab,
                 "notification_type" to notificationType,
                 "ticker" to ticker,
-                "alert_id" to alertId
+                "alert_id" to alertId,
+                "war_room_id" to warRoomId
             )
         )
     }
@@ -420,6 +425,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     alertLedger = emptyList(),
                     inboxError = null,
                     monitorSnapshots = emptyList(),
+                    warRoom = null,
+                    warRoomError = null,
                     deepDiveError = null,
                     watchlist = emptyList(),
                     reportHistory = emptyList(),
@@ -1037,6 +1044,62 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         publish(state.copy(lastViewedReport = null))
     }
 
+    fun openWarRoom(warRoomId: String) {
+        val normalizedWarRoomId = warRoomId.trim()
+        if (normalizedWarRoomId.isBlank()) {
+            publish(state.copy(message = "Open a War Room first."))
+            return
+        }
+
+        viewModelScope.launch {
+            publish(state.copy(isLoading = true, message = null, warRoomError = null))
+            val error = runAuthorizedWithRefresh {
+                val warRoom = client.getWarRoom(
+                    state.apiBaseUrl,
+                    requireTokens().accessToken,
+                    normalizedWarRoomId
+                )
+                publish(
+                    state.copy(
+                        currentTab = AppTab.RESEARCH,
+                        warRoom = warRoom,
+                        warRoomError = null,
+                        message = "War Room loaded."
+                    )
+                )
+                trackEvent(
+                    "war_room_viewed",
+                    mapOf(
+                        "war_room_id" to warRoom.warRoomId,
+                        "ticker" to warRoom.ticker,
+                        "phase_count" to warRoom.phases.size
+                    )
+                )
+            }
+            if (error != null) {
+                val message = toMessage(error)
+                publish(
+                    state.copy(
+                        isLoading = false,
+                        currentTab = AppTab.RESEARCH,
+                        warRoomError = message,
+                        message = message
+                    )
+                )
+                return@launch
+            }
+            publish(state.copy(isLoading = false))
+        }
+    }
+
+    fun refreshWarRoom() {
+        val warRoomId = state.warRoom?.warRoomId?.trim().orEmpty()
+        if (warRoomId.isBlank()) {
+            return
+        }
+        openWarRoom(warRoomId)
+    }
+
     fun resumeLastViewed(lastViewedReport: LastViewedReport) {
         when (lastViewedReport.type) {
             "PULSE" -> {
@@ -1648,6 +1711,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     companion object {
         private val notificationPreferenceTypes = listOf(
             "earnings_preview",
+            "earnings_war_room",
             "contrarian_alert",
             "kill_switch",
             "freshness_decay",
@@ -1666,9 +1730,10 @@ private fun isBiometricSupported(application: Application): Boolean {
     return manager.canAuthenticate(authenticators) == BiometricManager.BIOMETRIC_SUCCESS
 }
 
-private fun defaultNotificationPreferences(): List<NotificationPreferenceView> =
+internal fun defaultNotificationPreferences(): List<NotificationPreferenceView> =
     listOf(
         NotificationPreferenceView(type = "earnings_preview", enabled = true, quietUntil = null),
+        NotificationPreferenceView(type = "earnings_war_room", enabled = true, quietUntil = null),
         NotificationPreferenceView(type = "contrarian_alert", enabled = true, quietUntil = null),
         NotificationPreferenceView(type = "kill_switch", enabled = true, quietUntil = null),
         NotificationPreferenceView(type = "freshness_decay", enabled = true, quietUntil = null),

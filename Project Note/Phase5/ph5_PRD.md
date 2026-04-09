@@ -3,7 +3,7 @@
 **Version:** 1.0  
 **Status:** Active  
 **Owner:** Product Lead  
-**Last Revised:** 2026-04-08
+**Last Revised:** 2026-04-09
 
 > This PRD defines the product requirements for Phase 5 Active Intelligence Engine.
 > Earlier PRDs remain in force unless Phase 5 explicitly sharpens retention, exception logic, or conviction workflows.
@@ -59,9 +59,20 @@ Required behavior:
 
 - pre-event playbook exists for event-window names
 - live event window supports accelerated signal updates
-- live cadence defaults to `15 min` and may fall back to `30 min` under degradation conditions
+- live cadence defaults to `15 min` and may fall back to `30 min` under explicit degradation conditions
+- War Room routing uses route-safe payloads with `open_tab=research`, `notification_type=earnings_war_room`, and `war_room_id`
+- War Room is Pro-tier only in M4; Free tier keeps earnings preview behavior and does not receive War Room payloads
+- M4 cutover is coexistence, not hard replacement: legacy `earnings_preview` remains active for Free and serves as degraded fallback for Pro if War Room preparation fails
 - post-event flow auto-queues thesis update and drift summary
 - kill-switch rules and freshness state are re-evaluated post event
+- pre/live/post activity is durable and auditable, with each phase linked to alert history when user-facing notifications are emitted
+
+Cadence degradation doctrine for M4:
+
+| Transition | Deterministic rule |
+|---|---|
+| `15 -> 30` | Trigger when any one condition occurs for the same `war_room_id`: (a) 2 consecutive cycle failures/timeouts, (b) source freshness lag `>= 20 min` for 2 consecutive cycles, or (c) cycle runtime `> 12 min` for 2 consecutive cycles |
+| `30 -> 15` | Recover only after 3 consecutive healthy cycles where status is success, source freshness lag `<= 10 min`, and cycle runtime `<= 8 min` |
 
 ### 2.5 Cross-Name Intelligence
 
@@ -111,7 +122,7 @@ Required behavior:
 | Product API | New endpoints are integration-tested with deterministic fixtures |
 | Mobile | New surfaces preserve existing Thesis visual language |
 | Alerts | Every alert row includes reason text and resolvable target |
-| Operational defaults | War Room default/fallback cadence and propagation confidence threshold are explicitly enforced and tested |
+| Operational defaults | War Room default/fallback cadence, explicit degradation/recovery thresholds, and propagation confidence threshold are enforced and tested |
 
 ---
 

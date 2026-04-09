@@ -21,6 +21,7 @@ import type {
   KillSwitchEvaluationRequest,
   KillSwitchEvaluationSignalSource,
   KillSwitchSignalType,
+  EarningsWarRoomSourceRef,
   JobStatusResponse,
   MarketPulseReport,
   MorningExceptionBriefingMode,
@@ -81,6 +82,8 @@ import {
 import type {
   AlertLedgerRecord,
   AuditEventRecord,
+  EarningsWarRoomRecord,
+  EarningsWarRoomTimelineEventRecord,
   JobRecord,
   KillSwitchEvaluationRecord,
   KillSwitchRuleRecord,
@@ -130,6 +133,15 @@ const freshnessAgingDays = 14;
 const freshnessStaleDays = 45;
 const freshnessTriggeredLookbackDays = 14;
 const freshnessDecayCooldownHours = 72;
+const warRoomFastCadenceMinutes = 15;
+const warRoomFallbackCadenceMinutes = 30;
+const warRoomFallbackConsecutiveThreshold = 2;
+const warRoomRecoveryHealthyThreshold = 3;
+const warRoomLagFallbackThresholdMinutes = 20;
+const warRoomRuntimeFallbackThresholdMinutes = 12;
+const warRoomLagRecoveryThresholdMinutes = 10;
+const warRoomRuntimeRecoveryThresholdMinutes = 8;
+const warRoomPreparationLookaheadDays = 2;
 const notificationTypeList = [...notificationTypes];
 const alertLedgerCategoryList = [...alertLedgerCategories];
 const alertFeedbackStateList = [...alertFeedbackStates];
@@ -245,6 +257,8 @@ function notificationTypeLabel(type: NotificationType): string {
   switch (type) {
     case "earnings_preview":
       return "Earnings preview";
+    case "earnings_war_room":
+      return "Earnings War Room";
     case "contrarian_alert":
       return "Contrarian alert";
     case "kill_switch":
@@ -267,6 +281,7 @@ function notificationCategory(type: NotificationType): AlertLedgerCategory {
     case "freshness_decay":
       return "thesis_drift";
     case "earnings_preview":
+    case "earnings_war_room":
       return "earnings";
     case "morning_exception_briefing":
     case "weekly_digest":
@@ -276,6 +291,9 @@ function notificationCategory(type: NotificationType): AlertLedgerCategory {
 }
 
 function notificationRoute(type: NotificationType): AlertRouteTarget {
+  if (type === "earnings_war_room") {
+    return "research";
+  }
   if (
     type === "weekly_digest" ||
     type === "market_pulse_ready" ||
@@ -315,6 +333,13 @@ function alertLedgerContextFromData(data: Record<string, string> | undefined): R
   return {
     ...(data.ticker ? { ticker: data.ticker.trim().toUpperCase() } : {}),
     ...(data.report_id ? { report_id: data.report_id } : {}),
+    ...(data.war_room_id ? { war_room_id: data.war_room_id } : {}),
+    ...(data.war_room_phase ? { war_room_phase: data.war_room_phase } : {}),
+    ...(data.earnings_event_id ? { earnings_event_id: data.earnings_event_id } : {}),
+    ...(data.event_date ? { event_date: data.event_date } : {}),
+    ...(data.current_cadence_min
+      ? { current_cadence_min: Number(data.current_cadence_min) }
+      : {}),
     ...(data.rule_id ? { rule_id: data.rule_id } : {}),
     ...(data.evaluation_id ? { evaluation_id: data.evaluation_id } : {}),
     ...(data.signal_type ? { signal_type: data.signal_type } : {}),
@@ -2194,12 +2219,395 @@ interface MorningExceptionBriefingOutcome {
   relatedTickers: string[];
 }
 
+type WarRoomPhase = "pre" | "live" | "post";
+type WarRoomCycleStatus = "success" | "failure" | "timeout";
+
+interface WarRoomRecord {
+  warRoomId: string;
+  userId: string;
+  ticker: string;
+  earningsEventId: string;
+  eventDate: string;
+  state: "pre" | "live" | "post" | "closed";
+  currentCadenceMin: number;
+  failureStreak: number;
+  lagBreachStreak: number;
+  runtimeBreachStreak: number;
+  healthyStreak: number;
+  lastCycleStatus?: WarRoomCycleStatus;
+  lastLagMin?: number;
+  lastRuntimeMin?: number;
+  lastCycleAt?: string;
+  preparedAt: string;
+  closedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface WarRoomCycleMetrics {
+  status: WarRoomCycleStatus;
+  lagMinutes: number;
+  runtimeMinutes: number;
+}
+
+interface WarRoomCadenceResult {
+  nextCadenceMin: number;
+  failureStreak: number;
+  lagBreachStreak: number;
+  runtimeBreachStreak: number;
+  healthyStreak: number;
+  triggerType?: "failures" | "lag_breach" | "runtime_breach" | "healthy_recovery";
+  transitioned: boolean;
+}
+
+function normalizeWarRoomState(value: string | undefined): WarRoomRecord["state"] {
+  if (value === "live" || value === "post" || value === "closed") {
+    return value;
+  }
+  return "pre";
+}
+
+function toEarningsWarRoomState(state: WarRoomRecord["state"]): EarningsWarRoomRecord["state"] {
+  if (state === "live" || state === "post" || state === "closed") {
+    return state;
+  }
+  return "ready";
+}
+
+function toLegacyWarRoomState(state: EarningsWarRoomRecord["state"]): WarRoomRecord["state"] {
+  if (state === "live" || state === "post" || state === "closed") {
+    return state;
+  }
+  return "pre";
+}
+
+function asWarRoomPhase(value: string | undefined): WarRoomPhase {
+  if (value === "live" || value === "post") {
+    return value;
+  }
+  return "pre";
+}
+
+function asWarRoomCycleStatus(value: unknown): WarRoomCycleStatus {
+  if (typeof value !== "string") {
+    return "success";
+  }
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "failed" || normalized === "failure") {
+    return "failure";
+  }
+  if (normalized === "timeout") {
+    return "timeout";
+  }
+  return "success";
+}
+
+function boundedWholeNumber(value: unknown, fallback: number, max: number): number {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return Math.max(0, Math.min(max, Math.floor(value)));
+  }
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) {
+      return Math.max(0, Math.min(max, Math.floor(parsed)));
+    }
+  }
+  return fallback;
+}
+
+function computeWarRoomCadence(
+  warRoom: Pick<
+    WarRoomRecord,
+    "currentCadenceMin" | "failureStreak" | "lagBreachStreak" | "runtimeBreachStreak" | "healthyStreak"
+  >,
+  cycle: WarRoomCycleMetrics
+): WarRoomCadenceResult {
+  const failedCycle = cycle.status === "failure" || cycle.status === "timeout";
+  const failureStreak = failedCycle ? warRoom.failureStreak + 1 : 0;
+  const lagBreachStreak =
+    cycle.lagMinutes >= warRoomLagFallbackThresholdMinutes ? warRoom.lagBreachStreak + 1 : 0;
+  const runtimeBreachStreak =
+    cycle.runtimeMinutes > warRoomRuntimeFallbackThresholdMinutes
+      ? warRoom.runtimeBreachStreak + 1
+      : 0;
+  const healthyCycle =
+    cycle.status === "success" &&
+    cycle.lagMinutes <= warRoomLagRecoveryThresholdMinutes &&
+    cycle.runtimeMinutes <= warRoomRuntimeRecoveryThresholdMinutes;
+  const healthyStreak = healthyCycle ? warRoom.healthyStreak + 1 : 0;
+
+  let nextCadenceMin =
+    warRoom.currentCadenceMin === warRoomFallbackCadenceMinutes
+      ? warRoomFallbackCadenceMinutes
+      : warRoomFastCadenceMinutes;
+  let triggerType: WarRoomCadenceResult["triggerType"];
+
+  if (nextCadenceMin === warRoomFastCadenceMinutes) {
+    if (failureStreak >= warRoomFallbackConsecutiveThreshold) {
+      nextCadenceMin = warRoomFallbackCadenceMinutes;
+      triggerType = "failures";
+    } else if (lagBreachStreak >= warRoomFallbackConsecutiveThreshold) {
+      nextCadenceMin = warRoomFallbackCadenceMinutes;
+      triggerType = "lag_breach";
+    } else if (runtimeBreachStreak >= warRoomFallbackConsecutiveThreshold) {
+      nextCadenceMin = warRoomFallbackCadenceMinutes;
+      triggerType = "runtime_breach";
+    }
+  } else if (
+    healthyStreak >= warRoomRecoveryHealthyThreshold
+  ) {
+    nextCadenceMin = warRoomFastCadenceMinutes;
+    triggerType = "healthy_recovery";
+  }
+
+  const transitioned = nextCadenceMin !== warRoom.currentCadenceMin;
+  return {
+    nextCadenceMin,
+    failureStreak: transitioned && triggerType === "healthy_recovery" ? 0 : failureStreak,
+    lagBreachStreak: transitioned && triggerType === "healthy_recovery" ? 0 : lagBreachStreak,
+    runtimeBreachStreak: transitioned && triggerType === "healthy_recovery" ? 0 : runtimeBreachStreak,
+    healthyStreak,
+    triggerType,
+    transitioned
+  };
+}
+
+function defaultWarRoomCycleMetrics(): WarRoomCycleMetrics {
+  return {
+    status: "success",
+    lagMinutes: 0,
+    runtimeMinutes: 0
+  };
+}
+
+function parseWarRoomCycleFixture(
+  value: unknown
+): { warRoomId?: string; ticker?: string; metrics: WarRoomCycleMetrics } | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+  const record = value as Record<string, unknown>;
+  const rawWarRoomId = typeof record.war_room_id === "string" ? record.war_room_id.trim() : "";
+  const rawTicker = typeof record.ticker === "string" ? record.ticker.trim().toUpperCase() : "";
+  return {
+    warRoomId: rawWarRoomId.length > 0 ? rawWarRoomId : undefined,
+    ticker: rawTicker.length > 0 ? rawTicker : undefined,
+    metrics: {
+      status: asWarRoomCycleStatus(record.status),
+      lagMinutes: boundedWholeNumber(record.lag_minutes, 0, 120),
+      runtimeMinutes: boundedWholeNumber(record.runtime_minutes, 0, 120)
+    }
+  };
+}
+
+function toEarningsCycleStatus(
+  value: WarRoomCycleStatus | undefined
+): "success" | "failure" | "timeout" | undefined {
+  if (value === "failure" || value === "timeout" || value === "success") {
+    return value;
+  }
+  return undefined;
+}
+
+function toLegacyWarRoomRecord(record: EarningsWarRoomRecord): WarRoomRecord {
+  return {
+    warRoomId: record.id,
+    userId: record.userId,
+    ticker: record.ticker,
+    earningsEventId: record.earningsEventId,
+    eventDate: record.eventDate,
+    state: toLegacyWarRoomState(record.state),
+    currentCadenceMin: record.currentCadenceMin,
+    failureStreak: record.cadenceState.consecutive_failures,
+    lagBreachStreak: record.cadenceState.consecutive_lag_breaches,
+    runtimeBreachStreak: record.cadenceState.consecutive_runtime_breaches,
+    healthyStreak: record.cadenceState.consecutive_healthy_cycles,
+    lastCycleStatus: record.cadenceState.latest_cycle_status
+      ? asWarRoomCycleStatus(record.cadenceState.latest_cycle_status)
+      : undefined,
+    lastLagMin: record.cadenceState.latest_source_freshness_lag_min,
+    lastRuntimeMin: record.cadenceState.latest_runtime_min,
+    lastCycleAt: record.cadenceState.updated_at,
+    preparedAt: record.preparedAt,
+    closedAt: record.closedAt,
+    createdAt: record.createdAt,
+    updatedAt: record.updatedAt
+  };
+}
+
+function toEarningsWarRoomRecord(record: WarRoomRecord): EarningsWarRoomRecord {
+  return {
+    id: record.warRoomId,
+    userId: record.userId,
+    ticker: record.ticker,
+    earningsEventId: record.earningsEventId,
+    eventDate: record.eventDate,
+    state: toEarningsWarRoomState(record.state),
+    currentCadenceMin: record.currentCadenceMin === 30 ? 30 : 15,
+    cadenceState: {
+      current_cadence_min: record.currentCadenceMin === 30 ? 30 : 15,
+      default_cadence_min: 15,
+      fallback_cadence_min: 30,
+      consecutive_failures: Math.max(0, Math.floor(record.failureStreak)),
+      consecutive_lag_breaches: Math.max(0, Math.floor(record.lagBreachStreak)),
+      consecutive_runtime_breaches: Math.max(0, Math.floor(record.runtimeBreachStreak)),
+      consecutive_healthy_cycles: Math.max(0, Math.floor(record.healthyStreak)),
+      latest_cycle_status: toEarningsCycleStatus(record.lastCycleStatus),
+      latest_source_freshness_lag_min: record.lastLagMin,
+      latest_runtime_min: record.lastRuntimeMin,
+      updated_at: record.lastCycleAt ?? record.updatedAt
+    },
+    preparedAt: record.preparedAt,
+    closedAt: record.closedAt,
+    createdAt: record.createdAt,
+    updatedAt: record.updatedAt
+  };
+}
+
+async function findWarRoomByUserTickerEvent(
+  runtime: Runtime,
+  input: {
+    userId: string;
+    ticker: string;
+    earningsEventId: string;
+  }
+): Promise<WarRoomRecord | undefined> {
+  const found = await runtime.store.findWarRoomByEvent(input);
+  return found ? toLegacyWarRoomRecord(found) : undefined;
+}
+
+async function upsertWarRoom(runtime: Runtime, input: WarRoomRecord): Promise<WarRoomRecord> {
+  const normalized = toEarningsWarRoomRecord(input);
+  const existing = await runtime.store.getWarRoom({
+    id: normalized.id,
+    userId: normalized.userId
+  });
+  const saved = existing
+    ? await runtime.store.updateWarRoom(normalized)
+    : await runtime.store.createWarRoom(normalized);
+  return toLegacyWarRoomRecord(saved ?? normalized);
+}
+
+async function listWarRooms(
+  runtime: Runtime,
+  input: {
+    eventDateFrom?: string;
+    eventDateTo?: string;
+    states?: Array<WarRoomRecord["state"]>;
+    userIds?: string[];
+  }
+): Promise<WarRoomRecord[]> {
+  const explicitUserIds = (input.userIds ?? [])
+    .map((value) => value.trim())
+    .filter((value) => value.length > 0);
+  const userIds =
+    explicitUserIds.length > 0
+      ? [...new Set(explicitUserIds)]
+      : (await runtime.store.listUsersWithWatchlist()).map((entry) => entry.userId);
+
+  const all: WarRoomRecord[] = [];
+  for (const userId of userIds) {
+    const rooms = await runtime.store.listWarRoomsByUser({
+      userId,
+      includeClosed: true,
+      limit: 250
+    });
+    for (const room of rooms) {
+      all.push(toLegacyWarRoomRecord(room));
+    }
+  }
+
+  return all
+    .filter((room) => (input.states ? input.states.includes(room.state) : true))
+    .filter((room) =>
+      input.eventDateFrom ? room.eventDate.localeCompare(input.eventDateFrom) >= 0 : true
+    )
+    .filter((room) =>
+      input.eventDateTo ? room.eventDate.localeCompare(input.eventDateTo) <= 0 : true
+    );
+}
+
+async function getWarRoomById(
+  runtime: Runtime,
+  input: { warRoomId: string; userId: string }
+): Promise<WarRoomRecord | undefined> {
+  const room = await runtime.store.getWarRoom({
+    id: input.warRoomId,
+    userId: input.userId
+  });
+  return room ? toLegacyWarRoomRecord(room) : undefined;
+}
+
+async function createWarRoomTimelineEvent(
+  runtime: Runtime,
+  input: {
+    warRoomId: string;
+    phase: WarRoomPhase;
+    eventType:
+      | "prepared"
+      | "playbook_updated"
+      | "live_cycle_completed"
+      | "cadence_changed"
+      | "alert_emitted"
+      | "deep_dive_queued"
+      | "post_event_closed"
+      | "failed";
+    reasonText: string;
+    sourceRefs?: EarningsWarRoomSourceRef[];
+    alertLedgerId?: string;
+    reportId?: string;
+    metadata?: Record<string, unknown>;
+    createdAt: string;
+  }
+): Promise<EarningsWarRoomTimelineEventRecord> {
+  return runtime.store.createWarRoomTimelineEvent({
+    id: createId(),
+    warRoomId: input.warRoomId,
+    phase: input.phase,
+    eventType: input.eventType,
+    reasonText: input.reasonText,
+    sourceRefs: input.sourceRefs ?? [],
+    alertLedgerId: input.alertLedgerId,
+    reportId: input.reportId,
+    metadata: input.metadata ?? {},
+    createdAt: input.createdAt
+  });
+}
+
+async function queueDeepDiveRefresh(
+  runtime: Runtime,
+  input: { userId: string; ticker: string; createdAt: string }
+): Promise<JobRecord | undefined> {
+  const job = await runtime.store.createJob({
+    id: createId(),
+    type: "deep_dive",
+    userId: input.userId,
+    ticker: input.ticker,
+    createdAt: input.createdAt
+  });
+
+  try {
+    await runtime.queue.publish(job.id);
+    return job;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Queue publish failed";
+    await runtime.store.markJobFailed(job.id, new Date().toISOString(), message);
+    captureException(new Error(message), {
+      service: serviceName,
+      job_id: job.id,
+      user_id: input.userId,
+      ticker: input.ticker
+    });
+    return undefined;
+  }
+}
+
 function truncateMessage(value: string, maxLength: number): string {
   const normalized = value.replace(/\s+/g, " ").trim();
   if (normalized.length <= maxLength) {
     return normalized;
   }
-  return `${normalized.slice(0, Math.max(0, maxLength - 1)).trimEnd()}…`;
+  return `${normalized.slice(0, Math.max(0, maxLength - 3)).trimEnd()}...`;
 }
 
 function safeParseDateMs(value: string | undefined): number | undefined {
@@ -3537,16 +3945,599 @@ export function startServer(port: number = loadConfig().port): Server {
           return;
         }
 
+        if (method === "POST" && pathname === "/internal/notifications/earnings-war-room") {
+          const body = await readJsonBody<{
+            as_of?: string;
+            phase?: string;
+            force_fail_user_ids?: string[];
+            live_fixtures?: Array<{
+              war_room_id?: string;
+              ticker?: string;
+              status?: string;
+              lag_minutes?: number;
+              runtime_minutes?: number;
+            }>;
+          }>(request);
+          const asOf =
+            normalizeDateInput(
+              body.as_of ?? dateInTimeZone(new Date(), runtime.config.subscriptionTimezone)
+            ) ?? dateInTimeZone(new Date(), runtime.config.subscriptionTimezone);
+          const phaseRaw =
+            typeof body.phase === "string" ? body.phase.trim().toLowerCase() : "auto";
+          const includePre = phaseRaw === "auto" || phaseRaw === "pre";
+          const includeLive = phaseRaw === "auto" || phaseRaw === "live";
+          const includePost = phaseRaw === "auto" || phaseRaw === "post";
+          const allowFailureInjection =
+            runtime.config.storeBackend === "memory" && process.env.NODE_ENV !== "production";
+          const forcedFailUserIds = new Set(
+            allowFailureInjection && Array.isArray(body.force_fail_user_ids)
+              ? body.force_fail_user_ids
+                  .map((value) => (typeof value === "string" ? value.trim() : ""))
+                  .filter((value) => value.length > 0)
+              : []
+          );
+          const proRecipients = await runtime.store.listUsersWithDeviceTokenByNotificationType({
+            notificationType: "earnings_war_room",
+            tier: "PRO"
+          });
+          const recipientsByUser = groupPushTargetsByUser(proRecipients);
+          const cycleFixtures = Array.isArray(body.live_fixtures)
+            ? body.live_fixtures
+                .map((entry) => parseWarRoomCycleFixture(entry))
+                .filter(
+                  (entry): entry is { warRoomId?: string; ticker?: string; metrics: WarRoomCycleMetrics } =>
+                    Boolean(entry)
+                )
+            : [];
+          const cycleFixtureByWarRoomId = new Map<string, WarRoomCycleMetrics>();
+          const cycleFixtureByTicker = new Map<string, WarRoomCycleMetrics>();
+          for (const fixture of cycleFixtures) {
+            if (fixture.warRoomId) {
+              cycleFixtureByWarRoomId.set(fixture.warRoomId, fixture.metrics);
+            } else if (fixture.ticker) {
+              cycleFixtureByTicker.set(fixture.ticker, fixture.metrics);
+            }
+          }
+
+          let prepared = 0;
+          let liveUpdated = 0;
+          let postClosed = 0;
+          let attempted = 0;
+          let delivered = 0;
+          let failed = 0;
+          const fallbackUserIds = new Set<string>();
+
+          if (includePre) {
+            const prepareToDate = addDaysToIsoDate(asOf, warRoomPreparationLookaheadDays);
+            for (const [userId, userTargets] of recipientsByUser.entries()) {
+              try {
+                if (forcedFailUserIds.has(userId)) {
+                  throw new Error("Forced War Room preparation failure for smoke proof.");
+                }
+                const watchlist = await runtime.store.listWatchlistTickersByUser(userId);
+                if (watchlist.length === 0) {
+                  continue;
+                }
+                const events = (await runtime.store.listUpcomingCalendarEventsByTickers({
+                  tickers: watchlist,
+                  fromDate: asOf,
+                  toDate: prepareToDate,
+                  eventType: "earnings"
+                })).sort((left, right) => {
+                  const byDate = left.eventDate.localeCompare(right.eventDate);
+                  if (byDate !== 0) {
+                    return byDate;
+                  }
+                  return left.ticker.localeCompare(right.ticker);
+                });
+                const leadEvent = events[0];
+                if (!leadEvent) {
+                  continue;
+                }
+                const ticker = leadEvent.ticker.trim().toUpperCase();
+                const existing = await findWarRoomByUserTickerEvent(runtime, {
+                  userId,
+                  ticker,
+                  earningsEventId: leadEvent.id
+                });
+                const nowIso = new Date().toISOString();
+                const warRoomId = existing?.warRoomId ?? createId();
+                const warRoom = await upsertWarRoom(runtime, {
+                  warRoomId,
+                  userId,
+                  ticker,
+                  earningsEventId: leadEvent.id,
+                  eventDate: leadEvent.eventDate,
+                  state: normalizeWarRoomState(existing?.state),
+                  currentCadenceMin: existing?.currentCadenceMin ?? warRoomFastCadenceMinutes,
+                  failureStreak: existing?.failureStreak ?? 0,
+                  lagBreachStreak: existing?.lagBreachStreak ?? 0,
+                  runtimeBreachStreak: existing?.runtimeBreachStreak ?? 0,
+                  healthyStreak: existing?.healthyStreak ?? 0,
+                  lastCycleStatus: existing?.lastCycleStatus,
+                  lastLagMin: existing?.lastLagMin,
+                  lastRuntimeMin: existing?.lastRuntimeMin,
+                  lastCycleAt: existing?.lastCycleAt,
+                  preparedAt: existing?.preparedAt ?? nowIso,
+                  closedAt: existing?.closedAt,
+                  createdAt: existing?.createdAt ?? nowIso,
+                  updatedAt: nowIso
+                });
+
+                if (!existing) {
+                  prepared += 1;
+                  await createWarRoomTimelineEvent(runtime, {
+                    warRoomId: warRoom.warRoomId,
+                    phase: "pre",
+                    eventType: "prepared",
+                    reasonText: `${ticker} reports on ${leadEvent.eventDate}. War Room prep is ready.`,
+                    sourceRefs: [
+                      {
+                        kind: "calendar_event",
+                        ref_id: leadEvent.id,
+                        label: `${ticker} earnings ${leadEvent.eventDate}`
+                      }
+                    ],
+                    metadata: {
+                      ticker,
+                      event_date: leadEvent.eventDate
+                    },
+                    createdAt: nowIso
+                  });
+                }
+
+                if (existing) {
+                  continue;
+                }
+
+                const route = notificationRoute("earnings_war_room");
+                const alertId = createId();
+                const title = notificationTitle("earnings_war_room", ticker);
+                const reasonText = `${ticker} reports on ${leadEvent.eventDate}. Open War Room to review thesis watchpoints.`;
+                const pushResult = await runtime.pushNotifier.sendNotification(userTargets, {
+                  notificationType: "earnings_war_room",
+                  route,
+                  title,
+                  body: reasonText,
+                  data: {
+                    alert_id: alertId,
+                    ticker,
+                    war_room_id: warRoom.warRoomId,
+                    earnings_event_id: leadEvent.id,
+                    event_date: leadEvent.eventDate,
+                    current_cadence_min: String(warRoom.currentCadenceMin),
+                    war_room_phase: "pre",
+                    reason_code: "war_room_prepared",
+                    reason_text: reasonText,
+                    deep_link_target: route
+                  }
+                });
+                attempted += pushResult.attempted;
+                delivered += pushResult.delivered;
+                failed += pushResult.failed;
+                for (const invalidTarget of pushResult.invalidTargets) {
+                  await runtime.store.invalidateUserDeviceByInstallation({
+                    userId: invalidTarget.userId,
+                    installationId: invalidTarget.installationId,
+                    invalidatedAt: new Date().toISOString(),
+                    reason: "fcm_invalid_registration"
+                  });
+                }
+
+                const alert = await recordAlertLedgerItem(runtime, {
+                  id: alertId,
+                  userId,
+                  notificationType: "earnings_war_room",
+                  route,
+                  title,
+                  body: reasonText,
+                  reasonCode: "war_room_prepared",
+                  reasonText,
+                  deliveryState: pushResult.failed > 0 ? "partial_failure" : "sent",
+                  data: {
+                    ticker,
+                    war_room_id: warRoom.warRoomId,
+                    earnings_event_id: leadEvent.id,
+                    event_date: leadEvent.eventDate,
+                    current_cadence_min: String(warRoom.currentCadenceMin),
+                    war_room_phase: "pre",
+                    deep_link_target: route
+                  }
+                });
+
+                await createWarRoomTimelineEvent(runtime, {
+                  warRoomId: warRoom.warRoomId,
+                  phase: "pre",
+                  eventType: "alert_emitted",
+                  reasonText,
+                  alertLedgerId: alert.id,
+                  sourceRefs: [
+                    {
+                      kind: "alert_ledger",
+                      ref_id: alert.id,
+                      label: "War Room pre-event alert"
+                    }
+                  ],
+                  metadata: {
+                    ticker,
+                    event_date: leadEvent.eventDate
+                  },
+                  createdAt: new Date().toISOString()
+                });
+              } catch (error) {
+                fallbackUserIds.add(userId);
+                const message =
+                  error instanceof Error ? error.message : "War Room preparation failed.";
+                logWarn("War Room preparation degraded to legacy path", {
+                  request_id: meta.requestId,
+                  route: pathname,
+                  user_id: userId,
+                  error_message: message
+                });
+              }
+            }
+          }
+
+          if (includeLive) {
+            const liveCandidates = await listWarRooms(runtime, {
+              eventDateFrom: asOf,
+              eventDateTo: asOf,
+              states: ["pre", "live", "post"],
+              userIds: [...recipientsByUser.keys()]
+            });
+            for (const warRoom of liveCandidates) {
+              if (warRoom.state === "closed") {
+                continue;
+              }
+              const nowIso = new Date().toISOString();
+              const cycle =
+                cycleFixtureByWarRoomId.get(warRoom.warRoomId) ??
+                cycleFixtureByTicker.get(warRoom.ticker) ??
+                defaultWarRoomCycleMetrics();
+              const cadence = computeWarRoomCadence(warRoom, cycle);
+              const nextState: WarRoomRecord["state"] =
+                warRoom.state === "pre" ? "live" : normalizeWarRoomState(warRoom.state);
+              const updated = await upsertWarRoom(runtime, {
+                ...warRoom,
+                state: nextState,
+                currentCadenceMin: cadence.nextCadenceMin,
+                failureStreak: cadence.failureStreak,
+                lagBreachStreak: cadence.lagBreachStreak,
+                runtimeBreachStreak: cadence.runtimeBreachStreak,
+                healthyStreak: cadence.healthyStreak,
+                lastCycleStatus: cycle.status,
+                lastLagMin: cycle.lagMinutes,
+                lastRuntimeMin: cycle.runtimeMinutes,
+                lastCycleAt: nowIso,
+                updatedAt: nowIso
+              });
+              liveUpdated += 1;
+
+              await createWarRoomTimelineEvent(runtime, {
+                warRoomId: updated.warRoomId,
+                phase: asWarRoomPhase("live"),
+                eventType: cadence.transitioned ? "cadence_changed" : "live_cycle_completed",
+                reasonText: cadence.transitioned
+                  ? `Cadence changed from ${warRoom.currentCadenceMin} min to ${updated.currentCadenceMin} min (${cadence.triggerType ?? "rule"}).`
+                  : `Live cycle completed with status ${cycle.status}.`,
+                sourceRefs: [
+                  {
+                    kind: "live_cycle_metrics",
+                    ref_id: `${updated.warRoomId}:${nowIso}`,
+                    label: `status=${cycle.status}`
+                  }
+                ],
+                metadata: {
+                  status: cycle.status,
+                  lag_minutes: cycle.lagMinutes,
+                  runtime_minutes: cycle.runtimeMinutes,
+                  trigger_type: cadence.triggerType
+                },
+                createdAt: nowIso
+              });
+
+              if (!cadence.transitioned) {
+                continue;
+              }
+
+              const userTargets = recipientsByUser.get(updated.userId);
+              if (!userTargets || userTargets.length === 0) {
+                continue;
+              }
+
+              const route = notificationRoute("earnings_war_room");
+              const alertId = createId();
+              const reasonText = cadence.triggerType === "healthy_recovery"
+                ? `${updated.ticker} War Room recovered to 15-minute cadence.`
+                : `${updated.ticker} War Room shifted to 30-minute cadence due to source degradation.`;
+              const pushResult = await runtime.pushNotifier.sendNotification(userTargets, {
+                notificationType: "earnings_war_room",
+                route,
+                title: notificationTitle("earnings_war_room", updated.ticker),
+                body: reasonText,
+                data: {
+                  alert_id: alertId,
+                  ticker: updated.ticker,
+                  war_room_id: updated.warRoomId,
+                  earnings_event_id: updated.earningsEventId,
+                  event_date: updated.eventDate,
+                  current_cadence_min: String(updated.currentCadenceMin),
+                  war_room_phase: "live",
+                  reason_code:
+                    cadence.triggerType === "healthy_recovery"
+                      ? "war_room_cadence_recovered"
+                      : "war_room_cadence_fallback",
+                  reason_text: reasonText,
+                  deep_link_target: route
+                }
+              });
+              attempted += pushResult.attempted;
+              delivered += pushResult.delivered;
+              failed += pushResult.failed;
+              for (const invalidTarget of pushResult.invalidTargets) {
+                await runtime.store.invalidateUserDeviceByInstallation({
+                  userId: invalidTarget.userId,
+                  installationId: invalidTarget.installationId,
+                  invalidatedAt: new Date().toISOString(),
+                  reason: "fcm_invalid_registration"
+                });
+              }
+              const alert = await recordAlertLedgerItem(runtime, {
+                id: alertId,
+                userId: updated.userId,
+                notificationType: "earnings_war_room",
+                route,
+                title: notificationTitle("earnings_war_room", updated.ticker),
+                body: reasonText,
+                reasonCode:
+                  cadence.triggerType === "healthy_recovery"
+                    ? "war_room_cadence_recovered"
+                    : "war_room_cadence_fallback",
+                reasonText,
+                deliveryState: pushResult.failed > 0 ? "partial_failure" : "sent",
+                data: {
+                  ticker: updated.ticker,
+                  war_room_id: updated.warRoomId,
+                  earnings_event_id: updated.earningsEventId,
+                  event_date: updated.eventDate,
+                  current_cadence_min: String(updated.currentCadenceMin),
+                  war_room_phase: "live",
+                  deep_link_target: route
+                }
+              });
+              await createWarRoomTimelineEvent(runtime, {
+                warRoomId: updated.warRoomId,
+                phase: "live",
+                eventType: "alert_emitted",
+                reasonText,
+                alertLedgerId: alert.id,
+                sourceRefs: [
+                  {
+                    kind: "alert_ledger",
+                    ref_id: alert.id,
+                    label: "War Room cadence alert"
+                  }
+                ],
+                createdAt: new Date().toISOString()
+              });
+            }
+          }
+
+          if (includePost) {
+            const postCandidates = await listWarRooms(runtime, {
+              eventDateTo: asOf,
+              states: ["pre", "live", "post"],
+              userIds: [...recipientsByUser.keys()]
+            });
+            for (const warRoom of postCandidates) {
+              if (warRoom.state === "closed") {
+                continue;
+              }
+              const nowIso = new Date().toISOString();
+              const queuedJob = await queueDeepDiveRefresh(runtime, {
+                userId: warRoom.userId,
+                ticker: warRoom.ticker,
+                createdAt: nowIso
+              });
+
+              const triggerKey = `war_room_post:${warRoom.warRoomId}:${asOf}`;
+              const activeRules = await runtime.store.listActiveKillSwitchRules({
+                asOfIso: nowIso,
+                userIds: [warRoom.userId]
+              });
+              for (const rule of activeRules.filter((rule) => rule.ticker === warRoom.ticker)) {
+                const existingEvaluation = await runtime.store.getKillSwitchEvaluation({
+                  ruleId: rule.id,
+                  signalSource: "event",
+                  triggerKey
+                });
+                if (existingEvaluation) {
+                  continue;
+                }
+                await runtime.store.createKillSwitchEvaluation({
+                  id: createId(),
+                  ruleId: rule.id,
+                  userId: warRoom.userId,
+                  ticker: warRoom.ticker,
+                  signalSource: "event",
+                  triggerKey,
+                  outcome: "skipped",
+                  reasonCode: "war_room_post_recheck",
+                  reasonText: "Post-earnings re-evaluation queued from War Room closure.",
+                  createdAt: nowIso,
+                  updatedAt: nowIso
+                });
+              }
+
+              const snapshots = await runtime.store.listThesisMonitorSnapshotsByUser(warRoom.userId);
+              const snapshot = snapshots.find((entry) => entry.ticker === warRoom.ticker);
+              if (snapshot) {
+                await runtime.store.upsertThesisMonitorSnapshot({
+                  ...snapshot,
+                  freshnessState: "current",
+                  freshnessScore: 1,
+                  materialEventsCount: 0,
+                  unreviewedEventsCount: 0,
+                  killSwitchTriggeredAt: undefined,
+                  freshnessReason: "War Room post-event closure reset freshness and queued Deep Dive review.",
+                  updatedAt: nowIso
+                });
+              }
+
+              const closed = await upsertWarRoom(runtime, {
+                ...warRoom,
+                state: "closed",
+                closedAt: nowIso,
+                updatedAt: nowIso
+              });
+              postClosed += 1;
+
+              const route = notificationRoute("earnings_war_room");
+              const reasonText = `${closed.ticker} post-event review started. Deep Dive refresh has been queued.`;
+              const userTargets = recipientsByUser.get(closed.userId);
+              let alertId: string | undefined;
+              if (userTargets && userTargets.length > 0) {
+                alertId = createId();
+                const pushResult = await runtime.pushNotifier.sendNotification(userTargets, {
+                  notificationType: "earnings_war_room",
+                  route,
+                  title: notificationTitle("earnings_war_room", closed.ticker),
+                  body: reasonText,
+                  data: {
+                    alert_id: alertId,
+                    ticker: closed.ticker,
+                    war_room_id: closed.warRoomId,
+                    earnings_event_id: closed.earningsEventId,
+                    event_date: closed.eventDate,
+                    war_room_phase: "post",
+                    reason_code: "war_room_post_refresh_queued",
+                    reason_text: reasonText,
+                    report_id: queuedJob?.reportId ?? "",
+                    deep_link_target: route
+                  }
+                });
+                attempted += pushResult.attempted;
+                delivered += pushResult.delivered;
+                failed += pushResult.failed;
+                for (const invalidTarget of pushResult.invalidTargets) {
+                  await runtime.store.invalidateUserDeviceByInstallation({
+                    userId: invalidTarget.userId,
+                    installationId: invalidTarget.installationId,
+                    invalidatedAt: new Date().toISOString(),
+                    reason: "fcm_invalid_registration"
+                  });
+                }
+                const alert = await recordAlertLedgerItem(runtime, {
+                  id: alertId,
+                  userId: closed.userId,
+                  notificationType: "earnings_war_room",
+                  route,
+                  title: notificationTitle("earnings_war_room", closed.ticker),
+                  body: reasonText,
+                  reasonCode: "war_room_post_refresh_queued",
+                  reasonText,
+                  deliveryState: pushResult.failed > 0 ? "partial_failure" : "sent",
+                  data: {
+                    ticker: closed.ticker,
+                    war_room_id: closed.warRoomId,
+                    earnings_event_id: closed.earningsEventId,
+                    event_date: closed.eventDate,
+                    war_room_phase: "post",
+                    report_id: queuedJob?.reportId ?? "",
+                    deep_link_target: route
+                  }
+                });
+                alertId = alert.id;
+              }
+
+              await createWarRoomTimelineEvent(runtime, {
+                warRoomId: closed.warRoomId,
+                phase: "post",
+                eventType: "deep_dive_queued",
+                reasonText,
+                alertLedgerId: alertId,
+                reportId: queuedJob?.reportId,
+                sourceRefs: [
+                  {
+                    kind: "job",
+                    ref_id: queuedJob?.id ?? triggerKey,
+                    label: "Deep Dive refresh queued"
+                  }
+                ],
+                metadata: {
+                  trigger_key: triggerKey,
+                  closed: true
+                },
+                createdAt: nowIso
+              });
+            }
+          }
+
+          await appendAudit(runtime, "earnings_war_room.dispatched", {
+            request_id: meta.requestId,
+            route: pathname,
+            as_of: asOf,
+            phase: phaseRaw,
+            prepared,
+            live_updated: liveUpdated,
+            post_closed: postClosed,
+            attempted,
+            delivered,
+            failed,
+            fallback_user_count: fallbackUserIds.size
+          });
+
+          sendJson(response, 200, {
+            status: "ok",
+            as_of: asOf,
+            phase: phaseRaw,
+            prepared,
+            live_updated: liveUpdated,
+            post_closed: postClosed,
+            attempted,
+            delivered,
+            failed,
+            fallback_user_ids: [...fallbackUserIds]
+          });
+          return;
+        }
+
         if (method === "POST" && pathname === "/internal/notifications/earnings-preview") {
-          const body = await readJsonBody<{ as_of?: string }>(request);
+          const body = await readJsonBody<{ as_of?: string; user_ids?: string[] }>(request);
           const today = normalizeDateInput(
             body.as_of ?? dateInTimeZone(new Date(), runtime.config.subscriptionTimezone)
           ) ?? dateInTimeZone(new Date(), runtime.config.subscriptionTimezone);
           const nextBiz = nextBusinessDate(today);
-          const recipients = await runtime.store.listUsersWithDeviceTokenByNotificationType({
+          const freeRecipients = await runtime.store.listUsersWithDeviceTokenByNotificationType({
             notificationType: "earnings_preview"
+            ,
+            tier: "FREE"
           });
-          const recipientsByUser = groupPushTargetsByUser(recipients);
+          const fallbackUserIds = Array.isArray(body.user_ids)
+            ? body.user_ids
+                .map((value) => (typeof value === "string" ? value.trim() : ""))
+                .filter((value) => value.length > 0)
+            : [];
+          const fallbackRecipients =
+            fallbackUserIds.length > 0
+              ? await runtime.store.listUsersWithDeviceTokenByNotificationType({
+                  notificationType: "earnings_preview",
+                  userIds: fallbackUserIds
+                })
+              : [];
+          const mergedRecipients = [...freeRecipients];
+          const mergedRecipientKeys = new Set(
+            freeRecipients.map((target) => `${target.userId}:${target.installationId}`)
+          );
+          for (const target of fallbackRecipients) {
+            const key = `${target.userId}:${target.installationId}`;
+            if (mergedRecipientKeys.has(key)) {
+              continue;
+            }
+            mergedRecipientKeys.add(key);
+            mergedRecipients.push(target);
+          }
+          const recipientsByUser = groupPushTargetsByUser(mergedRecipients);
 
           let attempted = 0;
           let delivered = 0;
@@ -3652,7 +4643,8 @@ export function startServer(port: number = loadConfig().port): Server {
             attempted,
             delivered,
             failed,
-            ticker_count: sentTickers.length
+            ticker_count: sentTickers.length,
+            fallback_user_count: fallbackUserIds.length
           });
 
           sendJson(response, 200, {
@@ -3660,7 +4652,8 @@ export function startServer(port: number = loadConfig().port): Server {
             attempted,
             delivered,
             failed,
-            ticker_count: sentTickers.length
+            ticker_count: sentTickers.length,
+            fallback_user_count: fallbackUserIds.length
           });
           return;
         }
@@ -5603,6 +6596,79 @@ export function startServer(port: number = loadConfig().port): Server {
             freshness_reason: snapshot.freshnessReason,
             updated_at: snapshot.updatedAt
           }))
+        });
+        return;
+      }
+
+      if (method === "GET" && pathname.startsWith("/v1/research/war-room/")) {
+        const parts = pathname.split("/").filter(Boolean);
+        if (parts.length !== 4 || parts[0] !== "v1" || parts[1] !== "research" || parts[2] !== "war-room") {
+          sendJson(response, 404, { status: "not_found" });
+          return;
+        }
+        const warRoomId = parts[3]?.trim();
+        if (!warRoomId) {
+          sendJson(response, 404, {
+            error: "war_room_not_found",
+            error_message: "War Room not found."
+          });
+          return;
+        }
+
+        const warRoom = await getWarRoomById(runtime, {
+          warRoomId,
+          userId: auth.userId
+        });
+        if (!warRoom) {
+          sendJson(response, 404, {
+            error: "war_room_not_found",
+            error_message: "War Room not found."
+          });
+          return;
+        }
+
+        const timeline = await runtime.store.listWarRoomTimelineEvents({
+          warRoomId: warRoom.warRoomId,
+          limit: 200
+        });
+        await appendAudit(
+          runtime,
+          "war_room.retrieved",
+          {
+            request_id: meta.requestId,
+            route: pathname,
+            war_room_id: warRoom.warRoomId,
+            timeline_count: timeline.length
+          },
+          auth.userId
+        );
+
+        sendJson(response, 200, {
+          data: {
+            war_room_id: warRoom.warRoomId,
+            ticker: warRoom.ticker,
+            earnings_event_id: warRoom.earningsEventId,
+            event_date: warRoom.eventDate,
+            state: warRoom.state,
+            current_cadence_min: warRoom.currentCadenceMin,
+            prepared_at: warRoom.preparedAt,
+            closed_at: warRoom.closedAt,
+            last_cycle_status: warRoom.lastCycleStatus,
+            last_lag_min: warRoom.lastLagMin,
+            last_runtime_min: warRoom.lastRuntimeMin,
+            last_cycle_at: warRoom.lastCycleAt,
+            timeline: timeline.map((event) => ({
+              war_room_event_id: event.id,
+              war_room_id: event.warRoomId,
+              phase: event.phase,
+              event_type: event.eventType,
+              reason_text: event.reasonText,
+              source_refs: event.sourceRefs,
+              alert_ledger_id: event.alertLedgerId,
+              report_id: event.reportId,
+              created_at: event.createdAt
+            }))
+          }
         });
         return;
       }

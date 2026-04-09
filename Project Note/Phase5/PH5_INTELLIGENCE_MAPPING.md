@@ -2,7 +2,7 @@
 
 **Version:** 1.0  
 **Status:** Active  
-**Last Revised:** 2026-04-08  
+**Last Revised:** 2026-04-09
 **Owner:** Product Lead + Engineering Lead
 
 ---
@@ -32,9 +32,12 @@ All mapped user surfaces must preserve the same Thesis colors, typography, tone,
 ## Operational Defaults
 
 1. Earnings War Room live cycle defaults to `15 min`.
-2. War Room live cycle may fall back to `30 min` when degradation conditions are detected.
-3. Cross-name propagation alerts require minimum confidence `0.70` by default.
-4. Relationship edges below `0.70` remain queryable but do not emit propagated alerts by default.
+2. War Room falls back from `15 min` to `30 min` when any one condition occurs for the same `war_room_id`: (a) `2` consecutive cycle failures/timeouts, (b) source freshness lag `>= 20 min` for `2` consecutive cycles, or (c) cycle runtime `> 12 min` for `2` consecutive cycles.
+3. War Room returns from `30 min` to `15 min` only after `3` consecutive healthy cycles (`success`, lag `<= 10 min`, runtime `<= 8 min`).
+4. War Room entitlement is Pro-only; Free keeps existing `earnings_preview` behavior and does not receive War Room payloads.
+5. During M4 cutover, legacy `earnings_preview` coexists and is the degraded fallback path when War Room preparation fails.
+6. Cross-name propagation alerts require minimum confidence `0.70` by default.
+7. Relationship edges below `0.70` remain queryable but do not emit propagated alerts by default.
 
 ---
 
@@ -75,3 +78,9 @@ Plus optional deep-link context keys:
 - `rule_id`
 - `scenario_id`
 - `war_room_id`
+
+War Room route contract (M4 lock):
+
+- Required tuple for War Room push/open: `open_tab=research`, `notification_type=earnings_war_room`, `war_room_id`, `ticker`
+- Optional additive keys: `alert_id`, `report_id`
+- Mobile launch parsing must accept `war_room_id` from both push extras and URI query params before M4 can close

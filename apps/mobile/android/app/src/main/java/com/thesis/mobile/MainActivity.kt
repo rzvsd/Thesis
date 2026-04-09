@@ -13,6 +13,7 @@ import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
 import androidx.compose.ui.platform.ComposeView
 import com.thesis.mobile.data.SessionStore
+import com.thesis.mobile.launch.LaunchDestinationResolver
 import com.thesis.mobile.observability.MobileTelemetry
 import com.thesis.mobile.offline.PrefetchScheduler
 import com.thesis.mobile.security.AppLockManager
@@ -25,6 +26,7 @@ data class LaunchTarget(
     val tab: String,
     val alertId: String? = null,
     val reportId: String? = null,
+    val warRoomId: String? = null,
     val pulseDate: String? = null,
     val digestDate: String? = null,
     val notificationType: String? = null,
@@ -112,35 +114,20 @@ class MainActivity : FragmentActivity() {
 
         val openTab = intent.getStringExtra("open_tab")
         val notificationType = intent.getStringExtra("notification_type")
-        val normalizedTab = openTab?.trim()?.lowercase()
         val normalizedType = notificationType?.trim()?.lowercase()
-        val uri = intent.data
-        val resolvedTab = when {
-            normalizedTab in setOf("today", "names", "research", "inbox", "you") -> normalizedTab
-            normalizedTab == "pulse" ||
-                normalizedType == "market_pulse_ready" ||
-                normalizedType == "morning_exception_briefing" ||
-                normalizedType == "weekly_digest" ||
-                uri?.toString().orEmpty().contains("thesis://pulse", ignoreCase = true) ||
-                uri?.toString().orEmpty().contains("thesis://today", ignoreCase = true) -> "today"
-            normalizedTab == "deep_dive" ||
-                normalizedType == "earnings_preview" ||
-                normalizedType == "contrarian_alert" ||
-                normalizedType == "kill_switch" ||
-                uri?.toString().orEmpty().contains("thesis://deep-dive", ignoreCase = true) ||
-                uri?.toString().orEmpty().contains("thesis://research", ignoreCase = true) -> "research"
-            normalizedType == "freshness_decay" -> "names"
-            uri?.toString().orEmpty().contains("thesis://names", ignoreCase = true) -> "names"
-            uri?.toString().orEmpty().contains("thesis://inbox", ignoreCase = true) -> "inbox"
-            uri?.toString().orEmpty().contains("thesis://you", ignoreCase = true) -> "you"
-            else -> null
-        }
+        val uriString = intent.data?.toString()
+        val resolvedTab = LaunchDestinationResolver.resolveTab(openTab, notificationType, uriString)
+        val warRoomId = LaunchDestinationResolver.resolveWarRoomId(
+            intent.getStringExtra("war_room_id"),
+            uriString
+        )
 
         launchTarget = resolvedTab?.let { target ->
             LaunchTarget(
                 tab = target,
                 alertId = extractAlertId(intent),
                 reportId = extractReportId(intent),
+                warRoomId = warRoomId,
                 pulseDate = extractPulseDate(intent),
                 digestDate = extractDigestDate(intent),
                 notificationType = normalizedType,
@@ -157,7 +144,8 @@ class MainActivity : FragmentActivity() {
                         "notification_type" to target.notificationType,
                         "tab" to target.tab,
                         "ticker" to target.ticker,
-                        "alert_id" to target.alertId
+                        "alert_id" to target.alertId,
+                        "war_room_id" to target.warRoomId
                     )
                 )
             }

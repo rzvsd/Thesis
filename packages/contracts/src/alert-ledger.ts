@@ -4,6 +4,16 @@ import {
   morningExceptionBriefingModes,
   type MorningExceptionBriefingMode
 } from "./morning-exception-briefing";
+import {
+  earningsWarRoomCadenceMinutes,
+  earningsWarRoomPhases,
+  earningsWarRoomStates,
+  earningsWarRoomTimelineEventTypes,
+  type EarningsWarRoomCadenceMinute,
+  type EarningsWarRoomPhase,
+  type EarningsWarRoomState,
+  type EarningsWarRoomTimelineEventType
+} from "./earnings-war-room";
 
 export const alertLedgerCategories = [
   "thesis_drift",
@@ -25,6 +35,8 @@ export type AlertRouteTarget = (typeof alertRouteTargets)[number];
 export interface AlertLedgerContext {
   ticker?: string;
   report_id?: string;
+  war_room_id?: string;
+  earnings_event_id?: string;
   rule_id?: string;
   evaluation_id?: string;
   signal_type?: string;
@@ -47,6 +59,12 @@ export interface AlertLedgerContext {
   lead_report_id?: string;
   lead_pulse_date?: string;
   lead_digest_date?: string;
+  war_room_phase?: EarningsWarRoomPhase;
+  war_room_state?: EarningsWarRoomState;
+  war_room_event_type?: EarningsWarRoomTimelineEventType;
+  war_room_cadence_min?: EarningsWarRoomCadenceMinute;
+  war_room_next_cycle_at?: string;
+  war_room_event_at?: string;
 }
 
 export interface AlertLedgerItem {
@@ -87,6 +105,8 @@ export const alertLedgerContextSchema = {
   properties: {
     ticker: { type: "string", minLength: 1 },
     report_id: { type: "string", minLength: 1 },
+    war_room_id: { type: "string", minLength: 1 },
+    earnings_event_id: { type: "string", minLength: 1 },
     rule_id: { type: "string", minLength: 1 },
     evaluation_id: { type: "string", minLength: 1 },
     signal_type: { type: "string", minLength: 1 },
@@ -114,7 +134,19 @@ export const alertLedgerContextSchema = {
     lead_ticker: { type: "string", minLength: 1 },
     lead_report_id: { type: "string", minLength: 1 },
     lead_pulse_date: { type: "string", format: "date" },
-    lead_digest_date: { type: "string", format: "date" }
+    lead_digest_date: { type: "string", format: "date" },
+    war_room_phase: { type: "string", enum: earningsWarRoomPhases },
+    war_room_state: { type: "string", enum: earningsWarRoomStates },
+    war_room_event_type: {
+      type: "string",
+      enum: earningsWarRoomTimelineEventTypes
+    },
+    war_room_cadence_min: {
+      type: "integer",
+      enum: earningsWarRoomCadenceMinutes
+    },
+    war_room_next_cycle_at: { type: "string", format: "date-time" },
+    war_room_event_at: { type: "string", format: "date-time" }
   }
 } as const;
 
@@ -143,6 +175,7 @@ export const alertLedgerItemSchema = {
       type: "string",
       enum: [
         "earnings_preview",
+        "earnings_war_room",
         "contrarian_alert",
         "kill_switch",
         "freshness_decay",

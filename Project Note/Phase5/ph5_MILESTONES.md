@@ -2,7 +2,7 @@
 
 **Version:** 1.0  
 **Status:** Active  
-**Last Revised:** 2026-04-08  
+**Last Revised:** 2026-04-09
 **Related Documents:** ph5_ROADMAP.md, ph5_BLUEBOOK.md, ph5_PRD.md
 
 ---
@@ -240,6 +240,8 @@ Scheduler Engineer + Product API Engineer + Mobile Engineer
 
 # M4 - Earnings War Room
 
+Status: Closed (PASS) on 2026-04-09; ADB device smoke complete and owner approval recorded.
+
 ## Goal
 
 Create event-window workflow for pre/live/post earnings with thesis-linked context.
@@ -254,25 +256,37 @@ Create event-window workflow for pre/live/post earnings with thesis-linked conte
 | Post-event closure flow | Auto-triggered Deep Dive refresh and thesis-delta summary |
 | Mobile War Room screen | One-surface workflow for event preparation and follow-through |
 
+War Room audit storage lock (M4):
+
+- Durable header record per user+ticker+earnings event: `war_room_id`, `user_id`, `ticker`, `earnings_event_id`, `state`, `current_cadence_min`, `prepared_at`, `closed_at`
+- Durable timeline record per transition/update: `war_room_event_id`, `war_room_id`, `phase` (`pre`/`live`/`post`), `event_type`, `reason_text`, `source_refs`, `created_at`, optional `alert_ledger_id`, optional `report_id`
+- Any user-facing War Room notification must write both alert-ledger row and timeline row with shared linkage (`alert_ledger_id`)
+
 ## Acceptance Criteria
 
-- [ ] Upcoming events trigger pre-event War Room preparation
-- [ ] Pre-event playbook includes thesis-linked watch items and active rules
-- [ ] Live window updates use default `15 min` cadence with validated fallback to `30 min` under degradation
-- [ ] Post-event path auto-queues Deep Dive and records thesis delta
-- [ ] Freshness reset and rule re-evaluation occur post event
-- [ ] War Room output writes auditable entries to alert ledger/history
-- [ ] Integration and device smoke cover pre/live/post transitions
+- [x] Upcoming events trigger pre-event War Room preparation
+- [x] Pre-event playbook includes thesis-linked watch items and active rules
+- [x] Live window updates use default `15 min` cadence and deterministic `30 min` fallback rules (`2` consecutive failures/timeouts, or `2` consecutive lag breaches `>= 20 min`, or `2` consecutive runtime breaches `> 12 min`)
+- [x] Live-window recovery from `30 min` back to `15 min` requires `3` consecutive healthy cycles (`success`, lag `<= 10 min`, runtime `<= 8 min`)
+- [x] War Room push/deep-link contract is locked to route-safe payloads with `open_tab=research`, `notification_type=earnings_war_room`, `war_room_id`, and `ticker`
+- [x] War Room entitlement is enforced: Pro receives War Room payloads, Free remains on existing `earnings_preview` path
+- [x] Post-event path auto-queues Deep Dive and records thesis delta
+- [x] Freshness reset and rule re-evaluation occur post event
+- [x] War Room output writes auditable pre/live/post history records with linkage to alert ledger entries where user-facing notifications are emitted
+- [x] Cutover policy is explicit and verified: `earnings_preview` and War Room coexist in M4 by entitlement and degraded fallback; no hard replacement
+- [x] Integration and device smoke cover pre/live/post transitions (integration proves transition logic; connected-device ADB smoke proves War Room launch/rendering and fallback Inbox behavior)
 
 ## Smoke Test
 
 ```text
 Step 1: Seed upcoming earnings event for followed name
 Step 2: Confirm pre-event War Room build at T-48h window
-Step 3: Simulate live event updates and verify `15 min` default cadence plus automatic `30 min` fallback behavior
-Step 4: Confirm post-event Deep Dive auto-queue and thesis delta generation
-Step 5: Confirm rule re-evaluation and freshness reset
-Step 6: Confirm War Room surface loads from push and in-app entry paths
+Step 3: Simulate live event updates and verify deterministic fallback triggers (`2` consecutive failures OR `2` consecutive lag breaches OR `2` consecutive runtime breaches)
+Step 4: Simulate recovery and verify return from `30 min` to `15 min` only after `3` consecutive healthy cycles
+Step 5: Confirm post-event Deep Dive auto-queue and thesis delta generation
+Step 6: Confirm rule re-evaluation and freshness reset
+Step 7: Confirm War Room surface loads from push and in-app entry paths using payload with `war_room_id`
+Step 8: Confirm Pro receives War Room and Free receives legacy `earnings_preview`; verify degraded fallback uses legacy path for Pro when War Room preparation fails
 ```
 
 ## Success
@@ -286,6 +300,8 @@ Earnings days become the strongest and most actionable Thesis workflow moments.
 | Playbook missing key thesis context | Pre-event payload review | Users prepare poorly |
 | Live updates drift or stall | Scheduler telemetry and latency alerts | Event trust collapses |
 | Cadence fallback logic fails | Cadence transition tests and scheduler logs | Live experience becomes unstable or delayed |
+| Deep-link payload missing `war_room_id` or wrong target | Push-route contract tests and device launch checks | Dead-end launch or wrong screen |
+| Entitlement leak between Free and Pro | Tier-gating integration tests and push payload audits | Monetization regression and policy violation |
 | Post-event closure not triggered | Job audit and queue checks | Broken follow-through loop |
 
 ## Rollback

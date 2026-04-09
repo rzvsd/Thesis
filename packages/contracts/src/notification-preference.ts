@@ -2,6 +2,7 @@ import type { SubscriptionTier } from "./subscription-tier";
 
 export const notificationTypes = [
   "earnings_preview",
+  "earnings_war_room",
   "contrarian_alert",
   "kill_switch",
   "freshness_decay",

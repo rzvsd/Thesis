@@ -7,6 +7,12 @@ import type {
   CalendarEventTime,
   CalendarEventType,
   ContrarianSignalValue,
+  EarningsWarRoomCadenceState,
+  EarningsWarRoomCadenceMinute,
+  EarningsWarRoomPhase,
+  EarningsWarRoomSourceRef,
+  EarningsWarRoomState,
+  EarningsWarRoomTimelineEventType,
   KillSwitchConditionDraft,
   KillSwitchEvaluationOutcome,
   KillSwitchEvaluationSignalSource,
@@ -283,6 +289,34 @@ export interface AlertLedgerRecord {
   context: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface EarningsWarRoomRecord {
+  id: string;
+  userId: string;
+  ticker: string;
+  earningsEventId: string;
+  eventDate: string;
+  state: EarningsWarRoomState;
+  currentCadenceMin: EarningsWarRoomCadenceMinute;
+  cadenceState: EarningsWarRoomCadenceState;
+  preparedAt: string;
+  closedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface EarningsWarRoomTimelineEventRecord {
+  id: string;
+  warRoomId: string;
+  phase: EarningsWarRoomPhase;
+  eventType: EarningsWarRoomTimelineEventType;
+  reasonText: string;
+  sourceRefs: EarningsWarRoomSourceRef[];
+  alertLedgerId?: string;
+  reportId?: string;
+  metadata: Record<string, unknown>;
+  createdAt: string;
 }
 
 export interface InternalClaimResponse {
