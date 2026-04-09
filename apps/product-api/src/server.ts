@@ -3,6 +3,11 @@ import { randomUUID } from "node:crypto";
 import { URL } from "node:url";
 
 import type {
+  AlertFeedbackState,
+  AlertLedgerCategory,
+  AlertLedgerFilter,
+  AlertFeedbackSubmission,
+  AlertRouteTarget,
   AnalysisReport,
   AnalysisRequest,
   AuthLoginRequest,
@@ -11,6 +16,11 @@ import type {
   AuthTokensResponse,
   CreateJobRequest,
   FeedbackSeverity,
+  KillSwitchConditionDraft,
+  KillSwitchEvaluationFixture,
+  KillSwitchEvaluationRequest,
+  KillSwitchEvaluationSignalSource,
+  KillSwitchSignalType,
   JobStatusResponse,
   MarketPulseReport,
   NotificationType,
@@ -26,6 +36,8 @@ import type {
   UserProfile
 } from "../../../packages/contracts/src";
 import {
+  alertFeedbackStates,
+  alertLedgerCategories,
   feedbackSeverityLevels,
   feedbackTriageStatuses,
   notificationTypes,
@@ -65,8 +77,10 @@ import {
   verifyRevenueCatWebhookSecret
 } from "./revenuecat";
 import type {
+  AlertLedgerRecord,
   AuditEventRecord,
   JobRecord,
+  KillSwitchRuleRecord,
   ThesisMonitorSnapshotRecord,
   UserFeedbackQueueRecord,
   UserSubscriptionRecord
@@ -106,9 +120,12 @@ interface CalendarEventSource {
 const serviceName = "product-api";
 const contrarianMoveThresholdPct = 5;
 const contrarianAnchorWindowDays = 90;
+const killSwitchDefaultPriceMoveThresholdPct = 5;
 const weeklyDigestLookaheadDays = 7;
 const monitorFreshnessWindowDays = 14;
 const notificationTypeList = [...notificationTypes];
+const alertLedgerCategoryList = [...alertLedgerCategories];
+const alertFeedbackStateList = [...alertFeedbackStates];
 const reportFeedbackCodeList = [...reportFeedbackCodes];
 const subscriptionFeedbackCodeList = [...subscriptionFeedbackCodes];
 const feedbackSeverityList = [...feedbackSeverityLevels];
@@ -116,6 +133,14 @@ const feedbackTriageStatusList = [...feedbackTriageStatuses];
 
 function isNotificationType(value: string): value is NotificationType {
   return notificationTypeList.includes(value as NotificationType);
+}
+
+function isAlertLedgerCategory(value: string): value is AlertLedgerCategory {
+  return alertLedgerCategoryList.includes(value as AlertLedgerCategory);
+}
+
+function isAlertFeedbackState(value: string): value is AlertFeedbackState {
+  return alertFeedbackStateList.includes(value as AlertFeedbackState);
 }
 
 function isReportFeedbackCode(value: string): value is ReportFeedbackCode {
@@ -193,6 +218,8 @@ function notificationTypeLabel(type: NotificationType): string {
       return "Earnings preview";
     case "contrarian_alert":
       return "Contrarian alert";
+    case "kill_switch":
+      return "Kill-switch alert";
     case "weekly_digest":
       return "Weekly digest";
     case "market_pulse_ready":
@@ -200,11 +227,24 @@ function notificationTypeLabel(type: NotificationType): string {
   }
 }
 
-function notificationRoute(type: NotificationType): string {
-  if (type === "weekly_digest" || type === "market_pulse_ready") {
-    return "pulse";
+function notificationCategory(type: NotificationType): AlertLedgerCategory {
+  switch (type) {
+    case "contrarian_alert":
+    case "kill_switch":
+      return "thesis_drift";
+    case "earnings_preview":
+      return "earnings";
+    case "weekly_digest":
+    case "market_pulse_ready":
+      return "macro";
   }
-  return "deep_dive";
+}
+
+function notificationRoute(type: NotificationType): AlertRouteTarget {
+  if (type === "weekly_digest" || type === "market_pulse_ready") {
+    return "today";
+  }
+  return "research";
 }
 
 function notificationTitle(type: NotificationType, ticker?: string): string {
@@ -218,6 +258,47 @@ interface InternalJsonResponse<T> {
   status: number;
   ok: boolean;
   payload: T;
+}
+
+function alertLedgerContextFromData(data: Record<string, string> | undefined): Record<string, unknown> {
+  if (!data) {
+    return {};
+  }
+  const relatedTickers = data.tickers
+    ?.split(",")
+    .map((ticker) => ticker.trim().toUpperCase())
+    .filter((ticker) => ticker.length > 0);
+  return {
+    ...(data.ticker ? { ticker: data.ticker.trim().toUpperCase() } : {}),
+    ...(data.report_id ? { report_id: data.report_id } : {}),
+    ...(data.rule_id ? { rule_id: data.rule_id } : {}),
+    ...(data.evaluation_id ? { evaluation_id: data.evaluation_id } : {}),
+    ...(data.signal_type ? { signal_type: data.signal_type } : {}),
+    ...(data.trigger_key ? { trigger_key: data.trigger_key } : {}),
+    ...(data.report_date && data.deep_link_target === "today" ? { pulse_date: data.report_date } : {}),
+    ...(data.digest_date ? { digest_date: data.digest_date } : {}),
+    ...(relatedTickers && relatedTickers.length > 0 ? { related_tickers: relatedTickers } : {})
+  };
+}
+
+function toAlertLedgerView(record: AlertLedgerRecord) {
+  return {
+    id: record.id,
+    user_id: record.userId,
+    notification_type: record.notificationType,
+    category: record.category,
+    route: record.route,
+    title: record.title,
+    body: record.body,
+    reason_code: record.reasonCode,
+    reason_text: record.reasonText,
+    delivery_state: record.deliveryState,
+    feedback_state: record.feedbackState,
+    muted_at: record.mutedAt,
+    context: record.context,
+    created_at: record.createdAt,
+    updated_at: record.updatedAt
+  };
 }
 
 interface ComparableDeepDiveSummary {
@@ -263,24 +344,42 @@ async function fetchInternalJson<T>(
 function toNotificationPreferenceView(
   userId: string,
   tier: SubscriptionTier,
-  rows: Array<{ type: NotificationType; enabled: boolean }>
+  rows: Array<{ type: NotificationType; enabled: boolean; quietUntil?: string }>
 ): {
   user_id: string;
   tier: SubscriptionTier;
-  preferences: Array<{ type: NotificationType; enabled: boolean }>;
+  preferences: Array<{ type: NotificationType; enabled: boolean; quiet_until?: string }>;
 } {
-  const byType = new Map<NotificationType, boolean>();
+  const byType = new Map<NotificationType, { enabled: boolean; quietUntil?: string }>();
   for (const row of rows) {
-    byType.set(row.type, row.enabled);
+    byType.set(row.type, { enabled: row.enabled, quietUntil: row.quietUntil });
   }
   return {
     user_id: userId,
     tier,
-    preferences: notificationTypeList.map((type) => ({
-      type,
-      enabled: byType.get(type) ?? true
-    }))
+    preferences: notificationTypeList.map((type) => {
+      const row = byType.get(type);
+      return {
+        type,
+        enabled: row?.enabled ?? true,
+        quiet_until: row?.quietUntil
+      };
+    })
   };
+}
+
+function normalizeNotificationQuietUntil(value: string): string | undefined {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+
+  const parsed = Date.parse(trimmed);
+  if (!Number.isFinite(parsed)) {
+    return undefined;
+  }
+
+  return new Date(parsed).toISOString();
 }
 
 function sendJson(response: ServerResponse, statusCode: number, payload: unknown): void {
@@ -315,6 +414,10 @@ function routeBucket(pathname: string): string {
 
   if (pathname.startsWith("/watchlist/")) {
     return "/watchlist/:ticker";
+  }
+
+  if (pathname.startsWith("/v1/user/alerts/")) {
+    return "/v1/user/alerts/:id";
   }
 
   return pathname;
@@ -762,6 +865,314 @@ async function createContrarianAnchorFromReport(
     anchor_price: anchorPrice,
     expires_at: expiresAt
   }, userId);
+}
+
+function normalizeKillSwitchSignalType(value: string | undefined): KillSwitchSignalType {
+  const normalized = value?.trim().toLowerCase();
+  switch (normalized) {
+    case "price_move_pct":
+    case "price_move":
+      return "price_move_pct";
+    case "thesis_state":
+    case "thesis_drift":
+      return "thesis_state";
+    case "earnings_event":
+    case "earnings":
+      return "earnings_event";
+    case "sec_filing":
+    case "filing":
+      return "sec_filing";
+    case "guidance_revision":
+    case "guidance":
+      return "guidance_revision";
+    case "management_change":
+      return "management_change";
+    case "macro_regime":
+    case "macro":
+      return "macro_regime";
+    case "analyst_rerating":
+    case "analyst":
+      return "analyst_rerating";
+    case "news_sentiment":
+    case "sentiment":
+      return "news_sentiment";
+    default:
+      return "custom";
+  }
+}
+
+function sanitizeKillSwitchConditionDrafts(
+  report: AnalysisReport
+): KillSwitchConditionDraft[] {
+  const raw = report.kill_switch_conditions;
+  if (!Array.isArray(raw)) {
+    return [];
+  }
+
+  const parsed: KillSwitchConditionDraft[] = [];
+  for (const [index, candidate] of raw.entries()) {
+    const conditionText =
+      typeof candidate.condition_text === "string" ? candidate.condition_text.trim() : "";
+    const rationale =
+      typeof candidate.rationale === "string" ? candidate.rationale.trim() : "";
+    if (conditionText.length === 0 || rationale.length === 0) {
+      continue;
+    }
+    const conditionId =
+      typeof candidate.condition_id === "string" && candidate.condition_id.trim().length > 0
+        ? candidate.condition_id.trim()
+        : `ks_${index + 1}`;
+    const thresholdValue =
+      typeof candidate.threshold_value === "number" && Number.isFinite(candidate.threshold_value)
+        ? candidate.threshold_value
+        : undefined;
+    const thresholdUnit =
+      candidate.threshold_unit === "pct" ||
+      candidate.threshold_unit === "count" ||
+      candidate.threshold_unit === "score" ||
+      candidate.threshold_unit === "days"
+        ? candidate.threshold_unit
+        : undefined;
+    const direction =
+      candidate.direction === "against_signal" ||
+      candidate.direction === "above" ||
+      candidate.direction === "below" ||
+      candidate.direction === "any"
+        ? candidate.direction
+        : undefined;
+
+    parsed.push({
+      condition_id: conditionId,
+      condition_text: conditionText,
+      signal_type: normalizeKillSwitchSignalType(
+        typeof candidate.signal_type === "string" ? candidate.signal_type : undefined
+      ),
+      rationale,
+      ...(thresholdValue !== undefined ? { threshold_value: thresholdValue } : {}),
+      ...(thresholdUnit ? { threshold_unit: thresholdUnit } : {}),
+      ...(direction ? { direction } : {}),
+      ...(typeof candidate.prompt_version === "string" &&
+      candidate.prompt_version.trim().length > 0
+        ? { prompt_version: candidate.prompt_version.trim() }
+        : {})
+    });
+  }
+  return parsed.slice(0, 5);
+}
+
+async function createKillSwitchRulesFromReport(
+  runtime: Runtime,
+  input: {
+    report: AnalysisReport;
+    userId?: string;
+    requestId: string;
+    route: string;
+  }
+): Promise<void> {
+  const { report, userId } = input;
+  if (report.type !== "deep_dive" || !userId || !report.ticker) {
+    return;
+  }
+
+  const sanitized = sanitizeKillSwitchConditionDrafts(report);
+  if (sanitized.length < 3) {
+    logWarn("Kill-switch rule extraction skipped due to insufficient conditions", {
+      request_id: input.requestId,
+      route: input.route,
+      report_id: report.report_id,
+      ticker: report.ticker,
+      condition_count: sanitized.length
+    });
+    await appendAudit(
+      runtime,
+      "kill_switch.rules_skipped",
+      {
+        request_id: input.requestId,
+        route: input.route,
+        report_id: report.report_id,
+        ticker: report.ticker,
+        condition_count: sanitized.length,
+        reason: "insufficient_conditions"
+      },
+      userId
+    );
+    return;
+  }
+
+  const ticker = report.ticker.trim().toUpperCase();
+  const hasPriceMoveRule = sanitized.some((rule) => rule.signal_type === "price_move_pct");
+  const signalValue = asContrarianSignal(report.signal?.value);
+  let anchorPrice: number | undefined;
+  if (hasPriceMoveRule) {
+    try {
+      anchorPrice = await fetchLatestClosePrice(runtime.config.sentimentYahooBaseUrl, ticker);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "anchor price lookup failed";
+      logWarn("Kill-switch rules falling back without anchor price", {
+        request_id: input.requestId,
+        route: input.route,
+        report_id: report.report_id,
+        ticker,
+        error_message: message
+      });
+    }
+  }
+
+  const now = new Date().toISOString();
+  await runtime.store.deactivateActiveKillSwitchRulesByUserTicker({
+    userId,
+    ticker,
+    deactivatedAt: now
+  });
+  for (const condition of sanitized) {
+    await runtime.store.createKillSwitchRule({
+      id: createId(),
+      userId,
+      ticker,
+      reportId: report.report_id,
+      signalValue,
+      anchorPrice,
+      conditionId: condition.condition_id,
+      conditionText: condition.condition_text,
+      signalType: condition.signal_type,
+      rationale: condition.rationale,
+      thresholdValue: condition.threshold_value,
+      thresholdUnit: condition.threshold_unit,
+      direction: condition.direction,
+      promptVersion: condition.prompt_version ?? "unknown",
+      state: "active",
+      source: "dexter_prompt",
+      createdAt: now,
+      updatedAt: now
+    });
+  }
+
+  logInfo("Kill-switch rules created", {
+    request_id: input.requestId,
+    route: input.route,
+    report_id: report.report_id,
+    ticker,
+    rule_count: sanitized.length
+  });
+  await appendAudit(
+    runtime,
+    "kill_switch.rules_created",
+    {
+      request_id: input.requestId,
+      route: input.route,
+      report_id: report.report_id,
+      ticker,
+      rule_count: sanitized.length
+    },
+    userId
+  );
+}
+
+function asKillSwitchSignalSource(
+  value: string | undefined
+): KillSwitchEvaluationSignalSource {
+  if (value === "event") {
+    return "event";
+  }
+  return "daily";
+}
+
+function asKillSwitchFixture(
+  value: unknown
+): KillSwitchEvaluationFixture | undefined {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return undefined;
+  }
+  const candidate = value as Record<string, unknown>;
+  const ticker = typeof candidate.ticker === "string" ? candidate.ticker.trim().toUpperCase() : "";
+  const signalType = normalizeKillSwitchSignalType(
+    typeof candidate.signal_type === "string" ? candidate.signal_type : undefined
+  );
+  if (ticker.length === 0) {
+    return undefined;
+  }
+  const metadata =
+    typeof candidate.metadata === "object" && candidate.metadata !== null && !Array.isArray(candidate.metadata)
+      ? Object.fromEntries(
+          Object.entries(candidate.metadata as Record<string, unknown>)
+            .filter(([, v]) => typeof v === "string")
+            .map(([k, v]) => [k, String(v)])
+        )
+      : undefined;
+  return {
+    ticker,
+    signal_type: signalType,
+    value:
+      typeof candidate.value === "number" && Number.isFinite(candidate.value)
+        ? candidate.value
+        : undefined,
+    reason_text:
+      typeof candidate.reason_text === "string" && candidate.reason_text.trim().length > 0
+        ? candidate.reason_text.trim()
+        : undefined,
+    metadata
+  };
+}
+
+function evaluatePriceMoveRule(
+  rule: KillSwitchRuleRecord,
+  currentPrice: number | undefined
+): {
+  outcome: "matched" | "not_matched" | "skipped";
+  reasonCode: string;
+  reasonText: string;
+  observedValue?: number;
+} {
+  if (
+    !Number.isFinite(rule.anchorPrice) ||
+    !rule.anchorPrice ||
+    rule.anchorPrice <= 0 ||
+    !Number.isFinite(currentPrice)
+  ) {
+    return {
+      outcome: "skipped",
+      reasonCode: "price_unavailable",
+      reasonText: "Price move could not be evaluated because anchor or current price is unavailable."
+    };
+  }
+  const movePct = (((currentPrice as number) - rule.anchorPrice) / rule.anchorPrice) * 100;
+  const threshold = Math.max(
+    0.1,
+    rule.thresholdValue ?? killSwitchDefaultPriceMoveThresholdPct
+  );
+  const direction = rule.direction ?? "against_signal";
+  let matched = false;
+  if (direction === "any") {
+    matched = Math.abs(movePct) >= threshold;
+  } else if (direction === "above") {
+    matched = movePct >= threshold;
+  } else if (direction === "below") {
+    matched = movePct <= -threshold;
+  } else {
+    if (rule.signalValue === "negative") {
+      matched = movePct >= threshold;
+    } else if (rule.signalValue === "positive") {
+      matched = movePct <= -threshold;
+    } else {
+      matched = Math.abs(movePct) >= threshold;
+    }
+  }
+
+  if (matched) {
+    return {
+      outcome: "matched",
+      reasonCode: "kill_switch_price_move",
+      reasonText: `Price moved ${Math.abs(movePct).toFixed(1)}% and crossed kill-switch threshold ${threshold.toFixed(1)}%.`,
+      observedValue: Number(movePct.toFixed(4))
+    };
+  }
+
+  return {
+    outcome: "not_matched",
+    reasonCode: "kill_switch_no_match",
+    reasonText: `Price move ${Math.abs(movePct).toFixed(1)}% did not cross threshold ${threshold.toFixed(1)}%.`,
+    observedValue: Number(movePct.toFixed(4))
+  };
 }
 
 function clampScore(value: number | undefined): number {
@@ -1222,6 +1633,39 @@ async function appendAudit(
   await runtime.store.appendAuditEvent(auditEvent);
 }
 
+async function recordAlertLedgerItem(
+  runtime: Runtime,
+  input: {
+    id?: string;
+    userId: string;
+    notificationType: NotificationType;
+    route: AlertRouteTarget;
+    title: string;
+    body: string;
+    reasonCode: string;
+    reasonText: string;
+    deliveryState: AlertLedgerRecord["deliveryState"];
+    data?: Record<string, string>;
+  }
+): Promise<AlertLedgerRecord> {
+  const now = new Date().toISOString();
+  return runtime.store.createAlertLedgerItem({
+    id: input.id ?? createId(),
+    userId: input.userId,
+    notificationType: input.notificationType,
+    category: notificationCategory(input.notificationType),
+    route: input.route,
+    title: input.title,
+    body: input.body,
+    reasonCode: input.reasonCode,
+    reasonText: input.reasonText,
+    deliveryState: input.deliveryState,
+    context: alertLedgerContextFromData(input.data),
+    createdAt: now,
+    updatedAt: now
+  });
+}
+
 async function issueTokens(
   runtime: Runtime,
   userId: string,
@@ -1367,36 +1811,82 @@ async function processMarketPulseJob(
       const pushTargets = await runtime.store.listUsersWithDeviceTokenByNotificationType({
         notificationType: "market_pulse_ready"
       });
-      const pushResult = await runtime.pushNotifier.sendMarketPulseReady(pushTargets, {
-        reportDate: report.cycle_end.slice(0, 10),
-        headline
-      });
+      const pushTargetsByUser = groupPushTargetsByUser(pushTargets);
+      let attempted = 0;
+      let delivered = 0;
+      let failed = 0;
+      let provider: "stub" | "fcm" = runtime.config.pushProviderMode;
 
-      logInfo("Market Pulse push delivery attempted", {
-        job_id: completed.id,
-        attempted: pushResult.attempted,
-        delivered: pushResult.delivered,
-        failed: pushResult.failed,
-        provider: pushResult.provider
-      });
+      for (const [userId, userTargets] of pushTargetsByUser.entries()) {
+        const alertId = createId();
+        const reasonText =
+          "Your latest market pulse is ready with the current regime and overnight movers.";
+        const title = headline?.trim()?.length
+          ? headline
+          : notificationTitle("market_pulse_ready");
+        const body = "Your Morning Pulse is ready. Here is what moved overnight.";
+        const route = notificationRoute("market_pulse_ready");
+        const pushResult = await runtime.pushNotifier.sendNotification(userTargets, {
+          notificationType: "market_pulse_ready",
+          route,
+          title,
+          body,
+          data: {
+            alert_id: alertId,
+            report_date: report.cycle_end.slice(0, 10),
+            reason_code: "market_pulse_ready",
+            reason_text: reasonText,
+            deep_link_target: route
+          }
+        });
 
-      for (const invalidTarget of pushResult.invalidTargets) {
-        await runtime.store.invalidateUserDeviceByInstallation({
-          userId: invalidTarget.userId,
-          installationId: invalidTarget.installationId,
-          invalidatedAt: new Date().toISOString(),
-          reason: "fcm_invalid_registration"
+        attempted += pushResult.attempted;
+        delivered += pushResult.delivered;
+        failed += pushResult.failed;
+        provider = pushResult.provider;
+
+        for (const invalidTarget of pushResult.invalidTargets) {
+          await runtime.store.invalidateUserDeviceByInstallation({
+            userId: invalidTarget.userId,
+            installationId: invalidTarget.installationId,
+            invalidatedAt: new Date().toISOString(),
+            reason: "fcm_invalid_registration"
+          });
+        }
+
+        await recordAlertLedgerItem(runtime, {
+          id: alertId,
+          userId,
+          notificationType: "market_pulse_ready",
+          route,
+          title,
+          body,
+          reasonCode: "market_pulse_ready",
+          reasonText,
+          deliveryState: pushResult.failed > 0 ? "partial_failure" : "sent",
+          data: {
+            report_date: report.cycle_end.slice(0, 10),
+            deep_link_target: route
+          }
         });
       }
 
-      if (pushResult.failed > 0) {
+      logInfo("Market Pulse push delivery attempted", {
+        job_id: completed.id,
+        attempted,
+        delivered,
+        failed,
+        provider
+      });
+
+      if (failed > 0) {
         const error = new Error("Push delivery partially failed");
         captureException(error, {
           service: serviceName,
           job_id: completed.id,
-          attempted: pushResult.attempted,
-          delivered: pushResult.delivered,
-          failed: pushResult.failed
+          attempted,
+          delivered,
+          failed
         });
       }
 
@@ -1406,10 +1896,10 @@ async function processMarketPulseJob(
         {
           route: "/internal/pulse/dispatch",
           job_id: completed.id,
-          attempted: pushResult.attempted,
-          delivered: pushResult.delivered,
-          failed: pushResult.failed,
-          provider: pushResult.provider
+          attempted,
+          delivered,
+          failed,
+          provider
         },
         completed.userId
       );
@@ -2220,21 +2710,25 @@ export function startServer(port: number = loadConfig().port): Server {
               continue;
             }
             const reasonText = `${uniqueTickers.join(", ")} is expected to report by next market session.`;
+            const alertId = createId();
+            const route = notificationRoute("earnings_preview");
+            const title = notificationTitle("earnings_preview", leadTicker);
+            const body = `${reasonText} Tap to run a Deep Dive.`;
 
             const pushResult = await runtime.pushNotifier.sendNotification(
               userTargets,
               {
                 notificationType: "earnings_preview",
-                route: notificationRoute("earnings_preview"),
-                title: notificationTitle("earnings_preview", leadTicker),
-                body: `${reasonText} Tap to run a Deep Dive.`,
+                route,
+                title,
+                body,
                 data: {
+                  alert_id: alertId,
                   ticker: leadTicker,
                   tickers: uniqueTickers.join(","),
-                  report_date: nextBiz,
                   reason_code: "earnings_preview_due",
                   reason_text: reasonText,
-                  deep_link_target: "deep_dive"
+                  deep_link_target: route
                 }
               }
             );
@@ -2248,9 +2742,25 @@ export function startServer(port: number = loadConfig().port): Server {
                 installationId: invalidTarget.installationId,
                 invalidatedAt: new Date().toISOString(),
                 reason: "fcm_invalid_registration"
-              });
+                });
             }
             sentTickers.push(...uniqueTickers);
+            await recordAlertLedgerItem(runtime, {
+              id: alertId,
+              userId,
+              notificationType: "earnings_preview",
+              route,
+              title,
+              body,
+              reasonCode: "earnings_preview_due",
+              reasonText,
+              deliveryState: pushResult.failed > 0 ? "partial_failure" : "sent",
+              data: {
+                ticker: leadTicker,
+                tickers: uniqueTickers.join(","),
+                deep_link_target: route
+              }
+            });
           }
 
           if (failed > 0) {
@@ -2286,6 +2796,261 @@ export function startServer(port: number = loadConfig().port): Server {
             delivered,
             failed,
             ticker_count: sentTickers.length
+          });
+          return;
+        }
+
+        if (method === "POST" && pathname === "/internal/notifications/kill-switch/evaluate") {
+          const body = await readJsonBody<KillSwitchEvaluationRequest>(request);
+          const asOf =
+            normalizeDateInput(body.as_of ?? dateInTimeZone(new Date(), runtime.config.subscriptionTimezone)) ??
+            dateInTimeZone(new Date(), runtime.config.subscriptionTimezone);
+          const signalSource = asKillSwitchSignalSource(body.signal_source);
+          const triggerKey =
+            typeof body.trigger_key === "string" && body.trigger_key.trim().length > 0
+              ? body.trigger_key.trim()
+              : `${signalSource}:${asOf}`;
+          const asOfEndIso = new Date(`${asOf}T23:59:59.999Z`).toISOString();
+
+          const fixtures = (Array.isArray(body.fixtures) ? body.fixtures : [])
+            .map((fixture) => asKillSwitchFixture(fixture))
+            .filter((fixture): fixture is KillSwitchEvaluationFixture => Boolean(fixture));
+          const fixtureMap = new Map<string, KillSwitchEvaluationFixture>();
+          for (const fixture of fixtures) {
+            fixtureMap.set(`${fixture.ticker}:${fixture.signal_type}`, fixture);
+          }
+
+          const recipients = await runtime.store.listUsersWithDeviceTokenByNotificationType({
+            notificationType: "kill_switch"
+          });
+          const recipientsByUser = groupPushTargetsByUser(recipients);
+          const recipientIds = [...new Set(recipients.map((entry) => entry.userId))];
+          const rules = await runtime.store.listActiveKillSwitchRules({
+            asOfIso: asOfEndIso,
+            userIds: recipientIds
+          });
+
+          const tickerSet = new Set<string>();
+          for (const rule of rules) {
+            if (rule.signalType === "price_move_pct") {
+              tickerSet.add(rule.ticker);
+            }
+          }
+          let prices = new Map<string, number>();
+          if (tickerSet.size > 0) {
+            try {
+              prices = await fetchLatestClosePrices(
+                runtime.config.sentimentYahooBaseUrl,
+                [...tickerSet],
+                6
+              );
+            } catch (error) {
+              const message = error instanceof Error ? error.message : "price lookup failed";
+              logWarn("Kill-switch price lookup degraded", {
+                request_id: meta.requestId,
+                route: pathname,
+                error_message: message,
+                ticker_count: tickerSet.size
+              });
+            }
+          }
+
+          const snapshotMap = new Map<string, ThesisMonitorSnapshotRecord>();
+          for (const userId of recipientIds) {
+            const snapshots = await runtime.store.listThesisMonitorSnapshotsByUser(userId);
+            for (const snapshot of snapshots) {
+              snapshotMap.set(`${snapshot.userId}:${snapshot.ticker}`, snapshot);
+            }
+          }
+
+          let evaluated = 0;
+          let matched = 0;
+          let skipped = 0;
+          let attempted = 0;
+          let delivered = 0;
+          let failed = 0;
+          for (const rule of rules) {
+            const existing = await runtime.store.getKillSwitchEvaluation({
+              ruleId: rule.id,
+              signalSource,
+              triggerKey
+            });
+            if (existing) {
+              skipped += 1;
+              continue;
+            }
+
+            const fixture = fixtureMap.get(`${rule.ticker}:${rule.signalType}`);
+            const evaluationId = createId();
+            let outcome: "matched" | "not_matched" | "skipped" = "not_matched";
+            let reasonCode = "kill_switch_no_match";
+            let reasonText = "No material signal crossed this kill-switch condition.";
+            let observedValue: number | undefined;
+
+            if (rule.signalType === "price_move_pct") {
+              const result = evaluatePriceMoveRule(rule, prices.get(rule.ticker));
+              outcome = result.outcome;
+              reasonCode = result.reasonCode;
+              reasonText = result.reasonText;
+              observedValue = result.observedValue;
+            } else if (rule.signalType === "thesis_state") {
+              const snapshot = snapshotMap.get(`${rule.userId}:${rule.ticker}`);
+              if (!snapshot) {
+                outcome = "skipped";
+                reasonCode = "snapshot_unavailable";
+                reasonText = "Thesis monitor snapshot is unavailable for this rule.";
+              } else if (snapshot.state === "weakened" || snapshot.state === "unresolved") {
+                outcome = "matched";
+                reasonCode = "kill_switch_thesis_state";
+                reasonText = `Monitor state is ${snapshot.state}: ${snapshot.reason}`;
+                observedValue = snapshot.score;
+              } else {
+                outcome = "not_matched";
+                reasonCode = "kill_switch_no_match";
+                reasonText = `Monitor state is ${snapshot.state}; threshold state not reached.`;
+                observedValue = snapshot.score;
+              }
+            } else if (fixture) {
+              outcome = "matched";
+              reasonCode = "kill_switch_fixture_match";
+              reasonText = fixture.reason_text ??
+                `Matched fixture signal for ${fixture.ticker} (${fixture.signal_type}).`;
+              observedValue = fixture.value;
+            }
+
+            let alertId: string | undefined;
+            if (outcome === "matched") {
+              matched += 1;
+              const userTargets = recipientsByUser.get(rule.userId);
+              if (userTargets && userTargets.length > 0) {
+                alertId = createId();
+                const route = notificationRoute("kill_switch");
+                const title = notificationTitle("kill_switch", rule.ticker);
+                const pushBody = `Kill-switch triggered for ${rule.ticker}: ${rule.conditionText}`;
+                const pushResult = await runtime.pushNotifier.sendNotification(userTargets, {
+                  notificationType: "kill_switch",
+                  route,
+                  title,
+                  body: pushBody,
+                  data: {
+                    alert_id: alertId,
+                    ticker: rule.ticker,
+                    report_id: rule.reportId ?? "",
+                    rule_id: rule.id,
+                    signal_type: rule.signalType,
+                    trigger_key: triggerKey,
+                    reason_code: reasonCode,
+                    reason_text: reasonText,
+                    deep_link_target: route
+                  }
+                });
+                attempted += pushResult.attempted;
+                delivered += pushResult.delivered;
+                failed += pushResult.failed;
+                for (const invalidTarget of pushResult.invalidTargets) {
+                  await runtime.store.invalidateUserDeviceByInstallation({
+                    userId: invalidTarget.userId,
+                    installationId: invalidTarget.installationId,
+                    invalidatedAt: new Date().toISOString(),
+                    reason: "fcm_invalid_registration"
+                  });
+                }
+                await recordAlertLedgerItem(runtime, {
+                  id: alertId,
+                  userId: rule.userId,
+                  notificationType: "kill_switch",
+                  route,
+                  title,
+                  body: pushBody,
+                  reasonCode,
+                  reasonText,
+                  deliveryState: pushResult.failed > 0 ? "partial_failure" : "sent",
+                  data: {
+                    ticker: rule.ticker,
+                    report_id: rule.reportId ?? "",
+                    rule_id: rule.id,
+                    evaluation_id: evaluationId,
+                    signal_type: rule.signalType,
+                    trigger_key: triggerKey,
+                    deep_link_target: route
+                  }
+                });
+              }
+            } else if (outcome === "skipped") {
+              skipped += 1;
+            }
+
+            await runtime.store.createKillSwitchEvaluation({
+              id: evaluationId,
+              ruleId: rule.id,
+              userId: rule.userId,
+              ticker: rule.ticker,
+              signalSource,
+              triggerKey,
+              outcome,
+              reasonCode,
+              reasonText,
+              observedValue,
+              alertId,
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString()
+            });
+            evaluated += 1;
+            logInfo("Kill-switch rule evaluated", {
+              request_id: meta.requestId,
+              route: pathname,
+              rule_id: rule.id,
+              ticker: rule.ticker,
+              outcome,
+              signal_source: signalSource
+            });
+          }
+
+          if (failed > 0) {
+            const message = "Kill-switch notification delivery partially failed";
+            logError(message, {
+              request_id: meta.requestId,
+              route: pathname,
+              attempted,
+              delivered,
+              failed,
+              matched
+            });
+            captureException(new Error(message), {
+              service: serviceName,
+              route: pathname,
+              attempted,
+              delivered,
+              failed,
+              matched
+            });
+          }
+
+          await appendAudit(runtime, "kill_switch.rules_evaluated", {
+            request_id: meta.requestId,
+            route: pathname,
+            as_of: asOf,
+            signal_source: signalSource,
+            trigger_key: triggerKey,
+            evaluated,
+            matched,
+            skipped,
+            attempted,
+            delivered,
+            failed
+          });
+
+          sendJson(response, 200, {
+            status: "ok",
+            as_of: asOf,
+            signal_source: signalSource,
+            trigger_key: triggerKey,
+            evaluated,
+            matched,
+            skipped,
+            attempted,
+            delivered,
+            failed
           });
           return;
         }
@@ -2342,22 +3107,29 @@ export function startServer(port: number = loadConfig().port): Server {
             if (!userTargets || userTargets.length === 0) {
               continue;
             }
+            const alertId = createId();
+            const route = notificationRoute("contrarian_alert");
+            const title = notificationTitle("contrarian_alert", anchor.ticker);
+            const reasonText = `Price moved ${Math.abs(movePct).toFixed(1)}% against your ${anchor.signalValue} thesis.`;
+            const body =
+              `Your thesis on ${anchor.ticker} (${anchor.signalValue}) is diverging by ${Math.abs(movePct).toFixed(1)}%. Tap to review the Deep Dive.`;
 
             const pushResult = await runtime.pushNotifier.sendNotification(
               userTargets,
               {
                 notificationType: "contrarian_alert",
-                route: notificationRoute("contrarian_alert"),
-                title: notificationTitle("contrarian_alert", anchor.ticker),
-                body: `Your thesis on ${anchor.ticker} (${anchor.signalValue}) is diverging by ${Math.abs(movePct).toFixed(1)}%. Tap to review the Deep Dive.`,
+                route,
+                title,
+                body,
                 data: {
+                  alert_id: alertId,
                   ticker: anchor.ticker,
                   report_id: anchor.reportId ?? "",
                   signal_value: anchor.signalValue,
                   move_pct: movePct.toFixed(2),
                   reason_code: "thesis_shift_detected",
-                  reason_text: `Price moved ${Math.abs(movePct).toFixed(1)}% against your ${anchor.signalValue} thesis.`,
-                  deep_link_target: "deep_dive"
+                  reason_text: reasonText,
+                  deep_link_target: route
                 }
               }
             );
@@ -2372,12 +3144,28 @@ export function startServer(port: number = loadConfig().port): Server {
                 installationId: invalidTarget.installationId,
                 invalidatedAt: new Date().toISOString(),
                 reason: "fcm_invalid_registration"
-              });
+                });
             }
             await runtime.store.deactivateContrarianAlertAnchor(
               anchor.id,
               new Date().toISOString()
             );
+            await recordAlertLedgerItem(runtime, {
+              id: alertId,
+              userId: anchor.userId,
+              notificationType: "contrarian_alert",
+              route,
+              title,
+              body,
+              reasonCode: "thesis_shift_detected",
+              reasonText,
+              deliveryState: pushResult.failed > 0 ? "partial_failure" : "sent",
+              data: {
+                ticker: anchor.ticker,
+                report_id: anchor.reportId ?? "",
+                deep_link_target: route
+              }
+            });
           }
 
           if (failed > 0) {
@@ -2473,15 +3261,20 @@ export function startServer(port: number = loadConfig().port): Server {
             const reasonText = watchlistCount > 0
               ? `${watchlistCount} followed names and ${upcomingCount} upcoming earnings were summarized.`
               : "Your weekly market summary was prepared.";
+            const alertId = createId();
+            const route = notificationRoute("weekly_digest");
+            const title = notificationTitle("weekly_digest");
+            const body = digestParts.join(" ");
 
             const pushResult = await runtime.pushNotifier.sendNotification(
               userTargets,
               {
                 notificationType: "weekly_digest",
-                route: notificationRoute("weekly_digest"),
-                title: notificationTitle("weekly_digest"),
-                body: digestParts.join(" "),
+                route,
+                title,
+                body,
                 data: {
+                  alert_id: alertId,
                   digest_date: digestDate,
                   fear_greed_score: latestFearGreed ? String(latestFearGreed.score) : "",
                   fear_greed_label: latestFearGreed?.label ?? "",
@@ -2489,7 +3282,7 @@ export function startServer(port: number = loadConfig().port): Server {
                   upcoming_earnings_count: String(upcomingCount),
                   reason_code: "weekly_summary_ready",
                   reason_text: reasonText,
-                  deep_link_target: "pulse"
+                  deep_link_target: route
                 }
               }
             );
@@ -2505,6 +3298,23 @@ export function startServer(port: number = loadConfig().port): Server {
                 reason: "fcm_invalid_registration"
               });
             }
+            await recordAlertLedgerItem(runtime, {
+              id: alertId,
+              userId,
+              notificationType: "weekly_digest",
+              route,
+              title,
+              body,
+              reasonCode: "weekly_summary_ready",
+              reasonText,
+              deliveryState: pushResult.failed > 0 ? "partial_failure" : "sent",
+              data: {
+                digest_date: digestDate,
+                ...(watchlist[0] ? { ticker: watchlist[0] } : {}),
+                tickers: watchlist.join(","),
+                deep_link_target: route
+              }
+            });
           }
 
           if (failed > 0) {
@@ -2780,6 +3590,12 @@ export function startServer(port: number = loadConfig().port): Server {
                 requestId: meta.requestId,
                 route: pathname
               });
+              await createKillSwitchRulesFromReport(runtime, {
+                report,
+                userId: completed.userId,
+                requestId: meta.requestId,
+                route: pathname
+              });
 
               if (report.type === "deep_dive" && completed.userId && report.ticker) {
                 const normalizedTicker = report.ticker.trim().toUpperCase();
@@ -3047,6 +3863,181 @@ export function startServer(port: number = loadConfig().port): Server {
           error_message: "Authentication required."
         });
         return;
+      }
+
+      if (method === "GET" && pathname === "/v1/user/alerts") {
+        const limit = parsePositiveInteger(url.searchParams.get("limit") ?? undefined, 50, 1, 100);
+        if (limit === undefined) {
+          sendJson(response, 422, {
+            error: "validation_failed",
+            error_message: "limit must be an integer between 1 and 100."
+          });
+          return;
+        }
+
+        const categoryRaw = url.searchParams.get("category")?.trim();
+        if (categoryRaw && !isAlertLedgerCategory(categoryRaw)) {
+          sendJson(response, 422, {
+            error: "validation_failed",
+            error_message: "category must be one of: thesis_drift, earnings, macro, system."
+          });
+          return;
+        }
+
+        const filter: AlertLedgerFilter = {
+          limit,
+          category: categoryRaw && categoryRaw.length > 0
+            ? (categoryRaw as AlertLedgerCategory)
+            : undefined
+        };
+        const rows = await runtime.store.listAlertLedgerItemsByUser({
+          userId: auth.userId,
+          limit: filter.limit ?? 50,
+          category: filter.category
+        });
+
+        await appendAudit(runtime, "alerts.listed", {
+          request_id: meta.requestId,
+          route: pathname,
+          count: rows.length,
+          category: filter.category ?? null,
+          limit: filter.limit ?? 50
+        }, auth.userId);
+
+        sendJson(response, 200, {
+          data: rows.map((row) => toAlertLedgerView(row))
+        });
+        return;
+      }
+
+      const userAlertParts = pathname.split("/").filter(Boolean);
+      if (userAlertParts.length >= 4 &&
+        userAlertParts[0] === "v1" &&
+        userAlertParts[1] === "user" &&
+        userAlertParts[2] === "alerts"
+      ) {
+        const alertId = userAlertParts[3];
+        if (!alertId) {
+          sendJson(response, 404, { status: "not_found" });
+          return;
+        }
+
+        if (method === "GET" && userAlertParts.length === 4) {
+          const record = await runtime.store.getAlertLedgerItem({
+            id: alertId,
+            userId: auth.userId
+          });
+          if (!record) {
+            sendJson(response, 404, {
+              error: "alert_not_found",
+              error_message: "Alert not found."
+            });
+            return;
+          }
+
+          await appendAudit(runtime, "alerts.retrieved", {
+            request_id: meta.requestId,
+            route: pathname,
+            alert_id: alertId,
+            notification_type: record.notificationType
+          }, auth.userId);
+
+          sendJson(response, 200, {
+            data: toAlertLedgerView(record)
+          });
+          return;
+        }
+
+        if (method === "POST" && userAlertParts.length === 5 && userAlertParts[4] === "feedback") {
+          const body = await readJsonBody<AlertFeedbackSubmission>(request);
+          const feedback = body.feedback?.trim();
+          if (!feedback || !isAlertFeedbackState(feedback)) {
+            sendJson(response, 422, {
+              error: "validation_failed",
+              error_message: "feedback must be one of: useful, not_useful."
+            });
+            return;
+          }
+
+          const updated = await runtime.store.setAlertLedgerFeedback({
+            id: alertId,
+            userId: auth.userId,
+            feedback,
+            updatedAt: new Date().toISOString()
+          });
+          if (!updated) {
+            sendJson(response, 404, {
+              error: "alert_not_found",
+              error_message: "Alert not found."
+            });
+            return;
+          }
+
+          await appendAudit(runtime, "alerts.feedback_submitted", {
+            request_id: meta.requestId,
+            route: pathname,
+            alert_id: alertId,
+            feedback,
+            notification_type: updated.notificationType
+          }, auth.userId);
+
+          sendJson(response, 200, {
+            data: toAlertLedgerView(updated)
+          });
+          return;
+        }
+
+        if (method === "POST" && userAlertParts.length === 5 && userAlertParts[4] === "mute") {
+          const existing = await runtime.store.getAlertLedgerItem({
+            id: alertId,
+            userId: auth.userId
+          });
+          if (!existing) {
+            sendJson(response, 404, {
+              error: "alert_not_found",
+              error_message: "Alert not found."
+            });
+            return;
+          }
+
+          const mutedAt = new Date().toISOString();
+          const quietUntil = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+          await runtime.store.upsertNotificationPreferences({
+            userId: auth.userId,
+            preferences: [
+              {
+                type: existing.notificationType,
+                quietUntil
+              }
+            ],
+            updatedAt: mutedAt
+          });
+          const updated = await runtime.store.markAlertLedgerMuted({
+            id: alertId,
+            userId: auth.userId,
+            mutedAt
+          });
+          if (!updated) {
+            sendJson(response, 404, {
+              error: "alert_not_found",
+              error_message: "Alert not found."
+            });
+            return;
+          }
+
+          await appendAudit(runtime, "alerts.muted", {
+            request_id: meta.requestId,
+            route: pathname,
+            alert_id: alertId,
+            notification_type: updated.notificationType,
+            quiet_until: quietUntil
+          }, auth.userId);
+
+          sendJson(response, 200, {
+            data: toAlertLedgerView(updated)
+          });
+          return;
+        }
       }
 
       if (method === "GET" && pathname === "/v1/user/profile") {
@@ -3566,7 +4557,7 @@ export function startServer(port: number = loadConfig().port): Server {
 
       if (method === "PUT" && pathname === "/v1/user/notification-preferences") {
         const body = await readJsonBody<{
-          preferences?: Array<{ type?: string; enabled?: unknown }>;
+          preferences?: Array<{ type?: string; enabled?: unknown; quiet_until?: unknown }>;
         }>(request);
         const updatesRaw = Array.isArray(body.preferences) ? body.preferences : [];
         if (updatesRaw.length === 0) {
@@ -3577,7 +4568,11 @@ export function startServer(port: number = loadConfig().port): Server {
           return;
         }
 
-        const updates: Array<{ type: NotificationType; enabled: boolean }> = [];
+        const updates: Array<{
+          type: NotificationType;
+          enabled?: boolean;
+          quietUntil?: string | null;
+        }> = [];
         for (const row of updatesRaw) {
           const typeRaw = typeof row.type === "string" ? row.type.trim() : "";
           if (!typeRaw || !isNotificationType(typeRaw)) {
@@ -3587,16 +4582,38 @@ export function startServer(port: number = loadConfig().port): Server {
             });
             return;
           }
-          if (typeof row.enabled !== "boolean") {
+          const enabled = typeof row.enabled === "boolean" ? row.enabled : undefined;
+          const quietUntil =
+            row.quiet_until === null
+              ? null
+              : typeof row.quiet_until === "string"
+                ? normalizeNotificationQuietUntil(row.quiet_until)
+                : undefined;
+          if (enabled === undefined && row.quiet_until === undefined) {
+            sendJson(response, 422, {
+              error: "validation_failed",
+              error_message: `preferences for type ${typeRaw} must include enabled or quiet_until.`
+            });
+            return;
+          }
+          if (row.enabled !== undefined && enabled === undefined) {
             sendJson(response, 422, {
               error: "validation_failed",
               error_message: `enabled must be boolean for type ${typeRaw}.`
             });
             return;
           }
+          if (row.quiet_until !== undefined && row.quiet_until !== null && quietUntil === undefined) {
+            sendJson(response, 422, {
+              error: "validation_failed",
+              error_message: `quiet_until must be a valid ISO timestamp or null for type ${typeRaw}.`
+            });
+            return;
+          }
           updates.push({
             type: typeRaw,
-            enabled: row.enabled
+            enabled,
+            quietUntil
           });
         }
 
@@ -4047,6 +5064,12 @@ export function startServer(port: number = loadConfig().port): Server {
             );
 
             await createContrarianAnchorFromReport(runtime, {
+              report: reusedReport,
+              userId: auth.userId,
+              requestId: meta.requestId,
+              route: pathname
+            });
+            await createKillSwitchRulesFromReport(runtime, {
               report: reusedReport,
               userId: auth.userId,
               requestId: meta.requestId,

@@ -142,6 +142,60 @@ function validateTrustMetadata(value: unknown, path: string, errors: string[]): 
   }
 }
 
+function validateKillSwitchCondition(value: unknown, path: string, errors: string[]): void {
+  if (!isObject(value)) {
+    errors.push(`${path} must be an object`);
+    return;
+  }
+
+  if (typeof value.condition_id !== "string" || value.condition_id.trim().length === 0) {
+    errors.push(`${path}.condition_id must be a non-empty string`);
+  }
+  if (
+    typeof value.condition_text !== "string" ||
+    value.condition_text.trim().length === 0
+  ) {
+    errors.push(`${path}.condition_text must be a non-empty string`);
+  }
+  if (
+    ![
+      "price_move_pct",
+      "thesis_state",
+      "earnings_event",
+      "sec_filing",
+      "guidance_revision",
+      "management_change",
+      "macro_regime",
+      "analyst_rerating",
+      "news_sentiment",
+      "custom"
+    ].includes(String(value.signal_type))
+  ) {
+    errors.push(`${path}.signal_type must be valid`);
+  }
+  if (typeof value.rationale !== "string" || value.rationale.trim().length === 0) {
+    errors.push(`${path}.rationale must be a non-empty string`);
+  }
+  if (
+    value.threshold_value !== undefined &&
+    (typeof value.threshold_value !== "number" || Number.isNaN(value.threshold_value))
+  ) {
+    errors.push(`${path}.threshold_value must be a valid number when provided`);
+  }
+  if (
+    value.threshold_unit !== undefined &&
+    !["pct", "count", "score", "days"].includes(String(value.threshold_unit))
+  ) {
+    errors.push(`${path}.threshold_unit must be valid when provided`);
+  }
+  if (
+    value.direction !== undefined &&
+    !["against_signal", "above", "below", "any"].includes(String(value.direction))
+  ) {
+    errors.push(`${path}.direction must be valid when provided`);
+  }
+}
+
 export function validateAnalysisRequest(value: unknown): string[] {
   const errors: string[] = [];
 
@@ -311,6 +365,23 @@ export function validateAnalysisReport(value: unknown): string[] {
 
   if (value.trust_metadata !== undefined) {
     validateTrustMetadata(value.trust_metadata, "trust_metadata", errors);
+  }
+
+  if (value.kill_switch_conditions !== undefined) {
+    if (!Array.isArray(value.kill_switch_conditions)) {
+      errors.push("kill_switch_conditions must be an array when provided");
+    } else {
+      if (value.kill_switch_conditions.length < 3 || value.kill_switch_conditions.length > 5) {
+        errors.push("kill_switch_conditions must contain between 3 and 5 conditions");
+      }
+      value.kill_switch_conditions.forEach((condition, index) => {
+        validateKillSwitchCondition(
+          condition,
+          `kill_switch_conditions[${index}]`,
+          errors
+        );
+      });
+    }
   }
 
   if (!Array.isArray(value.sections) || value.sections.length === 0) {

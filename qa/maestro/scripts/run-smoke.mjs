@@ -13,6 +13,7 @@ const defaultFlowPath = path.join(qaDir, "flows", "ph3_m4_smoke.yaml");
 const outputRoot = path.join(qaDir, "output");
 const maestroCommand = resolveMaestroCommand();
 const adbCommand = resolveAdbCommand();
+const cmdShell = resolveCmdShell();
 const javaHome = resolveJavaHome();
 
 main().catch((error) => {
@@ -262,7 +263,7 @@ function formatEnvSnapshot(env) {
 async function runStreaming(command, args, env, logStream, options = {}) {
   const { echo = true } = options;
   const useCmdWrapper = process.platform === "win32" && command.toLowerCase().endsWith(".bat");
-  const spawnCommand = useCmdWrapper ? "cmd" : command;
+  const spawnCommand = useCmdWrapper ? cmdShell : command;
   const spawnArgs = useCmdWrapper ? ["/c", command, ...args] : args;
   return await new Promise((resolve, reject) => {
     const child = spawn(spawnCommand, spawnArgs, {
@@ -304,4 +305,11 @@ async function runStreaming(command, args, env, logStream, options = {}) {
       resolve(code ?? 1);
     });
   });
+}
+
+function resolveCmdShell() {
+  if (process.platform !== "win32") {
+    return "cmd";
+  }
+  return process.env.ComSpec || "C:\\Windows\\System32\\cmd.exe";
 }

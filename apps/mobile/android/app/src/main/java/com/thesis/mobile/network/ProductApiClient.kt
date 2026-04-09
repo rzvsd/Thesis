@@ -1,6 +1,7 @@
 package com.thesis.mobile.network
 
 import com.thesis.mobile.model.AuthTokens
+import com.thesis.mobile.model.AlertLedgerItemView
 import com.thesis.mobile.model.DeepDiveReportView
 import com.thesis.mobile.model.EvidenceView
 import com.thesis.mobile.model.JobStatus
@@ -130,6 +131,64 @@ class ProductApiClient {
             body = body
         )
         parseNotificationPreferences(json)
+    }
+
+    suspend fun getAlertLedger(
+        baseUrl: String,
+        accessToken: String,
+        category: String? = null,
+        limit: Int = 50
+    ): List<AlertLedgerItemView> = withContext(Dispatchers.IO) {
+        val query = buildString {
+            append("/v1/user/alerts?limit=$limit")
+            if (!category.isNullOrBlank()) {
+                append("&category=${urlEncode(category)}")
+            }
+        }
+        val json = requestJson(
+            baseUrl,
+            "GET",
+            query,
+            accessToken = accessToken
+        )
+        val rows = json.optJSONArray("data") ?: JSONArray()
+        (0 until rows.length()).mapNotNull { index ->
+            mapAlertLedgerItem(rows.optJSONObject(index))
+        }
+    }
+
+    suspend fun submitAlertFeedback(
+        baseUrl: String,
+        accessToken: String,
+        alertId: String,
+        feedback: String
+    ): AlertLedgerItemView = withContext(Dispatchers.IO) {
+        val body = JSONObject().put("feedback", feedback)
+        val json = requestJson(
+            baseUrl,
+            "POST",
+            "/v1/user/alerts/${urlEncode(alertId)}/feedback",
+            accessToken = accessToken,
+            body = body
+        )
+        mapAlertLedgerItem(json.optJSONObject("data"))
+            ?: throw ProductApiException(500, "Alert feedback response was missing expected fields.")
+    }
+
+    suspend fun muteAlert(
+        baseUrl: String,
+        accessToken: String,
+        alertId: String
+    ): AlertLedgerItemView = withContext(Dispatchers.IO) {
+        val json = requestJson(
+            baseUrl,
+            "POST",
+            "/v1/user/alerts/${urlEncode(alertId)}/mute",
+            accessToken = accessToken,
+            body = JSONObject()
+        )
+        mapAlertLedgerItem(json.optJSONObject("data"))
+            ?: throw ProductApiException(500, "Alert mute response was missing expected fields.")
     }
 
     suspend fun searchTickers(baseUrl: String, accessToken: String, query: String): List<TickerSearchItem> =
@@ -481,6 +540,45 @@ class ProductApiClient {
         )
     }
 
+    private fun mapAlertLedgerItem(row: JSONObject?): AlertLedgerItemView? {
+        if (row == null) {
+            return null
+        }
+        val id = row.optString("id").trim()
+        val notificationType = row.optString("notification_type").trim()
+        if (id.isBlank() || notificationType.isBlank()) {
+            return null
+        }
+        val context = row.optJSONObject("context")
+        val relatedTickers = context?.optJSONArray("related_tickers")
+        return AlertLedgerItemView(
+            id = id,
+            notificationType = notificationType,
+            category = row.optString("category").ifBlank { "system" },
+            route = row.optString("route").ifBlank { "inbox" },
+            title = row.optString("title").ifBlank { notificationType },
+            body = row.optString("body").ifBlank { "" },
+            reasonCode = row.optString("reason_code").ifBlank { "unknown" },
+            reasonText = row.optString("reason_text").ifBlank { "" },
+            deliveryState = row.optString("delivery_state").ifBlank { "sent" },
+            feedbackState = row.optNullableString("feedback_state"),
+            mutedAt = row.optNullableString("muted_at"),
+            ticker = context?.optNullableString("ticker"),
+            reportId = context?.optNullableString("report_id"),
+            pulseDate = context?.optNullableString("pulse_date"),
+            digestDate = context?.optNullableString("digest_date"),
+            relatedTickers = if (relatedTickers == null) {
+                emptyList()
+            } else {
+                (0 until relatedTickers.length()).mapNotNull { index ->
+                    relatedTickers.optString(index)?.takeIf { it.isNotBlank() }
+                }
+            },
+            createdAt = row.optString("created_at").ifBlank { "" },
+            updatedAt = row.optString("updated_at").ifBlank { "" }
+        )
+    }
+
     private fun parseTokens(json: JSONObject): AuthTokens =
         AuthTokens(
             accessToken = json.optString("access_token"),
@@ -560,7 +658,8 @@ class ProductApiClient {
                     }
                     NotificationPreferenceView(
                         type = type,
-                        enabled = row.optBoolean("enabled", true)
+                        enabled = row.optBoolean("enabled", true),
+                        quietUntil = row.optString("quiet_until").ifBlank { null }
                     )
                 }
             }
@@ -573,7 +672,8 @@ class ProductApiClient {
             listOf(
                 NotificationPreferenceView(
                     type = type,
-                    enabled = data.optBoolean("enabled", true)
+                    enabled = data.optBoolean("enabled", true),
+                    quietUntil = data.optString("quiet_until").ifBlank { null }
                 )
             )
         }

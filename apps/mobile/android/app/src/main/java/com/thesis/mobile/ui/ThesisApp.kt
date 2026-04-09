@@ -73,6 +73,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.style.TextAlign
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.thesis.mobile.LaunchTarget
+import com.thesis.mobile.model.AlertLedgerItemView
 import com.thesis.mobile.model.DeepDiveReportView
 import com.thesis.mobile.model.EvidenceView
 import com.thesis.mobile.model.NotificationPreferenceView
@@ -80,9 +81,12 @@ import com.thesis.mobile.model.PulseReportView
 import com.thesis.mobile.model.ReportHistoryItem
 import com.thesis.mobile.model.SectionView
 import com.thesis.mobile.model.UserProfileView
+import com.thesis.mobile.ui.copy.Phase4Copy
 import com.thesis.mobile.ui.screens.DeepDiveScreen
 import com.thesis.mobile.ui.screens.HistoryScreen
 import com.thesis.mobile.ui.screens.HomeScreen
+import com.thesis.mobile.ui.screens.InboxScreen
+import com.thesis.mobile.ui.screens.NamesScreen
 import com.thesis.mobile.ui.screens.OnboardingScreen
 import com.thesis.mobile.ui.screens.SentimentDashboardScreen
 import com.thesis.mobile.ui.screens.WelcomeScreen
@@ -94,6 +98,9 @@ import com.thesis.mobile.ui.theme.ThesisTheme
 import com.thesis.mobile.ui.theme.ThesisTypography
 import androidx.compose.material.icons.filled.History
 import androidx.compose.foundation.text.KeyboardOptions
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 private enum class TodayMode {
     HOME,
@@ -122,7 +129,6 @@ fun ThesisApp(
     var todayMode by rememberSaveable { mutableStateOf(TodayMode.HOME) }
     var weeklyDigestDate by rememberSaveable { mutableStateOf<String?>(null) }
     var researchMode by rememberSaveable { mutableStateOf(ResearchMode.DEEP_DIVE) }
-    var portfolioMode by rememberSaveable { mutableStateOf(PortfolioMode.MY_NAMES) }
 
     DisposableEffect(mainViewModel) {
         mainViewModel.observe { state -> uiState = state }
@@ -136,9 +142,9 @@ fun ThesisApp(
         }
 
         when (target.tab) {
-            "pulse" -> {
+            "today" -> {
                 mainViewModel.openPulseFromNotification(target.pulseDate)
-                if (target.notificationType == "weekly_digest") {
+                if (!target.digestDate.isNullOrBlank() || target.notificationType == "weekly_digest") {
                     todayMode = TodayMode.WEEKLY_DIGEST
                     weeklyDigestDate = target.digestDate
                     mainViewModel.openWeeklyDigest(fromPush = true)
@@ -149,12 +155,24 @@ fun ThesisApp(
                 mainViewModel.trackPushDeepLinkLanded(
                     targetTab = "today",
                     notificationType = target.notificationType,
-                    ticker = target.ticker
+                    ticker = target.ticker,
+                    alertId = target.alertId
                 )
             }
-            "deep_dive" -> {
+            "names" -> {
+                mainViewModel.setTab(AppTab.NAMES)
+                mainViewModel.trackPushDeepLinkLanded(
+                    targetTab = "names",
+                    notificationType = target.notificationType,
+                    ticker = target.ticker,
+                    alertId = target.alertId
+                )
+            }
+            "research" -> {
                 val ticker = target.ticker?.trim().orEmpty()
-                if (ticker.isNotBlank()) {
+                if (!target.reportId.isNullOrBlank()) {
+                    mainViewModel.openHistoryReport(target.reportId)
+                } else if (ticker.isNotBlank()) {
                     mainViewModel.selectTicker(ticker)
                 }
                 researchMode = ResearchMode.DEEP_DIVE
@@ -162,7 +180,26 @@ fun ThesisApp(
                 mainViewModel.trackPushDeepLinkLanded(
                     targetTab = "research",
                     notificationType = target.notificationType,
-                    ticker = target.ticker
+                    ticker = target.ticker,
+                    alertId = target.alertId
+                )
+            }
+            "inbox" -> {
+                mainViewModel.setTab(AppTab.INBOX)
+                mainViewModel.trackPushDeepLinkLanded(
+                    targetTab = "inbox",
+                    notificationType = target.notificationType,
+                    ticker = target.ticker,
+                    alertId = target.alertId
+                )
+            }
+            "you" -> {
+                mainViewModel.setTab(AppTab.YOU)
+                mainViewModel.trackPushDeepLinkLanded(
+                    targetTab = "you",
+                    notificationType = target.notificationType,
+                    ticker = target.ticker,
+                    alertId = target.alertId
                 )
             }
         }
@@ -199,12 +236,48 @@ fun ThesisApp(
             return@ThesisTheme
         }
 
-        val visibleTabs = remember { listOf(TabItem.Today, TabItem.Research, TabItem.Portfolio) }
+        val visibleTabs = remember {
+            listOf(TabItem.Today, TabItem.Names, TabItem.Research, TabItem.Inbox, TabItem.You)
+        }
         val preferredResearchRoot = when {
             uiState.deepDiveReport != null -> ResearchMode.DEEP_DIVE
             !uiState.selectedTicker.isNullOrBlank() -> ResearchMode.DEEP_DIVE
             uiState.reportHistory.isNotEmpty() -> ResearchMode.HISTORY
             else -> ResearchMode.DEEP_DIVE
+        }
+        val openAlertTarget: (AlertLedgerItemView) -> Unit = { alert ->
+            when (alert.route) {
+                "today" -> {
+                    if (!alert.digestDate.isNullOrBlank()) {
+                        todayMode = TodayMode.WEEKLY_DIGEST
+                        weeklyDigestDate = alert.digestDate
+                        mainViewModel.openWeeklyDigest(fromPush = false)
+                    } else {
+                        todayMode = TodayMode.HOME
+                        mainViewModel.openPulseFromNotification(alert.pulseDate)
+                    }
+                    mainViewModel.setTab(AppTab.TODAY)
+                }
+                "names" -> {
+                    mainViewModel.setTab(AppTab.NAMES)
+                }
+                "research" -> {
+                    researchMode = ResearchMode.DEEP_DIVE
+                    if (!alert.reportId.isNullOrBlank()) {
+                        mainViewModel.openHistoryReport(alert.reportId)
+                    } else if (!alert.ticker.isNullOrBlank()) {
+                        mainViewModel.selectTicker(alert.ticker)
+                        mainViewModel.runDeepDive()
+                    }
+                    mainViewModel.setTab(AppTab.RESEARCH)
+                }
+                "you" -> {
+                    mainViewModel.setTab(AppTab.YOU)
+                }
+                else -> {
+                    mainViewModel.setTab(AppTab.INBOX)
+                }
+            }
         }
 
         Scaffold(
@@ -229,11 +302,6 @@ fun ThesisApp(
                                     uiState.reportHistory.isNotEmpty()
                                 ) {
                                     researchMode = ResearchMode.HISTORY
-                                }
-                                if (tab.target == AppTab.PORTFOLIO && !uiState.watchlistFeatureEnabled) {
-                                    portfolioMode = PortfolioMode.SETTINGS
-                                } else if (isCurrentTab && tab.target == AppTab.PORTFOLIO) {
-                                    portfolioMode = PortfolioMode.MY_NAMES
                                 }
                                 mainViewModel.setTab(tab.target)
                             },
@@ -284,8 +352,7 @@ fun ThesisApp(
                                 mainViewModel.runDeepDive()
                             },
                             onManageNames = {
-                                portfolioMode = PortfolioMode.MY_NAMES
-                                mainViewModel.setTab(AppTab.PORTFOLIO)
+                                mainViewModel.setTab(AppTab.NAMES)
                             },
                             onRetryPulse = mainViewModel::refreshPulse,
                             onOpenSentimentDashboard = {
@@ -363,15 +430,44 @@ fun ThesisApp(
                             mainViewModel.setTab(AppTab.TODAY)
                         }
                     )
-                    AppTab.PORTFOLIO -> PortfolioTab(
-                        mode = portfolioMode,
-                        onSetMode = { portfolioMode = it },
-                        watchlistFeatureEnabled = uiState.watchlistFeatureEnabled,
+                    AppTab.NAMES -> NamesScreen(
                         padding = padding,
                         watchlist = uiState.watchlist,
-                        onRefreshWatchlist = mainViewModel::refreshWatchlist,
-                        onAddWatchlistTicker = mainViewModel::addWatchlistTicker,
-                        onRemoveWatchlistTicker = mainViewModel::removeWatchlistTicker,
+                        monitorSnapshots = uiState.monitorSnapshots,
+                        alerts = uiState.alertLedger,
+                        onRefresh = {
+                            mainViewModel.refreshWatchlist()
+                            mainViewModel.refreshMonitorSnapshots()
+                            mainViewModel.refreshAlertLedger()
+                        },
+                        onAddTicker = mainViewModel::addWatchlistTicker,
+                        onRemoveTicker = mainViewModel::removeWatchlistTicker,
+                        onRunDeepDive = { ticker ->
+                            mainViewModel.selectTicker(ticker)
+                            researchMode = ResearchMode.DEEP_DIVE
+                            mainViewModel.setTab(AppTab.RESEARCH)
+                            mainViewModel.runDeepDive()
+                        },
+                        onOpenResearch = { ticker ->
+                            mainViewModel.selectTicker(ticker)
+                            researchMode = ResearchMode.DEEP_DIVE
+                            mainViewModel.setTab(AppTab.RESEARCH)
+                        }
+                    )
+                    AppTab.INBOX -> InboxScreen(
+                        padding = padding,
+                        alerts = uiState.alertLedger,
+                        inboxError = uiState.inboxError,
+                        onRefresh = mainViewModel::refreshAlertLedger,
+                        onOpenAlert = openAlertTarget,
+                        onSubmitFeedback = mainViewModel::submitAlertFeedback,
+                        onQuietAlertType = mainViewModel::muteAlert,
+                        onDisableAlertType = { type ->
+                            mainViewModel.setNotificationPreference(type, false)
+                        }
+                    )
+                    AppTab.YOU -> SettingsTab(
+                        padding = padding,
                         currentApiBaseUrl = uiState.apiBaseUrl,
                         profile = uiState.userProfile,
                         subscriptionOffers = uiState.subscriptionOffers,
@@ -420,9 +516,11 @@ private enum class TabItem(
     val label: String,
     val icon: androidx.compose.ui.graphics.vector.ImageVector
 ) {
-    Today(AppTab.TODAY, "Today", Icons.Filled.Notifications),
-    Research(AppTab.RESEARCH, "Research", Icons.Filled.Search),
-    Portfolio(AppTab.PORTFOLIO, "Portfolio", Icons.AutoMirrored.Filled.List)
+    Today(AppTab.TODAY, Phase4Copy.todayTab, Icons.Filled.Newspaper),
+    Names(AppTab.NAMES, Phase4Copy.namesTab, Icons.AutoMirrored.Filled.List),
+    Research(AppTab.RESEARCH, Phase4Copy.researchTab, Icons.Filled.Search),
+    Inbox(AppTab.INBOX, Phase4Copy.inboxTab, Icons.Filled.Notifications),
+    You(AppTab.YOU, Phase4Copy.youTab, Icons.Filled.Settings)
 }
 
 
@@ -1615,14 +1713,44 @@ private fun SettingsTab(
         verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingXl)
     ) {
         item {
-            Text(
-                text = "Settings",
-                style = ThesisTypography.headlineLarge.copy(
-                    fontFamily = HeadingFont,
-                    fontWeight = FontWeight.Normal
-                ),
-                color = ThesisColors.TextPrimary
-            )
+            Column(verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingXs)) {
+                Text(
+                    text = Phase4Copy.youHeadline,
+                    style = ThesisTypography.headlineLarge.copy(
+                        fontFamily = HeadingFont,
+                        fontWeight = FontWeight.Normal
+                    ),
+                    color = ThesisColors.TextPrimary
+                )
+                Text(
+                    text = Phase4Copy.youSubtitle,
+                    style = ThesisTypography.bodyMedium,
+                    color = ThesisColors.TextMuted
+                )
+            }
+        }
+        item {
+            val shape = RoundedCornerShape(ThesisDimens.CardCornerRadius)
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(shape)
+                    .background(ThesisColors.Surface)
+                    .border(ThesisDimens.BorderWidth, ThesisColors.Border, shape)
+                    .padding(ThesisDimens.CardPadding),
+                verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)
+            ) {
+                Text(
+                    text = "DATA TRUST",
+                    style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Medium),
+                    color = ThesisColors.TextMuted
+                )
+                Text(
+                    text = "Freshness and degraded-feed warnings stay visible across Today, Names, Research, and Inbox. Thesis marks missing evidence instead of inventing certainty.",
+                    style = ThesisTypography.bodyMedium,
+                    color = ThesisColors.TextPrimary
+                )
+            }
         }
         item {
             val shape = RoundedCornerShape(ThesisDimens.CardCornerRadius)
@@ -1690,6 +1818,7 @@ private fun SettingsTab(
                         NotificationPreferenceRow(
                             type = preference.type,
                             enabled = preference.enabled,
+                            quietUntil = preference.quietUntil,
                             notificationsEnabled = notificationsEnabled,
                             onToggle = { enabled -> onSetNotificationPreference(preference.type, enabled) },
                             switchColors = switchColors
@@ -2059,17 +2188,13 @@ private fun SettingsTab(
 private fun NotificationPreferenceRow(
     type: String,
     enabled: Boolean,
+    quietUntil: String?,
     notificationsEnabled: Boolean,
     onToggle: (Boolean) -> Unit,
     switchColors: androidx.compose.material3.SwitchColors
 ) {
-    val label = when (type) {
-        "earnings_preview" -> "Earnings preview"
-        "contrarian_alert" -> "Contrarian alert"
-        "weekly_digest" -> "Weekly digest"
-        "market_pulse_ready" -> "Market Pulse ready"
-        else -> type.replace('_', ' ').replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
-    }
+    val label = Phase4Copy.notificationFamilyLabel(type)
+    val quietUntilLabel = quietUntil?.let(::formatNotificationQuietUntil)
 
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -2080,7 +2205,13 @@ private fun NotificationPreferenceRow(
             Text(label, style = ThesisTypography.bodyMedium, color = ThesisColors.TextPrimary)
             if (!notificationsEnabled) {
                 Text(
-                    "Global notifications are off. This preference will apply when they are re-enabled.",
+                    Phase4Copy.notificationGlobalOffNote,
+                    style = ThesisTypography.bodySmall,
+                    color = ThesisColors.TextMuted
+                )
+            } else if (enabled && quietUntilLabel != null) {
+                Text(
+                    Phase4Copy.notificationQuietUntilNote(quietUntilLabel),
                     style = ThesisTypography.bodySmall,
                     color = ThesisColors.TextMuted
                 )
@@ -2092,6 +2223,16 @@ private fun NotificationPreferenceRow(
             colors = switchColors
         )
     }
+}
+
+private fun formatNotificationQuietUntil(raw: String): String? {
+    val parsed = runCatching { Instant.parse(raw) }.getOrNull() ?: return null
+    if (!parsed.isAfter(Instant.now())) {
+        return null
+    }
+    return parsed
+        .atZone(ZoneId.of("America/New_York"))
+        .format(DateTimeFormatter.ofPattern("MMM d, HH:mm z"))
 }
 
 @Composable

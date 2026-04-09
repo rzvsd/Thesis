@@ -13,8 +13,9 @@ class NotificationDismissReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent?) {
         val notificationType =
             intent?.getStringExtra(EXTRA_NOTIFICATION_TYPE)?.trim().orEmpty().ifBlank { "unknown" }
-        val openTab = intent?.getStringExtra(EXTRA_OPEN_TAB)?.trim().orEmpty().ifBlank { "pulse" }
+        val openTab = intent?.getStringExtra(EXTRA_OPEN_TAB)?.trim().orEmpty().ifBlank { "today" }
         val ticker = intent?.getStringExtra(EXTRA_TICKER)?.trim()?.ifBlank { null }
+        val alertId = intent?.getStringExtra(EXTRA_ALERT_ID)?.trim()?.ifBlank { null }
 
         CoroutineScope(Dispatchers.IO).launch {
             runCatching {
@@ -24,7 +25,8 @@ class NotificationDismissReceiver : BroadcastReceiver() {
                     properties = mapOf(
                         "notification_type" to notificationType,
                         "open_tab" to openTab,
-                        "ticker" to ticker
+                        "ticker" to ticker,
+                        "alert_id" to alertId
                     )
                 )
             }
@@ -35,5 +37,6 @@ class NotificationDismissReceiver : BroadcastReceiver() {
         const val EXTRA_NOTIFICATION_TYPE = "notification_type"
         const val EXTRA_OPEN_TAB = "open_tab"
         const val EXTRA_TICKER = "ticker"
+        const val EXTRA_ALERT_ID = "alert_id"
     }
 }

@@ -2,11 +2,18 @@ import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import { notificationTypes } from "../../../packages/contracts/src";
 import type {
+  AlertFeedbackState,
+  AlertLedgerCategory,
+  AlertRouteTarget,
   CalendarEventTime,
   CalendarEventType,
   CanonicalFinancialSnapshot,
   CanonicalTranscript,
   ContrarianSignalValue,
+  KillSwitchEvaluationOutcome,
+  KillSwitchEvaluationSignalSource,
+  KillSwitchRuleSource,
+  KillSwitchRuleState,
   FeedbackSeverity,
   FeedbackTriageStatus,
   FeedbackRouteStatus,
@@ -20,8 +27,11 @@ import type {
 
 import type {
   AuditEventRecord,
+  AlertLedgerRecord,
   CalendarEventRecord,
   ContrarianAlertAnchorRecord,
+  KillSwitchEvaluationRecord,
+  KillSwitchRuleRecord,
   JobRecord,
   NotificationPreferenceRecord,
   ThesisMonitorSnapshotRecord,
@@ -182,6 +192,22 @@ export interface ProductStore {
   listActiveContrarianAlertAnchors(asOfIso: string): Promise<ContrarianAlertAnchorRecord[]>;
   deactivateContrarianAlertAnchor(id: string, updatedAt: string): Promise<ContrarianAlertAnchorRecord | undefined>;
   deactivateExpiredContrarianAlertAnchors(asOfIso: string): Promise<number>;
+  createKillSwitchRule(input: KillSwitchRuleRecord): Promise<KillSwitchRuleRecord>;
+  deactivateActiveKillSwitchRulesByUserTicker(input: {
+    userId: string;
+    ticker: string;
+    deactivatedAt: string;
+  }): Promise<number>;
+  listActiveKillSwitchRules(input: {
+    asOfIso: string;
+    userIds?: string[];
+  }): Promise<KillSwitchRuleRecord[]>;
+  getKillSwitchEvaluation(input: {
+    ruleId: string;
+    signalSource: KillSwitchEvaluationSignalSource;
+    triggerKey: string;
+  }): Promise<KillSwitchEvaluationRecord | undefined>;
+  createKillSwitchEvaluation(input: KillSwitchEvaluationRecord): Promise<KillSwitchEvaluationRecord>;
   getNotificationPreferences(userId: string): Promise<NotificationPreferenceRecord[]>;
   getReportNote(reportId: string, userId: string): Promise<ReportNoteRecord | undefined>;
   upsertReportNote(input: {
@@ -218,9 +244,31 @@ export interface ProductStore {
   }): Promise<UserFeedbackQueueRecord[]>;
   upsertNotificationPreferences(input: {
     userId: string;
-    preferences: Array<{ type: NotificationType; enabled: boolean }>;
+    preferences: Array<{
+      type: NotificationType;
+      enabled?: boolean;
+      quietUntil?: string | null;
+    }>;
     updatedAt: string;
   }): Promise<NotificationPreferenceRecord[]>;
+  createAlertLedgerItem(input: AlertLedgerRecord): Promise<AlertLedgerRecord>;
+  getAlertLedgerItem(input: { id: string; userId: string }): Promise<AlertLedgerRecord | undefined>;
+  listAlertLedgerItemsByUser(input: {
+    userId: string;
+    limit: number;
+    category?: AlertLedgerCategory;
+  }): Promise<AlertLedgerRecord[]>;
+  setAlertLedgerFeedback(input: {
+    id: string;
+    userId: string;
+    feedback: AlertFeedbackState;
+    updatedAt: string;
+  }): Promise<AlertLedgerRecord | undefined>;
+  markAlertLedgerMuted(input: {
+    id: string;
+    userId: string;
+    mutedAt: string;
+  }): Promise<AlertLedgerRecord | undefined>;
   upsertThesisMonitorSnapshot(input: ThesisMonitorSnapshotRecord): Promise<ThesisMonitorSnapshotRecord>;
   listThesisMonitorSnapshotsByUser(userId: string): Promise<ThesisMonitorSnapshotRecord[]>;
   listUsersWithDeviceTokenByNotificationType(input: {
@@ -517,13 +565,85 @@ function mapContrarianAnchor(row: Record<string, unknown>): ContrarianAlertAncho
   };
 }
 
+function mapKillSwitchRule(row: Record<string, unknown>): KillSwitchRuleRecord {
+  return {
+    id: String(row.id),
+    userId: String(row.user_id),
+    ticker: String(row.ticker),
+    reportId: row.report_id ? String(row.report_id) : undefined,
+    signalValue: row.signal_value
+      ? (String(row.signal_value) as ContrarianSignalValue)
+      : undefined,
+    anchorPrice:
+      row.anchor_price === null || row.anchor_price === undefined
+        ? undefined
+        : Number(row.anchor_price),
+    conditionId: String(row.condition_id),
+    conditionText: String(row.condition_text),
+    signalType: String(row.signal_type) as KillSwitchRuleRecord["signalType"],
+    rationale: String(row.rationale),
+    thresholdValue:
+      row.threshold_value === null || row.threshold_value === undefined
+        ? undefined
+        : Number(row.threshold_value),
+    thresholdUnit: row.threshold_unit
+      ? (String(row.threshold_unit) as KillSwitchRuleRecord["thresholdUnit"])
+      : undefined,
+    direction: row.direction
+      ? (String(row.direction) as KillSwitchRuleRecord["direction"])
+      : undefined,
+    promptVersion: String(row.prompt_version ?? ""),
+    state: String(row.state) as KillSwitchRuleState,
+    source: String(row.source) as KillSwitchRuleSource,
+    createdAt: asIsoString(row.created_at) ?? new Date().toISOString(),
+    updatedAt: asIsoString(row.updated_at) ?? new Date().toISOString(),
+    deactivatedAt: asIsoString(row.deactivated_at)
+  };
+}
+
+function mapKillSwitchEvaluation(row: Record<string, unknown>): KillSwitchEvaluationRecord {
+  return {
+    id: String(row.id),
+    ruleId: String(row.rule_id),
+    userId: String(row.user_id),
+    ticker: String(row.ticker),
+    signalSource: String(row.signal_source) as KillSwitchEvaluationSignalSource,
+    triggerKey: String(row.trigger_key),
+    outcome: String(row.outcome) as KillSwitchEvaluationOutcome,
+    reasonCode: String(row.reason_code),
+    reasonText: String(row.reason_text),
+    observedValue:
+      row.observed_value === null || row.observed_value === undefined
+        ? undefined
+        : Number(row.observed_value),
+    alertId: row.alert_id ? String(row.alert_id) : undefined,
+    createdAt: asIsoString(row.created_at) ?? new Date().toISOString(),
+    updatedAt: asIsoString(row.updated_at) ?? new Date().toISOString()
+  };
+}
+
 function mapNotificationPreference(row: Record<string, unknown>): NotificationPreferenceRecord {
   return {
     userId: String(row.user_id),
     type: String(row.notification_type) as NotificationType,
     enabled: Boolean(row.enabled),
+    quietUntil: asIsoString(row.quiet_until),
     updatedAt: asIsoString(row.updated_at) ?? new Date().toISOString()
   };
+}
+
+function isQuietUntilActive(quietUntil: string | undefined, asOfIso: string): boolean {
+  if (!quietUntil) {
+    return false;
+  }
+
+  const quietUntilMillis = Date.parse(quietUntil);
+  const asOfMillis = Date.parse(asOfIso);
+  if (!Number.isFinite(quietUntilMillis) || !Number.isFinite(asOfMillis)) {
+    return false;
+  }
+
+  return quietUntilMillis > asOfMillis;
 }
 
 function mapThesisMonitorSnapshot(row: Record<string, unknown>): ThesisMonitorSnapshotRecord {
@@ -571,6 +691,26 @@ function mapUserFeedbackQueueRecord(row: Record<string, unknown>): UserFeedbackQ
   };
 }
 
+function mapAlertLedgerRecord(row: Record<string, unknown>): AlertLedgerRecord {
+  return {
+    id: String(row.id),
+    userId: String(row.user_id),
+    notificationType: String(row.notification_type) as NotificationType,
+    category: String(row.category) as AlertLedgerCategory,
+    route: String(row.route) as AlertRouteTarget,
+    title: String(row.title ?? ""),
+    body: String(row.body ?? ""),
+    reasonCode: String(row.reason_code ?? ""),
+    reasonText: String(row.reason_text ?? ""),
+    deliveryState: String(row.delivery_state) as AlertLedgerRecord["deliveryState"],
+    feedbackState: row.feedback_state ? (String(row.feedback_state) as AlertFeedbackState) : undefined,
+    mutedAt: asIsoString(row.muted_at),
+    context: asRecord(row.context) ?? {},
+    createdAt: asIsoString(row.created_at) ?? new Date().toISOString(),
+    updatedAt: asIsoString(row.updated_at) ?? new Date().toISOString()
+  };
+}
+
 export class InMemoryStore implements ProductStore {
   private readonly users = new Map<string, UserRecord>();
   private readonly userDevicesByUser = new Map<string, Map<string, UserDeviceRecord>>();
@@ -591,9 +731,12 @@ export class InMemoryStore implements ProductStore {
   private readonly fearGreedByMarketDate = new Map<string, FearGreedSnapshot>();
   private readonly calendarEvents = new Map<string, CalendarEventRecord>();
   private readonly contrarianAnchors = new Map<string, ContrarianAlertAnchorRecord>();
+  private readonly killSwitchRules = new Map<string, KillSwitchRuleRecord>();
+  private readonly killSwitchEvaluations = new Map<string, KillSwitchEvaluationRecord>();
   private readonly reportNotes = new Map<string, ReportNoteRecord>();
   private readonly userFeedbackQueue = new Map<string, UserFeedbackQueueRecord>();
   private readonly thesisMonitorSnapshots = new Map<string, ThesisMonitorSnapshotRecord>();
+  private readonly alertLedgerByUser = new Map<string, Map<string, AlertLedgerRecord>>();
   private readonly notificationPreferencesByUser = new Map<
     string,
     Map<NotificationType, NotificationPreferenceRecord>
@@ -989,6 +1132,9 @@ export class InMemoryStore implements ProductStore {
       const preferences = this.ensureDefaultNotificationPreferences(user.id);
       const preference = preferences.get(input.notificationType);
       if (!preference || !preference.enabled) {
+        continue;
+      }
+      if (isQuietUntilActive(preference.quietUntil, new Date().toISOString())) {
         continue;
       }
       const devices = this.userDevicesByUser.get(user.id);
@@ -1637,6 +1783,84 @@ export class InMemoryStore implements ProductStore {
     return updated;
   }
 
+  async createKillSwitchRule(input: KillSwitchRuleRecord): Promise<KillSwitchRuleRecord> {
+    const next: KillSwitchRuleRecord = {
+      ...input,
+      ticker: input.ticker.trim().toUpperCase()
+    };
+    this.killSwitchRules.set(next.id, next);
+    return { ...next };
+  }
+
+  async deactivateActiveKillSwitchRulesByUserTicker(input: {
+    userId: string;
+    ticker: string;
+    deactivatedAt: string;
+  }): Promise<number> {
+    const ticker = input.ticker.trim().toUpperCase();
+    let deactivated = 0;
+    for (const rule of this.killSwitchRules.values()) {
+      if (
+        rule.userId !== input.userId ||
+        rule.ticker !== ticker ||
+        rule.state !== "active"
+      ) {
+        continue;
+      }
+      rule.state = "inactive";
+      rule.deactivatedAt = input.deactivatedAt;
+      rule.updatedAt = input.deactivatedAt;
+      deactivated += 1;
+    }
+    return deactivated;
+  }
+
+  async listActiveKillSwitchRules(input: {
+    asOfIso: string;
+    userIds?: string[];
+  }): Promise<KillSwitchRuleRecord[]> {
+    const asOf = Date.parse(input.asOfIso);
+    if (Number.isNaN(asOf)) {
+      return [];
+    }
+
+    const userIdSet =
+      input.userIds && input.userIds.length > 0 ? new Set(input.userIds) : undefined;
+    return [...this.killSwitchRules.values()]
+      .filter((rule) => {
+        if (rule.state !== "active") {
+          return false;
+        }
+        if (rule.deactivatedAt && Date.parse(rule.deactivatedAt) <= asOf) {
+          return false;
+        }
+        if (userIdSet && !userIdSet.has(rule.userId)) {
+          return false;
+        }
+        return true;
+      })
+      .sort((left, right) => left.createdAt.localeCompare(right.createdAt))
+      .map((rule) => ({ ...rule }));
+  }
+
+  async getKillSwitchEvaluation(input: {
+    ruleId: string;
+    signalSource: KillSwitchEvaluationSignalSource;
+    triggerKey: string;
+  }): Promise<KillSwitchEvaluationRecord | undefined> {
+    const key = `${input.ruleId}:${input.signalSource}:${input.triggerKey}`;
+    const existing = this.killSwitchEvaluations.get(key);
+    return existing ? { ...existing } : undefined;
+  }
+
+  async createKillSwitchEvaluation(
+    input: KillSwitchEvaluationRecord
+  ): Promise<KillSwitchEvaluationRecord> {
+    const key = `${input.ruleId}:${input.signalSource}:${input.triggerKey}`;
+    this.killSwitchEvaluations.set(key, { ...input });
+    return { ...input };
+  }
+
   async getNotificationPreferences(userId: string): Promise<NotificationPreferenceRecord[]> {
     const preferences = this.ensureDefaultNotificationPreferences(userId);
     return [...preferences.values()].map((entry) => ({ ...entry }));
@@ -1644,7 +1868,11 @@ export class InMemoryStore implements ProductStore {
 
   async upsertNotificationPreferences(input: {
     userId: string;
-    preferences: Array<{ type: NotificationType; enabled: boolean }>;
+    preferences: Array<{
+      type: NotificationType;
+      enabled?: boolean;
+      quietUntil?: string | null;
+    }>;
     updatedAt: string;
   }): Promise<NotificationPreferenceRecord[]> {
     const preferences = this.ensureDefaultNotificationPreferences(input.userId);
@@ -1652,14 +1880,115 @@ export class InMemoryStore implements ProductStore {
       if (!isNotificationType(update.type)) {
         continue;
       }
+      const current = preferences.get(update.type);
+      const effectiveQuietUntil =
+        update.quietUntil !== undefined
+          ? update.quietUntil ?? undefined
+          : update.enabled !== undefined
+            ? undefined
+            : current?.quietUntil;
       preferences.set(update.type, {
         userId: input.userId,
         type: update.type,
-        enabled: update.enabled,
+        enabled: update.enabled ?? current?.enabled ?? true,
+        quietUntil: effectiveQuietUntil,
         updatedAt: input.updatedAt
       });
     }
     return [...preferences.values()].map((entry) => ({ ...entry }));
+  }
+
+  async createAlertLedgerItem(input: AlertLedgerRecord): Promise<AlertLedgerRecord> {
+    let alerts = this.alertLedgerByUser.get(input.userId);
+    if (!alerts) {
+      alerts = new Map<string, AlertLedgerRecord>();
+      this.alertLedgerByUser.set(input.userId, alerts);
+    }
+    const next: AlertLedgerRecord = {
+      ...input,
+      context: { ...(input.context ?? {}) }
+    };
+    alerts.set(next.id, next);
+    return {
+      ...next,
+      context: { ...next.context }
+    };
+  }
+
+  async getAlertLedgerItem(input: {
+    id: string;
+    userId: string;
+  }): Promise<AlertLedgerRecord | undefined> {
+    const alerts = this.alertLedgerByUser.get(input.userId);
+    const item = alerts?.get(input.id);
+    return item
+      ? {
+          ...item,
+          context: { ...item.context }
+        }
+      : undefined;
+  }
+
+  async listAlertLedgerItemsByUser(input: {
+    userId: string;
+    limit: number;
+    category?: AlertLedgerCategory;
+  }): Promise<AlertLedgerRecord[]> {
+    const alerts = [...(this.alertLedgerByUser.get(input.userId)?.values() ?? [])]
+      .filter((item) => !input.category || item.category === input.category)
+      .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
+      .slice(0, Math.max(1, input.limit));
+    return alerts.map((item) => ({
+      ...item,
+      context: { ...item.context }
+    }));
+  }
+
+  async setAlertLedgerFeedback(input: {
+    id: string;
+    userId: string;
+    feedback: AlertFeedbackState;
+    updatedAt: string;
+  }): Promise<AlertLedgerRecord | undefined> {
+    const alerts = this.alertLedgerByUser.get(input.userId);
+    const existing = alerts?.get(input.id);
+    if (!alerts || !existing) {
+      return undefined;
+    }
+    const next: AlertLedgerRecord = {
+      ...existing,
+      feedbackState: input.feedback,
+      updatedAt: input.updatedAt,
+      context: { ...existing.context }
+    };
+    alerts.set(input.id, next);
+    return {
+      ...next,
+      context: { ...next.context }
+    };
+  }
+
+  async markAlertLedgerMuted(input: {
+    id: string;
+    userId: string;
+    mutedAt: string;
+  }): Promise<AlertLedgerRecord | undefined> {
+    const alerts = this.alertLedgerByUser.get(input.userId);
+    const existing = alerts?.get(input.id);
+    if (!alerts || !existing) {
+      return undefined;
+    }
+    const next: AlertLedgerRecord = {
+      ...existing,
+      mutedAt: input.mutedAt,
+      updatedAt: input.mutedAt,
+      context: { ...existing.context }
+    };
+    alerts.set(input.id, next);
+    return {
+      ...next,
+      context: { ...next.context }
+    };
   }
 
   async upsertThesisMonitorSnapshot(
@@ -3028,6 +3357,193 @@ export class PostgresStore implements ProductStore {
     return result.rowCount ?? 0;
   }
 
+  async createKillSwitchRule(input: KillSwitchRuleRecord): Promise<KillSwitchRuleRecord> {
+    const result = await this.pool.query(
+      `insert into kill_switch_rules (
+         id,
+         user_id,
+         ticker,
+         report_id,
+         signal_value,
+         anchor_price,
+         condition_id,
+         condition_text,
+         signal_type,
+         rationale,
+         threshold_value,
+         threshold_unit,
+         direction,
+         prompt_version,
+         state,
+         source,
+         created_at,
+         updated_at,
+         deactivated_at
+       )
+       values (
+         $1,
+         $2,
+         $3,
+         $4,
+         $5,
+         $6,
+         $7,
+         $8,
+         $9,
+         $10,
+         $11,
+         $12,
+         $13,
+         $14,
+         $15,
+         $16,
+         $17::timestamptz,
+         $18::timestamptz,
+         $19::timestamptz
+       )
+       returning *`,
+      [
+        input.id,
+        input.userId,
+        input.ticker.trim().toUpperCase(),
+        input.reportId ?? null,
+        input.signalValue ?? null,
+        input.anchorPrice ?? null,
+        input.conditionId,
+        input.conditionText,
+        input.signalType,
+        input.rationale,
+        input.thresholdValue ?? null,
+        input.thresholdUnit ?? null,
+        input.direction ?? null,
+        input.promptVersion,
+        input.state,
+        input.source,
+        input.createdAt,
+        input.updatedAt,
+        input.deactivatedAt ?? null
+      ]
+    );
+    return mapKillSwitchRule(result.rows[0] as Record<string, unknown>);
+  }
+
+  async deactivateActiveKillSwitchRulesByUserTicker(input: {
+    userId: string;
+    ticker: string;
+    deactivatedAt: string;
+  }): Promise<number> {
+    const result = await this.pool.query(
+      `update kill_switch_rules
+          set state = 'inactive',
+              deactivated_at = $3::timestamptz,
+              updated_at = $3::timestamptz
+        where user_id = $1
+          and ticker = $2
+          and state = 'active'`,
+      [input.userId, input.ticker.trim().toUpperCase(), input.deactivatedAt]
+    );
+    return result.rowCount ?? 0;
+  }
+
+  async listActiveKillSwitchRules(input: {
+    asOfIso: string;
+    userIds?: string[];
+  }): Promise<KillSwitchRuleRecord[]> {
+    const userIds = input.userIds?.filter((entry) => entry.trim().length > 0) ?? [];
+    const result = await this.pool.query(
+      `select *
+         from kill_switch_rules
+        where state = 'active'
+          and (deactivated_at is null or deactivated_at > $1::timestamptz)
+          and (
+            array_length($2::text[], 1) is null
+            or user_id = any($2::text[])
+          )
+        order by created_at asc`,
+      [input.asOfIso, userIds.length > 0 ? userIds : null]
+    );
+    return result.rows.map((row) => mapKillSwitchRule(row as Record<string, unknown>));
+  }
+
+  async getKillSwitchEvaluation(input: {
+    ruleId: string;
+    signalSource: KillSwitchEvaluationSignalSource;
+    triggerKey: string;
+  }): Promise<KillSwitchEvaluationRecord | undefined> {
+    const result = await this.pool.query(
+      `select *
+         from kill_switch_evaluations
+        where rule_id = $1
+          and signal_source = $2
+          and trigger_key = $3
+        limit 1`,
+      [input.ruleId, input.signalSource, input.triggerKey]
+    );
+    const row = result.rows[0] as Record<string, unknown> | undefined;
+    return row ? mapKillSwitchEvaluation(row) : undefined;
+  }
+
+  async createKillSwitchEvaluation(
+    input: KillSwitchEvaluationRecord
+  ): Promise<KillSwitchEvaluationRecord> {
+    const result = await this.pool.query(
+      `insert into kill_switch_evaluations (
+         id,
+         rule_id,
+         user_id,
+         ticker,
+         signal_source,
+         trigger_key,
+         outcome,
+         reason_code,
+         reason_text,
+         observed_value,
+         alert_id,
+         created_at,
+         updated_at
+       )
+       values (
+         $1,
+         $2,
+         $3,
+         $4,
+         $5,
+         $6,
+         $7,
+         $8,
+         $9,
+         $10,
+         $11,
+         $12::timestamptz,
+         $13::timestamptz
+       )
+       on conflict (rule_id, signal_source, trigger_key) do update set
+         outcome = excluded.outcome,
+         reason_code = excluded.reason_code,
+         reason_text = excluded.reason_text,
+         observed_value = excluded.observed_value,
+         alert_id = excluded.alert_id,
+         updated_at = excluded.updated_at
+       returning *`,
+      [
+        input.id,
+        input.ruleId,
+        input.userId,
+        input.ticker.trim().toUpperCase(),
+        input.signalSource,
+        input.triggerKey,
+        input.outcome,
+        input.reasonCode,
+        input.reasonText,
+        input.observedValue ?? null,
+        input.alertId ?? null,
+        input.createdAt,
+        input.updatedAt
+      ]
+    );
+    return mapKillSwitchEvaluation(result.rows[0] as Record<string, unknown>);
+  }
+
   async getNotificationPreferences(userId: string): Promise<NotificationPreferenceRecord[]> {
     const result = await this.pool.query(
       `select *
@@ -3191,7 +3707,11 @@ export class PostgresStore implements ProductStore {
 
   async upsertNotificationPreferences(input: {
     userId: string;
-    preferences: Array<{ type: NotificationType; enabled: boolean }>;
+    preferences: Array<{
+      type: NotificationType;
+      enabled?: boolean;
+      quietUntil?: string | null;
+    }>;
     updatedAt: string;
   }): Promise<NotificationPreferenceRecord[]> {
     if (input.preferences.length === 0) {
@@ -3199,30 +3719,164 @@ export class PostgresStore implements ProductStore {
     }
 
     for (const preference of input.preferences) {
+      const enabledProvided = typeof preference.enabled === "boolean";
+      const quietUntilProvided = preference.quietUntil !== undefined || enabledProvided;
+      const quietUntilValue =
+        preference.quietUntil !== undefined
+          ? preference.quietUntil
+          : enabledProvided
+            ? null
+            : undefined;
       await this.pool.query(
         `insert into notification_preferences (
            id,
            user_id,
            notification_type,
            enabled,
+           quiet_until,
            updated_at,
            created_at
-         )
-         values ($1, $2, $3, $4, $5::timestamptz, $5::timestamptz)
+          )
+         values ($1, $2, $3, coalesce($4::boolean, true), $5::timestamptz, $6::timestamptz, $6::timestamptz)
          on conflict (user_id, notification_type) do update set
-           enabled = excluded.enabled,
-           updated_at = excluded.updated_at`,
+           enabled = case
+             when $7::boolean then coalesce($4::boolean, notification_preferences.enabled)
+             else notification_preferences.enabled
+           end,
+           quiet_until = case
+             when $8::boolean then $5::timestamptz
+             else notification_preferences.quiet_until
+           end,
+           updated_at = $6::timestamptz`,
         [
           randomUUID(),
           input.userId,
           preference.type,
-          preference.enabled,
-          input.updatedAt
+          enabledProvided ? preference.enabled ?? null : null,
+          quietUntilValue ?? null,
+          input.updatedAt,
+          enabledProvided,
+          quietUntilProvided
         ]
       );
     }
 
     return this.getNotificationPreferences(input.userId);
+  }
+
+  async createAlertLedgerItem(input: AlertLedgerRecord): Promise<AlertLedgerRecord> {
+    const result = await this.pool.query(
+      `insert into alert_ledger (
+         id,
+         user_id,
+         notification_type,
+         category,
+         route,
+         title,
+         body,
+         reason_code,
+         reason_text,
+         delivery_state,
+         feedback_state,
+         muted_at,
+         context,
+         created_at,
+         updated_at
+       )
+       values (
+         $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
+         $11, $12::timestamptz, $13::jsonb, $14::timestamptz, $15::timestamptz
+       )
+       returning *`,
+      [
+        input.id,
+        input.userId,
+        input.notificationType,
+        input.category,
+        input.route,
+        input.title,
+        input.body,
+        input.reasonCode,
+        input.reasonText,
+        input.deliveryState,
+        input.feedbackState ?? null,
+        input.mutedAt ?? null,
+        JSON.stringify(input.context ?? {}),
+        input.createdAt,
+        input.updatedAt
+      ]
+    );
+    return mapAlertLedgerRecord(result.rows[0] as Record<string, unknown>);
+  }
+
+  async getAlertLedgerItem(input: {
+    id: string;
+    userId: string;
+  }): Promise<AlertLedgerRecord | undefined> {
+    const result = await this.pool.query(
+      `select *
+         from alert_ledger
+        where id = $1
+          and user_id = $2
+        limit 1`,
+      [input.id, input.userId]
+    );
+    const row = result.rows[0];
+    return row ? mapAlertLedgerRecord(row as Record<string, unknown>) : undefined;
+  }
+
+  async listAlertLedgerItemsByUser(input: {
+    userId: string;
+    limit: number;
+    category?: AlertLedgerCategory;
+  }): Promise<AlertLedgerRecord[]> {
+    const result = await this.pool.query(
+      `select *
+         from alert_ledger
+        where user_id = $1
+          and ($2::text is null or category = $2::text)
+        order by created_at desc
+        limit $3`,
+      [input.userId, input.category ?? null, Math.max(1, input.limit)]
+    );
+    return result.rows.map((row) => mapAlertLedgerRecord(row as Record<string, unknown>));
+  }
+
+  async setAlertLedgerFeedback(input: {
+    id: string;
+    userId: string;
+    feedback: AlertFeedbackState;
+    updatedAt: string;
+  }): Promise<AlertLedgerRecord | undefined> {
+    const result = await this.pool.query(
+      `update alert_ledger
+          set feedback_state = $3,
+              updated_at = $4::timestamptz
+        where id = $1
+          and user_id = $2
+        returning *`,
+      [input.id, input.userId, input.feedback, input.updatedAt]
+    );
+    const row = result.rows[0];
+    return row ? mapAlertLedgerRecord(row as Record<string, unknown>) : undefined;
+  }
+
+  async markAlertLedgerMuted(input: {
+    id: string;
+    userId: string;
+    mutedAt: string;
+  }): Promise<AlertLedgerRecord | undefined> {
+    const result = await this.pool.query(
+      `update alert_ledger
+          set muted_at = $3::timestamptz,
+              updated_at = $3::timestamptz
+        where id = $1
+          and user_id = $2
+        returning *`,
+      [input.id, input.userId, input.mutedAt]
+    );
+    const row = result.rows[0];
+    return row ? mapAlertLedgerRecord(row as Record<string, unknown>) : undefined;
   }
 
   async upsertThesisMonitorSnapshot(
@@ -3290,14 +3944,15 @@ export class PostgresStore implements ProductStore {
          from user_devices ud
          left join notification_preferences np
            on np.user_id = ud.user_id
-          and np.notification_type = $1
+           and np.notification_type = $1
          left join subscriptions s
            on s.user_id = ud.user_id
-        where ud.invalidated_at is null
-          and length(trim(ud.device_token)) > 0
-          and coalesce(np.enabled, true) = true
-          and ($2::text is null or s.tier = $2::text)
-          and ($3::text[] is null or ud.user_id = any($3::text[]))`,
+         where ud.invalidated_at is null
+           and length(trim(ud.device_token)) > 0
+           and coalesce(np.enabled, true) = true
+           and (np.quiet_until is null or np.quiet_until <= now())
+           and ($2::text is null or s.tier = $2::text)
+           and ($3::text[] is null or ud.user_id = any($3::text[]))`,
       [input.notificationType, input.tier ?? null, userIds.length > 0 ? userIds : null]
     );
 

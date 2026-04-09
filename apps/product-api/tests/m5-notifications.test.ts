@@ -356,7 +356,7 @@ test("notification preferences endpoints return and update all M5 notification t
     const initialData = initial.payload.data as {
       preferences: Array<{ type: string; enabled: boolean }>;
     };
-    assert.equal(initialData.preferences.length, 4);
+    assert.equal(initialData.preferences.length, 5);
 
     const updated = await requestJson(baseUrl, "/v1/user/notification-preferences", {
       method: "PUT",

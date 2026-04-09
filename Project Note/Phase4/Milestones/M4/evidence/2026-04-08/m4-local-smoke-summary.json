@@ -1,0 +1,60 @@
+{
+  "milestone": "PH4-M4",
+  "date": "2026-04-08",
+  "status": "PASS",
+  "commands": [
+    {
+      "command": "corepack pnpm typecheck",
+      "result": "PASS"
+    },
+    {
+      "command": "corepack pnpm --filter @thesis/product-api typecheck",
+      "result": "PASS"
+    },
+    {
+      "command": "corepack pnpm --filter @thesis/product-api test -- ph4-m2-alert-ledger.test.ts",
+      "result": "PASS"
+    },
+    {
+      "command": "$env:JAVA_HOME='C:\\Program Files\\Android\\Android Studio\\jbr'; $env:Path=\"$env:JAVA_HOME\\bin;$env:Path\"; .\\gradlew.bat :app:compileDebugKotlin --console=plain",
+      "workdir": "C:\\BOTS\\Thesis\\fintech\\apps\\mobile\\android",
+      "result": "PASS"
+    }
+  ],
+  "route_targets_supported": [
+    "today",
+    "names",
+    "research",
+    "inbox",
+    "you"
+  ],
+  "local_proof": [
+    "alert_id propagated through push delivery/open/dismiss handling",
+    "MainActivity launch parsing supports new tab map and older fallback targets",
+    "Product API push payloads record route and alert identifiers"
+  ],
+  "device_proof": {
+    "result": "PASS",
+    "runner": "Maestro",
+    "device_serial": "R3CXA03J3LH",
+    "app_id": "com.thesis.mobile",
+    "api_base_url": "http://127.0.0.1:3101",
+    "summary_path": "C:\\BOTS\\Thesis\\fintech\\qa\\maestro\\output\\2026-04-08T16-37-10-744Z\\summary.json",
+    "log_path": "C:\\BOTS\\Thesis\\fintech\\qa\\maestro\\output\\2026-04-08T16-37-10-744Z\\maestro.log"
+  },
+  "quieting_proof": {
+    "result": "PASS",
+    "runner": "Maestro",
+    "device_serial": "R3CXA03J3LH",
+    "flow": "C:\\BOTS\\Thesis\\fintech\\qa\\maestro\\flows\\ph4_m4_quieting.yaml",
+    "summary_path": "C:\\BOTS\\Thesis\\fintech\\qa\\maestro\\output\\2026-04-08T16-54-16-089Z\\summary.json",
+    "log_path": "C:\\BOTS\\Thesis\\fintech\\qa\\maestro\\output\\2026-04-08T16-54-16-089Z\\maestro.log"
+  },
+  "notes": [
+    "Physical-device smoke passed on the owner-attached Android device.",
+    "Notification quieting now extends the existing notification-family preference model via quiet_until.",
+    "Post-quieting workspace typecheck, Product API tests, and Android compile all passed.",
+    "The newest APK was reinstalled and revalidated on hardware after the device reconnected.",
+    "A focused quieting proof also passed on-device, verifying the rendered 'Quiet until' state in the You tab."
+  ]
+}

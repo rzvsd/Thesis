@@ -31,10 +31,12 @@ class ThesisFirebaseMessagingService : FirebaseMessagingService() {
         ensureChannel()
 
         val notificationType = message.data["notification_type"]?.trim().orEmpty()
-        val openTab = when (notificationType) {
-            "contrarian_alert", "earnings_preview" -> "deep_dive"
-            "weekly_digest", "market_pulse_ready" -> "pulse"
-            else -> message.data["route"]?.trim().orEmpty().ifBlank { "pulse" }
+        val route = message.data["route"]?.trim()?.lowercase()
+        val openTab = when {
+            route in setOf("today", "names", "research", "inbox", "you") -> route
+            notificationType == "contrarian_alert" || notificationType == "earnings_preview" -> "research"
+            notificationType == "weekly_digest" || notificationType == "market_pulse_ready" -> "today"
+            else -> "today"
         }
 
         val contentTitle =
@@ -53,6 +55,8 @@ class ThesisFirebaseMessagingService : FirebaseMessagingService() {
             putExtra("ticker", message.data["ticker"])
             putExtra("pulse_date", message.data["report_date"])
             putExtra("digest_date", message.data["digest_date"])
+            putExtra("report_id", message.data["report_id"])
+            putExtra("alert_id", message.data["alert_id"])
         }
         val pendingIntent = PendingIntent.getActivity(
             this,
@@ -64,6 +68,7 @@ class ThesisFirebaseMessagingService : FirebaseMessagingService() {
             putExtra(NotificationDismissReceiver.EXTRA_NOTIFICATION_TYPE, notificationType)
             putExtra(NotificationDismissReceiver.EXTRA_OPEN_TAB, openTab)
             putExtra(NotificationDismissReceiver.EXTRA_TICKER, message.data["ticker"])
+            putExtra(NotificationDismissReceiver.EXTRA_ALERT_ID, message.data["alert_id"])
         }
         val dismissPendingIntent = PendingIntent.getBroadcast(
             this,
@@ -92,7 +97,8 @@ class ThesisFirebaseMessagingService : FirebaseMessagingService() {
                     properties = mapOf(
                         "notification_type" to notificationType,
                         "open_tab" to openTab,
-                        "ticker" to message.data["ticker"]
+                        "ticker" to message.data["ticker"],
+                        "alert_id" to message.data["alert_id"]
                     )
                 )
             }

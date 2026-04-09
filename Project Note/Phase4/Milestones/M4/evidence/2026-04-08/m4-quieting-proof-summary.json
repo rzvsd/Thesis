@@ -1,0 +1,25 @@
+{
+  "milestone": "PH4-M4",
+  "date": "2026-04-08",
+  "status": "PASS",
+  "runner": "Maestro",
+  "device_serial": "R3CXA03J3LH",
+  "app_id": "com.thesis.mobile",
+  "api_base_url": "http://127.0.0.1:3101",
+  "flow": "C:\\BOTS\\Thesis\\fintech\\qa\\maestro\\flows\\ph4_m4_quieting.yaml",
+  "started_at": "2026-04-08T16:54:16.093Z",
+  "ended_at": "2026-04-08T16:55:23.660Z",
+  "artifacts": {
+    "summary_path": "C:\\BOTS\\Thesis\\fintech\\qa\\maestro\\output\\2026-04-08T16-54-16-089Z\\summary.json",
+    "log_path": "C:\\BOTS\\Thesis\\fintech\\qa\\maestro\\output\\2026-04-08T16-54-16-089Z\\maestro.log"
+  },
+  "verified_behavior": [
+    "Login succeeds against the updated local Product API instance.",
+    "The You tab renders the quieted notification family row.",
+    "The 'Earnings Preview' row shows the seeded quiet-until timestamp."
+  ],
+  "notes": [
+    "This focused proof uses the public notification-preferences API to seed a deterministic quiet_until value.",
+    "The Android UI renders the resulting 'Quiet until Apr 10, 12:45 EDT.' helper text on device."
+  ]
+}

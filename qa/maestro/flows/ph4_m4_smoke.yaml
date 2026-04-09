@@ -1,0 +1,109 @@
+appId: ${MAESTRO_APP_ID}
+---
+- launchApp:
+    clearState: true
+
+- runFlow:
+    when:
+      visible: "System UI isn't responding"
+    commands:
+      - tapOn: "Wait"
+
+- runFlow:
+    when:
+      visible: "Get Started"
+    commands:
+      - tapOn: "Get Started"
+
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+
+- runFlow:
+    when:
+      visible: "Allow"
+    commands:
+      - tapOn: "Allow"
+
+- tapOn: "you@example.com"
+- inputText: "${MAESTRO_TEST_EMAIL}"
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      text: "Enter password"
+    direction: DOWN
+    timeout: 30000
+- tapOn: "Enter password"
+- inputText: "${MAESTRO_TEST_PASSWORD}"
+- hideKeyboard
+- runFlow:
+    when:
+      visible: "Log In"
+    commands:
+      - tapOn: "Log In"
+
+- extendedWaitUntil:
+    visible: "Today"
+    timeout: 30000
+- assertVisible: "Today"
+- assertVisible: "Names"
+- assertVisible: "Research"
+- assertVisible: "Inbox"
+- assertVisible: "You"
+
+- tapOn: "Today"
+- extendedWaitUntil:
+    visible: "What Moved"
+    timeout: 30000
+- assertVisible: "What Moved"
+
+- scrollUntilVisible:
+    element:
+      text: "Weekly Digest"
+    direction: DOWN
+    timeout: 60000
+- assertVisible: "Weekly Digest"
+
+- tapOn: "Names"
+- extendedWaitUntil:
+    visible: "Monitor conviction, catalysts, and unresolved drift across every followed name."
+    timeout: 30000
+- assertVisible: "Refresh board"
+- tapOn: "Ticker"
+- inputText: "${MAESTRO_DEEP_DIVE_TICKER}"
+- hideKeyboard
+- tapOn: "Add"
+- assertVisible: "${MAESTRO_DEEP_DIVE_TICKER}"
+
+- tapOn: "Research"
+- extendedWaitUntil:
+    visible: "History"
+    timeout: 30000
+- assertVisible: "Deep Dive"
+- tapOn: "Deep Dive"
+- extendedWaitUntil:
+    visible: "No Deep Dives Yet"
+    timeout: 30000
+- assertVisible: "Ticker Symbol (e.g. AAPL)"
+- assertVisible: "Run Deep Dive"
+
+- tapOn: "Inbox"
+- extendedWaitUntil:
+    visible: "Every alert, explained, reviewable, and tunable."
+    timeout: 30000
+- assertVisible: "Refresh inbox"
+- assertVisible: "No alerts yet"
+
+- tapOn: "You"
+- extendedWaitUntil:
+    visible: "DATA TRUST"
+    timeout: 30000
+- assertVisible: "System Notification Settings"
+- scrollUntilVisible:
+    element:
+      text: "Logout"
+    direction: DOWN
+    timeout: 60000
+- assertVisible: "Logout"

@@ -50,6 +50,7 @@ import com.patrykandpatrick.vico.compose.axis.horizontal.rememberBottomAxis
 import com.patrykandpatrick.vico.compose.axis.vertical.rememberStartAxis
 import com.patrykandpatrick.vico.compose.chart.Chart
 import com.patrykandpatrick.vico.compose.chart.line.lineChart
+import com.patrykandpatrick.vico.compose.chart.scroll.rememberChartScrollSpec
 import com.patrykandpatrick.vico.core.entry.ChartEntryModelProducer
 import com.patrykandpatrick.vico.core.entry.entryOf
 import com.thesis.mobile.model.SentimentSnapshotView
@@ -185,6 +186,8 @@ fun SentimentDashboardScreen(
                                     chartModelProducer = modelProducer,
                                     startAxis = rememberStartAxis(),
                                     bottomAxis = rememberBottomAxis(),
+                                    chartScrollSpec = rememberChartScrollSpec(isScrollEnabled = false),
+                                    isZoomEnabled = false,
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .height(220.dp)

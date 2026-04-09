@@ -304,6 +304,23 @@ async function dispatchEarningsPreview(config: SchedulerConfig): Promise<void> {
     updated: monitorPayload.updated
   });
 
+  const killSwitchPayload = await dispatchProductApiJob(
+    config,
+    "/internal/notifications/kill-switch/evaluate",
+    {
+      signal_source: "daily"
+    },
+    "Kill-switch evaluation"
+  );
+  log("INFO", "Kill-switch evaluation accepted", {
+    evaluated: killSwitchPayload.evaluated,
+    matched: killSwitchPayload.matched,
+    skipped: killSwitchPayload.skipped,
+    attempted: killSwitchPayload.attempted,
+    delivered: killSwitchPayload.delivered,
+    failed: killSwitchPayload.failed
+  });
+
   const payload = await dispatchProductApiJob(
     config,
     "/internal/notifications/earnings-preview",

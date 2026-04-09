@@ -73,6 +73,8 @@ test("M5 fixture report matches the PRD surface-A section split", async () => {
   assert.notEqual(report.signal?.value, "no_signal");
   assert.ok((report.signal?.evidence.length ?? 0) >= 2);
   assert.ok(report.signal?.evidence.every((item) => item.source_name.trim().length > 0));
+  assert.ok((report.kill_switch_conditions?.length ?? 0) >= 3);
+  assert.ok((report.kill_switch_conditions?.length ?? 0) <= 5);
 
   const sectionEvidenceCounts = new Map(report.sections.map((section) => [
     section.title,

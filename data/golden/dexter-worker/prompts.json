@@ -10,5 +10,9 @@
   "synthesizer": {
     "version": "m2-synthesizer-fixture-v1",
     "template": "Assemble an honest executive summary for {ticker} from completed sections only. Explicitly mention degradation when sections are incomplete, unavailable, or failed."
+  },
+  "kill_switch_extractor": {
+    "version": "m5-kill-switch-fixture-v1",
+    "template": "Generate 3 to 5 falsifiable kill-switch conditions for {ticker}. Thesis signal: {signal_value}. Confidence: {confidence_label} ({confidence_score}). Thesis summary: {thesis_statement}. Return strict JSON array only with objects containing: condition_id, condition_text, signal_type, rationale, threshold_value (optional number), threshold_unit (optional pct|count|score|days), direction (optional against_signal|above|below|any)."
   }
 }

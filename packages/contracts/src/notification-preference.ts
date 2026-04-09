@@ -3,6 +3,7 @@ import type { SubscriptionTier } from "./subscription-tier";
 export const notificationTypes = [
   "earnings_preview",
   "contrarian_alert",
+  "kill_switch",
   "weekly_digest",
   "market_pulse_ready"
 ] as const;
@@ -12,6 +13,7 @@ export type NotificationType = (typeof notificationTypes)[number];
 export interface NotificationPreferenceItem {
   type: NotificationType;
   enabled: boolean;
+  quiet_until?: string;
 }
 
 export interface NotificationPreferenceView {

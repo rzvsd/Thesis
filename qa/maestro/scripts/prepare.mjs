@@ -18,6 +18,7 @@ const testPassword = process.env.MAESTRO_TEST_PASSWORD || "VeryStrongPass1!";
 const testEmail = process.env.MAESTRO_TEST_EMAIL || autoEmail();
 const registerEmail = process.env.MAESTRO_REGISTER_EMAIL || autoEmail();
 const adbCommand = resolveAdbCommand();
+const cmdShell = resolveCmdShell();
 const javaHome = resolveJavaHome();
 const requireDeepDiveSeed = process.env.MAESTRO_REQUIRE_DEEP_DIVE_SEED === "true";
 
@@ -145,6 +146,13 @@ function resolveAdbCommand() {
   return "adb";
 }
 
+function resolveCmdShell() {
+  if (process.platform !== "win32") {
+    return "cmd";
+  }
+  return process.env.ComSpec || "C:\\Windows\\System32\\cmd.exe";
+}
+
 function isLoopbackHost(baseUrl) {
   const url = new URL(baseUrl);
   return url.hostname === "127.0.0.1" || url.hostname === "localhost";
@@ -261,7 +269,7 @@ async function installAndroidDebug(baseUrl) {
   const gradleProp = `-PAPI_BASE_URL=${baseUrl}`;
   const gradleEnv = withJavaEnv(process.env, javaHome);
   if (process.platform === "win32") {
-    await run("cmd", ["/c", "gradlew.bat", "installDebug", gradleProp], {
+    await run(cmdShell, ["/c", "gradlew.bat", "installDebug", gradleProp], {
       cwd: androidDir,
       env: gradleEnv,
       capture: false
