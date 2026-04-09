@@ -179,6 +179,8 @@ Product API Engineer + Scheduler Engineer + Mobile Engineer
 
 Replace generic morning summary with personalized exception briefing tied to user names.
 
+Status: Closed (PASS) on 2026-04-09.
+
 ## Deliverables
 
 | Deliverable | Description |
@@ -191,13 +193,13 @@ Replace generic morning summary with personalized exception briefing tied to use
 
 ## Acceptance Criteria
 
-- [ ] Personalized briefing payload exists and is typed
-- [ ] Morning cycle produces per-user output, not generic global output
-- [ ] "Nothing changed for your names" is valid and delivered output
-- [ ] Exceptions include linked reason context and route targets
-- [ ] Briefing output persists into alert ledger for auditability
-- [ ] Mobile Today and Inbox surfaces render briefing output coherently
-- [ ] Integration tests cover both no-change and multi-exception paths
+- [x] Personalized briefing payload exists and is typed
+- [x] Morning cycle produces per-user output, not generic global output
+- [x] "Nothing changed for your names" is valid and delivered output
+- [x] Exceptions include linked reason context and route targets
+- [x] Briefing output persists into alert ledger for auditability
+- [x] Mobile Today and Inbox surfaces render briefing output coherently
+- [x] Integration tests cover both no-change and multi-exception paths
 
 ## Smoke Test
 

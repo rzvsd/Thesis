@@ -119,6 +119,7 @@ class MainActivity : FragmentActivity() {
             normalizedTab in setOf("today", "names", "research", "inbox", "you") -> normalizedTab
             normalizedTab == "pulse" ||
                 normalizedType == "market_pulse_ready" ||
+                normalizedType == "morning_exception_briefing" ||
                 normalizedType == "weekly_digest" ||
                 uri?.toString().orEmpty().contains("thesis://pulse", ignoreCase = true) ||
                 uri?.toString().orEmpty().contains("thesis://today", ignoreCase = true) -> "today"

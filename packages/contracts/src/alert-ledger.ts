@@ -1,5 +1,9 @@
 import type { NotificationType } from "./notification-preference";
 import type { ThesisFreshnessState } from "./thesis-monitor-snapshot";
+import {
+  morningExceptionBriefingModes,
+  type MorningExceptionBriefingMode
+} from "./morning-exception-briefing";
 
 export const alertLedgerCategories = [
   "thesis_drift",
@@ -26,6 +30,7 @@ export interface AlertLedgerContext {
   signal_type?: string;
   trigger_key?: string;
   pulse_date?: string;
+  report_date?: string;
   digest_date?: string;
   related_tickers?: string[];
   freshness_state?: ThesisFreshnessState;
@@ -34,6 +39,14 @@ export interface AlertLedgerContext {
   unreviewed_events_count?: number;
   last_deep_dive_at?: string;
   kill_switch_triggered_at?: string;
+  briefing_mode?: MorningExceptionBriefingMode;
+  exceptions_count?: number;
+  watchlist_count?: number;
+  lead_route?: AlertRouteTarget;
+  lead_ticker?: string;
+  lead_report_id?: string;
+  lead_pulse_date?: string;
+  lead_digest_date?: string;
 }
 
 export interface AlertLedgerItem {
@@ -79,6 +92,7 @@ export const alertLedgerContextSchema = {
     signal_type: { type: "string", minLength: 1 },
     trigger_key: { type: "string", minLength: 1 },
     pulse_date: { type: "string", format: "date" },
+    report_date: { type: "string", format: "date" },
     digest_date: { type: "string", format: "date" },
     related_tickers: {
       type: "array",
@@ -92,7 +106,15 @@ export const alertLedgerContextSchema = {
     material_events_count: { type: "integer", minimum: 0 },
     unreviewed_events_count: { type: "integer", minimum: 0 },
     last_deep_dive_at: { type: "string", format: "date-time" },
-    kill_switch_triggered_at: { type: "string", format: "date-time" }
+    kill_switch_triggered_at: { type: "string", format: "date-time" },
+    briefing_mode: { type: "string", enum: morningExceptionBriefingModes },
+    exceptions_count: { type: "integer", minimum: 0 },
+    watchlist_count: { type: "integer", minimum: 0 },
+    lead_route: { type: "string", enum: alertRouteTargets },
+    lead_ticker: { type: "string", minLength: 1 },
+    lead_report_id: { type: "string", minLength: 1 },
+    lead_pulse_date: { type: "string", format: "date" },
+    lead_digest_date: { type: "string", format: "date" }
   }
 } as const;
 
@@ -124,6 +146,7 @@ export const alertLedgerItemSchema = {
         "contrarian_alert",
         "kill_switch",
         "freshness_decay",
+        "morning_exception_briefing",
         "weekly_digest",
         "market_pulse_ready"
       ]

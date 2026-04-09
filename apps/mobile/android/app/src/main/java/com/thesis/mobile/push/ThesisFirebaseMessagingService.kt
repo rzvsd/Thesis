@@ -39,7 +39,9 @@ class ThesisFirebaseMessagingService : FirebaseMessagingService() {
                 notificationType == "earnings_preview" ||
                 notificationType == "kill_switch" -> "research"
             notificationType == "freshness_decay" -> "names"
-            notificationType == "weekly_digest" || notificationType == "market_pulse_ready" -> "today"
+            notificationType == "weekly_digest" ||
+                notificationType == "market_pulse_ready" ||
+                notificationType == "morning_exception_briefing" -> "today"
             else -> "today"
         }
 

@@ -208,9 +208,22 @@ data class AlertLedgerItemView(
     val reportId: String? = null,
     val pulseDate: String? = null,
     val digestDate: String? = null,
+    val briefingContext: BriefingContextView? = null,
     val relatedTickers: List<String> = emptyList(),
     val createdAt: String,
     val updatedAt: String
+)
+
+data class BriefingContextView(
+    val mode: String? = null,
+    val count: Int? = null,
+    val watchlistCount: Int? = null,
+    val leadRoute: String? = null,
+    val leadTicker: String? = null,
+    val leadReportId: String? = null,
+    val leadPulseDate: String? = null,
+    val leadDigestDate: String? = null,
+    val relatedTickers: List<String> = emptyList()
 )
 
 data class ReportHistoryItem(

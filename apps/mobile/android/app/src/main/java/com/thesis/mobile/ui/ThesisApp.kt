@@ -251,25 +251,48 @@ fun ThesisApp(
             uiState.reportHistory.isNotEmpty() -> ResearchMode.HISTORY
             else -> ResearchMode.DEEP_DIVE
         }
+        val morningBriefing = uiState.alertLedger.firstOrNull {
+            it.notificationType == "morning_exception_briefing"
+        }
         val openAlertTarget: (AlertLedgerItemView) -> Unit = { alert ->
-            when (alert.route) {
+            val briefingContext = if (alert.notificationType == "morning_exception_briefing") {
+                alert.briefingContext
+            } else {
+                null
+            }
+            val targetRoute = briefingContext?.leadRoute
+                ?.trim()
+                ?.lowercase()
+                ?.ifBlank { null }
+                ?: alert.route
+            val targetTicker = briefingContext?.leadTicker?.ifBlank { null } ?: alert.ticker
+            val targetReportId = briefingContext?.leadReportId?.ifBlank { null } ?: alert.reportId
+            val targetPulseDate = briefingContext?.leadPulseDate?.ifBlank { null } ?: alert.pulseDate
+            val targetDigestDate = briefingContext?.leadDigestDate?.ifBlank { null } ?: alert.digestDate
+            val targetRelatedTickers = if (
+                briefingContext != null && briefingContext.relatedTickers.isNotEmpty()
+            ) {
+                briefingContext.relatedTickers
+            } else {
+                alert.relatedTickers
+            }
+            val normalizedTicker = targetTicker?.trim()?.uppercase()?.ifBlank { null }
+
+            when (targetRoute) {
                 "today" -> {
-                    if (!alert.digestDate.isNullOrBlank()) {
+                    if (!targetDigestDate.isNullOrBlank()) {
                         todayMode = TodayMode.WEEKLY_DIGEST
-                        weeklyDigestDate = alert.digestDate
+                        weeklyDigestDate = targetDigestDate
                         mainViewModel.openWeeklyDigest(fromPush = false)
                     } else {
                         todayMode = TodayMode.HOME
-                        mainViewModel.openPulseFromNotification(alert.pulseDate)
+                        mainViewModel.openPulseFromNotification(targetPulseDate)
                     }
                     mainViewModel.setTab(AppTab.TODAY)
                 }
                 "names" -> {
-                    namesFocusedTicker = alert.ticker
-                        ?.trim()
-                        ?.uppercase()
-                        ?.ifBlank { null }
-                        ?: alert.relatedTickers.firstOrNull()
+                    namesFocusedTicker = normalizedTicker
+                        ?: targetRelatedTickers.firstOrNull()
                             ?.trim()
                             ?.uppercase()
                             ?.ifBlank { null }
@@ -278,10 +301,10 @@ fun ThesisApp(
                 "research" -> {
                     namesFocusedTicker = null
                     researchMode = ResearchMode.DEEP_DIVE
-                    if (!alert.reportId.isNullOrBlank()) {
-                        mainViewModel.openHistoryReport(alert.reportId)
-                    } else if (!alert.ticker.isNullOrBlank()) {
-                        mainViewModel.selectTicker(alert.ticker)
+                    if (!targetReportId.isNullOrBlank()) {
+                        mainViewModel.openHistoryReport(targetReportId)
+                    } else if (!normalizedTicker.isNullOrBlank()) {
+                        mainViewModel.selectTicker(normalizedTicker)
                         mainViewModel.runDeepDive()
                     }
                     mainViewModel.setTab(AppTab.RESEARCH)
@@ -358,6 +381,7 @@ fun ThesisApp(
                             sentimentError = uiState.sentimentError,
                             watchlist = uiState.watchlist,
                             monitorSnapshots = uiState.monitorSnapshots,
+                            morningBriefing = morningBriefing,
                             padding = padding,
                             lastViewedReport = uiState.lastViewedReport,
                             pulseError = uiState.pulseError,
@@ -384,6 +408,7 @@ fun ThesisApp(
                                 weeklyDigestDate = uiState.sentimentCurrent?.marketDate
                                 mainViewModel.openWeeklyDigest(fromPush = false)
                             },
+                            onOpenMorningBriefing = openAlertTarget,
                             onResumeLastViewed = {
                                 if (it.type == "DEEP_DIVE") {
                                     researchMode = ResearchMode.DEEP_DIVE

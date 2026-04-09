@@ -41,6 +41,9 @@ object Phase4Copy {
     const val inboxQuiet24hLabel = "Quiet 24h"
     const val inboxTurnOffTypeLabel = "Turn Off Type"
     const val inboxQuietedBadge = "Quieted 24h"
+    const val morningBriefingEyebrow = "Morning Exception Briefing"
+    const val morningBriefingNoChangeAction = "Open Today"
+    const val morningBriefingExceptionAction = "Review Exception"
     const val youHeadline = "You"
     const val youSubtitle = "Controls, trust posture, and subscription details in one place."
     const val notificationGlobalOffNote = "Global notifications are off. This preference will apply when they are re-enabled."
@@ -54,6 +57,7 @@ object Phase4Copy {
             "contrarian_alert" -> "Thesis Drift"
             "kill_switch" -> "Kill-Switch"
             "freshness_decay" -> "Freshness Decay"
+            "morning_exception_briefing" -> "Morning Briefing"
             "weekly_digest" -> "Weekly Digest"
             "market_pulse_ready" -> "Market Pulse"
             else -> type

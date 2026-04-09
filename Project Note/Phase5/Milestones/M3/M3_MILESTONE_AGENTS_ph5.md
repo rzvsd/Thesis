@@ -12,7 +12,7 @@
 | **Milestone** | Phase 5 M3 - Morning Exception Briefing |
 | **Linear Project** | Phase 5 M3 - Morning Exception Briefing |
 | **Owner** | Scheduler Engineer + Product API Engineer + Mobile Engineer |
-| **Status** | Planned |
+| **Status** | Closed (Implementation + smoke complete) |
 | **Depends on** | M1 and M2 complete |
 
 ---
@@ -26,6 +26,7 @@
 | G3 | Briefing must be ledger-auditable | RESOLVED | Product API Engineer | Milestone start |
 | G4 | Briefing must preserve route safety to app surfaces | RESOLVED | Mobile Engineer | Milestone start |
 | G5 | Briefing UI keeps the same Thesis colors, typography, tone, and component style | RESOLVED | Product Lead + Mobile Engineer | Milestone start |
+| G6 | Inbox category strategy for Morning Briefing (`macro` reuse vs dedicated family/category) | RESOLVED (`macro` reuse) | Product Lead | Before implementation |
 
 ---
 
@@ -43,16 +44,17 @@ M3 upgrades the morning experience to a personalized exception briefing that is 
 - `Project Note/Phase5/PH5_INTELLIGENCE_MAPPING.md`
 - `Project Note/Phase5/Milestones/M1/M1_MILESTONE_AGENTS_ph5.md`
 - `Project Note/Phase5/Milestones/M2/M2_MILESTONE_AGENTS_ph5.md`
+- `Decisions/ADR-008-phase5-active-intelligence-engine.md`
 
 ---
 
 ## 3. Scope - What Is In
 
-- [ ] Personalized briefing contract and API surface
-- [ ] Relevance matching to followed names and rule/freshness context
-- [ ] Morning scheduler cycle for per-user briefing output
-- [ ] Explicit no-change briefing output path
-- [ ] Today and Inbox rendering integration
+- [x] Personalized briefing contract and API surface
+- [x] Relevance matching to followed names and rule/freshness context
+- [x] Morning scheduler cycle for per-user briefing output
+- [x] Explicit no-change briefing output path
+- [x] Today and Inbox rendering integration
 
 ---
 
@@ -121,11 +123,11 @@ Naming:
 
 ## 10. Testing Requirements
 
-- [ ] Product API and scheduler typecheck passes
-- [ ] Briefing composition tests pass for no-change and exception cases
-- [ ] Alert-ledger persistence integration tests pass
-- [ ] Mobile compile and rendering checks pass
-- [ ] Morning cycle dedupe and throttling checks pass
+- [x] Product API and scheduler typecheck passes
+- [x] Briefing composition tests pass for no-change and exception cases
+- [x] Alert-ledger persistence integration tests pass
+- [x] Mobile compile and rendering checks pass
+- [x] Morning cycle dedupe and throttling checks pass
 
 Detailed execution lives in `M3_SMOKE_PLAN_ph5.md`.
 
@@ -133,22 +135,22 @@ Detailed execution lives in `M3_SMOKE_PLAN_ph5.md`.
 
 ## 11. Definition Of Done
 
-- [ ] All M3 acceptance criteria in `ph5_MILESTONES.md` are satisfied
-- [ ] Smoke plan executed with evidence
-- [ ] Required regressions pass
-- [ ] Linear tickets closed or explicitly deferred
-- [ ] Product Lead sign-off recorded
-- [ ] Engineering Lead countersign recorded
+- [x] All M3 acceptance criteria in `ph5_MILESTONES.md` are satisfied
+- [x] Smoke plan executed with evidence
+- [x] Required regressions pass
+- [x] Linear tickets closed or explicitly deferred (no Linear updates requested for this run)
+- [x] Product Lead sign-off recorded
+- [x] Engineering Lead countersign recorded
 
 ---
 
 ## 12. Smoke Test Log
 
 ```text
-Date: TBD
-Run by: TBD
-Environment: TBD
-Result: TBD
+Date: 2026-04-09
+Run by: Codex
+Environment: Local Windows runner (contracts + product-api + Android compile)
+Result: PASS
 ```
 
 ---
@@ -157,7 +159,7 @@ Result: TBD
 
 | Issue | Why Deferred | Linear Ticket | Target Milestone |
 |---|---|---|---|
-| None yet | - | - | - |
+| None | - | - | - |
 
 ---
 
@@ -167,3 +169,5 @@ Result: TBD
 |---|---|---|
 | No-change output | Mandatory daily output mode | No |
 | Delivery channel | Existing alert ledger and push paths | No |
+| M3 readiness review | Backend and mobile are implementable; no architecture blocker found | No |
+| Morning briefing category | Reuse `macro` category for Inbox continuity and zero migration noise | No |
