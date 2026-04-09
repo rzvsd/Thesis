@@ -10,6 +10,13 @@ import type {
   CanonicalFinancialSnapshot,
   CanonicalTranscript,
   ContrarianSignalValue,
+  EarningsWarRoomCadenceMinute,
+  EarningsWarRoomCadenceState,
+  EarningsWarRoomCycleStatus,
+  EarningsWarRoomPhase,
+  EarningsWarRoomSourceRef,
+  EarningsWarRoomState,
+  EarningsWarRoomTimelineEventType,
   KillSwitchEvaluationOutcome,
   KillSwitchEvaluationSignalSource,
   KillSwitchRuleSource,
@@ -30,6 +37,8 @@ import type {
   AlertLedgerRecord,
   CalendarEventRecord,
   ContrarianAlertAnchorRecord,
+  EarningsWarRoomRecord,
+  EarningsWarRoomTimelineEventRecord,
   KillSwitchEvaluationRecord,
   KillSwitchRuleRecord,
   JobRecord,
@@ -276,6 +285,31 @@ export interface ProductStore {
     userId: string;
     mutedAt: string;
   }): Promise<AlertLedgerRecord | undefined>;
+  createWarRoom(input: EarningsWarRoomRecord): Promise<EarningsWarRoomRecord>;
+  updateWarRoom(input: EarningsWarRoomRecord): Promise<EarningsWarRoomRecord | undefined>;
+  getWarRoom(input: { id: string; userId: string }): Promise<EarningsWarRoomRecord | undefined>;
+  findWarRoomByEvent(input: {
+    userId: string;
+    ticker: string;
+    earningsEventId: string;
+  }): Promise<EarningsWarRoomRecord | undefined>;
+  listWarRoomsByUser(input: {
+    userId: string;
+    ticker?: string;
+    limit: number;
+    includeClosed?: boolean;
+  }): Promise<EarningsWarRoomRecord[]>;
+  createWarRoomTimelineEvent(
+    input: EarningsWarRoomTimelineEventRecord
+  ): Promise<EarningsWarRoomTimelineEventRecord>;
+  getWarRoomTimelineEvent(input: {
+    id: string;
+    warRoomId: string;
+  }): Promise<EarningsWarRoomTimelineEventRecord | undefined>;
+  listWarRoomTimelineEvents(input: {
+    warRoomId: string;
+    limit: number;
+  }): Promise<EarningsWarRoomTimelineEventRecord[]>;
   upsertThesisMonitorSnapshot(input: ThesisMonitorSnapshotRecord): Promise<ThesisMonitorSnapshotRecord>;
   listThesisMonitorSnapshotsByUser(userId: string): Promise<ThesisMonitorSnapshotRecord[]>;
   listUsersWithDeviceTokenByNotificationType(input: {
@@ -468,6 +502,111 @@ function asStringArray(value: unknown): string[] {
     return [];
   }
   return value.filter((item): item is string => typeof item === "string");
+}
+
+function asWarRoomSourceRefs(value: unknown): EarningsWarRoomSourceRef[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const refs: EarningsWarRoomSourceRef[] = [];
+  for (const entry of value) {
+    const record = asRecord(entry);
+    if (!record?.kind || !record.ref_id) {
+      continue;
+    }
+    const ref: EarningsWarRoomSourceRef = {
+      kind: String(record.kind),
+      ref_id: String(record.ref_id)
+    };
+    const label = record.label ? String(record.label) : undefined;
+    if (label) {
+      ref.label = label;
+    }
+    const url = record.url ? String(record.url) : undefined;
+    if (url) {
+      ref.url = url;
+    }
+    const capturedAt = asIsoString(record.captured_at);
+    if (capturedAt) {
+      ref.captured_at = capturedAt;
+    }
+    refs.push(ref);
+  }
+  return refs;
+}
+
+function cloneWarRoomSourceRefs(
+  refs: EarningsWarRoomSourceRef[]
+): EarningsWarRoomSourceRef[] {
+  return refs.map((ref) => ({ ...ref }));
+}
+
+function normalizeWarRoomCadenceState(
+  value: unknown,
+  currentCadenceMin: EarningsWarRoomCadenceMinute,
+  fallbackUpdatedAt: string
+): EarningsWarRoomCadenceState {
+  const record = asRecord(value) ?? {};
+  const latestLag =
+    record.latest_source_freshness_lag_min == null
+      ? undefined
+      : Number(record.latest_source_freshness_lag_min);
+  const latestRuntime =
+    record.latest_runtime_min == null ? undefined : Number(record.latest_runtime_min);
+  const current =
+    Number(record.current_cadence_min) === 30 ? 30 : currentCadenceMin;
+  const defaultCadence =
+    Number(record.default_cadence_min) === 30
+      ? 30
+      : Number(record.default_cadence_min) === 15
+        ? 15
+        : 15;
+  const fallbackCadence =
+    Number(record.fallback_cadence_min) === 15
+      ? 15
+      : Number(record.fallback_cadence_min) === 30
+        ? 30
+        : 30;
+  const latestCycleStatus =
+    record.latest_cycle_status === "success" ||
+    record.latest_cycle_status === "timeout" ||
+    record.latest_cycle_status === "failure"
+      ? (record.latest_cycle_status as EarningsWarRoomCycleStatus)
+      : undefined;
+
+  return {
+    current_cadence_min: current,
+    default_cadence_min: defaultCadence,
+    fallback_cadence_min: fallbackCadence,
+    consecutive_failures: Math.max(0, Number(record.consecutive_failures ?? 0)),
+    consecutive_lag_breaches: Math.max(
+      0,
+      Number(record.consecutive_lag_breaches ?? 0)
+    ),
+    consecutive_runtime_breaches: Math.max(
+      0,
+      Number(record.consecutive_runtime_breaches ?? 0)
+    ),
+    consecutive_healthy_cycles: Math.max(
+      0,
+      Number(record.consecutive_healthy_cycles ?? 0)
+    ),
+    latest_cycle_status: latestCycleStatus,
+    latest_source_freshness_lag_min: Number.isFinite(latestLag) ? latestLag : undefined,
+    latest_runtime_min: Number.isFinite(latestRuntime) ? latestRuntime : undefined,
+    degraded_reason: record.degraded_reason
+      ? String(record.degraded_reason)
+      : undefined,
+    next_cycle_at: asIsoString(record.next_cycle_at),
+    updated_at: asIsoString(record.updated_at) ?? fallbackUpdatedAt
+  };
+}
+
+function cloneWarRoomCadenceState(
+  state: EarningsWarRoomCadenceState
+): EarningsWarRoomCadenceState {
+  return { ...state };
 }
 
 function mapHistoricalFinancialSnapshot(row: Record<string, unknown>): CanonicalFinancialSnapshot {
@@ -732,6 +871,52 @@ function mapAlertLedgerRecord(row: Record<string, unknown>): AlertLedgerRecord {
   };
 }
 
+function mapEarningsWarRoomRecord(row: Record<string, unknown>): EarningsWarRoomRecord {
+  const updatedAt = asIsoString(row.updated_at) ?? new Date().toISOString();
+  const currentCadenceMin =
+    Number(row.current_cadence_min) === 30 ? 30 : 15;
+
+  return {
+    id: String(row.id),
+    userId: String(row.user_id),
+    ticker: String(row.ticker),
+    earningsEventId: String(row.earnings_event_id),
+    eventDate:
+      (typeof row.event_date === "string" && row.event_date.trim().length > 0
+        ? row.event_date.trim()
+        : undefined) ??
+      (asIsoString(row.prepared_at)?.slice(0, 10) ?? new Date().toISOString().slice(0, 10)),
+    state: String(row.state) as EarningsWarRoomState,
+    currentCadenceMin,
+    cadenceState: normalizeWarRoomCadenceState(
+      row.cadence_state,
+      currentCadenceMin,
+      updatedAt
+    ),
+    preparedAt: asIsoString(row.prepared_at) ?? updatedAt,
+    closedAt: asIsoString(row.closed_at),
+    createdAt: asIsoString(row.created_at) ?? updatedAt,
+    updatedAt
+  };
+}
+
+function mapEarningsWarRoomTimelineEventRecord(
+  row: Record<string, unknown>
+): EarningsWarRoomTimelineEventRecord {
+  return {
+    id: String(row.id),
+    warRoomId: String(row.war_room_id),
+    phase: String(row.phase) as EarningsWarRoomPhase,
+    eventType: String(row.event_type) as EarningsWarRoomTimelineEventType,
+    reasonText: String(row.reason_text ?? ""),
+    sourceRefs: cloneWarRoomSourceRefs(asWarRoomSourceRefs(row.source_refs)),
+    alertLedgerId: row.alert_ledger_id ? String(row.alert_ledger_id) : undefined,
+    reportId: row.report_id ? String(row.report_id) : undefined,
+    metadata: asRecord(row.metadata) ?? {},
+    createdAt: asIsoString(row.created_at) ?? new Date().toISOString()
+  };
+}
+
 export class InMemoryStore implements ProductStore {
   private readonly users = new Map<string, UserRecord>();
   private readonly userDevicesByUser = new Map<string, Map<string, UserDeviceRecord>>();
@@ -758,6 +943,11 @@ export class InMemoryStore implements ProductStore {
   private readonly userFeedbackQueue = new Map<string, UserFeedbackQueueRecord>();
   private readonly thesisMonitorSnapshots = new Map<string, ThesisMonitorSnapshotRecord>();
   private readonly alertLedgerByUser = new Map<string, Map<string, AlertLedgerRecord>>();
+  private readonly warRoomsByUser = new Map<string, Map<string, EarningsWarRoomRecord>>();
+  private readonly warRoomTimelineByRoom = new Map<
+    string,
+    Map<string, EarningsWarRoomTimelineEventRecord>
+  >();
   private readonly notificationPreferencesByUser = new Map<
     string,
     Map<NotificationType, NotificationPreferenceRecord>
@@ -2048,6 +2238,150 @@ export class InMemoryStore implements ProductStore {
       ...next,
       context: { ...next.context }
     };
+  }
+
+  async createWarRoom(input: EarningsWarRoomRecord): Promise<EarningsWarRoomRecord> {
+    let warRooms = this.warRoomsByUser.get(input.userId);
+    if (!warRooms) {
+      warRooms = new Map<string, EarningsWarRoomRecord>();
+      this.warRoomsByUser.set(input.userId, warRooms);
+    }
+
+    const next: EarningsWarRoomRecord = {
+      ...input,
+      ticker: input.ticker.trim().toUpperCase(),
+      eventDate: input.eventDate.trim(),
+      cadenceState: cloneWarRoomCadenceState(input.cadenceState)
+    };
+    warRooms.set(next.id, next);
+    return {
+      ...next,
+      cadenceState: cloneWarRoomCadenceState(next.cadenceState)
+    };
+  }
+
+  async updateWarRoom(
+    input: EarningsWarRoomRecord
+  ): Promise<EarningsWarRoomRecord | undefined> {
+    const warRooms = this.warRoomsByUser.get(input.userId);
+    if (!warRooms?.has(input.id)) {
+      return undefined;
+    }
+
+    const next: EarningsWarRoomRecord = {
+      ...input,
+      ticker: input.ticker.trim().toUpperCase(),
+      eventDate: input.eventDate.trim(),
+      cadenceState: cloneWarRoomCadenceState(input.cadenceState)
+    };
+    warRooms.set(next.id, next);
+    return {
+      ...next,
+      cadenceState: cloneWarRoomCadenceState(next.cadenceState)
+    };
+  }
+
+  async getWarRoom(input: {
+    id: string;
+    userId: string;
+  }): Promise<EarningsWarRoomRecord | undefined> {
+    const warRoom = this.warRoomsByUser.get(input.userId)?.get(input.id);
+    return warRoom
+      ? {
+          ...warRoom,
+          cadenceState: cloneWarRoomCadenceState(warRoom.cadenceState)
+        }
+      : undefined;
+  }
+
+  async findWarRoomByEvent(input: {
+    userId: string;
+    ticker: string;
+    earningsEventId: string;
+  }): Promise<EarningsWarRoomRecord | undefined> {
+    const ticker = input.ticker.trim().toUpperCase();
+    const warRoom = [...(this.warRoomsByUser.get(input.userId)?.values() ?? [])].find(
+      (candidate) =>
+        candidate.ticker === ticker && candidate.earningsEventId === input.earningsEventId
+    );
+    return warRoom
+      ? {
+          ...warRoom,
+          cadenceState: cloneWarRoomCadenceState(warRoom.cadenceState)
+        }
+      : undefined;
+  }
+
+  async listWarRoomsByUser(input: {
+    userId: string;
+    ticker?: string;
+    limit: number;
+    includeClosed?: boolean;
+  }): Promise<EarningsWarRoomRecord[]> {
+    const ticker =
+      typeof input.ticker === "string" && input.ticker.trim().length > 0
+        ? input.ticker.trim().toUpperCase()
+        : undefined;
+
+    return [...(this.warRoomsByUser.get(input.userId)?.values() ?? [])]
+      .filter((warRoom) => !ticker || warRoom.ticker === ticker)
+      .filter((warRoom) => input.includeClosed || warRoom.state !== "closed")
+      .sort((left, right) => right.preparedAt.localeCompare(left.preparedAt))
+      .slice(0, Math.max(1, input.limit))
+      .map((warRoom) => ({
+        ...warRoom,
+        cadenceState: cloneWarRoomCadenceState(warRoom.cadenceState)
+      }));
+  }
+
+  async createWarRoomTimelineEvent(
+    input: EarningsWarRoomTimelineEventRecord
+  ): Promise<EarningsWarRoomTimelineEventRecord> {
+    let events = this.warRoomTimelineByRoom.get(input.warRoomId);
+    if (!events) {
+      events = new Map<string, EarningsWarRoomTimelineEventRecord>();
+      this.warRoomTimelineByRoom.set(input.warRoomId, events);
+    }
+
+    const next: EarningsWarRoomTimelineEventRecord = {
+      ...input,
+      sourceRefs: cloneWarRoomSourceRefs(input.sourceRefs),
+      metadata: { ...input.metadata }
+    };
+    events.set(next.id, next);
+    return {
+      ...next,
+      sourceRefs: cloneWarRoomSourceRefs(next.sourceRefs),
+      metadata: { ...next.metadata }
+    };
+  }
+
+  async getWarRoomTimelineEvent(input: {
+    id: string;
+    warRoomId: string;
+  }): Promise<EarningsWarRoomTimelineEventRecord | undefined> {
+    const event = this.warRoomTimelineByRoom.get(input.warRoomId)?.get(input.id);
+    return event
+      ? {
+          ...event,
+          sourceRefs: cloneWarRoomSourceRefs(event.sourceRefs),
+          metadata: { ...event.metadata }
+        }
+      : undefined;
+  }
+
+  async listWarRoomTimelineEvents(input: {
+    warRoomId: string;
+    limit: number;
+  }): Promise<EarningsWarRoomTimelineEventRecord[]> {
+    return [...(this.warRoomTimelineByRoom.get(input.warRoomId)?.values() ?? [])]
+      .sort((left, right) => left.createdAt.localeCompare(right.createdAt))
+      .slice(-Math.max(1, input.limit))
+      .map((event) => ({
+        ...event,
+        sourceRefs: cloneWarRoomSourceRefs(event.sourceRefs),
+        metadata: { ...event.metadata }
+      }));
   }
 
   async upsertThesisMonitorSnapshot(
@@ -3970,6 +4304,230 @@ export class PostgresStore implements ProductStore {
     );
     const row = result.rows[0];
     return row ? mapAlertLedgerRecord(row as Record<string, unknown>) : undefined;
+  }
+
+  async createWarRoom(input: EarningsWarRoomRecord): Promise<EarningsWarRoomRecord> {
+    const result = await this.pool.query(
+      `insert into war_rooms (
+         id,
+         user_id,
+         ticker,
+         earnings_event_id,
+         event_date,
+         state,
+         current_cadence_min,
+         cadence_state,
+         prepared_at,
+         closed_at,
+         created_at,
+         updated_at
+       )
+       values (
+         $1,
+         $2,
+         $3,
+         $4,
+         $5::date,
+         $6,
+         $7,
+         $8::jsonb,
+         $9::timestamptz,
+         $10::timestamptz,
+         $11::timestamptz,
+         $12::timestamptz
+       )
+       returning *`,
+      [
+        input.id,
+        input.userId,
+        input.ticker.trim().toUpperCase(),
+        input.earningsEventId,
+        input.eventDate.trim(),
+        input.state,
+        input.currentCadenceMin,
+        JSON.stringify(input.cadenceState),
+        input.preparedAt,
+        input.closedAt ?? null,
+        input.createdAt,
+        input.updatedAt
+      ]
+    );
+    return mapEarningsWarRoomRecord(result.rows[0] as Record<string, unknown>);
+  }
+
+  async updateWarRoom(
+    input: EarningsWarRoomRecord
+  ): Promise<EarningsWarRoomRecord | undefined> {
+    const result = await this.pool.query(
+      `update war_rooms
+          set ticker = $3,
+              earnings_event_id = $4,
+              event_date = $5::date,
+              state = $6,
+              current_cadence_min = $7,
+              cadence_state = $8::jsonb,
+              prepared_at = $9::timestamptz,
+              closed_at = $10::timestamptz,
+              updated_at = $11::timestamptz
+        where id = $1
+          and user_id = $2
+        returning *`,
+      [
+        input.id,
+        input.userId,
+        input.ticker.trim().toUpperCase(),
+        input.earningsEventId,
+        input.eventDate.trim(),
+        input.state,
+        input.currentCadenceMin,
+        JSON.stringify(input.cadenceState),
+        input.preparedAt,
+        input.closedAt ?? null,
+        input.updatedAt
+      ]
+    );
+    const row = result.rows[0];
+    return row ? mapEarningsWarRoomRecord(row as Record<string, unknown>) : undefined;
+  }
+
+  async getWarRoom(input: {
+    id: string;
+    userId: string;
+  }): Promise<EarningsWarRoomRecord | undefined> {
+    const result = await this.pool.query(
+      `select *
+         from war_rooms
+        where id = $1
+          and user_id = $2
+        limit 1`,
+      [input.id, input.userId]
+    );
+    const row = result.rows[0];
+    return row ? mapEarningsWarRoomRecord(row as Record<string, unknown>) : undefined;
+  }
+
+  async findWarRoomByEvent(input: {
+    userId: string;
+    ticker: string;
+    earningsEventId: string;
+  }): Promise<EarningsWarRoomRecord | undefined> {
+    const result = await this.pool.query(
+      `select *
+         from war_rooms
+        where user_id = $1
+          and ticker = $2
+          and earnings_event_id = $3
+        limit 1`,
+      [input.userId, input.ticker.trim().toUpperCase(), input.earningsEventId]
+    );
+    const row = result.rows[0];
+    return row ? mapEarningsWarRoomRecord(row as Record<string, unknown>) : undefined;
+  }
+
+  async listWarRoomsByUser(input: {
+    userId: string;
+    ticker?: string;
+    limit: number;
+    includeClosed?: boolean;
+  }): Promise<EarningsWarRoomRecord[]> {
+    const result = await this.pool.query(
+      `select *
+         from war_rooms
+        where user_id = $1
+          and ($2::text is null or ticker = $2::text)
+          and ($3::boolean = true or state <> 'closed')
+        order by prepared_at desc
+        limit $4`,
+      [
+        input.userId,
+        input.ticker?.trim().toUpperCase() ?? null,
+        input.includeClosed ?? false,
+        Math.max(1, input.limit)
+      ]
+    );
+    return result.rows.map((row) => mapEarningsWarRoomRecord(row as Record<string, unknown>));
+  }
+
+  async createWarRoomTimelineEvent(
+    input: EarningsWarRoomTimelineEventRecord
+  ): Promise<EarningsWarRoomTimelineEventRecord> {
+    const result = await this.pool.query(
+      `insert into war_room_timeline_events (
+         id,
+         war_room_id,
+         phase,
+         event_type,
+         reason_text,
+         source_refs,
+         alert_ledger_id,
+         report_id,
+         metadata,
+         created_at
+       )
+       values (
+         $1,
+         $2,
+         $3,
+         $4,
+         $5,
+         $6::jsonb,
+         $7,
+         $8,
+         $9::jsonb,
+         $10::timestamptz
+       )
+       returning *`,
+      [
+        input.id,
+        input.warRoomId,
+        input.phase,
+        input.eventType,
+        input.reasonText,
+        JSON.stringify(input.sourceRefs),
+        input.alertLedgerId ?? null,
+        input.reportId ?? null,
+        JSON.stringify(input.metadata ?? {}),
+        input.createdAt
+      ]
+    );
+    return mapEarningsWarRoomTimelineEventRecord(
+      result.rows[0] as Record<string, unknown>
+    );
+  }
+
+  async getWarRoomTimelineEvent(input: {
+    id: string;
+    warRoomId: string;
+  }): Promise<EarningsWarRoomTimelineEventRecord | undefined> {
+    const result = await this.pool.query(
+      `select *
+         from war_room_timeline_events
+        where id = $1
+          and war_room_id = $2
+        limit 1`,
+      [input.id, input.warRoomId]
+    );
+    const row = result.rows[0];
+    return row
+      ? mapEarningsWarRoomTimelineEventRecord(row as Record<string, unknown>)
+      : undefined;
+  }
+
+  async listWarRoomTimelineEvents(input: {
+    warRoomId: string;
+    limit: number;
+  }): Promise<EarningsWarRoomTimelineEventRecord[]> {
+    const result = await this.pool.query(
+      `select *
+         from war_room_timeline_events
+        where war_room_id = $1
+        order by created_at desc
+        limit $2`,
+      [input.warRoomId, Math.max(1, input.limit)]
+    );
+    return result.rows
+      .map((row) => mapEarningsWarRoomTimelineEventRecord(row as Record<string, unknown>))
+      .reverse();
   }
 
   async upsertThesisMonitorSnapshot(

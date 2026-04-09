@@ -81,6 +81,7 @@ import com.thesis.mobile.model.PulseReportView
 import com.thesis.mobile.model.ReportHistoryItem
 import com.thesis.mobile.model.SectionView
 import com.thesis.mobile.model.UserProfileView
+import com.thesis.mobile.model.WarRoomView
 import com.thesis.mobile.ui.copy.Phase4Copy
 import com.thesis.mobile.ui.screens.DeepDiveScreen
 import com.thesis.mobile.ui.screens.HistoryScreen
@@ -89,6 +90,7 @@ import com.thesis.mobile.ui.screens.InboxScreen
 import com.thesis.mobile.ui.screens.NamesScreen
 import com.thesis.mobile.ui.screens.OnboardingScreen
 import com.thesis.mobile.ui.screens.SentimentDashboardScreen
+import com.thesis.mobile.ui.screens.WarRoomScreen
 import com.thesis.mobile.ui.screens.WelcomeScreen
 import com.thesis.mobile.ui.screens.WeeklyDigestScreen
 import com.thesis.mobile.ui.theme.HeadingFont
@@ -110,6 +112,7 @@ private enum class TodayMode {
 
 private enum class ResearchMode {
     DEEP_DIVE,
+    WAR_ROOM,
     HISTORY
 }
 
@@ -158,7 +161,8 @@ fun ThesisApp(
                     targetTab = "today",
                     notificationType = target.notificationType,
                     ticker = target.ticker,
-                    alertId = target.alertId
+                    alertId = target.alertId,
+                    warRoomId = target.warRoomId
                 )
             }
             "names" -> {
@@ -168,24 +172,35 @@ fun ThesisApp(
                     targetTab = "names",
                     notificationType = target.notificationType,
                     ticker = target.ticker,
-                    alertId = target.alertId
+                    alertId = target.alertId,
+                    warRoomId = target.warRoomId
                 )
             }
             "research" -> {
                 namesFocusedTicker = null
+                val warRoomId = target.warRoomId?.trim().orEmpty()
                 val ticker = target.ticker?.trim().orEmpty()
-                if (!target.reportId.isNullOrBlank()) {
+                researchMode = when {
+                    warRoomId.isNotBlank() || target.notificationType == "earnings_war_room" -> ResearchMode.WAR_ROOM
+                    else -> ResearchMode.DEEP_DIVE
+                }
+                mainViewModel.setTab(AppTab.RESEARCH)
+                if (warRoomId.isNotBlank()) {
+                    mainViewModel.openWarRoom(warRoomId)
+                } else if (!target.reportId.isNullOrBlank()) {
                     mainViewModel.openHistoryReport(target.reportId)
                 } else if (ticker.isNotBlank()) {
                     mainViewModel.selectTicker(ticker)
+                    if (researchMode != ResearchMode.WAR_ROOM) {
+                        mainViewModel.runDeepDive()
+                    }
                 }
-                researchMode = ResearchMode.DEEP_DIVE
-                mainViewModel.setTab(AppTab.RESEARCH)
                 mainViewModel.trackPushDeepLinkLanded(
                     targetTab = "research",
                     notificationType = target.notificationType,
                     ticker = target.ticker,
-                    alertId = target.alertId
+                    alertId = target.alertId,
+                    warRoomId = target.warRoomId
                 )
             }
             "inbox" -> {
@@ -195,7 +210,8 @@ fun ThesisApp(
                     targetTab = "inbox",
                     notificationType = target.notificationType,
                     ticker = target.ticker,
-                    alertId = target.alertId
+                    alertId = target.alertId,
+                    warRoomId = target.warRoomId
                 )
             }
             "you" -> {
@@ -205,7 +221,8 @@ fun ThesisApp(
                     targetTab = "you",
                     notificationType = target.notificationType,
                     ticker = target.ticker,
-                    alertId = target.alertId
+                    alertId = target.alertId,
+                    warRoomId = target.warRoomId
                 )
             }
         }
@@ -246,6 +263,7 @@ fun ThesisApp(
             listOf(TabItem.Today, TabItem.Names, TabItem.Research, TabItem.Inbox, TabItem.You)
         }
         val preferredResearchRoot = when {
+            uiState.warRoom != null -> ResearchMode.WAR_ROOM
             uiState.deepDiveReport != null -> ResearchMode.DEEP_DIVE
             !uiState.selectedTicker.isNullOrBlank() -> ResearchMode.DEEP_DIVE
             uiState.reportHistory.isNotEmpty() -> ResearchMode.HISTORY
@@ -448,6 +466,8 @@ fun ThesisApp(
                         padding = padding,
                         reportHistory = uiState.reportHistory,
                         deepDiveReport = uiState.deepDiveReport,
+                        warRoom = uiState.warRoom,
+                        warRoomError = uiState.warRoomError,
                         isLoading = uiState.isLoading,
                         deepDiveError = uiState.deepDiveError,
                         userTier = uiState.userProfile?.tier,
@@ -467,6 +487,7 @@ fun ThesisApp(
                         onSubmitReportFeedback = mainViewModel::submitReportFeedback,
                         onNotify = mainViewModel::notifyUser,
                         onOpenHistoryReport = mainViewModel::openHistoryReport,
+                        onRefreshWarRoom = mainViewModel::refreshWarRoom,
                         onOpenPulseHistory = { date ->
                             mainViewModel.loadPulseByDate(
                                 date = date,
@@ -577,6 +598,8 @@ private fun ResearchTab(
     padding: PaddingValues,
     reportHistory: List<ReportHistoryItem>,
     deepDiveReport: DeepDiveReportView?,
+    warRoom: WarRoomView?,
+    warRoomError: String?,
     isLoading: Boolean,
     deepDiveError: String?,
     userTier: String?,
@@ -596,6 +619,7 @@ private fun ResearchTab(
     onSubmitReportFeedback: (String, String) -> Unit,
     onNotify: (String) -> Unit,
     onOpenHistoryReport: (String) -> Unit,
+    onRefreshWarRoom: () -> Unit,
     onOpenPulseHistory: (String) -> Unit
 ) {
     Column(
@@ -617,6 +641,11 @@ private fun ResearchTab(
                 label = "Deep Dive",
                 isSelected = mode == ResearchMode.DEEP_DIVE,
                 onClick = { onSetMode(ResearchMode.DEEP_DIVE) }
+            )
+            SegmentButton(
+                label = Phase4Copy.researchWarRoomLabel,
+                isSelected = mode == ResearchMode.WAR_ROOM,
+                onClick = { onSetMode(ResearchMode.WAR_ROOM) }
             )
             SegmentButton(
                 label = "History",
@@ -658,6 +687,13 @@ private fun ResearchTab(
                         }
                     )
                 },
+                padding = PaddingValues()
+            )
+
+            ResearchMode.WAR_ROOM -> WarRoomScreen(
+                warRoom = warRoom,
+                errorMessage = warRoomError,
+                onRefresh = onRefreshWarRoom,
                 padding = PaddingValues()
             )
 

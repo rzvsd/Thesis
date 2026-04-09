@@ -31,6 +31,7 @@ interface SchedulerConfig {
   contrarianEvalMinute: number;
   weeklyDigestHour: number;
   weeklyDigestMinute: number;
+  warRoomDispatchRoute?: string;
   testMode: boolean;
   testFireInSeconds: number;
 }
@@ -125,6 +126,7 @@ function loadConfig(env: NodeJS.ProcessEnv = process.env): SchedulerConfig {
   const weeklyDigestSchedule = parseScheduleClock(
     env.SCHEDULER_WEEKLY_DIGEST_TIME_LOCAL ?? "18:00"
   );
+  const warRoomDispatchRoute = env.SCHEDULER_WAR_ROOM_DISPATCH_ROUTE?.trim() || undefined;
   const testMode =
     (env.SCHEDULER_TEST_MODE ?? "").trim().toLowerCase() === "true" ||
     (env.SCHEDULER_TEST_FIRE_IN_SECONDS ?? "").trim().length > 0;
@@ -152,6 +154,7 @@ function loadConfig(env: NodeJS.ProcessEnv = process.env): SchedulerConfig {
     contrarianEvalMinute: contrarianEvalSchedule.minute,
     weeklyDigestHour: weeklyDigestSchedule.hour,
     weeklyDigestMinute: weeklyDigestSchedule.minute,
+    warRoomDispatchRoute,
     testMode,
     testFireInSeconds: Number.isFinite(testFireInSeconds) && testFireInSeconds > 0
       ? testFireInSeconds
@@ -170,24 +173,17 @@ async function dispatchPulseJob(
   config: SchedulerConfig,
   cycleWindow: { cycleStart: string; cycleEnd: string }
 ): Promise<void> {
-  const response = await fetch(`${config.productApiInternalBaseUrl}/internal/pulse/dispatch`, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      "x-internal-token": config.internalWorkerToken
-    },
-    body: JSON.stringify({
+  const payload = await dispatchProductApiJobWithFallback(
+    config,
+    config.warRoomDispatchRoute
+      ? [config.warRoomDispatchRoute, "/internal/pulse/dispatch"]
+      : ["/internal/pulse/dispatch"],
+    {
       cycle_start: cycleWindow.cycleStart,
       cycle_end: cycleWindow.cycleEnd
-    })
-  });
-
-  const payload = (await response.json()) as Record<string, unknown>;
-  if (!response.ok) {
-    throw new Error(
-      `Pulse dispatch failed with status ${response.status}: ${JSON.stringify(payload)}`
-    );
-  }
+    },
+    "Pulse dispatch"
+  );
 
   log("INFO", "Pulse dispatch accepted", {
     cycle_start: cycleWindow.cycleStart,
@@ -279,6 +275,43 @@ async function dispatchProductApiJob(
   return payload;
 }
 
+async function dispatchProductApiJobWithFallback(
+  config: SchedulerConfig,
+  routes: string[],
+  body: Record<string, unknown>,
+  label: string
+): Promise<Record<string, unknown>> {
+  let lastError: Error | undefined;
+
+  for (let index = 0; index < routes.length; index += 1) {
+    const route = routes[index];
+    const response = await fetch(`${config.productApiInternalBaseUrl}${route}`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-internal-token": config.internalWorkerToken
+      },
+      body: JSON.stringify(body)
+    });
+
+    const payload = (await response.json()) as Record<string, unknown>;
+    if (response.ok) {
+      return payload;
+    }
+
+    if (response.status === 404 && index < routes.length - 1) {
+      continue;
+    }
+
+    lastError = new Error(
+      `${label} dispatch failed with status ${response.status}: ${JSON.stringify(payload)}`
+    );
+    break;
+  }
+
+  throw lastError ?? new Error(`${label} dispatch failed: no routes were available.`);
+}
+
 async function dispatchCalendarSync(config: SchedulerConfig): Promise<void> {
   const payload = await dispatchProductApiJob(config, "/internal/calendar/sync", {}, "Calendar sync");
   log("INFO", "Calendar sync accepted", {
@@ -290,6 +323,25 @@ async function dispatchCalendarSync(config: SchedulerConfig): Promise<void> {
 }
 
 async function dispatchEarningsPreview(config: SchedulerConfig): Promise<void> {
+  const warRoomPayload = await dispatchProductApiJob(
+    config,
+    "/internal/notifications/earnings-war-room",
+    {
+      phase: "auto"
+    },
+    "Earnings War Room"
+  );
+  log("INFO", "Earnings War Room accepted", {
+    as_of: warRoomPayload.as_of,
+    phase: warRoomPayload.phase,
+    prepared: warRoomPayload.prepared,
+    live_updated: warRoomPayload.live_updated,
+    post_closed: warRoomPayload.post_closed,
+    attempted: warRoomPayload.attempted,
+    delivered: warRoomPayload.delivered,
+    failed: warRoomPayload.failed
+  });
+
   const killSwitchPayload = await dispatchProductApiJob(
     config,
     "/internal/notifications/kill-switch/evaluate",
@@ -338,13 +390,18 @@ async function dispatchEarningsPreview(config: SchedulerConfig): Promise<void> {
   const payload = await dispatchProductApiJob(
     config,
     "/internal/notifications/earnings-preview",
-    {},
+    {
+      user_ids: Array.isArray(warRoomPayload.fallback_user_ids)
+        ? warRoomPayload.fallback_user_ids
+        : []
+    },
     "Earnings preview"
   );
   log("INFO", "Earnings preview accepted", {
     attempted: payload.attempted,
     delivered: payload.delivered,
-    failed: payload.failed
+    failed: payload.failed,
+    fallback_user_count: payload.fallback_user_count
   });
 }
 

@@ -19,7 +19,9 @@ import com.thesis.mobile.model.SentimentSubScoreView
 import com.thesis.mobile.model.ThesisMonitorSnapshotView
 import com.thesis.mobile.model.TickerSearchItem
 import com.thesis.mobile.model.UserProfileView
+import com.thesis.mobile.model.WarRoomView
 import com.thesis.mobile.model.ReportViewMapper
+import com.thesis.mobile.model.WarRoomViewMapper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
@@ -190,6 +192,21 @@ class ProductApiClient {
         )
         mapAlertLedgerItem(json.optJSONObject("data"))
             ?: throw ProductApiException(500, "Alert mute response was missing expected fields.")
+    }
+
+    suspend fun getWarRoom(
+        baseUrl: String,
+        accessToken: String,
+        warRoomId: String
+    ): WarRoomView = withContext(Dispatchers.IO) {
+        val json = requestJson(
+            baseUrl,
+            "GET",
+            "/v1/research/war-room/${urlEncode(warRoomId)}",
+            accessToken = accessToken
+        )
+        WarRoomViewMapper.mapWarRoomView(json)
+            ?: throw ProductApiException(500, "War Room response was missing expected fields.")
     }
 
     suspend fun searchTickers(baseUrl: String, accessToken: String, query: String): List<TickerSearchItem> =

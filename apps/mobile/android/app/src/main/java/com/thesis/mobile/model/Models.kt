@@ -153,6 +153,29 @@ data class PulseReportView(
     val sections: List<SectionView>
 )
 
+data class WarRoomPhaseView(
+    val phase: String,
+    val title: String,
+    val summary: String,
+    val highlights: List<String> = emptyList(),
+    val status: String? = null,
+    val ticker: String? = null,
+    val route: String? = null,
+    val reportId: String? = null,
+    val updatedAt: String? = null
+)
+
+data class WarRoomView(
+    val warRoomId: String,
+    val title: String? = null,
+    val ticker: String? = null,
+    val status: String? = null,
+    val generatedAt: String? = null,
+    val summary: String? = null,
+    val phases: List<WarRoomPhaseView> = emptyList(),
+    val relatedTickers: List<String> = emptyList()
+)
+
 data class SentimentSubScoreView(
     val inputName: String,
     val provider: String,
