@@ -32,6 +32,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.thesis.mobile.model.AlertLedgerItemView
@@ -51,6 +52,7 @@ fun NamesScreen(
     watchlist: List<String>,
     monitorSnapshots: List<ThesisMonitorSnapshotView>,
     alerts: List<AlertLedgerItemView>,
+    focusTicker: String? = null,
     onRefresh: () -> Unit,
     onAddTicker: (String) -> Unit,
     onRemoveTicker: (String) -> Unit,
@@ -59,23 +61,45 @@ fun NamesScreen(
 ) {
     var tickerInput by rememberSaveable { mutableStateOf("") }
     var selectedSegment by rememberSaveable { mutableStateOf(Phase4Copy.namesSegments.first()) }
-    val rows = remember(watchlist, monitorSnapshots, alerts) {
-        watchlist.map { ticker ->
+    val normalizedFocusTicker = remember(focusTicker) {
+        focusTicker?.trim()?.uppercase()?.ifBlank { null }
+    }
+    val rows = remember(watchlist, monitorSnapshots, alerts, normalizedFocusTicker) {
+        val mapped = watchlist.map { ticker ->
             val snapshot = monitorSnapshots.firstOrNull { it.ticker.equals(ticker, ignoreCase = true) }
             val tickerAlerts = alerts.filter { alert ->
                 alert.ticker.equals(ticker, ignoreCase = true) ||
                     alert.relatedTickers.any { related -> related.equals(ticker, ignoreCase = true) }
             }
+            val hasBaseline = !snapshot?.lastDeepDiveAt.isNullOrBlank() || !snapshot?.reportGeneratedAt.isNullOrBlank()
+            val freshnessState = snapshot?.freshnessState?.trim()?.ifBlank { null }
+                ?: if (hasBaseline) "aging" else "missing"
             NamesRowModel(
                 ticker = ticker,
                 state = snapshot?.state ?: "watching",
-                reason = snapshot?.reason ?: "No thesis drift recorded yet.",
-                freshness = snapshot?.reportGeneratedAt ?: snapshot?.updatedAt,
+                reason = snapshot?.reason ?: Phase4Copy.namesNoDriftReason,
+                freshness = snapshot?.lastDeepDiveAt ?: snapshot?.reportGeneratedAt ?: snapshot?.updatedAt,
+                freshnessState = freshnessState,
+                freshnessScore = snapshot?.freshnessScore ?: 0.0,
+                materialEventsCount = snapshot?.materialEventsCount ?: 0,
+                unreviewedEventsCount = snapshot?.unreviewedEventsCount ?: 0,
+                freshnessReason = snapshot?.freshnessReason
+                    ?: if (freshnessState == "missing") Phase4Copy.namesNoBaselineReason else null,
                 catalystSoon = tickerAlerts.any { it.category == "earnings" && it.mutedAt == null },
                 atRisk = snapshot?.state.equals("weakened", ignoreCase = true) ||
+                    freshnessState.equals("stale", ignoreCase = true) ||
+                    freshnessState.equals("triggered", ignoreCase = true) ||
                     tickerAlerts.any { it.category == "thesis_drift" && it.mutedAt == null },
-                unresolved = snapshot?.state.equals("unresolved", ignoreCase = true)
+                unresolved = snapshot?.state.equals("unresolved", ignoreCase = true),
+                isFocused = normalizedFocusTicker != null &&
+                    ticker.equals(normalizedFocusTicker, ignoreCase = true)
             )
+        }
+        val focused = mapped.firstOrNull { it.isFocused }
+        if (focused == null) {
+            mapped
+        } else {
+            listOf(focused) + mapped.filterNot { it.isFocused }
         }
     }
     val filteredRows = remember(rows, selectedSegment) {
@@ -133,13 +157,22 @@ fun NamesScreen(
                 onSelect = { selectedSegment = it }
             )
         }
+        if (!normalizedFocusTicker.isNullOrBlank() && rows.any { it.isFocused }) {
+            item {
+                Text(
+                    text = "${Phase4Copy.namesFocusedFromAlertPrefix} $normalizedFocusTicker",
+                    style = ThesisTypography.labelMedium,
+                    color = ThesisColors.Primary
+                )
+            }
+        }
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)) {
                 OutlinedTextField(
                     value = tickerInput,
                     onValueChange = { tickerInput = it.uppercase() },
                     modifier = Modifier.weight(1f),
-                    label = { Text("Ticker") },
+                    label = { Text(Phase4Copy.namesTickerLabel) },
                     singleLine = true,
                     shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
                     colors = fieldColors
@@ -158,7 +191,7 @@ fun NamesScreen(
                         contentColor = ThesisColors.TextInverse
                     )
                 ) {
-                    Text("Add")
+                    Text(Phase4Copy.namesAddLabel)
                 }
             }
         }
@@ -168,22 +201,22 @@ fun NamesScreen(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(ThesisDimens.CardCornerRadius)
             ) {
-                Text("Refresh board", color = ThesisColors.TextMuted)
+                Text(Phase4Copy.namesRefreshLabel, color = ThesisColors.TextMuted)
             }
         }
 
         if (watchlist.isEmpty()) {
             item {
                 EmptyBoardCard(
-                    title = "No names yet",
-                    body = "Add a ticker to start tracking thesis strength, catalysts, and unresolved drift."
+                    title = Phase4Copy.namesNoNamesTitle,
+                    body = Phase4Copy.namesNoNamesBody
                 )
             }
         } else if (filteredRows.isEmpty()) {
             item {
                 EmptyBoardCard(
-                    title = "Nothing in this segment",
-                    body = "Your current names do not match this priority filter."
+                    title = Phase4Copy.namesEmptySegmentTitle,
+                    body = Phase4Copy.namesEmptySegmentBody
                 )
             }
         } else {
@@ -239,9 +272,13 @@ private fun NamesRowCard(
             }
             Column(horizontalAlignment = Alignment.End) {
                 StatusChip(label = row.state.replaceFirstChar { it.uppercase() }, state = row.state)
+                if (row.isFocused) {
+                    Spacer(modifier = Modifier.height(ThesisDimens.SpacingXs))
+                    SecondaryChip(label = Phase4Copy.namesFocusedBadge)
+                }
                 if (row.catalystSoon) {
                     Spacer(modifier = Modifier.height(ThesisDimens.SpacingXs))
-                    SecondaryChip(label = "Catalyst soon")
+                    SecondaryChip(label = Phase4Copy.namesCatalystSoonLabel)
                 }
             }
         }
@@ -251,16 +288,22 @@ private fun NamesRowCard(
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Text(
-                text = "TRUST FRESHNESS",
+                text = Phase4Copy.namesTrustFreshnessLabel,
                 style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Medium),
                 color = ThesisColors.TextMuted
             )
             Text(
-                text = row.freshness?.let(::formatFreshness) ?: "No recent thesis",
+                text = formatFreshnessState(row.freshnessState),
                 style = ThesisTypography.bodySmall,
-                color = ThesisColors.TextSecondary
+                color = freshnessStateColor(row.freshnessState)
             )
         }
+
+        Text(
+            text = buildFreshnessDetailV2(row),
+            style = ThesisTypography.bodySmall,
+            color = ThesisColors.TextSecondary
+        )
 
         HorizontalDivider(color = ThesisColors.Border)
 
@@ -274,21 +317,21 @@ private fun NamesRowCard(
                     contentColor = ThesisColors.TextInverse
                 )
             ) {
-                Text("Deep Dive")
+                Text(Phase4Copy.namesDeepDiveLabel)
             }
             OutlinedButton(
                 onClick = onOpenResearch,
                 modifier = Modifier.weight(1f),
                 shape = RoundedCornerShape(ThesisDimens.CardCornerRadius)
             ) {
-                Text("Add Note", color = ThesisColors.TextMuted)
+                Text(Phase4Copy.namesAddNoteLabel, color = ThesisColors.TextMuted)
             }
             OutlinedButton(
                 onClick = onRemoveTicker,
                 modifier = Modifier.weight(1f),
                 shape = RoundedCornerShape(ThesisDimens.CardCornerRadius)
             ) {
-                Text("Remove", color = ThesisColors.SignalNegative)
+                Text(Phase4Copy.namesRemoveLabel, color = ThesisColors.SignalNegative)
             }
         }
     }
@@ -392,9 +435,15 @@ private data class NamesRowModel(
     val state: String,
     val reason: String,
     val freshness: String?,
+    val freshnessState: String,
+    val freshnessScore: Double,
+    val materialEventsCount: Int,
+    val unreviewedEventsCount: Int,
+    val freshnessReason: String?,
     val catalystSoon: Boolean,
     val atRisk: Boolean,
-    val unresolved: Boolean
+    val unresolved: Boolean,
+    val isFocused: Boolean
 )
 
 private fun formatFreshness(raw: String): String = runCatching {
@@ -402,3 +451,56 @@ private fun formatFreshness(raw: String): String = runCatching {
         .atZone(ZoneId.of("America/New_York"))
         .format(DateTimeFormatter.ofPattern("MMM d, HH:mm z"))
 }.getOrElse { raw }
+
+private fun formatFreshnessState(state: String): String =
+    when (state.trim().lowercase()) {
+        "missing" -> Phase4Copy.namesNoBaselineState
+        else -> state.trim().lowercase().replaceFirstChar { it.uppercase() }
+    }
+
+private fun freshnessStateColor(state: String): Color =
+    when (state.trim().lowercase()) {
+        "current" -> ThesisColors.SignalPositive
+        "aging" -> ThesisColors.SignalWarning
+        "stale", "triggered" -> ThesisColors.SignalNegative
+        "missing" -> ThesisColors.TextSecondary
+        else -> ThesisColors.TextSecondary
+    }
+
+private fun buildFreshnessDetailV2(row: NamesRowModel): String {
+    if (row.freshnessState.trim().equals("missing", ignoreCase = true)) {
+        return row.freshnessReason?.trim().takeUnless { it.isNullOrBlank() }
+            ?: Phase4Copy.namesNoBaselineDetail
+    }
+    val scorePct = (row.freshnessScore.coerceIn(0.0, 1.0) * 100).toInt()
+    val baseline = row.freshness?.let(::formatFreshness) ?: Phase4Copy.namesNoBaselineState
+    val eventText = when {
+        row.unreviewedEventsCount > 0 ->
+            "${row.unreviewedEventsCount} unreviewed of ${row.materialEventsCount} material events"
+        row.materialEventsCount > 0 ->
+            "${row.materialEventsCount} material events reviewed"
+        else -> "No material events pending"
+    }
+    val reason = row.freshnessReason?.trim().orEmpty()
+    val headline = "$baseline | Score ${scorePct}% | $eventText"
+    return if (reason.isBlank()) headline else "$headline | $reason"
+}
+
+private fun buildFreshnessDetail(row: NamesRowModel): String {
+    if (row.freshnessState.trim().equals("missing", ignoreCase = true)) {
+        return row.freshnessReason?.trim().takeUnless { it.isNullOrBlank() }
+            ?: Phase4Copy.namesNoBaselineDetail
+    }
+    val scorePct = (row.freshnessScore.coerceIn(0.0, 1.0) * 100).toInt()
+    val baseline = row.freshness?.let(::formatFreshness) ?: Phase4Copy.namesNoBaselineState
+    val eventText = when {
+        row.unreviewedEventsCount > 0 ->
+            "${row.unreviewedEventsCount} unreviewed of ${row.materialEventsCount} material events"
+        row.materialEventsCount > 0 ->
+            "${row.materialEventsCount} material events reviewed"
+        else -> "No material events pending"
+    }
+    val reason = row.freshnessReason?.trim().orEmpty()
+    val headline = "$baseline • Score ${scorePct}% • $eventText"
+    return if (reason.isBlank()) headline else "$headline • $reason"
+}

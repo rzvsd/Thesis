@@ -5,6 +5,7 @@ import type { AddressInfo } from "node:net";
 import { URL } from "node:url";
 import test from "node:test";
 
+import { notificationTypes } from "../../../packages/contracts/src";
 import { startServer } from "../src/server";
 
 type JsonObject = Record<string, unknown>;
@@ -401,7 +402,7 @@ test("Phase 4 M2 alert ledger persists notification history and supports list/fi
     });
     assert.equal(preferences.status, 200);
     const preferenceRows = ((preferences.payload.data as JsonObject)?.preferences ?? []) as Array<JsonObject>;
-    assert.equal(preferenceRows.length, 5);
+    assert.equal(preferenceRows.length, notificationTypes.length);
     const earningsPreference = preferenceRows.find((row) => row.type === "earnings_preview");
     assert.equal(earningsPreference?.enabled, true);
     assert.equal(typeof earningsPreference?.quiet_until, "string");

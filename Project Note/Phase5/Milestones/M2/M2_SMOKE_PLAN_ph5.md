@@ -2,7 +2,7 @@
 
 **Milestone:** M2 - Thesis Freshness and Decay  
 **Owner:** Product API Engineer + Scheduler Engineer + Mobile Engineer  
-**Status:** Planned
+**Status:** Closed (PASS)
 
 ---
 
@@ -33,7 +33,7 @@ Prove that thesis freshness is computed deterministically, surfaced clearly, and
 
 1. Seed fresh thesis baseline and verify `current` state.
 2. Add fixture events and age timeline to trigger `aging` and `stale`.
-3. Trigger rule proximity to reach `triggered` state.
+3. Trigger matched kill-switch evaluation to reach `triggered` state.
 4. Confirm freshness-decay alert rows with reason text.
 5. Confirm Names board state markers match backend state.
 6. Confirm no regression in existing monitor snapshot paths.
@@ -54,10 +54,9 @@ Prove that thesis freshness is computed deterministically, surfaced clearly, and
 
 | Step | Result | Evidence Path | Notes |
 |---|---|---|---|
-| 1 | PENDING | TBD | - |
-| 2 | PENDING | TBD | - |
-| 3 | PENDING | TBD | - |
-| 4 | PENDING | TBD | - |
-| 5 | PENDING | TBD | - |
-| 6 | PENDING | TBD | - |
-
+| 1 | PASS | `Project Note/Phase5/Milestones/M2/evidence/2026-04-09_m2_smoke.md` | `ph5-m2-freshness.test.ts` validates `current` baseline |
+| 2 | PASS | `Project Note/Phase5/Milestones/M2/evidence/2026-04-09_m2_smoke.md` | Transition path `current -> aging -> stale` verified |
+| 3 | PASS | `Project Note/Phase5/Milestones/M2/evidence/2026-04-09_m2_smoke.md` | Kill-switch match + recompute yields `triggered` |
+| 4 | PASS | `Project Note/Phase5/Milestones/M2/evidence/2026-04-09_m2_smoke.md` | Alert-ledger freshness rows include reason and names route |
+| 5 | PASS | `Project Note/Phase5/Milestones/M2/evidence/2026-04-09_m2_smoke.md` | Android compile + Names rendering checks passed |
+| 6 | PASS | `Project Note/Phase5/Milestones/M2/evidence/2026-04-09_m2_smoke.md` | Full `@thesis/product-api` regression suite passed |

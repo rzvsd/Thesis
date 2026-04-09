@@ -129,6 +129,7 @@ fun ThesisApp(
     var todayMode by rememberSaveable { mutableStateOf(TodayMode.HOME) }
     var weeklyDigestDate by rememberSaveable { mutableStateOf<String?>(null) }
     var researchMode by rememberSaveable { mutableStateOf(ResearchMode.DEEP_DIVE) }
+    var namesFocusedTicker by rememberSaveable { mutableStateOf<String?>(null) }
 
     DisposableEffect(mainViewModel) {
         mainViewModel.observe { state -> uiState = state }
@@ -143,6 +144,7 @@ fun ThesisApp(
 
         when (target.tab) {
             "today" -> {
+                namesFocusedTicker = null
                 mainViewModel.openPulseFromNotification(target.pulseDate)
                 if (!target.digestDate.isNullOrBlank() || target.notificationType == "weekly_digest") {
                     todayMode = TodayMode.WEEKLY_DIGEST
@@ -161,6 +163,7 @@ fun ThesisApp(
             }
             "names" -> {
                 mainViewModel.setTab(AppTab.NAMES)
+                namesFocusedTicker = target.ticker?.trim()?.uppercase()?.ifBlank { null }
                 mainViewModel.trackPushDeepLinkLanded(
                     targetTab = "names",
                     notificationType = target.notificationType,
@@ -169,6 +172,7 @@ fun ThesisApp(
                 )
             }
             "research" -> {
+                namesFocusedTicker = null
                 val ticker = target.ticker?.trim().orEmpty()
                 if (!target.reportId.isNullOrBlank()) {
                     mainViewModel.openHistoryReport(target.reportId)
@@ -185,6 +189,7 @@ fun ThesisApp(
                 )
             }
             "inbox" -> {
+                namesFocusedTicker = null
                 mainViewModel.setTab(AppTab.INBOX)
                 mainViewModel.trackPushDeepLinkLanded(
                     targetTab = "inbox",
@@ -194,6 +199,7 @@ fun ThesisApp(
                 )
             }
             "you" -> {
+                namesFocusedTicker = null
                 mainViewModel.setTab(AppTab.YOU)
                 mainViewModel.trackPushDeepLinkLanded(
                     targetTab = "you",
@@ -259,9 +265,18 @@ fun ThesisApp(
                     mainViewModel.setTab(AppTab.TODAY)
                 }
                 "names" -> {
+                    namesFocusedTicker = alert.ticker
+                        ?.trim()
+                        ?.uppercase()
+                        ?.ifBlank { null }
+                        ?: alert.relatedTickers.firstOrNull()
+                            ?.trim()
+                            ?.uppercase()
+                            ?.ifBlank { null }
                     mainViewModel.setTab(AppTab.NAMES)
                 }
                 "research" -> {
+                    namesFocusedTicker = null
                     researchMode = ResearchMode.DEEP_DIVE
                     if (!alert.reportId.isNullOrBlank()) {
                         mainViewModel.openHistoryReport(alert.reportId)
@@ -272,9 +287,11 @@ fun ThesisApp(
                     mainViewModel.setTab(AppTab.RESEARCH)
                 }
                 "you" -> {
+                    namesFocusedTicker = null
                     mainViewModel.setTab(AppTab.YOU)
                 }
                 else -> {
+                    namesFocusedTicker = null
                     mainViewModel.setTab(AppTab.INBOX)
                 }
             }
@@ -291,6 +308,9 @@ fun ThesisApp(
                                 val isCurrentTab = uiState.currentTab == tab.target
                                 if (isCurrentTab && tab.target == AppTab.TODAY) {
                                     todayMode = TodayMode.HOME
+                                }
+                                if (tab.target == AppTab.NAMES) {
+                                    namesFocusedTicker = null
                                 }
                                 if (isCurrentTab && tab.target == AppTab.RESEARCH) {
                                     researchMode = preferredResearchRoot
@@ -435,6 +455,7 @@ fun ThesisApp(
                         watchlist = uiState.watchlist,
                         monitorSnapshots = uiState.monitorSnapshots,
                         alerts = uiState.alertLedger,
+                        focusTicker = namesFocusedTicker,
                         onRefresh = {
                             mainViewModel.refreshWatchlist()
                             mainViewModel.refreshMonitorSnapshots()

@@ -4,6 +4,7 @@ export const notificationTypes = [
   "earnings_preview",
   "contrarian_alert",
   "kill_switch",
+  "freshness_decay",
   "weekly_digest",
   "market_pulse_ready"
 ] as const;

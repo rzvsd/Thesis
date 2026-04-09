@@ -290,20 +290,6 @@ async function dispatchCalendarSync(config: SchedulerConfig): Promise<void> {
 }
 
 async function dispatchEarningsPreview(config: SchedulerConfig): Promise<void> {
-  const monitorPayload = await dispatchProductApiJob(
-    config,
-    "/internal/monitor/recompute",
-    {},
-    "Monitor recompute"
-  );
-  log("INFO", "Monitor recompute accepted", {
-    status: monitorPayload.status,
-    users: monitorPayload.users,
-    names: monitorPayload.names,
-    unresolved: monitorPayload.unresolved,
-    updated: monitorPayload.updated
-  });
-
   const killSwitchPayload = await dispatchProductApiJob(
     config,
     "/internal/notifications/kill-switch/evaluate",
@@ -319,6 +305,34 @@ async function dispatchEarningsPreview(config: SchedulerConfig): Promise<void> {
     attempted: killSwitchPayload.attempted,
     delivered: killSwitchPayload.delivered,
     failed: killSwitchPayload.failed
+  });
+
+  const monitorPayload = await dispatchProductApiJob(
+    config,
+    "/internal/monitor/recompute",
+    {},
+    "Monitor recompute"
+  );
+  log("INFO", "Monitor recompute accepted", {
+    status: monitorPayload.status,
+    users: monitorPayload.users,
+    names: monitorPayload.names,
+    unresolved: monitorPayload.unresolved,
+    updated: monitorPayload.updated
+  });
+
+  const freshnessPayload = await dispatchProductApiJob(
+    config,
+    "/internal/notifications/freshness-decay",
+    {},
+    "Freshness decay"
+  );
+  log("INFO", "Freshness decay accepted", {
+    evaluated: freshnessPayload.evaluated,
+    fired: freshnessPayload.fired,
+    attempted: freshnessPayload.attempted,
+    delivered: freshnessPayload.delivered,
+    failed: freshnessPayload.failed
   });
 
   const payload = await dispatchProductApiJob(

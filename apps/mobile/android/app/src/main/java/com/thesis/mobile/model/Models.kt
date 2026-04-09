@@ -182,6 +182,13 @@ data class ThesisMonitorSnapshotView(
     val reportId: String? = null,
     val reportGeneratedAt: String? = null,
     val reportSchemaVersion: String? = null,
+    val lastDeepDiveAt: String? = null,
+    val materialEventsCount: Int = 0,
+    val unreviewedEventsCount: Int = 0,
+    val freshnessState: String = "stale",
+    val freshnessScore: Double = 0.0,
+    val killSwitchTriggeredAt: String? = null,
+    val freshnessReason: String? = null,
     val updatedAt: String
 )
 

@@ -17,6 +17,7 @@ import com.thesis.mobile.observability.MobileTelemetry
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlin.math.abs
 
 class ThesisFirebaseMessagingService : FirebaseMessagingService() {
     private val ioScope = CoroutineScope(Dispatchers.IO)
@@ -34,7 +35,10 @@ class ThesisFirebaseMessagingService : FirebaseMessagingService() {
         val route = message.data["route"]?.trim()?.lowercase()
         val openTab = when {
             route in setOf("today", "names", "research", "inbox", "you") -> route
-            notificationType == "contrarian_alert" || notificationType == "earnings_preview" -> "research"
+            notificationType == "contrarian_alert" ||
+                notificationType == "earnings_preview" ||
+                notificationType == "kill_switch" -> "research"
+            notificationType == "freshness_decay" -> "names"
             notificationType == "weekly_digest" || notificationType == "market_pulse_ready" -> "today"
             else -> "today"
         }
@@ -48,6 +52,15 @@ class ThesisFirebaseMessagingService : FirebaseMessagingService() {
             message.data["body"]
                 ?: message.notification?.body
                 ?: getString(R.string.pulse_notification_body)
+        val notificationSeed = buildNotificationSeed(
+            notificationType = notificationType,
+            ticker = message.data["ticker"],
+            alertId = message.data["alert_id"],
+            reportDate = message.data["report_date"],
+            digestDate = message.data["digest_date"],
+            messageId = message.messageId,
+            sentTime = message.sentTime
+        )
         val launchIntent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
             putExtra("open_tab", openTab)
@@ -60,7 +73,7 @@ class ThesisFirebaseMessagingService : FirebaseMessagingService() {
         }
         val pendingIntent = PendingIntent.getActivity(
             this,
-            0,
+            interactionRequestCode(notificationSeed),
             launchIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
@@ -72,7 +85,7 @@ class ThesisFirebaseMessagingService : FirebaseMessagingService() {
         }
         val dismissPendingIntent = PendingIntent.getBroadcast(
             this,
-            dismissRequestCode(notificationType, message.data["ticker"]),
+            dismissRequestCode(notificationType, message.data["ticker"], message.data["alert_id"]),
             dismissIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
@@ -88,7 +101,7 @@ class ThesisFirebaseMessagingService : FirebaseMessagingService() {
             .build()
 
         val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        manager.notify(NOTIFICATION_ID, notification)
+        manager.notify(notificationId(notificationSeed), notification)
         ioScope.launch {
             runCatching {
                 MobileTelemetry().capture(
@@ -143,11 +156,45 @@ class ThesisFirebaseMessagingService : FirebaseMessagingService() {
 
     companion object {
         const val CHANNEL_ID = "morning_pulse"
-        private const val NOTIFICATION_ID = 7301
 
-        private fun dismissRequestCode(notificationType: String, ticker: String?): Int {
-            val seed = "${notificationType.trim().lowercase()}|${ticker.orEmpty().trim().uppercase()}"
-            return seed.hashCode()
+        private fun buildNotificationSeed(
+            notificationType: String,
+            ticker: String?,
+            alertId: String?,
+            reportDate: String?,
+            digestDate: String?,
+            messageId: String?,
+            sentTime: Long
+        ): String {
+            val normalizedType = notificationType.trim().lowercase()
+            val normalizedTicker = ticker.orEmpty().trim().uppercase()
+            val normalizedAlertId = alertId.orEmpty().trim()
+            val normalizedReportDate = reportDate.orEmpty().trim()
+            val normalizedDigestDate = digestDate.orEmpty().trim()
+            val normalizedMessageId = messageId.orEmpty().trim()
+            return listOf(
+                normalizedType,
+                normalizedTicker,
+                normalizedAlertId,
+                normalizedReportDate,
+                normalizedDigestDate,
+                normalizedMessageId,
+                sentTime.toString()
+            ).joinToString("|")
+        }
+
+        private fun safeHash(seed: String): Int {
+            val hash = seed.hashCode()
+            return if (hash == Int.MIN_VALUE) 0 else abs(hash)
+        }
+
+        private fun notificationId(seed: String): Int = safeHash(seed)
+
+        private fun interactionRequestCode(seed: String): Int = safeHash("open|$seed")
+
+        private fun dismissRequestCode(notificationType: String, ticker: String?, alertId: String?): Int {
+            val seed = "${notificationType.trim().lowercase()}|${ticker.orEmpty().trim().uppercase()}|${alertId.orEmpty().trim()}"
+            return safeHash("dismiss|$seed")
         }
     }
 }
