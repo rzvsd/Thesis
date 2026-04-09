@@ -52,6 +52,8 @@ test("MSFT fixture request produces a schema-valid report with no blank sections
   assert.ok((report.trust_metadata?.evidence_count ?? 0) > 0);
   assert.equal(report.trust_metadata?.thesis_drift.status, "available");
   assert.ok((report.trust_metadata?.quote_provenance.length ?? 0) > 0);
+  assert.ok((report.kill_switch_conditions?.length ?? 0) >= 3);
+  assert.ok((report.kill_switch_conditions?.length ?? 0) <= 5);
   assert.match(
     findSection(report.sections, "executive_summary").body,
     /This is a research summary, not financial advice\. Always do your own research\./
@@ -146,6 +148,7 @@ test("fixture mode loads prompts from the local manifest", async () => {
   assert.equal(prompts.planner.version, "m2-planner-fixture-v1");
   assert.equal(prompts.sectionExecutor.version, "m2-section-fixture-v1");
   assert.equal(prompts.synthesizer.version, "m2-synthesizer-fixture-v1");
+  assert.equal(prompts.killSwitchExtractor.version, "m5-kill-switch-fixture-v1");
 });
 
 test("live mode validation requires model, Anthropic, and LangSmith settings", () => {

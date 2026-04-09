@@ -7,6 +7,7 @@ import type {
   CanonicalTranscript,
   ConfidenceBlock,
   EvidenceItem,
+  KillSwitchConditionDraft,
   ReportSection,
   SignalValue,
   TrustMetadata,
@@ -795,6 +796,377 @@ function buildTrustMetadata(input: {
   };
 }
 
+interface KillSwitchExtractionResult {
+  conditions: KillSwitchConditionDraft[];
+  tokenCount: number;
+  source: "prompt" | "fallback";
+}
+
+function normalizeKillSwitchSignalType(
+  value: string | undefined
+): KillSwitchConditionDraft["signal_type"] {
+  const normalized = value?.trim().toLowerCase();
+  switch (normalized) {
+    case "price_move_pct":
+    case "price_move":
+      return "price_move_pct";
+    case "thesis_state":
+    case "thesis_drift":
+      return "thesis_state";
+    case "earnings_event":
+    case "earnings":
+      return "earnings_event";
+    case "sec_filing":
+    case "filing":
+      return "sec_filing";
+    case "guidance_revision":
+    case "guidance":
+      return "guidance_revision";
+    case "management_change":
+      return "management_change";
+    case "macro_regime":
+    case "macro":
+      return "macro_regime";
+    case "analyst_rerating":
+    case "analyst":
+      return "analyst_rerating";
+    case "news_sentiment":
+    case "sentiment":
+      return "news_sentiment";
+    default:
+      return "custom";
+  }
+}
+
+function normalizeKillSwitchDirection(
+  value: string | undefined
+): KillSwitchConditionDraft["direction"] | undefined {
+  const normalized = value?.trim().toLowerCase();
+  if (
+    normalized === "against_signal" ||
+    normalized === "above" ||
+    normalized === "below" ||
+    normalized === "any"
+  ) {
+    return normalized;
+  }
+  return undefined;
+}
+
+function normalizeKillSwitchThresholdUnit(
+  value: string | undefined
+): KillSwitchConditionDraft["threshold_unit"] | undefined {
+  const normalized = value?.trim().toLowerCase();
+  if (
+    normalized === "pct" ||
+    normalized === "count" ||
+    normalized === "score" ||
+    normalized === "days"
+  ) {
+    return normalized;
+  }
+  return undefined;
+}
+
+function parseJsonArrayCandidate(text: string): unknown[] | undefined {
+  const trimmed = text.trim();
+  if (trimmed.length === 0) {
+    return undefined;
+  }
+
+  try {
+    const parsed = JSON.parse(trimmed) as unknown;
+    if (Array.isArray(parsed)) {
+      return parsed;
+    }
+  } catch {
+    // fall through to bracket extraction fallback
+  }
+
+  const start = trimmed.indexOf("[");
+  const end = trimmed.lastIndexOf("]");
+  if (start < 0 || end <= start) {
+    return undefined;
+  }
+
+  try {
+    const parsed = JSON.parse(trimmed.slice(start, end + 1)) as unknown;
+    return Array.isArray(parsed) ? parsed : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function parsePromptKillSwitchConditions(input: {
+  answer: string;
+  promptVersion: string;
+}): KillSwitchConditionDraft[] {
+  const parsed = parseJsonArrayCandidate(input.answer);
+  if (!parsed) {
+    return [];
+  }
+
+  const conditions: KillSwitchConditionDraft[] = [];
+  for (const [index, entry] of parsed.entries()) {
+    if (typeof entry !== "object" || entry === null || Array.isArray(entry)) {
+      continue;
+    }
+    const candidate = entry as Record<string, unknown>;
+    const conditionText = typeof candidate.condition_text === "string"
+      ? candidate.condition_text.trim()
+      : "";
+    const rationale = typeof candidate.rationale === "string"
+      ? candidate.rationale.trim()
+      : "";
+    if (conditionText.length === 0 || rationale.length === 0) {
+      continue;
+    }
+
+    const signalType = normalizeKillSwitchSignalType(
+      typeof candidate.signal_type === "string" ? candidate.signal_type : undefined
+    );
+    const direction = normalizeKillSwitchDirection(
+      typeof candidate.direction === "string" ? candidate.direction : undefined
+    );
+    const thresholdUnit = normalizeKillSwitchThresholdUnit(
+      typeof candidate.threshold_unit === "string" ? candidate.threshold_unit : undefined
+    );
+    const thresholdValue =
+      typeof candidate.threshold_value === "number" && Number.isFinite(candidate.threshold_value)
+        ? candidate.threshold_value
+        : undefined;
+    const rawId = typeof candidate.condition_id === "string"
+      ? candidate.condition_id.trim()
+      : "";
+    const conditionId = rawId.length > 0 ? rawId : `ks_${index + 1}`;
+
+    conditions.push({
+      condition_id: conditionId,
+      condition_text: conditionText,
+      signal_type: signalType,
+      rationale,
+      ...(thresholdValue !== undefined ? { threshold_value: thresholdValue } : {}),
+      ...(thresholdUnit ? { threshold_unit: thresholdUnit } : {}),
+      ...(direction ? { direction } : {}),
+      prompt_version: input.promptVersion
+    });
+  }
+
+  return conditions.slice(0, 5);
+}
+
+function buildFallbackKillSwitchConditions(input: {
+  signal: NonNullable<AnalysisReport["signal"]>;
+  confidence: ConfidenceBlock;
+  promptVersion: string;
+}): KillSwitchConditionDraft[] {
+  const signal = input.signal.value;
+  const directionalText =
+    signal === "positive"
+      ? "against your positive thesis"
+      : signal === "negative"
+        ? "against your negative thesis"
+        : "against your active thesis signal";
+
+  return [
+    {
+      condition_id: "ks_price_against_signal",
+      condition_text: "Price moves 5% against the thesis anchor.",
+      signal_type: "price_move_pct",
+      rationale: `Detects immediate market divergence ${directionalText}.`,
+      threshold_value: 5,
+      threshold_unit: "pct",
+      direction: "against_signal",
+      prompt_version: input.promptVersion
+    },
+    {
+      condition_id: "ks_thesis_state_degrades",
+      condition_text: "Thesis monitor state becomes weakened or unresolved.",
+      signal_type: "thesis_state",
+      rationale:
+        "Captures structural thesis degradation from monitor recompute, not only price volatility.",
+      direction: "any",
+      prompt_version: input.promptVersion
+    },
+    {
+      condition_id: "ks_earnings_negative_surprise",
+      condition_text: "Earnings event introduces a material surprise versus thesis assumptions.",
+      signal_type: "earnings_event",
+      rationale:
+        "Prioritizes quarterly events that can quickly invalidate assumptions.",
+      direction: "any",
+      prompt_version: input.promptVersion
+    },
+    {
+      condition_id: "ks_sec_material_filing",
+      condition_text: "A material SEC filing introduces contradiction to the thesis.",
+      signal_type: "sec_filing",
+      rationale:
+        "Tracks hard-signal regulatory filings that change risk posture.",
+      direction: "any",
+      prompt_version: input.promptVersion
+    },
+    {
+      condition_id: "ks_guidance_revision",
+      condition_text: "Management guidance is revised in a direction that weakens conviction.",
+      signal_type: "guidance_revision",
+      rationale: `Protects conviction when confidence (${input.confidence.score.toFixed(2)}) no longer matches updated guidance.`,
+      direction: "any",
+      prompt_version: input.promptVersion
+    }
+  ];
+}
+
+async function extractKillSwitchConditions(input: {
+  request: AnalysisRequest;
+  config: DexterConfig;
+  prompts: LoadedPrompts;
+  signal: NonNullable<AnalysisReport["signal"]>;
+  confidence: ConfidenceBlock;
+  thesisStatement?: string;
+  rootTrace?: LangSmithRun;
+  model: string;
+}): Promise<KillSwitchExtractionResult> {
+  const fallback = buildFallbackKillSwitchConditions({
+    signal: input.signal,
+    confidence: input.confidence,
+    promptVersion: input.prompts.killSwitchExtractor.version
+  });
+  if (input.config.fixtureMode) {
+    return {
+      conditions: fallback,
+      tokenCount: 0,
+      source: "fallback"
+    };
+  }
+
+  const query = renderPrompt(input.prompts.killSwitchExtractor, {
+    ticker: input.request.ticker ?? "",
+    signal_value: input.signal.value,
+    confidence_label: input.confidence.label,
+    confidence_score: input.confidence.score.toFixed(2),
+    thesis_statement: input.thesisStatement ?? "Thesis statement unavailable."
+  });
+
+  const trace = input.rootTrace?.createChild({
+    name: "dexter.kill_switch_extractor",
+    run_type: "chain",
+    inputs: {
+      job_id: input.request.job_id,
+      ticker: input.request.ticker ?? "",
+      prompt_version: input.prompts.killSwitchExtractor.version
+    },
+    metadata: {
+      service: "dexter-worker",
+      job_id: input.request.job_id,
+      ticker: input.request.ticker ?? "",
+      prompt_version: input.prompts.killSwitchExtractor.version,
+      model: input.model
+    }
+  });
+  if (trace) {
+    await trace.postRun();
+  }
+
+  try {
+    const result = await runLiveDexterQuery(
+      query,
+      input.config,
+      input.config.retrySectionTimeoutMs,
+      1
+    );
+    const parsed = parsePromptKillSwitchConditions({
+      answer: result.answer,
+      promptVersion: input.prompts.killSwitchExtractor.version
+    });
+    if (parsed.length >= 3) {
+      if (trace) {
+        await trace.end(
+          {
+            status: "complete",
+            rule_count: parsed.length,
+            token_count: result.tokenCount
+          },
+          undefined,
+          undefined,
+          {
+            service: "dexter-worker",
+            job_id: input.request.job_id,
+            ticker: input.request.ticker ?? "",
+            prompt_version: input.prompts.killSwitchExtractor.version
+          }
+        );
+        await trace.patchRun();
+      }
+      return {
+        conditions: parsed.slice(0, 5),
+        tokenCount: result.tokenCount,
+        source: "prompt"
+      };
+    }
+
+    logWarn("Kill-switch extractor fallback applied due to insufficient parsed conditions", {
+      job_id: input.request.job_id,
+      ticker: input.request.ticker,
+      parsed_count: parsed.length,
+      prompt_version: input.prompts.killSwitchExtractor.version
+    });
+    if (trace) {
+      await trace.end(
+        {
+          status: "fallback",
+          rule_count: fallback.length,
+          token_count: result.tokenCount
+        },
+        "Insufficient prompt conditions; fallback used.",
+        undefined,
+        {
+          service: "dexter-worker",
+          job_id: input.request.job_id,
+          ticker: input.request.ticker ?? "",
+          prompt_version: input.prompts.killSwitchExtractor.version
+        }
+      );
+      await trace.patchRun();
+    }
+    return {
+      conditions: fallback,
+      tokenCount: result.tokenCount,
+      source: "fallback"
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    logWarn("Kill-switch extractor failed; fallback applied", {
+      job_id: input.request.job_id,
+      ticker: input.request.ticker,
+      error_message: message,
+      prompt_version: input.prompts.killSwitchExtractor.version
+    });
+    if (trace) {
+      await trace.end(
+        {
+          status: "fallback",
+          rule_count: fallback.length
+        },
+        message,
+        undefined,
+        {
+          service: "dexter-worker",
+          job_id: input.request.job_id,
+          ticker: input.request.ticker ?? "",
+          prompt_version: input.prompts.killSwitchExtractor.version
+        }
+      );
+      await trace.patchRun();
+    }
+    return {
+      conditions: fallback,
+      tokenCount: 0,
+      source: "fallback"
+    };
+  }
+}
+
 function orderSections(sections: ReportSection[]): ReportSection[] {
   const byId = new Map(sections.map((section) => [section.section_id, section]));
   return allSectionDefinitions
@@ -1061,7 +1433,8 @@ export async function runAnalysisPipeline(
           model,
           planner_prompt_version: prompts.planner.version,
           section_executor_prompt_version: prompts.sectionExecutor.version,
-          synthesizer_prompt_version: prompts.synthesizer.version
+          synthesizer_prompt_version: prompts.synthesizer.version,
+          kill_switch_prompt_version: prompts.killSwitchExtractor.version
         }
       })
     : undefined;
@@ -1274,6 +1647,17 @@ export async function runAnalysisPipeline(
     valuation: valuationSection.valuation,
     thesisStatement
   });
+  const killSwitchExtraction = await extractKillSwitchConditions({
+    request,
+    config,
+    prompts,
+    signal,
+    confidence,
+    thesisStatement,
+    rootTrace,
+    model
+  });
+  totalTokenCount += killSwitchExtraction.tokenCount;
 
   const report: AnalysisReport = {
     report_id: randomUUID(),
@@ -1287,6 +1671,7 @@ export async function runAnalysisPipeline(
     historical_context: m2Context.context,
     valuation: valuationSection.valuation,
     trust_metadata: trustMetadata,
+    kill_switch_conditions: killSwitchExtraction.conditions,
     sections: orderedSections,
     flags: buildFlags(scenario, orderedSections, signal.value, traceMode),
     data_sources: buildDataSources(scenario, orderedSections)
@@ -1307,6 +1692,14 @@ export async function runAnalysisPipeline(
       reason: trustMetadata.thesis_drift.reasons.join(" ")
     });
   }
+  logInfo("Kill-switch conditions extracted", {
+    job_id: request.job_id,
+    report_id: report.report_id,
+    ticker,
+    rule_count: killSwitchExtraction.conditions.length,
+    prompt_version: prompts.killSwitchExtractor.version,
+    extraction_source: killSwitchExtraction.source
+  });
 
   const validationErrors = validateAnalysisReport(report);
   if (validationErrors.length > 0) {
@@ -1325,7 +1718,8 @@ export async function runAnalysisPipeline(
         signal: report.signal?.value ?? "no_signal",
         flags: report.flags,
         token_count: totalTokenCount,
-        section_count: report.sections.length
+        section_count: report.sections.length,
+        kill_switch_rule_count: report.kill_switch_conditions?.length ?? 0
       },
       undefined,
       undefined,
@@ -1336,7 +1730,8 @@ export async function runAnalysisPipeline(
         model,
         planner_prompt_version: prompts.planner.version,
         section_executor_prompt_version: prompts.sectionExecutor.version,
-        synthesizer_prompt_version: prompts.synthesizer.version
+        synthesizer_prompt_version: prompts.synthesizer.version,
+        kill_switch_prompt_version: prompts.killSwitchExtractor.version
       }
     );
     await rootTrace.patchRun();

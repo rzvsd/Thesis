@@ -1,0 +1,77 @@
+=3001 : The term '=3001' is not recognized as the name of a cmdlet, function, script file, or operable program. Check 
+the spelling of the name, or if a path was included, verify that the path is correct and try again.
+At line:1 char:1
++ ='3001'; ='memory'; ='memory'; ='C:/BOTS/Thesis/fintech/data/artifact ...
++ ~~~~~~~
+    + CategoryInfo          : ObjectNotFound: (=3001:String) [], CommandNotFoundException
+    + FullyQualifiedErrorId : CommandNotFoundException
+ 
+=memory : The term '=memory' is not recognized as the name of a cmdlet, function, script file, or operable program. 
+Check the spelling of the name, or if a path was included, verify that the path is correct and try again.
+At line:1 char:10
++ ='3001'; ='memory'; ='memory'; ='C:/BOTS/Thesis/fintech/data/artifact ...
++          ~~~~~~~~~
+    + CategoryInfo          : ObjectNotFound: (=memory:String) [], CommandNotFoundException
+    + FullyQualifiedErrorId : CommandNotFoundException
+ 
+=memory : The term '=memory' is not recognized as the name of a cmdlet, function, script file, or operable program. 
+Check the spelling of the name, or if a path was included, verify that the path is correct and try again.
+At line:1 char:21
++ ='3001'; ='memory'; ='memory'; ='C:/BOTS/Thesis/fintech/data/artifact ...
++                     ~~~~~~~~~
+    + CategoryInfo          : ObjectNotFound: (=memory:String) [], CommandNotFoundException
+    + FullyQualifiedErrorId : CommandNotFoundException
+ 
+=C:/BOTS/Thesis/fintech/data/artifacts : The term '=C:/BOTS/Thesis/fintech/data/artifacts' is not recognized as the 
+name of a cmdlet, function, script file, or operable program. Check the spelling of the name, or if a path was 
+included, verify that the path is correct and try again.
+At line:1 char:32
++ ... 'memory'; ='memory'; ='C:/BOTS/Thesis/fintech/data/artifacts'; ='dev- ...
++                          ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : ObjectNotFound: (=C:/BOTS/Thesis/fintech/data/artifacts:String) [], CommandNotFoundExcep 
+   tion
+    + FullyQualifiedErrorId : CommandNotFoundException
+ 
+=dev-jwt-secret-change-me : The term '=dev-jwt-secret-change-me' is not recognized as the name of a cmdlet, function, 
+script file, or operable program. Check the spelling of the name, or if a path was included, verify that the path is 
+correct and try again.
+At line:1 char:74
++ ... S/Thesis/fintech/data/artifacts'; ='dev-jwt-secret-change-me'; ='dev- ...
++                                       ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : ObjectNotFound: (=dev-jwt-secret-change-me:String) [], CommandNotFoundException
+    + FullyQualifiedErrorId : CommandNotFoundException
+ 
+=dev-internal-worker-token : The term '=dev-internal-worker-token' is not recognized as the name of a cmdlet, 
+function, script file, or operable program. Check the spelling of the name, or if a path was included, verify that the 
+path is correct and try again.
+At line:1 char:103
++ ... s'; ='dev-jwt-secret-change-me'; ='dev-internal-worker-token'; ='true ...
++                                      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : ObjectNotFound: (=dev-internal-worker-token:String) [], CommandNotFoundException
+    + FullyQualifiedErrorId : CommandNotFoundException
+ 
+=true : The term '=true' is not recognized as the name of a cmdlet, function, script file, or operable program. Check 
+the spelling of the name, or if a path was included, verify that the path is correct and try again.
+At line:1 char:133
++ ... -jwt-secret-change-me'; ='dev-internal-worker-token'; ='true'; ='stub ...
++                                                           ~~~~~~~
+    + CategoryInfo          : ObjectNotFound: (=true:String) [], CommandNotFoundException
+    + FullyQualifiedErrorId : CommandNotFoundException
+ 
+=stub : The term '=stub' is not recognized as the name of a cmdlet, function, script file, or operable program. Check 
+the spelling of the name, or if a path was included, verify that the path is correct and try again.
+At line:1 char:142
++ ... et-change-me'; ='dev-internal-worker-token'; ='true'; ='stub'; ='Amer ...
++                                                           ~~~~~~~
+    + CategoryInfo          : ObjectNotFound: (=stub:String) [], CommandNotFoundException
+    + FullyQualifiedErrorId : CommandNotFoundException
+ 
+=America/New_York : The term '=America/New_York' is not recognized as the name of a cmdlet, function, script file, or 
+operable program. Check the spelling of the name, or if a path was included, verify that the path is correct and try 
+again.
+At line:1 char:151
++ ... internal-worker-token'; ='true'; ='stub'; ='America/New_York'; node d ...
++                                               ~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : ObjectNotFound: (=America/New_York:String) [], CommandNotFoundException
+    + FullyQualifiedErrorId : CommandNotFoundException
+ 

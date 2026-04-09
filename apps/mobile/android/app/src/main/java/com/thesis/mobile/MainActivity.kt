@@ -23,6 +23,8 @@ import kotlinx.coroutines.launch
 
 data class LaunchTarget(
     val tab: String,
+    val alertId: String? = null,
+    val reportId: String? = null,
     val pulseDate: String? = null,
     val digestDate: String? = null,
     val notificationType: String? = null,
@@ -112,33 +114,35 @@ class MainActivity : FragmentActivity() {
         val notificationType = intent.getStringExtra("notification_type")
         val normalizedTab = openTab?.trim()?.lowercase()
         val normalizedType = notificationType?.trim()?.lowercase()
-
-        val shouldOpenPulse =
+        val uri = intent.data
+        val resolvedTab = when {
+            normalizedTab in setOf("today", "names", "research", "inbox", "you") -> normalizedTab
             normalizedTab == "pulse" ||
                 normalizedType == "market_pulse_ready" ||
                 normalizedType == "weekly_digest" ||
-                intent.data?.toString().orEmpty().contains("thesis://pulse", ignoreCase = true)
-        val shouldOpenDeepDive =
+                uri?.toString().orEmpty().contains("thesis://pulse", ignoreCase = true) ||
+                uri?.toString().orEmpty().contains("thesis://today", ignoreCase = true) -> "today"
             normalizedTab == "deep_dive" ||
                 normalizedType == "earnings_preview" ||
                 normalizedType == "contrarian_alert" ||
-                intent.data?.toString().orEmpty().contains("thesis://deep-dive", ignoreCase = true)
+                uri?.toString().orEmpty().contains("thesis://deep-dive", ignoreCase = true) ||
+                uri?.toString().orEmpty().contains("thesis://research", ignoreCase = true) -> "research"
+            uri?.toString().orEmpty().contains("thesis://names", ignoreCase = true) -> "names"
+            uri?.toString().orEmpty().contains("thesis://inbox", ignoreCase = true) -> "inbox"
+            uri?.toString().orEmpty().contains("thesis://you", ignoreCase = true) -> "you"
+            else -> null
+        }
 
-        launchTarget = when {
-            shouldOpenPulse -> LaunchTarget(
-                tab = "pulse",
+        launchTarget = resolvedTab?.let { target ->
+            LaunchTarget(
+                tab = target,
+                alertId = extractAlertId(intent),
+                reportId = extractReportId(intent),
                 pulseDate = extractPulseDate(intent),
                 digestDate = extractDigestDate(intent),
-                notificationType = normalizedType
+                notificationType = normalizedType,
+                ticker = extractDeepDiveTicker(intent)
             )
-
-            shouldOpenDeepDive -> LaunchTarget(
-                tab = "deep_dive",
-                ticker = extractDeepDiveTicker(intent),
-                notificationType = normalizedType
-            )
-
-            else -> null
         }
 
         launchTarget?.let { target ->
@@ -149,7 +153,8 @@ class MainActivity : FragmentActivity() {
                     properties = mapOf(
                         "notification_type" to target.notificationType,
                         "tab" to target.tab,
-                        "ticker" to target.ticker
+                        "ticker" to target.ticker,
+                        "alert_id" to target.alertId
                     )
                 )
             }
@@ -176,6 +181,28 @@ class MainActivity : FragmentActivity() {
             return ticker.uppercase()
         }
         return intent.data?.getQueryParameter("ticker")?.trim()?.uppercase()?.ifBlank { null }
+    }
+
+    private fun extractAlertId(intent: Intent?): String? {
+        if (intent == null) {
+            return null
+        }
+        val alertId = intent.getStringExtra("alert_id")?.trim()
+        if (!alertId.isNullOrBlank()) {
+            return alertId
+        }
+        return intent.data?.getQueryParameter("alert_id")?.trim()?.ifBlank { null }
+    }
+
+    private fun extractReportId(intent: Intent?): String? {
+        if (intent == null) {
+            return null
+        }
+        val reportId = intent.getStringExtra("report_id")?.trim()
+        if (!reportId.isNullOrBlank()) {
+            return reportId
+        }
+        return intent.data?.getQueryParameter("report_id")?.trim()?.ifBlank { null }
     }
 
     private fun extractDigestDate(intent: Intent?): String? {

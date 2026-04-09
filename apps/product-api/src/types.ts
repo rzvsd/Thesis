@@ -1,9 +1,17 @@
 import type {
+  AlertFeedbackState,
+  AlertLedgerCategory,
+  AlertRouteTarget,
   AnalysisReport,
   AnalysisRequest,
   CalendarEventTime,
   CalendarEventType,
   ContrarianSignalValue,
+  KillSwitchConditionDraft,
+  KillSwitchEvaluationOutcome,
+  KillSwitchEvaluationSignalSource,
+  KillSwitchRuleSource,
+  KillSwitchRuleState,
   FeedbackRouteStatus,
   FeedbackSeverity,
   FeedbackTriageStatus,
@@ -170,6 +178,45 @@ export interface NotificationPreferenceRecord {
   userId: string;
   type: NotificationType;
   enabled: boolean;
+  quietUntil?: string;
+  updatedAt: string;
+}
+
+export interface KillSwitchRuleRecord {
+  id: string;
+  userId: string;
+  ticker: string;
+  reportId?: string;
+  signalValue?: ContrarianSignalValue;
+  anchorPrice?: number;
+  conditionId: string;
+  conditionText: string;
+  signalType: KillSwitchConditionDraft["signal_type"];
+  rationale: string;
+  thresholdValue?: number;
+  thresholdUnit?: KillSwitchConditionDraft["threshold_unit"];
+  direction?: KillSwitchConditionDraft["direction"];
+  promptVersion: string;
+  state: KillSwitchRuleState;
+  source: KillSwitchRuleSource;
+  createdAt: string;
+  updatedAt: string;
+  deactivatedAt?: string;
+}
+
+export interface KillSwitchEvaluationRecord {
+  id: string;
+  ruleId: string;
+  userId: string;
+  ticker: string;
+  signalSource: KillSwitchEvaluationSignalSource;
+  triggerKey: string;
+  outcome: KillSwitchEvaluationOutcome;
+  reasonCode: string;
+  reasonText: string;
+  observedValue?: number;
+  alertId?: string;
+  createdAt: string;
   updatedAt: string;
 }
 
@@ -208,6 +255,24 @@ export interface UserFeedbackQueueRecord {
   routeStatus: FeedbackRouteStatus;
   triageOwner?: string;
   triagedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AlertLedgerRecord {
+  id: string;
+  userId: string;
+  notificationType: NotificationType;
+  category: AlertLedgerCategory;
+  route: AlertRouteTarget;
+  title: string;
+  body: string;
+  reasonCode: string;
+  reasonText: string;
+  deliveryState: "sent" | "partial_failure";
+  feedbackState?: AlertFeedbackState;
+  mutedAt?: string;
+  context: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;
 }

@@ -1,0 +1,48 @@
+{
+  "milestone": "PH4-M2",
+  "date": "2026-04-08",
+  "status": "PASS",
+  "commands": [
+    {
+      "command": "corepack pnpm --filter @thesis/product-api typecheck",
+      "result": "PASS"
+    },
+    {
+      "command": "corepack pnpm --filter @thesis/product-api test -- ph4-m2-alert-ledger.test.ts",
+      "result": "PASS",
+      "note": "The package script runs the Product API test suite; the Phase 4 alert-ledger test passed within that run."
+    },
+    {
+      "command": "corepack pnpm typecheck",
+      "result": "PASS",
+      "note": "Workspace typecheck still passes after the notification quieting contract update."
+    }
+  ],
+  "contracts": [
+    "packages/contracts/src/alert-ledger.ts",
+    "packages/contracts/src/index.ts",
+    "packages/contracts/src/notification-preference.ts"
+  ],
+  "persistence": [
+    "infra/migrations/ph4m2_017_alert_ledger.up.sql",
+    "infra/migrations/ph4m2_017_alert_ledger.down.sql",
+    "infra/migrations/ph4m2_018_notification_preference_quieting.up.sql",
+    "infra/migrations/ph4m2_018_notification_preference_quieting.down.sql",
+    "apps/product-api/src/migrations.ts"
+  ],
+  "coverage": [
+    "alerts_list",
+    "alerts_filter",
+    "alerts_detail",
+    "alerts_feedback",
+    "alerts_mute",
+    "notification_preferences_compatibility",
+    "notification_family_quiet_until",
+    "notification_delivery_respects_quiet_until"
+  ],
+  "notes": [
+    "Temporary quieting now extends the existing notification-family preference model via quiet_until.",
+    "The alert mute endpoint now acts as a 24-hour quieting adapter for the alert's notification family while preserving alert-row audit state.",
+    "True cross-family category mute and broader frequency tuning remain deferred."
+  ]
+}

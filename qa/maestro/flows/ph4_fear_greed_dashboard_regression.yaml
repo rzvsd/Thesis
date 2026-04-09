@@ -1,0 +1,75 @@
+appId: ${MAESTRO_APP_ID}
+---
+- launchApp:
+    clearState: true
+
+- runFlow:
+    when:
+      visible: "System UI isn't responding"
+    commands:
+      - tapOn: "Wait"
+
+- runFlow:
+    when:
+      visible: "Get Started"
+    commands:
+      - tapOn: "Get Started"
+
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Skip"
+
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+
+- runFlow:
+    when:
+      visible: "Allow"
+    commands:
+      - tapOn: "Allow"
+
+- tapOn: "you@example.com"
+- inputText: "${MAESTRO_TEST_EMAIL}"
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      text: "Enter password"
+    direction: DOWN
+    timeout: 30000
+- tapOn: "Enter password"
+- inputText: "${MAESTRO_TEST_PASSWORD}"
+- hideKeyboard
+
+- runFlow:
+    when:
+      visible: "Log In"
+    commands:
+      - tapOn: "Log In"
+
+- extendedWaitUntil:
+    visible: "Today"
+    timeout: 30000
+
+- tapOn: "Today"
+- extendedWaitUntil:
+    visible: "Fear & Greed"
+    timeout: 30000
+- tapOn: "Dashboard"
+
+- extendedWaitUntil:
+    visible: "Fear & Greed Dashboard"
+    timeout: 30000
+- assertVisible: "Trend"
+- tapOn: "14 days"
+- assertVisible: "Last 14 day sentiment history."
+- scrollUntilVisible:
+    element:
+      text: "Recent History"
+    direction: DOWN
+    timeout: 30000
+- assertVisible: "Recent History"

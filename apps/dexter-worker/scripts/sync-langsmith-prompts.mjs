@@ -10,7 +10,9 @@ const promptIdentifiers = {
   planner: process.env.LANGSMITH_PLANNER_PROMPT ?? "thesis-m3-planner",
   sectionExecutor:
     process.env.LANGSMITH_SECTION_EXECUTOR_PROMPT ?? "thesis-m3-section-executor",
-  synthesizer: process.env.LANGSMITH_SYNTHESIZER_PROMPT ?? "thesis-m3-synthesizer"
+  synthesizer: process.env.LANGSMITH_SYNTHESIZER_PROMPT ?? "thesis-m3-synthesizer",
+  killSwitchExtractor:
+    process.env.LANGSMITH_KILL_SWITCH_PROMPT ?? "thesis-m5-kill-switch-extractor"
 };
 
 function extractInputVariables(template) {
@@ -87,6 +89,13 @@ async function main() {
     ["thesis", "m3", "synthesizer"]
   );
 
+  const killSwitchExtractorStatus = await pushPrompt(
+    promptIdentifiers.killSwitchExtractor,
+    toLangSmithPromptManifest(manifest.kill_switch_extractor),
+    "M5 kill-switch extractor prompt for falsifiable thesis rules",
+    ["thesis", "m5", "kill-switch"]
+  );
+
   process.stdout.write(
     JSON.stringify({
       ok: true,
@@ -94,7 +103,8 @@ async function main() {
       status: {
         planner: plannerStatus,
         sectionExecutor: sectionExecutorStatus,
-        synthesizer: synthesizerStatus
+        synthesizer: synthesizerStatus,
+        killSwitchExtractor: killSwitchExtractorStatus
       }
     })
   );

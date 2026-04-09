@@ -1,0 +1,4 @@
+{"level":"INFO","service":"product-api","message":"Service started","timestamp":"2026-04-08T15:46:57.843Z","port":3001}
+{"level":"INFO","service":"product-api","message":"Job recovery scheduler disabled","timestamp":"2026-04-08T15:46:57.854Z","enabled":true,"queue_backend":"memory"}
+{"level":"INFO","service":"product-api","message":"Verification email sent","timestamp":"2026-04-08T15:47:36.695Z","request_id":"ef7544eb-ca39-4df6-80fa-bfd9f1fc6feb","user_id":"1a29f0a3-b102-45fa-bf78-b885ef4603a0","provider":"stub"}
+{"level":"INFO","service":"product-api","message":"Verification email sent","timestamp":"2026-04-08T15:47:59.672Z","request_id":"acca48f8-a284-45a6-bbef-c03a6653a30a","user_id":"8275c4ac-7582-4cbe-bbe8-81fb20956334","provider":"stub"}

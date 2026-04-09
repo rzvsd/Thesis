@@ -11,6 +11,7 @@ import com.revenuecat.purchases.PackageType
 import com.thesis.mobile.billing.RevenueCatBilling
 import com.thesis.mobile.data.SessionStore
 import com.thesis.mobile.model.AuthTokens
+import com.thesis.mobile.model.AlertLedgerItemView
 import com.thesis.mobile.model.DeepDiveReportView
 import com.thesis.mobile.model.LastViewedReport
 import com.thesis.mobile.model.NotificationPreferenceView
@@ -41,8 +42,10 @@ import java.time.format.DateTimeFormatter
 
 enum class AppTab {
     TODAY,
+    NAMES,
     RESEARCH,
-    PORTFOLIO
+    INBOX,
+    YOU
 }
 
 data class UiState(
@@ -75,6 +78,8 @@ data class UiState(
     val sentimentHistory: List<SentimentSnapshotView> = emptyList(),
     val sentimentRangeDays: Int = 30,
     val sentimentError: String? = null,
+    val alertLedger: List<AlertLedgerItemView> = emptyList(),
+    val inboxError: String? = null,
     val monitorSnapshots: List<ThesisMonitorSnapshotView> = emptyList(),
     val reportHistory: List<ReportHistoryItem> = emptyList(),
     val watchlist: List<String> = emptyList(),
@@ -116,6 +121,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             refreshSubscriptionOffers()
             refreshPulse()
             refreshSentiment()
+            refreshAlertLedger()
             refreshMonitorSnapshots()
             refreshReportHistory()
             viewModelScope.launch {
@@ -162,8 +168,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 refreshSentiment()
                 refreshMonitorSnapshots()
             }
+            AppTab.NAMES -> {
+                refreshWatchlist()
+                refreshMonitorSnapshots()
+                refreshAlertLedger()
+            }
             AppTab.RESEARCH -> refreshReportHistory()
-            AppTab.PORTFOLIO -> {
+            AppTab.INBOX -> refreshAlertLedger()
+            AppTab.YOU -> {
                 refreshWatchlist()
                 refreshUserProfile()
                 refreshNotificationPreferences()
@@ -198,13 +210,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun trackPushDeepLinkLanded(targetTab: String, notificationType: String?, ticker: String?) {
+    fun trackPushDeepLinkLanded(
+        targetTab: String,
+        notificationType: String?,
+        ticker: String?,
+        alertId: String? = null
+    ) {
         trackEvent(
             "push_deep_link_landed",
             mapOf(
                 "target_tab" to targetTab,
                 "notification_type" to notificationType,
-                "ticker" to ticker
+                "ticker" to ticker,
+                "alert_id" to alertId
             )
         )
     }
@@ -327,6 +345,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 refreshSubscriptionOffers()
                 refreshPulse()
                 refreshSentiment()
+                refreshAlertLedger()
                 refreshMonitorSnapshots()
                 refreshReportHistory()
                 syncPushToken()
@@ -397,6 +416,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     sentimentHistory = emptyList(),
                     sentimentRangeDays = 30,
                     sentimentError = null,
+                    alertLedger = emptyList(),
+                    inboxError = null,
                     monitorSnapshots = emptyList(),
                     deepDiveError = null,
                     watchlist = emptyList(),
@@ -521,6 +542,83 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
             if (error != null) {
                 publish(state.copy(message = toMessage(error)))
+            }
+        }
+    }
+
+    fun submitAlertFeedback(alertId: String, feedback: String) {
+        val normalizedId = alertId.trim()
+        val normalizedFeedback = feedback.trim()
+        if (normalizedId.isBlank() || normalizedFeedback.isBlank()) {
+            return
+        }
+
+        viewModelScope.launch {
+            publish(state.copy(message = null))
+            val error = runAuthorizedWithRefresh {
+                val updated = client.submitAlertFeedback(
+                    state.apiBaseUrl,
+                    requireTokens().accessToken,
+                    normalizedId,
+                    normalizedFeedback
+                )
+                publish(
+                    state.copy(
+                        alertLedger = replaceAlertLedgerItem(updated),
+                        inboxError = null,
+                        message = "Alert feedback saved."
+                    )
+                )
+                trackEvent(
+                    "alert_feedback_submitted",
+                    mapOf(
+                        "alert_id" to normalizedId,
+                        "feedback" to normalizedFeedback,
+                        "notification_type" to updated.notificationType
+                    )
+                )
+            }
+
+            if (error != null) {
+                publish(state.copy(message = toMessage(error), inboxError = toMessage(error)))
+            }
+        }
+    }
+
+    fun muteAlert(alertId: String) {
+        val normalizedId = alertId.trim()
+        if (normalizedId.isBlank()) {
+            return
+        }
+
+        viewModelScope.launch {
+            publish(state.copy(message = null))
+            val error = runAuthorizedWithRefresh {
+                val updated = client.muteAlert(
+                    state.apiBaseUrl,
+                    requireTokens().accessToken,
+                    normalizedId
+                )
+                publish(
+                    state.copy(
+                        alertLedger = replaceAlertLedgerItem(updated),
+                        inboxError = null,
+                        message = "Alerts like this are quiet for 24 hours."
+                    )
+                )
+                refreshNotificationPreferences()
+                trackEvent(
+                    "notification_family_quieted",
+                    mapOf(
+                        "alert_id" to normalizedId,
+                        "notification_type" to updated.notificationType,
+                        "quiet_for_hours" to 24
+                    )
+                )
+            }
+
+            if (error != null) {
+                publish(state.copy(message = toMessage(error), inboxError = toMessage(error)))
             }
         }
     }
@@ -1199,6 +1297,27 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun refreshAlertLedger() {
+        val tokens = state.tokens ?: return
+        viewModelScope.launch {
+            val error = runAuthorizedWithRefresh {
+                val alerts = client.getAlertLedger(
+                    state.apiBaseUrl,
+                    tokens.accessToken
+                )
+                publish(
+                    state.copy(
+                        alertLedger = alerts,
+                        inboxError = null
+                    )
+                )
+            }
+            if (error != null) {
+                publish(state.copy(inboxError = toMessage(error)))
+            }
+        }
+    }
+
     fun refreshMonitorSnapshots() {
         val tokens = state.tokens ?: return
         viewModelScope.launch {
@@ -1467,20 +1586,31 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         observer?.invoke(state)
     }
 
+    private fun replaceAlertLedgerItem(updated: AlertLedgerItemView): List<AlertLedgerItemView> {
+        val existing = state.alertLedger
+        if (existing.none { it.id == updated.id }) {
+            return listOf(updated) + existing
+        }
+        return existing.map { item ->
+            if (item.id == updated.id) updated else item
+        }
+    }
+
     private fun mergeNotificationPreferences(
         fetched: List<NotificationPreferenceView>
     ): List<NotificationPreferenceView> {
         val byType = fetched.associateBy { it.type.trim() }
         return notificationPreferenceTypes.map { type ->
-            byType[type] ?: NotificationPreferenceView(type = type, enabled = true)
+            byType[type] ?: NotificationPreferenceView(type = type, enabled = true, quietUntil = null)
         }
     }
 
     private fun normalizeSentimentRange(days: Int): Int =
         when (days) {
-            7, 30, 90 -> days
+            7, 14, 30, 90 -> days
             in Int.MIN_VALUE..7 -> 7
-            in 8..30 -> 30
+            in 8..21 -> 14
+            in 22..60 -> 30
             else -> 90
         }
 
@@ -1534,10 +1664,10 @@ private fun isBiometricSupported(application: Application): Boolean {
 
 private fun defaultNotificationPreferences(): List<NotificationPreferenceView> =
     listOf(
-        NotificationPreferenceView(type = "earnings_preview", enabled = true),
-        NotificationPreferenceView(type = "contrarian_alert", enabled = true),
-        NotificationPreferenceView(type = "weekly_digest", enabled = true),
-        NotificationPreferenceView(type = "market_pulse_ready", enabled = true)
+        NotificationPreferenceView(type = "earnings_preview", enabled = true, quietUntil = null),
+        NotificationPreferenceView(type = "contrarian_alert", enabled = true, quietUntil = null),
+        NotificationPreferenceView(type = "weekly_digest", enabled = true, quietUntil = null),
+        NotificationPreferenceView(type = "market_pulse_ready", enabled = true, quietUntil = null)
     )
 
 internal fun normalizeApiBaseUrl(input: String): String? {

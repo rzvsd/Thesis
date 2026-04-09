@@ -13,12 +13,14 @@ interface PromptManifest {
   planner: PromptTemplate;
   section_executor: PromptTemplate;
   synthesizer: PromptTemplate;
+  kill_switch_extractor: PromptTemplate;
 }
 
 export interface LoadedPrompts {
   planner: PromptTemplate;
   sectionExecutor: PromptTemplate;
   synthesizer: PromptTemplate;
+  killSwitchExtractor: PromptTemplate;
 }
 
 let cachedLivePrompts:
@@ -32,14 +34,20 @@ export function loadPrompts(promptManifestPath: string): LoadedPrompts {
   const raw = readFileSync(promptManifestPath, "utf-8");
   const parsed = JSON.parse(raw) as Partial<PromptManifest>;
 
-  if (!parsed.planner || !parsed.section_executor || !parsed.synthesizer) {
+  if (
+    !parsed.planner ||
+    !parsed.section_executor ||
+    !parsed.synthesizer ||
+    !parsed.kill_switch_extractor
+  ) {
     throw new Error(`Prompt manifest is missing required templates: ${promptManifestPath}`);
   }
 
   return {
     planner: parsed.planner,
     sectionExecutor: parsed.section_executor,
-    synthesizer: parsed.synthesizer
+    synthesizer: parsed.synthesizer,
+    killSwitchExtractor: parsed.kill_switch_extractor
   };
 }
 
@@ -110,7 +118,8 @@ export async function loadRuntimePrompts(config: DexterConfig): Promise<LoadedPr
   const cacheKey = [
     config.langsmithPlannerPrompt,
     config.langsmithSectionExecutorPrompt,
-    config.langsmithSynthesizerPrompt
+    config.langsmithSynthesizerPrompt,
+    config.langsmithKillSwitchPrompt
   ].join("|");
 
   if (cachedLivePrompts?.cacheKey === cacheKey) {
@@ -120,7 +129,8 @@ export async function loadRuntimePrompts(config: DexterConfig): Promise<LoadedPr
   const prompts: LoadedPrompts = {
     planner: await pullPromptTemplate(config.langsmithPlannerPrompt),
     sectionExecutor: await pullPromptTemplate(config.langsmithSectionExecutorPrompt),
-    synthesizer: await pullPromptTemplate(config.langsmithSynthesizerPrompt)
+    synthesizer: await pullPromptTemplate(config.langsmithSynthesizerPrompt),
+    killSwitchExtractor: await pullPromptTemplate(config.langsmithKillSwitchPrompt)
   };
 
   cachedLivePrompts = { cacheKey, prompts };

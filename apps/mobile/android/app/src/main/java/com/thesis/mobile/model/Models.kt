@@ -185,6 +185,27 @@ data class ThesisMonitorSnapshotView(
     val updatedAt: String
 )
 
+data class AlertLedgerItemView(
+    val id: String,
+    val notificationType: String,
+    val category: String,
+    val route: String,
+    val title: String,
+    val body: String,
+    val reasonCode: String,
+    val reasonText: String,
+    val deliveryState: String,
+    val feedbackState: String? = null,
+    val mutedAt: String? = null,
+    val ticker: String? = null,
+    val reportId: String? = null,
+    val pulseDate: String? = null,
+    val digestDate: String? = null,
+    val relatedTickers: List<String> = emptyList(),
+    val createdAt: String,
+    val updatedAt: String
+)
+
 data class ReportHistoryItem(
     val reportId: String,
     val jobId: String,
@@ -213,7 +234,8 @@ data class UserProfileView(
 
 data class NotificationPreferenceView(
     val type: String,
-    val enabled: Boolean
+    val enabled: Boolean,
+    val quietUntil: String? = null
 )
 
 data class SubscriptionOfferView(
