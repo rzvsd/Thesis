@@ -2,7 +2,7 @@
 
 **Milestone:** M3 - Morning Exception Briefing  
 **Owner:** Scheduler Engineer + Product API Engineer + Mobile Engineer  
-**Status:** Planned
+**Status:** Closed (PASS)
 
 ---
 
@@ -53,10 +53,9 @@ Prove that morning output is personalized, exception-first, and explicitly infor
 
 | Step | Result | Evidence Path | Notes |
 |---|---|---|---|
-| 1 | PENDING | TBD | - |
-| 2 | PENDING | TBD | - |
-| 3 | PENDING | TBD | - |
-| 4 | PENDING | TBD | - |
-| 5 | PENDING | TBD | - |
-| 6 | PENDING | TBD | - |
-
+| 1 | PASS | `apps/product-api/tests/ph5-m3-morning-briefing.test.ts` | Includes a Pro user branch with no followed names to verify explicit no-change output. |
+| 2 | PASS | `apps/product-api/tests/ph5-m3-morning-briefing.test.ts` | `briefing_mode: no_change` asserted from persisted alert ledger context. |
+| 3 | PASS | `apps/product-api/tests/ph5-m3-morning-briefing.test.ts` | Exception path seeded via stale monitor snapshot from an older Deep Dive fixture. |
+| 4 | PASS | `apps/product-api/tests/ph5-m3-morning-briefing.test.ts` | `lead_route`, `lead_ticker`, `exceptions_count`, and reason metadata verified. |
+| 5 | PASS | `apps/product-api/tests/ph5-m3-morning-briefing.test.ts` | Ledger persistence and duplicate-cycle dedupe assertions verified. |
+| 6 | PASS | `apps/mobile/android/app/src/main/java/com/thesis/mobile/ui/ThesisApp.kt`, `apps/mobile/android/app/src/main/java/com/thesis/mobile/ui/screens/HomeScreen.kt` | Rendering + route wiring validated with `:app:compileDebugKotlin` after setting local `JAVA_HOME` to Android Studio JBR. |

@@ -19,6 +19,7 @@ export * from "./fear-greed-snapshot";
 export * from "./job-status-response";
 export * from "./kill-switch-rule";
 export * from "./market-pulse-report";
+export * from "./morning-exception-briefing";
 export * from "./notification-preference";
 export * from "./report-note";
 export * from "./report-section";

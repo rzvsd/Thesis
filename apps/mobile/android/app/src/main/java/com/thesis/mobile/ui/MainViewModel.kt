@@ -167,6 +167,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 refreshPulse()
                 refreshSentiment()
                 refreshMonitorSnapshots()
+                refreshAlertLedger()
             }
             AppTab.NAMES -> {
                 refreshWatchlist()
@@ -1650,6 +1651,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             "contrarian_alert",
             "kill_switch",
             "freshness_decay",
+            "morning_exception_briefing",
             "weekly_digest",
             "market_pulse_ready"
         )
@@ -1670,6 +1672,7 @@ private fun defaultNotificationPreferences(): List<NotificationPreferenceView> =
         NotificationPreferenceView(type = "contrarian_alert", enabled = true, quietUntil = null),
         NotificationPreferenceView(type = "kill_switch", enabled = true, quietUntil = null),
         NotificationPreferenceView(type = "freshness_decay", enabled = true, quietUntil = null),
+        NotificationPreferenceView(type = "morning_exception_briefing", enabled = true, quietUntil = null),
         NotificationPreferenceView(type = "weekly_digest", enabled = true, quietUntil = null),
         NotificationPreferenceView(type = "market_pulse_ready", enabled = true, quietUntil = null)
     )

@@ -6,6 +6,7 @@ import com.thesis.mobile.model.DeepDiveReportView
 import com.thesis.mobile.model.EvidenceView
 import com.thesis.mobile.model.JobStatus
 import com.thesis.mobile.model.NotificationPreferenceView
+import com.thesis.mobile.model.BriefingContextView
 import com.thesis.mobile.model.PulseReportView
 import com.thesis.mobile.model.RegisterResult
 import com.thesis.mobile.model.ReportNoteView
@@ -574,6 +575,7 @@ class ProductApiClient {
             reportId = context?.optNullableString("report_id"),
             pulseDate = context?.optNullableString("pulse_date"),
             digestDate = context?.optNullableString("digest_date"),
+            briefingContext = parseBriefingContext(notificationType, context),
             relatedTickers = if (relatedTickers == null) {
                 emptyList()
             } else {
@@ -583,6 +585,54 @@ class ProductApiClient {
             },
             createdAt = row.optString("created_at").ifBlank { "" },
             updatedAt = row.optString("updated_at").ifBlank { "" }
+        )
+    }
+
+    private fun parseBriefingContext(
+        notificationType: String,
+        context: JSONObject?
+    ): BriefingContextView? {
+        if (context == null) {
+            return null
+        }
+
+        val mode = context.optFirstString("mode", "briefing_mode", "exception_mode")
+        val count = context.optNullableInt("count")
+            ?: context.optNullableInt("exception_count")
+            ?: context.optNullableInt("exceptions_count")
+        val watchlistCount = context.optNullableInt("watchlist_count")
+        val leadRoute = context.optFirstString("lead_route", "downstream_route", "route")
+        val leadTicker = context.optFirstString("lead_ticker", "ticker")
+        val leadReportId = context.optFirstString("lead_report_id", "report_id")
+        val leadPulseDate = context.optFirstString("lead_pulse_date", "pulse_date")
+        val leadDigestDate = context.optFirstString("lead_digest_date", "digest_date")
+        val relatedTickers = parseStringList(context.optJSONArray("related_tickers"))
+
+        val hasBriefingShape =
+            mode != null ||
+                count != null ||
+                watchlistCount != null ||
+                leadRoute != null ||
+                leadTicker != null ||
+                leadReportId != null ||
+                leadPulseDate != null ||
+                leadDigestDate != null ||
+                relatedTickers.isNotEmpty()
+
+        if (notificationType != "morning_exception_briefing" && !hasBriefingShape) {
+            return null
+        }
+
+        return BriefingContextView(
+            mode = mode,
+            count = count,
+            watchlistCount = watchlistCount,
+            leadRoute = leadRoute,
+            leadTicker = leadTicker,
+            leadReportId = leadReportId,
+            leadPulseDate = leadPulseDate,
+            leadDigestDate = leadDigestDate,
+            relatedTickers = relatedTickers
         )
     }
 
@@ -615,6 +665,16 @@ class ProductApiClient {
                     url = row.optNullableString("url")
                 )
             }
+        }
+    }
+
+    private fun parseStringList(rows: JSONArray?): List<String> {
+        if (rows == null) {
+            return emptyList()
+        }
+
+        return (0 until rows.length()).mapNotNull { index ->
+            rows.optString(index).takeIf { it.isNotBlank() }
         }
     }
 
@@ -846,6 +906,16 @@ class ProductApiClient {
         }
         val value = optInt(key, Int.MIN_VALUE)
         return if (value == Int.MIN_VALUE) null else value
+    }
+
+    private fun JSONObject.optFirstString(vararg keys: String): String? {
+        keys.forEach { key ->
+            val value = optString(key).trim()
+            if (value.isNotBlank()) {
+                return value
+            }
+        }
+        return null
     }
 }
 

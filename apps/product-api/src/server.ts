@@ -23,6 +23,7 @@ import type {
   KillSwitchSignalType,
   JobStatusResponse,
   MarketPulseReport,
+  MorningExceptionBriefingMode,
   NotificationType,
   ReportFeedbackCode,
   ReportFeedbackSubmission,
@@ -81,6 +82,7 @@ import type {
   AlertLedgerRecord,
   AuditEventRecord,
   JobRecord,
+  KillSwitchEvaluationRecord,
   KillSwitchRuleRecord,
   ThesisMonitorSnapshotRecord,
   UserFeedbackQueueRecord,
@@ -202,6 +204,28 @@ function asContrarianSignal(value: string | undefined): "positive" | "neutral" |
   return undefined;
 }
 
+function asAlertRouteTarget(value: string | undefined): AlertRouteTarget | undefined {
+  if (
+    value === "today" ||
+    value === "names" ||
+    value === "research" ||
+    value === "inbox" ||
+    value === "you"
+  ) {
+    return value;
+  }
+  return undefined;
+}
+
+function asMorningExceptionBriefingMode(
+  value: string | undefined
+): MorningExceptionBriefingMode | undefined {
+  if (value === "no_change" || value === "exceptions_present") {
+    return value;
+  }
+  return undefined;
+}
+
 function groupPushTargetsByUser(
   targets: Array<{ userId: string; installationId: string; deviceToken: string }>
 ): Map<string, Array<{ userId: string; installationId: string; deviceToken: string }>> {
@@ -227,6 +251,8 @@ function notificationTypeLabel(type: NotificationType): string {
       return "Kill-switch alert";
     case "freshness_decay":
       return "Freshness decay";
+    case "morning_exception_briefing":
+      return "Morning Exception Briefing";
     case "weekly_digest":
       return "Weekly digest";
     case "market_pulse_ready":
@@ -242,6 +268,7 @@ function notificationCategory(type: NotificationType): AlertLedgerCategory {
       return "thesis_drift";
     case "earnings_preview":
       return "earnings";
+    case "morning_exception_briefing":
     case "weekly_digest":
     case "market_pulse_ready":
       return "macro";
@@ -249,7 +276,11 @@ function notificationCategory(type: NotificationType): AlertLedgerCategory {
 }
 
 function notificationRoute(type: NotificationType): AlertRouteTarget {
-  if (type === "weekly_digest" || type === "market_pulse_ready") {
+  if (
+    type === "weekly_digest" ||
+    type === "market_pulse_ready" ||
+    type === "morning_exception_briefing"
+  ) {
     return "today";
   }
   if (type === "freshness_decay") {
@@ -275,6 +306,8 @@ function alertLedgerContextFromData(data: Record<string, string> | undefined): R
   if (!data) {
     return {};
   }
+  const leadRoute = asAlertRouteTarget(data.lead_route);
+  const briefingMode = asMorningExceptionBriefingMode(data.briefing_mode);
   const relatedTickers = data.tickers
     ?.split(",")
     .map((ticker) => ticker.trim().toUpperCase())
@@ -287,6 +320,7 @@ function alertLedgerContextFromData(data: Record<string, string> | undefined): R
     ...(data.signal_type ? { signal_type: data.signal_type } : {}),
     ...(data.trigger_key ? { trigger_key: data.trigger_key } : {}),
     ...(data.report_date && data.deep_link_target === "today" ? { pulse_date: data.report_date } : {}),
+    ...(data.report_date ? { report_date: data.report_date } : {}),
     ...(data.digest_date ? { digest_date: data.digest_date } : {}),
     ...(relatedTickers && relatedTickers.length > 0 ? { related_tickers: relatedTickers } : {}),
     ...(data.freshness_state ? { freshness_state: data.freshness_state } : {}),
@@ -300,7 +334,15 @@ function alertLedgerContextFromData(data: Record<string, string> | undefined): R
     ...(data.last_deep_dive_at ? { last_deep_dive_at: data.last_deep_dive_at } : {}),
     ...(data.kill_switch_triggered_at
       ? { kill_switch_triggered_at: data.kill_switch_triggered_at }
-      : {})
+      : {}),
+    ...(briefingMode ? { briefing_mode: briefingMode } : {}),
+    ...(data.exceptions_count ? { exceptions_count: Number(data.exceptions_count) } : {}),
+    ...(data.watchlist_count ? { watchlist_count: Number(data.watchlist_count) } : {}),
+    ...(leadRoute ? { lead_route: leadRoute } : {}),
+    ...(data.lead_ticker ? { lead_ticker: data.lead_ticker.trim().toUpperCase() } : {}),
+    ...(data.lead_report_id ? { lead_report_id: data.lead_report_id } : {}),
+    ...(data.lead_pulse_date ? { lead_pulse_date: data.lead_pulse_date } : {}),
+    ...(data.lead_digest_date ? { lead_digest_date: data.lead_digest_date } : {})
   };
 }
 
@@ -2129,6 +2171,216 @@ async function dispatchFreshnessDecayNotifications(
   };
 }
 
+interface MorningExceptionCandidate {
+  ticker: string;
+  priority: number;
+  route: AlertRouteTarget;
+  reasonCode: string;
+  reasonText: string;
+  reportId?: string;
+}
+
+interface MorningExceptionBriefingOutcome {
+  mode: MorningExceptionBriefingMode;
+  watchlistCount: number;
+  exceptionsCount: number;
+  title: string;
+  body: string;
+  reasonCode: string;
+  reasonText: string;
+  leadRoute?: AlertRouteTarget;
+  leadTicker?: string;
+  leadReportId?: string;
+  relatedTickers: string[];
+}
+
+function truncateMessage(value: string, maxLength: number): string {
+  const normalized = value.replace(/\s+/g, " ").trim();
+  if (normalized.length <= maxLength) {
+    return normalized;
+  }
+  return `${normalized.slice(0, Math.max(0, maxLength - 1)).trimEnd()}…`;
+}
+
+function safeParseDateMs(value: string | undefined): number | undefined {
+  if (!value) {
+    return undefined;
+  }
+  const parsed = Date.parse(value);
+  if (!Number.isFinite(parsed)) {
+    return undefined;
+  }
+  return parsed;
+}
+
+function contextPulseDate(alert: AlertLedgerRecord): string | undefined {
+  const pulseDate =
+    typeof alert.context?.pulse_date === "string" && alert.context.pulse_date.trim().length > 0
+      ? alert.context.pulse_date.trim()
+      : undefined;
+  if (pulseDate) {
+    return pulseDate;
+  }
+  const reportDate =
+    typeof alert.context?.report_date === "string" && alert.context.report_date.trim().length > 0
+      ? alert.context.report_date.trim()
+      : undefined;
+  return reportDate;
+}
+
+function hasAlertForPulseDate(
+  alerts: AlertLedgerRecord[],
+  input: {
+    notificationType: NotificationType;
+    pulseDate: string;
+  }
+): boolean {
+  return alerts.some(
+    (alert) =>
+      alert.notificationType === input.notificationType &&
+      contextPulseDate(alert) === input.pulseDate
+  );
+}
+
+function buildMorningExceptionBriefing(input: {
+  watchlistTickers: string[];
+  snapshots: ThesisMonitorSnapshotRecord[];
+  matchedEvaluations: KillSwitchEvaluationRecord[];
+  macroHeadline?: string;
+}): MorningExceptionBriefingOutcome {
+  const normalizedWatchlist = input.watchlistTickers
+    .map((ticker) => ticker.trim().toUpperCase())
+    .filter((ticker) => ticker.length > 0);
+  const watchlistSet = new Set(normalizedWatchlist);
+  const snapshotByTicker = new Map<string, ThesisMonitorSnapshotRecord>();
+  for (const snapshot of input.snapshots) {
+    snapshotByTicker.set(snapshot.ticker.trim().toUpperCase(), snapshot);
+  }
+
+  const matchedEvaluationByTicker = new Map<string, KillSwitchEvaluationRecord>();
+  for (const evaluation of input.matchedEvaluations) {
+    const ticker = evaluation.ticker.trim().toUpperCase();
+    if (!watchlistSet.has(ticker)) {
+      continue;
+    }
+    const current = matchedEvaluationByTicker.get(ticker);
+    const currentMs = safeParseDateMs(current?.createdAt) ?? 0;
+    const nextMs = safeParseDateMs(evaluation.createdAt) ?? 0;
+    if (!current || nextMs >= currentMs) {
+      matchedEvaluationByTicker.set(ticker, evaluation);
+    }
+  }
+
+  const candidates: MorningExceptionCandidate[] = [];
+  for (const ticker of normalizedWatchlist) {
+    const snapshot = snapshotByTicker.get(ticker);
+    const matchedEvaluation = matchedEvaluationByTicker.get(ticker);
+    if (matchedEvaluation) {
+      candidates.push({
+        ticker,
+        priority: 1,
+        route: "research",
+        reasonCode: "morning_exception_kill_switch",
+        reasonText: matchedEvaluation.reasonText,
+        reportId: snapshot?.reportId
+      });
+      continue;
+    }
+
+    if (snapshot?.freshnessState === "triggered") {
+      candidates.push({
+        ticker,
+        priority: 2,
+        route: "names",
+        reasonCode: "morning_exception_freshness",
+        reasonText: snapshot.freshnessReason,
+        reportId: snapshot.reportId
+      });
+      continue;
+    }
+
+    if (snapshot?.freshnessState === "stale") {
+      candidates.push({
+        ticker,
+        priority: 3,
+        route: "names",
+        reasonCode: "morning_exception_freshness",
+        reasonText: snapshot.freshnessReason,
+        reportId: snapshot.reportId
+      });
+      continue;
+    }
+
+    if (snapshot?.state === "weakened" || snapshot?.state === "unresolved") {
+      candidates.push({
+        ticker,
+        priority: 4,
+        route: "names",
+        reasonCode: "morning_exception_thesis_state",
+        reasonText: snapshot.reason,
+        reportId: snapshot.reportId
+      });
+    }
+  }
+
+  candidates.sort((left, right) => {
+    const byPriority = left.priority - right.priority;
+    if (byPriority !== 0) {
+      return byPriority;
+    }
+    return left.ticker.localeCompare(right.ticker);
+  });
+
+  if (candidates.length === 0) {
+    const noChangeBody = normalizedWatchlist.length > 0
+      ? `Nothing changed for your names. Thesis intact across ${normalizedWatchlist.length} name(s).`
+      : "No followed names yet. Add names to unlock personalized morning exceptions.";
+    const macroSuffix = input.macroHeadline?.trim()
+      ? ` Macro context: ${truncateMessage(input.macroHeadline, 92)}.`
+      : "";
+    return {
+      mode: "no_change",
+      watchlistCount: normalizedWatchlist.length,
+      exceptionsCount: 0,
+      title: notificationTypeLabel("morning_exception_briefing"),
+      body: `${noChangeBody}${macroSuffix}`.trim(),
+      reasonCode: "morning_exception_no_change",
+      reasonText: noChangeBody,
+      leadRoute: normalizedWatchlist.length > 0 ? "today" : "names",
+      relatedTickers: []
+    };
+  }
+
+  const lead = candidates[0] as MorningExceptionCandidate;
+  const relatedTickers = candidates
+    .slice(1, 5)
+    .map((candidate) => candidate.ticker);
+  const remaining = Math.max(0, candidates.length - 1);
+  const headline = remaining > 0
+    ? `${lead.ticker} needs review. ${remaining} more name(s) are flagged.`
+    : `${lead.ticker} needs review this morning.`;
+  const macroSuffix = input.macroHeadline?.trim()
+    ? ` Macro context: ${truncateMessage(input.macroHeadline, 80)}.`
+    : "";
+
+  return {
+    mode: "exceptions_present",
+    watchlistCount: normalizedWatchlist.length,
+    exceptionsCount: candidates.length,
+    title:
+      candidates.length === 1
+        ? "1 exception needs review"
+        : `${candidates.length} exceptions need review`,
+    body: `${headline}${macroSuffix}`.trim(),
+    reasonCode: lead.reasonCode,
+    reasonText: lead.reasonText,
+    leadRoute: lead.route,
+    leadTicker: lead.ticker,
+    leadReportId: lead.reportId,
+    relatedTickers
+  };
+}
+
 async function issueTokens(
   runtime: Runtime,
   userId: string,
@@ -2265,28 +2517,66 @@ async function processMarketPulseJob(
         });
       }
 
-      let headline: string | undefined = undefined;
       const firstNewsTitle = report.sections.news_summary.evidence?.[0]?.excerpt;
-      if (firstNewsTitle) {
-        headline = firstNewsTitle;
-      }
+      const headline = firstNewsTitle?.trim()?.length ? firstNewsTitle.trim() : undefined;
+      const pulseDate = report.cycle_end.slice(0, 10);
+      const cycleStartIso =
+        report.cycle_start && Number.isFinite(Date.parse(report.cycle_start))
+          ? report.cycle_start
+          : `${pulseDate}T00:00:00.000Z`;
 
-      const pushTargets = await runtime.store.listUsersWithDeviceTokenByNotificationType({
-        notificationType: "market_pulse_ready"
+      const freePulseTargets = await runtime.store.listUsersWithDeviceTokenByNotificationType({
+        notificationType: "market_pulse_ready",
+        tier: "FREE"
       });
-      const pushTargetsByUser = groupPushTargetsByUser(pushTargets);
+      const freePulseTargetsByUser = groupPushTargetsByUser(freePulseTargets);
+      const proBriefingTargets = await runtime.store.listUsersWithDeviceTokenByNotificationType({
+        notificationType: "morning_exception_briefing",
+        tier: "PRO"
+      });
+      const proBriefingTargetsByUser = groupPushTargetsByUser(proBriefingTargets);
+
+      const recentAlertsByUser = new Map<string, AlertLedgerRecord[]>();
+      const listRecentAlerts = async (userId: string): Promise<AlertLedgerRecord[]> => {
+        const cached = recentAlertsByUser.get(userId);
+        if (cached) {
+          return cached;
+        }
+        const rows = await runtime.store.listAlertLedgerItemsByUser({
+          userId,
+          limit: 100
+        });
+        recentAlertsByUser.set(userId, rows);
+        return rows;
+      };
+
       let attempted = 0;
       let delivered = 0;
       let failed = 0;
       let provider: "stub" | "fcm" = runtime.config.pushProviderMode;
+      let freeSent = 0;
+      let freeDeduped = 0;
+      let proSent = 0;
+      let proDeduped = 0;
+      let proNoChange = 0;
+      let proExceptions = 0;
 
-      for (const [userId, userTargets] of pushTargetsByUser.entries()) {
+      for (const [userId, userTargets] of freePulseTargetsByUser.entries()) {
+        const existingAlerts = await listRecentAlerts(userId);
+        if (
+          hasAlertForPulseDate(existingAlerts, {
+            notificationType: "market_pulse_ready",
+            pulseDate
+          })
+        ) {
+          freeDeduped += 1;
+          continue;
+        }
+
         const alertId = createId();
         const reasonText =
           "Your latest market pulse is ready with the current regime and overnight movers.";
-        const title = headline?.trim()?.length
-          ? headline
-          : notificationTitle("market_pulse_ready");
+        const title = headline ?? notificationTitle("market_pulse_ready");
         const body = "Your Morning Pulse is ready. Here is what moved overnight.";
         const route = notificationRoute("market_pulse_ready");
         const pushResult = await runtime.pushNotifier.sendNotification(userTargets, {
@@ -2296,7 +2586,7 @@ async function processMarketPulseJob(
           body,
           data: {
             alert_id: alertId,
-            report_date: report.cycle_end.slice(0, 10),
+            report_date: pulseDate,
             reason_code: "market_pulse_ready",
             reason_text: reasonText,
             deep_link_target: route
@@ -2317,7 +2607,7 @@ async function processMarketPulseJob(
           });
         }
 
-        await recordAlertLedgerItem(runtime, {
+        const alert = await recordAlertLedgerItem(runtime, {
           id: alertId,
           userId,
           notificationType: "market_pulse_ready",
@@ -2328,10 +2618,110 @@ async function processMarketPulseJob(
           reasonText,
           deliveryState: pushResult.failed > 0 ? "partial_failure" : "sent",
           data: {
-            report_date: report.cycle_end.slice(0, 10),
+            report_date: pulseDate,
             deep_link_target: route
           }
         });
+        freeSent += 1;
+        recentAlertsByUser.set(userId, [alert, ...existingAlerts]);
+      }
+
+      for (const [userId, userTargets] of proBriefingTargetsByUser.entries()) {
+        const existingAlerts = await listRecentAlerts(userId);
+        if (
+          hasAlertForPulseDate(existingAlerts, {
+            notificationType: "morning_exception_briefing",
+            pulseDate
+          })
+        ) {
+          proDeduped += 1;
+          continue;
+        }
+
+        const watchlistTickers = await runtime.store.listWatchlistTickersByUser(userId);
+        const snapshots = await runtime.store.listThesisMonitorSnapshotsByUser(userId);
+        const matchedEvaluations = await runtime.store.listKillSwitchEvaluations({
+          userId,
+          outcomes: ["matched"],
+          sinceIso: cycleStartIso,
+          limit: 500
+        });
+        const briefing = buildMorningExceptionBriefing({
+          watchlistTickers,
+          snapshots,
+          matchedEvaluations,
+          macroHeadline: headline
+        });
+
+        const route = notificationRoute("morning_exception_briefing");
+        const alertId = createId();
+        const pushResult = await runtime.pushNotifier.sendNotification(userTargets, {
+          notificationType: "morning_exception_briefing",
+          route,
+          title: briefing.title,
+          body: briefing.body,
+          data: {
+            alert_id: alertId,
+            report_date: pulseDate,
+            reason_code: briefing.reasonCode,
+            reason_text: briefing.reasonText,
+            deep_link_target: route,
+            briefing_mode: briefing.mode,
+            exceptions_count: String(briefing.exceptionsCount),
+            watchlist_count: String(briefing.watchlistCount),
+            lead_route: briefing.leadRoute ?? "today",
+            lead_ticker: briefing.leadTicker ?? "",
+            lead_report_id: briefing.leadReportId ?? "",
+            lead_pulse_date: pulseDate,
+            tickers: briefing.relatedTickers.join(",")
+          }
+        });
+
+        attempted += pushResult.attempted;
+        delivered += pushResult.delivered;
+        failed += pushResult.failed;
+        provider = pushResult.provider;
+
+        for (const invalidTarget of pushResult.invalidTargets) {
+          await runtime.store.invalidateUserDeviceByInstallation({
+            userId: invalidTarget.userId,
+            installationId: invalidTarget.installationId,
+            invalidatedAt: new Date().toISOString(),
+            reason: "fcm_invalid_registration"
+          });
+        }
+
+        const alert = await recordAlertLedgerItem(runtime, {
+          id: alertId,
+          userId,
+          notificationType: "morning_exception_briefing",
+          route,
+          title: briefing.title,
+          body: briefing.body,
+          reasonCode: briefing.reasonCode,
+          reasonText: briefing.reasonText,
+          deliveryState: pushResult.failed > 0 ? "partial_failure" : "sent",
+          data: {
+            report_date: pulseDate,
+            deep_link_target: route,
+            briefing_mode: briefing.mode,
+            exceptions_count: String(briefing.exceptionsCount),
+            watchlist_count: String(briefing.watchlistCount),
+            lead_route: briefing.leadRoute ?? "today",
+            lead_ticker: briefing.leadTicker ?? "",
+            lead_report_id: briefing.leadReportId ?? "",
+            lead_pulse_date: pulseDate,
+            tickers: briefing.relatedTickers.join(",")
+          }
+        });
+
+        proSent += 1;
+        if (briefing.mode === "no_change") {
+          proNoChange += 1;
+        } else {
+          proExceptions += 1;
+        }
+        recentAlertsByUser.set(userId, [alert, ...existingAlerts]);
       }
 
       logInfo("Market Pulse push delivery attempted", {
@@ -2339,7 +2729,13 @@ async function processMarketPulseJob(
         attempted,
         delivered,
         failed,
-        provider
+        provider,
+        free_sent: freeSent,
+        free_deduped: freeDeduped,
+        pro_sent: proSent,
+        pro_deduped: proDeduped,
+        pro_no_change: proNoChange,
+        pro_exceptions: proExceptions
       });
 
       if (failed > 0) {
@@ -2362,7 +2758,13 @@ async function processMarketPulseJob(
           attempted,
           delivered,
           failed,
-          provider
+          provider,
+          free_sent: freeSent,
+          free_deduped: freeDeduped,
+          pro_sent: proSent,
+          pro_deduped: proDeduped,
+          pro_no_change: proNoChange,
+          pro_exceptions: proExceptions
         },
         completed.userId
       );

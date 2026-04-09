@@ -47,6 +47,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.thesis.mobile.model.AlertLedgerItemView
 import com.thesis.mobile.model.LastViewedReport
 import com.thesis.mobile.model.PulseReportView
 import com.thesis.mobile.model.SectionView
@@ -56,6 +57,7 @@ import com.thesis.mobile.ui.components.NoNamesEmptyState
 import com.thesis.mobile.ui.components.NoPulseEmptyState
 import com.thesis.mobile.ui.components.OfflineEmptyState
 import com.thesis.mobile.ui.components.PulseUnavailableState
+import com.thesis.mobile.ui.copy.Phase4Copy
 import com.thesis.mobile.ui.theme.HeadingFont
 import com.thesis.mobile.ui.theme.ThesisColors
 import com.thesis.mobile.ui.theme.ThesisDimens
@@ -80,6 +82,7 @@ fun HomeScreen(
     sentimentError: String?,
     watchlist: List<String>,
     monitorSnapshots: List<ThesisMonitorSnapshotView>,
+    morningBriefing: AlertLedgerItemView? = null,
     padding: PaddingValues,
     lastViewedReport: LastViewedReport? = null,
     pulseError: String? = null,
@@ -89,6 +92,7 @@ fun HomeScreen(
     onRetryPulse: () -> Unit,
     onOpenSentimentDashboard: () -> Unit,
     onOpenWeeklyDigest: () -> Unit,
+    onOpenMorningBriefing: (AlertLedgerItemView) -> Unit = {},
     onResumeLastViewed: ((LastViewedReport) -> Unit)? = null,
     onDismissResume: (() -> Unit)? = null
 ) {
@@ -184,6 +188,15 @@ fun HomeScreen(
                 )
             }
 
+            if (morningBriefing != null) {
+                item {
+                    MorningBriefingCard(
+                        alert = morningBriefing,
+                        onOpen = { onOpenMorningBriefing(morningBriefing) }
+                    )
+                }
+            }
+
             if (lastViewedReport != null && onResumeLastViewed != null && onDismissResume != null) {
                 item {
                     ResumeCard(
@@ -270,6 +283,111 @@ fun HomeScreen(
             backgroundColor = ThesisColors.Surface,
             contentColor = ThesisColors.Primary
         )
+    }
+}
+
+@Composable
+private fun MorningBriefingCard(
+    alert: AlertLedgerItemView,
+    onOpen: () -> Unit
+) {
+    val shape = RoundedCornerShape(ThesisDimens.CardCornerRadius)
+    val mode = alert.briefingContext?.mode?.trim()?.lowercase()
+    val exceptionsCount = alert.briefingContext?.count ?: 0
+    val watchlistCount = alert.briefingContext?.watchlistCount ?: 0
+    val leadTicker = alert.briefingContext?.leadTicker?.trim()?.uppercase()?.ifBlank { null }
+    val related = alert.briefingContext
+        ?.relatedTickers
+        .orEmpty()
+        .filter { it.isNotBlank() }
+        .map { it.trim().uppercase() }
+    val contextLine = when {
+        mode == "no_change" && watchlistCount > 0 ->
+            "Checked $watchlistCount name(s). No thesis-level exceptions were found."
+        mode == "no_change" -> "No thesis-level exceptions were found in the latest cycle."
+        !leadTicker.isNullOrBlank() && exceptionsCount > 1 ->
+            "Lead name: $leadTicker. ${exceptionsCount - 1} more name(s) flagged."
+        !leadTicker.isNullOrBlank() -> "Lead name: $leadTicker."
+        exceptionsCount > 0 -> "$exceptionsCount name(s) need review."
+        else -> null
+    }
+    val relatedLine = if (related.isNotEmpty()) {
+        "Also flagged: ${related.joinToString(separator = ", ")}"
+    } else {
+        null
+    }
+    val actionLabel = if (mode == "no_change") {
+        Phase4Copy.morningBriefingNoChangeAction
+    } else {
+        Phase4Copy.morningBriefingExceptionAction
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(ThesisColors.Surface)
+            .border(ThesisDimens.BorderWidth, ThesisColors.Primary.copy(alpha = 0.3f), shape)
+            .padding(ThesisDimens.CardPadding),
+        verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = Icons.Default.TrendingUp,
+                contentDescription = null,
+                tint = ThesisColors.Primary,
+                modifier = Modifier.size(16.dp)
+            )
+            Spacer(modifier = Modifier.size(ThesisDimens.SpacingSm))
+            Text(
+                text = Phase4Copy.morningBriefingEyebrow.uppercase(),
+                style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Medium),
+                color = ThesisColors.Primary
+            )
+        }
+        Text(
+            text = alert.title,
+            style = ThesisTypography.headlineLarge.copy(
+                fontFamily = HeadingFont,
+                fontWeight = FontWeight.Normal
+            ),
+            color = ThesisColors.TextPrimary
+        )
+        Text(
+            text = alert.body,
+            style = ThesisTypography.bodyMedium,
+            color = ThesisColors.TextSecondary
+        )
+        if (!contextLine.isNullOrBlank()) {
+            Text(
+                text = contextLine,
+                style = ThesisTypography.bodySmall,
+                color = ThesisColors.TextMuted
+            )
+        }
+        if (!relatedLine.isNullOrBlank()) {
+            Text(
+                text = relatedLine,
+                style = ThesisTypography.bodySmall,
+                color = ThesisColors.TextMuted
+            )
+        }
+        Button(
+            onClick = onOpen,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(48.dp),
+            shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = ThesisColors.Primary,
+                contentColor = ThesisColors.TextInverse
+            )
+        ) {
+            Text(
+                text = actionLabel,
+                style = ThesisTypography.labelLarge.copy(fontWeight = FontWeight.Medium)
+            )
+        }
     }
 }
 
