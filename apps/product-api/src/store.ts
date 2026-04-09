@@ -207,6 +207,13 @@ export interface ProductStore {
     signalSource: KillSwitchEvaluationSignalSource;
     triggerKey: string;
   }): Promise<KillSwitchEvaluationRecord | undefined>;
+  listKillSwitchEvaluations(input: {
+    userId: string;
+    ticker?: string;
+    outcomes?: KillSwitchEvaluationOutcome[];
+    sinceIso?: string;
+    limit?: number;
+  }): Promise<KillSwitchEvaluationRecord[]>;
   createKillSwitchEvaluation(input: KillSwitchEvaluationRecord): Promise<KillSwitchEvaluationRecord>;
   getNotificationPreferences(userId: string): Promise<NotificationPreferenceRecord[]>;
   getReportNote(reportId: string, userId: string): Promise<ReportNoteRecord | undefined>;
@@ -647,6 +654,9 @@ function isQuietUntilActive(quietUntil: string | undefined, asOfIso: string): bo
 }
 
 function mapThesisMonitorSnapshot(row: Record<string, unknown>): ThesisMonitorSnapshotRecord {
+  const materialEventsCount = Number(row.material_events_count ?? 0);
+  const unreviewedEventsCount = Number(row.unreviewed_events_count ?? 0);
+  const freshnessScore = Number(row.freshness_score ?? 0);
   return {
     userId: String(row.user_id),
     ticker: String(row.ticker),
@@ -656,6 +666,17 @@ function mapThesisMonitorSnapshot(row: Record<string, unknown>): ThesisMonitorSn
     reportId: row.report_id ? String(row.report_id) : undefined,
     reportGeneratedAt: asIsoString(row.report_generated_at),
     reportSchemaVersion: row.report_schema_version ? String(row.report_schema_version) : undefined,
+    lastDeepDiveAt: asIsoString(row.last_deep_dive_at) ?? asIsoString(row.report_generated_at),
+    materialEventsCount: Number.isFinite(materialEventsCount)
+      ? Math.max(0, Math.floor(materialEventsCount))
+      : 0,
+    unreviewedEventsCount: Number.isFinite(unreviewedEventsCount)
+      ? Math.max(0, Math.floor(unreviewedEventsCount))
+      : 0,
+    freshnessState: (String(row.freshness_state ?? "stale") as ThesisMonitorSnapshotRecord["freshnessState"]),
+    freshnessScore: Number.isFinite(freshnessScore) ? Math.min(1, Math.max(0, freshnessScore)) : 0,
+    killSwitchTriggeredAt: asIsoString(row.kill_switch_triggered_at),
+    freshnessReason: String(row.freshness_reason ?? "Freshness has not been computed yet."),
     updatedAt: asIsoString(row.updated_at) ?? new Date().toISOString()
   };
 }
@@ -1853,6 +1874,44 @@ export class InMemoryStore implements ProductStore {
     return existing ? { ...existing } : undefined;
   }
 
+  async listKillSwitchEvaluations(input: {
+    userId: string;
+    ticker?: string;
+    outcomes?: KillSwitchEvaluationOutcome[];
+    sinceIso?: string;
+    limit?: number;
+  }): Promise<KillSwitchEvaluationRecord[]> {
+    const ticker =
+      typeof input.ticker === "string" && input.ticker.trim().length > 0
+        ? input.ticker.trim().toUpperCase()
+        : undefined;
+    const sinceMillis =
+      typeof input.sinceIso === "string" && input.sinceIso.trim().length > 0
+        ? Date.parse(input.sinceIso)
+        : Number.NaN;
+    const sinceFilter = Number.isFinite(sinceMillis) ? (sinceMillis as number) : undefined;
+    const outcomeSet =
+      Array.isArray(input.outcomes) && input.outcomes.length > 0
+        ? new Set(input.outcomes)
+        : undefined;
+    const limit = Math.max(1, input.limit ?? 500);
+
+    return [...this.killSwitchEvaluations.values()]
+      .filter((evaluation) => evaluation.userId === input.userId)
+      .filter((evaluation) => !ticker || evaluation.ticker === ticker)
+      .filter((evaluation) => !outcomeSet || outcomeSet.has(evaluation.outcome))
+      .filter((evaluation) => {
+        if (!sinceFilter) {
+          return true;
+        }
+        const createdMillis = Date.parse(evaluation.createdAt);
+        return Number.isFinite(createdMillis) && createdMillis >= sinceFilter;
+      })
+      .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
+      .slice(0, limit)
+      .map((evaluation) => ({ ...evaluation }));
+  }
+
   async createKillSwitchEvaluation(
     input: KillSwitchEvaluationRecord
   ): Promise<KillSwitchEvaluationRecord> {
@@ -1997,7 +2056,12 @@ export class InMemoryStore implements ProductStore {
     const key = `${input.userId}:${input.ticker.trim().toUpperCase()}`;
     const next: ThesisMonitorSnapshotRecord = {
       ...input,
-      ticker: input.ticker.trim().toUpperCase()
+      ticker: input.ticker.trim().toUpperCase(),
+      materialEventsCount: Math.max(0, Math.floor(input.materialEventsCount ?? 0)),
+      unreviewedEventsCount: Math.max(0, Math.floor(input.unreviewedEventsCount ?? 0)),
+      freshnessState: input.freshnessState ?? "stale",
+      freshnessScore: Math.min(1, Math.max(0, input.freshnessScore ?? 0)),
+      freshnessReason: input.freshnessReason ?? "Freshness has not been computed yet."
     };
     this.thesisMonitorSnapshots.set(key, next);
     return { ...next };
@@ -3483,6 +3547,35 @@ export class PostgresStore implements ProductStore {
     return row ? mapKillSwitchEvaluation(row) : undefined;
   }
 
+  async listKillSwitchEvaluations(input: {
+    userId: string;
+    ticker?: string;
+    outcomes?: KillSwitchEvaluationOutcome[];
+    sinceIso?: string;
+    limit?: number;
+  }): Promise<KillSwitchEvaluationRecord[]> {
+    const outcomes = (input.outcomes ?? []).filter((value) => typeof value === "string");
+    const limit = Math.max(1, input.limit ?? 500);
+    const result = await this.pool.query(
+      `select *
+         from kill_switch_evaluations
+        where user_id = $1
+          and ($2::text is null or ticker = $2::text)
+          and (array_length($3::text[], 1) is null or outcome = any($3::text[]))
+          and ($4::timestamptz is null or created_at >= $4::timestamptz)
+        order by created_at desc
+        limit $5`,
+      [
+        input.userId,
+        input.ticker?.trim().toUpperCase() ?? null,
+        outcomes.length > 0 ? outcomes : null,
+        input.sinceIso ?? null,
+        limit
+      ]
+    );
+    return result.rows.map((row) => mapKillSwitchEvaluation(row as Record<string, unknown>));
+  }
+
   async createKillSwitchEvaluation(
     input: KillSwitchEvaluationRecord
   ): Promise<KillSwitchEvaluationRecord> {
@@ -3892,9 +3985,33 @@ export class PostgresStore implements ProductStore {
          report_id,
          report_generated_at,
          report_schema_version,
+         last_deep_dive_at,
+         material_events_count,
+         unreviewed_events_count,
+         freshness_state,
+         freshness_score,
+         kill_switch_triggered_at,
+         freshness_reason,
          updated_at
        )
-       values ($1, $2, $3, $4, $5, $6, $7::timestamptz, $8, $9::timestamptz)
+       values (
+         $1,
+         $2,
+         $3,
+         $4,
+         $5,
+         $6,
+         $7::timestamptz,
+         $8,
+         $9::timestamptz,
+         $10,
+         $11,
+         $12,
+         $13,
+         $14::timestamptz,
+         $15,
+         $16::timestamptz
+       )
        on conflict (user_id, ticker) do update set
          state = excluded.state,
          reason = excluded.reason,
@@ -3902,6 +4019,13 @@ export class PostgresStore implements ProductStore {
          report_id = excluded.report_id,
          report_generated_at = excluded.report_generated_at,
          report_schema_version = excluded.report_schema_version,
+         last_deep_dive_at = excluded.last_deep_dive_at,
+         material_events_count = excluded.material_events_count,
+         unreviewed_events_count = excluded.unreviewed_events_count,
+         freshness_state = excluded.freshness_state,
+         freshness_score = excluded.freshness_score,
+         kill_switch_triggered_at = excluded.kill_switch_triggered_at,
+         freshness_reason = excluded.freshness_reason,
          updated_at = excluded.updated_at
        returning *`,
       [
@@ -3913,6 +4037,13 @@ export class PostgresStore implements ProductStore {
         input.reportId ?? null,
         input.reportGeneratedAt ?? null,
         input.reportSchemaVersion ?? null,
+        input.lastDeepDiveAt ?? input.reportGeneratedAt ?? null,
+        Math.max(0, Math.floor(input.materialEventsCount)),
+        Math.max(0, Math.floor(input.unreviewedEventsCount)),
+        input.freshnessState,
+        Math.min(1, Math.max(0, input.freshnessScore)),
+        input.killSwitchTriggeredAt ?? null,
+        input.freshnessReason,
         input.updatedAt
       ]
     );

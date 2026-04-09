@@ -109,25 +109,32 @@ Product API Engineer + Scheduler Engineer + Dexter Engineer
 
 Make thesis staleness explicit via freshness scoring and review-needed signaling.
 
+Status: Closed (PASS) on 2026-04-09.
+
 ## Deliverables
 
 | Deliverable | Description |
 |---|---|
 | Snapshot schema extension | Freshness fields added to monitor snapshot payload and storage |
-| Freshness scoring logic | Deterministic freshness function over age, events, and kill-switch proximity |
+| Freshness scoring logic | Deterministic freshness function over age, events, and recent matched kill-switch evaluations |
 | Daily recompute path | Scheduler integration in existing pre-market monitor cycle |
 | Freshness notifications | `freshness_decay` notification family integrated with alert ledger |
 | Names UI freshness state | Visual freshness state rendered consistently in Names board |
 
 ## Acceptance Criteria
 
-- [ ] `thesis_monitor_snapshots` includes freshness fields with typed contracts
-- [ ] Freshness states `current`, `aging`, `stale`, `triggered` are computed deterministically
-- [ ] Material-event counting and unreviewed-event tracking are persisted
-- [ ] Scheduler recompute path updates freshness for followed names daily
-- [ ] Freshness-decay alerts are explainable and route-safe
-- [ ] Names board renders freshness states with stable visual semantics
-- [ ] Integration tests cover freshness transitions and decay notifications
+- [x] `thesis_monitor_snapshots` includes freshness fields with typed contracts
+- [x] Freshness states `current`, `aging`, `stale`, `triggered` are computed deterministically
+- [x] Material-event counting and unreviewed-event tracking are persisted
+- [x] Scheduler recompute path updates freshness for followed names daily
+- [x] Freshness-decay alerts are explainable and route-safe
+- [x] Names board renders freshness states with stable visual semantics
+- [x] Integration tests cover freshness transitions and decay notifications
+
+M2 v1 scope note:
+- Material events currently count `earnings calendar events + matched kill-switch evaluations` since last Deep Dive.
+- `unreviewed_events_count` mirrors this material-event count in M2 v1 (per-event review acknowledgement is deferred).
+- Freshness alerts suppress unchanged repeats unless risk worsens or a `72h` cooldown elapses.
 
 ## Smoke Test
 
@@ -135,7 +142,7 @@ Make thesis staleness explicit via freshness scoring and review-needed signaling
 Step 1: Seed snapshot with fresh Deep Dive baseline
 Step 2: Advance event fixtures to age thesis and add unreviewed events
 Step 3: Run recompute and verify state transitions current -> aging -> stale
-Step 4: Trigger kill-switch proximity and verify triggered state
+Step 4: Trigger matched kill-switch evaluation and verify triggered state
 Step 5: Confirm freshness alerts appear in alert ledger with reason text
 Step 6: Confirm Names board renders expected freshness indicators
 ```
@@ -158,7 +165,7 @@ Pause freshness alerts and render fallback state while retaining stored freshnes
 
 ## Dependencies
 
-- M1 kill-switch proximity data available
+- M1 kill-switch evaluation data available
 
 ## Owner
 

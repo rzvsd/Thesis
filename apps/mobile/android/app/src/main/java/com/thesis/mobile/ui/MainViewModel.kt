@@ -1648,6 +1648,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         private val notificationPreferenceTypes = listOf(
             "earnings_preview",
             "contrarian_alert",
+            "kill_switch",
+            "freshness_decay",
             "weekly_digest",
             "market_pulse_ready"
         )
@@ -1666,6 +1668,8 @@ private fun defaultNotificationPreferences(): List<NotificationPreferenceView> =
     listOf(
         NotificationPreferenceView(type = "earnings_preview", enabled = true, quietUntil = null),
         NotificationPreferenceView(type = "contrarian_alert", enabled = true, quietUntil = null),
+        NotificationPreferenceView(type = "kill_switch", enabled = true, quietUntil = null),
+        NotificationPreferenceView(type = "freshness_decay", enabled = true, quietUntil = null),
         NotificationPreferenceView(type = "weekly_digest", enabled = true, quietUntil = null),
         NotificationPreferenceView(type = "market_pulse_ready", enabled = true, quietUntil = null)
     )

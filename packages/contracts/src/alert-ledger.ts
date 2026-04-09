@@ -1,4 +1,5 @@
 import type { NotificationType } from "./notification-preference";
+import type { ThesisFreshnessState } from "./thesis-monitor-snapshot";
 
 export const alertLedgerCategories = [
   "thesis_drift",
@@ -27,6 +28,12 @@ export interface AlertLedgerContext {
   pulse_date?: string;
   digest_date?: string;
   related_tickers?: string[];
+  freshness_state?: ThesisFreshnessState;
+  freshness_score?: number;
+  material_events_count?: number;
+  unreviewed_events_count?: number;
+  last_deep_dive_at?: string;
+  kill_switch_triggered_at?: string;
 }
 
 export interface AlertLedgerItem {
@@ -76,7 +83,16 @@ export const alertLedgerContextSchema = {
     related_tickers: {
       type: "array",
       items: { type: "string", minLength: 1 }
-    }
+    },
+    freshness_state: {
+      type: "string",
+      enum: ["current", "aging", "stale", "triggered"]
+    },
+    freshness_score: { type: "number", minimum: 0, maximum: 1 },
+    material_events_count: { type: "integer", minimum: 0 },
+    unreviewed_events_count: { type: "integer", minimum: 0 },
+    last_deep_dive_at: { type: "string", format: "date-time" },
+    kill_switch_triggered_at: { type: "string", format: "date-time" }
   }
 } as const;
 
@@ -103,7 +119,14 @@ export const alertLedgerItemSchema = {
     user_id: { type: "string", minLength: 1 },
     notification_type: {
       type: "string",
-      enum: ["earnings_preview", "contrarian_alert", "kill_switch", "weekly_digest", "market_pulse_ready"]
+      enum: [
+        "earnings_preview",
+        "contrarian_alert",
+        "kill_switch",
+        "freshness_decay",
+        "weekly_digest",
+        "market_pulse_ready"
+      ]
     },
     category: { type: "string", enum: alertLedgerCategories },
     route: { type: "string", enum: alertRouteTargets },

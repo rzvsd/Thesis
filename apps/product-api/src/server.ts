@@ -32,6 +32,7 @@ import type {
   SubscriptionFeedbackCode,
   SubscriptionFeedbackSubmission,
   SubscriptionTier,
+  ThesisFreshnessState,
   ThesisMonitorSnapshot,
   UserProfile
 } from "../../../packages/contracts/src";
@@ -123,6 +124,10 @@ const contrarianAnchorWindowDays = 90;
 const killSwitchDefaultPriceMoveThresholdPct = 5;
 const weeklyDigestLookaheadDays = 7;
 const monitorFreshnessWindowDays = 14;
+const freshnessAgingDays = 14;
+const freshnessStaleDays = 45;
+const freshnessTriggeredLookbackDays = 14;
+const freshnessDecayCooldownHours = 72;
 const notificationTypeList = [...notificationTypes];
 const alertLedgerCategoryList = [...alertLedgerCategories];
 const alertFeedbackStateList = [...alertFeedbackStates];
@@ -220,6 +225,8 @@ function notificationTypeLabel(type: NotificationType): string {
       return "Contrarian alert";
     case "kill_switch":
       return "Kill-switch alert";
+    case "freshness_decay":
+      return "Freshness decay";
     case "weekly_digest":
       return "Weekly digest";
     case "market_pulse_ready":
@@ -231,6 +238,7 @@ function notificationCategory(type: NotificationType): AlertLedgerCategory {
   switch (type) {
     case "contrarian_alert":
     case "kill_switch":
+    case "freshness_decay":
       return "thesis_drift";
     case "earnings_preview":
       return "earnings";
@@ -243,6 +251,9 @@ function notificationCategory(type: NotificationType): AlertLedgerCategory {
 function notificationRoute(type: NotificationType): AlertRouteTarget {
   if (type === "weekly_digest" || type === "market_pulse_ready") {
     return "today";
+  }
+  if (type === "freshness_decay") {
+    return "names";
   }
   return "research";
 }
@@ -277,7 +288,19 @@ function alertLedgerContextFromData(data: Record<string, string> | undefined): R
     ...(data.trigger_key ? { trigger_key: data.trigger_key } : {}),
     ...(data.report_date && data.deep_link_target === "today" ? { pulse_date: data.report_date } : {}),
     ...(data.digest_date ? { digest_date: data.digest_date } : {}),
-    ...(relatedTickers && relatedTickers.length > 0 ? { related_tickers: relatedTickers } : {})
+    ...(relatedTickers && relatedTickers.length > 0 ? { related_tickers: relatedTickers } : {}),
+    ...(data.freshness_state ? { freshness_state: data.freshness_state } : {}),
+    ...(data.freshness_score ? { freshness_score: Number(data.freshness_score) } : {}),
+    ...(data.material_events_count
+      ? { material_events_count: Number(data.material_events_count) }
+      : {}),
+    ...(data.unreviewed_events_count
+      ? { unreviewed_events_count: Number(data.unreviewed_events_count) }
+      : {}),
+    ...(data.last_deep_dive_at ? { last_deep_dive_at: data.last_deep_dive_at } : {}),
+    ...(data.kill_switch_triggered_at
+      ? { kill_switch_triggered_at: data.kill_switch_triggered_at }
+      : {})
   };
 }
 
@@ -318,6 +341,16 @@ interface MonitorStateSummary {
   state: ThesisMonitorSnapshot["state"];
   reason: string;
   score: number;
+}
+
+interface MonitorFreshnessSummary {
+  lastDeepDiveAt?: string;
+  materialEventsCount: number;
+  unreviewedEventsCount: number;
+  freshnessState: ThesisFreshnessState;
+  freshnessScore: number;
+  killSwitchTriggeredAt?: string;
+  freshnessReason: string;
 }
 
 async function fetchInternalJson<T>(
@@ -1182,6 +1215,114 @@ function clampScore(value: number | undefined): number {
   return clampNumber(value as number, 0, 1);
 }
 
+function isoDateFromDateTime(value: string | undefined): string | undefined {
+  if (!value) {
+    return undefined;
+  }
+  const parsed = Date.parse(value);
+  if (!Number.isFinite(parsed)) {
+    return undefined;
+  }
+  return new Date(parsed).toISOString().slice(0, 10);
+}
+
+function daysSince(earlierIso: string | undefined, laterIso: string): number | undefined {
+  if (!earlierIso) {
+    return undefined;
+  }
+  const earlier = Date.parse(earlierIso);
+  const later = Date.parse(laterIso);
+  if (!Number.isFinite(earlier) || !Number.isFinite(later)) {
+    return undefined;
+  }
+  const delta = Math.floor((later - earlier) / (24 * 60 * 60 * 1000));
+  return Math.max(0, delta);
+}
+
+function computeMonitorFreshness(input: {
+  asOfIso: string;
+  lastDeepDiveAt?: string;
+  materialEventsCount: number;
+  unreviewedEventsCount: number;
+  killSwitchTriggeredAt?: string;
+  fallbackReason?: string;
+}): MonitorFreshnessSummary {
+  const materialEventsCount = Math.max(0, Math.floor(input.materialEventsCount));
+  const unreviewedEventsCount = Math.max(0, Math.floor(input.unreviewedEventsCount));
+  const lastDeepDiveAt =
+    typeof input.lastDeepDiveAt === "string" && Number.isFinite(Date.parse(input.lastDeepDiveAt))
+      ? input.lastDeepDiveAt
+      : undefined;
+  const killSwitchTriggeredAt =
+    typeof input.killSwitchTriggeredAt === "string" &&
+      Number.isFinite(Date.parse(input.killSwitchTriggeredAt))
+      ? input.killSwitchTriggeredAt
+      : undefined;
+
+  const asOfMillis = Date.parse(input.asOfIso);
+  const triggeredLookbackStart = Number.isFinite(asOfMillis)
+    ? asOfMillis - freshnessTriggeredLookbackDays * 24 * 60 * 60 * 1000
+    : Number.NaN;
+  const isTriggered =
+    killSwitchTriggeredAt !== undefined &&
+    Number.isFinite(triggeredLookbackStart) &&
+    Number.isFinite(Date.parse(killSwitchTriggeredAt)) &&
+    Date.parse(killSwitchTriggeredAt) >= (triggeredLookbackStart as number);
+
+  const ageDays = daysSince(lastDeepDiveAt, input.asOfIso);
+
+  let freshnessState: ThesisFreshnessState;
+  let freshnessReason: string;
+
+  if (isTriggered) {
+    freshnessState = "triggered";
+    freshnessReason = `Kill-switch conditions fired recently and ${Math.max(
+      1,
+      unreviewedEventsCount
+    )} material event(s) require review.`;
+  } else if (ageDays === undefined) {
+    freshnessState = "stale";
+    freshnessReason = input.fallbackReason ?? "No Deep Dive baseline is available yet.";
+  } else if (ageDays > freshnessStaleDays || unreviewedEventsCount >= 3) {
+    freshnessState = "stale";
+    if (ageDays > freshnessStaleDays && unreviewedEventsCount >= 3) {
+      freshnessReason = `Deep Dive is ${ageDays} days old with ${unreviewedEventsCount} unreviewed material event(s).`;
+    } else if (ageDays > freshnessStaleDays) {
+      freshnessReason = `Deep Dive is ${ageDays} days old and now stale.`;
+    } else {
+      freshnessReason = `${unreviewedEventsCount} material event(s) remain unreviewed.`;
+    }
+  } else if (ageDays >= freshnessAgingDays || unreviewedEventsCount >= 1) {
+    freshnessState = "aging";
+    if (ageDays >= freshnessAgingDays && unreviewedEventsCount >= 1) {
+      freshnessReason = `Deep Dive is ${ageDays} days old with ${unreviewedEventsCount} unreviewed material event(s).`;
+    } else if (ageDays >= freshnessAgingDays) {
+      freshnessReason = `Deep Dive is ${ageDays} days old and should be reviewed soon.`;
+    } else {
+      freshnessReason = `${unreviewedEventsCount} new material event(s) arrived since your last review.`;
+    }
+  } else {
+    freshnessState = "current";
+    freshnessReason = "Deep Dive is fresh and no material events are waiting for review.";
+  }
+
+  const agePenalty =
+    ageDays === undefined ? 0.55 : Math.min(1, ageDays / Math.max(90, freshnessStaleDays * 2)) * 0.55;
+  const eventPenalty = Math.min(1, unreviewedEventsCount / 6) * 0.35;
+  const triggerPenalty = isTriggered ? 0.2 : 0;
+  const freshnessScore = clampNumber(1 - agePenalty - eventPenalty - triggerPenalty, 0, 1);
+
+  return {
+    lastDeepDiveAt,
+    materialEventsCount,
+    unreviewedEventsCount,
+    freshnessState,
+    freshnessScore,
+    killSwitchTriggeredAt,
+    freshnessReason
+  };
+}
+
 function summarizeMonitorState(
   report: AnalysisReport,
   asOfIso: string
@@ -1274,15 +1415,29 @@ async function upsertUnresolvedSnapshot(
     userId: string;
     ticker: string;
     reason: string;
+    asOfIso: string;
     updatedAt: string;
   }
 ): Promise<ThesisMonitorSnapshotRecord> {
+  const freshness = computeMonitorFreshness({
+    asOfIso: input.asOfIso,
+    materialEventsCount: 0,
+    unreviewedEventsCount: 0,
+    fallbackReason: input.reason
+  });
   return runtime.store.upsertThesisMonitorSnapshot({
     userId: input.userId,
     ticker: input.ticker.trim().toUpperCase(),
     state: "unresolved",
     reason: input.reason,
     score: 0,
+    lastDeepDiveAt: freshness.lastDeepDiveAt,
+    materialEventsCount: freshness.materialEventsCount,
+    unreviewedEventsCount: freshness.unreviewedEventsCount,
+    freshnessState: freshness.freshnessState,
+    freshnessScore: freshness.freshnessScore,
+    killSwitchTriggeredAt: freshness.killSwitchTriggeredAt,
+    freshnessReason: freshness.freshnessReason,
     updatedAt: input.updatedAt
   });
 }
@@ -1294,10 +1449,20 @@ async function upsertSnapshotFromReport(
     ticker: string;
     report: AnalysisReport;
     asOfIso: string;
+    materialEventsCount: number;
+    unreviewedEventsCount: number;
+    killSwitchTriggeredAt?: string;
     updatedAt: string;
   }
 ): Promise<ThesisMonitorSnapshotRecord> {
   const summary = summarizeMonitorState(input.report, input.asOfIso);
+  const freshness = computeMonitorFreshness({
+    asOfIso: input.asOfIso,
+    lastDeepDiveAt: input.report.generated_at,
+    materialEventsCount: input.materialEventsCount,
+    unreviewedEventsCount: input.unreviewedEventsCount,
+    killSwitchTriggeredAt: input.killSwitchTriggeredAt
+  });
   return runtime.store.upsertThesisMonitorSnapshot({
     userId: input.userId,
     ticker: input.ticker.trim().toUpperCase(),
@@ -1307,6 +1472,13 @@ async function upsertSnapshotFromReport(
     reportId: input.report.report_id,
     reportGeneratedAt: input.report.generated_at,
     reportSchemaVersion: input.report.schema_version,
+    lastDeepDiveAt: freshness.lastDeepDiveAt,
+    materialEventsCount: freshness.materialEventsCount,
+    unreviewedEventsCount: freshness.unreviewedEventsCount,
+    freshnessState: freshness.freshnessState,
+    freshnessScore: freshness.freshnessScore,
+    killSwitchTriggeredAt: freshness.killSwitchTriggeredAt,
+    freshnessReason: freshness.freshnessReason,
     updatedAt: input.updatedAt
   });
 }
@@ -1323,6 +1495,7 @@ async function recomputeThesisMonitorSnapshots(
   unresolved: number;
   updated: number;
 }> {
+  const asOfDate = input.asOfIso.slice(0, 10);
   const usersWithWatchlist = await runtime.store.listUsersWithWatchlist();
   const filterUserIds = input.userIds
     ? new Set(input.userIds.map((userId) => userId.trim()).filter((userId) => userId.length > 0))
@@ -1347,6 +1520,11 @@ async function recomputeThesisMonitorSnapshots(
     const reports = (await runtime.store.listReportsByUser(entry.userId))
       .filter((report) => report.type === "deep_dive")
       .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+    const matchedKillSwitchEvaluations = await runtime.store.listKillSwitchEvaluations({
+      userId: entry.userId,
+      outcomes: ["matched"],
+      limit: 2_000
+    });
 
     for (const ticker of entry.tickers) {
       const latest = reports.find((report) => report.ticker === ticker);
@@ -1355,6 +1533,7 @@ async function recomputeThesisMonitorSnapshots(
           userId: entry.userId,
           ticker,
           reason: "No completed Deep Dive exists yet for this name.",
+          asOfIso: input.asOfIso,
           updatedAt
         });
         unresolved += 1;
@@ -1370,6 +1549,7 @@ async function recomputeThesisMonitorSnapshots(
           userId: entry.userId,
           ticker,
           reason: "Report artifact is unavailable and cannot be evaluated.",
+          asOfIso: input.asOfIso,
           updatedAt
         });
         unresolved += 1;
@@ -1382,6 +1562,7 @@ async function recomputeThesisMonitorSnapshots(
           userId: entry.userId,
           ticker,
           reason: "Latest Deep Dive is not readable in monitor format.",
+          asOfIso: input.asOfIso,
           updatedAt
         });
         unresolved += 1;
@@ -1389,11 +1570,43 @@ async function recomputeThesisMonitorSnapshots(
         continue;
       }
 
+      const lastDeepDiveAt = storedReport.generated_at;
+      const fromDate = isoDateFromDateTime(lastDeepDiveAt) ?? asOfDate;
+      const normalizedTicker = ticker.trim().toUpperCase();
+      const earningsEvents = await runtime.store.listUpcomingCalendarEventsByTickers({
+        tickers: [normalizedTicker],
+        fromDate,
+        toDate: asOfDate,
+        eventType: "earnings"
+      });
+      const killSwitchMatches = matchedKillSwitchEvaluations.filter((evaluation) => {
+        if (evaluation.ticker.trim().toUpperCase() !== normalizedTicker) {
+          return false;
+        }
+        if (!lastDeepDiveAt) {
+          return true;
+        }
+        const createdAtMs = Date.parse(evaluation.createdAt);
+        const lastDeepDiveMs = Date.parse(lastDeepDiveAt);
+        if (!Number.isFinite(createdAtMs) || !Number.isFinite(lastDeepDiveMs)) {
+          return true;
+        }
+        return createdAtMs >= lastDeepDiveMs;
+      });
+      const killSwitchTriggeredAt = killSwitchMatches
+        .map((entry) => entry.createdAt)
+        .sort((left, right) => right.localeCompare(left))[0];
+      const materialEventsCount = earningsEvents.length + killSwitchMatches.length;
+      const unreviewedEventsCount = materialEventsCount;
+
       const snapshot = await upsertSnapshotFromReport(runtime, {
         userId: entry.userId,
         ticker,
         report: storedReport,
         asOfIso: input.asOfIso,
+        materialEventsCount,
+        unreviewedEventsCount,
+        killSwitchTriggeredAt,
         updatedAt
       });
       if (snapshot.state === "unresolved") {
@@ -1664,6 +1877,256 @@ async function recordAlertLedgerItem(
     createdAt: now,
     updatedAt: now
   });
+}
+
+function freshnessSeverity(state: ThesisFreshnessState): number {
+  switch (state) {
+    case "triggered":
+      return 4;
+    case "stale":
+      return 3;
+    case "aging":
+      return 2;
+    case "current":
+      return 1;
+  }
+}
+
+function parseFreshnessState(value: unknown): ThesisFreshnessState | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  const normalized = value.trim().toLowerCase();
+  if (
+    normalized === "current" ||
+    normalized === "aging" ||
+    normalized === "stale" ||
+    normalized === "triggered"
+  ) {
+    return normalized;
+  }
+  return undefined;
+}
+
+function parseNumericContextValue(value: unknown): number | undefined {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+  return undefined;
+}
+
+function shouldDispatchFreshnessAlert(input: {
+  previous?: AlertLedgerRecord;
+  candidate: ThesisMonitorSnapshotRecord;
+  asOfDate: string;
+}): boolean {
+  if (!input.previous) {
+    return true;
+  }
+
+  const previous = input.previous;
+  const previousState = parseFreshnessState(previous.context?.freshness_state);
+  const previousUnreviewed = parseNumericContextValue(previous.context?.unreviewed_events_count);
+  const previousScore = parseNumericContextValue(previous.context?.freshness_score);
+  const previousReportDate =
+    typeof previous.context?.report_date === "string"
+      ? previous.context.report_date
+      : undefined;
+
+  if (previousReportDate === input.asOfDate) {
+    return false;
+  }
+
+  if (previousState && previousState !== input.candidate.freshnessState) {
+    return true;
+  }
+
+  if (
+    previousState &&
+    freshnessSeverity(input.candidate.freshnessState) > freshnessSeverity(previousState)
+  ) {
+    return true;
+  }
+
+  if (
+    previousUnreviewed !== undefined &&
+    input.candidate.unreviewedEventsCount > previousUnreviewed
+  ) {
+    return true;
+  }
+
+  if (
+    previousScore !== undefined &&
+    input.candidate.freshnessScore < previousScore - 0.05
+  ) {
+    return true;
+  }
+
+  const previousCreatedAt = Date.parse(previous.createdAt);
+  const asOfMidday = Date.parse(`${input.asOfDate}T12:00:00.000Z`);
+  if (!Number.isFinite(previousCreatedAt) || !Number.isFinite(asOfMidday)) {
+    return true;
+  }
+
+  const cooldownMs = freshnessDecayCooldownHours * 60 * 60 * 1000;
+  return asOfMidday - previousCreatedAt >= cooldownMs;
+}
+
+async function dispatchFreshnessDecayNotifications(
+  runtime: Runtime,
+  input: {
+    asOfDate: string;
+    userIds?: string[];
+  }
+): Promise<{
+  evaluated: number;
+  fired: number;
+  attempted: number;
+  delivered: number;
+  failed: number;
+}> {
+  const recipients = await runtime.store.listUsersWithDeviceTokenByNotificationType({
+    notificationType: "freshness_decay",
+    userIds: input.userIds
+  });
+  const recipientsByUser = groupPushTargetsByUser(recipients);
+
+  let evaluated = 0;
+  let fired = 0;
+  let attempted = 0;
+  let delivered = 0;
+  let failed = 0;
+
+  for (const [userId, userTargets] of recipientsByUser.entries()) {
+    const snapshots = await runtime.store.listThesisMonitorSnapshotsByUser(userId);
+    const recentFreshnessAlerts = (await runtime.store.listAlertLedgerItemsByUser({
+      userId,
+      limit: 200
+    }))
+      .filter((alert) => alert.notificationType === "freshness_decay")
+      .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+    const latestFreshnessAlertByTicker = new Map<string, AlertLedgerRecord>();
+    for (const alert of recentFreshnessAlerts) {
+      const ticker = typeof alert.context?.ticker === "string"
+        ? alert.context.ticker.trim().toUpperCase()
+        : "";
+      if (ticker.length === 0 || latestFreshnessAlertByTicker.has(ticker)) {
+        continue;
+      }
+      latestFreshnessAlertByTicker.set(ticker, alert);
+    }
+
+    evaluated += snapshots.length;
+    const candidates = snapshots
+      .filter((snapshot) => snapshot.freshnessState === "stale" || snapshot.freshnessState === "triggered")
+      .sort((left, right) => {
+        const bySeverity = freshnessSeverity(right.freshnessState) - freshnessSeverity(left.freshnessState);
+        if (bySeverity !== 0) {
+          return bySeverity;
+        }
+        const byEvents = right.unreviewedEventsCount - left.unreviewedEventsCount;
+        if (byEvents !== 0) {
+          return byEvents;
+        }
+        const byScore = left.freshnessScore - right.freshnessScore;
+        if (byScore !== 0) {
+          return byScore;
+        }
+        return left.ticker.localeCompare(right.ticker);
+      });
+
+    const lead = candidates.find((candidate) =>
+      shouldDispatchFreshnessAlert({
+        previous: latestFreshnessAlertByTicker.get(candidate.ticker.trim().toUpperCase()),
+        candidate,
+        asOfDate: input.asOfDate
+      })
+    );
+    if (!lead) {
+      continue;
+    }
+
+    fired += 1;
+    const route = notificationRoute("freshness_decay");
+    const title = notificationTitle("freshness_decay", lead.ticker);
+    const remaining = candidates.filter((candidate) => candidate.ticker !== lead.ticker);
+    const additional = Math.max(0, remaining.length);
+    const body = additional > 0
+      ? `${lead.ticker} is ${lead.freshnessState}. ${additional} more name(s) also need review.`
+      : `${lead.ticker} is ${lead.freshnessState}. Open Names to review what changed.`;
+    const relatedTickers = remaining.slice(0, 4).map((row) => row.ticker);
+
+    const alertId = createId();
+    const pushResult = await runtime.pushNotifier.sendNotification(userTargets, {
+      notificationType: "freshness_decay",
+      route,
+      title,
+      body,
+      data: {
+        alert_id: alertId,
+        ticker: lead.ticker,
+        tickers: relatedTickers.join(","),
+        reason_code: "freshness_decay_review_needed",
+        reason_text: lead.freshnessReason,
+        freshness_state: lead.freshnessState,
+        freshness_score: lead.freshnessScore.toFixed(3),
+        material_events_count: String(lead.materialEventsCount),
+        unreviewed_events_count: String(lead.unreviewedEventsCount),
+        last_deep_dive_at: lead.lastDeepDiveAt ?? "",
+        kill_switch_triggered_at: lead.killSwitchTriggeredAt ?? "",
+        deep_link_target: route
+      }
+    });
+    attempted += pushResult.attempted;
+    delivered += pushResult.delivered;
+    failed += pushResult.failed;
+    for (const invalidTarget of pushResult.invalidTargets) {
+      await runtime.store.invalidateUserDeviceByInstallation({
+        userId: invalidTarget.userId,
+        installationId: invalidTarget.installationId,
+        invalidatedAt: new Date().toISOString(),
+        reason: "fcm_invalid_registration"
+      });
+    }
+
+    await recordAlertLedgerItem(runtime, {
+      id: alertId,
+      userId,
+      notificationType: "freshness_decay",
+      route,
+      title,
+      body,
+      reasonCode: "freshness_decay_review_needed",
+      reasonText: lead.freshnessReason,
+      deliveryState: pushResult.failed > 0 ? "partial_failure" : "sent",
+      data: {
+        ticker: lead.ticker,
+        tickers: relatedTickers.join(","),
+        freshness_state: lead.freshnessState,
+        freshness_score: lead.freshnessScore.toFixed(3),
+        material_events_count: String(lead.materialEventsCount),
+        unreviewed_events_count: String(lead.unreviewedEventsCount),
+        last_deep_dive_at: lead.lastDeepDiveAt ?? "",
+        kill_switch_triggered_at: lead.killSwitchTriggeredAt ?? "",
+        report_date: input.asOfDate,
+        deep_link_target: route
+      }
+    });
+  }
+
+  return {
+    evaluated,
+    fired,
+    attempted,
+    delivered,
+    failed
+  };
 }
 
 async function issueTokens(
@@ -3055,6 +3518,68 @@ export function startServer(port: number = loadConfig().port): Server {
           return;
         }
 
+        if (method === "POST" && pathname === "/internal/notifications/freshness-decay") {
+          const body = await readJsonBody<{ as_of?: string; user_ids?: string[] }>(request);
+          const asOf =
+            normalizeDateInput(body.as_of ?? dateInTimeZone(new Date(), runtime.config.subscriptionTimezone)) ??
+            dateInTimeZone(new Date(), runtime.config.subscriptionTimezone);
+          const userIds = Array.isArray(body.user_ids)
+            ? body.user_ids
+                .map((value) => (typeof value === "string" ? value.trim() : ""))
+                .filter((value) => value.length > 0)
+            : undefined;
+
+          const result = await dispatchFreshnessDecayNotifications(runtime, {
+            asOfDate: asOf,
+            userIds
+          });
+
+          if (result.failed > 0) {
+            const message = "Freshness-decay notification delivery partially failed";
+            logError(message, {
+              request_id: meta.requestId,
+              route: pathname,
+              as_of: asOf,
+              attempted: result.attempted,
+              delivered: result.delivered,
+              failed: result.failed,
+              fired: result.fired
+            });
+            captureException(new Error(message), {
+              service: serviceName,
+              route: pathname,
+              as_of: asOf,
+              attempted: result.attempted,
+              delivered: result.delivered,
+              failed: result.failed,
+              fired: result.fired
+            });
+          }
+
+          await appendAudit(runtime, "freshness_decay.dispatched", {
+            request_id: meta.requestId,
+            route: pathname,
+            as_of: asOf,
+            evaluated: result.evaluated,
+            fired: result.fired,
+            attempted: result.attempted,
+            delivered: result.delivered,
+            failed: result.failed,
+            targeted_users: userIds?.length ?? null
+          });
+
+          sendJson(response, 200, {
+            status: "ok",
+            as_of: asOf,
+            evaluated: result.evaluated,
+            fired: result.fired,
+            attempted: result.attempted,
+            delivered: result.delivered,
+            failed: result.failed
+          });
+          return;
+        }
+
         if (method === "POST" && pathname === "/internal/notifications/contrarian/evaluate") {
           const body = await readJsonBody<{ as_of?: string }>(request);
           const asOf =
@@ -3606,6 +4131,8 @@ export function startServer(port: number = loadConfig().port): Server {
                     ticker: normalizedTicker,
                     report,
                     asOfIso: new Date().toISOString(),
+                    materialEventsCount: 0,
+                    unreviewedEventsCount: 0,
                     updatedAt: new Date().toISOString()
                   });
                   await appendAudit(runtime, "monitor.snapshot_upserted", {
@@ -4665,6 +5192,13 @@ export function startServer(port: number = loadConfig().port): Server {
             report_id: snapshot.reportId,
             report_generated_at: snapshot.reportGeneratedAt,
             report_schema_version: snapshot.reportSchemaVersion,
+            last_deep_dive_at: snapshot.lastDeepDiveAt,
+            material_events_count: snapshot.materialEventsCount,
+            unreviewed_events_count: snapshot.unreviewedEventsCount,
+            freshness_state: snapshot.freshnessState,
+            freshness_score: snapshot.freshnessScore,
+            kill_switch_triggered_at: snapshot.killSwitchTriggeredAt,
+            freshness_reason: snapshot.freshnessReason,
             updated_at: snapshot.updatedAt
           }))
         });

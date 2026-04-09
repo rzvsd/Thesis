@@ -437,6 +437,13 @@ class ProductApiClient {
                 reportId = row.optNullableString("report_id"),
                 reportGeneratedAt = row.optNullableString("report_generated_at"),
                 reportSchemaVersion = row.optNullableString("report_schema_version"),
+                lastDeepDiveAt = row.optNullableString("last_deep_dive_at"),
+                materialEventsCount = row.optNullableInt("material_events_count") ?: 0,
+                unreviewedEventsCount = row.optNullableInt("unreviewed_events_count") ?: 0,
+                freshnessState = row.optString("freshness_state").ifBlank { "stale" },
+                freshnessScore = row.optNullableDouble("freshness_score") ?: 0.0,
+                killSwitchTriggeredAt = row.optNullableString("kill_switch_triggered_at"),
+                freshnessReason = row.optNullableString("freshness_reason"),
                 updatedAt = row.optString("updated_at").ifBlank { "" }
             )
         }
@@ -831,6 +838,14 @@ class ProductApiClient {
         }
         val value = optDouble(key, Double.NaN)
         return if (value.isNaN()) null else value
+    }
+
+    private fun JSONObject.optNullableInt(key: String): Int? {
+        if (!has(key) || isNull(key)) {
+            return null
+        }
+        val value = optInt(key, Int.MIN_VALUE)
+        return if (value == Int.MIN_VALUE) null else value
     }
 }
 

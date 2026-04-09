@@ -125,8 +125,10 @@ class MainActivity : FragmentActivity() {
             normalizedTab == "deep_dive" ||
                 normalizedType == "earnings_preview" ||
                 normalizedType == "contrarian_alert" ||
+                normalizedType == "kill_switch" ||
                 uri?.toString().orEmpty().contains("thesis://deep-dive", ignoreCase = true) ||
                 uri?.toString().orEmpty().contains("thesis://research", ignoreCase = true) -> "research"
+            normalizedType == "freshness_decay" -> "names"
             uri?.toString().orEmpty().contains("thesis://names", ignoreCase = true) -> "names"
             uri?.toString().orEmpty().contains("thesis://inbox", ignoreCase = true) -> "inbox"
             uri?.toString().orEmpty().contains("thesis://you", ignoreCase = true) -> "you"

@@ -23,6 +23,7 @@ import type {
 } from "../../../packages/contracts/src";
 import type {
   ThesisMonitorState,
+  ThesisFreshnessState,
   TickerExchange,
   TickerListingStatus,
   TickerSearchResult
@@ -229,6 +230,13 @@ export interface ThesisMonitorSnapshotRecord {
   reportId?: string;
   reportGeneratedAt?: string;
   reportSchemaVersion?: string;
+  lastDeepDiveAt?: string;
+  materialEventsCount: number;
+  unreviewedEventsCount: number;
+  freshnessState: ThesisFreshnessState;
+  freshnessScore: number;
+  killSwitchTriggeredAt?: string;
+  freshnessReason: string;
   updatedAt: string;
 }
 
