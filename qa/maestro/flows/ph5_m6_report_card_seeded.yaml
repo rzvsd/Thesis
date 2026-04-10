@@ -1,0 +1,67 @@
+appId: ${MAESTRO_APP_ID}
+---
+- repeat:
+    times: 4
+    commands:
+      - runFlow:
+          when:
+            visible: "Continue"
+          commands:
+            - tapOn: "Continue"
+      - runFlow:
+          when:
+            visible: "Get Started"
+          commands:
+            - tapOn: "Get Started"
+
+- runFlow:
+    when:
+      visible: "Allow"
+    commands:
+      - tapOn: "Allow"
+
+- repeat:
+    times: 4
+    commands:
+      - runFlow:
+          when:
+            visible: "Continue"
+          commands:
+            - tapOn: "Continue"
+      - runFlow:
+          when:
+            visible: "Get Started"
+          commands:
+            - tapOn: "Get Started"
+
+- extendedWaitUntil:
+    visible: "EMAIL"
+    timeout: 30000
+- tapOn: "you@example.com"
+- inputText: "${MAESTRO_TEST_EMAIL}"
+- hideKeyboard
+- tapOn: "Enter password"
+- inputText: "${MAESTRO_TEST_PASSWORD}"
+- hideKeyboard
+- tapOn: "Log In"
+
+- extendedWaitUntil:
+    visible: "Today"
+    timeout: 60000
+- tapOn: "Research"
+- extendedWaitUntil:
+    visible: "AAPL"
+    timeout: 30000
+- tapOn: "AAPL"
+
+- extendedWaitUntil:
+    visible: "Thesis Statement"
+    timeout: 60000
+- scrollUntilVisible:
+    element:
+      text: "Conviction Intelligence"
+    direction: DOWN
+    timeout: 60000
+- assertVisible: "Conviction Intelligence"
+- assertVisible: "Conviction Timeline"
+- assertVisible: "Opposite Case"

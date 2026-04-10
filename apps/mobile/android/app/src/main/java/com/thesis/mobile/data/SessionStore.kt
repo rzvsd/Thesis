@@ -7,6 +7,7 @@ import androidx.security.crypto.MasterKey
 import com.thesis.mobile.BuildConfig
 import com.thesis.mobile.model.AuthTokens
 import com.thesis.mobile.model.LastViewedReport
+import java.time.Instant
 import java.util.UUID
 
 class SessionStore(context: Context) {
@@ -43,6 +44,11 @@ class SessionStore(context: Context) {
         val refresh = prefs.getString(KEY_REFRESH_TOKEN, null) ?: return null
         val accessExpires = prefs.getString(KEY_ACCESS_EXPIRES_AT, null) ?: return null
         val refreshExpires = prefs.getString(KEY_REFRESH_EXPIRES_AT, null) ?: return null
+        val refreshExpiry = runCatching { Instant.parse(refreshExpires) }.getOrNull()
+        if (refreshExpiry == null || !refreshExpiry.isAfter(Instant.now())) {
+            clearTokens()
+            return null
+        }
         return AuthTokens(
             accessToken = access,
             refreshToken = refresh,

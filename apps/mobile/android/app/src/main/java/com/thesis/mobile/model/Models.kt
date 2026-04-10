@@ -257,6 +257,82 @@ data class ReportHistoryItem(
     val createdAt: String
 )
 
+data class ConvictionEvidenceRefView(
+    val kind: String,
+    val refId: String,
+    val label: String? = null,
+    val ticker: String? = null,
+    val capturedAt: String? = null
+)
+
+data class ConvictionThesisSnapshotView(
+    val ticker: String? = null,
+    val reportId: String? = null,
+    val reportGeneratedAt: String? = null,
+    val signalValue: String? = null,
+    val confidenceLabel: String? = null,
+    val confidenceScore: Double? = null,
+    val thesisSummary: String? = null,
+    val monitorState: String? = null,
+    val freshnessState: String? = null
+)
+
+data class ConvictionJournalEntryView(
+    val journalEntryId: String,
+    val ticker: String,
+    val eventType: String,
+    val sourceType: String,
+    val sourceId: String,
+    val eventAt: String,
+    val title: String,
+    val summary: String,
+    val thesisSnapshot: ConvictionThesisSnapshotView? = null,
+    val evidenceRefs: List<ConvictionEvidenceRefView> = emptyList(),
+    val reportId: String? = null,
+    val alertLedgerId: String? = null,
+    val warRoomId: String? = null,
+    val oppositeCaseId: String? = null
+)
+
+data class ConvictionInsightFindingView(
+    val findingType: String,
+    val title: String,
+    val summary: String,
+    val tickers: List<String> = emptyList(),
+    val confidence: Double = 0.0,
+    val evidenceRefs: List<ConvictionEvidenceRefView> = emptyList()
+)
+
+data class ConvictionInsightCardView(
+    val insightId: String,
+    val periodStart: String,
+    val periodEnd: String,
+    val insightType: String,
+    val status: String,
+    val title: String,
+    val summary: String,
+    val findings: List<ConvictionInsightFindingView> = emptyList(),
+    val generatedAt: String
+)
+
+data class OppositeCasePointView(
+    val title: String,
+    val summary: String,
+    val evidenceRefs: List<ConvictionEvidenceRefView> = emptyList()
+)
+
+data class OppositeCaseReportView(
+    val oppositeCaseId: String,
+    val sourceReportId: String,
+    val ticker: String,
+    val thesisSummary: String,
+    val oppositeCaseSummary: String,
+    val keyPoints: List<OppositeCasePointView> = emptyList(),
+    val sharedEvidenceRefs: List<ConvictionEvidenceRefView> = emptyList(),
+    val decisiveFactors: List<String> = emptyList(),
+    val generatedAt: String
+)
+
 data class LastViewedReport(
     val reportId: String,
     val label: String,

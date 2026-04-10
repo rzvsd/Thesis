@@ -2,7 +2,7 @@
 
 **Version:** 1.0  
 **Status:** Active  
-**Last Revised:** 2026-04-09
+**Last Revised:** 2026-04-10
 **Owner:** Product Lead + Engineering Lead
 
 ---
@@ -24,7 +24,7 @@ All mapped user surfaces must preserve the same Thesis colors, typography, tone,
 | Morning Exception Briefing | Morning cycle | `scheduler`, `product-api`, `mobile` | Today, Inbox, Push |
 | Earnings War Room | Calendar event windows | `scheduler`, `product-api`, `dexter-worker`, `mobile` | Research, Today |
 | Cross-Name Propagation | Material event on related name | `scheduler`, `product-api`, `dexter-worker` | Inbox, Names |
-| Conviction Intelligence | User actions and periodic retrospective jobs | `product-api`, `dexter-worker`, `mobile` | Research, You |
+| Conviction Intelligence | User actions and periodic retrospective jobs | `product-api`, `scheduler`, `dexter-worker`, `mobile` | Research, You |
 | Scenario Stress Evaluation | User-triggered and optional scheduled cycle | `product-api`, `dexter-worker` | Research, Today |
 
 ---
@@ -81,6 +81,15 @@ Plus optional deep-link context keys:
 - `rule_id`
 - `scenario_id`
 - `war_room_id`
+- `journal_entry_id`
+- `conviction_insight_id`
+- `opposite_case_id`
+
+Conviction route contract (M6 lock):
+
+- Report-level opposite-case/timeline opens with `open_tab=research`, optional `report_id`, `ticker`, `opposite_case_id`, `journal_entry_id`
+- Monthly coherence/profile opens with `open_tab=you`, optional `conviction_insight_id`
+- M6 does not introduce a push route by default; these route keys are for stored cards, in-app links, and future-safe deep links only
 
 War Room route contract (M4 lock):
 

@@ -3,7 +3,7 @@
 **Version:** 1.0  
 **Status:** Active  
 **Owner:** Product Lead  
-**Last Revised:** 2026-04-09
+**Last Revised:** 2026-04-10
 
 > This PRD defines the product requirements for Phase 5 Active Intelligence Engine.
 > Earlier PRDs remain in force unless Phase 5 explicitly sharpens retention, exception logic, or conviction workflows.
@@ -93,6 +93,10 @@ Required behavior:
 - decision journal captures thesis snapshots and user responses at key moments
 - monthly coherence outputs highlight overlap, contradiction, and mismatch patterns
 - opposite-case generation is one tap from a Deep Dive and tied to original report context
+- conviction system outputs are Pro-only; existing Free report notes and feedback behavior remains unchanged
+- Research owns report-level timeline and opposite-case context; You owns monthly coherence/profile cards
+- no new top-level mobile screen is introduced for conviction intelligence
+- monthly coherence cards are stored insights, not push notifications or noisy alerts
 
 ### 2.7 Scenario Stress Cards
 

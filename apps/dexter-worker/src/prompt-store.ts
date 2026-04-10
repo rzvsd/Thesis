@@ -15,6 +15,8 @@ interface PromptManifest {
   synthesizer: PromptTemplate;
   kill_switch_extractor: PromptTemplate;
   relationship_extractor: PromptTemplate;
+  opposite_case: PromptTemplate;
+  coherence_analyzer: PromptTemplate;
 }
 
 export interface LoadedPrompts {
@@ -23,6 +25,8 @@ export interface LoadedPrompts {
   synthesizer: PromptTemplate;
   killSwitchExtractor: PromptTemplate;
   relationshipExtractor: PromptTemplate;
+  oppositeCase: PromptTemplate;
+  coherenceAnalyzer: PromptTemplate;
 }
 
 let cachedLivePrompts:
@@ -41,7 +45,9 @@ export function loadPrompts(promptManifestPath: string): LoadedPrompts {
     !parsed.section_executor ||
     !parsed.synthesizer ||
     !parsed.kill_switch_extractor ||
-    !parsed.relationship_extractor
+    !parsed.relationship_extractor ||
+    !parsed.opposite_case ||
+    !parsed.coherence_analyzer
   ) {
     throw new Error(`Prompt manifest is missing required templates: ${promptManifestPath}`);
   }
@@ -51,7 +57,9 @@ export function loadPrompts(promptManifestPath: string): LoadedPrompts {
     sectionExecutor: parsed.section_executor,
     synthesizer: parsed.synthesizer,
     killSwitchExtractor: parsed.kill_switch_extractor,
-    relationshipExtractor: parsed.relationship_extractor
+    relationshipExtractor: parsed.relationship_extractor,
+    oppositeCase: parsed.opposite_case,
+    coherenceAnalyzer: parsed.coherence_analyzer
   };
 }
 
@@ -124,7 +132,9 @@ export async function loadRuntimePrompts(config: DexterConfig): Promise<LoadedPr
     config.langsmithSectionExecutorPrompt,
     config.langsmithSynthesizerPrompt,
     config.langsmithKillSwitchPrompt,
-    config.langsmithRelationshipPrompt
+    config.langsmithRelationshipPrompt,
+    config.langsmithOppositeCasePrompt,
+    config.langsmithCoherenceAnalyzerPrompt
   ].join("|");
 
   if (cachedLivePrompts?.cacheKey === cacheKey) {
@@ -136,7 +146,9 @@ export async function loadRuntimePrompts(config: DexterConfig): Promise<LoadedPr
     sectionExecutor: await pullPromptTemplate(config.langsmithSectionExecutorPrompt),
     synthesizer: await pullPromptTemplate(config.langsmithSynthesizerPrompt),
     killSwitchExtractor: await pullPromptTemplate(config.langsmithKillSwitchPrompt),
-    relationshipExtractor: await pullPromptTemplate(config.langsmithRelationshipPrompt)
+    relationshipExtractor: await pullPromptTemplate(config.langsmithRelationshipPrompt),
+    oppositeCase: await pullPromptTemplate(config.langsmithOppositeCasePrompt),
+    coherenceAnalyzer: await pullPromptTemplate(config.langsmithCoherenceAnalyzerPrompt)
   };
 
   cachedLivePrompts = { cacheKey, prompts };

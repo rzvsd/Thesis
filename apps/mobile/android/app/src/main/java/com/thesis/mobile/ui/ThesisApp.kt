@@ -74,9 +74,12 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.thesis.mobile.LaunchTarget
 import com.thesis.mobile.model.AlertLedgerItemView
+import com.thesis.mobile.model.ConvictionInsightCardView
+import com.thesis.mobile.model.ConvictionJournalEntryView
 import com.thesis.mobile.model.DeepDiveReportView
 import com.thesis.mobile.model.EvidenceView
 import com.thesis.mobile.model.NotificationPreferenceView
+import com.thesis.mobile.model.OppositeCaseReportView
 import com.thesis.mobile.model.PulseReportView
 import com.thesis.mobile.model.ReportHistoryItem
 import com.thesis.mobile.model.SectionView
@@ -87,6 +90,7 @@ import com.thesis.mobile.ui.screens.DeepDiveScreen
 import com.thesis.mobile.ui.screens.HistoryScreen
 import com.thesis.mobile.ui.screens.HomeScreen
 import com.thesis.mobile.ui.screens.InboxScreen
+import com.thesis.mobile.ui.screens.MonthlyCoherenceSection
 import com.thesis.mobile.ui.screens.NamesScreen
 import com.thesis.mobile.ui.screens.OnboardingScreen
 import com.thesis.mobile.ui.screens.SentimentDashboardScreen
@@ -474,6 +478,11 @@ fun ThesisApp(
                         reportNoteDraft = uiState.reportNoteDraft,
                         noteUpdatedAt = uiState.reportNote?.updatedAt,
                         isSavingNote = uiState.isSavingNote,
+                        convictionTimeline = uiState.convictionTimeline,
+                        convictionTimelineError = uiState.convictionTimelineError,
+                        oppositeCase = uiState.oppositeCase,
+                        oppositeCaseError = uiState.oppositeCaseError,
+                        isGeneratingOppositeCase = uiState.isGeneratingOppositeCase,
                         scenarioResult = uiState.scenarioResult,
                         isRunningScenario = uiState.isRunningScenario,
                         selectedTicker = uiState.selectedTicker ?: "",
@@ -482,6 +491,8 @@ fun ThesisApp(
                         onRunReport = mainViewModel::runDeepDive,
                         onReportNoteChange = mainViewModel::updateReportNoteDraft,
                         onSaveReportNote = mainViewModel::saveReportNote,
+                        onGenerateOppositeCase = mainViewModel::generateOppositeCase,
+                        onRefreshConvictionTimeline = { mainViewModel.refreshConvictionTimeline() },
                         onRunScenario = mainViewModel::runScenario,
                         onRequireUpgrade = mainViewModel::requestFeatureUpgrade,
                         onSubmitReportFeedback = mainViewModel::submitReportFeedback,
@@ -537,6 +548,8 @@ fun ThesisApp(
                         padding = padding,
                         currentApiBaseUrl = uiState.apiBaseUrl,
                         profile = uiState.userProfile,
+                        convictionInsights = uiState.convictionInsights,
+                        convictionInsightsError = uiState.convictionInsightsError,
                         subscriptionOffers = uiState.subscriptionOffers,
                         subscriptionActionInFlight = uiState.subscriptionActionInFlight,
                         notificationsEnabled = uiState.notificationsEnabled,
@@ -548,6 +561,8 @@ fun ThesisApp(
                         onSetNotificationPreference = mainViewModel::setNotificationPreference,
                         onSaveApiBaseUrl = mainViewModel::updateApiBaseUrl,
                         onSyncTier = mainViewModel::syncTierFromServer,
+                        onRefreshConvictionInsights = mainViewModel::refreshConvictionInsights,
+                        onRequireUpgrade = mainViewModel::requestFeatureUpgrade,
                         onRefreshOffers = mainViewModel::refreshSubscriptionOffers,
                         onStartPurchase = mainViewModel::startPurchase,
                         onRestorePurchases = mainViewModel::restorePurchases,
@@ -606,6 +621,11 @@ private fun ResearchTab(
     reportNoteDraft: String,
     noteUpdatedAt: String?,
     isSavingNote: Boolean,
+    convictionTimeline: List<ConvictionJournalEntryView>,
+    convictionTimelineError: String?,
+    oppositeCase: OppositeCaseReportView?,
+    oppositeCaseError: String?,
+    isGeneratingOppositeCase: Boolean,
     scenarioResult: com.thesis.mobile.model.ScenarioResultView?,
     isRunningScenario: Boolean,
     selectedTicker: String,
@@ -614,6 +634,8 @@ private fun ResearchTab(
     onRunReport: () -> Unit,
     onReportNoteChange: (String) -> Unit,
     onSaveReportNote: () -> Unit,
+    onGenerateOppositeCase: () -> Unit,
+    onRefreshConvictionTimeline: () -> Unit,
     onRunScenario: (Int?, Double?, Double?) -> Unit,
     onRequireUpgrade: (String) -> Unit,
     onSubmitReportFeedback: (String, String) -> Unit,
@@ -668,8 +690,15 @@ private fun ResearchTab(
                 reportNoteDraft = reportNoteDraft,
                 noteUpdatedAt = noteUpdatedAt,
                 isSavingNote = isSavingNote,
+                convictionTimeline = convictionTimeline,
+                convictionTimelineError = convictionTimelineError,
+                oppositeCase = oppositeCase,
+                oppositeCaseError = oppositeCaseError,
+                isGeneratingOppositeCase = isGeneratingOppositeCase,
                 onReportNoteChange = onReportNoteChange,
                 onSaveReportNote = onSaveReportNote,
+                onGenerateOppositeCase = onGenerateOppositeCase,
+                onRefreshConvictionTimeline = onRefreshConvictionTimeline,
                 scenarioResult = scenarioResult,
                 isRunningScenario = isRunningScenario,
                 onRunScenario = onRunScenario,
@@ -814,6 +843,8 @@ private fun PortfolioTab(
     onRemoveWatchlistTicker: (String) -> Unit,
     currentApiBaseUrl: String,
     profile: UserProfileView?,
+    convictionInsights: List<ConvictionInsightCardView>,
+    convictionInsightsError: String?,
     subscriptionOffers: List<com.thesis.mobile.model.SubscriptionOfferView>,
     subscriptionActionInFlight: Boolean,
     notificationsEnabled: Boolean,
@@ -825,6 +856,8 @@ private fun PortfolioTab(
     onSetNotificationPreference: (String, Boolean) -> Unit,
     onSaveApiBaseUrl: (String) -> Unit,
     onSyncTier: () -> Unit,
+    onRefreshConvictionInsights: () -> Unit,
+    onRequireUpgrade: (String) -> Unit,
     onRefreshOffers: () -> Unit,
     onStartPurchase: (Activity, String?) -> Unit,
     onRestorePurchases: () -> Unit,
@@ -885,6 +918,8 @@ private fun PortfolioTab(
                 padding = PaddingValues(),
                 currentApiBaseUrl = currentApiBaseUrl,
                 profile = profile,
+                convictionInsights = convictionInsights,
+                convictionInsightsError = convictionInsightsError,
                 subscriptionOffers = subscriptionOffers,
                 subscriptionActionInFlight = subscriptionActionInFlight,
                 notificationsEnabled = notificationsEnabled,
@@ -896,6 +931,8 @@ private fun PortfolioTab(
                 onSetNotificationPreference = onSetNotificationPreference,
                 onSaveApiBaseUrl = onSaveApiBaseUrl,
                 onSyncTier = onSyncTier,
+                onRefreshConvictionInsights = onRefreshConvictionInsights,
+                onRequireUpgrade = onRequireUpgrade,
                 onRefreshOffers = onRefreshOffers,
                 onStartPurchase = onStartPurchase,
                 onRestorePurchases = onRestorePurchases,
@@ -1753,6 +1790,8 @@ private fun SettingsTab(
     padding: PaddingValues,
     currentApiBaseUrl: String,
     profile: UserProfileView?,
+    convictionInsights: List<ConvictionInsightCardView>,
+    convictionInsightsError: String?,
     subscriptionOffers: List<com.thesis.mobile.model.SubscriptionOfferView>,
     subscriptionActionInFlight: Boolean,
     notificationsEnabled: Boolean,
@@ -1764,6 +1803,8 @@ private fun SettingsTab(
     onSetNotificationPreference: (String, Boolean) -> Unit,
     onSaveApiBaseUrl: (String) -> Unit,
     onSyncTier: () -> Unit,
+    onRefreshConvictionInsights: () -> Unit,
+    onRequireUpgrade: (String) -> Unit,
     onRefreshOffers: () -> Unit,
     onStartPurchase: (Activity, String?) -> Unit,
     onRestorePurchases: () -> Unit,
@@ -1810,6 +1851,15 @@ private fun SettingsTab(
                     color = ThesisColors.TextMuted
                 )
             }
+        }
+        item {
+            MonthlyCoherenceSection(
+                isPro = profile?.tier.equals("PRO", ignoreCase = true),
+                insights = convictionInsights,
+                errorMessage = convictionInsightsError,
+                onRefresh = onRefreshConvictionInsights,
+                onRequireUpgrade = onRequireUpgrade
+            )
         }
         item {
             val shape = RoundedCornerShape(ThesisDimens.CardCornerRadius)

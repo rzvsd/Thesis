@@ -76,6 +76,8 @@ export interface DexterConfig {
   langsmithSynthesizerPrompt: string;
   langsmithKillSwitchPrompt: string;
   langsmithRelationshipPrompt: string;
+  langsmithOppositeCasePrompt: string;
+  langsmithCoherenceAnalyzerPrompt: string;
   simulateTimeoutSection?: string;
   queueMode: boolean;
   redisUrl?: string;
@@ -136,6 +138,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): DexterConfig {
       env.LANGSMITH_KILL_SWITCH_PROMPT ?? "thesis-m5-kill-switch-extractor",
     langsmithRelationshipPrompt:
       env.LANGSMITH_RELATIONSHIP_PROMPT ?? "thesis-m5-relationship-extractor",
+    langsmithOppositeCasePrompt:
+      env.LANGSMITH_OPPOSITE_CASE_PROMPT ?? "thesis-m6-opposite-case",
+    langsmithCoherenceAnalyzerPrompt:
+      env.LANGSMITH_COHERENCE_ANALYZER_PROMPT ?? "thesis-m6-coherence-analyzer",
     simulateTimeoutSection: env.DEXTER_SIMULATE_TIMEOUT_SECTION,
     queueMode: parseBoolean(env.DEXTER_QUEUE_MODE, false),
     redisUrl: env.REDIS_URL,

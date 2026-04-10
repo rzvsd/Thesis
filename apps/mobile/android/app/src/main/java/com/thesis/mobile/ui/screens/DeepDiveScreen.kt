@@ -46,8 +46,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.thesis.mobile.model.ConvictionJournalEntryView
 import com.thesis.mobile.model.DeepDiveReportView
 import com.thesis.mobile.model.EvidenceView
+import com.thesis.mobile.model.OppositeCaseReportView
 import com.thesis.mobile.model.ReportHistoryItem
 import com.thesis.mobile.model.ScenarioResultView
 import com.thesis.mobile.model.TrustMetadataView
@@ -75,8 +77,15 @@ fun DeepDiveScreen(
     reportNoteDraft: String,
     noteUpdatedAt: String?,
     isSavingNote: Boolean,
+    convictionTimeline: List<ConvictionJournalEntryView>,
+    convictionTimelineError: String?,
+    oppositeCase: OppositeCaseReportView?,
+    oppositeCaseError: String?,
+    isGeneratingOppositeCase: Boolean,
     onReportNoteChange: (String) -> Unit,
     onSaveReportNote: () -> Unit,
+    onGenerateOppositeCase: () -> Unit,
+    onRefreshConvictionTimeline: () -> Unit,
     scenarioResult: ScenarioResultView?,
     isRunningScenario: Boolean,
     onRunScenario: (Int?, Double?, Double?) -> Unit,
@@ -117,8 +126,15 @@ fun DeepDiveScreen(
         reportNoteDraft = reportNoteDraft,
         noteUpdatedAt = noteUpdatedAt,
         isSavingNote = isSavingNote,
+        convictionTimeline = convictionTimeline,
+        convictionTimelineError = convictionTimelineError,
+        oppositeCase = oppositeCase,
+        oppositeCaseError = oppositeCaseError,
+        isGeneratingOppositeCase = isGeneratingOppositeCase,
         onReportNoteChange = onReportNoteChange,
         onSaveReportNote = onSaveReportNote,
+        onGenerateOppositeCase = onGenerateOppositeCase,
+        onRefreshConvictionTimeline = onRefreshConvictionTimeline,
         scenarioResult = scenarioResult,
         isRunningScenario = isRunningScenario,
         onRunScenario = onRunScenario,
@@ -291,8 +307,15 @@ private fun DeepDiveReportState(
     reportNoteDraft: String,
     noteUpdatedAt: String?,
     isSavingNote: Boolean,
+    convictionTimeline: List<ConvictionJournalEntryView>,
+    convictionTimelineError: String?,
+    oppositeCase: OppositeCaseReportView?,
+    oppositeCaseError: String?,
+    isGeneratingOppositeCase: Boolean,
     onReportNoteChange: (String) -> Unit,
     onSaveReportNote: () -> Unit,
+    onGenerateOppositeCase: () -> Unit,
+    onRefreshConvictionTimeline: () -> Unit,
     scenarioResult: ScenarioResultView?,
     isRunningScenario: Boolean,
     onRunScenario: (Int?, Double?, Double?) -> Unit,
@@ -353,6 +376,20 @@ private fun DeepDiveReportState(
             item { SignalBlockSection(report = report) }
 
             item { ResearchSnapshotCard(report = report) }
+
+            item {
+                DeepDiveConvictionSection(
+                    isPro = isPro,
+                    timeline = convictionTimeline,
+                    timelineError = convictionTimelineError,
+                    oppositeCase = oppositeCase,
+                    oppositeCaseError = oppositeCaseError,
+                    isGeneratingOppositeCase = isGeneratingOppositeCase,
+                    onGenerateOppositeCase = onGenerateOppositeCase,
+                    onRefreshTimeline = onRefreshConvictionTimeline,
+                    onRequireUpgrade = onRequireUpgrade
+                )
+            }
 
             items(highlights.size) { index ->
                 val highlight = highlights[index]

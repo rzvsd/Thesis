@@ -14,6 +14,14 @@ import type {
   AuthRefreshRequest,
   AuthRegisterRequest,
   AuthTokensResponse,
+  CoherenceEvaluationRequest,
+  ConvictionEvidenceRef,
+  ConvictionInsightCard,
+  ConvictionInsightFinding,
+  ConvictionJournalEntry,
+  ConvictionJournalEventType,
+  ConvictionJournalSourceType,
+  ConvictionThesisSnapshot,
   CreateJobRequest,
   CrossNamePropagationEvaluationRequest,
   CrossNamePropagationEventCategory,
@@ -92,12 +100,15 @@ import {
 import type {
   AlertLedgerRecord,
   AuditEventRecord,
+  ConvictionInsightCardRecord,
+  ConvictionJournalEntryRecord,
   EarningsWarRoomRecord,
   EarningsWarRoomTimelineEventRecord,
   JobRecord,
   KillSwitchEvaluationRecord,
   KillSwitchRuleRecord,
   NameRelationshipRecord,
+  OppositeCaseReportRecord,
   ThesisMonitorSnapshotRecord,
   UserFeedbackQueueRecord,
   UserSubscriptionRecord
@@ -154,6 +165,8 @@ const warRoomLagRecoveryThresholdMinutes = 10;
 const warRoomRuntimeRecoveryThresholdMinutes = 8;
 const warRoomPreparationLookaheadDays = 2;
 const crossNamePropagationDefaultConfidenceThreshold = 0.7;
+const convictionOppositeCasePromptVersion = "thesis-m6-opposite-case";
+const convictionCoherencePromptVersion = "thesis-m6-coherence-analyzer";
 const notificationTypeList = [...notificationTypes];
 const alertLedgerCategoryList = [...alertLedgerCategories];
 const alertFeedbackStateList = [...alertFeedbackStates];
@@ -449,6 +462,80 @@ function toNameRelationshipView(record: NameRelationshipRecord): NameRelationshi
     created_at: record.createdAt,
     updated_at: record.updatedAt,
     suppressed_at: record.suppressedAt
+  };
+}
+
+function toConvictionJournalEntryView(
+  record: ConvictionJournalEntryRecord
+): ConvictionJournalEntry {
+  return {
+    journal_entry_id: record.id,
+    user_id: record.userId,
+    ticker: record.ticker,
+    event_type: record.eventType,
+    source_type: record.sourceType,
+    source_id: record.sourceId,
+    event_at: record.eventAt,
+    title: record.title,
+    summary: record.summary,
+    thesis_snapshot: {
+      ...record.thesisSnapshot,
+      signal_reasons: record.thesisSnapshot.signal_reasons
+        ? [...record.thesisSnapshot.signal_reasons]
+        : undefined
+    },
+    evidence_refs: record.evidenceRefs.map((ref) => ({ ...ref })),
+    report_id: record.reportId,
+    alert_ledger_id: record.alertLedgerId,
+    war_room_id: record.warRoomId,
+    monitor_snapshot_key: record.monitorSnapshotKey,
+    opposite_case_id: record.oppositeCaseId,
+    created_at: record.createdAt,
+    updated_at: record.updatedAt
+  };
+}
+
+function toConvictionInsightCardView(
+  record: ConvictionInsightCardRecord
+): ConvictionInsightCard {
+  return {
+    insight_id: record.id,
+    user_id: record.userId,
+    period_start: record.periodStart,
+    period_end: record.periodEnd,
+    insight_type: record.insightType,
+    status: record.status,
+    title: record.title,
+    summary: record.summary,
+    findings: record.findings.map((finding) => ({
+      ...finding,
+      tickers: [...finding.tickers],
+      evidence_refs: finding.evidence_refs.map((ref) => ({ ...ref }))
+    })),
+    source_journal_entry_ids: [...record.sourceJournalEntryIds],
+    generated_at: record.generatedAt,
+    created_at: record.createdAt,
+    updated_at: record.updatedAt
+  };
+}
+
+function toOppositeCaseView(record: OppositeCaseReportRecord) {
+  return {
+    opposite_case_id: record.id,
+    user_id: record.userId,
+    source_report_id: record.sourceReportId,
+    ticker: record.ticker,
+    prompt_version: record.promptVersion,
+    thesis_summary: record.thesisSummary,
+    opposite_case_summary: record.oppositeCaseSummary,
+    key_points: record.keyPoints.map((point) => ({
+      ...point,
+      evidence_refs: point.evidence_refs.map((ref) => ({ ...ref }))
+    })),
+    shared_evidence_refs: record.sharedEvidenceRefs.map((ref) => ({ ...ref })),
+    decisive_factors: [...record.decisiveFactors],
+    generated_at: record.generatedAt,
+    created_at: record.createdAt
   };
 }
 
@@ -2054,6 +2141,339 @@ function roundTo(value: number, decimals: number = 4): number {
   return Math.round(value * multiplier) / multiplier;
 }
 
+function isStrictIsoDate(value: string | undefined): value is string {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return false;
+  }
+  const parsed = Date.parse(`${value}T12:00:00.000Z`);
+  return Number.isFinite(parsed);
+}
+
+function previousCalendarMonthPeriod(timeZone: string): {
+  periodStart: string;
+  periodEnd: string;
+} {
+  const today = dateInTimeZone(new Date(), timeZone);
+  const currentMonth = new Date(`${today.slice(0, 7)}-01T12:00:00.000Z`);
+  currentMonth.setUTCMonth(currentMonth.getUTCMonth() - 1);
+  const periodStart = currentMonth.toISOString().slice(0, 10);
+  currentMonth.setUTCMonth(currentMonth.getUTCMonth() + 1);
+  currentMonth.setUTCDate(0);
+  const periodEnd = currentMonth.toISOString().slice(0, 10);
+  return { periodStart, periodEnd };
+}
+
+function convictionTextKeywords(text: string | undefined): Set<string> {
+  const stopWords = new Set([
+    "about",
+    "after",
+    "against",
+    "because",
+    "could",
+    "from",
+    "into",
+    "more",
+    "that",
+    "their",
+    "there",
+    "these",
+    "this",
+    "with",
+    "your"
+  ]);
+  const keywords = new Set<string>();
+  for (const token of (text ?? "").toLowerCase().match(/[a-z]{5,}/g) ?? []) {
+    if (!stopWords.has(token)) {
+      keywords.add(token);
+    }
+  }
+  return keywords;
+}
+
+function buildOppositeCaseReportRecord(input: {
+  report: AnalysisReport;
+  userId: string;
+  sourceReportId: string;
+  nowIso: string;
+}): OppositeCaseReportRecord {
+  const ticker = input.report.ticker?.trim().toUpperCase() ?? "UNKNOWN";
+  const thesisSummary =
+    extractThesisStatement(input.report) ??
+    input.report.signal?.reasons?.[0] ??
+    `${ticker} thesis summary is unavailable in the source report.`;
+  const signalLanguage = input.report.signal?.value
+    ? `The source signal is ${input.report.signal.value}.`
+    : "The source signal is not explicit.";
+  const firstReason =
+    input.report.signal?.reasons?.[0] ??
+    "The evidence set is limited, so the opposite case should stay conservative.";
+  const valuationLanguage = input.report.valuation?.fair_value_mid
+    ? `The valuation midpoint of ${input.report.valuation.fair_value_mid} can break if the assumptions prove too optimistic.`
+    : "Valuation support is unavailable, so the thesis depends more heavily on qualitative evidence.";
+  const sharedEvidenceRefs = convictionEvidenceRefsFromReport(input.report);
+
+  return {
+    id: createId(),
+    userId: input.userId,
+    sourceReportId: input.sourceReportId,
+    ticker,
+    promptVersion: convictionOppositeCasePromptVersion,
+    thesisSummary,
+    oppositeCaseSummary:
+      `The strongest case against the ${ticker} thesis is that the evidence may not be durable enough to support the current conviction. ${signalLanguage}`,
+    keyPoints: [
+      {
+        title: "Evidence durability risk",
+        summary: `The opposite case challenges whether this remains true: ${firstReason}`,
+        evidence_refs: sharedEvidenceRefs
+      },
+      {
+        title: "Assumption sensitivity",
+        summary: valuationLanguage,
+        evidence_refs: sharedEvidenceRefs
+      },
+      {
+        title: "Timing risk",
+        summary:
+          "Even if the thesis is directionally right, the market may require fresher proof before rewarding it.",
+        evidence_refs: sharedEvidenceRefs
+      }
+    ],
+    sharedEvidenceRefs,
+    decisiveFactors: [
+      "Whether the latest thesis evidence remains durable after new material events.",
+      "Whether valuation and confidence assumptions survive the next review.",
+      "Whether future evidence confirms or weakens the core thesis statement."
+    ],
+    generatedAt: input.nowIso,
+    createdAt: input.nowIso
+  };
+}
+
+function buildCoherenceFindings(
+  entries: ConvictionJournalEntryRecord[]
+): ConvictionInsightFinding[] {
+  const latestByTicker = new Map<string, ConvictionJournalEntryRecord>();
+  for (const entry of entries) {
+    const existing = latestByTicker.get(entry.ticker);
+    if (!existing || entry.eventAt > existing.eventAt) {
+      latestByTicker.set(entry.ticker, entry);
+    }
+  }
+  const latest = [...latestByTicker.values()].sort((left, right) =>
+    left.ticker.localeCompare(right.ticker)
+  );
+  const findings: ConvictionInsightFinding[] = [];
+
+  for (let leftIndex = 0; leftIndex < latest.length; leftIndex += 1) {
+    const left = latest[leftIndex];
+    if (!left) {
+      continue;
+    }
+    for (let rightIndex = leftIndex + 1; rightIndex < latest.length; rightIndex += 1) {
+      const right = latest[rightIndex];
+      if (!right) {
+        continue;
+      }
+      const leftKeywords = convictionTextKeywords(
+        `${left.summary} ${left.thesisSnapshot.thesis_summary ?? ""}`
+      );
+      const rightKeywords = convictionTextKeywords(
+        `${right.summary} ${right.thesisSnapshot.thesis_summary ?? ""}`
+      );
+      const shared = [...leftKeywords].filter((keyword) => rightKeywords.has(keyword));
+      if (shared.length >= 2 && findings.every((finding) => finding.finding_type !== "overlap")) {
+        findings.push({
+          finding_type: "overlap",
+          title: "Thesis overlap detected",
+          summary:
+            `${left.ticker} and ${right.ticker} lean on similar language: ${shared.slice(0, 3).join(", ")}.`,
+          tickers: [left.ticker, right.ticker],
+          evidence_refs: [
+            {
+              kind: "journal_entry",
+              ref_id: left.id,
+              label: left.title,
+              ticker: left.ticker,
+              captured_at: left.eventAt
+            },
+            {
+              kind: "journal_entry",
+              ref_id: right.id,
+              label: right.title,
+              ticker: right.ticker,
+              captured_at: right.eventAt
+            }
+          ],
+          confidence: roundTo(Math.min(0.95, 0.6 + shared.length * 0.05), 2)
+        });
+      }
+
+      const leftSignal = left.thesisSnapshot.signal_value;
+      const rightSignal = right.thesisSnapshot.signal_value;
+      if (
+        ((leftSignal === "positive" && rightSignal === "negative") ||
+          (leftSignal === "negative" && rightSignal === "positive")) &&
+        findings.every((finding) => finding.finding_type !== "contradiction")
+      ) {
+        findings.push({
+          finding_type: "contradiction",
+          title: "Opposing thesis signals",
+          summary:
+            `${left.ticker} and ${right.ticker} carry opposite latest thesis signals. Review whether both assumptions can be true together.`,
+          tickers: [left.ticker, right.ticker],
+          evidence_refs: [
+            {
+              kind: "journal_entry",
+              ref_id: left.id,
+              label: left.title,
+              ticker: left.ticker,
+              captured_at: left.eventAt
+            },
+            {
+              kind: "journal_entry",
+              ref_id: right.id,
+              label: right.title,
+              ticker: right.ticker,
+              captured_at: right.eventAt
+            }
+          ],
+          confidence: 0.72
+        });
+      }
+    }
+  }
+
+  const eventCounts = new Map<string, number>();
+  for (const entry of entries) {
+    eventCounts.set(entry.ticker, (eventCounts.get(entry.ticker) ?? 0) + 1);
+  }
+  const busiest = [...eventCounts.entries()].sort((left, right) => right[1] - left[1])[0];
+  if (busiest && busiest[1] >= 3) {
+    const tickerEntries = entries.filter((entry) => entry.ticker === busiest[0]).slice(0, 3);
+    findings.push({
+      finding_type: "mismatch",
+      title: "Conviction attention is concentrated",
+      summary:
+        `${busiest[0]} produced ${busiest[1]} conviction event(s) this period. Review whether attention is matching thesis importance.`,
+      tickers: [busiest[0]],
+      evidence_refs: tickerEntries.map((entry) => ({
+        kind: "journal_entry",
+        ref_id: entry.id,
+        label: entry.title,
+        ticker: entry.ticker,
+        captured_at: entry.eventAt
+      })),
+      confidence: 0.68
+    });
+  }
+
+  return findings.slice(0, 5);
+}
+
+async function runConvictionCoherenceEvaluation(
+  runtime: Runtime,
+  input: {
+    periodStart: string;
+    periodEnd: string;
+    userIds?: string[];
+  }
+): Promise<{
+  evaluatedUsers: number;
+  generated: number;
+  degraded: number;
+  failed: number;
+}> {
+  const candidateUserIds = input.userIds && input.userIds.length > 0
+    ? input.userIds
+    : (await runtime.store.listUsersWithWatchlist()).map((entry) => entry.userId);
+  const uniqueUserIds = [...new Set(candidateUserIds.map((userId) => userId.trim()).filter(Boolean))];
+  const periodStartMs = Date.parse(`${input.periodStart}T00:00:00.000Z`);
+  const periodEndMs = Date.parse(`${input.periodEnd}T23:59:59.999Z`);
+  const generatedAt = new Date().toISOString();
+  let evaluatedUsers = 0;
+  let generated = 0;
+  let degraded = 0;
+  let failed = 0;
+
+  for (const userId of uniqueUserIds) {
+    const subscription = await runtime.store.getUserSubscription(userId);
+    if (subscription.tier !== "PRO") {
+      continue;
+    }
+    evaluatedUsers += 1;
+    try {
+      const entries = (await runtime.store.listConvictionJournalEntriesByUser({
+        userId,
+        limit: 500
+      })).filter((entry) => {
+        const eventMs = Date.parse(entry.eventAt);
+        return eventMs >= periodStartMs && eventMs <= periodEndMs;
+      });
+      const findings = buildCoherenceFindings(entries);
+      const status = entries.length < 2 ? "degraded" : "generated";
+      const title = findings.length > 0
+        ? "Monthly conviction review"
+        : "Monthly conviction review: nothing unusual";
+      const summary = findings.length > 0
+        ? `${findings.length} conviction pattern(s) need a quick review.`
+        : entries.length < 2
+          ? "Not enough conviction history exists yet for a strong monthly pattern."
+          : "No overlap, contradiction, or mismatch pattern stood out this month.";
+
+      await runtime.store.upsertConvictionInsightCard({
+        id: createId(),
+        userId,
+        periodStart: input.periodStart,
+        periodEnd: input.periodEnd,
+        insightType: "monthly_coherence",
+        status,
+        title,
+        summary,
+        findings,
+        sourceJournalEntryIds: entries.map((entry) => entry.id),
+        generatedAt,
+        createdAt: generatedAt,
+        updatedAt: generatedAt
+      });
+      if (status === "generated") {
+        generated += 1;
+      } else {
+        degraded += 1;
+      }
+      logInfo("Conviction coherence card generated", {
+        user_id: userId,
+        period_start: input.periodStart,
+        period_end: input.periodEnd,
+        finding_count: findings.length,
+        prompt_version: convictionCoherencePromptVersion
+      });
+    } catch (error) {
+      failed += 1;
+      const message = error instanceof Error ? error.message : "Coherence evaluation failed.";
+      logError("Conviction coherence evaluation failed", {
+        user_id: userId,
+        period_start: input.periodStart,
+        period_end: input.periodEnd,
+        error_message: message
+      });
+      captureException(new Error(message), {
+        service: serviceName,
+        user_id: userId,
+        period_start: input.periodStart,
+        period_end: input.periodEnd
+      });
+    }
+  }
+
+  return {
+    evaluatedUsers,
+    generated,
+    degraded,
+    failed
+  };
+}
+
 function computeScenarioResponse(
   reportId: string,
   valuation: NonNullable<AnalysisReport["valuation"]>,
@@ -2238,7 +2658,7 @@ async function recordAlertLedgerItem(
   }
 ): Promise<AlertLedgerRecord> {
   const now = new Date().toISOString();
-  return runtime.store.createAlertLedgerItem({
+  const alert = await runtime.store.createAlertLedgerItem({
     id: input.id ?? createId(),
     userId: input.userId,
     notificationType: input.notificationType,
@@ -2252,6 +2672,349 @@ async function recordAlertLedgerItem(
     context: alertLedgerContextFromData(input.data),
     createdAt: now,
     updatedAt: now
+  });
+  await recordConvictionJournalEntryFromAlert(runtime, alert);
+  return alert;
+}
+
+function convictionTickerFromAlert(alert: AlertLedgerRecord): string | undefined {
+  const candidates = [
+    alert.context?.ticker,
+    alert.context?.affected_ticker,
+    alert.context?.lead_ticker,
+    alert.context?.source_ticker
+  ];
+  for (const candidate of candidates) {
+    const ticker = normalizeTickerSymbol(candidate);
+    if (ticker) {
+      return ticker;
+    }
+  }
+  return undefined;
+}
+
+function convictionEvidenceRefsFromReport(report: AnalysisReport): ConvictionEvidenceRef[] {
+  const refs = new Map<string, ConvictionEvidenceRef>();
+  const reportTicker = normalizeTickerSymbol(report.ticker);
+  refs.set(`report:${report.report_id}`, {
+    kind: "report",
+    ref_id: report.report_id,
+    label: report.type === "deep_dive" ? "Deep Dive report" : "Report",
+    ticker: reportTicker,
+    captured_at: report.generated_at
+  });
+
+  const evidenceItems = [
+    ...(report.signal?.evidence ?? []),
+    ...report.sections.flatMap((section) => section.evidence ?? [])
+  ];
+  for (const evidence of evidenceItems) {
+    if (!evidence.evidence_id || refs.has(`evidence:${evidence.evidence_id}`)) {
+      continue;
+    }
+    refs.set(`evidence:${evidence.evidence_id}`, {
+      kind: "evidence_item",
+      ref_id: evidence.evidence_id,
+      label: evidence.source_name,
+      ticker: reportTicker,
+      captured_at: evidence.retrieved_at
+    });
+  }
+
+  return [...refs.values()].slice(0, 16);
+}
+
+function convictionThesisSnapshotFromReport(
+  report: AnalysisReport,
+  monitorSnapshot?: ThesisMonitorSnapshotRecord
+): ConvictionThesisSnapshot {
+  return {
+    ticker: normalizeTickerSymbol(report.ticker),
+    report_id: report.report_id,
+    report_generated_at: report.generated_at,
+    report_schema_version: report.schema_version,
+    signal_value: report.signal?.value,
+    signal_reasons: report.signal?.reasons ? [...report.signal.reasons] : undefined,
+    confidence_score: report.confidence?.score,
+    confidence_label: report.confidence?.label,
+    thesis_summary: extractThesisStatement(report) ?? report.signal?.reasons?.[0],
+    monitor_state: monitorSnapshot?.state,
+    monitor_reason: monitorSnapshot?.reason,
+    monitor_score: monitorSnapshot?.score,
+    freshness_state: monitorSnapshot?.freshnessState,
+    freshness_score: monitorSnapshot?.freshnessScore
+  };
+}
+
+async function latestConvictionSnapshotForTicker(
+  runtime: Runtime,
+  input: {
+    userId: string;
+    ticker: string;
+    reportId?: string;
+  }
+): Promise<{
+  snapshot: ConvictionThesisSnapshot;
+  evidenceRefs: ConvictionEvidenceRef[];
+  report?: AnalysisReport;
+}> {
+  const ticker = input.ticker.trim().toUpperCase();
+  const snapshots = await runtime.store.listThesisMonitorSnapshotsByUser(input.userId);
+  const monitorSnapshot = snapshots.find((entry) => entry.ticker === ticker);
+  const candidateReports = input.reportId
+    ? [await runtime.store.getReportById(input.reportId)]
+    : (await runtime.store.listReportsByUser(input.userId))
+        .filter((report) => report.type === "deep_dive" && report.ticker === ticker)
+        .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+  const reportMetadata = candidateReports.find(Boolean);
+
+  if (reportMetadata) {
+    try {
+      const artifact = await runtime.artifactStore.readReport(reportMetadata.artifactKey);
+      if (isAnalysisReport(artifact) && artifact.type === "deep_dive") {
+        return {
+          snapshot: convictionThesisSnapshotFromReport(artifact, monitorSnapshot),
+          evidenceRefs: convictionEvidenceRefsFromReport(artifact),
+          report: artifact
+        };
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "report artifact unavailable";
+      logWarn("Conviction journal fell back without report artifact", {
+        user_id: input.userId,
+        ticker,
+        report_id: reportMetadata.id,
+        error_message: message
+      });
+    }
+  }
+
+  return {
+    snapshot: {
+      ticker,
+      monitor_state: monitorSnapshot?.state,
+      monitor_reason: monitorSnapshot?.reason,
+      monitor_score: monitorSnapshot?.score,
+      freshness_state: monitorSnapshot?.freshnessState,
+      freshness_score: monitorSnapshot?.freshnessScore,
+      report_id: monitorSnapshot?.reportId,
+      report_generated_at: monitorSnapshot?.reportGeneratedAt,
+      report_schema_version: monitorSnapshot?.reportSchemaVersion
+    },
+    evidenceRefs: monitorSnapshot
+      ? [
+          {
+            kind: "monitor_snapshot",
+            ref_id: `${input.userId}:${ticker}`,
+            label: "Monitor snapshot",
+            ticker,
+            captured_at: monitorSnapshot.updatedAt
+          }
+        ]
+      : []
+  };
+}
+
+async function recordConvictionJournalEntry(
+  runtime: Runtime,
+  input: {
+    userId: string;
+    ticker: string;
+    eventType: ConvictionJournalEventType;
+    sourceType: ConvictionJournalSourceType;
+    sourceId: string;
+    title: string;
+    summary: string;
+    thesisSnapshot: ConvictionThesisSnapshot;
+    evidenceRefs: ConvictionEvidenceRef[];
+    eventAt?: string;
+    reportId?: string;
+    alertLedgerId?: string;
+    warRoomId?: string;
+    monitorSnapshotKey?: string;
+    oppositeCaseId?: string;
+  }
+): Promise<ConvictionJournalEntryRecord | undefined> {
+  const subscription = await runtime.store.getUserSubscription(input.userId);
+  if (subscription.tier !== "PRO") {
+    return undefined;
+  }
+
+  const now = new Date().toISOString();
+  const record = await runtime.store.upsertConvictionJournalEntry({
+    id: createId(),
+    userId: input.userId,
+    ticker: input.ticker.trim().toUpperCase(),
+    eventType: input.eventType,
+    sourceType: input.sourceType,
+    sourceId: input.sourceId,
+    eventAt: input.eventAt ?? now,
+    title: input.title,
+    summary: input.summary,
+    thesisSnapshot: input.thesisSnapshot,
+    evidenceRefs: input.evidenceRefs,
+    reportId: input.reportId,
+    alertLedgerId: input.alertLedgerId,
+    warRoomId: input.warRoomId,
+    monitorSnapshotKey: input.monitorSnapshotKey,
+    oppositeCaseId: input.oppositeCaseId,
+    createdAt: now,
+    updatedAt: now
+  });
+  logInfo("Conviction journal entry upserted", {
+    user_id: input.userId,
+    ticker: record.ticker,
+    event_type: record.eventType,
+    journal_entry_id: record.id,
+    source_type: record.sourceType,
+    source_id: record.sourceId
+  });
+  return record;
+}
+
+async function recordConvictionJournalEntryFromReport(
+  runtime: Runtime,
+  input: {
+    report: AnalysisReport;
+    userId?: string;
+  }
+): Promise<void> {
+  if (input.report.type !== "deep_dive" || !input.userId || !input.report.ticker) {
+    return;
+  }
+  const ticker = input.report.ticker.trim().toUpperCase();
+  const monitorSnapshot = (await runtime.store.listThesisMonitorSnapshotsByUser(input.userId))
+    .find((entry) => entry.ticker === ticker);
+  await recordConvictionJournalEntry(runtime, {
+    userId: input.userId,
+    ticker,
+    eventType: "deep_dive_generated",
+    sourceType: "report",
+    sourceId: input.report.report_id,
+    eventAt: input.report.generated_at,
+    title: `${ticker} thesis recorded`,
+    summary:
+      extractThesisStatement(input.report) ??
+      input.report.signal?.reasons?.[0] ??
+      `${ticker} Deep Dive completed.`,
+    thesisSnapshot: convictionThesisSnapshotFromReport(input.report, monitorSnapshot),
+    evidenceRefs: convictionEvidenceRefsFromReport(input.report),
+    reportId: input.report.report_id
+  });
+}
+
+async function recordConvictionJournalEntryFromAlert(
+  runtime: Runtime,
+  alert: AlertLedgerRecord
+): Promise<void> {
+  const ticker = convictionTickerFromAlert(alert);
+  if (!ticker) {
+    return;
+  }
+  let eventType: ConvictionJournalEventType | undefined;
+  let sourceType: ConvictionJournalSourceType = "alert_ledger";
+  let sourceId = alert.id;
+  if (alert.notificationType === "kill_switch") {
+    eventType = "kill_switch_alert_fired";
+  } else if (alert.notificationType === "freshness_decay") {
+    eventType = "freshness_decay_alert_fired";
+  } else if (alert.notificationType === "cross_name_propagation") {
+    eventType = "cross_name_alert_fired";
+  } else if (
+    alert.notificationType === "earnings_war_room" &&
+    alert.context?.war_room_phase === "post" &&
+    typeof alert.context.war_room_id === "string"
+  ) {
+    eventType = "earnings_war_room_closed";
+    sourceType = "war_room";
+    sourceId = alert.context.war_room_id;
+  }
+  if (!eventType) {
+    return;
+  }
+
+  const reportId = typeof alert.context?.report_id === "string"
+    ? alert.context.report_id
+    : undefined;
+  const { snapshot, evidenceRefs } = await latestConvictionSnapshotForTicker(runtime, {
+    userId: alert.userId,
+    ticker,
+    reportId
+  });
+  const eventRefs: ConvictionEvidenceRef[] = [
+    {
+      kind: "alert_ledger",
+      ref_id: alert.id,
+      label: alert.title,
+      ticker,
+      captured_at: alert.createdAt
+    },
+    ...evidenceRefs
+  ];
+
+  await recordConvictionJournalEntry(runtime, {
+    userId: alert.userId,
+    ticker,
+    eventType,
+    sourceType,
+    sourceId,
+    eventAt: alert.createdAt,
+    title: alert.title,
+    summary: alert.reasonText || alert.body,
+    thesisSnapshot: snapshot,
+    evidenceRefs: eventRefs,
+    reportId,
+    alertLedgerId: alert.id,
+    warRoomId: typeof alert.context?.war_room_id === "string"
+      ? alert.context.war_room_id
+      : undefined,
+    monitorSnapshotKey: `${alert.userId}:${ticker}`
+  });
+}
+
+async function recordConvictionJournalEntryFromAlertFeedback(
+  runtime: Runtime,
+  alert: AlertLedgerRecord,
+  feedback: AlertFeedbackState
+): Promise<void> {
+  const ticker = convictionTickerFromAlert(alert);
+  if (!ticker) {
+    return;
+  }
+  const reportId = typeof alert.context?.report_id === "string"
+    ? alert.context.report_id
+    : undefined;
+  const { snapshot, evidenceRefs } = await latestConvictionSnapshotForTicker(runtime, {
+    userId: alert.userId,
+    ticker,
+    reportId
+  });
+  await recordConvictionJournalEntry(runtime, {
+    userId: alert.userId,
+    ticker,
+    eventType: "alert_feedback_recorded",
+    sourceType: "alert_ledger",
+    sourceId: alert.id,
+    eventAt: new Date().toISOString(),
+    title: `Feedback recorded for ${alert.title}`,
+    summary: `User marked the alert as ${feedback}.`,
+    thesisSnapshot: snapshot,
+    evidenceRefs: [
+      {
+        kind: "alert_ledger",
+        ref_id: alert.id,
+        label: alert.title,
+        ticker,
+        captured_at: alert.updatedAt
+      },
+      ...evidenceRefs
+    ],
+    reportId,
+    alertLedgerId: alert.id,
+    warRoomId: typeof alert.context?.war_room_id === "string"
+      ? alert.context.war_room_id
+      : undefined,
+    monitorSnapshotKey: `${alert.userId}:${ticker}`
   });
 }
 
@@ -5285,6 +6048,59 @@ export function startServer(port: number = loadConfig().port): Server {
           return;
         }
 
+        if (method === "POST" && pathname === "/internal/conviction/coherence/evaluate") {
+          const body = await readJsonBody<CoherenceEvaluationRequest>(request);
+          const defaultPeriod = previousCalendarMonthPeriod(runtime.config.subscriptionTimezone);
+          const periodStart = body.period_start ?? defaultPeriod.periodStart;
+          const periodEnd = body.period_end ?? defaultPeriod.periodEnd;
+          if (!isStrictIsoDate(periodStart) || !isStrictIsoDate(periodEnd)) {
+            sendJson(response, 422, {
+              error: "validation_failed",
+              error_message: "period_start and period_end must be YYYY-MM-DD dates."
+            });
+            return;
+          }
+          if (Date.parse(`${periodStart}T00:00:00.000Z`) > Date.parse(`${periodEnd}T23:59:59.999Z`)) {
+            sendJson(response, 422, {
+              error: "validation_failed",
+              error_message: "period_start must be on or before period_end."
+            });
+            return;
+          }
+          const userIds = Array.isArray(body.user_ids)
+            ? body.user_ids
+                .map((value) => (typeof value === "string" ? value.trim() : ""))
+                .filter((value) => value.length > 0)
+            : undefined;
+          const result = await runConvictionCoherenceEvaluation(runtime, {
+            periodStart,
+            periodEnd,
+            userIds
+          });
+
+          await appendAudit(runtime, "conviction.coherence_evaluated", {
+            request_id: meta.requestId,
+            route: pathname,
+            period_start: periodStart,
+            period_end: periodEnd,
+            evaluated_users: result.evaluatedUsers,
+            generated: result.generated,
+            degraded: result.degraded,
+            failed: result.failed
+          });
+
+          sendJson(response, 200, {
+            status: "ok",
+            period_start: periodStart,
+            period_end: periodEnd,
+            evaluated_users: result.evaluatedUsers,
+            generated: result.generated,
+            degraded: result.degraded,
+            failed: result.failed
+          });
+          return;
+        }
+
         if (method === "POST" && pathname === "/internal/notifications/kill-switch/evaluate") {
           const body = await readJsonBody<KillSwitchEvaluationRequest>(request);
           const asOf =
@@ -6172,6 +6988,10 @@ export function startServer(port: number = loadConfig().port): Server {
                   }, completed.userId);
                 }
               }
+              await recordConvictionJournalEntryFromReport(runtime, {
+                report,
+                userId: completed.userId
+              });
 
               sendJson(response, 200, {
                 status: "ok",
@@ -6420,6 +7240,91 @@ export function startServer(port: number = loadConfig().port): Server {
         return;
       }
 
+      if (method === "GET" && pathname === "/v1/conviction/timeline") {
+        const subscription = await runtime.store.getUserSubscription(auth.userId);
+        if (subscription.tier !== "PRO") {
+          sendJson(
+            response,
+            403,
+            buildUpgradeRequiredPayload(
+              "conviction_intelligence",
+              "Conviction timeline is available on the Pro tier."
+            )
+          );
+          return;
+        }
+        const limit = parsePositiveInteger(url.searchParams.get("limit") ?? undefined, 50, 1, 100);
+        if (limit === undefined) {
+          sendJson(response, 422, {
+            error: "validation_failed",
+            error_message: "limit must be an integer between 1 and 100."
+          });
+          return;
+        }
+        const tickerRaw = url.searchParams.get("ticker");
+        const ticker = tickerRaw ? normalizeTickerSymbol(tickerRaw) : undefined;
+        if (tickerRaw && !ticker) {
+          sendJson(response, 422, {
+            error: "validation_failed",
+            error_message: "ticker must be a valid US symbol."
+          });
+          return;
+        }
+        const rows = await runtime.store.listConvictionJournalEntriesByUser({
+          userId: auth.userId,
+          ticker,
+          limit
+        });
+        await appendAudit(runtime, "conviction.timeline_listed", {
+          request_id: meta.requestId,
+          route: pathname,
+          count: rows.length,
+          ticker: ticker ?? null,
+          limit
+        }, auth.userId);
+        sendJson(response, 200, {
+          data: rows.map((row) => toConvictionJournalEntryView(row))
+        });
+        return;
+      }
+
+      if (method === "GET" && pathname === "/v1/conviction/insights") {
+        const subscription = await runtime.store.getUserSubscription(auth.userId);
+        if (subscription.tier !== "PRO") {
+          sendJson(
+            response,
+            403,
+            buildUpgradeRequiredPayload(
+              "conviction_intelligence",
+              "Conviction insights are available on the Pro tier."
+            )
+          );
+          return;
+        }
+        const limit = parsePositiveInteger(url.searchParams.get("limit") ?? undefined, 10, 1, 50);
+        if (limit === undefined) {
+          sendJson(response, 422, {
+            error: "validation_failed",
+            error_message: "limit must be an integer between 1 and 50."
+          });
+          return;
+        }
+        const rows = await runtime.store.listConvictionInsightCardsByUser({
+          userId: auth.userId,
+          limit
+        });
+        await appendAudit(runtime, "conviction.insights_listed", {
+          request_id: meta.requestId,
+          route: pathname,
+          count: rows.length,
+          limit
+        }, auth.userId);
+        sendJson(response, 200, {
+          data: rows.map((row) => toConvictionInsightCardView(row))
+        });
+        return;
+      }
+
       if (method === "GET" && pathname === "/v1/user/alerts") {
         const limit = parsePositiveInteger(url.searchParams.get("limit") ?? undefined, 50, 1, 100);
         if (limit === undefined) {
@@ -6535,6 +7440,7 @@ export function startServer(port: number = loadConfig().port): Server {
             feedback,
             notification_type: updated.notificationType
           }, auth.userId);
+          await recordConvictionJournalEntryFromAlertFeedback(runtime, updated, feedback);
 
           sendJson(response, 200, {
             data: toAlertLedgerView(updated)
@@ -7775,6 +8681,10 @@ export function startServer(port: number = loadConfig().port): Server {
               requestId: meta.requestId,
               route: pathname
             });
+            await recordConvictionJournalEntryFromReport(runtime, {
+              report: reusedReport,
+              userId: auth.userId
+            });
 
             logInfo("Deep dive report reused", {
               request_id: meta.requestId,
@@ -7966,6 +8876,69 @@ export function startServer(port: number = loadConfig().port): Server {
 
       if ((method === "GET" || method === "PUT") && pathname.startsWith("/v1/reports/")) {
         const parts = pathname.split("/").filter(Boolean);
+        if (method === "GET" && parts.length === 4 && parts[0] === "v1" && parts[1] === "reports" && parts[3] === "opposite-case") {
+          const reportId = parts[2];
+          if (!reportId) {
+            sendJson(response, 404, { status: "not_found" });
+            return;
+          }
+
+          const reportMetadata = await runtime.store.getReportById(reportId);
+          if (!reportMetadata) {
+            sendJson(response, 404, {
+              error: "report_not_found",
+              error_message: "Report not found."
+            });
+            return;
+          }
+
+          const hasAccess = await runtime.store.hasReportAccessForUser(auth.userId, reportMetadata.id);
+          if (!hasAccess) {
+            sendJson(response, 404, {
+              error: "report_not_found",
+              error_message: "Report not found."
+            });
+            return;
+          }
+
+          const subscription = await runtime.store.getUserSubscription(auth.userId);
+          if (subscription.tier !== "PRO") {
+            sendJson(
+              response,
+              403,
+              buildUpgradeRequiredPayload(
+                "conviction_intelligence",
+                "Opposite-case generation is available on the Pro tier."
+              )
+            );
+            return;
+          }
+
+          const existing = await runtime.store.getOppositeCaseReportBySource({
+            userId: auth.userId,
+            sourceReportId: reportId
+          });
+          if (!existing) {
+            sendJson(response, 404, {
+              error: "opposite_case_not_found",
+              error_message: "No opposite-case report exists for this Deep Dive yet."
+            });
+            return;
+          }
+
+          await appendAudit(runtime, "conviction.opposite_case_retrieved", {
+            request_id: meta.requestId,
+            route: pathname,
+            report_id: reportId,
+            opposite_case_id: existing.id
+          }, auth.userId);
+
+          sendJson(response, 200, {
+            data: toOppositeCaseView(existing)
+          });
+          return;
+        }
+
         if (parts.length === 4 && parts[0] === "v1" && parts[1] === "reports" && parts[3] === "note") {
           const reportId = parts[2];
           if (!reportId) {
@@ -8055,6 +9028,120 @@ export function startServer(port: number = loadConfig().port): Server {
 
       if (method === "POST" && pathname.startsWith("/v1/reports/")) {
         const parts = pathname.split("/").filter(Boolean);
+        if (parts.length === 4 && parts[0] === "v1" && parts[1] === "reports" && parts[3] === "opposite-case") {
+          const reportId = parts[2];
+          if (!reportId) {
+            sendJson(response, 404, { status: "not_found" });
+            return;
+          }
+
+          const reportMetadata = await runtime.store.getReportById(reportId);
+          if (!reportMetadata) {
+            sendJson(response, 404, {
+              error: "report_not_found",
+              error_message: "Report not found."
+            });
+            return;
+          }
+
+          const hasAccess = await runtime.store.hasReportAccessForUser(auth.userId, reportMetadata.id);
+          if (!hasAccess) {
+            sendJson(response, 404, {
+              error: "report_not_found",
+              error_message: "Report not found."
+            });
+            return;
+          }
+
+          const subscription = await runtime.store.getUserSubscription(auth.userId);
+          if (subscription.tier !== "PRO") {
+            sendJson(
+              response,
+              403,
+              buildUpgradeRequiredPayload(
+                "conviction_intelligence",
+                "Opposite-case generation is available on the Pro tier."
+              )
+            );
+            return;
+          }
+
+          const existing = await runtime.store.getOppositeCaseReportBySource({
+            userId: auth.userId,
+            sourceReportId: reportId
+          });
+          if (existing) {
+            sendJson(response, 200, {
+              data: toOppositeCaseView(existing)
+            });
+            return;
+          }
+
+          const artifact = await runtime.artifactStore.readReport(reportMetadata.artifactKey);
+          if (!artifact || !("job_id" in artifact)) {
+            sendJson(response, 404, {
+              error: "report_not_found",
+              error_message: "Report artifact missing."
+            });
+            return;
+          }
+
+          const report = assertIncomingAnalysisReport(artifact);
+          if (report.type !== "deep_dive" || !report.ticker) {
+            sendJson(response, 422, {
+              error: "validation_failed",
+              error_message: "Opposite-case generation is only supported for Deep Dive reports."
+            });
+            return;
+          }
+
+          const nowIso = new Date().toISOString();
+          const oppositeCase = await runtime.store.upsertOppositeCaseReport(
+            buildOppositeCaseReportRecord({
+              report,
+              userId: auth.userId,
+              sourceReportId: reportId,
+              nowIso
+            })
+          );
+          await recordConvictionJournalEntry(runtime, {
+            userId: auth.userId,
+            ticker: oppositeCase.ticker,
+            eventType: "opposite_case_generated",
+            sourceType: "opposite_case",
+            sourceId: oppositeCase.id,
+            eventAt: oppositeCase.generatedAt,
+            title: `${oppositeCase.ticker} opposite case generated`,
+            summary: oppositeCase.oppositeCaseSummary,
+            thesisSnapshot: convictionThesisSnapshotFromReport(report),
+            evidenceRefs: [
+              {
+                kind: "report",
+                ref_id: reportId,
+                label: "Source Deep Dive report",
+                ticker: oppositeCase.ticker,
+                captured_at: report.generated_at
+              },
+              ...oppositeCase.sharedEvidenceRefs
+            ],
+            reportId,
+            oppositeCaseId: oppositeCase.id
+          });
+
+          await appendAudit(runtime, "conviction.opposite_case_generated", {
+            request_id: meta.requestId,
+            route: pathname,
+            report_id: reportId,
+            opposite_case_id: oppositeCase.id,
+            prompt_version: oppositeCase.promptVersion
+          }, auth.userId);
+
+          sendJson(response, 200, {
+            data: toOppositeCaseView(oppositeCase)
+          });
+          return;
+        }
+
         if (parts.length === 4 && parts[0] === "v1" && parts[1] === "reports" && parts[3] === "scenario") {
           const reportId = parts[2];
           if (!reportId) {

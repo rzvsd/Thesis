@@ -1,0 +1,10 @@
+{
+  "flow": "C:\\BOTS\\Thesis\\fintech\\qa\\maestro\\flows\\ph5_set_api_url_phone.yaml",
+  "started_at": "2026-04-10T12:08:39.750Z",
+  "ended_at": "2026-04-10T12:10:01.264Z",
+  "exit_code": 1,
+  "device_serial": "R3CXA03J3LH",
+  "app_id": "com.thesis.mobile",
+  "api_base_url": "http://127.0.0.1:3101",
+  "log": "C:\\BOTS\\Thesis\\fintech\\qa\\maestro\\output\\2026-04-10T12-08-39-734Z\\maestro.log"
+}

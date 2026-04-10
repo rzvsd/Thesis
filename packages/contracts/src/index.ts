@@ -13,6 +13,7 @@ export * from "./canonical-macro-data";
 export * from "./canonical-transcript";
 export * from "./calendar-event";
 export * from "./contrarian-alert-anchor";
+export * from "./conviction-intelligence";
 export * from "./create-job-request";
 export * from "./earnings-war-room";
 export * from "./evidence-item";

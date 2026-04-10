@@ -2,7 +2,7 @@
 
 **Version:** 1.0  
 **Status:** Active  
-**Last Revised:** 2026-04-09
+**Last Revised:** 2026-04-10
 **Related Documents:** ph5_ROADMAP.md, ph5_BLUEBOOK.md, ph5_PRD.md
 
 ---
@@ -409,6 +409,8 @@ Dexter Engineer + Scheduler Engineer + Product API Engineer
 
 # M6 - Conviction Intelligence
 
+Status: Closed (PASS) on 2026-04-10; LangSmith remote prompt registration carried as TBD because `LANGSMITH_API_KEY` is not available in this environment.
+
 ## Goal
 
 Build user-learning loop through decision journaling, coherence checks, and opposite-case reasoning.
@@ -422,26 +424,57 @@ Build user-learning loop through decision journaling, coherence checks, and oppo
 | Opposite-case prompt | Adversarial case generation linked to original Deep Dive |
 | Conviction timeline API | Query surfaces for per-name conviction evolution |
 | Mobile conviction surfaces | Coherence and timeline visibility in user workflows |
+| M6 interface contract | `conviction-intelligence` contracts plus timeline, insight, opposite-case, and internal coherence endpoints |
+
+M6 storage and interface lock:
+
+- Journal table: `conviction_journal_entries`
+- Journal required fields: `journal_entry_id`, `user_id`, `ticker`, `event_type`, `source_type`, `source_id`, `event_at`, `title`, `summary`, `thesis_snapshot`, `evidence_refs`, `created_at`, `updated_at`
+- Journal optional linkage fields: `report_id`, `alert_ledger_id`, `war_room_id`, `monitor_snapshot_key`, `opposite_case_id`
+- Journal event types: `deep_dive_generated`, `kill_switch_alert_fired`, `freshness_decay_alert_fired`, `earnings_war_room_closed`, `cross_name_alert_fired`, `alert_feedback_recorded`, `opposite_case_generated`
+- Journal dedupe key: `user_id + event_type + source_type + source_id`
+- Insight table: `conviction_insight_cards`
+- Insight type: `monthly_coherence`
+- Insight finding types: `overlap`, `contradiction`, `mismatch`
+- Opposite-case table: `opposite_case_reports`
+- Contract file: `packages/contracts/src/conviction-intelligence.ts`
+- Timeline endpoint: `GET /v1/conviction/timeline?ticker=&limit=`
+- Insight endpoint: `GET /v1/conviction/insights?limit=`
+- Opposite-case create endpoint: `POST /v1/reports/{report_id}/opposite-case`
+- Opposite-case read endpoint: `GET /v1/reports/{report_id}/opposite-case`
+- Internal coherence endpoint: `POST /internal/conviction/coherence/evaluate`
+- Monthly coherence period: previous calendar month
+- Monthly coherence scheduler trigger: first scheduler cycle on or after the first calendar day of the month, `America/New_York`
+- Opposite-case prompt identifier: `thesis-m6-opposite-case`
+- Coherence analyzer prompt identifier: `thesis-m6-coherence-analyzer`
+- LangSmith remote prompt registration proof may be carried as TBD if `LANGSMITH_API_KEY` is unavailable; local prompt manifest, sync hook, and regression fixtures remain required
+- Entitlement: conviction system outputs are Pro-only; existing Free report notes and feedback are unchanged
+- Mobile scope: no new top-level screen; Research owns opposite-case/timeline, You owns monthly coherence/profile cards, and all surfaces preserve the same Thesis colors, typography, tone, and component style
 
 ## Acceptance Criteria
 
-- [ ] Decision events persist for Deep Dive, kill-switch, freshness, and earnings moments
-- [ ] Conviction timeline is queryable per user and per ticker
-- [ ] Coherence analysis identifies overlap and contradiction patterns with explainable reasoning
-- [ ] Opposite-case output is generated from same evidence set and linked to source report
-- [ ] Monthly coherence card is generated and stored as an auditable insight artifact
-- [ ] Integration tests cover journal write paths and coherence-output stability
-- [ ] Mobile renders conviction insights without breaking existing Research flows
+- [x] Decision events persist for Deep Dive, kill-switch, freshness, and earnings moments
+- [x] Cross-name propagated exception moments and alert-feedback responses can be journaled without duplicate entries
+- [x] Conviction timeline is queryable per user and per ticker
+- [x] Coherence analysis identifies overlap and contradiction patterns with explainable reasoning
+- [x] Opposite-case output is generated from same evidence set and linked to source report
+- [x] Monthly coherence card is generated and stored as an auditable insight artifact
+- [x] Conviction system outputs are Pro-only while existing Free report notes/feedback remain unaffected
+- [x] Integration tests cover journal write paths and coherence-output stability
+- [x] Mobile renders conviction insights without breaking existing Research flows
+
+TBD after closeout: LangSmith remote prompt registration proof is not available because `LANGSMITH_API_KEY` is not available in this environment. The local prompt manifest, sync hook, and regression fixtures are implemented.
 
 ## Smoke Test
 
 ```text
-Step 1: Seed at least three conviction events for one ticker
-Step 2: Confirm timeline retrieval includes ordered thesis snapshots
+Step 1: Seed conviction events for Deep Dive, kill-switch, freshness, earnings, cross-name, and alert-feedback moments
+Step 2: Confirm timeline retrieval includes ordered thesis snapshots and deduped source links
 Step 3: Run coherence analysis across multi-name portfolio fixture
-Step 4: Verify contradiction/overlap outputs are explainable
-Step 5: Trigger opposite-case generation and validate linkage to original report
-Step 6: Confirm monthly insight card appears in expected surface
+Step 4: Verify contradiction/overlap/mismatch outputs are explainable
+Step 5: Trigger opposite-case generation and validate linkage to original report and same-evidence reuse
+Step 6: Confirm monthly insight card appears in You and report-level opposite-case/timeline appears in Research
+Step 7: Confirm Free users are gated from conviction outputs without regressing report notes/feedback
 ```
 
 ## Success
@@ -455,6 +488,8 @@ Thesis helps users improve behavior, not only consume data.
 | Missing journal writes at key moments | Event-to-journal audit | Incomplete conviction history |
 | Coherence outputs are vague | QA rubric on explainability | Low actionability |
 | Opposite-case drifts from evidence | Prompt regression fixtures | Low trust in reasoning output |
+| Conviction cards become noisy alerts | Surface audit and notification preference audit | Trust erosion |
+| Free users receive Pro conviction outputs | Entitlement tests | Monetization regression |
 
 ## Rollback
 
@@ -466,7 +501,7 @@ Disable coherence card emission and opposite-case endpoint while preserving jour
 
 ## Owner
 
-Product API Engineer + Dexter Engineer + Mobile Engineer
+Product API Engineer + Scheduler Engineer + Dexter Engineer + Mobile Engineer
 
 ---
 
