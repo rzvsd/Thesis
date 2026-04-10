@@ -1,0 +1,90 @@
+appId: ${MAESTRO_APP_ID}
+---
+- launchApp:
+    clearState: false
+
+- runFlow:
+    when:
+      visible: "System UI isn't responding"
+    commands:
+      - tapOn: "Wait"
+
+- runFlow:
+    when:
+      visible: "Get Started"
+    commands:
+      - tapOn: "Get Started"
+
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+
+- runFlow:
+    when:
+      visible: "Allow"
+    commands:
+      - tapOn: "Allow"
+
+- extendedWaitUntil:
+    visible: "Today"
+    timeout: 30000
+- assertVisible: "Research"
+- assertVisible: "You"
+
+- tapOn: "Research"
+- extendedWaitUntil:
+    visible: "Deep Dive"
+    timeout: 30000
+- tapOn: "Deep Dive"
+
+- runFlow:
+    when:
+      visible: "Ticker Symbol (e.g. AAPL)"
+    commands:
+      - tapOn: "Ticker Symbol (e.g. AAPL)"
+      - eraseText
+      - inputText: "${MAESTRO_DEEP_DIVE_TICKER}"
+      - hideKeyboard
+      - tapOn: "Run Deep Dive"
+
+- extendedWaitUntil:
+    visible: "Conviction Intelligence"
+    timeout: 600000
+- assertVisible: "Conviction Intelligence"
+
+- runFlow:
+    when:
+      visible: "Conviction Timeline"
+    commands:
+      - assertVisible: "Conviction Timeline"
+
+- runFlow:
+    when:
+      visible: "Conviction Intelligence is a Pro feature."
+    commands:
+      - assertVisible: "Conviction Intelligence is a Pro feature."
+
+- tapOn: "You"
+- extendedWaitUntil:
+    visible: "DATA TRUST"
+    timeout: 30000
+- scrollUntilVisible:
+    element:
+      text: "Monthly Coherence"
+    direction: DOWN
+    timeout: 60000
+- assertVisible: "Monthly Coherence"
+
+- runFlow:
+    when:
+      visible: "Conviction Intelligence is a Pro feature."
+    commands:
+      - assertVisible: "Conviction Intelligence is a Pro feature."
+
+- runFlow:
+    when:
+      visible: "Refresh coherence"
+    commands:
+      - assertVisible: "Refresh coherence"

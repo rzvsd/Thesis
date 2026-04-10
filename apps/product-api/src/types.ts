@@ -7,6 +7,13 @@ import type {
   CalendarEventTime,
   CalendarEventType,
   ContrarianSignalValue,
+  ConvictionEvidenceRef,
+  ConvictionInsightFinding,
+  ConvictionInsightStatus,
+  ConvictionInsightType,
+  ConvictionJournalEventType,
+  ConvictionJournalSourceType,
+  ConvictionThesisSnapshot,
   EarningsWarRoomCadenceState,
   EarningsWarRoomCadenceMinute,
   EarningsWarRoomPhase,
@@ -308,6 +315,62 @@ export interface AlertLedgerRecord {
   context: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface ConvictionJournalEntryRecord {
+  id: string;
+  userId: string;
+  ticker: string;
+  eventType: ConvictionJournalEventType;
+  sourceType: ConvictionJournalSourceType;
+  sourceId: string;
+  eventAt: string;
+  title: string;
+  summary: string;
+  thesisSnapshot: ConvictionThesisSnapshot;
+  evidenceRefs: ConvictionEvidenceRef[];
+  reportId?: string;
+  alertLedgerId?: string;
+  warRoomId?: string;
+  monitorSnapshotKey?: string;
+  oppositeCaseId?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ConvictionInsightCardRecord {
+  id: string;
+  userId: string;
+  periodStart: string;
+  periodEnd: string;
+  insightType: ConvictionInsightType;
+  status: ConvictionInsightStatus;
+  title: string;
+  summary: string;
+  findings: ConvictionInsightFinding[];
+  sourceJournalEntryIds: string[];
+  generatedAt: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OppositeCaseReportRecord {
+  id: string;
+  userId: string;
+  sourceReportId: string;
+  ticker: string;
+  promptVersion: string;
+  thesisSummary: string;
+  oppositeCaseSummary: string;
+  keyPoints: Array<{
+    title: string;
+    summary: string;
+    evidence_refs: ConvictionEvidenceRef[];
+  }>;
+  sharedEvidenceRefs: ConvictionEvidenceRef[];
+  decisiveFactors: string[];
+  generatedAt: string;
+  createdAt: string;
 }
 
 export interface EarningsWarRoomRecord {

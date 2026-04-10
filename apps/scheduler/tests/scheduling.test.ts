@@ -7,6 +7,7 @@ import {
   computeTestModeCycleWindow,
   getZonedDateTimeParts
 } from "../src/scheduling";
+import { shouldDispatchMonthlyCoherence } from "../src/server";
 
 test("computeNextScheduledRun returns a future 06:30 America/New_York run", () => {
   const now = new Date("2026-03-21T10:00:00.000Z");
@@ -35,4 +36,15 @@ test("computeTestModeCycleWindow returns a 24h lookback window", () => {
   const window = computeTestModeCycleWindow(runAt);
   assert.equal(window.cycleEnd, "2026-03-21T12:00:00.000Z");
   assert.equal(window.cycleStart, "2026-03-20T12:00:00.000Z");
+});
+
+test("shouldDispatchMonthlyCoherence fires only on the local first day", () => {
+  assert.equal(
+    shouldDispatchMonthlyCoherence(new Date("2026-04-01T10:30:00.000Z"), "America/New_York"),
+    true
+  );
+  assert.equal(
+    shouldDispatchMonthlyCoherence(new Date("2026-04-02T10:30:00.000Z"), "America/New_York"),
+    false
+  );
 });

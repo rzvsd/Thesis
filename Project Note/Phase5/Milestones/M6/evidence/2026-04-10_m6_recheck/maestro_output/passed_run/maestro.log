@@ -1,0 +1,29 @@
+Running on R3CXA03J3LH
+ > Flow ph5_m6_recheck_core
+Launch app "${MAESTRO_APP_ID}"... COMPLETED
+Run flow when "System UI isn't responding" is visible...
+Run flow when "System UI isn't responding" is visible... SKIPPED
+Run flow when "Get Started" is visible...
+Run flow when "Get Started" is visible... SKIPPED
+Run flow when "Skip" is visible...
+Run flow when "Skip" is visible... SKIPPED
+Run flow when "Allow" is visible...
+Run flow when "Allow" is visible... SKIPPED
+Assert that "Today" is visible... COMPLETED
+Assert that "Today" is visible... COMPLETED
+Assert that "Names" is visible... COMPLETED
+Assert that "Research" is visible... COMPLETED
+Assert that "Inbox" is visible... COMPLETED
+Assert that "You" is visible... COMPLETED
+Tap on "Research"... COMPLETED
+Assert that "Deep Dive" is visible... COMPLETED
+Assert that "Deep Dive" is visible... COMPLETED
+Assert that "War Room" is visible... COMPLETED
+Assert that "History" is visible... COMPLETED
+Tap on "Deep Dive"... COMPLETED
+Assert that "Ticker Symbol (e.g. AAPL)" is visible... COMPLETED
+Assert that "Run Deep Dive" is visible... COMPLETED
+Tap on "You"... COMPLETED
+Assert that "DATA TRUST" is visible... COMPLETED
+Scrolling DOWN until "Monthly Coherence" is visible with speed 40, visibility percentage 100%, timeout 60000 ms, with centering disabled... COMPLETED
+Assert that "Monthly Coherence" is visible... COMPLETED

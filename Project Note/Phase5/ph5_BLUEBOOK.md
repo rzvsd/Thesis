@@ -2,7 +2,7 @@
 
 **Version:** 1.0  
 **Status:** Living Document  
-**Last Revised:** 2026-04-08  
+**Last Revised:** 2026-04-10
 **Owner:** Platform Architect + Product Lead
 
 > This document extends `BLUEBOOK cld.md`, `ph2_BLUEBOOK.md`, `ph3_BLUEBOOK.md`, and `ph4_BLUEBOOK.md`.
@@ -81,7 +81,7 @@ Phase 5 extends behavior inside existing services:
 | Exception Briefing System | Personalized morning exceptions with explicit no-change outputs | `product-api`, `scheduler`, `mobile` |
 | Earnings War Room System | Pre/live/post event operational intelligence | `product-api`, `scheduler`, `dexter-worker`, `mobile` |
 | Cross-Name Propagation System | Relationship graph plus second-order signal alerts | `product-api`, `scheduler`, `dexter-worker` |
-| Conviction Intelligence System | Journaling, coherence analysis, opposite-case workflow | `product-api`, `dexter-worker`, `mobile` |
+| Conviction Intelligence System | Journaling, coherence analysis, opposite-case workflow | `product-api`, `scheduler`, `dexter-worker`, `mobile` |
 | Scenario Stress System | Portfolio-wide scenario evaluation and recommendations | `product-api`, `dexter-worker`, `mobile` |
 
 ---
@@ -91,7 +91,7 @@ Phase 5 extends behavior inside existing services:
 | Service | Phase 5 Must Own | Phase 5 Must Not Own |
 |---|---|---|
 | `product-api` | New durable models and typed endpoints for rules, freshness, relationships, journal, and scenarios | Prompt design internals that belong to Dexter |
-| `scheduler` | Daily and event-window evaluation orchestration, propagation cycles, and idempotent retries | Durable user state beyond job status and telemetry |
+| `scheduler` | Daily, monthly, and event-window evaluation orchestration, propagation cycles, retrospective cycles, and idempotent retries | Durable user state beyond job status and telemetry |
 | `dexter-worker` | Rule extraction, relationship extraction, opposite-case and scenario reasoning prompts | Final user-preference authority or mutable control truth |
 | `mobile` | Exception-first surfaces preserving Thesis visual language | Server-source-of-truth logic or fabricated local reconstructions |
 | `packages/contracts` | Typed additive contracts for Phase 5 APIs and payloads | Feature logic |
@@ -108,6 +108,7 @@ Likely additive contract families:
 - War Room payloads
 - name-relationship records
 - conviction journal and coherence records
+- opposite-case records linked to source reports
 - scenario stress card outputs
 
 Rules:

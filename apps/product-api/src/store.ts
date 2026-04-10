@@ -10,6 +10,12 @@ import type {
   CanonicalFinancialSnapshot,
   CanonicalTranscript,
   ContrarianSignalValue,
+  ConvictionEvidenceRef,
+  ConvictionInsightFinding,
+  ConvictionInsightType,
+  ConvictionJournalEventType,
+  ConvictionJournalSourceType,
+  ConvictionThesisSnapshot,
   EarningsWarRoomCadenceMinute,
   EarningsWarRoomCadenceState,
   EarningsWarRoomCycleStatus,
@@ -38,6 +44,8 @@ import type {
   AuditEventRecord,
   AlertLedgerRecord,
   CalendarEventRecord,
+  ConvictionInsightCardRecord,
+  ConvictionJournalEntryRecord,
   ContrarianAlertAnchorRecord,
   EarningsWarRoomRecord,
   EarningsWarRoomTimelineEventRecord,
@@ -46,6 +54,7 @@ import type {
   JobRecord,
   NameRelationshipRecord,
   NotificationPreferenceRecord,
+  OppositeCaseReportRecord,
   ThesisMonitorSnapshotRecord,
   UserFeedbackQueueRecord,
   ReportNoteRecord,
@@ -303,6 +312,26 @@ export interface ProductStore {
     userId: string;
     mutedAt: string;
   }): Promise<AlertLedgerRecord | undefined>;
+  upsertConvictionJournalEntry(
+    input: ConvictionJournalEntryRecord
+  ): Promise<ConvictionJournalEntryRecord>;
+  listConvictionJournalEntriesByUser(input: {
+    userId: string;
+    ticker?: string;
+    limit: number;
+  }): Promise<ConvictionJournalEntryRecord[]>;
+  upsertConvictionInsightCard(
+    input: ConvictionInsightCardRecord
+  ): Promise<ConvictionInsightCardRecord>;
+  listConvictionInsightCardsByUser(input: {
+    userId: string;
+    limit: number;
+  }): Promise<ConvictionInsightCardRecord[]>;
+  upsertOppositeCaseReport(input: OppositeCaseReportRecord): Promise<OppositeCaseReportRecord>;
+  getOppositeCaseReportBySource(input: {
+    userId: string;
+    sourceReportId: string;
+  }): Promise<OppositeCaseReportRecord | undefined>;
   createWarRoom(input: EarningsWarRoomRecord): Promise<EarningsWarRoomRecord>;
   updateWarRoom(input: EarningsWarRoomRecord): Promise<EarningsWarRoomRecord | undefined>;
   getWarRoom(input: { id: string; userId: string }): Promise<EarningsWarRoomRecord | undefined>;
@@ -522,6 +551,18 @@ function asStringArray(value: unknown): string[] {
   return value.filter((item): item is string => typeof item === "string");
 }
 
+function asJsonArray(value: unknown): unknown[] {
+  if (typeof value === "string" && value.trim().length > 0) {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  return Array.isArray(value) ? value : [];
+}
+
 function asWarRoomSourceRefs(value: unknown): EarningsWarRoomSourceRef[] {
   if (!Array.isArray(value)) {
     return [];
@@ -558,6 +599,99 @@ function cloneWarRoomSourceRefs(
   refs: EarningsWarRoomSourceRef[]
 ): EarningsWarRoomSourceRef[] {
   return refs.map((ref) => ({ ...ref }));
+}
+
+function asConvictionEvidenceRefs(value: unknown): ConvictionEvidenceRef[] {
+  const refs: ConvictionEvidenceRef[] = [];
+  for (const entry of asJsonArray(value)) {
+    const record = asRecord(entry);
+    if (!record?.kind || !record.ref_id) {
+      continue;
+    }
+    const ref: ConvictionEvidenceRef = {
+      kind: String(record.kind) as ConvictionEvidenceRef["kind"],
+      ref_id: String(record.ref_id)
+    };
+    if (record.label) {
+      ref.label = String(record.label);
+    }
+    if (record.ticker) {
+      ref.ticker = String(record.ticker);
+    }
+    const capturedAt = asIsoString(record.captured_at);
+    if (capturedAt) {
+      ref.captured_at = capturedAt;
+    }
+    refs.push(ref);
+  }
+  return refs;
+}
+
+function cloneConvictionEvidenceRefs(refs: ConvictionEvidenceRef[]): ConvictionEvidenceRef[] {
+  return refs.map((ref) => ({ ...ref }));
+}
+
+function cloneConvictionThesisSnapshot(
+  snapshot: ConvictionThesisSnapshot
+): ConvictionThesisSnapshot {
+  return {
+    ...snapshot,
+    signal_reasons: snapshot.signal_reasons ? [...snapshot.signal_reasons] : undefined
+  };
+}
+
+function asConvictionInsightFindings(value: unknown): ConvictionInsightFinding[] {
+  const findings: ConvictionInsightFinding[] = [];
+  for (const entry of asJsonArray(value)) {
+    const record = asRecord(entry);
+    if (!record?.finding_type || !record.title || !record.summary) {
+      continue;
+    }
+    findings.push({
+      finding_type: String(record.finding_type) as ConvictionInsightFinding["finding_type"],
+      title: String(record.title),
+      summary: String(record.summary),
+      tickers: asStringArray(record.tickers),
+      evidence_refs: asConvictionEvidenceRefs(record.evidence_refs),
+      confidence: Number(record.confidence ?? 0)
+    });
+  }
+  return findings;
+}
+
+function cloneConvictionInsightFindings(
+  findings: ConvictionInsightFinding[]
+): ConvictionInsightFinding[] {
+  return findings.map((finding) => ({
+    ...finding,
+    tickers: [...finding.tickers],
+    evidence_refs: cloneConvictionEvidenceRefs(finding.evidence_refs)
+  }));
+}
+
+function asOppositeCaseKeyPoints(value: unknown): OppositeCaseReportRecord["keyPoints"] {
+  return asJsonArray(value)
+    .map((entry) => {
+      const record = asRecord(entry);
+      if (!record?.title || !record.summary) {
+        return undefined;
+      }
+      return {
+        title: String(record.title),
+        summary: String(record.summary),
+        evidence_refs: asConvictionEvidenceRefs(record.evidence_refs)
+      };
+    })
+    .filter((entry): entry is OppositeCaseReportRecord["keyPoints"][number] => Boolean(entry));
+}
+
+function cloneOppositeCaseKeyPoints(
+  keyPoints: OppositeCaseReportRecord["keyPoints"]
+): OppositeCaseReportRecord["keyPoints"] {
+  return keyPoints.map((point) => ({
+    ...point,
+    evidence_refs: cloneConvictionEvidenceRefs(point.evidence_refs)
+  }));
 }
 
 function normalizeWarRoomCadenceState(
@@ -908,6 +1042,72 @@ function mapAlertLedgerRecord(row: Record<string, unknown>): AlertLedgerRecord {
   };
 }
 
+function mapConvictionJournalEntryRecord(
+  row: Record<string, unknown>
+): ConvictionJournalEntryRecord {
+  return {
+    id: String(row.journal_entry_id),
+    userId: String(row.user_id),
+    ticker: String(row.ticker),
+    eventType: String(row.event_type) as ConvictionJournalEventType,
+    sourceType: String(row.source_type) as ConvictionJournalSourceType,
+    sourceId: String(row.source_id),
+    eventAt: asIsoString(row.event_at) ?? new Date().toISOString(),
+    title: String(row.title ?? ""),
+    summary: String(row.summary ?? ""),
+    thesisSnapshot: cloneConvictionThesisSnapshot(
+      (asRecord(row.thesis_snapshot) ?? {}) as ConvictionThesisSnapshot
+    ),
+    evidenceRefs: asConvictionEvidenceRefs(row.evidence_refs),
+    reportId: row.report_id ? String(row.report_id) : undefined,
+    alertLedgerId: row.alert_ledger_id ? String(row.alert_ledger_id) : undefined,
+    warRoomId: row.war_room_id ? String(row.war_room_id) : undefined,
+    monitorSnapshotKey: row.monitor_snapshot_key
+      ? String(row.monitor_snapshot_key)
+      : undefined,
+    oppositeCaseId: row.opposite_case_id ? String(row.opposite_case_id) : undefined,
+    createdAt: asIsoString(row.created_at) ?? new Date().toISOString(),
+    updatedAt: asIsoString(row.updated_at) ?? new Date().toISOString()
+  };
+}
+
+function mapConvictionInsightCardRecord(
+  row: Record<string, unknown>
+): ConvictionInsightCardRecord {
+  return {
+    id: String(row.insight_id),
+    userId: String(row.user_id),
+    periodStart: String(row.period_start),
+    periodEnd: String(row.period_end),
+    insightType: String(row.insight_type) as ConvictionInsightType,
+    status: String(row.status) as ConvictionInsightCardRecord["status"],
+    title: String(row.title ?? ""),
+    summary: String(row.summary ?? ""),
+    findings: asConvictionInsightFindings(row.findings),
+    sourceJournalEntryIds: asStringArray(asJsonArray(row.source_journal_entry_ids)),
+    generatedAt: asIsoString(row.generated_at) ?? new Date().toISOString(),
+    createdAt: asIsoString(row.created_at) ?? new Date().toISOString(),
+    updatedAt: asIsoString(row.updated_at) ?? new Date().toISOString()
+  };
+}
+
+function mapOppositeCaseReportRecord(row: Record<string, unknown>): OppositeCaseReportRecord {
+  return {
+    id: String(row.opposite_case_id),
+    userId: String(row.user_id),
+    sourceReportId: String(row.source_report_id),
+    ticker: String(row.ticker),
+    promptVersion: String(row.prompt_version),
+    thesisSummary: String(row.thesis_summary ?? ""),
+    oppositeCaseSummary: String(row.opposite_case_summary ?? ""),
+    keyPoints: asOppositeCaseKeyPoints(row.key_points),
+    sharedEvidenceRefs: asConvictionEvidenceRefs(row.shared_evidence_refs),
+    decisiveFactors: asStringArray(asJsonArray(row.decisive_factors)),
+    generatedAt: asIsoString(row.generated_at) ?? new Date().toISOString(),
+    createdAt: asIsoString(row.created_at) ?? new Date().toISOString()
+  };
+}
+
 function mapEarningsWarRoomRecord(row: Record<string, unknown>): EarningsWarRoomRecord {
   const updatedAt = asIsoString(row.updated_at) ?? new Date().toISOString();
   const currentCadenceMin =
@@ -981,6 +1181,18 @@ export class InMemoryStore implements ProductStore {
   private readonly userFeedbackQueue = new Map<string, UserFeedbackQueueRecord>();
   private readonly thesisMonitorSnapshots = new Map<string, ThesisMonitorSnapshotRecord>();
   private readonly alertLedgerByUser = new Map<string, Map<string, AlertLedgerRecord>>();
+  private readonly convictionJournalByUser = new Map<
+    string,
+    Map<string, ConvictionJournalEntryRecord>
+  >();
+  private readonly convictionInsightsByUser = new Map<
+    string,
+    Map<string, ConvictionInsightCardRecord>
+  >();
+  private readonly oppositeCasesByUser = new Map<
+    string,
+    Map<string, OppositeCaseReportRecord>
+  >();
   private readonly warRoomsByUser = new Map<string, Map<string, EarningsWarRoomRecord>>();
   private readonly warRoomTimelineByRoom = new Map<
     string,
@@ -2340,6 +2552,140 @@ export class InMemoryStore implements ProductStore {
       ...next,
       context: { ...next.context }
     };
+  }
+
+  async upsertConvictionJournalEntry(
+    input: ConvictionJournalEntryRecord
+  ): Promise<ConvictionJournalEntryRecord> {
+    let entries = this.convictionJournalByUser.get(input.userId);
+    if (!entries) {
+      entries = new Map<string, ConvictionJournalEntryRecord>();
+      this.convictionJournalByUser.set(input.userId, entries);
+    }
+
+    const existing = [...entries.values()].find(
+      (entry) =>
+        entry.eventType === input.eventType &&
+        entry.sourceType === input.sourceType &&
+        entry.sourceId === input.sourceId
+    );
+    const next: ConvictionJournalEntryRecord = {
+      ...input,
+      id: existing?.id ?? input.id,
+      ticker: input.ticker.trim().toUpperCase(),
+      thesisSnapshot: cloneConvictionThesisSnapshot(input.thesisSnapshot),
+      evidenceRefs: cloneConvictionEvidenceRefs(input.evidenceRefs)
+    };
+    entries.set(next.id, next);
+    return {
+      ...next,
+      thesisSnapshot: cloneConvictionThesisSnapshot(next.thesisSnapshot),
+      evidenceRefs: cloneConvictionEvidenceRefs(next.evidenceRefs)
+    };
+  }
+
+  async listConvictionJournalEntriesByUser(input: {
+    userId: string;
+    ticker?: string;
+    limit: number;
+  }): Promise<ConvictionJournalEntryRecord[]> {
+    const ticker = input.ticker?.trim().toUpperCase();
+    return [...(this.convictionJournalByUser.get(input.userId)?.values() ?? [])]
+      .filter((entry) => !ticker || entry.ticker === ticker)
+      .sort((left, right) => right.eventAt.localeCompare(left.eventAt))
+      .slice(0, Math.max(1, input.limit))
+      .map((entry) => ({
+        ...entry,
+        thesisSnapshot: cloneConvictionThesisSnapshot(entry.thesisSnapshot),
+        evidenceRefs: cloneConvictionEvidenceRefs(entry.evidenceRefs)
+      }));
+  }
+
+  async upsertConvictionInsightCard(
+    input: ConvictionInsightCardRecord
+  ): Promise<ConvictionInsightCardRecord> {
+    let insights = this.convictionInsightsByUser.get(input.userId);
+    if (!insights) {
+      insights = new Map<string, ConvictionInsightCardRecord>();
+      this.convictionInsightsByUser.set(input.userId, insights);
+    }
+    const existing = [...insights.values()].find(
+      (entry) =>
+        entry.periodStart === input.periodStart &&
+        entry.periodEnd === input.periodEnd &&
+        entry.insightType === input.insightType
+    );
+    const next: ConvictionInsightCardRecord = {
+      ...input,
+      id: existing?.id ?? input.id,
+      findings: cloneConvictionInsightFindings(input.findings),
+      sourceJournalEntryIds: [...input.sourceJournalEntryIds]
+    };
+    insights.set(next.id, next);
+    return {
+      ...next,
+      findings: cloneConvictionInsightFindings(next.findings),
+      sourceJournalEntryIds: [...next.sourceJournalEntryIds]
+    };
+  }
+
+  async listConvictionInsightCardsByUser(input: {
+    userId: string;
+    limit: number;
+  }): Promise<ConvictionInsightCardRecord[]> {
+    return [...(this.convictionInsightsByUser.get(input.userId)?.values() ?? [])]
+      .sort((left, right) => right.generatedAt.localeCompare(left.generatedAt))
+      .slice(0, Math.max(1, input.limit))
+      .map((entry) => ({
+        ...entry,
+        findings: cloneConvictionInsightFindings(entry.findings),
+        sourceJournalEntryIds: [...entry.sourceJournalEntryIds]
+      }));
+  }
+
+  async upsertOppositeCaseReport(
+    input: OppositeCaseReportRecord
+  ): Promise<OppositeCaseReportRecord> {
+    let reports = this.oppositeCasesByUser.get(input.userId);
+    if (!reports) {
+      reports = new Map<string, OppositeCaseReportRecord>();
+      this.oppositeCasesByUser.set(input.userId, reports);
+    }
+    const existing = [...reports.values()].find(
+      (entry) => entry.sourceReportId === input.sourceReportId
+    );
+    const next: OppositeCaseReportRecord = {
+      ...input,
+      id: existing?.id ?? input.id,
+      ticker: input.ticker.trim().toUpperCase(),
+      keyPoints: cloneOppositeCaseKeyPoints(input.keyPoints),
+      sharedEvidenceRefs: cloneConvictionEvidenceRefs(input.sharedEvidenceRefs),
+      decisiveFactors: [...input.decisiveFactors]
+    };
+    reports.set(next.id, next);
+    return {
+      ...next,
+      keyPoints: cloneOppositeCaseKeyPoints(next.keyPoints),
+      sharedEvidenceRefs: cloneConvictionEvidenceRefs(next.sharedEvidenceRefs),
+      decisiveFactors: [...next.decisiveFactors]
+    };
+  }
+
+  async getOppositeCaseReportBySource(input: {
+    userId: string;
+    sourceReportId: string;
+  }): Promise<OppositeCaseReportRecord | undefined> {
+    const report = [...(this.oppositeCasesByUser.get(input.userId)?.values() ?? [])].find(
+      (entry) => entry.sourceReportId === input.sourceReportId
+    );
+    return report
+      ? {
+          ...report,
+          keyPoints: cloneOppositeCaseKeyPoints(report.keyPoints),
+          sharedEvidenceRefs: cloneConvictionEvidenceRefs(report.sharedEvidenceRefs),
+          decisiveFactors: [...report.decisiveFactors]
+        }
+      : undefined;
   }
 
   async createWarRoom(input: EarningsWarRoomRecord): Promise<EarningsWarRoomRecord> {
@@ -4547,6 +4893,266 @@ export class PostgresStore implements ProductStore {
     );
     const row = result.rows[0];
     return row ? mapAlertLedgerRecord(row as Record<string, unknown>) : undefined;
+  }
+
+  async upsertConvictionJournalEntry(
+    input: ConvictionJournalEntryRecord
+  ): Promise<ConvictionJournalEntryRecord> {
+    const result = await this.pool.query(
+      `insert into conviction_journal_entries (
+         journal_entry_id,
+         user_id,
+         ticker,
+         event_type,
+         source_type,
+         source_id,
+         event_at,
+         title,
+         summary,
+         thesis_snapshot,
+         evidence_refs,
+         report_id,
+         alert_ledger_id,
+         war_room_id,
+         monitor_snapshot_key,
+         opposite_case_id,
+         created_at,
+         updated_at
+       )
+       values (
+         $1,
+         $2,
+         $3,
+         $4,
+         $5,
+         $6,
+         $7::timestamptz,
+         $8,
+         $9,
+         $10::jsonb,
+         $11::jsonb,
+         $12,
+         $13,
+         $14,
+         $15,
+         $16,
+         $17::timestamptz,
+         $18::timestamptz
+       )
+       on conflict (user_id, event_type, source_type, source_id) do update set
+         ticker = excluded.ticker,
+         event_at = excluded.event_at,
+         title = excluded.title,
+         summary = excluded.summary,
+         thesis_snapshot = excluded.thesis_snapshot,
+         evidence_refs = excluded.evidence_refs,
+         report_id = excluded.report_id,
+         alert_ledger_id = excluded.alert_ledger_id,
+         war_room_id = excluded.war_room_id,
+         monitor_snapshot_key = excluded.monitor_snapshot_key,
+         opposite_case_id = excluded.opposite_case_id,
+         updated_at = excluded.updated_at
+       returning *`,
+      [
+        input.id,
+        input.userId,
+        input.ticker.trim().toUpperCase(),
+        input.eventType,
+        input.sourceType,
+        input.sourceId,
+        input.eventAt,
+        input.title,
+        input.summary,
+        JSON.stringify(input.thesisSnapshot),
+        JSON.stringify(input.evidenceRefs),
+        input.reportId ?? null,
+        input.alertLedgerId ?? null,
+        input.warRoomId ?? null,
+        input.monitorSnapshotKey ?? null,
+        input.oppositeCaseId ?? null,
+        input.createdAt,
+        input.updatedAt
+      ]
+    );
+    return mapConvictionJournalEntryRecord(result.rows[0] as Record<string, unknown>);
+  }
+
+  async listConvictionJournalEntriesByUser(input: {
+    userId: string;
+    ticker?: string;
+    limit: number;
+  }): Promise<ConvictionJournalEntryRecord[]> {
+    const result = await this.pool.query(
+      `select *
+         from conviction_journal_entries
+        where user_id = $1
+          and ($2::text is null or ticker = $2::text)
+        order by event_at desc, created_at desc
+        limit $3`,
+      [
+        input.userId,
+        input.ticker?.trim().toUpperCase() ?? null,
+        Math.max(1, input.limit)
+      ]
+    );
+    return result.rows.map((row) =>
+      mapConvictionJournalEntryRecord(row as Record<string, unknown>)
+    );
+  }
+
+  async upsertConvictionInsightCard(
+    input: ConvictionInsightCardRecord
+  ): Promise<ConvictionInsightCardRecord> {
+    const result = await this.pool.query(
+      `insert into conviction_insight_cards (
+         insight_id,
+         user_id,
+         period_start,
+         period_end,
+         insight_type,
+         status,
+         title,
+         summary,
+         findings,
+         source_journal_entry_ids,
+         generated_at,
+         created_at,
+         updated_at
+       )
+       values (
+         $1,
+         $2,
+         $3::date,
+         $4::date,
+         $5,
+         $6,
+         $7,
+         $8,
+         $9::jsonb,
+         $10::jsonb,
+         $11::timestamptz,
+         $12::timestamptz,
+         $13::timestamptz
+       )
+       on conflict (user_id, period_start, period_end, insight_type) do update set
+         status = excluded.status,
+         title = excluded.title,
+         summary = excluded.summary,
+         findings = excluded.findings,
+         source_journal_entry_ids = excluded.source_journal_entry_ids,
+         generated_at = excluded.generated_at,
+         updated_at = excluded.updated_at
+       returning *`,
+      [
+        input.id,
+        input.userId,
+        input.periodStart,
+        input.periodEnd,
+        input.insightType,
+        input.status,
+        input.title,
+        input.summary,
+        JSON.stringify(input.findings),
+        JSON.stringify(input.sourceJournalEntryIds),
+        input.generatedAt,
+        input.createdAt,
+        input.updatedAt
+      ]
+    );
+    return mapConvictionInsightCardRecord(result.rows[0] as Record<string, unknown>);
+  }
+
+  async listConvictionInsightCardsByUser(input: {
+    userId: string;
+    limit: number;
+  }): Promise<ConvictionInsightCardRecord[]> {
+    const result = await this.pool.query(
+      `select *
+         from conviction_insight_cards
+        where user_id = $1
+        order by generated_at desc
+        limit $2`,
+      [input.userId, Math.max(1, input.limit)]
+    );
+    return result.rows.map((row) =>
+      mapConvictionInsightCardRecord(row as Record<string, unknown>)
+    );
+  }
+
+  async upsertOppositeCaseReport(
+    input: OppositeCaseReportRecord
+  ): Promise<OppositeCaseReportRecord> {
+    const result = await this.pool.query(
+      `insert into opposite_case_reports (
+         opposite_case_id,
+         user_id,
+         source_report_id,
+         ticker,
+         prompt_version,
+         thesis_summary,
+         opposite_case_summary,
+         key_points,
+         shared_evidence_refs,
+         decisive_factors,
+         generated_at,
+         created_at
+       )
+       values (
+         $1,
+         $2,
+         $3,
+         $4,
+         $5,
+         $6,
+         $7,
+         $8::jsonb,
+         $9::jsonb,
+         $10::jsonb,
+         $11::timestamptz,
+         $12::timestamptz
+       )
+       on conflict (user_id, source_report_id) do update set
+         ticker = excluded.ticker,
+         prompt_version = excluded.prompt_version,
+         thesis_summary = excluded.thesis_summary,
+         opposite_case_summary = excluded.opposite_case_summary,
+         key_points = excluded.key_points,
+         shared_evidence_refs = excluded.shared_evidence_refs,
+         decisive_factors = excluded.decisive_factors,
+         generated_at = excluded.generated_at
+       returning *`,
+      [
+        input.id,
+        input.userId,
+        input.sourceReportId,
+        input.ticker.trim().toUpperCase(),
+        input.promptVersion,
+        input.thesisSummary,
+        input.oppositeCaseSummary,
+        JSON.stringify(input.keyPoints),
+        JSON.stringify(input.sharedEvidenceRefs),
+        JSON.stringify(input.decisiveFactors),
+        input.generatedAt,
+        input.createdAt
+      ]
+    );
+    return mapOppositeCaseReportRecord(result.rows[0] as Record<string, unknown>);
+  }
+
+  async getOppositeCaseReportBySource(input: {
+    userId: string;
+    sourceReportId: string;
+  }): Promise<OppositeCaseReportRecord | undefined> {
+    const result = await this.pool.query(
+      `select *
+         from opposite_case_reports
+        where user_id = $1
+          and source_report_id = $2
+        limit 1`,
+      [input.userId, input.sourceReportId]
+    );
+    const row = result.rows[0];
+    return row ? mapOppositeCaseReportRecord(row as Record<string, unknown>) : undefined;
   }
 
   async createWarRoom(input: EarningsWarRoomRecord): Promise<EarningsWarRoomRecord> {

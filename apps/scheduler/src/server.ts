@@ -169,6 +169,10 @@ function marketDateInTimeZone(date: Date, timeZone: string): string {
   return `${parts.year}-${month}-${day}`;
 }
 
+export function shouldDispatchMonthlyCoherence(date: Date, timeZone: string): boolean {
+  return getZonedDateTimeParts(date, timeZone).day === 1;
+}
+
 async function dispatchPulseJob(
   config: SchedulerConfig,
   cycleWindow: { cycleStart: string; cycleEnd: string }
@@ -322,7 +326,27 @@ async function dispatchCalendarSync(config: SchedulerConfig): Promise<void> {
   });
 }
 
-async function dispatchEarningsPreview(config: SchedulerConfig): Promise<void> {
+async function dispatchConvictionCoherence(config: SchedulerConfig): Promise<void> {
+  const payload = await dispatchProductApiJob(
+    config,
+    "/internal/conviction/coherence/evaluate",
+    {},
+    "Conviction coherence"
+  );
+  log("INFO", "Conviction coherence accepted", {
+    period_start: payload.period_start,
+    period_end: payload.period_end,
+    evaluated_users: payload.evaluated_users,
+    generated: payload.generated,
+    degraded: payload.degraded,
+    failed: payload.failed
+  });
+}
+
+async function dispatchEarningsPreview(
+  config: SchedulerConfig,
+  runAt: Date = new Date()
+): Promise<void> {
   const warRoomPayload = await dispatchProductApiJob(
     config,
     "/internal/notifications/earnings-war-room",
@@ -403,6 +427,10 @@ async function dispatchEarningsPreview(config: SchedulerConfig): Promise<void> {
     delivered: freshnessPayload.delivered,
     failed: freshnessPayload.failed
   });
+
+  if (shouldDispatchMonthlyCoherence(runAt, config.scheduleTimeZone)) {
+    await dispatchConvictionCoherence(config);
+  }
 
   const payload = await dispatchProductApiJob(
     config,
@@ -743,7 +771,7 @@ export function startServer(port: number = defaultPort): Server {
       });
 
       try {
-        await dispatchEarningsPreview(config);
+        await dispatchEarningsPreview(config, runAt);
       } catch (error) {
         const message = error instanceof Error ? error.message : "Earnings preview dispatch failed";
         log("ERROR", "Earnings preview dispatch failed", {

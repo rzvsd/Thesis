@@ -1,0 +1,31 @@
+appId: ${MAESTRO_APP_ID}
+---
+- launchApp:
+    clearState: false
+
+- extendedWaitUntil:
+    visible: "You"
+    timeout: 30000
+
+- tapOn: "You"
+- extendedWaitUntil:
+    visible: "DATA TRUST"
+    timeout: 30000
+
+- scrollUntilVisible:
+    element:
+      text: "API Base URL"
+    direction: DOWN
+    timeout: 60000
+
+- tapOn: "API Base URL"
+- eraseText
+- inputText: "http://127.0.0.1:3001"
+- hideKeyboard
+- tapOn: "Save API URL"
+
+- tapOn: "Today"
+- extendedWaitUntil:
+    visible: "What Moved"
+    timeout: 30000
+- assertVisible: "What Moved"

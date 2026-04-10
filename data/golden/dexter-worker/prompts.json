@@ -18,5 +18,13 @@
   "relationship_extractor": {
     "version": "m5-relationship-fixture-v1",
     "template": "Extract structured cross-name relationships from this {ticker} report only. Report text: {report_text}. Return strict JSON array only with objects containing: source_ticker, target_ticker, relationship_type (supplier|competitor|partner|sector), confidence (0..1), evidence_text, rationale. Use source_ticker as the company or sector signal that can affect target_ticker. Use target_ticker as {ticker}. Return [] when the report does not explicitly support a relationship."
+  },
+  "opposite_case": {
+    "version": "m6-opposite-case-fixture-v1",
+    "template": "Generate the strongest evidence-bound opposite case for {ticker}. Source thesis: {thesis_summary}. Source evidence: {evidence_summary}. Return strict JSON with opposite_case_summary, key_points, shared_evidence_refs, and decisive_factors. Do not introduce unsupported evidence."
+  },
+  "coherence_analyzer": {
+    "version": "m6-coherence-fixture-v1",
+    "template": "Analyze this user's conviction journal for the period {period_start} to {period_end}. Journal entries: {journal_entries}. Return strict JSON findings for overlap, contradiction, and mismatch only when evidence-backed. If there is not enough evidence, return a degraded no-pattern result."
   }
 }

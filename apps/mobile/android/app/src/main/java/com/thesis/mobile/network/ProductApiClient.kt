@@ -2,11 +2,18 @@ package com.thesis.mobile.network
 
 import com.thesis.mobile.model.AuthTokens
 import com.thesis.mobile.model.AlertLedgerItemView
+import com.thesis.mobile.model.ConvictionEvidenceRefView
+import com.thesis.mobile.model.ConvictionInsightCardView
+import com.thesis.mobile.model.ConvictionInsightFindingView
+import com.thesis.mobile.model.ConvictionJournalEntryView
+import com.thesis.mobile.model.ConvictionThesisSnapshotView
 import com.thesis.mobile.model.DeepDiveReportView
 import com.thesis.mobile.model.EvidenceView
 import com.thesis.mobile.model.JobStatus
 import com.thesis.mobile.model.NotificationPreferenceView
 import com.thesis.mobile.model.BriefingContextView
+import com.thesis.mobile.model.OppositeCasePointView
+import com.thesis.mobile.model.OppositeCaseReportView
 import com.thesis.mobile.model.PulseReportView
 import com.thesis.mobile.model.RegisterResult
 import com.thesis.mobile.model.ReportNoteView
@@ -363,6 +370,80 @@ class ProductApiClient {
             ?: throw ProductApiException(500, "Scenario response was missing expected fields.")
     }
 
+    suspend fun getConvictionTimeline(
+        baseUrl: String,
+        accessToken: String,
+        ticker: String? = null,
+        limit: Int = 20
+    ): List<ConvictionJournalEntryView> = withContext(Dispatchers.IO) {
+        val path = buildString {
+            append("/v1/conviction/timeline?limit=$limit")
+            if (!ticker.isNullOrBlank()) {
+                append("&ticker=${urlEncode(ticker)}")
+            }
+        }
+        val json = requestJson(baseUrl, "GET", path, accessToken = accessToken)
+        val rows = json.optJSONArray("data") ?: JSONArray()
+        (0 until rows.length()).mapNotNull { index ->
+            mapConvictionJournalEntry(rows.optJSONObject(index))
+        }
+    }
+
+    suspend fun getConvictionInsights(
+        baseUrl: String,
+        accessToken: String,
+        limit: Int = 5
+    ): List<ConvictionInsightCardView> = withContext(Dispatchers.IO) {
+        val json = requestJson(
+            baseUrl,
+            "GET",
+            "/v1/conviction/insights?limit=$limit",
+            accessToken = accessToken
+        )
+        val rows = json.optJSONArray("data") ?: JSONArray()
+        (0 until rows.length()).mapNotNull { index ->
+            mapConvictionInsightCard(rows.optJSONObject(index))
+        }
+    }
+
+    suspend fun getOppositeCase(
+        baseUrl: String,
+        accessToken: String,
+        reportId: String
+    ): OppositeCaseReportView? = withContext(Dispatchers.IO) {
+        runCatching {
+            val json = requestJson(
+                baseUrl,
+                "GET",
+                "/v1/reports/${urlEncode(reportId)}/opposite-case",
+                accessToken = accessToken
+            )
+            mapOppositeCaseReport(json.optJSONObject("data"))
+        }.getOrElse { error ->
+            if (error is ProductApiException && error.code == 404 && error.errorCode == "opposite_case_not_found") {
+                null
+            } else {
+                throw error
+            }
+        }
+    }
+
+    suspend fun createOppositeCase(
+        baseUrl: String,
+        accessToken: String,
+        reportId: String
+    ): OppositeCaseReportView = withContext(Dispatchers.IO) {
+        val json = requestJson(
+            baseUrl,
+            "POST",
+            "/v1/reports/${urlEncode(reportId)}/opposite-case",
+            accessToken = accessToken,
+            body = JSONObject()
+        )
+        mapOppositeCaseReport(json.optJSONObject("data"))
+            ?: throw ProductApiException(500, "Opposite-case response was missing expected fields.")
+    }
+
     suspend fun getLatestPulse(baseUrl: String, accessToken: String): PulseReportView =
         withContext(Dispatchers.IO) {
             parsePulseReport(requestJson(baseUrl, "GET", "/pulse/latest", accessToken = accessToken))
@@ -603,6 +684,157 @@ class ProductApiClient {
             createdAt = row.optString("created_at").ifBlank { "" },
             updatedAt = row.optString("updated_at").ifBlank { "" }
         )
+    }
+
+    private fun mapConvictionJournalEntry(row: JSONObject?): ConvictionJournalEntryView? {
+        if (row == null) {
+            return null
+        }
+        val id = row.optString("journal_entry_id").trim()
+        val ticker = row.optString("ticker").trim().uppercase()
+        val eventType = row.optString("event_type").trim()
+        if (id.isBlank() || ticker.isBlank() || eventType.isBlank()) {
+            return null
+        }
+
+        return ConvictionJournalEntryView(
+            journalEntryId = id,
+            ticker = ticker,
+            eventType = eventType,
+            sourceType = row.optString("source_type").ifBlank { "report" },
+            sourceId = row.optString("source_id").ifBlank { id },
+            eventAt = row.optString("event_at").ifBlank { row.optString("created_at") },
+            title = row.optString("title").ifBlank { eventType },
+            summary = row.optString("summary").ifBlank { "" },
+            thesisSnapshot = mapConvictionThesisSnapshot(row.optJSONObject("thesis_snapshot")),
+            evidenceRefs = mapConvictionEvidenceRefs(row.optJSONArray("evidence_refs")),
+            reportId = row.optNullableString("report_id"),
+            alertLedgerId = row.optNullableString("alert_ledger_id"),
+            warRoomId = row.optNullableString("war_room_id"),
+            oppositeCaseId = row.optNullableString("opposite_case_id")
+        )
+    }
+
+    private fun mapConvictionThesisSnapshot(row: JSONObject?): ConvictionThesisSnapshotView? {
+        if (row == null) {
+            return null
+        }
+        return ConvictionThesisSnapshotView(
+            ticker = row.optNullableString("ticker"),
+            reportId = row.optNullableString("report_id"),
+            reportGeneratedAt = row.optNullableString("report_generated_at"),
+            signalValue = row.optNullableString("signal_value"),
+            confidenceLabel = row.optNullableString("confidence_label"),
+            confidenceScore = row.optNullableDouble("confidence_score"),
+            thesisSummary = row.optNullableString("thesis_summary"),
+            monitorState = row.optNullableString("monitor_state"),
+            freshnessState = row.optNullableString("freshness_state")
+        )
+    }
+
+    private fun mapConvictionInsightCard(row: JSONObject?): ConvictionInsightCardView? {
+        if (row == null) {
+            return null
+        }
+        val id = row.optString("insight_id").trim()
+        if (id.isBlank()) {
+            return null
+        }
+        val findings = row.optJSONArray("findings") ?: JSONArray()
+        return ConvictionInsightCardView(
+            insightId = id,
+            periodStart = row.optString("period_start").ifBlank { "" },
+            periodEnd = row.optString("period_end").ifBlank { "" },
+            insightType = row.optString("insight_type").ifBlank { "monthly_coherence" },
+            status = row.optString("status").ifBlank { "generated" },
+            title = row.optString("title").ifBlank { "Conviction review" },
+            summary = row.optString("summary").ifBlank { "" },
+            findings = (0 until findings.length()).mapNotNull { index ->
+                mapConvictionInsightFinding(findings.optJSONObject(index))
+            },
+            generatedAt = row.optString("generated_at").ifBlank { row.optString("created_at") }
+        )
+    }
+
+    private fun mapConvictionInsightFinding(row: JSONObject?): ConvictionInsightFindingView? {
+        if (row == null) {
+            return null
+        }
+        val type = row.optString("finding_type").trim()
+        if (type.isBlank()) {
+            return null
+        }
+        return ConvictionInsightFindingView(
+            findingType = type,
+            title = row.optString("title").ifBlank { type },
+            summary = row.optString("summary").ifBlank { "" },
+            tickers = parseStringList(row.optJSONArray("tickers")),
+            confidence = row.optNullableDouble("confidence") ?: 0.0,
+            evidenceRefs = mapConvictionEvidenceRefs(row.optJSONArray("evidence_refs"))
+        )
+    }
+
+    private fun mapOppositeCaseReport(row: JSONObject?): OppositeCaseReportView? {
+        if (row == null) {
+            return null
+        }
+        val id = row.optString("opposite_case_id").trim()
+        val ticker = row.optString("ticker").trim().uppercase()
+        if (id.isBlank() || ticker.isBlank()) {
+            return null
+        }
+        val points = row.optJSONArray("key_points") ?: JSONArray()
+        return OppositeCaseReportView(
+            oppositeCaseId = id,
+            sourceReportId = row.optString("source_report_id").ifBlank { "" },
+            ticker = ticker,
+            thesisSummary = row.optString("thesis_summary").ifBlank { "" },
+            oppositeCaseSummary = row.optString("opposite_case_summary").ifBlank { "" },
+            keyPoints = (0 until points.length()).mapNotNull { index ->
+                mapOppositeCasePoint(points.optJSONObject(index))
+            },
+            sharedEvidenceRefs = mapConvictionEvidenceRefs(row.optJSONArray("shared_evidence_refs")),
+            decisiveFactors = parseStringList(row.optJSONArray("decisive_factors")),
+            generatedAt = row.optString("generated_at").ifBlank { row.optString("created_at") }
+        )
+    }
+
+    private fun mapOppositeCasePoint(row: JSONObject?): OppositeCasePointView? {
+        if (row == null) {
+            return null
+        }
+        val title = row.optString("title").trim()
+        if (title.isBlank()) {
+            return null
+        }
+        return OppositeCasePointView(
+            title = title,
+            summary = row.optString("summary").ifBlank { "" },
+            evidenceRefs = mapConvictionEvidenceRefs(row.optJSONArray("evidence_refs"))
+        )
+    }
+
+    private fun mapConvictionEvidenceRefs(rows: JSONArray?): List<ConvictionEvidenceRefView> {
+        if (rows == null) {
+            return emptyList()
+        }
+
+        return (0 until rows.length()).mapNotNull { index ->
+            rows.optJSONObject(index)?.let { row ->
+                val kind = row.optString("kind").trim()
+                val refId = row.optString("ref_id").trim()
+                if (kind.isBlank() || refId.isBlank()) {
+                    return@let null
+                }
+                ConvictionEvidenceRefView(
+                    kind = kind,
+                    refId = refId,
+                    label = row.optNullableString("label"),
+                    ticker = row.optNullableString("ticker"),
+                    capturedAt = row.optNullableString("captured_at")
+                )
+            }
+        }
     }
 
     private fun parseBriefingContext(

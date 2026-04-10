@@ -14,7 +14,11 @@ const promptIdentifiers = {
   killSwitchExtractor:
     process.env.LANGSMITH_KILL_SWITCH_PROMPT ?? "thesis-m5-kill-switch-extractor",
   relationshipExtractor:
-    process.env.LANGSMITH_RELATIONSHIP_PROMPT ?? "thesis-m5-relationship-extractor"
+    process.env.LANGSMITH_RELATIONSHIP_PROMPT ?? "thesis-m5-relationship-extractor",
+  oppositeCase:
+    process.env.LANGSMITH_OPPOSITE_CASE_PROMPT ?? "thesis-m6-opposite-case",
+  coherenceAnalyzer:
+    process.env.LANGSMITH_COHERENCE_ANALYZER_PROMPT ?? "thesis-m6-coherence-analyzer"
 };
 
 function extractInputVariables(template) {
@@ -105,6 +109,20 @@ async function main() {
     ["thesis", "m5", "name-relationships"]
   );
 
+  const oppositeCaseStatus = await pushPrompt(
+    promptIdentifiers.oppositeCase,
+    toLangSmithPromptManifest(manifest.opposite_case),
+    "M6 opposite-case prompt for report-linked conviction intelligence",
+    ["thesis", "m6", "opposite-case"]
+  );
+
+  const coherenceAnalyzerStatus = await pushPrompt(
+    promptIdentifiers.coherenceAnalyzer,
+    toLangSmithPromptManifest(manifest.coherence_analyzer),
+    "M6 coherence analyzer prompt for monthly conviction insights",
+    ["thesis", "m6", "coherence"]
+  );
+
   process.stdout.write(
     JSON.stringify({
       ok: true,
@@ -114,7 +132,9 @@ async function main() {
         sectionExecutor: sectionExecutorStatus,
         synthesizer: synthesizerStatus,
         killSwitchExtractor: killSwitchExtractorStatus,
-        relationshipExtractor: relationshipExtractorStatus
+        relationshipExtractor: relationshipExtractorStatus,
+        oppositeCase: oppositeCaseStatus,
+        coherenceAnalyzer: coherenceAnalyzerStatus
       }
     })
   );

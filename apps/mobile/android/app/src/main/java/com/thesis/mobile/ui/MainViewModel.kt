@@ -12,9 +12,12 @@ import com.thesis.mobile.billing.RevenueCatBilling
 import com.thesis.mobile.data.SessionStore
 import com.thesis.mobile.model.AuthTokens
 import com.thesis.mobile.model.AlertLedgerItemView
+import com.thesis.mobile.model.ConvictionInsightCardView
+import com.thesis.mobile.model.ConvictionJournalEntryView
 import com.thesis.mobile.model.DeepDiveReportView
 import com.thesis.mobile.model.LastViewedReport
 import com.thesis.mobile.model.NotificationPreferenceView
+import com.thesis.mobile.model.OppositeCaseReportView
 import com.thesis.mobile.model.PulseReportView
 import com.thesis.mobile.model.ReportNoteView
 import com.thesis.mobile.model.ReportHistoryItem
@@ -69,6 +72,13 @@ data class UiState(
     val reportNote: ReportNoteView? = null,
     val reportNoteDraft: String = "",
     val isSavingNote: Boolean = false,
+    val convictionTimeline: List<ConvictionJournalEntryView> = emptyList(),
+    val convictionTimelineError: String? = null,
+    val convictionInsights: List<ConvictionInsightCardView> = emptyList(),
+    val convictionInsightsError: String? = null,
+    val oppositeCase: OppositeCaseReportView? = null,
+    val oppositeCaseError: String? = null,
+    val isGeneratingOppositeCase: Boolean = false,
     val scenarioResult: ScenarioResultView? = null,
     val isRunningScenario: Boolean = false,
     val pulseReport: PulseReportView? = null,
@@ -150,7 +160,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun completeWelcome() {
-        sessionStore.setHasSeenWelcome(true)
+        if (state.tokens != null) {
+            sessionStore.setHasSeenWelcome(true)
+        }
         publish(state.copy(showWelcome = false))
     }
 
@@ -177,12 +189,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 refreshMonitorSnapshots()
                 refreshAlertLedger()
             }
-            AppTab.RESEARCH -> refreshReportHistory()
+            AppTab.RESEARCH -> {
+                refreshReportHistory()
+                state.deepDiveReport?.let { refreshConvictionForReport(it) }
+            }
             AppTab.INBOX -> refreshAlertLedger()
             AppTab.YOU -> {
                 refreshWatchlist()
                 refreshUserProfile()
                 refreshNotificationPreferences()
+                refreshConvictionInsights()
             }
         }
     }
@@ -335,9 +351,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 client.login(state.apiBaseUrl, email, password)
             }.onSuccess { tokens ->
                 sessionStore.saveTokens(tokens)
+                sessionStore.setHasSeenWelcome(true)
                 publish(
                     state.copy(
                         isLoading = false,
+                        showWelcome = false,
                         tokens = tokens,
                         message = "Login successful.",
                         pulseError = null,
@@ -370,17 +388,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             val current = state.tokens
             if (current == null) {
-                cacheStore.clearAll()
-                sessionStore.clearLastViewedReport()
-                sessionStore.clearTokens()
-                PrefetchScheduler.cancel(getApplication<Application>().applicationContext)
-                publish(
-                    state.copy(
-                        tokens = null,
-                        lastViewedReport = null,
-                        message = "Logged out."
-                    )
-                )
+                clearLocalSession("Logged out.")
                 return@launch
             }
 
@@ -399,47 +407,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             runCatching {
                 RevenueCatBilling.logOutSafely()
             }
-            PrefetchScheduler.cancel(getApplication<Application>().applicationContext)
-            cacheStore.clearAll()
-            sessionStore.clearLastViewedReport()
-            sessionStore.clearTokens()
-            publish(
-                state.copy(
-                    tokens = null,
-                    tickers = emptyList(),
-                    selectedTicker = null,
-                    deepDiveReport = null,
-                    reportNote = null,
-                    reportNoteDraft = "",
-                    isSavingNote = false,
-                    scenarioResult = null,
-                    isRunningScenario = false,
-                    pulseReport = null,
-                    pulseLoadedFromCache = false,
-                    pulseFreshnessText = null,
-                    pulseError = null,
-                    sentimentCurrent = null,
-                    sentimentHistory = emptyList(),
-                    sentimentRangeDays = 30,
-                    sentimentError = null,
-                    alertLedger = emptyList(),
-                    inboxError = null,
-                    monitorSnapshots = emptyList(),
-                    warRoom = null,
-                    warRoomError = null,
-                    deepDiveError = null,
-                    watchlist = emptyList(),
-                    reportHistory = emptyList(),
-                    notificationPreferences = defaultNotificationPreferences(),
-                    lastViewedReport = null,
-                    jobStatus = null,
-                    watchlistFeatureEnabled = true,
-                    userProfile = null,
-                    paywallFeature = null,
-                    subscriptionOffers = emptyList(),
-                    message = "Logged out."
-                )
-            )
+            clearLocalSession("Logged out.")
         }
     }
 
@@ -730,6 +698,144 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun refreshConvictionTimeline(ticker: String? = state.deepDiveReport?.ticker) {
+        if (!isProTier()) {
+            return
+        }
+        val normalizedTicker = ticker?.trim()?.uppercase()?.ifBlank { null }
+        viewModelScope.launch {
+            val error = runAuthorizedWithRefresh {
+                val timeline = client.getConvictionTimeline(
+                    state.apiBaseUrl,
+                    requireTokens().accessToken,
+                    normalizedTicker,
+                    limit = 20
+                )
+                publish(
+                    state.copy(
+                        convictionTimeline = timeline,
+                        convictionTimelineError = null
+                    )
+                )
+            }
+            if (error != null) {
+                publish(state.copy(convictionTimelineError = toMessage(error)))
+            }
+        }
+    }
+
+    fun refreshConvictionInsights() {
+        if (!isProTier()) {
+            return
+        }
+        viewModelScope.launch {
+            val error = runAuthorizedWithRefresh {
+                val insights = client.getConvictionInsights(
+                    state.apiBaseUrl,
+                    requireTokens().accessToken,
+                    limit = 5
+                )
+                publish(
+                    state.copy(
+                        convictionInsights = insights,
+                        convictionInsightsError = null
+                    )
+                )
+            }
+            if (error != null) {
+                publish(state.copy(convictionInsightsError = toMessage(error)))
+            }
+        }
+    }
+
+    fun refreshOppositeCase(reportId: String? = state.deepDiveReport?.reportId) {
+        if (!isProTier()) {
+            return
+        }
+        val normalizedReportId = reportId?.trim().orEmpty()
+        if (normalizedReportId.isBlank()) {
+            return
+        }
+
+        viewModelScope.launch {
+            val error = runAuthorizedWithRefresh {
+                val opposite = client.getOppositeCase(
+                    state.apiBaseUrl,
+                    requireTokens().accessToken,
+                    normalizedReportId
+                )
+                publish(
+                    state.copy(
+                        oppositeCase = opposite,
+                        oppositeCaseError = if (opposite == null) {
+                            "No opposite case generated yet."
+                        } else {
+                            null
+                        }
+                    )
+                )
+            }
+            if (error != null) {
+                publish(state.copy(oppositeCaseError = toMessage(error)))
+            }
+        }
+    }
+
+    fun generateOppositeCase() {
+        val report = state.deepDiveReport
+        if (report == null) {
+            publish(state.copy(message = "Open a report before generating the opposite case."))
+            return
+        }
+        if (!isProTier()) {
+            requestFeatureUpgrade("conviction_intelligence")
+            return
+        }
+
+        viewModelScope.launch {
+            publish(state.copy(isGeneratingOppositeCase = true, message = null, oppositeCaseError = null))
+            val error = runAuthorizedWithRefresh {
+                val opposite = client.createOppositeCase(
+                    state.apiBaseUrl,
+                    requireTokens().accessToken,
+                    report.reportId
+                )
+                publish(
+                    state.copy(
+                        oppositeCase = opposite,
+                        oppositeCaseError = null,
+                        message = "Opposite case ready."
+                    )
+                )
+                refreshConvictionTimeline(report.ticker)
+                trackEvent(
+                    "opposite_case_generated",
+                    mapOf(
+                        "report_id" to report.reportId,
+                        "ticker" to report.ticker,
+                        "opposite_case_id" to opposite.oppositeCaseId
+                    )
+                )
+            }
+            if (error != null) {
+                val upgrade = (error as? ProductApiException)
+                    ?.takeIf { it.code == 403 && it.errorCode == "upgrade_required" }
+                if (upgrade != null) {
+                    publish(
+                        state.copy(
+                            paywallFeature = upgrade.feature ?: "conviction_intelligence",
+                            oppositeCaseError = upgrade.message,
+                            message = upgrade.message
+                        )
+                    )
+                } else {
+                    publish(state.copy(oppositeCaseError = toMessage(error), message = toMessage(error)))
+                }
+            }
+            publish(state.copy(isGeneratingOppositeCase = false))
+        }
+    }
+
     fun syncTierFromServer(revenuecatAppUserId: String? = null) {
         withAuthorizedCall {
             val profile = client.syncUserTier(
@@ -744,6 +850,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     message = "Subscription status refreshed."
                 )
             )
+            refreshConvictionInsights()
+            state.deepDiveReport?.let { refreshConvictionForReport(it) }
         }
     }
 
@@ -918,6 +1026,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     reportNote = null,
                     reportNoteDraft = "",
                     isSavingNote = false,
+                    convictionTimeline = emptyList(),
+                    convictionTimelineError = null,
+                    oppositeCase = null,
+                    oppositeCaseError = null,
+                    isGeneratingOppositeCase = false,
                     scenarioResult = null,
                     isRunningScenario = false,
                     deepDiveError = null,
@@ -967,6 +1080,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         reportNote = note,
                         reportNoteDraft = note?.content ?: "",
                         isSavingNote = false,
+                        convictionTimeline = emptyList(),
+                        convictionTimelineError = null,
+                        oppositeCase = null,
+                        oppositeCaseError = null,
+                        isGeneratingOppositeCase = false,
                         scenarioResult = null,
                         isRunningScenario = false,
                         message = "Loaded report from history.",
@@ -976,6 +1094,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val tickerSafe = report.ticker ?: "unknown"
                 sessionStore.saveLastViewedReport(report.reportId, tickerSafe, "DEEP_DIVE")
                 publish(state.copy(lastViewedReport = sessionStore.getLastViewedReport()))
+                refreshConvictionForReport(report)
                 trackEvent(
                     "deep_dive_viewed",
                     mapOf(
@@ -1002,6 +1121,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                             reportNote = null,
                             reportNoteDraft = "",
                             isSavingNote = false,
+                            convictionTimeline = emptyList(),
+                            convictionTimelineError = "Conviction intelligence is unavailable while offline.",
+                            oppositeCase = null,
+                            oppositeCaseError = "Opposite case is unavailable while offline.",
+                            isGeneratingOppositeCase = false,
                             scenarioResult = null,
                             isRunningScenario = false,
                             message = "Loaded cached report (offline).",
@@ -1099,6 +1223,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
         openWarRoom(warRoomId)
     }
+
+    private fun refreshConvictionForReport(report: DeepDiveReportView) {
+        if (!isProTier()) {
+            return
+        }
+        refreshConvictionTimeline(report.ticker)
+        refreshOppositeCase(report.reportId)
+    }
+
+    private fun isProTier(): Boolean =
+        state.userProfile?.tier.equals("PRO", ignoreCase = true)
 
     fun resumeLastViewed(lastViewedReport: LastViewedReport) {
         when (lastViewedReport.type) {
@@ -1422,6 +1557,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                                 reportNote = note,
                                 reportNoteDraft = note?.content ?: "",
                                 isSavingNote = false,
+                                convictionTimeline = emptyList(),
+                                convictionTimelineError = null,
+                                oppositeCase = null,
+                                oppositeCaseError = null,
+                                isGeneratingOppositeCase = false,
                                 scenarioResult = null,
                                 isRunningScenario = false,
                                 message = "Deep Dive ready.",
@@ -1433,6 +1573,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         publish(state.copy(lastViewedReport = sessionStore.getLastViewedReport()))
                         refreshReportHistory()
                         refreshMonitorSnapshots()
+                        refreshConvictionForReport(report)
                         trackEvent(
                             "deep_dive_viewed",
                             mapOf(
@@ -1501,12 +1642,73 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         return runCatching {
             block()
         }.recoverCatching { error ->
-            if (error is ProductApiException && error.code == 401 && tryRefreshToken()) {
-                block()
+            if (error is ProductApiException && error.code == 401) {
+                if (tryRefreshToken()) {
+                    block()
+                } else {
+                    clearLocalSession("Session expired. Please log in again.")
+                    throw ProductApiException(401, "Session expired. Please log in again.")
+                }
             } else {
                 throw error
             }
         }.exceptionOrNull()
+    }
+
+    private suspend fun clearLocalSession(message: String) {
+        PrefetchScheduler.cancel(getApplication<Application>().applicationContext)
+        cacheStore.clearAll()
+        sessionStore.clearLastViewedReport()
+        sessionStore.clearTokens()
+        sessionStore.setHasSeenWelcome(false)
+        publish(
+            state.copy(
+                currentTab = AppTab.TODAY,
+                showWelcome = true,
+                tokens = null,
+                tickers = emptyList(),
+                selectedTicker = null,
+                deepDiveReport = null,
+                reportNote = null,
+                reportNoteDraft = "",
+                isSavingNote = false,
+                convictionTimeline = emptyList(),
+                convictionTimelineError = null,
+                convictionInsights = emptyList(),
+                convictionInsightsError = null,
+                oppositeCase = null,
+                oppositeCaseError = null,
+                isGeneratingOppositeCase = false,
+                scenarioResult = null,
+                isRunningScenario = false,
+                pulseReport = null,
+                pulseLoadedFromCache = false,
+                pulseFreshnessText = null,
+                pulseError = null,
+                sentimentCurrent = null,
+                sentimentHistory = emptyList(),
+                sentimentRangeDays = 30,
+                sentimentError = null,
+                alertLedger = emptyList(),
+                inboxError = null,
+                monitorSnapshots = emptyList(),
+                warRoom = null,
+                warRoomError = null,
+                deepDiveError = null,
+                watchlist = emptyList(),
+                reportHistory = emptyList(),
+                notificationPreferences = defaultNotificationPreferences(),
+                lastViewedReport = null,
+                jobStatus = null,
+                watchlistFeatureEnabled = true,
+                userProfile = null,
+                paywallFeature = null,
+                subscriptionOffers = emptyList(),
+                subscriptionActionInFlight = false,
+                isLoading = false,
+                message = message
+            )
+        )
     }
 
     private suspend fun tryRefreshToken(): Boolean {
@@ -1515,6 +1717,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             client.refresh(state.apiBaseUrl, current.refreshToken)
         }.onSuccess { newTokens ->
             sessionStore.saveTokens(newTokens)
+            sessionStore.setHasSeenWelcome(true)
             publish(state.copy(tokens = newTokens))
             refreshNotificationPreferences()
         }.isSuccess

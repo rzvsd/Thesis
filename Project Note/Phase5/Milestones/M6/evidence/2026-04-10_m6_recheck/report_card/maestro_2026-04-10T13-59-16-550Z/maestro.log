@@ -1,0 +1,36 @@
+Running on R3CXA03J3LH
+ > Flow ph5_m6_report_card_seeded
+Repeat 4 times...
+  Run flow when "Continue" is visible...
+  Run flow when "Continue" is visible... SKIPPED
+  Run flow when "Get Started" is visible...
+  Run flow when "Get Started" is visible... SKIPPED
+Repeat 4 times... COMPLETED
+Run flow when "Allow" is visible...
+  Tap on "Allow"... COMPLETED
+Run flow when "Allow" is visible... COMPLETED
+Repeat 4 times...
+  Run flow when "Continue" is visible...
+    Tap on "Continue"... COMPLETED
+  Run flow when "Continue" is visible... COMPLETED
+  Run flow when "Get Started" is visible...
+  Run flow when "Get Started" is visible... SKIPPED
+    Tap on "Get Started"... COMPLETED
+Repeat 4 times... COMPLETED
+Assert that "EMAIL" is visible... COMPLETED
+Tap on "you@example.com"... COMPLETED
+Input text ${MAESTRO_TEST_EMAIL}... COMPLETED
+Hide Keyboard... COMPLETED
+Tap on "Enter password"... COMPLETED
+Input text ${MAESTRO_TEST_PASSWORD}... COMPLETED
+Hide Keyboard... COMPLETED
+Tap on "Log In"... COMPLETED
+Assert that "Today" is visible... COMPLETED
+Tap on "Research"... COMPLETED
+Assert that "AAPL" is visible... COMPLETED
+Tap on "AAPL"... COMPLETED
+Assert that "Thesis Statement" is visible... COMPLETED
+Scrolling DOWN until "Conviction Intelligence" is visible with speed 40, visibility percentage 100%, timeout 60000 ms, with centering disabled... COMPLETED
+Assert that "Conviction Intelligence" is visible... COMPLETED
+Assert that "Conviction Timeline" is visible... COMPLETED
+Assert that "Opposite Case" is visible... COMPLETED
