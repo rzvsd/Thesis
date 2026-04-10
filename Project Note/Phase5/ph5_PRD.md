@@ -82,6 +82,9 @@ Required behavior:
 - events on name X can propagate to related names in user watchlist
 - propagated alerts include relationship explanation and confidence context
 - default propagation threshold is `0.70` confidence; lower-confidence edges remain stored but do not alert by default
+- cross-name propagation alerts are Pro-only
+- macro is an event/signal category that may propagate through sector links; it is not a relationship type
+- M5 reuses Names and Inbox; it does not add a new top-level mobile screen
 
 ### 2.6 Conviction Intelligence
 

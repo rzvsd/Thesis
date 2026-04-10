@@ -75,6 +75,7 @@ export interface DexterConfig {
   langsmithSectionExecutorPrompt: string;
   langsmithSynthesizerPrompt: string;
   langsmithKillSwitchPrompt: string;
+  langsmithRelationshipPrompt: string;
   simulateTimeoutSection?: string;
   queueMode: boolean;
   redisUrl?: string;
@@ -133,6 +134,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): DexterConfig {
       env.LANGSMITH_SYNTHESIZER_PROMPT ?? "thesis-m2-synthesizer",
     langsmithKillSwitchPrompt:
       env.LANGSMITH_KILL_SWITCH_PROMPT ?? "thesis-m5-kill-switch-extractor",
+    langsmithRelationshipPrompt:
+      env.LANGSMITH_RELATIONSHIP_PROMPT ?? "thesis-m5-relationship-extractor",
     simulateTimeoutSection: env.DEXTER_SIMULATE_TIMEOUT_SECTION,
     queueMode: parseBoolean(env.DEXTER_QUEUE_MODE, false),
     redisUrl: env.REDIS_URL,

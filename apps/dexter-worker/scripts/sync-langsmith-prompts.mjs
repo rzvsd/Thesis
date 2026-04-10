@@ -12,7 +12,9 @@ const promptIdentifiers = {
     process.env.LANGSMITH_SECTION_EXECUTOR_PROMPT ?? "thesis-m3-section-executor",
   synthesizer: process.env.LANGSMITH_SYNTHESIZER_PROMPT ?? "thesis-m3-synthesizer",
   killSwitchExtractor:
-    process.env.LANGSMITH_KILL_SWITCH_PROMPT ?? "thesis-m5-kill-switch-extractor"
+    process.env.LANGSMITH_KILL_SWITCH_PROMPT ?? "thesis-m5-kill-switch-extractor",
+  relationshipExtractor:
+    process.env.LANGSMITH_RELATIONSHIP_PROMPT ?? "thesis-m5-relationship-extractor"
 };
 
 function extractInputVariables(template) {
@@ -96,6 +98,13 @@ async function main() {
     ["thesis", "m5", "kill-switch"]
   );
 
+  const relationshipExtractorStatus = await pushPrompt(
+    promptIdentifiers.relationshipExtractor,
+    toLangSmithPromptManifest(manifest.relationship_extractor),
+    "M5 relationship extractor prompt for cross-name intelligence",
+    ["thesis", "m5", "name-relationships"]
+  );
+
   process.stdout.write(
     JSON.stringify({
       ok: true,
@@ -104,7 +113,8 @@ async function main() {
         planner: plannerStatus,
         sectionExecutor: sectionExecutorStatus,
         synthesizer: synthesizerStatus,
-        killSwitchExtractor: killSwitchExtractorStatus
+        killSwitchExtractor: killSwitchExtractorStatus,
+        relationshipExtractor: relationshipExtractorStatus
       }
     })
   );

@@ -1,4 +1,5 @@
 import type { NotificationType } from "./notification-preference";
+import type { NameRelationshipType } from "./name-relationship";
 import type { ThesisFreshnessState } from "./thesis-monitor-snapshot";
 import {
   morningExceptionBriefingModes,
@@ -65,6 +66,16 @@ export interface AlertLedgerContext {
   war_room_cadence_min?: EarningsWarRoomCadenceMinute;
   war_room_next_cycle_at?: string;
   war_room_event_at?: string;
+  relationship_id?: string;
+  source_ticker?: string;
+  affected_ticker?: string;
+  relationship_type?: NameRelationshipType;
+  relationship_confidence?: number;
+  relationship_source_report_id?: string;
+  propagation_trigger_key?: string;
+  propagation_signal_type?: string;
+  propagation_event_id?: string;
+  propagation_reason?: string;
 }
 
 export interface AlertLedgerItem {
@@ -146,7 +157,20 @@ export const alertLedgerContextSchema = {
       enum: earningsWarRoomCadenceMinutes
     },
     war_room_next_cycle_at: { type: "string", format: "date-time" },
-    war_room_event_at: { type: "string", format: "date-time" }
+    war_room_event_at: { type: "string", format: "date-time" },
+    relationship_id: { type: "string", minLength: 1 },
+    source_ticker: { type: "string", minLength: 1 },
+    affected_ticker: { type: "string", minLength: 1 },
+    relationship_type: {
+      type: "string",
+      enum: ["supplier", "competitor", "partner", "sector"]
+    },
+    relationship_confidence: { type: "number", minimum: 0, maximum: 1 },
+    relationship_source_report_id: { type: "string", minLength: 1 },
+    propagation_trigger_key: { type: "string", minLength: 1 },
+    propagation_signal_type: { type: "string", minLength: 1 },
+    propagation_event_id: { type: "string", minLength: 1 },
+    propagation_reason: { type: "string", minLength: 1 }
   }
 } as const;
 
@@ -180,6 +204,7 @@ export const alertLedgerItemSchema = {
         "kill_switch",
         "freshness_decay",
         "morning_exception_briefing",
+        "cross_name_propagation",
         "weekly_digest",
         "market_pulse_ready"
       ]

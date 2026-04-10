@@ -320,6 +320,8 @@ Product API Engineer + Scheduler Engineer + Dexter Engineer + Mobile Engineer
 
 # M5 - Cross-Name Intelligence
 
+Status: Closed (PASS) on 2026-04-10; LangSmith relationship prompt registration carried as TBD because `LANGSMITH_API_KEY` is not available in this environment.
+
 ## Goal
 
 Add relationship-aware signal propagation across supplier/competitor/sector connected names.
@@ -333,16 +335,36 @@ Add relationship-aware signal propagation across supplier/competitor/sector conn
 | Relationship extractor | Dexter extraction from report content into structured links |
 | Propagation evaluator | Scheduler logic for event propagation over graph edges |
 | Cross-name alerting | Alert-ledger entries and push delivery with relationship explanation |
+| M5 interface contract | `name-relationship` contracts plus ingestion, query, and propagation endpoints |
+
+M5 storage and interface lock:
+
+- Relationship table: `name_relationships`
+- Required fields: `relationship_id`, `user_id`, `source_ticker`, `target_ticker`, `relationship_type`, `confidence`, `state`, `source_report_id`, `prompt_version`, `evidence_text`, `rationale`, `created_at`, `updated_at`, optional `suppressed_at`
+- Relationship types: `supplier`, `competitor`, `partner`, `sector`
+- Relationship states: `active`, `suppressed`, `inactive`
+- Confidence threshold: store every valid edge, emit propagated alerts only at `>= 0.70` by default unless a stricter override is supplied
+- Macro handling: macro is an event/signal category that can propagate through qualifying `sector` edges; `macro` is not a relationship type
+- Contract file: `packages/contracts/src/name-relationship.ts`
+- Internal ingestion endpoint: `POST /internal/name-relationships/ingest`
+- Internal propagation endpoint: `POST /internal/notifications/cross-name/evaluate`
+- User query endpoint: `GET /v1/names/relationships`
+- Alert notification type: `cross_name_propagation`
+- Mobile scope: no new top-level screen; reuse existing Names and Inbox surfaces and preserve the same Thesis colors, typography, tone, and component style
 
 ## Acceptance Criteria
 
-- [ ] Structured relationship records persist from Deep Dive output
-- [ ] Relationship confidence and provenance are stored and queryable
-- [ ] Material events on source names evaluate propagation candidates
-- [ ] Propagated alerts include clear "why this affects your thesis" context
-- [ ] Low-confidence edges are suppressible using default threshold `0.70` (and configurable stricter overrides)
-- [ ] Integration tests cover supplier, competitor, and macro propagation paths
-- [ ] Alert-ledger and route behavior remain backward-compatible
+- [x] Structured relationship records persist from Deep Dive output
+- [x] Relationship confidence and provenance are stored and queryable
+- [x] Material events on source names evaluate propagation candidates
+- [x] Propagated alerts include clear "why this affects your thesis" context
+- [x] Low-confidence edges are suppressible using default threshold `0.70` (and configurable stricter overrides)
+- [x] Cross-name propagation alerts are Pro-only; Free users do not receive propagated alerts
+- [x] Macro-origin events propagate only through qualifying `sector` relationships and never introduce `macro` as a relationship type
+- [x] Integration tests cover supplier, competitor, and macro propagation paths
+- [x] Alert-ledger and route behavior remain backward-compatible
+
+TBD after closeout: LangSmith relationship prompt registration is not proven because `LANGSMITH_API_KEY` is not available in this environment. The local prompt manifest and sync hook are implemented.
 
 ## Smoke Test
 
@@ -353,6 +375,8 @@ Step 3: Confirm related followed names receive propagated exceptions
 Step 4: Confirm alert reason text includes relationship type and source context
 Step 5: Validate suppression behavior at default `0.70`, then at stricter threshold override
 Step 6: Confirm no propagation for unrelated names
+Step 7: Confirm Free users receive no propagated alerts while Pro users do
+Step 8: Confirm macro-origin propagation uses sector relationships only
 ```
 
 ## Success
@@ -366,6 +390,8 @@ Users receive second-order intelligence that single-name tools miss.
 | Over-broad relationship extraction | Propagation precision checks | Too many irrelevant alerts |
 | Missing provenance on relationships | API payload audit | Low explainability |
 | Threshold misconfiguration | QA sweeps with fixture distributions | Either silence or spam |
+| Entitlement leak to Free users | Pro/Free propagation tests | Monetization regression |
+| Macro treated as a relationship type | Contract enum tests | Relationship graph pollution |
 
 ## Rollback
 

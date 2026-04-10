@@ -25,6 +25,8 @@ import type {
   FeedbackTriageStatus,
   FeedbackRouteStatus,
   FearGreedSnapshot,
+  NameRelationshipState,
+  NameRelationshipType,
   NotificationType,
   ReportFeedbackCode,
   SubscriptionFeedbackCode,
@@ -42,6 +44,7 @@ import type {
   KillSwitchEvaluationRecord,
   KillSwitchRuleRecord,
   JobRecord,
+  NameRelationshipRecord,
   NotificationPreferenceRecord,
   ThesisMonitorSnapshotRecord,
   UserFeedbackQueueRecord,
@@ -224,6 +227,21 @@ export interface ProductStore {
     limit?: number;
   }): Promise<KillSwitchEvaluationRecord[]>;
   createKillSwitchEvaluation(input: KillSwitchEvaluationRecord): Promise<KillSwitchEvaluationRecord>;
+  upsertNameRelationship(input: NameRelationshipRecord): Promise<NameRelationshipRecord>;
+  getNameRelationship(relationshipId: string): Promise<NameRelationshipRecord | undefined>;
+  listNameRelationshipsByUser(input: {
+    userId: string;
+    sourceTicker?: string;
+    targetTicker?: string;
+    states?: NameRelationshipState[];
+    minConfidence?: number;
+    limit: number;
+  }): Promise<NameRelationshipRecord[]>;
+  listActiveNameRelationshipsBySource(input: {
+    sourceTicker: string;
+    relationshipTypes?: NameRelationshipType[];
+    minConfidence: number;
+  }): Promise<NameRelationshipRecord[]>;
   getNotificationPreferences(userId: string): Promise<NotificationPreferenceRecord[]>;
   getReportNote(reportId: string, userId: string): Promise<ReportNoteRecord | undefined>;
   upsertReportNote(input: {
@@ -768,6 +786,25 @@ function mapKillSwitchEvaluation(row: Record<string, unknown>): KillSwitchEvalua
   };
 }
 
+function mapNameRelationship(row: Record<string, unknown>): NameRelationshipRecord {
+  return {
+    relationshipId: String(row.relationship_id),
+    userId: String(row.user_id),
+    sourceTicker: String(row.source_ticker),
+    targetTicker: String(row.target_ticker),
+    relationshipType: String(row.relationship_type) as NameRelationshipType,
+    confidence: Number(row.confidence ?? 0),
+    state: String(row.state) as NameRelationshipState,
+    sourceReportId: String(row.source_report_id),
+    promptVersion: String(row.prompt_version ?? "unknown"),
+    evidenceText: String(row.evidence_text ?? ""),
+    rationale: String(row.rationale ?? ""),
+    createdAt: asIsoString(row.created_at) ?? new Date().toISOString(),
+    updatedAt: asIsoString(row.updated_at) ?? new Date().toISOString(),
+    suppressedAt: asIsoString(row.suppressed_at)
+  };
+}
+
 function mapNotificationPreference(row: Record<string, unknown>): NotificationPreferenceRecord {
   return {
     userId: String(row.user_id),
@@ -939,6 +976,7 @@ export class InMemoryStore implements ProductStore {
   private readonly contrarianAnchors = new Map<string, ContrarianAlertAnchorRecord>();
   private readonly killSwitchRules = new Map<string, KillSwitchRuleRecord>();
   private readonly killSwitchEvaluations = new Map<string, KillSwitchEvaluationRecord>();
+  private readonly nameRelationships = new Map<string, NameRelationshipRecord>();
   private readonly reportNotes = new Map<string, ReportNoteRecord>();
   private readonly userFeedbackQueue = new Map<string, UserFeedbackQueueRecord>();
   private readonly thesisMonitorSnapshots = new Map<string, ThesisMonitorSnapshotRecord>();
@@ -2108,6 +2146,70 @@ export class InMemoryStore implements ProductStore {
     const key = `${input.ruleId}:${input.signalSource}:${input.triggerKey}`;
     this.killSwitchEvaluations.set(key, { ...input });
     return { ...input };
+  }
+
+  async upsertNameRelationship(
+    input: NameRelationshipRecord
+  ): Promise<NameRelationshipRecord> {
+    const existing = this.nameRelationships.get(input.relationshipId);
+    const next: NameRelationshipRecord = {
+      ...input,
+      sourceTicker: input.sourceTicker.trim().toUpperCase(),
+      targetTicker: input.targetTicker.trim().toUpperCase(),
+      createdAt: existing?.createdAt ?? input.createdAt
+    };
+    this.nameRelationships.set(next.relationshipId, next);
+    return { ...next };
+  }
+
+  async getNameRelationship(
+    relationshipId: string
+  ): Promise<NameRelationshipRecord | undefined> {
+    const existing = this.nameRelationships.get(relationshipId);
+    return existing ? { ...existing } : undefined;
+  }
+
+  async listNameRelationshipsByUser(input: {
+    userId: string;
+    sourceTicker?: string;
+    targetTicker?: string;
+    states?: NameRelationshipState[];
+    minConfidence?: number;
+    limit: number;
+  }): Promise<NameRelationshipRecord[]> {
+    const sourceTicker = input.sourceTicker?.trim().toUpperCase();
+    const targetTicker = input.targetTicker?.trim().toUpperCase();
+    const stateSet = input.states && input.states.length > 0 ? new Set(input.states) : undefined;
+    const minConfidence = Math.max(0, Math.min(1, input.minConfidence ?? 0));
+    return [...this.nameRelationships.values()]
+      .filter((relationship) => relationship.userId === input.userId)
+      .filter((relationship) => !sourceTicker || relationship.sourceTicker === sourceTicker)
+      .filter((relationship) => !targetTicker || relationship.targetTicker === targetTicker)
+      .filter((relationship) => !stateSet || stateSet.has(relationship.state))
+      .filter((relationship) => relationship.confidence >= minConfidence)
+      .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
+      .slice(0, Math.max(1, input.limit))
+      .map((relationship) => ({ ...relationship }));
+  }
+
+  async listActiveNameRelationshipsBySource(input: {
+    sourceTicker: string;
+    relationshipTypes?: NameRelationshipType[];
+    minConfidence: number;
+  }): Promise<NameRelationshipRecord[]> {
+    const sourceTicker = input.sourceTicker.trim().toUpperCase();
+    const relationshipTypeSet =
+      input.relationshipTypes && input.relationshipTypes.length > 0
+        ? new Set(input.relationshipTypes)
+        : undefined;
+    const minConfidence = Math.max(0, Math.min(1, input.minConfidence));
+    return [...this.nameRelationships.values()]
+      .filter((relationship) => relationship.state === "active")
+      .filter((relationship) => relationship.sourceTicker === sourceTicker)
+      .filter((relationship) => !relationshipTypeSet || relationshipTypeSet.has(relationship.relationshipType))
+      .filter((relationship) => relationship.confidence >= minConfidence)
+      .sort((left, right) => right.confidence - left.confidence || left.updatedAt.localeCompare(right.updatedAt))
+      .map((relationship) => ({ ...relationship }));
   }
 
   async getNotificationPreferences(userId: string): Promise<NotificationPreferenceRecord[]> {
@@ -3969,6 +4071,147 @@ export class PostgresStore implements ProductStore {
       ]
     );
     return mapKillSwitchEvaluation(result.rows[0] as Record<string, unknown>);
+  }
+
+  async upsertNameRelationship(
+    input: NameRelationshipRecord
+  ): Promise<NameRelationshipRecord> {
+    const result = await this.pool.query(
+      `insert into name_relationships (
+         relationship_id,
+         user_id,
+         source_ticker,
+         target_ticker,
+         relationship_type,
+         confidence,
+         state,
+         source_report_id,
+         prompt_version,
+         evidence_text,
+         rationale,
+         created_at,
+         updated_at,
+         suppressed_at
+       )
+       values (
+         $1,
+         $2,
+         $3,
+         $4,
+         $5,
+         $6,
+         $7,
+         $8,
+         $9,
+         $10,
+         $11,
+         $12::timestamptz,
+         $13::timestamptz,
+         $14::timestamptz
+       )
+       on conflict (relationship_id) do update set
+         user_id = excluded.user_id,
+         source_ticker = excluded.source_ticker,
+         target_ticker = excluded.target_ticker,
+         relationship_type = excluded.relationship_type,
+         confidence = excluded.confidence,
+         state = excluded.state,
+         source_report_id = excluded.source_report_id,
+         prompt_version = excluded.prompt_version,
+         evidence_text = excluded.evidence_text,
+         rationale = excluded.rationale,
+         updated_at = excluded.updated_at,
+         suppressed_at = excluded.suppressed_at
+       returning *`,
+      [
+        input.relationshipId,
+        input.userId,
+        input.sourceTicker.trim().toUpperCase(),
+        input.targetTicker.trim().toUpperCase(),
+        input.relationshipType,
+        input.confidence,
+        input.state,
+        input.sourceReportId,
+        input.promptVersion,
+        input.evidenceText,
+        input.rationale,
+        input.createdAt,
+        input.updatedAt,
+        input.suppressedAt ?? null
+      ]
+    );
+    return mapNameRelationship(result.rows[0] as Record<string, unknown>);
+  }
+
+  async getNameRelationship(
+    relationshipId: string
+  ): Promise<NameRelationshipRecord | undefined> {
+    const result = await this.pool.query(
+      `select *
+         from name_relationships
+        where relationship_id = $1
+        limit 1`,
+      [relationshipId]
+    );
+    const row = result.rows[0] as Record<string, unknown> | undefined;
+    return row ? mapNameRelationship(row) : undefined;
+  }
+
+  async listNameRelationshipsByUser(input: {
+    userId: string;
+    sourceTicker?: string;
+    targetTicker?: string;
+    states?: NameRelationshipState[];
+    minConfidence?: number;
+    limit: number;
+  }): Promise<NameRelationshipRecord[]> {
+    const states = input.states?.filter((state) => typeof state === "string") ?? [];
+    const minConfidence = Math.max(0, Math.min(1, input.minConfidence ?? 0));
+    const result = await this.pool.query(
+      `select *
+         from name_relationships
+        where user_id = $1
+          and ($2::text is null or source_ticker = $2::text)
+          and ($3::text is null or target_ticker = $3::text)
+          and (array_length($4::text[], 1) is null or state = any($4::text[]))
+          and confidence >= $5
+        order by updated_at desc
+        limit $6`,
+      [
+        input.userId,
+        input.sourceTicker?.trim().toUpperCase() ?? null,
+        input.targetTicker?.trim().toUpperCase() ?? null,
+        states.length > 0 ? states : null,
+        minConfidence,
+        Math.max(1, input.limit)
+      ]
+    );
+    return result.rows.map((row) => mapNameRelationship(row as Record<string, unknown>));
+  }
+
+  async listActiveNameRelationshipsBySource(input: {
+    sourceTicker: string;
+    relationshipTypes?: NameRelationshipType[];
+    minConfidence: number;
+  }): Promise<NameRelationshipRecord[]> {
+    const relationshipTypes =
+      input.relationshipTypes?.filter((type) => typeof type === "string") ?? [];
+    const minConfidence = Math.max(0, Math.min(1, input.minConfidence));
+    const result = await this.pool.query(
+      `select *
+         from name_relationships
+        where state = 'active'
+          and source_ticker = $1
+          and (array_length($2::text[], 1) is null or relationship_type = any($2::text[]))
+          and confidence >= $3
+        order by confidence desc, updated_at asc`,
+      [
+        input.sourceTicker.trim().toUpperCase(),
+        relationshipTypes.length > 0 ? relationshipTypes : null,
+        minConfidence
+      ]
+    );
+    return result.rows.map((row) => mapNameRelationship(row as Record<string, unknown>));
   }
 
   async getNotificationPreferences(userId: string): Promise<NotificationPreferenceRecord[]> {

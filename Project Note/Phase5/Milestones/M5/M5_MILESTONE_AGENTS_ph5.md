@@ -11,8 +11,8 @@
 |---|---|
 | **Milestone** | Phase 5 M5 - Cross-Name Intelligence |
 | **Linear Project** | Phase 5 M5 - Cross-Name Intelligence |
-| **Owner** | Dexter Engineer + Scheduler Engineer + Product API Engineer |
-| **Status** | Planned |
+| **Owner** | Dexter Engineer + Scheduler Engineer + Product API Engineer + Mobile Engineer for existing-surface copy/context only |
+| **Status** | Closed (PASS) on 2026-04-10; LangSmith prompt registration carried as TBD |
 | **Depends on** | M1-M4 complete |
 
 ---
@@ -26,6 +26,11 @@
 | G3 | Propagated alerts require explanation chain | RESOLVED | Product Lead | Milestone start |
 | G4 | Relationship provenance must be persisted | RESOLVED | Dexter Engineer | Milestone start |
 | G5 | Propagation UI outputs keep the same Thesis colors, typography, tone, and component style | RESOLVED | Product Lead + Mobile Engineer | Milestone start |
+| G6 | Cross-name intelligence is Pro-only; Free users must not receive propagated alerts | RESOLVED | Product Lead | Milestone start |
+| G7 | Macro is an event/signal category, not a relationship type; relationship taxonomy remains supplier/competitor/partner/sector | RESOLVED | Product Lead + Product API Engineer | Milestone start |
+| G8 | Relationship storage shape is durable and queryable before evaluator implementation | RESOLVED | Product API Engineer | Milestone start |
+| G9 | Public/internal interface names are locked before code changes | RESOLVED | Product API Engineer + Scheduler Engineer | Milestone start |
+| G10 | No new mobile top-level screen; M5 uses existing Names and Inbox surfaces only | RESOLVED | Product Lead + Mobile Engineer | Milestone start |
 
 ---
 
@@ -48,11 +53,13 @@ M5 adds second-order portfolio intelligence by propagating material events throu
 
 ## 3. Scope - What Is In
 
-- [ ] Relationship graph contracts and persistence
-- [ ] Dexter relationship extraction from report content
-- [ ] Propagation evaluator in scheduler
-- [ ] Propagated alert ledger and push integration
-- [ ] Confidence-threshold controls and suppressions (`0.70` default with stricter overrides)
+- [x] Relationship graph contracts and persistence
+- [x] Dexter relationship extraction from report content via `AnalysisReport.name_relationships` ingestion
+- [x] Propagation evaluator in scheduler
+- [x] Propagated alert ledger and push integration
+- [x] Confidence-threshold controls and suppressions (`0.70` default with stricter overrides)
+- [x] Pro-only entitlement gating for propagated alerts
+- [x] Existing Names/Inbox support through alert-ledger route/context and relationship query; no mobile rendering change was needed
 
 ---
 
@@ -75,6 +82,7 @@ M5 adds second-order portfolio intelligence by propagating material events throu
 | Scheduler | `apps/scheduler/` | Propagation evaluator jobs |
 | Contracts | `packages/contracts/` | Relationship + propagation payloads |
 | Infra | `infra/migrations/` | Relationship tables and indices |
+| Mobile | `apps/mobile/android/` | Existing Names/Inbox context rendering only if needed; no new M5 screen |
 
 ---
 
@@ -84,6 +92,25 @@ M5 adds second-order portfolio intelligence by propagating material events throu
 |---|---|---|
 | Name relationship record | New | `packages/contracts/src/` |
 | Propagated exception payload | New | `packages/contracts/src/` |
+
+Locked relationship storage shape:
+
+- `name_relationships` header: `relationship_id`, `user_id`, `source_ticker`, `target_ticker`, `relationship_type`, `confidence`, `state`, `source_report_id`, `prompt_version`, `evidence_text`, `rationale`, `created_at`, `updated_at`, optional `suppressed_at`
+- Relationship type enum: `supplier`, `competitor`, `partner`, `sector`
+- Relationship state enum: `active`, `suppressed`, `inactive`
+- Confidence is stored as `0..1`; alert emission default threshold is `>= 0.70`
+- Edges below threshold remain queryable and auditable but do not emit propagated alerts by default
+- Macro signals may propagate through qualifying `sector` edges, but `macro` is not a relationship type
+
+Locked M5 interface names:
+
+- Contract file: `packages/contracts/src/name-relationship.ts`
+- Internal ingestion endpoint: `POST /internal/name-relationships/ingest`
+- Internal propagation endpoint: `POST /internal/notifications/cross-name/evaluate`
+- User query endpoint: `GET /v1/names/relationships`
+- Alert notification type: `cross_name_propagation`
+- Alert category: `macro` only for macro-origin events; otherwise `thesis_drift`
+- Alert route: `names` for affected-name context and `inbox` for alert history
 
 ---
 
@@ -122,11 +149,13 @@ Naming:
 
 ## 10. Testing Requirements
 
-- [ ] Contracts and Product API typecheck passes
-- [ ] Relationship extraction fixture tests pass
-- [ ] Propagation evaluator tests pass
-- [ ] Integration tests cover `0.70` default threshold and stricter override behavior
-- [ ] Regression tests for non-propagated unrelated names pass
+- [x] Contracts and Product API typecheck passes
+- [x] Relationship extraction fixture tests pass
+- [x] Propagation evaluator tests pass
+- [x] Integration tests cover `0.70` default threshold and stricter override behavior
+- [x] Pro entitlement tests pass (Pro receives propagated alerts; Free does not)
+- [x] Regression tests for non-propagated unrelated names pass
+- [x] Existing Names/Inbox UI remains visually consistent by non-change; mobile was not touched in M5 implementation
 
 Detailed execution lives in `M5_SMOKE_PLAN_ph5.md`.
 
@@ -134,22 +163,42 @@ Detailed execution lives in `M5_SMOKE_PLAN_ph5.md`.
 
 ## 11. Definition Of Done
 
-- [ ] All M5 acceptance criteria in `ph5_MILESTONES.md` are satisfied
-- [ ] Smoke plan executed with evidence
-- [ ] Required regressions pass
-- [ ] Linear tickets closed or explicitly deferred
-- [ ] Product Lead sign-off recorded
-- [ ] Engineering Lead countersign recorded
+- [x] All M5 acceptance criteria in `ph5_MILESTONES.md` are satisfied locally
+- [x] Smoke plan executed with evidence
+- [x] Required regressions pass
+- [x] Linear tickets skipped/deferred per owner instruction for this workstream
+- [x] Product Lead sign-off recorded by owner closeout instruction on 2026-04-10
+- [x] Engineering Lead countersign recorded by owner closeout instruction on 2026-04-10
 
 ---
 
 ## 12. Smoke Test Log
 
 ```text
-Date: TBD
-Run by: TBD
-Environment: TBD
-Result: TBD
+Date: 2026-04-09
+Run by: Codex
+Environment: local memory backends, stub push provider, Product API + Scheduler test lanes
+Result: PASS for local contracts, Dexter Worker, Product API, and Scheduler smoke
+
+Executed:
+- corepack pnpm --filter @thesis/contracts typecheck
+- corepack pnpm --filter @thesis/dexter-worker typecheck
+- corepack pnpm --filter @thesis/dexter-worker test
+- corepack pnpm --filter @thesis/product-api typecheck
+- corepack pnpm --filter @thesis/scheduler typecheck
+- corepack pnpm --filter @thesis/product-api test
+- corepack pnpm --filter @thesis/scheduler test
+- git diff --check
+
+Evidence:
+- Project Note/Phase5/Milestones/M5/evidence/2026-04-09_m5_execution_log.md
+- apps/dexter-worker/tests/pipeline.test.ts
+- apps/product-api/tests/ph5-m5-cross-name.test.ts
+
+Note:
+- `git diff --check` passed with Windows LF-to-CRLF warnings only.
+- LangSmith prompt registration was not executed because no `LANGSMITH_API_KEY` is available in this environment; the local prompt manifest and sync hook are implemented.
+- Mobile was not touched; no device or Maestro proof is required for this M5 slice.
 ```
 
 ---
@@ -158,7 +207,8 @@ Result: TBD
 
 | Issue | Why Deferred | Linear Ticket | Target Milestone |
 |---|---|---|---|
-| None yet | - | - | - |
+| LangSmith relationship prompt registration | `LANGSMITH_API_KEY` is not available in this environment; local manifest and sync script are implemented, but remote registration cannot be proven here | Not required per owner instruction | TBD follow-up when LangSmith credentials are available |
+| Device proof | Mobile was not touched; Names/Inbox behavior is server-ledger context only in this slice | Not required | None |
 
 ---
 
@@ -168,3 +218,6 @@ Result: TBD
 |---|---|---|
 | Relationship taxonomy | supplier/competitor/partner/sector | No |
 | Confidence gating | `0.70` default required before propagation alert emission; stricter overrides allowed | No |
+| Entitlement | Cross-name propagation alerts are Pro-only | No |
+| Macro handling | Macro is a signal/event category that may travel through sector edges, not a relationship type | No |
+| Mobile scope | Reuse Names and Inbox; no new M5 top-level screen | No |
