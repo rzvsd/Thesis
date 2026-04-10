@@ -149,6 +149,26 @@ test("fixture mode loads prompts from the local manifest", async () => {
   assert.equal(prompts.sectionExecutor.version, "m2-section-fixture-v1");
   assert.equal(prompts.synthesizer.version, "m2-synthesizer-fixture-v1");
   assert.equal(prompts.killSwitchExtractor.version, "m5-kill-switch-fixture-v1");
+  assert.equal(prompts.relationshipExtractor.version, "m5-relationship-fixture-v1");
+});
+
+test("GRAPH fixture extracts report-backed name relationships", async () => {
+  const report = await runAnalysisPipeline(buildRequest("GRAPH"), buildFixtureConfig());
+
+  assert.equal(validateAnalysisReport(report).length, 0);
+  assert.ok((report.name_relationships?.length ?? 0) >= 2);
+  assert.ok(report.name_relationships?.some((relationship) =>
+    relationship.source_ticker === "NVDA" &&
+    relationship.target_ticker === "GRAPH" &&
+    relationship.relationship_type === "supplier" &&
+    relationship.confidence >= 0.7
+  ));
+  assert.ok(report.name_relationships?.some((relationship) =>
+    relationship.source_ticker === "QQQ" &&
+    relationship.target_ticker === "GRAPH" &&
+    relationship.relationship_type === "sector" &&
+    relationship.confidence >= 0.7
+  ));
 });
 
 test("live mode validation requires model, Anthropic, and LangSmith settings", () => {

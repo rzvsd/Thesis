@@ -14,6 +14,7 @@ interface PromptManifest {
   section_executor: PromptTemplate;
   synthesizer: PromptTemplate;
   kill_switch_extractor: PromptTemplate;
+  relationship_extractor: PromptTemplate;
 }
 
 export interface LoadedPrompts {
@@ -21,6 +22,7 @@ export interface LoadedPrompts {
   sectionExecutor: PromptTemplate;
   synthesizer: PromptTemplate;
   killSwitchExtractor: PromptTemplate;
+  relationshipExtractor: PromptTemplate;
 }
 
 let cachedLivePrompts:
@@ -38,7 +40,8 @@ export function loadPrompts(promptManifestPath: string): LoadedPrompts {
     !parsed.planner ||
     !parsed.section_executor ||
     !parsed.synthesizer ||
-    !parsed.kill_switch_extractor
+    !parsed.kill_switch_extractor ||
+    !parsed.relationship_extractor
   ) {
     throw new Error(`Prompt manifest is missing required templates: ${promptManifestPath}`);
   }
@@ -47,7 +50,8 @@ export function loadPrompts(promptManifestPath: string): LoadedPrompts {
     planner: parsed.planner,
     sectionExecutor: parsed.section_executor,
     synthesizer: parsed.synthesizer,
-    killSwitchExtractor: parsed.kill_switch_extractor
+    killSwitchExtractor: parsed.kill_switch_extractor,
+    relationshipExtractor: parsed.relationship_extractor
   };
 }
 
@@ -119,7 +123,8 @@ export async function loadRuntimePrompts(config: DexterConfig): Promise<LoadedPr
     config.langsmithPlannerPrompt,
     config.langsmithSectionExecutorPrompt,
     config.langsmithSynthesizerPrompt,
-    config.langsmithKillSwitchPrompt
+    config.langsmithKillSwitchPrompt,
+    config.langsmithRelationshipPrompt
   ].join("|");
 
   if (cachedLivePrompts?.cacheKey === cacheKey) {
@@ -130,7 +135,8 @@ export async function loadRuntimePrompts(config: DexterConfig): Promise<LoadedPr
     planner: await pullPromptTemplate(config.langsmithPlannerPrompt),
     sectionExecutor: await pullPromptTemplate(config.langsmithSectionExecutorPrompt),
     synthesizer: await pullPromptTemplate(config.langsmithSynthesizerPrompt),
-    killSwitchExtractor: await pullPromptTemplate(config.langsmithKillSwitchPrompt)
+    killSwitchExtractor: await pullPromptTemplate(config.langsmithKillSwitchPrompt),
+    relationshipExtractor: await pullPromptTemplate(config.langsmithRelationshipPrompt)
   };
 
   cachedLivePrompts = { cacheKey, prompts };

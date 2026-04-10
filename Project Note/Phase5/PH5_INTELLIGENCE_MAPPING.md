@@ -38,6 +38,9 @@ All mapped user surfaces must preserve the same Thesis colors, typography, tone,
 5. During M4 cutover, legacy `earnings_preview` coexists and is the degraded fallback path when War Room preparation fails.
 6. Cross-name propagation alerts require minimum confidence `0.70` by default.
 7. Relationship edges below `0.70` remain queryable but do not emit propagated alerts by default.
+8. Cross-name propagation alerts are Pro-only.
+9. Macro is a propagation event/signal category through sector relationships, not a relationship type.
+10. M5 uses existing Names and Inbox surfaces; no new top-level mobile screen is introduced.
 
 ---
 

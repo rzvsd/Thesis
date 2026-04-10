@@ -22,6 +22,8 @@ import type {
   FeedbackSeverity,
   FeedbackTriageStatus,
   MarketPulseReport,
+  NameRelationshipState,
+  NameRelationshipType,
   NotificationType,
   ReportFeedbackCode,
   SubscriptionFeedbackCode,
@@ -225,6 +227,23 @@ export interface KillSwitchEvaluationRecord {
   alertId?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface NameRelationshipRecord {
+  relationshipId: string;
+  userId: string;
+  sourceTicker: string;
+  targetTicker: string;
+  relationshipType: NameRelationshipType;
+  confidence: number;
+  state: NameRelationshipState;
+  sourceReportId: string;
+  promptVersion: string;
+  evidenceText: string;
+  rationale: string;
+  createdAt: string;
+  updatedAt: string;
+  suppressedAt?: string;
 }
 
 export interface ThesisMonitorSnapshotRecord {

@@ -8,6 +8,7 @@ import type {
   ConfidenceBlock,
   EvidenceItem,
   KillSwitchConditionDraft,
+  NameRelationshipDraft,
   ReportSection,
   SignalValue,
   TrustMetadata,
@@ -802,6 +803,12 @@ interface KillSwitchExtractionResult {
   source: "prompt" | "fallback";
 }
 
+interface NameRelationshipExtractionResult {
+  relationships: NameRelationshipDraft[];
+  tokenCount: number;
+  source: "prompt" | "fallback";
+}
+
 function normalizeKillSwitchSignalType(
   value: string | undefined
 ): KillSwitchConditionDraft["signal_type"] {
@@ -1167,6 +1174,404 @@ async function extractKillSwitchConditions(input: {
   }
 }
 
+function normalizeTickerSymbol(value: string | undefined): string {
+  return (value ?? "")
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9.-]/g, "");
+}
+
+function normalizeNameRelationshipType(
+  value: string | undefined
+): NameRelationshipDraft["relationship_type"] | undefined {
+  const normalized = value?.trim().toLowerCase();
+  switch (normalized) {
+    case "supplier":
+    case "supply":
+    case "vendor":
+      return "supplier";
+    case "competitor":
+    case "competitive":
+    case "rival":
+      return "competitor";
+    case "partner":
+    case "partnership":
+    case "customer":
+      return "partner";
+    case "sector":
+    case "industry":
+    case "macro":
+      return "sector";
+    default:
+      return undefined;
+  }
+}
+
+function parsePromptNameRelationships(input: {
+  answer: string;
+  promptVersion: string;
+  ticker: string;
+}): NameRelationshipDraft[] | undefined {
+  const parsed = parseJsonArrayCandidate(input.answer);
+  if (!parsed) {
+    return undefined;
+  }
+
+  const fallbackTarget = normalizeTickerSymbol(input.ticker);
+  const relationships: NameRelationshipDraft[] = [];
+  const seen = new Set<string>();
+
+  for (const entry of parsed) {
+    if (typeof entry !== "object" || entry === null || Array.isArray(entry)) {
+      continue;
+    }
+
+    const candidate = entry as Record<string, unknown>;
+    const sourceTicker = normalizeTickerSymbol(
+      typeof candidate.source_ticker === "string" ? candidate.source_ticker : undefined
+    );
+    const targetTicker = normalizeTickerSymbol(
+      typeof candidate.target_ticker === "string" ? candidate.target_ticker : fallbackTarget
+    );
+    const relationshipType = normalizeNameRelationshipType(
+      typeof candidate.relationship_type === "string" ? candidate.relationship_type : undefined
+    );
+    const confidence =
+      typeof candidate.confidence === "number" && Number.isFinite(candidate.confidence)
+        ? Math.max(0, Math.min(1, candidate.confidence))
+        : undefined;
+    const evidenceText = typeof candidate.evidence_text === "string"
+      ? candidate.evidence_text.trim()
+      : "";
+    const rationale = typeof candidate.rationale === "string"
+      ? candidate.rationale.trim()
+      : "";
+
+    if (
+      sourceTicker.length === 0 ||
+      targetTicker.length === 0 ||
+      sourceTicker === targetTicker ||
+      !relationshipType ||
+      confidence === undefined ||
+      evidenceText.length === 0 ||
+      rationale.length === 0
+    ) {
+      continue;
+    }
+
+    const key = `${sourceTicker}:${targetTicker}:${relationshipType}`;
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+
+    relationships.push({
+      source_ticker: sourceTicker,
+      target_ticker: targetTicker,
+      relationship_type: relationshipType,
+      confidence,
+      evidence_text: evidenceText.slice(0, 500),
+      rationale: rationale.slice(0, 500),
+      prompt_version: input.promptVersion
+    });
+  }
+
+  return relationships.slice(0, 10);
+}
+
+function buildRelationshipReportText(input: {
+  thesisStatement?: string;
+  sections: ReportSection[];
+}): string {
+  const parts = [
+    input.thesisStatement ?? "",
+    ...input.sections.flatMap((section) => [
+      section.title,
+      section.body,
+      ...section.evidence.map((evidence) => evidence.excerpt)
+    ])
+  ];
+
+  return parts
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0)
+    .join("\n")
+    .slice(0, 12_000);
+}
+
+const relationshipTickerStopWords = new Set([
+  "AI",
+  "API",
+  "CEO",
+  "CFO",
+  "DCF",
+  "EPS",
+  "ETF",
+  "FY",
+  "GAAP",
+  "GDP",
+  "LLM",
+  "QOQ",
+  "SEC",
+  "US",
+  "USA",
+  "USD",
+  "YOY"
+]);
+
+function relationshipTypeFromSentence(
+  sentence: string
+): NameRelationshipDraft["relationship_type"] | undefined {
+  const normalized = sentence.toLowerCase();
+
+  if (/\b(supplies|supplier|supply|vendor|input|component)\b/.test(normalized)) {
+    return "supplier";
+  }
+
+  if (/\b(competes|competitor|competitive|rival|share shift)\b/.test(normalized)) {
+    return "competitor";
+  }
+
+  if (/\b(partner|partnership|customer|client|distribution)\b/.test(normalized)) {
+    return "partner";
+  }
+
+  if (/\b(sector|industry|macro|rates|dollar|inflation|etf)\b/.test(normalized)) {
+    return "sector";
+  }
+
+  return undefined;
+}
+
+function fallbackConfidenceForRelationship(
+  relationshipType: NameRelationshipDraft["relationship_type"]
+): number {
+  switch (relationshipType) {
+    case "supplier":
+      return 0.74;
+    case "competitor":
+      return 0.72;
+    case "partner":
+      return 0.72;
+    case "sector":
+      return 0.7;
+  }
+}
+
+function buildFallbackNameRelationships(input: {
+  ticker: string;
+  reportText: string;
+  promptVersion: string;
+}): NameRelationshipDraft[] {
+  const targetTicker = normalizeTickerSymbol(input.ticker);
+  if (targetTicker.length === 0) {
+    return [];
+  }
+
+  const relationships: NameRelationshipDraft[] = [];
+  const seen = new Set<string>();
+  const sentences = input.reportText
+    .replace(/\s+/g, " ")
+    .match(/[^.!?]+[.!?]?/g) ?? [];
+
+  for (const rawSentence of sentences) {
+    const sentence = rawSentence.trim();
+    const relationshipType = relationshipTypeFromSentence(sentence);
+    if (!relationshipType) {
+      continue;
+    }
+
+    const matches = sentence.match(/\b[A-Z][A-Z0-9.-]{1,5}\b/g) ?? [];
+    for (const match of matches) {
+      const sourceTicker = normalizeTickerSymbol(match);
+      if (
+        sourceTicker.length < 2 ||
+        sourceTicker === targetTicker ||
+        relationshipTickerStopWords.has(sourceTicker)
+      ) {
+        continue;
+      }
+
+      const key = `${sourceTicker}:${targetTicker}:${relationshipType}`;
+      if (seen.has(key)) {
+        continue;
+      }
+      seen.add(key);
+
+      relationships.push({
+        source_ticker: sourceTicker,
+        target_ticker: targetTicker,
+        relationship_type: relationshipType,
+        confidence: fallbackConfidenceForRelationship(relationshipType),
+        evidence_text: sentence.slice(0, 500),
+        rationale:
+          `Report text explicitly links ${sourceTicker} to ${targetTicker} through ${relationshipType} language.`,
+        prompt_version: input.promptVersion
+      });
+
+      if (relationships.length >= 10) {
+        return relationships;
+      }
+    }
+  }
+
+  return relationships;
+}
+
+async function extractNameRelationships(input: {
+  request: AnalysisRequest;
+  config: DexterConfig;
+  prompts: LoadedPrompts;
+  sections: ReportSection[];
+  thesisStatement?: string;
+  rootTrace?: LangSmithRun;
+  model: string;
+}): Promise<NameRelationshipExtractionResult> {
+  const reportText = buildRelationshipReportText({
+    thesisStatement: input.thesisStatement,
+    sections: input.sections
+  });
+  const fallback = buildFallbackNameRelationships({
+    ticker: input.request.ticker ?? "",
+    reportText,
+    promptVersion: input.prompts.relationshipExtractor.version
+  });
+
+  if (input.config.fixtureMode) {
+    return {
+      relationships: fallback,
+      tokenCount: 0,
+      source: "fallback"
+    };
+  }
+
+  const query = renderPrompt(input.prompts.relationshipExtractor, {
+    ticker: input.request.ticker ?? "",
+    report_text: reportText.length > 0 ? reportText : "Report text unavailable."
+  });
+
+  const trace = input.rootTrace?.createChild({
+    name: "dexter.relationship_extractor",
+    run_type: "chain",
+    inputs: {
+      job_id: input.request.job_id,
+      ticker: input.request.ticker ?? "",
+      prompt_version: input.prompts.relationshipExtractor.version
+    },
+    metadata: {
+      service: "dexter-worker",
+      job_id: input.request.job_id,
+      ticker: input.request.ticker ?? "",
+      prompt_version: input.prompts.relationshipExtractor.version,
+      model: input.model
+    }
+  });
+  if (trace) {
+    await trace.postRun();
+  }
+
+  try {
+    const result = await runLiveDexterQuery(
+      query,
+      input.config,
+      input.config.retrySectionTimeoutMs,
+      1
+    );
+    const parsed = parsePromptNameRelationships({
+      answer: result.answer,
+      promptVersion: input.prompts.relationshipExtractor.version,
+      ticker: input.request.ticker ?? ""
+    });
+
+    if (parsed !== undefined) {
+      if (trace) {
+        await trace.end(
+          {
+            status: "complete",
+            relationship_count: parsed.length,
+            token_count: result.tokenCount
+          },
+          undefined,
+          undefined,
+          {
+            service: "dexter-worker",
+            job_id: input.request.job_id,
+            ticker: input.request.ticker ?? "",
+            prompt_version: input.prompts.relationshipExtractor.version
+          }
+        );
+        await trace.patchRun();
+      }
+      return {
+        relationships: parsed,
+        tokenCount: result.tokenCount,
+        source: "prompt"
+      };
+    }
+
+    logWarn("Name relationship extractor fallback applied due to invalid prompt output", {
+      job_id: input.request.job_id,
+      ticker: input.request.ticker,
+      fallback_count: fallback.length,
+      prompt_version: input.prompts.relationshipExtractor.version
+    });
+    if (trace) {
+      await trace.end(
+        {
+          status: "fallback",
+          relationship_count: fallback.length,
+          token_count: result.tokenCount
+        },
+        "Invalid prompt relationship output; fallback used.",
+        undefined,
+        {
+          service: "dexter-worker",
+          job_id: input.request.job_id,
+          ticker: input.request.ticker ?? "",
+          prompt_version: input.prompts.relationshipExtractor.version
+        }
+      );
+      await trace.patchRun();
+    }
+    return {
+      relationships: fallback,
+      tokenCount: result.tokenCount,
+      source: "fallback"
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    logWarn("Name relationship extractor failed; fallback applied", {
+      job_id: input.request.job_id,
+      ticker: input.request.ticker,
+      error_message: message,
+      fallback_count: fallback.length,
+      prompt_version: input.prompts.relationshipExtractor.version
+    });
+    if (trace) {
+      await trace.end(
+        {
+          status: "fallback",
+          relationship_count: fallback.length
+        },
+        message,
+        undefined,
+        {
+          service: "dexter-worker",
+          job_id: input.request.job_id,
+          ticker: input.request.ticker ?? "",
+          prompt_version: input.prompts.relationshipExtractor.version
+        }
+      );
+      await trace.patchRun();
+    }
+    return {
+      relationships: fallback,
+      tokenCount: 0,
+      source: "fallback"
+    };
+  }
+}
+
 function orderSections(sections: ReportSection[]): ReportSection[] {
   const byId = new Map(sections.map((section) => [section.section_id, section]));
   return allSectionDefinitions
@@ -1434,7 +1839,8 @@ export async function runAnalysisPipeline(
           planner_prompt_version: prompts.planner.version,
           section_executor_prompt_version: prompts.sectionExecutor.version,
           synthesizer_prompt_version: prompts.synthesizer.version,
-          kill_switch_prompt_version: prompts.killSwitchExtractor.version
+          kill_switch_prompt_version: prompts.killSwitchExtractor.version,
+          relationship_prompt_version: prompts.relationshipExtractor.version
         }
       })
     : undefined;
@@ -1658,6 +2064,16 @@ export async function runAnalysisPipeline(
     model
   });
   totalTokenCount += killSwitchExtraction.tokenCount;
+  const relationshipExtraction = await extractNameRelationships({
+    request,
+    config,
+    prompts,
+    sections: orderedSections,
+    thesisStatement,
+    rootTrace,
+    model
+  });
+  totalTokenCount += relationshipExtraction.tokenCount;
 
   const report: AnalysisReport = {
     report_id: randomUUID(),
@@ -1672,6 +2088,7 @@ export async function runAnalysisPipeline(
     valuation: valuationSection.valuation,
     trust_metadata: trustMetadata,
     kill_switch_conditions: killSwitchExtraction.conditions,
+    name_relationships: relationshipExtraction.relationships,
     sections: orderedSections,
     flags: buildFlags(scenario, orderedSections, signal.value, traceMode),
     data_sources: buildDataSources(scenario, orderedSections)
@@ -1700,6 +2117,14 @@ export async function runAnalysisPipeline(
     prompt_version: prompts.killSwitchExtractor.version,
     extraction_source: killSwitchExtraction.source
   });
+  logInfo("Name relationships extracted", {
+    job_id: request.job_id,
+    report_id: report.report_id,
+    ticker,
+    relationship_count: relationshipExtraction.relationships.length,
+    prompt_version: prompts.relationshipExtractor.version,
+    extraction_source: relationshipExtraction.source
+  });
 
   const validationErrors = validateAnalysisReport(report);
   if (validationErrors.length > 0) {
@@ -1719,7 +2144,8 @@ export async function runAnalysisPipeline(
         flags: report.flags,
         token_count: totalTokenCount,
         section_count: report.sections.length,
-        kill_switch_rule_count: report.kill_switch_conditions?.length ?? 0
+        kill_switch_rule_count: report.kill_switch_conditions?.length ?? 0,
+        name_relationship_count: report.name_relationships?.length ?? 0
       },
       undefined,
       undefined,
@@ -1731,7 +2157,8 @@ export async function runAnalysisPipeline(
         planner_prompt_version: prompts.planner.version,
         section_executor_prompt_version: prompts.sectionExecutor.version,
         synthesizer_prompt_version: prompts.synthesizer.version,
-        kill_switch_prompt_version: prompts.killSwitchExtractor.version
+        kill_switch_prompt_version: prompts.killSwitchExtractor.version,
+        relationship_prompt_version: prompts.relationshipExtractor.version
       }
     );
     await rootTrace.patchRun();

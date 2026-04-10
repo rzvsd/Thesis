@@ -433,6 +433,39 @@ function buildFixtureHistoricalContext(ticker: string): FixtureHistoricalContext
   };
 }
 
+function buildGraphScenario(ticker: string): FixtureScenario {
+  const base = buildCompleteScenario(ticker);
+  const commentarySection = base.sectionScenarios.management_commentary;
+  const eventsSection = base.sectionScenarios.acquisitions_major_events;
+
+  return {
+    ...base,
+    sectionScenarios: {
+      ...base.sectionScenarios,
+      acquisitions_major_events: {
+        ...(eventsSection ?? {
+          status: "complete",
+          summary: "",
+          evidence: []
+        }),
+        summary:
+          `NVDA supplies accelerator hardware that supports ${ticker}'s AI platform, making supplier availability a thesis input.`,
+        evidence: eventsSection?.evidence ?? []
+      },
+      management_commentary: {
+        ...(commentarySection ?? {
+          status: "complete",
+          summary: "",
+          evidence: []
+        }),
+        summary:
+          `QQQ sector conditions influence ${ticker}'s valuation risk because macro pressure can compress growth multiples.`,
+        evidence: commentarySection?.evidence ?? []
+      }
+    }
+  };
+}
+
 export function getFixtureScenario(ticker: string): FixtureScenario {
   const normalized = ticker.trim().toUpperCase();
 
@@ -444,6 +477,8 @@ export function getFixtureScenario(ticker: string): FixtureScenario {
       return buildNoSignalScenario(normalized);
     case "TIMEOUT":
       return buildTimeoutScenario(normalized);
+    case "GRAPH":
+      return buildGraphScenario(normalized);
     case "MSFT":
     default:
       return buildCompleteScenario(normalized);

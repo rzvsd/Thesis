@@ -25,7 +25,8 @@ const migrationFilenames = [
   "ph5m1_019_kill_switch_rules.up.sql",
   "ph5m2_020_freshness_decay.up.sql",
   "ph5m3_021_morning_exception_briefing.up.sql",
-  "ph5m4_022_earnings_war_room.up.sql"
+  "ph5m4_022_earnings_war_room.up.sql",
+  "ph5m5_023_name_relationships.up.sql"
 ];
 
 async function readMigrationFile(filename: string): Promise<string> {

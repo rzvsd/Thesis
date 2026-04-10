@@ -359,6 +359,23 @@ async function dispatchEarningsPreview(config: SchedulerConfig): Promise<void> {
     failed: killSwitchPayload.failed
   });
 
+  const crossNamePayload = await dispatchProductApiJob(
+    config,
+    "/internal/notifications/cross-name/evaluate",
+    {
+      signal_source: "daily"
+    },
+    "Cross-name propagation"
+  );
+  log("INFO", "Cross-name propagation accepted", {
+    evaluated: crossNamePayload.evaluated,
+    matched: crossNamePayload.matched,
+    suppressed: crossNamePayload.suppressed,
+    attempted: crossNamePayload.attempted,
+    delivered: crossNamePayload.delivered,
+    failed: crossNamePayload.failed
+  });
+
   const monitorPayload = await dispatchProductApiJob(
     config,
     "/internal/monitor/recompute",

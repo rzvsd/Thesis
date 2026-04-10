@@ -1,5 +1,5 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { URL } from "node:url";
 
 import type {
@@ -15,6 +15,10 @@ import type {
   AuthRegisterRequest,
   AuthTokensResponse,
   CreateJobRequest,
+  CrossNamePropagationEvaluationRequest,
+  CrossNamePropagationEventCategory,
+  CrossNamePropagationEventFixture,
+  CrossNamePropagationSignalSource,
   FeedbackSeverity,
   KillSwitchConditionDraft,
   KillSwitchEvaluationFixture,
@@ -25,6 +29,10 @@ import type {
   JobStatusResponse,
   MarketPulseReport,
   MorningExceptionBriefingMode,
+  NameRelationshipDraft,
+  NameRelationshipItem,
+  NameRelationshipState,
+  NameRelationshipType,
   NotificationType,
   ReportFeedbackCode,
   ReportFeedbackSubmission,
@@ -43,6 +51,8 @@ import {
   alertLedgerCategories,
   feedbackSeverityLevels,
   feedbackTriageStatuses,
+  nameRelationshipStates,
+  nameRelationshipTypes,
   notificationTypes,
   reportFeedbackCodes,
   subscriptionFeedbackCodes
@@ -87,6 +97,7 @@ import type {
   JobRecord,
   KillSwitchEvaluationRecord,
   KillSwitchRuleRecord,
+  NameRelationshipRecord,
   ThesisMonitorSnapshotRecord,
   UserFeedbackQueueRecord,
   UserSubscriptionRecord
@@ -142,9 +153,12 @@ const warRoomRuntimeFallbackThresholdMinutes = 12;
 const warRoomLagRecoveryThresholdMinutes = 10;
 const warRoomRuntimeRecoveryThresholdMinutes = 8;
 const warRoomPreparationLookaheadDays = 2;
+const crossNamePropagationDefaultConfidenceThreshold = 0.7;
 const notificationTypeList = [...notificationTypes];
 const alertLedgerCategoryList = [...alertLedgerCategories];
 const alertFeedbackStateList = [...alertFeedbackStates];
+const nameRelationshipTypeList = [...nameRelationshipTypes];
+const nameRelationshipStateList = [...nameRelationshipStates];
 const reportFeedbackCodeList = [...reportFeedbackCodes];
 const subscriptionFeedbackCodeList = [...subscriptionFeedbackCodes];
 const feedbackSeverityList = [...feedbackSeverityLevels];
@@ -160,6 +174,14 @@ function isAlertLedgerCategory(value: string): value is AlertLedgerCategory {
 
 function isAlertFeedbackState(value: string): value is AlertFeedbackState {
   return alertFeedbackStateList.includes(value as AlertFeedbackState);
+}
+
+function isNameRelationshipType(value: string): value is NameRelationshipType {
+  return nameRelationshipTypeList.includes(value as NameRelationshipType);
+}
+
+function isNameRelationshipState(value: string): value is NameRelationshipState {
+  return nameRelationshipStateList.includes(value as NameRelationshipState);
 }
 
 function isReportFeedbackCode(value: string): value is ReportFeedbackCode {
@@ -267,6 +289,8 @@ function notificationTypeLabel(type: NotificationType): string {
       return "Freshness decay";
     case "morning_exception_briefing":
       return "Morning Exception Briefing";
+    case "cross_name_propagation":
+      return "Cross-name alert";
     case "weekly_digest":
       return "Weekly digest";
     case "market_pulse_ready":
@@ -279,6 +303,7 @@ function notificationCategory(type: NotificationType): AlertLedgerCategory {
     case "contrarian_alert":
     case "kill_switch":
     case "freshness_decay":
+    case "cross_name_propagation":
       return "thesis_drift";
     case "earnings_preview":
     case "earnings_war_room":
@@ -302,6 +327,9 @@ function notificationRoute(type: NotificationType): AlertRouteTarget {
     return "today";
   }
   if (type === "freshness_decay") {
+    return "names";
+  }
+  if (type === "cross_name_propagation") {
     return "names";
   }
   return "research";
@@ -367,7 +395,21 @@ function alertLedgerContextFromData(data: Record<string, string> | undefined): R
     ...(data.lead_ticker ? { lead_ticker: data.lead_ticker.trim().toUpperCase() } : {}),
     ...(data.lead_report_id ? { lead_report_id: data.lead_report_id } : {}),
     ...(data.lead_pulse_date ? { lead_pulse_date: data.lead_pulse_date } : {}),
-    ...(data.lead_digest_date ? { lead_digest_date: data.lead_digest_date } : {})
+    ...(data.lead_digest_date ? { lead_digest_date: data.lead_digest_date } : {}),
+    ...(data.relationship_id ? { relationship_id: data.relationship_id } : {}),
+    ...(data.source_ticker ? { source_ticker: data.source_ticker.trim().toUpperCase() } : {}),
+    ...(data.affected_ticker ? { affected_ticker: data.affected_ticker.trim().toUpperCase() } : {}),
+    ...(data.relationship_type ? { relationship_type: data.relationship_type } : {}),
+    ...(data.relationship_confidence
+      ? { relationship_confidence: Number(data.relationship_confidence) }
+      : {}),
+    ...(data.relationship_source_report_id
+      ? { relationship_source_report_id: data.relationship_source_report_id }
+      : {}),
+    ...(data.propagation_trigger_key ? { propagation_trigger_key: data.propagation_trigger_key } : {}),
+    ...(data.propagation_signal_type ? { propagation_signal_type: data.propagation_signal_type } : {}),
+    ...(data.propagation_event_id ? { propagation_event_id: data.propagation_event_id } : {}),
+    ...(data.propagation_reason ? { propagation_reason: data.propagation_reason } : {})
   };
 }
 
@@ -388,6 +430,25 @@ function toAlertLedgerView(record: AlertLedgerRecord) {
     context: record.context,
     created_at: record.createdAt,
     updated_at: record.updatedAt
+  };
+}
+
+function toNameRelationshipView(record: NameRelationshipRecord): NameRelationshipItem {
+  return {
+    relationship_id: record.relationshipId,
+    user_id: record.userId,
+    source_ticker: record.sourceTicker,
+    target_ticker: record.targetTicker,
+    relationship_type: record.relationshipType,
+    confidence: record.confidence,
+    state: record.state,
+    source_report_id: record.sourceReportId,
+    prompt_version: record.promptVersion,
+    evidence_text: record.evidenceText,
+    rationale: record.rationale,
+    created_at: record.createdAt,
+    updated_at: record.updatedAt,
+    suppressed_at: record.suppressedAt
   };
 }
 
@@ -1168,6 +1229,253 @@ async function createKillSwitchRulesFromReport(
   );
 }
 
+function normalizeTickerSymbol(value: unknown): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  const ticker = value.trim().toUpperCase();
+  if (!/^[A-Z0-9.-]{1,16}$/.test(ticker)) {
+    return undefined;
+  }
+  return ticker;
+}
+
+function stableNameRelationshipId(input: {
+  userId: string;
+  sourceTicker: string;
+  targetTicker: string;
+  relationshipType: NameRelationshipType;
+}): string {
+  const hash = createHash("sha256")
+    .update(`${input.userId}|${input.sourceTicker}|${input.targetTicker}|${input.relationshipType}`)
+    .digest("hex")
+    .slice(0, 24);
+  return `nr_${hash}`;
+}
+
+function sanitizeNameRelationshipDrafts(input: {
+  relationships: NameRelationshipDraft[] | undefined;
+  userId: string;
+  reportId: string;
+  reportTicker?: string;
+}): NameRelationshipRecord[] {
+  if (!Array.isArray(input.relationships)) {
+    return [];
+  }
+
+  const reportTicker = normalizeTickerSymbol(input.reportTicker);
+  const now = new Date().toISOString();
+  const parsed: NameRelationshipRecord[] = [];
+  const seen = new Set<string>();
+
+  for (const candidate of input.relationships) {
+    let sourceTicker = normalizeTickerSymbol(candidate.source_ticker);
+    let targetTicker = normalizeTickerSymbol(candidate.target_ticker);
+    if (!sourceTicker || !targetTicker || sourceTicker === targetTicker) {
+      continue;
+    }
+
+    if (reportTicker && sourceTicker === reportTicker && targetTicker !== reportTicker) {
+      [sourceTicker, targetTicker] = [targetTicker, sourceTicker];
+    }
+    if (reportTicker && targetTicker !== reportTicker) {
+      continue;
+    }
+
+    if (!isNameRelationshipType(candidate.relationship_type)) {
+      continue;
+    }
+    const confidence =
+      typeof candidate.confidence === "number" && Number.isFinite(candidate.confidence)
+        ? Math.max(0, Math.min(1, candidate.confidence))
+        : undefined;
+    const evidenceText =
+      typeof candidate.evidence_text === "string" ? candidate.evidence_text.trim() : "";
+    const rationale = typeof candidate.rationale === "string" ? candidate.rationale.trim() : "";
+    if (confidence === undefined || evidenceText.length === 0 || rationale.length === 0) {
+      continue;
+    }
+
+    const relationshipId =
+      typeof candidate.relationship_id === "string" && candidate.relationship_id.trim().length > 0
+        ? candidate.relationship_id.trim()
+        : stableNameRelationshipId({
+            userId: input.userId,
+            sourceTicker,
+            targetTicker,
+            relationshipType: candidate.relationship_type
+          });
+    if (seen.has(relationshipId)) {
+      continue;
+    }
+    seen.add(relationshipId);
+
+    parsed.push({
+      relationshipId,
+      userId: input.userId,
+      sourceTicker,
+      targetTicker,
+      relationshipType: candidate.relationship_type,
+      confidence,
+      state: "active",
+      sourceReportId: input.reportId,
+      promptVersion:
+        typeof candidate.prompt_version === "string" && candidate.prompt_version.trim().length > 0
+          ? candidate.prompt_version.trim()
+          : "unknown",
+      evidenceText,
+      rationale,
+      createdAt: now,
+      updatedAt: now
+    });
+  }
+
+  return parsed;
+}
+
+async function upsertNameRelationships(
+  runtime: Runtime,
+  input: {
+    userId: string;
+    reportId: string;
+    reportTicker?: string;
+    relationships: NameRelationshipDraft[] | undefined;
+    requestId: string;
+    route: string;
+  }
+): Promise<number> {
+  const sanitized = sanitizeNameRelationshipDrafts({
+    userId: input.userId,
+    reportId: input.reportId,
+    reportTicker: input.reportTicker,
+    relationships: input.relationships
+  });
+
+  for (const relationship of sanitized) {
+    await runtime.store.upsertNameRelationship(relationship);
+  }
+
+  if (sanitized.length > 0) {
+    logInfo("Name relationships upserted", {
+      request_id: input.requestId,
+      route: input.route,
+      report_id: input.reportId,
+      relationship_count: sanitized.length
+    });
+    await appendAudit(
+      runtime,
+      "name_relationships.upserted",
+      {
+        request_id: input.requestId,
+        route: input.route,
+        report_id: input.reportId,
+        relationship_count: sanitized.length
+      },
+      input.userId
+    );
+  }
+
+  return sanitized.length;
+}
+
+async function createNameRelationshipsFromReport(
+  runtime: Runtime,
+  input: {
+    report: AnalysisReport;
+    userId?: string;
+    requestId: string;
+    route: string;
+  }
+): Promise<void> {
+  const { report, userId } = input;
+  if (report.type !== "deep_dive" || !userId || !report.ticker) {
+    return;
+  }
+
+  await upsertNameRelationships(runtime, {
+    userId,
+    reportId: report.report_id,
+    reportTicker: report.ticker,
+    relationships: report.name_relationships,
+    requestId: input.requestId,
+    route: input.route
+  });
+}
+
+function asCrossNamePropagationSignalSource(
+  value: string | undefined
+): CrossNamePropagationSignalSource {
+  return value === "event" ? "event" : "daily";
+}
+
+function asCrossNamePropagationEventCategory(
+  value: string | undefined,
+  signalType: KillSwitchSignalType
+): CrossNamePropagationEventCategory {
+  if (value === "macro" || signalType === "macro_regime") {
+    return "macro";
+  }
+  return "thesis_drift";
+}
+
+function asCrossNamePropagationFixture(
+  value: unknown
+): CrossNamePropagationEventFixture | undefined {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return undefined;
+  }
+  const candidate = value as Record<string, unknown>;
+  const sourceTicker = normalizeTickerSymbol(candidate.source_ticker);
+  if (!sourceTicker) {
+    return undefined;
+  }
+  const signalType = normalizeKillSwitchSignalType(
+    typeof candidate.signal_type === "string" ? candidate.signal_type : undefined
+  );
+  const eventCategory = asCrossNamePropagationEventCategory(
+    typeof candidate.event_category === "string" ? candidate.event_category : undefined,
+    signalType
+  );
+  const metadata =
+    typeof candidate.metadata === "object" && candidate.metadata !== null && !Array.isArray(candidate.metadata)
+      ? Object.fromEntries(
+          Object.entries(candidate.metadata as Record<string, unknown>)
+            .filter(([, v]) => typeof v === "string")
+            .map(([k, v]) => [k, String(v)])
+        )
+      : undefined;
+
+  return {
+    source_ticker: sourceTicker,
+    signal_type: signalType,
+    event_category: eventCategory,
+    event_id:
+      typeof candidate.event_id === "string" && candidate.event_id.trim().length > 0
+        ? candidate.event_id.trim()
+        : undefined,
+    source_report_id:
+      typeof candidate.source_report_id === "string" && candidate.source_report_id.trim().length > 0
+        ? candidate.source_report_id.trim()
+        : undefined,
+    reason_text:
+      typeof candidate.reason_text === "string" && candidate.reason_text.trim().length > 0
+        ? candidate.reason_text.trim()
+        : undefined,
+    occurred_at:
+      typeof candidate.occurred_at === "string" && candidate.occurred_at.trim().length > 0
+        ? candidate.occurred_at.trim()
+        : undefined,
+    metadata
+  };
+}
+
+function normalizeConfidenceThreshold(value: unknown): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return crossNamePropagationDefaultConfidenceThreshold;
+  }
+  return Math.max(crossNamePropagationDefaultConfidenceThreshold, Math.min(1, value));
+}
+
 function asKillSwitchSignalSource(
   value: string | undefined
 ): KillSwitchEvaluationSignalSource {
@@ -1919,6 +2227,7 @@ async function recordAlertLedgerItem(
     id?: string;
     userId: string;
     notificationType: NotificationType;
+    category?: AlertLedgerCategory;
     route: AlertRouteTarget;
     title: string;
     body: string;
@@ -1933,7 +2242,7 @@ async function recordAlertLedgerItem(
     id: input.id ?? createId(),
     userId: input.userId,
     notificationType: input.notificationType,
-    category: notificationCategory(input.notificationType),
+    category: input.category ?? notificationCategory(input.notificationType),
     route: input.route,
     title: input.title,
     body: input.body,
@@ -1944,6 +2253,206 @@ async function recordAlertLedgerItem(
     createdAt: now,
     updatedAt: now
   });
+}
+
+async function hasCrossNamePropagationAlert(input: {
+  runtime: Runtime;
+  userId: string;
+  relationshipId: string;
+  triggerKey: string;
+}): Promise<boolean> {
+  const existingAlerts = await input.runtime.store.listAlertLedgerItemsByUser({
+    userId: input.userId,
+    limit: 100
+  });
+  return existingAlerts.some((alert) => {
+    if (alert.notificationType !== "cross_name_propagation") {
+      return false;
+    }
+    return (
+      alert.context?.relationship_id === input.relationshipId &&
+      alert.context?.propagation_trigger_key === input.triggerKey
+    );
+  });
+}
+
+async function dispatchCrossNamePropagation(
+  runtime: Runtime,
+  input: {
+    asOf: string;
+    signalSource: CrossNamePropagationSignalSource;
+    triggerKey: string;
+    confidenceThreshold: number;
+    fixtures: CrossNamePropagationEventFixture[];
+    requestId: string;
+    route: string;
+  }
+): Promise<{
+  evaluated: number;
+  matched: number;
+  suppressed: number;
+  attempted: number;
+  delivered: number;
+  failed: number;
+}> {
+  const watchlistsByUser = new Map<string, Set<string>>();
+  const recipientsByUser = new Map<
+    string,
+    Array<{ userId: string; installationId: string; deviceToken: string }>
+  >();
+  let evaluated = 0;
+  let matched = 0;
+  let suppressed = 0;
+  let attempted = 0;
+  let delivered = 0;
+  let failed = 0;
+
+  for (const fixture of input.fixtures) {
+    const eventCategory = asCrossNamePropagationEventCategory(
+      fixture.event_category,
+      fixture.signal_type
+    );
+    const relationshipTypes: NameRelationshipType[] | undefined =
+      eventCategory === "macro" ? ["sector"] : undefined;
+    const relationships = await runtime.store.listActiveNameRelationshipsBySource({
+      sourceTicker: fixture.source_ticker,
+      relationshipTypes,
+      minConfidence: input.confidenceThreshold
+    });
+
+    for (const relationship of relationships) {
+      evaluated += 1;
+      let watchlist = watchlistsByUser.get(relationship.userId);
+      if (!watchlist) {
+        const tickers = await runtime.store.listWatchlistTickersByUser(relationship.userId);
+        watchlist = new Set(tickers.map((ticker) => ticker.trim().toUpperCase()));
+        watchlistsByUser.set(relationship.userId, watchlist);
+      }
+      if (!watchlist.has(relationship.targetTicker)) {
+        suppressed += 1;
+        continue;
+      }
+
+      if (
+        await hasCrossNamePropagationAlert({
+          runtime,
+          userId: relationship.userId,
+          relationshipId: relationship.relationshipId,
+          triggerKey: input.triggerKey
+        })
+      ) {
+        suppressed += 1;
+        continue;
+      }
+
+      let userTargets = recipientsByUser.get(relationship.userId);
+      if (!userTargets) {
+        userTargets = await runtime.store.listUsersWithDeviceTokenByNotificationType({
+          notificationType: "cross_name_propagation",
+          tier: "PRO",
+          userIds: [relationship.userId]
+        });
+        recipientsByUser.set(relationship.userId, userTargets);
+      }
+      if (userTargets.length === 0) {
+        suppressed += 1;
+        continue;
+      }
+
+      const alertId = createId();
+      const route = notificationRoute("cross_name_propagation");
+      const title = notificationTitle("cross_name_propagation", relationship.targetTicker);
+      const reasonText =
+        fixture.reason_text ??
+        `${relationship.sourceTicker} has a ${fixture.signal_type} signal linked to ${relationship.targetTicker}.`;
+      const body =
+        `${relationship.sourceTicker} may affect your ${relationship.targetTicker} thesis ` +
+        `through a ${relationship.relationshipType} relationship: ${relationship.rationale}`;
+      const pushResult = await runtime.pushNotifier.sendNotification(userTargets, {
+        notificationType: "cross_name_propagation",
+        route,
+        title,
+        body,
+        data: {
+          alert_id: alertId,
+          source_ticker: relationship.sourceTicker,
+          affected_ticker: relationship.targetTicker,
+          relationship_id: relationship.relationshipId,
+          relationship_type: relationship.relationshipType,
+          relationship_confidence: relationship.confidence.toFixed(2),
+          relationship_source_report_id: relationship.sourceReportId,
+          propagation_trigger_key: input.triggerKey,
+          propagation_signal_type: fixture.signal_type,
+          propagation_event_id: fixture.event_id ?? "",
+          propagation_reason: reasonText,
+          reason_code: "cross_name_signal",
+          reason_text: reasonText,
+          deep_link_target: route
+        }
+      });
+      attempted += pushResult.attempted;
+      delivered += pushResult.delivered;
+      failed += pushResult.failed;
+      matched += 1;
+
+      for (const invalidTarget of pushResult.invalidTargets) {
+        await runtime.store.invalidateUserDeviceByInstallation({
+          userId: invalidTarget.userId,
+          installationId: invalidTarget.installationId,
+          invalidatedAt: new Date().toISOString(),
+          reason: "fcm_invalid_registration"
+        });
+      }
+
+      await recordAlertLedgerItem(runtime, {
+        id: alertId,
+        userId: relationship.userId,
+        notificationType: "cross_name_propagation",
+        category: eventCategory === "macro" ? "macro" : "thesis_drift",
+        route,
+        title,
+        body,
+        reasonCode: "cross_name_signal",
+        reasonText,
+        deliveryState: pushResult.failed > 0 ? "partial_failure" : "sent",
+        data: {
+          ticker: relationship.targetTicker,
+          source_ticker: relationship.sourceTicker,
+          affected_ticker: relationship.targetTicker,
+          relationship_id: relationship.relationshipId,
+          relationship_type: relationship.relationshipType,
+          relationship_confidence: relationship.confidence.toFixed(2),
+          relationship_source_report_id: relationship.sourceReportId,
+          report_id: relationship.sourceReportId,
+          propagation_trigger_key: input.triggerKey,
+          propagation_signal_type: fixture.signal_type,
+          propagation_event_id: fixture.event_id ?? "",
+          propagation_reason: reasonText,
+          reason_code: "cross_name_signal",
+          reason_text: reasonText,
+          deep_link_target: route
+        }
+      });
+
+      logInfo("Cross-name propagated alert emitted", {
+        request_id: input.requestId,
+        route: input.route,
+        alert_id: alertId,
+        source_ticker: relationship.sourceTicker,
+        affected_ticker: relationship.targetTicker,
+        relationship_type: relationship.relationshipType
+      });
+    }
+  }
+
+  return {
+    evaluated,
+    matched,
+    suppressed,
+    attempted,
+    delivered,
+    failed
+  };
 }
 
 function freshnessSeverity(state: ThesisFreshnessState): number {
@@ -3945,6 +4454,48 @@ export function startServer(port: number = loadConfig().port): Server {
           return;
         }
 
+        if (method === "POST" && pathname === "/internal/name-relationships/ingest") {
+          const body = await readJsonBody<{
+            user_id?: string;
+            report_id?: string;
+            relationships?: NameRelationshipDraft[];
+          }>(request);
+          const userId = body.user_id?.trim();
+          const reportId = body.report_id?.trim();
+          if (!userId || !reportId || !Array.isArray(body.relationships)) {
+            sendJson(response, 422, {
+              error: "validation_failed",
+              error_message: "user_id, report_id, and relationships are required."
+            });
+            return;
+          }
+
+          const user = await runtime.store.findUserById(userId);
+          const report = await runtime.store.getReportById(reportId);
+          if (!user || !report) {
+            sendJson(response, 404, {
+              error: "not_found",
+              error_message: "User or report not found for relationship ingestion."
+            });
+            return;
+          }
+
+          const upserted = await upsertNameRelationships(runtime, {
+            userId,
+            reportId,
+            reportTicker: report.ticker,
+            relationships: body.relationships,
+            requestId: meta.requestId,
+            route: pathname
+          });
+
+          sendJson(response, 200, {
+            status: "ok",
+            upserted
+          });
+          return;
+        }
+
         if (method === "POST" && pathname === "/internal/notifications/earnings-war-room") {
           const body = await readJsonBody<{
             as_of?: string;
@@ -4654,6 +5205,82 @@ export function startServer(port: number = loadConfig().port): Server {
             failed,
             ticker_count: sentTickers.length,
             fallback_user_count: fallbackUserIds.length
+          });
+          return;
+        }
+
+        if (method === "POST" && pathname === "/internal/notifications/cross-name/evaluate") {
+          const body = await readJsonBody<CrossNamePropagationEvaluationRequest>(request);
+          const asOf =
+            normalizeDateInput(body.as_of ?? dateInTimeZone(new Date(), runtime.config.subscriptionTimezone)) ??
+            dateInTimeZone(new Date(), runtime.config.subscriptionTimezone);
+          const signalSource = asCrossNamePropagationSignalSource(body.signal_source);
+          const triggerKey =
+            typeof body.trigger_key === "string" && body.trigger_key.trim().length > 0
+              ? body.trigger_key.trim()
+              : `${signalSource}:${asOf}`;
+          const confidenceThreshold = normalizeConfidenceThreshold(body.confidence_threshold);
+          const fixtures = (Array.isArray(body.fixtures) ? body.fixtures : [])
+            .map((fixture) => asCrossNamePropagationFixture(fixture))
+            .filter((fixture): fixture is CrossNamePropagationEventFixture => Boolean(fixture));
+
+          const result = await dispatchCrossNamePropagation(runtime, {
+            asOf,
+            signalSource,
+            triggerKey,
+            confidenceThreshold,
+            fixtures,
+            requestId: meta.requestId,
+            route: pathname
+          });
+
+          if (result.failed > 0) {
+            const message = "Cross-name propagation notification delivery partially failed";
+            logError(message, {
+              request_id: meta.requestId,
+              route: pathname,
+              attempted: result.attempted,
+              delivered: result.delivered,
+              failed: result.failed,
+              matched: result.matched
+            });
+            captureException(new Error(message), {
+              service: serviceName,
+              route: pathname,
+              attempted: result.attempted,
+              delivered: result.delivered,
+              failed: result.failed,
+              matched: result.matched
+            });
+          }
+
+          await appendAudit(runtime, "cross_name.propagation_evaluated", {
+            request_id: meta.requestId,
+            route: pathname,
+            as_of: asOf,
+            signal_source: signalSource,
+            trigger_key: triggerKey,
+            confidence_threshold: confidenceThreshold,
+            evaluated: result.evaluated,
+            matched: result.matched,
+            suppressed: result.suppressed,
+            attempted: result.attempted,
+            delivered: result.delivered,
+            failed: result.failed
+          });
+
+          sendJson(response, 200, {
+            status: "ok",
+            as_of: asOf,
+            signal_source: signalSource,
+            trigger_key: triggerKey,
+            confidence_threshold: confidenceThreshold,
+            evaluated: result.evaluated,
+            matched: result.matched,
+            suppressed: result.suppressed,
+            attempted: result.attempted,
+            delivered: result.delivered,
+            failed: result.failed
           });
           return;
         }
@@ -5511,6 +6138,12 @@ export function startServer(port: number = loadConfig().port): Server {
                 route: pathname
               });
               await createKillSwitchRulesFromReport(runtime, {
+                report,
+                userId: completed.userId,
+                requestId: meta.requestId,
+                route: pathname
+              });
+              await createNameRelationshipsFromReport(runtime, {
                 report,
                 userId: completed.userId,
                 requestId: meta.requestId,
@@ -6600,6 +7233,65 @@ export function startServer(port: number = loadConfig().port): Server {
         return;
       }
 
+      if (method === "GET" && pathname === "/v1/names/relationships") {
+        const sourceTicker = normalizeTickerSymbol(url.searchParams.get("source_ticker") ?? undefined);
+        const targetTicker = normalizeTickerSymbol(url.searchParams.get("target_ticker") ?? undefined);
+        const stateRaw = url.searchParams.get("state")?.trim();
+        const states =
+          stateRaw && stateRaw.length > 0
+            ? stateRaw
+                .split(",")
+                .map((state) => state.trim())
+                .filter((state): state is NameRelationshipState => isNameRelationshipState(state))
+            : undefined;
+        if (stateRaw && stateRaw.length > 0 && (!states || states.length === 0)) {
+          sendJson(response, 422, {
+            error: "validation_failed",
+            error_message: "state must be active, suppressed, inactive, or a comma-separated list."
+          });
+          return;
+        }
+        const minConfidenceRaw = url.searchParams.get("min_confidence");
+        const minConfidence =
+          minConfidenceRaw === null || minConfidenceRaw.trim().length === 0
+            ? undefined
+            : Number.parseFloat(minConfidenceRaw);
+        if (minConfidence !== undefined && (!Number.isFinite(minConfidence) || minConfidence < 0 || minConfidence > 1)) {
+          sendJson(response, 422, {
+            error: "validation_failed",
+            error_message: "min_confidence must be a number between 0 and 1."
+          });
+          return;
+        }
+        const limit = parsePositiveInteger(url.searchParams.get("limit") ?? undefined, 100, 1, 250);
+        if (limit === undefined) {
+          sendJson(response, 422, {
+            error: "validation_failed",
+            error_message: "limit must be an integer between 1 and 250."
+          });
+          return;
+        }
+
+        const relationships = await runtime.store.listNameRelationshipsByUser({
+          userId: auth.userId,
+          sourceTicker,
+          targetTicker,
+          states,
+          minConfidence,
+          limit
+        });
+        await appendAudit(runtime, "name_relationships.retrieved", {
+          request_id: meta.requestId,
+          route: pathname,
+          relationship_count: relationships.length
+        }, auth.userId);
+
+        sendJson(response, 200, {
+          data: relationships.map(toNameRelationshipView)
+        });
+        return;
+      }
+
       if (method === "GET" && pathname.startsWith("/v1/research/war-room/")) {
         const parts = pathname.split("/").filter(Boolean);
         if (parts.length !== 4 || parts[0] !== "v1" || parts[1] !== "research" || parts[2] !== "war-room") {
@@ -7072,6 +7764,12 @@ export function startServer(port: number = loadConfig().port): Server {
               route: pathname
             });
             await createKillSwitchRulesFromReport(runtime, {
+              report: reusedReport,
+              userId: auth.userId,
+              requestId: meta.requestId,
+              route: pathname
+            });
+            await createNameRelationshipsFromReport(runtime, {
               report: reusedReport,
               userId: auth.userId,
               requestId: meta.requestId,

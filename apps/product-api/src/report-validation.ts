@@ -219,6 +219,42 @@ function validateKillSwitchCondition(value: unknown, path: string, errors: strin
   }
 }
 
+function validateNameRelationshipDraft(value: unknown, path: string, errors: string[]): void {
+  if (!isObject(value)) {
+    errors.push(`${path} must be an object`);
+    return;
+  }
+  if (value.relationship_id !== undefined && typeof value.relationship_id !== "string") {
+    errors.push(`${path}.relationship_id must be a string when provided`);
+  }
+  if (typeof value.source_ticker !== "string" || value.source_ticker.trim().length === 0) {
+    errors.push(`${path}.source_ticker must be a non-empty string`);
+  }
+  if (typeof value.target_ticker !== "string" || value.target_ticker.trim().length === 0) {
+    errors.push(`${path}.target_ticker must be a non-empty string`);
+  }
+  if (!["supplier", "competitor", "partner", "sector"].includes(String(value.relationship_type))) {
+    errors.push(`${path}.relationship_type must be valid`);
+  }
+  if (
+    typeof value.confidence !== "number" ||
+    Number.isNaN(value.confidence) ||
+    value.confidence < 0 ||
+    value.confidence > 1
+  ) {
+    errors.push(`${path}.confidence must be a number between 0 and 1`);
+  }
+  if (typeof value.evidence_text !== "string" || value.evidence_text.trim().length === 0) {
+    errors.push(`${path}.evidence_text must be a non-empty string`);
+  }
+  if (typeof value.rationale !== "string" || value.rationale.trim().length === 0) {
+    errors.push(`${path}.rationale must be a non-empty string`);
+  }
+  if (value.prompt_version !== undefined && typeof value.prompt_version !== "string") {
+    errors.push(`${path}.prompt_version must be a string when provided`);
+  }
+}
+
 export function validateIncomingAnalysisReport(report: unknown): string[] {
   const errors: string[] = [];
 
@@ -341,6 +377,20 @@ export function validateIncomingAnalysisReport(report: unknown): string[] {
         validateKillSwitchCondition(
           condition,
           `kill_switch_conditions[${index}]`,
+          errors
+        );
+      });
+    }
+  }
+
+  if (report.name_relationships !== undefined) {
+    if (!Array.isArray(report.name_relationships)) {
+      errors.push("name_relationships must be an array when provided");
+    } else {
+      report.name_relationships.forEach((relationship, index) => {
+        validateNameRelationshipDraft(
+          relationship,
+          `name_relationships[${index}]`,
           errors
         );
       });

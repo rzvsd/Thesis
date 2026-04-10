@@ -1,8 +1,10 @@
 import type { EvidenceItem } from "./evidence-item";
 import type { KillSwitchConditionDraft } from "./kill-switch-rule";
+import type { NameRelationshipDraft } from "./name-relationship";
 import type { ReportSection } from "./report-section";
 import { evidenceItemSchema } from "./evidence-item";
 import { killSwitchConditionDraftSchema } from "./kill-switch-rule";
+import { nameRelationshipDraftSchema } from "./name-relationship";
 import { reportSectionSchema } from "./report-section";
 
 export type ConfidenceLabel = "high" | "medium" | "low" | "insufficient_data";
@@ -106,6 +108,7 @@ export interface AnalysisReport {
   valuation?: ValuationBlock;
   trust_metadata?: TrustMetadata;
   kill_switch_conditions?: KillSwitchConditionDraft[];
+  name_relationships?: NameRelationshipDraft[];
   sections: ReportSection[];
   flags: string[];
   data_sources: string[];
@@ -327,6 +330,10 @@ export const analysisReportSchema = {
       minItems: 3,
       maxItems: 5,
       items: killSwitchConditionDraftSchema
+    },
+    name_relationships: {
+      type: "array",
+      items: nameRelationshipDraftSchema
     },
     sections: {
       type: "array",
