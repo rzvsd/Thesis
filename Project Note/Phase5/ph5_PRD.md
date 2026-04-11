@@ -103,8 +103,14 @@ Required behavior:
 Required behavior:
 
 - predefined macro scenarios are runnable against user thesis set
+- v1 template set is locked to `rates_higher_for_longer`, `recession_in_6m`, `usd_up_10`, `ai_hype_burst`, and `oil_120_spike`
 - output identifies exposed names, likely thesis breaks, and suggested rule additions
+- suggested rule additions are review-only recommendations and never auto-written to active rules
 - cards are explainable and actionable without requiring real-time streams
+- M7 execution mode is user-triggered only; optional scheduled scenario cycles are deferred beyond Phase 5
+- stress cards are Pro-only; Free users cannot run or read scenario stress outputs
+- scenario routes are restore-safe using `open_tab=research`, `scenario_id`, and `scenario_run_id`
+- repeated runs on the same snapshot must satisfy deterministic envelope checks (stable impacted names/enums and score variance bounded by tolerance)
 
 ---
 

@@ -22,6 +22,8 @@ import com.thesis.mobile.model.PulseReportView
 import com.thesis.mobile.model.ReportNoteView
 import com.thesis.mobile.model.ReportHistoryItem
 import com.thesis.mobile.model.ScenarioOverridesView
+import com.thesis.mobile.model.ScenarioStressRunView
+import com.thesis.mobile.model.ScenarioStressTemplateView
 import com.thesis.mobile.model.ScenarioResultView
 import com.thesis.mobile.model.SentimentSnapshotView
 import com.thesis.mobile.model.SubscriptionOfferView
@@ -79,6 +81,13 @@ data class UiState(
     val oppositeCase: OppositeCaseReportView? = null,
     val oppositeCaseError: String? = null,
     val isGeneratingOppositeCase: Boolean = false,
+    val scenarioStressTemplates: List<ScenarioStressTemplateView> = emptyList(),
+    val selectedScenarioStressId: String? = null,
+    val scenarioStressRun: ScenarioStressRunView? = null,
+    val scenarioStressTemplatesError: String? = null,
+    val scenarioStressRunError: String? = null,
+    val isLoadingScenarioStressTemplates: Boolean = false,
+    val isRunningScenarioStress: Boolean = false,
     val scenarioResult: ScenarioResultView? = null,
     val isRunningScenario: Boolean = false,
     val pulseReport: PulseReportView? = null,
@@ -192,6 +201,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             AppTab.RESEARCH -> {
                 refreshReportHistory()
                 state.deepDiveReport?.let { refreshConvictionForReport(it) }
+                maybeRefreshScenarioStressTemplates()
             }
             AppTab.INBOX -> refreshAlertLedger()
             AppTab.YOU -> {
@@ -235,7 +245,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         notificationType: String?,
         ticker: String?,
         alertId: String? = null,
-        warRoomId: String? = null
+        warRoomId: String? = null,
+        scenarioId: String? = null,
+        scenarioRunId: String? = null
     ) {
         trackEvent(
             "push_deep_link_landed",
@@ -244,7 +256,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 "notification_type" to notificationType,
                 "ticker" to ticker,
                 "alert_id" to alertId,
-                "war_room_id" to warRoomId
+                "war_room_id" to warRoomId,
+                "scenario_id" to scenarioId,
+                "scenario_run_id" to scenarioRunId
             )
         )
     }
@@ -695,6 +709,194 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
             publish(state.copy(isRunningScenario = false))
+        }
+    }
+
+    fun selectScenarioStressTemplate(scenarioId: String) {
+        val normalized = scenarioId.trim()
+        if (normalized.isBlank()) {
+            return
+        }
+        publish(
+            state.copy(
+                selectedScenarioStressId = normalized,
+                scenarioStressRun = null,
+                scenarioStressRunError = null
+            )
+        )
+    }
+
+    fun refreshScenarioStressTemplates(force: Boolean = false) {
+        if (!isProTier()) {
+            publish(
+                state.copy(
+                    scenarioStressTemplates = emptyList(),
+                    selectedScenarioStressId = null,
+                    scenarioStressTemplatesError = null,
+                    scenarioStressRun = null,
+                    scenarioStressRunError = null
+                )
+            )
+            return
+        }
+        if (!force && state.isLoadingScenarioStressTemplates) {
+            return
+        }
+
+        viewModelScope.launch {
+            publish(state.copy(isLoadingScenarioStressTemplates = true, scenarioStressTemplatesError = null))
+            val error = runAuthorizedWithRefresh {
+                val templates = client.getScenarioStressTemplates(
+                    state.apiBaseUrl,
+                    requireTokens().accessToken
+                ).filter { it.active }
+                val selected = when {
+                    !state.selectedScenarioStressId.isNullOrBlank() &&
+                        templates.any { it.scenarioId == state.selectedScenarioStressId } ->
+                        state.selectedScenarioStressId
+                    templates.isNotEmpty() -> templates.first().scenarioId
+                    else -> null
+                }
+                publish(
+                    state.copy(
+                        scenarioStressTemplates = templates,
+                        selectedScenarioStressId = selected,
+                        scenarioStressTemplatesError = null
+                    )
+                )
+            }
+            if (error != null) {
+                val upgrade = (error as? ProductApiException)
+                    ?.takeIf { it.code == 403 && it.errorCode == "upgrade_required" }
+                if (upgrade == null) {
+                    publish(state.copy(scenarioStressTemplatesError = toMessage(error)))
+                }
+            }
+            publish(state.copy(isLoadingScenarioStressTemplates = false))
+        }
+    }
+
+    fun runScenarioStress(scenarioId: String? = state.selectedScenarioStressId) {
+        val normalizedId = scenarioId?.trim().orEmpty()
+        if (normalizedId.isBlank()) {
+            publish(state.copy(message = "Choose a scenario template first."))
+            return
+        }
+        if (!isProTier()) {
+            requestFeatureUpgrade("scenario_stress")
+            return
+        }
+
+        viewModelScope.launch {
+            publish(
+                state.copy(
+                    isRunningScenarioStress = true,
+                    scenarioStressRun = null,
+                    scenarioStressRunError = null,
+                    message = null
+                )
+            )
+            val error = runAuthorizedWithRefresh {
+                val result = client.runScenarioStress(
+                    state.apiBaseUrl,
+                    requireTokens().accessToken,
+                    normalizedId
+                )
+                publish(
+                    state.copy(
+                        selectedScenarioStressId = normalizedId,
+                        scenarioStressRun = result,
+                        scenarioStressRunError = null,
+                        message = "Scenario stress run complete."
+                    )
+                )
+                trackEvent(
+                    "scenario_stress_run_requested",
+                    mapOf(
+                        "scenario_id" to normalizedId,
+                        "scenario_run_id" to result.run.scenarioRunId,
+                        "impacted_names" to result.run.impactedNames,
+                        "critical_names" to result.run.criticalNames
+                    )
+                )
+            }
+            if (error != null) {
+                val upgrade = (error as? ProductApiException)
+                    ?.takeIf { it.code == 403 && it.errorCode == "upgrade_required" }
+                if (upgrade != null) {
+                    publish(
+                        state.copy(
+                            paywallFeature = upgrade.feature ?: "scenario_stress",
+                            message = upgrade.message
+                        )
+                    )
+                } else {
+                    publish(state.copy(scenarioStressRunError = toMessage(error)))
+                }
+            }
+            publish(state.copy(isRunningScenarioStress = false))
+        }
+    }
+
+    fun openScenarioStressRun(scenarioRunId: String, scenarioId: String? = null) {
+        val normalizedRunId = scenarioRunId.trim()
+        if (normalizedRunId.isBlank()) {
+            publish(state.copy(message = "Scenario run id is missing."))
+            return
+        }
+        if (!isProTier()) {
+            requestFeatureUpgrade("scenario_stress")
+            return
+        }
+        val normalizedScenarioId = scenarioId?.trim()?.ifBlank { null }
+
+        viewModelScope.launch {
+            publish(
+                state.copy(
+                    isRunningScenarioStress = true,
+                    scenarioStressRun = null,
+                    scenarioStressRunError = null,
+                    message = null
+                )
+            )
+            val error = runAuthorizedWithRefresh {
+                val result = client.getScenarioStressRun(
+                    state.apiBaseUrl,
+                    requireTokens().accessToken,
+                    normalizedRunId
+                )
+                val selected = normalizedScenarioId ?: result.run.scenarioId
+                publish(
+                    state.copy(
+                        selectedScenarioStressId = selected,
+                        scenarioStressRun = result,
+                        scenarioStressRunError = null,
+                        message = "Scenario stress run loaded."
+                    )
+                )
+                trackEvent(
+                    "scenario_stress_run_viewed",
+                    mapOf(
+                        "scenario_id" to result.run.scenarioId,
+                        "scenario_run_id" to result.run.scenarioRunId
+                    )
+                )
+            }
+            if (error != null) {
+                val upgrade = (error as? ProductApiException)
+                    ?.takeIf { it.code == 403 && it.errorCode == "upgrade_required" }
+                if (upgrade != null) {
+                    publish(
+                        state.copy(
+                            paywallFeature = upgrade.feature ?: "scenario_stress",
+                            message = upgrade.message
+                        )
+                    )
+                } else {
+                    publish(state.copy(scenarioStressRunError = toMessage(error)))
+                }
+            }
+            publish(state.copy(isRunningScenarioStress = false))
         }
     }
 
@@ -1224,6 +1426,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         openWarRoom(warRoomId)
     }
 
+    private fun maybeRefreshScenarioStressTemplates() {
+        if (isProTier()) {
+            refreshScenarioStressTemplates()
+        }
+    }
+
     private fun refreshConvictionForReport(report: DeepDiveReportView) {
         if (!isProTier()) {
             return
@@ -1660,11 +1868,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         cacheStore.clearAll()
         sessionStore.clearLastViewedReport()
         sessionStore.clearTokens()
-        sessionStore.setHasSeenWelcome(false)
+        val hasSeenWelcome = sessionStore.hasSeenWelcome()
         publish(
             state.copy(
                 currentTab = AppTab.TODAY,
-                showWelcome = true,
+                showWelcome = !hasSeenWelcome,
                 tokens = null,
                 tickers = emptyList(),
                 selectedTicker = null,
@@ -1679,6 +1887,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 oppositeCase = null,
                 oppositeCaseError = null,
                 isGeneratingOppositeCase = false,
+                scenarioStressTemplates = emptyList(),
+                selectedScenarioStressId = null,
+                scenarioStressRun = null,
+                scenarioStressTemplatesError = null,
+                scenarioStressRunError = null,
+                isLoadingScenarioStressTemplates = false,
+                isRunningScenarioStress = false,
                 scenarioResult = null,
                 isRunningScenario = false,
                 pulseReport = null,
@@ -1775,7 +1990,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private fun refreshUserProfile() {
         withAuthorizedCall {
             val profile = client.getUserProfile(state.apiBaseUrl, requireTokens().accessToken)
-            publish(state.copy(userProfile = profile))
+            val isPro = profile.tier.equals("PRO", ignoreCase = true)
+            publish(
+                state.copy(
+                    userProfile = profile,
+                    scenarioStressTemplates = if (isPro) state.scenarioStressTemplates else emptyList(),
+                    selectedScenarioStressId = if (isPro) state.selectedScenarioStressId else null,
+                    scenarioStressRun = if (isPro) state.scenarioStressRun else null,
+                    scenarioStressTemplatesError = if (isPro) state.scenarioStressTemplatesError else null,
+                    scenarioStressRunError = if (isPro) state.scenarioStressRunError else null
+                )
+            )
+            if (isPro) {
+                refreshScenarioStressTemplates()
+            }
         }
     }
 

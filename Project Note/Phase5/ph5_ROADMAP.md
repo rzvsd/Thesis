@@ -103,6 +103,7 @@ Closed means:
 |---|---|
 | Brokerage and holdings sync | High integration complexity not required for thesis-level intelligence |
 | Real-time price streaming | Daily or event-window cadence is sufficient for Phase 5 doctrine |
+| Optional scheduled M7 scenario cycle | M7 is user-triggered only; scheduler-owned scenario automation is deferred by lock |
 | Social/community features | Would dilute thesis ownership and reasoning accountability |
 | iOS expansion | Android-first until intelligence model is proven |
 | Model fine-tuning pipelines | Prompt/system improvements via LangSmith are sufficient in this phase |

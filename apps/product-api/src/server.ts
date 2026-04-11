@@ -45,6 +45,12 @@ import type {
   ReportFeedbackCode,
   ReportFeedbackSubmission,
   ReportListItem,
+  ScenarioStressImpact,
+  ScenarioStressRuleSuggestion,
+  ScenarioStressRunRequest,
+  ScenarioStressRunResponse,
+  ScenarioStressTemplate,
+  ScenarioStressTemplateId,
   ScenarioRequest,
   ScenarioResponse,
   SubscriptionFeedbackCode,
@@ -63,6 +69,7 @@ import {
   nameRelationshipTypes,
   notificationTypes,
   reportFeedbackCodes,
+  scenarioStressTemplateIds,
   subscriptionFeedbackCodes
 } from "../../../packages/contracts/src";
 import { captureException, initSentry } from "../../../packages/observability/src/sentry";
@@ -109,8 +116,13 @@ import type {
   KillSwitchRuleRecord,
   NameRelationshipRecord,
   OppositeCaseReportRecord,
+  ScenarioStressImpactRecord,
+  ScenarioStressRuleSuggestionRecord,
+  ScenarioStressRunRecord,
+  ScenarioStressTemplateRecord,
   ThesisMonitorSnapshotRecord,
   UserFeedbackQueueRecord,
+  UserRecord,
   UserSubscriptionRecord
 } from "./types";
 
@@ -539,6 +551,119 @@ function toOppositeCaseView(record: OppositeCaseReportRecord) {
   };
 }
 
+function buildScenarioStressRouteTarget(input: {
+  scenarioId: ScenarioStressTemplateId;
+  scenarioRunId: string;
+  ticker?: string;
+  ruleId?: string;
+}) {
+  return {
+    open_tab: "research" as const,
+    scenario_id: input.scenarioId,
+    scenario_run_id: input.scenarioRunId,
+    ...(input.ticker ? { ticker: input.ticker } : {}),
+    ...(input.ruleId ? { rule_id: input.ruleId } : {})
+  };
+}
+
+function toScenarioStressTemplateView(
+  record: ScenarioStressTemplateRecord
+): ScenarioStressTemplate {
+  return {
+    scenario_id: record.templateId,
+    title: record.title,
+    summary: record.summary,
+    hypothesis: record.hypothesis,
+    active: record.isActive,
+    created_at: record.createdAt,
+    updated_at: record.updatedAt
+  };
+}
+
+function toScenarioStressRunView(record: ScenarioStressRunRecord) {
+  return {
+    scenario_run_id: record.id,
+    scenario_id: record.scenarioId,
+    user_id: record.userId,
+    status: record.status,
+    run_mode: record.runMode,
+    as_of: record.asOf,
+    total_names: record.totalNames,
+    impacted_names: record.impactedNames,
+    critical_names: record.criticalNames,
+    summary: record.summary,
+    route: buildScenarioStressRouteTarget({
+      scenarioId: record.scenarioId,
+      scenarioRunId: record.id
+    }),
+    created_at: record.createdAt,
+    completed_at: record.completedAt
+  };
+}
+
+function toScenarioStressImpactView(
+  record: ScenarioStressImpactRecord,
+  run: ScenarioStressRunRecord
+): ScenarioStressImpact {
+  return {
+    scenario_impact_id: record.id,
+    scenario_run_id: record.scenarioRunId,
+    user_id: record.userId,
+    ticker: record.ticker,
+    impact_level: record.impactLevel,
+    thesis_break_likelihood: record.thesisBreakLikelihood,
+    stress_score: record.stressScore,
+    rationale: record.rationale,
+    evidence_refs: [...record.evidenceRefs],
+    route: buildScenarioStressRouteTarget({
+      scenarioId: run.scenarioId,
+      scenarioRunId: run.id,
+      ticker: record.ticker
+    }),
+    created_at: record.createdAt
+  };
+}
+
+function toScenarioStressRuleSuggestionView(
+  record: ScenarioStressRuleSuggestionRecord,
+  run: ScenarioStressRunRecord
+): ScenarioStressRuleSuggestion {
+  return {
+    scenario_rule_suggestion_id: record.id,
+    scenario_run_id: record.scenarioRunId,
+    user_id: record.userId,
+    ticker: record.ticker,
+    signal_type: record.signalType,
+    direction: record.direction,
+    condition_text: record.conditionText,
+    rationale: record.rationale,
+    confidence: record.confidence,
+    route: buildScenarioStressRouteTarget({
+      scenarioId: run.scenarioId,
+      scenarioRunId: run.id,
+      ticker: record.ticker,
+      ruleId: record.id
+    }),
+    created_at: record.createdAt
+  };
+}
+
+function buildScenarioStressRunResponse(input: {
+  run: ScenarioStressRunRecord;
+  impacts: ScenarioStressImpactRecord[];
+  suggestions: ScenarioStressRuleSuggestionRecord[];
+}): ScenarioStressRunResponse {
+  return {
+    data: {
+      run: toScenarioStressRunView(input.run),
+      impacts: input.impacts.map((impact) => toScenarioStressImpactView(impact, input.run)),
+      rule_suggestions: input.suggestions.map((suggestion) =>
+        toScenarioStressRuleSuggestionView(suggestion, input.run)
+      )
+    }
+  };
+}
+
 interface ComparableDeepDiveSummary {
   report_id: string;
   generated_at: string;
@@ -641,6 +766,91 @@ function normalizeEmail(email: string): string {
 
 function isValidEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+async function ensureAdminBootstrapUser(runtime: Runtime): Promise<UserRecord | undefined> {
+  if (!runtime.config.adminBootstrapEnabled) {
+    return undefined;
+  }
+
+  const email = runtime.config.adminBootstrapEmail;
+  const passwordHash = runtime.config.adminBootstrapPasswordHash;
+  if (!email || !passwordHash) {
+    return undefined;
+  }
+
+  const nowIso = new Date().toISOString();
+  let user = await runtime.store.findUserByEmail(email);
+
+  if (!user) {
+    user = await runtime.store.createUser({
+      email,
+      passwordHash
+    });
+  }
+  if (!user) {
+    user = await runtime.store.findUserByEmail(email);
+  }
+  if (!user) {
+    return undefined;
+  }
+
+  if (user.passwordHash !== passwordHash) {
+    const updated = await runtime.store.updateUserPasswordHash(user.id, passwordHash);
+    if (updated) {
+      user = updated;
+    }
+  }
+
+  if (runtime.config.adminBootstrapAutoVerify && !user.verifiedAt) {
+    const verified = await runtime.store.markUserVerified(user.id, nowIso);
+    if (verified) {
+      user = verified;
+    }
+  }
+
+  if (runtime.config.adminBootstrapForcePro) {
+    await runtime.store.upsertUserSubscription({
+      userId: user.id,
+      tier: "PRO",
+      updatedAt: nowIso
+    });
+  }
+
+  return user;
+}
+
+async function maybeBootstrapAdminForLogin(
+  runtime: Runtime,
+  email: string,
+  password: string
+): Promise<void> {
+  if (!runtime.config.adminBootstrapEnabled) {
+    return;
+  }
+
+  const bootstrapEmail = runtime.config.adminBootstrapEmail;
+  const bootstrapPasswordHash = runtime.config.adminBootstrapPasswordHash;
+  if (!bootstrapEmail || !bootstrapPasswordHash) {
+    return;
+  }
+
+  if (email !== bootstrapEmail) {
+    return;
+  }
+
+  let passwordMatches = false;
+  try {
+    passwordMatches = await verifyPassword(password, bootstrapPasswordHash);
+  } catch {
+    passwordMatches = false;
+  }
+
+  if (!passwordMatches) {
+    return;
+  }
+
+  await ensureAdminBootstrapUser(runtime);
 }
 
 function extractClientIp(request: IncomingMessage): string {
@@ -2471,6 +2681,277 @@ async function runConvictionCoherenceEvaluation(
     generated,
     degraded,
     failed
+  };
+}
+
+interface ScenarioStressTemplateProfile {
+  scenarioId: ScenarioStressTemplateId;
+  signalType: KillSwitchSignalType;
+  direction: "above" | "below" | "against_signal" | "any";
+  baseSensitivity: number;
+  stressLeaders: string[];
+  rationaleLead: string;
+  conditionFragment: string;
+}
+
+const scenarioStressTemplateProfiles: Record<
+  ScenarioStressTemplateId,
+  ScenarioStressTemplateProfile
+> = {
+  rates_higher_for_longer: {
+    scenarioId: "rates_higher_for_longer",
+    signalType: "macro_regime",
+    direction: "above",
+    baseSensitivity: 0.27,
+    stressLeaders: ["AAPL", "MSFT", "NVDA", "TSLA", "AMZN", "META", "GOOG"],
+    rationaleLead:
+      "Long-duration valuation assumptions become fragile when rates remain elevated.",
+    conditionFragment: "rate regime pressure persists and valuation support weakens"
+  },
+  recession_in_6m: {
+    scenarioId: "recession_in_6m",
+    signalType: "thesis_state",
+    direction: "below",
+    baseSensitivity: 0.31,
+    stressLeaders: ["DIS", "NKE", "TGT", "HD", "LOW", "F", "GM", "AMZN"],
+    rationaleLead:
+      "Demand compression can invalidate growth and margin assumptions faster than expected.",
+    conditionFragment: "demand softness persists and thesis confidence drops"
+  },
+  usd_up_10: {
+    scenarioId: "usd_up_10",
+    signalType: "macro_regime",
+    direction: "above",
+    baseSensitivity: 0.24,
+    stressLeaders: ["AAPL", "MSFT", "NVDA", "KO", "PG", "MCD", "GOOG"],
+    rationaleLead:
+      "FX translation pressure can erode internationally exposed assumptions.",
+    conditionFragment: "FX headwinds continue and international thesis assumptions deteriorate"
+  },
+  ai_hype_burst: {
+    scenarioId: "ai_hype_burst",
+    signalType: "news_sentiment",
+    direction: "below",
+    baseSensitivity: 0.34,
+    stressLeaders: ["NVDA", "AMD", "MSFT", "GOOG", "META", "AAPL", "TSLA"],
+    rationaleLead:
+      "AI narrative resets can pressure both growth expectations and multiple support.",
+    conditionFragment: "AI sentiment deteriorates and execution evidence turns mixed"
+  },
+  oil_120_spike: {
+    scenarioId: "oil_120_spike",
+    signalType: "macro_regime",
+    direction: "above",
+    baseSensitivity: 0.22,
+    stressLeaders: ["DAL", "UAL", "AAL", "AMZN", "WMT", "TSLA", "F", "GM"],
+    rationaleLead:
+      "Energy cost shocks can quickly pressure margin and demand resilience assumptions.",
+    conditionFragment: "energy-cost pressure persists and margin assumptions weaken"
+  }
+};
+
+function deterministicUnit(seed: string): number {
+  const digest = createHash("sha256").update(seed).digest("hex");
+  const head = digest.slice(0, 12);
+  const value = Number.parseInt(head, 16);
+  const max = 0xffffffffffff;
+  return value / max;
+}
+
+function scenarioStressImpactLevelFromScore(score: number):
+  "none" | "watch" | "elevated" | "high" | "critical" {
+  if (score >= 0.86) {
+    return "critical";
+  }
+  if (score >= 0.7) {
+    return "high";
+  }
+  if (score >= 0.52) {
+    return "elevated";
+  }
+  if (score >= 0.32) {
+    return "watch";
+  }
+  return "none";
+}
+
+function scenarioStressThesisBreakLikelihoodFromScore(score: number):
+  "low" | "moderate" | "high" | "very_high" {
+  if (score >= 0.86) {
+    return "very_high";
+  }
+  if (score >= 0.7) {
+    return "high";
+  }
+  if (score >= 0.48) {
+    return "moderate";
+  }
+  return "low";
+}
+
+function scenarioStressScoreForTicker(input: {
+  scenarioId: ScenarioStressTemplateId;
+  ticker: string;
+  asOf: string;
+  snapshot?: ThesisMonitorSnapshotRecord;
+}): number {
+  const profile = scenarioStressTemplateProfiles[input.scenarioId];
+  const ticker = input.ticker.trim().toUpperCase();
+  const snapshot = input.snapshot;
+  const monitorBias = snapshot
+    ? snapshot.state === "unresolved"
+      ? 0.22
+      : snapshot.state === "weakened"
+        ? 0.18
+        : snapshot.state === "intact"
+          ? -0.04
+          : -0.07
+    : 0.03;
+  const freshnessBias = snapshot
+    ? snapshot.freshnessState === "triggered"
+      ? 0.24
+      : snapshot.freshnessState === "stale"
+        ? 0.12
+        : snapshot.freshnessState === "aging"
+          ? 0.06
+          : -0.02
+    : 0.02;
+  const monitorScore = snapshot ? clampNumber(snapshot.score, 0, 1) : 0.5;
+  const freshnessScore = snapshot ? clampNumber(snapshot.freshnessScore, 0, 1) : 0.5;
+  const scoreBias = (1 - monitorScore) * 0.11;
+  const freshnessScoreBias = (1 - freshnessScore) * 0.09;
+  const leaderBias = profile.stressLeaders.includes(ticker) ? 0.16 : 0.04;
+  const jitter = (deterministicUnit(`${input.scenarioId}:${ticker}:${input.asOf}`) - 0.5) * 0.08;
+  const score =
+    profile.baseSensitivity +
+    leaderBias +
+    monitorBias +
+    freshnessBias +
+    scoreBias +
+    freshnessScoreBias +
+    jitter;
+  return roundTo(clampNumber(score, 0, 1), 4);
+}
+
+async function runScenarioStressEvaluation(runtime: Runtime, input: {
+  userId: string;
+  scenarioId: ScenarioStressTemplateId;
+  asOf: string;
+  nowIso: string;
+}): Promise<{
+  run: ScenarioStressRunRecord;
+  impacts: ScenarioStressImpactRecord[];
+  suggestions: ScenarioStressRuleSuggestionRecord[];
+}> {
+  const profile = scenarioStressTemplateProfiles[input.scenarioId];
+  const watchlist = (await runtime.store.listWatchlistTickersByUser(input.userId))
+    .map((ticker) => ticker.trim().toUpperCase())
+    .filter((ticker) => ticker.length > 0)
+    .sort((left, right) => left.localeCompare(right));
+  const snapshots = await runtime.store.listThesisMonitorSnapshotsByUser(input.userId);
+  const snapshotsByTicker = new Map<string, ThesisMonitorSnapshotRecord>();
+  for (const snapshot of snapshots) {
+    snapshotsByTicker.set(snapshot.ticker.trim().toUpperCase(), snapshot);
+  }
+
+  const impacts: ScenarioStressImpactRecord[] = [];
+  const suggestions: ScenarioStressRuleSuggestionRecord[] = [];
+
+  for (const ticker of watchlist) {
+    const snapshot = snapshotsByTicker.get(ticker);
+    const stressScore = scenarioStressScoreForTicker({
+      scenarioId: input.scenarioId,
+      ticker,
+      asOf: input.asOf,
+      snapshot
+    });
+    const impactLevel = scenarioStressImpactLevelFromScore(stressScore);
+    if (impactLevel === "none") {
+      continue;
+    }
+    const thesisBreakLikelihood = scenarioStressThesisBreakLikelihoodFromScore(stressScore);
+    const monitorStateText = snapshot
+      ? `${snapshot.state} / ${snapshot.freshnessState}`
+      : "no monitor snapshot";
+    const rationale =
+      `${profile.rationaleLead} ${ticker} currently reads ${monitorStateText}, giving a stress score of ${roundTo(stressScore, 2)}.`;
+    const evidenceRefs = snapshot
+      ? [
+          `monitor_state:${snapshot.state}`,
+          `freshness_state:${snapshot.freshnessState}`,
+          `monitor_score:${roundTo(clampNumber(snapshot.score, 0, 1), 2)}`,
+          `freshness_score:${roundTo(clampNumber(snapshot.freshnessScore, 0, 1), 2)}`
+        ]
+      : ["monitor_state:unavailable", "freshness_state:unavailable"];
+    impacts.push({
+      id: createId(),
+      scenarioRunId: "",
+      userId: input.userId,
+      ticker,
+      impactLevel,
+      thesisBreakLikelihood,
+      stressScore,
+      rationale,
+      evidenceRefs,
+      createdAt: input.nowIso
+    });
+
+    if (impactLevel === "elevated" || impactLevel === "high" || impactLevel === "critical") {
+      const confidence = roundTo(clampNumber(stressScore * 0.88 + 0.08, 0, 1), 4);
+      suggestions.push({
+        id: createId(),
+        scenarioRunId: "",
+        userId: input.userId,
+        ticker,
+        signalType: profile.signalType,
+        direction: profile.direction,
+        conditionText:
+          `${ticker}: Add a scenario guardrail for ${scenarioStressTemplateProfiles[input.scenarioId].conditionFragment}.`,
+        rationale:
+          `${profile.rationaleLead} Suggested as review-only until the user confirms the condition wording.`,
+        confidence,
+        createdAt: input.nowIso
+      });
+    }
+  }
+
+  const runId = createId();
+  const impactsWithRun = impacts.map((impact) => ({ ...impact, scenarioRunId: runId }));
+  const suggestionsWithRun = suggestions.map((suggestion) => ({
+    ...suggestion,
+    scenarioRunId: runId
+  }));
+  const criticalCount = impactsWithRun.filter((impact) => impact.impactLevel === "critical").length;
+  const highOrCriticalCount = impactsWithRun.filter(
+    (impact) => impact.impactLevel === "high" || impact.impactLevel === "critical"
+  ).length;
+  const summary =
+    impactsWithRun.length === 0
+      ? `No critical scenario stress detected across ${watchlist.length} followed name(s).`
+      : `${impactsWithRun.length} of ${watchlist.length} followed name(s) show stress under this scenario (${highOrCriticalCount} high/critical).`;
+
+  const run = await runtime.store.createScenarioStressRun({
+    id: runId,
+    scenarioId: input.scenarioId,
+    userId: input.userId,
+    status: "completed",
+    runMode: "manual",
+    asOf: input.asOf,
+    totalNames: watchlist.length,
+    impactedNames: impactsWithRun.length,
+    criticalNames: criticalCount,
+    summary,
+    createdAt: input.nowIso,
+    completedAt: input.nowIso
+  });
+  const createdImpacts = await runtime.store.createScenarioStressImpacts(impactsWithRun);
+  const createdSuggestions = await runtime.store.createScenarioStressRuleSuggestions(
+    suggestionsWithRun
+  );
+  return {
+    run,
+    impacts: createdImpacts,
+    suggestions: createdSuggestions
   };
 }
 
@@ -4525,8 +5006,7 @@ async function createRuntime(config: ProductApiConfig): Promise<Runtime> {
       )
       : undefined;
   const jobRecoveryScheduler = startJobRecoveryScheduler(store, queue, config);
-
-  return {
+  const runtime: Runtime = {
     config,
     store,
     queue,
@@ -4543,6 +5023,19 @@ async function createRuntime(config: ProductApiConfig): Promise<Runtime> {
       ]);
     }
   };
+
+  if (config.adminBootstrapRequested && !config.adminBootstrapEnabled) {
+    logWarn("Admin bootstrap ignored outside non-production environment.", {
+      node_env: config.nodeEnv
+    });
+  } else if (config.adminBootstrapEnabled) {
+    await ensureAdminBootstrapUser(runtime);
+    logInfo("Admin bootstrap is active for non-production.", {
+      node_env: config.nodeEnv
+    });
+  }
+
+  return runtime;
 }
 
 export function startServer(port: number = loadConfig().port): Server {
@@ -4730,23 +5223,24 @@ export function startServer(port: number = loadConfig().port): Server {
         return;
       }
 
-      if (method === "POST" && pathname === "/auth/login") {
-        const body = await readJsonBody<AuthLoginRequest>(request);
-        const email = normalizeEmail(body.email ?? "");
-        const password = body.password ?? "";
-        if (!isValidEmail(email) || password.length < 8) {
+        if (method === "POST" && pathname === "/auth/login") {
+          const body = await readJsonBody<AuthLoginRequest>(request);
+          const email = normalizeEmail(body.email ?? "");
+          const password = body.password ?? "";
+          if (!isValidEmail(email) || password.length < 8) {
           sendJson(response, 422, {
             error: "validation_failed",
             error_message: "A valid email and password are required."
-          });
-          return;
-        }
+            });
+            return;
+          }
 
-        const user = await runtime.store.findUserByEmail(email);
-        if (!user || !user.verifiedAt || !(await verifyPassword(password, user.passwordHash))) {
-          sendJson(response, 401, {
-            error: "auth_failed",
-            error_message: "Invalid credentials."
+          await maybeBootstrapAdminForLogin(runtime, email, password);
+          const user = await runtime.store.findUserByEmail(email);
+          if (!user || !user.verifiedAt || !(await verifyPassword(password, user.passwordHash))) {
+            sendJson(response, 401, {
+              error: "auth_failed",
+              error_message: "Invalid credentials."
           });
           return;
         }
@@ -7322,6 +7816,171 @@ export function startServer(port: number = loadConfig().port): Server {
         sendJson(response, 200, {
           data: rows.map((row) => toConvictionInsightCardView(row))
         });
+        return;
+      }
+
+      if (method === "GET" && pathname === "/v1/scenarios/templates") {
+        const subscription = await runtime.store.getUserSubscription(auth.userId);
+        if (subscription.tier !== "PRO") {
+          sendJson(
+            response,
+            403,
+            buildUpgradeRequiredPayload(
+              "scenario_stress",
+              "Scenario stress cards are available on the Pro tier."
+            )
+          );
+          return;
+        }
+        const templates = await runtime.store.listScenarioStressTemplates({
+          includeInactive: false,
+          limit: 20
+        });
+        await appendAudit(runtime, "scenario_stress.templates_listed", {
+          request_id: meta.requestId,
+          route: pathname,
+          count: templates.length
+        }, auth.userId);
+        sendJson(response, 200, {
+          data: templates.map((template) => toScenarioStressTemplateView(template))
+        });
+        return;
+      }
+
+      if (method === "POST" && pathname === "/v1/scenarios/runs") {
+        const subscription = await runtime.store.getUserSubscription(auth.userId);
+        if (subscription.tier !== "PRO") {
+          sendJson(
+            response,
+            403,
+            buildUpgradeRequiredPayload(
+              "scenario_stress",
+              "Scenario stress cards are available on the Pro tier."
+            )
+          );
+          return;
+        }
+
+        const body = await readJsonBody<ScenarioStressRunRequest>(request);
+        const scenarioId = body.scenario_id;
+        if (!scenarioId || !scenarioStressTemplateIds.includes(scenarioId)) {
+          sendJson(response, 422, {
+            error: "validation_failed",
+            error_message:
+              `scenario_id must be one of: ${scenarioStressTemplateIds.join(", ")}.`
+          });
+          return;
+        }
+
+        const template = await runtime.store.getScenarioStressTemplate(scenarioId);
+        if (!template || !template.isActive) {
+          sendJson(response, 404, {
+            error: "scenario_not_found",
+            error_message: "Scenario template was not found."
+          });
+          return;
+        }
+
+        let asOf = dateInTimeZone(new Date(), "America/New_York");
+        if (body.as_of !== undefined) {
+          if (!isStrictIsoDate(body.as_of)) {
+            sendJson(response, 422, {
+              error: "validation_failed",
+              error_message: "as_of must be a valid ISO date (YYYY-MM-DD)."
+            });
+            return;
+          }
+          asOf = body.as_of;
+        }
+
+        const evaluation = await runScenarioStressEvaluation(runtime, {
+          userId: auth.userId,
+          scenarioId,
+          asOf,
+          nowIso: new Date().toISOString()
+        });
+
+        await appendAudit(runtime, "scenario_stress.run_created", {
+          request_id: meta.requestId,
+          route: pathname,
+          scenario_id: scenarioId,
+          scenario_run_id: evaluation.run.id,
+          impacted_names: evaluation.run.impactedNames,
+          critical_names: evaluation.run.criticalNames
+        }, auth.userId);
+
+        sendJson(response, 200, buildScenarioStressRunResponse({
+          run: evaluation.run,
+          impacts: evaluation.impacts,
+          suggestions: evaluation.suggestions
+        }));
+        return;
+      }
+
+      if (method === "GET" && pathname.startsWith("/v1/scenarios/runs/")) {
+        const subscription = await runtime.store.getUserSubscription(auth.userId);
+        if (subscription.tier !== "PRO") {
+          sendJson(
+            response,
+            403,
+            buildUpgradeRequiredPayload(
+              "scenario_stress",
+              "Scenario stress cards are available on the Pro tier."
+            )
+          );
+          return;
+        }
+
+        const scenarioParts = pathname.split("/").filter(Boolean);
+        if (
+          scenarioParts.length !== 4 ||
+          scenarioParts[0] !== "v1" ||
+          scenarioParts[1] !== "scenarios" ||
+          scenarioParts[2] !== "runs"
+        ) {
+          sendJson(response, 404, { status: "not_found" });
+          return;
+        }
+        const scenarioRunId = scenarioParts[3];
+        if (!scenarioRunId) {
+          sendJson(response, 404, { status: "not_found" });
+          return;
+        }
+
+        const run = await runtime.store.getScenarioStressRun({
+          id: scenarioRunId,
+          userId: auth.userId
+        });
+        if (!run) {
+          sendJson(response, 404, {
+            error: "scenario_run_not_found",
+            error_message: "Scenario run not found."
+          });
+          return;
+        }
+        const impacts = await runtime.store.listScenarioStressImpactsByRun({
+          scenarioRunId,
+          userId: auth.userId
+        });
+        const suggestions = await runtime.store.listScenarioStressRuleSuggestionsByRun({
+          scenarioRunId,
+          userId: auth.userId
+        });
+
+        await appendAudit(runtime, "scenario_stress.run_retrieved", {
+          request_id: meta.requestId,
+          route: pathname,
+          scenario_run_id: scenarioRunId,
+          scenario_id: run.scenarioId,
+          impact_count: impacts.length,
+          suggestion_count: suggestions.length
+        }, auth.userId);
+
+        sendJson(response, 200, buildScenarioStressRunResponse({
+          run,
+          impacts,
+          suggestions
+        }));
         return;
       }
 

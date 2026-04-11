@@ -25,7 +25,7 @@ All mapped user surfaces must preserve the same Thesis colors, typography, tone,
 | Earnings War Room | Calendar event windows | `scheduler`, `product-api`, `dexter-worker`, `mobile` | Research, Today |
 | Cross-Name Propagation | Material event on related name | `scheduler`, `product-api`, `dexter-worker` | Inbox, Names |
 | Conviction Intelligence | User actions and periodic retrospective jobs | `product-api`, `scheduler`, `dexter-worker`, `mobile` | Research, You |
-| Scenario Stress Evaluation | User-triggered and optional scheduled cycle | `product-api`, `dexter-worker` | Research, Today |
+| Scenario Stress Evaluation | User-triggered in M7 v1 (optional scheduled cycle deferred) | `product-api`, `dexter-worker` | Research, Today |
 
 ---
 
@@ -41,6 +41,9 @@ All mapped user surfaces must preserve the same Thesis colors, typography, tone,
 8. Cross-name propagation alerts are Pro-only.
 9. Macro is a propagation event/signal category through sector relationships, not a relationship type.
 10. M5 uses existing Names and Inbox surfaces; no new top-level mobile screen is introduced.
+11. M7 stress cards are Pro-only.
+12. M7 run mode is user-triggered only; no scheduled scenario cycle is introduced in M7.
+13. M7 scenario routes restore state with required tuple: `open_tab=research`, `scenario_id`, `scenario_run_id`.
 
 ---
 
@@ -80,6 +83,7 @@ Plus optional deep-link context keys:
 - `alert_id`
 - `rule_id`
 - `scenario_id`
+- `scenario_run_id`
 - `war_room_id`
 - `journal_entry_id`
 - `conviction_insight_id`
@@ -96,3 +100,9 @@ War Room route contract (M4 lock):
 - Required tuple for War Room push/open: `open_tab=research`, `notification_type=earnings_war_room`, `war_room_id`, `ticker`
 - Optional additive keys: `alert_id`, `report_id`
 - Mobile launch parsing must accept `war_room_id` from both push extras and URI query params before M4 can close
+
+Scenario route contract (M7 lock):
+
+- Required tuple for scenario result open: `open_tab=research`, `scenario_id`, `scenario_run_id`
+- Optional additive keys: `ticker`, `rule_id`
+- M7 does not add scheduled scenario jobs or pushes; these keys support in-app restoration and future-safe deep links

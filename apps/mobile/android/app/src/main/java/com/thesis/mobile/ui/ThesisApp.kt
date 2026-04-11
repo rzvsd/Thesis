@@ -82,6 +82,8 @@ import com.thesis.mobile.model.NotificationPreferenceView
 import com.thesis.mobile.model.OppositeCaseReportView
 import com.thesis.mobile.model.PulseReportView
 import com.thesis.mobile.model.ReportHistoryItem
+import com.thesis.mobile.model.ScenarioStressRunView
+import com.thesis.mobile.model.ScenarioStressTemplateView
 import com.thesis.mobile.model.SectionView
 import com.thesis.mobile.model.UserProfileView
 import com.thesis.mobile.model.WarRoomView
@@ -93,6 +95,7 @@ import com.thesis.mobile.ui.screens.InboxScreen
 import com.thesis.mobile.ui.screens.MonthlyCoherenceSection
 import com.thesis.mobile.ui.screens.NamesScreen
 import com.thesis.mobile.ui.screens.OnboardingScreen
+import com.thesis.mobile.ui.screens.ScenarioStressScreen
 import com.thesis.mobile.ui.screens.SentimentDashboardScreen
 import com.thesis.mobile.ui.screens.WarRoomScreen
 import com.thesis.mobile.ui.screens.WelcomeScreen
@@ -117,6 +120,7 @@ private enum class TodayMode {
 private enum class ResearchMode {
     DEEP_DIVE,
     WAR_ROOM,
+    SCENARIO,
     HISTORY
 }
 
@@ -166,7 +170,9 @@ fun ThesisApp(
                     notificationType = target.notificationType,
                     ticker = target.ticker,
                     alertId = target.alertId,
-                    warRoomId = target.warRoomId
+                    warRoomId = target.warRoomId,
+                    scenarioId = target.scenarioId,
+                    scenarioRunId = target.scenarioRunId
                 )
             }
             "names" -> {
@@ -177,25 +183,37 @@ fun ThesisApp(
                     notificationType = target.notificationType,
                     ticker = target.ticker,
                     alertId = target.alertId,
-                    warRoomId = target.warRoomId
+                    warRoomId = target.warRoomId,
+                    scenarioId = target.scenarioId,
+                    scenarioRunId = target.scenarioRunId
                 )
             }
             "research" -> {
                 namesFocusedTicker = null
                 val warRoomId = target.warRoomId?.trim().orEmpty()
+                val scenarioId = target.scenarioId?.trim().orEmpty()
+                val scenarioRunId = target.scenarioRunId?.trim().orEmpty()
                 val ticker = target.ticker?.trim().orEmpty()
                 researchMode = when {
                     warRoomId.isNotBlank() || target.notificationType == "earnings_war_room" -> ResearchMode.WAR_ROOM
+                    scenarioRunId.isNotBlank() || scenarioId.isNotBlank() -> ResearchMode.SCENARIO
                     else -> ResearchMode.DEEP_DIVE
                 }
                 mainViewModel.setTab(AppTab.RESEARCH)
                 if (warRoomId.isNotBlank()) {
                     mainViewModel.openWarRoom(warRoomId)
+                } else if (scenarioRunId.isNotBlank()) {
+                    mainViewModel.openScenarioStressRun(
+                        scenarioRunId = scenarioRunId,
+                        scenarioId = scenarioId.ifBlank { null }
+                    )
+                } else if (scenarioId.isNotBlank()) {
+                    mainViewModel.selectScenarioStressTemplate(scenarioId)
                 } else if (!target.reportId.isNullOrBlank()) {
                     mainViewModel.openHistoryReport(target.reportId)
                 } else if (ticker.isNotBlank()) {
                     mainViewModel.selectTicker(ticker)
-                    if (researchMode != ResearchMode.WAR_ROOM) {
+                    if (researchMode == ResearchMode.DEEP_DIVE) {
                         mainViewModel.runDeepDive()
                     }
                 }
@@ -204,7 +222,9 @@ fun ThesisApp(
                     notificationType = target.notificationType,
                     ticker = target.ticker,
                     alertId = target.alertId,
-                    warRoomId = target.warRoomId
+                    warRoomId = target.warRoomId,
+                    scenarioId = target.scenarioId,
+                    scenarioRunId = target.scenarioRunId
                 )
             }
             "inbox" -> {
@@ -215,7 +235,9 @@ fun ThesisApp(
                     notificationType = target.notificationType,
                     ticker = target.ticker,
                     alertId = target.alertId,
-                    warRoomId = target.warRoomId
+                    warRoomId = target.warRoomId,
+                    scenarioId = target.scenarioId,
+                    scenarioRunId = target.scenarioRunId
                 )
             }
             "you" -> {
@@ -226,7 +248,9 @@ fun ThesisApp(
                     notificationType = target.notificationType,
                     ticker = target.ticker,
                     alertId = target.alertId,
-                    warRoomId = target.warRoomId
+                    warRoomId = target.warRoomId,
+                    scenarioId = target.scenarioId,
+                    scenarioRunId = target.scenarioRunId
                 )
             }
         }
@@ -268,6 +292,7 @@ fun ThesisApp(
         }
         val preferredResearchRoot = when {
             uiState.warRoom != null -> ResearchMode.WAR_ROOM
+            uiState.scenarioStressRun != null -> ResearchMode.SCENARIO
             uiState.deepDiveReport != null -> ResearchMode.DEEP_DIVE
             !uiState.selectedTicker.isNullOrBlank() -> ResearchMode.DEEP_DIVE
             uiState.reportHistory.isNotEmpty() -> ResearchMode.HISTORY
@@ -377,7 +402,8 @@ fun ThesisApp(
                 }
             }
         ) { padding ->
-            if (uiState.isLoading) {
+            val showGlobalLoading = uiState.isLoading && uiState.currentTab != AppTab.RESEARCH
+            if (showGlobalLoading) {
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
@@ -483,6 +509,13 @@ fun ThesisApp(
                         oppositeCase = uiState.oppositeCase,
                         oppositeCaseError = uiState.oppositeCaseError,
                         isGeneratingOppositeCase = uiState.isGeneratingOppositeCase,
+                        scenarioStressTemplates = uiState.scenarioStressTemplates,
+                        selectedScenarioStressId = uiState.selectedScenarioStressId,
+                        scenarioStressRun = uiState.scenarioStressRun,
+                        scenarioStressTemplatesError = uiState.scenarioStressTemplatesError,
+                        scenarioStressRunError = uiState.scenarioStressRunError,
+                        isLoadingScenarioStressTemplates = uiState.isLoadingScenarioStressTemplates,
+                        isRunningScenarioStress = uiState.isRunningScenarioStress,
                         scenarioResult = uiState.scenarioResult,
                         isRunningScenario = uiState.isRunningScenario,
                         selectedTicker = uiState.selectedTicker ?: "",
@@ -493,6 +526,10 @@ fun ThesisApp(
                         onSaveReportNote = mainViewModel::saveReportNote,
                         onGenerateOppositeCase = mainViewModel::generateOppositeCase,
                         onRefreshConvictionTimeline = { mainViewModel.refreshConvictionTimeline() },
+                        onRefreshScenarioStressTemplates = { mainViewModel.refreshScenarioStressTemplates(force = true) },
+                        onSelectScenarioStressTemplate = mainViewModel::selectScenarioStressTemplate,
+                        onRunScenarioStress = mainViewModel::runScenarioStress,
+                        onOpenScenarioStressRun = mainViewModel::openScenarioStressRun,
                         onRunScenario = mainViewModel::runScenario,
                         onRequireUpgrade = mainViewModel::requestFeatureUpgrade,
                         onSubmitReportFeedback = mainViewModel::submitReportFeedback,
@@ -626,6 +663,13 @@ private fun ResearchTab(
     oppositeCase: OppositeCaseReportView?,
     oppositeCaseError: String?,
     isGeneratingOppositeCase: Boolean,
+    scenarioStressTemplates: List<ScenarioStressTemplateView>,
+    selectedScenarioStressId: String?,
+    scenarioStressRun: ScenarioStressRunView?,
+    scenarioStressTemplatesError: String?,
+    scenarioStressRunError: String?,
+    isLoadingScenarioStressTemplates: Boolean,
+    isRunningScenarioStress: Boolean,
     scenarioResult: com.thesis.mobile.model.ScenarioResultView?,
     isRunningScenario: Boolean,
     selectedTicker: String,
@@ -636,6 +680,10 @@ private fun ResearchTab(
     onSaveReportNote: () -> Unit,
     onGenerateOppositeCase: () -> Unit,
     onRefreshConvictionTimeline: () -> Unit,
+    onRefreshScenarioStressTemplates: () -> Unit,
+    onSelectScenarioStressTemplate: (String) -> Unit,
+    onRunScenarioStress: (String?) -> Unit,
+    onOpenScenarioStressRun: (String, String?) -> Unit,
     onRunScenario: (Int?, Double?, Double?) -> Unit,
     onRequireUpgrade: (String) -> Unit,
     onSubmitReportFeedback: (String, String) -> Unit,
@@ -668,6 +716,11 @@ private fun ResearchTab(
                 label = Phase4Copy.researchWarRoomLabel,
                 isSelected = mode == ResearchMode.WAR_ROOM,
                 onClick = { onSetMode(ResearchMode.WAR_ROOM) }
+            )
+            SegmentButton(
+                label = Phase4Copy.researchStressLabel,
+                isSelected = mode == ResearchMode.SCENARIO,
+                onClick = { onSetMode(ResearchMode.SCENARIO) }
             )
             SegmentButton(
                 label = "History",
@@ -724,6 +777,28 @@ private fun ResearchTab(
                 errorMessage = warRoomError,
                 onRefresh = onRefreshWarRoom,
                 padding = PaddingValues()
+            )
+
+            ResearchMode.SCENARIO -> ScenarioStressScreen(
+                userTier = userTier,
+                templates = scenarioStressTemplates,
+                selectedScenarioId = selectedScenarioStressId,
+                run = scenarioStressRun,
+                templatesError = scenarioStressTemplatesError,
+                runError = scenarioStressRunError,
+                isLoadingTemplates = isLoadingScenarioStressTemplates,
+                isRunning = isRunningScenarioStress,
+                watchlistCount = watchlist.size,
+                onRefreshTemplates = onRefreshScenarioStressTemplates,
+                onSelectTemplate = onSelectScenarioStressTemplate,
+                onRunScenario = onRunScenarioStress,
+                onOpenTickerResearch = { ticker ->
+                    onTickerChange(ticker)
+                    onSetMode(ResearchMode.DEEP_DIVE)
+                    onRunReport()
+                },
+                onOpenRunFromRoute = onOpenScenarioStressRun,
+                onRequireUpgrade = onRequireUpgrade
             )
 
             ResearchMode.HISTORY -> HistoryScreen(
@@ -966,7 +1041,7 @@ private fun SegmentButton(
             )
             .clickable(enabled = !isSelected) { onClick() }
             .padding(
-                horizontal = ThesisDimens.SpacingXl,
+                horizontal = ThesisDimens.SpacingMd,
                 vertical = ThesisDimens.SpacingSm
             )
     )

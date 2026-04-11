@@ -19,6 +19,12 @@ import com.thesis.mobile.model.RegisterResult
 import com.thesis.mobile.model.ReportNoteView
 import com.thesis.mobile.model.ReportHistoryItem
 import com.thesis.mobile.model.ScenarioOverridesView
+import com.thesis.mobile.model.ScenarioStressImpactView
+import com.thesis.mobile.model.ScenarioStressRouteView
+import com.thesis.mobile.model.ScenarioStressRuleSuggestionView
+import com.thesis.mobile.model.ScenarioStressRunHeaderView
+import com.thesis.mobile.model.ScenarioStressRunView
+import com.thesis.mobile.model.ScenarioStressTemplateView
 import com.thesis.mobile.model.ScenarioResultView
 import com.thesis.mobile.model.SectionView
 import com.thesis.mobile.model.SentimentSnapshotView
@@ -344,6 +350,60 @@ class ProductApiClient {
             body = body
         )
         json.optJSONObject("data")?.optString("feedback_id").orEmpty()
+    }
+
+    suspend fun getScenarioStressTemplates(
+        baseUrl: String,
+        accessToken: String
+    ): List<ScenarioStressTemplateView> = withContext(Dispatchers.IO) {
+        val json = requestJson(
+            baseUrl,
+            "GET",
+            "/v1/scenarios/templates",
+            accessToken = accessToken
+        )
+        val rows = json.optJSONArray("data") ?: JSONArray()
+        (0 until rows.length()).mapNotNull { index ->
+            mapScenarioStressTemplate(rows.optJSONObject(index))
+        }
+    }
+
+    suspend fun runScenarioStress(
+        baseUrl: String,
+        accessToken: String,
+        scenarioId: String,
+        asOf: String? = null
+    ): ScenarioStressRunView = withContext(Dispatchers.IO) {
+        val body = JSONObject()
+            .put("scenario_id", scenarioId)
+        if (!asOf.isNullOrBlank()) {
+            body.put("as_of", asOf.trim())
+        }
+
+        val json = requestJson(
+            baseUrl,
+            "POST",
+            "/v1/scenarios/runs",
+            accessToken = accessToken,
+            body = body
+        )
+        mapScenarioStressRun(json)
+            ?: throw ProductApiException(500, "Scenario stress run response was missing expected fields.")
+    }
+
+    suspend fun getScenarioStressRun(
+        baseUrl: String,
+        accessToken: String,
+        scenarioRunId: String
+    ): ScenarioStressRunView = withContext(Dispatchers.IO) {
+        val json = requestJson(
+            baseUrl,
+            "GET",
+            "/v1/scenarios/runs/${urlEncode(scenarioRunId)}",
+            accessToken = accessToken
+        )
+        mapScenarioStressRun(json)
+            ?: throw ProductApiException(500, "Scenario stress run detail response was missing expected fields.")
     }
 
     suspend fun runScenario(
@@ -811,6 +871,154 @@ class ProductApiClient {
             title = title,
             summary = row.optString("summary").ifBlank { "" },
             evidenceRefs = mapConvictionEvidenceRefs(row.optJSONArray("evidence_refs"))
+        )
+    }
+
+    private fun mapScenarioStressTemplate(row: JSONObject?): ScenarioStressTemplateView? {
+        if (row == null) {
+            return null
+        }
+        val scenarioId = row.optString("scenario_id").trim()
+        val title = row.optString("title").trim()
+        if (scenarioId.isBlank() || title.isBlank()) {
+            return null
+        }
+
+        return ScenarioStressTemplateView(
+            scenarioId = scenarioId,
+            title = title,
+            summary = row.optString("summary").ifBlank { "No summary provided." },
+            hypothesis = row.optString("hypothesis").ifBlank { "No hypothesis provided." },
+            active = row.optBoolean("active", true),
+            createdAt = row.optString("created_at").ifBlank { "" },
+            updatedAt = row.optString("updated_at").ifBlank { "" }
+        )
+    }
+
+    private fun mapScenarioStressRun(payload: JSONObject): ScenarioStressRunView? {
+        val data = payload.optJSONObject("data") ?: payload
+        val run = mapScenarioStressRunHeader(data.optJSONObject("run")) ?: return null
+        val impacts = data.optJSONArray("impacts") ?: JSONArray()
+        val suggestions = data.optJSONArray("rule_suggestions") ?: JSONArray()
+
+        return ScenarioStressRunView(
+            run = run,
+            impacts = (0 until impacts.length()).mapNotNull { index ->
+                mapScenarioStressImpact(impacts.optJSONObject(index))
+            },
+            ruleSuggestions = (0 until suggestions.length()).mapNotNull { index ->
+                mapScenarioStressRuleSuggestion(suggestions.optJSONObject(index))
+            }
+        )
+    }
+
+    private fun mapScenarioStressRunHeader(row: JSONObject?): ScenarioStressRunHeaderView? {
+        if (row == null) {
+            return null
+        }
+        val runId = row.optString("scenario_run_id").trim()
+        val scenarioId = row.optString("scenario_id").trim()
+        val route = mapScenarioStressRoute(row.optJSONObject("route"))
+        if (runId.isBlank() || scenarioId.isBlank() || route == null) {
+            return null
+        }
+
+        return ScenarioStressRunHeaderView(
+            scenarioRunId = runId,
+            scenarioId = scenarioId,
+            userId = row.optString("user_id").ifBlank { "" },
+            status = row.optString("status").ifBlank { "completed" },
+            runMode = row.optString("run_mode").ifBlank { "manual" },
+            asOf = row.optString("as_of").ifBlank { "" },
+            totalNames = row.optInt("total_names", 0),
+            impactedNames = row.optInt("impacted_names", 0),
+            criticalNames = row.optInt("critical_names", 0),
+            summary = row.optString("summary").ifBlank { "No summary available." },
+            route = route,
+            createdAt = row.optString("created_at").ifBlank { "" },
+            completedAt = row.optString("completed_at").ifBlank { "" }
+        )
+    }
+
+    private fun mapScenarioStressImpact(row: JSONObject?): ScenarioStressImpactView? {
+        if (row == null) {
+            return null
+        }
+        val impactId = row.optString("scenario_impact_id").trim()
+        val runId = row.optString("scenario_run_id").trim()
+        val ticker = row.optString("ticker").trim().uppercase()
+        val route = mapScenarioStressRoute(row.optJSONObject("route"))
+        if (impactId.isBlank() || runId.isBlank() || ticker.isBlank() || route == null) {
+            return null
+        }
+
+        return ScenarioStressImpactView(
+            scenarioImpactId = impactId,
+            scenarioRunId = runId,
+            userId = row.optString("user_id").ifBlank { "" },
+            ticker = ticker,
+            impactLevel = row.optString("impact_level").ifBlank { "none" },
+            thesisBreakLikelihood = row.optString("thesis_break_likelihood").ifBlank { "low" },
+            stressScore = row.optNullableDouble("stress_score") ?: 0.0,
+            rationale = row.optString("rationale").ifBlank { "No rationale provided." },
+            evidenceRefs = parseStringList(row.optJSONArray("evidence_refs")),
+            route = route,
+            createdAt = row.optString("created_at").ifBlank { "" }
+        )
+    }
+
+    private fun mapScenarioStressRuleSuggestion(row: JSONObject?): ScenarioStressRuleSuggestionView? {
+        if (row == null) {
+            return null
+        }
+        val suggestionId = row.optString("scenario_rule_suggestion_id").trim()
+        val runId = row.optString("scenario_run_id").trim()
+        val ticker = row.optString("ticker").trim().uppercase()
+        val signalType = row.optString("signal_type").trim()
+        val direction = row.optString("direction").trim()
+        val route = mapScenarioStressRoute(row.optJSONObject("route"))
+        if (
+            suggestionId.isBlank() ||
+            runId.isBlank() ||
+            ticker.isBlank() ||
+            signalType.isBlank() ||
+            direction.isBlank() ||
+            route == null
+        ) {
+            return null
+        }
+
+        return ScenarioStressRuleSuggestionView(
+            scenarioRuleSuggestionId = suggestionId,
+            scenarioRunId = runId,
+            userId = row.optString("user_id").ifBlank { "" },
+            ticker = ticker,
+            signalType = signalType,
+            direction = direction,
+            conditionText = row.optString("condition_text").ifBlank { "No condition text provided." },
+            rationale = row.optString("rationale").ifBlank { "No rationale provided." },
+            confidence = row.optNullableDouble("confidence") ?: 0.0,
+            route = route,
+            createdAt = row.optString("created_at").ifBlank { "" }
+        )
+    }
+
+    private fun mapScenarioStressRoute(row: JSONObject?): ScenarioStressRouteView? {
+        if (row == null) {
+            return null
+        }
+        val openTab = row.optString("open_tab").trim().lowercase()
+        val scenarioId = row.optString("scenario_id").trim()
+        val scenarioRunId = row.optString("scenario_run_id").trim()
+        if (openTab.isBlank() || scenarioId.isBlank() || scenarioRunId.isBlank()) {
+            return null
+        }
+        return ScenarioStressRouteView(
+            openTab = openTab,
+            scenarioId = scenarioId,
+            scenarioRunId = scenarioRunId,
+            ticker = row.optNullableString("ticker"),
+            ruleId = row.optNullableString("rule_id")
         )
     }
 

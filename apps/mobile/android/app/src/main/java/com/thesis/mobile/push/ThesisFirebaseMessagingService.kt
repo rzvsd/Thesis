@@ -36,6 +36,8 @@ class ThesisFirebaseMessagingService : FirebaseMessagingService() {
         val route = message.data["route"]?.trim()?.lowercase()
         val openTab = LaunchDestinationResolver.resolveTab(route, notificationType, null) ?: "today"
         val warRoomId = message.data["war_room_id"]?.trim().orEmpty().ifBlank { null }
+        val scenarioId = message.data["scenario_id"]?.trim().orEmpty().ifBlank { null }
+        val scenarioRunId = message.data["scenario_run_id"]?.trim().orEmpty().ifBlank { null }
 
         val contentTitle =
             message.data["headline"]
@@ -51,6 +53,8 @@ class ThesisFirebaseMessagingService : FirebaseMessagingService() {
             ticker = message.data["ticker"],
             alertId = message.data["alert_id"],
             warRoomId = warRoomId,
+            scenarioId = scenarioId,
+            scenarioRunId = scenarioRunId,
             reportDate = message.data["report_date"],
             digestDate = message.data["digest_date"],
             messageId = message.messageId,
@@ -66,6 +70,8 @@ class ThesisFirebaseMessagingService : FirebaseMessagingService() {
             putExtra("report_id", message.data["report_id"])
             putExtra("alert_id", message.data["alert_id"])
             putExtra("war_room_id", warRoomId)
+            putExtra("scenario_id", scenarioId)
+            putExtra("scenario_run_id", scenarioRunId)
         }
         val pendingIntent = PendingIntent.getActivity(
             this,
@@ -79,10 +85,19 @@ class ThesisFirebaseMessagingService : FirebaseMessagingService() {
             putExtra(NotificationDismissReceiver.EXTRA_TICKER, message.data["ticker"])
             putExtra(NotificationDismissReceiver.EXTRA_ALERT_ID, message.data["alert_id"])
             putExtra(NotificationDismissReceiver.EXTRA_WAR_ROOM_ID, warRoomId)
+            putExtra(NotificationDismissReceiver.EXTRA_SCENARIO_ID, scenarioId)
+            putExtra(NotificationDismissReceiver.EXTRA_SCENARIO_RUN_ID, scenarioRunId)
         }
         val dismissPendingIntent = PendingIntent.getBroadcast(
             this,
-            dismissRequestCode(notificationType, message.data["ticker"], message.data["alert_id"], warRoomId),
+            dismissRequestCode(
+                notificationType,
+                message.data["ticker"],
+                message.data["alert_id"],
+                warRoomId,
+                scenarioId,
+                scenarioRunId
+            ),
             dismissIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
@@ -109,7 +124,9 @@ class ThesisFirebaseMessagingService : FirebaseMessagingService() {
                         "open_tab" to openTab,
                         "ticker" to message.data["ticker"],
                         "alert_id" to message.data["alert_id"],
-                        "war_room_id" to warRoomId
+                        "war_room_id" to warRoomId,
+                        "scenario_id" to scenarioId,
+                        "scenario_run_id" to scenarioRunId
                     )
                 )
             }
@@ -160,6 +177,8 @@ class ThesisFirebaseMessagingService : FirebaseMessagingService() {
             ticker: String?,
             alertId: String?,
             warRoomId: String?,
+            scenarioId: String?,
+            scenarioRunId: String?,
             reportDate: String?,
             digestDate: String?,
             messageId: String?,
@@ -169,6 +188,8 @@ class ThesisFirebaseMessagingService : FirebaseMessagingService() {
             val normalizedTicker = ticker.orEmpty().trim().uppercase()
             val normalizedAlertId = alertId.orEmpty().trim()
             val normalizedWarRoomId = warRoomId.orEmpty().trim()
+            val normalizedScenarioId = scenarioId.orEmpty().trim()
+            val normalizedScenarioRunId = scenarioRunId.orEmpty().trim()
             val normalizedReportDate = reportDate.orEmpty().trim()
             val normalizedDigestDate = digestDate.orEmpty().trim()
             val normalizedMessageId = messageId.orEmpty().trim()
@@ -177,6 +198,8 @@ class ThesisFirebaseMessagingService : FirebaseMessagingService() {
                 normalizedTicker,
                 normalizedAlertId,
                 normalizedWarRoomId,
+                normalizedScenarioId,
+                normalizedScenarioRunId,
                 normalizedReportDate,
                 normalizedDigestDate,
                 normalizedMessageId,
@@ -197,7 +220,9 @@ class ThesisFirebaseMessagingService : FirebaseMessagingService() {
             notificationType: String,
             ticker: String?,
             alertId: String?,
-            warRoomId: String?
+            warRoomId: String?,
+            scenarioId: String?,
+            scenarioRunId: String?
         ): Int {
             val seed = buildString {
                 append(notificationType.trim().lowercase())
@@ -207,6 +232,10 @@ class ThesisFirebaseMessagingService : FirebaseMessagingService() {
                 append(alertId.orEmpty().trim())
                 append("|")
                 append(warRoomId.orEmpty().trim())
+                append("|")
+                append(scenarioId.orEmpty().trim())
+                append("|")
+                append(scenarioRunId.orEmpty().trim())
             }
             return safeHash("dismiss|$seed")
         }

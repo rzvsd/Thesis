@@ -42,8 +42,17 @@ function parseCsv(value: string | undefined, fallback: string[]): string[] {
 export type QueueBackend = "redis" | "memory";
 export type StoreBackend = "postgres" | "memory";
 
+function isValidEmail(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
+function isLikelyBcryptHash(value: string): boolean {
+  return /^\$2[aby]\$\d{2}\$[./A-Za-z0-9]{53}$/.test(value);
+}
+
 export interface ProductApiConfig {
   port: number;
+  nodeEnv: string;
   jwtSecret: string;
   accessTokenTtlSeconds: number;
   refreshTokenTtlSeconds: number;
@@ -67,6 +76,12 @@ export interface ProductApiConfig {
   artifactRequireDurable: boolean;
   emailProviderMode: "stub";
   exposeVerificationToken: boolean;
+  adminBootstrapRequested: boolean;
+  adminBootstrapEnabled: boolean;
+  adminBootstrapEmail?: string;
+  adminBootstrapPasswordHash?: string;
+  adminBootstrapAutoVerify: boolean;
+  adminBootstrapForcePro: boolean;
   internalWorkerToken: string;
   rateLimitWindowSeconds: number;
   rateLimitMaxRequests: number;
@@ -105,10 +120,13 @@ export interface ProductApiConfig {
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): ProductApiConfig {
   const port = parseInteger(env.PORT, 3001);
+  const nodeEnv = env.NODE_ENV?.trim().toLowerCase() || "development";
   const databaseUrl = env.DATABASE_URL;
   const explicitStoreBackend = env.STORE_BACKEND;
   const explicitQueueBackend = env.QUEUE_BACKEND;
   const redisUrl = env.REDIS_URL;
+  const adminBootstrapRequested = parseBoolean(env.ADMIN_BOOTSTRAP_ENABLED, false);
+  const adminBootstrapEnabled = adminBootstrapRequested && nodeEnv !== "production";
 
   const storeBackend: StoreBackend = explicitStoreBackend === "postgres"
     ? "postgres"
@@ -140,6 +158,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ProductApiConf
 
   return {
     port,
+    nodeEnv,
     jwtSecret,
     accessTokenTtlSeconds: parseInteger(env.ACCESS_TOKEN_TTL_SECONDS, 15 * 60),
     refreshTokenTtlSeconds: parseInteger(env.REFRESH_TOKEN_TTL_SECONDS, 30 * 24 * 60 * 60),
@@ -163,6 +182,12 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ProductApiConf
     artifactRequireDurable: parseBoolean(env.ARTIFACT_REQUIRE_DURABLE, false),
     emailProviderMode: "stub",
     exposeVerificationToken: parseBoolean(env.AUTH_EXPOSE_VERIFICATION_TOKEN, false),
+    adminBootstrapRequested,
+    adminBootstrapEnabled,
+    adminBootstrapEmail: env.ADMIN_BOOTSTRAP_EMAIL?.trim().toLowerCase() || undefined,
+    adminBootstrapPasswordHash: env.ADMIN_BOOTSTRAP_PASSWORD_HASH?.trim() || undefined,
+    adminBootstrapAutoVerify: parseBoolean(env.ADMIN_BOOTSTRAP_AUTO_VERIFY, true),
+    adminBootstrapForcePro: parseBoolean(env.ADMIN_BOOTSTRAP_FORCE_PRO, true),
     internalWorkerToken,
     rateLimitWindowSeconds: parseInteger(env.RATE_LIMIT_WINDOW_SECONDS, 60),
     rateLimitMaxRequests: parseInteger(env.RATE_LIMIT_MAX_REQUESTS, 120),
@@ -327,6 +352,22 @@ export function validateConfig(config: ProductApiConfig): string[] {
 
   if (config.pushProviderMode === "fcm" && !config.googleApplicationCredentials) {
     errors.push("GOOGLE_APPLICATION_CREDENTIALS is required when PUSH_PROVIDER_MODE=fcm");
+  }
+
+  if (config.adminBootstrapEnabled) {
+    if (!config.adminBootstrapEmail || !isValidEmail(config.adminBootstrapEmail)) {
+      errors.push("ADMIN_BOOTSTRAP_EMAIL must be a valid email when ADMIN_BOOTSTRAP_ENABLED=true");
+    }
+
+    if (!config.adminBootstrapPasswordHash) {
+      errors.push(
+        "ADMIN_BOOTSTRAP_PASSWORD_HASH is required when ADMIN_BOOTSTRAP_ENABLED=true"
+      );
+    } else if (!isLikelyBcryptHash(config.adminBootstrapPasswordHash)) {
+      errors.push(
+        "ADMIN_BOOTSTRAP_PASSWORD_HASH must be a valid bcrypt hash when ADMIN_BOOTSTRAP_ENABLED=true"
+      );
+    }
   }
 
   if (

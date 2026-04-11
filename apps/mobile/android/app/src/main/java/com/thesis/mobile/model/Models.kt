@@ -130,6 +130,74 @@ data class ScenarioResultView(
     val scenario: ValuationDisplayView
 )
 
+data class ScenarioStressRouteView(
+    val openTab: String,
+    val scenarioId: String,
+    val scenarioRunId: String,
+    val ticker: String? = null,
+    val ruleId: String? = null
+)
+
+data class ScenarioStressTemplateView(
+    val scenarioId: String,
+    val title: String,
+    val summary: String,
+    val hypothesis: String,
+    val active: Boolean,
+    val createdAt: String,
+    val updatedAt: String
+)
+
+data class ScenarioStressRunHeaderView(
+    val scenarioRunId: String,
+    val scenarioId: String,
+    val userId: String,
+    val status: String,
+    val runMode: String,
+    val asOf: String,
+    val totalNames: Int,
+    val impactedNames: Int,
+    val criticalNames: Int,
+    val summary: String,
+    val route: ScenarioStressRouteView,
+    val createdAt: String,
+    val completedAt: String
+)
+
+data class ScenarioStressImpactView(
+    val scenarioImpactId: String,
+    val scenarioRunId: String,
+    val userId: String,
+    val ticker: String,
+    val impactLevel: String,
+    val thesisBreakLikelihood: String,
+    val stressScore: Double,
+    val rationale: String,
+    val evidenceRefs: List<String> = emptyList(),
+    val route: ScenarioStressRouteView,
+    val createdAt: String
+)
+
+data class ScenarioStressRuleSuggestionView(
+    val scenarioRuleSuggestionId: String,
+    val scenarioRunId: String,
+    val userId: String,
+    val ticker: String,
+    val signalType: String,
+    val direction: String,
+    val conditionText: String,
+    val rationale: String,
+    val confidence: Double,
+    val route: ScenarioStressRouteView,
+    val createdAt: String
+)
+
+data class ScenarioStressRunView(
+    val run: ScenarioStressRunHeaderView,
+    val impacts: List<ScenarioStressImpactView> = emptyList(),
+    val ruleSuggestions: List<ScenarioStressRuleSuggestionView> = emptyList()
+)
+
 data class DeepDiveReportView(
     val reportId: String,
     val ticker: String?,
