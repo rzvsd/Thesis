@@ -21,8 +21,10 @@ import type {
   EarningsWarRoomState,
   EarningsWarRoomTimelineEventType,
   KillSwitchConditionDraft,
+  KillSwitchDirection,
   KillSwitchEvaluationOutcome,
   KillSwitchEvaluationSignalSource,
+  KillSwitchSignalType,
   KillSwitchRuleSource,
   KillSwitchRuleState,
   FeedbackRouteStatus,
@@ -33,6 +35,11 @@ import type {
   NameRelationshipType,
   NotificationType,
   ReportFeedbackCode,
+  ScenarioStressImpactLevel,
+  ScenarioStressRunMode,
+  ScenarioStressRunStatus,
+  ScenarioStressTemplateId,
+  ScenarioStressThesisBreakLikelihood,
   SubscriptionFeedbackCode,
   SubscriptionTier
 } from "../../../packages/contracts/src";
@@ -370,6 +377,58 @@ export interface OppositeCaseReportRecord {
   sharedEvidenceRefs: ConvictionEvidenceRef[];
   decisiveFactors: string[];
   generatedAt: string;
+  createdAt: string;
+}
+
+export interface ScenarioStressTemplateRecord {
+  templateId: ScenarioStressTemplateId;
+  title: string;
+  summary: string;
+  hypothesis: string;
+  displayOrder: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ScenarioStressRunRecord {
+  id: string;
+  scenarioId: ScenarioStressTemplateId;
+  userId: string;
+  status: ScenarioStressRunStatus;
+  runMode: ScenarioStressRunMode;
+  asOf: string;
+  totalNames: number;
+  impactedNames: number;
+  criticalNames: number;
+  summary: string;
+  createdAt: string;
+  completedAt: string;
+}
+
+export interface ScenarioStressImpactRecord {
+  id: string;
+  scenarioRunId: string;
+  userId: string;
+  ticker: string;
+  impactLevel: ScenarioStressImpactLevel;
+  thesisBreakLikelihood: ScenarioStressThesisBreakLikelihood;
+  stressScore: number;
+  rationale: string;
+  evidenceRefs: string[];
+  createdAt: string;
+}
+
+export interface ScenarioStressRuleSuggestionRecord {
+  id: string;
+  scenarioRunId: string;
+  userId: string;
+  ticker: string;
+  signalType: KillSwitchSignalType;
+  direction: KillSwitchDirection;
+  conditionText: string;
+  rationale: string;
+  confidence: number;
   createdAt: string;
 }
 

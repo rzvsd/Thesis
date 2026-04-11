@@ -23,8 +23,10 @@ import type {
   EarningsWarRoomSourceRef,
   EarningsWarRoomState,
   EarningsWarRoomTimelineEventType,
+  KillSwitchDirection,
   KillSwitchEvaluationOutcome,
   KillSwitchEvaluationSignalSource,
+  KillSwitchSignalType,
   KillSwitchRuleSource,
   KillSwitchRuleState,
   FeedbackSeverity,
@@ -35,6 +37,11 @@ import type {
   NameRelationshipType,
   NotificationType,
   ReportFeedbackCode,
+  ScenarioStressImpactLevel,
+  ScenarioStressRunMode,
+  ScenarioStressRunStatus,
+  ScenarioStressTemplateId,
+  ScenarioStressThesisBreakLikelihood,
   SubscriptionFeedbackCode,
   SubscriptionTier,
   TickerCoverage
@@ -55,6 +62,10 @@ import type {
   NameRelationshipRecord,
   NotificationPreferenceRecord,
   OppositeCaseReportRecord,
+  ScenarioStressImpactRecord,
+  ScenarioStressRuleSuggestionRecord,
+  ScenarioStressRunRecord,
+  ScenarioStressTemplateRecord,
   ThesisMonitorSnapshotRecord,
   UserFeedbackQueueRecord,
   ReportNoteRecord,
@@ -75,6 +86,7 @@ export interface ProductStore {
   findUserByEmail(email: string): Promise<UserRecord | undefined>;
   findUserById(id: string): Promise<UserRecord | undefined>;
   markUserVerified(userId: string, verifiedAt: string): Promise<UserRecord | undefined>;
+  updateUserPasswordHash(userId: string, passwordHash: string): Promise<UserRecord | undefined>;
   updateUserDeviceToken(
     userId: string,
     deviceToken: string | undefined
@@ -332,6 +344,32 @@ export interface ProductStore {
     userId: string;
     sourceReportId: string;
   }): Promise<OppositeCaseReportRecord | undefined>;
+  listScenarioStressTemplates(input?: {
+    includeInactive?: boolean;
+    limit?: number;
+  }): Promise<ScenarioStressTemplateRecord[]>;
+  getScenarioStressTemplate(
+    templateId: ScenarioStressTemplateId
+  ): Promise<ScenarioStressTemplateRecord | undefined>;
+  createScenarioStressRun(input: ScenarioStressRunRecord): Promise<ScenarioStressRunRecord>;
+  getScenarioStressRun(input: {
+    id: string;
+    userId: string;
+  }): Promise<ScenarioStressRunRecord | undefined>;
+  createScenarioStressImpacts(
+    input: ScenarioStressImpactRecord[]
+  ): Promise<ScenarioStressImpactRecord[]>;
+  listScenarioStressImpactsByRun(input: {
+    scenarioRunId: string;
+    userId: string;
+  }): Promise<ScenarioStressImpactRecord[]>;
+  createScenarioStressRuleSuggestions(
+    input: ScenarioStressRuleSuggestionRecord[]
+  ): Promise<ScenarioStressRuleSuggestionRecord[]>;
+  listScenarioStressRuleSuggestionsByRun(input: {
+    scenarioRunId: string;
+    userId: string;
+  }): Promise<ScenarioStressRuleSuggestionRecord[]>;
   createWarRoom(input: EarningsWarRoomRecord): Promise<EarningsWarRoomRecord>;
   updateWarRoom(input: EarningsWarRoomRecord): Promise<EarningsWarRoomRecord | undefined>;
   getWarRoom(input: { id: string; userId: string }): Promise<EarningsWarRoomRecord | undefined>;
@@ -761,6 +799,70 @@ function cloneWarRoomCadenceState(
   return { ...state };
 }
 
+function cloneScenarioStressEvidenceRefs(refs: string[]): string[] {
+  return refs.map((ref) => String(ref));
+}
+
+function defaultScenarioStressTemplates(nowIso: string): ScenarioStressTemplateRecord[] {
+  return [
+    {
+      templateId: "rates_higher_for_longer",
+      title: "Rates Stay Higher for Longer",
+      summary: "Stress-tests valuation durability if discount rates remain elevated.",
+      hypothesis:
+        "Higher discount rates can compress valuation multiples for duration-sensitive theses.",
+      displayOrder: 1,
+      isActive: true,
+      createdAt: nowIso,
+      updatedAt: nowIso
+    },
+    {
+      templateId: "recession_in_6m",
+      title: "Recession in 6 Months",
+      summary: "Evaluates revenue and margin fragility under demand contraction.",
+      hypothesis:
+        "A broad slowdown can challenge cyclical demand assumptions across followed names.",
+      displayOrder: 2,
+      isActive: true,
+      createdAt: nowIso,
+      updatedAt: nowIso
+    },
+    {
+      templateId: "usd_up_10",
+      title: "USD Strengthens 10%",
+      summary: "Assesses translation and competitiveness pressure from a stronger dollar.",
+      hypothesis:
+        "Foreign revenue translation pressure can weaken globally exposed thesis assumptions.",
+      displayOrder: 3,
+      isActive: true,
+      createdAt: nowIso,
+      updatedAt: nowIso
+    },
+    {
+      templateId: "ai_hype_burst",
+      title: "AI Hype Cycle Bursts",
+      summary: "Examines downside if AI spending and sentiment reset sharply.",
+      hypothesis:
+        "AI-linked narratives can break quickly when adoption or monetization disappoints.",
+      displayOrder: 4,
+      isActive: true,
+      createdAt: nowIso,
+      updatedAt: nowIso
+    },
+    {
+      templateId: "oil_120_spike",
+      title: "Oil Spikes to $120",
+      summary: "Measures cost and demand pressure from a rapid energy shock.",
+      hypothesis:
+        "Energy-sensitive cost structures can invalidate margin and demand assumptions.",
+      displayOrder: 5,
+      isActive: true,
+      createdAt: nowIso,
+      updatedAt: nowIso
+    }
+  ];
+}
+
 function mapHistoricalFinancialSnapshot(row: Record<string, unknown>): CanonicalFinancialSnapshot {
   const data = asRecord(row.data) ?? {};
   const segments = Array.isArray(row.segments) ? (row.segments as CanonicalFinancialSnapshot["segments"]) : undefined;
@@ -1108,6 +1210,72 @@ function mapOppositeCaseReportRecord(row: Record<string, unknown>): OppositeCase
   };
 }
 
+function mapScenarioStressTemplateRecord(
+  row: Record<string, unknown>
+): ScenarioStressTemplateRecord {
+  return {
+    templateId: String(row.scenario_id) as ScenarioStressTemplateId,
+    title: String(row.title ?? ""),
+    summary: String(row.summary ?? ""),
+    hypothesis: String(row.hypothesis ?? ""),
+    displayOrder: Number(row.display_order ?? 0),
+    isActive: Boolean(row.is_active),
+    createdAt: asIsoString(row.created_at) ?? new Date().toISOString(),
+    updatedAt: asIsoString(row.updated_at) ?? new Date().toISOString()
+  };
+}
+
+function mapScenarioStressRunRecord(row: Record<string, unknown>): ScenarioStressRunRecord {
+  return {
+    id: String(row.scenario_run_id),
+    scenarioId: String(row.scenario_id) as ScenarioStressTemplateId,
+    userId: String(row.user_id),
+    status: String(row.status) as ScenarioStressRunStatus,
+    runMode: String(row.run_mode) as ScenarioStressRunMode,
+    asOf: String(row.as_of),
+    totalNames: Number(row.total_names ?? 0),
+    impactedNames: Number(row.impacted_names ?? 0),
+    criticalNames: Number(row.critical_names ?? 0),
+    summary: String(row.summary ?? ""),
+    createdAt: asIsoString(row.created_at) ?? new Date().toISOString(),
+    completedAt: asIsoString(row.completed_at) ?? new Date().toISOString()
+  };
+}
+
+function mapScenarioStressImpactRecord(
+  row: Record<string, unknown>
+): ScenarioStressImpactRecord {
+  return {
+    id: String(row.scenario_impact_id),
+    scenarioRunId: String(row.scenario_run_id),
+    userId: String(row.user_id),
+    ticker: String(row.ticker),
+    impactLevel: String(row.impact_level) as ScenarioStressImpactLevel,
+    thesisBreakLikelihood: String(row.thesis_break_likelihood) as ScenarioStressThesisBreakLikelihood,
+    stressScore: Number(row.stress_score ?? 0),
+    rationale: String(row.rationale ?? ""),
+    evidenceRefs: asStringArray(asJsonArray(row.evidence_refs)),
+    createdAt: asIsoString(row.created_at) ?? new Date().toISOString()
+  };
+}
+
+function mapScenarioStressRuleSuggestionRecord(
+  row: Record<string, unknown>
+): ScenarioStressRuleSuggestionRecord {
+  return {
+    id: String(row.scenario_rule_suggestion_id),
+    scenarioRunId: String(row.scenario_run_id),
+    userId: String(row.user_id),
+    ticker: String(row.ticker),
+    signalType: String(row.signal_type) as KillSwitchSignalType,
+    direction: String(row.direction) as KillSwitchDirection,
+    conditionText: String(row.condition_text ?? ""),
+    rationale: String(row.rationale ?? ""),
+    confidence: Number(row.confidence ?? 0),
+    createdAt: asIsoString(row.created_at) ?? new Date().toISOString()
+  };
+}
+
 function mapEarningsWarRoomRecord(row: Record<string, unknown>): EarningsWarRoomRecord {
   const updatedAt = asIsoString(row.updated_at) ?? new Date().toISOString();
   const currentCadenceMin =
@@ -1193,6 +1361,22 @@ export class InMemoryStore implements ProductStore {
     string,
     Map<string, OppositeCaseReportRecord>
   >();
+  private readonly scenarioStressTemplates = new Map<
+    ScenarioStressTemplateId,
+    ScenarioStressTemplateRecord
+  >();
+  private readonly scenarioStressRunsByUser = new Map<
+    string,
+    Map<string, ScenarioStressRunRecord>
+  >();
+  private readonly scenarioStressImpactsByRun = new Map<
+    string,
+    Map<string, ScenarioStressImpactRecord>
+  >();
+  private readonly scenarioStressRuleSuggestionsByRun = new Map<
+    string,
+    Map<string, ScenarioStressRuleSuggestionRecord>
+  >();
   private readonly warRoomsByUser = new Map<string, Map<string, EarningsWarRoomRecord>>();
   private readonly warRoomTimelineByRoom = new Map<
     string,
@@ -1205,6 +1389,9 @@ export class InMemoryStore implements ProductStore {
 
   constructor() {
     const now = new Date().toISOString();
+    for (const template of defaultScenarioStressTemplates(now)) {
+      this.scenarioStressTemplates.set(template.templateId, { ...template });
+    }
     const seed: TickerRegistryRecord[] = [
       {
         symbol: "AAPL",
@@ -1396,6 +1583,19 @@ export class InMemoryStore implements ProductStore {
     }
 
     user.verifiedAt = verifiedAt;
+    return user;
+  }
+
+  async updateUserPasswordHash(
+    userId: string,
+    passwordHash: string
+  ): Promise<UserRecord | undefined> {
+    const user = this.users.get(userId);
+    if (!user) {
+      return undefined;
+    }
+
+    user.passwordHash = passwordHash;
     return user;
   }
 
@@ -2688,6 +2888,130 @@ export class InMemoryStore implements ProductStore {
       : undefined;
   }
 
+  async listScenarioStressTemplates(input?: {
+    includeInactive?: boolean;
+    limit?: number;
+  }): Promise<ScenarioStressTemplateRecord[]> {
+    const includeInactive = input?.includeInactive ?? false;
+    return [...this.scenarioStressTemplates.values()]
+      .filter((template) => includeInactive || template.isActive)
+      .sort((left, right) => left.displayOrder - right.displayOrder)
+      .slice(0, Math.max(1, input?.limit ?? 50))
+      .map((template) => ({ ...template }));
+  }
+
+  async getScenarioStressTemplate(
+    templateId: ScenarioStressTemplateId
+  ): Promise<ScenarioStressTemplateRecord | undefined> {
+    const template = this.scenarioStressTemplates.get(templateId);
+    return template ? { ...template } : undefined;
+  }
+
+  async createScenarioStressRun(input: ScenarioStressRunRecord): Promise<ScenarioStressRunRecord> {
+    let runs = this.scenarioStressRunsByUser.get(input.userId);
+    if (!runs) {
+      runs = new Map<string, ScenarioStressRunRecord>();
+      this.scenarioStressRunsByUser.set(input.userId, runs);
+    }
+    const next: ScenarioStressRunRecord = {
+      ...input,
+      totalNames: Math.max(0, Math.floor(input.totalNames)),
+      impactedNames: Math.max(0, Math.floor(input.impactedNames)),
+      criticalNames: Math.max(0, Math.floor(input.criticalNames))
+    };
+    runs.set(next.id, next);
+    return { ...next };
+  }
+
+  async getScenarioStressRun(input: {
+    id: string;
+    userId: string;
+  }): Promise<ScenarioStressRunRecord | undefined> {
+    const run = this.scenarioStressRunsByUser.get(input.userId)?.get(input.id);
+    return run ? { ...run } : undefined;
+  }
+
+  async createScenarioStressImpacts(
+    input: ScenarioStressImpactRecord[]
+  ): Promise<ScenarioStressImpactRecord[]> {
+    const created: ScenarioStressImpactRecord[] = [];
+    for (const item of input) {
+      let impacts = this.scenarioStressImpactsByRun.get(item.scenarioRunId);
+      if (!impacts) {
+        impacts = new Map<string, ScenarioStressImpactRecord>();
+        this.scenarioStressImpactsByRun.set(item.scenarioRunId, impacts);
+      }
+      const next: ScenarioStressImpactRecord = {
+        ...item,
+        ticker: item.ticker.trim().toUpperCase(),
+        stressScore: Math.min(1, Math.max(0, item.stressScore)),
+        evidenceRefs: cloneScenarioStressEvidenceRefs(item.evidenceRefs)
+      };
+      impacts.set(next.id, next);
+      created.push({
+        ...next,
+        evidenceRefs: cloneScenarioStressEvidenceRefs(next.evidenceRefs)
+      });
+    }
+    return created;
+  }
+
+  async listScenarioStressImpactsByRun(input: {
+    scenarioRunId: string;
+    userId: string;
+  }): Promise<ScenarioStressImpactRecord[]> {
+    const run = await this.getScenarioStressRun({
+      id: input.scenarioRunId,
+      userId: input.userId
+    });
+    if (!run) {
+      return [];
+    }
+    return [...(this.scenarioStressImpactsByRun.get(input.scenarioRunId)?.values() ?? [])]
+      .sort((left, right) => right.stressScore - left.stressScore || left.ticker.localeCompare(right.ticker))
+      .map((impact) => ({
+        ...impact,
+        evidenceRefs: cloneScenarioStressEvidenceRefs(impact.evidenceRefs)
+      }));
+  }
+
+  async createScenarioStressRuleSuggestions(
+    input: ScenarioStressRuleSuggestionRecord[]
+  ): Promise<ScenarioStressRuleSuggestionRecord[]> {
+    const created: ScenarioStressRuleSuggestionRecord[] = [];
+    for (const item of input) {
+      let suggestions = this.scenarioStressRuleSuggestionsByRun.get(item.scenarioRunId);
+      if (!suggestions) {
+        suggestions = new Map<string, ScenarioStressRuleSuggestionRecord>();
+        this.scenarioStressRuleSuggestionsByRun.set(item.scenarioRunId, suggestions);
+      }
+      const next: ScenarioStressRuleSuggestionRecord = {
+        ...item,
+        ticker: item.ticker.trim().toUpperCase(),
+        confidence: Math.min(1, Math.max(0, item.confidence))
+      };
+      suggestions.set(next.id, next);
+      created.push({ ...next });
+    }
+    return created;
+  }
+
+  async listScenarioStressRuleSuggestionsByRun(input: {
+    scenarioRunId: string;
+    userId: string;
+  }): Promise<ScenarioStressRuleSuggestionRecord[]> {
+    const run = await this.getScenarioStressRun({
+      id: input.scenarioRunId,
+      userId: input.userId
+    });
+    if (!run) {
+      return [];
+    }
+    return [...(this.scenarioStressRuleSuggestionsByRun.get(input.scenarioRunId)?.values() ?? [])]
+      .sort((left, right) => right.confidence - left.confidence || left.ticker.localeCompare(right.ticker))
+      .map((suggestion) => ({ ...suggestion }));
+  }
+
   async createWarRoom(input: EarningsWarRoomRecord): Promise<EarningsWarRoomRecord> {
     let warRooms = this.warRoomsByUser.get(input.userId);
     if (!warRooms) {
@@ -3226,6 +3550,18 @@ export class PostgresStore implements ProductStore {
     const result = await this.pool.query(
       "update users set verified_at = $2 where id = $1 returning *",
       [userId, verifiedAt]
+    );
+    const row = result.rows[0] as Record<string, unknown> | undefined;
+    return row ? mapUser(row) : undefined;
+  }
+
+  async updateUserPasswordHash(
+    userId: string,
+    passwordHash: string
+  ): Promise<UserRecord | undefined> {
+    const result = await this.pool.query(
+      "update users set password_hash = $2 where id = $1 returning *",
+      [userId, passwordHash]
     );
     const row = result.rows[0] as Record<string, unknown> | undefined;
     return row ? mapUser(row) : undefined;
@@ -5153,6 +5489,245 @@ export class PostgresStore implements ProductStore {
     );
     const row = result.rows[0];
     return row ? mapOppositeCaseReportRecord(row as Record<string, unknown>) : undefined;
+  }
+
+  async listScenarioStressTemplates(input?: {
+    includeInactive?: boolean;
+    limit?: number;
+  }): Promise<ScenarioStressTemplateRecord[]> {
+    const includeInactive = input?.includeInactive ?? false;
+    const result = await this.pool.query(
+      `select *
+         from scenario_stress_templates
+        where ($1::boolean = true or is_active = true)
+        order by display_order asc, updated_at desc
+        limit $2`,
+      [includeInactive, Math.max(1, input?.limit ?? 50)]
+    );
+    return result.rows.map((row) =>
+      mapScenarioStressTemplateRecord(row as Record<string, unknown>)
+    );
+  }
+
+  async getScenarioStressTemplate(
+    templateId: ScenarioStressTemplateId
+  ): Promise<ScenarioStressTemplateRecord | undefined> {
+    const result = await this.pool.query(
+      `select *
+         from scenario_stress_templates
+        where scenario_id = $1
+        limit 1`,
+      [templateId]
+    );
+    const row = result.rows[0] as Record<string, unknown> | undefined;
+    return row ? mapScenarioStressTemplateRecord(row) : undefined;
+  }
+
+  async createScenarioStressRun(input: ScenarioStressRunRecord): Promise<ScenarioStressRunRecord> {
+    const result = await this.pool.query(
+      `insert into scenario_stress_runs (
+         scenario_run_id,
+         user_id,
+         scenario_id,
+         status,
+         run_mode,
+         as_of,
+         total_names,
+         impacted_names,
+         critical_names,
+         summary,
+         created_at,
+         completed_at
+       )
+       values (
+         $1,
+         $2,
+         $3,
+         $4,
+         $5,
+         $6::date,
+         $7,
+         $8,
+         $9,
+         $10,
+         $11::timestamptz,
+         $12::timestamptz
+       )
+       returning *`,
+      [
+        input.id,
+        input.userId,
+        input.scenarioId,
+        input.status,
+        input.runMode,
+        input.asOf,
+        Math.max(0, Math.floor(input.totalNames)),
+        Math.max(0, Math.floor(input.impactedNames)),
+        Math.max(0, Math.floor(input.criticalNames)),
+        input.summary,
+        input.createdAt,
+        input.completedAt
+      ]
+    );
+    return mapScenarioStressRunRecord(result.rows[0] as Record<string, unknown>);
+  }
+
+  async getScenarioStressRun(input: {
+    id: string;
+    userId: string;
+  }): Promise<ScenarioStressRunRecord | undefined> {
+    const result = await this.pool.query(
+      `select *
+         from scenario_stress_runs
+        where scenario_run_id = $1
+          and user_id = $2
+        limit 1`,
+      [input.id, input.userId]
+    );
+    const row = result.rows[0] as Record<string, unknown> | undefined;
+    return row ? mapScenarioStressRunRecord(row) : undefined;
+  }
+
+  async createScenarioStressImpacts(
+    input: ScenarioStressImpactRecord[]
+  ): Promise<ScenarioStressImpactRecord[]> {
+    if (input.length === 0) {
+      return [];
+    }
+    const created: ScenarioStressImpactRecord[] = [];
+    for (const item of input) {
+      const result = await this.pool.query(
+        `insert into scenario_stress_impacts (
+           scenario_impact_id,
+           scenario_run_id,
+           user_id,
+           ticker,
+           impact_level,
+           thesis_break_likelihood,
+           stress_score,
+           rationale,
+           evidence_refs,
+           created_at
+         )
+         values (
+           $1,
+           $2,
+           $3,
+           $4,
+           $5,
+           $6,
+           $7,
+           $8,
+           $9::jsonb,
+           $10::timestamptz
+         )
+         returning *`,
+        [
+          item.id,
+          item.scenarioRunId,
+          item.userId,
+          item.ticker.trim().toUpperCase(),
+          item.impactLevel,
+          item.thesisBreakLikelihood,
+          Math.min(1, Math.max(0, item.stressScore)),
+          item.rationale,
+          JSON.stringify(item.evidenceRefs),
+          item.createdAt
+        ]
+      );
+      created.push(mapScenarioStressImpactRecord(result.rows[0] as Record<string, unknown>));
+    }
+    return created;
+  }
+
+  async listScenarioStressImpactsByRun(input: {
+    scenarioRunId: string;
+    userId: string;
+  }): Promise<ScenarioStressImpactRecord[]> {
+    const result = await this.pool.query(
+      `select impacts.*
+         from scenario_stress_impacts impacts
+         join scenario_stress_runs runs on runs.scenario_run_id = impacts.scenario_run_id
+        where impacts.scenario_run_id = $1
+          and runs.user_id = $2
+        order by impacts.stress_score desc, impacts.ticker asc`,
+      [input.scenarioRunId, input.userId]
+    );
+    return result.rows.map((row) =>
+      mapScenarioStressImpactRecord(row as Record<string, unknown>)
+    );
+  }
+
+  async createScenarioStressRuleSuggestions(
+    input: ScenarioStressRuleSuggestionRecord[]
+  ): Promise<ScenarioStressRuleSuggestionRecord[]> {
+    if (input.length === 0) {
+      return [];
+    }
+    const created: ScenarioStressRuleSuggestionRecord[] = [];
+    for (const item of input) {
+      const result = await this.pool.query(
+        `insert into scenario_stress_rule_suggestions (
+           scenario_rule_suggestion_id,
+           scenario_run_id,
+           user_id,
+           ticker,
+           signal_type,
+           direction,
+           condition_text,
+           rationale,
+           confidence,
+           created_at
+         )
+         values (
+           $1,
+           $2,
+           $3,
+           $4,
+           $5,
+           $6,
+           $7,
+           $8,
+           $9,
+           $10::timestamptz
+         )
+         returning *`,
+        [
+          item.id,
+          item.scenarioRunId,
+          item.userId,
+          item.ticker.trim().toUpperCase(),
+          item.signalType,
+          item.direction,
+          item.conditionText,
+          item.rationale,
+          Math.min(1, Math.max(0, item.confidence)),
+          item.createdAt
+        ]
+      );
+      created.push(
+        mapScenarioStressRuleSuggestionRecord(result.rows[0] as Record<string, unknown>)
+      );
+    }
+    return created;
+  }
+
+  async listScenarioStressRuleSuggestionsByRun(input: {
+    scenarioRunId: string;
+    userId: string;
+  }): Promise<ScenarioStressRuleSuggestionRecord[]> {
+    const result = await this.pool.query(
+      `select suggestions.*
+         from scenario_stress_rule_suggestions suggestions
+         join scenario_stress_runs runs on runs.scenario_run_id = suggestions.scenario_run_id
+        where suggestions.scenario_run_id = $1
+          and runs.user_id = $2
+        order by suggestions.confidence desc, suggestions.ticker asc`,
+      [input.scenarioRunId, input.userId]
+    );
+    return result.rows.map((row) =>
+      mapScenarioStressRuleSuggestionRecord(row as Record<string, unknown>)
+    );
   }
 
   async createWarRoom(input: EarningsWarRoomRecord): Promise<EarningsWarRoomRecord> {

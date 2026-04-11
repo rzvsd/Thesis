@@ -17,6 +17,8 @@ class NotificationDismissReceiver : BroadcastReceiver() {
         val ticker = intent?.getStringExtra(EXTRA_TICKER)?.trim()?.ifBlank { null }
         val alertId = intent?.getStringExtra(EXTRA_ALERT_ID)?.trim()?.ifBlank { null }
         val warRoomId = intent?.getStringExtra(EXTRA_WAR_ROOM_ID)?.trim()?.ifBlank { null }
+        val scenarioId = intent?.getStringExtra(EXTRA_SCENARIO_ID)?.trim()?.ifBlank { null }
+        val scenarioRunId = intent?.getStringExtra(EXTRA_SCENARIO_RUN_ID)?.trim()?.ifBlank { null }
 
         CoroutineScope(Dispatchers.IO).launch {
             runCatching {
@@ -28,7 +30,9 @@ class NotificationDismissReceiver : BroadcastReceiver() {
                         "open_tab" to openTab,
                         "ticker" to ticker,
                         "alert_id" to alertId,
-                        "war_room_id" to warRoomId
+                        "war_room_id" to warRoomId,
+                        "scenario_id" to scenarioId,
+                        "scenario_run_id" to scenarioRunId
                     )
                 )
             }
@@ -41,5 +45,7 @@ class NotificationDismissReceiver : BroadcastReceiver() {
         const val EXTRA_TICKER = "ticker"
         const val EXTRA_ALERT_ID = "alert_id"
         const val EXTRA_WAR_ROOM_ID = "war_room_id"
+        const val EXTRA_SCENARIO_ID = "scenario_id"
+        const val EXTRA_SCENARIO_RUN_ID = "scenario_run_id"
     }
 }

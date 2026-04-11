@@ -27,6 +27,8 @@ data class LaunchTarget(
     val alertId: String? = null,
     val reportId: String? = null,
     val warRoomId: String? = null,
+    val scenarioId: String? = null,
+    val scenarioRunId: String? = null,
     val pulseDate: String? = null,
     val digestDate: String? = null,
     val notificationType: String? = null,
@@ -121,6 +123,14 @@ class MainActivity : FragmentActivity() {
             intent.getStringExtra("war_room_id"),
             uriString
         )
+        val scenarioId = LaunchDestinationResolver.resolveScenarioId(
+            intent.getStringExtra("scenario_id"),
+            uriString
+        )
+        val scenarioRunId = LaunchDestinationResolver.resolveScenarioRunId(
+            intent.getStringExtra("scenario_run_id"),
+            uriString
+        )
 
         launchTarget = resolvedTab?.let { target ->
             LaunchTarget(
@@ -128,6 +138,8 @@ class MainActivity : FragmentActivity() {
                 alertId = extractAlertId(intent),
                 reportId = extractReportId(intent),
                 warRoomId = warRoomId,
+                scenarioId = scenarioId,
+                scenarioRunId = scenarioRunId,
                 pulseDate = extractPulseDate(intent),
                 digestDate = extractDigestDate(intent),
                 notificationType = normalizedType,
@@ -145,7 +157,9 @@ class MainActivity : FragmentActivity() {
                         "tab" to target.tab,
                         "ticker" to target.ticker,
                         "alert_id" to target.alertId,
-                        "war_room_id" to target.warRoomId
+                        "war_room_id" to target.warRoomId,
+                        "scenario_id" to target.scenarioId,
+                        "scenario_run_id" to target.scenarioRunId
                     )
                 )
             }

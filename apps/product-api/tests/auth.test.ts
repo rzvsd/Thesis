@@ -45,17 +45,29 @@ async function requestJson(
 
 test("auth lifecycle supports register -> verify -> login -> refresh -> logout", async () => {
   const previous = {
+    NODE_ENV: process.env.NODE_ENV,
     STORE_BACKEND: process.env.STORE_BACKEND,
     QUEUE_BACKEND: process.env.QUEUE_BACKEND,
     AUTH_EXPOSE_VERIFICATION_TOKEN: process.env.AUTH_EXPOSE_VERIFICATION_TOKEN,
     JWT_SECRET: process.env.JWT_SECRET,
-    INTERNAL_WORKER_TOKEN: process.env.INTERNAL_WORKER_TOKEN
+    INTERNAL_WORKER_TOKEN: process.env.INTERNAL_WORKER_TOKEN,
+    ADMIN_BOOTSTRAP_ENABLED: process.env.ADMIN_BOOTSTRAP_ENABLED,
+    ADMIN_BOOTSTRAP_EMAIL: process.env.ADMIN_BOOTSTRAP_EMAIL,
+    ADMIN_BOOTSTRAP_PASSWORD_HASH: process.env.ADMIN_BOOTSTRAP_PASSWORD_HASH,
+    ADMIN_BOOTSTRAP_AUTO_VERIFY: process.env.ADMIN_BOOTSTRAP_AUTO_VERIFY,
+    ADMIN_BOOTSTRAP_FORCE_PRO: process.env.ADMIN_BOOTSTRAP_FORCE_PRO
   };
+  process.env.NODE_ENV = "test";
   process.env.STORE_BACKEND = "memory";
   process.env.QUEUE_BACKEND = "memory";
   process.env.AUTH_EXPOSE_VERIFICATION_TOKEN = "true";
   process.env.JWT_SECRET = "dev-jwt-secret-change-me";
   process.env.INTERNAL_WORKER_TOKEN = "dev-internal-worker-token";
+  delete process.env.ADMIN_BOOTSTRAP_ENABLED;
+  delete process.env.ADMIN_BOOTSTRAP_EMAIL;
+  delete process.env.ADMIN_BOOTSTRAP_PASSWORD_HASH;
+  delete process.env.ADMIN_BOOTSTRAP_AUTO_VERIFY;
+  delete process.env.ADMIN_BOOTSTRAP_FORCE_PRO;
 
   const server = startServer(0);
   await once(server, "listening");
@@ -129,9 +141,136 @@ test("auth lifecycle supports register -> verify -> login -> refresh -> logout",
   assert.equal(refreshAfterLogout.status, 401);
 
   await closeServer(server);
+  process.env.NODE_ENV = previous.NODE_ENV;
   process.env.STORE_BACKEND = previous.STORE_BACKEND;
   process.env.QUEUE_BACKEND = previous.QUEUE_BACKEND;
   process.env.AUTH_EXPOSE_VERIFICATION_TOKEN = previous.AUTH_EXPOSE_VERIFICATION_TOKEN;
   process.env.JWT_SECRET = previous.JWT_SECRET;
   process.env.INTERNAL_WORKER_TOKEN = previous.INTERNAL_WORKER_TOKEN;
+  process.env.ADMIN_BOOTSTRAP_ENABLED = previous.ADMIN_BOOTSTRAP_ENABLED;
+  process.env.ADMIN_BOOTSTRAP_EMAIL = previous.ADMIN_BOOTSTRAP_EMAIL;
+  process.env.ADMIN_BOOTSTRAP_PASSWORD_HASH = previous.ADMIN_BOOTSTRAP_PASSWORD_HASH;
+  process.env.ADMIN_BOOTSTRAP_AUTO_VERIFY = previous.ADMIN_BOOTSTRAP_AUTO_VERIFY;
+  process.env.ADMIN_BOOTSTRAP_FORCE_PRO = previous.ADMIN_BOOTSTRAP_FORCE_PRO;
+});
+
+test("admin bootstrap creates verified pro user for non-production login", async () => {
+  const previous = {
+    NODE_ENV: process.env.NODE_ENV,
+    STORE_BACKEND: process.env.STORE_BACKEND,
+    QUEUE_BACKEND: process.env.QUEUE_BACKEND,
+    AUTH_EXPOSE_VERIFICATION_TOKEN: process.env.AUTH_EXPOSE_VERIFICATION_TOKEN,
+    JWT_SECRET: process.env.JWT_SECRET,
+    INTERNAL_WORKER_TOKEN: process.env.INTERNAL_WORKER_TOKEN,
+    ADMIN_BOOTSTRAP_ENABLED: process.env.ADMIN_BOOTSTRAP_ENABLED,
+    ADMIN_BOOTSTRAP_EMAIL: process.env.ADMIN_BOOTSTRAP_EMAIL,
+    ADMIN_BOOTSTRAP_PASSWORD_HASH: process.env.ADMIN_BOOTSTRAP_PASSWORD_HASH,
+    ADMIN_BOOTSTRAP_AUTO_VERIFY: process.env.ADMIN_BOOTSTRAP_AUTO_VERIFY,
+    ADMIN_BOOTSTRAP_FORCE_PRO: process.env.ADMIN_BOOTSTRAP_FORCE_PRO
+  };
+  process.env.NODE_ENV = "development";
+  process.env.STORE_BACKEND = "memory";
+  process.env.QUEUE_BACKEND = "memory";
+  process.env.AUTH_EXPOSE_VERIFICATION_TOKEN = "false";
+  process.env.JWT_SECRET = "dev-jwt-secret-change-me";
+  process.env.INTERNAL_WORKER_TOKEN = "dev-internal-worker-token";
+  process.env.ADMIN_BOOTSTRAP_ENABLED = "true";
+  process.env.ADMIN_BOOTSTRAP_EMAIL = "builder@example.com";
+  process.env.ADMIN_BOOTSTRAP_PASSWORD_HASH =
+    "$2a$12$y7qTn4TtWvaOFr1iJB0eauN024sJFu0giXzoa0a7b58iANgkTcFi.";
+  process.env.ADMIN_BOOTSTRAP_AUTO_VERIFY = "true";
+  process.env.ADMIN_BOOTSTRAP_FORCE_PRO = "true";
+
+  const server = startServer(0);
+  await once(server, "listening");
+  const { port } = server.address() as AddressInfo;
+  const baseUrl = `http://127.0.0.1:${port}`;
+
+  const login = await requestJson(baseUrl, "/auth/login", {
+    method: "POST",
+    body: {
+      email: "builder@example.com",
+      password: "BuilderPass1!"
+    }
+  });
+  assert.equal(login.status, 200);
+  assert.equal(typeof login.payload.access_token, "string");
+
+  const profile = await requestJson(baseUrl, "/v1/user/profile", {
+    method: "GET",
+    headers: {
+      authorization: `Bearer ${String(login.payload.access_token)}`
+    }
+  });
+  assert.equal(profile.status, 200);
+  const profileData = profile.payload.data as JsonObject;
+  assert.equal(profileData.tier, "PRO");
+
+  await closeServer(server);
+  process.env.NODE_ENV = previous.NODE_ENV;
+  process.env.STORE_BACKEND = previous.STORE_BACKEND;
+  process.env.QUEUE_BACKEND = previous.QUEUE_BACKEND;
+  process.env.AUTH_EXPOSE_VERIFICATION_TOKEN = previous.AUTH_EXPOSE_VERIFICATION_TOKEN;
+  process.env.JWT_SECRET = previous.JWT_SECRET;
+  process.env.INTERNAL_WORKER_TOKEN = previous.INTERNAL_WORKER_TOKEN;
+  process.env.ADMIN_BOOTSTRAP_ENABLED = previous.ADMIN_BOOTSTRAP_ENABLED;
+  process.env.ADMIN_BOOTSTRAP_EMAIL = previous.ADMIN_BOOTSTRAP_EMAIL;
+  process.env.ADMIN_BOOTSTRAP_PASSWORD_HASH = previous.ADMIN_BOOTSTRAP_PASSWORD_HASH;
+  process.env.ADMIN_BOOTSTRAP_AUTO_VERIFY = previous.ADMIN_BOOTSTRAP_AUTO_VERIFY;
+  process.env.ADMIN_BOOTSTRAP_FORCE_PRO = previous.ADMIN_BOOTSTRAP_FORCE_PRO;
+});
+
+test("admin bootstrap is ignored in production", async () => {
+  const previous = {
+    NODE_ENV: process.env.NODE_ENV,
+    STORE_BACKEND: process.env.STORE_BACKEND,
+    QUEUE_BACKEND: process.env.QUEUE_BACKEND,
+    AUTH_EXPOSE_VERIFICATION_TOKEN: process.env.AUTH_EXPOSE_VERIFICATION_TOKEN,
+    JWT_SECRET: process.env.JWT_SECRET,
+    INTERNAL_WORKER_TOKEN: process.env.INTERNAL_WORKER_TOKEN,
+    ADMIN_BOOTSTRAP_ENABLED: process.env.ADMIN_BOOTSTRAP_ENABLED,
+    ADMIN_BOOTSTRAP_EMAIL: process.env.ADMIN_BOOTSTRAP_EMAIL,
+    ADMIN_BOOTSTRAP_PASSWORD_HASH: process.env.ADMIN_BOOTSTRAP_PASSWORD_HASH,
+    ADMIN_BOOTSTRAP_AUTO_VERIFY: process.env.ADMIN_BOOTSTRAP_AUTO_VERIFY,
+    ADMIN_BOOTSTRAP_FORCE_PRO: process.env.ADMIN_BOOTSTRAP_FORCE_PRO
+  };
+  process.env.NODE_ENV = "production";
+  process.env.STORE_BACKEND = "memory";
+  process.env.QUEUE_BACKEND = "memory";
+  process.env.AUTH_EXPOSE_VERIFICATION_TOKEN = "false";
+  process.env.JWT_SECRET = "dev-jwt-secret-change-me";
+  process.env.INTERNAL_WORKER_TOKEN = "dev-internal-worker-token";
+  process.env.ADMIN_BOOTSTRAP_ENABLED = "true";
+  process.env.ADMIN_BOOTSTRAP_EMAIL = "builder@example.com";
+  process.env.ADMIN_BOOTSTRAP_PASSWORD_HASH =
+    "$2a$12$y7qTn4TtWvaOFr1iJB0eauN024sJFu0giXzoa0a7b58iANgkTcFi.";
+  process.env.ADMIN_BOOTSTRAP_AUTO_VERIFY = "true";
+  process.env.ADMIN_BOOTSTRAP_FORCE_PRO = "true";
+
+  const server = startServer(0);
+  await once(server, "listening");
+  const { port } = server.address() as AddressInfo;
+  const baseUrl = `http://127.0.0.1:${port}`;
+
+  const login = await requestJson(baseUrl, "/auth/login", {
+    method: "POST",
+    body: {
+      email: "builder@example.com",
+      password: "BuilderPass1!"
+    }
+  });
+  assert.equal(login.status, 401);
+
+  await closeServer(server);
+  process.env.NODE_ENV = previous.NODE_ENV;
+  process.env.STORE_BACKEND = previous.STORE_BACKEND;
+  process.env.QUEUE_BACKEND = previous.QUEUE_BACKEND;
+  process.env.AUTH_EXPOSE_VERIFICATION_TOKEN = previous.AUTH_EXPOSE_VERIFICATION_TOKEN;
+  process.env.JWT_SECRET = previous.JWT_SECRET;
+  process.env.INTERNAL_WORKER_TOKEN = previous.INTERNAL_WORKER_TOKEN;
+  process.env.ADMIN_BOOTSTRAP_ENABLED = previous.ADMIN_BOOTSTRAP_ENABLED;
+  process.env.ADMIN_BOOTSTRAP_EMAIL = previous.ADMIN_BOOTSTRAP_EMAIL;
+  process.env.ADMIN_BOOTSTRAP_PASSWORD_HASH = previous.ADMIN_BOOTSTRAP_PASSWORD_HASH;
+  process.env.ADMIN_BOOTSTRAP_AUTO_VERIFY = previous.ADMIN_BOOTSTRAP_AUTO_VERIFY;
+  process.env.ADMIN_BOOTSTRAP_FORCE_PRO = previous.ADMIN_BOOTSTRAP_FORCE_PRO;
 });

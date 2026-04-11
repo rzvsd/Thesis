@@ -27,4 +27,49 @@ class LaunchDestinationResolverTest {
             )
         )
     }
+
+    @Test
+    fun resolveTab_routesScenarioRunQueryToResearch() {
+        assertEquals(
+            "research",
+            LaunchDestinationResolver.resolveTab(null, null, "thesis://research?scenario_run_id=sr_123")
+        )
+        assertEquals("research", LaunchDestinationResolver.resolveTab("scenario", null, null))
+        assertEquals(
+            "research",
+            LaunchDestinationResolver.resolveTab(
+                null,
+                null,
+                "thesis://open?open_tab=research&scenario_id=rates_higher_for_longer&scenario_run_id=sr_123"
+            )
+        )
+        assertEquals(
+            null,
+            LaunchDestinationResolver.resolveTab(
+                null,
+                null,
+                "thesis://open?scenario_run_id=sr_123"
+            )
+        )
+    }
+
+    @Test
+    fun resolveScenarioIds_readExplicitValueOrUriQuery() {
+        assertEquals("rates_higher_for_longer", LaunchDestinationResolver.resolveScenarioId("rates_higher_for_longer", null))
+        assertEquals(
+            "ai_hype_burst",
+            LaunchDestinationResolver.resolveScenarioId(
+                null,
+                "thesis://research/scenario?scenario_id=ai_hype_burst"
+            )
+        )
+        assertEquals("sr_789", LaunchDestinationResolver.resolveScenarioRunId("sr_789", null))
+        assertEquals(
+            "sr_456",
+            LaunchDestinationResolver.resolveScenarioRunId(
+                null,
+                "thesis://research/scenario?scenario_run_id=sr_456"
+            )
+        )
+    }
 }

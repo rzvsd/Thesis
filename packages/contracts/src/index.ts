@@ -28,6 +28,7 @@ export * from "./report-note";
 export * from "./report-section";
 export * from "./report-list-item";
 export * from "./scenario-request";
+export * from "./scenario-stress";
 export * from "./service-response";
 export * from "./subscription-tier";
 export * from "./ticker-coverage";

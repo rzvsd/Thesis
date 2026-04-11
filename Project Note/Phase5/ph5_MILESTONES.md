@@ -511,6 +511,8 @@ Product API Engineer + Scheduler Engineer + Dexter Engineer + Mobile Engineer
 
 Deliver one-tap portfolio-wide scenario analysis with actionable thesis impact summaries.
 
+Status: Closed (PASS) on 2026-04-11; scheduler-owned scenario automation remains deferred by lock.
+
 ## Deliverables
 
 | Deliverable | Description |
@@ -520,26 +522,53 @@ Deliver one-tap portfolio-wide scenario analysis with actionable thesis impact s
 | Stress-card contracts | Typed portfolio and per-name stress output payloads |
 | Suggested rule additions | Recommendations for new kill-switch rules from scenario results |
 | Mobile scenario surface | User-triggered scenario run and result exploration |
+| Entitlement and route contract | Pro-only stress-card access with route-safe scenario drill-down |
+
+M7 storage and interface lock:
+
+- Contract file: `packages/contracts/src/scenario-stress.ts`
+- Template table: `scenario_stress_templates`
+- Run table: `scenario_stress_runs`
+- Per-name impact table: `scenario_stress_impacts`
+- Rule suggestion table: `scenario_stress_rule_suggestions`
+- Template list endpoint: `GET /v1/scenarios/templates`
+- Scenario run endpoint: `POST /v1/scenarios/runs`
+- Scenario run read endpoint: `GET /v1/scenarios/runs/{scenario_run_id}`
+- Scenario route tuple (M7 lock): `open_tab=research`, `scenario_id`, `scenario_run_id`
+- Optional route keys: `ticker`, `rule_id`
+- M7 run mode: user-triggered only (optional scheduled cycle deferred beyond Phase 5)
+- M7 entitlement: stress cards are Pro-only
+- M7 template IDs (v1): `rates_higher_for_longer`, `recession_in_6m`, `usd_up_10`, `ai_hype_burst`, `oil_120_spike`
 
 ## Acceptance Criteria
 
-- [ ] Scenario templates are defined, versioned, and queryable
-- [ ] Evaluator returns per-name exposure and thesis-break likelihood rationale
-- [ ] Stress cards identify impacted names and reasoning chain
-- [ ] Suggested kill-switch additions are generated and reviewable
-- [ ] Scenario runs are auditable and linked to user context
-- [ ] Integration tests cover template execution determinism
-- [ ] Mobile scenario workflow supports run, inspect, and route to affected names
+- [x] Scenario templates are defined, versioned, and queryable with locked v1 template IDs
+- [x] Evaluator returns per-name exposure and thesis-break likelihood rationale
+- [x] Stress cards identify impacted names and reasoning chain
+- [x] Suggested kill-switch additions are generated as review-only recommendations
+- [x] Scenario runs are auditable via durable run and per-name impact records
+- [x] Integration tests cover deterministic execution envelope:
+- [x] impacted ticker set exact match for repeated runs on the same snapshot
+- [x] per-ticker `impact_level` and `thesis_break_likelihood` exact enum match
+- [x] suggested rule set by `ticker + signal_type + direction` exact match
+- [x] numeric score variance within `+/-0.02`
+- [x] Pro users can run/read stress cards and Free users are blocked
+- [x] Mobile scenario workflow supports run, inspect, and route to affected names through the locked route tuple
+- [x] Mobile scenario surfaces preserve existing Thesis colors, typography, tone, and component style
+- [x] M7 implementation does not introduce optional scheduled scenario runs
 
 ## Smoke Test
 
 ```text
-Step 1: Execute baseline scenario template over seeded portfolio
+Step 1: User triggers baseline scenario template run via `POST /v1/scenarios/runs` over seeded portfolio
 Step 2: Confirm per-name impact outputs with reasoned explanations
 Step 3: Confirm impacted-thesis summary and suggested rule additions
-Step 4: Re-run same template and verify deterministic output envelope
-Step 5: Confirm scenario card routes to affected name contexts
-Step 6: Confirm no-impact scenarios produce explicit no-critical-impact output
+Step 4: Re-run same template and verify deterministic envelope (ticker set and enums exact, numeric scores within +/-0.02)
+Step 5: Confirm Pro users can run/read stress cards and Free users are blocked
+Step 6: Confirm scenario card routes to affected name contexts using `open_tab=research`, `scenario_id`, `scenario_run_id`
+Step 7: Confirm no-impact scenarios produce explicit no-critical-impact output
+Step 8: Confirm no scheduler-owned scenario job/push path exists and no run is created without user-triggered request
+Step 9: Confirm scenario surfaces preserve existing Thesis visual language on device smoke
 ```
 
 ## Success
@@ -553,6 +582,8 @@ Users gain proactive portfolio stress intelligence even in quiet periods.
 | Scenario outputs are generic and non-actionable | QA rubric and user feedback loop | Low retention impact |
 | Non-deterministic scenario results | Repeat-run variance tests | Loss of trust |
 | Suggested rules are noisy | Rule suggestion acceptance-rate tracking | Alert quality degradation |
+| Free users receive stress-card outputs | Entitlement integration tests | Monetization regression |
+| Scenario routes fail to restore context | Device route smoke and deep-link tests | Dead-end UX and lower trust |
 
 ## Rollback
 

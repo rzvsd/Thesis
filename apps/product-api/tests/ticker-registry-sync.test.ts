@@ -44,6 +44,7 @@ const SAMPLE_DAILY_LIST = [
 function createConfig(overrides: Partial<ProductApiConfig> = {}): ProductApiConfig {
   return {
     port: 3001,
+    nodeEnv: "test",
     jwtSecret: "dev-jwt-secret-change-me",
     accessTokenTtlSeconds: 900,
     refreshTokenTtlSeconds: 2_592_000,
@@ -67,6 +68,12 @@ function createConfig(overrides: Partial<ProductApiConfig> = {}): ProductApiConf
     artifactRequireDurable: false,
     emailProviderMode: "stub",
     exposeVerificationToken: false,
+    adminBootstrapRequested: false,
+    adminBootstrapEnabled: false,
+    adminBootstrapEmail: undefined,
+    adminBootstrapPasswordHash: undefined,
+    adminBootstrapAutoVerify: true,
+    adminBootstrapForcePro: true,
     internalWorkerToken: "dev-internal-worker-token",
     rateLimitWindowSeconds: 60,
     rateLimitMaxRequests: 120,
