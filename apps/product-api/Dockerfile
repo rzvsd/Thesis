@@ -8,6 +8,9 @@ COPY . .
 
 RUN pnpm install --no-frozen-lockfile
 RUN pnpm --filter @thesis/product-api build
+RUN mkdir -p /app/data/artifacts && chown -R node:node /app
+
+USER node
 
 EXPOSE 3001
 
