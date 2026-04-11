@@ -107,7 +107,9 @@ function createConfig(overrides: Partial<ProductApiConfig> = {}): ProductApiConf
     jobRecoveryQueuedStaleSeconds: 20,
     jobRecoveryRunningTimeoutSeconds: 180,
     jobRecoveryRequeueCooldownSeconds: 60,
-    ...overrides
+    ...overrides,
+    corsAllowedOrigins: overrides.corsAllowedOrigins ?? ["https://allowed.example"],
+    maxJsonBodyBytes: overrides.maxJsonBodyBytes ?? 1_048_576
   };
 }
 

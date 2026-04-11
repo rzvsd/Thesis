@@ -16,3 +16,11 @@ Prove API perimeter protections are active and deterministic.
 - API test output
 - Manual curl/httpie command output
 - Notes saved in `Milestones/M1/evidence/`
+
+## Execution Log - 2026-04-11
+
+1. `corepack pnpm --filter @thesis/product-api typecheck` -> pass
+2. `corepack pnpm --filter @thesis/product-api test` -> pass (`53` tests)
+3. `node --test --test-concurrency=1 dist/apps/product-api/tests/safety-m1-perimeter.test.js` -> pass (`4` tests)
+4. Manual smoke commands executed and captured in:
+   `Milestones/M1/evidence/M1_SMOKE_EVIDENCE_2026-04-11.md`

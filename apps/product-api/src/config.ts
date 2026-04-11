@@ -39,6 +39,18 @@ function parseCsv(value: string | undefined, fallback: string[]): string[] {
   return parsed.length > 0 ? parsed : fallback;
 }
 
+function parseOrigins(value: string | undefined, fallback: string[]): string[] {
+  if (!value) {
+    return fallback;
+  }
+
+  const parsed = value
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+  return parsed.length > 0 ? parsed : fallback;
+}
+
 export type QueueBackend = "redis" | "memory";
 export type StoreBackend = "postgres" | "memory";
 
@@ -48,6 +60,18 @@ function isValidEmail(value: string): boolean {
 
 function isLikelyBcryptHash(value: string): boolean {
   return /^\$2[aby]\$\d{2}\$[./A-Za-z0-9]{53}$/.test(value);
+}
+
+function hasRedisAuthInUrl(value: string): boolean {
+  try {
+    const parsed = new URL(value);
+    if (parsed.protocol !== "redis:" && parsed.protocol !== "rediss:") {
+      return false;
+    }
+    return parsed.password.trim().length > 0;
+  } catch {
+    return false;
+  }
 }
 
 export interface ProductApiConfig {
@@ -83,6 +107,8 @@ export interface ProductApiConfig {
   adminBootstrapAutoVerify: boolean;
   adminBootstrapForcePro: boolean;
   internalWorkerToken: string;
+  corsAllowedOrigins: string[];
+  maxJsonBodyBytes: number;
   rateLimitWindowSeconds: number;
   rateLimitMaxRequests: number;
   tickerAutoSyncEnabled: boolean;
@@ -189,6 +215,13 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ProductApiConf
     adminBootstrapAutoVerify: parseBoolean(env.ADMIN_BOOTSTRAP_AUTO_VERIFY, true),
     adminBootstrapForcePro: parseBoolean(env.ADMIN_BOOTSTRAP_FORCE_PRO, true),
     internalWorkerToken,
+    corsAllowedOrigins: parseOrigins(env.CORS_ALLOWED_ORIGINS, [
+      "http://localhost:3000",
+      "http://127.0.0.1:3000",
+      "http://localhost:5173",
+      "http://127.0.0.1:5173"
+    ]),
+    maxJsonBodyBytes: parseInteger(env.MAX_JSON_BODY_BYTES, 1024 * 1024),
     rateLimitWindowSeconds: parseInteger(env.RATE_LIMIT_WINDOW_SECONDS, 60),
     rateLimitMaxRequests: parseInteger(env.RATE_LIMIT_MAX_REQUESTS, 120),
     tickerAutoSyncEnabled: parseBoolean(env.TICKER_AUTO_SYNC_ENABLED, true),
@@ -241,6 +274,18 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ProductApiConf
 export function validateConfig(config: ProductApiConfig): string[] {
   const errors: string[] = [];
 
+  const isValidCorsOrigin = (value: string): boolean => {
+    try {
+      const parsed = new URL(value);
+      if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+        return false;
+      }
+      return parsed.pathname === "/" && parsed.search.length === 0 && parsed.hash.length === 0;
+    } catch {
+      return false;
+    }
+  };
+
   const isValidTimeZone = (value: string): boolean => {
     try {
       new Intl.DateTimeFormat("en-CA", {
@@ -280,12 +325,40 @@ export function validateConfig(config: ProductApiConfig): string[] {
     errors.push("REDIS_URL is required when QUEUE_BACKEND=redis");
   }
 
+  if (
+    config.nodeEnv === "production" &&
+    config.queueBackend === "redis" &&
+    (!config.redisUrl || !hasRedisAuthInUrl(config.redisUrl))
+  ) {
+    errors.push(
+      "REDIS_URL must include password auth when NODE_ENV=production and QUEUE_BACKEND=redis"
+    );
+  }
+
   if (config.jwtSecret.trim().length < 16) {
     errors.push("JWT_SECRET must be at least 16 characters");
   }
 
   if (config.internalWorkerToken.trim().length < 16) {
     errors.push("INTERNAL_WORKER_TOKEN must be at least 16 characters");
+  }
+
+  if (config.maxJsonBodyBytes <= 0) {
+    errors.push("MAX_JSON_BODY_BYTES must be greater than 0");
+  }
+
+  if (config.corsAllowedOrigins.length === 0) {
+    errors.push("CORS_ALLOWED_ORIGINS must include at least one origin");
+  }
+
+  if (config.corsAllowedOrigins.some((origin) => origin === "*")) {
+    errors.push("CORS_ALLOWED_ORIGINS must not include wildcard origins");
+  }
+
+  for (const origin of config.corsAllowedOrigins) {
+    if (!isValidCorsOrigin(origin)) {
+      errors.push(`CORS_ALLOWED_ORIGINS contains an invalid origin: ${origin}`);
+    }
   }
 
   if (config.tickerDeltaSyncIntervalSeconds <= 0) {

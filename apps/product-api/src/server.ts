@@ -1,5 +1,5 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
-import { createHash, randomUUID } from "node:crypto";
+import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
 import { URL } from "node:url";
 
 import type {
@@ -127,6 +127,25 @@ import type {
 } from "./types";
 
 type HealthPayload = { status: "ok" };
+
+const defaultMaxJsonBodyBytes = 1024 * 1024;
+const requestJsonBodyLimitKey = Symbol("requestJsonBodyLimitKey");
+const corsAllowedMethods = "GET,POST,PUT,PATCH,DELETE,OPTIONS";
+const corsAllowedHeaders = "authorization,content-type,x-request-id,x-internal-token";
+
+class PayloadTooLargeError extends Error {
+  readonly limitBytes: number;
+
+  constructor(limitBytes: number) {
+    super(`JSON payload exceeded ${limitBytes} bytes`);
+    this.name = "PayloadTooLargeError";
+    this.limitBytes = limitBytes;
+  }
+}
+
+type IncomingMessageWithBodyLimit = IncomingMessage & {
+  [requestJsonBodyLimitKey]?: number;
+};
 
 interface AuthContext {
   userId: string;
@@ -760,6 +779,46 @@ function sendJson(response: ServerResponse, statusCode: number, payload: unknown
   response.end(JSON.stringify(payload));
 }
 
+function appendVaryHeader(response: ServerResponse, value: string): void {
+  const existing = response.getHeader("vary");
+  if (typeof existing === "string" && existing.length > 0) {
+    const values = new Set(
+      existing
+        .split(",")
+        .map((entry) => entry.trim())
+        .filter((entry) => entry.length > 0)
+    );
+    values.add(value);
+    response.setHeader("vary", [...values].join(", "));
+    return;
+  }
+
+  response.setHeader("vary", value);
+}
+
+function applySecurityHeaders(response: ServerResponse, nodeEnv: string): void {
+  response.setHeader("x-content-type-options", "nosniff");
+  response.setHeader("x-frame-options", "DENY");
+  response.setHeader("referrer-policy", "no-referrer");
+  response.setHeader(
+    "content-security-policy",
+    "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
+  );
+  response.setHeader("permissions-policy", "camera=(), microphone=(), geolocation=()");
+  if (nodeEnv === "production") {
+    response.setHeader("strict-transport-security", "max-age=31536000; includeSubDomains");
+  }
+}
+
+function applyCorsHeaders(response: ServerResponse, origin: string): void {
+  response.setHeader("access-control-allow-origin", origin);
+  response.setHeader("access-control-allow-credentials", "true");
+  response.setHeader("access-control-allow-methods", corsAllowedMethods);
+  response.setHeader("access-control-allow-headers", corsAllowedHeaders);
+  response.setHeader("access-control-max-age", "600");
+  appendVaryHeader(response, "Origin");
+}
+
 function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
 }
@@ -895,23 +954,79 @@ function parseBearerToken(request: IncomingMessage): string | undefined {
   return token;
 }
 
+function extractRequestOrigin(request: IncomingMessage): string | undefined {
+  const header = request.headers.origin;
+  if (typeof header !== "string") {
+    return undefined;
+  }
+  const origin = header.trim();
+  return origin.length > 0 ? origin : undefined;
+}
+
 function hasInternalToken(request: IncomingMessage, expectedToken: string): boolean {
   const header = request.headers["x-internal-token"];
   if (typeof header !== "string") {
     return false;
   }
-  return header === expectedToken;
+  const providedBytes = Buffer.from(header, "utf-8");
+  const expectedBytes = Buffer.from(expectedToken, "utf-8");
+  const comparisonLength = Math.max(providedBytes.length, expectedBytes.length, 1);
+  const providedPadded = Buffer.alloc(comparisonLength);
+  const expectedPadded = Buffer.alloc(comparisonLength);
+  providedBytes.copy(providedPadded);
+  expectedBytes.copy(expectedPadded);
+  const matches = timingSafeEqual(providedPadded, expectedPadded);
+  return matches && providedBytes.length === expectedBytes.length;
+}
+
+function setRequestJsonBodyLimit(request: IncomingMessage, maxBytes: number): void {
+  const safeMaxBytes = Number.isFinite(maxBytes) && maxBytes > 0
+    ? Math.floor(maxBytes)
+    : defaultMaxJsonBodyBytes;
+  (request as IncomingMessageWithBodyLimit)[requestJsonBodyLimitKey] = safeMaxBytes;
+}
+
+function getRequestJsonBodyLimit(request: IncomingMessage): number {
+  const configured = (request as IncomingMessageWithBodyLimit)[requestJsonBodyLimitKey];
+  if (typeof configured !== "number" || !Number.isFinite(configured) || configured <= 0) {
+    return defaultMaxJsonBodyBytes;
+  }
+  return configured;
 }
 
 async function readJsonBody<T>(request: IncomingMessage): Promise<T> {
   return new Promise((resolve, reject) => {
     let body = "";
+    let bodyBytes = 0;
+    let payloadTooLarge = false;
+    let finished = false;
+    const maxBytes = getRequestJsonBodyLimit(request);
 
     request.setEncoding("utf-8");
     request.on("data", (chunk) => {
+      if (finished) {
+        return;
+      }
+
+      bodyBytes += Buffer.byteLength(chunk, "utf-8");
+      if (bodyBytes > maxBytes) {
+        payloadTooLarge = true;
+        return;
+      }
+
       body += chunk;
     });
     request.on("end", () => {
+      if (finished) {
+        return;
+      }
+
+      finished = true;
+      if (payloadTooLarge) {
+        reject(new PayloadTooLargeError(maxBytes));
+        return;
+      }
+
       if (!body.trim()) {
         resolve({} as T);
         return;
@@ -923,7 +1038,13 @@ async function readJsonBody<T>(request: IncomingMessage): Promise<T> {
         reject(error);
       }
     });
-    request.on("error", reject);
+    request.on("error", (error) => {
+      if (finished) {
+        return;
+      }
+      finished = true;
+      reject(error);
+    });
   });
 }
 
@@ -5043,6 +5164,7 @@ export function startServer(port: number = loadConfig().port): Server {
     ...loadConfig(),
     port
   };
+  const corsAllowedOrigins = new Set(config.corsAllowedOrigins);
   const configErrors = validateConfig(config);
   if (configErrors.length > 0) {
     throw new Error(`Invalid configuration: ${configErrors.join("; ")}`);
@@ -5053,10 +5175,37 @@ export function startServer(port: number = loadConfig().port): Server {
     const method = request.method ?? "GET";
     const url = new URL(request.url ?? "/", "http://127.0.0.1");
     const pathname = url.pathname;
+    const origin = extractRequestOrigin(request);
+    const allowedOrigin = origin && corsAllowedOrigins.has(origin) ? origin : undefined;
     const meta: RequestMeta = {
       requestId: request.headers["x-request-id"]?.toString() ?? randomUUID(),
       pathname
     };
+
+    applySecurityHeaders(response, config.nodeEnv);
+    if (allowedOrigin) {
+      applyCorsHeaders(response, allowedOrigin);
+    }
+
+    if (method === "OPTIONS") {
+      if (!origin || !request.headers["access-control-request-method"]) {
+        sendJson(response, 400, {
+          error: "validation_failed",
+          error_message: "CORS preflight request is missing required headers."
+        });
+        return;
+      }
+      if (!allowedOrigin) {
+        sendJson(response, 403, {
+          error: "forbidden_origin",
+          error_message: "Origin is not allowed."
+        });
+        return;
+      }
+      response.writeHead(204);
+      response.end();
+      return;
+    }
 
     if (method === "GET" && pathname === "/health") {
       const payload: HealthPayload = { status: "ok" };
@@ -5083,6 +5232,7 @@ export function startServer(port: number = loadConfig().port): Server {
       });
       return;
     }
+    setRequestJsonBodyLimit(request, runtime.config.maxJsonBodyBytes);
 
     try {
       if (!pathname.startsWith("/internal/")) {
@@ -5374,8 +5524,7 @@ export function startServer(port: number = loadConfig().port): Server {
       }
 
       if (pathname.startsWith("/internal/")) {
-        const internalToken = request.headers["x-internal-token"]?.toString();
-        if (internalToken !== runtime.config.internalWorkerToken) {
+        if (!hasInternalToken(request, runtime.config.internalWorkerToken)) {
           sendJson(response, 401, {
             error: "unauthorized",
             error_message: "Internal token mismatch."
@@ -9931,6 +10080,13 @@ export function startServer(port: number = loadConfig().port): Server {
 
       sendJson(response, 404, { status: "not_found" });
     } catch (error) {
+      if (error instanceof PayloadTooLargeError) {
+        sendJson(response, 413, {
+          error: "payload_too_large",
+          error_message: `JSON body must be <= ${error.limitBytes} bytes.`
+        });
+        return;
+      }
       const message = error instanceof Error ? error.message : "Unknown product-api failure";
       logError("Unhandled request failure", {
         request_id: meta.requestId,

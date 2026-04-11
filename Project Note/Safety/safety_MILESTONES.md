@@ -22,10 +22,10 @@
 
 ## Acceptance Criteria
 
-- [ ] Internal token comparison is timing-safe
-- [ ] JSON body size is capped and oversized payloads return `413`
-- [ ] Security headers are set for API responses
-- [ ] CORS policy is explicit and allowlist-based (no wildcard)
+- [x] Internal token comparison is timing-safe
+- [x] JSON body size is capped and oversized payloads return `413`
+- [x] Security headers are set for API responses
+- [x] CORS policy is explicit and allowlist-based (no wildcard)
 
 ## Smoke Test
 
@@ -42,10 +42,10 @@
 
 ## Acceptance Criteria
 
-- [ ] Product API container runs as non-root
-- [ ] Production compose/runtime does not expose Redis/Postgres publicly
-- [ ] Redis auth posture is locked for production runtime
-- [ ] TLS/HSTS termination path is documented and verified
+- [x] Product API container runs as non-root
+- [x] Production compose/runtime does not expose Redis/Postgres publicly
+- [x] Redis auth posture is locked for production runtime
+- [x] TLS/HSTS termination path is documented and verified (local production profile)
 
 ## Smoke Test
 
@@ -102,8 +102,8 @@
 
 ## Start Gate (Mandatory)
 
-- [ ] M1 closed
-- [ ] M2 closed
+- [x] M1 closed
+- [x] M2 closed
 - [ ] M3 closed
 - [ ] M4 closed
 

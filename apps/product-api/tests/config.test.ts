@@ -31,3 +31,39 @@ test("admin bootstrap requires bcrypt hash when enabled", () => {
     )
   );
 });
+
+test("CORS allowlist rejects wildcard origins", () => {
+  const config = loadConfig({
+    ...process.env,
+    CORS_ALLOWED_ORIGINS: "https://allowed.example,*"
+  });
+
+  const errors = validateConfig(config);
+  assert.ok(errors.includes("CORS_ALLOWED_ORIGINS must not include wildcard origins"));
+});
+
+test("MAX_JSON_BODY_BYTES must be greater than zero", () => {
+  const config = loadConfig({
+    ...process.env,
+    MAX_JSON_BODY_BYTES: "0"
+  });
+
+  const errors = validateConfig(config);
+  assert.ok(errors.includes("MAX_JSON_BODY_BYTES must be greater than 0"));
+});
+
+test("production redis queue requires auth in REDIS_URL", () => {
+  const config = loadConfig({
+    ...process.env,
+    NODE_ENV: "production",
+    QUEUE_BACKEND: "redis",
+    REDIS_URL: "redis://redis:6379/0"
+  });
+
+  const errors = validateConfig(config);
+  assert.ok(
+    errors.includes(
+      "REDIS_URL must include password auth when NODE_ENV=production and QUEUE_BACKEND=redis"
+    )
+  );
+});
