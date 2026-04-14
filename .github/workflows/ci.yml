@@ -35,6 +35,19 @@ jobs:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
         run: corepack pnpm install --no-frozen-lockfile
 
+      - name: Security | Dependency Audit (critical)
+        run: corepack pnpm run security:audit
+
+      - name: Security | Secret Scan (gitleaks)
+        run: |
+          docker run --rm \
+            -v "$GITHUB_WORKSPACE:/repo" \
+            zricethezav/gitleaks:v8.24.2 \
+            detect --source /repo --config /repo/.gitleaks.toml --no-banner --redact
+
+      - name: Security | SAST Baseline
+        run: corepack pnpm run security:sast
+
       - name: Lint
         run: corepack pnpm lint
 

@@ -82,10 +82,10 @@
 
 ## Acceptance Criteria
 
-- [ ] Security integration tests exist for auth/IDOR/oversize/token expiry paths
-- [ ] CI runs vulnerability audit gate
-- [ ] CI runs secret scan and SAST baseline
-- [ ] Production startup fails on insecure config values
+- [x] Security integration tests exist for auth/IDOR/oversize/token expiry paths
+- [x] CI runs vulnerability audit gate
+- [x] CI runs secret scan and SAST baseline
+- [x] Production startup fails on insecure config values
 
 ## Smoke Test
 
@@ -105,7 +105,7 @@
 - [x] M1 closed
 - [x] M2 closed
 - [x] M3 closed
-- [ ] M4 closed
+- [x] M4 closed
 
 ## Scope
 

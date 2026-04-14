@@ -1,0 +1,24 @@
+title = "thesis-fintech-gitleaks"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Allow known non-secret test fixtures and generated artifacts."
+paths = [
+  '''^node_modules/''',
+  '''^apps/product-api/dist/''',
+  '''^apps/mobile/android/app/build/''',
+  '''^artifacts/''',
+  '''^tmp/'''
+]
+regexes = [
+  '''dev-jwt-secret-change-me''',
+  '''dev-internal-worker-token''',
+  '''dev-revenuecat-secret''',
+  '''m4-webhook-secret''',
+  '''m5-webhook-secret''',
+  '''m6-webhook-secret''',
+  '''ph5-m7-webhook-secret'''
+]
+
