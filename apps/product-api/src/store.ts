@@ -87,6 +87,14 @@ export interface ProductStore {
   findUserById(id: string): Promise<UserRecord | undefined>;
   markUserVerified(userId: string, verifiedAt: string): Promise<UserRecord | undefined>;
   updateUserPasswordHash(userId: string, passwordHash: string): Promise<UserRecord | undefined>;
+  recordFailedLoginAttempt(input: {
+    userId: string;
+    attemptedAt: string;
+    windowSeconds: number;
+    maxFailures: number;
+    lockoutDurationSeconds: number;
+  }): Promise<UserRecord | undefined>;
+  clearFailedLoginAttempts(userId: string): Promise<UserRecord | undefined>;
   updateUserDeviceToken(
     userId: string,
     deviceToken: string | undefined
@@ -148,9 +156,23 @@ export interface ProductStore {
     userId: string;
     createdAt: string;
     expiresAt: string;
+    familyId?: string;
+    parentSessionId?: string;
   }): Promise<SessionRecord>;
   getSessionById(id: string): Promise<SessionRecord | undefined>;
-  revokeSession(sessionId: string, revokedAt: string): Promise<SessionRecord | undefined>;
+  revokeSession(
+    sessionId: string,
+    revokedAt: string,
+    options?: {
+      reason?: string;
+      replacedBySessionId?: string;
+    }
+  ): Promise<SessionRecord | undefined>;
+  revokeSessionFamily(input: {
+    familyId: string;
+    revokedAt: string;
+    reason: string;
+  }): Promise<number>;
   createJob(input: {
     id: string;
     type: JobRecord["type"];
@@ -463,7 +485,10 @@ function mapUser(row: Record<string, unknown>): UserRecord {
     passwordHash: String(row.password_hash),
     createdAt: asIsoString(row.created_at) ?? new Date().toISOString(),
     verifiedAt: asIsoString(row.verified_at),
-    deviceToken: row.device_token ? String(row.device_token) : undefined
+    deviceToken: row.device_token ? String(row.device_token) : undefined,
+    failedLoginAttempts: Number(row.failed_login_attempts ?? 0),
+    failedLoginWindowStartedAt: asIsoString(row.failed_login_window_started_at),
+    lockedUntil: asIsoString(row.locked_until)
   };
 }
 
@@ -496,12 +521,19 @@ function mapVerificationToken(row: Record<string, unknown>): VerificationTokenRe
 }
 
 function mapSession(row: Record<string, unknown>): SessionRecord {
+  const id = String(row.id);
   return {
-    id: String(row.id),
+    id,
     userId: String(row.user_id),
     createdAt: asIsoString(row.created_at) ?? new Date().toISOString(),
     expiresAt: asIsoString(row.expires_at) ?? new Date().toISOString(),
-    revokedAt: asIsoString(row.revoked_at)
+    revokedAt: asIsoString(row.revoked_at),
+    familyId: row.family_id ? String(row.family_id) : id,
+    parentSessionId: row.parent_session_id ? String(row.parent_session_id) : undefined,
+    replacedBySessionId: row.replaced_by_session_id
+      ? String(row.replaced_by_session_id)
+      : undefined,
+    revokedReason: row.revoked_reason ? String(row.revoked_reason) : undefined
   };
 }
 
@@ -1560,7 +1592,8 @@ export class InMemoryStore implements ProductStore {
       id,
       email: normalizedEmail,
       passwordHash: input.passwordHash,
-      createdAt: now
+      createdAt: now,
+      failedLoginAttempts: 0
     };
     this.users.set(id, user);
     this.usersByEmail.set(normalizedEmail, id);
@@ -1596,6 +1629,54 @@ export class InMemoryStore implements ProductStore {
     }
 
     user.passwordHash = passwordHash;
+    return user;
+  }
+
+  async recordFailedLoginAttempt(input: {
+    userId: string;
+    attemptedAt: string;
+    windowSeconds: number;
+    maxFailures: number;
+    lockoutDurationSeconds: number;
+  }): Promise<UserRecord | undefined> {
+    const user = this.users.get(input.userId);
+    if (!user) {
+      return undefined;
+    }
+
+    const attemptedAtMs = Date.parse(input.attemptedAt);
+    const windowStartMs = user.failedLoginWindowStartedAt
+      ? Date.parse(user.failedLoginWindowStartedAt)
+      : Number.NaN;
+    const windowMs = input.windowSeconds * 1000;
+    const shouldResetWindow =
+      !Number.isFinite(windowStartMs) || attemptedAtMs - windowStartMs > windowMs;
+
+    if (shouldResetWindow) {
+      user.failedLoginAttempts = 1;
+      user.failedLoginWindowStartedAt = input.attemptedAt;
+    } else {
+      user.failedLoginAttempts += 1;
+    }
+
+    if (user.failedLoginAttempts >= input.maxFailures) {
+      user.lockedUntil = new Date(
+        attemptedAtMs + input.lockoutDurationSeconds * 1000
+      ).toISOString();
+    }
+
+    return user;
+  }
+
+  async clearFailedLoginAttempts(userId: string): Promise<UserRecord | undefined> {
+    const user = this.users.get(userId);
+    if (!user) {
+      return undefined;
+    }
+
+    user.failedLoginAttempts = 0;
+    user.failedLoginWindowStartedAt = undefined;
+    user.lockedUntil = undefined;
     return user;
   }
 
@@ -1993,12 +2074,16 @@ export class InMemoryStore implements ProductStore {
     userId: string;
     createdAt: string;
     expiresAt: string;
+    familyId?: string;
+    parentSessionId?: string;
   }): Promise<SessionRecord> {
     const session: SessionRecord = {
       id: input.id,
       userId: input.userId,
       createdAt: input.createdAt,
-      expiresAt: input.expiresAt
+      expiresAt: input.expiresAt,
+      familyId: input.familyId ?? input.id,
+      parentSessionId: input.parentSessionId
     };
     this.sessions.set(input.id, session);
     return session;
@@ -2008,14 +2093,47 @@ export class InMemoryStore implements ProductStore {
     return this.sessions.get(id);
   }
 
-  async revokeSession(sessionId: string, revokedAt: string): Promise<SessionRecord | undefined> {
+  async revokeSession(
+    sessionId: string,
+    revokedAt: string,
+    options?: {
+      reason?: string;
+      replacedBySessionId?: string;
+    }
+  ): Promise<SessionRecord | undefined> {
     const session = this.sessions.get(sessionId);
     if (!session) {
       return undefined;
     }
 
-    session.revokedAt = revokedAt;
+    session.revokedAt = session.revokedAt ?? revokedAt;
+    if (options?.reason && !session.revokedReason) {
+      session.revokedReason = options.reason;
+    }
+    if (options?.replacedBySessionId && !session.replacedBySessionId) {
+      session.replacedBySessionId = options.replacedBySessionId;
+    }
     return session;
+  }
+
+  async revokeSessionFamily(input: {
+    familyId: string;
+    revokedAt: string;
+    reason: string;
+  }): Promise<number> {
+    let affected = 0;
+    for (const session of this.sessions.values()) {
+      if (session.familyId !== input.familyId) {
+        continue;
+      }
+      if (session.revokedAt) {
+        continue;
+      }
+      session.revokedAt = input.revokedAt;
+      session.revokedReason = input.reason;
+      affected += 1;
+    }
+    return affected;
   }
 
   async createJob(input: {
@@ -3555,6 +3673,69 @@ export class PostgresStore implements ProductStore {
     return row ? mapUser(row) : undefined;
   }
 
+  async recordFailedLoginAttempt(input: {
+    userId: string;
+    attemptedAt: string;
+    windowSeconds: number;
+    maxFailures: number;
+    lockoutDurationSeconds: number;
+  }): Promise<UserRecord | undefined> {
+    const result = await this.pool.query(
+      `with next_state as (
+         select
+           id,
+           case
+             when failed_login_window_started_at is null
+               or failed_login_window_started_at <= ($2::timestamptz - ($3 * interval '1 second'))
+             then 1
+             else failed_login_attempts + 1
+           end as next_attempts,
+           case
+             when failed_login_window_started_at is null
+               or failed_login_window_started_at <= ($2::timestamptz - ($3 * interval '1 second'))
+             then $2::timestamptz
+             else failed_login_window_started_at
+           end as next_window_started_at
+         from users
+         where id = $1
+       )
+       update users u
+          set failed_login_attempts = s.next_attempts,
+              failed_login_window_started_at = s.next_window_started_at,
+              locked_until = case
+                when s.next_attempts >= $4
+                then $2::timestamptz + ($5 * interval '1 second')
+                else null
+              end
+         from next_state s
+        where u.id = s.id
+      returning u.*`,
+      [
+        input.userId,
+        input.attemptedAt,
+        input.windowSeconds,
+        input.maxFailures,
+        input.lockoutDurationSeconds
+      ]
+    );
+    const row = result.rows[0] as Record<string, unknown> | undefined;
+    return row ? mapUser(row) : undefined;
+  }
+
+  async clearFailedLoginAttempts(userId: string): Promise<UserRecord | undefined> {
+    const result = await this.pool.query(
+      `update users
+          set failed_login_attempts = 0,
+              failed_login_window_started_at = null,
+              locked_until = null
+        where id = $1
+      returning *`,
+      [userId]
+    );
+    const row = result.rows[0] as Record<string, unknown> | undefined;
+    return row ? mapUser(row) : undefined;
+  }
+
   async updateUserPasswordHash(
     userId: string,
     passwordHash: string
@@ -3917,12 +4098,28 @@ export class PostgresStore implements ProductStore {
     userId: string;
     createdAt: string;
     expiresAt: string;
+    familyId?: string;
+    parentSessionId?: string;
   }): Promise<SessionRecord> {
     const result = await this.pool.query(
-      `insert into sessions (id, user_id, created_at, expires_at)
-       values ($1, $2, $3, $4)
+      `insert into sessions (
+         id,
+         user_id,
+         created_at,
+         expires_at,
+         family_id,
+         parent_session_id
+       )
+       values ($1, $2, $3, $4, $5, $6)
        returning *`,
-      [input.id, input.userId, input.createdAt, input.expiresAt]
+      [
+        input.id,
+        input.userId,
+        input.createdAt,
+        input.expiresAt,
+        input.familyId ?? input.id,
+        input.parentSessionId ?? null
+      ]
     );
     return mapSession(result.rows[0] as Record<string, unknown>);
   }
@@ -3933,16 +4130,41 @@ export class PostgresStore implements ProductStore {
     return row ? mapSession(row) : undefined;
   }
 
-  async revokeSession(sessionId: string, revokedAt: string): Promise<SessionRecord | undefined> {
+  async revokeSession(
+    sessionId: string,
+    revokedAt: string,
+    options?: {
+      reason?: string;
+      replacedBySessionId?: string;
+    }
+  ): Promise<SessionRecord | undefined> {
     const result = await this.pool.query(
       `update sessions
-         set revoked_at = coalesce(revoked_at, $2)
+         set revoked_at = coalesce(revoked_at, $2),
+             revoked_reason = coalesce(revoked_reason, $3),
+             replaced_by_session_id = coalesce(replaced_by_session_id, $4)
        where id = $1
        returning *`,
-      [sessionId, revokedAt]
+      [sessionId, revokedAt, options?.reason ?? null, options?.replacedBySessionId ?? null]
     );
     const row = result.rows[0] as Record<string, unknown> | undefined;
     return row ? mapSession(row) : undefined;
+  }
+
+  async revokeSessionFamily(input: {
+    familyId: string;
+    revokedAt: string;
+    reason: string;
+  }): Promise<number> {
+    const result = await this.pool.query(
+      `update sessions
+          set revoked_at = coalesce(revoked_at, $2),
+              revoked_reason = coalesce(revoked_reason, $3)
+        where family_id = $1
+          and revoked_at is null`,
+      [input.familyId, input.revokedAt, input.reason]
+    );
+    return result.rowCount ?? 0;
   }
 
   async createJob(input: {

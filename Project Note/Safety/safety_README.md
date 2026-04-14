@@ -3,7 +3,7 @@
 **"Security hardening without architectural drift."**
 
 Status: Active  
-Last Revised: 2026-04-11
+Last Revised: 2026-04-14
 
 This workstream turns the audit in `vibe_code_safety.md` into a controlled execution phase.
 
@@ -24,9 +24,9 @@ This workstream turns the audit in `vibe_code_safety.md` into a controlled execu
 
 | # | Name | Status |
 |---|---|---|
-| M1 | API Perimeter Hardening | Active |
-| M2 | Runtime and Infra Hardening | Active |
-| M3 | Auth Abuse Resistance | Active |
+| M1 | API Perimeter Hardening | Closed |
+| M2 | Runtime and Infra Hardening | Closed (local scope) |
+| M3 | Auth Abuse Resistance | Closed (2026-04-14) |
 | M4 | Verification and CI Security Gates | Active |
 | M5 | Post-Core Enhancements (Google auth + `server.ts` split) | TBD |
 

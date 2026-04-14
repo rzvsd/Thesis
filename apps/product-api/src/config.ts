@@ -111,6 +111,13 @@ export interface ProductApiConfig {
   maxJsonBodyBytes: number;
   rateLimitWindowSeconds: number;
   rateLimitMaxRequests: number;
+  authRateLimitWindowSeconds: number;
+  authRateLimitLoginMaxRequests: number;
+  authRateLimitRegisterMaxRequests: number;
+  authRateLimitRefreshMaxRequests: number;
+  authLockoutMaxFailures: number;
+  authLockoutWindowSeconds: number;
+  authLockoutDurationSeconds: number;
   tickerAutoSyncEnabled: boolean;
   tickerAutoSyncRunOnStartup: boolean;
   tickerDeltaSyncIntervalSeconds: number;
@@ -172,6 +179,27 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ProductApiConf
 
   const jwtSecret = env.JWT_SECRET ?? "dev-jwt-secret-change-me";
   const internalWorkerToken = env.INTERNAL_WORKER_TOKEN ?? "dev-internal-worker-token";
+  const rateLimitWindowSeconds = parseInteger(env.RATE_LIMIT_WINDOW_SECONDS, 60);
+  const rateLimitMaxRequests = parseInteger(env.RATE_LIMIT_MAX_REQUESTS, 120);
+  const authRateLimitWindowSeconds = parseInteger(
+    env.AUTH_RATE_LIMIT_WINDOW_SECONDS,
+    rateLimitWindowSeconds
+  );
+  const authRateLimitLoginMaxRequests = parseInteger(env.AUTH_RATE_LIMIT_LOGIN_MAX_REQUESTS, 10);
+  const authRateLimitRegisterMaxRequests = parseInteger(
+    env.AUTH_RATE_LIMIT_REGISTER_MAX_REQUESTS,
+    6
+  );
+  const authRateLimitRefreshMaxRequests = parseInteger(
+    env.AUTH_RATE_LIMIT_REFRESH_MAX_REQUESTS,
+    12
+  );
+  const authLockoutMaxFailures = parseInteger(env.AUTH_LOCKOUT_MAX_FAILURES, 10);
+  const authLockoutWindowSeconds = parseInteger(env.AUTH_LOCKOUT_WINDOW_SECONDS, 15 * 60);
+  const authLockoutDurationSeconds = parseInteger(
+    env.AUTH_LOCKOUT_DURATION_SECONDS,
+    15 * 60
+  );
   const artifactStoreModeRaw = env.ARTIFACT_STORE_MODE?.trim().toLowerCase();
   const artifactStoreMode: "filesystem" | "s3" =
     artifactStoreModeRaw === "s3"
@@ -222,8 +250,15 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ProductApiConf
       "http://127.0.0.1:5173"
     ]),
     maxJsonBodyBytes: parseInteger(env.MAX_JSON_BODY_BYTES, 1024 * 1024),
-    rateLimitWindowSeconds: parseInteger(env.RATE_LIMIT_WINDOW_SECONDS, 60),
-    rateLimitMaxRequests: parseInteger(env.RATE_LIMIT_MAX_REQUESTS, 120),
+    rateLimitWindowSeconds,
+    rateLimitMaxRequests,
+    authRateLimitWindowSeconds,
+    authRateLimitLoginMaxRequests,
+    authRateLimitRegisterMaxRequests,
+    authRateLimitRefreshMaxRequests,
+    authLockoutMaxFailures,
+    authLockoutWindowSeconds,
+    authLockoutDurationSeconds,
     tickerAutoSyncEnabled: parseBoolean(env.TICKER_AUTO_SYNC_ENABLED, true),
     tickerAutoSyncRunOnStartup: parseBoolean(env.TICKER_AUTO_SYNC_RUN_ON_STARTUP, true),
     tickerDeltaSyncIntervalSeconds: parseInteger(env.TICKER_DELTA_SYNC_INTERVAL_SECONDS, 900),
@@ -345,6 +380,42 @@ export function validateConfig(config: ProductApiConfig): string[] {
 
   if (config.maxJsonBodyBytes <= 0) {
     errors.push("MAX_JSON_BODY_BYTES must be greater than 0");
+  }
+
+  if (config.rateLimitWindowSeconds <= 0) {
+    errors.push("RATE_LIMIT_WINDOW_SECONDS must be greater than 0");
+  }
+
+  if (config.rateLimitMaxRequests <= 0) {
+    errors.push("RATE_LIMIT_MAX_REQUESTS must be greater than 0");
+  }
+
+  if (config.authRateLimitWindowSeconds <= 0) {
+    errors.push("AUTH_RATE_LIMIT_WINDOW_SECONDS must be greater than 0");
+  }
+
+  if (config.authRateLimitLoginMaxRequests <= 0) {
+    errors.push("AUTH_RATE_LIMIT_LOGIN_MAX_REQUESTS must be greater than 0");
+  }
+
+  if (config.authRateLimitRegisterMaxRequests <= 0) {
+    errors.push("AUTH_RATE_LIMIT_REGISTER_MAX_REQUESTS must be greater than 0");
+  }
+
+  if (config.authRateLimitRefreshMaxRequests <= 0) {
+    errors.push("AUTH_RATE_LIMIT_REFRESH_MAX_REQUESTS must be greater than 0");
+  }
+
+  if (config.authLockoutMaxFailures <= 0) {
+    errors.push("AUTH_LOCKOUT_MAX_FAILURES must be greater than 0");
+  }
+
+  if (config.authLockoutWindowSeconds <= 0) {
+    errors.push("AUTH_LOCKOUT_WINDOW_SECONDS must be greater than 0");
+  }
+
+  if (config.authLockoutDurationSeconds <= 0) {
+    errors.push("AUTH_LOCKOUT_DURATION_SECONDS must be greater than 0");
   }
 
   if (config.corsAllowedOrigins.length === 0) {

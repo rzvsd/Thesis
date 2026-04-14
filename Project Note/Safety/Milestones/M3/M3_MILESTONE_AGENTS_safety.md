@@ -1,7 +1,7 @@
 # AGENTS.md - Safety M3 Auth Abuse Resistance
 
 **Milestone:** Safety M3  
-**Status:** Active  
+**Status:** Closed (2026-04-14)  
 **Depends on:** M1, M2
 
 ---
@@ -20,6 +20,11 @@
 
 ## Definition Of Done
 
-- [ ] M3 acceptance criteria in `safety_MILESTONES.md` completed
-- [ ] `M3_SMOKE_PLAN_safety.md` executed and logged
-- [ ] Auth integration/regression tests pass
+- [x] M3 acceptance criteria in `safety_MILESTONES.md` completed
+- [x] `M3_SMOKE_PLAN_safety.md` executed and logged
+- [x] Auth integration/regression tests pass
+
+## Closeout Note
+
+- M3 is closed with regression-backed smoke evidence in `Milestones/M3/evidence/M3_SMOKE_EVIDENCE_2026-04-14.md`.
+- Implementation includes route-specific auth rate limiting, timed lockout semantics, refresh rotation per use, and token-family revocation on refresh reuse detection.

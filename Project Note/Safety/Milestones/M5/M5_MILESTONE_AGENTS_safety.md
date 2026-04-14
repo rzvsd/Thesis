@@ -8,9 +8,9 @@
 
 ## Start Gate
 
-- [ ] M1 closed with evidence
-- [ ] M2 closed with evidence
-- [ ] M3 closed with evidence
+- [x] M1 closed with evidence
+- [x] M2 closed with evidence
+- [x] M3 closed with evidence
 - [ ] M4 closed with evidence
 
 ## Scope In
