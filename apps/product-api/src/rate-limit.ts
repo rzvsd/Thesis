@@ -7,8 +7,13 @@ export interface RateLimitResult {
   retryAfterSeconds: number;
 }
 
+export interface RateLimitPolicy {
+  windowSeconds?: number;
+  maxRequests?: number;
+}
+
 export interface RateLimiter {
-  check(identity: string, route: string): Promise<RateLimitResult>;
+  check(identity: string, route: string, policy?: RateLimitPolicy): Promise<RateLimitResult>;
   close(): Promise<void>;
 }
 
@@ -22,19 +27,27 @@ class MemoryRateLimiter implements RateLimiter {
     this.maxRequests = maxRequests;
   }
 
-  async check(identity: string, route: string): Promise<RateLimitResult> {
+  async check(identity: string, route: string, policy?: RateLimitPolicy): Promise<RateLimitResult> {
     const now = Date.now();
-    const key = `${identity}:${route}`;
+    const windowSeconds =
+      policy?.windowSeconds && policy.windowSeconds > 0
+        ? Math.floor(policy.windowSeconds)
+        : this.windowSeconds;
+    const maxRequests =
+      policy?.maxRequests && policy.maxRequests > 0
+        ? Math.floor(policy.maxRequests)
+        : this.maxRequests;
+    const key = `${identity}:${route}:${windowSeconds}`;
     const existing = this.counters.get(key);
 
     if (!existing || existing.expiresAt <= now) {
       this.counters.set(key, {
         count: 1,
-        expiresAt: now + this.windowSeconds * 1000
+        expiresAt: now + windowSeconds * 1000
       });
       return {
         allowed: true,
-        retryAfterSeconds: this.windowSeconds
+        retryAfterSeconds: windowSeconds
       };
     }
 
@@ -44,7 +57,7 @@ class MemoryRateLimiter implements RateLimiter {
       Math.ceil((existing.expiresAt - now) / 1000)
     );
     return {
-      allowed: existing.count <= this.maxRequests,
+      allowed: existing.count <= maxRequests,
       retryAfterSeconds
     };
   }
@@ -71,19 +84,27 @@ class RedisRateLimiter implements RateLimiter {
     }
   }
 
-  async check(identity: string, route: string): Promise<RateLimitResult> {
+  async check(identity: string, route: string, policy?: RateLimitPolicy): Promise<RateLimitResult> {
     await this.connect();
-    const bucket = Math.floor(Date.now() / (this.windowSeconds * 1000));
-    const key = `ratelimit:${identity}:${route}:${bucket}`;
+    const windowSeconds =
+      policy?.windowSeconds && policy.windowSeconds > 0
+        ? Math.floor(policy.windowSeconds)
+        : this.windowSeconds;
+    const maxRequests =
+      policy?.maxRequests && policy.maxRequests > 0
+        ? Math.floor(policy.maxRequests)
+        : this.maxRequests;
+    const bucket = Math.floor(Date.now() / (windowSeconds * 1000));
+    const key = `ratelimit:${windowSeconds}:${identity}:${route}:${bucket}`;
     const count = await this.client.incr(key);
     if (count === 1) {
-      await this.client.expire(key, this.windowSeconds);
+      await this.client.expire(key, windowSeconds);
     }
     const ttl = await this.client.ttl(key);
 
     return {
-      allowed: count <= this.maxRequests,
-      retryAfterSeconds: ttl > 0 ? ttl : this.windowSeconds
+      allowed: count <= maxRequests,
+      retryAfterSeconds: ttl > 0 ? ttl : windowSeconds
     };
   }
 

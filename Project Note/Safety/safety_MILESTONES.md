@@ -2,7 +2,7 @@
 
 **Version:** 1.0  
 **Status:** Active  
-**Last Revised:** 2026-04-11
+**Last Revised:** 2026-04-14
 
 ---
 
@@ -62,10 +62,10 @@
 
 ## Acceptance Criteria
 
-- [ ] Auth endpoints have stricter route-specific rate limits
-- [ ] Timed account lockout is enforced (`10 failures / 15 min`)
-- [ ] `/auth/refresh` rotates refresh token/session every use
-- [ ] Refresh reuse detection revokes token family safely
+- [x] Auth endpoints have stricter route-specific rate limits
+- [x] Timed account lockout is enforced (`10 failures / 15 min`)
+- [x] `/auth/refresh` rotates refresh token/session every use
+- [x] Refresh reuse detection revokes token family safely
 
 ## Smoke Test
 
@@ -104,7 +104,7 @@
 
 - [x] M1 closed
 - [x] M2 closed
-- [ ] M3 closed
+- [x] M3 closed
 - [ ] M4 closed
 
 ## Scope

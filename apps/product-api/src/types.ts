@@ -61,6 +61,9 @@ export interface UserRecord {
   createdAt: string;
   verifiedAt?: string;
   deviceToken?: string;
+  failedLoginAttempts: number;
+  failedLoginWindowStartedAt?: string;
+  lockedUntil?: string;
 }
 
 export interface UserDeviceRecord {
@@ -99,6 +102,10 @@ export interface SessionRecord {
   createdAt: string;
   expiresAt: string;
   revokedAt?: string;
+  familyId: string;
+  parentSessionId?: string;
+  replacedBySessionId?: string;
+  revokedReason?: string;
 }
 
 export interface JobRecord {

@@ -940,6 +940,70 @@ function routeBucket(pathname: string): string {
   return pathname;
 }
 
+interface RequestRateLimitPolicy {
+  routeKey: string;
+  windowSeconds: number;
+  maxRequests: number;
+  authRoute: boolean;
+}
+
+function resolveRateLimitPolicy(
+  config: ProductApiConfig,
+  method: string,
+  pathname: string
+): RequestRateLimitPolicy {
+  if (method === "POST" && pathname === "/auth/login") {
+    return {
+      routeKey: "/auth/login",
+      windowSeconds: config.authRateLimitWindowSeconds,
+      maxRequests: config.authRateLimitLoginMaxRequests,
+      authRoute: true
+    };
+  }
+
+  if (method === "POST" && pathname === "/auth/register") {
+    return {
+      routeKey: "/auth/register",
+      windowSeconds: config.authRateLimitWindowSeconds,
+      maxRequests: config.authRateLimitRegisterMaxRequests,
+      authRoute: true
+    };
+  }
+
+  if (method === "POST" && pathname === "/auth/refresh") {
+    return {
+      routeKey: "/auth/refresh",
+      windowSeconds: config.authRateLimitWindowSeconds,
+      maxRequests: config.authRateLimitRefreshMaxRequests,
+      authRoute: true
+    };
+  }
+
+  if (pathname.startsWith("/auth/")) {
+    return {
+      routeKey: routeBucket(pathname),
+      windowSeconds: config.authRateLimitWindowSeconds,
+      maxRequests: config.authRateLimitLoginMaxRequests,
+      authRoute: true
+    };
+  }
+
+  return {
+    routeKey: routeBucket(pathname),
+    windowSeconds: config.rateLimitWindowSeconds,
+    maxRequests: config.rateLimitMaxRequests,
+    authRoute: false
+  };
+}
+
+function secondsUntilIso(isoTimestamp: string, nowEpochMs: number = Date.now()): number {
+  const targetEpochMs = Date.parse(isoTimestamp);
+  if (!Number.isFinite(targetEpochMs)) {
+    return 0;
+  }
+  return Math.max(0, Math.ceil((targetEpochMs - nowEpochMs) / 1000));
+}
+
 function parseBearerToken(request: IncomingMessage): string | undefined {
   const header = request.headers.authorization;
   if (!header) {
@@ -5236,14 +5300,21 @@ export function startServer(port: number = loadConfig().port): Server {
 
     try {
       if (!pathname.startsWith("/internal/")) {
+        const rateLimitPolicy = resolveRateLimitPolicy(runtime.config, method, pathname);
         const rateLimit = await runtime.rateLimiter.check(
           extractClientIp(request),
-          `${method}:${routeBucket(pathname)}`
+          `${method}:${rateLimitPolicy.routeKey}`,
+          {
+            windowSeconds: rateLimitPolicy.windowSeconds,
+            maxRequests: rateLimitPolicy.maxRequests
+          }
         );
         if (!rateLimit.allowed) {
           logWarn("Rate limit exceeded", {
             request_id: meta.requestId,
-            route: pathname
+            route: pathname,
+            rate_limit_route: rateLimitPolicy.routeKey,
+            auth_route: rateLimitPolicy.authRoute
           });
           sendJson(response, 429, {
             error: "rate_limited",
@@ -5373,36 +5444,88 @@ export function startServer(port: number = loadConfig().port): Server {
         return;
       }
 
-        if (method === "POST" && pathname === "/auth/login") {
-          const body = await readJsonBody<AuthLoginRequest>(request);
-          const email = normalizeEmail(body.email ?? "");
-          const password = body.password ?? "";
-          if (!isValidEmail(email) || password.length < 8) {
+      if (method === "POST" && pathname === "/auth/login") {
+        const body = await readJsonBody<AuthLoginRequest>(request);
+        const email = normalizeEmail(body.email ?? "");
+        const password = body.password ?? "";
+        if (!isValidEmail(email) || password.length < 8) {
           sendJson(response, 422, {
             error: "validation_failed",
             error_message: "A valid email and password are required."
-            });
-            return;
-          }
+          });
+          return;
+        }
 
-          await maybeBootstrapAdminForLogin(runtime, email, password);
-          const user = await runtime.store.findUserByEmail(email);
-          if (!user || !user.verifiedAt || !(await verifyPassword(password, user.passwordHash))) {
-            sendJson(response, 401, {
-              error: "auth_failed",
-              error_message: "Invalid credentials."
+        await maybeBootstrapAdminForLogin(runtime, email, password);
+        const user = await runtime.store.findUserByEmail(email);
+        if (!user || !user.verifiedAt) {
+          sendJson(response, 401, {
+            error: "auth_failed",
+            error_message: "Invalid credentials."
           });
           return;
         }
 
         const now = new Date();
+        const nowIso = now.toISOString();
+        if (user.lockedUntil && Date.parse(user.lockedUntil) > now.getTime()) {
+          sendJson(response, 423, {
+            error: "account_locked",
+            error_message: "Account temporarily locked due to repeated failed login attempts.",
+            locked_until: user.lockedUntil,
+            retry_after_seconds: secondsUntilIso(user.lockedUntil, now.getTime())
+          });
+          return;
+        }
+
+        const passwordMatches = await verifyPassword(password, user.passwordHash);
+        if (!passwordMatches) {
+          const updatedUser = await runtime.store.recordFailedLoginAttempt({
+            userId: user.id,
+            attemptedAt: nowIso,
+            windowSeconds: runtime.config.authLockoutWindowSeconds,
+            maxFailures: runtime.config.authLockoutMaxFailures,
+            lockoutDurationSeconds: runtime.config.authLockoutDurationSeconds
+          });
+
+          if (
+            updatedUser?.lockedUntil &&
+            Date.parse(updatedUser.lockedUntil) > now.getTime()
+          ) {
+            await appendAudit(
+              runtime,
+              "auth.lockout_activated",
+              {
+                request_id: meta.requestId,
+                route: pathname,
+                locked_until: updatedUser.lockedUntil
+              },
+              user.id
+            );
+            sendJson(response, 423, {
+              error: "account_locked",
+              error_message: "Account temporarily locked due to repeated failed login attempts.",
+              locked_until: updatedUser.lockedUntil,
+              retry_after_seconds: secondsUntilIso(updatedUser.lockedUntil, now.getTime())
+            });
+            return;
+          }
+
+          sendJson(response, 401, {
+            error: "auth_failed",
+            error_message: "Invalid credentials."
+          });
+          return;
+        }
+
+        await runtime.store.clearFailedLoginAttempts(user.id);
         const refreshTokenExpiresAt = new Date(
           now.getTime() + runtime.config.refreshTokenTtlSeconds * 1000
         ).toISOString();
         const session = await runtime.store.createSession({
           id: createId(),
           userId: user.id,
-          createdAt: now.toISOString(),
+          createdAt: nowIso,
           expiresAt: refreshTokenExpiresAt
         });
 
@@ -5448,7 +5571,7 @@ export function startServer(port: number = loadConfig().port): Server {
         }
 
         const session = await runtime.store.getSessionById(claims.sid);
-        if (!session || session.revokedAt || session.userId !== claims.sub) {
+        if (!session || session.userId !== claims.sub) {
           sendJson(response, 401, {
             error: "refresh_failed",
             error_message: "Refresh session is invalid."
@@ -5456,7 +5579,40 @@ export function startServer(port: number = loadConfig().port): Server {
           return;
         }
 
-        if (Date.parse(session.expiresAt) <= Date.now()) {
+        const now = new Date();
+        const nowIso = now.toISOString();
+        if (session.revokedAt) {
+          if (session.revokedReason === "rotated") {
+            const revokedCount = await runtime.store.revokeSessionFamily({
+              familyId: session.familyId,
+              revokedAt: nowIso,
+              reason: "reuse_detected"
+            });
+            await appendAudit(
+              runtime,
+              "auth.refresh_reuse_detected",
+              {
+                request_id: meta.requestId,
+                route: pathname,
+                session_id: session.id,
+                family_id: session.familyId,
+                revoked_sessions: revokedCount
+              },
+              session.userId
+            );
+          }
+
+          sendJson(response, 401, {
+            error: "refresh_failed",
+            error_message: "Refresh session is invalid."
+          });
+          return;
+        }
+
+        if (Date.parse(session.expiresAt) <= now.getTime()) {
+          await runtime.store.revokeSession(session.id, nowIso, {
+            reason: "expired"
+          });
           sendJson(response, 401, {
             error: "refresh_failed",
             error_message: "Refresh session expired."
@@ -5464,11 +5620,27 @@ export function startServer(port: number = loadConfig().port): Server {
           return;
         }
 
+        const rotatedRefreshExpiresAt = new Date(
+          now.getTime() + runtime.config.refreshTokenTtlSeconds * 1000
+        ).toISOString();
+        const nextSession = await runtime.store.createSession({
+          id: createId(),
+          userId: session.userId,
+          createdAt: nowIso,
+          expiresAt: rotatedRefreshExpiresAt,
+          familyId: session.familyId,
+          parentSessionId: session.id
+        });
+        await runtime.store.revokeSession(session.id, nowIso, {
+          reason: "rotated",
+          replacedBySessionId: nextSession.id
+        });
+
         const tokens = await issueTokens(
           runtime,
-          session.userId,
-          session.id,
-          session.expiresAt
+          nextSession.userId,
+          nextSession.id,
+          rotatedRefreshExpiresAt
         );
 
         await appendAudit(
@@ -5476,9 +5648,11 @@ export function startServer(port: number = loadConfig().port): Server {
           "auth.access_refreshed",
           {
             request_id: meta.requestId,
-            route: pathname
+            route: pathname,
+            rotated_from_session_id: session.id,
+            rotated_to_session_id: nextSession.id
           },
-          session.userId
+          nextSession.userId
         );
 
         sendJson(response, 200, tokens);
@@ -5506,7 +5680,9 @@ export function startServer(port: number = loadConfig().port): Server {
           return;
         }
 
-        await runtime.store.revokeSession(auth.sessionId, new Date().toISOString());
+        await runtime.store.revokeSession(auth.sessionId, new Date().toISOString(), {
+          reason: "logout"
+        });
         await appendAudit(
           runtime,
           "auth.logout_completed",

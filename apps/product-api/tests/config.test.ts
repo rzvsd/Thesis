@@ -67,3 +67,23 @@ test("production redis queue requires auth in REDIS_URL", () => {
     )
   );
 });
+
+test("AUTH_RATE_LIMIT_LOGIN_MAX_REQUESTS must be greater than zero", () => {
+  const config = loadConfig({
+    ...process.env,
+    AUTH_RATE_LIMIT_LOGIN_MAX_REQUESTS: "0"
+  });
+
+  const errors = validateConfig(config);
+  assert.ok(errors.includes("AUTH_RATE_LIMIT_LOGIN_MAX_REQUESTS must be greater than 0"));
+});
+
+test("AUTH_LOCKOUT_DURATION_SECONDS must be greater than zero", () => {
+  const config = loadConfig({
+    ...process.env,
+    AUTH_LOCKOUT_DURATION_SECONDS: "0"
+  });
+
+  const errors = validateConfig(config);
+  assert.ok(errors.includes("AUTH_LOCKOUT_DURATION_SECONDS must be greater than 0"));
+});

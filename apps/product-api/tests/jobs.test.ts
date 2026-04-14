@@ -285,7 +285,9 @@ test("protected routes return 401 and rate limit returns 429", async () => {
     JWT_SECRET: process.env.JWT_SECRET,
     INTERNAL_WORKER_TOKEN: process.env.INTERNAL_WORKER_TOKEN,
     RATE_LIMIT_MAX_REQUESTS: process.env.RATE_LIMIT_MAX_REQUESTS,
-    RATE_LIMIT_WINDOW_SECONDS: process.env.RATE_LIMIT_WINDOW_SECONDS
+    RATE_LIMIT_WINDOW_SECONDS: process.env.RATE_LIMIT_WINDOW_SECONDS,
+    AUTH_RATE_LIMIT_WINDOW_SECONDS: process.env.AUTH_RATE_LIMIT_WINDOW_SECONDS,
+    AUTH_RATE_LIMIT_REGISTER_MAX_REQUESTS: process.env.AUTH_RATE_LIMIT_REGISTER_MAX_REQUESTS
   };
   process.env.STORE_BACKEND = "memory";
   process.env.QUEUE_BACKEND = "memory";
@@ -294,6 +296,8 @@ test("protected routes return 401 and rate limit returns 429", async () => {
   process.env.INTERNAL_WORKER_TOKEN = "dev-internal-worker-token";
   process.env.RATE_LIMIT_MAX_REQUESTS = "1";
   process.env.RATE_LIMIT_WINDOW_SECONDS = "60";
+  process.env.AUTH_RATE_LIMIT_WINDOW_SECONDS = "60";
+  process.env.AUTH_RATE_LIMIT_REGISTER_MAX_REQUESTS = "1";
 
   const server = startServer(0);
   await once(server, "listening");
@@ -334,6 +338,8 @@ test("protected routes return 401 and rate limit returns 429", async () => {
   process.env.INTERNAL_WORKER_TOKEN = previous.INTERNAL_WORKER_TOKEN;
   process.env.RATE_LIMIT_MAX_REQUESTS = previous.RATE_LIMIT_MAX_REQUESTS;
   process.env.RATE_LIMIT_WINDOW_SECONDS = previous.RATE_LIMIT_WINDOW_SECONDS;
+  process.env.AUTH_RATE_LIMIT_WINDOW_SECONDS = previous.AUTH_RATE_LIMIT_WINDOW_SECONDS;
+  process.env.AUTH_RATE_LIMIT_REGISTER_MAX_REQUESTS = previous.AUTH_RATE_LIMIT_REGISTER_MAX_REQUESTS;
 });
 
 test("internal fail endpoint marks job as failed", async () => {
