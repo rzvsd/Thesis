@@ -1,7 +1,7 @@
 # AGENTS.md - Safety M5 Post-Core Enhancements
 
 **Milestone:** Safety M5  
-**Status:** Ready for owner closeout (implementation complete on 2026-04-14; awaiting approval)  
+**Status:** Closed (2026-04-14; owner approved)  
 **Depends on:** M1, M2, M3, M4 (all closed)
 
 ---
@@ -52,6 +52,12 @@ Default preparation assumes `BLOCK_UNLINKED` for safest behavior.
 - 2026-04-14: Added OIDC verification module, identity persistence migration, and integration tests.
 - 2026-04-14: Extracted auth/public route domains from `server.ts` into dedicated modules (`auth-routes.ts`, `public-routes.ts`) with no behavior regressions.
 - 2026-04-14: Product API + workspace typecheck/tests + security CI commands executed successfully with evidence logs in `Milestones/M5/evidence/`.
+- 2026-04-14: Owner approval received; milestone status moved to closed.
+
+## Closeout Note
+
+- M5 is closed with smoke evidence in `Milestones/M5/evidence/M5_SMOKE_EVIDENCE_2026-04-14.md`.
+- Safety phase post-core enhancements are complete: Google OIDC lane is live with strict account-linking policy and `server.ts` modular extraction landed with regression-backed parity.
 
 ## Execution Plan Reference
 

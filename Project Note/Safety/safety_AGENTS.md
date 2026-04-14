@@ -38,7 +38,7 @@ You do not invent new services or hidden product policy.
 1. Account lockout policy: timed lock (`10 failures / 15 min`, auto-unlock).
 2. Refresh policy: rotate refresh token/session on every refresh, detect reuse.
 3. CORS/TLS posture: strict now (explicit allowlist + documented production TLS/HSTS).
-4. Google auth and `server.ts` split are post-core TODOs in M5 (after M1-M4 close).
+4. Google auth and `server.ts` split are delivered in M5 and must be preserved in future changes.
 
 ---
 

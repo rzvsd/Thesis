@@ -1,7 +1,7 @@
 # Thesis - Safety Milestones
 
 **Version:** 1.0  
-**Status:** Active  
+**Status:** Closed (M1-M5 complete)  
 **Last Revised:** 2026-04-14
 
 ---
@@ -14,7 +14,7 @@
 | M2 | Runtime and Infra Hardening | Non-root containers, closed DB/Redis exposure, TLS posture lock |
 | M3 | Auth Abuse Resistance | Auth rate-limit buckets, timed lockout, refresh rotation + reuse handling |
 | M4 | Verification and CI Security Gates | Security integration tests + CI audit/secret/sast controls |
-| M5 | Post-Core Enhancements (TBD) | Google OIDC and `server.ts` modularization |
+| M5 | Post-Core Enhancements | Google OIDC and `server.ts` modularization |
 
 ---
 
@@ -134,4 +134,4 @@
 
 ## Notes
 
-M5 is intentionally deferred until core hardening is delivered and stable.
+M5 is complete with evidence in `Milestones/M5/evidence/M5_SMOKE_EVIDENCE_2026-04-14.md`.
