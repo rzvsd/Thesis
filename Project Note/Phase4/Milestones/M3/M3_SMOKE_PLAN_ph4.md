@@ -2,7 +2,7 @@
 
 **Milestone:** M3 - Mobile IA V2 and Design-System Preservation  
 **Owner:** Mobile Engineer  
-**Status:** Passed locally; device lane pending
+**Status:** Closed (PASS; device lane completed in M4)
 
 ---
 

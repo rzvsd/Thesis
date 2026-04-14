@@ -12,7 +12,7 @@
 | **Milestone** | Phase 4 M2 - Inbox and Notification Ledger Backend |
 | **Linear Project** | Deferred by owner instruction for this implementation lane |
 | **Owner** | Product API Engineer + Contracts Owner |
-| **Status** | Implemented locally |
+| **Status** | Closed (PASS; owner waiver and closeout sign-offs recorded) |
 | **Depends on** | M1 complete |
 
 ---
@@ -179,9 +179,9 @@ Detailed execution lives in `M2_SMOKE_PLAN_ph4.md`.
 - [x] Migration pair exists for the alert ledger table
 - [x] Additive migration exists for notification-preference quieting
 - [x] Existing notification-preference compatibility verified
-- [ ] Linear tickets created or explicitly waived by owner
-- [ ] Product Lead sign-off recorded
-- [ ] Engineering Lead countersign recorded
+- [x] Linear tickets created or explicitly waived by owner
+- [x] Product Lead sign-off recorded
+- [x] Engineering Lead countersign recorded
 - [x] Quieting decision recorded for the existing notification-family model
 
 ---

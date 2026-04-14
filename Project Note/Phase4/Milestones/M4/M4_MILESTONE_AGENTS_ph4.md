@@ -12,8 +12,8 @@
 | **Milestone** | Phase 4 M4 - Deep Links, Smoke, Quality, and Evidence |
 | **Linear Project** | Deferred by owner instruction for this implementation lane |
 | **Owner** | Mobile Engineer + QA Lead |
-| **Status** | In progress - local proof complete, device lane passed; closeout notes being finalized |
-| **Depends on** | M3 complete; Android device/ADB lane still needed |
+| **Status** | Closed (PASS; local + device proof complete) |
+| **Depends on** | M3 complete; Android device/ADB lane complete |
 
 ---
 
@@ -40,7 +40,7 @@ This milestone adds:
 - alert identifiers carried through delivery/open/dismiss paths
 - local quality-check evidence for workspace, Product API, and Android
 - milestone evidence artifacts for closeout
-- the pending hardware lane for final Maestro/device proof
+- completed hardware lane proof for final Maestro/device validation
 
 **Plain English summary for non-technical audit:**  
 M4 proves the new navigation is actually connected, not just drawn.
@@ -166,9 +166,9 @@ Detailed execution lives in `M4_SMOKE_PLAN_ph4.md`.
 - [x] Smoke plan executed with evidence
 - [x] Local quality checks are recorded
 - [x] Maestro/device evidence captured
-- [ ] Linear tickets created or explicitly waived by owner
-- [ ] Product Lead sign-off recorded
-- [ ] QA Lead sign-off recorded
+- [x] Linear tickets created or explicitly waived by owner
+- [x] Product Lead sign-off recorded
+- [x] QA Lead sign-off recorded
 - [x] Quieting/tuning follow-up decision recorded for the existing notification-family model
 
 ---

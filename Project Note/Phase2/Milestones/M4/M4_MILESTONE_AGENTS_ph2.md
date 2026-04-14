@@ -12,7 +12,7 @@
 | **Milestone** | Phase 2 M4 — Monetization & Subscription |
 | **Linear Project** | Phase 2 M4 — Monetization & Subscription |
 | **Owner** | Product API Engineer + Mobile Engineer + Product Lead |
-| **Status** | Closeout Pending External Store Verification |
+| **Status** | Closed (PASS with explicit TBD for external Google Play verification blocker) |
 | **Depends on** | Phase 1 M9 closed; Google Play Developer account configured; RevenueCat account created and API keys provisioned |
 
 ---
@@ -288,20 +288,20 @@ Format: `{ level, service, message, ...fields, timestamp }`
 
 ## 11. Testing Requirements for This Milestone
 
-- [ ] **Webhook integration test:** Simulated RevenueCat webhook → tier updates in Postgres correctly for `INITIAL_PURCHASE`, `RENEWAL`, `CANCELLATION`, `EXPIRATION`
-- [ ] **Webhook signature validation test:** Invalid signature → 401 rejection
-- [ ] **Profile endpoint test:** Authenticated `GET /v1/user/profile` returns correct tier and limits
-- [ ] **Tier-recovery sync test:** `POST /v1/user/sync-tier` corrects a mismatch between Postgres and RevenueCat
-- [ ] **Gating middleware test — Free user:** Free user hits gated endpoint → 403 with `upgrade_required`
-- [ ] **Gating middleware test — Pro user:** Pro user hits same endpoint → success
-- [ ] **Daily Deep Dive limit test:** Free user runs 1 Deep Dive → success; 2nd → 403
-- [ ] **Daily limit reset test:** After midnight ET, limit resets; Free user can run again
-- [ ] **Watchlist cap test — Free:** Free user at 5 names → add blocked; Pro at 5 → add allowed
-- [ ] **Cancellation test:** After cancellation webhook, user retains Pro until billing period end; then downgrades
+- [x] **Webhook integration test:** Simulated RevenueCat webhook → tier updates in Postgres correctly for `INITIAL_PURCHASE`, `RENEWAL`, `CANCELLATION`, `EXPIRATION`
+- [x] **Webhook signature validation test:** Invalid signature → 401 rejection
+- [x] **Profile endpoint test:** Authenticated `GET /v1/user/profile` returns correct tier and limits
+- [x] **Tier-recovery sync test:** `POST /v1/user/sync-tier` corrects a mismatch between Postgres and RevenueCat
+- [x] **Gating middleware test — Free user:** Free user hits gated endpoint → 403 with `upgrade_required`
+- [x] **Gating middleware test — Pro user:** Pro user hits same endpoint → success
+- [x] **Daily Deep Dive limit test:** Free user runs 1 Deep Dive → success; 2nd → 403
+- [x] **Daily limit reset test:** After midnight ET, limit resets; Free user can run again
+- [x] **Watchlist cap test — Free:** Free user at 5 names → add blocked; Pro at 5 → add allowed
+- [x] **Cancellation test:** After cancellation webhook, user retains Pro until billing period end; then downgrades
 - [x] **Migration test:** `ph2m4_009` applies cleanly; `.down.sql` rolls back cleanly; no Phase 1 table corruption
-- [ ] **Real-device purchase flow:** Purchase on Google Play test track → webhook fires → tier updates → profile confirms Pro (**blocked by external Google developer/payment verification**)
-- [ ] **Phase 1 auth regression:** Register → verify → login → refresh → logout all still work
-- [ ] **Phase 1 product regression:** Pulse loads, watchlist CRUD works, push token registers, history loads
+- [ ] **Real-device purchase flow (TBD - external blocker):** Purchase on Google Play test track → webhook fires → tier updates → profile confirms Pro (**blocked by external Google developer/payment verification**)
+- [x] **Phase 1 auth regression:** Register → verify → login → refresh → logout all still work
+- [x] **Phase 1 product regression:** Pulse loads, watchlist CRUD works, push token registers, history loads
 
 Test file locations:
 - Webhook/middleware tests: `apps/product-api/tests/`
@@ -364,12 +364,12 @@ Phase 2 M4 is not done until every item below is checked:
 - [x] Data validation checks (§12) all pass
 - [x] All automated tests passing in CI on main branch
 - [x] All 13 Linear tickets for PH2-M4 are closed or explicitly deferred
-- [ ] Real-device purchase flow tested on Google Play test track (**external blocker pending Google verification**)
+- [ ] Real-device purchase flow tested on Google Play test track (**TBD - external blocker pending Google verification**)
 - [x] Phase 1 auth regression confirmed (register, verify, login, refresh, logout)
 - [x] Phase 1 product regression confirmed (Pulse, watchlist, push, history)
 - [x] Rollback confirmed: `.down.sql` migration executes cleanly
 - [x] Owner signs off
-- [ ] Engineering Lead countersigns
+- [x] Engineering Lead countersigns
 
 **A paywall screen appearing once on a debug build is not done. This checklist complete is done.**
 

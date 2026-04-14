@@ -2,7 +2,7 @@
 
 **Milestone:** M2 - Inbox and Notification Ledger Backend  
 **Owner:** Product API Engineer + Contracts Owner  
-**Status:** Passed locally
+**Status:** Closed (PASS)
 
 ---
 

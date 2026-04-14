@@ -1,8 +1,8 @@
 # Thesis - Phase 5 Milestone Briefs
 
 **Version:** 1.0  
-**Status:** Active  
-**Last Revised:** 2026-04-10
+**Status:** Closed (M1-M7 closed; explicit TBD items retained where external proof is unavailable)  
+**Last Revised:** 2026-04-14
 **Related Documents:** ph5_ROADMAP.md, ph5_BLUEBOOK.md, ph5_PRD.md
 
 ---

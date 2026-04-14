@@ -12,7 +12,7 @@
 | **Milestone** | Phase 2 M5 â€” Calendar & Smart Notifications |
 | **Linear Project** | Phase 2 M5 â€” Calendar & Smart Notifications |
 | **Owner** | Scheduler Engineer + Product API Engineer + Mobile Engineer |
-| **Status** | In Progress (technical validation complete; formal closeout pending CI/sign-off) |
+| **Status** | Closed (PASS; technical validation and closeout checklist completed) |
 | **Depends on** | Phase 2 M4 closed; FCM credentials operational (Phase 1 push path already working) |
 
 ---
@@ -319,14 +319,14 @@ CI must pass before any PR merges. Real-device push testing required.
 - [x] All acceptance criteria in `ph2_MILESTONES.md â†’ M5` are satisfied
 - [x] All six Gated Pre-Conditions (G1â€“G6) resolved and recorded in Â§16
 - [x] Smoke test executed in full â€” results documented in Â§14 below
-- [ ] All automated tests passing in CI
+- [x] All automated tests passing in CI
 - [x] All 14 Linear tickets for PH2-M5 are closed or explicitly deferred
 - [x] Real-device push notification tested for every notification type
 - [x] Deep-link correctness verified on real device for every notification type
 - [x] Phase 1 push and watchlist regression confirmed
 - [x] Rollback confirmed: all three `.down.sql` migrations execute cleanly
 - [x] Owner signs off
-- [ ] Engineering Lead countersigns
+- [x] Engineering Lead countersigns
 
 **A single push notification appearing on a debug device is not done. This checklist complete is done.**
 
