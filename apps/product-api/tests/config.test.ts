@@ -87,3 +87,30 @@ test("AUTH_LOCKOUT_DURATION_SECONDS must be greater than zero", () => {
   const errors = validateConfig(config);
   assert.ok(errors.includes("AUTH_LOCKOUT_DURATION_SECONDS must be greater than 0"));
 });
+
+test("OIDC requires at least one client id when enabled", () => {
+  const config = loadConfig({
+    ...process.env,
+    OIDC_GOOGLE_ENABLED: "true",
+    OIDC_GOOGLE_CLIENT_IDS: "   "
+  });
+
+  const errors = validateConfig(config);
+  assert.ok(
+    errors.includes(
+      "OIDC_GOOGLE_CLIENT_IDS must include at least one client ID when OIDC_GOOGLE_ENABLED=true"
+    )
+  );
+});
+
+test("OIDC requires https jwks url when enabled", () => {
+  const config = loadConfig({
+    ...process.env,
+    OIDC_GOOGLE_ENABLED: "true",
+    OIDC_GOOGLE_CLIENT_IDS: "test-client",
+    OIDC_GOOGLE_JWKS_URL: "http://localhost:3000/jwks"
+  });
+
+  const errors = validateConfig(config);
+  assert.ok(errors.includes("OIDC_GOOGLE_JWKS_URL must use https"));
+});

@@ -82,10 +82,10 @@
 
 ## Acceptance Criteria
 
-- [ ] Security integration tests exist for auth/IDOR/oversize/token expiry paths
-- [ ] CI runs vulnerability audit gate
-- [ ] CI runs secret scan and SAST baseline
-- [ ] Production startup fails on insecure config values
+- [x] Security integration tests exist for auth/IDOR/oversize/token expiry paths
+- [x] CI runs vulnerability audit gate
+- [x] CI runs secret scan and SAST baseline
+- [x] Production startup fails on insecure config values
 
 ## Smoke Test
 
@@ -98,19 +98,39 @@
 
 ---
 
-# M5 - Post-Core Enhancements (TBD)
+# M5 - Post-Core Enhancements
 
 ## Start Gate (Mandatory)
 
 - [x] M1 closed
 - [x] M2 closed
 - [x] M3 closed
-- [ ] M4 closed
+- [x] M4 closed
 
 ## Scope
 
-- [ ] Google OIDC sign-in/sign-up with strict account-linking controls
-- [ ] `server.ts` modular extraction into domain route modules with no behavior regressions
+- [x] Google OIDC sign-in/sign-up with strict account-linking controls
+- [x] `server.ts` modular extraction into domain route modules with no behavior regressions
+
+## Acceptance Criteria
+
+- [x] Google ID token verification enforces issuer/audience/signature/expiry checks
+- [x] Google verified-email new user can sign up and receive normal Thesis session tokens
+- [x] Existing linked Google user can sign in deterministically
+- [x] Existing password-origin account is protected by explicit account-link policy (no unsafe silent takeover)
+- [x] Existing email/password auth behaviors remain unchanged (regression-backed)
+- [x] `server.ts` modular extraction preserves route behavior and contracts
+
+## Smoke Test
+
+```text
+1. Execute Google OIDC new-user signup and linked-user sign-in flows
+2. Execute unlinked-existing-account linking-protection scenario
+3. Execute invalid/expired Google token rejection checks
+4. Execute full auth regression suite (register/verify/login/refresh/logout, lockout, rate limits, reuse)
+5. Execute product-api + workspace typecheck/test and security CI commands
+6. Verify modularized route behavior parity on protected endpoints
+```
 
 ## Notes
 
