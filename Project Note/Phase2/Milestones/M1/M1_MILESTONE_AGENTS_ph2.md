@@ -12,7 +12,7 @@
 | **Milestone** | Phase 2 M1 — Historical Data Pipeline |
 | **Linear Project** | Phase 2 M1 — Historical Data Pipeline |
 | **Owner** | Data Engineer + Platform Engineer |
-| **Status** | Closed (PASS; owner-approved TBD follow-ups recorded) |
+| **Status** | In Progress |
 | **Depends on** | Phase 1 M9 closed; **Phase 2 M0 closed** (tables populated via SEC EDGAR + HuggingFace bulk load); PostgreSQL operational |
 
 ---
@@ -347,7 +347,7 @@ Never log API keys, secrets, or provider credentials.
 ## 11. Testing Requirements for This Milestone
 
 - [x] **Contract compilation test:** all three contracts compile; `pnpm typecheck` passes
-- [ ] **Migration test (TBD - owner-approved follow-up):** `ph2m0_004`–`ph2m0_006` apply and roll back cleanly (non-blocking for this closeout)
+- [ ] **Migration test:** `ph2m0_004`–`ph2m0_006` apply and roll back cleanly (M0 may own first run; M1 must pass in CI)
 - [x] **Delta sync unit tests:** SEC mapper fixtures → expected snapshot rows; rate-limit helper never exceeds 10 r/s
 - [x] **Delta sync idempotency test:** two consecutive runs — no duplicate PKs; stable `ticker_coverage` counts
 - [x] **Retrieval integration tests:** `/financials`, `/transcripts`, `/coverage` happy path + missing ticker

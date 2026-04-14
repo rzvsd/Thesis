@@ -1,6 +1,6 @@
 # AGENTS.md - Phase 2 M3 Fear & Greed Index Engine
 **Milestone:** Phase 2 M3 - Fear & Greed Index Engine  
-**Status:** Closed (PASS)  
+**Status:** Active (Plan Updated)  
 **Location:** `Project Note/Phase2/Milestones/M3/M3_MILESTONE_AGENTS_ph2.md`
 
 ---

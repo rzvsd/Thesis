@@ -1,5 +1,5 @@
 ## Phase 5 Stabilization Plan: Builder Login + Persistent Access (Acceptance Draft)
-**Status:** Closed (implemented and accepted for local/dev scope, 2026-04-11)  
+**Status:** Implemented locally (2026-04-11)  
 **Scope:** Local and dev safety-first stabilization, no production behavior changes
 
 ### Summary

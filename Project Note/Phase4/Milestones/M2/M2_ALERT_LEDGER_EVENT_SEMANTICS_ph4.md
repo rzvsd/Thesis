@@ -1,7 +1,7 @@
 # M2 Alert Ledger Event Semantics (Phase 4)
 
 **Milestone:** Phase 4 M2 - Inbox and Notification Ledger Backend  
-**Status:** Closed (aligned with M2 closeout)  
+**Status:** Implemented locally  
 **Owner:** Product API Engineer + Contracts Owner  
 **Last Revised:** 2026-04-08
 

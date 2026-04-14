@@ -12,7 +12,7 @@
 | **Milestone** | Phase 4 M1 - Baseline, Docs, and Interface Lock |
 | **Linear Project** | Deferred by owner instruction for this implementation lane |
 | **Owner** | Product Lead + Engineering Lead |
-| **Status** | Closed (PASS; owner waiver and closeout sign-offs recorded) |
+| **Status** | Implemented locally |
 | **Depends on** | Phase 3 baseline docs remain in force |
 
 ---
@@ -159,9 +159,9 @@ Detailed execution lives in `M1_SMOKE_PLAN_ph4.md`.
 - [x] All M1 acceptance criteria in `ph4_MILESTONES.md` are satisfied
 - [x] Smoke plan executed with evidence
 - [x] Root Phase 4 docs are committed in the repo structure
-- [x] Linear project/tickets created or explicitly waived by owner
-- [x] Product Lead sign-off recorded
-- [x] Engineering Lead countersign recorded
+- [ ] Linear project/tickets created or explicitly waived by owner
+- [ ] Product Lead sign-off recorded
+- [ ] Engineering Lead countersign recorded
 
 ---
 

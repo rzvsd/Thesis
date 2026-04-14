@@ -12,7 +12,7 @@
 | **Milestone** | Phase 3 M2 - Daily Loop, Position Monitoring and Re-engagement |
 | **Linear Project** | Phase 3 M2 - Daily Loop, Position Monitoring and Re-engagement |
 | **Owner** | Mobile Engineer + Scheduler Engineer + Product API Engineer + Product Lead |
-| **Status** | Closed (PASS) |
+| **Status** | In Progress |
 | **Depends on** | Phase 3 M1 closed; current Today/Pulse/notification paths operational |
 
 ---
@@ -80,12 +80,12 @@ M2 makes Thesis answer "why should I care today?" without forcing the user to pi
 
 ## 3. Scope - What Is In
 
-- [x] Personalized Today prioritization
-- [x] Faster onboarding to a valuable Today state
-- [x] Thesis-aware notifications with reason and landing context
-- [x] Notification throttling and category controls
-- [x] Pre-earnings and post-earnings rituals for followed names
-- [x] Personalized weekly summary
+- [ ] Personalized Today prioritization
+- [ ] Faster onboarding to a valuable Today state
+- [ ] Thesis-aware notifications with reason and landing context
+- [ ] Notification throttling and category controls
+- [ ] Pre-earnings and post-earnings rituals for followed names
+- [ ] Personalized weekly summary
 
 Full acceptance source: `Project Note/Phase3/ph3_MILESTONES.md -> M2`
 
@@ -172,11 +172,11 @@ Full acceptance source: `Project Note/Phase3/ph3_MILESTONES.md -> M2`
 
 ## 10. Testing Requirements
 
-- [x] Integration tests for personalized Today composition
-- [x] Notification flow tests for reason payload and deep link
-- [x] Real-device verification for notification landing and settings behavior
-- [x] Pulse/history/watchlist/push regression smoke re-run
-- [x] Analytics event validation for notification quality metrics
+- [ ] Integration tests for personalized Today composition
+- [ ] Notification flow tests for reason payload and deep link
+- [ ] Real-device verification for notification landing and settings behavior
+- [ ] Pulse/history/watchlist/push regression smoke re-run
+- [ ] Analytics event validation for notification quality metrics
 
 Detailed execution lives in `M2_SMOKE_PLAN_ph3.md`.
 
@@ -184,13 +184,13 @@ Detailed execution lives in `M2_SMOKE_PLAN_ph3.md`.
 
 ## 11. Definition Of Done
 
-- [x] All M2 acceptance criteria in `ph3_MILESTONES.md` are satisfied
-- [x] Smoke plan executed with evidence
-- [x] Notification quality events are visible in analytics
-- [x] Existing Today/Pulse/history/push regressions still pass
-- [x] Linear tickets closed or explicitly deferred
-- [x] Product Lead sign-off recorded
-- [x] Engineering Lead countersign recorded
+- [ ] All M2 acceptance criteria in `ph3_MILESTONES.md` are satisfied
+- [ ] Smoke plan executed with evidence
+- [ ] Notification quality events are visible in analytics
+- [ ] Existing Today/Pulse/history/push regressions still pass
+- [ ] Linear tickets closed or explicitly deferred
+- [ ] Product Lead sign-off recorded
+- [ ] Engineering Lead countersign recorded
 
 ---
 
@@ -200,7 +200,7 @@ Detailed execution lives in `M2_SMOKE_PLAN_ph3.md`.
 Date: 2026-04-04
 Run by: Codex
 Environment: Local dev (memory-store tests + Android debug compile)
-Result: PASS (backend + scheduler automation green; physical-device smoke and deep-link verification complete)
+Result: In progress - backend and scheduler automation green; physical-device smoke pending
 
 Notes:
 - Implemented `thesis_monitor_snapshots` persistence and `/v1/user/monitor-snapshots` endpoint.

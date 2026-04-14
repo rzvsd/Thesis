@@ -2,7 +2,7 @@
 
 **Milestone:** M2 - Daily Loop, Position Monitoring and Re-engagement  
 **Owner:** Mobile Engineer + Scheduler Engineer + Product API Engineer + Product Lead  
-**Status:** Closed (PASS)
+**Status:** In Progress
 
 ---
 
