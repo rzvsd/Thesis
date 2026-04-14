@@ -3,6 +3,7 @@ export * from "./analysis-request";
 export * from "./alert-ledger";
 export * from "./audit-event-payload";
 export * from "./auth-login-request";
+export * from "./auth-google-request";
 export * from "./auth-refresh-request";
 export * from "./auth-register-request";
 export * from "./auth-tokens-response";

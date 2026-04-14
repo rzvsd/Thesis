@@ -10,9 +10,6 @@ import type {
   AlertRouteTarget,
   AnalysisReport,
   AnalysisRequest,
-  AuthLoginRequest,
-  AuthRefreshRequest,
-  AuthRegisterRequest,
   AuthTokensResponse,
   CoherenceEvaluationRequest,
   ConvictionEvidenceRef,
@@ -96,6 +93,9 @@ import { buildMarketPulseReport, withWatchlistOverlay } from "./market-pulse";
 import { PushNotifier } from "./push";
 import { buildFearGreedSnapshot, isUsTradingDay, isValidMarketDate } from "./sentiment";
 import { fetchLatestClosePrice, fetchLatestClosePrices } from "./market-prices";
+import { verifyGoogleIdToken } from "./google-oidc";
+import { handleAuthRoutes } from "./routes/auth-routes";
+import { handlePublicRoutes } from "./routes/public-routes";
 import { startTickerSyncScheduler } from "./ticker-sync-scheduler";
 import { startJobRecoveryScheduler } from "./job-recovery-scheduler";
 import {
@@ -5325,377 +5325,39 @@ export function startServer(port: number = loadConfig().port): Server {
         }
       }
 
-      if (method === "POST" && pathname === "/auth/register") {
-        const body = await readJsonBody<AuthRegisterRequest>(request);
-        const email = normalizeEmail(body.email ?? "");
-        const password = body.password ?? "";
-
-        if (!isValidEmail(email) || password.length < 8) {
-          sendJson(response, 422, {
-            error: "validation_failed",
-            error_message: "A valid email and password (min 8 chars) are required."
-          });
-          return;
-        }
-
-        const passwordHash = await hashPassword(password, runtime.config.bcryptCost);
-        const user = await runtime.store.createUser({
-          email,
-          passwordHash
-        });
-
-        if (!user) {
-          sendJson(response, 409, {
-            error: "email_exists",
-            error_message: "An account with this email already exists."
-          });
-          return;
-        }
-
-        const rawVerificationToken = createOpaqueToken(32);
-        const now = new Date();
-        const verificationExpiresAt = new Date(
-          now.getTime() + runtime.config.verificationTokenTtlSeconds * 1000
-        ).toISOString();
-
-        await runtime.store.createVerificationToken({
-          id: createId(),
-          userId: user.id,
-          tokenHash: hashOpaqueToken(rawVerificationToken),
-          createdAt: now.toISOString(),
-          expiresAt: verificationExpiresAt
-        });
-
-        await appendAudit(
-          runtime,
-          "auth.registered",
+      if (
+        await handleAuthRoutes(
           {
-            request_id: meta.requestId,
-            route: pathname
+            method,
+            pathname,
+            request,
+            response,
+            runtime,
+            meta
           },
-          user.id
-        );
-
-        logInfo("Verification email sent", {
-          request_id: meta.requestId,
-          user_id: user.id,
-          provider: runtime.config.emailProviderMode
-        });
-
-        sendJson(response, 201, {
-          status: "verification_sent",
-          email: user.email,
-          verification_token: runtime.config.exposeVerificationToken
-            ? rawVerificationToken
-            : undefined,
-          verification_expires_at: verificationExpiresAt
-        });
-        return;
-      }
-
-      if (method === "POST" && pathname === "/auth/verify") {
-        const body = await readJsonBody<{ token?: string }>(request);
-        const token = body.token?.trim();
-        if (!token) {
-          sendJson(response, 422, {
-            error: "validation_failed",
-            error_message: "token is required"
-          });
-          return;
-        }
-
-        const consumedToken = await runtime.store.consumeVerificationToken(
-          hashOpaqueToken(token),
-          new Date().toISOString()
-        );
-        if (!consumedToken) {
-          sendJson(response, 400, {
-            error: "invalid_verification_token",
-            error_message: "The verification token is invalid or expired."
-          });
-          return;
-        }
-
-        const user = await runtime.store.markUserVerified(
-          consumedToken.userId,
-          new Date().toISOString()
-        );
-        if (!user) {
-          sendJson(response, 404, {
-            error: "user_not_found",
-            error_message: "User not found for verification token."
-          });
-          return;
-        }
-
-        await appendAudit(
-          runtime,
-          "auth.verified",
           {
-            request_id: meta.requestId,
-            route: pathname
-          },
-          user.id
-        );
-
-        sendJson(response, 200, {
-          status: "verified"
-        });
-        return;
-      }
-
-      if (method === "POST" && pathname === "/auth/login") {
-        const body = await readJsonBody<AuthLoginRequest>(request);
-        const email = normalizeEmail(body.email ?? "");
-        const password = body.password ?? "";
-        if (!isValidEmail(email) || password.length < 8) {
-          sendJson(response, 422, {
-            error: "validation_failed",
-            error_message: "A valid email and password are required."
-          });
-          return;
-        }
-
-        await maybeBootstrapAdminForLogin(runtime, email, password);
-        const user = await runtime.store.findUserByEmail(email);
-        if (!user || !user.verifiedAt) {
-          sendJson(response, 401, {
-            error: "auth_failed",
-            error_message: "Invalid credentials."
-          });
-          return;
-        }
-
-        const now = new Date();
-        const nowIso = now.toISOString();
-        if (user.lockedUntil && Date.parse(user.lockedUntil) > now.getTime()) {
-          sendJson(response, 423, {
-            error: "account_locked",
-            error_message: "Account temporarily locked due to repeated failed login attempts.",
-            locked_until: user.lockedUntil,
-            retry_after_seconds: secondsUntilIso(user.lockedUntil, now.getTime())
-          });
-          return;
-        }
-
-        const passwordMatches = await verifyPassword(password, user.passwordHash);
-        if (!passwordMatches) {
-          const updatedUser = await runtime.store.recordFailedLoginAttempt({
-            userId: user.id,
-            attemptedAt: nowIso,
-            windowSeconds: runtime.config.authLockoutWindowSeconds,
-            maxFailures: runtime.config.authLockoutMaxFailures,
-            lockoutDurationSeconds: runtime.config.authLockoutDurationSeconds
-          });
-
-          if (
-            updatedUser?.lockedUntil &&
-            Date.parse(updatedUser.lockedUntil) > now.getTime()
-          ) {
-            await appendAudit(
-              runtime,
-              "auth.lockout_activated",
-              {
-                request_id: meta.requestId,
-                route: pathname,
-                locked_until: updatedUser.lockedUntil
-              },
-              user.id
-            );
-            sendJson(response, 423, {
-              error: "account_locked",
-              error_message: "Account temporarily locked due to repeated failed login attempts.",
-              locked_until: updatedUser.lockedUntil,
-              retry_after_seconds: secondsUntilIso(updatedUser.lockedUntil, now.getTime())
-            });
-            return;
+            appendAudit,
+            authenticateAccessToken,
+            authenticateAnyToken,
+            createId,
+            createOpaqueToken,
+            hashOpaqueToken,
+            hashPassword,
+            isValidEmail,
+            issueTokens,
+            logInfo,
+            maybeBootstrapAdminForLogin,
+            normalizeEmail,
+            parseBearerToken,
+            readJsonBody,
+            secondsUntilIso,
+            sendJson,
+            verifyAuthToken,
+            verifyGoogleIdToken,
+            verifyPassword
           }
-
-          sendJson(response, 401, {
-            error: "auth_failed",
-            error_message: "Invalid credentials."
-          });
-          return;
-        }
-
-        await runtime.store.clearFailedLoginAttempts(user.id);
-        const refreshTokenExpiresAt = new Date(
-          now.getTime() + runtime.config.refreshTokenTtlSeconds * 1000
-        ).toISOString();
-        const session = await runtime.store.createSession({
-          id: createId(),
-          userId: user.id,
-          createdAt: nowIso,
-          expiresAt: refreshTokenExpiresAt
-        });
-
-        const tokens = await issueTokens(
-          runtime,
-          user.id,
-          session.id,
-          refreshTokenExpiresAt
-        );
-
-        await appendAudit(
-          runtime,
-          "auth.login_succeeded",
-          {
-            request_id: meta.requestId,
-            route: pathname
-          },
-          user.id
-        );
-
-        sendJson(response, 200, tokens);
-        return;
-      }
-
-      if (method === "POST" && pathname === "/auth/refresh") {
-        const body = await readJsonBody<AuthRefreshRequest>(request);
-        const refreshToken = body.refresh_token?.trim();
-        if (!refreshToken) {
-          sendJson(response, 422, {
-            error: "validation_failed",
-            error_message: "refresh_token is required."
-          });
-          return;
-        }
-
-        const claims = verifyAuthToken(refreshToken, runtime.config.jwtSecret);
-        if (!claims || claims.typ !== "refresh") {
-          sendJson(response, 401, {
-            error: "refresh_failed",
-            error_message: "Refresh token is invalid or expired."
-          });
-          return;
-        }
-
-        const session = await runtime.store.getSessionById(claims.sid);
-        if (!session || session.userId !== claims.sub) {
-          sendJson(response, 401, {
-            error: "refresh_failed",
-            error_message: "Refresh session is invalid."
-          });
-          return;
-        }
-
-        const now = new Date();
-        const nowIso = now.toISOString();
-        if (session.revokedAt) {
-          if (session.revokedReason === "rotated") {
-            const revokedCount = await runtime.store.revokeSessionFamily({
-              familyId: session.familyId,
-              revokedAt: nowIso,
-              reason: "reuse_detected"
-            });
-            await appendAudit(
-              runtime,
-              "auth.refresh_reuse_detected",
-              {
-                request_id: meta.requestId,
-                route: pathname,
-                session_id: session.id,
-                family_id: session.familyId,
-                revoked_sessions: revokedCount
-              },
-              session.userId
-            );
-          }
-
-          sendJson(response, 401, {
-            error: "refresh_failed",
-            error_message: "Refresh session is invalid."
-          });
-          return;
-        }
-
-        if (Date.parse(session.expiresAt) <= now.getTime()) {
-          await runtime.store.revokeSession(session.id, nowIso, {
-            reason: "expired"
-          });
-          sendJson(response, 401, {
-            error: "refresh_failed",
-            error_message: "Refresh session expired."
-          });
-          return;
-        }
-
-        const rotatedRefreshExpiresAt = new Date(
-          now.getTime() + runtime.config.refreshTokenTtlSeconds * 1000
-        ).toISOString();
-        const nextSession = await runtime.store.createSession({
-          id: createId(),
-          userId: session.userId,
-          createdAt: nowIso,
-          expiresAt: rotatedRefreshExpiresAt,
-          familyId: session.familyId,
-          parentSessionId: session.id
-        });
-        await runtime.store.revokeSession(session.id, nowIso, {
-          reason: "rotated",
-          replacedBySessionId: nextSession.id
-        });
-
-        const tokens = await issueTokens(
-          runtime,
-          nextSession.userId,
-          nextSession.id,
-          rotatedRefreshExpiresAt
-        );
-
-        await appendAudit(
-          runtime,
-          "auth.access_refreshed",
-          {
-            request_id: meta.requestId,
-            route: pathname,
-            rotated_from_session_id: session.id,
-            rotated_to_session_id: nextSession.id
-          },
-          nextSession.userId
-        );
-
-        sendJson(response, 200, tokens);
-        return;
-      }
-
-      if (method === "POST" && pathname === "/auth/logout") {
-        const bearerToken = parseBearerToken(request);
-        const body = await readJsonBody<{ refresh_token?: string }>(request);
-        const token = bearerToken ?? body.refresh_token;
-        if (!token) {
-          sendJson(response, 401, {
-            error: "unauthorized",
-            error_message: "A valid token is required to logout."
-          });
-          return;
-        }
-
-        const auth = await authenticateAnyToken(runtime, token);
-        if (!auth) {
-          sendJson(response, 401, {
-            error: "unauthorized",
-            error_message: "A valid token is required to logout."
-          });
-          return;
-        }
-
-        await runtime.store.revokeSession(auth.sessionId, new Date().toISOString(), {
-          reason: "logout"
-        });
-        await appendAudit(
-          runtime,
-          "auth.logout_completed",
-          {
-            request_id: meta.requestId,
-            route: pathname
-          },
-          auth.userId
-        );
-
-        sendJson(response, 200, {
-          status: "logged_out"
-        });
+        )
+      ) {
         return;
       }
 
@@ -7883,170 +7545,30 @@ export function startServer(port: number = loadConfig().port): Server {
       }
 
       if (
-        method === "GET" &&
-        (pathname === "/v1/historical/financials" ||
-          pathname === "/v1/historical/transcripts" ||
-          pathname === "/v1/historical/coverage")
+        await handlePublicRoutes(
+          {
+            method,
+            pathname,
+            request,
+            response,
+            runtime,
+            meta,
+            url
+          },
+          {
+            appendAudit,
+            applyWebhookEventToSubscription,
+            authenticateAccessToken,
+            hasInternalToken,
+            hashRevenueCatAppUserId,
+            logWarn,
+            parseRevenueCatWebhookEvent,
+            readJsonBody,
+            sendJson,
+            verifyRevenueCatWebhookSecret
+          }
+        )
       ) {
-        const internalRequest = hasInternalToken(request, runtime.config.internalWorkerToken);
-        const historicalAuth = internalRequest
-          ? undefined
-          : await authenticateAccessToken(runtime, request);
-        if (!internalRequest && !historicalAuth) {
-          sendJson(response, 401, {
-            error: "unauthorized",
-            error_message: "Authentication required."
-          });
-          return;
-        }
-
-        const ticker = url.searchParams.get("ticker")?.trim().toUpperCase() ?? "";
-        if (!ticker || !/^[A-Z.-]{1,12}$/.test(ticker)) {
-          sendJson(response, 422, {
-            error: "validation_failed",
-            error_message: "ticker query parameter is required and must be a valid US symbol."
-          });
-          return;
-        }
-
-        if (pathname === "/v1/historical/financials") {
-          const snapshots = await runtime.store.listHistoricalFinancialSnapshotsByTicker(ticker);
-          await appendAudit(
-            runtime,
-            "historical.financials_retrieved",
-            {
-              request_id: meta.requestId,
-              route: pathname,
-              ticker,
-              internal_request: internalRequest,
-              row_count: snapshots.length
-            },
-            historicalAuth?.userId
-          );
-          sendJson(response, 200, {
-            data: snapshots,
-            missing: snapshots.length === 0
-          });
-          return;
-        }
-
-        if (pathname === "/v1/historical/transcripts") {
-          const transcripts = await runtime.store.listHistoricalTranscriptsByTicker(ticker);
-          await appendAudit(
-            runtime,
-            "historical.transcripts_retrieved",
-            {
-              request_id: meta.requestId,
-              route: pathname,
-              ticker,
-              internal_request: internalRequest,
-              row_count: transcripts.length
-            },
-            historicalAuth?.userId
-          );
-          sendJson(response, 200, {
-            data: transcripts,
-            missing: transcripts.length === 0
-          });
-          return;
-        }
-
-        const coverage = await runtime.store.getTickerCoverageByTicker(ticker);
-        await appendAudit(
-          runtime,
-          "historical.coverage_retrieved",
-          {
-            request_id: meta.requestId,
-            route: pathname,
-            ticker,
-            internal_request: internalRequest,
-            found: Boolean(coverage)
-          },
-          historicalAuth?.userId
-        );
-        sendJson(response, 200, {
-          data: coverage ?? null,
-          missing: coverage === undefined
-        });
-        return;
-      }
-
-      if (method === "POST" && pathname === "/v1/webhooks/revenuecat") {
-        const authorizationHeader =
-          typeof request.headers.authorization === "string"
-            ? request.headers.authorization
-            : undefined;
-        if (
-          !verifyRevenueCatWebhookSecret(
-            authorizationHeader,
-            runtime.config.revenuecatWebhookSecret
-          )
-        ) {
-          sendJson(response, 401, {
-            error: "unauthorized",
-            error_message: "Invalid RevenueCat webhook secret."
-          });
-          return;
-        }
-
-        const payload = await readJsonBody<unknown>(request);
-        const parsedEvent = parseRevenueCatWebhookEvent(payload);
-        if (!parsedEvent) {
-          sendJson(response, 422, {
-            error: "validation_failed",
-            error_message: "Invalid RevenueCat webhook payload."
-          });
-          return;
-        }
-
-        const directUser = await runtime.store.findUserById(parsedEvent.appUserId);
-        const mappedUserId = directUser
-          ? directUser.id
-          : await runtime.store.findUserIdByRevenuecatAppUserId(parsedEvent.appUserId);
-        if (!mappedUserId) {
-          logWarn("RevenueCat webhook user not found", {
-            route: pathname,
-            event_type: parsedEvent.eventType,
-            revenuecat_user_id_hash: hashRevenueCatAppUserId(parsedEvent.appUserId)
-          });
-          sendJson(response, 202, {
-            status: "ignored",
-            reason: "user_not_found"
-          });
-          return;
-        }
-
-        const current = await runtime.store.getUserSubscription(mappedUserId);
-        const next = applyWebhookEventToSubscription(
-          current,
-          parsedEvent.eventType,
-          parsedEvent.billingPeriodEnd
-        );
-        const updated = await runtime.store.upsertUserSubscription({
-          userId: mappedUserId,
-          tier: next.tier,
-          billingPeriodEnd: next.billingPeriodEnd,
-          revenuecatAppUserId: parsedEvent.appUserId,
-          updatedAt: new Date().toISOString()
-        });
-
-        await appendAudit(
-          runtime,
-          "subscription.webhook_processed",
-          {
-            request_id: meta.requestId,
-            route: pathname,
-            event_type: parsedEvent.eventType,
-            tier: updated.tier,
-            billing_period_end: updated.billingPeriodEnd,
-            revenuecat_user_id_hash: hashRevenueCatAppUserId(parsedEvent.appUserId)
-          },
-          mappedUserId
-        );
-
-        sendJson(response, 200, {
-          status: "ok"
-        });
         return;
       }
 

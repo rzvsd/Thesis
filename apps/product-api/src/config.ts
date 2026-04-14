@@ -39,6 +39,18 @@ function parseCsv(value: string | undefined, fallback: string[]): string[] {
   return parsed.length > 0 ? parsed : fallback;
 }
 
+function parseCsvRaw(value: string | undefined, fallback: string[]): string[] {
+  if (!value) {
+    return fallback;
+  }
+
+  const parsed = value
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+  return parsed.length > 0 ? parsed : fallback;
+}
+
 function parseOrigins(value: string | undefined, fallback: string[]): string[] {
   if (!value) {
     return fallback;
@@ -53,6 +65,7 @@ function parseOrigins(value: string | undefined, fallback: string[]): string[] {
 
 export type QueueBackend = "redis" | "memory";
 export type StoreBackend = "postgres" | "memory";
+export type GoogleOidcLinkPolicy = "BLOCK_UNLINKED" | "AUTO_LINK_VERIFIED_EMAIL";
 
 function isValidEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
@@ -142,6 +155,13 @@ export interface ProductApiConfig {
   revenuecatEntitlementId?: string;
   pushProviderMode: "stub" | "fcm";
   googleApplicationCredentials?: string;
+  oidcGoogleEnabled: boolean;
+  oidcGoogleClientIds: string[];
+  oidcGoogleIssuers: string[];
+  oidcGoogleJwksUrl: string;
+  oidcGoogleJwksJson?: string;
+  oidcGoogleClockSkewSeconds: number;
+  oidcGoogleLinkPolicy: GoogleOidcLinkPolicy;
   jobRecoveryEnabled: boolean;
   jobRecoveryRunOnStartup: boolean;
   jobRecoveryIntervalSeconds: number;
@@ -209,6 +229,21 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ProductApiConf
         : env.ARTIFACT_S3_BUCKET?.trim()
           ? "s3"
           : "filesystem";
+  const oidcGoogleEnabled = parseBoolean(env.OIDC_GOOGLE_ENABLED, false);
+  const oidcGoogleClientIds = parseCsvRaw(env.OIDC_GOOGLE_CLIENT_IDS, []);
+  const oidcGoogleIssuers = parseCsvRaw(env.OIDC_GOOGLE_ISSUERS, [
+    "https://accounts.google.com",
+    "accounts.google.com"
+  ]);
+  const oidcGoogleJwksUrl =
+    env.OIDC_GOOGLE_JWKS_URL?.trim() || "https://www.googleapis.com/oauth2/v3/certs";
+  const oidcGoogleJwksJson = env.OIDC_GOOGLE_JWKS_JSON?.trim() || undefined;
+  const oidcGoogleClockSkewSeconds = parseInteger(env.OIDC_GOOGLE_CLOCK_SKEW_SECONDS, 60);
+  const oidcGoogleLinkPolicyRaw = env.OIDC_GOOGLE_LINK_POLICY?.trim().toUpperCase();
+  const oidcGoogleLinkPolicy: GoogleOidcLinkPolicy =
+    oidcGoogleLinkPolicyRaw === "AUTO_LINK_VERIFIED_EMAIL"
+      ? "AUTO_LINK_VERIFIED_EMAIL"
+      : "BLOCK_UNLINKED";
 
   return {
     port,
@@ -290,6 +325,13 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ProductApiConf
         ? "fcm"
         : "stub",
     googleApplicationCredentials: env.GOOGLE_APPLICATION_CREDENTIALS?.trim() || undefined,
+    oidcGoogleEnabled,
+    oidcGoogleClientIds,
+    oidcGoogleIssuers,
+    oidcGoogleJwksUrl,
+    oidcGoogleJwksJson,
+    oidcGoogleClockSkewSeconds,
+    oidcGoogleLinkPolicy,
     jobRecoveryEnabled: parseBoolean(env.JOB_RECOVERY_ENABLED, true),
     jobRecoveryRunOnStartup: parseBoolean(env.JOB_RECOVERY_RUN_ON_STARTUP, true),
     jobRecoveryIntervalSeconds: parseInteger(env.JOB_RECOVERY_INTERVAL_SECONDS, 30),
@@ -522,6 +564,40 @@ export function validateConfig(config: ProductApiConfig): string[] {
     errors.push(
       "GOOGLE_APPLICATION_CREDENTIALS file does not exist for PUSH_PROVIDER_MODE=fcm"
     );
+  }
+
+  if (config.oidcGoogleEnabled && config.oidcGoogleClientIds.length === 0) {
+    errors.push("OIDC_GOOGLE_CLIENT_IDS must include at least one client ID when OIDC_GOOGLE_ENABLED=true");
+  }
+
+  if (config.oidcGoogleEnabled && config.oidcGoogleIssuers.length === 0) {
+    errors.push("OIDC_GOOGLE_ISSUERS must include at least one issuer when OIDC_GOOGLE_ENABLED=true");
+  }
+
+  if (config.oidcGoogleClockSkewSeconds < 0 || config.oidcGoogleClockSkewSeconds > 300) {
+    errors.push("OIDC_GOOGLE_CLOCK_SKEW_SECONDS must be between 0 and 300");
+  }
+
+  if (config.oidcGoogleEnabled) {
+    try {
+      const parsed = new URL(config.oidcGoogleJwksUrl);
+      if (parsed.protocol !== "https:") {
+        errors.push("OIDC_GOOGLE_JWKS_URL must use https");
+      }
+    } catch {
+      errors.push("OIDC_GOOGLE_JWKS_URL must be a valid URL");
+    }
+
+    if (config.oidcGoogleJwksJson) {
+      try {
+        const parsed = JSON.parse(config.oidcGoogleJwksJson) as { keys?: unknown };
+        if (!Array.isArray(parsed.keys)) {
+          errors.push("OIDC_GOOGLE_JWKS_JSON must include a keys array");
+        }
+      } catch {
+        errors.push("OIDC_GOOGLE_JWKS_JSON must be valid JSON");
+      }
+    }
   }
 
   return errors;

@@ -56,6 +56,7 @@ import type {
   ContrarianAlertAnchorRecord,
   EarningsWarRoomRecord,
   EarningsWarRoomTimelineEventRecord,
+  GoogleIdentityRecord,
   KillSwitchEvaluationRecord,
   KillSwitchRuleRecord,
   JobRecord,
@@ -81,10 +82,24 @@ import type {
   VerificationTokenRecord
 } from "./types";
 
+export type GoogleIdentityAttachResult =
+  | "linked"
+  | "already_linked_to_user"
+  | "subject_in_use"
+  | "user_already_linked";
+
 export interface ProductStore {
   createUser(input: { email: string; passwordHash: string }): Promise<UserRecord | undefined>;
   findUserByEmail(email: string): Promise<UserRecord | undefined>;
   findUserById(id: string): Promise<UserRecord | undefined>;
+  findUserByGoogleSubject(googleSubject: string): Promise<UserRecord | undefined>;
+  getGoogleIdentityByUserId(userId: string): Promise<GoogleIdentityRecord | undefined>;
+  attachGoogleIdentity(input: {
+    userId: string;
+    googleSubject: string;
+    email: string;
+    linkedAt: string;
+  }): Promise<GoogleIdentityAttachResult>;
   markUserVerified(userId: string, verifiedAt: string): Promise<UserRecord | undefined>;
   updateUserPasswordHash(userId: string, passwordHash: string): Promise<UserRecord | undefined>;
   recordFailedLoginAttempt(input: {
@@ -489,6 +504,16 @@ function mapUser(row: Record<string, unknown>): UserRecord {
     failedLoginAttempts: Number(row.failed_login_attempts ?? 0),
     failedLoginWindowStartedAt: asIsoString(row.failed_login_window_started_at),
     lockedUntil: asIsoString(row.locked_until)
+  };
+}
+
+function mapGoogleIdentity(row: Record<string, unknown>): GoogleIdentityRecord {
+  return {
+    userId: String(row.user_id),
+    googleSubject: String(row.google_subject),
+    email: String(row.email),
+    linkedAt: asIsoString(row.linked_at) ?? new Date().toISOString(),
+    updatedAt: asIsoString(row.updated_at) ?? new Date().toISOString()
   };
 }
 
@@ -1358,6 +1383,8 @@ export class InMemoryStore implements ProductStore {
   private readonly users = new Map<string, UserRecord>();
   private readonly userDevicesByUser = new Map<string, Map<string, UserDeviceRecord>>();
   private readonly usersByEmail = new Map<string, string>();
+  private readonly googleIdentitiesBySubject = new Map<string, GoogleIdentityRecord>();
+  private readonly googleIdentitiesByUserId = new Map<string, GoogleIdentityRecord>();
   private readonly subscriptions = new Map<string, UserSubscriptionRecord>();
   private readonly userIdsByRevenuecatAppUserId = new Map<string, string>();
   private readonly deepDiveDailyUsage = new Map<string, Map<string, number>>();
@@ -1607,6 +1634,55 @@ export class InMemoryStore implements ProductStore {
 
   async findUserById(id: string): Promise<UserRecord | undefined> {
     return this.users.get(id);
+  }
+
+  async findUserByGoogleSubject(googleSubject: string): Promise<UserRecord | undefined> {
+    const identity = this.googleIdentitiesBySubject.get(googleSubject.trim());
+    if (!identity) {
+      return undefined;
+    }
+    return this.users.get(identity.userId);
+  }
+
+  async getGoogleIdentityByUserId(userId: string): Promise<GoogleIdentityRecord | undefined> {
+    const identity = this.googleIdentitiesByUserId.get(userId);
+    return identity ? { ...identity } : undefined;
+  }
+
+  async attachGoogleIdentity(input: {
+    userId: string;
+    googleSubject: string;
+    email: string;
+    linkedAt: string;
+  }): Promise<GoogleIdentityAttachResult> {
+    const normalizedSubject = input.googleSubject.trim();
+    const normalizedEmail = input.email.trim().toLowerCase();
+    const subjectIdentity = this.googleIdentitiesBySubject.get(normalizedSubject);
+    if (subjectIdentity && subjectIdentity.userId !== input.userId) {
+      return "subject_in_use";
+    }
+
+    const userIdentity = this.googleIdentitiesByUserId.get(input.userId);
+    if (userIdentity) {
+      if (userIdentity.googleSubject === normalizedSubject) {
+        userIdentity.email = normalizedEmail;
+        userIdentity.updatedAt = input.linkedAt;
+        this.googleIdentitiesBySubject.set(normalizedSubject, { ...userIdentity });
+        return "already_linked_to_user";
+      }
+      return "user_already_linked";
+    }
+
+    const identity: GoogleIdentityRecord = {
+      userId: input.userId,
+      googleSubject: normalizedSubject,
+      email: normalizedEmail,
+      linkedAt: input.linkedAt,
+      updatedAt: input.linkedAt
+    };
+    this.googleIdentitiesBySubject.set(normalizedSubject, identity);
+    this.googleIdentitiesByUserId.set(input.userId, identity);
+    return "linked";
   }
 
   async markUserVerified(userId: string, verifiedAt: string): Promise<UserRecord | undefined> {
@@ -3662,6 +3738,103 @@ export class PostgresStore implements ProductStore {
     const result = await this.pool.query("select * from users where id = $1", [id]);
     const row = result.rows[0] as Record<string, unknown> | undefined;
     return row ? mapUser(row) : undefined;
+  }
+
+  async findUserByGoogleSubject(googleSubject: string): Promise<UserRecord | undefined> {
+    const result = await this.pool.query(
+      `select u.*
+         from user_google_identities g
+         join users u on u.id = g.user_id
+        where g.google_subject = $1
+        limit 1`,
+      [googleSubject.trim()]
+    );
+    const row = result.rows[0] as Record<string, unknown> | undefined;
+    return row ? mapUser(row) : undefined;
+  }
+
+  async getGoogleIdentityByUserId(userId: string): Promise<GoogleIdentityRecord | undefined> {
+    const result = await this.pool.query(
+      `select *
+         from user_google_identities
+        where user_id = $1
+        limit 1`,
+      [userId]
+    );
+    const row = result.rows[0] as Record<string, unknown> | undefined;
+    return row ? mapGoogleIdentity(row) : undefined;
+  }
+
+  async attachGoogleIdentity(input: {
+    userId: string;
+    googleSubject: string;
+    email: string;
+    linkedAt: string;
+  }): Promise<GoogleIdentityAttachResult> {
+    const normalizedSubject = input.googleSubject.trim();
+    const normalizedEmail = input.email.trim().toLowerCase();
+
+    const subjectResult = await this.pool.query(
+      `select *
+         from user_google_identities
+        where google_subject = $1
+        limit 1`,
+      [normalizedSubject]
+    );
+    const subjectRow = subjectResult.rows[0] as Record<string, unknown> | undefined;
+    if (subjectRow) {
+      const subjectIdentity = mapGoogleIdentity(subjectRow);
+      if (subjectIdentity.userId !== input.userId) {
+        return "subject_in_use";
+      }
+    }
+
+    const userResult = await this.pool.query(
+      `select *
+         from user_google_identities
+        where user_id = $1
+        limit 1`,
+      [input.userId]
+    );
+    const userRow = userResult.rows[0] as Record<string, unknown> | undefined;
+    if (userRow) {
+      const userIdentity = mapGoogleIdentity(userRow);
+      if (userIdentity.googleSubject !== normalizedSubject) {
+        return "user_already_linked";
+      }
+      await this.pool.query(
+        `update user_google_identities
+            set email = $2,
+                updated_at = $3
+          where user_id = $1`,
+        [input.userId, normalizedEmail, input.linkedAt]
+      );
+      return "already_linked_to_user";
+    }
+
+    try {
+      await this.pool.query(
+        `insert into user_google_identities (
+           user_id,
+           google_subject,
+           email,
+           linked_at,
+           updated_at
+         ) values ($1, $2, $3, $4, $4)`,
+        [input.userId, normalizedSubject, normalizedEmail, input.linkedAt]
+      );
+      return "linked";
+    } catch (error) {
+      if (
+        typeof error === "object" &&
+        error !== null &&
+        "code" in error &&
+        error.code === "23505"
+      ) {
+        return "subject_in_use";
+      }
+      throw error;
+    }
   }
 
   async markUserVerified(userId: string, verifiedAt: string): Promise<UserRecord | undefined> {

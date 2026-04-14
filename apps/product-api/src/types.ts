@@ -66,6 +66,14 @@ export interface UserRecord {
   lockedUntil?: string;
 }
 
+export interface GoogleIdentityRecord {
+  userId: string;
+  googleSubject: string;
+  email: string;
+  linkedAt: string;
+  updatedAt: string;
+}
+
 export interface UserDeviceRecord {
   id: string;
   userId: string;
