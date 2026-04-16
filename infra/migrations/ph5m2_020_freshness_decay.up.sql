@@ -48,7 +48,6 @@ update thesis_monitor_snapshots
          when coalesce(last_deep_dive_at, report_generated_at) >= now() - interval '45 days'
            then 'Deep Dive baseline imported as aging.'
          else 'Deep Dive baseline imported as stale.'
-         else freshness_reason
        end
  where true;
 
