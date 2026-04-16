@@ -22,9 +22,17 @@ Close Phase 1 M9 acceptance criterion:
   [Run 24529140660](https://github.com/rzvsd/Thesis/actions/runs/24529140660)  
   Failure cause: `product-api` crashed during `AUTO_MIGRATE` with PostgreSQL syntax error (`syntax error at or near "else"`).
 
-- Passing proof run (after migration fix):  
+- Passing validation run (after migration fix):  
   [Run 24529655299](https://github.com/rzvsd/Thesis/actions/runs/24529655299)  
   Branch: `codex/m9-cicd-proof-run`  
+  Jobs:
+  - `preflight` ✅
+  - `deploy-proof` ✅
+  - `deploy-remote` skipped (no production SSH secrets configured)
+
+- Passing post-merge `main` run (definitive closure proof):  
+  [Run 24530036089](https://github.com/rzvsd/Thesis/actions/runs/24530036089)  
+  Branch: `main`  
   Jobs:
   - `preflight` ✅
   - `deploy-proof` ✅
