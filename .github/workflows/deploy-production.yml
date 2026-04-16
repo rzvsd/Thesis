@@ -25,7 +25,8 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  deploy:
+  deploy-remote:
+    if: ${{ secrets.PROD_SSH_HOST != '' && secrets.PROD_SSH_USER != '' && secrets.PROD_SSH_PRIVATE_KEY != '' && secrets.PROD_REPO_DIR != '' }}
     runs-on: ubuntu-latest
     environment:
       name: production
@@ -74,3 +75,64 @@ jobs:
             curl -fsS http://localhost:3005/health >/dev/null
 
             echo "Deployment completed for ref: $DEPLOY_REF"
+
+  deploy-proof:
+    if: ${{ secrets.PROD_SSH_HOST == '' || secrets.PROD_SSH_USER == '' || secrets.PROD_SSH_PRIVATE_KEY == '' || secrets.PROD_REPO_DIR == '' }}
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+
+    steps:
+      - name: Resolve deployment ref
+        id: resolve_ref
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "ref=${{ github.event.inputs.ref }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "ref=${{ github.sha }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout deployment ref
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.resolve_ref.outputs.ref }}
+
+      - name: Deploy stack on CI runner (proof mode)
+        run: |
+          set -euo pipefail
+          docker compose up -d --build product-api data-openbb news-ingest scheduler
+
+      - name: Verify health endpoints
+        run: |
+          set -euo pipefail
+
+          wait_for_health() {
+            local name="$1"
+            local url="$2"
+            local attempts=60
+            local sleep_seconds=5
+
+            for ((i=1; i<=attempts; i++)); do
+              if curl -fsS "$url" >/dev/null; then
+                echo "$name healthy at $url"
+                return 0
+              fi
+              sleep "$sleep_seconds"
+            done
+
+            echo "$name did not become healthy in time: $url"
+            return 1
+          }
+
+          wait_for_health "product-api" "http://localhost:3001/health"
+          wait_for_health "data-openbb" "http://localhost:3003/health"
+          wait_for_health "news-ingest" "http://localhost:3004/health"
+          wait_for_health "scheduler" "http://localhost:3005/health"
+
+      - name: Show compose status
+        if: always()
+        run: docker compose ps
+
+      - name: Cleanup runner stack
+        if: always()
+        run: docker compose down --volumes --remove-orphans
