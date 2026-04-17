@@ -1,0 +1,195 @@
+{
+  "scope": "daily",
+  "retrieved_at": "2026-04-17T00:00:00.000Z",
+  "missing_fields": [],
+  "observations": [
+    {
+      "registry_key": "TREASURY_DAILY_10Y",
+      "value": 4.18,
+      "unit": "percent",
+      "period": "2026-04-17",
+      "category": "rates",
+      "retrieval": {
+        "source": {
+          "source_id": "TREASURY_DAILY_10Y",
+          "source_family": "treasury",
+          "source_name": "Daily Treasury Rates - 10 Yr",
+          "source_url": "https://home.treasury.gov/resource-center/data-chart-center/interest-rates/pages/xml?data=daily_treasury_rates",
+          "agency": "U.S. Treasury",
+          "agency_series_id": "daily_treasury_rates:10 Yr"
+        },
+        "retrieved_at": "2026-04-17T00:00:00.000Z",
+        "retrieval_status": "fresh",
+        "source_period": "2026-04-17"
+      },
+      "missing_fields": []
+    },
+    {
+      "registry_key": "TREASURY_DAILY_2Y",
+      "value": 4.83,
+      "unit": "percent",
+      "period": "2026-04-17",
+      "category": "rates",
+      "retrieval": {
+        "source": {
+          "source_id": "TREASURY_DAILY_2Y",
+          "source_family": "treasury",
+          "source_name": "Daily Treasury Rates - 2 Yr",
+          "source_url": "https://home.treasury.gov/resource-center/data-chart-center/interest-rates/pages/xml?data=daily_treasury_rates",
+          "agency": "U.S. Treasury",
+          "agency_series_id": "daily_treasury_rates:2 Yr"
+        },
+        "retrieved_at": "2026-04-17T00:00:00.000Z",
+        "retrieval_status": "fresh",
+        "source_period": "2026-04-17"
+      },
+      "missing_fields": []
+    },
+    {
+      "registry_key": "BLS_CPI_U_ALL_ITEMS",
+      "value": 312.23,
+      "unit": "index",
+      "period": "2026-03",
+      "category": "inflation",
+      "retrieval": {
+        "source": {
+          "source_id": "BLS_CPI_U_ALL_ITEMS",
+          "source_family": "bls",
+          "source_name": "CPI-U All Items",
+          "source_url": "https://api.bls.gov/publicAPI/v2/timeseries/data/CUUR0000SA0",
+          "agency": "BLS",
+          "agency_series_id": "CUUR0000SA0"
+        },
+        "retrieved_at": "2026-04-17T00:00:00.000Z",
+        "retrieval_status": "fresh",
+        "source_period": "2026-03"
+      },
+      "missing_fields": []
+    },
+    {
+      "registry_key": "BLS_UNEMPLOYMENT_RATE",
+      "value": 4.0,
+      "unit": "percent",
+      "period": "2026-03",
+      "category": "labor",
+      "retrieval": {
+        "source": {
+          "source_id": "BLS_UNEMPLOYMENT_RATE",
+          "source_family": "bls",
+          "source_name": "Unemployment Rate",
+          "source_url": "https://api.bls.gov/publicAPI/v2/timeseries/data/LNS14000000",
+          "agency": "BLS",
+          "agency_series_id": "LNS14000000"
+        },
+        "retrieved_at": "2026-04-17T00:00:00.000Z",
+        "retrieval_status": "fresh",
+        "source_period": "2026-03"
+      },
+      "missing_fields": []
+    },
+    {
+      "registry_key": "BEA_REAL_GDP",
+      "value": 2.1,
+      "unit": "annualized_percent",
+      "period": "2026-Q1",
+      "category": "growth",
+      "retrieval": {
+        "source": {
+          "source_id": "BEA_REAL_GDP",
+          "source_family": "bea",
+          "source_name": "Real Gross Domestic Product",
+          "source_url": "https://apps.bea.gov/api/data/",
+          "agency": "BEA",
+          "agency_series_id": "NIPA:REAL_GDP"
+        },
+        "retrieved_at": "2026-04-17T00:00:00.000Z",
+        "retrieval_status": "fresh",
+        "source_period": "2026-Q1"
+      },
+      "missing_fields": []
+    },
+    {
+      "registry_key": "EIA_WTI_SPOT",
+      "value": 79.42,
+      "unit": "usd_per_barrel",
+      "period": "2026-04-17",
+      "category": "energy",
+      "retrieval": {
+        "source": {
+          "source_id": "EIA_WTI_SPOT",
+          "source_family": "eia",
+          "source_name": "WTI Spot Price",
+          "source_url": "https://api.eia.gov/v2/seriesid/PET.RWTC.D",
+          "agency": "EIA",
+          "agency_series_id": "PET.RWTC.D"
+        },
+        "retrieved_at": "2026-04-17T00:00:00.000Z",
+        "retrieval_status": "fresh",
+        "source_period": "2026-04-17"
+      },
+      "missing_fields": []
+    }
+  ],
+  "canonical_events": [
+    {
+      "id": "official-macro-treasury_daily_10y-2026-04-17",
+      "family": "macro_release_published",
+      "subject_type": "macro_series",
+      "subject_id": "TREASURY_DAILY_10Y",
+      "title": "Daily Treasury Rates - 10 Yr official observation published",
+      "occurred_at": "2026-04-17T00:00:00.000Z",
+      "source_state": "official",
+      "source": {
+        "source": {
+          "source_id": "TREASURY_DAILY_10Y",
+          "source_family": "treasury",
+          "source_name": "Daily Treasury Rates - 10 Yr",
+          "source_url": "https://home.treasury.gov/resource-center/data-chart-center/interest-rates/pages/xml?data=daily_treasury_rates",
+          "agency": "U.S. Treasury",
+          "agency_series_id": "daily_treasury_rates:10 Yr"
+        },
+        "retrieved_at": "2026-04-17T00:00:00.000Z",
+        "retrieval_status": "fresh",
+        "source_period": "2026-04-17"
+      },
+      "retrieved_at": "2026-04-17T00:00:00.000Z",
+      "missing_fields": [],
+      "metadata": {
+        "registry_key": "TREASURY_DAILY_10Y",
+        "category": "rates",
+        "unit": "percent",
+        "period": "2026-04-17"
+      }
+    },
+    {
+      "id": "official-macro-bls_unemployment_rate-2026-03",
+      "family": "macro_release_published",
+      "subject_type": "macro_series",
+      "subject_id": "BLS_UNEMPLOYMENT_RATE",
+      "title": "Unemployment Rate official observation published",
+      "occurred_at": "2026-04-17T00:00:00.000Z",
+      "source_state": "official",
+      "source": {
+        "source": {
+          "source_id": "BLS_UNEMPLOYMENT_RATE",
+          "source_family": "bls",
+          "source_name": "Unemployment Rate",
+          "source_url": "https://api.bls.gov/publicAPI/v2/timeseries/data/LNS14000000",
+          "agency": "BLS",
+          "agency_series_id": "LNS14000000"
+        },
+        "retrieved_at": "2026-04-17T00:00:00.000Z",
+        "retrieval_status": "fresh",
+        "source_period": "2026-03"
+      },
+      "retrieved_at": "2026-04-17T00:00:00.000Z",
+      "missing_fields": [],
+      "metadata": {
+        "registry_key": "BLS_UNEMPLOYMENT_RATE",
+        "category": "labor",
+        "unit": "percent",
+        "period": "2026-03"
+      }
+    }
+  ]
+}

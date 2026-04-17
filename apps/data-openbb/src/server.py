@@ -15,6 +15,8 @@ try:
         SERVICE_NAME,
         build_company_response,
         build_macro_response,
+        build_official_company_response,
+        build_official_macro_response,
         get_request_id,
         health_payload,
         internal_error_response,
@@ -32,6 +34,8 @@ except ImportError:  # pragma: no cover - supports direct src imports in sibling
         SERVICE_NAME,
         build_company_response,
         build_macro_response,
+        build_official_company_response,
+        build_official_macro_response,
         get_request_id,
         health_payload,
         internal_error_response,
@@ -73,6 +77,16 @@ class DataOpenbbRequestHandler(BaseHTTPRequestHandler):
                     status_code, body = service.get_macro(scope, request_id=request_id)
                     self._write_json(status_code, body, request_id=request_id)
                     return
+                if parsed.path == "/v1/official/company":
+                    ticker = parse_qs(parsed.query).get("ticker", [""])[0]
+                    status_code, body = service.get_official_company_truth(ticker, request_id=request_id)
+                    self._write_json(status_code, body, request_id=request_id)
+                    return
+                if parsed.path == "/v1/official/macro":
+                    scope = parse_qs(parsed.query).get("scope", [""])[0]
+                    status_code, body = service.get_official_macro_truth(scope, request_id=request_id)
+                    self._write_json(status_code, body, request_id=request_id)
+                    return
 
             if parsed.path == "/v1/finance/company":
                 response = build_company_response(
@@ -81,6 +95,16 @@ class DataOpenbbRequestHandler(BaseHTTPRequestHandler):
                 )
             elif parsed.path == "/v1/finance/macro":
                 response = build_macro_response(
+                    scope=parse_qs(parsed.query).get("scope", [""])[0],
+                    request_id=request_id,
+                )
+            elif parsed.path == "/v1/official/company":
+                response = build_official_company_response(
+                    ticker=parse_qs(parsed.query).get("ticker", [""])[0],
+                    request_id=request_id,
+                )
+            elif parsed.path == "/v1/official/macro":
+                response = build_official_macro_response(
                     scope=parse_qs(parsed.query).get("scope", [""])[0],
                     request_id=request_id,
                 )

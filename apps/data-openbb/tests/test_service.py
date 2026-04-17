@@ -117,6 +117,40 @@ class DataOpenbbEndpointTests(unittest.TestCase):
         self.assertEqual(macro_data["provider"], "FMP")
         self.assertEqual(macro_data["missing_fields"], [])
 
+    def test_official_company_truth_returns_sec_payload_and_events(self) -> None:
+        for ticker in ("AAPL", "MSFT", "TSLA"):
+            with self.subTest(ticker=ticker):
+                status, payload = self.request_json(f"/v1/official/company?ticker={ticker}")
+
+                self.assertEqual(status, 200)
+                self.assertTrue(payload["ok"])
+                self.assertFalse(payload["error_flag"])
+                self.assertEqual(payload["provider"], "sec_edgar")
+                official_data = payload["data"]
+                self.assertIsInstance(official_data, dict)
+                self.assertEqual(official_data["ticker"], ticker)
+                self.assertEqual(official_data["retrieval"]["source"]["source_family"], "sec_edgar")
+                self.assertEqual(official_data["missing_fields"], [])
+                self.assertGreaterEqual(len(official_data["canonical_events"]), 1)
+                self.assertEqual(official_data["canonical_events"][0]["family"], "filing_posted")
+
+    def test_official_macro_truth_returns_seed_registry_without_provider_keys(self) -> None:
+        status, payload = self.request_json("/v1/official/macro?scope=daily")
+
+        self.assertEqual(status, 200)
+        self.assertTrue(payload["ok"])
+        self.assertFalse(payload["error_flag"])
+        self.assertEqual(payload["provider"], "official_public_macro")
+        macro_data = payload["data"]
+        self.assertIsInstance(macro_data, dict)
+        observations = macro_data["observations"]
+        self.assertIsInstance(observations, list)
+        keys = {observation["registry_key"] for observation in observations}
+        self.assertIn("TREASURY_DAILY_10Y", keys)
+        self.assertIn("BLS_UNEMPLOYMENT_RATE", keys)
+        self.assertGreaterEqual(len(macro_data["canonical_events"]), 1)
+        self.assertEqual(macro_data["canonical_events"][0]["family"], "macro_release_published")
+
     def test_missing_fields_are_declared_without_zero_substitution(self) -> None:
         status, payload = self.request_json("/v1/finance/company?ticker=DUMMY")
 

@@ -186,7 +186,10 @@ function sanitizeLine(line) {
 }
 
 function findingKey(finding) {
-  return `${finding.id}|${finding.file}|${finding.line}|${finding.match}`;
+  // Line numbers shift during legitimate migrations; the stable identity is the
+  // deprecated term, file, and sanitized context. A genuinely new reference still
+  // fails, while moving unrelated code does not create false positives.
+  return `${finding.id}|${finding.file}|${finding.match}|${finding.text}`;
 }
 
 async function scanProtectedPaths() {

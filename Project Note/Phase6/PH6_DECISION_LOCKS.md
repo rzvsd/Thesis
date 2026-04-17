@@ -85,7 +85,27 @@ Official macro scope for M1/M3:
 
 - The first implementation should use a small official-source registry rather than a giant macro warehouse.
 - Minimum source families: Federal Reserve/Treasury rates, BLS inflation/labor, BEA growth, and EIA energy where applicable.
-- Exact series identifiers are implementation details owned by the M1 official-source registry and must be recorded in milestone evidence before M3 closes.
+- M1 locks the seed registry below for implementation and smoke proof. Any expansion beyond this list is backlog unless explicitly approved.
+- Exact retrieval metadata, agency URL, agency series/table identifier, and retrieved-at timestamp must be recorded in M1 evidence for each successful pull.
+
+M1 seed official macro registry:
+
+| Thesis registry key | Official owner | Official identifier / source path | Why included |
+|---|---|---|---|
+| `TREASURY_DAILY_10Y` | U.S. Treasury | Daily Treasury Rates, `10 Yr` field | Baseline long-rate pressure |
+| `TREASURY_DAILY_2Y` | U.S. Treasury | Daily Treasury Rates, `2 Yr` field | Front-end rate pressure and curve shape |
+| `BLS_CPI_U_ALL_ITEMS` | BLS | CPI-U All Items, series `CUUR0000SA0` | Inflation pressure |
+| `BLS_UNEMPLOYMENT_RATE` | BLS | Unemployment Rate, series `LNS14000000` | Labor pressure |
+| `BEA_REAL_GDP` | BEA | NIPA real GDP official release/table metadata | Growth pressure |
+| `EIA_WTI_SPOT` | EIA | WTI spot official series, `PET.RWTC.D` | Energy pressure where applicable |
+
+M1 company truth seed tickers:
+
+| Ticker | Official owner | Minimum official source paths |
+|---|---|---|
+| `AAPL` | SEC EDGAR | submissions and company facts |
+| `MSFT` | SEC EDGAR | submissions and company facts |
+| `TSLA` | SEC EDGAR | submissions and company facts |
 
 ---
 
