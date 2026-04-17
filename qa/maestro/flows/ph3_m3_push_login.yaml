@@ -1,0 +1,49 @@
+appId: ${MAESTRO_APP_ID}
+---
+
+- launchApp:
+    clearState: true
+
+- runFlow:
+    when:
+      visible: "System UI isn't responding"
+    commands:
+      - tapOn: "Wait"
+
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+
+- runFlow:
+    when:
+      visible: "Get Started"
+    commands:
+      - tapOn: "Get Started"
+
+- runFlow:
+    when:
+      visible: "Allow"
+    commands:
+      - tapOn: "Allow"
+
+- runFlow:
+    when:
+      visible: "Log in"
+    commands:
+      - tapOn: "Log in"
+
+- tapOn: "you@example.com"
+- inputText: "${MAESTRO_TEST_EMAIL}"
+- hideKeyboard
+- tapOn: "Enter password"
+- inputText: "${MAESTRO_TEST_PASSWORD}"
+- hideKeyboard
+- tapOn: "Log In"
+
+- extendedWaitUntil:
+    visible: "Today"
+    timeout: 30000
+
+- takeScreenshot: ph3_m3_push_logged_in

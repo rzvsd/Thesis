@@ -1,0 +1,36 @@
+{
+  "milestone": "Phase 2 M1 - Historical Data Pipeline",
+  "proof_type": "ph2m0 migration apply/rollback safety",
+  "executed_at": "2026-04-15T20:00:11+03:00",
+  "environment": {
+    "database": "Postgres 16 in local Docker compose service `postgres`",
+    "container": "thesis-fintech-postgres-1",
+    "temporary_database": "thesis_ph2m1_migration_proof"
+  },
+  "migrations_under_test": [
+    "ph2m0_004_financial_snapshots.up/down.sql",
+    "ph2m0_005_transcripts.up/down.sql",
+    "ph2m0_006_ticker_coverage.up/down.sql"
+  ],
+  "validation_cycles": [
+    {
+      "cycle": 1,
+      "tables_after_up": 3,
+      "tables_after_down": 0,
+      "passed": true
+    },
+    {
+      "cycle": 2,
+      "tables_after_up": 3,
+      "tables_after_down": 0,
+      "passed": true
+    }
+  ],
+  "result": "PASS",
+  "additional_quality_check": {
+    "command": "pnpm --filter @thesis/product-api test",
+    "tests_passed": 71,
+    "tests_failed": 0,
+    "result": "PASS"
+  }
+}

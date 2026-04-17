@@ -1,0 +1,11 @@
+﻿{
+    "data":  {
+                 "user_id":  "fe2c1514-dda9-4018-849c-2886669026f9",
+                 "email":  "m3.closeout.1776403500165@example.com",
+                 "tier":  "PRO",
+                 "billing_period_end":  "2099-12-31T00:00:00.000Z",
+                 "watchlist_limit":  20,
+                 "daily_deep_dive_limit":  -1,
+                 "deep_dives_remaining_today":  -1
+             }
+}

@@ -1,0 +1,24 @@
+{
+  "milestone": "Phase 2 M4 - Monetization & Subscription",
+  "proof_type": "owner closeout acceptance",
+  "executed_at": "2026-04-16T09:30:00+03:00",
+  "status": "CLOSED_BY_OWNER_ACCEPTANCE",
+  "owner_instruction": "Phase 2 M4 = close it now.",
+  "implemented_scope": [
+    "Free/Pro entitlement model",
+    "server-side profile and tier truth",
+    "RevenueCat webhook validation",
+    "tier recovery sync path",
+    "daily Deep Dive limit and reset proof",
+    "watchlist cap enforcement",
+    "Android RevenueCat purchase and restore wiring",
+    "paywall and subscription management UI"
+  ],
+  "external_follow_up": {
+    "item": "Live Google Play purchase/restore proof",
+    "reason": "External Google developer/payment-profile verification dependency",
+    "blocking_milestone_closeout": false,
+    "tracking": "RZV-225"
+  },
+  "closeout_conclusion": "Owner accepts M4 as delivered for milestone governance; live Google Play verification remains an operational follow-up, not an M4 blocker."
+}

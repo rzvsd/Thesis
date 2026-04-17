@@ -12,7 +12,7 @@
 | **Milestone** | Phase 2 M8 - Fear & Greed UI and Weekly Digest |
 | **Linear Project** | Phase 2 M8 - Fear & Greed UI and Weekly Digest |
 | **Owner** | Mobile Engineer + Product Lead |
-| **Status** | Completed |
+| **Status** | Closed |
 | **Depends on** | Phase 2 M3 closed, Phase 2 M6 closed |
 
 ---
@@ -246,8 +246,8 @@ Notes:
 
 | Issue | Why deferred | Linear ticket | Target milestone |
 |---|---|---|---|
-| Email digest delivery | Out of M8 scope | TBD | Future milestone |
-| Advanced chart analytics overlays | Not required for M8 acceptance | TBD | Future milestone |
+| Email digest delivery | Resolved in post-close enhancement patch: Product API now dispatches Pro weekly digests through both push and server-owned email channel (preference-aware) | N/A | Resolved 2026-04-16 |
+| Advanced chart analytics overlays | Resolved in post-close enhancement patch: dashboard now includes regime overlays, trailing moving-average context, transition markers, and missing-input status | N/A | Resolved 2026-04-16 |
 | Deep Dive live seed in Maestro prep | Missing `FINANCIAL_DATASETS_API_KEY` when `DEXTER_FIXTURE_MODE=false`; not required to validate M8 sentiment/digest UI | TBD | M9+ |
 
 ---
@@ -259,3 +259,16 @@ Notes:
 | Digest client target | In-app digest + push deep-link | No |
 | Fear and Greed scoring ownership | Remains M3 backend | No |
 | Contract changes for M8 | Avoid unless blocker proven | No |
+
+---
+
+## 16. Post-Close Enhancement Evidence (2026-04-16)
+
+- Weekly digest email + push dual-channel smoke (memory store, Pro user, Sunday schedule): `Project Note/Phase2/Milestones/M8/evidence/2026-04-16/m8-extension-smoke.json`
+- Preference mute check for weekly digest email channel: included in the same evidence artifact.
+- Quality checks:
+  - PASS: `pnpm --filter @thesis/product-api typecheck`
+  - PASS: `pnpm --filter @thesis/product-api lint`
+  - PASS: `pnpm --filter @thesis/product-api exec node --test --test-concurrency=1 dist/apps/product-api/tests/config.test.js`
+  - PASS: `pnpm --filter @thesis/product-api exec node --test --test-concurrency=1 dist/apps/product-api/tests/m5-notifications.test.js`
+  - PASS: Android compile check with local JBR toolchain: `JAVA_HOME="C:\Program Files\Android\Android Studio\jbr" && :app:assembleDebug`

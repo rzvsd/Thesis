@@ -12,7 +12,7 @@
 | **Milestone** | Phase 5 M1 - Kill-Switch Engine |
 | **Linear Project** | Phase 5 M1 - Kill-Switch Engine |
 | **Owner** | Product API Engineer + Scheduler Engineer + Dexter Engineer |
-| **Status** | Closed (one explicit TBD) |
+| **Status** | Closed (PASS) |
 | **Depends on** | Phase 4 delivered and stable |
 
 ---
@@ -137,7 +137,7 @@ Detailed execution lives in `M1_SMOKE_PLAN_ph5.md`.
 
 ## 11. Definition Of Done
 
-- [x] All M1 acceptance criteria in `ph5_MILESTONES.md` are satisfied except one explicit TBD
+- [x] All M1 acceptance criteria in `ph5_MILESTONES.md` are satisfied
 - [x] Smoke plan executed with evidence
 - [x] Required regressions pass
 - [x] Linear tickets explicitly deferred per milestone instruction
@@ -152,8 +152,12 @@ Detailed execution lives in `M1_SMOKE_PLAN_ph5.md`.
 Date: 2026-04-08
 Run by: Codex + sub-agent discovery lanes
 Environment: Local dev (memory-store test harness, stub push, deterministic mocks)
-Result: PASS (all M1 smoke steps satisfied; sign-off pending)
+Result: PASS (all M1 smoke steps satisfied)
 ```
+
+Addendum (2026-04-16):
+- LangSmith remote prompt push executed via `corepack pnpm --dir apps/dexter-worker run langsmith:push-prompts`.
+- Evidence: `Project Note/Phase5/Milestones/M1/evidence/2026-04-16_langsmith_prompt_push.json`.
 
 ---
 
@@ -161,7 +165,7 @@ Result: PASS (all M1 smoke steps satisfied; sign-off pending)
 
 | Issue | Why Deferred | Linear Ticket | Target Milestone |
 |---|---|---|---|
-| LangSmith prompt push not executed in this environment | `LANGSMITH_API_KEY` unavailable locally, so `langsmith:push-prompts` cannot run | TBD | M1 closeout checklist |
+| None open | LangSmith prompt push executed on 2026-04-16 and evidence captured | N/A | N/A |
 
 ---
 

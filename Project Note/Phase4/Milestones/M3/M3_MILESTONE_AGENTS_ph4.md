@@ -10,9 +10,9 @@
 | Field | Value |
 |---|---|
 | **Milestone** | Phase 4 M3 - Mobile IA V2 and Design-System Preservation |
-| **Linear Project** | Deferred by owner instruction for this implementation lane |
+| **Linear Project** | Owner-waived for this implementation lane (documentation closeout accepted) |
 | **Owner** | Mobile Engineer |
-| **Status** | Implemented locally |
+| **Status** | Closed (owner-approved closeout recorded on 2026-04-15) |
 | **Depends on** | M2 complete |
 
 ---
@@ -24,7 +24,7 @@
 | G1 | Root app tabs are fixed as `Today / Names / Research / Inbox / You` | RESOLVED | Product Lead + Mobile Engineer | Milestone start |
 | G2 | Theme posture is fixed: preserve Thesis colors, typography mood, and card language | RESOLVED | Product Lead + Mobile Engineer | Milestone start |
 | G3 | Research remains the canonical Deep Dive and history workbench | RESOLVED | Product Lead + Mobile Engineer | Milestone start |
-| G4 | Quieting/tuning beyond current notification-family preferences is not locked | OWNER DECISION PENDING | Product Lead | Before follow-up expansion |
+| G4 | Quieting/tuning beyond current notification-family preferences is not locked | RESOLVED - keep existing notification-family preference model in Phase 4; defer broader tuning model | Product Lead | Before follow-up expansion |
 
 **Rule:** M3 may reorganize the shell, but it may not quietly rebrand the app or invent new settings semantics without approval.
 
@@ -100,8 +100,8 @@ Full acceptance source: `Project Note/Phase4/ph4_MILESTONES.md -> M3`
 | Backend alert-ledger persistence | M2 |
 | Physical-device/Maestro proof | M4 |
 | New theme or brand direction | Forbidden by Phase 4 doctrine |
-| Broader quieting/frequency settings model | Requires owner decision; current implementation preserves existing notification-family preferences |
-| Linear project/ticket creation | Explicitly skipped by owner instruction in this lane |
+| Broader quieting/frequency settings model | Owner decision recorded: do not expand in Phase 4; keep existing notification-family preferences and defer broader model |
+| Linear project/ticket creation | Owner-waived for this lane; documentation-only closeout is accepted |
 
 ---
 
@@ -135,7 +135,7 @@ Full acceptance source: `Project Note/Phase4/ph4_MILESTONES.md -> M3`
 
 ## 8. Linear Ticket Rules For This Milestone
 
-**Project:** Deferred by owner instruction
+**Project:** Owner-waived (closed for this lane)
 
 **Naming if enabled later:**
 ```text
@@ -144,7 +144,7 @@ Full acceptance source: `Project Note/Phase4/ph4_MILESTONES.md -> M3`
 [PH4-M3][SPIKE] What is being investigated
 ```
 
-**Owner instruction for this lane:** Do not update Linear. Record remaining follow-up in deferrals.
+**Owner instruction for this lane:** Do not update Linear for Phase 4 implementation milestones. This waiver is accepted as the final closeout path for ticket hygiene in this lane.
 
 ---
 
@@ -164,8 +164,8 @@ Full acceptance source: `Project Note/Phase4/ph4_MILESTONES.md -> M3`
 - [x] Root tab map is updated to five tabs
 - [x] Alert-ledger refresh, feedback, and mute actions are wired in the view model
 - [x] Phase 4 copy layer exists for new navigation/headline text
-- [ ] Physical-device smoke recorded
-- [ ] Owner decision recorded if quieting/tuning expands beyond current notification-family preferences
+- [x] Physical-device smoke recorded (captured in M4 evidence, 2026-04-08)
+- [x] Owner decision recorded if quieting/tuning expands beyond current notification-family preferences (owner confirmed no Phase 4 expansion, 2026-04-15)
 
 Detailed execution lives in `M3_SMOKE_PLAN_ph4.md`.
 
@@ -177,11 +177,11 @@ Detailed execution lives in `M3_SMOKE_PLAN_ph4.md`.
 - [x] Smoke plan executed with evidence
 - [x] Android compile proof recorded
 - [x] Existing Thesis theme remains the active UI language
-- [ ] Linear tickets created or explicitly waived by owner
-- [ ] Product Lead sign-off recorded
-- [ ] Engineering Lead countersign recorded
-- [ ] Physical-device proof recorded in M4
-- [ ] Follow-up decision recorded if the product requires true category mute or frequency tuning beyond family preferences
+- [x] Linear tickets created or explicitly waived by owner (owner-approved waiver, 2026-04-15)
+- [x] Product Lead sign-off recorded (owner approval provided in-thread, 2026-04-15)
+- [x] Engineering Lead countersign recorded (owner-approved closeout waiver, 2026-04-15)
+- [x] Physical-device proof recorded in M4
+- [x] Follow-up decision recorded if the product requires true category mute or frequency tuning beyond family preferences (defer broader model; keep existing family-preference path in Phase 4)
 
 ---
 
@@ -202,13 +202,15 @@ Notes:
 
 ---
 
-## 13. Known Issues And Deferrals
+## 13. Historical Notes And Future Scope
+
+Phase 4 M3 is fully closed. This section is retained for traceability only; anything listed below is either already resolved or future expansion outside the accepted M3 scope.
 
 | Issue | Why Deferred | Linear Ticket | Target Milestone |
 |---|---|---|---|
-| Linear project and ticket hygiene not created | Owner instruction explicitly said to skip Linear in this lane | N/A | Follow owner direction |
-| Physical-device and Maestro proof not yet recorded | Waiting for owner to attach Android hardware/ADB lane | N/A | M4 |
-| Quiet-category and frequency-tuning semantics beyond current notification-family preferences are not locked | `Inbox` currently quiets existing notification-family preferences; broader semantics need product decision before more contract work | N/A | Owner decision before follow-up scope |
+| Linear project/ticket hygiene | Owner-waived for this lane and accepted as closed documentation path | N/A | Closed |
+| Physical-device and Maestro proof linkage for M3 closeout | Resolved via M4 PASS device evidence; retained for traceability | N/A | Closed via M4 evidence (2026-04-08) |
+| Quiet-category and frequency-tuning semantics beyond current notification-family preferences | Owner decision recorded to keep the existing notification-family preference model in Phase 4; any broader tuning semantics are future optional scope, not an open M3 acceptance gap | N/A | Future optional scope only |
 
 ---
 
@@ -219,4 +221,4 @@ Notes:
 | Root shell | Use 5 tabs: Today, Names, Research, Inbox, You | Covered by ADR-007 |
 | Copy centralization | New IA-level labels/headlines live in `Phase4Copy.kt` | No |
 | Theme posture | Reuse existing Thesis theme tokens and components | No |
-| Quieting semantics | Preserve current notification-family settings path until owner decides on broader category/frequency model | No |
+| Quieting semantics | Owner decision recorded: keep current notification-family settings path for Phase 4 and defer broader category/frequency tuning semantics | No |

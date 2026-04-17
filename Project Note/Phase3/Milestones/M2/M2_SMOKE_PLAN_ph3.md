@@ -2,7 +2,7 @@
 
 **Milestone:** M2 - Daily Loop, Position Monitoring and Re-engagement  
 **Owner:** Mobile Engineer + Scheduler Engineer + Product API Engineer + Product Lead  
-**Status:** In Progress
+**Status:** Closed (PASS; 2026-04-16)
 
 ---
 
@@ -72,3 +72,21 @@ Prove that Today, notifications, and weekly summary are personalized, understand
 | 9 | PASS (Pre-Earnings Path) | `qa/maestro/output/m2_step7_deep_link_landing.png` | Pre-earnings flow validated via earnings-preview landing into Deep Dive entry point for followed name |
 | 10 | PASS (Automated + UI compile) | `apps/mobile/android` compile + weekly digest wiring | Personalized weekly summary data wiring verified in client + backend payload |
 | 11 | PASS (Automated) | `pnpm --filter @thesis/product-api test` | Existing Pulse/history/watchlist/push regressions remain green |
+
+---
+
+## Closeout Re-Check
+
+Date: 2026-04-16
+
+Result: PASS.
+
+Evidence:
+- `Project Note/Phase3/Milestones/M2/evidence/2026-04-16/ph3-m2-closeout-proof.json`
+- `Project Note/Phase3/Milestones/M2/evidence/2026-04-16/m2-device-today-final.png`
+- `Project Note/Phase3/Milestones/M2/evidence/2026-04-16/m2-device-earnings-preview-deeplink.png`
+- `qa/maestro/output/m2_step7_deep_link_landing.png`
+- `qa/maestro/output/m2_step8_mute_dispatch_proof.json`
+- GitHub CI: https://github.com/rzvsd/Thesis/actions/runs/24411847146
+
+Fresh device note: ADB hardware smoke passed on Samsung SM-S928B (`R3CXA03J3LH`) on 2026-04-16. The current app launched after biometric unlock, Today rendered the expected offline/degraded state, and an `earnings_preview` intent with `ticker=ORCL` landed in Research / Deep Dive with `ORCL` context and `Run Deep Dive` reachable. Existing 2026-04-04 artifacts remain the proof for live notification receipt and mute suppression.

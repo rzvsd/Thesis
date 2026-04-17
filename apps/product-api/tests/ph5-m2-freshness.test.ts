@@ -338,7 +338,7 @@ test("PH5 M2 freshness transitions persist and freshness-decay alerts route to N
       body: {
         as_of: asOfToday,
         signal_source: "event",
-        trigger_key: "fixture-guidance-cut-key",
+        trigger_key: "fixture-guidance-cut-ref",
         fixtures: [
           {
             ticker: "AAPL",

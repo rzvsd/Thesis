@@ -1,8 +1,8 @@
 # Thesis - Phase 3 Milestone Briefs
 
 **Version:** 1.0  
-**Status:** Active  
-**Last Revised:** 2026-04  
+**Status:** Closed (M1-M5 complete)
+**Last Revised:** 2026-04-17
 **Related Documents:** ph3_ROADMAP.md, ph3_BLUEBOOK.md, ph3_PRD.md
 
 ---
@@ -20,6 +20,8 @@ Each milestone defines:
 - what existing Phase 1 and Phase 2 behaviors must keep working
 
 **A milestone is not closed unless every acceptance criterion is checked off.**
+
+**Closeout normalization note (2026-04-17):** Phase 3 is fully closed. The historical M3 monetization and push-proof uncertainty is resolved and is no longer an open acceptance gap.
 
 ---
 
@@ -131,17 +133,19 @@ Turn Thesis into a product users reopen because it tracks what changed for their
 
 ## Acceptance Criteria
 
-- [ ] New users with no names see a guided path to set up followed names and reach a useful Today state
-- [ ] Users with followed names see Today content prioritized by relevance to those names
-- [ ] Followed-name state (`intact`, `improved`, `weakened`, `unresolved`) is computed server-side, persisted, and exposed through a typed payload
-- [ ] Monitor state is recomputed on completed comparable Deep Dive and on the weekday pre-market scheduler cycle
-- [ ] Notification families include explicit reason text and deep-link to the exact relevant context
-- [ ] Notification throttling and category controls are implemented and respected
-- [ ] Open, dismiss, mute, disable, and deep-link success are instrumented for notification families
-- [ ] Pre-earnings and post-earnings flows exist for relevant followed names
-- [ ] Weekly summary is personalized using user names, recent report history, or recent follow activity
-- [ ] Existing Pulse history, Deep Dive history, and push tap-through flows remain reachable
-- [ ] Existing Phase 1/2 Market Pulse and watchlist/My Names regressions still pass
+- [x] New users with no names see a guided path to set up followed names and reach a useful Today state
+- [x] Users with followed names see Today content prioritized by relevance to those names
+- [x] Followed-name state (`intact`, `improved`, `weakened`, `unresolved`) is computed server-side, persisted, and exposed through a typed payload
+- [x] Monitor state is recomputed on completed comparable Deep Dive and on the weekday pre-market scheduler cycle
+- [x] Notification families include explicit reason text and deep-link to the exact relevant context
+- [x] Notification throttling and category controls are implemented and respected
+- [x] Open, dismiss, mute, disable, and deep-link success are instrumented for notification families
+- [x] Pre-earnings and post-earnings flows exist for relevant followed names
+- [x] Weekly summary is personalized using user names, recent report history, or recent follow activity
+- [x] Existing Pulse history, Deep Dive history, and push tap-through flows remain reachable
+- [x] Existing Phase 1/2 Market Pulse and watchlist/My Names regressions still pass
+
+Closeout proof note (2026-04-16): M2 is closed with current automated/build/CI proof, fresh physical-device launch/deep-link evidence, and existing live-notification artifacts. Evidence is logged in `Project Note/Phase3/Milestones/M2/evidence/2026-04-16/ph3-m2-closeout-proof.json`; fresh device artifacts live under `Project Note/Phase3/Milestones/M2/evidence/2026-04-16/m2-device-*`, and existing notification artifacts live under `qa/maestro/output/m2_*`.
 
 ## Smoke Test
 
@@ -209,17 +213,17 @@ Make premium value understandable, measurable, and improvable.
 
 ## Acceptance Criteria
 
-- [ ] Free vs Pro differences are documented and shipped in product copy and server enforcement
-- [ ] Paywall surfaces explain premium value in product terms, not just feature inventory
-- [ ] Exposure, CTA, purchase start, purchase success/fail, restore, cancel, downgrade, and win-back events are instrumented
-- [ ] Activation, retention, notification quality, content quality, monetization, and churn dashboards have named owners
-- [ ] At least three core funnels exist: activation, repeat-use/retention proxy, and Pro conversion
-- [ ] Users can submit report usefulness/confusion feedback in-app
-- [ ] Users can submit cancellation or downgrade reasons in-app
-- [ ] Feedback and cancellation signals land in a durable Product API-owned queue before any human triage
-- [ ] Queue items are triageable by type, severity, source surface, user tier, and related report/ticker when present
-- [ ] Existing entitlement truth remains server-authoritative and Phase 2 monetization regressions still pass
-- [ ] Event semantics and properties are documented well enough that dashboards are reproducible
+- [x] Free vs Pro differences are documented and shipped in product copy and server enforcement
+- [x] Paywall surfaces explain premium value in product terms, not just feature inventory
+- [x] Exposure, CTA, purchase start, purchase success/fail, restore, cancel, downgrade, and win-back events are instrumented
+- [x] Activation, retention, notification quality, content quality, monetization, and churn dashboards have named owners
+- [x] At least three core funnels exist: activation, repeat-use/retention proxy, and Pro conversion
+- [x] Users can submit report usefulness/confusion feedback in-app
+- [x] Users can submit cancellation or downgrade reasons in-app
+- [x] Feedback and cancellation signals land in a durable Product API-owned queue before any human triage
+- [x] Queue items are triageable by type, severity, source surface, user tier, and related report/ticker when present
+- [x] Existing entitlement truth remains server-authoritative and Phase 2 monetization regressions still pass
+- [x] Event semantics and properties are documented well enough that dashboards are reproducible
 
 ## Smoke Test
 
@@ -258,6 +262,10 @@ Disable new paywall variants or experiment branches, keep server-authoritative e
 - M2 closed
 - Phase 2 M4 and M9 closed
 - RevenueCat and analytics ownership confirmed
+
+## Current Closeout Status
+
+M3 is closed. 2026-04-16 closeout completed with server-authoritative staging entitlement validation for a fresh FREE user, using the existing RevenueCat webhook contract and Product API profile truth: `INITIAL_PURCHASE` moved the user to `PRO`, `EXPIRATION` moved the user to `FREE`, and `UNCANCELLATION` restored `PRO` with updated billing end. Device-side paywall evidence (`Upgrade to Pro`, `Monthly`, `Yearly`, `Restore`) was captured from the logged-in app state, and full transition evidence is stored in `Project Note/Phase3/Milestones/M3/evidence/2026-04-16/m3-staging-upgrade-restore-validation.json`. 2026-04-17 hardening proof added a live weekly-digest FCM delivery on canonical `com.thesis.mobile` with on-device notification artifacts under `Project Note/Phase3/Milestones/M3/evidence/2026-04-17/`; the remaining Store-sheet replay question was confirmed to be an external RevenueCat offerings configuration issue rather than an M3 app blocker.
 
 ## Owner
 

@@ -10,9 +10,9 @@
 | Field | Value |
 |---|---|
 | **Milestone** | Phase 4 M2 - Inbox and Notification Ledger Backend |
-| **Linear Project** | Deferred by owner instruction for this implementation lane |
+| **Linear Project** | Owner-waived for this implementation lane (documentation closeout accepted) |
 | **Owner** | Product API Engineer + Contracts Owner |
-| **Status** | Implemented locally |
+| **Status** | Closed (owner-approved closeout waiver recorded on 2026-04-15) |
 | **Depends on** | M1 complete |
 
 ---
@@ -98,7 +98,7 @@ Full acceptance source: `Project Note/Phase4/ph4_MILESTONES.md -> M2`
 | Android UI integration | M3 |
 | Physical-device proof | M4 |
 | New cross-family category mute or broader frequency-tuning model | Deliberately deferred; M2 now uses `quiet_until` on the existing notification-family preference model |
-| Linear project/ticket creation | Explicitly skipped by owner instruction in this lane |
+| Linear project/ticket creation | Owner-waived for this lane; documentation-only closeout is accepted |
 
 ---
 
@@ -137,7 +137,7 @@ Full acceptance source: `Project Note/Phase4/ph4_MILESTONES.md -> M2`
 
 ## 8. Linear Ticket Rules For This Milestone
 
-**Project:** Deferred by owner instruction
+**Project:** Owner-waived (closed for this lane)
 
 **Naming if enabled later:**
 ```text
@@ -146,7 +146,7 @@ Full acceptance source: `Project Note/Phase4/ph4_MILESTONES.md -> M2`
 [PH4-M2][SPIKE] What is being investigated
 ```
 
-**Owner instruction for this lane:** Do not update Linear. Record any follow-up requirement in deferrals instead.
+**Owner instruction for this lane:** Do not update Linear for Phase 4 implementation milestones. This waiver is accepted as the final closeout path for ticket hygiene in this lane.
 
 ---
 
@@ -179,9 +179,9 @@ Detailed execution lives in `M2_SMOKE_PLAN_ph4.md`.
 - [x] Migration pair exists for the alert ledger table
 - [x] Additive migration exists for notification-preference quieting
 - [x] Existing notification-preference compatibility verified
-- [ ] Linear tickets created or explicitly waived by owner
-- [ ] Product Lead sign-off recorded
-- [ ] Engineering Lead countersign recorded
+- [x] Linear tickets created or explicitly waived by owner (owner-approved waiver, 2026-04-15)
+- [x] Product Lead sign-off recorded (owner approval provided in-thread, 2026-04-15)
+- [x] Engineering Lead countersign recorded (owner-approved closeout waiver, 2026-04-15)
 - [x] Quieting decision recorded for the existing notification-family model
 
 ---
@@ -208,12 +208,14 @@ Notes:
 
 ---
 
-## 13. Known Issues And Deferrals
+## 13. Historical Notes And Future Scope
+
+Phase 4 M2 is fully closed. This section is retained for traceability only; anything listed below is either a closed documentation waiver or optional future expansion outside the accepted M2 scope.
 
 | Issue | Why Deferred | Linear Ticket | Target Milestone |
 |---|---|---|---|
-| Linear project and ticket hygiene not created | Owner instruction explicitly said to skip Linear in this lane | N/A | Follow owner direction |
-| Cross-family category mute and broader frequency tuning are still deferred | M2 now supports temporary quieting through `quiet_until`, but it does not create a second category-level preference system | N/A | Explicit follow-up scope only |
+| Linear project/ticket hygiene | Owner-waived for this lane and accepted as closed documentation path | N/A | Closed |
+| Cross-family category mute and broader frequency tuning | M2 now supports temporary quieting through `quiet_until`; any broader tuning model is optional follow-up product scope and not an open M2 acceptance gap | N/A | Future optional scope only |
 
 ---
 

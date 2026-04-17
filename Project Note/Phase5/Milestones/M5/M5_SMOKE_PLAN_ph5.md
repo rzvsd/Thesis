@@ -2,7 +2,7 @@
 
 **Milestone:** M5 - Cross-Name Intelligence  
 **Owner:** Dexter Engineer + Scheduler Engineer + Product API Engineer + Mobile Engineer for existing-surface copy/context only
-**Status:** Closed (PASS) on 2026-04-10; LangSmith prompt registration carried as TBD
+**Status:** Closed (PASS) on 2026-04-10; LangSmith prompt registration proof completed on 2026-04-16
 
 ---
 
@@ -82,3 +82,7 @@ Locked interface names:
 | 7 | PASS | `apps/product-api/tests/ph5-m5-cross-name.test.ts` | Free user had matching edge and device token but no propagated alert |
 | 8 | PASS | `apps/product-api/tests/ph5-m5-cross-name.test.ts` | Macro propagated through QQQ sector edge only; macro on supplier edge emitted no alert |
 | 9 | N/A | `Project Note/Phase5/Milestones/M5/evidence/2026-04-09_m5_execution_log.md` | Mobile was not touched; Names/Inbox ownership preserved through server route/context |
+
+LangSmith closeout addendum (2026-04-16):
+- Remote prompt registration executed successfully.
+- Evidence: `Project Note/Phase5/Milestones/M5/evidence/2026-04-16_langsmith_prompt_push.json`.

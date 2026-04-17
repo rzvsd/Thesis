@@ -66,9 +66,22 @@ function parseOrigins(value: string | undefined, fallback: string[]): string[] {
 export type QueueBackend = "redis" | "memory";
 export type StoreBackend = "postgres" | "memory";
 export type GoogleOidcLinkPolicy = "BLOCK_UNLINKED" | "AUTO_LINK_VERIFIED_EMAIL";
+export type EmailProviderMode = "stub" | "resend";
 
 function isValidEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
+function isValidEmailSender(value: string): boolean {
+  const trimmed = value.trim();
+  if (isValidEmail(trimmed)) {
+    return true;
+  }
+  const withDisplayName = trimmed.match(/^.+<([^<>]+)>$/);
+  if (!withDisplayName) {
+    return false;
+  }
+  return isValidEmail(withDisplayName[1]?.trim() ?? "");
 }
 
 function isLikelyBcryptHash(value: string): boolean {
@@ -111,7 +124,10 @@ export interface ProductApiConfig {
   artifactS3ForcePathStyle: boolean;
   artifactS3Prefix: string;
   artifactRequireDurable: boolean;
-  emailProviderMode: "stub";
+  emailProviderMode: EmailProviderMode;
+  emailResendApiBaseUrl: string;
+  emailResendApiKey?: string;
+  emailFromAddress?: string;
   exposeVerificationToken: boolean;
   adminBootstrapRequested: boolean;
   adminBootstrapEnabled: boolean;
@@ -269,7 +285,14 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ProductApiConf
     artifactS3ForcePathStyle: parseBoolean(env.ARTIFACT_S3_FORCE_PATH_STYLE, false),
     artifactS3Prefix: env.ARTIFACT_S3_PREFIX?.trim() || "reports",
     artifactRequireDurable: parseBoolean(env.ARTIFACT_REQUIRE_DURABLE, false),
-    emailProviderMode: "stub",
+    emailProviderMode:
+      env.EMAIL_PROVIDER_MODE?.trim().toLowerCase() === "resend"
+        ? "resend"
+        : "stub",
+    emailResendApiBaseUrl:
+      env.EMAIL_RESEND_API_BASE_URL?.trim() || "https://api.resend.com",
+    emailResendApiKey: env.EMAIL_RESEND_API_KEY?.trim() || undefined,
+    emailFromAddress: env.EMAIL_FROM_ADDRESS?.trim() || undefined,
     exposeVerificationToken: parseBoolean(env.AUTH_EXPOSE_VERIFICATION_TOKEN, false),
     adminBootstrapRequested,
     adminBootstrapEnabled,
@@ -396,6 +419,25 @@ export function validateConfig(config: ProductApiConfig): string[] {
     errors.push(
       "ARTIFACT_STORE_MODE=s3 is required when ARTIFACT_REQUIRE_DURABLE=true"
     );
+  }
+
+  if (config.emailProviderMode === "resend") {
+    if (!config.emailResendApiKey) {
+      errors.push("EMAIL_RESEND_API_KEY is required when EMAIL_PROVIDER_MODE=resend");
+    }
+    if (!config.emailFromAddress) {
+      errors.push("EMAIL_FROM_ADDRESS is required when EMAIL_PROVIDER_MODE=resend");
+    } else if (!isValidEmailSender(config.emailFromAddress)) {
+      errors.push("EMAIL_FROM_ADDRESS must be a valid sender address");
+    }
+    try {
+      const parsed = new URL(config.emailResendApiBaseUrl);
+      if (parsed.protocol !== "https:") {
+        errors.push("EMAIL_RESEND_API_BASE_URL must use https");
+      }
+    } catch {
+      errors.push("EMAIL_RESEND_API_BASE_URL must be a valid URL");
+    }
   }
 
   if (config.queueBackend === "redis" && !config.redisUrl) {

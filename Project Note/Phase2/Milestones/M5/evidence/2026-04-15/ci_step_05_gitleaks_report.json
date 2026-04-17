@@ -1,0 +1,23 @@
+[
+ {
+  "RuleID": "generic-api-key",
+  "Description": "Detected a Generic API Key, potentially exposing access to various services and sensitive operations.",
+  "StartLine": 341,
+  "EndLine": 341,
+  "StartColumn": 10,
+  "EndColumn": 51,
+  "Match": "trigger_key: \"REDACTED\"",
+  "Secret": "REDACTED",
+  "File": "apps/product-api/tests/ph5-m2-freshness.test.ts",
+  "SymlinkFile": "",
+  "Commit": "de12b08a3cb11a6d14d1d51b9596b4f42362a5ef",
+  "Link": "https://github.com/rzvsd/Thesis/blob/de12b08a3cb11a6d14d1d51b9596b4f42362a5ef/apps/product-api/tests/ph5-m2-freshness.test.ts#L341",
+  "Entropy": 3.986188,
+  "Author": "rzvsd",
+  "Email": "razvan.sodoleanu@yahoo.com",
+  "Date": "2026-04-09T10:50:34Z",
+  "Message": "PH5 M2: finalize freshness decay implementation and closeout docs",
+  "Tags": [],
+  "Fingerprint": "de12b08a3cb11a6d14d1d51b9596b4f42362a5ef:apps/product-api/tests/ph5-m2-freshness.test.ts:generic-api-key:341"
+ }
+]

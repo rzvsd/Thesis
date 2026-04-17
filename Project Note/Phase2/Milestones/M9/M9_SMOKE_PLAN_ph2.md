@@ -93,6 +93,7 @@ Provide one executable smoke sequence that proves the M9 hardening decisions are
 - PostHog screenshots for all 5 dashboards and 3 funnels with real test events.
 - Release build output proving obfuscation enabled.
 - Pinning failure proof (release) and debug bypass proof (debug).
+- Release guard probe output proving invalid host/pin values are rejected at Gradle configuration time.
 
 ---
 
@@ -104,7 +105,7 @@ Provide one executable smoke sequence that proves the M9 hardening decisions are
 | 2 | PASS | `qa/maestro/output/2026-04-02T17-40-07-293Z/summary.json` | Offline mode path validated on physical device (known Deep Dive dependency remains deferred) |
 | 3 | PASS | `apps/mobile/android/app/src/main/java/com/thesis/mobile/offline/PrefetchScheduler.kt`, `apps/mobile/android/app/src/main/java/com/thesis/mobile/offline/PulsePrefetchWorker.kt` | 24h+flex schedule and prefetch cache path implemented; closeout accepted by owner |
 | 4 | PASS | `qa/maestro/output/2026-04-02T17-40-07-293Z/summary.json` | Offline/degraded path verified on physical device |
-| 5 | TBD (owner-approved defer) | `apps/mobile/android/app/src/release/res/xml/network_security_config.xml` | Structure implemented; real host/pins + MITM proof deferred until production API host exists |
+| 5 | TBD (owner-approved defer; guard hardening PASS on 2026-04-16) | `apps/mobile/android/app/src/release/res/xml/network_security_config.xml`, `Project Note/Phase2/Milestones/M9/evidence/2026-04-16_release_guard_probe.md` | Real host/pins + MITM proof deferred until production API host exists; invalid host/pin placeholders are now rejected by Gradle release guards |
 | 6 | PASS | `qa/maestro/output/2026-04-02T17-36-35-721Z/summary.json`, `qa/maestro/output/2026-04-02T17-38-38-777Z/summary.json` | Core real-device smoke passed; biometric lock behavior remains within implemented M9 guardrail logic |
 | 7 | PASS | `apps/mobile/android/app/build/outputs/mapping/release/mapping.txt` | Release build + R8 mapping generated |
 | 8 | PASS | PostHog dashboards/funnels created by owner-side setup (`/insights/eQl6Wcya`, `/insights/cCgINepr`, `/insights/rwP3P62C`) | Dashboard set exists and is active; event taxonomy substitutions tracked |

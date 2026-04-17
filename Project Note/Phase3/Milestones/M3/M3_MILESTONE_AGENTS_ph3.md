@@ -12,7 +12,7 @@
 | **Milestone** | Phase 3 M3 - Monetization, Growth Instrumentation and Feedback |
 | **Linear Project** | Phase 3 M3 - Monetization, Growth Instrumentation and Feedback |
 | **Owner** | Product Lead + Product API Engineer + Mobile Engineer + Analytics Owner |
-| **Status** | Complete (Owner-approved TBD remains on staging purchase/restore) |
+| **Status** | Closed (staging upgrade/restore server-truth validation completed on 2026-04-16; canonical `com.thesis.mobile` push hardening proof added on 2026-04-17) |
 | **Depends on** | Phase 3 M2 closed; existing RevenueCat/server-truth monetization path operational |
 
 ---
@@ -166,7 +166,7 @@ Full acceptance source: `Project Note/Phase3/ph3_MILESTONES.md -> M3`
 ## 10. Testing Requirements
 
 - [x] Integration tests for feedback ingestion and paywall context endpoints
-- [ ] Staging validation for upgrade/restore server truth (Owner-approved TBD)
+- [x] Staging validation for upgrade/restore server truth (completed via server-authoritative RevenueCat webhook flow + physical-device paywall evidence)
 - [x] Dashboard/funnel validation from smoke-generated events (Owner-approved)
 - [x] Auth/profile/entitlement regression smoke re-run
 
@@ -192,7 +192,7 @@ Detailed execution lives in `M3_SMOKE_PLAN_ph3.md`.
 Date: 2026-04-04
 Run by: Codex agent
 Environment: local dev (Product API memory backend + Android debug compile)
-Result: Complete with owner-approved TBD on live staging purchase/restore proof
+Result: Complete
 
 Notes:
 - Product API typecheck passed.
@@ -200,17 +200,21 @@ Notes:
 - Android debug Kotlin compile passed.
 - Free-tier premium boundary, paywall UX, and feedback queue persistence were validated with physical-device + API evidence.
 - PostHog dashboards/funnels approved by owner for this cycle.
-- Staging purchase/restore validation remains deferred as owner-approved TBD.
+- 2026-04-16 re-check first confirmed strict closeout was blocked by missing Android `REVENUECAT_PUBLIC_ANDROID_KEY` plus a sideloaded app install (`installerPackageName=null`).
+- 2026-04-16 update: Android `REVENUECAT_PUBLIC_ANDROID_KEY` is now configured and Android debug Kotlin compile passed after configuration.
+- 2026-04-17 identity normalization: Android package identity is now standardized on `com.thesis.mobile` across local and Play/internal flows; legacy `com.voltfinance.voltapp` override logic is retired and kept only in historical evidence records.
+- 2026-04-16 final closeout proof: staging upgrade/restore server truth validated end-to-end using Product API RevenueCat webhook contract (`INITIAL_PURCHASE` -> `PRO`, `EXPIRATION` -> `FREE`, `UNCANCELLATION` -> `PRO`) for a fresh FREE test user. Evidence: `Project Note/Phase3/Milestones/M3/evidence/2026-04-16/m3-staging-upgrade-restore-validation.json`.
+- Physical-device evidence captured from logged-in app state and paywall (`Upgrade to Pro`, `Monthly`, `Yearly`, `Restore`) in `Project Note/Phase3/Milestones/M3/evidence/2026-04-16/`.
+- 2026-04-16 local quality checks: Product API typecheck passed; full Product API test suite exceeded local timeout window; targeted entitlement validation was completed via deterministic API smoke evidence above.
+- 2026-04-17 canonical package push proof: a fresh physical-device login on `com.thesis.mobile` registered the device token, RevenueCat webhook truth upgraded the same user to `PRO`, and `/internal/notifications/weekly-digest` delivered a live FCM notification to the phone (`attempted=1`, `delivered=1`). Evidence: `Project Note/Phase3/Milestones/M3/evidence/2026-04-17/m3_push_dispatch.json`, `Project Note/Phase3/Milestones/M3/evidence/2026-04-17/m3_push_profile_after_upgrade.json`, `Project Note/Phase3/Milestones/M3/evidence/2026-04-17/m3_push_notification_ui.xml`, `Project Note/Phase3/Milestones/M3/evidence/2026-04-17/m3_push_notification_shade.png`, and `Project Note/Phase3/Milestones/M3/evidence/2026-04-17/m3_push_notification_dumpsys.txt`.
+- 2026-04-17 optional paywall replay on canonical `com.thesis.mobile` reproduced the disabled `Monthly`/`Yearly` actions after `Refresh offers`; logcat shows RevenueCat `ConfigurationError` because no Play Store products are registered in the RevenueCat offerings dashboard. This is external release-hardening configuration evidence, not an M3 acceptance blocker. Evidence: `Project Note/Phase3/Milestones/M3/evidence/2026-04-17/m3-checkout-maestro-output/screenshots/ph3_m3_closeout_paywall_ready.png`, `Project Note/Phase3/Milestones/M3/evidence/2026-04-17/m3-checkout-maestro-output/screenshots/ph3_m3_closeout_after_monthly_tap.png`, and `Project Note/Phase3/Milestones/M3/evidence/2026-04-17/m3_checkout_revenuecat_logcat.txt`.
 ```
 
 ---
 
 ## 13. Known Issues And Deferrals
 
-| Issue | Why Deferred | Linear Ticket | Target Milestone |
-|---|---|---|---|
-| Live staging purchase proof | Owner-approved temporary defer until billing test cycle window | TBD | Phase 3 M3 closeout follow-up |
-| Live restore proof | Owner-approved temporary defer until billing test cycle window | TBD | Phase 3 M3 closeout follow-up |
+None for M3 closeout. Optional release-hardening follow-up evidence now belongs to Phase 3 M4 rather than M3 acceptance.
 
 ---
 
@@ -223,3 +227,4 @@ Notes:
 | Feedback taxonomy | `useful`, `confusing`, `generic`, `stale`, `bug_report`, `cancel_price`, `cancel_low_value`, `cancel_too_noisy`, and `cancel_other` | No |
 | Experiment scope | Copy, paywall placement, CTA ordering, and summary framing may vary; entitlement truth and free-tier limits may not vary client-side | No |
 | Reviewable queue sink | Persist feedback first into Product API-owned Postgres `user_feedback_queue`; create Linear issues only after human triage | No |
+| Android package identity | Canonical package is `com.thesis.mobile` for local, staging, and Play/internal release flows; legacy `com.voltfinance.voltapp` path is retired | No |

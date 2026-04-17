@@ -2,6 +2,7 @@
 
 **Scope:** Safety phase milestones (M1-M5).  
 **Inherits from:** Root `AGENTS.md`.
+**Phase Status:** Closed (M1-M5 complete; retained as the authoritative execution record).
 
 ---
 

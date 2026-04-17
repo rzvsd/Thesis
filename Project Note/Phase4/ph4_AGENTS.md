@@ -2,6 +2,7 @@
 
 **Scope:** Phase 4 milestones (M1-M4). Every service, every session.  
 **Read this first. Then read the milestone-specific guide in `Phase4/Milestones/M#/`.**
+**Phase Status:** Closed (all Phase 4 milestones accepted; retained as the authoritative execution record).
 
 ---
 

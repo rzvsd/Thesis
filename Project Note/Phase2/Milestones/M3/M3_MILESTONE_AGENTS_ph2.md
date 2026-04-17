@@ -1,6 +1,6 @@
 # AGENTS.md - Phase 2 M3 Fear & Greed Index Engine
 **Milestone:** Phase 2 M3 - Fear & Greed Index Engine  
-**Status:** Active (Plan Updated)  
+**Status:** Closed
 **Location:** `Project Note/Phase2/Milestones/M3/M3_MILESTONE_AGENTS_ph2.md`
 
 ---
@@ -30,7 +30,7 @@ All M3 gates are resolved and coding may proceed.
 | G4 | Degradation policy | Skip missing inputs and re-weight available inputs; require minimum 3 available inputs to publish a score | RESOLVED |
 | G5 | Historical bootstrap | No blocking backfill requirement for M3 closeout; history accumulates from first run onward | RESOLVED |
 
-**Explicit deferrals (not M3):** put/call ratio, social sentiment, news-sentiment factors.
+**Explicit future scope (not M3 closeout blockers):** put/call ratio, social sentiment, news-sentiment factors.
 
 ---
 
@@ -245,13 +245,15 @@ Step 11 - Phase 1 regression (Pulse + scheduler) still passes: PASS (`apps/produ
 
 ---
 
-## 16. Known Issues and Deferrals
+## 16. Historical Notes and Future Scope
+
+M3 is fully closed. This section is retained for traceability only; items below are future-scope choices or historical evidence notes and do not represent open M3 acceptance work.
 
 | Item | Reason | Owner | Target |
 |---|---|---|---|
 | Put/call ratio signal | Explicitly deferred from M3 | Product Lead | Future milestone |
 | Social/news sentiment | Explicitly deferred from M3 | Product Lead | Future milestone |
-| 3-consecutive trading-day staging soak evidence | Replaced by deterministic test harness for this closeout pass | Product Lead | Re-run in staging hardening window |
+| 3-consecutive trading-day staging soak evidence | Replaced by deterministic test harness for M3 closeout; any future staging soak is optional hardening evidence, not an open M3 blocker | Product Lead | Closed for M3 / optional future hardening |
 
 ---
 

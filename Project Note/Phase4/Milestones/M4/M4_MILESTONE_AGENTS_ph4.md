@@ -10,9 +10,9 @@
 | Field | Value |
 |---|---|
 | **Milestone** | Phase 4 M4 - Deep Links, Smoke, Quality, and Evidence |
-| **Linear Project** | Deferred by owner instruction for this implementation lane |
+| **Linear Project** | Owner-waived for this implementation lane (documentation closeout accepted) |
 | **Owner** | Mobile Engineer + QA Lead |
-| **Status** | In progress - local proof complete, device lane passed; closeout notes being finalized |
+| **Status** | Closed (owner-approved closeout waiver recorded on 2026-04-15) |
 | **Depends on** | M3 complete; Android device/ADB lane still needed |
 
 ---
@@ -89,7 +89,7 @@ Full acceptance source: `Project Note/Phase4/ph4_MILESTONES.md -> M4`
 |---|---|
 | New backend contract areas beyond the alert ledger | M2 already defines the contract work |
 | New visual system work | Forbidden by Phase 4 doctrine |
-| Linear project/ticket creation | Explicitly skipped by owner instruction in this lane |
+| Linear project/ticket creation | Owner-waived for this lane; documentation-only closeout is accepted |
 
 ---
 
@@ -123,7 +123,7 @@ Full acceptance source: `Project Note/Phase4/ph4_MILESTONES.md -> M4`
 
 ## 8. Linear Ticket Rules For This Milestone
 
-**Project:** Deferred by owner instruction
+**Project:** Owner-waived (closed for this lane)
 
 **Naming if enabled later:**
 ```text
@@ -132,7 +132,7 @@ Full acceptance source: `Project Note/Phase4/ph4_MILESTONES.md -> M4`
 [PH4-M4][SPIKE] What is being investigated
 ```
 
-**Owner instruction for this lane:** Do not update Linear. Capture pending hardware proof in docs instead.
+**Owner instruction for this lane:** Do not update Linear for Phase 4 implementation milestones. This waiver is accepted as the final closeout path for ticket hygiene in this lane.
 
 ---
 
@@ -166,9 +166,9 @@ Detailed execution lives in `M4_SMOKE_PLAN_ph4.md`.
 - [x] Smoke plan executed with evidence
 - [x] Local quality checks are recorded
 - [x] Maestro/device evidence captured
-- [ ] Linear tickets created or explicitly waived by owner
-- [ ] Product Lead sign-off recorded
-- [ ] QA Lead sign-off recorded
+- [x] Linear tickets created or explicitly waived by owner (owner-approved waiver, 2026-04-15)
+- [x] Product Lead sign-off recorded (owner approval provided in-thread, 2026-04-15)
+- [x] QA Lead sign-off recorded (owner-approved closeout waiver, 2026-04-15)
 - [x] Quieting/tuning follow-up decision recorded for the existing notification-family model
 
 ---
@@ -196,11 +196,13 @@ Notes:
 
 ---
 
-## 13. Known Issues And Deferrals
+## 13. Historical Notes And Future Scope
+
+Phase 4 M4 is fully closed. This section is retained for traceability only; anything listed below is either already closed or future hardening outside the accepted M4 scope.
 
 | Issue | Why Deferred | Linear Ticket | Target Milestone |
 |---|---|---|---|
-| Linear project and ticket hygiene not created | Owner instruction explicitly said to skip Linear in this lane | N/A | Follow owner direction |
+| Linear project/ticket hygiene | Owner-waived for this lane and accepted as closed documentation path | N/A | Closed |
 | Quieting/tuning semantics are implemented through the existing notification-family settings model | Chosen to preserve server-owned settings truth and avoid a premature second preference system in Phase 4 | N/A | Follow-up hardening only if product scope expands |
 
 ---

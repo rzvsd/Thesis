@@ -1,0 +1,71 @@
+{
+  "date": "2026-04-16",
+  "milestone": "Phase 2 M8 post-close enhancement patch",
+  "status": "pass",
+  "checks": [
+    {
+      "name": "product_api_typecheck",
+      "status": "pass",
+      "command": "pnpm --filter @thesis/product-api typecheck"
+    },
+    {
+      "name": "product_api_lint",
+      "status": "pass",
+      "command": "pnpm --filter @thesis/product-api lint"
+    },
+    {
+      "name": "weekly_digest_dual_channel_smoke",
+      "status": "pass",
+      "mode": "local_node_harness",
+      "result": {
+        "digest_date": "2026-03-22",
+        "push": {
+          "attempted": 1,
+          "delivered": 1,
+          "failed": 0
+        },
+        "email": {
+          "attempted": 1,
+          "delivered": 1,
+          "failed": 0
+        },
+        "total": {
+          "attempted": 2,
+          "delivered": 2,
+          "failed": 0
+        }
+      }
+    },
+    {
+      "name": "weekly_digest_preference_gate_smoke",
+      "status": "pass",
+      "mode": "local_node_harness",
+      "result": {
+        "weekly_digest_disabled": {
+          "email_attempted": 0,
+          "email_delivered": 0
+        },
+        "weekly_digest_enabled": {
+          "email_attempted": 1,
+          "email_delivered": 1
+        }
+      }
+    },
+    {
+      "name": "product_api_node_test_runner_config",
+      "status": "pass",
+      "command": "pnpm --filter @thesis/product-api exec node --test --test-concurrency=1 dist/apps/product-api/tests/config.test.js"
+    },
+    {
+      "name": "product_api_node_test_runner_m5",
+      "status": "pass",
+      "command": "pnpm --filter @thesis/product-api exec node --test --test-concurrency=1 dist/apps/product-api/tests/m5-notifications.test.js"
+    },
+    {
+      "name": "android_assemble_debug",
+      "status": "pass",
+      "command": "JAVA_HOME=C:\\Program Files\\Android\\Android Studio\\jbr ; ./gradlew :app:assembleDebug"
+    }
+  ],
+  "environment_limits": []
+}

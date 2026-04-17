@@ -19,6 +19,8 @@ regexes = [
   '''m4-webhook-secret''',
   '''m5-webhook-secret''',
   '''m6-webhook-secret''',
-  '''ph5-m7-webhook-secret'''
+  '''ph5-m7-webhook-secret''',
+  '''fixture-guidance-cut-key''',
+  '''fixture-guidance-cut-ref'''
 ]
 

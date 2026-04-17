@@ -12,7 +12,7 @@
 | **Milestone** | Phase 5 M5 - Cross-Name Intelligence |
 | **Linear Project** | Phase 5 M5 - Cross-Name Intelligence |
 | **Owner** | Dexter Engineer + Scheduler Engineer + Product API Engineer + Mobile Engineer for existing-surface copy/context only |
-| **Status** | Closed (PASS) on 2026-04-10; LangSmith prompt registration carried as TBD |
+| **Status** | Closed (PASS) on 2026-04-10; LangSmith prompt registration proof completed on 2026-04-16 |
 | **Depends on** | M1-M4 complete |
 
 ---
@@ -197,7 +197,8 @@ Evidence:
 
 Note:
 - `git diff --check` passed with Windows LF-to-CRLF warnings only.
-- LangSmith prompt registration was not executed because no `LANGSMITH_API_KEY` is available in this environment; the local prompt manifest and sync hook are implemented.
+- LangSmith prompt registration was executed on 2026-04-16 via `corepack pnpm --dir apps/dexter-worker run langsmith:push-prompts`.
+- Evidence: `Project Note/Phase5/Milestones/M5/evidence/2026-04-16_langsmith_prompt_push.json`.
 - Mobile was not touched; no device or Maestro proof is required for this M5 slice.
 ```
 
@@ -207,7 +208,7 @@ Note:
 
 | Issue | Why Deferred | Linear Ticket | Target Milestone |
 |---|---|---|---|
-| LangSmith relationship prompt registration | `LANGSMITH_API_KEY` is not available in this environment; local manifest and sync script are implemented, but remote registration cannot be proven here | Not required per owner instruction | TBD follow-up when LangSmith credentials are available |
+| None open | LangSmith relationship prompt registration proof completed on 2026-04-16 | N/A | N/A |
 | Device proof | Mobile was not touched; Names/Inbox behavior is server-ledger context only in this slice | Not required | None |
 
 ---

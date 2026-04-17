@@ -12,7 +12,7 @@
 | **Milestone** | Phase 2 M6 - 3-Tab Navigation Redesign |
 | **Linear Project** | Phase 2 M6 - 3-Tab Navigation Redesign |
 | **Owner** | Mobile Engineer + Product Lead |
-| **Status** | Completed |
+| **Status** | Closed |
 | **Depends on** | Phase 2 M5 closed; current Android app confirmed working on a real device before refactor begins |
 
 ---

@@ -1,0 +1,13 @@
+﻿{
+    "status":  "ok",
+    "digest_date":  "2026-04-19",
+    "attempted":  1,
+    "delivered":  1,
+    "failed":  0,
+    "email_attempted":  2,
+    "email_delivered":  2,
+    "email_failed":  0,
+    "total_attempted":  3,
+    "total_delivered":  3,
+    "total_failed":  0
+}

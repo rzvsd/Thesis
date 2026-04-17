@@ -2,7 +2,7 @@
 
 **Milestone:** M6 - Conviction Intelligence  
 **Owner:** Product API Engineer + Scheduler Engineer + Dexter Engineer + Mobile Engineer
-**Status:** Closed (PASS) - recheck completed on physical device on 2026-04-10
+**Status:** Closed (PASS) - recheck completed on physical device on 2026-04-10; LangSmith prompt registration proof completed on 2026-04-16
 
 ---
 
@@ -40,7 +40,8 @@ Locked storage names:
 
 LangSmith note:
 
-- Remote prompt registration proof can be carried as TBD if `LANGSMITH_API_KEY` is unavailable.
+- Remote prompt registration was executed successfully on 2026-04-16.
+- Evidence: `Project Note/Phase5/Milestones/M6/evidence/2026-04-16_langsmith_prompt_push.json`.
 - Local prompt manifest, sync hook, and deterministic regression fixtures remain required for closeout.
 
 ---

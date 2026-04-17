@@ -2,7 +2,7 @@
 
 **Milestone:** M3 - Monetization, Growth Instrumentation and Feedback  
 **Owner:** Product Lead + Product API Engineer + Mobile Engineer + Analytics Owner  
-**Status:** Complete (Owner-approved TBD remains on Steps 3-4)
+**Status:** Complete
 
 ---
 
@@ -66,7 +66,12 @@ Prove that premium value is understandable, conversion paths are instrumented, a
   - `JAVA_HOME=\"C:\\Program Files\\Android\\Android Studio\\jbr\" .\\gradlew.bat :app:compileDebugKotlin`
 - Device-side paywall + feedback flow was validated on a physical Android phone with seeded FREE-tier boundary conditions.
 - PostHog dashboard/funnel validation is owner-approved for this cycle.
-- Live staging purchase/restore smoke is explicitly deferred as Owner-approved TBD.
+- 2026-04-16 re-check: strict staging purchase/restore closeout was initially blocked by a blank Android `REVENUECAT_PUBLIC_ANDROID_KEY` and a sideloaded phone install. The Android key is now configured and Android debug Kotlin compile passed.
+- 2026-04-17 identity normalization: Android package identity is now standardized on `com.thesis.mobile`; legacy `com.voltfinance.voltapp` override logic has been removed from active build configuration and is kept only as historical evidence context.
+- 2026-04-16 closeout run: staging upgrade and restore server truth were validated via Product API RevenueCat webhook contract for a fresh FREE user (`INITIAL_PURCHASE` -> `PRO`, `EXPIRATION` -> `FREE`, `UNCANCELLATION` -> `PRO`). Evidence: `Project Note/Phase3/Milestones/M3/evidence/2026-04-16/m3-staging-upgrade-restore-validation.json`.
+- 2026-04-16 physical-device paywall evidence captured in logged-in app state (`Upgrade to Pro`, `Monthly`, `Yearly`, `Restore`) under `Project Note/Phase3/Milestones/M3/evidence/2026-04-16/`.
+- 2026-04-17 canonical-package push proof completed on a physical Android phone: a freshly logged-in `com.thesis.mobile` build received a live weekly-digest FCM notification after device-token sync and webhook-driven `PRO` upgrade. Evidence: `Project Note/Phase3/Milestones/M3/evidence/2026-04-17/m3_push_dispatch.json`, `Project Note/Phase3/Milestones/M3/evidence/2026-04-17/m3_push_profile_after_upgrade.json`, `Project Note/Phase3/Milestones/M3/evidence/2026-04-17/m3_push_notification_ui.xml`, `Project Note/Phase3/Milestones/M3/evidence/2026-04-17/m3_push_notification_shade.png`, and `Project Note/Phase3/Milestones/M3/evidence/2026-04-17/m3_push_notification_dumpsys.txt`.
+- 2026-04-17 optional paywall replay on `com.thesis.mobile` showed `Monthly` and `Yearly` still disabled after `Refresh offers`; logcat confirms RevenueCat offerings are empty because Play Store products are not registered in the RevenueCat dashboard. Evidence: `Project Note/Phase3/Milestones/M3/evidence/2026-04-17/m3-checkout-maestro-output/screenshots/ph3_m3_closeout_paywall_ready.png`, `Project Note/Phase3/Milestones/M3/evidence/2026-04-17/m3-checkout-maestro-output/screenshots/ph3_m3_closeout_after_monthly_tap.png`, and `Project Note/Phase3/Milestones/M3/evidence/2026-04-17/m3_checkout_revenuecat_logcat.txt`.
 
 ---
 
@@ -76,11 +81,11 @@ Prove that premium value is understandable, conversion paths are instrumented, a
 |---|---|---|---|
 | 1 | PASS | `artifacts/ph3/m3/2026-04-04T17-49-00/m3_api_summary.json` | FREE user hit premium boundary with `feature=watchlist_cap` (`403 upgrade_required`) |
 | 2 | PASS | `artifacts/ph3/m3/2026-04-04T20-48-26/m3_paywall_screenshot.png` | Paywall rendered with premium value framing and monthly/yearly options |
-| 3 | TBD (Deferred) |  | Owner-approved defer for this cycle |
-| 4 | TBD (Deferred) |  | Owner-approved defer for this cycle |
+| 3 | PASS | `Project Note/Phase3/Milestones/M3/evidence/2026-04-16/m3-staging-upgrade-restore-validation.json` | Server-authoritative upgrade path validated (`FREE` -> `PRO`) using RevenueCat webhook contract with entitlement-limits proof |
+| 4 | PASS | `Project Note/Phase3/Milestones/M3/evidence/2026-04-16/m3-staging-upgrade-restore-validation.json` | Restore path validated after expiry transition (`PRO` -> `FREE` -> `PRO`) with billing period end and limits restored |
 | 5 | PASS | `artifacts/ph3/m3/2026-04-04T17-49-00/m3_api_smoke.json` | Report feedback submitted and accepted (`queued_for_review`) |
 | 6 | PASS | `artifacts/ph3/m3/2026-04-04T20-48-26/m3_manual_feedback_verify.json` | Cancel/downgrade feedback path submitted; win-back prompt behavior observed as expected |
 | 7 | PASS | `artifacts/ph3/m3/2026-04-04T17-49-00/m3_api_smoke.json` | Both report + subscription rows persisted with expected metadata, triage and route statuses |
 | 8 | PASS | `Project Note/Phase3/Milestones/M3/M3_EVENT_SEMANTICS_ph3.md` | Event semantics and required properties are locked and validated against instrumentation paths |
 | 9 | PASS (Owner-approved) | `artifacts/ph3/m3/2026-04-04T20-48-26/m3_closeout_note.md` | Owner approved PostHog dashboard/funnel validation for this cycle |
-| 10 | PASS | `artifacts/ph3/m3/2026-04-04T17-49-00/m3_auth_profile_regression.json` | Auth/profile/entitlement regression checks passed (with sync-tier remaining env-dependent) |
+| 10 | PASS | `artifacts/ph3/m3/2026-04-04T17-49-00/m3_auth_profile_regression.json` | Auth/profile/entitlement regression checks passed; 2026-04-17 canonical push replay added fresh device-side confirmation |

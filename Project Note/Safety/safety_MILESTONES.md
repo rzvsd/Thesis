@@ -2,9 +2,11 @@
 
 **Version:** 1.0  
 **Status:** Closed (M1-M5 complete)  
-**Last Revised:** 2026-04-14
+**Last Revised:** 2026-04-17
 
 ---
+
+**Closeout normalization note (2026-04-17):** Safety is fully closed. Any formatting unevenness in older milestone AGENTS files is documentation normalization only and does not represent open implementation or test debt.
 
 ## Milestone Index
 

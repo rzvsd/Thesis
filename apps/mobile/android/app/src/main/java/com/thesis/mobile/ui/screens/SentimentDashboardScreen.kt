@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -23,7 +24,6 @@ import androidx.compose.material.pullrefresh.pullRefresh
 import androidx.compose.material.pullrefresh.rememberPullRefreshState
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -61,6 +61,7 @@ import com.thesis.mobile.ui.theme.ThesisDimens
 import com.thesis.mobile.ui.theme.ThesisTypography
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.util.Locale
 
 @OptIn(ExperimentalMaterialApi::class)
 @Composable
@@ -74,6 +75,28 @@ fun SentimentDashboardScreen(
     onRefresh: (() -> Unit)? = null
 ) {
     val chartRows = remember(history) { history.sortedBy { it.marketDate } }
+    val recentRows = remember(chartRows) { chartRows.sortedByDescending { it.marketDate }.take(10) }
+    val trailingWindow = remember(chartRows) { chartRows.takeLast(7) }
+    val trailingAverage = remember(trailingWindow) {
+        if (trailingWindow.isEmpty()) null else trailingWindow.map { it.score }.average()
+    }
+    val selectedRangeDelta = remember(chartRows) {
+        val first = chartRows.firstOrNull()?.score
+        val last = chartRows.lastOrNull()?.score
+        if (first == null || last == null || chartRows.size < 2) {
+            null
+        } else {
+            last - first
+        }
+    }
+    val transitionMarkers = remember(chartRows) {
+        chartRows.zipWithNext()
+            .filter { it.first.label != it.second.label }
+            .map { (previous, next) ->
+                "${next.marketDate}: ${formatDashboardLabel(previous.label)} -> ${formatDashboardLabel(next.label)}"
+            }
+            .takeLast(3)
+    }
     val modelProducer = remember { ChartEntryModelProducer() }
     var isRefreshing by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
@@ -173,6 +196,75 @@ fun SentimentDashboardScreen(
                                 style = ThesisTypography.bodySmall,
                                 color = ThesisColors.TextMuted
                             )
+                            Spacer(modifier = Modifier.height(ThesisDimens.SpacingMd))
+                            Text(
+                                text = "Regime overlays",
+                                style = ThesisTypography.labelMedium,
+                                color = ThesisColors.TextSecondary
+                            )
+                            Spacer(modifier = Modifier.height(ThesisDimens.SpacingSm))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)
+                            ) {
+                                RegimeBandLegendItem(
+                                    label = "Fear",
+                                    range = "0-40",
+                                    color = ThesisColors.SignalNegative,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                RegimeBandLegendItem(
+                                    label = "Neutral",
+                                    range = "41-60",
+                                    color = ThesisColors.SignalNeutral,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                RegimeBandLegendItem(
+                                    label = "Greed",
+                                    range = "61-100",
+                                    color = ThesisColors.SignalPositive,
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(ThesisDimens.SpacingMd))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "7-day moving avg",
+                                    style = ThesisTypography.labelMedium,
+                                    color = ThesisColors.TextMuted
+                                )
+                                Text(
+                                    text = trailingAverage?.let { formatScore(it) } ?: "--",
+                                    style = ThesisTypography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                                    color = ThesisColors.TextPrimary
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(ThesisDimens.SpacingXs))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "Selected range drift",
+                                    style = ThesisTypography.labelMedium,
+                                    color = ThesisColors.TextMuted
+                                )
+                                Text(
+                                    text = selectedRangeDelta?.let { formatSignedScore(it) } ?: "--",
+                                    style = ThesisTypography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                                    color = when {
+                                        selectedRangeDelta == null -> ThesisColors.TextMuted
+                                        selectedRangeDelta > 0 -> ThesisColors.SignalPositive
+                                        selectedRangeDelta < 0 -> ThesisColors.SignalNegative
+                                        else -> ThesisColors.SignalNeutral
+                                    }
+                                )
+                            }
                             Spacer(modifier = Modifier.height(12.dp))
                             if (chartRows.isEmpty()) {
                                 Text(
@@ -191,6 +283,31 @@ fun SentimentDashboardScreen(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .height(220.dp)
+                                )
+                            }
+                            if (transitionMarkers.isNotEmpty()) {
+                                Spacer(modifier = Modifier.height(ThesisDimens.SpacingMd))
+                                Text(
+                                    text = "Recent transitions",
+                                    style = ThesisTypography.labelMedium,
+                                    color = ThesisColors.TextSecondary
+                                )
+                                Spacer(modifier = Modifier.height(ThesisDimens.SpacingSm))
+                                transitionMarkers.forEach { transition ->
+                                    Text(
+                                        text = transition,
+                                        style = ThesisTypography.bodySmall,
+                                        color = ThesisColors.TextMuted
+                                    )
+                                    Spacer(modifier = Modifier.height(ThesisDimens.SpacingXs))
+                                }
+                            }
+                            if (!current?.missingInputs.isNullOrEmpty()) {
+                                Spacer(modifier = Modifier.height(ThesisDimens.SpacingSm))
+                                Text(
+                                    text = "Missing inputs: ${current?.missingInputs?.joinToString(", ") ?: ""}",
+                                    style = ThesisTypography.bodySmall,
+                                    color = ThesisColors.SignalWarning
                                 )
                             }
                         }
@@ -248,7 +365,7 @@ fun SentimentDashboardScreen(
                                     color = ThesisColors.TextMuted
                                 )
                             } else {
-                                chartRows.sortedByDescending { it.marketDate }.take(10).forEachIndexed { index, snap ->
+                                recentRows.forEachIndexed { index, snap ->
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
                                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -265,7 +382,7 @@ fun SentimentDashboardScreen(
                                             color = ThesisColors.TextPrimary
                                         )
                                     }
-                                    if (index < chartRows.sortedByDescending { it.marketDate }.take(10).lastIndex) {
+                                    if (index < recentRows.lastIndex) {
                                         Spacer(modifier = Modifier.height(ThesisDimens.SpacingSm))
                                     }
                                 }
@@ -303,6 +420,50 @@ fun SentimentDashboardScreen(
         }
     }
 }
+
+@Composable
+private fun RegimeBandLegendItem(
+    label: String,
+    range: String,
+    color: Color,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier
+            .clip(RoundedCornerShape(ThesisDimens.SignalBadgeCorner))
+            .border(ThesisDimens.BorderWidth, ThesisColors.Border, RoundedCornerShape(ThesisDimens.SignalBadgeCorner))
+            .padding(
+                horizontal = ThesisDimens.SignalBadgePaddingH,
+                vertical = ThesisDimens.SignalBadgePaddingV
+            ),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(8.dp)
+                .background(color, RoundedCornerShape(999.dp))
+        )
+        Spacer(modifier = Modifier.width(ThesisDimens.SpacingSm))
+        Column {
+            Text(
+                text = label,
+                style = ThesisTypography.labelSmall,
+                color = ThesisColors.TextPrimary
+            )
+            Text(
+                text = range,
+                style = ThesisTypography.bodySmall,
+                color = ThesisColors.TextMuted
+            )
+        }
+    }
+}
+
+private fun formatScore(value: Double): String = String.format(Locale.US, "%.1f", value)
+
+private fun formatSignedScore(value: Double): String =
+    if (value > 0) "+${formatScore(value)}" else formatScore(value)
 
 @Composable
 private fun SentimentRangeSelector(

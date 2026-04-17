@@ -1,3 +1,5 @@
+import java.net.URI
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -19,6 +21,15 @@ fun requiredReleaseProp(
     return value
 }
 
+fun optionalIntProp(key: String, defaultValue: Int): Int {
+    val rawValue = project.findProperty(key)?.toString()?.trim()
+    if (rawValue.isNullOrBlank()) {
+        return defaultValue
+    }
+    return rawValue.toIntOrNull()
+        ?: throw GradleException("$key must be an integer, received: $rawValue")
+}
+
 fun ensureNoReleasePlaceholder(value: String, fieldName: String) {
     val normalized = value.lowercase()
     if (
@@ -36,11 +47,53 @@ fun ensureSha256Pin(pin: String, fieldName: String) {
     if (!pattern.matches(pin)) {
         throw GradleException("$fieldName must be a base64-encoded SHA-256 pin (43 chars + '=')")
     }
+    if (pin.removeSuffix("=").toSet().size == 1) {
+        throw GradleException("$fieldName uses a repeated-character placeholder pin value")
+    }
+}
+
+fun ensureDistinctPins(primary: String, backup: String) {
+    if (primary == backup) {
+        throw GradleException("RELEASE_CERT_PIN_PRIMARY and RELEASE_CERT_PIN_BACKUP must be different")
+    }
+}
+
+fun parseReleaseBaseUrlHost(value: String): String {
+    val uri = try {
+        URI(value)
+    } catch (error: Exception) {
+        throw GradleException("API_BASE_URL_RELEASE must be a valid URL")
+    }
+    if (!uri.isAbsolute || uri.scheme?.lowercase() != "https") {
+        throw GradleException("API_BASE_URL_RELEASE must use https://")
+    }
+    return uri.host ?: throw GradleException("API_BASE_URL_RELEASE must include a hostname")
+}
+
+fun ensureReleaseApiHostLiteral(value: String) {
     if (
-        pin == "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=" ||
-        pin == "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB="
+        value.contains("://") ||
+        value.contains("/") ||
+        value.contains("?") ||
+        value.contains("#") ||
+        value.contains(":") ||
+        value.contains(" ")
     ) {
-        throw GradleException("$fieldName uses a forbidden placeholder pin value")
+        throw GradleException("RELEASE_API_HOST must be a hostname only (no scheme, path, query, or port)")
+    }
+}
+
+fun ensureReleaseHostMatchesBaseUrl(baseUrlHost: String, releaseApiHost: String) {
+    val normalizedBaseHost = baseUrlHost.lowercase()
+    val normalizedReleaseHost = releaseApiHost.lowercase()
+    val matches =
+        normalizedBaseHost == normalizedReleaseHost ||
+            normalizedBaseHost.endsWith(".$normalizedReleaseHost")
+    if (!matches) {
+        throw GradleException(
+            "RELEASE_API_HOST must match API_BASE_URL_RELEASE host or its parent domain " +
+                "(base_host=$normalizedBaseHost, release_host=$normalizedReleaseHost)"
+        )
     }
 }
 
@@ -52,6 +105,11 @@ val posthogWatchlistFlagKey =
 val releaseTaskRequested = gradle.startParameter.taskNames.any { task ->
     task.contains("release", ignoreCase = true)
 }
+val defaultApplicationId = "com.thesis.mobile"
+val androidVersionCode = optionalIntProp("ANDROID_VERSION_CODE", 1)
+val androidVersionName =
+    project.findProperty("ANDROID_VERSION_NAME")?.toString()?.trim()?.takeIf { it.isNotBlank() }
+        ?: "0.1.0"
 val apiBaseUrlOverride = project.findProperty("API_BASE_URL")?.toString()?.trim()?.takeIf { it.isNotBlank() }
 val apiBaseUrlDebug = apiBaseUrlOverride ?: "http://127.0.0.1:3001"
 val apiBaseUrlRelease = requiredReleaseProp(
@@ -72,27 +130,32 @@ val releaseCertPinBackup = requiredReleaseProp(
 )
 if (releaseTaskRequested) {
     ensureNoReleasePlaceholder(apiBaseUrlRelease, "API_BASE_URL_RELEASE")
-    if (!apiBaseUrlRelease.startsWith("https://")) {
-        throw GradleException("API_BASE_URL_RELEASE must use https://")
-    }
+    val releaseBaseUrlHost = parseReleaseBaseUrlHost(apiBaseUrlRelease)
     ensureNoReleasePlaceholder(releaseApiHost, "RELEASE_API_HOST")
+    ensureReleaseApiHostLiteral(releaseApiHost)
+    ensureReleaseHostMatchesBaseUrl(releaseBaseUrlHost, releaseApiHost)
     ensureSha256Pin(releaseCertPinPrimary, "RELEASE_CERT_PIN_PRIMARY")
     ensureSha256Pin(releaseCertPinBackup, "RELEASE_CERT_PIN_BACKUP")
+    ensureDistinctPins(releaseCertPinPrimary, releaseCertPinBackup)
 }
 val revenueCatPublicAndroidKey =
     project.findProperty("REVENUECAT_PUBLIC_ANDROID_KEY")?.toString() ?: ""
-val googleServicesJsonExists = file("google-services.json").exists()
+val googleServicesFile = file("google-services.json")
+val googleServicesJsonExists = googleServicesFile.exists()
+val googleServicesMatchesApplicationId =
+    googleServicesJsonExists &&
+        googleServicesFile.readText().contains("\"package_name\": \"$defaultApplicationId\"")
 
 android {
     namespace = "com.thesis.mobile"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.thesis.mobile"
+        applicationId = defaultApplicationId
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = androidVersionCode
+        versionName = androidVersionName
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("boolean", "POSTHOG_ENABLED", posthogEnabled.toString())
@@ -189,6 +252,11 @@ dependencies {
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
 }
 
-if (googleServicesJsonExists) {
+if (googleServicesJsonExists && googleServicesMatchesApplicationId) {
     apply(plugin = "com.google.gms.google-services")
+} else if (googleServicesJsonExists) {
+    logger.warn(
+        "Skipping Google Services plugin because google-services.json does not contain " +
+            "package_name=$defaultApplicationId. Provide a matching Firebase config."
+    )
 }
