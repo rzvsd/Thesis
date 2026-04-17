@@ -210,6 +210,22 @@ test("M4 subscriptions enforce Free/Pro gating and tier updates", async () => {
     assert.equal(blockedDeepDive.payload.error, "upgrade_required");
     assert.equal(blockedDeepDive.payload.feature, "deep_dive_daily_limit");
 
+    const invalidWebhookSecret = await requestJson(baseUrl, "/v1/webhooks/revenuecat", {
+      method: "POST",
+      headers: {
+        authorization: "Bearer wrong-secret"
+      },
+      body: {
+        event: {
+          type: "INITIAL_PURCHASE",
+          app_user_id: session.userId,
+          expiration_at: "2099-12-31T00:00:00.000Z"
+        }
+      }
+    });
+    assert.equal(invalidWebhookSecret.status, 401);
+    assert.equal(invalidWebhookSecret.payload.error, "unauthorized");
+
     const initialPurchase = await requestJson(baseUrl, "/v1/webhooks/revenuecat", {
       method: "POST",
       headers: {
@@ -224,6 +240,21 @@ test("M4 subscriptions enforce Free/Pro gating and tier updates", async () => {
       }
     });
     assert.equal(initialPurchase.status, 200);
+
+    const renewal = await requestJson(baseUrl, "/v1/webhooks/revenuecat", {
+      method: "POST",
+      headers: {
+        authorization: "Bearer m4-webhook-secret"
+      },
+      body: {
+        event: {
+          type: "RENEWAL",
+          app_user_id: session.userId,
+          expiration_at: "2100-01-31T00:00:00.000Z"
+        }
+      }
+    });
+    assert.equal(renewal.status, 200);
 
     const proProfile = await requestJson(baseUrl, "/v1/user/profile", {
       headers: authHeader

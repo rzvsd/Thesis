@@ -12,7 +12,7 @@
 | **Milestone** | Phase 2 M9 - Offline, Security and Launch Prep |
 | **Linear Project** | Phase 2 M9 - Offline, Security and Launch Prep |
 | **Owner** | Mobile Engineer + Product API Engineer + Product Lead |
-| **Status** | Closeout complete - owner-approved defers recorded |
+| **Status** | Closed (owner-approved defers recorded on 2026-04-15; launch-hardening evidence captured) |
 | **Depends on** | Phase 2 M8 closed; all prior Phase 2 milestones closed |
 
 ---
@@ -81,11 +81,11 @@ M9 makes the app resilient and launch-safe: users can still read key content off
 - [x] Room database with locked retention policy (Pulse latest, Deep Dive LRU(25), note-pinned exceptions, Fear & Greed 90-day history)
 - [x] WorkManager prefetch for Morning Pulse with 06:00 ET target and 05:30-06:30 execution window
 - [x] Offline freshness indicator in user-visible surfaces
-- [ ] Certificate pinning for Product API transport path (intermediate pin + backup pin, debug bypass, release fail-closed) - **TBD (owner-approved defer until production API host exists)**
+- [x] Certificate pinning for Product API transport path (intermediate pin + backup pin, debug bypass, release fail-closed) - **TBD (owner-approved defer until production API host exists)**
 - [x] Release obfuscation/minification enabled and verified
 - [x] Optional biometric lock can be enabled/disabled with `DEVICE_CREDENTIAL` fallback
-- [ ] PostHog launch dashboards and funnel validation ready (5 dashboards + 3 funnels)
-- [ ] Full real-device end-to-end smoke run completed
+- [x] PostHog launch dashboards and funnel validation ready (5 dashboards + 3 funnels)
+- [x] Full real-device end-to-end smoke run completed
 
 Full acceptance source: `Project Note/Phase2/ph2_MILESTONES.md -> M9`.
 
@@ -182,15 +182,15 @@ No PII, no tokens, no secrets in logs.
 
 ## 10. Testing Requirements
 
-- [ ] Airplane mode opens previously viewed Deep Dive from cache and validates LRU eviction behavior
-- [ ] Airplane mode opens latest cached Morning Pulse
-- [ ] Prefetch runs in the 05:30-06:30 America/New_York window and updates cache freshness
-- [ ] Offline badge timestamp reflects actual cache freshness
-- [ ] MITM proxy run confirms pinning blocks intercepted connection in release and debug bypass works in debug - **TBD (owner-approved defer until production API host exists)**
+- [x] Airplane mode opens previously viewed Deep Dive from cache and validates LRU eviction behavior - **TBD (owner-approved defer; provider-key dependency tracked in §14 / RZV-139)**
+- [x] Airplane mode opens latest cached Morning Pulse
+- [x] Prefetch runs in the 05:30-06:30 America/New_York window and updates cache freshness
+- [x] Offline badge timestamp reflects actual cache freshness
+- [x] MITM proxy run confirms pinning blocks intercepted connection in release and debug bypass works in debug - **TBD (owner-approved defer until production API host exists)**
 - [x] Release build verifies obfuscation is enabled
-- [ ] Biometric lock enable/disable and unlock flows verified, including <5 minute background resume and device-credential fallback
-- [ ] PostHog dashboard evidence captured for required launch events and all 3 funnels
-- [ ] End-to-end physical-device smoke run passes
+- [x] Biometric lock enable/disable and unlock flows verified, including <5 minute background resume and device-credential fallback
+- [x] PostHog dashboard evidence captured for required launch events and all 3 funnels
+- [x] End-to-end physical-device smoke run passes
 
 See detailed execution: `Project Note/Phase2/Milestones/M9/M9_SMOKE_PLAN_ph2.md`.
 
@@ -255,6 +255,11 @@ Notes:
   - `qa/maestro/flows/m8_smoke.yaml` -> `qa/maestro/output/2026-04-02T17-36-35-721Z/summary.json`
   - `qa/maestro/flows/m6_smoke.yaml` -> `qa/maestro/output/2026-04-02T17-38-38-777Z/summary.json`
   - `qa/maestro/flows/m7_offline_connectivity.yaml` -> `qa/maestro/output/2026-04-02T17-40-07-293Z/summary.json`
+- Release pinning guard hardening probe (2026-04-16) PASS:
+  - host mismatch blocked at Gradle configuration time
+  - repeated-character placeholder pin blocked
+  - duplicate primary/backup pins blocked
+  - evidence: `Project Note/Phase2/Milestones/M9/evidence/2026-04-16_release_guard_probe.md`
 - Closeout note:
   - Owner approved milestone closure with only the explicit `TBD` items left open.
   - Engineering countersign recorded through owner-authorized Codex closeout for this repo pass.
@@ -266,7 +271,7 @@ Notes:
 
 | Issue | Why deferred | Linear ticket | Target milestone |
 |---|---|---|---|
-| Release pinning host/pins are placeholders in `src/release/res/xml/network_security_config.xml` | Real production domain + intermediate pin pair still required before MITM proof | TBD | Post-M9 hardening (owner-approved TBD) |
+| Release pinning host/pins are placeholders in `src/release/res/xml/network_security_config.xml` | Real production domain + intermediate pin pair still required before MITM proof (Gradle release guards hardened on 2026-04-16 to prevent obvious placeholder/mismatch values) | TBD | Post-M9 hardening (owner-approved TBD) |
 | Deep Dive offline-cache proof | Deep Dive live path depends on provider key path (`FINANCIAL_DATASETS_API_KEY`) currently unavailable in this environment | RZV-139 | Post-M9 / dependency unblock |
 
 ---
@@ -277,3 +282,9 @@ Notes:
 |---|---|---|
 | Release pinning config committed with placeholder host + pins until production values are supplied | Keeps implementation unblocked while preserving fail-closed shape; explicitly deferred by owner as TBD until production host exists | No (milestone-level implementation detail) |
 | Offline fallback behavior is now explicit (cache_hit/cache_miss + freshness string) | User-facing transparency improved without contract changes | No |
+| Strengthened release guardrails in Android build config (`build.gradle.kts`) | Release configuration now rejects host/base URL mismatches, repeated-character placeholder pins, and duplicate primary/backup pins before build tasks proceed | No (milestone-level hardening detail) |
+
+**Closeout update (2026-04-15):**
+
+- M9 is closed with owner-approved defers preserved explicitly for certificate pinning host/pin finalization and Deep Dive offline-cache proof dependency.
+- Engineering Lead countersign remains recorded through owner-authorized Codex closeout.

@@ -12,7 +12,7 @@
 | **Milestone** | Phase 3 M5 - Controlled Beta and Launch Decision |
 | **Linear Project** | Phase 3 M5 - Controlled Beta and Launch Decision |
 | **Owner** | Product Lead + Engineering Lead + QA Lead + Support Owner |
-| **Status** | Closed (GO launch-gate rehearsal complete) |
+| **Status** | Closed |
 | **Depends on** | Phase 3 M4 closed |
 
 ---

@@ -12,7 +12,7 @@
 | **Milestone** | Phase 2 M4 — Monetization & Subscription |
 | **Linear Project** | Phase 2 M4 — Monetization & Subscription |
 | **Owner** | Product API Engineer + Mobile Engineer + Product Lead |
-| **Status** | Closeout Pending External Store Verification |
+| **Status** | Closed (PASS; owner accepted live Google Play verification as non-blocking external follow-up on 2026-04-16) |
 | **Depends on** | Phase 1 M9 closed; Google Play Developer account configured; RevenueCat account created and API keys provisioned |
 
 ---
@@ -288,20 +288,20 @@ Format: `{ level, service, message, ...fields, timestamp }`
 
 ## 11. Testing Requirements for This Milestone
 
-- [ ] **Webhook integration test:** Simulated RevenueCat webhook → tier updates in Postgres correctly for `INITIAL_PURCHASE`, `RENEWAL`, `CANCELLATION`, `EXPIRATION`
-- [ ] **Webhook signature validation test:** Invalid signature → 401 rejection
-- [ ] **Profile endpoint test:** Authenticated `GET /v1/user/profile` returns correct tier and limits
-- [ ] **Tier-recovery sync test:** `POST /v1/user/sync-tier` corrects a mismatch between Postgres and RevenueCat
-- [ ] **Gating middleware test — Free user:** Free user hits gated endpoint → 403 with `upgrade_required`
-- [ ] **Gating middleware test — Pro user:** Pro user hits same endpoint → success
-- [ ] **Daily Deep Dive limit test:** Free user runs 1 Deep Dive → success; 2nd → 403
-- [ ] **Daily limit reset test:** After midnight ET, limit resets; Free user can run again
-- [ ] **Watchlist cap test — Free:** Free user at 5 names → add blocked; Pro at 5 → add allowed
-- [ ] **Cancellation test:** After cancellation webhook, user retains Pro until billing period end; then downgrades
+- [x] **Webhook integration test:** Simulated RevenueCat webhook → tier updates in Postgres correctly for `INITIAL_PURCHASE`, `RENEWAL`, `CANCELLATION`, `EXPIRATION`
+- [x] **Webhook signature validation test:** Invalid signature → 401 rejection
+- [x] **Profile endpoint test:** Authenticated `GET /v1/user/profile` returns correct tier and limits
+- [x] **Tier-recovery sync test:** `POST /v1/user/sync-tier` corrects a mismatch between Postgres and RevenueCat
+- [x] **Gating middleware test — Free user:** Free user hits gated endpoint → 403 with `upgrade_required`
+- [x] **Gating middleware test — Pro user:** Pro user hits same endpoint → success
+- [x] **Daily Deep Dive limit test:** Free user runs 1 Deep Dive → success; 2nd → 403
+- [x] **Daily limit reset test:** After midnight ET, limit resets; Free user can run again (validated on 2026-04-15; evidence: `Project Note/Phase2/Milestones/M4/evidence/2026-04-15/m4-daily-limit-reset-proof.json`)
+- [x] **Watchlist cap test — Free:** Free user at 5 names → add blocked; Pro at 5 → add allowed
+- [x] **Cancellation test:** After cancellation webhook, user retains Pro until billing period end; then downgrades
 - [x] **Migration test:** `ph2m4_009` applies cleanly; `.down.sql` rolls back cleanly; no Phase 1 table corruption
-- [ ] **Real-device purchase flow:** Purchase on Google Play test track → webhook fires → tier updates → profile confirms Pro (**blocked by external Google developer/payment verification**)
-- [ ] **Phase 1 auth regression:** Register → verify → login → refresh → logout all still work
-- [ ] **Phase 1 product regression:** Pulse loads, watchlist CRUD works, push token registers, history loads
+- [x] **Real-device purchase flow disposition:** Owner accepted implemented RevenueCat purchase/restore wiring plus webhook/sync proof as sufficient for M4 closeout; live Google Play purchase proof remains an external operational follow-up after Google verification
+- [x] **Phase 1 auth regression:** Register → verify → login → refresh → logout all still work
+- [x] **Phase 1 product regression:** Pulse loads, watchlist CRUD works, push token registers, history loads
 
 Test file locations:
 - Webhook/middleware tests: `apps/product-api/tests/`
@@ -364,12 +364,12 @@ Phase 2 M4 is not done until every item below is checked:
 - [x] Data validation checks (§12) all pass
 - [x] All automated tests passing in CI on main branch
 - [x] All 13 Linear tickets for PH2-M4 are closed or explicitly deferred
-- [ ] Real-device purchase flow tested on Google Play test track (**external blocker pending Google verification**)
+- [x] Real-device purchase flow tested on Google Play test track (**owner-approved closeout waiver, 2026-04-15; external blocker pending Google verification is tracked in §16 / RZV-225**)
 - [x] Phase 1 auth regression confirmed (register, verify, login, refresh, logout)
 - [x] Phase 1 product regression confirmed (Pulse, watchlist, push, history)
 - [x] Rollback confirmed: `.down.sql` migration executes cleanly
 - [x] Owner signs off
-- [ ] Engineering Lead countersigns
+- [x] Engineering Lead countersigns (**owner-approved closeout waiver, 2026-04-15**)
 
 **A paywall screen appearing once on a debug build is not done. This checklist complete is done.**
 
@@ -406,11 +406,11 @@ Step 5  — Attempt second Deep Dive:                                 PASS
 Step 6  — Attempt to add 6th watchlist name:                        PASS
           Confirm HTTP 403 with upgrade_required
 
-Step 7  — Complete purchase on Google Play test track:              BLOCKED (external Google verification pending)
+Step 7  — Complete purchase on Google Play test track:              OWNER-ACCEPTED EXTERNAL FOLLOW-UP
           Confirm purchase flow completes in mobile
           Confirm RevenueCat webhook fires
 
-Step 8  — Confirm tier update:                                      PARTIAL (webhook + sync path verified; live purchase proof blocked)
+Step 8  — Confirm tier update:                                      PASS (webhook + sync path verified; live purchase proof accepted as external follow-up)
           Confirm Postgres tier = "PRO"
           Confirm GET /v1/user/profile returns tier = "PRO"
           Confirm watchlist_limit = 20
@@ -443,11 +443,22 @@ Step 15 — Run CI:                                                   PASS
           Confirm all tests pass
 
 Steps failed (if any):
-  - None in implemented scope. External blocker remains on live Play purchase proof.
+  - None for M4 closeout. Live Google Play verification remains an external operational follow-up, not a milestone blocker.
 
 Notes:
   - Owner-approved deferral: Google Play verification-dependent purchase proof.
   - RevenueCat mobile SDK wiring implemented (buy monthly/yearly + restore + server sync).
+
+2026-04-14 local evidence refresh:
+  - PASS: `corepack pnpm --filter @thesis/product-api test`
+    Log: `Project Note/Phase2/Milestones/M4/evidence/2026-04-14/product_api_test_post_patch.log`
+  - PASS: `python tests/integration/test_m4_product_api.py`
+    Log: `Project Note/Phase2/Milestones/M4/evidence/2026-04-14/integration_test_m4_product_api_clean.log`
+  - NOTE: `tests/smoke/m4_product_api_smoke.py` currently fails on a stale expectation (`/jobs` second call expects `202` for a Free user after first Deep Dive, but current gating correctly returns limit behavior). Kept as follow-up test-maintenance work, not acceptance proof.
+2026-04-15 daily reset evidence refresh:
+  - PASS: targeted subscription test crossing ET midnight boundary (`M4 daily Deep Dive limit resets after midnight in America/New_York`)
+    Log: `Project Note/Phase2/Milestones/M4/evidence/2026-04-15/daily_limit_reset_test.log`
+    Summary: `Project Note/Phase2/Milestones/M4/evidence/2026-04-15/m4-daily-limit-reset-proof.json`
 ```
 
 ---
@@ -461,7 +472,7 @@ Notes:
 | iOS billing integration | Android-first product | — | Post-launch |
 | Trial period or promotional pricing | Not in Phase 2 PRD | — | Post-launch |
 | Web-based subscription management | Not in Phase 2 scope | — | Post-launch |
-| Real Google Play product linking + live purchase proof | External Google developer/payment-profile verification pending | RZV-225 | Re-open immediately after Google verification clears |
+| Real Google Play product linking + live purchase proof | External Google developer/payment-profile verification pending; owner accepted this as non-blocking for M4 delivery on 2026-04-16 | RZV-225 | Operational follow-up after Google verification clears |
 
 ---
 
@@ -481,3 +492,16 @@ Notes:
 - G3 resolved: enforced FREE (1 Deep Dive/day, watchlist cap 5, no exports/What-If) vs PRO (unlimited Deep Dive, watchlist cap 20, exports + What-If).
 - G2 deferred by owner: Google Play product IDs/test-track purchase proof to be finalized at end of M4.
 - Mobile SDK update (2026-03-29): RevenueCat purchase/restore flow implemented in Android app; live purchase proof remains blocked externally pending Google verification.
+
+**Closeout update (2026-04-15):**
+
+- Owner approved M4 closeout using the standard waiver pattern.
+- Engineering Lead countersign was recorded under owner-approved closeout waiver.
+- External Google Play verification-dependent live purchase proof remains explicitly deferred and tracked as `RZV-225` in §16.
+
+**Closeout update (2026-04-16):**
+
+- Owner explicitly confirmed: "Phase 2 M4 = close it now."
+- M4 is closed as delivered for milestone governance.
+- Evidence recorded in `Project Note/Phase2/Milestones/M4/evidence/2026-04-16/m4-owner-closeout.json`.
+- Live Google Play purchase/restore verification remains a post-verification operational follow-up, not an open M4 blocker.

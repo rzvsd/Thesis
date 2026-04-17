@@ -40,7 +40,7 @@ The following and only the following is in scope for M9:
 - [x] Rollback validation for every core service (`RZV-135`)
 - [x] Secret scanning and cleanup verification
 - [x] Database backup and restore verification
-- [x] CI/CD deployment path implemented and verified through GitHub Actions deploy workflow proof mode (run `24529655299`)
+- [x] CI/CD deployment path implemented and verified through GitHub Actions deploy workflow proof mode on `main` (run `24530036089`)
 
 Full deliverables and acceptance criteria: `MILESTONES.md -> M9`
 
@@ -203,7 +203,7 @@ Notes:
   - 2026-03-27 rerun: `pnpm runbooks:m9:smoke` PASS and `pnpm runbooks:m9:smoke:backup` PASS with fresh artifact `artifacts/m9/2026-03-27T15-55-32/summary.json` (backup/restore check passed with matching row counts).
   - 2026-03-27 rerun (hardening of the hardening script): `scripts/runbooks/smoke-hardening.ps1` now force-cleans `thesis_restore_smoke` and uses `psql -v ON_ERROR_STOP=1`, so repeated backup/restore proofs stay deterministic. Fresh artifacts: `artifacts/m9/2026-03-27T18-56-33/summary.json` (runbook smoke PASS) and `artifacts/m9/2026-03-27T19-03-39/summary.json` (backup/restore PASS, jobs `65 -> 65`).
   - 2026-03-27 CI/CD update: `.github/workflows/deploy-production.yml` added to move deployment into GitHub Actions; because Thesis does not yet have a real production server provisioned, the live production run proof is explicitly deferred as owner-authorized TBD.
-  - 2026-04-16 CI/CD proof closure: `deploy-production` now runs preflight mode selection (`remote` when production SSH secrets exist, `proof` when they do not). Proof run `24529655299` on branch `codex/m9-cicd-proof-run` passed end-to-end (`preflight` + `deploy-proof`). Root-cause fix included migration syntax correction in `infra/migrations/ph5m2_020_freshness_decay.up.sql` so fresh startup no longer fails during `AUTO_MIGRATE`.
+  - 2026-04-16 CI/CD proof closure: `deploy-production` now runs preflight mode selection (`remote` when production SSH secrets exist, `proof` when they do not). Validation run `24529655299` passed on branch `codex/m9-cicd-proof-run`, then definitive post-merge `main` run `24530036089` passed end-to-end (`preflight` + `deploy-proof`). Root-cause fix included migration syntax correction in `infra/migrations/ph5m2_020_freshness_decay.up.sql` so fresh startup no longer fails during `AUTO_MIGRATE`.
   - 2026-03-27 closeout decision (superseded in part by 2026-04-16): M9 was initially closed for Phase 1 with two owner-authorized TBD carry-forwards. After CI proof closure on 2026-04-16, only the Deep Dive live/API hardening lane remains as explicit TBD.
 ```
 
@@ -219,7 +219,7 @@ Log any operational or architecture decisions made during this milestone. If sig
 | Linear traceability mode | Open one acceptance ticket per M9 criterion, plus dedicated `[M9][BUG]` tickets for concrete failures discovered during smoke execution. | No |
 | Redis queue recovery strategy | Product API owns Redis queue recovery via Postgres-backed watchdog (stale `queued` requeue + stale `running` timeout failure), configurable by env. | No |
 | Phase 1 M9 closeout mode | Initial closeout carried both `CI/CD live proof` and `Deep Dive live/API hardening` as TBD; CI/CD proof was later closed on 2026-04-16, leaving only the Deep Dive live/API lane as TBD. | No |
-| CI deploy proof mode | `deploy-production` now selects `remote` vs `proof` by secret availability so CI stays deterministic while infra is being provisioned; green proof run captured under GitHub Actions run `24529655299`. | No |
+| CI deploy proof mode | `deploy-production` now selects `remote` vs `proof` by secret availability so CI stays deterministic while infra is being provisioned; green proof runs captured under GitHub Actions (`24529655299` validation + `24530036089` post-merge on `main`). | No |
 
 ---
 

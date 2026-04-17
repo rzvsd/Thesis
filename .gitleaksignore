@@ -1,0 +1,2 @@
+# False positive test fixture tracked in Git history; not a real credential.
+de12b08a3cb11a6d14d1d51b9596b4f42362a5ef:apps/product-api/tests/ph5-m2-freshness.test.ts:generic-api-key:341

@@ -12,7 +12,7 @@
 | **Milestone** | M6 — Market Pulse |
 | **Linear Project** | M6 — Market Pulse |
 | **Owner** | Backend Engineer (Scheduler) |
-| **Status** | Complete |
+| **Status** | Closed |
 | **Depends on** | M5 complete; M2 data plane operational; push provider configured; scheduler time confirmed; approved news source whitelist finalized |
 
 ---

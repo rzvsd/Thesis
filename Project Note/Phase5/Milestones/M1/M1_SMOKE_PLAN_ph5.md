@@ -2,7 +2,7 @@
 
 **Milestone:** M1 - Kill-Switch Engine  
 **Owner:** Product API Engineer + Scheduler Engineer + Dexter Engineer  
-**Status:** Closed (PASS, one explicit TBD retained)
+**Status:** Closed (PASS)
 
 ---
 
@@ -60,3 +60,7 @@ Prove that thesis break conditions can be extracted, stored, evaluated, and deli
 | 4 | PASS | `Project Note/Phase5/Milestones/M1/evidence/2026-04-08_m1_smoke.md` | Matched rules created alert-ledger rows and push payload context |
 | 5 | PASS | `Project Note/Phase5/Milestones/M1/evidence/2026-04-08_m1_smoke.md` | Non-matches and second-run idempotency produced no duplicate alerts |
 | 6 | PASS | `Project Note/Phase5/Milestones/M1/evidence/2026-04-08_m1_smoke.md` | Legacy contrarian evaluation path still passed |
+
+LangSmith closeout addendum (2026-04-16):
+- Remote prompt registration executed successfully.
+- Evidence: `Project Note/Phase5/Milestones/M1/evidence/2026-04-16_langsmith_prompt_push.json`.

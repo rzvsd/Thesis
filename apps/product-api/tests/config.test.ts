@@ -114,3 +114,28 @@ test("OIDC requires https jwks url when enabled", () => {
   const errors = validateConfig(config);
   assert.ok(errors.includes("OIDC_GOOGLE_JWKS_URL must use https"));
 });
+
+test("resend mode requires API key", () => {
+  const config = loadConfig({
+    ...process.env,
+    EMAIL_PROVIDER_MODE: "resend",
+    EMAIL_FROM_ADDRESS: "alerts@example.com",
+    EMAIL_RESEND_API_KEY: ""
+  });
+
+  const errors = validateConfig(config);
+  assert.ok(errors.includes("EMAIL_RESEND_API_KEY is required when EMAIL_PROVIDER_MODE=resend"));
+});
+
+test("resend mode requires valid sender address", () => {
+  const config = loadConfig({
+    ...process.env,
+    EMAIL_PROVIDER_MODE: "resend",
+    EMAIL_RESEND_API_KEY: "resend_test_key",
+    EMAIL_FROM_ADDRESS: "invalid-sender",
+    EMAIL_RESEND_API_BASE_URL: "https://api.resend.com"
+  });
+
+  const errors = validateConfig(config);
+  assert.ok(errors.includes("EMAIL_FROM_ADDRESS must be a valid sender address"));
+});

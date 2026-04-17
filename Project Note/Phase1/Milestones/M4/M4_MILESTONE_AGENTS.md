@@ -31,21 +31,21 @@ This milestone builds the secure front door and delivery pipeline around Dexter 
 
 The following and only the following is in scope for M4:
 
-* [ ] Email/password registration flow with verification email
-* [ ] Verified login flow issuing access token (15 minutes) and refresh token (30 days)
-* [ ] Silent access-token refresh flow for authenticated clients
-* [ ] Logout flow that invalidates both access and refresh tokens
-* [ ] Protected-route auth middleware returning HTTP 401 on unauthenticated access
-* [ ] `POST /jobs` for Deep Dive request creation with durable Postgres job record
-* [ ] Redis queue publish for newly created jobs within milestone timing target
-* [ ] Dexter pickup path updating job status from `queued` → `running` → terminal state
-* [ ] Artifact Store write path for completed reports with Postgres metadata write
-* [ ] `GET /jobs/:id` lifecycle status retrieval
-* [ ] `GET /reports/:id` completed report retrieval
-* [ ] `GET /reports` server-side report history for the authenticated user
-* [ ] Rate limiting on public Product API endpoints with explicit HTTP 429 behavior
-* [ ] Append-only audit event recording for all major auth and job lifecycle transitions
-* [ ] Sentry visibility for failed jobs and Product API exceptions
+* [x] Email/password registration flow with verification email
+* [x] Verified login flow issuing access token (15 minutes) and refresh token (30 days)
+* [x] Silent access-token refresh flow for authenticated clients
+* [x] Logout flow that invalidates both access and refresh tokens
+* [x] Protected-route auth middleware returning HTTP 401 on unauthenticated access
+* [x] `POST /jobs` for Deep Dive request creation with durable Postgres job record
+* [x] Redis queue publish for newly created jobs within milestone timing target
+* [x] Dexter pickup path updating job status from `queued` → `running` → terminal state
+* [x] Artifact Store write path for completed reports with Postgres metadata write
+* [x] `GET /jobs/:id` lifecycle status retrieval
+* [x] `GET /reports/:id` completed report retrieval
+* [x] `GET /reports` server-side report history for the authenticated user
+* [x] Rate limiting on public Product API endpoints with explicit HTTP 429 behavior
+* [x] Append-only audit event recording for all major auth and job lifecycle transitions
+* [x] Sentry visibility for failed jobs and Product API exceptions
 
 Full deliverables and acceptance criteria: `MILESTONES.md → M4`
 
@@ -228,20 +228,20 @@ Do not log passwords, raw email addresses, raw JWTs, refresh tokens, verificatio
 
 Every piece of work in M4 requires:
 
-* [ ] Unit test for every new auth utility, token service, password-hashing path, queue publisher, artifact-store client, and audit-event writer
-* [ ] Integration test for `POST /auth/register` → verification → `POST /auth/login` → `POST /auth/refresh` → `POST /auth/logout`
-* [ ] Integration test for protected routes proving unauthenticated access returns HTTP 401
-* [ ] Integration test for `POST /jobs` proving Postgres job creation and Redis queue publish
-* [ ] Integration test for queued job → Dexter claim → `running` → terminal state transition visibility
-* [ ] Integration test for successful completion proving Artifact Store write and Postgres report metadata write
-* [ ] Integration test for `GET /jobs/:id` returning correct status at each lifecycle stage
-* [ ] Integration test for `GET /reports/:id` returning the completed report and schema-valid payload
-* [ ] Integration test for `GET /reports` returning authenticated user history newest-first
-* [ ] Cross-session history test proving server-side report history is restorable after re-login / new client session
-* [ ] Failed-job test proving status becomes `failed` and Sentry receives the failure context
-* [ ] Rate-limit test proving HTTP 429 and clear error message on breach
-* [ ] Audit-event test proving all required lifecycle steps append records to `audit_events`
-* [ ] CI must run these tests automatically on every PR
+* [x] Unit test for every new auth utility, token service, password-hashing path, queue publisher, artifact-store client, and audit-event writer
+* [x] Integration test for `POST /auth/register` → verification → `POST /auth/login` → `POST /auth/refresh` → `POST /auth/logout`
+* [x] Integration test for protected routes proving unauthenticated access returns HTTP 401
+* [x] Integration test for `POST /jobs` proving Postgres job creation and Redis queue publish
+* [x] Integration test for queued job → Dexter claim → `running` → terminal state transition visibility
+* [x] Integration test for successful completion proving Artifact Store write and Postgres report metadata write
+* [x] Integration test for `GET /jobs/:id` returning correct status at each lifecycle stage
+* [x] Integration test for `GET /reports/:id` returning the completed report and schema-valid payload
+* [x] Integration test for `GET /reports` returning authenticated user history newest-first
+* [x] Cross-session history test proving server-side report history is restorable after re-login / new client session
+* [x] Failed-job test proving status becomes `failed` and Sentry receives the failure context
+* [x] Rate-limit test proving HTTP 429 and clear error message on breach
+* [x] Audit-event test proving all required lifecycle steps append records to `audit_events`
+* [x] CI must run these tests automatically on every PR
 
 Test files live in:
 
@@ -264,8 +264,8 @@ Smoke tests live in:
 
 M4 is not done until every item below is checked:
 
-* [ ] All 14 acceptance criteria in `MILESTONES.md → M4` are satisfied
-* [ ] Smoke test executed in full — results documented in §11 below
+* [x] All 14 acceptance criteria in `MILESTONES.md → M4` are satisfied
+* [x] Smoke test executed in full — results documented in §11 below
 * [x] All automated tests passing in CI
 * [x] All Linear tickets for M4 are closed or explicitly deferred
 * [x] Deferred items logged as Linear tickets assigned to the next milestone
@@ -333,9 +333,9 @@ Log any architectural or product decisions made during this milestone. If a deci
 
 ---
 
-## 13. Known Issues and Deferrals
+## 13. Historical Notes and Future Scope
 
-Log anything discovered but intentionally deferred.
+M4 is fully closed. This section is retained for traceability only; items below describe future scope outside the M4 acceptance boundary and do not represent open blockers.
 
 | Issue                                                                               | Why deferred                                                                         | Linear ticket | Target milestone               |
 | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ | ------------- | ------------------------------ |

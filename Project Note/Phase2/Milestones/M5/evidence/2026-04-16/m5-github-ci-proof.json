@@ -1,0 +1,50 @@
+{
+  "milestone": "Phase 2 M5 - Calendar & Smart Notifications",
+  "proof_type": "strict GitHub CI closeout proof",
+  "executed_at": "2026-04-16T09:30:00+03:00",
+  "primary_m5_merge_ci": {
+    "result": "PASS",
+    "workflow": "ci",
+    "database_id": 23733187318,
+    "url": "https://github.com/rzvsd/Thesis/actions/runs/23733187318",
+    "head_sha": "fe0f2544058425c77475d1b619a5b7a4085d6eff",
+    "display_title": "Merge pull request #20 from rzvsd/test",
+    "status": "completed",
+    "conclusion": "success",
+    "created_at": "2026-03-30T07:32:10Z",
+    "updated_at": "2026-03-30T07:34:25Z",
+    "job": {
+      "name": "validate",
+      "database_id": 69131415897,
+      "url": "https://github.com/rzvsd/Thesis/actions/runs/23733187318/job/69131415897",
+      "conclusion": "success",
+      "passed_steps": [
+        "Lint",
+        "Typecheck",
+        "Test"
+      ]
+    }
+  },
+  "latest_main_ci": {
+    "result": "PASS",
+    "workflow": "ci",
+    "database_id": 24411847146,
+    "url": "https://github.com/rzvsd/Thesis/actions/runs/24411847146",
+    "head_sha": "ee995822d543f1801b35f8da8ce7dbc29cf955f4",
+    "status": "completed",
+    "conclusion": "success",
+    "passed_steps": [
+      "Security | Dependency Audit (critical)",
+      "Security | Secret Scan (gitleaks)",
+      "Security | SAST Baseline",
+      "Lint",
+      "Typecheck",
+      "Test"
+    ]
+  },
+  "closeout_conclusion": {
+    "github_ci_proof": "closed",
+    "old_owner_waiver": "superseded_by_strict_ci_evidence",
+    "m5_status": "closed"
+  }
+}

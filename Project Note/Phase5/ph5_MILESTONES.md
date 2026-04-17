@@ -2,7 +2,7 @@
 
 **Version:** 1.0  
 **Status:** Active  
-**Last Revised:** 2026-04-10
+**Last Revised:** 2026-04-16
 **Related Documents:** ph5_ROADMAP.md, ph5_BLUEBOOK.md, ph5_PRD.md
 
 ---
@@ -60,7 +60,7 @@ Convert Deep Dive thesis output into continuously monitored, falsifiable rule co
 
 - [x] `packages/contracts` defines typed kill-switch contracts
 - [x] `product-api` persists kill-switch rules and evaluation outcomes
-- [ ] (TBD) Dexter extractor prompt is registered and versioned in LangSmith (`LANGSMITH_API_KEY` not available in this environment)
+- [x] Dexter extractor prompt is registered and versioned in LangSmith (proof: `Project Note/Phase5/Milestones/M1/evidence/2026-04-16_langsmith_prompt_push.json`)
 - [x] Scheduler rule-evaluator jobs run idempotently on required cadence
 - [x] Rule-match alerts are durable in alert ledger with explainable reason text
 - [x] Existing contrarian alert behavior remains backward-compatible
@@ -320,7 +320,7 @@ Product API Engineer + Scheduler Engineer + Dexter Engineer + Mobile Engineer
 
 # M5 - Cross-Name Intelligence
 
-Status: Closed (PASS) on 2026-04-10; LangSmith relationship prompt registration carried as TBD because `LANGSMITH_API_KEY` is not available in this environment.
+Status: Closed (PASS) on 2026-04-10; LangSmith relationship prompt registration proof completed on 2026-04-16.
 
 ## Goal
 
@@ -364,7 +364,7 @@ M5 storage and interface lock:
 - [x] Integration tests cover supplier, competitor, and macro propagation paths
 - [x] Alert-ledger and route behavior remain backward-compatible
 
-TBD after closeout: LangSmith relationship prompt registration is not proven because `LANGSMITH_API_KEY` is not available in this environment. The local prompt manifest and sync hook are implemented.
+Closeout addendum (2026-04-16): LangSmith relationship prompt registration proof is captured in `Project Note/Phase5/Milestones/M5/evidence/2026-04-16_langsmith_prompt_push.json`.
 
 ## Smoke Test
 
@@ -409,7 +409,7 @@ Dexter Engineer + Scheduler Engineer + Product API Engineer
 
 # M6 - Conviction Intelligence
 
-Status: Closed (PASS) on 2026-04-10; LangSmith remote prompt registration carried as TBD because `LANGSMITH_API_KEY` is not available in this environment.
+Status: Closed (PASS) on 2026-04-10; LangSmith remote prompt registration proof completed on 2026-04-16.
 
 ## Goal
 
@@ -463,7 +463,7 @@ M6 storage and interface lock:
 - [x] Integration tests cover journal write paths and coherence-output stability
 - [x] Mobile renders conviction insights without breaking existing Research flows
 
-TBD after closeout: LangSmith remote prompt registration proof is not available because `LANGSMITH_API_KEY` is not available in this environment. The local prompt manifest, sync hook, and regression fixtures are implemented.
+Closeout addendum (2026-04-16): LangSmith remote prompt registration proof is captured in `Project Note/Phase5/Milestones/M6/evidence/2026-04-16_langsmith_prompt_push.json`.
 
 ## Smoke Test
 

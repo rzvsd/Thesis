@@ -13,7 +13,7 @@
 | **Milestone** | M3 — Dexter Foundation |
 | **Linear Project** | M3 — Dexter Foundation |
 | **Owner** | AI/Reasoning Engineer |
-| **Status** | Complete |
+| **Status** | Closed |
 | **Depends on** | M2 — Data Plane complete |
 
 ---

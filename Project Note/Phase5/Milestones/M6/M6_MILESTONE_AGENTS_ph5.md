@@ -12,7 +12,7 @@
 | **Milestone** | Phase 5 M6 - Conviction Intelligence |
 | **Linear Project** | Phase 5 M6 - Conviction Intelligence |
 | **Owner** | Product API Engineer + Scheduler Engineer + Dexter Engineer + Mobile Engineer |
-| **Status** | Closed (PASS) on 2026-04-10; LangSmith remote prompt registration remains TBD |
+| **Status** | Closed (PASS) on 2026-04-10; LangSmith remote prompt registration proof completed on 2026-04-16 |
 | **Depends on** | M1-M5 complete |
 
 ---
@@ -206,13 +206,17 @@ Environment: local + Android physical device (serial: R3CXA03J3LH)
 Result: PASS - backend/contracts/scheduler/dexter checks passed; Android compile/unit + core device smoke passed; seeded physical-device Maestro run confirmed report-level Conviction Intelligence, Conviction Timeline, and Opposite Case rendering in Research.
 ```
 
+Addendum (2026-04-16):
+- LangSmith remote prompt push executed via `corepack pnpm --dir apps/dexter-worker run langsmith:push-prompts`.
+- Evidence: `Project Note/Phase5/Milestones/M6/evidence/2026-04-16_langsmith_prompt_push.json`.
+
 ---
 
 ## 13. Known Issues And Deferrals
 
 | Issue | Why Deferred | Linear Ticket | Target Milestone |
 |---|---|---|---|
-| LangSmith prompt registration proof | If `LANGSMITH_API_KEY` is unavailable in the implementation environment, remote prompt registration cannot be proven; local manifest, sync hook, and prompt fixtures are still required | Not required per owner instruction unless Linear resumes | M6 closeout or TBD follow-up |
+| None open | LangSmith prompt registration proof completed on 2026-04-16 | N/A | N/A |
 
 ---
 
@@ -224,4 +228,4 @@ Result: PASS - backend/contracts/scheduler/dexter checks passed; Android compile
 | Coherence cadence | Monthly insight card cadence | No |
 | Entitlement | Conviction system outputs are Pro-only; existing Free report notes and feedback remain unchanged | No |
 | Mobile scope | Reuse Research and You; no new top-level screen | No |
-| Prompt registration | Local prompt fixtures are required; remote LangSmith registration may be carried as TBD without credentials | No |
+| Prompt registration | Local prompt fixtures are required; remote LangSmith registration was executed on 2026-04-16 when credentials were available | No |

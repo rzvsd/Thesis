@@ -1,8 +1,8 @@
 # Thesis - Phase 4 Milestone Briefs
 
 **Version:** 1.0  
-**Status:** Active  
-**Last Revised:** 2026-04  
+**Status:** Closed (M1-M4 complete)
+**Last Revised:** 2026-04-17
 **Related Documents:** ph4_ROADMAP.md, ph4_BLUEBOOK.md, ph4_PRD.md
 
 ---
@@ -19,6 +19,8 @@ Each milestone defines:
 - what earlier behavior must keep working
 
 **A milestone is not closed unless every acceptance criterion is checked off.**
+
+**Closeout normalization note (2026-04-17):** Phase 4 is fully closed. Broader quiet-category and frequency-tuning ideas remain optional future expansion only and are not open Phase 4 acceptance gaps.
 
 ---
 

@@ -1,0 +1,13 @@
+{"level":"INFO","service":"product-api","message":"Job recovery scheduler disabled","timestamp":"2026-04-16T07:03:30.626Z","enabled":true,"queue_backend":"memory"}
+{"level":"INFO","service":"product-api","message":"Service started","timestamp":"2026-04-16T07:03:30.627Z","port":0}
+{"level":"INFO","service":"product-api","message":"Verification email sent","timestamp":"2026-04-16T07:03:30.990Z","request_id":"b3a2bac8-ec17-4dd0-aad3-e56692da2583","user_id":"95577529-7944-4964-a126-dcba8d5d921a","provider":"stub"}
+{"level":"INFO","service":"product-api","message":"Job queued","timestamp":"2026-04-16T07:03:31.346Z","request_id":"ecf0f12d-42f0-417a-a669-7e3aca73b6cc","user_id":"95577529-7944-4964-a126-dcba8d5d921a","job_id":"8fa831b5-2240-4164-9afe-71db39a61856","ticker":"AAPL"}
+{"level":"INFO","service":"product-api","message":"Job queued","timestamp":"2026-04-16T07:03:31.375Z","request_id":"115d8a6b-dfa4-4871-baa2-dc40f8386ae6","user_id":"95577529-7944-4964-a126-dcba8d5d921a","job_id":"de66e439-8b74-48d0-b672-2b2f68a4ffc3","ticker":"MSFT"}
+{"level":"INFO","service":"product-api","message":"Job recovery scheduler disabled","timestamp":"2026-04-15T03:55:00.000Z","enabled":true,"queue_backend":"memory"}
+{"level":"INFO","service":"product-api","message":"Service started","timestamp":"2026-04-15T03:55:00.000Z","port":0}
+✔ M4 subscriptions enforce Free/Pro gating and tier updates (804.339ms)
+{"level":"INFO","service":"product-api","message":"Verification email sent","timestamp":"2026-04-15T03:55:00.000Z","request_id":"1db1686d-0812-4d36-af97-2dee8de77d54","user_id":"8a992280-9a7a-44e0-ac33-18c9080b3e5d","provider":"stub"}
+{"level":"INFO","service":"product-api","message":"Job queued","timestamp":"2026-04-15T03:55:00.000Z","request_id":"44343668-e36c-4763-b78d-e60753a51566","user_id":"8a992280-9a7a-44e0-ac33-18c9080b3e5d","job_id":"9730a527-5c11-4fc9-ab03-fd50aa080f2f","ticker":"AAPL"}
+{"level":"INFO","service":"product-api","message":"Job queued","timestamp":"2026-04-15T04:05:00.000Z","request_id":"e27c1a7c-414f-4a95-8463-0a45d0260172","user_id":"8a992280-9a7a-44e0-ac33-18c9080b3e5d","job_id":"bdcf00e6-f501-494b-9012-30dae33d1384","ticker":"NVDA"}
+✔ M4 daily Deep Dive limit resets after midnight in America/New_York (659.0243ms)
+✖ M4 sync-tier rejects RevenueCat app user ids not bound to the caller (2.2448ms)

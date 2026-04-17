@@ -1,0 +1,113 @@
+{
+  "milestone": "Phase 3 M2 - Daily Loop, Position Monitoring and Re-engagement",
+  "proof_type": "closeout proof",
+  "executed_at": "2026-04-16T09:40:00+03:00",
+  "status": "PASS",
+  "automated_checks": [
+    {
+      "command": "corepack pnpm --filter @thesis/product-api build",
+      "result": "PASS"
+    },
+    {
+      "command": "node --test --test-concurrency=1 apps/product-api/dist/apps/product-api/tests/m2-monitoring.test.js",
+      "result": "PASS",
+      "tests": 1,
+      "coverage": [
+        "thesis_monitor_snapshots persistence after completed Deep Dive",
+        "server-side monitor state recompute",
+        "followed-name states improved/unresolved exposed through API"
+      ]
+    },
+    {
+      "command": "node --test --test-concurrency=1 apps/product-api/dist/apps/product-api/tests/m5-notifications.test.js",
+      "result": "PASS",
+      "tests": 4,
+      "coverage": [
+        "earnings preview dispatch",
+        "notification preferences/mute controls",
+        "contrarian alert persisted-anchor path",
+        "weekly digest Sunday delivery for Pro users"
+      ]
+    },
+    {
+      "command": "node --test --test-concurrency=1 apps/product-api/dist/apps/product-api/tests/m4-push-devices.test.js apps/product-api/dist/apps/product-api/tests/market-pulse.test.js apps/product-api/dist/apps/product-api/tests/jobs.test.js",
+      "result": "PASS",
+      "tests": 8,
+      "coverage": [
+        "push device model",
+        "Market Pulse regression",
+        "Deep Dive job/history regression",
+        "report reuse regression"
+      ]
+    },
+    {
+      "command": "corepack pnpm --filter @thesis/scheduler test",
+      "result": "PASS",
+      "tests": 10
+    },
+    {
+      "command": "corepack pnpm --filter @thesis/mobile test",
+      "result": "PASS",
+      "tests": 1
+    },
+    {
+      "command": "JAVA_HOME=\"C:\\Program Files\\Android\\Android Studio\\jbr\" ./gradlew.bat :app:testDebugUnitTest --console=plain",
+      "workdir": "apps/mobile/android",
+      "result": "PASS"
+    },
+    {
+      "command": "JAVA_HOME=\"C:\\Program Files\\Android\\Android Studio\\jbr\" ./gradlew.bat :app:assembleDebug --console=plain",
+      "workdir": "apps/mobile/android",
+      "result": "PASS",
+      "note": "Build succeeded with existing Android Gradle Plugin compileSdk warning only."
+    }
+  ],
+  "device_evidence": {
+    "fresh_device_run_2026_04_16": "PASS",
+    "executed_at": "2026-04-16T09:51:30+03:00",
+    "device_serial": "R3CXA03J3LH",
+    "device_model": "SM-S928B",
+    "android_version": "16",
+    "app_id": "com.thesis.mobile",
+    "app_version_name": "0.1.0",
+    "app_version_code": 1,
+    "adb_command": "C:\\Users\\razva\\AppData\\Local\\Android\\Sdk\\platform-tools\\adb.exe devices -l",
+    "adb_result": "R3CXA03J3LH device product:e3qxeea model:SM_S928B device:e3q transport_id:2",
+    "fresh_artifacts": [
+      "Project Note/Phase3/Milestones/M2/evidence/2026-04-16/m2-device-today-final.png",
+      "Project Note/Phase3/Milestones/M2/evidence/2026-04-16/m2-device-today-final.xml",
+      "Project Note/Phase3/Milestones/M2/evidence/2026-04-16/m2-device-earnings-preview-deeplink.png",
+      "Project Note/Phase3/Milestones/M2/evidence/2026-04-16/m2-device-earnings-preview-deeplink.xml"
+    ],
+    "fresh_device_checks": [
+      "Launched installed app on physical device after biometric unlock.",
+      "Verified Today tab is reachable and renders the current offline/degraded state with Fear & Greed, Dashboard, Weekly Digest, My Names, and five root tabs.",
+      "Started MainActivity with notification_type=earnings_preview and ticker=ORCL.",
+      "Verified deep-link landing routes to Research / Deep Dive, selects Research, preserves ORCL context, and exposes Run Deep Dive."
+    ],
+    "accepted_existing_artifacts": [
+      "qa/maestro/output/m2_notification_list.txt",
+      "qa/maestro/output/m2_step6_dumpsys_notification.txt",
+      "qa/maestro/output/m2_step6_logcat.txt",
+      "qa/maestro/output/m2_step7_deep_link_landing.png",
+      "qa/maestro/output/m2_step8_mute_dispatch_proof.json"
+    ],
+    "device_proof_summary": "Fresh 2026-04-16 physical-device proof confirms current app launch, Today reachability, and earnings-preview ORCL deep-link routing. Existing 2026-04-04 artifacts continue to prove live ORCL notification receipt and mute suppression."
+  },
+  "github_ci": {
+    "result": "PASS",
+    "workflow": "ci",
+    "database_id": 24411847146,
+    "url": "https://github.com/rzvsd/Thesis/actions/runs/24411847146",
+    "head_sha": "ee995822d543f1801b35f8da8ce7dbc29cf955f4",
+    "status": "completed",
+    "conclusion": "success"
+  },
+  "closeout_conclusion": {
+    "implementation": "closed",
+    "automated_tests": "closed",
+    "android_compile": "closed",
+    "device_evidence": "closed_by_fresh_physical_device_run",
+    "remaining_m2_blockers": []
+  }
+}

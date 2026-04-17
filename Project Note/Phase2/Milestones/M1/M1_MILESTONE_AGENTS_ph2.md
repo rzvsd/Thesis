@@ -12,7 +12,7 @@
 | **Milestone** | Phase 2 M1 — Historical Data Pipeline |
 | **Linear Project** | Phase 2 M1 — Historical Data Pipeline |
 | **Owner** | Data Engineer + Platform Engineer |
-| **Status** | In Progress |
+| **Status** | Closed (PASS; rollback proof + GitHub main CI proof complete on 2026-04-16) |
 | **Depends on** | Phase 1 M9 closed; **Phase 2 M0 closed** (tables populated via SEC EDGAR + HuggingFace bulk load); PostgreSQL operational |
 
 ---
@@ -347,11 +347,12 @@ Never log API keys, secrets, or provider credentials.
 ## 11. Testing Requirements for This Milestone
 
 - [x] **Contract compilation test:** all three contracts compile; `pnpm typecheck` passes
-- [ ] **Migration test:** `ph2m0_004`–`ph2m0_006` apply and roll back cleanly (M0 may own first run; M1 must pass in CI)
+- [x] **Migration test:** `ph2m0_004`–`ph2m0_006` apply and roll back cleanly (validated on 2026-04-15 with two apply/rollback cycles; evidence in `Project Note/Phase2/Milestones/M1/evidence/2026-04-15/m1-migration-proof.json`)
 - [x] **Delta sync unit tests:** SEC mapper fixtures → expected snapshot rows; rate-limit helper never exceeds 10 r/s
 - [x] **Delta sync idempotency test:** two consecutive runs — no duplicate PKs; stable `ticker_coverage` counts
 - [x] **Retrieval integration tests:** `/financials`, `/transcripts`, `/coverage` happy path + missing ticker
 - [x] **Phase 1 regression tests:** Deep Dive + Market Pulse
+- [x] **M1 targeted closeout re-check:** historical API endpoint test, data-openbb historical tests, and scheduler tests passed on 2026-04-16; evidence in `Project Note/Phase2/Milestones/M1/evidence/2026-04-16/m1-closeout-proof.json`
 
 Test file locations:
 - Contract compilation: CI `pnpm typecheck`
@@ -420,12 +421,12 @@ Phase 2 M1 is not done until every item below is checked:
 - [x] Financial and Cost Considerations (§8) reviewed ($0 SEC/HF path)
 - [x] Smoke test executed in full — results documented in §15 below
 - [x] Data validation checks (§12) pass for M1 scope
-- [x] All automated tests passing in CI on main branch (**owner-approved TBD follow-up for GitHub main CI proof on this change-set**)
+- [x] All automated tests passing in CI on main branch (GitHub Actions `ci` run `24411847146` passed on `main` commit `ee995822d543f1801b35f8da8ce7dbc29cf955f4`; evidence in `Project Note/Phase2/Milestones/M1/evidence/2026-04-16/m1-closeout-proof.json`)
 - [x] All **11** active Linear tickets for PH2-M1 (RZV-146,147,148,150,152,153,154,159,161,171,172) are **closed** or explicitly deferred; canceled RZV-155/151/156/158/160 remain canceled
 - [x] Deferred items logged as Linear tickets assigned to the next milestone
 - [x] Phase 1 Deep Dive regression confirmed passing
 - [x] Phase 1 Market Pulse regression confirmed passing
-- [x] Rollback rehearsal disposition recorded: destructive `ph2m0_006` → `005` → `004` run is owner-approved TBD follow-up (non-blocking for this closeout)
+- [x] Rollback rehearsal confirmed: destructive `ph2m0_006` → `005` → `004` apply/down safety is proven by the temporary-database evidence in `Project Note/Phase2/Milestones/M1/evidence/2026-04-15/m1-migration-proof.json`
 - [x] Owner signs off
 - [x] Engineering Lead countersigns
 
@@ -460,11 +461,16 @@ Step 7  — Phase 1 Deep Dive regression                          PASS
           Verified in `@thesis/product-api` tests (jobs/deep-dive lifecycle paths green)
 Step 8  — Phase 1 Market Pulse regression                       PASS
           Verified in `@thesis/product-api` tests (`market-pulse.test.ts` green)
-Step 9  — CI                                                    PASS (local pre-push)
-          `pnpm lint`, `pnpm typecheck`, `pnpm test` all green
+Step 9  — CI                                                    HISTORICAL LOCAL RECORD
+          Earlier closeout record listed `pnpm lint`, `pnpm typecheck`, `pnpm test` green; the 2026-04-16 re-check below is the current audit result.
+Step 10 — Closeout re-check                                      PASS
+          2026-04-16 local quality checks: security audit script PASS_WITH_CONFIGURED_DEGRADATION, SAST PASS, lint PASS, typecheck PASS.
+          M1 targeted tests PASS: historical endpoints (1), data-openbb historical tests (10), scheduler tests (10).
+          GitHub main CI proof PASS: `ci` run 24411847146 completed successfully for commit `ee995822d543f1801b35f8da8ce7dbc29cf955f4`.
+          Run URL: https://github.com/rzvsd/Thesis/actions/runs/24411847146
 
-Steps failed (if any):
-  - None
+Steps failed / still open:
+  - None for Phase 2 M1.
 
 Notes:
   - Docker env hardening fix applied: compose now uses `DATABASE_URL_DOCKER` for in-container Postgres routing.
@@ -502,5 +508,11 @@ Notes:
 | Beta from price returns + OpenBB | M2 DCF | — | Phase 2 M2 |
 | Mobile UI for historical context | No mobile changes in M1 | — | Phase 2 M7 |
 | `ticker_coverage` exposed as a user-facing API | Coverage endpoint is internal only in M1; a user-facing data health page is out of scope | — | Not scheduled |
-| GitHub main CI proof for this change-set | Owner-approved TBD follow-up after push/merge; non-blocking for M1 closeout | RZV-146 | TBD (owner-approved) |
-| Destructive rollback rehearsal (`ph2m0_006 -> 005 -> 004` down) | Owner-approved TBD follow-up in a dedicated destructive-test window; non-blocking for M1 closeout | RZV-146 | TBD (owner-approved) |
+| GitHub main CI proof for this change-set | Closed: GitHub Actions `ci` run `24411847146` passed on `main` commit `ee995822d543f1801b35f8da8ce7dbc29cf955f4` | RZV-146 | Closed |
+| Full local repo `pnpm test` proof | Superseded by GitHub Actions full CI proof; local run timed out in unrelated `subscription.test.js`, while M1-targeted checks passed | RZV-146 | Closed by CI proof |
+
+### Resolved Former Deferrals
+
+| Former deferral | Resolution | Evidence |
+|---|---|---|
+| Destructive rollback rehearsal (`ph2m0_006 -> 005 -> 004` down) | Closed by temporary-database proof: two apply/down cycles, three tables after up, zero tables after down | `Project Note/Phase2/Milestones/M1/evidence/2026-04-15/m1-migration-proof.json` |

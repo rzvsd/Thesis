@@ -76,6 +76,7 @@ import { loadConfig, validateConfig, type ProductApiConfig } from "./config";
 import { logError, logInfo, logWarn } from "./logging";
 import { createJobQueue, type JobQueue } from "./queue";
 import { createRateLimiter, type RateLimiter } from "./rate-limit";
+import { EmailNotifier } from "./email";
 import {
   createId,
   createOpaqueToken,
@@ -159,6 +160,7 @@ interface Runtime {
   rateLimiter: RateLimiter;
   artifactStore: ArtifactStore;
   pushNotifier: PushNotifier;
+  emailNotifier: EmailNotifier;
   close: () => Promise<void>;
 }
 
@@ -5177,6 +5179,12 @@ async function createRuntime(config: ProductApiConfig): Promise<Runtime> {
     provider: config.pushProviderMode,
     googleApplicationCredentials: config.googleApplicationCredentials
   });
+  const emailNotifier = new EmailNotifier({
+    provider: config.emailProviderMode,
+    resendApiBaseUrl: config.emailResendApiBaseUrl,
+    resendApiKey: config.emailResendApiKey,
+    fromAddress: config.emailFromAddress
+  });
   const tickerSyncScheduler =
     config.storeBackend === "postgres" && config.tickerAutoSyncEnabled
       ? startTickerSyncScheduler(
@@ -5198,6 +5206,7 @@ async function createRuntime(config: ProductApiConfig): Promise<Runtime> {
     rateLimiter,
     artifactStore,
     pushNotifier,
+    emailNotifier,
     close: async () => {
       await Promise.all([
         tickerSyncScheduler?.close() ?? Promise.resolve(),
@@ -7069,17 +7078,34 @@ export function startServer(port: number = loadConfig().port): Server {
             });
             return;
           }
-          const recipients = await runtime.store.listUsersWithDeviceTokenByNotificationType({
+          const pushRecipients = await runtime.store.listUsersWithDeviceTokenByNotificationType({
             notificationType: "weekly_digest",
             tier: "PRO"
           });
-          const recipientsByUser = groupPushTargetsByUser(recipients);
+          const emailRecipients = await runtime.store.listUsersWithEmailByNotificationType({
+            notificationType: "weekly_digest",
+            tier: "PRO"
+          });
+          const pushRecipientsByUser = groupPushTargetsByUser(pushRecipients);
+          const emailRecipientsByUser = new Map(
+            emailRecipients.map((recipient) => [recipient.userId, recipient])
+          );
+          const recipientUserIds = new Set<string>([
+            ...pushRecipientsByUser.keys(),
+            ...emailRecipientsByUser.keys()
+          ]);
           const latestFearGreed = await runtime.store.getLatestFearGreedSnapshot();
 
           let attempted = 0;
           let delivered = 0;
           let failed = 0;
-          for (const [userId, userTargets] of recipientsByUser.entries()) {
+          let emailAttempted = 0;
+          let emailDelivered = 0;
+          let emailFailed = 0;
+
+          for (const userId of recipientUserIds) {
+            const userTargets = pushRecipientsByUser.get(userId) ?? [];
+            const emailTarget = emailRecipientsByUser.get(userId);
             const watchlist = await runtime.store.listWatchlistTickersByUser(userId);
             const upcomingEvents = watchlist.length > 0
               ? await runtime.store.listUpcomingCalendarEventsByTickers({
@@ -7108,60 +7134,104 @@ export function startServer(port: number = loadConfig().port): Server {
             const alertId = createId();
             const route = notificationRoute("weekly_digest");
             const title = notificationTitle("weekly_digest");
-            const body = digestParts.join(" ");
+            const digestBody = digestParts.join(" ");
+            const digestEmailBody = digestParts.join("\n");
 
-            const pushResult = await runtime.pushNotifier.sendNotification(
-              userTargets,
-              {
-                notificationType: "weekly_digest",
-                route,
-                title,
-                body,
-                data: {
-                  alert_id: alertId,
-                  digest_date: digestDate,
-                  fear_greed_score: latestFearGreed ? String(latestFearGreed.score) : "",
-                  fear_greed_label: latestFearGreed?.label ?? "",
-                  watchlist_count: String(watchlistCount),
-                  upcoming_earnings_count: String(upcomingCount),
-                  reason_code: "weekly_summary_ready",
-                  reason_text: reasonText,
-                  deep_link_target: route
+            let userPushAttempted = 0;
+            let userPushDelivered = 0;
+            let userPushFailed = 0;
+            if (userTargets.length > 0) {
+              const pushResult = await runtime.pushNotifier.sendNotification(
+                userTargets,
+                {
+                  notificationType: "weekly_digest",
+                  route,
+                  title,
+                  body: digestBody,
+                  data: {
+                    alert_id: alertId,
+                    digest_date: digestDate,
+                    fear_greed_score: latestFearGreed ? String(latestFearGreed.score) : "",
+                    fear_greed_label: latestFearGreed?.label ?? "",
+                    watchlist_count: String(watchlistCount),
+                    upcoming_earnings_count: String(upcomingCount),
+                    reason_code: "weekly_summary_ready",
+                    reason_text: reasonText,
+                    deep_link_target: route
+                  }
                 }
-              }
-            );
+              );
 
-            attempted += pushResult.attempted;
-            delivered += pushResult.delivered;
-            failed += pushResult.failed;
-            for (const invalidTarget of pushResult.invalidTargets) {
-              await runtime.store.invalidateUserDeviceByInstallation({
-                userId: invalidTarget.userId,
-                installationId: invalidTarget.installationId,
-                invalidatedAt: new Date().toISOString(),
-                reason: "fcm_invalid_registration"
-              });
+              userPushAttempted = pushResult.attempted;
+              userPushDelivered = pushResult.delivered;
+              userPushFailed = pushResult.failed;
+              attempted += pushResult.attempted;
+              delivered += pushResult.delivered;
+              failed += pushResult.failed;
+              for (const invalidTarget of pushResult.invalidTargets) {
+                await runtime.store.invalidateUserDeviceByInstallation({
+                  userId: invalidTarget.userId,
+                  installationId: invalidTarget.installationId,
+                  invalidatedAt: new Date().toISOString(),
+                  reason: "fcm_invalid_registration"
+                });
+              }
             }
+
+            let userEmailAttempted = 0;
+            let userEmailDelivered = 0;
+            let userEmailFailed = 0;
+            if (emailTarget) {
+              const emailResult = await runtime.emailNotifier.sendNotification(
+                [emailTarget],
+                {
+                  subject: `Thesis Weekly Digest - ${digestDate}`,
+                  text: digestEmailBody
+                }
+              );
+              userEmailAttempted = emailResult.attempted;
+              userEmailDelivered = emailResult.delivered;
+              userEmailFailed = emailResult.failed;
+              emailAttempted += emailResult.attempted;
+              emailDelivered += emailResult.delivered;
+              emailFailed += emailResult.failed;
+            }
+
+            const attemptedChannels = [
+              ...(userPushAttempted > 0 ? ["push"] : []),
+              ...(userEmailAttempted > 0 ? ["email"] : [])
+            ];
+            const userDeliveryState =
+              userPushFailed + userEmailFailed > 0 ? "partial_failure" : "sent";
+
             await recordAlertLedgerItem(runtime, {
               id: alertId,
               userId,
               notificationType: "weekly_digest",
               route,
               title,
-              body,
+              body: digestBody,
               reasonCode: "weekly_summary_ready",
               reasonText,
-              deliveryState: pushResult.failed > 0 ? "partial_failure" : "sent",
+              deliveryState: userDeliveryState,
               data: {
                 digest_date: digestDate,
                 ...(watchlist[0] ? { ticker: watchlist[0] } : {}),
                 tickers: watchlist.join(","),
+                channels: attemptedChannels.join(","),
+                push_attempted: String(userPushAttempted),
+                push_delivered: String(userPushDelivered),
+                email_attempted: String(userEmailAttempted),
+                email_delivered: String(userEmailDelivered),
                 deep_link_target: route
               }
             });
           }
 
-          if (failed > 0) {
+          const totalAttempted = attempted + emailAttempted;
+          const totalDelivered = delivered + emailDelivered;
+          const totalFailed = failed + emailFailed;
+          if (totalFailed > 0) {
             const message = "Weekly digest notification delivery partially failed";
             logError(message, {
               request_id: meta.requestId,
@@ -7169,7 +7239,13 @@ export function startServer(port: number = loadConfig().port): Server {
               digest_date: digestDate,
               attempted,
               delivered,
-              failed
+              failed,
+              email_attempted: emailAttempted,
+              email_delivered: emailDelivered,
+              email_failed: emailFailed,
+              total_attempted: totalAttempted,
+              total_delivered: totalDelivered,
+              total_failed: totalFailed
             });
             captureException(new Error(message), {
               service: serviceName,
@@ -7177,7 +7253,13 @@ export function startServer(port: number = loadConfig().port): Server {
               digest_date: digestDate,
               attempted,
               delivered,
-              failed
+              failed,
+              email_attempted: emailAttempted,
+              email_delivered: emailDelivered,
+              email_failed: emailFailed,
+              total_attempted: totalAttempted,
+              total_delivered: totalDelivered,
+              total_failed: totalFailed
             });
           }
 
@@ -7188,7 +7270,13 @@ export function startServer(port: number = loadConfig().port): Server {
             sunday_schedule: isScheduleSunday,
             attempted,
             delivered,
-            failed
+            failed,
+            email_attempted: emailAttempted,
+            email_delivered: emailDelivered,
+            email_failed: emailFailed,
+            total_attempted: totalAttempted,
+            total_delivered: totalDelivered,
+            total_failed: totalFailed
           });
 
           sendJson(response, 200, {
@@ -7196,7 +7284,13 @@ export function startServer(port: number = loadConfig().port): Server {
             digest_date: digestDate,
             attempted,
             delivered,
-            failed
+            failed,
+            email_attempted: emailAttempted,
+            email_delivered: emailDelivered,
+            email_failed: emailFailed,
+            total_attempted: totalAttempted,
+            total_delivered: totalDelivered,
+            total_failed: totalFailed
           });
           return;
         }

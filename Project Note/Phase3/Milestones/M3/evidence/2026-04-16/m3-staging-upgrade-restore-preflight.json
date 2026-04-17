@@ -1,0 +1,150 @@
+{
+  "milestone": "Phase 3 M3 - Monetization, Growth Instrumentation and Feedback",
+  "proof_type": "staging upgrade/restore closeout preflight",
+  "executed_at": "2026-04-16T10:06:00+03:00",
+  "updated_at": "2026-04-16T10:54:46+03:00",
+  "status": "BLOCKED_NOT_CLOSABLE",
+  "conclusion": "The Android RevenueCat public key blocker is now cleared, but the remaining M3 staging upgrade/restore validation cannot be truthfully closed until the app is installed from a Google Play internal/staging track and real sandbox purchase/restore proof is captured.",
+  "cleared_findings": [
+    {
+      "id": "M3-BLOCKER-ANDROID-REVENUECAT-KEY",
+      "finding": "The Android build now has REVENUECAT_PUBLIC_ANDROID_KEY configured.",
+      "evidence": "apps/mobile/android/gradle.properties contains a non-blank REVENUECAT_PUBLIC_ANDROID_KEY value; only length was verified, not printed.",
+      "verification": "JAVA_HOME=\"C:\\Program Files\\Android\\Android Studio\\jbr\" ./gradlew.bat :app:compileDebugKotlin --console=plain passed on 2026-04-16 after the key was configured."
+    }
+  ],
+  "blocking_findings": [
+    {
+      "id": "M3-BLOCKER-PLAY-INSTALL-SOURCE",
+      "finding": "The connected phone has com.thesis.mobile installed without a Google Play installer source.",
+      "impact": "A real Google Billing / RevenueCat staging purchase requires a Play-installed internal/staging build and tester account.",
+      "evidence": "adb dumpsys package com.thesis.mobile reported installerPackageName=null."
+    }
+  ],
+  "fresh_checks_completed": [
+    {
+      "command": "corepack pnpm --filter @thesis/product-api build",
+      "result": "PASS"
+    },
+    {
+      "command": "node --test --test-concurrency=1 apps/product-api/dist/apps/product-api/tests/m3-feedback.test.js",
+      "result": "PASS",
+      "tests": 1,
+      "coverage": [
+        "report feedback persistence",
+        "subscription/cancel feedback persistence",
+        "internal feedback queue filtering and authorization"
+      ]
+    },
+    {
+      "command": "corepack pnpm --filter @thesis/mobile test",
+      "result": "PASS",
+      "tests": 1
+    },
+    {
+      "command": "JAVA_HOME=\"C:\\Program Files\\Android\\Android Studio\\jbr\" ./gradlew.bat :app:compileDebugKotlin --console=plain",
+      "workdir": "apps/mobile/android",
+      "result": "PASS",
+      "note": "Build succeeded with existing Android Gradle Plugin compileSdk warning only."
+    },
+    {
+      "command": "node --test --test-concurrency=1 --test-timeout=60000 --test-name-pattern \"subscriptions enforce\" apps/product-api/dist/apps/product-api/tests/subscription.test.js",
+      "result": "PASS",
+      "tests": 1,
+      "coverage": [
+        "Free/Pro gating",
+        "RevenueCat webhook upgrade/renewal/cancel/expiration behavior",
+        "server-authoritative sync-tier with mocked RevenueCat subscriber"
+      ]
+    },
+    {
+      "command": "node --test --test-concurrency=1 --test-timeout=60000 --test-name-pattern \"daily Deep Dive limit\" apps/product-api/dist/apps/product-api/tests/subscription.test.js",
+      "result": "PASS",
+      "tests": 1,
+      "coverage": [
+        "Free daily Deep Dive limit reset after subscription timezone midnight"
+      ]
+    },
+    {
+      "command": "node --test --test-concurrency=1 --test-timeout=60000 --test-name-pattern \"sync-tier rejects\" apps/product-api/dist/apps/product-api/tests/subscription.test.js",
+      "result": "PASS",
+      "tests": 1,
+      "coverage": [
+        "sync-tier rejects RevenueCat app user IDs not bound to caller"
+      ]
+    }
+  ],
+  "non_blocking_observation": {
+    "observation": "Running the full subscription.test.js file in one process timed out/hung after two passed tests and one reported failure marker, but all three subscription tests passed when executed individually by name.",
+    "artifact_paths": [
+      "Project Note/Phase3/Milestones/M3/evidence/2026-04-16/m3-subscription-test.out.log",
+      "Project Note/Phase3/Milestones/M3/evidence/2026-04-16/m3-subscription-test.err.log",
+      "Project Note/Phase3/Milestones/M3/evidence/2026-04-16/m3-subscription-sync-tier-test.out.log",
+      "Project Note/Phase3/Milestones/M3/evidence/2026-04-16/m3-subscription-sync-tier-test.err.log"
+    ]
+  },
+  "play_identity_alignment": {
+    "updated_at": "2026-04-16T11:20:07+03:00",
+    "observed_play_install": {
+      "package_name": "com.voltfinance.voltapp",
+      "version_code": 42606,
+      "version_name": "4.26.6",
+      "installer_package_name": "com.android.vending",
+      "last_update_time": "2025-08-15 09:47:27"
+    },
+    "local_default_identity": {
+      "package_name": "com.thesis.mobile",
+      "version_code": 1,
+      "version_name": "0.1.0"
+    },
+    "decision": "Future Play/internal testing updates must target the existing Play package com.voltfinance.voltapp with versionCode >= 42607. Local debug remains com.thesis.mobile unless an explicit Gradle override is supplied.",
+    "implemented_guardrails": [
+      "Gradle now accepts ANDROID_APPLICATION_ID, ANDROID_VERSION_CODE, and ANDROID_VERSION_NAME overrides.",
+      "Gradle rejects com.voltfinance.voltapp builds with ANDROID_VERSION_CODE below 42607.",
+      "Google Services plugin is only applied when google-services.json contains a client matching the selected applicationId."
+    ],
+    "checks": [
+      {
+        "command": "./gradlew.bat :app:compileDebugKotlin --console=plain",
+        "result": "PASS",
+        "note": "Default local identity still compiles."
+      },
+      {
+        "command": "./gradlew.bat :app:compileDebugKotlin \"-PANDROID_APPLICATION_ID=com.voltfinance.voltapp\" -PANDROID_VERSION_CODE=42607 \"-PANDROID_VERSION_NAME=5.0.0-internal\" --console=plain",
+        "result": "PASS",
+        "note": "Play identity override compiles. Firebase plugin is skipped because the checked-in google-services.json only matches com.thesis.mobile."
+      },
+      {
+        "command": "./gradlew.bat :app:assembleDebug \"-PANDROID_APPLICATION_ID=com.voltfinance.voltapp\" -PANDROID_VERSION_CODE=42607 \"-PANDROID_VERSION_NAME=5.0.0-internal\" --console=plain",
+        "result": "PASS",
+        "artifact": "apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk",
+        "note": "Debug artifact assembled for identity verification only; do not install over the Play app because debug signing will not match Play signing."
+      },
+      {
+        "command": "aapt dump badging apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk",
+        "result": "PASS",
+        "observed": "package name='com.voltfinance.voltapp' versionCode='42607' versionName='5.0.0-internal'; application-label 'Thesis'"
+      },
+      {
+        "command": "./gradlew.bat help \"-PANDROID_APPLICATION_ID=com.voltfinance.voltapp\" -PANDROID_VERSION_CODE=42606 \"-PANDROID_VERSION_NAME=5.0.0-internal\" --console=plain",
+        "result": "EXPECTED_FAIL",
+        "note": "Version guard rejected the old Play versionCode."
+      },
+      {
+        "command": "./gradlew.bat :app:bundleRelease \"-PANDROID_APPLICATION_ID=com.voltfinance.voltapp\" -PANDROID_VERSION_CODE=42607 \"-PANDROID_VERSION_NAME=5.0.0-internal\" --console=plain",
+        "result": "BLOCKED",
+        "note": "Release bundle stops on missing API_BASE_URL_RELEASE; release API/cert config and Play upload signing are still required before an uploadable artifact can be produced."
+      }
+    ]
+  },
+  "required_to_close": [
+    "Produce and upload a Play internal/staging artifact for com.voltfinance.voltapp with versionCode >= 42607.",
+    "Provide release API/certificate-pin properties and Play upload signing material required for an uploadable release bundle.",
+    "Provide a Firebase google-services.json client for com.voltfinance.voltapp before shipping push-enabled Play builds.",
+    "Install the updated app from a Google Play internal/staging testing track using a licensed tester account.",
+    "Run a real sandbox upgrade purchase from Free to Pro and capture server-authoritative /v1/user/profile or /v1/user/sync-tier proof showing PRO.",
+    "Run a real restore purchase flow after clearing/reinstalling or using a restore-capable test account and capture server-authoritative proof.",
+    "Update M3 smoke plan Steps 3 and 4 from TBD to PASS with the captured evidence."
+  ],
+  "decision_needed": "Owner must provide Play upload access/signing, release API/cert-pin config, a matching Firebase config for com.voltfinance.voltapp if push is required, and a licensed tester account before strict closeout can proceed."
+}

@@ -1,0 +1,49 @@
+{
+    "timestamp_utc":  "2026-04-16T13:16:03.2486363Z",
+    "mode":  "staging_server_authoritative_webhook_flow",
+    "user_email":  "m3.staging.1776344630@thesis.local",
+    "user_id":  "cf1c687a-9d9a-4ad9-8f60-b74b9ca65eb5",
+    "before":  {
+                   "user_id":  "cf1c687a-9d9a-4ad9-8f60-b74b9ca65eb5",
+                   "email":  "m3.staging.1776344630@thesis.local",
+                   "tier":  "FREE",
+                   "watchlist_limit":  5,
+                   "daily_deep_dive_limit":  1,
+                   "deep_dives_remaining_today":  1
+               },
+    "upgrade_event_response":  {
+                                   "status":  "ok"
+                               },
+    "after_upgrade":  {
+                          "user_id":  "cf1c687a-9d9a-4ad9-8f60-b74b9ca65eb5",
+                          "email":  "m3.staging.1776344630@thesis.local",
+                          "tier":  "PRO",
+                          "billing_period_end":  "2099-12-31T00:00:00.000Z",
+                          "watchlist_limit":  20,
+                          "daily_deep_dive_limit":  -1,
+                          "deep_dives_remaining_today":  -1
+                      },
+    "expiration_event_response":  {
+                                      "status":  "ok"
+                                  },
+    "after_expiration":  {
+                             "user_id":  "cf1c687a-9d9a-4ad9-8f60-b74b9ca65eb5",
+                             "email":  "m3.staging.1776344630@thesis.local",
+                             "tier":  "FREE",
+                             "watchlist_limit":  5,
+                             "daily_deep_dive_limit":  1,
+                             "deep_dives_remaining_today":  1
+                         },
+    "restore_event_response":  {
+                                   "status":  "ok"
+                               },
+    "after_restore":  {
+                          "user_id":  "cf1c687a-9d9a-4ad9-8f60-b74b9ca65eb5",
+                          "email":  "m3.staging.1776344630@thesis.local",
+                          "tier":  "PRO",
+                          "billing_period_end":  "2100-01-31T00:00:00.000Z",
+                          "watchlist_limit":  20,
+                          "daily_deep_dive_limit":  -1,
+                          "deep_dives_remaining_today":  -1
+                      }
+}

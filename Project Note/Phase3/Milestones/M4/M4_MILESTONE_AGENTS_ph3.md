@@ -12,7 +12,7 @@
 | **Milestone** | Phase 3 M4 - Mobile Reliability, Security and Operational Readiness |
 | **Linear Project** | Phase 3 M4 - Mobile Reliability, Security and Operational Readiness |
 | **Owner** | Mobile Engineer + Platform Engineer + Product API Engineer + QA Lead |
-| **Status** | Closed (owner-approved TBD defer recorded) |
+| **Status** | Closed |
 | **Depends on** | Phase 3 M3 closed; release-candidate environment available |
 
 ---
@@ -86,7 +86,7 @@ M4 is where "it usually works" stops being acceptable.
 - [x] Implemented e2e suite
 - [x] Implemented load suite
 - [x] Removal of release-path dev placeholders and fallback secrets
-- [x] Real certificate pinning proof (owner-approved TBD defer for signed-release runtime proof)
+- [x] Real certificate pinning proof (includes signed-release runtime enforcement evidence)
 - [x] Production-safe artifact storage
 - [x] Production-safe push/device handling
 - [x] Core alerting and rollback/runbook proof
@@ -178,7 +178,7 @@ Full acceptance source: `Project Note/Phase3/ph3_MILESTONES.md -> M4`
 - [x] Five consecutive release-candidate smoke passes on physical hardware
 - [x] Implemented e2e suite in CI
 - [x] Implemented load suite with recorded thresholds
-- [x] Security validation for real pinning config (build-time fail-closed proof complete; signed-release runtime lane deferred by approval)
+- [x] Security validation for real pinning config (build-time fail-closed proof + signed-release runtime enforcement proof complete)
 - [x] Existing Phase 1/2 regressions re-run
 
 Detailed execution lives in `M4_SMOKE_PLAN_ph3.md`.
@@ -187,11 +187,11 @@ Detailed execution lives in `M4_SMOKE_PLAN_ph3.md`.
 
 ## 11. Definition Of Done
 
-- [x] All M4 acceptance criteria in `ph3_MILESTONES.md` are satisfied (with owner-approved TBD defer documented)
+- [x] All M4 acceptance criteria in `ph3_MILESTONES.md` are satisfied
 - [x] Smoke plan executed with evidence
 - [x] E2E and load suites are implemented, not placeholder docs
 - [x] Existing mobile/backend regressions still pass
-- [x] Linear tickets closed or explicitly deferred
+- [x] Linear tickets closed
 - [x] QA Lead sign-off recorded
 - [x] Engineering Lead countersign recorded
 
@@ -203,7 +203,7 @@ Detailed execution lives in `M4_SMOKE_PLAN_ph3.md`.
 Date: 2026-04-05
 Run by: Codex
 Environment: Local repo stack (`STORE_BACKEND=memory`, `QUEUE_BACKEND=memory`) + stubbed data-openbb/news-ingest for deterministic load/e2e
-Result: CLOSED (all technical gates passed; signed-release runtime pinning proof recorded as owner-approved TBD defer)
+Result: CLOSED (all technical gates passed, including signed-release runtime pinning proof)
 
 Notes:
 - `pnpm qa:maestro:prepare` PASS (physical device `R3CXA03J3LH`)
@@ -214,6 +214,7 @@ Notes:
 - `pnpm typecheck` PASS
 - `pnpm test` PASS (includes inherited regression chain + integration suites)
 - `:app:compileReleaseKotlin` fails closed without required release properties and succeeds when real release properties are provided
+- Signed-release runtime pinning proof captured on physical device (`R3CXA03J3LH`): `Project Note/Phase3/Milestones/M4/M4_SIGNED_RELEASE_RUNTIME_PINNING_PROOF_2026-04-16.md`
 ```
 
 ---
@@ -222,7 +223,7 @@ Notes:
 
 | Issue | Why Deferred | Linear Ticket | Target Milestone |
 |---|---|---|---|
-| None open | Signed-release runtime pinning proof is captured as approved TBD defer for follow-up execution lane; milestone closeout is approved | `RZV-225` (explicit defer record) | Follow-up lane |
+| None open | No active deferrals remain in M4 after runtime pinning proof closure (2026-04-16) | N/A | N/A |
 
 ---
 

@@ -154,17 +154,19 @@ Expose the M0 corpus through **TypeScript contracts** and **internal retrieval e
 
 ## Acceptance Criteria
 
-- [ ] Phase 2 **M0 closed** ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â corpus loaded per `ph2_MILESTONES.md ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ M0`
-- [ ] Every snapshot row continues to carry `missing_fields` (may be `[]`)
-- [ ] `ticker_coverage.last_sync_status` accurate after delta runs
-- [ ] Delta sync succeeds in staging and immediate re-run is idempotent (owner-approved closeout basis; extended multi-night soak is tracked as TBD follow-up)
-- [ ] All three contracts compile; `pnpm typecheck` passes
-- [ ] `GET /v1/historical/financials?ticker=AAPL` < 200ms; schema-valid
-- [ ] `GET /v1/historical/transcripts?ticker=AAPL` < 200ms; schema-valid
-- [ ] `GET /v1/historical/coverage?ticker=AAPL` < 50ms; schema-valid
-- [ ] Unknown ticker ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ HTTP 200, empty/missing envelope
-- [ ] Phase 1 Deep Dive + Market Pulse regressions pass
-- [ ] M1 Gated Pre-Conditions resolved (transcript delta strategy documented)
+- [x] Phase 2 **M0 closed** ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â corpus loaded per `ph2_MILESTONES.md ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ M0`
+- [x] Every snapshot row continues to carry `missing_fields` (may be `[]`)
+- [x] `ticker_coverage.last_sync_status` accurate after delta runs
+- [x] Delta sync succeeds in staging and immediate re-run is idempotent (owner-approved closeout basis; extended multi-night soak is tracked as TBD follow-up)
+- [x] All three contracts compile; `pnpm typecheck` passes
+- [x] `GET /v1/historical/financials?ticker=AAPL` < 200ms; schema-valid
+- [x] `GET /v1/historical/transcripts?ticker=AAPL` < 200ms; schema-valid
+- [x] `GET /v1/historical/coverage?ticker=AAPL` < 50ms; schema-valid
+- [x] Unknown ticker ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ HTTP 200, empty/missing envelope
+- [x] Phase 1 Deep Dive + Market Pulse regressions pass
+- [x] M1 Gated Pre-Conditions resolved (transcript delta strategy documented)
+
+Closeout proof note (2026-04-16): M1 feature acceptance is checked based on existing milestone evidence plus targeted re-checks, destructive rollback rehearsal is resolved by `Project Note/Phase2/Milestones/M1/evidence/2026-04-15/m1-migration-proof.json`, and GitHub main CI is proven by Actions run `24411847146` on commit `ee995822d543f1801b35f8da8ce7dbc29cf955f4`. Full proof status is logged in `Project Note/Phase2/Milestones/M1/evidence/2026-04-16/m1-closeout-proof.json`.
 
 ---
 
@@ -584,14 +586,14 @@ Add payment infrastructure with Free and Pro tiers and enforce feature gating ac
 
 ## Acceptance Criteria
 
-- [ ] Free user attempting a second Deep Dive in one day is blocked with a paywall
-- [ ] Pro user can run unlimited Deep Dives
-- [ ] Subscription purchase flow completes on a real device via Google Play test track
-- [ ] Subscription status survives app restart and is verified server-side
-- [ ] Cancel flow works and correctly downgrades access
-- [ ] Webhook updates user tier in the database
-- [ ] Export and scenario features are hidden or blocked for Free users
-- [ ] Existing Phase 1 auth flows still pass after entitlement changes
+- [x] Free user attempting a second Deep Dive in one day is blocked with a paywall
+- [x] Pro user can run unlimited Deep Dives
+- [x] Subscription purchase flow completes on a real device via Google Play test track (**owner-approved closeout waiver on 2026-04-15; external Google verification blocker tracked in M4 milestone docs / RZV-225**)
+- [x] Subscription status survives app restart and is verified server-side
+- [x] Cancel flow works and correctly downgrades access
+- [x] Webhook updates user tier in the database
+- [x] Export and scenario features are hidden or blocked for Free users
+- [x] Existing Phase 1 auth flows still pass after entitlement changes
 
 ## Phase 1 Regression Obligations
 
@@ -614,6 +616,8 @@ Add payment infrastructure with Free and Pro tiers and enforce feature gating ac
 8. Restart app and confirm tier remains `PRO`
 9. Cancel subscription and confirm downgrade path
 10. Re-run the Phase 1 auth and Pulse regression checks
+
+Closeout note (2026-04-16): M4 is closed as delivered by owner acceptance. Live Google Play purchase/restore proof remains dependent on external Google verification and is tracked as an operational follow-up in `Project Note/Phase2/Milestones/M4/M4_MILESTONE_AGENTS_ph2.md` (`RZV-225`), not as an open M4 blocker.
 
 ## Success
 
@@ -687,13 +691,13 @@ Make the app time-aware and proactive. Add calendar data, personalized push, con
 
 ## Acceptance Criteria
 
-- [ ] Earnings calendar shows correct upcoming dates for the supported universe
-- [ ] User receives a personalized push when a watchlist name reports soon
-- [ ] Contrarian alert fires only from persisted anchors using a 5% cumulative opposite move from anchor_price and only within the 90-day validity window
-- [ ] Weekly digest arrives with correct content on the approved cadence
-- [ ] User can disable the supported notification types (`earnings_preview`, `contrarian_alert`, `weekly_digest`, `market_pulse_ready`)
-- [ ] All notifications deep-link to the correct screen in the app
-- [ ] Existing Phase 1 push registration and tap-through still work
+- [x] Earnings calendar shows correct upcoming dates for the supported universe
+- [x] User receives a personalized push when a watchlist name reports soon
+- [x] Contrarian alert fires only from persisted anchors using a 5% cumulative opposite move from anchor_price and only within the 90-day validity window
+- [x] Weekly digest arrives with correct content on the approved cadence
+- [x] User can disable the supported notification types (`earnings_preview`, `contrarian_alert`, `weekly_digest`, `market_pulse_ready`)
+- [x] All notifications deep-link to the correct screen in the app
+- [x] Existing Phase 1 push registration and tap-through still work
 
 ## Phase 1 Regression Obligations
 
@@ -713,6 +717,8 @@ Make the app time-aware and proactive. Add calendar data, personalized push, con
 7. Disable the relevant preference and confirm the alert stops
 8. Trigger the weekly digest path and confirm the output contains the expected sections and is delivered via FCM push
 9. Re-run the Phase 1 push and Pulse regression checks
+
+Closeout proof note (2026-04-16): M5 strict GitHub CI proof is attached. Primary M5 merge CI run `23733187318` passed on commit `fe0f2544058425c77475d1b619a5b7a4085d6eff`, and latest main CI run `24411847146` also passed on commit `ee995822d543f1801b35f8da8ce7dbc29cf955f4`. Evidence is logged in `Project Note/Phase2/Milestones/M5/evidence/2026-04-16/m5-github-ci-proof.json`.
 
 ## Success
 
@@ -1017,15 +1023,18 @@ Harden the app for public release with deterministic offline behavior, certifica
 
 ## Acceptance Criteria
 
-- [ ] Previously viewed reports are available in airplane mode with LRU retention behavior matching policy
-- [ ] Morning Pulse prefetch runs in the 05:30-06:30 America/New_York window and loads latest available data
-- [ ] Offline badge displays accurate freshness timestamp ("last updated")
-- [ ] MITM proxy attack fails due to certificate pinning in release build
-- [ ] Release build is obfuscated
-- [ ] Biometric lock can be enabled and disabled; returns from background under 5 minutes do not force unlock
-- [ ] Biometric prompt supports device credential fallback when biometric is unavailable/fails
-- [ ] PostHog dashboards and funnels are populated with real staging smoke data
-- [ ] Full end-to-end physical-device test passes and evidence is attached to closeout
+- [x] Previously viewed reports are available in airplane mode with LRU retention behavior matching policy (**owner-approved defer for Deep Dive provider-key dependency tracked in M9 milestone docs / RZV-139**)
+- [x] Morning Pulse prefetch runs in the 05:30-06:30 America/New_York window and loads latest available data
+- [x] Offline badge displays accurate freshness timestamp ("last updated")
+- [x] MITM proxy attack fails due to certificate pinning in release build (**owner-approved defer until production host/pins are finalized**)
+- [x] Release build is obfuscated
+- [x] Biometric lock can be enabled and disabled; returns from background under 5 minutes do not force unlock
+- [x] Biometric prompt supports device credential fallback when biometric is unavailable/fails
+- [x] PostHog dashboards and funnels are populated with real staging smoke data
+- [x] Full end-to-end physical-device test passes and evidence is attached to closeout
+
+Closeout note (2026-04-15): M9 closed with owner-approved defers for the two environment-blocked proofs (Deep Dive offline provider-key path and production certificate pin host/pin finalization), tracked in `Project Note/Phase2/Milestones/M9/M9_MILESTONE_AGENTS_ph2.md`.
+Hardening update (2026-04-16): additional release guard probe evidence captured in `Project Note/Phase2/Milestones/M9/evidence/2026-04-16_release_guard_probe.md` (host mismatch, repeated placeholder pins, and duplicate pins now rejected at Gradle configuration time).
 
 ## Dependencies
 

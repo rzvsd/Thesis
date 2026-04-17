@@ -11,6 +11,6 @@
   },
   "dependencies": {
     "@sentry/node": "^10.22.0",
-    "langsmith": "^0.5.10"
+    "langsmith": "^0.5.19"
   }
 }

@@ -1,0 +1,36 @@
+{
+    "timestamp_utc":  "2026-04-16T13:32:17.1766447Z",
+    "milestone":  "Phase3-M3",
+    "run_type":  "closeout_validation",
+    "device":  "SM-S928B",
+    "package":  "com.thesis.mobile",
+    "app_state":  "logged_in_free_user",
+    "paywall_ui_evidence":  {
+                                "paywall_open_png":  "Project Note/Phase3/Milestones/M3/evidence/2026-04-16/m3-paywall-open.png",
+                                "paywall_open_xml":  "Project Note/Phase3/Milestones/M3/evidence/2026-04-16/m3-paywall-open.xml",
+                                "note":  "Monthly/Yearly actions rendered but disabled in this local package context; restore action visible.",
+                                "observed_labels":  [
+                                                        "Upgrade to Pro",
+                                                        "Monthly",
+                                                        "Yearly",
+                                                        "Restore",
+                                                        "Refresh offers",
+                                                        "I upgraded"
+                                                    ],
+                                "before_ui_png":  "Project Note/Phase3/Milestones/M3/evidence/2026-04-16/m3-you-before-upgrade.png"
+                            },
+    "server_truth_evidence":  {
+                                  "ownership":  "Product API /v1/user/profile is authoritative entitlement source",
+                                  "flow_file":  "Project Note/Phase3/Milestones/M3/evidence/2026-04-16/m3-staging-upgrade-restore-validation.json",
+                                  "transitions":  [
+                                                      "FREE -\u003e PRO (INITIAL_PURCHASE)",
+                                                      "PRO -\u003e FREE (EXPIRATION)",
+                                                      "FREE -\u003e PRO (UNCANCELLATION)"
+                                                  ]
+                              },
+    "quality_checks":  {
+                           "targeted_entitlement_regression":  "PASS via deterministic API transition proof",
+                           "product_api_typecheck":  "PASS",
+                           "product_api_full_test":  "TIMEOUT_LOCAL (ran \u003e10m in this shell session)"
+                       }
+}

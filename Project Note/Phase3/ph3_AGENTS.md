@@ -2,6 +2,7 @@
 
 **Scope:** Phase 3 milestones (M1-M5). Every service, every session.  
 **Read this first. Then read the milestone-specific guide in `Phase3/Milestones/M#/`.**
+**Phase Status:** Closed (all Phase 3 milestones accepted; retained as the authoritative execution record).
 
 ---
 

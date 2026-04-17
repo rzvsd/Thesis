@@ -688,6 +688,9 @@ test("M5 weekly digest skips non-Sunday and delivers for Pro users on Sunday", a
     assert.equal(sunday.payload.status, "ok");
     assert.equal(sunday.payload.attempted, 1);
     assert.equal(sunday.payload.delivered, 1);
+    assert.equal(sunday.payload.email_attempted, 1);
+    assert.equal(sunday.payload.email_delivered, 1);
+    assert.equal(sunday.payload.email_failed, 0);
   } finally {
     await closeServer(server);
     process.env.STORE_BACKEND = previous.STORE_BACKEND;

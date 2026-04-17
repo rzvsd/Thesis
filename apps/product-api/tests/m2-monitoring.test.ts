@@ -183,6 +183,7 @@ test("M2 monitor snapshots persist on deep-dive completion and recompute unresol
     });
     assert.equal(claim.status, 200);
 
+    const reportGeneratedAt = new Date().toISOString();
     const complete = await requestJson(baseUrl, `/internal/jobs/${jobId}/complete`, {
       method: "POST",
       headers: { "x-internal-token": "dev-internal-worker-token" },
@@ -193,7 +194,7 @@ test("M2 monitor snapshots persist on deep-dive completion and recompute unresol
           schema_version: "3.1",
           type: "deep_dive",
           ticker: "AAPL",
-          generated_at: "2026-04-03T08:00:00.000Z",
+          generated_at: reportGeneratedAt,
           confidence: {
             score: 0.82,
             label: "high",
@@ -215,7 +216,7 @@ test("M2 monitor snapshots persist on deep-dive completion and recompute unresol
             missing_reasons: []
           },
           trust_metadata: {
-            generated_at: "2026-04-03T08:00:00.000Z",
+            generated_at: reportGeneratedAt,
             freshness_state: "fresh",
             evidence_count: 12,
             contradiction_state: "none",
@@ -257,7 +258,7 @@ test("M2 monitor snapshots persist on deep-dive completion and recompute unresol
     const recompute = await requestJson(baseUrl, "/internal/monitor/recompute", {
       method: "POST",
       headers: { "x-internal-token": "dev-internal-worker-token" },
-      body: { as_of: "2026-04-03" }
+      body: { as_of: reportGeneratedAt.slice(0, 10) }
     });
     assert.equal(recompute.status, 200);
 

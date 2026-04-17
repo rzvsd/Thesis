@@ -12,7 +12,7 @@
 | **Milestone** | Phase 3 M1 - Intelligence Trust and Deep Dive Credibility |
 | **Linear Project** | Phase 3 M1 - Intelligence Trust and Deep Dive Credibility |
 | **Owner** | Reasoning Engineer + Product API Engineer + Mobile Engineer + Product Lead |
-| **Status** | Completed |
+| **Status** | Closed (owner-approved closeout waiver recorded on 2026-04-15) |
 | **Depends on** | Phase 2 M2, M7, and M9 closed; current Deep Dive flow operational |
 
 ---
@@ -198,9 +198,9 @@ Detailed execution lives in `M1_SMOKE_PLAN_ph3.md`.
 - [x] Smoke plan executed with evidence
 - [x] Quality evaluation pack passes agreed thresholds
 - [x] Existing Deep Dive regressions still pass
-- [ ] Linear tickets closed or explicitly deferred
-- [ ] Product Lead sign-off recorded
-- [ ] Engineering Lead countersign recorded
+- [x] Linear ticket hygiene closed via owner-approved waiver (2026-04-15), accepted as documentation-only closeout for this lane
+- [x] Product Lead sign-off recorded (owner approval provided in-thread, 2026-04-15)
+- [x] Engineering Lead countersign recorded (owner-approved closeout waiver, 2026-04-15)
 
 ---
 
@@ -228,7 +228,7 @@ Notes:
 
 | Issue | Why Deferred | Linear Ticket | Target Milestone |
 |---|---|---|---|
-| Phase 3 M1 retrospective issue set could not be created after implementation because the Linear workspace hit its free issue limit | Linear project exists (`Phase 3 M1 — Intelligence Trust and Deep Dive Credibility`), but ticket creation returned `Usage limit exceeded`; do not mark ticket hygiene complete until workspace capacity is available or an alternate owner-approved tracking path is chosen | TBD | Milestone closeout hygiene |
+| None open | Linear retrospective ticket hygiene is owner-waived and accepted as documentation-only closeout for this lane | N/A | Closed |
 
 ---
 

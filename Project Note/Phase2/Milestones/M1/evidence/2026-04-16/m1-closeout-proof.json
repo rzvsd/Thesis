@@ -1,0 +1,117 @@
+{
+  "milestone": "Phase 2 M1 - Historical Data Pipeline",
+  "proof_type": "closeout proof follow-up",
+  "executed_at": "2026-04-16T09:03:46.4695435+03:00",
+  "git": {
+    "branch": "main",
+    "head": "ee995822d543f1801b35f8da8ce7dbc29cf955f4",
+    "origin_main": "ee995822d543f1801b35f8da8ce7dbc29cf955f4",
+    "head_matches_origin_main": true
+  },
+  "github_main_ci": {
+    "result": "PASS",
+    "reason": "Authenticated GitHub CLI retrieved a completed successful CI run on main for the exact local/origin main commit.",
+    "run": {
+      "workflow": "ci",
+      "database_id": 24411847146,
+      "url": "https://github.com/rzvsd/Thesis/actions/runs/24411847146",
+      "head_sha": "ee995822d543f1801b35f8da8ce7dbc29cf955f4",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-04-14T16:53:06Z",
+      "updated_at": "2026-04-14T16:56:24Z",
+      "job": {
+        "name": "validate",
+        "database_id": 71310505665,
+        "url": "https://github.com/rzvsd/Thesis/actions/runs/24411847146/job/71310505665",
+        "conclusion": "success",
+        "passed_steps": [
+          "Security | Dependency Audit (critical)",
+          "Security | Secret Scan (gitleaks)",
+          "Security | SAST Baseline",
+          "Lint",
+          "Typecheck",
+          "Test"
+        ]
+      }
+    },
+    "attempts": [
+      {
+        "method": "gh auth status",
+        "result": "blocked",
+        "detail": "gh CLI is not authenticated."
+      },
+      {
+        "method": "GitHub public REST API /actions/runs",
+        "result": "blocked",
+        "detail": "API returned 404 for repository actions runs, consistent with private repo or unavailable unauthenticated Actions visibility."
+      },
+      {
+        "method": "GitHub connector combined commit status",
+        "result": "inconclusive",
+        "detail": "Connector returned an empty statuses array for commit ee995822d543f1801b35f8da8ce7dbc29cf955f4; no green Actions proof was exposed."
+      },
+      {
+        "method": "authenticated gh run list/view",
+        "result": "pass",
+        "detail": "CI run 24411847146 completed with conclusion=success for commit ee995822d543f1801b35f8da8ce7dbc29cf955f4."
+      }
+    ],
+    "required_to_close": "Satisfied by https://github.com/rzvsd/Thesis/actions/runs/24411847146."
+  },
+  "local_quality_checks": [
+    {
+      "command": "corepack pnpm run security:audit",
+      "result": "PASS_WITH_CONFIGURED_DEGRADATION",
+      "detail": "Script exited 0 using --ignore-registry-errors; npm audit endpoint returned 410 retirement message."
+    },
+    {
+      "command": "corepack pnpm run security:sast",
+      "result": "PASS",
+      "detail": "SAST baseline: pass (no high-confidence findings)."
+    },
+    {
+      "command": "corepack pnpm lint",
+      "result": "PASS"
+    },
+    {
+      "command": "corepack pnpm typecheck",
+      "result": "PASS"
+    },
+    {
+      "command": "corepack pnpm test",
+      "result": "TIMEOUT",
+      "detail": "Full repo test runner timed out after 304 seconds and was still running subscription.test.js, which is outside M1 scope. This is not counted as a pass."
+    }
+  ],
+  "m1_targeted_quality_checks": [
+    {
+      "command": "node --test --test-concurrency=1 apps/product-api/dist/apps/product-api/tests/historical-endpoints.test.js",
+      "result": "PASS",
+      "tests": 1
+    },
+    {
+      "command": "python -m unittest discover -s tests -p \"test_historical*.py\"",
+      "workdir": "apps/data-openbb",
+      "result": "PASS",
+      "tests": 10
+    },
+    {
+      "command": "corepack pnpm --filter @thesis/scheduler test",
+      "result": "PASS",
+      "tests": 10
+    }
+  ],
+  "destructive_rollback_rehearsal": {
+    "result": "RESOLVED_BY_EXISTING_EVIDENCE",
+    "evidence": "Project Note/Phase2/Milestones/M1/evidence/2026-04-15/m1-migration-proof.json",
+    "detail": "Existing evidence shows two apply/down cycles on temporary Postgres database thesis_ph2m1_migration_proof for ph2m0_004, ph2m0_005, and ph2m0_006; tables_after_up=3 and tables_after_down=0 in both cycles.",
+    "rerun_attempt_2026_04_16": "Skipped because Docker Desktop daemon was not running in this session."
+  },
+  "closeout_conclusion": {
+    "rollback_rehearsal": "closed",
+    "github_main_ci_proof": "closed",
+    "m1_targeted_tests": "passed",
+    "full_repo_ci_equivalent": "closed_by_github_ci"
+  }
+}

@@ -1,0 +1,13 @@
+{"level":"INFO","service":"product-api","message":"Job recovery scheduler disabled","timestamp":"2026-04-16T07:05:16.828Z","enabled":true,"queue_backend":"memory"}
+{"level":"INFO","service":"product-api","message":"Service started","timestamp":"2026-04-16T07:05:16.828Z","port":0}
+{"level":"INFO","service":"product-api","message":"Verification email sent","timestamp":"2026-04-16T07:05:17.204Z","request_id":"33c81a88-ef01-45c5-a7c0-0134365e7a3f","user_id":"c34bc0ed-da3f-47c5-a064-ca3dffd7bdef","provider":"stub"}
+{"level":"INFO","service":"product-api","message":"Verification email sent","timestamp":"2026-04-16T07:05:17.845Z","request_id":"1e5b1ef7-8beb-4491-a590-c39216158a4b","user_id":"490b180d-533c-4a0d-9468-337f41d265d7","provider":"stub"}
+✔ M4 sync-tier rejects RevenueCat app user ids not bound to the caller (1370.8313ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 1
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2864.3661

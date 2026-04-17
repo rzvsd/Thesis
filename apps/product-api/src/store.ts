@@ -439,6 +439,11 @@ export interface ProductStore {
     tier?: SubscriptionTier;
     userIds?: string[];
   }): Promise<Array<{ userId: string; installationId: string; deviceToken: string }>>;
+  listUsersWithEmailByNotificationType(input: {
+    notificationType: NotificationType;
+    tier?: SubscriptionTier;
+    userIds?: string[];
+  }): Promise<Array<{ userId: string; email: string }>>;
   listUsersWithWatchlist(): Promise<Array<{ userId: string; tickers: string[] }>>;
   listWatchlistTickersByUser(userId: string): Promise<string[]>;
   addWatchlistTicker(input: {
@@ -1972,6 +1977,50 @@ export class InMemoryStore implements ProductStore {
     }
 
     return pushTargets;
+  }
+
+  async listUsersWithEmailByNotificationType(input: {
+    notificationType: NotificationType;
+    tier?: SubscriptionTier;
+    userIds?: string[];
+  }): Promise<Array<{ userId: string; email: string }>> {
+    const normalizedUserIds = input.userIds
+      ? new Set(input.userIds.map((userId) => userId.trim()))
+      : undefined;
+
+    const emailTargets: Array<{ userId: string; email: string }> = [];
+    for (const user of this.users.values()) {
+      if (normalizedUserIds && !normalizedUserIds.has(user.id)) {
+        continue;
+      }
+      if (input.tier) {
+        const subscription = await this.getUserSubscription(user.id);
+        if (subscription.tier !== input.tier) {
+          continue;
+        }
+      }
+      const preferences = this.ensureDefaultNotificationPreferences(user.id);
+      const preference = preferences.get(input.notificationType);
+      if (!preference || !preference.enabled) {
+        continue;
+      }
+      if (isQuietUntilActive(preference.quietUntil, new Date().toISOString())) {
+        continue;
+      }
+      if (!user.verifiedAt) {
+        continue;
+      }
+      const normalizedEmail = user.email.trim().toLowerCase();
+      if (normalizedEmail.length === 0) {
+        continue;
+      }
+      emailTargets.push({
+        userId: user.id,
+        email: normalizedEmail
+      });
+    }
+
+    return emailTargets;
   }
 
   private ensureDefaultNotificationPreferences(userId: string): Map<NotificationType, NotificationPreferenceRecord> {
@@ -6468,6 +6517,39 @@ export class PostgresStore implements ProductStore {
       userId: String(row.user_id),
       installationId: String(row.installation_id),
       deviceToken: String(row.device_token)
+    }));
+  }
+
+  async listUsersWithEmailByNotificationType(input: {
+    notificationType: NotificationType;
+    tier?: SubscriptionTier;
+    userIds?: string[];
+  }): Promise<Array<{ userId: string; email: string }>> {
+    const userIds = (input.userIds ?? [])
+      .map((userId) => userId.trim())
+      .filter((userId) => userId.length > 0);
+
+    const result = await this.pool.query(
+      `select u.id as user_id, lower(trim(u.email)) as email
+         from users u
+         left join notification_preferences np
+           on np.user_id = u.id
+           and np.notification_type = $1
+         left join subscriptions s
+           on s.user_id = u.id
+        where u.verified_at is not null
+          and length(trim(u.email)) > 0
+          and coalesce(np.enabled, true) = true
+          and (np.quiet_until is null or np.quiet_until <= now())
+          and ($2::text is null or s.tier = $2::text)
+          and ($3::text[] is null or u.id = any($3::text[]))
+        order by u.id asc`,
+      [input.notificationType, input.tier ?? null, userIds.length > 0 ? userIds : null]
+    );
+
+    return result.rows.map((row) => ({
+      userId: String(row.user_id),
+      email: String(row.email)
     }));
   }
 

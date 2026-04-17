@@ -12,7 +12,7 @@
 | **Milestone** | Phase 2 M5 â€” Calendar & Smart Notifications |
 | **Linear Project** | Phase 2 M5 â€” Calendar & Smart Notifications |
 | **Owner** | Scheduler Engineer + Product API Engineer + Mobile Engineer |
-| **Status** | In Progress (technical validation complete; formal closeout pending CI/sign-off) |
+| **Status** | Closed (PASS; strict GitHub CI proof attached on 2026-04-16) |
 | **Depends on** | Phase 2 M4 closed; FCM credentials operational (Phase 1 push path already working) |
 
 ---
@@ -319,14 +319,14 @@ CI must pass before any PR merges. Real-device push testing required.
 - [x] All acceptance criteria in `ph2_MILESTONES.md â†’ M5` are satisfied
 - [x] All six Gated Pre-Conditions (G1â€“G6) resolved and recorded in Â§16
 - [x] Smoke test executed in full â€” results documented in Â§14 below
-- [ ] All automated tests passing in CI
+- [x] All automated tests passing in CI (strict GitHub proof attached: M5 merge CI run `23733187318` passed; latest main CI run `24411847146` also passed)
 - [x] All 14 Linear tickets for PH2-M5 are closed or explicitly deferred
 - [x] Real-device push notification tested for every notification type
 - [x] Deep-link correctness verified on real device for every notification type
 - [x] Phase 1 push and watchlist regression confirmed
 - [x] Rollback confirmed: all three `.down.sql` migrations execute cleanly
 - [x] Owner signs off
-- [ ] Engineering Lead countersigns
+- [x] Engineering Lead countersigns (**owner-approved closeout waiver, 2026-04-15**)
 
 **A single push notification appearing on a debug device is not done. This checklist complete is done.**
 
@@ -398,15 +398,17 @@ Step 14 â€” Phase 1 watchlist regression:                             PASS
           Confirm watchlist CRUD works
           Confirm watchlist personalization still drives notifications
 
-Step 15 â€” Run CI:                                                   LOCAL PASS, GitHub CI FOLLOW-UP
-          Confirm all tests pass
+Step 15 â€” Run CI:                                                   PASS (GitHub Actions)
+          M5 merge CI run `23733187318` passed on `fe0f2544058425c77475d1b619a5b7a4085d6eff`.
+          Latest main CI run `24411847146` also passed on `ee995822d543f1801b35f8da8ce7dbc29cf955f4`.
 
 Steps failed (if any):
   - None in the technical M5 validation sweep.
 
 Notes:
-  - `pnpm lint`, `pnpm typecheck`, and `pnpm test` passed locally at repo root.
-  - `@thesis/data-openbb`, `@thesis/scheduler`, `@thesis/product-api` lint/typecheck/test passed locally.
+  - `pnpm lint` and `pnpm typecheck` passed locally at repo root.
+  - Full CI step-sequence re-run evidence was captured in `Project Note/Phase2/Milestones/M5/evidence/2026-04-15/` (`security:audit`, gitleaks, `security:sast`, lint, typecheck, targeted test proof).
+  - Strict GitHub CI evidence captured in `Project Note/Phase2/Milestones/M5/evidence/2026-04-16/m5-github-ci-proof.json`.
   - Android compile/lint passed locally with `JAVA_HOME` set to Android Studio JBR.
   - Real-device notification types verified: `earnings_preview`, `contrarian_alert`, `weekly_digest`, `market_pulse_ready`.
   - Real-device tap-through verified: earnings preview -> Deep Dive screen, contrarian alert -> Deep Dive screen, weekly digest -> home/pulse destination, market pulse ready -> home/pulse destination.
@@ -426,7 +428,6 @@ Notes:
 | Real-time price streaming for contrarian alerts | Daily evaluation sufficient for MVP | â€” | Post-launch |
 | Calendar screen / UI for browsing events | Calendar data powers notifications only in Phase 2 | â€” | Post-launch |
 | Multi-channel notification delivery (email + push) | Start with one channel per G4 decision | â€” | Post-launch |
-| GitHub CI proof for this exact change set | Local quality checks are green; GitHub CI confirmation is still a follow-up proof item | RZV-246 | Follow-up verification |
 
 ---
 
@@ -441,5 +442,18 @@ Notes:
 | Notification type inventory | `earnings_preview`, `contrarian_alert`, `weekly_digest`, `market_pulse_ready` | No â€” product decision |
 | Anchor-proof mode | Phase 1 completed reports are valid anchor sources when signal exists | No â€” milestone doctrine |
 | Migration sequence numbers | `010`, `011`, `012` continuing from M4's `009` | No |
+
+**Closeout update (2026-04-15):**
+
+- Owner approved M5 closeout with CI proof acceptance for GitHub-run confirmation on push.
+- Engineering Lead countersign was recorded under owner-approved closeout waiver.
+- CI evidence artifacts were refreshed in `Project Note/Phase2/Milestones/M5/evidence/2026-04-15/`.
+
+**Closeout update (2026-04-16):**
+
+- The previous "accepted on push" CI waiver is superseded by strict GitHub Actions evidence.
+- Primary M5 merge proof: `ci` run `23733187318` passed on commit `fe0f2544058425c77475d1b619a5b7a4085d6eff`.
+- Current main proof: `ci` run `24411847146` passed on commit `ee995822d543f1801b35f8da8ce7dbc29cf955f4`.
+- Evidence recorded in `Project Note/Phase2/Milestones/M5/evidence/2026-04-16/m5-github-ci-proof.json`.
 
 

@@ -12,7 +12,7 @@
 | **Milestone** | M1 — Baseline |
 | **Linear Project** | M1 — Baseline |
 | **Owner** | Engineering Lead |
-| **Status** | Passed - 2026-03-13 |
+| **Status** | Closed (passed on 2026-03-13) |
 | **Depends on** | Nothing — this is the first milestone |
 
 ---
@@ -30,15 +30,15 @@ Before any cooking happens, we set up the kitchen — every station exists, ever
 
 The following and only the following is in scope for M1:
 
-- [ ] Monorepo folder structure created per `BLUEBOOK cld.md §15`
-- [ ] All service stubs created under `apps/` — they start but do nothing except return a health check
-- [ ] All package stubs created under `packages/`
-- [ ] `packages/contracts` compiles with all canonical schemas exported
-- [ ] `docker-compose.yml` brings all services to healthy status within 60 seconds
-- [ ] CI pipeline runs lint, type-check, and unit tests on every PR automatically
-- [ ] `.env.example` lists every required environment variable with a description comment
-- [ ] Core docs committed to repo root: `README.md`, `BLUEBOOK cld.md`, `ROADMAP.md`, `PRD.md`, `MILESTONES.md`, `AGENTS.md`
-- [ ] All ADRs committed to `Decisions/`: ADR-001 through ADR-006
+- [x] Monorepo folder structure created per `BLUEBOOK cld.md §15`
+- [x] All service stubs created under `apps/` — they start but do nothing except return a health check
+- [x] All package stubs created under `packages/`
+- [x] `packages/contracts` compiles with all canonical schemas exported
+- [x] `docker-compose.yml` brings all services to healthy status within 60 seconds
+- [x] CI pipeline runs lint, type-check, and unit tests on every PR automatically
+- [x] `.env.example` lists every required environment variable with a description comment
+- [x] Core docs committed to repo root: `README.md`, `BLUEBOOK cld.md`, `ROADMAP.md`, `PRD.md`, `MILESTONES.md`, `AGENTS.md`
+- [x] All ADRs committed to `Decisions/`: ADR-001 through ADR-006
 
 Full deliverables and acceptance criteria: `MILESTONES.md → M1`
 
@@ -179,10 +179,10 @@ M1 has minimal error surface — startup and health checks only.
 
 M1 testing is minimal by design — no business logic exists.
 
-- [ ] Health check endpoint returns `{ status: "ok" }` — one test per service
-- [ ] `packages/contracts` index exports all types — one compilation test confirms this
-- [ ] No unit tests required for folder structure or config files
-- [ ] CI pipeline itself is validated by smoke test steps 8–9
+- [x] Health check endpoint returns `{ status: "ok" }` — one test per service
+- [x] `packages/contracts` index exports all types — one compilation test confirms this
+- [x] No unit tests required for folder structure or config files
+- [x] CI pipeline itself is validated by smoke test steps 8–9
 
 Test files live in: `apps/<service>/tests/health.test.ts`  
 CI must pass before any PR merges.

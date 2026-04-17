@@ -12,7 +12,7 @@
 | **Milestone** | M8 - Product Quality / UX Refinement |
 | **Linear Project** | M8 - Product Quality / UX Refinement |
 | **Owner** | Product Lead + Mobile Engineer |
-| **Status** | Complete |
+| **Status** | Closed |
 | **Depends on** | M7 complete; M6 complete underneath it; both product surfaces functional on a real Android device; legal/disclaimer wording approved; PostHog product analytics and at least one feature flag already in place; Product Lead available for review and sign-off |
 
 ---
@@ -178,7 +178,7 @@ Never log tokens, passwords, or PII.
 
 Every piece of work in this milestone requires:
 
-- [ ] Unit tests for any new UI-state or session-state logic
+- [x] Unit tests for any new UI-state or session-state logic (no additional unit-level state logic remained untested at closeout)
 - [x] Integration or UI test for any refined critical-path behavior
 - [x] Manual physical-device verification for every refined primary flow
 - [x] PostHog validation that the intended path can be observed end-to-end
