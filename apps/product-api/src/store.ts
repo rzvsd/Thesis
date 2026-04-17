@@ -5,6 +5,7 @@ import type {
   AlertFeedbackState,
   AlertLedgerCategory,
   AlertRouteTarget,
+  CanonicalEvent,
   CalendarEventTime,
   CalendarEventType,
   CanonicalFinancialSnapshot,
@@ -251,6 +252,13 @@ export interface ProductStore {
   getFearGreedSnapshotByMarketDate(marketDate: string): Promise<FearGreedSnapshot | undefined>;
   getLatestFearGreedSnapshot(): Promise<FearGreedSnapshot | undefined>;
   listFearGreedHistory(days: number): Promise<FearGreedSnapshot[]>;
+  upsertCanonicalEvents(events: CanonicalEvent[]): Promise<{ upserted: number }>;
+  listCanonicalEvents(input: {
+    subjectType?: CanonicalEvent["subject_type"];
+    subjectId?: string;
+    family?: CanonicalEvent["family"];
+    limit: number;
+  }): Promise<CanonicalEvent[]>;
   upsertCalendarEvents(events: CalendarEventRecord[]): Promise<{ upserted: number }>;
   listUpcomingCalendarEventsByTickers(input: {
     tickers: string[];
@@ -993,6 +1001,48 @@ function mapFearGreedSnapshot(row: Record<string, unknown>): FearGreedSnapshot {
   };
 }
 
+function mapCanonicalEvent(row: Record<string, unknown>): CanonicalEvent {
+  const source = asRecord(row.source) ?? {};
+  const nestedSource = asRecord(source.source) ?? {};
+  return {
+    id: String(row.id),
+    family: String(row.family) as CanonicalEvent["family"],
+    subject_type: String(row.subject_type) as CanonicalEvent["subject_type"],
+    subject_id: String(row.subject_id),
+    title: String(row.title),
+    occurred_at: asIsoString(row.occurred_at) ?? new Date().toISOString(),
+    source_state: String(row.source_state) as CanonicalEvent["source_state"],
+    source: {
+      source: {
+        source_id: String(nestedSource.source_id ?? ""),
+        source_family: String(nestedSource.source_family ?? "sec_edgar") as CanonicalEvent["source"]["source"]["source_family"],
+        source_name: String(nestedSource.source_name ?? ""),
+        source_url: String(nestedSource.source_url ?? ""),
+        agency: String(nestedSource.agency ?? ""),
+        agency_series_id:
+          nestedSource.agency_series_id === undefined
+            ? undefined
+            : String(nestedSource.agency_series_id)
+      },
+      retrieved_at: String(source.retrieved_at ?? row.retrieved_at ?? new Date().toISOString()),
+      retrieval_status: String(source.retrieval_status ?? "fresh") as CanonicalEvent["source"]["retrieval_status"],
+      source_period: source.source_period === undefined ? undefined : String(source.source_period),
+      source_revision: source.source_revision === undefined ? undefined : String(source.source_revision)
+    },
+    retrieved_at: asIsoString(row.retrieved_at) ?? new Date().toISOString(),
+    missing_fields: asJsonArray(row.missing_fields).map((item) => {
+      const missing = asRecord(item) ?? {};
+      return {
+        field: String(missing.field ?? ""),
+        reason: String(missing.reason ?? "source_unavailable") as CanonicalEvent["missing_fields"][number]["reason"],
+        source_id: missing.source_id === undefined ? undefined : String(missing.source_id),
+        message: String(missing.message ?? "")
+      };
+    }),
+    metadata: asRecord(row.metadata) ?? {}
+  };
+}
+
 const defaultNotificationTypeList = [...notificationTypes];
 
 function isNotificationType(value: string): value is NotificationType {
@@ -1404,6 +1454,7 @@ export class InMemoryStore implements ProductStore {
   private readonly historicalTranscriptsByTicker = new Map<string, CanonicalTranscript[]>();
   private readonly historicalCoverageByTicker = new Map<string, TickerCoverage>();
   private readonly fearGreedByMarketDate = new Map<string, FearGreedSnapshot>();
+  private readonly canonicalEvents = new Map<string, CanonicalEvent>();
   private readonly calendarEvents = new Map<string, CalendarEventRecord>();
   private readonly contrarianAnchors = new Map<string, ContrarianAlertAnchorRecord>();
   private readonly killSwitchRules = new Map<string, KillSwitchRuleRecord>();
@@ -2571,6 +2622,45 @@ export class InMemoryStore implements ProductStore {
       }
     }
     return snapshots;
+  }
+
+  async upsertCanonicalEvents(events: CanonicalEvent[]): Promise<{ upserted: number }> {
+    for (const event of events) {
+      this.canonicalEvents.set(event.id, {
+        ...event,
+        missing_fields: event.missing_fields.map((missing) => ({ ...missing })),
+        metadata: { ...event.metadata },
+        source: {
+          ...event.source,
+          source: { ...event.source.source }
+        }
+      });
+    }
+    return { upserted: events.length };
+  }
+
+  async listCanonicalEvents(input: {
+    subjectType?: CanonicalEvent["subject_type"];
+    subjectId?: string;
+    family?: CanonicalEvent["family"];
+    limit: number;
+  }): Promise<CanonicalEvent[]> {
+    const normalizedSubjectId = input.subjectId?.trim().toUpperCase();
+    return [...this.canonicalEvents.values()]
+      .filter((event) => !input.subjectType || event.subject_type === input.subjectType)
+      .filter((event) => !normalizedSubjectId || event.subject_id.trim().toUpperCase() === normalizedSubjectId)
+      .filter((event) => !input.family || event.family === input.family)
+      .sort((left, right) => right.occurred_at.localeCompare(left.occurred_at))
+      .slice(0, Math.max(1, input.limit))
+      .map((event) => ({
+        ...event,
+        missing_fields: event.missing_fields.map((missing) => ({ ...missing })),
+        metadata: { ...event.metadata },
+        source: {
+          ...event.source,
+          source: { ...event.source.source }
+        }
+      }));
   }
 
   async upsertCalendarEvents(events: CalendarEventRecord[]): Promise<{ upserted: number }> {
@@ -4838,6 +4928,96 @@ export class PostgresStore implements ProductStore {
       [boundedDays]
     );
     return result.rows.map((row) => mapFearGreedSnapshot(row as Record<string, unknown>));
+  }
+
+  async upsertCanonicalEvents(events: CanonicalEvent[]): Promise<{ upserted: number }> {
+    if (events.length === 0) {
+      return { upserted: 0 };
+    }
+
+    for (const event of events) {
+      await this.pool.query(
+        `insert into canonical_events (
+           id,
+           family,
+           subject_type,
+           subject_id,
+           title,
+           occurred_at,
+           source_state,
+           source,
+           missing_fields,
+           metadata,
+           retrieved_at,
+           updated_at
+         )
+         values ($1, $2, $3, $4, $5, $6::timestamptz, $7, $8::jsonb, $9::jsonb, $10::jsonb, $11::timestamptz, $12::timestamptz)
+         on conflict (id) do update set
+           family = excluded.family,
+           subject_type = excluded.subject_type,
+           subject_id = excluded.subject_id,
+           title = excluded.title,
+           occurred_at = excluded.occurred_at,
+           source_state = excluded.source_state,
+           source = excluded.source,
+           missing_fields = excluded.missing_fields,
+           metadata = excluded.metadata,
+           retrieved_at = excluded.retrieved_at,
+           updated_at = excluded.updated_at`,
+        [
+          event.id,
+          event.family,
+          event.subject_type,
+          event.subject_id,
+          event.title,
+          event.occurred_at,
+          event.source_state,
+          JSON.stringify(event.source),
+          JSON.stringify(event.missing_fields),
+          JSON.stringify(event.metadata),
+          event.retrieved_at,
+          new Date().toISOString()
+        ]
+      );
+    }
+
+    return { upserted: events.length };
+  }
+
+  async listCanonicalEvents(input: {
+    subjectType?: CanonicalEvent["subject_type"];
+    subjectId?: string;
+    family?: CanonicalEvent["family"];
+    limit: number;
+  }): Promise<CanonicalEvent[]> {
+    const conditions: string[] = [];
+    const values: unknown[] = [];
+
+    if (input.subjectType) {
+      values.push(input.subjectType);
+      conditions.push(`subject_type = $${values.length}`);
+    }
+    if (input.subjectId) {
+      values.push(input.subjectId.trim().toUpperCase());
+      conditions.push(`upper(subject_id) = $${values.length}`);
+    }
+    if (input.family) {
+      values.push(input.family);
+      conditions.push(`family = $${values.length}`);
+    }
+    values.push(Math.max(1, input.limit));
+
+    const whereClause = conditions.length > 0 ? `where ${conditions.join(" and ")}` : "";
+    const result = await this.pool.query(
+      `select *
+         from canonical_events
+        ${whereClause}
+        order by occurred_at desc
+        limit $${values.length}`,
+      values
+    );
+
+    return result.rows.map((row) => mapCanonicalEvent(row as Record<string, unknown>));
   }
 
   async upsertCalendarEvents(events: CalendarEventRecord[]): Promise<{ upserted: number }> {

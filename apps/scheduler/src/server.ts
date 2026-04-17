@@ -31,6 +31,7 @@ interface SchedulerConfig {
   contrarianEvalMinute: number;
   weeklyDigestHour: number;
   weeklyDigestMinute: number;
+  officialSourceTickers: string[];
   warRoomDispatchRoute?: string;
   testMode: boolean;
   testFireInSeconds: number;
@@ -154,6 +155,10 @@ function loadConfig(env: NodeJS.ProcessEnv = process.env): SchedulerConfig {
     contrarianEvalMinute: contrarianEvalSchedule.minute,
     weeklyDigestHour: weeklyDigestSchedule.hour,
     weeklyDigestMinute: weeklyDigestSchedule.minute,
+    officialSourceTickers: (env.SCHEDULER_OFFICIAL_SOURCE_TICKERS ?? "AAPL,MSFT,TSLA")
+      .split(",")
+      .map((ticker) => ticker.trim().toUpperCase())
+      .filter((ticker) => /^[A-Z.-]{1,12}$/.test(ticker)),
     warRoomDispatchRoute,
     testMode,
     testFireInSeconds: Number.isFinite(testFireInSeconds) && testFireInSeconds > 0
@@ -478,6 +483,76 @@ async function dispatchWeeklyDigest(config: SchedulerConfig): Promise<void> {
     delivered: payload.delivered,
     failed: payload.failed
   });
+}
+
+async function fetchJson(url: string, options?: RequestInit): Promise<Record<string, unknown>> {
+  const response = await fetch(url, options);
+  const payload = (await response.json()) as Record<string, unknown>;
+  if (!response.ok) {
+    throw new Error(`Request failed with status ${response.status}: ${JSON.stringify(payload)}`);
+  }
+  return payload;
+}
+
+function extractCanonicalEvents(payload: Record<string, unknown>): Record<string, unknown>[] {
+  const data = payload.data;
+  if (typeof data !== "object" || data === null || Array.isArray(data)) {
+    return [];
+  }
+  const events = (data as Record<string, unknown>).canonical_events;
+  if (!Array.isArray(events)) {
+    return [];
+  }
+  return events.filter((event): event is Record<string, unknown> => (
+    typeof event === "object" && event !== null && !Array.isArray(event)
+  ));
+}
+
+async function dispatchOfficialRefresh(config: SchedulerConfig): Promise<{
+  companyEvents: number;
+  macroEvents: number;
+  ingested: number;
+}> {
+  const events: Record<string, unknown>[] = [];
+  for (const ticker of config.officialSourceTickers) {
+    const payload = await fetchJson(
+      `${config.dataOpenbbInternalBaseUrl}/v1/official/company?ticker=${encodeURIComponent(ticker)}`,
+      {
+        headers: {
+          "x-internal-token": config.internalWorkerToken
+        }
+      }
+    );
+    events.push(...extractCanonicalEvents(payload));
+  }
+
+  const companyEvents = events.length;
+  const macroPayload = await fetchJson(`${config.dataOpenbbInternalBaseUrl}/v1/official/macro?scope=daily`, {
+    headers: {
+      "x-internal-token": config.internalWorkerToken
+    }
+  });
+  const macroEvents = extractCanonicalEvents(macroPayload);
+  events.push(...macroEvents);
+
+  const ingestPayload = await dispatchProductApiJob(
+    config,
+    "/internal/canonical-events/ingest",
+    { events },
+    "Official canonical event ingest"
+  );
+
+  const ingested = typeof ingestPayload.upserted === "number" ? ingestPayload.upserted : 0;
+  log("INFO", "Official source refresh accepted", {
+    company_events: companyEvents,
+    macro_events: macroEvents.length,
+    ingested
+  });
+  return {
+    companyEvents,
+    macroEvents: macroEvents.length,
+    ingested
+  };
 }
 
 export function startServer(port: number = defaultPort): Server {
@@ -902,7 +977,7 @@ export function startServer(port: number = defaultPort): Server {
     }, delayMs);
   };
 
-  const server = createServer((request, response) => {
+  const server = createServer(async (request, response) => {
     if (request.url === "/health") {
       const payload: HealthPayload = {
         status: "ok",
@@ -936,6 +1011,41 @@ export function startServer(port: number = defaultPort): Server {
 
       response.writeHead(200, { "content-type": "application/json" });
       response.end(JSON.stringify(payload));
+      return;
+    }
+
+    const url = new URL(request.url ?? "/", "http://127.0.0.1");
+    if (request.method === "POST" && url.pathname === "/internal/official/refresh") {
+      if (request.headers["x-internal-token"] !== config.internalWorkerToken) {
+        response.writeHead(401, { "content-type": "application/json" });
+        response.end(JSON.stringify({ error: "unauthorized" }));
+        return;
+      }
+
+      try {
+        const result = await dispatchOfficialRefresh(config);
+        response.writeHead(200, { "content-type": "application/json" });
+        response.end(JSON.stringify({
+          status: "accepted",
+          company_events: result.companyEvents,
+          macro_events: result.macroEvents,
+          ingested: result.ingested
+        }));
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Official source refresh failed";
+        log("ERROR", "Official source refresh failed", {
+          error_message: message
+        });
+        captureException(new Error(message), {
+          service: serviceName,
+          target: "official-source-refresh"
+        });
+        response.writeHead(502, { "content-type": "application/json" });
+        response.end(JSON.stringify({
+          error: "official_refresh_failed",
+          error_message: message
+        }));
+      }
       return;
     }
 

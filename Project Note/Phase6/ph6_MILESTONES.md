@@ -130,14 +130,40 @@ Replace provider-shaped data assumptions with official-company and official-macr
 | Missing-data behavior | Missing or stale fields are explicit, never guessed |
 | No-provider-key smoke path | Core tests run without OpenBB/FMP/Polygon/Alpha Vantage/yfinance keys |
 
+## Locked M1 Interface Plan
+
+| Area | Locked shape |
+|---|---|
+| Official-source contract | `packages/contracts/src/official-source.ts` with `OfficialSourceReference`, `OfficialRetrievalMetadata`, and `OfficialMissingFieldState` |
+| Canonical-event contract | `packages/contracts/src/canonical-event.ts` with `CanonicalEvent`, `CanonicalEventFamily`, and `CanonicalEventSourceState` |
+| Company truth endpoint | `GET /v1/official/company?ticker=AAPL` on `data-openbb` |
+| Macro truth endpoint | `GET /v1/official/macro?scope=daily` on `data-openbb` |
+| Product ingestion endpoint | `POST /internal/canonical-events/ingest` on `product-api` |
+| Scheduler refresh trigger | `POST /internal/official/refresh` or existing scheduler job registration if already present |
+
+## Locked M1 Seed Scope
+
+Company smoke tickers: `AAPL`, `MSFT`, `TSLA`.
+
+Macro smoke registry:
+
+| Registry key | Official owner | Purpose |
+|---|---|---|
+| `TREASURY_DAILY_10Y` | U.S. Treasury | Long-rate pressure |
+| `TREASURY_DAILY_2Y` | U.S. Treasury | Front-end rate pressure |
+| `BLS_CPI_U_ALL_ITEMS` | BLS | Inflation pressure |
+| `BLS_UNEMPLOYMENT_RATE` | BLS | Labor pressure |
+| `BEA_REAL_GDP` | BEA | Growth pressure |
+| `EIA_WTI_SPOT` | EIA | Energy pressure |
+
 ## Acceptance Criteria
 
-- [ ] SEC-backed company truth is returned for at least 3 supported tickers
-- [ ] Official macro truth is returned for the approved daily scope without deprecated provider keys
-- [ ] Every official-source response includes explicit retrieval metadata and missing-field state
-- [ ] Canonical filing and macro event records are generated from the official adapter outputs
-- [ ] Golden fixtures are committed and validated in CI
-- [ ] No core smoke step requires an old market-data provider key
+- [x] SEC-backed company truth is returned for at least 3 supported tickers
+- [x] Official macro truth is returned for the approved daily scope without deprecated provider keys
+- [x] Every official-source response includes explicit retrieval metadata and missing-field state
+- [x] Canonical filing and macro event records are generated from the official adapter outputs
+- [x] Golden fixtures are committed and validated in CI
+- [x] No core smoke step requires an old market-data provider key
 
 ## Smoke Test
 
@@ -172,7 +198,7 @@ Redeploy the prior adapter version or disable the new endpoints while keeping th
 ## Dependencies
 
 - M0 complete
-- Approved official macro source registry finalized enough for implementation
+- Approved official macro seed registry from `PH6_DECISION_LOCKS.md`
 
 ## Owner
 
