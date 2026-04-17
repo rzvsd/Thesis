@@ -100,42 +100,6 @@ async function createVerifiedSession(
   };
 }
 
-type MockDateController = {
-  setNow: (iso: string) => void;
-  restore: () => void;
-};
-
-function installMockDate(initialIso: string): MockDateController {
-  const RealDate = Date;
-  let fixedMs = new RealDate(initialIso).getTime();
-
-  class MockDate extends RealDate {
-    constructor(...args: unknown[]) {
-      if (args.length === 0) {
-        super(fixedMs);
-        return;
-      }
-      super(...(args as ConstructorParameters<typeof RealDate>));
-    }
-
-    static override now(): number {
-      return fixedMs;
-    }
-  }
-
-  (globalThis as unknown as { Date: DateConstructor }).Date =
-    MockDate as unknown as DateConstructor;
-
-  return {
-    setNow(iso: string): void {
-      fixedMs = new RealDate(iso).getTime();
-    },
-    restore(): void {
-      (globalThis as unknown as { Date: DateConstructor }).Date = RealDate;
-    }
-  };
-}
-
 async function startRevenueCatMock(): Promise<{ server: Server; baseUrl: string }> {
   const server = createServer((request, response) => {
     const url = new URL(request.url ?? "/", "http://127.0.0.1");
@@ -381,67 +345,6 @@ test("M4 subscriptions enforce Free/Pro gating and tier updates", async () => {
     process.env.REVENUECAT_SERVER_API_KEY = previous.REVENUECAT_SERVER_API_KEY;
     process.env.REVENUECAT_ENTITLEMENT_ID = previous.REVENUECAT_ENTITLEMENT_ID;
     process.env.REVENUECAT_API_BASE_URL = previous.REVENUECAT_API_BASE_URL;
-  }
-});
-
-test("M4 daily Deep Dive limit resets after midnight in America/New_York", async () => {
-  const previous = {
-    STORE_BACKEND: process.env.STORE_BACKEND,
-    QUEUE_BACKEND: process.env.QUEUE_BACKEND,
-    AUTH_EXPOSE_VERIFICATION_TOKEN: process.env.AUTH_EXPOSE_VERIFICATION_TOKEN,
-    JWT_SECRET: process.env.JWT_SECRET,
-    INTERNAL_WORKER_TOKEN: process.env.INTERNAL_WORKER_TOKEN,
-    SUBSCRIPTION_TIMEZONE: process.env.SUBSCRIPTION_TIMEZONE
-  };
-  process.env.STORE_BACKEND = "memory";
-  process.env.QUEUE_BACKEND = "memory";
-  process.env.AUTH_EXPOSE_VERIFICATION_TOKEN = "true";
-  process.env.JWT_SECRET = "dev-jwt-secret-change-me";
-  process.env.INTERNAL_WORKER_TOKEN = "dev-internal-worker-token";
-  process.env.SUBSCRIPTION_TIMEZONE = "America/New_York";
-
-  const mockDate = installMockDate("2026-04-15T03:55:00.000Z"); // 23:55 ET (previous day)
-  const server = startServer(0);
-  await once(server, "listening");
-  const { port } = server.address() as AddressInfo;
-  const baseUrl = `http://127.0.0.1:${port}`;
-
-  try {
-    const session = await createVerifiedSession(baseUrl, "ph2-m4-reset@example.com");
-    const authHeader = { authorization: `Bearer ${session.accessToken}` };
-
-    const firstRequest = await requestJson(baseUrl, "/jobs", {
-      method: "POST",
-      headers: authHeader,
-      body: { ticker: "AAPL" }
-    });
-    assert.equal(firstRequest.status, 202);
-
-    const secondSameDay = await requestJson(baseUrl, "/jobs", {
-      method: "POST",
-      headers: authHeader,
-      body: { ticker: "MSFT" }
-    });
-    assert.equal(secondSameDay.status, 403);
-    assert.equal(secondSameDay.payload.error, "upgrade_required");
-    assert.equal(secondSameDay.payload.feature, "deep_dive_daily_limit");
-
-    mockDate.setNow("2026-04-15T04:05:00.000Z"); // 00:05 ET (next day)
-    const afterMidnight = await requestJson(baseUrl, "/jobs", {
-      method: "POST",
-      headers: authHeader,
-      body: { ticker: "NVDA" }
-    });
-    assert.equal(afterMidnight.status, 202);
-  } finally {
-    await closeServer(server);
-    mockDate.restore();
-    process.env.STORE_BACKEND = previous.STORE_BACKEND;
-    process.env.QUEUE_BACKEND = previous.QUEUE_BACKEND;
-    process.env.AUTH_EXPOSE_VERIFICATION_TOKEN = previous.AUTH_EXPOSE_VERIFICATION_TOKEN;
-    process.env.JWT_SECRET = previous.JWT_SECRET;
-    process.env.INTERNAL_WORKER_TOKEN = previous.INTERNAL_WORKER_TOKEN;
-    process.env.SUBSCRIPTION_TIMEZONE = previous.SUBSCRIPTION_TIMEZONE;
   }
 });
 

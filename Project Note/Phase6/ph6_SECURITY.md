@@ -16,7 +16,7 @@ This file explains how Phase 6 handles:
 - legacy provider-secret cleanup
 - production expectations for official-source-first operation
 
-It does not replace the root `Security.md`. It extends it for the final architecture phase.
+It does not replace the root `Security.md`. It extends it for the final data-substrate architecture phase. `PH6_DECISION_LOCKS.md` controls the minimum source registry, transcript stance, guard scope, and evidence format before implementation begins.
 
 ---
 
@@ -24,7 +24,7 @@ It does not replace the root `Security.md`. It extends it for the final architec
 
 **A source is not production-safe until both its technical access path and its rights posture are documented.**
 
-Phase 6 rejects the old assumption that “publicly reachable” means “safe to store and redistribute.”
+Phase 6 rejects the old assumption that "publicly reachable" means "safe to store and redistribute."
 
 ---
 
@@ -100,7 +100,7 @@ Where official macro sources revise data:
 
 - store `retrieved_at`
 - store the reporting period and release identifier where possible
-- allow the product to mark “revised since prior pull”
+- allow the product to mark "revised since prior pull"
 
 ---
 
@@ -118,7 +118,7 @@ First-party fetches are allowed only under these conditions:
 - broad domain crawling
 - login-wall bypass
 - anti-bot evasion
-- uncontrolled HTML capture for “maybe useful later” text warehousing
+- uncontrolled HTML capture for "maybe useful later" text warehousing
 
 ---
 
@@ -178,6 +178,10 @@ Archival retention for rollback is allowed only if:
 - it is documented,
 - it is not the active default,
 - and it is clearly marked deprecated.
+
+### Guard scope
+
+The dependency guard is a production-path safety control, not a historical-document eraser. It protects active code, runtime config, contracts, mobile production code, and active Phase 6 docs. Archived Phase1-Phase5 docs and evidence may mention old providers only as superseded history.
 
 ---
 

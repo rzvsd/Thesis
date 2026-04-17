@@ -4,6 +4,8 @@
 
 This is not a replacement for `ph6_BLUEBOOK.md`. It is the implementation checklist for harmonizing older docs that still assume OpenBB, paid market-data providers, quote-first Pulse behavior, or rights-ambiguous transcript/news paths.
 
+`PH6_DECISION_LOCKS.md` is the source of truth for the protected-path dependency guard, Fear & Greed to Macro Stress transition, exact Phase 6 contract names, and evidence-folder standard.
+
 ---
 
 ## 1. `BLUEBOOK cld.md`
@@ -11,11 +13,11 @@ This is not a replacement for `ph6_BLUEBOOK.md`. It is the implementation checkl
 ### Must change
 
 1. **System Planes / Core Stack / Service Catalog**
-   - Replace `data-openbb` description from “OpenBB / provider abstraction” to “official/public-source adapter boundary.”
+   - Replace `data-openbb` description from "OpenBB / provider abstraction" to "official/public-source adapter boundary."
    - Keep the service boundary if needed for migration continuity, but remove wording that treats OpenBB as production truth.
 
-2. **Product Surfaces → Market Pulse**
-   - Replace quote-led wording such as “market and index moves (via OpenBB)” with a public-source-first definition:
+2. **Product Surfaces -> Market Pulse**
+   - Replace quote-led wording such as "market and index moves (via OpenBB)" with a public-source-first definition:
      - official macro releases
      - watched-name disclosure changes
      - first-party company context
@@ -23,7 +25,7 @@ This is not a replacement for `ph6_BLUEBOOK.md`. It is the implementation checkl
    - If quote-derived sections remain in contract form, make them optional and explicitly degradable.
 
 3. **Source-of-Truth Hierarchy**
-   - Replace “structured market/macro data from the governed OpenBB path” with official macro truth + canonical disclosure events + bounded context.
+   - Replace "structured market/macro data from the governed OpenBB path" with official macro truth + canonical disclosure events + bounded context.
 
 4. **Dependency Risk Register**
    - Remove OpenBB provider-risk framing as the expected long-term path.
@@ -49,17 +51,17 @@ This is not a replacement for `ph6_BLUEBOOK.md`. It is the implementation checkl
 ### Must change
 
 1. **Architecture in One Paragraph**
-   - Remove “OpenBB provides market and macro data for Market Pulse.”
+   - Remove "OpenBB provides market and macro data for Market Pulse."
    - Replace with official/public-source data plane language.
 
 2. **Core Stack table**
    - Remove OpenBB as a named core dependency.
    - Replace with either:
-     - `data-openbb` (temporary service name) — official/public-source adapter boundary, or
+     - `data-openbb` (temporary service name) - official/public-source adapter boundary, or
      - `data-public` if the rename has been completed.
 
 3. **Milestone descriptions**
-   - Any line that still says “OpenBB + news-ingest-powered” should be marked legacy or updated to the Phase 6 interpretation.
+   - Any line that still says "OpenBB + news-ingest-powered" should be marked legacy or updated to the Phase 6 interpretation.
 
 ---
 
@@ -67,12 +69,12 @@ This is not a replacement for `ph6_BLUEBOOK.md`. It is the implementation checkl
 
 ### Must change
 
-1. **Legal and Compliance Boundaries → Data sourcing**
+1. **Legal and Compliance Boundaries -> Data sourcing**
    - Remove the implication that Market Pulse depends on regulated providers via OpenBB as a permanent product requirement.
    - Replace with official macro + first-party company context + allowlisted bounded context.
 
 2. **Market Pulse description**
-   - Shift from “what moved” in a quote-board sense toward “what changed that matters” through macro, disclosure, and watched-name context.
+   - Shift from "what moved" in a quote-board sense toward "what changed that matters" through macro, disclosure, and watched-name context.
    - Keep the user value intact; change the substrate.
 
 3. **Edge cases**
@@ -88,7 +90,7 @@ This is not a replacement for `ph6_BLUEBOOK.md`. It is the implementation checkl
 
 ### Must change
 
-1. **Pinned dependency record — OpenBB**
+1. **Pinned dependency record - OpenBB**
    - Mark as deprecated / migration-out path.
    - Replace the current language that says OpenBB is the primary Market Pulse source.
 
@@ -110,14 +112,14 @@ This is not a replacement for `ph6_BLUEBOOK.md`. It is the implementation checkl
    - Replace with SEC / official macro / allowlisted context fixtures.
 
 2. **M6 Market Pulse**
-   - Rewrite the inputs from “OpenBB + news-ingest” to:
+   - Rewrite the inputs from "OpenBB + news-ingest" to:
      - official macro release inputs
      - canonical disclosure events
      - first-party context inputs
      - bounded allowlisted context items
 
 3. **M9 Hardening**
-   - Replace “block data-openbb outbound connections” with outage tests appropriate to the new official/public-source adapters and first-party ingest paths.
+   - Replace "block data-openbb outbound connections" with outage tests appropriate to the new official/public-source adapters and first-party ingest paths.
 
 ### Important note
 
@@ -148,7 +150,8 @@ Older milestone text can remain archived for historical accuracy, but it must be
 
 3. **Fear & Greed architecture**
    - Remove yfinance-dependent inputs.
-   - Either deprecate the feature or replace it with official-only Macro Stress.
+   - Replace active Fear & Greed behavior with official-only Macro Stress.
+   - Existing Fear & Greed snapshots may remain as clearly labeled archived history only.
 
 4. **Calendar data**
    - Replace provider-backed calendar assumptions with a three-state earnings-event model: `estimated`, `confirmed`, `actual`.
@@ -163,7 +166,7 @@ These phases are directionally compatible and should largely remain.
 
 ### Must still update references where needed
 
-- Any reference to “existing signal sources” should exclude deprecated paid/provider assumptions.
+- Any reference to "existing signal sources" should exclude deprecated paid/provider assumptions.
 - Any feature that implicitly needs quote precision should be relabeled, degraded, or redefined.
 - War Room, Exception Briefing, Freshness, Cross-Name, and Scenario flows should inherit Phase 6 substrate rules.
 

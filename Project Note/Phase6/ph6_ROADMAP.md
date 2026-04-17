@@ -3,14 +3,14 @@
 Name of the app : "Thesis"  
 Marketing for the app : "Every position needs one"
 
-**Thesis — every position needs one**
+**Thesis - every position needs one**
 
 **Version:** 1.0  
 **Status:** Active  
 **Last Revised:** 2026-04-16  
-**Related Documents:** `ph6_BLUEBOOK.md`, `ph6_MILESTONES.md`, `ph6_PRD.md`
+**Related Documents:** `ph6_BLUEBOOK.md`, `ph6_MILESTONES.md`, `ph6_PRD.md`, `PH6_DECISION_LOCKS.md`
 
-> Phase 6 is the final architecture phase. It exists to remove paid and rights-ambiguous market-data assumptions from the core product while preserving the Thesis product edge.
+> Phase 6 is the final data-substrate architecture phase. It exists to remove paid and rights-ambiguous market-data assumptions from the core product while preserving the Thesis product edge.
 
 ---
 
@@ -31,6 +31,12 @@ No milestone begins until the previous one is closed. Closed means:
 2. smoke test evidence recorded,
 3. rollback confirmed,
 4. no hidden dependency on deprecated providers remains in the affected path.
+
+Evidence is recorded under:
+
+```text
+Project Note/Phase6/Milestones/M#/evidence/
+```
 
 ---
 

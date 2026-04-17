@@ -7,9 +7,11 @@
 
 > This document extends `BLUEBOOK cld.md`, `ph2_BLUEBOOK.md`, `ph3_BLUEBOOK.md`, `ph4_BLUEBOOK.md`, and `ph5_BLUEBOOK.md`.
 >
-> **Selective supersession note:** Phase 6 is the final architecture phase and explicitly supersedes prior assumptions that Thesis depends on OpenBB, FMP, Polygon, Alpha Vantage, yfinance, or any other paid or rights-ambiguous market-data API for its core product behavior. Where earlier docs refer to `data-openbb`, paid-provider-backed Market Pulse, beta-from-provider-price, or quote-native product requirements, those assumptions are deprecated by this document.
+> **Selective supersession note:** Phase 6 is the final data-substrate architecture phase and explicitly supersedes prior assumptions that Thesis depends on OpenBB, FMP, Polygon, Alpha Vantage, yfinance, or any other paid or rights-ambiguous market-data API for its core product behavior. Where earlier docs refer to `data-openbb`, paid-provider-backed Market Pulse, beta-from-provider-price, or quote-native product requirements, those assumptions are deprecated by this document.
 >
 > The existing service boundary may temporarily keep the folder name `data-openbb` for migration continuity, but its production responsibility is redefined as an official/public-source adapter boundary. A later repository rename to `data-public` is allowed, but it is not required to begin the migration.
+>
+> `PH6_DECISION_LOCKS.md` defines the locked implementation decisions, guard scope, contract names, and evidence standard for this phase.
 
 ---
 
@@ -60,7 +62,7 @@ Phase 6 adds seven non-negotiables:
 4. **First-party-before-third-party context.** IR pages, company press releases, investor presentations, and SEC exhibits outrank publisher interpretation.
 5. **Deterministic substrate, narrated surface.** Diffs, freshness math, decay math, alert gating, and scenario math remain deterministic code; the LLM explains but does not decide those results.
 6. **No scrape backbone.** Browser automation is allowlisted, event-driven, and bounded. It is never the system-of-record layer.
-7. **Coverage honesty.** Missing market-derived inputs are surfaced explicitly; Thesis does not hide the difference between “not material” and “not covered.”
+7. **Coverage honesty.** Missing market-derived inputs are surfaced explicitly; Thesis does not hide the difference between "not material" and "not covered."
 
 ---
 
@@ -88,7 +90,7 @@ But the data plane is reinterpreted as:
 ### 3.2 Service-boundary reinterpretation
 
 - `data-openbb` is no longer a paid-provider abstraction in production doctrine. It becomes the governed internal adapter layer for official/public-source retrieval and normalization.
-- `news-ingest` is no longer treated as a broad “news crawler.” It becomes a bounded context-ingest service for allowlisted RSS, first-party company materials, and event-driven fetches.
+- `news-ingest` is no longer treated as a broad "news crawler." It becomes a bounded context-ingest service for allowlisted RSS, first-party company materials, and event-driven fetches.
 - `dexter-worker` remains the Deep Dive reasoning engine, but it must stop depending on market-data shortcuts as hidden truth.
 
 ### 3.3 Product-surface reinterpretation
@@ -199,17 +201,18 @@ Where price-derived or market-derived inputs are unavailable or unlicensed, thos
 
 ## 6. Contract Guidance
 
-Phase 6 likely requires additive contract families or versioned extensions in `packages/contracts`.
+Phase 6 requires additive contract families or versioned extensions in `packages/contracts`. The public names below are locked by `PH6_DECISION_LOCKS.md`; if an equivalent contract already exists, extend it deliberately rather than creating a duplicate shape.
 
-| Contract Area | Purpose | Producer | Consumer |
-|---|---|---|---|
-| `CanonicalEvent` | Typed event substrate for filings, macro releases, earnings states, and corporate actions | `product-api`, `scheduler` | `mobile`, `dexter-worker` |
-| `EvidenceRights` | Explicit storage/display rights and source rank metadata | `product-api`, `news-ingest`, `data-openbb` | `mobile`, `dexter-worker` |
-| `CallArtifact` | Release, slides, webcast, transcript, or supplemental company material with completeness and rights flags | `news-ingest`, `product-api` | `dexter-worker`, `mobile` |
-| `EarningsEventState` | `estimated`, `confirmed`, `actual`, with source and timestamp | `product-api`, `scheduler` | `mobile`, `dexter-worker` |
-| `MacroStressSnapshot` | Official-only macro stress summary with missing-input audit trail | `scheduler`, `product-api` | `mobile` |
-| `ContextItem` or versioned news contract | Rights-safe headline/summary/link item for first-party or allowlisted context | `news-ingest` | `product-api`, `mobile`, `dexter-worker` |
-| `AnalysisReport` additive extension | Preserves existing report readability while adding provenance and rights-aware context metadata | `dexter-worker` | `product-api`, `mobile` |
+| Contract Area | Locked file / public names | Purpose | Producer | Consumer |
+|---|---|---|---|---|
+| Official source | `official-source.ts`: `OfficialSourceReference`, `OfficialRetrievalMetadata`, `OfficialMissingFieldState` | Retrieval metadata and missing-field truth | `data-openbb`, `product-api` | `scheduler`, `mobile`, `dexter-worker` |
+| Evidence rights | `evidence-rights.ts`: `EvidenceRightsClass`, `EvidenceDisplayMode`, `EvidenceRightsMetadata` | Explicit storage/display rights and source rank metadata | `product-api`, `news-ingest`, `data-openbb` | `mobile`, `dexter-worker` |
+| Canonical events | `canonical-event.ts`: `CanonicalEvent`, `CanonicalEventFamily`, `CanonicalEventSourceState` | Typed event substrate for filings, macro releases, earnings states, and corporate actions | `product-api`, `scheduler` | `mobile`, `dexter-worker` |
+| First-party context | `first-party-context.ts`: `FirstPartyContextItem`, `FirstPartySourceRegistryEntry`, `FirstPartyContextFetchState` | Rights-safe company context and source registry entries | `news-ingest`, `product-api` | `mobile`, `dexter-worker` |
+| Call artifacts | `call-artifact.ts`: `CallArtifact`, `CallArtifactType`, `CallArtifactCompletenessState` | Release, slides, webcast, transcript, or supplemental company material with completeness and rights flags | `news-ingest`, `product-api` | `dexter-worker`, `mobile` |
+| Earnings state | `earnings-state.ts`: `EarningsEventState`, `EarningsEventTimingState`, `EarningsEventEvidenceState` | `estimated`, `confirmed`, `actual`, with source and timestamp | `product-api`, `scheduler` | `mobile`, `dexter-worker` |
+| Macro stress | `macro-stress.ts`: `MacroStressSnapshot`, `MacroStressInput`, `MacroStressState`, `MacroStressOmission` | Official-only macro stress summary with missing-input audit trail | `scheduler`, `product-api` | `mobile` |
+| Report context | `analysis-report-context.ts`: `AnalysisReportEvidenceContext`, `AnalysisReportOmission`, `AnalysisReportSourceState` | Preserves existing report readability while adding provenance and rights-aware context metadata | `dexter-worker` | `product-api`, `mobile` |
 
 Rules:
 
@@ -234,6 +237,7 @@ Rules:
 8. **No new paid or personal-use API may enter the core path without a new ADR, legal review note, and cost review note.**
 9. **Existing alert-ledger, monitor-state, and notification-preference semantics remain compatible.** Phase 6 changes input quality and evidence rules, not durable user control truth.
 10. **Fear-and-greed continuation is not assumed.** If it cannot be supported by official-only inputs, Macro Stress replaces it.
+11. **Dependency guard scope is protected-path aware.** M0 guards active production code, runtime config, contracts, mobile production code, and active Phase 6 docs; archived historical docs and evidence may mention deprecated providers only as superseded history.
 
 ---
 
@@ -245,9 +249,9 @@ Rules:
 | Rights bleed from stored text | Thesis could accidentally warehouse or display text beyond its rights | Mandatory evidence rights metadata, default excerpt-only storage, and allowlist review |
 | First-party sites change layout or block automation | Event-driven context can silently degrade | Domain allowlist, page-hash monitors, fallback to SEC artifacts, and parser-specific smoke fixtures |
 | Earnings timing is ambiguous | War Room and alerts lose trust if dates are implied too strongly | Three-state model: `estimated`, `confirmed`, `actual`, each with visible source and timestamp |
-| Official macro series revise after release | Users may see changing interpretations without explanation | Retrieved-at timestamps, revision-aware storage, and explicit “revised since prior pull” flags where relevant |
+| Official macro series revise after release | Users may see changing interpretations without explanation | Retrieved-at timestamps, revision-aware storage, and explicit "revised since prior pull" flags where relevant |
 | Scenario outputs imply false precision without price history | Users over-trust weak quant framing | Macro/fundamental scenario framing only; omit market-derived measures when unlicensed or unavailable |
-| Coverage skews toward watched names and leaves the long tail thinner | Product expectations can outrun the actual system | Watched-name-first product promise, coverage metadata, and “not monitored yet” truth states |
+| Coverage skews toward watched names and leaves the long tail thinner | Product expectations can outrun the actual system | Watched-name-first product promise, coverage metadata, and "not monitored yet" truth states |
 | Market Pulse expectation drifts toward terminal behavior | Users expect quote heatmaps the product should not promise | Product copy, UX, and notification text emphasize change-that-matters, not quote-board completeness |
 | Transcript provenance remains unclear | Commercial risk and evidence quality degrade | Use transcript text only when first-party or otherwise rights-clean; otherwise rely on call artifacts and releases |
 

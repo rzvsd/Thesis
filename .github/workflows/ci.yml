@@ -48,6 +48,9 @@ jobs:
       - name: Security | SAST Baseline
         run: corepack pnpm run security:sast
 
+      - name: Phase 6 | Deprecated Dependency Guard
+        run: corepack pnpm run phase6:m0:guard
+
       - name: Lint
         run: corepack pnpm lint
 

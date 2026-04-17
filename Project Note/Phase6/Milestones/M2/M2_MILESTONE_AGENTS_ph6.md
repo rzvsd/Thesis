@@ -1,7 +1,7 @@
-# AGENTS.md — Phase 6 M2 Rights & First-Party Context
-**Milestone:** M2 — Rights & First-Party Context  
-**Inherits from:** Root `AGENTS.md` and `ph6_AGENTS.md` — read both first.  
-**Location:** `Phase6/M2/M2_MILESTONE_AGENTS.md`
+# AGENTS.md - Phase 6 M2 Rights & First-Party Context
+**Milestone:** M2 - Rights & First-Party Context  
+**Inherits from:** Root `AGENTS.md` and `ph6_AGENTS.md` - read both first.  
+**Location:** `Project Note/Phase6/Milestones/M2/M2_MILESTONE_AGENTS_ph6.md`
 
 ---
 
@@ -9,13 +9,15 @@
 
 | Field | Value |
 |---|---|
-| **Milestone** | M2 — Rights & First-Party Context |
-| **Linear Project** | PH6 M2 — Rights & First-Party Context |
+| **Milestone** | M2 - Rights & First-Party Context |
+| **Linear Project** | PH6 M2 - Rights & First-Party Context |
 | **Owner** | Backend Engineer + Platform Architect |
 | **Status** | Planned |
 | **Depends on** | M1 complete + initial allowlist |
 
 ---
+
+Before implementation, read `PH6_DECISION_LOCKS.md` for locked decisions, contract names, guard scope, and evidence standards.
 
 ## 1. What This Milestone Is Building
 
@@ -23,7 +25,7 @@ Add rights-safe evidence handling and event-driven first-party context ingestion
 
 ---
 
-## 2. Scope — What Is In
+## 2. Scope - What Is In
 
 - [ ] evidence rights metadata
 - [ ] first-party source registry
@@ -33,7 +35,7 @@ Add rights-safe evidence handling and event-driven first-party context ingestion
 
 ---
 
-## 3. Scope — What Is Out
+## 3. Scope - What Is Out
 
 - [ ] macro stress generation
 - [ ] earnings scheduler semantics
@@ -69,7 +71,7 @@ Rules:
 
 ## 6. Linear Ticket Rules For This Milestone
 
-**Project:** PH6 M2 — Rights & First-Party Context
+**Project:** PH6 M2 - Rights & First-Party Context
 
 Ticket naming:
 
@@ -158,7 +160,7 @@ Notes:
 
 | Decision | What was decided | ADR required? |
 |---|---|---|
-| — | — | — |
+| - | - | - |
 
 ---
 
@@ -166,4 +168,4 @@ Notes:
 
 | Issue | Why deferred | Linear ticket | Target milestone |
 |---|---|---|---|
-| — | — | — | — |
+| - | - | - | - |

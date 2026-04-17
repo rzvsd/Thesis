@@ -1,7 +1,7 @@
-# AGENTS.md — Phase 6 M4 Earnings State & War Room Substrate
-**Milestone:** M4 — Earnings State & War Room Substrate  
-**Inherits from:** Root `AGENTS.md` and `ph6_AGENTS.md` — read both first.  
-**Location:** `Phase6/M4/M4_MILESTONE_AGENTS.md`
+# AGENTS.md - Phase 6 M1 Official Truth Data Plane
+**Milestone:** M1 - Official Truth Data Plane  
+**Inherits from:** Root `AGENTS.md` and `ph6_AGENTS.md` - read both first.  
+**Location:** `Project Note/Phase6/Milestones/M1/M1_MILESTONE_AGENTS_ph6.md`
 
 ---
 
@@ -9,35 +9,37 @@
 
 | Field | Value |
 |---|---|
-| **Milestone** | M4 — Earnings State & War Room Substrate |
-| **Linear Project** | PH6 M4 — Earnings State & War Room Substrate |
-| **Owner** | Product API Owner + AI/Reasoning Engineer |
+| **Milestone** | M1 - Official Truth Data Plane |
+| **Linear Project** | PH6 M1 - Official Truth Data Plane |
+| **Owner** | Data Platform Engineer |
 | **Status** | Planned |
-| **Depends on** | M3 complete |
+| **Depends on** | M0 complete |
 
 ---
+
+Before implementation, read `PH6_DECISION_LOCKS.md` for locked decisions, contract names, guard scope, and evidence standards.
 
 ## 1. What This Milestone Is Building
 
-Use estimated/confirmed/actual state and first-party artifacts to power earnings workflows.
+Build SEC and official macro adapters as the canonical production substrate.
 
 ---
 
-## 2. Scope — What Is In
+## 2. Scope - What Is In
 
-- [ ] three-state earnings model
-- [ ] event-window triggers
-- [ ] War Room evidence pack
-- [ ] earnings alert reason paths
-- [ ] transcript-optional workflow support
+- [ ] SEC company truth adapters
+- [ ] official macro adapters
+- [ ] canonical filing and macro event normalization
+- [ ] golden fixtures and missing-data tests
+- [ ] no-provider-key smoke path
 
 ---
 
-## 3. Scope — What Is Out
+## 3. Scope - What Is Out
 
-- [ ] new paid earnings calendar vendor
-- [ ] transcript-as-required-core-path
-- [ ] market-price-heavy event windows
+- [ ] rights-aware text storage
+- [ ] first-party IR fetch logic
+- [ ] mobile presentation changes
 
 ---
 
@@ -45,9 +47,9 @@ Use estimated/confirmed/actual state and first-party artifacts to power earnings
 
 | Service | What you are doing in it |
 |---|---|
-| `product-api` | earnings state and War Room APIs |
-| `scheduler` | event-window orchestration |
-| `dexter-worker` | follow-up questions and contradiction summaries |
+| `data-openbb` | official/public-source adapters only |
+| `scheduler` | official refresh jobs |
+| `product-api` | canonical event persistence |
 
 ---
 
@@ -55,9 +57,8 @@ Use estimated/confirmed/actual state and first-party artifacts to power earnings
 
 | Contract | Change type |
 |---|---|
-| `EarningsEventState` | estimated/confirmed/actual |
-| `CallArtifact` | earnings materials |
-| `alert payloads` | reason path compatibility |
+| `CanonicalEvent` | new typed event substrate |
+| `existing company/macro contracts` | provider-agnostic official-source semantics |
 
 Rules:
 
@@ -69,14 +70,14 @@ Rules:
 
 ## 6. Linear Ticket Rules For This Milestone
 
-**Project:** PH6 M4 — Earnings State & War Room Substrate
+**Project:** PH6 M1 - Official Truth Data Plane
 
 Ticket naming:
 
 ```text
-[PH6-M4] What is being built
-[PH6-M4][BUG] What is broken
-[PH6-M4][SPIKE] What is being investigated
+[PH6-M1] What is being built
+[PH6-M1][BUG] What is broken
+[PH6-M1][SPIKE] What is being investigated
 ```
 
 Every ticket must include:
@@ -142,11 +143,11 @@ Run by:
 Environment:
 Result:
 
-Step 1: Seed estimated and confirmed events in test mode
-Step 2: Confirm the API distinguishes the states
-Step 3: Trigger a results artifact and confirm actual state
-Step 4: Open War Room payload and confirm transcript is optional
-Step 5: Confirm alert reason paths are present
+Step 1: Start the official-source adapters
+Step 2: Request company truth for AAPL, MSFT, and TSLA
+Step 3: Confirm payloads validate and include missing-field truth
+Step 4: Request approved macro scope and confirm validation
+Step 5: Remove deprecated provider keys and confirm the smoke still passes
 
 Steps failed (if any):
 Notes:
@@ -158,7 +159,7 @@ Notes:
 
 | Decision | What was decided | ADR required? |
 |---|---|---|
-| — | — | — |
+| - | - | - |
 
 ---
 
@@ -166,4 +167,4 @@ Notes:
 
 | Issue | Why deferred | Linear ticket | Target milestone |
 |---|---|---|---|
-| — | — | — | — |
+| - | - | - | - |

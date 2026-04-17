@@ -1,7 +1,7 @@
-# AGENTS.md — Phase 6 M3 Morning Exception Briefing & Macro Stress
-**Milestone:** M3 — Morning Exception Briefing & Macro Stress  
-**Inherits from:** Root `AGENTS.md` and `ph6_AGENTS.md` — read both first.  
-**Location:** `Phase6/M3/M3_MILESTONE_AGENTS.md`
+# AGENTS.md - Phase 6 M3 Morning Exception Briefing & Macro Stress
+**Milestone:** M3 - Morning Exception Briefing & Macro Stress  
+**Inherits from:** Root `AGENTS.md` and `ph6_AGENTS.md` - read both first.  
+**Location:** `Project Note/Phase6/Milestones/M3/M3_MILESTONE_AGENTS_ph6.md`
 
 ---
 
@@ -9,13 +9,15 @@
 
 | Field | Value |
 |---|---|
-| **Milestone** | M3 — Morning Exception Briefing & Macro Stress |
-| **Linear Project** | PH6 M3 — Morning Exception Briefing & Macro Stress |
+| **Milestone** | M3 - Morning Exception Briefing & Macro Stress |
+| **Linear Project** | PH6 M3 - Morning Exception Briefing & Macro Stress |
 | **Owner** | Scheduler Owner + Product Lead |
 | **Status** | Planned |
 | **Depends on** | M2 complete |
 
 ---
+
+Before implementation, read `PH6_DECISION_LOCKS.md` for locked decisions, contract names, guard scope, and evidence standards.
 
 ## 1. What This Milestone Is Building
 
@@ -23,7 +25,7 @@ Rebuild Pulse around official macro, canonical events, and bounded context; repl
 
 ---
 
-## 2. Scope — What Is In
+## 2. Scope - What Is In
 
 - [ ] morning exception briefing pipeline
 - [ ] Macro Stress snapshot
@@ -33,7 +35,7 @@ Rebuild Pulse around official macro, canonical events, and bounded context; repl
 
 ---
 
-## 3. Scope — What Is Out
+## 3. Scope - What Is Out
 
 - [ ] quote-board re-creation
 - [ ] licensed intraday market data
@@ -68,7 +70,7 @@ Rules:
 
 ## 6. Linear Ticket Rules For This Milestone
 
-**Project:** PH6 M3 — Morning Exception Briefing & Macro Stress
+**Project:** PH6 M3 - Morning Exception Briefing & Macro Stress
 
 Ticket naming:
 
@@ -157,7 +159,7 @@ Notes:
 
 | Decision | What was decided | ADR required? |
 |---|---|---|
-| — | — | — |
+| - | - | - |
 
 ---
 
@@ -165,4 +167,4 @@ Notes:
 
 | Issue | Why deferred | Linear ticket | Target milestone |
 |---|---|---|---|
-| — | — | — | — |
+| - | - | - | - |

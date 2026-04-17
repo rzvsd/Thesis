@@ -1,14 +1,14 @@
-# AGENTS.md — Phase 6 Final Architecture Phase
+# AGENTS.md - Phase 6 Final Data-Substrate Architecture Phase
 
 **Scope:** Phase 6 only.  
-**Inherits from:** Root `AGENTS.md` — read that first.  
-**Read next:** `ph6_BLUEBOOK.md`, `ph6_PRD.md`, `ph6_MILESTONES.md`, `ph6_SECURITY.md`, and then the current `ph6_M#_MILESTONE_AGENTS.md`.
+**Inherits from:** Root `AGENTS.md` - read that first.
+**Read next:** `ph6_BLUEBOOK.md`, `ph6_PRD.md`, `PH6_DECISION_LOCKS.md`, `ph6_MILESTONES.md`, `ph6_SECURITY.md`, and then the current `Milestones/M#/M#_MILESTONE_AGENTS_ph6.md`.
 
 ---
 
 ## 1. Who You Are In Phase 6
 
-You are the implementation agent for the final architecture phase of Thesis.
+You are the implementation agent for the final data-substrate architecture phase of Thesis.
 
 Your job is to execute the documented migration from provider-backed assumptions to an official-source-first, rights-aware, first-party-context architecture.
 
@@ -33,12 +33,13 @@ Remove paid and rights-ambiguous market-data dependencies from the core Thesis p
 | Document | Governs |
 |---|---|
 | Root `AGENTS.md` | Global operating rules |
-| `ph6_BLUEBOOK.md` | Final architecture doctrine, ownership, compatibility guardrails |
+| `ph6_BLUEBOOK.md` | Final data-substrate architecture doctrine, ownership, compatibility guardrails |
 | `ph6_PRD.md` | Product behavior after the no-paid-data cutover |
+| `PH6_DECISION_LOCKS.md` | Locked decisions, contract names, guard scope, and evidence standard |
 | `ph6_MILESTONES.md` | Phase 6 acceptance criteria, smoke tests, rollback expectations |
 | `ph6_SECURITY.md` | Source classes, fetch policy, rights policy, secret cleanup expectations |
 | `ph6_DOC_OVERRIDES.md` | Repo-wide document reconciliation work |
-| `ph6_M#_MILESTONE_AGENTS.md` | Current milestone execution rules |
+| `Milestones/M#/M#_MILESTONE_AGENTS_ph6.md` | Current milestone execution rules |
 | `ph6_ADR-*.md` | Explicit Phase 6 architectural decisions |
 
 Before writing code in this phase:
@@ -46,9 +47,10 @@ Before writing code in this phase:
 - [ ] Read root `AGENTS.md`
 - [ ] Read `ph6_BLUEBOOK.md`
 - [ ] Read `ph6_PRD.md`
+- [ ] Read `PH6_DECISION_LOCKS.md`
 - [ ] Read `ph6_SECURITY.md`
 - [ ] Read the relevant milestone in `ph6_MILESTONES.md`
-- [ ] Read the current `ph6_M#_MILESTONE_AGENTS.md`
+- [ ] Read the current `Milestones/M#/M#_MILESTONE_AGENTS_ph6.md`
 - [ ] Confirm which service boundary you are touching
 - [ ] Confirm which deprecated dependency assumptions this work removes or preserves
 
@@ -108,7 +110,7 @@ A Phase 6 implementation that still depends on one of the above in a production-
 5. Hide `estimated` vs `confirmed` event state from the user-facing contract.
 6. Add a new package in `packages/` unless it is shared by at least two apps and approved by the milestone owner.
 7. Treat browser automation as a blanket crawler.
-8. Leave deprecated provider keys in the “required for smoke” path.
+8. Leave deprecated provider keys in the "required for smoke" path.
 
 ---
 
@@ -165,7 +167,8 @@ Raise a flag before proceeding if:
 - the task changes a contract used across more than one service
 - the task changes alert semantics or earnings-state semantics
 - the task needs a new browser automation path or scraping rule
-- the task needs to keep an old provider path “temporarily” without a written exit plan
+- the task needs to keep an old provider path "temporarily" without a written exit plan
+- the task conflicts with `PH6_DECISION_LOCKS.md`
 
 When in doubt: flag it. Do not improvise the migration.
 

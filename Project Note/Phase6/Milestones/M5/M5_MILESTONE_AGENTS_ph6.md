@@ -1,7 +1,7 @@
-# AGENTS.md — Phase 6 M1 Official Truth Data Plane
-**Milestone:** M1 — Official Truth Data Plane  
-**Inherits from:** Root `AGENTS.md` and `ph6_AGENTS.md` — read both first.  
-**Location:** `Phase6/M1/M1_MILESTONE_AGENTS.md`
+# AGENTS.md - Phase 6 M5 Deep Dive / Scenario Final Cutover & Hardening
+**Milestone:** M5 - Deep Dive / Scenario Final Cutover & Hardening  
+**Inherits from:** Root `AGENTS.md` and `ph6_AGENTS.md` - read both first.  
+**Location:** `Project Note/Phase6/Milestones/M5/M5_MILESTONE_AGENTS_ph6.md`
 
 ---
 
@@ -9,35 +9,37 @@
 
 | Field | Value |
 |---|---|
-| **Milestone** | M1 — Official Truth Data Plane |
-| **Linear Project** | PH6 M1 — Official Truth Data Plane |
-| **Owner** | Data Platform Engineer |
+| **Milestone** | M5 - Deep Dive / Scenario Final Cutover & Hardening |
+| **Linear Project** | PH6 M5 - Deep Dive / Scenario Final Cutover & Hardening |
+| **Owner** | Engineering Lead + Product Lead |
 | **Status** | Planned |
-| **Depends on** | M0 complete |
+| **Depends on** | M4 complete |
 
 ---
+
+Before implementation, read `PH6_DECISION_LOCKS.md` for locked decisions, contract names, guard scope, and evidence standards.
 
 ## 1. What This Milestone Is Building
 
-Build SEC and official macro adapters as the canonical production substrate.
+Finish the provider-free Deep Dive and Scenario migration, then prove the product still works end to end.
 
 ---
 
-## 2. Scope — What Is In
+## 2. Scope - What Is In
 
-- [ ] SEC company truth adapters
-- [ ] official macro adapters
-- [ ] canonical filing and macro event normalization
-- [ ] golden fixtures and missing-data tests
-- [ ] no-provider-key smoke path
+- [ ] Deep Dive cutover to official + first-party substrate
+- [ ] scenario / valuation input model without beta dependency
+- [ ] compatibility layer for older reports
+- [ ] end-to-end smoke proof
+- [ ] rollback rehearsal and final dependency proof
 
 ---
 
-## 3. Scope — What Is Out
+## 3. Scope - What Is Out
 
-- [ ] rights-aware text storage
-- [ ] first-party IR fetch logic
-- [ ] mobile presentation changes
+- [ ] new premium data contracts
+- [ ] licensed quote re-entry
+- [ ] post-phase backlog experiments
 
 ---
 
@@ -45,9 +47,9 @@ Build SEC and official macro adapters as the canonical production substrate.
 
 | Service | What you are doing in it |
 |---|---|
-| `data-openbb` | official/public-source adapters only |
-| `scheduler` | official refresh jobs |
-| `product-api` | canonical event persistence |
+| `dexter-worker` | Phase 6 Deep Dive and scenario logic |
+| `product-api` | read/write compatibility and end-to-end orchestration |
+| `mobile` | omission and provenance-safe rendering |
 
 ---
 
@@ -55,8 +57,8 @@ Build SEC and official macro adapters as the canonical production substrate.
 
 | Contract | Change type |
 |---|---|
-| `CanonicalEvent` | new typed event substrate |
-| `existing company/macro contracts` | provider-agnostic official-source semantics |
+| `AnalysisReport` | Phase 6-compatible read model |
+| `scenario payloads` | explicit omission semantics |
 
 Rules:
 
@@ -68,14 +70,14 @@ Rules:
 
 ## 6. Linear Ticket Rules For This Milestone
 
-**Project:** PH6 M1 — Official Truth Data Plane
+**Project:** PH6 M5 - Deep Dive / Scenario Final Cutover & Hardening
 
 Ticket naming:
 
 ```text
-[PH6-M1] What is being built
-[PH6-M1][BUG] What is broken
-[PH6-M1][SPIKE] What is being investigated
+[PH6-M5] What is being built
+[PH6-M5][BUG] What is broken
+[PH6-M5][SPIKE] What is being investigated
 ```
 
 Every ticket must include:
@@ -141,11 +143,11 @@ Run by:
 Environment:
 Result:
 
-Step 1: Start the official-source adapters
-Step 2: Request company truth for AAPL, MSFT, and TSLA
-Step 3: Confirm payloads validate and include missing-field truth
-Step 4: Request approved macro scope and confirm validation
-Step 5: Remove deprecated provider keys and confirm the smoke still passes
+Step 1: Run Deep Dives for 3 names
+Step 2: Confirm reports validate without deprecated providers
+Step 3: Run a scenario with one omitted market-derived dimension
+Step 4: Confirm omission is explicit
+Step 5: Run the final dependency scan and confirm clean pass
 
 Steps failed (if any):
 Notes:
@@ -157,7 +159,7 @@ Notes:
 
 | Decision | What was decided | ADR required? |
 |---|---|---|
-| — | — | — |
+| - | - | - |
 
 ---
 
@@ -165,4 +167,4 @@ Notes:
 
 | Issue | Why deferred | Linear ticket | Target milestone |
 |---|---|---|---|
-| — | — | — | — |
+| - | - | - | - |

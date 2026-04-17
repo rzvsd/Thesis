@@ -3,9 +3,9 @@
 Name of the app : "Thesis"  
 Marketing for the app : "Every position needs one"
 
-**Thesis — every position needs one**
+**Thesis - every position needs one**
 
-A final architecture phase that removes paid and rights-ambiguous market-data dependencies from the core Thesis product.
+A final data-substrate architecture phase that removes paid and rights-ambiguous market-data dependencies from the core Thesis product.
 
 ---
 
@@ -26,13 +26,13 @@ Phase 6 turns Thesis into a cleaner, more defensible intelligence product built 
 
 ## What Thesis Still Does
 
-**Company Deep Dive** — structured company research grounded in filings, historical truth, first-party artifacts, and explicit evidence.
+**Company Deep Dive** - structured company research grounded in filings, historical truth, first-party artifacts, and explicit evidence.
 
-**Morning Exception Briefing** — a scheduled daily briefing that explains what changed in macro, watched-name disclosures, and first-party company context since the last cycle.
+**Morning Exception Briefing** - a scheduled daily briefing that explains what changed in macro, watched-name disclosures, and first-party company context since the last cycle.
 
-**Earnings War Room** — pre-event, event-day, and post-event workflows based on confirmed/estimated/actual timing, release artifacts, and contradiction tracking.
+**Earnings War Room** - pre-event, event-day, and post-event workflows based on confirmed/estimated/actual timing, release artifacts, and contradiction tracking.
 
-**Conviction Freshness / Scenario Stress** — deterministic freshness, decay, and macro/fundamental scenarios without pretending to own licensed quote completeness.
+**Conviction Freshness / Scenario Stress** - deterministic freshness, decay, and macro/fundamental scenarios without pretending to own licensed quote completeness.
 
 ---
 
@@ -89,15 +89,22 @@ Phase 6 local development is valid only if the app can be exercised with officia
 
 | Document | Purpose |
 |---|---|
-| `ph6_BLUEBOOK.md` | Final architecture phase doctrine and ownership |
+| `ph6_BLUEBOOK.md` | Final data-substrate architecture phase doctrine and ownership |
 | `ph6_PRD.md` | Product requirements addendum for the no-paid-data Thesis |
 | `ph6_MILESTONES.md` | Phase 6 milestone briefs |
 | `ph6_AGENTS.md` | Phase-wide operating rules |
 | `ph6_SECURITY.md` | Source, rights, secret, and fetch policy |
 | `ph6_DOC_OVERRIDES.md` | Repo-wide changes needed so old docs stop contradicting Phase 6 |
+| `PH6_DECISION_LOCKS.md` | Locked decisions, exact contract names, guard scope, and evidence standard before build |
+| `ph6_ADR-001_official_data_substrate.md` | Official/public-source substrate decision |
+| `ph6_ADR-002_deprecated_dependency_guard.md` | Protected-path deprecated dependency guard decision |
+| `ph6_ADR-003_rights_first_evidence.md` | Rights-first evidence and first-party context decision |
+| `ph6_ADR-004_macro_stress_replaces_fear_greed.md` | Fear & Greed to Macro Stress transition decision |
+| `ph6_ADR-005_earnings_state_and_call_artifacts.md` | Earnings state and call artifact substrate decision |
+| `ph6_ADR-006_final_cutover_and_omission_truth.md` | Final cutover and explicit omission truth decision |
 
 ---
 
 ## Guiding Principle
 
-**Premium value must come from reasoning, context discipline, and explainability — not from buying every feed.**
+**Premium value must come from reasoning, context discipline, and explainability - not from buying every feed.**

@@ -4,7 +4,7 @@
 **Status:** Active  
 **Owner:** Engineering Lead + Product Lead  
 **Last Revised:** 2026-04-16  
-**Related Documents:** `ph6_BLUEBOOK.md`, `ph6_PRD.md`, `ph6_ROADMAP.md`, `ph6_SECURITY.md`
+**Related Documents:** `ph6_BLUEBOOK.md`, `ph6_PRD.md`, `ph6_ROADMAP.md`, `ph6_SECURITY.md`, `PH6_DECISION_LOCKS.md`
 
 ---
 
@@ -15,6 +15,12 @@ Each Phase 6 milestone is a self-contained brief. It defines what is being built
 Phase 6 has one additional closeout rule compared with earlier phases:
 
 **A milestone is not done if it keeps a deprecated provider dependency alive in the affected production path.**
+
+Each milestone records proof under:
+
+```text
+Project Note/Phase6/Milestones/M#/evidence/
+```
 
 ---
 
@@ -45,31 +51,36 @@ Make the migration explicit before implementation work fragments across services
 |---|---|
 | Dependency inventory | Named list of every production path that still references OpenBB, FMP, yfinance, paid/provider-shaped data, or quote-heavy assumptions |
 | Doc pack | `ph6_BLUEBOOK.md`, `ph6_PRD.md`, `ph6_ROADMAP.md`, `ph6_AGENTS.md`, `ph6_SECURITY.md`, and milestone docs committed |
-| ADR set | Phase 6 ADR-001 through ADR-006 drafted |
+| ADR set | `ph6_ADR-001_official_data_substrate.md` through `ph6_ADR-006_final_cutover_and_omission_truth.md` drafted |
 | CI guardrail | A failing check if a deprecated dependency is imported or required in a production-critical path |
 | Migration matrix | For each affected surface, a replacement path and omission rule |
 | Secret cleanup plan | Inventory of old provider keys and environment flags with deprecation status |
+| Decision locks | `PH6_DECISION_LOCKS.md` records guard scope, source policy, Fear & Greed transition, evidence format, and exact contract names |
 
 ## Acceptance Criteria
 
-- [ ] Every production-critical reference to deprecated providers is inventoried by file or service boundary
-- [ ] The Phase 6 document pack is committed
-- [ ] ADR-001 through ADR-006 are drafted and linked
-- [ ] CI fails when a deprecated provider is introduced into the protected path
-- [ ] A migration matrix exists for Deep Dive, Pulse, War Room, alerts, freshness, and scenarios
-- [ ] Old provider secrets are marked active / deprecated / archived with an owner
+- [x] Every production-critical reference to deprecated providers is inventoried by file or service boundary
+- [x] The Phase 6 document pack is committed
+- [x] ADR-001 through ADR-006 are drafted and linked
+- [x] CI fails when a deprecated provider is introduced into the protected path
+- [x] A migration matrix exists for Deep Dive, Pulse, War Room, alerts, freshness, and scenarios
+- [x] Old provider secrets are marked active / deprecated / archived with an owner
+- [x] The dependency guard scope distinguishes protected active paths from archived historical docs and evidence
+- [x] Exact Phase 6 contract names and files are locked before implementation begins
 
 ## Smoke Test
 
 ```text
 Step 1: Run the Phase 6 dependency scan locally
-Step 2: Confirm — every known OpenBB/FMP/yfinance-style production path is reported
+Step 2: Confirm - every known OpenBB/FMP/yfinance-style protected production path is reported
 Step 3: Add a temporary forbidden import in a protected service
-Step 4: Confirm — CI or local guard fails
+Step 4: Confirm - CI or local guard fails
 Step 5: Remove the temporary forbidden import
-Step 6: Confirm — guard passes again
-Step 7: Open the doc pack and verify all linked files exist
-Step 8: Confirm — the migration matrix maps every affected surface to a replacement or omission rule
+Step 6: Confirm - guard passes again
+Step 7: Confirm archived Phase1-Phase5 docs can mention superseded providers without failing the protected-path guard
+Step 8: Open the doc pack and verify all linked files exist
+Step 9: Confirm - the migration matrix maps every affected surface to a replacement or omission rule
+Step 10: Confirm `PH6_DECISION_LOCKS.md` lists contract names, guard scope, source locks, and evidence standard
 ```
 
 ## Success
@@ -82,6 +93,7 @@ The team can migrate without pretending the old architecture is still acceptable
 |---|---|---|
 | Hidden provider dependency survives | Dependency scan misses it or smoke path still calls it | Phase 6 becomes theater instead of a cutover |
 | CI guard is too weak | Deprecated code can merge silently | Regression risk remains high |
+| CI guard is too broad | Historical docs or evidence fail the build even though no runtime path is affected | Phase 6 becomes noisy and slows implementation |
 | Docs disagree with implementation target | Review reveals inconsistent directions | Engineering work fragments and rework grows |
 
 ## Rollback
@@ -132,11 +144,11 @@ Replace provider-shaped data assumptions with official-company and official-macr
 ```text
 Step 1: Start the official-source adapter services locally
 Step 2: Request official company truth for AAPL, MSFT, and TSLA
-Step 3: Confirm — contract-valid official-source payloads are returned
+Step 3: Confirm - contract-valid official-source payloads are returned
 Step 4: Request the approved daily macro scope
-Step 5: Confirm — official macro payload validates and includes retrieval metadata
+Step 5: Confirm - official macro payload validates and includes retrieval metadata
 Step 6: Inspect canonical event output for one filing and one macro release
-Step 7: Confirm — typed events are emitted correctly
+Step 7: Confirm - typed events are emitted correctly
 Step 8: Remove all deprecated provider keys from the local env
 Step 9: Re-run the smoke path and confirm it still passes
 ```
@@ -160,7 +172,7 @@ Redeploy the prior adapter version or disable the new endpoints while keeping th
 ## Dependencies
 
 - M0 complete
-- Approved official macro source list finalized enough for implementation
+- Approved official macro source registry finalized enough for implementation
 
 ## Owner
 
@@ -200,12 +212,12 @@ Make evidence rights explicit and production-safe, and add bounded first-party c
 
 ```text
 Step 1: Trigger a first-party fetch for a supported issuer event
-Step 2: Confirm — the retrieved item has source, rights_class, display_mode, and retrieved_at
+Step 2: Confirm - the retrieved item has source, rights_class, display_mode, and retrieved_at
 Step 3: Retrieve a call artifact for a recent earnings-related event
-Step 4: Confirm — artifact metadata includes artifact_type and completeness state
+Step 4: Confirm - artifact metadata includes artifact_type and completeness state
 Step 5: Attempt to ingest a disallowed domain or undefined rights item in test mode
-Step 6: Confirm — the item is rejected and does not become user-facing evidence
-Step 7: Confirm — excerpt-only or link-only rules are enforced when expected
+Step 6: Confirm - the item is rejected and does not become user-facing evidence
+Step 7: Confirm - excerpt-only or link-only rules are enforced when expected
 ```
 
 ## Success
@@ -249,6 +261,7 @@ Rebuild the daily briefing around official macro, disclosure events, and bounded
 |---|---|
 | Morning Exception Briefing pipeline | Daily briefing built from official macro, canonical events, and bounded context |
 | Macro Stress snapshot | Official-only daily stress summary |
+| Fear & Greed transition | Active Fear & Greed behavior removed, archived, or explicitly replaced by Macro Stress |
 | No-material-change behavior | Explicit briefing output when nothing material happened |
 | Watchlist / My Names relevance | Followed names remain visible through event relevance, not quote theater |
 | Delivery path | Stored and delivered through the existing Product API + mobile path |
@@ -259,6 +272,7 @@ Rebuild the daily briefing around official macro, disclosure events, and bounded
 - [ ] Scheduler generates a valid morning briefing without deprecated provider dependencies
 - [ ] Briefing sections are sourced from official macro, canonical events, and rights-safe context items
 - [ ] Macro Stress snapshot is generated from approved official-only inputs
+- [ ] Active Fear & Greed dashboard behavior is not reachable as a first-class Phase 6 surface unless it is explicitly archived/history-only
 - [ ] If no material changes occurred, the briefing says so explicitly
 - [ ] My Names relevance works through event/context matching rather than quote-board assumptions
 - [ ] Pulse storage and delivery remain operational
@@ -267,13 +281,15 @@ Rebuild the daily briefing around official macro, disclosure events, and bounded
 
 ```text
 Step 1: Trigger the morning briefing in test mode
-Step 2: Confirm — a new job is created and completes successfully
+Step 2: Confirm - a new job is created and completes successfully
 Step 3: Retrieve the generated briefing
-Step 4: Confirm — sections validate and no deprecated provider path was required
+Step 4: Confirm - sections validate and no deprecated provider path was required
 Step 5: Retrieve the Macro Stress snapshot used by the briefing
-Step 6: Confirm — the snapshot uses approved official inputs only
-Step 7: Run a no-material-change test fixture
-Step 8: Confirm — the output explicitly reports no material change rather than padding the briefing
+Step 6: Confirm - the snapshot uses approved official inputs only
+Step 7: Attempt the old Fear & Greed dashboard path
+Step 8: Confirm - it is replaced by Macro Stress, archived/history-only, or explicitly unsupported
+Step 9: Run a no-material-change test fixture
+Step 10: Confirm - the output explicitly reports no material change rather than padding the briefing
 ```
 
 ## Success
@@ -309,7 +325,7 @@ Scheduler Owner + Product Lead
 
 Make earnings timing and war-room readiness reliable without paid calendar or transcript dependencies.
 
-**Plain English:** The product should know the difference between “we think earnings is around then,” “the company confirmed it,” and “results are actually out.”
+**Plain English:** The product should know the difference between "we think earnings is around then," "the company confirmed it," and "results are actually out."
 
 ## Deliverables
 
@@ -334,13 +350,13 @@ Make earnings timing and war-room readiness reliable without paid calendar or tr
 
 ```text
 Step 1: Seed one estimated earnings event and one confirmed earnings event in test mode
-Step 2: Confirm — the API distinguishes the two states clearly
+Step 2: Confirm - the API distinguishes the two states clearly
 Step 3: Trigger a release artifact event
-Step 4: Confirm — the state advances to actual
+Step 4: Confirm - the state advances to actual
 Step 5: Open the War Room payload
-Step 6: Confirm — it includes prior baseline, release artifact, and contradiction/follow-up context
+Step 6: Confirm - it includes prior baseline, release artifact, and contradiction/follow-up context
 Step 7: Remove transcript text from the fixture
-Step 8: Confirm — War Room still validates and remains useful
+Step 8: Confirm - War Room still validates and remains useful
 ```
 
 ## Success
@@ -402,15 +418,15 @@ Complete the provider-free cutover for Deep Dive and Scenario paths, then prove 
 
 ```text
 Step 1: Run a Deep Dive for at least 3 supported names
-Step 2: Confirm — reports validate and do not require deprecated providers
+Step 2: Confirm - reports validate and do not require deprecated providers
 Step 3: Run a scenario stress workflow with one omitted market-derived dimension
-Step 4: Confirm — the omission is explicit and the output remains valid
+Step 4: Confirm - the omission is explicit and the output remains valid
 Step 5: Load an older stored report artifact
-Step 6: Confirm — it remains readable in the app or API
+Step 6: Confirm - it remains readable in the app or API
 Step 7: Trigger Morning Exception Briefing and one earnings alert path
-Step 8: Confirm — the full product loop still works end to end
+Step 8: Confirm - the full product loop still works end to end
 Step 9: Run the final dependency scan
-Step 10: Confirm — no protected service path imports or requires a deprecated provider
+Step 10: Confirm - no protected service path imports or requires a deprecated provider
 ```
 
 ## Success

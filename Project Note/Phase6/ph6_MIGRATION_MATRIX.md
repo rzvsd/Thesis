@@ -27,7 +27,7 @@ If an old feature depends on a paid, personal-use, or rights-ambiguous provider,
 | Deep Dive recent company context | News/transcript-heavy enrichment | First-party IR materials, company releases, filed exhibits, rights-clean call artifacts | Continue with official evidence and flag sparse context |
 | Market Pulse / Morning Briefing | Quote-led heatmap + provider macro + news | Morning Exception Briefing from official macro, canonical disclosure events, and bounded context | Emit explicit no-material-change or reduced context briefing |
 | Rates / FX / energy context | Market-data feed | Official public release or official public dataset | Omit the unsupported dimension and flag coverage |
-| Fear & Greed | Quote-heavy composite from ambiguous sources | Macro Stress from official-only inputs | Remove the old feature; do not fake continuity |
+| Fear & Greed | Quote-heavy composite from ambiguous sources | Macro Stress from official-only inputs | Replace the active surface; archived historical snapshots may remain readable only when clearly labeled history |
 | Earnings calendar | Provider-backed calendar feed | Three-state model: estimated, confirmed, actual | Surface uncertainty explicitly |
 | Earnings War Room | Transcript + quote context as baseline | Prior filings, release artifacts, slides, confirmed/actual states, contradiction summary | Still generate without transcript text |
 | Alerts | Price thresholds as core behavior | Canonical-event and conviction-state alerts | Disable unsupported price-trigger variants |
@@ -71,6 +71,8 @@ A deprecated dependency is considered removed from the core path only when all o
 - the dependency is not imported in the protected production path,
 - the relevant UI or API no longer implies its old behavior,
 - the omission or replacement rule is documented.
+
+The M0 guard applies to protected active paths, not archived historical documentation. Older phase notes, ADR history, and evidence files may mention deprecated providers when they are clearly superseded, but they cannot be required by current smoke, CI, mobile runtime, or Product API behavior.
 
 ---
 

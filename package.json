@@ -14,6 +14,10 @@
     "security:audit": "corepack pnpm audit --audit-level critical --ignore-registry-errors",
     "security:sast": "node scripts/security/sast-baseline.mjs",
     "security:ci": "corepack pnpm run security:audit && corepack pnpm run security:sast",
+    "phase6:m0:inventory": "node scripts/phase6/deprecated-dependency-guard.mjs --inventory",
+    "phase6:m0:guard": "node scripts/phase6/deprecated-dependency-guard.mjs",
+    "phase6:m0:self-test": "node scripts/phase6/deprecated-dependency-guard.mjs --self-test",
+    "phase6:m0:write-baseline": "node scripts/phase6/deprecated-dependency-guard.mjs --write-baseline",
     "m0:build-universe": "python scripts/historical/build_sp500_universe.py",
     "m0:load": "python scripts/historical/run_m0_load.py",
     "test:e2e": "corepack pnpm --filter @thesis/product-api build && python tests/e2e/test_m4_core_flows.py",
@@ -34,6 +38,13 @@
   },
   "pnpm": {
     "overrides": {
+      "@tootallnate/once": "3.0.1",
+      "brace-expansion@<1.1.13": "1.1.13",
+      "brace-expansion@>=5.0.0 <5.0.5": "5.0.5",
+      "flatted": "3.4.2",
+      "langsmith": "0.5.19",
+      "node-forge": "1.4.0",
+      "picomatch": "4.0.4",
       "protobufjs": "7.5.5"
     }
   }

@@ -1,7 +1,7 @@
-# AGENTS.md — Phase 6 M5 Deep Dive / Scenario Final Cutover & Hardening
-**Milestone:** M5 — Deep Dive / Scenario Final Cutover & Hardening  
-**Inherits from:** Root `AGENTS.md` and `ph6_AGENTS.md` — read both first.  
-**Location:** `Phase6/M5/M5_MILESTONE_AGENTS.md`
+# AGENTS.md - Phase 6 M4 Earnings State & War Room Substrate
+**Milestone:** M4 - Earnings State & War Room Substrate  
+**Inherits from:** Root `AGENTS.md` and `ph6_AGENTS.md` - read both first.  
+**Location:** `Project Note/Phase6/Milestones/M4/M4_MILESTONE_AGENTS_ph6.md`
 
 ---
 
@@ -9,35 +9,37 @@
 
 | Field | Value |
 |---|---|
-| **Milestone** | M5 — Deep Dive / Scenario Final Cutover & Hardening |
-| **Linear Project** | PH6 M5 — Deep Dive / Scenario Final Cutover & Hardening |
-| **Owner** | Engineering Lead + Product Lead |
+| **Milestone** | M4 - Earnings State & War Room Substrate |
+| **Linear Project** | PH6 M4 - Earnings State & War Room Substrate |
+| **Owner** | Product API Owner + AI/Reasoning Engineer |
 | **Status** | Planned |
-| **Depends on** | M4 complete |
+| **Depends on** | M3 complete |
 
 ---
+
+Before implementation, read `PH6_DECISION_LOCKS.md` for locked decisions, contract names, guard scope, and evidence standards.
 
 ## 1. What This Milestone Is Building
 
-Finish the provider-free Deep Dive and Scenario migration, then prove the product still works end to end.
+Use estimated/confirmed/actual state and first-party artifacts to power earnings workflows.
 
 ---
 
-## 2. Scope — What Is In
+## 2. Scope - What Is In
 
-- [ ] Deep Dive cutover to official + first-party substrate
-- [ ] scenario / valuation input model without beta dependency
-- [ ] compatibility layer for older reports
-- [ ] end-to-end smoke proof
-- [ ] rollback rehearsal and final dependency proof
+- [ ] three-state earnings model
+- [ ] event-window triggers
+- [ ] War Room evidence pack
+- [ ] earnings alert reason paths
+- [ ] transcript-optional workflow support
 
 ---
 
-## 3. Scope — What Is Out
+## 3. Scope - What Is Out
 
-- [ ] new premium data contracts
-- [ ] licensed quote re-entry
-- [ ] post-phase backlog experiments
+- [ ] new paid earnings calendar vendor
+- [ ] transcript-as-required-core-path
+- [ ] market-price-heavy event windows
 
 ---
 
@@ -45,9 +47,9 @@ Finish the provider-free Deep Dive and Scenario migration, then prove the produc
 
 | Service | What you are doing in it |
 |---|---|
-| `dexter-worker` | Phase 6 Deep Dive and scenario logic |
-| `product-api` | read/write compatibility and end-to-end orchestration |
-| `mobile` | omission and provenance-safe rendering |
+| `product-api` | earnings state and War Room APIs |
+| `scheduler` | event-window orchestration |
+| `dexter-worker` | follow-up questions and contradiction summaries |
 
 ---
 
@@ -55,8 +57,9 @@ Finish the provider-free Deep Dive and Scenario migration, then prove the produc
 
 | Contract | Change type |
 |---|---|
-| `AnalysisReport` | Phase 6-compatible read model |
-| `scenario payloads` | explicit omission semantics |
+| `EarningsEventState` | estimated/confirmed/actual |
+| `CallArtifact` | earnings materials |
+| `alert payloads` | reason path compatibility |
 
 Rules:
 
@@ -68,14 +71,14 @@ Rules:
 
 ## 6. Linear Ticket Rules For This Milestone
 
-**Project:** PH6 M5 — Deep Dive / Scenario Final Cutover & Hardening
+**Project:** PH6 M4 - Earnings State & War Room Substrate
 
 Ticket naming:
 
 ```text
-[PH6-M5] What is being built
-[PH6-M5][BUG] What is broken
-[PH6-M5][SPIKE] What is being investigated
+[PH6-M4] What is being built
+[PH6-M4][BUG] What is broken
+[PH6-M4][SPIKE] What is being investigated
 ```
 
 Every ticket must include:
@@ -141,11 +144,11 @@ Run by:
 Environment:
 Result:
 
-Step 1: Run Deep Dives for 3 names
-Step 2: Confirm reports validate without deprecated providers
-Step 3: Run a scenario with one omitted market-derived dimension
-Step 4: Confirm omission is explicit
-Step 5: Run the final dependency scan and confirm clean pass
+Step 1: Seed estimated and confirmed events in test mode
+Step 2: Confirm the API distinguishes the states
+Step 3: Trigger a results artifact and confirm actual state
+Step 4: Open War Room payload and confirm transcript is optional
+Step 5: Confirm alert reason paths are present
 
 Steps failed (if any):
 Notes:
@@ -157,7 +160,7 @@ Notes:
 
 | Decision | What was decided | ADR required? |
 |---|---|---|
-| — | — | — |
+| - | - | - |
 
 ---
 
@@ -165,4 +168,4 @@ Notes:
 
 | Issue | Why deferred | Linear ticket | Target milestone |
 |---|---|---|---|
-| — | — | — | — |
+| - | - | - | - |

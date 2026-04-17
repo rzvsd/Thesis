@@ -7,7 +7,9 @@
 
 > This document extends `PRD.md`. It does not replace the original product requirements document.
 >
-> Phase 6 is the final architecture phase. It redefines Thesis around official-company truth, official macro truth, first-party company context, and rights-aware evidence. Any old expectation that Thesis must behave like a quote-led market terminal is deprecated by this addendum.
+> Phase 6 is the final data-substrate architecture phase. It redefines Thesis around official-company truth, official macro truth, first-party company context, and rights-aware evidence. Any old expectation that Thesis must behave like a quote-led market terminal is deprecated by this addendum.
+>
+> Implementation decisions are locked in `PH6_DECISION_LOCKS.md`.
 
 ---
 
@@ -46,11 +48,11 @@ Phase 6 does not optimize for institutional-terminal completeness. It optimizes 
 
 Thesis is a mobile-first financial intelligence product built on five layers:
 
-1. **Official issuer truth** — filings, XBRL facts, exhibits, and filing history.
-2. **Official macro truth** — macro releases, rates, FX, energy, and fiscal context from official sources.
-3. **First-party company context** — IR pages, company-hosted releases, presentations, webcast pages, and filed exhibits.
-4. **Canonical events** — deterministic typed events such as `filing_posted`, `earnings_date_confirmed`, `guidance_changed`, `macro_release_published`.
-5. **Narrated intelligence** — LLM explanations, contradiction summaries, question generation, and scenario interpretation downstream of deterministic truth.
+1. **Official issuer truth** - filings, XBRL facts, exhibits, and filing history.
+2. **Official macro truth** - macro releases, rates, FX, energy, and fiscal context from official sources.
+3. **First-party company context** - IR pages, company-hosted releases, presentations, webcast pages, and filed exhibits.
+4. **Canonical events** - deterministic typed events such as `filing_posted`, `earnings_date_confirmed`, `guidance_changed`, `macro_release_published`.
+5. **Narrated intelligence** - LLM explanations, contradiction summaries, question generation, and scenario interpretation downstream of deterministic truth.
 
 ---
 
@@ -60,11 +62,11 @@ Phase 6 keeps the non-goals intact and adds a few sharper clarifications.
 
 | Incorrect expectation | Thesis behavior after Phase 6 |
 |---|---|
-| “Show me a complete real-time market board” | Thesis surfaces change-that-matters, not a licensed quote terminal |
-| “Give me universal price alerts” | Alerts are event-first and thesis-first; price-dependent behavior is omitted unless explicitly supported |
-| “Use any transcript you can find” | Transcript text is optional and rights-gated; first-party call artifacts come first |
-| “Store every article body for search later” | Thesis stores only what rights allow, often headline/summary/link or excerpt-only |
-| “Compute market-quality beta/correlation everywhere” | Scenario and valuation logic use macro/fundamental and thesis-native inputs when market-derived inputs are unavailable |
+| "Show me a complete real-time market board" | Thesis surfaces change-that-matters, not a licensed quote terminal |
+| "Give me universal price alerts" | Alerts are event-first and thesis-first; price-dependent behavior is omitted unless explicitly supported |
+| "Use any transcript you can find" | Transcript text is optional and rights-gated; first-party call artifacts come first |
+| "Store every article body for search later" | Thesis stores only what rights allow, often headline/summary/link or excerpt-only |
+| "Compute market-quality beta/correlation everywhere" | Scenario and valuation logic use macro/fundamental and thesis-native inputs when market-derived inputs are unavailable |
 
 ---
 
@@ -141,6 +143,19 @@ Phase 6 Morning Exception Briefing answers:
 - whether nothing material changed
 
 The absence of a large price board is not a product failure if the briefing is still useful.
+
+### 5.2.1 Fear & Greed to Macro Stress transition
+
+The old Fear & Greed surface is not carried forward as a first-class Phase 6 product promise.
+
+Phase 6 replaces it with Macro Stress:
+
+- official macro pressure instead of quote-heavy sentiment
+- watched-name relevance instead of generic market mood
+- explicit "no material change" output instead of filler
+- archived old snapshots only if they already exist and are clearly labeled as history
+
+The app must not show an active Fear & Greed dashboard that depends on deprecated or rights-ambiguous inputs. If a prior widget cannot be supported honestly, it is omitted or marked unsupported rather than approximated.
 
 ### 5.3 Alerts / Exception Engine
 
@@ -245,7 +260,7 @@ If a prior view once depended on price-derived behavior, the app must either:
 
 ### 6.4 Watchlist / My Names
 
-The user-facing framing may remain “My Names,” but the backend model still behaves like a watchlist. Phase 6 adds stronger event relevance and source-state labeling, not brokerage or portfolio behavior.
+The user-facing framing may remain "My Names," but the backend model still behaves like a watchlist. Phase 6 adds stronger event relevance and source-state labeling, not brokerage or portfolio behavior.
 
 ---
 
@@ -258,7 +273,7 @@ The user-facing framing may remain “My Names,” but the backend model still b
 | **No transcript dependency for core value** | Deep Dive and War Room must remain useful without transcript text |
 | **No broad scrape default** | Browser automation is event-driven and domain-allowlisted only |
 | **No market-derived required valuation input** | Beta/correlation-style inputs are optional; omission must be explicit |
-| **No “all clear” hallucination** | “No material change” is a deterministic state, not a language flourish |
+| **No "all clear" hallucination** | "No material change" is a deterministic state, not a language flourish |
 | **No old provider ghosting** | Deprecated provider calls are treated as regression bugs |
 
 ---
@@ -307,10 +322,12 @@ The user-facing framing may remain “My Names,” but the backend model still b
 
 ## 10. Open Questions
 
+The minimum decisions needed before implementation are locked in `PH6_DECISION_LOCKS.md`. The remaining questions below are implementation checkpoints, not permission to improvise.
+
 | Question | Needed By | Owner | Status |
 |---|---|---|---|
-| Which first-party domains are in the default allowlist for Phase 6 launch? | M2 | Product + Legal | Open |
-| Which official macro series are mandatory for Macro Stress v1? | M3 | Product | Open |
-| Which old quote-led UI components are omitted vs preserved in reduced form? | M3 | Product + Mobile | Open |
-| Do we keep the `data-openbb` folder name through full launch or rename to `data-public` during Phase 6? | M1 | Engineering Lead | Open |
-| Which transcript sources, if any, are considered rights-clean enough beyond first-party artifacts? | M4 | Legal + Product | Open |
+| Exact first-party domains for the initial issuer allowlist | M2 | Product + Legal | Stop-and-ask before implementation; default reject unknown domains |
+| Exact official macro series IDs for Macro Stress v1 | M1/M3 | Product + Data | Stop-and-ask before implementation; default to locked source families only |
+| Old quote-led UI components beyond Fear & Greed that need reduced handling | M3 | Product + Mobile | Implementation review checkpoint |
+| Rename `data-openbb` to `data-public` | Post-Phase 6 | Engineering Lead | Deferred; keep `data-openbb` through Phase 6 |
+| Transcript sources beyond first-party artifacts | M4 or later | Legal + Product | Deferred; do not use unless rights-clean |
