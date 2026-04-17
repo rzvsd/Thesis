@@ -1,0 +1,75 @@
+{
+  "$id": "FirstPartySourceRegistryEntry",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "registry_entry_id",
+    "ticker",
+    "issuer_name",
+    "domain",
+    "allowed_paths",
+    "page_types",
+    "default_rights",
+    "owner",
+    "reviewed_at",
+    "active"
+  ],
+  "properties": {
+    "registry_entry_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "ticker": {
+      "type": "string",
+      "minLength": 1
+    },
+    "issuer_name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "domain": {
+      "type": "string",
+      "minLength": 1
+    },
+    "allowed_paths": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "page_types": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "investor_relations",
+          "earnings_release",
+          "press_release",
+          "presentation",
+          "webcast",
+          "sec_filing_reference",
+          "supplemental_material",
+          "newsroom"
+        ]
+      }
+    },
+    "default_rights": {
+      "$ref": "EvidenceRightsMetadata"
+    },
+    "owner": {
+      "type": "string",
+      "minLength": 1
+    },
+    "reviewed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "review_expires_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "active": {
+      "type": "boolean"
+    }
+  }
+}

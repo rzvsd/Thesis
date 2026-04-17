@@ -12,7 +12,7 @@
 | **Milestone** | M2 - Rights & First-Party Context |
 | **Linear Project** | PH6 M2 - Rights & First-Party Context |
 | **Owner** | Backend Engineer + Platform Architect |
-| **Status** | Planned |
+| **Status** | Owner approved - local smoke passed; pending GitHub CI closeout |
 | **Depends on** | M1 complete + initial allowlist |
 
 ---
@@ -27,11 +27,11 @@ Add rights-safe evidence handling and event-driven first-party context ingestion
 
 ## 2. Scope - What Is In
 
-- [ ] evidence rights metadata
-- [ ] first-party source registry
-- [ ] call artifact model
-- [ ] event-driven bounded fetches
-- [ ] rights-safe storage/display enforcement
+- [x] evidence rights metadata
+- [x] first-party source registry
+- [x] call artifact model
+- [x] event-driven bounded fetches
+- [x] rights-safe storage/display enforcement
 
 ---
 
@@ -57,9 +57,9 @@ Add rights-safe evidence handling and event-driven first-party context ingestion
 
 | Contract | Change type |
 |---|---|
-| `EvidenceRights` | rights metadata |
+| `EvidenceRightsMetadata` | rights metadata |
 | `CallArtifact` | first-party or rights-clean materials |
-| `ContextItem` | bounded context payload |
+| `FirstPartyContextItem` | bounded context payload |
 
 Rules:
 
@@ -124,12 +124,12 @@ Never log secrets, tokens, or unreviewed full text.
 
 ## 10. Definition of Done
 
-- [ ] Acceptance criteria in `ph6_MILESTONES.md` for this milestone are satisfied
-- [ ] Smoke test executed in full and recorded below
+- [x] Acceptance criteria in `ph6_MILESTONES.md` for this milestone are satisfied locally
+- [x] Smoke test executed in full and recorded below
 - [ ] CI passes
-- [ ] Deprecated dependency check passes
-- [ ] Rollback path confirmed
-- [ ] Owner signs off
+- [x] Deprecated dependency check passes
+- [x] Rollback path confirmed
+- [x] Owner signs off
 - [ ] Engineering Lead countersigns
 
 ---
@@ -139,19 +139,24 @@ Never log secrets, tokens, or unreviewed full text.
 Run the milestone smoke test from `ph6_MILESTONES.md` and record the result here.
 
 ```text
-Date:
-Run by:
-Environment:
-Result:
+Date: 2026-04-17
+Run by: Codex
+Environment: local Windows workspace, deterministic fixtures, in-memory Product API test store
+Result: PASS
 
 Step 1: Trigger a first-party fetch for a supported event
+Result: PASS - news-ingest fixture fetch returned AAPL and MSFT first-party context items.
 Step 2: Confirm the item carries rights_class and display_mode
+Result: PASS - context items carry rights_class=first_party_public and display_mode=excerpt_only.
 Step 3: Attempt an unapproved-domain ingest in test mode
+Result: PASS - https://example.com/aapl-earnings rejected with SOURCE_REJECTED.
 Step 4: Confirm it is rejected safely
+Result: PASS - rejected source did not produce user-facing context or artifacts.
 Step 5: Confirm excerpt-only or link-only behavior is enforced
+Result: PASS - Product API rejects missing rights metadata and persists full_text_stored=false with excerpt_only policy.
 
-Steps failed (if any):
-Notes:
+Steps failed (if any): None.
+Notes: Evidence captured in `evidence/2026-04-17_m2-rights-first-party-smoke.md`.
 ```
 
 ---
@@ -160,7 +165,8 @@ Notes:
 
 | Decision | What was decided | ADR required? |
 |---|---|---|
-| - | - | - |
+| Seed first-party registry | AAPL, MSFT, and TSLA first-party domains and path scopes are locked in `PH6_DECISION_LOCKS.md`; unknown domains reject by default | No, covered by Phase 6 decision locks and ADR-003 |
+| Storage mode | Seed sources use `excerpt_only`, `full_text_stored=false`, and link-safe metadata by default | No, covered by ADR-003 |
 
 ---
 
@@ -168,4 +174,4 @@ Notes:
 
 | Issue | Why deferred | Linear ticket | Target milestone |
 |---|---|---|---|
-| - | - | - | - |
+| CI closeout | Local tests pass; GitHub CI must validate after push/PR before full milestone closure | N/A per owner instruction to skip Linear unless asked | M2 closeout |

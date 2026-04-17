@@ -5,6 +5,7 @@ import type {
   AlertFeedbackState,
   AlertLedgerCategory,
   AlertRouteTarget,
+  CallArtifact,
   CanonicalEvent,
   CalendarEventTime,
   CalendarEventType,
@@ -34,6 +35,7 @@ import type {
   FeedbackTriageStatus,
   FeedbackRouteStatus,
   FearGreedSnapshot,
+  FirstPartyContextItem,
   NameRelationshipState,
   NameRelationshipType,
   NotificationType,
@@ -52,6 +54,7 @@ import type {
   AuditEventRecord,
   AlertLedgerRecord,
   CalendarEventRecord,
+  CallArtifactRecord,
   ConvictionInsightCardRecord,
   ConvictionJournalEntryRecord,
   ContrarianAlertAnchorRecord,
@@ -62,6 +65,7 @@ import type {
   KillSwitchRuleRecord,
   JobRecord,
   NameRelationshipRecord,
+  FirstPartyContextRecord,
   NotificationPreferenceRecord,
   OppositeCaseReportRecord,
   ScenarioStressImpactRecord,
@@ -259,6 +263,18 @@ export interface ProductStore {
     family?: CanonicalEvent["family"];
     limit: number;
   }): Promise<CanonicalEvent[]>;
+  upsertFirstPartyContextItems(items: FirstPartyContextItem[]): Promise<{ upserted: number }>;
+  listFirstPartyContextItems(input: {
+    ticker?: string;
+    eventId?: string;
+    limit: number;
+  }): Promise<FirstPartyContextItem[]>;
+  upsertCallArtifacts(artifacts: CallArtifact[]): Promise<{ upserted: number }>;
+  listCallArtifacts(input: {
+    ticker?: string;
+    eventId?: string;
+    limit: number;
+  }): Promise<CallArtifact[]>;
   upsertCalendarEvents(events: CalendarEventRecord[]): Promise<{ upserted: number }>;
   listUpcomingCalendarEventsByTickers(input: {
     tickers: string[];
@@ -1043,6 +1059,33 @@ function mapCanonicalEvent(row: Record<string, unknown>): CanonicalEvent {
   };
 }
 
+function cloneFirstPartyContextItem(item: FirstPartyContextItem): FirstPartyContextItem {
+  return {
+    ...item,
+    rights: { ...item.rights },
+    artifact_ids: [...item.artifact_ids],
+    metadata: { ...item.metadata }
+  };
+}
+
+function cloneCallArtifact(item: CallArtifact): CallArtifact {
+  return {
+    ...item,
+    rights: { ...item.rights },
+    metadata: { ...item.metadata }
+  };
+}
+
+function mapFirstPartyContextItem(row: Record<string, unknown>): FirstPartyContextItem {
+  const payload = asRecord(row.payload) ?? row;
+  return cloneFirstPartyContextItem(payload as unknown as FirstPartyContextItem);
+}
+
+function mapCallArtifact(row: Record<string, unknown>): CallArtifact {
+  const payload = asRecord(row.payload) ?? row;
+  return cloneCallArtifact(payload as unknown as CallArtifact);
+}
+
 const defaultNotificationTypeList = [...notificationTypes];
 
 function isNotificationType(value: string): value is NotificationType {
@@ -1455,6 +1498,8 @@ export class InMemoryStore implements ProductStore {
   private readonly historicalCoverageByTicker = new Map<string, TickerCoverage>();
   private readonly fearGreedByMarketDate = new Map<string, FearGreedSnapshot>();
   private readonly canonicalEvents = new Map<string, CanonicalEvent>();
+  private readonly firstPartyContextItems = new Map<string, FirstPartyContextItem>();
+  private readonly callArtifacts = new Map<string, CallArtifact>();
   private readonly calendarEvents = new Map<string, CalendarEventRecord>();
   private readonly contrarianAnchors = new Map<string, ContrarianAlertAnchorRecord>();
   private readonly killSwitchRules = new Map<string, KillSwitchRuleRecord>();
@@ -2661,6 +2706,48 @@ export class InMemoryStore implements ProductStore {
           source: { ...event.source.source }
         }
       }));
+  }
+
+  async upsertFirstPartyContextItems(items: FirstPartyContextItem[]): Promise<{ upserted: number }> {
+    for (const item of items) {
+      this.firstPartyContextItems.set(item.context_id, cloneFirstPartyContextItem(item));
+    }
+    return { upserted: items.length };
+  }
+
+  async listFirstPartyContextItems(input: {
+    ticker?: string;
+    eventId?: string;
+    limit: number;
+  }): Promise<FirstPartyContextItem[]> {
+    const ticker = input.ticker?.trim().toUpperCase();
+    return [...this.firstPartyContextItems.values()]
+      .filter((item) => !ticker || item.ticker.trim().toUpperCase() === ticker)
+      .filter((item) => !input.eventId || item.event_id === input.eventId)
+      .sort((left, right) => right.retrieved_at.localeCompare(left.retrieved_at))
+      .slice(0, Math.max(1, input.limit))
+      .map(cloneFirstPartyContextItem);
+  }
+
+  async upsertCallArtifacts(artifacts: CallArtifact[]): Promise<{ upserted: number }> {
+    for (const artifact of artifacts) {
+      this.callArtifacts.set(artifact.artifact_id, cloneCallArtifact(artifact));
+    }
+    return { upserted: artifacts.length };
+  }
+
+  async listCallArtifacts(input: {
+    ticker?: string;
+    eventId?: string;
+    limit: number;
+  }): Promise<CallArtifact[]> {
+    const ticker = input.ticker?.trim().toUpperCase();
+    return [...this.callArtifacts.values()]
+      .filter((artifact) => !ticker || artifact.ticker.trim().toUpperCase() === ticker)
+      .filter((artifact) => !input.eventId || artifact.event_id === input.eventId)
+      .sort((left, right) => right.retrieved_at.localeCompare(left.retrieved_at))
+      .slice(0, Math.max(1, input.limit))
+      .map(cloneCallArtifact);
   }
 
   async upsertCalendarEvents(events: CalendarEventRecord[]): Promise<{ upserted: number }> {
@@ -5018,6 +5105,157 @@ export class PostgresStore implements ProductStore {
     );
 
     return result.rows.map((row) => mapCanonicalEvent(row as Record<string, unknown>));
+  }
+
+  async upsertFirstPartyContextItems(items: FirstPartyContextItem[]): Promise<{ upserted: number }> {
+    for (const item of items) {
+      await this.pool.query(
+        `insert into first_party_context_items (
+           context_id,
+           ticker,
+           event_id,
+           source_url,
+           source_domain,
+           page_type,
+           fetch_state,
+           rights,
+           payload,
+           retrieved_at,
+           updated_at
+         )
+         values ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9::jsonb, $10::timestamptz, $11::timestamptz)
+         on conflict (context_id) do update set
+           ticker = excluded.ticker,
+           event_id = excluded.event_id,
+           source_url = excluded.source_url,
+           source_domain = excluded.source_domain,
+           page_type = excluded.page_type,
+           fetch_state = excluded.fetch_state,
+           rights = excluded.rights,
+           payload = excluded.payload,
+           retrieved_at = excluded.retrieved_at,
+           updated_at = excluded.updated_at`,
+        [
+          item.context_id,
+          item.ticker.trim().toUpperCase(),
+          item.event_id ?? null,
+          item.source_url,
+          item.source_domain,
+          item.page_type,
+          item.fetch_state,
+          JSON.stringify(item.rights),
+          JSON.stringify(item),
+          item.retrieved_at,
+          new Date().toISOString()
+        ]
+      );
+    }
+    return { upserted: items.length };
+  }
+
+  async listFirstPartyContextItems(input: {
+    ticker?: string;
+    eventId?: string;
+    limit: number;
+  }): Promise<FirstPartyContextItem[]> {
+    const conditions: string[] = [];
+    const values: unknown[] = [];
+    if (input.ticker) {
+      values.push(input.ticker.trim().toUpperCase());
+      conditions.push(`ticker = $${values.length}`);
+    }
+    if (input.eventId) {
+      values.push(input.eventId);
+      conditions.push(`event_id = $${values.length}`);
+    }
+    values.push(Math.max(1, input.limit));
+    const whereClause = conditions.length > 0 ? `where ${conditions.join(" and ")}` : "";
+    const result = await this.pool.query(
+      `select payload
+         from first_party_context_items
+        ${whereClause}
+        order by retrieved_at desc
+        limit $${values.length}`,
+      values
+    );
+    return result.rows.map((row) => mapFirstPartyContextItem(row as Record<string, unknown>));
+  }
+
+  async upsertCallArtifacts(artifacts: CallArtifact[]): Promise<{ upserted: number }> {
+    for (const artifact of artifacts) {
+      await this.pool.query(
+        `insert into call_artifacts (
+           artifact_id,
+           ticker,
+           event_id,
+           context_id,
+           source_url,
+           source_domain,
+           artifact_type,
+           completeness_state,
+           rights,
+           payload,
+           retrieved_at,
+           updated_at
+         )
+         values ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10::jsonb, $11::timestamptz, $12::timestamptz)
+         on conflict (artifact_id) do update set
+           ticker = excluded.ticker,
+           event_id = excluded.event_id,
+           context_id = excluded.context_id,
+           source_url = excluded.source_url,
+           source_domain = excluded.source_domain,
+           artifact_type = excluded.artifact_type,
+           completeness_state = excluded.completeness_state,
+           rights = excluded.rights,
+           payload = excluded.payload,
+           retrieved_at = excluded.retrieved_at,
+           updated_at = excluded.updated_at`,
+        [
+          artifact.artifact_id,
+          artifact.ticker.trim().toUpperCase(),
+          artifact.event_id ?? null,
+          artifact.context_id ?? null,
+          artifact.source_url,
+          artifact.source_domain,
+          artifact.artifact_type,
+          artifact.completeness_state,
+          JSON.stringify(artifact.rights),
+          JSON.stringify(artifact),
+          artifact.retrieved_at,
+          new Date().toISOString()
+        ]
+      );
+    }
+    return { upserted: artifacts.length };
+  }
+
+  async listCallArtifacts(input: {
+    ticker?: string;
+    eventId?: string;
+    limit: number;
+  }): Promise<CallArtifact[]> {
+    const conditions: string[] = [];
+    const values: unknown[] = [];
+    if (input.ticker) {
+      values.push(input.ticker.trim().toUpperCase());
+      conditions.push(`ticker = $${values.length}`);
+    }
+    if (input.eventId) {
+      values.push(input.eventId);
+      conditions.push(`event_id = $${values.length}`);
+    }
+    values.push(Math.max(1, input.limit));
+    const whereClause = conditions.length > 0 ? `where ${conditions.join(" and ")}` : "";
+    const result = await this.pool.query(
+      `select payload
+         from call_artifacts
+        ${whereClause}
+        order by retrieved_at desc
+        limit $${values.length}`,
+      values
+    );
+    return result.rows.map((row) => mapCallArtifact(row as Record<string, unknown>));
   }
 
   async upsertCalendarEvents(events: CalendarEventRecord[]): Promise<{ upserted: number }> {

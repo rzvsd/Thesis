@@ -3,7 +3,7 @@
 **Version:** 1.0  
 **Status:** Active  
 **Owner:** Engineering Lead + Product Lead  
-**Last Revised:** 2026-04-16  
+**Last Revised:** 2026-04-17
 **Related Documents:** `ph6_BLUEBOOK.md`, `ph6_PRD.md`, `ph6_ROADMAP.md`, `ph6_SECURITY.md`, `PH6_DECISION_LOCKS.md`
 
 ---
@@ -225,14 +225,41 @@ Make evidence rights explicit and production-safe, and add bounded first-party c
 | Rights-safe context storage | Summary/excerpt/link behavior enforced according to source policy |
 | Fixtures and tests | Rights and source-state fixture coverage committed |
 
+## Locked M2 Interface And Seed Scope
+
+| Area | Locked shape |
+|---|---|
+| Evidence rights contract | `packages/contracts/src/evidence-rights.ts` with `EvidenceRightsClass`, `EvidenceDisplayMode`, `EvidenceSourceRank`, and `EvidenceRightsMetadata` |
+| First-party context contract | `packages/contracts/src/first-party-context.ts` with `FirstPartySourceRegistryEntry`, `FirstPartyContextFetchState`, and `FirstPartyContextItem` |
+| Call artifact contract | `packages/contracts/src/call-artifact.ts` with `CallArtifactType`, `CallArtifactCompletenessState`, and `CallArtifact` |
+| News ingest fetch endpoint | `POST /v1/first-party/context` on `news-ingest` |
+| Product ingest endpoint | `POST /internal/first-party/context/ingest` on `product-api` |
+| Product read endpoint | `GET /internal/first-party/context` on `product-api` |
+| Storage tables | `first_party_context_items` and `call_artifacts` via `ph6m2_029_first_party_context` migration |
+
+M2 seed first-party source registry:
+
+| Ticker | Source | Path scope | Display mode |
+|---|---|---|---|
+| `AAPL` | `investor.apple.com` | `/investor-relations/`, `/` | `excerpt_only` |
+| `AAPL` | `www.apple.com` | `/newsroom/` | `excerpt_only` |
+| `MSFT` | `www.microsoft.com` | `/en-us/investor/`, `/en-us/Investor/` | `excerpt_only` |
+| `MSFT` | `news.microsoft.com` | `/` | `excerpt_only` |
+| `TSLA` | `ir.tesla.com` | `/`, `/press-release/` | `excerpt_only` |
+| `TSLA` | `assets-ir.tesla.com` | `/` | `excerpt_only` |
+| `TSLA` | `digitalassets.tesla.com` | `/` | `excerpt_only` |
+| `TSLA` | `www.tesla.com` | `/` | `excerpt_only` |
+
+This is an implementation seed, not broad ticker coverage. Unknown domains reject by default.
+
 ## Acceptance Criteria
 
-- [ ] Every stored context or evidence item produced in the new path carries a rights posture and display mode
-- [ ] First-party IR and release retrieval works for at least 2 supported issuers
-- [ ] Unapproved domains or undefined rights states are rejected safely
-- [ ] Call artifacts can be stored and retrieved with completeness and provenance fields
-- [ ] Context storage obeys the configured display mode rules
-- [ ] Rights and fetch-policy tests pass in CI
+- [x] Every stored context or evidence item produced in the new path carries a rights posture and display mode
+- [x] First-party IR and release retrieval works for at least 2 supported issuers
+- [x] Unapproved domains or undefined rights states are rejected safely
+- [x] Call artifacts can be stored and retrieved with completeness and provenance fields
+- [x] Context storage obeys the configured display mode rules
+- [x] Rights and fetch-policy tests pass locally and are ready for CI
 
 ## Smoke Test
 

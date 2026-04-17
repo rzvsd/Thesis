@@ -1,0 +1,32 @@
+{
+  "ticker": "MSFT",
+  "contexts": [
+    {
+      "context_id": "ph6m2-msft-ir-context",
+      "source_url": "https://www.microsoft.com/en-us/investor/default",
+      "page_type": "investor_relations",
+      "title": "Microsoft Investor Relations",
+      "summary": "Microsoft investor relations publishes upcoming earnings, annual reports, announcements, press releases, and webcast links.",
+      "excerpt": "Upcoming earnings, annual report, announcements, press release, webcast.",
+      "published_at": "2026-04-17T00:00:00Z",
+      "artifacts": [
+        {
+          "artifact_id": "ph6m2-msft-q2-press-release",
+          "artifact_type": "earnings_release",
+          "title": "Microsoft earnings press release entry point",
+          "source_url": "https://www.microsoft.com/en-us/investor/default",
+          "published_at": "2026-04-17T00:00:00Z",
+          "completeness_state": "metadata_only"
+        },
+        {
+          "artifact_id": "ph6m2-msft-webcast",
+          "artifact_type": "webcast",
+          "title": "Microsoft earnings webcast entry point",
+          "source_url": "https://www.microsoft.com/en-us/investor/default",
+          "published_at": "2026-04-17T00:00:00Z",
+          "completeness_state": "metadata_only"
+        }
+      ]
+    }
+  ]
+}

@@ -1,7 +1,7 @@
 # Thesis - Phase 6 Security, Source, and Fetch Policy
 
 **Status:** Working Phase 6 Note  
-**Last Revised:** 2026-04-16  
+**Last Revised:** 2026-04-17
 **Scope:** Phase 6 source governance, secret cleanup, rights-aware storage, and bounded fetch policy
 
 ---
@@ -112,6 +112,21 @@ First-party fetches are allowed only under these conditions:
 2. the fetch is tied to an event trigger, watchlist target, or scheduled bounded review
 3. the fetch path is documented
 4. the storage/display mode is known before the content becomes user-facing
+
+Phase 6 M2 seed allowlist:
+
+| Ticker | Domain | Allowed path scope | Display mode |
+|---|---|---|---|
+| `AAPL` | `investor.apple.com` | `/investor-relations/`, `/` | `excerpt_only` |
+| `AAPL` | `www.apple.com` | `/newsroom/` | `excerpt_only` |
+| `MSFT` | `www.microsoft.com` | `/en-us/investor/`, `/en-us/Investor/` | `excerpt_only` |
+| `MSFT` | `news.microsoft.com` | `/` | `excerpt_only` |
+| `TSLA` | `ir.tesla.com` | `/`, `/press-release/` | `excerpt_only` |
+| `TSLA` | `assets-ir.tesla.com` | `/` | `excerpt_only` |
+| `TSLA` | `digitalassets.tesla.com` | `/` | `excerpt_only` |
+| `TSLA` | `www.tesla.com` | `/` | `excerpt_only` |
+
+This seed proves the registry and rights engine. It does not grant broad crawling permission and does not claim full-market issuer coverage.
 
 ### Forbidden fetch behavior
 

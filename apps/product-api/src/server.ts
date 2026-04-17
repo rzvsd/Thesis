@@ -11,6 +11,7 @@ import type {
   AnalysisReport,
   AnalysisRequest,
   AuthTokensResponse,
+  CallArtifact,
   CanonicalEvent,
   CoherenceEvaluationRequest,
   ConvictionEvidenceRef,
@@ -26,6 +27,8 @@ import type {
   CrossNamePropagationEventFixture,
   CrossNamePropagationSignalSource,
   FeedbackSeverity,
+  EvidenceRightsMetadata,
+  FirstPartyContextItem,
   KillSwitchConditionDraft,
   KillSwitchEvaluationFixture,
   KillSwitchEvaluationRequest,
@@ -61,8 +64,15 @@ import type {
 import {
   alertFeedbackStates,
   alertLedgerCategories,
+  callArtifactCompletenessStates,
+  callArtifactTypes,
+  evidenceDisplayModes,
+  evidenceRightsClasses,
+  evidenceSourceRanks,
   feedbackSeverityLevels,
   feedbackTriageStatuses,
+  firstPartyFetchStates,
+  firstPartyPageTypes,
   nameRelationshipStates,
   nameRelationshipTypes,
   notificationTypes,
@@ -1068,6 +1078,65 @@ function isCanonicalEvent(value: unknown): value is CanonicalEvent {
     (value.source_state === "official" || value.source_state === "partial" || value.source_state === "missing") &&
     typeof value.retrieved_at === "string" &&
     Array.isArray(value.missing_fields) &&
+    isPlainRecord(value.metadata)
+  );
+}
+
+function isEvidenceRightsMetadata(value: unknown): value is EvidenceRightsMetadata {
+  if (!isPlainRecord(value)) {
+    return false;
+  }
+  return (
+    evidenceRightsClasses.includes(value.rights_class as EvidenceRightsMetadata["rights_class"]) &&
+    evidenceDisplayModes.includes(value.display_mode as EvidenceRightsMetadata["display_mode"]) &&
+    evidenceSourceRanks.includes(value.source_rank as EvidenceRightsMetadata["source_rank"]) &&
+    typeof value.source_type === "string" &&
+    typeof value.can_store_full_text === "boolean" &&
+    typeof value.can_display_excerpt === "boolean" &&
+    typeof value.can_display_link === "boolean" &&
+    typeof value.policy_reason === "string" &&
+    typeof value.reviewed_at === "string"
+  );
+}
+
+function isFirstPartyContextItem(value: unknown): value is FirstPartyContextItem {
+  if (!isPlainRecord(value)) {
+    return false;
+  }
+  return (
+    typeof value.context_id === "string" &&
+    typeof value.ticker === "string" &&
+    typeof value.registry_entry_id === "string" &&
+    typeof value.source_url === "string" &&
+    typeof value.source_domain === "string" &&
+    firstPartyPageTypes.includes(value.page_type as FirstPartyContextItem["page_type"]) &&
+    typeof value.title === "string" &&
+    typeof value.summary === "string" &&
+    typeof value.retrieved_at === "string" &&
+    typeof value.content_hash === "string" &&
+    firstPartyFetchStates.includes(value.fetch_state as FirstPartyContextItem["fetch_state"]) &&
+    isEvidenceRightsMetadata(value.rights) &&
+    Array.isArray(value.artifact_ids) &&
+    isPlainRecord(value.metadata)
+  );
+}
+
+function isCallArtifact(value: unknown): value is CallArtifact {
+  if (!isPlainRecord(value)) {
+    return false;
+  }
+  return (
+    typeof value.artifact_id === "string" &&
+    typeof value.ticker === "string" &&
+    callArtifactTypes.includes(value.artifact_type as CallArtifact["artifact_type"]) &&
+    typeof value.title === "string" &&
+    typeof value.source_url === "string" &&
+    typeof value.source_domain === "string" &&
+    typeof value.retrieved_at === "string" &&
+    callArtifactCompletenessStates.includes(
+      value.completeness_state as CallArtifact["completeness_state"]
+    ) &&
+    isEvidenceRightsMetadata(value.rights) &&
     isPlainRecord(value.metadata)
   );
 }
@@ -5483,6 +5552,79 @@ export function startServer(port: number = loadConfig().port): Server {
           });
           sendJson(response, 200, {
             data: events
+          });
+          return;
+        }
+
+        if (method === "POST" && pathname === "/internal/first-party/context/ingest") {
+          const body = await readJsonBody<{ context_items?: unknown[]; call_artifacts?: unknown[] }>(request);
+          const rawItems = Array.isArray(body.context_items) ? body.context_items : [];
+          const rawArtifacts = Array.isArray(body.call_artifacts) ? body.call_artifacts : [];
+          if (rawItems.length === 0 && rawArtifacts.length === 0) {
+            sendJson(response, 422, {
+              error: "validation_failed",
+              error_message: "context_items or call_artifacts must include at least one item."
+            });
+            return;
+          }
+
+          const invalidItemIndex = rawItems.findIndex((item) => !isFirstPartyContextItem(item));
+          if (invalidItemIndex >= 0) {
+            sendJson(response, 422, {
+              error: "validation_failed",
+              error_message: `context_items[${invalidItemIndex}] is not a valid first-party context item.`
+            });
+            return;
+          }
+
+          const invalidArtifactIndex = rawArtifacts.findIndex((item) => !isCallArtifact(item));
+          if (invalidArtifactIndex >= 0) {
+            sendJson(response, 422, {
+              error: "validation_failed",
+              error_message: `call_artifacts[${invalidArtifactIndex}] is not a valid call artifact.`
+            });
+            return;
+          }
+
+          const contextItems = rawItems as FirstPartyContextItem[];
+          const callArtifacts = rawArtifacts as CallArtifact[];
+          const contextResult = await runtime.store.upsertFirstPartyContextItems(contextItems);
+          const artifactResult = await runtime.store.upsertCallArtifacts(callArtifacts);
+          sendJson(response, 200, {
+            status: "accepted",
+            context_upserted: contextResult.upserted,
+            artifact_upserted: artifactResult.upserted
+          });
+          return;
+        }
+
+        if (method === "GET" && pathname === "/internal/first-party/context") {
+          const limit = parsePositiveInteger(
+            url.searchParams.get("limit")?.trim() ?? undefined,
+            50,
+            1,
+            250
+          );
+          if (limit === undefined) {
+            sendJson(response, 422, {
+              error: "validation_failed",
+              error_message: "limit must be an integer between 1 and 250."
+            });
+            return;
+          }
+
+          const queryInput = {
+            ticker: url.searchParams.get("ticker")?.trim() || undefined,
+            eventId: url.searchParams.get("event_id")?.trim() || undefined,
+            limit
+          };
+          const contextItems = await runtime.store.listFirstPartyContextItems(queryInput);
+          const callArtifacts = await runtime.store.listCallArtifacts(queryInput);
+          sendJson(response, 200, {
+            data: {
+              context_items: contextItems,
+              call_artifacts: callArtifacts
+            }
           });
           return;
         }

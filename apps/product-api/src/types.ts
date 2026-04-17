@@ -14,12 +14,14 @@ import type {
   ConvictionJournalEventType,
   ConvictionJournalSourceType,
   ConvictionThesisSnapshot,
+  CallArtifact,
   EarningsWarRoomCadenceState,
   EarningsWarRoomCadenceMinute,
   EarningsWarRoomPhase,
   EarningsWarRoomSourceRef,
   EarningsWarRoomState,
   EarningsWarRoomTimelineEventType,
+  FirstPartyContextItem,
   KillSwitchConditionDraft,
   KillSwitchDirection,
   KillSwitchEvaluationOutcome,
@@ -274,6 +276,10 @@ export interface NameRelationshipRecord {
   updatedAt: string;
   suppressedAt?: string;
 }
+
+export type FirstPartyContextRecord = FirstPartyContextItem;
+
+export type CallArtifactRecord = CallArtifact;
 
 export interface ThesisMonitorSnapshotRecord {
   userId: string;
