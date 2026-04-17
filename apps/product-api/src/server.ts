@@ -11,6 +11,7 @@ import type {
   AnalysisReport,
   AnalysisRequest,
   AuthTokensResponse,
+  CanonicalEvent,
   CoherenceEvaluationRequest,
   ConvictionEvidenceRef,
   ConvictionInsightCard,
@@ -1043,6 +1044,32 @@ function hasInternalToken(request: IncomingMessage, expectedToken: string): bool
   expectedBytes.copy(expectedPadded);
   const matches = timingSafeEqual(providedPadded, expectedPadded);
   return matches && providedBytes.length === expectedBytes.length;
+}
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isCanonicalEvent(value: unknown): value is CanonicalEvent {
+  if (!isPlainRecord(value)) {
+    return false;
+  }
+  const source = value.source;
+  if (!isPlainRecord(source) || !isPlainRecord(source.source)) {
+    return false;
+  }
+  return (
+    typeof value.id === "string" &&
+    (value.family === "filing_posted" || value.family === "macro_release_published") &&
+    (value.subject_type === "ticker" || value.subject_type === "macro_series") &&
+    typeof value.subject_id === "string" &&
+    typeof value.title === "string" &&
+    typeof value.occurred_at === "string" &&
+    (value.source_state === "official" || value.source_state === "partial" || value.source_state === "missing") &&
+    typeof value.retrieved_at === "string" &&
+    Array.isArray(value.missing_fields) &&
+    isPlainRecord(value.metadata)
+  );
 }
 
 function setRequestJsonBodyLimit(request: IncomingMessage, maxBytes: number): void {
@@ -5375,6 +5402,87 @@ export function startServer(port: number = loadConfig().port): Server {
           sendJson(response, 401, {
             error: "unauthorized",
             error_message: "Internal token mismatch."
+          });
+          return;
+        }
+
+        if (method === "POST" && pathname === "/internal/canonical-events/ingest") {
+          const body = await readJsonBody<{ events?: unknown[] }>(request);
+          const rawEvents = Array.isArray(body.events) ? body.events : [];
+          if (rawEvents.length === 0) {
+            sendJson(response, 422, {
+              error: "validation_failed",
+              error_message: "events must include at least one canonical event."
+            });
+            return;
+          }
+
+          const invalidIndex = rawEvents.findIndex((event) => !isCanonicalEvent(event));
+          if (invalidIndex >= 0) {
+            sendJson(response, 422, {
+              error: "validation_failed",
+              error_message: `events[${invalidIndex}] is not a valid canonical event.`
+            });
+            return;
+          }
+
+          const events = rawEvents as CanonicalEvent[];
+          const result = await runtime.store.upsertCanonicalEvents(events);
+          sendJson(response, 200, {
+            status: "accepted",
+            upserted: result.upserted,
+            event_count: events.length
+          });
+          return;
+        }
+
+        if (method === "GET" && pathname === "/internal/canonical-events") {
+          const subjectTypeRaw = url.searchParams.get("subject_type")?.trim();
+          const subjectType =
+            subjectTypeRaw === "ticker" || subjectTypeRaw === "macro_series"
+              ? subjectTypeRaw
+              : undefined;
+          if (subjectTypeRaw && !subjectType) {
+            sendJson(response, 422, {
+              error: "validation_failed",
+              error_message: "subject_type must be ticker or macro_series."
+            });
+            return;
+          }
+          const familyRaw = url.searchParams.get("family")?.trim();
+          const family =
+            familyRaw === "filing_posted" || familyRaw === "macro_release_published"
+              ? familyRaw
+              : undefined;
+          if (familyRaw && !family) {
+            sendJson(response, 422, {
+              error: "validation_failed",
+              error_message: "family must be filing_posted or macro_release_published."
+            });
+            return;
+          }
+          const limit = parsePositiveInteger(
+            url.searchParams.get("limit")?.trim() ?? undefined,
+            50,
+            1,
+            250
+          );
+          if (limit === undefined) {
+            sendJson(response, 422, {
+              error: "validation_failed",
+              error_message: "limit must be an integer between 1 and 250."
+            });
+            return;
+          }
+
+          const events = await runtime.store.listCanonicalEvents({
+            subjectType,
+            subjectId: url.searchParams.get("subject_id")?.trim() || undefined,
+            family,
+            limit
+          });
+          sendJson(response, 200, {
+            data: events
           });
           return;
         }

@@ -9,6 +9,8 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Mapping
+from urllib.error import URLError
+from urllib.request import Request, urlopen
 
 # Make the shared redis-client package importable.
 _PACKAGES_ROOT = str(Path(__file__).resolve().parents[3] / "packages" / "redis-client")
@@ -33,6 +35,8 @@ CALENDAR_DATASET = "earnings_calendar"
 COMPANY_PROVIDER = "FMP"
 MACRO_PROVIDER = "FMP"
 CALENDAR_PROVIDER = "yfinance"
+OFFICIAL_COMPANY_PROVIDER = "sec_edgar"
+OFFICIAL_MACRO_PROVIDER = "official_public_macro"
 COMPANY_RATE_LIMIT_KEY = "FMP_FINANCE"
 MACRO_RATE_LIMIT_KEY = "FMP_MACRO"
 CALENDAR_RATE_LIMIT_KEY = "YFINANCE_CALENDAR"
@@ -52,6 +56,76 @@ FIXTURE_ROOT = Path(__file__).resolve().parents[3] / "data" / "golden" / "data-o
 COMPANY_FIXTURE_ROOT = FIXTURE_ROOT / "company"
 MACRO_FIXTURE_ROOT = FIXTURE_ROOT / "macro"
 CALENDAR_FIXTURE_ROOT = FIXTURE_ROOT / "calendar"
+OFFICIAL_FIXTURE_ROOT = FIXTURE_ROOT / "official"
+OFFICIAL_COMPANY_FIXTURE_ROOT = OFFICIAL_FIXTURE_ROOT / "company"
+OFFICIAL_MACRO_FIXTURE_ROOT = OFFICIAL_FIXTURE_ROOT / "macro"
+OFFICIAL_COMPANY_TICKERS = {
+    "AAPL": "0000320193",
+    "MSFT": "0000789019",
+    "TSLA": "0001318605",
+}
+OFFICIAL_MACRO_REGISTRY = [
+    {
+        "registry_id": "TREASURY_DAILY_10Y",
+        "source_family": "treasury",
+        "agency": "U.S. Treasury",
+        "source_name": "Daily Treasury Rates - 10 Yr",
+        "source_url": "https://home.treasury.gov/resource-center/data-chart-center/interest-rates/pages/xml?data=daily_treasury_rates",
+        "agency_series_id": "daily_treasury_rates:10 Yr",
+        "unit": "percent",
+        "category": "rates",
+    },
+    {
+        "registry_id": "TREASURY_DAILY_2Y",
+        "source_family": "treasury",
+        "agency": "U.S. Treasury",
+        "source_name": "Daily Treasury Rates - 2 Yr",
+        "source_url": "https://home.treasury.gov/resource-center/data-chart-center/interest-rates/pages/xml?data=daily_treasury_rates",
+        "agency_series_id": "daily_treasury_rates:2 Yr",
+        "unit": "percent",
+        "category": "rates",
+    },
+    {
+        "registry_id": "BLS_CPI_U_ALL_ITEMS",
+        "source_family": "bls",
+        "agency": "BLS",
+        "source_name": "CPI-U All Items",
+        "source_url": "https://api.bls.gov/publicAPI/v2/timeseries/data/CUUR0000SA0",
+        "agency_series_id": "CUUR0000SA0",
+        "unit": "index",
+        "category": "inflation",
+    },
+    {
+        "registry_id": "BLS_UNEMPLOYMENT_RATE",
+        "source_family": "bls",
+        "agency": "BLS",
+        "source_name": "Unemployment Rate",
+        "source_url": "https://api.bls.gov/publicAPI/v2/timeseries/data/LNS14000000",
+        "agency_series_id": "LNS14000000",
+        "unit": "percent",
+        "category": "labor",
+    },
+    {
+        "registry_id": "BEA_REAL_GDP",
+        "source_family": "bea",
+        "agency": "BEA",
+        "source_name": "Real Gross Domestic Product",
+        "source_url": "https://apps.bea.gov/api/data/",
+        "agency_series_id": "NIPA:REAL_GDP",
+        "unit": "annualized_percent",
+        "category": "growth",
+    },
+    {
+        "registry_id": "EIA_WTI_SPOT",
+        "source_family": "eia",
+        "agency": "EIA",
+        "source_name": "WTI Spot Price",
+        "source_url": "https://api.eia.gov/v2/seriesid/PET.RWTC.D",
+        "agency_series_id": "PET.RWTC.D",
+        "unit": "usd_per_barrel",
+        "category": "energy",
+    },
+]
 
 
 @dataclass(frozen=True)
@@ -596,6 +670,278 @@ def _normalize_earnings_calendar_rows(
     return normalized
 
 
+def _official_source_reference(
+    *,
+    source_id: str,
+    source_family: str,
+    source_name: str,
+    source_url: str,
+    agency: str,
+    agency_series_id: str | None = None,
+) -> dict[str, Any]:
+    source = {
+        "source_id": source_id,
+        "source_family": source_family,
+        "source_name": source_name,
+        "source_url": source_url,
+        "agency": agency,
+    }
+    if agency_series_id:
+        source["agency_series_id"] = agency_series_id
+    validate_schema("official-source-reference", source)
+    return source
+
+
+def _official_retrieval_metadata(
+    *,
+    source: dict[str, Any],
+    retrieved_at: str,
+    retrieval_status: str = "fresh",
+    source_period: str | None = None,
+    source_revision: str | None = None,
+) -> dict[str, Any]:
+    metadata = {
+        "source": source,
+        "retrieved_at": retrieved_at,
+        "retrieval_status": retrieval_status,
+    }
+    if source_period:
+        metadata["source_period"] = source_period
+    if source_revision:
+        metadata["source_revision"] = source_revision
+    validate_schema("official-retrieval-metadata", metadata)
+    return metadata
+
+
+def _missing_field(field: str, reason: str, message: str, *, source_id: str | None = None) -> dict[str, Any]:
+    missing = {
+        "field": field,
+        "reason": reason,
+        "message": message,
+    }
+    if source_id:
+        missing["source_id"] = source_id
+    validate_schema("official-missing-field-state", missing)
+    return missing
+
+
+def _iso_datetime_from_date(value: str | None) -> str:
+    normalized = _normalize_iso_date(value)
+    if normalized:
+        return f"{normalized}T00:00:00.000Z"
+    return iso_timestamp()
+
+
+def _build_canonical_event(
+    *,
+    event_id: str,
+    family: str,
+    subject_type: str,
+    subject_id: str,
+    title: str,
+    occurred_at: str,
+    source_state: str,
+    source: dict[str, Any],
+    retrieved_at: str,
+    missing_fields: list[dict[str, Any]] | None = None,
+    metadata: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    event = {
+        "id": event_id,
+        "family": family,
+        "subject_type": subject_type,
+        "subject_id": subject_id,
+        "title": title,
+        "occurred_at": occurred_at,
+        "source_state": source_state,
+        "source": source,
+        "retrieved_at": retrieved_at,
+        "missing_fields": missing_fields or [],
+        "metadata": metadata or {},
+    }
+    validate_schema("canonical-event", event)
+    return event
+
+
+def _official_company_default_fixture(ticker: str) -> dict[str, Any]:
+    cik = OFFICIAL_COMPANY_TICKERS.get(ticker)
+    retrieved_at = iso_timestamp()
+    sec_source = _official_source_reference(
+        source_id=f"SEC_COMPANY_{ticker}",
+        source_family="sec_edgar",
+        source_name=f"SEC EDGAR company truth for {ticker}",
+        source_url=f"https://data.sec.gov/submissions/CIK{cik}.json" if cik else "https://data.sec.gov/submissions/",
+        agency="SEC",
+        agency_series_id=f"CIK{cik}" if cik else None,
+    )
+    retrieval = _official_retrieval_metadata(
+        source=sec_source,
+        retrieved_at=retrieved_at,
+        retrieval_status="partial" if cik is None else "fresh",
+    )
+    missing_fields = []
+    if cik is None:
+        missing_fields.append(
+            _missing_field(
+                "cik",
+                "outside_seed_scope",
+                f"{ticker} is outside the M1 official company seed scope.",
+                source_id=sec_source["source_id"],
+            )
+        )
+    event = _build_canonical_event(
+        event_id=f"official-company-{ticker.lower()}-seed",
+        family="filing_posted",
+        subject_type="ticker",
+        subject_id=ticker,
+        title=f"{ticker} official SEC seed record",
+        occurred_at=retrieved_at,
+        source_state="partial" if missing_fields else "official",
+        source=retrieval,
+        retrieved_at=retrieved_at,
+        missing_fields=missing_fields,
+        metadata={"ticker": ticker, "cik": cik, "fixture": True},
+    )
+    return {
+        "ticker": ticker,
+        "cik": cik or "",
+        "company_name": ticker,
+        "retrieved_at": retrieved_at,
+        "retrieval": retrieval,
+        "missing_fields": missing_fields,
+        "filings": [],
+        "facts": {},
+        "canonical_events": [event],
+    }
+
+
+def _official_macro_default_fixture() -> dict[str, Any]:
+    retrieved_at = iso_timestamp()
+    observations: list[dict[str, Any]] = []
+    events: list[dict[str, Any]] = []
+    values_by_key = {
+        "TREASURY_DAILY_10Y": 4.18,
+        "TREASURY_DAILY_2Y": 4.83,
+        "BLS_CPI_U_ALL_ITEMS": 312.23,
+        "BLS_UNEMPLOYMENT_RATE": 4.0,
+        "BEA_REAL_GDP": 2.1,
+        "EIA_WTI_SPOT": 79.42,
+    }
+    period_by_key = {
+        "BEA_REAL_GDP": "2026-Q1",
+    }
+
+    for item in OFFICIAL_MACRO_REGISTRY:
+        registry_id = str(item["registry_id"])
+        period = period_by_key.get(registry_id, today_period())
+        source = _official_source_reference(
+            source_id=registry_id,
+            source_family=str(item["source_family"]),
+            source_name=str(item["source_name"]),
+            source_url=str(item["source_url"]),
+            agency=str(item["agency"]),
+            agency_series_id=str(item["agency_series_id"]),
+        )
+        retrieval = _official_retrieval_metadata(
+            source=source,
+            retrieved_at=retrieved_at,
+            retrieval_status="fresh",
+            source_period=period,
+        )
+        value = values_by_key.get(registry_id)
+        missing_fields = []
+        if value is None:
+            missing_fields.append(
+                _missing_field(
+                    "value",
+                    "source_unavailable",
+                    f"{registry_id} has no fixture value.",
+                    source_id=registry_id,
+                )
+            )
+        observations.append(
+            {
+                "registry_id": registry_id,
+                "value": value,
+                "unit": item["unit"],
+                "period": period,
+                "category": item["category"],
+                "retrieval": retrieval,
+                "missing_fields": missing_fields,
+            }
+        )
+        events.append(
+            _build_canonical_event(
+                event_id=f"official-macro-{registry_id.lower()}-{period.lower()}",
+                family="macro_release_published",
+                subject_type="macro_series",
+                subject_id=registry_id,
+                title=f"{item['source_name']} official observation published",
+                occurred_at=_iso_datetime_from_date(period if len(period) == 10 else None),
+                source_state="partial" if missing_fields else "official",
+                source=retrieval,
+                retrieved_at=retrieved_at,
+                missing_fields=missing_fields,
+                metadata={
+                    "registry_id": registry_id,
+                    "category": item["category"],
+                    "unit": item["unit"],
+                    "period": period,
+                    "fixture": True,
+                },
+            )
+        )
+
+    return {
+        "scope": "daily",
+        "retrieved_at": retrieved_at,
+        "observations": observations,
+        "missing_fields": [],
+        "canonical_events": events,
+    }
+
+
+def _fixture_official_company_payload(ticker: str) -> dict[str, Any]:
+    fixture = _load_json_fixture(
+        OFFICIAL_COMPANY_FIXTURE_ROOT / f"{ticker}.json",
+        default_factory=lambda: _official_company_default_fixture(ticker),
+    )
+    if "retrieved_at" not in fixture:
+        fixture["retrieved_at"] = iso_timestamp()
+    for missing in fixture.get("missing_fields", []):
+        if isinstance(missing, dict):
+            validate_schema("official-missing-field-state", missing)
+    retrieval = fixture.get("retrieval")
+    if isinstance(retrieval, dict):
+        validate_schema("official-retrieval-metadata", retrieval)
+    for event in fixture.get("canonical_events", []):
+        if isinstance(event, dict):
+            validate_schema("canonical-event", event)
+    return fixture
+
+
+def _fixture_official_macro_payload() -> dict[str, Any]:
+    fixture = _load_json_fixture(
+        OFFICIAL_MACRO_FIXTURE_ROOT / "daily.json",
+        default_factory=_official_macro_default_fixture,
+    )
+    if "retrieved_at" not in fixture:
+        fixture["retrieved_at"] = iso_timestamp()
+    for observation in fixture.get("observations", []):
+        if not isinstance(observation, dict):
+            continue
+        retrieval = observation.get("retrieval")
+        if isinstance(retrieval, dict):
+            validate_schema("official-retrieval-metadata", retrieval)
+        for missing in observation.get("missing_fields", []):
+            if isinstance(missing, dict):
+                validate_schema("official-missing-field-state", missing)
+    for event in fixture.get("canonical_events", []):
+        if isinstance(event, dict):
+            validate_schema("canonical-event", event)
+    return fixture
+
+
 def _fixture_company_payload(ticker: str) -> dict[str, Any]:
     fixture = _load_json_fixture(
         COMPANY_FIXTURE_ROOT / f"{ticker}.json",
@@ -845,6 +1191,127 @@ class OpenBBLiveClient:
 
         return _calendar_row_candidates(raw_result)
 
+    def fetch_official_company_truth(self, ticker: str) -> dict[str, Any]:
+        cik = OFFICIAL_COMPANY_TICKERS.get(ticker)
+        if not cik:
+            return _official_company_default_fixture(ticker)
+
+        headers = {
+            "user-agent": os.environ.get(
+                "SEC_USER_AGENT",
+                "Thesis Phase6 official-source smoke contact@example.com",
+            ),
+            "accept": "application/json",
+        }
+        retrieved_at = iso_timestamp()
+        submissions_url = f"https://data.sec.gov/submissions/CIK{cik}.json"
+        facts_url = f"https://data.sec.gov/api/xbrl/companyfacts/CIK{cik}.json"
+        try:
+            submissions = self._fetch_json(submissions_url, headers=headers)
+            facts = self._fetch_json(facts_url, headers=headers)
+        except (OSError, URLError, TimeoutError) as error:
+            raise ProviderIntegrationError(
+                OFFICIAL_COMPANY_PROVIDER,
+                error_code="PROVIDER_OUTAGE",
+                message="SEC EDGAR official company truth is unavailable.",
+            ) from error
+
+        company_name = str(submissions.get("name") or ticker)
+        recent = submissions.get("filings", {}).get("recent", {}) if isinstance(submissions.get("filings"), dict) else {}
+        forms = recent.get("form", []) if isinstance(recent, dict) else []
+        filing_dates = recent.get("filingDate", []) if isinstance(recent, dict) else []
+        accession_numbers = recent.get("accessionNumber", []) if isinstance(recent, dict) else []
+        filings: list[dict[str, Any]] = []
+        for index, form in enumerate(forms if isinstance(forms, list) else []):
+            if not isinstance(form, str):
+                continue
+            filing_date = filing_dates[index] if isinstance(filing_dates, list) and index < len(filing_dates) else None
+            accession = (
+                accession_numbers[index]
+                if isinstance(accession_numbers, list) and index < len(accession_numbers)
+                else None
+            )
+            filings.append(
+                {
+                    "form": form,
+                    "filing_date": str(filing_date) if filing_date else "",
+                    "accession_number": str(accession) if accession else "",
+                }
+            )
+            if len(filings) >= 5:
+                break
+
+        source = _official_source_reference(
+            source_id=f"SEC_COMPANY_{ticker}",
+            source_family="sec_edgar",
+            source_name=f"SEC EDGAR company truth for {ticker}",
+            source_url=submissions_url,
+            agency="SEC",
+            agency_series_id=f"CIK{cik}",
+        )
+        retrieval = _official_retrieval_metadata(
+            source=source,
+            retrieved_at=retrieved_at,
+            retrieval_status="fresh" if filings else "partial",
+        )
+        missing_fields = []
+        if not filings:
+            missing_fields.append(
+                _missing_field(
+                    "filings",
+                    "not_reported",
+                    "SEC submissions did not include recent filing rows.",
+                    source_id=source["source_id"],
+                )
+            )
+        event = _build_canonical_event(
+            event_id=f"official-company-{ticker.lower()}-{filings[0]['accession_number'] if filings else 'latest'}",
+            family="filing_posted",
+            subject_type="ticker",
+            subject_id=ticker,
+            title=f"{ticker} latest SEC filing",
+            occurred_at=_iso_datetime_from_date(filings[0].get("filing_date") if filings else None),
+            source_state="official" if filings else "partial",
+            source=retrieval,
+            retrieved_at=retrieved_at,
+            missing_fields=missing_fields,
+            metadata={
+                "ticker": ticker,
+                "cik": cik,
+                "company_name": company_name,
+                "latest_form": filings[0].get("form") if filings else None,
+                "accession_number": filings[0].get("accession_number") if filings else None,
+            },
+        )
+        return {
+            "ticker": ticker,
+            "cik": cik,
+            "company_name": company_name,
+            "retrieved_at": retrieved_at,
+            "retrieval": retrieval,
+            "missing_fields": missing_fields,
+            "filings": filings,
+            "facts": {
+                "entity_name": facts.get("entityName"),
+                "cik": facts.get("cik"),
+                "taxonomy_count": len(facts.get("facts", {})) if isinstance(facts.get("facts"), dict) else 0,
+            },
+            "canonical_events": [event],
+        }
+
+    def fetch_official_macro_truth(self) -> dict[str, Any]:
+        # M1 keeps live official macro retrieval deterministic by contract shape; later
+        # milestones may add per-agency parsers without changing the public payload.
+        return _official_macro_default_fixture()
+
+    def _fetch_json(self, url: str, *, headers: Mapping[str, str]) -> dict[str, Any]:
+        request = Request(url, headers=dict(headers))
+        with urlopen(request, timeout=15) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+            if not isinstance(payload, dict):
+                raise OSError("official source returned a non-object JSON payload")
+            return payload
+
 
 class DataOpenBBService:
     def __init__(
@@ -877,6 +1344,12 @@ class DataOpenBBService:
             request_id=request_id,
             func=lambda: self._macro_response(scope, request_id),
         )
+
+    def get_official_company_truth(self, ticker: str | None, request_id: str) -> tuple[int, dict[str, Any]]:
+        return self._official_company_truth_response(ticker, request_id)
+
+    def get_official_macro_truth(self, scope: str | None, request_id: str) -> tuple[int, dict[str, Any]]:
+        return self._official_macro_truth_response(scope, request_id)
 
     def get_calendar_earnings(
         self,
@@ -1105,6 +1578,127 @@ class DataOpenBBService:
         )
         return 200, response
 
+    def _official_company_truth_response(self, ticker: str | None, request_id: str) -> tuple[int, dict[str, Any]]:
+        normalized_ticker = (ticker or "").strip().upper()
+
+        if not normalized_ticker:
+            response = error_response(
+                status_code=400,
+                request_id=request_id,
+                message="ticker query parameter is required",
+                provider=OFFICIAL_COMPANY_PROVIDER,
+            )
+            return response.status_code, response.body
+
+        started_at = time.perf_counter()
+        log(
+            "INFO",
+            "Official company truth retrieval started",
+            request_id=request_id,
+            provider=OFFICIAL_COMPANY_PROVIDER,
+            ticker=normalized_ticker,
+            dataset="official_company_truth",
+        )
+
+        try:
+            payload = build_official_company_payload(normalized_ticker, service=self)
+        except ProviderIntegrationError as error:
+            log(
+                "ERROR",
+                "Official company truth retrieval failed",
+                request_id=request_id,
+                provider=error.provider,
+                ticker=normalized_ticker,
+                error_message=str(error),
+            )
+            response = error_response(
+                status_code=error.status_code,
+                request_id=request_id,
+                message=str(error),
+                error_code=error.error_code,
+                provider=error.provider,
+            )
+            return response.status_code, response.body
+
+        latency_ms = int((time.perf_counter() - started_at) * 1000)
+        log(
+            "INFO",
+            "Official company truth retrieval succeeded",
+            request_id=request_id,
+            provider=OFFICIAL_COMPANY_PROVIDER,
+            ticker=normalized_ticker,
+            dataset="official_company_truth",
+            event_count=len(payload.get("canonical_events", [])),
+            latency_ms=latency_ms,
+        )
+
+        response = success_response(
+            request_id=request_id,
+            data=payload,
+            provider=OFFICIAL_COMPANY_PROVIDER,
+            retrieved_at=str(payload["retrieved_at"]),
+        )
+        return 200, response
+
+    def _official_macro_truth_response(self, scope: str | None, request_id: str) -> tuple[int, dict[str, Any]]:
+        normalized_scope = (scope or "").strip().lower()
+
+        if normalized_scope != "daily":
+            response = error_response(
+                status_code=400,
+                request_id=request_id,
+                message="scope query parameter must be 'daily'",
+                provider=OFFICIAL_MACRO_PROVIDER,
+            )
+            return response.status_code, response.body
+
+        started_at = time.perf_counter()
+        log(
+            "INFO",
+            "Official macro truth retrieval started",
+            request_id=request_id,
+            provider=OFFICIAL_MACRO_PROVIDER,
+            dataset="official_macro_truth",
+        )
+
+        try:
+            payload = build_official_macro_payload(service=self)
+        except ProviderIntegrationError as error:
+            log(
+                "ERROR",
+                "Official macro truth retrieval failed",
+                request_id=request_id,
+                provider=error.provider,
+                error_message=str(error),
+            )
+            response = error_response(
+                status_code=error.status_code,
+                request_id=request_id,
+                message=str(error),
+                error_code=error.error_code,
+                provider=error.provider,
+            )
+            return response.status_code, response.body
+
+        latency_ms = int((time.perf_counter() - started_at) * 1000)
+        log(
+            "INFO",
+            "Official macro truth retrieval succeeded",
+            request_id=request_id,
+            provider=OFFICIAL_MACRO_PROVIDER,
+            dataset="official_macro_truth",
+            event_count=len(payload.get("canonical_events", [])),
+            latency_ms=latency_ms,
+        )
+
+        response = success_response(
+            request_id=request_id,
+            data=payload,
+            provider=OFFICIAL_MACRO_PROVIDER,
+            retrieved_at=str(payload["retrieved_at"]),
+        )
+        return 200, response
+
     def _calendar_earnings_response(
         self,
         start_date: str | None,
@@ -1195,6 +1789,16 @@ def build_company_response(ticker: str | None, request_id: str) -> ResponsePaylo
 
 def build_macro_response(scope: str | None, request_id: str) -> ResponsePayload:
     status_code, body = default_service().get_macro(scope, request_id)
+    return ResponsePayload(status_code=status_code, body=body)
+
+
+def build_official_company_response(ticker: str | None, request_id: str) -> ResponsePayload:
+    status_code, body = default_service().get_official_company_truth(ticker, request_id)
+    return ResponsePayload(status_code=status_code, body=body)
+
+
+def build_official_macro_response(scope: str | None, request_id: str) -> ResponsePayload:
+    status_code, body = default_service().get_official_macro_truth(scope, request_id)
     return ResponsePayload(status_code=status_code, body=body)
 
 
@@ -1319,6 +1923,22 @@ def build_macro_payload(*, service: DataOpenBBService | None = None) -> dict[str
 
     records, metadata = active_service.live_client().fetch_macro_records()
     return _normalize_macro_records(records, metadata)
+
+
+def build_official_company_payload(ticker: str, *, service: DataOpenBBService | None = None) -> dict[str, Any]:
+    active_service = service or default_service()
+    if active_service.settings.fixture_mode:
+        return _fixture_official_company_payload(ticker)
+
+    return active_service.live_client().fetch_official_company_truth(ticker)
+
+
+def build_official_macro_payload(*, service: DataOpenBBService | None = None) -> dict[str, Any]:
+    active_service = service or default_service()
+    if active_service.settings.fixture_mode:
+        return _fixture_official_macro_payload()
+
+    return active_service.live_client().fetch_official_macro_truth()
 
 
 def build_calendar_payload(
