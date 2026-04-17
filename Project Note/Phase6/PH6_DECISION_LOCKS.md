@@ -81,6 +81,23 @@ Locked rules:
 - Seed coverage may start with the supported smoke tickers from M1/M2, but exact domains must be validated in the source registry during implementation.
 - Unknown domains default to reject.
 
+M2 seed first-party registry approved for implementation:
+
+| Ticker | Registered source | Allowed path scope | Default display mode | Notes |
+|---|---|---|---|---|
+| `AAPL` | `investor.apple.com` | `/investor-relations/`, `/` | `excerpt_only` | Investor relations, earnings/report entry points, and first-party references only |
+| `AAPL` | `www.apple.com` | `/newsroom/` | `excerpt_only` | Approved only for Apple newsroom paths, not the whole domain |
+| `MSFT` | `www.microsoft.com` | `/en-us/investor/`, `/en-us/Investor/` | `excerpt_only` | Microsoft investor relations and earnings material paths only |
+| `MSFT` | `news.microsoft.com` | `/` | `excerpt_only` | Microsoft first-party news/release context |
+| `TSLA` | `ir.tesla.com` | `/`, `/press-release/` | `excerpt_only` | Tesla investor relations and press-release paths |
+| `TSLA` | `assets-ir.tesla.com` | `/` | `excerpt_only` | Tesla investor asset references and metadata only |
+| `TSLA` | `digitalassets.tesla.com` | `/` | `excerpt_only` | Tesla first-party hosted digital asset references only |
+| `TSLA` | `www.tesla.com` | `/` | `excerpt_only` | Tesla first-party page references only; no broad crawl |
+
+Seed registry rule:
+
+The registry proves the rights-safe mechanism for the M1 smoke tickers. It is not an S&P 500 coverage claim. Adding more issuers later means adding reviewed registry entries with owner, review date, allowed paths, page types, and rights posture before any user-facing use.
+
 Official macro scope for M1/M3:
 
 - The first implementation should use a small official-source registry rather than a giant macro warehouse.
@@ -161,7 +178,6 @@ These are not needed for the documentation normalization pass, but they must be 
 
 | Decision | Needed before | Default if not decided |
 |---|---|---|
-| Exact first-party domains for seed issuers | M2 implementation | Reject unknown domains; use SEC/official evidence only |
 | Exact official macro series IDs | M1/M3 implementation | Use only the locked source families and record selected series in evidence |
 | Any licensed quote provider re-entry | Any implementation | Not allowed |
 | Any licensed transcript provider | M4 implementation or later | Not allowed; use first-party call artifacts |

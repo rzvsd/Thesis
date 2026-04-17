@@ -8,7 +8,7 @@ import unittest
 from unittest import mock
 
 import news_ingest.service as news_service
-from news_ingest.service import ApprovedSource, SourceFetchError, build_news_response
+from news_ingest.service import ApprovedSource, SourceFetchError, build_first_party_context_response, build_news_response
 from news_ingest.service import RateLimitExceededError, RateLimiter, Settings
 
 
@@ -138,6 +138,63 @@ class NewsServiceTests(unittest.TestCase):
         self.assertEqual(status_code, 200)
         self.assertTrue(payload["ok"])
         self.assertGreaterEqual(wrapped.call_count, 1)
+
+    def test_first_party_context_fetch_enforces_rights_metadata(self) -> None:
+        status_code, payload = build_first_party_context_response(
+            "AAPL",
+            "https://investor.apple.com/investor-relations/",
+            request_id="req-first-party-aapl",
+            event_id="event-aapl-earnings",
+            now=FIXTURE_NOW,
+        )
+
+        self.assertEqual(status_code, 200)
+        self.assertTrue(payload["ok"])
+        item = payload["data"]["context_items"][0]
+        self.assertEqual(item["ticker"], "AAPL")
+        self.assertEqual(item["fetch_state"], "fetched")
+        self.assertEqual(item["rights"]["rights_class"], "first_party_public")
+        self.assertEqual(item["rights"]["display_mode"], "excerpt_only")
+        self.assertFalse(item["rights"]["can_store_full_text"])
+        self.assertTrue(item["rights"]["can_display_excerpt"])
+        self.assertTrue(item["rights"]["can_display_link"])
+        self.assertEqual(item["metadata"]["full_text_stored"], False)
+        self.assertGreaterEqual(len(payload["data"]["call_artifacts"]), 1)
+
+    def test_first_party_context_fetch_works_for_second_seed_issuer(self) -> None:
+        status_code, payload = build_first_party_context_response(
+            "MSFT",
+            "https://www.microsoft.com/en-us/investor/default",
+            request_id="req-first-party-msft",
+            event_id="event-msft-earnings",
+            now=FIXTURE_NOW,
+        )
+
+        self.assertEqual(status_code, 200)
+        self.assertTrue(payload["ok"])
+        item = payload["data"]["context_items"][0]
+        artifact_types = {
+            artifact["artifact_type"]
+            for artifact in payload["data"]["call_artifacts"]
+        }
+        self.assertEqual(item["ticker"], "MSFT")
+        self.assertIn("earnings_release", artifact_types)
+        self.assertIn("webcast", artifact_types)
+
+    def test_first_party_context_rejects_unapproved_domain(self) -> None:
+        status_code, payload = build_first_party_context_response(
+            "AAPL",
+            "https://example.com/aapl-earnings",
+            request_id="req-first-party-reject",
+            event_id="event-aapl-earnings",
+            now=FIXTURE_NOW,
+        )
+
+        self.assertEqual(status_code, 422)
+        self.assertFalse(payload["ok"])
+        self.assertTrue(payload["error_flag"])
+        self.assertEqual(payload["error_code"], "SOURCE_REJECTED")
+        self.assertEqual(payload["data"]["context_items"], [])
 
 
 if __name__ == "__main__":

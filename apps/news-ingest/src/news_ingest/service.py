@@ -6,6 +6,7 @@ import os
 import re
 import sys
 import urllib.error
+import urllib.parse
 import urllib.request
 import uuid
 import warnings
@@ -28,8 +29,10 @@ from client import RedisClient  # noqa: E402
 
 SERVICE_NAME = "news-ingest"
 DEFAULT_PROVIDER = "approved-sources"
+FIRST_PARTY_PROVIDER = "first-party-context"
 REQUEST_TIMEOUT_SECONDS = 5.0
 DEFAULT_SOURCE_RATE_LIMIT_PER_MINUTE = 5
+PH6_SOURCE_REVIEWED_AT = "2026-04-17T00:00:00Z"
 
 
 class CanonicalNewsArticle(TypedDict):
@@ -53,6 +56,85 @@ class NewsServiceResponse(TypedDict, total=False):
         "RATE_LIMIT",
         "TIMEOUT",
         "PROVIDER_OUTAGE",
+        "SCHEMA_MISMATCH",
+        "INTERNAL_ERROR",
+    ]
+    error_message: str
+    request_id: str
+    provider: str
+    retrieved_at: str
+
+
+class EvidenceRightsMetadata(TypedDict, total=False):
+    rights_class: str
+    display_mode: str
+    source_rank: str
+    source_type: str
+    can_store_full_text: bool
+    can_display_excerpt: bool
+    can_display_link: bool
+    policy_reason: str
+    reviewed_at: str
+    review_expires_at: str
+
+
+class FirstPartySourceRegistryEntry(TypedDict, total=False):
+    registry_entry_id: str
+    ticker: str
+    issuer_name: str
+    domain: str
+    allowed_paths: list[str]
+    page_types: list[str]
+    default_rights: EvidenceRightsMetadata
+    owner: str
+    reviewed_at: str
+    active: bool
+
+
+class FirstPartyContextItem(TypedDict, total=False):
+    context_id: str
+    ticker: str
+    event_id: str
+    registry_entry_id: str
+    source_url: str
+    source_domain: str
+    page_type: str
+    title: str
+    summary: str
+    excerpt: str
+    retrieved_at: str
+    published_at: str
+    content_hash: str
+    fetch_state: str
+    rights: EvidenceRightsMetadata
+    artifact_ids: list[str]
+    metadata: dict[str, Any]
+
+
+class CallArtifact(TypedDict, total=False):
+    artifact_id: str
+    ticker: str
+    event_id: str
+    context_id: str
+    artifact_type: str
+    title: str
+    source_url: str
+    source_domain: str
+    published_at: str
+    retrieved_at: str
+    completeness_state: str
+    rights: EvidenceRightsMetadata
+    content_hash: str
+    metadata: dict[str, Any]
+
+
+class FirstPartyContextResponse(TypedDict, total=False):
+    ok: bool
+    data: dict[str, Any]
+    error_flag: bool
+    error_code: Literal[
+        "SOURCE_REJECTED",
+        "SOURCE_UNAVAILABLE",
         "SCHEMA_MISMATCH",
         "INTERNAL_ERROR",
     ]
@@ -86,6 +168,26 @@ class ApprovedSource:
     fixture_name: str
 
 
+@dataclass(frozen=True)
+class FirstPartySource:
+    registry_entry_id: str
+    ticker: str
+    issuer_name: str
+    domain: str
+    allowed_paths: tuple[str, ...]
+    page_types: tuple[str, ...]
+    fixture_name: str
+    default_display_mode: str
+    policy_reason: str
+
+    @property
+    def default_rights(self) -> EvidenceRightsMetadata:
+        return build_first_party_rights(
+            display_mode=self.default_display_mode,
+            policy_reason=self.policy_reason,
+        )
+
+
 APPROVED_SOURCES: tuple[ApprovedSource, ...] = (
     ApprovedSource(
         key="reuters-business",
@@ -107,6 +209,98 @@ APPROVED_SOURCES: tuple[ApprovedSource, ...] = (
         method="html",
         url="https://www.wsj.com/news/markets",
         fixture_name="wsj.html",
+    ),
+)
+
+
+FIRST_PARTY_SOURCE_REGISTRY: tuple[FirstPartySource, ...] = (
+    FirstPartySource(
+        registry_entry_id="ph6m2-aapl-investor",
+        ticker="AAPL",
+        issuer_name="Apple Inc.",
+        domain="investor.apple.com",
+        allowed_paths=("/investor-relations/", "/"),
+        page_types=("investor_relations", "earnings_release", "sec_filing_reference"),
+        fixture_name="AAPL.json",
+        default_display_mode="excerpt_only",
+        policy_reason="Approved seed first-party investor page; store bounded excerpts and links only.",
+    ),
+    FirstPartySource(
+        registry_entry_id="ph6m2-aapl-newsroom",
+        ticker="AAPL",
+        issuer_name="Apple Inc.",
+        domain="www.apple.com",
+        allowed_paths=("/newsroom/",),
+        page_types=("newsroom", "press_release"),
+        fixture_name="AAPL.json",
+        default_display_mode="excerpt_only",
+        policy_reason="Approved seed first-party newsroom path; store bounded excerpts and links only.",
+    ),
+    FirstPartySource(
+        registry_entry_id="ph6m2-msft-investor",
+        ticker="MSFT",
+        issuer_name="Microsoft Corporation",
+        domain="www.microsoft.com",
+        allowed_paths=("/en-us/investor/", "/en-us/Investor/"),
+        page_types=("investor_relations", "earnings_release", "webcast"),
+        fixture_name="MSFT.json",
+        default_display_mode="excerpt_only",
+        policy_reason="Approved seed first-party investor path; store bounded excerpts and links only.",
+    ),
+    FirstPartySource(
+        registry_entry_id="ph6m2-msft-news",
+        ticker="MSFT",
+        issuer_name="Microsoft Corporation",
+        domain="news.microsoft.com",
+        allowed_paths=("/",),
+        page_types=("press_release", "newsroom"),
+        fixture_name="MSFT.json",
+        default_display_mode="excerpt_only",
+        policy_reason="Approved seed first-party news path; store bounded excerpts and links only.",
+    ),
+    FirstPartySource(
+        registry_entry_id="ph6m2-tsla-ir",
+        ticker="TSLA",
+        issuer_name="Tesla, Inc.",
+        domain="ir.tesla.com",
+        allowed_paths=("/", "/press-release/"),
+        page_types=("investor_relations", "earnings_release", "webcast"),
+        fixture_name="TSLA.json",
+        default_display_mode="excerpt_only",
+        policy_reason="Approved seed first-party investor path; store bounded excerpts and links only.",
+    ),
+    FirstPartySource(
+        registry_entry_id="ph6m2-tsla-assets",
+        ticker="TSLA",
+        issuer_name="Tesla, Inc.",
+        domain="assets-ir.tesla.com",
+        allowed_paths=("/",),
+        page_types=("presentation", "supplemental_material"),
+        fixture_name="TSLA.json",
+        default_display_mode="link_only",
+        policy_reason="Approved seed asset host; store metadata and links, not full asset text.",
+    ),
+    FirstPartySource(
+        registry_entry_id="ph6m2-tsla-digitalassets",
+        ticker="TSLA",
+        issuer_name="Tesla, Inc.",
+        domain="digitalassets.tesla.com",
+        allowed_paths=("/",),
+        page_types=("presentation", "supplemental_material"),
+        fixture_name="TSLA.json",
+        default_display_mode="link_only",
+        policy_reason="Approved seed asset host; store metadata and links, not full asset text.",
+    ),
+    FirstPartySource(
+        registry_entry_id="ph6m2-tsla-main",
+        ticker="TSLA",
+        issuer_name="Tesla, Inc.",
+        domain="www.tesla.com",
+        allowed_paths=("/",),
+        page_types=("investor_relations", "presentation", "webcast"),
+        fixture_name="TSLA.json",
+        default_display_mode="link_only",
+        policy_reason="Approved seed Tesla first-party domain; store metadata and links, not full text.",
     ),
 )
 
@@ -239,6 +433,10 @@ def fixture_root() -> Path:
     return repo_root() / "data" / "golden" / "news-ingest"
 
 
+def first_party_fixture_root() -> Path:
+    return fixture_root() / "first-party"
+
+
 def schema_root() -> Path:
     return repo_root() / "packages" / "contracts" / "schemas"
 
@@ -246,6 +444,18 @@ def schema_root() -> Path:
 def load_schema(name: str) -> dict[str, Any]:
     schema_path = schema_root() / name
     return json.loads(schema_path.read_text(encoding="utf8"))
+
+
+def schema_name_for_ref(ref: str) -> str:
+    mapping = {
+        "EvidenceRightsMetadata": "evidence-rights-metadata.schema.json",
+        "FirstPartySourceRegistryEntry": "first-party-source-registry-entry.schema.json",
+        "FirstPartyContextItem": "first-party-context-item.schema.json",
+        "CallArtifact": "call-artifact.schema.json",
+    }
+    if ref not in mapping:
+        raise ValueError(f"Unsupported schema reference: {ref}.")
+    return mapping[ref]
 
 
 def validate_iso_datetime(value: str, field_name: str) -> None:
@@ -256,6 +466,10 @@ def validate_iso_datetime(value: str, field_name: str) -> None:
 
 
 def validate_against_schema(value: Any, schema: dict[str, Any], field_name: str) -> None:
+    if "$ref" in schema:
+        validate_against_schema(value, load_schema(schema_name_for_ref(str(schema["$ref"]))), field_name)
+        return
+
     if "oneOf" in schema:
         errors: list[str] = []
         for option in schema["oneOf"]:
@@ -323,6 +537,30 @@ def validate_article(article: CanonicalNewsArticle) -> None:
     )
 
 
+def validate_first_party_context_item(item: FirstPartyContextItem) -> None:
+    validate_against_schema(
+        item,
+        load_schema("first-party-context-item.schema.json"),
+        "FirstPartyContextItem",
+    )
+
+
+def validate_call_artifact(artifact: CallArtifact) -> None:
+    validate_against_schema(
+        artifact,
+        load_schema("call-artifact.schema.json"),
+        "CallArtifact",
+    )
+
+
+def validate_source_registry_entry(entry: FirstPartySourceRegistryEntry) -> None:
+    validate_against_schema(
+        entry,
+        load_schema("first-party-source-registry-entry.schema.json"),
+        "FirstPartySourceRegistryEntry",
+    )
+
+
 def validate_response(response: NewsServiceResponse) -> None:
     validate_against_schema(
         response,
@@ -340,6 +578,222 @@ def normalize_text(raw_text: str) -> str:
     text = unescape(text)
     text = re.sub(r"\s+", " ", text)
     return text.strip()
+
+
+def build_first_party_rights(display_mode: str, policy_reason: str) -> EvidenceRightsMetadata:
+    return {
+        "rights_class": "first_party_public",
+        "display_mode": display_mode,
+        "source_rank": "first_party",
+        "source_type": "first_party_corporate",
+        "can_store_full_text": display_mode == "full_text_allowed",
+        "can_display_excerpt": display_mode in {"full_text_allowed", "excerpt_only"},
+        "can_display_link": True,
+        "policy_reason": policy_reason,
+        "reviewed_at": PH6_SOURCE_REVIEWED_AT,
+    }
+
+
+def registry_entry_payload(source: FirstPartySource) -> FirstPartySourceRegistryEntry:
+    entry: FirstPartySourceRegistryEntry = {
+        "registry_entry_id": source.registry_entry_id,
+        "ticker": source.ticker,
+        "issuer_name": source.issuer_name,
+        "domain": source.domain,
+        "allowed_paths": list(source.allowed_paths),
+        "page_types": list(source.page_types),
+        "default_rights": source.default_rights,
+        "owner": "Phase 6 Product/Legal seed approval",
+        "reviewed_at": PH6_SOURCE_REVIEWED_AT,
+        "active": True,
+    }
+    validate_source_registry_entry(entry)
+    return entry
+
+
+def first_party_registry_payload() -> list[FirstPartySourceRegistryEntry]:
+    return [registry_entry_payload(source) for source in FIRST_PARTY_SOURCE_REGISTRY]
+
+
+def normalize_domain(value: str) -> str:
+    return value.strip().lower().removeprefix("http://").removeprefix("https://").split("/")[0]
+
+
+def resolve_first_party_source(ticker: str, url: str) -> FirstPartySource | None:
+    normalized_ticker = ticker.strip().upper()
+    parsed = urllib.parse.urlparse(url)
+    domain = normalize_domain(parsed.netloc)
+    path = parsed.path or "/"
+    for source in FIRST_PARTY_SOURCE_REGISTRY:
+        if source.ticker != normalized_ticker or source.domain != domain:
+            continue
+        if any(path.startswith(allowed_path) for allowed_path in source.allowed_paths):
+            return source
+    return None
+
+
+def context_id_for(ticker: str, url: str, event_id: str | None = None) -> str:
+    raw = f"{ticker.strip().upper()}|{event_id or ''}|{url.strip()}"
+    return hashlib.sha256(raw.encode("utf8")).hexdigest()
+
+
+def artifact_id_for(ticker: str, url: str, artifact_type: str) -> str:
+    raw = f"{ticker.strip().upper()}|{artifact_type}|{url.strip()}"
+    return hashlib.sha256(raw.encode("utf8")).hexdigest()
+
+
+def safe_excerpt(text: str, limit: int = 320) -> str:
+    normalized = normalize_text(text)
+    if len(normalized) <= limit:
+        return normalized
+    return normalized[: limit - 1].rstrip() + "..."
+
+
+def load_first_party_fixture(ticker: str) -> dict[str, Any]:
+    fixture_path = first_party_fixture_root() / f"{ticker.strip().upper()}.json"
+    if not fixture_path.exists():
+        raise SourceFetchError(f"First-party fixture missing for {ticker}.")
+    return json.loads(fixture_path.read_text(encoding="utf8"))
+
+
+def fixture_context_for(source: FirstPartySource, url: str) -> dict[str, Any]:
+    fixture = load_first_party_fixture(source.ticker)
+    contexts = fixture.get("contexts", [])
+    if not isinstance(contexts, list):
+        raise ValueError(f"First-party fixture for {source.ticker} has invalid contexts.")
+    for context in contexts:
+        if isinstance(context, dict) and str(context.get("source_url", "")).strip() == url.strip():
+            return context
+    raise SourceFetchError(f"No first-party fixture context found for {source.ticker} {url}.")
+
+
+def first_party_artifacts_from_fixture(
+    source: FirstPartySource,
+    context_id: str,
+    event_id: str | None,
+    retrieved_at: str,
+    raw_context: dict[str, Any],
+) -> list[CallArtifact]:
+    raw_artifacts = raw_context.get("artifacts", [])
+    artifacts: list[CallArtifact] = []
+    if not isinstance(raw_artifacts, list):
+        return artifacts
+    for raw_artifact in raw_artifacts:
+        if not isinstance(raw_artifact, dict):
+            continue
+        artifact_type = str(raw_artifact.get("artifact_type", "supplemental_material"))
+        source_url = str(raw_artifact.get("source_url") or raw_context.get("source_url") or "")
+        title = str(raw_artifact.get("title") or raw_context.get("title") or "First-party artifact")
+        artifact: CallArtifact = {
+            "artifact_id": str(raw_artifact.get("artifact_id") or artifact_id_for(source.ticker, source_url, artifact_type)),
+            "ticker": source.ticker,
+            **({"event_id": event_id} if event_id else {}),
+            "context_id": context_id,
+            "artifact_type": artifact_type,
+            "title": title,
+            "source_url": source_url,
+            "source_domain": normalize_domain(urllib.parse.urlparse(source_url).netloc or source.domain),
+            **({"published_at": str(raw_artifact["published_at"])} if raw_artifact.get("published_at") else {}),
+            "retrieved_at": retrieved_at,
+            "completeness_state": str(raw_artifact.get("completeness_state", "metadata_only")),
+            "rights": source.default_rights,
+            "content_hash": hashlib.sha256(source_url.encode("utf8")).hexdigest(),
+            "metadata": {
+                "seed_registry_entry_id": source.registry_entry_id,
+                "storage_note": "metadata-and-link-first artifact capture",
+            },
+        }
+        validate_call_artifact(artifact)
+        artifacts.append(artifact)
+    return artifacts
+
+
+def first_party_context_from_fixture(
+    source: FirstPartySource,
+    url: str,
+    event_id: str | None,
+    retrieved_at: str,
+) -> tuple[FirstPartyContextItem, list[CallArtifact]]:
+    raw_context = fixture_context_for(source, url)
+    context_id = str(raw_context.get("context_id") or context_id_for(source.ticker, url, event_id))
+    artifacts = first_party_artifacts_from_fixture(source, context_id, event_id, retrieved_at, raw_context)
+    artifact_ids = [artifact["artifact_id"] for artifact in artifacts]
+    summary = safe_excerpt(str(raw_context.get("summary") or raw_context.get("title") or "First-party context"))
+    excerpt = safe_excerpt(str(raw_context.get("excerpt") or summary))
+    item: FirstPartyContextItem = {
+        "context_id": context_id,
+        "ticker": source.ticker,
+        **({"event_id": event_id} if event_id else {}),
+        "registry_entry_id": source.registry_entry_id,
+        "source_url": url,
+        "source_domain": source.domain,
+        "page_type": str(raw_context.get("page_type") or source.page_types[0]),
+        "title": str(raw_context.get("title") or source.issuer_name),
+        "summary": summary,
+        "excerpt": excerpt,
+        "retrieved_at": retrieved_at,
+        **({"published_at": str(raw_context["published_at"])} if raw_context.get("published_at") else {}),
+        "content_hash": hashlib.sha256(json.dumps(raw_context, sort_keys=True).encode("utf8")).hexdigest(),
+        "fetch_state": "fetched",
+        "rights": source.default_rights,
+        "artifact_ids": artifact_ids,
+        "metadata": {
+            "seed_registry_entry_id": source.registry_entry_id,
+            "fixture": True,
+            "full_text_stored": False,
+        },
+    }
+    validate_first_party_context_item(item)
+    return item, artifacts
+
+
+def first_party_rejection_response(
+    request_id: str,
+    retrieved_at: str,
+    error_code: str,
+    error_message: str,
+    *,
+    ticker: str,
+    url: str,
+) -> FirstPartyContextResponse:
+    return {
+        "ok": False,
+        "data": {
+            "context_items": [],
+            "call_artifacts": [],
+            "registry": first_party_registry_payload(),
+            "rejected": {
+                "ticker": ticker.strip().upper(),
+                "url": url,
+            },
+        },
+        "error_flag": True,
+        "error_code": error_code,  # type: ignore[typeddict-item]
+        "error_message": error_message,
+        "request_id": request_id,
+        "provider": FIRST_PARTY_PROVIDER,
+        "retrieved_at": retrieved_at,
+    }
+
+
+def first_party_success_response(
+    item: FirstPartyContextItem,
+    artifacts: list[CallArtifact],
+    request_id: str,
+    retrieved_at: str,
+) -> FirstPartyContextResponse:
+    return {
+        "ok": True,
+        "data": {
+            "context_items": [item],
+            "call_artifacts": artifacts,
+            "registry": first_party_registry_payload(),
+        },
+        "error_flag": False,
+        "request_id": request_id,
+        "provider": FIRST_PARTY_PROVIDER,
+        "retrieved_at": retrieved_at,
+    }
 
 
 def normalize_datetime(value: str) -> str:
@@ -693,3 +1147,156 @@ def build_news_response(
 
     articles.sort(key=lambda article: article["published_at"], reverse=True)
     return 200, success_response(articles, request_id, retrieved_at)
+
+
+def build_first_party_context_response(
+    ticker: str,
+    source_url: str,
+    request_id: str | None = None,
+    *,
+    event_id: str | None = None,
+    now: datetime | None = None,
+    settings: Settings | None = None,
+) -> tuple[int, FirstPartyContextResponse]:
+    active_settings = settings or _get_default_settings()
+    response_time = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
+    retrieved_at = response_time.isoformat().replace("+00:00", "Z")
+    request_id = request_id or uuid.uuid4().hex
+    normalized_ticker = ticker.strip().upper()
+    normalized_url = source_url.strip()
+
+    if not normalized_ticker or not normalized_url:
+        return 400, first_party_rejection_response(
+            request_id,
+            retrieved_at,
+            "SOURCE_REJECTED",
+            "ticker and url are required.",
+            ticker=ticker,
+            url=source_url,
+        )
+
+    source = resolve_first_party_source(normalized_ticker, normalized_url)
+    if source is None:
+        log(
+            "WARN",
+            "First-party source rejected",
+            request_id=request_id,
+            ticker=normalized_ticker,
+            url=normalized_url,
+            reason="unapproved_domain_or_path",
+        )
+        return 422, first_party_rejection_response(
+            request_id,
+            retrieved_at,
+            "SOURCE_REJECTED",
+            "First-party source is not in the approved Phase 6 source registry.",
+            ticker=normalized_ticker,
+            url=normalized_url,
+        )
+
+    if source.default_rights.get("display_mode") == "internal_only_not_user_visible":
+        return 422, first_party_rejection_response(
+            request_id,
+            retrieved_at,
+            "SOURCE_REJECTED",
+            "First-party source has no user-visible rights posture.",
+            ticker=normalized_ticker,
+            url=normalized_url,
+        )
+
+    log(
+        "INFO",
+        "First-party context retrieval started",
+        request_id=request_id,
+        provider=source.registry_entry_id,
+        ticker=source.ticker,
+        domain=source.domain,
+        dataset="first_party_context",
+    )
+
+    try:
+        if active_settings.fixture_mode:
+            context_item, artifacts = first_party_context_from_fixture(
+                source,
+                normalized_url,
+                event_id,
+                retrieved_at,
+            )
+        else:
+            # Live mode is intentionally metadata-first until parser-specific rights are reviewed.
+            title = f"{source.issuer_name} first-party source"
+            summary = f"Approved first-party source fetched as metadata-only context: {normalized_url}"
+            context_id = context_id_for(source.ticker, normalized_url, event_id)
+            context_item = {
+                "context_id": context_id,
+                "ticker": source.ticker,
+                **({"event_id": event_id} if event_id else {}),
+                "registry_entry_id": source.registry_entry_id,
+                "source_url": normalized_url,
+                "source_domain": source.domain,
+                "page_type": source.page_types[0],
+                "title": title,
+                "summary": summary,
+                "excerpt": summary,
+                "retrieved_at": retrieved_at,
+                "content_hash": hashlib.sha256(normalized_url.encode("utf8")).hexdigest(),
+                "fetch_state": "fetched",
+                "rights": source.default_rights,
+                "artifact_ids": [],
+                "metadata": {
+                    "live_metadata_only": True,
+                    "full_text_stored": False,
+                },
+            }
+            artifacts = []
+            validate_first_party_context_item(context_item)
+    except SourceFetchError as error:
+        log(
+            "ERROR",
+            "First-party source unavailable",
+            request_id=request_id,
+            provider=source.registry_entry_id,
+            ticker=source.ticker,
+            domain=source.domain,
+            error_message=str(error),
+        )
+        return 200, first_party_rejection_response(
+            request_id,
+            retrieved_at,
+            "SOURCE_UNAVAILABLE",
+            "Approved first-party source fixture or live metadata was unavailable.",
+            ticker=normalized_ticker,
+            url=normalized_url,
+        )
+    except ValueError as error:
+        log(
+            "ERROR",
+            "First-party schema validation failed",
+            request_id=request_id,
+            provider=source.registry_entry_id,
+            ticker=source.ticker,
+            domain=source.domain,
+            error_message=str(error),
+        )
+        return 200, first_party_rejection_response(
+            request_id,
+            retrieved_at,
+            "SCHEMA_MISMATCH",
+            "Approved first-party source could not be normalized safely.",
+            ticker=normalized_ticker,
+            url=normalized_url,
+        )
+
+    log(
+        "INFO",
+        "First-party context retrieval succeeded",
+        request_id=request_id,
+        provider=source.registry_entry_id,
+        ticker=source.ticker,
+        domain=source.domain,
+        dataset="first_party_context",
+        context_count=1,
+        artifact_count=len(artifacts),
+        display_mode=context_item["rights"]["display_mode"],
+    )
+    return 200, first_party_success_response(context_item, artifacts, request_id, retrieved_at)

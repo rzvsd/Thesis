@@ -8,7 +8,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
-from news_ingest.service import SERVICE_NAME, build_news_response, log
+from news_ingest.service import SERVICE_NAME, build_first_party_context_response, build_news_response, log
 
 
 DEFAULT_HOST = os.environ.get("HOST", "0.0.0.0")
@@ -39,6 +39,56 @@ def build_http_server(port: int = DEFAULT_PORT, host: str = DEFAULT_HOST) -> Thr
                 requested_date = params.get("date", [""])[0]
                 request_id = self.headers.get("X-Request-Id") or uuid.uuid4().hex
                 status_code, payload = build_news_response(requested_date, request_id=request_id)
+                self.send_response(status_code)
+                self.send_header("content-type", "application/json")
+                self.end_headers()
+                self.wfile.write(compact_json(payload))
+                return
+
+            self.send_response(HTTPStatus.NOT_FOUND)
+            self.send_header("content-type", "application/json")
+            self.end_headers()
+            self.wfile.write(compact_json({"status": "not_found"}))
+
+        def do_POST(self) -> None:  # noqa: N802
+            parsed = urlparse(self.path)
+
+            if parsed.path == "/v1/first-party/context":
+                request_id = self.headers.get("X-Request-Id") or uuid.uuid4().hex
+                try:
+                    length = int(self.headers.get("content-length", "0"))
+                except ValueError:
+                    length = 0
+                raw_body = self.rfile.read(length) if length > 0 else b"{}"
+                try:
+                    body = json.loads(raw_body.decode("utf8"))
+                except json.JSONDecodeError:
+                    self.send_response(HTTPStatus.BAD_REQUEST)
+                    self.send_header("content-type", "application/json")
+                    self.end_headers()
+                    self.wfile.write(
+                        compact_json(
+                            {
+                                "ok": False,
+                                "error_flag": True,
+                                "error_code": "INTERNAL_ERROR",
+                                "error_message": "Request body must be valid JSON.",
+                                "request_id": request_id,
+                            }
+                        )
+                    )
+                    return
+
+                ticker = str(body.get("ticker", ""))
+                source_url = str(body.get("url", ""))
+                event_id_raw = body.get("event_id")
+                event_id = str(event_id_raw) if event_id_raw else None
+                status_code, payload = build_first_party_context_response(
+                    ticker,
+                    source_url,
+                    request_id=request_id,
+                    event_id=event_id,
+                )
                 self.send_response(status_code)
                 self.send_header("content-type", "application/json")
                 self.end_headers()
