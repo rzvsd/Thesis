@@ -57,6 +57,7 @@ import type {
   ScenarioStressTemplate,
   ScenarioStressTemplateId,
   ScenarioRequest,
+  ScenarioInputOmission,
   ScenarioResponse,
   SubscriptionFeedbackCode,
   SubscriptionFeedbackSubmission,
@@ -2836,6 +2837,49 @@ function deterministicValuationFactor(assumptions: {
   return (1 + assumptions.terminal_growth_rate) / (assumptions.wacc - assumptions.terminal_growth_rate);
 }
 
+const phase6ScenarioDeterministicModel = "phase6_deterministic_v1" as const;
+
+function buildScenarioInputOmissions(
+  valuation: NonNullable<AnalysisReport["valuation"]>
+): ScenarioInputOmission[] {
+  const omissions: ScenarioInputOmission[] = [
+    {
+      omission_code: "market_beta_omitted",
+      omission_text:
+        "Phase 6 deterministic scenarios do not use market beta or correlation inputs.",
+      affects_fields: ["assumptions.beta", "assumptions.correlation_matrix"]
+    }
+  ];
+
+  if (!isFiniteNumber(valuation.spot_price)) {
+    omissions.push({
+      omission_code: "spot_reference_unavailable",
+      omission_text:
+        "Spot reference is unavailable in this report, so implied upside is omitted in scenario output.",
+      affects_fields: ["spot_price", "implied_upside_pct"]
+    });
+  }
+
+  if (isFiniteNumber(valuation.assumptions.beta)) {
+    omissions.push({
+      omission_code: "legacy_beta_ignored",
+      omission_text:
+        "A legacy beta value exists on this report and is ignored by the Phase 6 deterministic scenario model.",
+      affects_fields: ["assumptions.beta"]
+    });
+  }
+
+  return omissions;
+}
+
+function assumptionsWithoutLegacyBeta(
+  assumptions: NonNullable<AnalysisReport["valuation"]>["assumptions"]
+): NonNullable<AnalysisReport["valuation"]>["assumptions"] {
+  const normalized: NonNullable<AnalysisReport["valuation"]>["assumptions"] = { ...assumptions };
+  delete (normalized as { beta?: number }).beta;
+  return normalized;
+}
+
 function isFiniteNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value);
 }
@@ -3458,29 +3502,33 @@ function computeScenarioResponse(
   valuation: NonNullable<AnalysisReport["valuation"]>,
   overrides: NonNullable<ScenarioRequest["overrides"]>
 ): ScenarioResponse {
+  const omissions = buildScenarioInputOmissions(valuation);
+  const baseAssumptions = assumptionsWithoutLegacyBeta(valuation.assumptions);
   const base = {
     fair_value_mid: valuation.fair_value_mid,
     fair_value_low: valuation.fair_value_low,
     fair_value_high: valuation.fair_value_high,
     spot_price: valuation.spot_price,
     implied_upside_pct: valuation.implied_upside_pct,
-    assumptions: { ...valuation.assumptions },
-    degraded_reason: valuation.degraded_reason
+    assumptions: baseAssumptions,
+    degraded_reason: valuation.degraded_reason,
+    omissions
   };
 
   const scenarioAssumptions = {
-    ...valuation.assumptions,
+    ...baseAssumptions,
     projection_years:
-      overrides.projection_years ?? valuation.assumptions.projection_years,
+      overrides.projection_years ?? baseAssumptions.projection_years,
     terminal_growth_rate:
-      overrides.terminal_growth_rate ?? valuation.assumptions.terminal_growth_rate,
-    wacc: overrides.wacc ?? valuation.assumptions.wacc
+      overrides.terminal_growth_rate ?? baseAssumptions.terminal_growth_rate,
+    wacc: overrides.wacc ?? baseAssumptions.wacc
   };
 
   const hasBaseMid = isFiniteNumber(valuation.fair_value_mid);
   if (!hasBaseMid) {
     return {
       report_id: reportId,
+      deterministic_model: phase6ScenarioDeterministicModel,
       base,
       scenario: {
         fair_value_mid: undefined,
@@ -3491,15 +3539,17 @@ function computeScenarioResponse(
         assumptions: scenarioAssumptions,
         degraded_reason:
           valuation.degraded_reason ??
-          "Base valuation fair value is unavailable for scenario recomputation."
-      }
+          "Base valuation fair value is unavailable for scenario recomputation.",
+        omissions
+      },
+      omissions
     };
   }
 
-  const baseFactor = deterministicValuationFactor(valuation.assumptions);
+  const baseFactor = deterministicValuationFactor(baseAssumptions);
   const scenarioFactor = deterministicValuationFactor(scenarioAssumptions);
   const projectionRatioRaw =
-    scenarioAssumptions.projection_years / valuation.assumptions.projection_years;
+    scenarioAssumptions.projection_years / baseAssumptions.projection_years;
   const projectionRatio = clampNumber(projectionRatioRaw, 0.5, 1.5);
   const scaling = (scenarioFactor / baseFactor) * projectionRatio;
 
@@ -3518,6 +3568,7 @@ function computeScenarioResponse(
 
   return {
     report_id: reportId,
+    deterministic_model: phase6ScenarioDeterministicModel,
     base,
     scenario: {
       fair_value_mid: scenarioMid,
@@ -3525,8 +3576,10 @@ function computeScenarioResponse(
       fair_value_high: scenarioHigh,
       spot_price: spotPrice,
       implied_upside_pct: impliedUpsidePct,
-      assumptions: scenarioAssumptions
-    }
+      assumptions: scenarioAssumptions,
+      omissions
+    },
+    omissions
   };
 }
 

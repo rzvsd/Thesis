@@ -3,7 +3,7 @@
 **Version:** 1.0  
 **Status:** Active  
 **Owner:** Engineering Lead + Product Lead  
-**Last Revised:** 2026-04-17
+**Last Revised:** 2026-04-18
 **Related Documents:** `ph6_BLUEBOOK.md`, `ph6_PRD.md`, `ph6_ROADMAP.md`, `ph6_SECURITY.md`, `PH6_DECISION_LOCKS.md`
 
 ---
@@ -460,12 +460,12 @@ Complete the provider-free cutover for Deep Dive and Scenario paths, then prove 
 
 ## Acceptance Criteria
 
-- [ ] Deep Dive completes without a deprecated market-data provider in the critical path
-- [ ] Scenario / valuation outputs use the Phase 6 deterministic input model and omit unsupported dimensions explicitly
-- [ ] Stored older reports remain readable through the current product surface
-- [ ] End-to-end smoke tests for Deep Dive, Morning Briefing, War Room, and alert reason paths pass
-- [ ] Rollback has been tested and documented
-- [ ] Final dependency scan reports no deprecated provider in the protected core path
+- [x] Deep Dive completes without a deprecated market-data provider in the critical path
+- [x] Scenario / valuation outputs use the Phase 6 deterministic input model and omit unsupported dimensions explicitly
+- [x] Stored older reports remain readable through the current product surface
+- [x] End-to-end smoke tests for Deep Dive, Morning Briefing, War Room, and alert reason paths pass
+- [x] Rollback has been tested and documented
+- [x] Final dependency scan reports no deprecated provider in the protected core path
 
 ## Smoke Test
 

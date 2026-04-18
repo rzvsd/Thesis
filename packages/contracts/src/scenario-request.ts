@@ -10,6 +10,12 @@ export interface ScenarioRequest {
   overrides: ScenarioOverrides;
 }
 
+export interface ScenarioInputOmission {
+  omission_code: string;
+  omission_text: string;
+  affects_fields: string[];
+}
+
 export interface ScenarioValuationSnapshot {
   fair_value_mid?: number;
   fair_value_low?: number;
@@ -18,12 +24,15 @@ export interface ScenarioValuationSnapshot {
   implied_upside_pct?: number;
   assumptions: ValuationAssumptions;
   degraded_reason?: string;
+  omissions?: ScenarioInputOmission[];
 }
 
 export interface ScenarioResponse {
   report_id: string;
+  deterministic_model: "phase6_deterministic_v1";
   base: ScenarioValuationSnapshot;
   scenario: ScenarioValuationSnapshot;
+  omissions: ScenarioInputOmission[];
 }
 
 export const scenarioRequestSchema = {
