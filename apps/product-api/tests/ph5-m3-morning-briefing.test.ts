@@ -29,37 +29,120 @@ async function closeServer(server: Server): Promise<void> {
 async function startOpenbbMock(): Promise<{ server: Server; baseUrl: string }> {
   const server = createServer((request, response) => {
     const url = new URL(request.url ?? "/", "http://127.0.0.1");
-    if (url.pathname === "/v1/finance/company") {
+    if (url.pathname === "/v1/official/company") {
       const ticker = url.searchParams.get("ticker") ?? "AAPL";
       sendJson(response, 200, {
         ok: true,
         data: {
           ticker,
-          provider: "fixture",
-          period: "2025-Q4",
-          retrieved_at: "2026-04-01T08:00:00.000Z",
-          data: {
-            revenue: 1000000,
-            net_income: 250000
+          retrieval: {
+            source: {
+              source_name: "SEC EDGAR",
+              source_url: `https://www.sec.gov/${ticker}`
+            },
+            retrieved_at: "2026-04-01T08:00:00.000Z"
           },
-          missing_fields: []
+          missing_fields: [],
+          canonical_events: [
+            {
+              id: `filing-${ticker}-2026-04-01`,
+              family: "filing_posted",
+              subject_type: "ticker",
+              subject_id: ticker,
+              title: `${ticker} filed a new 8-K`,
+              occurred_at: "2026-04-01T10:00:00.000Z",
+              source_state: "official",
+              source: {
+                source: {
+                  source_id: `sec-${ticker}`,
+                  source_family: "sec_edgar",
+                  source_name: "SEC EDGAR",
+                  source_url: `https://www.sec.gov/${ticker}`,
+                  agency: "SEC",
+                  agency_series_id: ticker
+                },
+                retrieved_at: "2026-04-01T10:05:00.000Z",
+                retrieval_status: "fresh",
+                source_period: "2026-Q1"
+              },
+              retrieved_at: "2026-04-01T10:05:00.000Z",
+              missing_fields: [],
+              metadata: {
+                form_type: "8-K"
+              }
+            }
+          ]
         },
         error_flag: false
       });
       return;
     }
 
-    if (url.pathname === "/v1/finance/macro") {
+    if (url.pathname === "/v1/official/macro") {
       sendJson(response, 200, {
         ok: true,
         data: {
-          indicator: "us10y_treasury_yield",
-          value: 4.12,
-          unit: "percent",
-          period: "2026-04-01",
-          provider: "fixture",
-          retrieved_at: "2026-04-01T08:00:00.000Z",
-          missing_fields: []
+          observations: [
+            {
+              registry_id: "TREASURY_DAILY_10Y",
+              value: 4.12,
+              unit: "percent",
+              period: "2026-04-01",
+              category: "rates",
+              retrieval: {
+                source: {
+                  source_name: "U.S. Treasury",
+                  source_url: "https://home.treasury.gov/"
+                },
+                retrieved_at: "2026-04-01T08:00:00.000Z"
+              },
+              missing_fields: []
+            },
+            {
+              registry_id: "BLS_UNEMPLOYMENT_RATE",
+              value: 3.8,
+              unit: "percent",
+              period: "2026-04",
+              category: "labor",
+              retrieval: {
+                source: {
+                  source_name: "BLS",
+                  source_url: "https://www.bls.gov/"
+                },
+                retrieved_at: "2026-04-01T08:00:00.000Z"
+              },
+              missing_fields: []
+            }
+          ],
+          canonical_events: [
+            {
+              id: "macro-cpi-2026-04-01",
+              family: "macro_release_published",
+              subject_type: "macro_series",
+              subject_id: "BLS_CPI_U_ALL_ITEMS",
+              title: "CPI update published",
+              occurred_at: "2026-04-01T07:30:00.000Z",
+              source_state: "official",
+              source: {
+                source: {
+                  source_id: "bls-cpi",
+                  source_family: "bls",
+                  source_name: "BLS CPI",
+                  source_url: "https://www.bls.gov/cpi/",
+                  agency: "BLS",
+                  agency_series_id: "CUUR0000SA0"
+                },
+                retrieved_at: "2026-04-01T07:35:00.000Z",
+                retrieval_status: "fresh",
+                source_period: "2026-04"
+              },
+              retrieved_at: "2026-04-01T07:35:00.000Z",
+              missing_fields: [],
+              metadata: {
+                scope: "daily"
+              }
+            }
+          ]
         },
         error_flag: false
       });
@@ -81,26 +164,46 @@ async function startOpenbbMock(): Promise<{ server: Server; baseUrl: string }> {
 async function startNewsMock(): Promise<{ server: Server; baseUrl: string }> {
   const server = createServer((request, response) => {
     const url = new URL(request.url ?? "/", "http://127.0.0.1");
-    if (url.pathname !== "/v1/news") {
+    if (url.pathname !== "/v1/first-party/context" || request.method !== "POST") {
       sendJson(response, 404, { status: "not_found" });
       return;
     }
-    const date = url.searchParams.get("date") ?? "2026-04-01";
     sendJson(response, 200, {
       ok: true,
-      data: [
-        {
-          article_id: `article-${date}`,
-          source: "Reuters",
-          url: `https://example.com/${date}`,
-          title: `Macro check for ${date}`,
-          published_at: `${date}T12:00:00.000Z`,
-          retrieved_at: `${date}T12:01:00.000Z`,
-          body_text: "Macro context remains mixed into open.",
-          tickers_mentioned: ["AAPL", "MSFT"],
-          is_approved_source: true
-        }
-      ],
+      data: {
+        context_items: [
+          {
+            context_id: "ctx-aapl-2026-04-01",
+            ticker: "AAPL",
+            registry_entry_id: "aapl-ir",
+            source_url: "https://investor.apple.com/investor-relations/",
+            source_domain: "investor.apple.com",
+            page_type: "investor_relations",
+            title: "Apple investor update",
+            summary: "Apple published a first-party investor update.",
+            excerpt: "Apple investor update confirms release cadence.",
+            retrieved_at: "2026-04-01T12:01:00.000Z",
+            published_at: "2026-04-01T12:00:00.000Z",
+            content_hash: "ctx-aapl",
+            fetch_state: "fetched",
+            rights: {
+              rights_class: "first_party_public",
+              display_mode: "excerpt_only",
+              source_rank: "first_party",
+              source_type: "investor_relations",
+              can_store_full_text: false,
+              can_display_excerpt: true,
+              can_display_link: true,
+              policy_reason: "Approved first-party source.",
+              reviewed_at: "2026-03-01T00:00:00.000Z"
+            },
+            artifact_ids: [],
+            metadata: {
+              fixture: true
+            }
+          }
+        ]
+      },
       error_flag: false
     });
   });

@@ -96,7 +96,7 @@ import com.thesis.mobile.ui.screens.MonthlyCoherenceSection
 import com.thesis.mobile.ui.screens.NamesScreen
 import com.thesis.mobile.ui.screens.OnboardingScreen
 import com.thesis.mobile.ui.screens.ScenarioStressScreen
-import com.thesis.mobile.ui.screens.SentimentDashboardScreen
+import com.thesis.mobile.ui.screens.MacroStressDashboardScreen
 import com.thesis.mobile.ui.screens.WarRoomScreen
 import com.thesis.mobile.ui.screens.WelcomeScreen
 import com.thesis.mobile.ui.screens.WeeklyDigestScreen
@@ -113,7 +113,7 @@ import java.time.format.DateTimeFormatter
 
 private enum class TodayMode {
     HOME,
-    SENTIMENT_DASHBOARD,
+    MACRO_STRESS_DASHBOARD,
     WEEKLY_DIGEST
 }
 
@@ -447,9 +447,9 @@ fun ThesisApp(
                                 mainViewModel.setTab(AppTab.NAMES)
                             },
                             onRetryPulse = mainViewModel::refreshPulse,
-                            onOpenSentimentDashboard = {
-                                todayMode = TodayMode.SENTIMENT_DASHBOARD
-                                mainViewModel.openSentimentDashboard()
+                            onOpenMacroStressDashboard = {
+                                todayMode = TodayMode.MACRO_STRESS_DASHBOARD
+                                mainViewModel.openMacroStressDashboard()
                             },
                             onOpenWeeklyDigest = {
                                 todayMode = TodayMode.WEEKLY_DIGEST
@@ -466,13 +466,13 @@ fun ThesisApp(
                             onDismissResume = { mainViewModel.dismissResumeCard() }
                         )
 
-                        TodayMode.SENTIMENT_DASHBOARD -> SentimentDashboardScreen(
+                        TodayMode.MACRO_STRESS_DASHBOARD -> MacroStressDashboardScreen(
                             current = uiState.sentimentCurrent,
                             history = uiState.sentimentHistory,
                             selectedRangeDays = uiState.sentimentRangeDays,
                             sentimentError = uiState.sentimentError,
                             onSelectRange = { rangeDays ->
-                                mainViewModel.openSentimentDashboard(rangeDays)
+                                mainViewModel.openMacroStressDashboard(rangeDays)
                             },
                             onBack = { todayMode = TodayMode.HOME }
                         )
@@ -484,8 +484,8 @@ fun ThesisApp(
                             monitorSnapshots = uiState.monitorSnapshots,
                             pulse = uiState.pulseReport,
                             onOpenDashboard = {
-                                todayMode = TodayMode.SENTIMENT_DASHBOARD
-                                mainViewModel.openSentimentDashboard()
+                                todayMode = TodayMode.MACRO_STRESS_DASHBOARD
+                                mainViewModel.openMacroStressDashboard()
                             },
                             onBack = { todayMode = TodayMode.HOME }
                         )

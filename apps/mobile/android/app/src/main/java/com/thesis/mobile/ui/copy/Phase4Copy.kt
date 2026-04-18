@@ -6,6 +6,10 @@ object Phase4Copy {
     const val researchTab = "Research"
     const val inboxTab = "Inbox"
     const val youTab = "You"
+    const val todayMacroStressTitle = "Macro Stress"
+    const val todayMacroStressDashboardTitle = "Macro Stress Dashboard"
+    const val todayMacroStressDashboardLabel = "Dashboard"
+    const val todayMacroStressSourceNote = "Official macro pressure from rates, CPI, jobs, GDP, and oil."
 
     const val namesHeadline = "Names"
     const val namesSubtitle = "Monitor conviction, catalysts, and unresolved drift across every followed name."

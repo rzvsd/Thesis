@@ -19,8 +19,8 @@ interface SchedulerConfig {
   scheduleTimeZone: string;
   scheduleHour: number;
   scheduleMinute: number;
-  sentimentScheduleHour: number;
-  sentimentScheduleMinute: number;
+  macroStressScheduleHour: number;
+  macroStressScheduleMinute: number;
   historicalSyncHour: number;
   historicalSyncMinute: number;
   calendarSyncHour: number;
@@ -39,7 +39,7 @@ interface SchedulerConfig {
 
 interface SchedulerState {
   nextPulseFireAt?: string;
-  nextSentimentFireAt?: string;
+  nextMacroStressFireAt?: string;
   nextHistoricalSyncAt?: string;
   nextCalendarSyncAt?: string;
   nextEarningsPreviewAt?: string;
@@ -53,6 +53,7 @@ type HealthPayload = {
   mode: SchedulerState["mode"];
   timezone: string;
   schedule: string;
+  macro_stress_schedule: string;
   sentiment_schedule: string;
   historical_sync_schedule: string;
   calendar_sync_schedule: string;
@@ -61,6 +62,7 @@ type HealthPayload = {
   weekly_digest_schedule: string;
   next_fire_at?: string;
   next_pulse_fire_at?: string;
+  next_macro_stress_fire_at?: string;
   next_sentiment_fire_at?: string;
   next_historical_sync_at?: string;
   next_calendar_sync_at?: string;
@@ -109,8 +111,10 @@ function formatClock(hour: number, minute: number): string {
 
 function loadConfig(env: NodeJS.ProcessEnv = process.env): SchedulerConfig {
   const schedule = parseScheduleClock(env.SCHEDULER_DELIVERY_TIME_LOCAL ?? "06:30");
-  const sentimentSchedule = parseScheduleClock(
-    env.SCHEDULER_SENTIMENT_TIME_LOCAL ?? "18:00"
+  const macroStressSchedule = parseScheduleClock(
+    env.SCHEDULER_MACRO_STRESS_TIME_LOCAL ??
+      env.SCHEDULER_SENTIMENT_TIME_LOCAL ??
+      "18:00"
   );
   const historicalSyncSchedule = parseScheduleClock(
     env.SCHEDULER_HISTORICAL_SYNC_TIME_LOCAL ?? "01:00"
@@ -143,8 +147,8 @@ function loadConfig(env: NodeJS.ProcessEnv = process.env): SchedulerConfig {
     scheduleTimeZone: env.SCHEDULER_TIMEZONE?.trim() || "America/New_York",
     scheduleHour: schedule.hour,
     scheduleMinute: schedule.minute,
-    sentimentScheduleHour: sentimentSchedule.hour,
-    sentimentScheduleMinute: sentimentSchedule.minute,
+    macroStressScheduleHour: macroStressSchedule.hour,
+    macroStressScheduleMinute: macroStressSchedule.minute,
     historicalSyncHour: historicalSyncSchedule.hour,
     historicalSyncMinute: historicalSyncSchedule.minute,
     calendarSyncHour: calendarSyncSchedule.hour,
@@ -201,29 +205,20 @@ async function dispatchPulseJob(
   });
 }
 
-async function dispatchSentimentJob(
+async function dispatchMacroStressJob(
   config: SchedulerConfig,
   marketDate: string
 ): Promise<void> {
-  const response = await fetch(`${config.productApiInternalBaseUrl}/internal/sentiment/dispatch`, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      "x-internal-token": config.internalWorkerToken
-    },
-    body: JSON.stringify({
+  const payload = await dispatchProductApiJobWithFallback(
+    config,
+    ["/internal/macro-stress/dispatch", "/internal/sentiment/dispatch"],
+    {
       market_date: marketDate
-    })
-  });
+    },
+    "Macro Stress"
+  );
 
-  const payload = (await response.json()) as Record<string, unknown>;
-  if (!response.ok) {
-    throw new Error(
-      `Sentiment dispatch failed with status ${response.status}: ${JSON.stringify(payload)}`
-    );
-  }
-
-  log("INFO", "Sentiment dispatch accepted", {
+  log("INFO", "Macro Stress dispatch accepted", {
     market_date: marketDate,
     status: payload.status
   });
@@ -571,7 +566,7 @@ export function startServer(port: number = defaultPort): Server {
     mode: config.testMode ? "test" : "scheduled"
   };
   let pulseTimer: NodeJS.Timeout | undefined;
-  let sentimentTimer: NodeJS.Timeout | undefined;
+  let macroStressTimer: NodeJS.Timeout | undefined;
   let historicalSyncTimer: NodeJS.Timeout | undefined;
   let calendarSyncTimer: NodeJS.Timeout | undefined;
   let earningsPreviewTimer: NodeJS.Timeout | undefined;
@@ -651,44 +646,44 @@ export function startServer(port: number = defaultPort): Server {
     }, delayMs);
   };
 
-  const scheduleSentimentNext = (): void => {
+  const scheduleMacroStressNext = (): void => {
     if (shuttingDown || config.testMode) {
-      state.nextSentimentFireAt = undefined;
+      state.nextMacroStressFireAt = undefined;
       return;
     }
 
-    if (sentimentTimer) {
-      clearTimeout(sentimentTimer);
-      sentimentTimer = undefined;
+    if (macroStressTimer) {
+      clearTimeout(macroStressTimer);
+      macroStressTimer = undefined;
     }
 
     const now = new Date();
     const runAt = computeNextScheduledRun(
       now,
       config.scheduleTimeZone,
-      config.sentimentScheduleHour,
-      config.sentimentScheduleMinute
+      config.macroStressScheduleHour,
+      config.macroStressScheduleMinute
     );
     const delayMs = Math.max(0, runAt.getTime() - now.getTime());
-    state.nextSentimentFireAt = runAt.toISOString();
+    state.nextMacroStressFireAt = runAt.toISOString();
 
-    sentimentTimer = setTimeout(async () => {
+    macroStressTimer = setTimeout(async () => {
       if (shuttingDown) {
         return;
       }
 
       const marketDate = marketDateInTimeZone(runAt, config.scheduleTimeZone);
-      log("INFO", "Sentiment schedule fired", {
+      log("INFO", "Macro Stress schedule fired", {
         mode: state.mode,
         market_date: marketDate,
         scheduled_for: runAt.toISOString()
       });
 
       try {
-        await dispatchSentimentJob(config, marketDate);
+        await dispatchMacroStressJob(config, marketDate);
       } catch (error) {
-        const message = error instanceof Error ? error.message : "Sentiment dispatch failed";
-        log("ERROR", "Sentiment dispatch failed", {
+        const message = error instanceof Error ? error.message : "Macro Stress dispatch failed";
+        log("ERROR", "Macro Stress dispatch failed", {
           error_message: message,
           market_date: marketDate
         });
@@ -699,7 +694,7 @@ export function startServer(port: number = defaultPort): Server {
         });
       }
 
-      scheduleSentimentNext();
+      scheduleMacroStressNext();
     }, delayMs);
   };
 
@@ -984,7 +979,14 @@ export function startServer(port: number = defaultPort): Server {
         mode: state.mode,
         timezone: config.scheduleTimeZone,
         schedule: formatClock(config.scheduleHour, config.scheduleMinute),
-        sentiment_schedule: formatClock(config.sentimentScheduleHour, config.sentimentScheduleMinute),
+        macro_stress_schedule: formatClock(
+          config.macroStressScheduleHour,
+          config.macroStressScheduleMinute
+        ),
+        sentiment_schedule: formatClock(
+          config.macroStressScheduleHour,
+          config.macroStressScheduleMinute
+        ),
         historical_sync_schedule: formatClock(config.historicalSyncHour, config.historicalSyncMinute),
         calendar_sync_schedule: formatClock(config.calendarSyncHour, config.calendarSyncMinute),
         earnings_preview_schedule: formatClock(
@@ -1001,7 +1003,8 @@ export function startServer(port: number = defaultPort): Server {
         ),
         next_fire_at: state.nextPulseFireAt,
         next_pulse_fire_at: state.nextPulseFireAt,
-        next_sentiment_fire_at: state.nextSentimentFireAt,
+        next_macro_stress_fire_at: state.nextMacroStressFireAt,
+        next_sentiment_fire_at: state.nextMacroStressFireAt,
         next_historical_sync_at: state.nextHistoricalSyncAt,
         next_calendar_sync_at: state.nextCalendarSyncAt,
         next_earnings_preview_at: state.nextEarningsPreviewAt,
@@ -1060,15 +1063,18 @@ export function startServer(port: number = defaultPort): Server {
       schedule_time_local: `${String(config.scheduleHour).padStart(2, "0")}:${String(
         config.scheduleMinute
       ).padStart(2, "0")}`,
-      sentiment_schedule_time_local: `${String(config.sentimentScheduleHour).padStart(2, "0")}:${String(
-        config.sentimentScheduleMinute
+      macro_stress_schedule_time_local: `${String(config.macroStressScheduleHour).padStart(2, "0")}:${String(
+        config.macroStressScheduleMinute
+      ).padStart(2, "0")}`,
+      sentiment_schedule_time_local: `${String(config.macroStressScheduleHour).padStart(2, "0")}:${String(
+        config.macroStressScheduleMinute
       ).padStart(2, "0")}`,
       historical_sync_time_local: `${String(config.historicalSyncHour).padStart(2, "0")}:${String(
         config.historicalSyncMinute
       ).padStart(2, "0")}`
     });
       schedulePulseNext();
-      scheduleSentimentNext();
+      scheduleMacroStressNext();
       scheduleHistoricalSyncNext();
       scheduleCalendarSyncNext();
       scheduleEarningsPreviewNext();
@@ -1087,9 +1093,9 @@ export function startServer(port: number = defaultPort): Server {
       clearTimeout(pulseTimer);
       pulseTimer = undefined;
     }
-    if (sentimentTimer) {
-      clearTimeout(sentimentTimer);
-      sentimentTimer = undefined;
+    if (macroStressTimer) {
+      clearTimeout(macroStressTimer);
+      macroStressTimer = undefined;
     }
     if (historicalSyncTimer) {
       clearTimeout(historicalSyncTimer);

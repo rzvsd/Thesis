@@ -142,7 +142,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             refreshNotificationPreferences()
             refreshSubscriptionOffers()
             refreshPulse()
-            refreshSentiment()
+            refreshMacroStress()
             refreshAlertLedger()
             refreshMonitorSnapshots()
             refreshReportHistory()
@@ -189,7 +189,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         when (tab) {
             AppTab.TODAY -> {
                 refreshPulse()
-                refreshSentiment()
+                refreshMacroStress()
                 refreshMonitorSnapshots()
                 refreshAlertLedger()
             }
@@ -382,7 +382,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 refreshNotificationPreferences()
                 refreshSubscriptionOffers()
                 refreshPulse()
-                refreshSentiment()
+                refreshMacroStress()
                 refreshAlertLedger()
                 refreshMonitorSnapshots()
                 refreshReportHistory()
@@ -1579,15 +1579,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun refreshSentiment(days: Int = state.sentimentRangeDays) {
-        val normalizedDays = normalizeSentimentRange(days)
+    fun refreshMacroStress(days: Int = state.sentimentRangeDays) {
+        val normalizedDays = normalizeMacroStressRange(days)
+        // Update selection immediately so the chosen range is always the one displayed/requested.
+        if (state.sentimentRangeDays != normalizedDays) {
+            publish(state.copy(sentimentRangeDays = normalizedDays))
+        }
         viewModelScope.launch {
             val error = runAuthorizedWithRefresh {
-                val current = client.getCurrentSentiment(
+                val current = client.getCurrentMacroStress(
                     state.apiBaseUrl,
                     requireTokens().accessToken
                 )
-                val history = client.getSentimentHistory(
+                val history = client.getMacroStressHistory(
                     state.apiBaseUrl,
                     requireTokens().accessToken,
                     normalizedDays
@@ -1611,13 +1615,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                             sentimentCurrent = cachedCurrent,
                             sentimentHistory = cachedHistory,
                             sentimentRangeDays = normalizedDays,
-                            sentimentError = "Showing cached sentiment while network is unavailable."
+                            sentimentError = "Showing cached macro stress while network is unavailable."
                         )
                     )
                     trackEvent(
                         "cache_hit",
                         mapOf(
-                            "artifact" to "sentiment",
+                            "artifact" to "macro_stress",
+                            "artifact_legacy" to "sentiment",
                             "range_days" to normalizedDays
                         )
                     )
@@ -1625,7 +1630,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     trackEvent(
                         "cache_miss",
                         mapOf(
-                            "artifact" to "sentiment",
+                            "artifact" to "macro_stress",
+                            "artifact_legacy" to "sentiment",
                             "range_days" to normalizedDays
                         )
                     )
@@ -1642,13 +1648,26 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun openSentimentDashboard(rangeDays: Int = state.sentimentRangeDays) {
-        val normalizedDays = normalizeSentimentRange(rangeDays)
-        refreshSentiment(normalizedDays)
+    fun refreshSentiment(days: Int = state.sentimentRangeDays) {
+        refreshMacroStress(days)
+    }
+
+    fun openMacroStressDashboard(rangeDays: Int = state.sentimentRangeDays) {
+        val normalizedDays = normalizeMacroStressRange(rangeDays)
+        refreshMacroStress(normalizedDays)
+        trackEvent(
+            "macro_stress_dashboard_opened",
+            mapOf("range_days" to normalizedDays)
+        )
+        // Keep legacy event for downstream analytics compatibility during transition.
         trackEvent(
             "sentiment_dashboard_opened",
             mapOf("range_days" to normalizedDays)
         )
+    }
+
+    fun openSentimentDashboard(rangeDays: Int = state.sentimentRangeDays) {
+        openMacroStressDashboard(rangeDays)
     }
 
     fun openWeeklyDigest(fromPush: Boolean) {
@@ -2100,13 +2119,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private fun normalizeSentimentRange(days: Int): Int =
+    private fun normalizeMacroStressRange(days: Int): Int =
         when (days) {
             7, 14, 30, 90 -> days
-            in Int.MIN_VALUE..7 -> 7
-            in 8..21 -> 14
-            in 22..60 -> 30
-            else -> 90
+            else -> 30
         }
 
     private fun formatPulseFreshness(generatedAt: String, fromCache: Boolean): String {

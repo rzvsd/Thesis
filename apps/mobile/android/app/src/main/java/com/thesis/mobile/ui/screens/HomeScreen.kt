@@ -90,7 +90,7 @@ fun HomeScreen(
     onRunDeepDive: (String) -> Unit,
     onManageNames: () -> Unit,
     onRetryPulse: () -> Unit,
-    onOpenSentimentDashboard: () -> Unit,
+    onOpenMacroStressDashboard: () -> Unit,
     onOpenWeeklyDigest: () -> Unit,
     onOpenMorningBriefing: (AlertLedgerItemView) -> Unit = {},
     onResumeLastViewed: ((LastViewedReport) -> Unit)? = null,
@@ -179,11 +179,11 @@ fun HomeScreen(
             }
 
             item {
-                SentimentSummaryCard(
+                MacroStressSummaryCard(
                     current = sentimentCurrent,
                     history = sentimentHistory,
                     sentimentError = sentimentError,
-                    onOpenDashboard = onOpenSentimentDashboard,
+                    onOpenDashboard = onOpenMacroStressDashboard,
                     onOpenWeeklyDigest = onOpenWeeklyDigest
                 )
             }
@@ -392,15 +392,19 @@ private fun MorningBriefingCard(
 }
 
 @Composable
-private fun SentimentSummaryCard(
+private fun MacroStressSummaryCard(
     current: SentimentSnapshotView?,
     history: List<SentimentSnapshotView>,
     sentimentError: String?,
     onOpenDashboard: () -> Unit,
     onOpenWeeklyDigest: () -> Unit
 ) {
-    val sentimentLabel = formatSentimentLabel(current?.label)
-    val direction = deriveSentimentDirection(current, history)
+    val macroStressLabel = formatMacroStressLabel(current?.label)
+    val direction = if (sentimentError.isNullOrBlank()) {
+        deriveMacroStressDirection(current, history)
+    } else {
+        null
+    }
     val scoreText = current?.score?.let { it.toInt().toString() } ?: "--"
     val marketDate = current?.marketDate
 
@@ -421,7 +425,7 @@ private fun SentimentSummaryCard(
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "Fear & Greed",
+                    text = Phase4Copy.todayMacroStressTitle,
                     style = ThesisTypography.headlineLarge.copy(
                         fontFamily = HeadingFont,
                         fontWeight = FontWeight.Normal
@@ -432,9 +436,15 @@ private fun SentimentSummaryCard(
                 Text(
                     text = when {
                         !sentimentError.isNullOrBlank() -> "Temporarily unavailable"
-                        marketDate.isNullOrBlank() -> "No snapshot yet"
+                        marketDate.isNullOrBlank() -> "No macro snapshot yet"
                         else -> marketDate
                     },
+                    style = ThesisTypography.labelSmall,
+                    color = ThesisColors.TextMuted
+                )
+                Spacer(modifier = Modifier.height(ThesisDimens.SpacingXs))
+                Text(
+                    text = Phase4Copy.todayMacroStressSourceNote,
                     style = ThesisTypography.labelSmall,
                     color = ThesisColors.TextMuted
                 )
@@ -449,9 +459,9 @@ private fun SentimentSummaryCard(
                     color = ThesisColors.TextPrimary
                 )
                 Text(
-                    text = sentimentLabel,
+                    text = macroStressLabel,
                     style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Medium),
-                    color = sentimentColor(current?.label)
+                    color = macroStressColor(current?.label)
                 )
             }
         }
@@ -486,7 +496,7 @@ private fun SentimentSummaryCard(
                 )
             ) {
                 Text(
-                    text = "Dashboard",
+                    text = Phase4Copy.todayMacroStressDashboardLabel,
                     style = ThesisTypography.labelLarge.copy(fontWeight = FontWeight.Medium)
                 )
             }
@@ -915,22 +925,22 @@ private fun resolveTodayPhase(now: ZonedDateTime = ZonedDateTime.now(ZoneId.of("
 
 private fun buildTodayPlan(phase: TodayPhase, sections: List<SectionView>): TodayPlan {
     if (sections.isEmpty()) return TodayPlan("Waiting for the next Pulse cycle.", emptyList())
-    val fearGreed = sections.firstOrNull { containsAny(it, "fear", "greed", "sentiment") }
+    val macroStress = sections.firstOrNull { containsAny(it, "macro stress", "macro", "pressure", "fear", "greed", "sentiment") }
     val earnings = sections.firstOrNull { containsAny(it, "earnings", "calendar") }
     val contrarian = sections.firstOrNull { containsAny(it, "contrarian", "alert") }
     val marketMoves = sections.firstOrNull { containsAny(it, "market", "moves", "pulse") }
     val weeklyDigest = sections.firstOrNull { containsAny(it, "weekly", "digest") }
     val priorityOrder = when (phase) {
-        TodayPhase.PRE_MARKET -> listOf(fearGreed, earnings, contrarian, marketMoves, weeklyDigest)
-        TodayPhase.MARKET_HOURS -> listOf(marketMoves, fearGreed, contrarian, earnings, weeklyDigest)
-        TodayPhase.AFTER_HOURS -> listOf(marketMoves, fearGreed, earnings, weeklyDigest, contrarian)
+        TodayPhase.PRE_MARKET -> listOf(macroStress, earnings, contrarian, marketMoves, weeklyDigest)
+        TodayPhase.MARKET_HOURS -> listOf(marketMoves, macroStress, contrarian, earnings, weeklyDigest)
+        TodayPhase.AFTER_HOURS -> listOf(marketMoves, macroStress, earnings, weeklyDigest, contrarian)
     }
     val prioritized = priorityOrder.filterNotNull()
     val remaining = sections.filterNot { prioritized.contains(it) }
     val subtitle = when (phase) {
-        TodayPhase.PRE_MARKET -> "Sentiment, tomorrow reports, overnight risk."
-        TodayPhase.MARKET_HOURS -> "Current moves, sentiment, active risk."
-        TodayPhase.AFTER_HOURS -> "Closing wrap, sentiment, tomorrow setup."
+        TodayPhase.PRE_MARKET -> "Macro pressure, tomorrow reports, overnight risk."
+        TodayPhase.MARKET_HOURS -> "Current moves, macro pressure, active risk."
+        TodayPhase.AFTER_HOURS -> "Closing wrap, macro pressure, tomorrow setup."
     }
     return TodayPlan(subtitle, prioritized + remaining)
 }
@@ -940,32 +950,32 @@ private fun containsAny(section: SectionView, vararg tokens: String): Boolean {
     return tokens.any { haystack.contains(it.lowercase()) }
 }
 
-private fun formatSentimentLabel(label: String?): String = when (label?.lowercase()) {
-    "extreme_fear" -> "Extreme Fear"
-    "fear" -> "Fear"
-    "neutral" -> "Neutral"
-    "greed" -> "Greed"
-    "extreme_greed" -> "Extreme Greed"
+private fun formatMacroStressLabel(label: String?): String = when (label?.lowercase()) {
+    "extreme_fear", "fear", "high_stress", "elevated", "elevated_pressure" -> "Elevated Pressure"
+    "neutral", "balanced", "moderate" -> "Balanced"
+    "greed", "extreme_greed", "low_stress", "risk_on", "low_pressure" -> "Contained Pressure"
     else -> "Unavailable"
 }
 
-private fun sentimentColor(label: String?): Color = when (label?.lowercase()) {
-    "extreme_fear", "fear" -> ThesisColors.SignalNegative
-    "greed", "extreme_greed" -> ThesisColors.SignalPositive
-    "neutral" -> ThesisColors.SignalNeutral
+private fun macroStressColor(label: String?): Color = when (label?.lowercase()) {
+    "extreme_fear", "fear", "high_stress", "elevated", "elevated_pressure" -> ThesisColors.SignalNegative
+    "greed", "extreme_greed", "low_stress", "risk_on", "low_pressure" -> ThesisColors.SignalPositive
+    "neutral", "balanced", "moderate" -> ThesisColors.SignalNeutral
     else -> ThesisColors.TextMuted
 }
 
-private fun deriveSentimentDirection(current: SentimentSnapshotView?, history: List<SentimentSnapshotView>): String? {
-    if (current == null || history.size < 2) return null
+private fun deriveMacroStressDirection(current: SentimentSnapshotView?, history: List<SentimentSnapshotView>): String {
+    if (current == null) return "No material macro change detected yet."
+    if (history.size < 2) return "No material macro change vs prior read."
     val sorted = history.sortedByDescending { it.marketDate }
-    val baseline = sorted.firstOrNull { it.marketDate != current.marketDate } ?: sorted.getOrNull(1) ?: return null
+    val baseline = sorted.firstOrNull { it.marketDate != current.marketDate } ?: sorted.getOrNull(1)
+        ?: return "No material macro change vs prior read."
     val delta = current.score - baseline.score
     val deltaText = kotlin.math.abs(delta).toInt()
     return when {
-        delta > 0.5 -> "Sentiment up $deltaText pt vs prior."
-        delta < -0.5 -> "Sentiment down $deltaText pt vs prior."
-        else -> "Sentiment flat vs prior."
+        delta > 0.5 -> "Macro pressure up $deltaText pt vs prior read."
+        delta < -0.5 -> "Macro pressure down $deltaText pt vs prior read."
+        else -> "No material macro change vs prior read."
     }
 }
 

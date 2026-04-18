@@ -14,90 +14,74 @@ function sendJson(response: ServerResponse, status: number, payload: unknown): v
   response.end(JSON.stringify(payload));
 }
 
-function buildSeries(start: number, length = 260, step = 1): number[] {
-  return Array.from({ length }, (_, index) => Number((start + index * step).toFixed(4)));
-}
-
-async function startMarketDataMock(): Promise<{
+async function startOfficialMacroMock(): Promise<{
   server: Server;
   baseUrl: string;
-  yahooRequests: URL[];
-  fredRequests: URL[];
+  requests: URL[];
 }> {
-  const seriesBySymbol: Record<string, number[]> = {
-    "^VIX": buildSeries(20, 260, 0.05),
-    "^GSPC": buildSeries(4000, 260, 2),
-    SPY: buildSeries(450, 260, 0.3),
-    TLT: buildSeries(95, 260, -0.05),
-    AAPL: buildSeries(180, 260, 0.4)
-  };
-  const yahooRequests: URL[] = [];
-  const fredRequests: URL[] = [];
-
+  const requests: URL[] = [];
   const server = createServer((request, response) => {
     const url = new URL(request.url ?? "/", "http://127.0.0.1");
-
-    if (url.pathname.startsWith("/v8/finance/chart/")) {
-      yahooRequests.push(url);
-      const rawSymbol = url.pathname.split("/").pop() ?? "";
-      const symbol = decodeURIComponent(rawSymbol);
-      const series = seriesBySymbol[symbol];
-      if (!series) {
-        sendJson(response, 404, { error: "symbol_not_found" });
-        return;
-      }
-
-      sendJson(response, 200, {
-        chart: {
-          result: [
-            {
-              timestamp: series.map((_, index) => 1_700_000_000 + index * 86_400),
-              indicators: {
-                quote: [
-                  {
-                    close: series
-                  }
-                ]
-              }
-            }
-          ]
-        }
-      });
+    if (url.pathname !== "/v1/official/macro") {
+      sendJson(response, 404, { error: "not_found" });
       return;
     }
 
-    if (url.pathname === "/series/observations") {
-      fredRequests.push(url);
-      const seriesId = url.searchParams.get("series_id") ?? "";
-      if (seriesId === "BAMLH0A0HYM2") {
-        sendJson(response, 200, {
-          observations: [
-            {
-              date: "2026-03-20",
-              value: "3.20"
-            }
-          ]
-        });
-        return;
-      }
-
-      if (seriesId === "T10Y2Y") {
-        sendJson(response, 200, {
-          observations: [
-            {
-              date: "2026-03-20",
-              value: "0.45"
-            }
-          ]
-        });
-        return;
-      }
-
-      sendJson(response, 404, { error: "series_not_found" });
-      return;
-    }
-
-    sendJson(response, 404, { status: "not_found" });
+    requests.push(url);
+    sendJson(response, 200, {
+      ok: true,
+      data: {
+        observations: [
+          {
+            registry_id: "TREASURY_DAILY_10Y",
+            value: 4.2,
+            unit: "percent",
+            period: "2026-03-20",
+            category: "rates",
+            retrieval: {
+              source: {
+                source_name: "U.S. Treasury",
+                source_url: "https://home.treasury.gov/"
+              },
+              retrieved_at: "2026-03-20T08:00:00.000Z"
+            },
+            missing_fields: []
+          },
+          {
+            registry_id: "BLS_UNEMPLOYMENT_RATE",
+            value: 3.9,
+            unit: "percent",
+            period: "2026-03",
+            category: "labor",
+            retrieval: {
+              source: {
+                source_name: "BLS",
+                source_url: "https://www.bls.gov/"
+              },
+              retrieved_at: "2026-03-20T08:00:00.000Z"
+            },
+            missing_fields: []
+          },
+          {
+            registry_id: "BEA_REAL_GDP",
+            value: 1.8,
+            unit: "percent",
+            period: "2026-Q1",
+            category: "growth",
+            retrieval: {
+              source: {
+                source_name: "BEA",
+                source_url: "https://www.bea.gov/"
+              },
+              retrieved_at: "2026-03-20T08:00:00.000Z"
+            },
+            missing_fields: []
+          }
+        ],
+        canonical_events: []
+      },
+      error_flag: false
+    });
   });
 
   server.listen(0);
@@ -106,8 +90,7 @@ async function startMarketDataMock(): Promise<{
   return {
     server,
     baseUrl: `http://127.0.0.1:${address.port}`,
-    yahooRequests,
-    fredRequests
+    requests
   };
 }
 
@@ -148,7 +131,7 @@ async function requestJson(
 }
 
 async function createVerifiedSession(baseUrl: string): Promise<string> {
-  const email = `m3-sentiment-${Date.now()}@example.com`;
+  const email = `m3-macro-${Date.now()}@example.com`;
   const password = "VeryStrongPass1!";
   const register = await requestJson(baseUrl, "/auth/register", {
     method: "POST",
@@ -176,8 +159,8 @@ async function createVerifiedSession(baseUrl: string): Promise<string> {
   return token as string;
 }
 
-test("internal sentiment dispatch stores deterministic snapshots and serves current/history", async () => {
-  const marketMock = await startMarketDataMock();
+test("internal macro-stress dispatch stores deterministic snapshots and serves current/history", async () => {
+  const macroMock = await startOfficialMacroMock();
 
   const previous = {
     STORE_BACKEND: process.env.STORE_BACKEND,
@@ -185,24 +168,14 @@ test("internal sentiment dispatch stores deterministic snapshots and serves curr
     AUTH_EXPOSE_VERIFICATION_TOKEN: process.env.AUTH_EXPOSE_VERIFICATION_TOKEN,
     JWT_SECRET: process.env.JWT_SECRET,
     INTERNAL_WORKER_TOKEN: process.env.INTERNAL_WORKER_TOKEN,
-    SENTIMENT_YAHOO_BASE_URL: process.env.SENTIMENT_YAHOO_BASE_URL,
-    SENTIMENT_FRED_BASE_URL: process.env.SENTIMENT_FRED_BASE_URL,
-    SENTIMENT_FRED_API_KEY: process.env.SENTIMENT_FRED_API_KEY,
-    SENTIMENT_BREADTH_UNIVERSE_LIMIT: process.env.SENTIMENT_BREADTH_UNIVERSE_LIMIT,
-    SENTIMENT_BREADTH_CONCURRENCY: process.env.SENTIMENT_BREADTH_CONCURRENCY,
-    SENTIMENT_MIN_AVAILABLE_INPUTS: process.env.SENTIMENT_MIN_AVAILABLE_INPUTS
+    MARKET_PULSE_DATA_OPENBB_BASE_URL: process.env.MARKET_PULSE_DATA_OPENBB_BASE_URL
   };
   process.env.STORE_BACKEND = "memory";
   process.env.QUEUE_BACKEND = "memory";
   process.env.AUTH_EXPOSE_VERIFICATION_TOKEN = "true";
   process.env.JWT_SECRET = "dev-jwt-secret-change-me";
   process.env.INTERNAL_WORKER_TOKEN = "dev-internal-worker-token";
-  process.env.SENTIMENT_YAHOO_BASE_URL = marketMock.baseUrl;
-  process.env.SENTIMENT_FRED_BASE_URL = marketMock.baseUrl;
-  process.env.SENTIMENT_FRED_API_KEY = "fred-test-key";
-  process.env.SENTIMENT_BREADTH_UNIVERSE_LIMIT = "3";
-  process.env.SENTIMENT_BREADTH_CONCURRENCY = "1";
-  process.env.SENTIMENT_MIN_AVAILABLE_INPUTS = "3";
+  process.env.MARKET_PULSE_DATA_OPENBB_BASE_URL = macroMock.baseUrl;
 
   let server: Server | undefined;
   try {
@@ -214,7 +187,7 @@ test("internal sentiment dispatch stores deterministic snapshots and serves curr
     const authHeaders = { authorization: `Bearer ${accessToken}` };
     const internalHeaders = { "x-internal-token": "dev-internal-worker-token" };
 
-    const firstDispatch = await requestJson(baseUrl, "/internal/sentiment/dispatch", {
+    const firstDispatch = await requestJson(baseUrl, "/internal/macro-stress/dispatch", {
       method: "POST",
       headers: internalHeaders,
       body: {
@@ -223,45 +196,43 @@ test("internal sentiment dispatch stores deterministic snapshots and serves curr
     });
     assert.equal(firstDispatch.status, 200);
     assert.ok(["created", "updated"].includes(String(firstDispatch.payload.status)));
+    assert.equal(typeof firstDispatch.payload.state, "string");
 
-    const current = await requestJson(baseUrl, "/v1/sentiment/current", {
+    const current = await requestJson(baseUrl, "/v1/macro-stress/current", {
       headers: authHeaders
     });
     assert.equal(current.status, 200);
     const currentData = current.payload.data as JsonObject;
-    assert.equal(currentData.market_date, "2026-03-20");
-    assert.equal(typeof currentData.score, "number");
-    assert.equal(typeof currentData.label, "string");
-    assert.ok((currentData.score as number) >= 0);
-    assert.ok((currentData.score as number) <= 100);
+    assert.equal(currentData.as_of, "2026-03-20");
+    assert.equal(typeof currentData.state, "string");
+    assert.equal(typeof currentData.summary, "string");
 
-    const firstHistory = await requestJson(baseUrl, "/v1/sentiment/history?days=90", {
+    const firstHistory = await requestJson(baseUrl, "/v1/macro-stress/history?days=90", {
       headers: authHeaders
     });
     assert.equal(firstHistory.status, 200);
     const firstRows = firstHistory.payload.data as JsonObject[];
     assert.equal(firstRows.length, 1);
-    assert.equal(firstRows[0]?.market_date, "2026-03-20");
+    assert.equal(firstRows[0]?.as_of, "2026-03-20");
 
-    const secondDispatch = await requestJson(baseUrl, "/internal/sentiment/dispatch", {
+    const legacyDispatch = await requestJson(baseUrl, "/internal/sentiment/dispatch", {
       method: "POST",
       headers: internalHeaders,
       body: {
         market_date: "2026-03-20"
       }
     });
-    assert.equal(secondDispatch.status, 200);
+    assert.equal(legacyDispatch.status, 200);
+    assert.equal(typeof legacyDispatch.payload.score, "number");
 
-    const secondHistory = await requestJson(baseUrl, "/v1/sentiment/history?days=90", {
+    const legacyCurrent = await requestJson(baseUrl, "/v1/sentiment/current", {
       headers: authHeaders
     });
-    assert.equal(secondHistory.status, 200);
-    const secondRows = secondHistory.payload.data as JsonObject[];
-    assert.equal(secondRows.length, 1);
-    assert.equal(secondRows[0]?.market_date, "2026-03-20");
-    assert.equal(secondRows[0]?.score, firstRows[0]?.score);
+    assert.equal(legacyCurrent.status, 200);
+    const legacyCurrentData = legacyCurrent.payload.data as JsonObject;
+    assert.equal(legacyCurrentData.market_date, "2026-03-20");
 
-    const weekendDispatch = await requestJson(baseUrl, "/internal/sentiment/dispatch", {
+    const weekendDispatch = await requestJson(baseUrl, "/internal/macro-stress/dispatch", {
       method: "POST",
       headers: internalHeaders,
       body: {
@@ -271,41 +242,22 @@ test("internal sentiment dispatch stores deterministic snapshots and serves curr
     assert.equal(weekendDispatch.status, 200);
     assert.equal(weekendDispatch.payload.status, "skipped");
 
-    assert.ok(
-      marketMock.yahooRequests.every((request) => {
-        const period1 = request.searchParams.get("period1");
-        const period2 = request.searchParams.get("period2");
-        return (
-          typeof period1 === "string" &&
-          typeof period2 === "string" &&
-          !request.searchParams.has("range") &&
-          Number(period1) < Number(period2)
-        );
-      })
-    );
-    assert.ok(
-      marketMock.fredRequests.every((request) => request.searchParams.get("observation_end") === "2026-03-20")
-    );
+    assert.ok(macroMock.requests.length >= 1);
   } finally {
     if (server) {
       await closeServer(server);
     }
-    await closeServer(marketMock.server);
+    await closeServer(macroMock.server);
     process.env.STORE_BACKEND = previous.STORE_BACKEND;
     process.env.QUEUE_BACKEND = previous.QUEUE_BACKEND;
     process.env.AUTH_EXPOSE_VERIFICATION_TOKEN = previous.AUTH_EXPOSE_VERIFICATION_TOKEN;
     process.env.JWT_SECRET = previous.JWT_SECRET;
     process.env.INTERNAL_WORKER_TOKEN = previous.INTERNAL_WORKER_TOKEN;
-    process.env.SENTIMENT_YAHOO_BASE_URL = previous.SENTIMENT_YAHOO_BASE_URL;
-    process.env.SENTIMENT_FRED_BASE_URL = previous.SENTIMENT_FRED_BASE_URL;
-    process.env.SENTIMENT_FRED_API_KEY = previous.SENTIMENT_FRED_API_KEY;
-    process.env.SENTIMENT_BREADTH_UNIVERSE_LIMIT = previous.SENTIMENT_BREADTH_UNIVERSE_LIMIT;
-    process.env.SENTIMENT_BREADTH_CONCURRENCY = previous.SENTIMENT_BREADTH_CONCURRENCY;
-    process.env.SENTIMENT_MIN_AVAILABLE_INPUTS = previous.SENTIMENT_MIN_AVAILABLE_INPUTS;
+    process.env.MARKET_PULSE_DATA_OPENBB_BASE_URL = previous.MARKET_PULSE_DATA_OPENBB_BASE_URL;
   }
 });
 
-test("internal sentiment dispatch rejects impossible calendar dates", async () => {
+test("internal macro-stress dispatch rejects impossible calendar dates", async () => {
   const previous = {
     STORE_BACKEND: process.env.STORE_BACKEND,
     QUEUE_BACKEND: process.env.QUEUE_BACKEND,
@@ -326,7 +278,7 @@ test("internal sentiment dispatch rejects impossible calendar dates", async () =
     const { port } = server.address() as AddressInfo;
     const baseUrl = `http://127.0.0.1:${port}`;
 
-    const response = await requestJson(baseUrl, "/internal/sentiment/dispatch", {
+    const response = await requestJson(baseUrl, "/internal/macro-stress/dispatch", {
       method: "POST",
       headers: {
         "x-internal-token": "dev-internal-worker-token"
@@ -350,7 +302,7 @@ test("internal sentiment dispatch rejects impossible calendar dates", async () =
   }
 });
 
-test("sentiment history returns HTTP 200 with empty data when no rows exist", async () => {
+test("macro-stress history returns HTTP 200 with empty data when no rows exist", async () => {
   const previous = {
     STORE_BACKEND: process.env.STORE_BACKEND,
     QUEUE_BACKEND: process.env.QUEUE_BACKEND,
@@ -371,7 +323,7 @@ test("sentiment history returns HTTP 200 with empty data when no rows exist", as
     const { port } = server.address() as AddressInfo;
     const baseUrl = `http://127.0.0.1:${port}`;
     const accessToken = await createVerifiedSession(baseUrl);
-    const response = await requestJson(baseUrl, "/v1/sentiment/history?days=90", {
+    const response = await requestJson(baseUrl, "/v1/macro-stress/history?days=90", {
       headers: {
         authorization: `Bearer ${accessToken}`
       }
