@@ -1093,6 +1093,19 @@ function isNotificationType(value: string): value is NotificationType {
 function mapCalendarEvent(row: Record<string, unknown>): CalendarEventRecord {
   const eventTimeRaw = row.event_time == null ? undefined : String(row.event_time);
   const eventTime = eventTimeRaw as CalendarEventTime | undefined;
+  const timingStateRaw = row.timing_state == null ? undefined : String(row.timing_state).trim();
+  const timingState =
+    timingStateRaw === "confirmed" || timingStateRaw === "actual" ? timingStateRaw : "estimated";
+  const sourceStateRaw = row.source_state == null ? undefined : String(row.source_state).trim();
+  const sourceState =
+    sourceStateRaw === "official" ||
+    sourceStateRaw === "first_party" ||
+    sourceStateRaw === "mixed" ||
+    sourceStateRaw === "conflicting"
+      ? sourceStateRaw
+      : "derived";
+  const sourceRef = asRecord(row.source_ref) ?? {};
+  const reasonTextRaw = row.reason_text == null ? "" : String(row.reason_text).trim();
   return {
     id: String(row.id),
     ticker: String(row.ticker),
@@ -1100,7 +1113,11 @@ function mapCalendarEvent(row: Record<string, unknown>): CalendarEventRecord {
     eventDate: String(row.event_date),
     eventTime,
     provider: String(row.provider),
-    retrievedAt: asIsoString(row.retrieved_at) ?? new Date().toISOString()
+    retrievedAt: asIsoString(row.retrieved_at) ?? new Date().toISOString(),
+    timingState,
+    sourceState,
+    sourceRef,
+    reasonText: reasonTextRaw.length > 0 ? reasonTextRaw : "No explicit timing reason was provided."
   };
 }
 
@@ -5270,14 +5287,24 @@ export class PostgresStore implements ProductStore {
            event_date,
            event_time,
            provider,
+           timing_state,
+           source_state,
+           source_ref,
+           reason_text,
            retrieved_at,
            updated_at
          )
-         values ($1, $2, $3, $4::date, $5, $6, $7::timestamptz, $8::timestamptz)
+         values (
+           $1, $2, $3, $4::date, $5, $6, $7, $8, $9::jsonb, $10, $11::timestamptz, $12::timestamptz
+         )
          on conflict (ticker, event_type, event_date) do update set
            id = excluded.id,
            event_time = excluded.event_time,
            provider = excluded.provider,
+           timing_state = excluded.timing_state,
+           source_state = excluded.source_state,
+           source_ref = excluded.source_ref,
+           reason_text = excluded.reason_text,
            retrieved_at = excluded.retrieved_at,
            updated_at = excluded.updated_at`,
         [
@@ -5287,6 +5314,10 @@ export class PostgresStore implements ProductStore {
           event.eventDate,
           event.eventTime ?? null,
           event.provider,
+          event.timingState,
+          event.sourceState,
+          JSON.stringify(event.sourceRef ?? {}),
+          event.reasonText,
           event.retrievedAt,
           new Date().toISOString()
         ]

@@ -32,7 +32,8 @@ const migrationFilenames = [
   "safetym3_026_auth_abuse_resistance.up.sql",
   "safetym5_027_google_oidc.up.sql",
   "ph6m1_028_canonical_events.up.sql",
-  "ph6m2_029_first_party_context.up.sql"
+  "ph6m2_029_first_party_context.up.sql",
+  "ph6m4_030_earnings_state.up.sql"
 ];
 
 async function readMigrationFile(filename: string): Promise<string> {

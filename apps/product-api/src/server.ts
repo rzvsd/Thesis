@@ -26,6 +26,10 @@ import type {
   CrossNamePropagationEventCategory,
   CrossNamePropagationEventFixture,
   CrossNamePropagationSignalSource,
+  EarningsEventSourceState,
+  EarningsEventState,
+  EarningsEventStateListResponse,
+  EarningsEventTimingState,
   FeedbackSeverity,
   EvidenceRightsMetadata,
   FirstPartyContextItem,
@@ -107,6 +111,11 @@ import {
   legacySnapshotToMacroStress,
   macroStressToLegacySnapshot
 } from "./macro-stress";
+import {
+  buildEarningsEventStates,
+  normalizeEarningsSourceState,
+  normalizeEarningsTimingState
+} from "./earnings-state";
 import { PushNotifier } from "./push";
 import { isUsTradingDay, isValidMarketDate } from "./sentiment";
 import { fetchLatestClosePrice, fetchLatestClosePrices } from "./market-prices";
@@ -192,6 +201,10 @@ interface CalendarEventSource {
   event_time?: "before_market" | "after_market" | "during_market";
   provider?: string;
   retrieved_at?: string;
+  timing_state?: EarningsEventTimingState;
+  source_state?: EarningsEventSourceState;
+  source_ref?: Record<string, unknown>;
+  reason_text?: string;
 }
 
 const serviceName = "product-api";
@@ -322,6 +335,173 @@ function asMorningExceptionBriefingMode(
   return undefined;
 }
 
+function uniqueUppercaseTickers(values: string[]): string[] {
+  return [...new Set(
+    values
+      .map((value) => value.trim().toUpperCase())
+      .filter((value) => value.length > 0)
+  )];
+}
+
+async function getEarningsEventStateListForUser(
+  runtime: Runtime,
+  input: {
+    userId: string;
+    asOf: string;
+    tickers?: string[];
+    windowPastDays?: number;
+    windowAheadDays?: number;
+  }
+): Promise<EarningsEventStateListResponse> {
+  const watchlistTickers =
+    input.tickers && input.tickers.length > 0
+      ? uniqueUppercaseTickers(input.tickers)
+      : uniqueUppercaseTickers(await runtime.store.listWatchlistTickersByUser(input.userId));
+  const windowPastDays = Math.max(0, Math.floor(input.windowPastDays ?? 7));
+  const windowAheadDays = Math.max(1, Math.floor(input.windowAheadDays ?? 30));
+  const windowStart = addDaysToIsoDate(input.asOf, -windowPastDays);
+  const windowEnd = addDaysToIsoDate(input.asOf, windowAheadDays);
+  if (watchlistTickers.length === 0) {
+    return {
+      as_of: input.asOf,
+      window_start: windowStart,
+      window_end: windowEnd,
+      states: []
+    };
+  }
+
+  const events = await runtime.store.listUpcomingCalendarEventsByTickers({
+    tickers: watchlistTickers,
+    fromDate: windowStart,
+    toDate: windowEnd,
+    eventType: "earnings"
+  });
+  const artifactsByTicker = new Map<string, CallArtifact[]>();
+  for (const ticker of watchlistTickers) {
+    const artifacts = await runtime.store.listCallArtifacts({
+      ticker,
+      limit: 250
+    });
+    artifactsByTicker.set(ticker, artifacts);
+  }
+
+  return {
+    as_of: input.asOf,
+    window_start: windowStart,
+    window_end: windowEnd,
+    states: buildEarningsEventStates({
+      asOf: input.asOf,
+      events,
+      artifactsByTicker
+    })
+  };
+}
+
+function findEarningsState(
+  states: EarningsEventState[],
+  input: { ticker: string; eventId?: string; eventDate?: string }
+): EarningsEventState | undefined {
+  const ticker = input.ticker.trim().toUpperCase();
+  const byTicker = states.filter((state) => state.ticker === ticker);
+  if (byTicker.length === 0) {
+    return undefined;
+  }
+  if (input.eventId) {
+    const byEventId = byTicker.find((state) => state.earnings_event_id === input.eventId);
+    if (byEventId) {
+      return byEventId;
+    }
+  }
+  if (input.eventDate) {
+    const byDate = byTicker.find((state) => state.event_date === input.eventDate);
+    if (byDate) {
+      return byDate;
+    }
+  }
+  return byTicker[0];
+}
+
+function buildWarRoomEvidencePack(input: {
+  state?: EarningsEventState;
+  timeline: EarningsWarRoomTimelineEventRecord[];
+}): {
+  baseline: Record<string, unknown>;
+  release_artifact: Record<string, unknown>;
+  followup_context: Record<string, unknown>;
+  transcript: Record<string, unknown>;
+} {
+  const preparedEvent = input.timeline
+    .filter((event) => event.eventType === "prepared")
+    .sort((left, right) => left.createdAt.localeCompare(right.createdAt))[0];
+  const followupEvent = input.timeline
+    .filter((event) =>
+      event.eventType === "deep_dive_queued" ||
+      event.eventType === "post_event_closed" ||
+      event.eventType === "playbook_updated"
+    )
+    .sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0];
+  const baselineRef = preparedEvent?.sourceRefs?.[0];
+  const baseline = baselineRef
+    ? {
+        kind: baselineRef.kind,
+        ref_id: baselineRef.ref_id,
+        label: baselineRef.label,
+        captured_at: baselineRef.captured_at
+      }
+    : {
+        omission: {
+          reason_code: "baseline_missing",
+          reason_text: "No prepared baseline reference was found in War Room history."
+        }
+      };
+
+  const releaseArtifact = input.state?.release_artifact
+    ? {
+        ...input.state.release_artifact
+      }
+    : {
+        omission: {
+          reason_code: "release_artifact_missing",
+          reason_text: "No release artifact has been ingested yet for this earnings event."
+        }
+      };
+
+  const followupContext = followupEvent
+    ? {
+        event_type: followupEvent.eventType,
+        reason_text: followupEvent.reasonText,
+        report_id: followupEvent.reportId,
+        alert_ledger_id: followupEvent.alertLedgerId,
+        created_at: followupEvent.createdAt
+      }
+    : {
+        omission: {
+          reason_code: "followup_context_missing",
+          reason_text: "No contradiction or follow-up summary exists yet for this War Room."
+        }
+      };
+
+  const transcript = input.state?.has_transcript
+    ? {
+        available: true,
+        reason_text: "Transcript artifact is available."
+      }
+    : {
+        available: false,
+        omission: {
+          reason_code: "transcript_optional",
+          reason_text: "Transcript text is optional and not required for War Room readiness."
+        }
+      };
+
+  return {
+    baseline,
+    release_artifact: releaseArtifact,
+    followup_context: followupContext,
+    transcript
+  };
+}
+
 function groupPushTargetsByUser(
   targets: Array<{ userId: string; installationId: string; deviceToken: string }>
 ): Map<string, Array<{ userId: string; installationId: string; deviceToken: string }>> {
@@ -427,6 +607,12 @@ function alertLedgerContextFromData(data: Record<string, string> | undefined): R
     ...(data.war_room_phase ? { war_room_phase: data.war_room_phase } : {}),
     ...(data.earnings_event_id ? { earnings_event_id: data.earnings_event_id } : {}),
     ...(data.event_date ? { event_date: data.event_date } : {}),
+    ...(data.earnings_timing_state ? { earnings_timing_state: data.earnings_timing_state } : {}),
+    ...(data.earnings_source_state ? { earnings_source_state: data.earnings_source_state } : {}),
+    ...(data.earnings_evidence_state ? { earnings_evidence_state: data.earnings_evidence_state } : {}),
+    ...(data.earnings_conflict
+      ? { earnings_conflict: data.earnings_conflict === "true" }
+      : {}),
     ...(data.current_cadence_min
       ? { current_cadence_min: Number(data.current_cadence_min) }
       : {}),
@@ -1520,18 +1706,42 @@ async function fetchCalendarEventsFromDataOpenbb(
       eventTimeRaw === "during_market"
         ? eventTimeRaw
         : undefined;
-    const provider = typeof row.provider === "string" ? row.provider : "yfinance";
+    const provider =
+      typeof row.provider === "string" && row.provider.trim().length > 0
+        ? row.provider.trim()
+        : "calendar_feed";
     const retrievedAt =
       typeof row.retrieved_at === "string" && row.retrieved_at.trim().length > 0
         ? row.retrieved_at
         : new Date().toISOString();
+    const timingState = normalizeEarningsTimingState(
+      typeof row.timing_state === "string" ? row.timing_state.trim() : undefined
+    );
+    const sourceState = normalizeEarningsSourceState(
+      typeof row.source_state === "string" ? row.source_state.trim() : undefined,
+      provider
+    );
+    const sourceRef =
+      isObject(row.source_ref) ? { ...row.source_ref } : {};
+    const reasonTextRaw =
+      typeof row.reason_text === "string" ? row.reason_text.trim() : "";
+    const reasonText =
+      reasonTextRaw.length > 0
+        ? reasonTextRaw
+        : timingState === "confirmed"
+          ? "Company or official source confirms the earnings timing."
+          : "Earnings timing is estimated pending stronger source confirmation.";
     events.push({
       ticker,
       event_type: "earnings",
       event_date: eventDate,
       event_time: eventTime,
       provider,
-      retrieved_at: retrievedAt
+      retrieved_at: retrievedAt,
+      timing_state: timingState,
+      source_state: sourceState,
+      source_ref: sourceRef,
+      reason_text: reasonText
     });
   }
   return events;
@@ -5994,8 +6204,15 @@ export function startServer(port: number = loadConfig().port): Server {
               eventType: "earnings",
               eventDate: event.event_date,
               eventTime: event.event_time,
-              provider: event.provider ?? "yfinance",
-              retrievedAt: event.retrieved_at ?? new Date().toISOString()
+              provider: event.provider ?? "calendar_feed",
+              retrievedAt: event.retrieved_at ?? new Date().toISOString(),
+              timingState: normalizeEarningsTimingState(event.timing_state),
+              sourceState: normalizeEarningsSourceState(event.source_state, event.provider),
+              sourceRef: event.source_ref ?? {},
+              reasonText:
+                event.reason_text?.trim().length
+                  ? event.reason_text.trim()
+                  : "No explicit earnings timing reason was provided."
             }))
           );
 
@@ -6161,6 +6378,18 @@ export function startServer(port: number = loadConfig().port): Server {
                   continue;
                 }
                 const ticker = leadEvent.ticker.trim().toUpperCase();
+                const earningsStates = await getEarningsEventStateListForUser(runtime, {
+                  userId,
+                  asOf,
+                  tickers: [ticker],
+                  windowPastDays: 14,
+                  windowAheadDays: Math.max(7, warRoomPreparationLookaheadDays + 3)
+                });
+                const leadState = findEarningsState(earningsStates.states, {
+                  ticker,
+                  eventId: leadEvent.id,
+                  eventDate: leadEvent.eventDate
+                });
                 const existing = await findWarRoomByUserTickerEvent(runtime, {
                   userId,
                   ticker,
@@ -6206,7 +6435,11 @@ export function startServer(port: number = loadConfig().port): Server {
                     ],
                     metadata: {
                       ticker,
-                      event_date: leadEvent.eventDate
+                      event_date: leadEvent.eventDate,
+                      earnings_timing_state: leadState?.timing_state ?? "estimated",
+                      earnings_source_state: leadState?.source_state ?? "derived",
+                      earnings_evidence_state: leadState?.evidence_state ?? "calendar_only",
+                      earnings_conflict: leadState?.conflict.has_conflict ?? false
                     },
                     createdAt: nowIso
                   });
@@ -6219,7 +6452,9 @@ export function startServer(port: number = loadConfig().port): Server {
                 const route = notificationRoute("earnings_war_room");
                 const alertId = createId();
                 const title = notificationTitle("earnings_war_room", ticker);
-                const reasonText = `${ticker} reports on ${leadEvent.eventDate}. Open War Room to review thesis watchpoints.`;
+                const timingState = leadState?.timing_state ?? "estimated";
+                const sourceState = leadState?.source_state ?? "derived";
+                const reasonText = `${ticker} reports on ${leadEvent.eventDate}. Timing is ${timingState} (${sourceState.replace("_", " ")}). Open War Room to review thesis watchpoints.`;
                 const pushResult = await runtime.pushNotifier.sendNotification(userTargets, {
                   notificationType: "earnings_war_room",
                   route,
@@ -6233,6 +6468,10 @@ export function startServer(port: number = loadConfig().port): Server {
                     event_date: leadEvent.eventDate,
                     current_cadence_min: String(warRoom.currentCadenceMin),
                     war_room_phase: "pre",
+                    earnings_timing_state: timingState,
+                    earnings_source_state: sourceState,
+                    earnings_evidence_state: leadState?.evidence_state ?? "calendar_only",
+                    earnings_conflict: leadState?.conflict.has_conflict ? "true" : "false",
                     reason_code: "war_room_prepared",
                     reason_text: reasonText,
                     deep_link_target: route
@@ -6267,6 +6506,10 @@ export function startServer(port: number = loadConfig().port): Server {
                     event_date: leadEvent.eventDate,
                     current_cadence_min: String(warRoom.currentCadenceMin),
                     war_room_phase: "pre",
+                    earnings_timing_state: timingState,
+                    earnings_source_state: sourceState,
+                    earnings_evidence_state: leadState?.evidence_state ?? "calendar_only",
+                    earnings_conflict: leadState?.conflict.has_conflict ? "true" : "false",
                     deep_link_target: route
                   }
                 });
@@ -6286,7 +6529,11 @@ export function startServer(port: number = loadConfig().port): Server {
                   ],
                   metadata: {
                     ticker,
-                    event_date: leadEvent.eventDate
+                    event_date: leadEvent.eventDate,
+                    earnings_timing_state: timingState,
+                    earnings_source_state: sourceState,
+                    earnings_evidence_state: leadState?.evidence_state ?? "calendar_only",
+                    earnings_conflict: leadState?.conflict.has_conflict ?? false
                   },
                   createdAt: new Date().toISOString()
                 });
@@ -6337,6 +6584,20 @@ export function startServer(port: number = loadConfig().port): Server {
                 lastCycleAt: nowIso,
                 updatedAt: nowIso
               });
+              const liveStateList = await getEarningsEventStateListForUser(runtime, {
+                userId: updated.userId,
+                asOf,
+                tickers: [updated.ticker],
+                windowPastDays: 14,
+                windowAheadDays: 14
+              });
+              const liveEarningsState = findEarningsState(liveStateList.states, {
+                ticker: updated.ticker,
+                eventId: updated.earningsEventId,
+                eventDate: updated.eventDate
+              });
+              const liveTimingState = liveEarningsState?.timing_state ?? "estimated";
+              const liveSourceState = liveEarningsState?.source_state ?? "derived";
               liveUpdated += 1;
 
               await createWarRoomTimelineEvent(runtime, {
@@ -6357,7 +6618,11 @@ export function startServer(port: number = loadConfig().port): Server {
                   status: cycle.status,
                   lag_minutes: cycle.lagMinutes,
                   runtime_minutes: cycle.runtimeMinutes,
-                  trigger_type: cadence.triggerType
+                  trigger_type: cadence.triggerType,
+                  earnings_timing_state: liveTimingState,
+                  earnings_source_state: liveSourceState,
+                  earnings_evidence_state: liveEarningsState?.evidence_state ?? "calendar_only",
+                  earnings_conflict: liveEarningsState?.conflict.has_conflict ?? false
                 },
                 createdAt: nowIso
               });
@@ -6389,6 +6654,10 @@ export function startServer(port: number = loadConfig().port): Server {
                   event_date: updated.eventDate,
                   current_cadence_min: String(updated.currentCadenceMin),
                   war_room_phase: "live",
+                  earnings_timing_state: liveTimingState,
+                  earnings_source_state: liveSourceState,
+                  earnings_evidence_state: liveEarningsState?.evidence_state ?? "calendar_only",
+                  earnings_conflict: liveEarningsState?.conflict.has_conflict ? "true" : "false",
                   reason_code:
                     cadence.triggerType === "healthy_recovery"
                       ? "war_room_cadence_recovered"
@@ -6428,6 +6697,10 @@ export function startServer(port: number = loadConfig().port): Server {
                   event_date: updated.eventDate,
                   current_cadence_min: String(updated.currentCadenceMin),
                   war_room_phase: "live",
+                  earnings_timing_state: liveTimingState,
+                  earnings_source_state: liveSourceState,
+                  earnings_evidence_state: liveEarningsState?.evidence_state ?? "calendar_only",
+                  earnings_conflict: liveEarningsState?.conflict.has_conflict ? "true" : "false",
                   deep_link_target: route
                 }
               });
@@ -6460,6 +6733,20 @@ export function startServer(port: number = loadConfig().port): Server {
                 continue;
               }
               const nowIso = new Date().toISOString();
+              const postStateList = await getEarningsEventStateListForUser(runtime, {
+                userId: warRoom.userId,
+                asOf,
+                tickers: [warRoom.ticker],
+                windowPastDays: 14,
+                windowAheadDays: 14
+              });
+              const postEarningsState = findEarningsState(postStateList.states, {
+                ticker: warRoom.ticker,
+                eventId: warRoom.earningsEventId,
+                eventDate: warRoom.eventDate
+              });
+              const postTimingState = postEarningsState?.timing_state ?? "estimated";
+              const postSourceState = postEarningsState?.source_state ?? "derived";
               const queuedJob = await queueDeepDiveRefresh(runtime, {
                 userId: warRoom.userId,
                 ticker: warRoom.ticker,
@@ -6536,6 +6823,10 @@ export function startServer(port: number = loadConfig().port): Server {
                     earnings_event_id: closed.earningsEventId,
                     event_date: closed.eventDate,
                     war_room_phase: "post",
+                    earnings_timing_state: postTimingState,
+                    earnings_source_state: postSourceState,
+                    earnings_evidence_state: postEarningsState?.evidence_state ?? "calendar_only",
+                    earnings_conflict: postEarningsState?.conflict.has_conflict ? "true" : "false",
                     reason_code: "war_room_post_refresh_queued",
                     reason_text: reasonText,
                     report_id: queuedJob?.reportId ?? "",
@@ -6569,6 +6860,10 @@ export function startServer(port: number = loadConfig().port): Server {
                     earnings_event_id: closed.earningsEventId,
                     event_date: closed.eventDate,
                     war_room_phase: "post",
+                    earnings_timing_state: postTimingState,
+                    earnings_source_state: postSourceState,
+                    earnings_evidence_state: postEarningsState?.evidence_state ?? "calendar_only",
+                    earnings_conflict: postEarningsState?.conflict.has_conflict ? "true" : "false",
                     report_id: queuedJob?.reportId ?? "",
                     deep_link_target: route
                   }
@@ -6592,7 +6887,11 @@ export function startServer(port: number = loadConfig().port): Server {
                 ],
                 metadata: {
                   trigger_key: triggerKey,
-                  closed: true
+                  closed: true,
+                  earnings_timing_state: postTimingState,
+                  earnings_source_state: postSourceState,
+                  earnings_evidence_state: postEarningsState?.evidence_state ?? "calendar_only",
+                  earnings_conflict: postEarningsState?.conflict.has_conflict ?? false
                 },
                 createdAt: nowIso
               });
@@ -6686,12 +6985,39 @@ export function startServer(port: number = loadConfig().port): Server {
               continue;
             }
 
-            const uniqueTickers = [...new Set(events.map((event) => event.ticker.trim().toUpperCase()))];
+            const earningsStateList = await getEarningsEventStateListForUser(runtime, {
+              userId,
+              asOf: today,
+              tickers: watchlist,
+              windowPastDays: 3,
+              windowAheadDays: 3
+            });
+            const estimatedTickers = earningsStateList.states
+              .filter((state) => state.event_date === nextBiz && state.timing_state === "estimated")
+              .map((state) => state.ticker);
+            const stateTickers = earningsStateList.states
+              .filter((state) => state.event_date === nextBiz)
+              .map((state) => state.ticker);
+            const uniqueTickers = uniqueUppercaseTickers(
+              estimatedTickers.length > 0
+                ? estimatedTickers
+                : stateTickers.length > 0
+                  ? stateTickers
+                  : events.map((event) => event.ticker.trim().toUpperCase())
+            );
             const leadTicker = uniqueTickers[0];
             if (!leadTicker) {
               continue;
             }
-            const reasonText = `${uniqueTickers.join(", ")} is expected to report by next market session.`;
+            const leadState = earningsStateList.states.find(
+              (state) => state.ticker === leadTicker && state.event_date === nextBiz
+            );
+            const timingState = leadState?.timing_state ?? "estimated";
+            const sourceState = leadState?.source_state ?? "derived";
+            const reasonText =
+              estimatedTickers.length > 0
+                ? `${uniqueTickers.join(", ")} has estimated earnings timing for next market session.`
+                : `${uniqueTickers.join(", ")} is expected to report by next market session (${timingState}, ${sourceState.replace("_", " ")}).`;
             const alertId = createId();
             const route = notificationRoute("earnings_preview");
             const title = notificationTitle("earnings_preview", leadTicker);
@@ -6708,6 +7034,10 @@ export function startServer(port: number = loadConfig().port): Server {
                   alert_id: alertId,
                   ticker: leadTicker,
                   tickers: uniqueTickers.join(","),
+                  earnings_timing_state: timingState,
+                  earnings_source_state: sourceState,
+                  earnings_evidence_state: leadState?.evidence_state ?? "calendar_only",
+                  earnings_conflict: leadState?.conflict.has_conflict ? "true" : "false",
                   reason_code: "earnings_preview_due",
                   reason_text: reasonText,
                   deep_link_target: route
@@ -6740,6 +7070,10 @@ export function startServer(port: number = loadConfig().port): Server {
               data: {
                 ticker: leadTicker,
                 tickers: uniqueTickers.join(","),
+                earnings_timing_state: timingState,
+                earnings_source_state: sourceState,
+                earnings_evidence_state: leadState?.evidence_state ?? "calendar_only",
+                earnings_conflict: leadState?.conflict.has_conflict ? "true" : "false",
                 deep_link_target: route
               }
             });
@@ -9187,6 +9521,69 @@ export function startServer(port: number = loadConfig().port): Server {
         return;
       }
 
+      if (method === "GET" && pathname === "/v1/research/earnings/state") {
+        const asOf =
+          normalizeDateInput(
+            url.searchParams.get("as_of")?.trim() ??
+              dateInTimeZone(new Date(), runtime.config.subscriptionTimezone)
+          ) ?? dateInTimeZone(new Date(), runtime.config.subscriptionTimezone);
+        const windowPastDays = parsePositiveInteger(
+          url.searchParams.get("window_past_days")?.trim() ?? undefined,
+          7,
+          1,
+          30
+        );
+        if (windowPastDays === undefined) {
+          sendJson(response, 422, {
+            error: "validation_failed",
+            error_message: "window_past_days must be an integer between 1 and 30."
+          });
+          return;
+        }
+        const windowAheadDays = parsePositiveInteger(
+          url.searchParams.get("window_ahead_days")?.trim() ?? undefined,
+          30,
+          1,
+          120
+        );
+        if (windowAheadDays === undefined) {
+          sendJson(response, 422, {
+            error: "validation_failed",
+            error_message: "window_ahead_days must be an integer between 1 and 120."
+          });
+          return;
+        }
+        const tickers = uniqueUppercaseTickers(
+          (url.searchParams.get("tickers") ?? "")
+            .split(",")
+            .map((value) => value.trim())
+        );
+        const stateList = await getEarningsEventStateListForUser(runtime, {
+          userId: auth.userId,
+          asOf,
+          tickers: tickers.length > 0 ? tickers : undefined,
+          windowPastDays,
+          windowAheadDays
+        });
+        await appendAudit(
+          runtime,
+          "earnings_state.retrieved",
+          {
+            request_id: meta.requestId,
+            route: pathname,
+            ticker_count: tickers.length,
+            state_count: stateList.states.length,
+            as_of: asOf
+          },
+          auth.userId
+        );
+
+        sendJson(response, 200, {
+          data: stateList
+        });
+        return;
+      }
+
       if (method === "GET" && pathname.startsWith("/v1/research/war-room/")) {
         const parts = pathname.split("/").filter(Boolean);
         if (parts.length !== 4 || parts[0] !== "v1" || parts[1] !== "research" || parts[2] !== "war-room") {
@@ -9218,6 +9615,23 @@ export function startServer(port: number = loadConfig().port): Server {
           warRoomId: warRoom.warRoomId,
           limit: 200
         });
+        const earningsStateList = await getEarningsEventStateListForUser(runtime, {
+          userId: auth.userId,
+          asOf: normalizeDateInput(warRoom.eventDate) ??
+            dateInTimeZone(new Date(), runtime.config.subscriptionTimezone),
+          tickers: [warRoom.ticker],
+          windowPastDays: 30,
+          windowAheadDays: 30
+        });
+        const earningsState = findEarningsState(earningsStateList.states, {
+          ticker: warRoom.ticker,
+          eventId: warRoom.earningsEventId,
+          eventDate: warRoom.eventDate
+        });
+        const evidencePack = buildWarRoomEvidencePack({
+          state: earningsState,
+          timeline
+        });
         await appendAudit(
           runtime,
           "war_room.retrieved",
@@ -9225,7 +9639,9 @@ export function startServer(port: number = loadConfig().port): Server {
             request_id: meta.requestId,
             route: pathname,
             war_room_id: warRoom.warRoomId,
-            timeline_count: timeline.length
+            timeline_count: timeline.length,
+            earnings_timing_state: earningsState?.timing_state,
+            earnings_source_state: earningsState?.source_state
           },
           auth.userId
         );
@@ -9244,6 +9660,13 @@ export function startServer(port: number = loadConfig().port): Server {
             last_lag_min: warRoom.lastLagMin,
             last_runtime_min: warRoom.lastRuntimeMin,
             last_cycle_at: warRoom.lastCycleAt,
+            earnings_state: earningsState ?? null,
+            evidence_pack: evidencePack,
+            reason_path: {
+              earnings_state_reason: earningsState?.reason_text,
+              latest_timeline_reason:
+                timeline.length > 0 ? timeline[0]?.reasonText : undefined
+            },
             timeline: timeline.map((event) => ({
               war_room_event_id: event.id,
               war_room_id: event.warRoomId,
