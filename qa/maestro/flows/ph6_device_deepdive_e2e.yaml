@@ -1,0 +1,67 @@
+appId: ${MAESTRO_APP_ID}
+---
+- launchApp:
+    clearState: true
+
+- runFlow:
+    when:
+      visible: "System UI isn't responding"
+    commands:
+      - tapOn: "Wait"
+
+- runFlow:
+    when:
+      visible: "Get Started"
+    commands:
+      - tapOn: "Get Started"
+
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+
+- runFlow:
+    when:
+      visible: "Allow"
+    commands:
+      - tapOn: "Allow"
+
+- tapOn: "you@example.com"
+- inputText: "${MAESTRO_TEST_EMAIL}"
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      text: "Enter password"
+    direction: DOWN
+    timeout: 30000
+- tapOn: "Enter password"
+- inputText: "${MAESTRO_TEST_PASSWORD}"
+- hideKeyboard
+- tapOn: "Log In"
+
+- extendedWaitUntil:
+    visible: "Today"
+    timeout: 60000
+- assertVisible: "Research"
+
+- tapOn: "Research"
+- extendedWaitUntil:
+    visible: "Deep Dive"
+    timeout: 30000
+- tapOn: "Deep Dive"
+
+- extendedWaitUntil:
+    visible: "Ticker Symbol (e.g. AAPL)"
+    timeout: 30000
+- tapOn: "Ticker Symbol (e.g. AAPL)"
+- eraseText
+- inputText: "${MAESTRO_DEEP_DIVE_TICKER}"
+- hideKeyboard
+- tapOn: "Run Deep Dive"
+
+- extendedWaitUntil:
+    visible: "POSITIVE"
+    timeout: 600000
+- assertVisible: "${MAESTRO_DEEP_DIVE_TICKER}"
+- assertVisible: "POSITIVE"
