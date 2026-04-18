@@ -392,12 +392,12 @@ Make earnings timing and war-room readiness reliable without paid calendar or tr
 
 ## Acceptance Criteria
 
-- [ ] Earnings state is visible and typed for supported watched names
-- [ ] Confirmed state requires a first-party or official source
-- [ ] Actual state is set when release evidence is present
-- [ ] War Room can be generated without transcript text
-- [ ] Earnings-related alerts include a reason path and source state
-- [ ] Missing or conflicting timing data is surfaced explicitly
+- [x] Earnings state is visible and typed for supported watched names
+- [x] Confirmed state requires a first-party or official source
+- [x] Actual state is set when release evidence is present
+- [x] War Room can be generated without transcript text
+- [x] Earnings-related alerts include a reason path and source state
+- [x] Missing or conflicting timing data is surfaced explicitly
 
 ## Smoke Test
 

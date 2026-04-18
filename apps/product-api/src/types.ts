@@ -15,6 +15,8 @@ import type {
   ConvictionJournalSourceType,
   ConvictionThesisSnapshot,
   CallArtifact,
+  EarningsEventSourceState,
+  EarningsEventTimingState,
   EarningsWarRoomCadenceState,
   EarningsWarRoomCadenceMinute,
   EarningsWarRoomPhase,
@@ -200,6 +202,10 @@ export interface CalendarEventRecord {
   eventTime?: CalendarEventTime;
   provider: string;
   retrievedAt: string;
+  timingState: EarningsEventTimingState;
+  sourceState: EarningsEventSourceState;
+  sourceRef: Record<string, unknown>;
+  reasonText: string;
 }
 
 export interface ContrarianAlertAnchorRecord {
