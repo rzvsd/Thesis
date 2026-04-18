@@ -12,7 +12,7 @@
 | **Milestone** | M4 - Earnings State & War Room Substrate |
 | **Linear Project** | PH6 M4 - Earnings State & War Room Substrate |
 | **Owner** | Product API Owner + AI/Reasoning Engineer |
-| **Status** | Planned |
+| **Status** | Implemented locally - smoke and quality gates passed; awaiting owner closeout + GitHub CI run |
 | **Depends on** | M3 complete |
 
 ---
@@ -27,11 +27,11 @@ Use estimated/confirmed/actual state and first-party artifacts to power earnings
 
 ## 2. Scope - What Is In
 
-- [ ] three-state earnings model
-- [ ] event-window triggers
-- [ ] War Room evidence pack
-- [ ] earnings alert reason paths
-- [ ] transcript-optional workflow support
+- [x] three-state earnings model
+- [x] event-window triggers
+- [x] War Room evidence pack
+- [x] earnings alert reason paths
+- [x] transcript-optional workflow support
 
 ---
 
@@ -124,11 +124,11 @@ Never log secrets, tokens, or unreviewed full text.
 
 ## 10. Definition of Done
 
-- [ ] Acceptance criteria in `ph6_MILESTONES.md` for this milestone are satisfied
-- [ ] Smoke test executed in full and recorded below
-- [ ] CI passes
-- [ ] Deprecated dependency check passes
-- [ ] Rollback path confirmed
+- [x] Acceptance criteria in `ph6_MILESTONES.md` for this milestone are satisfied locally
+- [x] Smoke test executed in full and recorded below
+- [x] CI-equivalent local quality checks pass
+- [x] Deprecated dependency check passes
+- [x] Rollback path confirmed
 - [ ] Owner signs off
 - [ ] Engineering Lead countersigns
 
@@ -139,19 +139,24 @@ Never log secrets, tokens, or unreviewed full text.
 Run the milestone smoke test from `ph6_MILESTONES.md` and record the result here.
 
 ```text
-Date:
-Run by:
-Environment:
-Result:
+Date: 2026-04-18
+Run by: Codex
+Environment: local Windows workspace, in-memory Product API test store, internal OpenBB mock, root monorepo quality gates
+Result: PASS
 
 Step 1: Seed estimated and confirmed events in test mode
+Result: PASS - `ph6-m4-earnings-state.test.ts` seeds calendar events through `/internal/calendar/sync`.
 Step 2: Confirm the API distinguishes the states
+Result: PASS - `/v1/research/earnings/state` returns typed state with conflict surfacing and source state.
 Step 3: Trigger a results artifact and confirm actual state
+Result: PASS - ingesting `earnings_release` artifact promotes state to `actual`.
 Step 4: Open War Room payload and confirm transcript is optional
+Result: PASS - `/v1/research/war-room/:id` includes `evidence_pack`, transcript present as `available=false` when absent.
 Step 5: Confirm alert reason paths are present
+Result: PASS - `earnings_war_room` alerts include `reason_code`, `reason_text`, timing/source/evidence state, and conflict flags.
 
-Steps failed (if any):
-Notes:
+Steps failed (if any): None.
+Notes: Evidence captured in `evidence/2026-04-18_m4-earnings-state-war-room-smoke.md`.
 ```
 
 ---
@@ -160,7 +165,9 @@ Notes:
 
 | Decision | What was decided | ADR required? |
 |---|---|---|
-| - | - | - |
+| Confirmed timing source policy | `confirmed` timing is valid only when source is `official` or `first_party`; other source states downgrade to `estimated` with explicit reason text | No, covered by ADR-005 + M4 acceptance |
+| Actual promotion rule | `actual` is promoted by release artifact evidence (`earnings_release`, `presentation`, `sec_exhibit`, or supplemental material), not by price behavior | No, covered by ADR-005 |
+| War Room evidence posture | War Room payload exposes `evidence_pack` and `reason_path`, while transcript remains optional and explicit when missing | No, covered by ADR-005 |
 
 ---
 
@@ -168,4 +175,13 @@ Notes:
 
 | Issue | Why deferred | Linear ticket | Target milestone |
 |---|---|---|---|
-| - | - | - | - |
+| GitHub CI closeout | Local lint/typecheck/test/guard proof is complete; hosted CI closeout happens after push | N/A per owner Linear skip pattern | M4 closeout |
+
+---
+
+## 14. Closeout Sign-Off
+
+| Role | Status | Evidence |
+|---|---|---|
+| Owner | Pending | Waiting for owner closeout approval after review |
+| Engineering Lead | Pending | To be countersigned after owner closeout |
