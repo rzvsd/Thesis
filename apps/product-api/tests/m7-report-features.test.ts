@@ -119,7 +119,8 @@ function sampleDeepDiveReport(jobId: string, reportId: string): JsonObject {
         methodology: "deterministic_dcf",
         projection_years: 5,
         terminal_growth_rate: 0.025,
-        wacc: 0.095
+        wacc: 0.095,
+        beta: 1.18
       }
     },
     sections: [
@@ -265,11 +266,21 @@ test("M7 notes CRUD and scenario endpoint enforce access and Pro gating", async 
     });
     assert.equal(runScenario.status, 200);
     assert.equal(runScenario.payload.report_id, reportId);
+    assert.equal(runScenario.payload.deterministic_model, "phase6_deterministic_v1");
     const scenario = runScenario.payload.scenario as JsonObject;
     const assumptions = scenario.assumptions as JsonObject;
     assert.equal(assumptions.projection_years, 7);
     assert.equal(assumptions.terminal_growth_rate, 0.03);
     assert.equal(assumptions.wacc, 0.11);
+    assert.equal(assumptions.beta, undefined);
+    const omissions = runScenario.payload.omissions as JsonObject[];
+    assert.ok(Array.isArray(omissions));
+    assert.ok(
+      omissions.some((item) => item.omission_code === "market_beta_omitted")
+    );
+    assert.ok(
+      omissions.some((item) => item.omission_code === "legacy_beta_ignored")
+    );
 
     const otherCannotReadNote = await requestJson(baseUrl, `/v1/reports/${reportId}/note`, {
       method: "GET",

@@ -1114,6 +1114,27 @@ private fun ScenarioSection(
                         style = ThesisTypography.bodySmall,
                         color = ThesisColors.SignalPositive
                     )
+                    result.deterministicModel?.let { model ->
+                        Text(
+                            text = "Model: $model",
+                            style = ThesisTypography.labelSmall,
+                            color = ThesisColors.TextMuted
+                        )
+                    }
+                    if (result.omissions.isNotEmpty()) {
+                        Text(
+                            text = "Omissions",
+                            style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Medium),
+                            color = ThesisColors.TextPrimary
+                        )
+                        result.omissions.forEach { omission ->
+                            Text(
+                                text = "- ${omission.omissionText}",
+                                style = ThesisTypography.bodySmall,
+                                color = ThesisColors.TextMuted
+                            )
+                        }
+                    }
                 }
             }
         }

@@ -3,7 +3,6 @@ import type { CanonicalFinancialSnapshot, ValuationBlock } from "../../../../pac
 export interface DcfComputationInput {
   snapshots: CanonicalFinancialSnapshot[];
   spotPrice?: number;
-  beta?: number;
 }
 
 export interface DcfComputationResult {
@@ -79,10 +78,10 @@ export function computeDeterministicDcf(input: DcfComputationInput): DcfComputat
     };
   }
 
-  const beta = input.beta ?? 1.0;
   const riskFreeRate = 0.04;
   const equityRiskPremium = 0.055;
-  const wacc = clamp(riskFreeRate + beta * equityRiskPremium, 0.06, 0.14);
+  // Phase 6 deterministic model no longer depends on market beta/correlation inputs.
+  const wacc = clamp(riskFreeRate + equityRiskPremium, 0.06, 0.14);
   const terminalGrowthRate = 0.025;
   if (wacc <= terminalGrowthRate) {
     return {
@@ -122,7 +121,6 @@ export function computeDeterministicDcf(input: DcfComputationInput): DcfComputat
         projection_years: projectionYears,
         terminal_growth_rate: terminalGrowthRate,
         wacc,
-        beta,
         effective_tax_rate: latestSnapshot?.data.effective_tax_rate,
         shares_outstanding: sharesOutstanding
       }

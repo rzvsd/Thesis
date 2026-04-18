@@ -12,7 +12,7 @@
 | **Milestone** | M5 - Deep Dive / Scenario Final Cutover & Hardening |
 | **Linear Project** | PH6 M5 - Deep Dive / Scenario Final Cutover & Hardening |
 | **Owner** | Engineering Lead + Product Lead |
-| **Status** | Planned |
+| **Status** | Implemented locally - smoke and quality gates passed; awaiting owner closeout + GitHub CI run |
 | **Depends on** | M4 complete |
 
 ---
@@ -27,11 +27,11 @@ Finish the provider-free Deep Dive and Scenario migration, then prove the produc
 
 ## 2. Scope - What Is In
 
-- [ ] Deep Dive cutover to official + first-party substrate
-- [ ] scenario / valuation input model without beta dependency
-- [ ] compatibility layer for older reports
-- [ ] end-to-end smoke proof
-- [ ] rollback rehearsal and final dependency proof
+- [x] Deep Dive cutover to official + first-party substrate
+- [x] scenario / valuation input model without beta dependency
+- [x] compatibility layer for older reports
+- [x] end-to-end smoke proof
+- [x] rollback rehearsal and final dependency proof
 
 ---
 
@@ -123,11 +123,11 @@ Never log secrets, tokens, or unreviewed full text.
 
 ## 10. Definition of Done
 
-- [ ] Acceptance criteria in `ph6_MILESTONES.md` for this milestone are satisfied
-- [ ] Smoke test executed in full and recorded below
-- [ ] CI passes
-- [ ] Deprecated dependency check passes
-- [ ] Rollback path confirmed
+- [x] Acceptance criteria in `ph6_MILESTONES.md` for this milestone are satisfied locally
+- [x] Smoke test executed in full and recorded below
+- [x] CI-equivalent local quality checks pass
+- [x] Deprecated dependency check passes
+- [x] Rollback path confirmed
 - [ ] Owner signs off
 - [ ] Engineering Lead countersigns
 
@@ -138,19 +138,24 @@ Never log secrets, tokens, or unreviewed full text.
 Run the milestone smoke test from `ph6_MILESTONES.md` and record the result here.
 
 ```text
-Date:
-Run by:
-Environment:
-Result:
+Date: 2026-04-18
+Run by: Codex
+Environment: local Windows workspace, in-memory Product API test store, internal OpenBB mock, root monorepo quality gates
+Result: PASS
 
 Step 1: Run Deep Dives for 3 names
+Result: PASS - `ph6-m5-cutover.test.ts` runs AAPL/MSFT/TSLA through queue -> claim -> complete lifecycle.
 Step 2: Confirm reports validate without deprecated providers
+Result: PASS - legacy-schema reports remain readable via `/reports/:id`, with no deprecated-provider dependency in the M5 core loop.
 Step 3: Run a scenario with one omitted market-derived dimension
+Result: PASS - scenario run returns deterministic Phase 6 output with beta/correlation dimensions omitted.
 Step 4: Confirm omission is explicit
+Result: PASS - payload includes `deterministic_model` plus omission codes (`market_beta_omitted`, `legacy_beta_ignored`, `spot_reference_unavailable`).
 Step 5: Run the final dependency scan and confirm clean pass
+Result: PASS - `corepack pnpm phase6:m5:dependency-scan` returns `0 deprecated provider findings`.
 
-Steps failed (if any):
-Notes:
+Steps failed (if any): None.
+Notes: Evidence captured in `evidence/2026-04-18_m5-deep-dive-scenario-cutover-smoke.md`.
 ```
 
 ---
@@ -159,7 +164,9 @@ Notes:
 
 | Decision | What was decided | ADR required? |
 |---|---|---|
-| - | - | - |
+| Scenario deterministic model marker | `ScenarioResponse` now returns `deterministic_model: "phase6_deterministic_v1"` so mobile/API consumers can render model truth explicitly | No, covered by ADR-006 and M5 acceptance |
+| Beta/correlation handling | Scenario and deterministic DCF assumptions remove beta dependency and publish omission semantics instead of implicit backfill | No, covered by ADR-006 |
+| Legacy compatibility contract | Older stored reports remain readable while scenario responses normalize away legacy beta fields | No, additive contract extension |
 
 ---
 
@@ -167,4 +174,13 @@ Notes:
 
 | Issue | Why deferred | Linear ticket | Target milestone |
 |---|---|---|---|
-| - | - | - | - |
+| GitHub CI closeout | Local lint/typecheck/test/guard/scan proof is complete; hosted CI closeout happens after push | N/A per owner Linear skip pattern | M5 closeout |
+
+---
+
+## 14. Closeout Sign-Off
+
+| Role | Status | Evidence |
+|---|---|---|
+| Owner | Pending | Waiting for owner closeout approval after review |
+| Engineering Lead | Pending | To be countersigned after owner closeout |

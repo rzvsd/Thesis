@@ -52,7 +52,9 @@ object ReportViewMapper {
         return ScenarioResultView(
             reportId = reportId,
             base = base,
-            scenario = scenario
+            scenario = scenario,
+            deterministicModel = payload.optNullableString("deterministic_model"),
+            omissions = mapScenarioOmissions(payload.optJSONArray("omissions"))
         )
     }
 
@@ -216,6 +218,27 @@ object ReportViewMapper {
         }
         return (0 until row.length()).mapNotNull { index ->
             row.optString(index).takeIf { it.isNotBlank() }
+        }
+    }
+
+    private fun mapScenarioOmissions(row: JSONArray?): List<ScenarioInputOmissionView> {
+        if (row == null) {
+            return emptyList()
+        }
+        return (0 until row.length()).mapNotNull { index ->
+            row.optJSONObject(index)?.let { omission ->
+                val code = omission.optString("omission_code").trim()
+                val text = omission.optString("omission_text").trim()
+                if (code.isBlank() || text.isBlank()) {
+                    null
+                } else {
+                    ScenarioInputOmissionView(
+                        omissionCode = code,
+                        omissionText = text,
+                        affectsFields = mapStringArray(omission.optJSONArray("affects_fields"))
+                    )
+                }
+            }
         }
     }
 }

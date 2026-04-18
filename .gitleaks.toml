@@ -20,6 +20,8 @@ regexes = [
   '''m5-webhook-secret''',
   '''m6-webhook-secret''',
   '''ph5-m7-webhook-secret''',
+  '''^(?:TREASURY_DAILY_10Y|TREASURY_DAILY_2Y|BLS_CPI_U_ALL_ITEMS|BLS_UNEMPLOYMENT_RATE|BEA_REAL_GDP|EIA_WTI_SPOT)$''',
+  '''registry_key["']\s*:\s*["'](?:TREASURY_DAILY_10Y|TREASURY_DAILY_2Y|BLS_CPI_U_ALL_ITEMS|BLS_UNEMPLOYMENT_RATE|BEA_REAL_GDP|EIA_WTI_SPOT)["']''',
   '''fixture-guidance-cut-key''',
   '''fixture-guidance-cut-ref'''
 ]

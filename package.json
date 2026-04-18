@@ -18,6 +18,7 @@
     "phase6:m0:guard": "node scripts/phase6/deprecated-dependency-guard.mjs",
     "phase6:m0:self-test": "node scripts/phase6/deprecated-dependency-guard.mjs --self-test",
     "phase6:m0:write-baseline": "node scripts/phase6/deprecated-dependency-guard.mjs --write-baseline",
+    "phase6:m5:dependency-scan": "node scripts/phase6/m5-core-dependency-scan.mjs",
     "m0:build-universe": "python scripts/historical/build_sp500_universe.py",
     "m0:load": "python scripts/historical/run_m0_load.py",
     "test:e2e": "corepack pnpm --filter @thesis/product-api build && python tests/e2e/test_m4_core_flows.py",

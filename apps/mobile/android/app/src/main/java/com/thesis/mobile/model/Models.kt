@@ -124,10 +124,18 @@ data class ScenarioOverridesView(
     val wacc: Double? = null
 )
 
+data class ScenarioInputOmissionView(
+    val omissionCode: String,
+    val omissionText: String,
+    val affectsFields: List<String> = emptyList()
+)
+
 data class ScenarioResultView(
     val reportId: String,
     val base: ValuationDisplayView,
-    val scenario: ValuationDisplayView
+    val scenario: ValuationDisplayView,
+    val deterministicModel: String? = null,
+    val omissions: List<ScenarioInputOmissionView> = emptyList()
 )
 
 data class ScenarioStressRouteView(
