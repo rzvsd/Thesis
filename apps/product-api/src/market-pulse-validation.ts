@@ -69,6 +69,132 @@ function validateSection(value: unknown, path: string, errors: string[]): void {
   }
 }
 
+function validateMacroStress(value: unknown, errors: string[]): void {
+  if (!isObject(value)) {
+    errors.push("macro_stress must be an object");
+    return;
+  }
+
+  if (typeof value.snapshot_id !== "string" || value.snapshot_id.trim().length === 0) {
+    errors.push("macro_stress.snapshot_id must be a non-empty string");
+  }
+  if (typeof value.as_of !== "string" || Number.isNaN(Date.parse(`${value.as_of}T00:00:00.000Z`))) {
+    errors.push("macro_stress.as_of must be a valid YYYY-MM-DD date");
+  }
+  if (!isIsoDateTime(value.generated_at)) {
+    errors.push("macro_stress.generated_at must be an ISO datetime string");
+  }
+  if (
+    !["stable", "mixed", "elevated", "insufficient_data"].includes(
+      String(value.state)
+    )
+  ) {
+    errors.push("macro_stress.state must be valid");
+  }
+  if (typeof value.summary !== "string" || value.summary.trim().length === 0) {
+    errors.push("macro_stress.summary must be a non-empty string");
+  }
+  if (typeof value.no_material_change !== "boolean") {
+    errors.push("macro_stress.no_material_change must be a boolean");
+  }
+
+  if (!Array.isArray(value.inputs)) {
+    errors.push("macro_stress.inputs must be an array");
+  } else {
+    value.inputs.forEach((input, index) => {
+      if (!isObject(input)) {
+        errors.push(`macro_stress.inputs[${index}] must be an object`);
+        return;
+      }
+      if (typeof input.registry_id !== "string" || input.registry_id.trim().length === 0) {
+        errors.push(`macro_stress.inputs[${index}].registry_id must be a non-empty string`);
+      }
+      if (typeof input.label !== "string" || input.label.trim().length === 0) {
+        errors.push(`macro_stress.inputs[${index}].label must be a non-empty string`);
+      }
+      if (
+        !["rates", "inflation", "labor", "growth", "energy"].includes(
+          String(input.category)
+        )
+      ) {
+        errors.push(`macro_stress.inputs[${index}].category must be valid`);
+      }
+      if (
+        !["low", "medium", "high", "unknown"].includes(
+          String(input.pressure)
+        )
+      ) {
+        errors.push(`macro_stress.inputs[${index}].pressure must be valid`);
+      }
+      if (
+        !["official", "partial", "missing"].includes(
+          String(input.source_state)
+        )
+      ) {
+        errors.push(`macro_stress.inputs[${index}].source_state must be valid`);
+      }
+      if (typeof input.reason !== "string" || input.reason.trim().length === 0) {
+        errors.push(`macro_stress.inputs[${index}].reason must be a non-empty string`);
+      }
+      if (
+        input.retrieved_at !== undefined &&
+        input.retrieved_at !== null &&
+        !isIsoDateTime(input.retrieved_at)
+      ) {
+        errors.push(`macro_stress.inputs[${index}].retrieved_at must be an ISO datetime string`);
+      }
+    });
+  }
+
+  if (!Array.isArray(value.omissions)) {
+    errors.push("macro_stress.omissions must be an array");
+  } else {
+    value.omissions.forEach((omission, index) => {
+      if (!isObject(omission)) {
+        errors.push(`macro_stress.omissions[${index}] must be an object`);
+        return;
+      }
+      if (typeof omission.registry_id !== "string" || omission.registry_id.trim().length === 0) {
+        errors.push(`macro_stress.omissions[${index}].registry_id must be a non-empty string`);
+      }
+      if (typeof omission.reason_code !== "string" || omission.reason_code.trim().length === 0) {
+        errors.push(`macro_stress.omissions[${index}].reason_code must be a non-empty string`);
+      }
+      if (typeof omission.reason_text !== "string" || omission.reason_text.trim().length === 0) {
+        errors.push(`macro_stress.omissions[${index}].reason_text must be a non-empty string`);
+      }
+    });
+  }
+}
+
+function validateContext(value: unknown, errors: string[]): void {
+  if (value === undefined || value === null) {
+    return;
+  }
+
+  if (!isObject(value)) {
+    errors.push("context must be an object when provided");
+    return;
+  }
+
+  if (
+    !["official", "bounded_context", "partial", "missing"].includes(
+      String(value.source_state)
+    )
+  ) {
+    errors.push("context.source_state must be valid");
+  }
+  if (!isIsoDateTime(value.generated_at)) {
+    errors.push("context.generated_at must be an ISO datetime string");
+  }
+  if (!Array.isArray(value.rights)) {
+    errors.push("context.rights must be an array");
+  }
+  if (!Array.isArray(value.omissions)) {
+    errors.push("context.omissions must be an array");
+  }
+}
+
 export function validateIncomingMarketPulseReport(report: unknown): string[] {
   const errors: string[] = [];
 
@@ -95,6 +221,9 @@ export function validateIncomingMarketPulseReport(report: unknown): string[] {
     errors.push("flags must be an array of strings");
   }
 
+  validateMacroStress(report.macro_stress, errors);
+  validateContext(report.context, errors);
+
   if (!isObject(report.confidence)) {
     errors.push("confidence must be an object");
   } else {
@@ -117,17 +246,28 @@ export function validateIncomingMarketPulseReport(report: unknown): string[] {
     errors.push("sections must be an object");
   } else {
     const requiredSections = [
-      "market_moves",
-      "macro_releases",
-      "rates_fx_commodities",
-      "news_summary",
+      "macro_stress",
+      "official_macro_pressure",
+      "canonical_events",
+      "bounded_context",
       "uncertainty_flags"
     ];
     for (const key of requiredSections) {
       validateSection(report.sections[key], `sections.${key}`, errors);
     }
-    if (report.sections.watchlist_overlay !== undefined) {
-      validateSection(report.sections.watchlist_overlay, "sections.watchlist_overlay", errors);
+
+    const optionalSections = [
+      "market_moves",
+      "macro_releases",
+      "rates_fx_commodities",
+      "news_summary",
+      "no_material_change",
+      "watchlist_overlay"
+    ];
+    for (const key of optionalSections) {
+      if (report.sections[key] !== undefined) {
+        validateSection(report.sections[key], `sections.${key}`, errors);
+      }
     }
   }
 

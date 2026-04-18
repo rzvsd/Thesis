@@ -24,6 +24,18 @@ def _free_port() -> int:
         return int(sock.getsockname()[1])
 
 
+def _today_iso_date() -> str:
+    return time.strftime("%Y-%m-%d", time.gmtime())
+
+
+def _today_iso_month() -> str:
+    return _today_iso_date()[:7]
+
+
+def _iso_datetime_seconds_ago(seconds_ago: int) -> str:
+    return time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime(time.time() - seconds_ago))
+
+
 @dataclass
 class NewsState:
     outage: bool = False
@@ -33,8 +45,15 @@ class OpenbbHandler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:  # noqa: N802
         parsed = urllib.parse.urlparse(self.path)
         query = urllib.parse.parse_qs(parsed.query)
+        today = _today_iso_date()
+        month = _today_iso_month()
+        filing_occurred_at = _iso_datetime_seconds_ago(3_600)
+        filing_retrieved_at = _iso_datetime_seconds_ago(3_300)
+        macro_retrieved_at = _iso_datetime_seconds_ago(7_200)
+        macro_event_occurred_at = _iso_datetime_seconds_ago(5_400)
+        macro_event_retrieved_at = _iso_datetime_seconds_ago(5_100)
 
-        if parsed.path == "/v1/finance/company":
+        if parsed.path == "/v1/official/company":
             ticker = (query.get("ticker") or ["AAPL"])[0]
             self._send_json(
                 200,
@@ -42,33 +61,146 @@ class OpenbbHandler(BaseHTTPRequestHandler):
                     "ok": True,
                     "data": {
                         "ticker": ticker,
-                        "provider": "FMP",
-                        "period": "2025-Q4",
-                        "retrieved_at": "2026-03-21T08:00:00.000Z",
-                        "data": {
-                            "revenue": 1_000_000,
-                            "net_income": 250_000,
+                        "retrieval": {
+                            "source": {
+                                "source_name": "SEC EDGAR",
+                                "source_url": f"https://www.sec.gov/{ticker}",
+                            },
+                            "retrieved_at": "2026-03-21T08:00:00.000Z",
                         },
                         "missing_fields": [],
+                        "canonical_events": [
+                            {
+                                "id": f"filing-{ticker}-{today}",
+                                "family": "filing_posted",
+                                "subject_type": "ticker",
+                                "subject_id": ticker,
+                                "title": f"{ticker} filed a new 8-K",
+                                "occurred_at": filing_occurred_at,
+                                "source_state": "official",
+                                "source": {
+                                    "source": {
+                                        "source_id": f"sec-{ticker}",
+                                        "source_family": "sec_edgar",
+                                        "source_name": "SEC EDGAR",
+                                        "source_url": f"https://www.sec.gov/{ticker}",
+                                        "agency": "SEC",
+                                        "agency_series_id": ticker,
+                                    },
+                                    "retrieved_at": filing_retrieved_at,
+                                    "retrieval_status": "fresh",
+                                    "source_period": f"{month}-current",
+                                },
+                                "retrieved_at": filing_retrieved_at,
+                                "missing_fields": [],
+                                "metadata": {
+                                    "form_type": "8-K",
+                                },
+                            }
+                        ],
                     },
                     "error_flag": False,
                 },
             )
             return
 
-        if parsed.path == "/v1/finance/macro":
+        if parsed.path == "/v1/official/macro":
             self._send_json(
                 200,
                 {
                     "ok": True,
                     "data": {
-                        "indicator": "us10y_treasury_yield",
-                        "value": 4.21,
-                        "unit": "percent",
-                        "period": "2026-03-21",
-                        "provider": "FMP",
-                        "retrieved_at": "2026-03-21T08:00:00.000Z",
-                        "missing_fields": [],
+                        "observations": [
+                            {
+                                "registry_id": "TREASURY_DAILY_10Y",
+                                "value": 4.21,
+                                "unit": "percent",
+                                "period": today,
+                                "category": "rates",
+                                "retrieval": {
+                                    "source": {
+                                        "source_name": "U.S. Treasury",
+                                        "source_url": "https://home.treasury.gov/",
+                                    },
+                                    "retrieved_at": macro_retrieved_at,
+                                },
+                                "missing_fields": [],
+                            },
+                            {
+                                "registry_id": "TREASURY_DAILY_2Y",
+                                "value": 4.08,
+                                "unit": "percent",
+                                "period": today,
+                                "category": "rates",
+                                "retrieval": {
+                                    "source": {
+                                        "source_name": "U.S. Treasury",
+                                        "source_url": "https://home.treasury.gov/",
+                                    },
+                                    "retrieved_at": macro_retrieved_at,
+                                },
+                                "missing_fields": [],
+                            },
+                            {
+                                "registry_id": "BLS_CPI_U_ALL_ITEMS",
+                                "value": 308.6,
+                                "unit": "index",
+                                "period": month,
+                                "category": "inflation",
+                                "retrieval": {
+                                    "source": {
+                                        "source_name": "BLS",
+                                        "source_url": "https://www.bls.gov/",
+                                    },
+                                    "retrieved_at": macro_retrieved_at,
+                                },
+                                "missing_fields": [],
+                            },
+                            {
+                                "registry_id": "BLS_UNEMPLOYMENT_RATE",
+                                "value": 3.9,
+                                "unit": "percent",
+                                "period": month,
+                                "category": "labor",
+                                "retrieval": {
+                                    "source": {
+                                        "source_name": "BLS",
+                                        "source_url": "https://www.bls.gov/",
+                                    },
+                                    "retrieved_at": macro_retrieved_at,
+                                },
+                                "missing_fields": [],
+                            },
+                        ],
+                        "canonical_events": [
+                            {
+                                "id": f"macro-cpi-{today}",
+                                "family": "macro_release_published",
+                                "subject_type": "macro_series",
+                                "subject_id": "BLS_CPI_U_ALL_ITEMS",
+                                "title": "CPI update published",
+                                "occurred_at": macro_event_occurred_at,
+                                "source_state": "official",
+                                "source": {
+                                    "source": {
+                                        "source_id": "bls-cpi",
+                                        "source_family": "bls",
+                                        "source_name": "BLS CPI",
+                                        "source_url": "https://www.bls.gov/cpi/",
+                                        "agency": "BLS",
+                                        "agency_series_id": "CUUR0000SA0",
+                                    },
+                                    "retrieved_at": macro_event_retrieved_at,
+                                    "retrieval_status": "fresh",
+                                    "source_period": month,
+                                },
+                                "retrieved_at": macro_event_retrieved_at,
+                                "missing_fields": [],
+                                "metadata": {
+                                    "scope": "daily",
+                                },
+                            }
+                        ],
                     },
                     "error_flag": False,
                 },
@@ -92,10 +224,12 @@ class OpenbbHandler(BaseHTTPRequestHandler):
 class NewsHandler(BaseHTTPRequestHandler):
     state = NewsState()
 
-    def do_GET(self) -> None:  # noqa: N802
+    def do_POST(self) -> None:  # noqa: N802
         parsed = urllib.parse.urlparse(self.path)
-        query = urllib.parse.parse_qs(parsed.query)
-        if parsed.path != "/v1/news":
+        today = _today_iso_date()
+        published_at = _iso_datetime_seconds_ago(2_700)
+        retrieved_at = _iso_datetime_seconds_ago(2_400)
+        if parsed.path != "/v1/first-party/context":
             self._send_json(404, {"status": "not_found"})
             return
 
@@ -104,31 +238,51 @@ class NewsHandler(BaseHTTPRequestHandler):
                 200,
                 {
                     "ok": False,
-                    "data": [],
+                    "data": {"context_items": []},
                     "error_flag": True,
-                    "error_message": "news outage",
+                    "error_message": "context outage",
                 },
             )
             return
 
-        date = (query.get("date") or ["2026-03-21"])[0]
         self._send_json(
             200,
             {
                 "ok": True,
-                "data": [
-                    {
-                        "article_id": f"article-{date}",
-                        "source": "Reuters",
-                        "url": f"https://example.com/{date}",
-                        "title": f"Market wrap for {date}",
-                        "published_at": f"{date}T12:00:00.000Z",
-                        "retrieved_at": f"{date}T12:05:00.000Z",
-                        "body_text": "AAPL and MSFT moved on macro headlines.",
-                        "tickers_mentioned": ["AAPL", "MSFT"],
-                        "is_approved_source": True,
-                    }
-                ],
+                "data": {
+                    "context_items": [
+                        {
+                            "context_id": f"ctx-aapl-{today}",
+                            "ticker": "AAPL",
+                            "registry_entry_id": "aapl-ir",
+                            "source_url": "https://investor.apple.com/investor-relations/",
+                            "source_domain": "investor.apple.com",
+                            "page_type": "investor_relations",
+                            "title": "Apple investor update",
+                            "summary": "Apple published a first-party investor update.",
+                            "excerpt": "Apple investor update confirms release cadence.",
+                            "retrieved_at": retrieved_at,
+                            "published_at": published_at,
+                            "content_hash": "ctx-aapl",
+                            "fetch_state": "fetched",
+                            "rights": {
+                                "rights_class": "first_party_public",
+                                "display_mode": "excerpt_only",
+                                "source_rank": "first_party",
+                                "source_type": "investor_relations",
+                                "can_store_full_text": False,
+                                "can_display_excerpt": True,
+                                "can_display_link": True,
+                                "policy_reason": "Approved first-party source.",
+                                "reviewed_at": "2026-03-01T00:00:00.000Z",
+                            },
+                            "artifact_ids": [],
+                            "metadata": {
+                                "fixture": True,
+                            },
+                        }
+                    ]
+                },
                 "error_flag": False,
             },
         )
@@ -342,6 +496,10 @@ class M6MarketPulseIntegrationTests(unittest.TestCase):
         self.assertIn("sections", latest_report)
         sections = latest_report["sections"]
         assert isinstance(sections, dict)
+        self.assertEqual(sections["macro_stress"]["status"], "complete")
+        self.assertEqual(sections["official_macro_pressure"]["status"], "complete")
+        self.assertEqual(sections["canonical_events"]["status"], "complete")
+        self.assertEqual(sections["bounded_context"]["status"], "complete")
         self.assertEqual(sections["market_moves"]["status"], "complete")
         self.assertEqual(sections["macro_releases"]["status"], "complete")
         self.assertEqual(sections["news_summary"]["status"], "complete")
@@ -361,8 +519,9 @@ class M6MarketPulseIntegrationTests(unittest.TestCase):
         self.assertEqual(dispatch_status, 202)
 
         degraded_report = self.wait_for_report(f"/pulse/{degraded_cycle_day}", access_token)
+        self.assertEqual(degraded_report["sections"]["bounded_context"]["status"], "data_unavailable")
         self.assertEqual(degraded_report["sections"]["news_summary"]["status"], "data_unavailable")
-        self.assertIn("data_unavailable:news_summary", degraded_report["flags"])
+        self.assertIn("data_unavailable:bounded_context", degraded_report["flags"])
 
         NewsHandler.state.outage = False
         fail_status, _ = self.request_json(

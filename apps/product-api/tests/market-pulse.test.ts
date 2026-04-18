@@ -27,7 +27,7 @@ function sendJson(response: ServerResponse, status: number, payload: unknown): v
 async function startOpenbbMock(state: OpenbbMockState): Promise<{ server: Server; baseUrl: string }> {
   const server = createServer((request, response) => {
     const url = new URL(request.url ?? "/", "http://127.0.0.1");
-    if (url.pathname === "/v1/finance/company") {
+    if (url.pathname === "/v1/official/company") {
       if (state.failCompany) {
         sendJson(response, 503, {
           ok: false,
@@ -43,21 +43,50 @@ async function startOpenbbMock(state: OpenbbMockState): Promise<{ server: Server
         ok: true,
         data: {
           ticker,
-          provider: "FMP",
-          period: "2025-Q4",
-          retrieved_at: "2026-03-21T08:00:00.000Z",
-          data: {
-            revenue: 1000000,
-            net_income: 250000
+          retrieval: {
+            source: {
+              source_name: "SEC EDGAR",
+              source_url: `https://www.sec.gov/${ticker}`
+            },
+            retrieved_at: "2026-03-21T08:00:00.000Z"
           },
-          missing_fields: []
+          missing_fields: [],
+          canonical_events: [
+            {
+              id: `filing-${ticker}-2026-03-21`,
+              family: "filing_posted",
+              subject_type: "ticker",
+              subject_id: ticker,
+              title: `${ticker} filed a new 8-K`,
+              occurred_at: "2026-03-21T11:00:00.000Z",
+              source_state: "official",
+              source: {
+                source: {
+                  source_id: `sec-${ticker}`,
+                  source_family: "sec_edgar",
+                  source_name: "SEC EDGAR",
+                  source_url: `https://www.sec.gov/${ticker}`,
+                  agency: "SEC",
+                  agency_series_id: ticker
+                },
+                retrieved_at: "2026-03-21T11:05:00.000Z",
+                retrieval_status: "fresh",
+                source_period: "2026-Q1"
+              },
+              retrieved_at: "2026-03-21T11:05:00.000Z",
+              missing_fields: [],
+              metadata: {
+                form_type: "8-K"
+              }
+            }
+          ]
         },
         error_flag: false
       });
       return;
     }
 
-    if (url.pathname === "/v1/finance/macro") {
+    if (url.pathname === "/v1/official/macro") {
       if (state.failMacro) {
         sendJson(response, 503, {
           ok: false,
@@ -71,13 +100,97 @@ async function startOpenbbMock(state: OpenbbMockState): Promise<{ server: Server
       sendJson(response, 200, {
         ok: true,
         data: {
-          indicator: "us10y_treasury_yield",
-          value: 4.21,
-          unit: "percent",
-          period: "2026-03-21",
-          provider: "FMP",
-          retrieved_at: "2026-03-21T08:00:00.000Z",
-          missing_fields: []
+          observations: [
+            {
+              registry_id: "TREASURY_DAILY_10Y",
+              value: 4.21,
+              unit: "percent",
+              period: "2026-03-21",
+              category: "rates",
+              retrieval: {
+                source: {
+                  source_name: "U.S. Treasury",
+                  source_url: "https://home.treasury.gov/"
+                },
+                retrieved_at: "2026-03-21T08:00:00.000Z"
+              },
+              missing_fields: []
+            },
+            {
+              registry_id: "TREASURY_DAILY_2Y",
+              value: 4.08,
+              unit: "percent",
+              period: "2026-03-21",
+              category: "rates",
+              retrieval: {
+                source: {
+                  source_name: "U.S. Treasury",
+                  source_url: "https://home.treasury.gov/"
+                },
+                retrieved_at: "2026-03-21T08:00:00.000Z"
+              },
+              missing_fields: []
+            },
+            {
+              registry_id: "BLS_CPI_U_ALL_ITEMS",
+              value: 308.6,
+              unit: "index",
+              period: "2026-03",
+              category: "inflation",
+              retrieval: {
+                source: {
+                  source_name: "BLS",
+                  source_url: "https://www.bls.gov/"
+                },
+                retrieved_at: "2026-03-21T08:00:00.000Z"
+              },
+              missing_fields: []
+            },
+            {
+              registry_id: "BLS_UNEMPLOYMENT_RATE",
+              value: 3.9,
+              unit: "percent",
+              period: "2026-03",
+              category: "labor",
+              retrieval: {
+                source: {
+                  source_name: "BLS",
+                  source_url: "https://www.bls.gov/"
+                },
+                retrieved_at: "2026-03-21T08:00:00.000Z"
+              },
+              missing_fields: []
+            }
+          ],
+          canonical_events: [
+            {
+              id: "macro-cpi-2026-03-21",
+              family: "macro_release_published",
+              subject_type: "macro_series",
+              subject_id: "BLS_CPI_U_ALL_ITEMS",
+              title: "CPI update published",
+              occurred_at: "2026-03-21T07:30:00.000Z",
+              source_state: "official",
+              source: {
+                source: {
+                  source_id: "bls-cpi",
+                  source_family: "bls",
+                  source_name: "BLS CPI",
+                  source_url: "https://www.bls.gov/cpi/",
+                  agency: "BLS",
+                  agency_series_id: "CUUR0000SA0"
+                },
+                retrieved_at: "2026-03-21T07:35:00.000Z",
+                retrieval_status: "fresh",
+                source_period: "2026-03"
+              },
+              retrieved_at: "2026-03-21T07:35:00.000Z",
+              missing_fields: [],
+              metadata: {
+                scope: "daily"
+              }
+            }
+          ]
         },
         error_flag: false
       });
@@ -99,7 +212,7 @@ async function startOpenbbMock(state: OpenbbMockState): Promise<{ server: Server
 async function startNewsMock(state: NewsMockState): Promise<{ server: Server; baseUrl: string }> {
   const server = createServer((request, response) => {
     const url = new URL(request.url ?? "/", "http://127.0.0.1");
-    if (url.pathname !== "/v1/news") {
+    if (url.pathname !== "/v1/first-party/context" || request.method !== "POST") {
       sendJson(response, 404, { status: "not_found" });
       return;
     }
@@ -107,29 +220,52 @@ async function startNewsMock(state: NewsMockState): Promise<{ server: Server; ba
     if (state.outage) {
       sendJson(response, 200, {
         ok: false,
-        data: [],
+        data: {
+          context_items: []
+        },
         error_flag: true,
-        error_message: "news outage"
+        error_message: "context outage"
       });
       return;
     }
 
-    const date = url.searchParams.get("date") ?? "2026-03-21";
+    const ticker = "AAPL";
     sendJson(response, 200, {
       ok: true,
-      data: [
-        {
-          article_id: `article-${date}`,
-          source: "Reuters",
-          url: `https://example.com/${date}`,
-          title: `Market wrap for ${date}`,
-          published_at: `${date}T12:00:00.000Z`,
-          retrieved_at: `${date}T12:05:00.000Z`,
-          body_text: "AAPL and MSFT moved on macro headlines.",
-          tickers_mentioned: ["AAPL", "MSFT"],
-          is_approved_source: true
-        }
-      ],
+      data: {
+        context_items: [
+          {
+            context_id: "ctx-aapl-2026-03-21",
+            ticker,
+            registry_entry_id: "aapl-ir",
+            source_url: "https://investor.apple.com/investor-relations/",
+            source_domain: "investor.apple.com",
+            page_type: "investor_relations",
+            title: "Apple investor update",
+            summary: "Apple published a first-party investor update.",
+            excerpt: "Apple investor update confirms release cadence.",
+            retrieved_at: "2026-03-21T12:05:00.000Z",
+            published_at: "2026-03-21T12:00:00.000Z",
+            content_hash: "ctx-aapl",
+            fetch_state: "fetched",
+            rights: {
+              rights_class: "first_party_public",
+              display_mode: "excerpt_only",
+              source_rank: "first_party",
+              source_type: "investor_relations",
+              can_store_full_text: false,
+              can_display_excerpt: true,
+              can_display_link: true,
+              policy_reason: "Approved first-party source.",
+              reviewed_at: "2026-03-01T00:00:00.000Z"
+            },
+            artifact_ids: [],
+            metadata: {
+              fixture: true
+            }
+          }
+        ]
+      },
       error_flag: false
     });
   });
@@ -330,8 +466,12 @@ test("market pulse dispatch stores reports, personalizes watchlist overlay, and 
       session.accessToken,
       "/pulse/2026-03-21"
     );
-    assert.equal(firstReport.sections.news_summary.status, "complete");
-    assert.equal(firstReport.sections.market_moves.status, "complete");
+    assert.equal(firstReport.sections.macro_stress.status, "complete");
+    assert.equal(firstReport.sections.official_macro_pressure.status, "complete");
+    assert.equal(firstReport.sections.canonical_events.status, "complete");
+    assert.equal(firstReport.sections.bounded_context.status, "complete");
+    assert.equal(firstReport.sections.news_summary?.status, "complete");
+    assert.equal(firstReport.sections.market_moves?.status, "complete");
     assert.ok(firstReport.sections.watchlist_overlay);
     assert.match(firstReport.sections.watchlist_overlay?.body ?? "", /AAPL/);
 
@@ -351,8 +491,9 @@ test("market pulse dispatch stores reports, personalizes watchlist overlay, and 
       session.accessToken,
       "/pulse/2026-03-22"
     );
-    assert.equal(degradedReport.sections.news_summary.status, "data_unavailable");
-    assert.ok(degradedReport.flags.includes("data_unavailable:news_summary"));
+    assert.equal(degradedReport.sections.bounded_context.status, "data_unavailable");
+    assert.equal(degradedReport.sections.news_summary?.status, "data_unavailable");
+    assert.ok(degradedReport.flags.includes("data_unavailable:bounded_context"));
     const degradedSentryLog = capturedErrors.some((line) =>
       line.includes('"message":"Sentry capture"') &&
       line.includes("Market Pulse degraded with unavailable data")

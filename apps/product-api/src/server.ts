@@ -102,8 +102,13 @@ import type { ProductStore } from "./store";
 import { assertIncomingAnalysisReport } from "./report-validation";
 import { assertIncomingMarketPulseReport } from "./market-pulse-validation";
 import { buildMarketPulseReport, withWatchlistOverlay } from "./market-pulse";
+import {
+  buildMacroStressSnapshot,
+  legacySnapshotToMacroStress,
+  macroStressToLegacySnapshot
+} from "./macro-stress";
 import { PushNotifier } from "./push";
-import { buildFearGreedSnapshot, isUsTradingDay, isValidMarketDate } from "./sentiment";
+import { isUsTradingDay, isValidMarketDate } from "./sentiment";
 import { fetchLatestClosePrice, fetchLatestClosePrices } from "./market-prices";
 import { verifyGoogleIdToken } from "./google-oidc";
 import { handleAuthRoutes } from "./routes/auth-routes";
@@ -4961,8 +4966,14 @@ async function processMarketPulseJob(
         });
       }
 
-      const firstNewsTitle = report.sections.news_summary.evidence?.[0]?.excerpt;
-      const headline = firstNewsTitle?.trim()?.length ? firstNewsTitle.trim() : undefined;
+      const firstHeadlineCandidate =
+        report.sections.bounded_context.evidence?.[0]?.excerpt ??
+        report.sections.canonical_events.evidence?.[0]?.excerpt ??
+        report.sections.news_summary?.evidence?.[0]?.excerpt;
+      const headline =
+        typeof firstHeadlineCandidate === "string" && firstHeadlineCandidate.trim().length > 0
+          ? firstHeadlineCandidate.trim()
+          : undefined;
       const pulseDate = report.cycle_end.slice(0, 10);
       const cycleStartIso =
         report.cycle_start && Number.isFinite(Date.parse(report.cycle_start))
@@ -5782,7 +5793,11 @@ export function startServer(port: number = loadConfig().port): Server {
           return;
         }
 
-        if (method === "POST" && pathname === "/internal/sentiment/dispatch") {
+        if (
+          method === "POST" &&
+          (pathname === "/internal/macro-stress/dispatch" ||
+            pathname === "/internal/sentiment/dispatch")
+        ) {
           const body = await readJsonBody<{ market_date?: string }>(request);
           const fallbackDate = dateInTimeZone(new Date(), "America/New_York");
           const marketDate = normalizeDateInput(body.market_date ?? fallbackDate);
@@ -5795,13 +5810,13 @@ export function startServer(port: number = loadConfig().port): Server {
           }
 
           if (!isUsTradingDay(marketDate)) {
-            await appendAudit(runtime, "sentiment.skipped_non_trading_day", {
+            await appendAudit(runtime, "macro_stress.skipped_non_trading_day", {
               request_id: meta.requestId,
               route: pathname,
               market_date: marketDate
             });
 
-            logInfo("Sentiment dispatch skipped on non-trading day", {
+            logInfo("Macro Stress dispatch skipped on non-trading day", {
               request_id: meta.requestId,
               market_date: marketDate
             });
@@ -5815,38 +5830,95 @@ export function startServer(port: number = loadConfig().port): Server {
           }
 
           try {
-            const snapshot = await buildFearGreedSnapshot({
-              marketDate,
-              store: runtime.store,
-              yahooBaseUrl: runtime.config.sentimentYahooBaseUrl,
-              fredBaseUrl: runtime.config.sentimentFredBaseUrl,
-              fredApiKey: runtime.config.sentimentFredApiKey,
-              breadthUniverseLimit: runtime.config.sentimentBreadthUniverseLimit,
-              breadthConcurrency: runtime.config.sentimentBreadthConcurrency,
-              minimumAvailableInputs: runtime.config.sentimentMinimumAvailableInputs
-            });
-            const persisted = await runtime.store.upsertFearGreedSnapshot({ snapshot });
+            const macroResponse = await fetch(
+              `${runtime.config.marketPulseDataOpenbbBaseUrl}/v1/official/macro?scope=daily`
+            );
+            if (!macroResponse.ok) {
+              throw new Error(`Official macro pull failed with HTTP ${macroResponse.status}`);
+            }
+            const macroPayload = (await macroResponse.json()) as {
+              ok?: boolean;
+              data?: {
+                observations?: unknown[];
+              };
+              error_flag?: boolean;
+              error_message?: string;
+            };
+            const macroSuccess =
+              macroPayload.ok === true &&
+              macroPayload.error_flag !== true &&
+              macroPayload.data !== undefined &&
+              macroPayload.data !== null;
+            if (!macroSuccess) {
+              throw new Error(
+                macroPayload.error_message?.trim() || "Official macro payload returned no data."
+              );
+            }
 
-            await appendAudit(runtime, "sentiment.snapshot_upserted", {
+            const observations = Array.isArray(macroPayload.data?.observations)
+              ? macroPayload.data.observations
+              : [];
+            const omissions: Array<{
+              registry_id: string;
+              reason_code: string;
+              reason_text: string;
+            }> = [];
+            if (observations.length === 0) {
+              omissions.push({
+                registry_id: "OFFICIAL_MACRO",
+                reason_code: "missing_input",
+                reason_text: "Official macro payload returned no observations."
+              });
+            }
+
+            const macroStressSnapshot = buildMacroStressSnapshot({
+              asOf: marketDate,
+              generatedAt: new Date().toISOString(),
+              observations: observations as Array<{
+                registry_id?: string;
+                value?: number;
+                unit?: string;
+                period?: string;
+                category?: string;
+                retrieval?: {
+                  source?: {
+                    source_name?: string;
+                  };
+                  retrieved_at?: string;
+                };
+                missing_fields?: unknown[];
+              }>,
+              omissions
+            });
+            const persisted = await runtime.store.upsertFearGreedSnapshot({
+              snapshot: macroStressToLegacySnapshot(macroStressSnapshot)
+            });
+            const persistedMacroStress = legacySnapshotToMacroStress(persisted.snapshot);
+
+            await appendAudit(runtime, "macro_stress.snapshot_upserted", {
               request_id: meta.requestId,
               route: pathname,
               market_date: marketDate,
-              score: persisted.snapshot.score,
-              label: persisted.snapshot.label,
+              state: persistedMacroStress.state,
+              summary: persistedMacroStress.summary,
               created: persisted.created,
-              missing_inputs_count: persisted.snapshot.missing_inputs.length
+              omissions_count: persistedMacroStress.omissions.length
             });
 
             sendJson(response, 200, {
               status: persisted.created ? "created" : "updated",
               market_date: marketDate,
+              state: persistedMacroStress.state,
+              summary: persistedMacroStress.summary,
+              no_material_change: persistedMacroStress.no_material_change,
+              omissions: persistedMacroStress.omissions,
               score: persisted.snapshot.score,
               label: persisted.snapshot.label,
               missing_inputs: persisted.snapshot.missing_inputs
             });
           } catch (error) {
-            const message = error instanceof Error ? error.message : "Sentiment dispatch failed";
-            await appendAudit(runtime, "sentiment.dispatch_failed", {
+            const message = error instanceof Error ? error.message : "Macro Stress dispatch failed";
+            await appendAudit(runtime, "macro_stress.dispatch_failed", {
               request_id: meta.requestId,
               route: pathname,
               market_date: marketDate,
@@ -5858,8 +5930,8 @@ export function startServer(port: number = loadConfig().port): Server {
               market_date: marketDate
             });
             sendJson(response, 503, {
-              error: "sentiment_unavailable",
-              error_message: "Sentiment snapshot could not be generated."
+              error: "macro_stress_unavailable",
+              error_message: "Macro Stress snapshot could not be generated."
             });
           }
           return;
@@ -7344,7 +7416,10 @@ export function startServer(port: number = loadConfig().port): Server {
             ...pushRecipientsByUser.keys(),
             ...emailRecipientsByUser.keys()
           ]);
-          const latestFearGreed = await runtime.store.getLatestFearGreedSnapshot();
+          const latestLegacySentiment = await runtime.store.getLatestFearGreedSnapshot();
+          const latestMacroStress = latestLegacySentiment
+            ? legacySnapshotToMacroStress(latestLegacySentiment)
+            : undefined;
 
           let attempted = 0;
           let delivered = 0;
@@ -7368,9 +7443,9 @@ export function startServer(port: number = loadConfig().port): Server {
             const watchlistCount = watchlist.length;
             const upcomingCount = upcomingEvents.length;
             const digestParts = [
-              latestFearGreed
-                ? `Fear & Greed: ${latestFearGreed.score} (${latestFearGreed.label}).`
-                : "Fear & Greed data is not ready yet.",
+              latestMacroStress
+                ? `Macro Stress: ${latestMacroStress.state.replaceAll("_", " ")}. ${latestMacroStress.summary}`
+                : "Macro Stress data is not ready yet.",
               watchlistCount > 0
                 ? `${watchlistCount} watchlist names matter this week.`
                 : "Your watchlist is empty.",
@@ -7401,8 +7476,12 @@ export function startServer(port: number = loadConfig().port): Server {
                   data: {
                     alert_id: alertId,
                     digest_date: digestDate,
-                    fear_greed_score: latestFearGreed ? String(latestFearGreed.score) : "",
-                    fear_greed_label: latestFearGreed?.label ?? "",
+                    macro_stress_state: latestMacroStress?.state ?? "",
+                    macro_stress_summary: latestMacroStress?.summary ?? "",
+                    fear_greed_score: latestLegacySentiment
+                      ? String(latestLegacySentiment.score)
+                      : "",
+                    fear_greed_label: latestLegacySentiment?.label ?? "",
                     watchlist_count: String(watchlistCount),
                     upcoming_earnings_count: String(upcomingCount),
                     reason_code: "weekly_summary_ready",
@@ -8651,6 +8730,66 @@ export function startServer(port: number = loadConfig().port): Server {
             route_status: queued.routeStatus,
             created_at: queued.createdAt
           }
+        });
+        return;
+      }
+
+      if (method === "GET" && pathname === "/v1/macro-stress/current") {
+        const legacySnapshot = await runtime.store.getLatestFearGreedSnapshot();
+        if (!legacySnapshot) {
+          sendJson(response, 404, {
+            error: "macro_stress_not_found",
+            error_message: "No Macro Stress snapshot is available yet."
+          });
+          return;
+        }
+        const snapshot = legacySnapshotToMacroStress(legacySnapshot);
+
+        await appendAudit(
+          runtime,
+          "macro_stress.current_retrieved",
+          {
+            request_id: meta.requestId,
+            route: pathname,
+            market_date: snapshot.as_of,
+            state: snapshot.state
+          },
+          auth.userId
+        );
+
+        sendJson(response, 200, {
+          data: snapshot
+        });
+        return;
+      }
+
+      if (method === "GET" && pathname === "/v1/macro-stress/history") {
+        const days = parsePositiveInteger(url.searchParams.get("days") ?? undefined, 90, 1, 365);
+        if (days === undefined) {
+          sendJson(response, 422, {
+            error: "validation_failed",
+            error_message: "days must be an integer between 1 and 365."
+          });
+          return;
+        }
+
+        const history = (await runtime.store.listFearGreedHistory(days)).map((snapshot) =>
+          legacySnapshotToMacroStress(snapshot)
+        );
+        await appendAudit(
+          runtime,
+          "macro_stress.history_retrieved",
+          {
+            request_id: meta.requestId,
+            route: pathname,
+            days,
+            row_count: history.length
+          },
+          auth.userId
+        );
+
+        sendJson(response, 200, {
+          data: history
         });
         return;
       }

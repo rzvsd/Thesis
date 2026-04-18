@@ -55,6 +55,7 @@ import com.patrykandpatrick.vico.core.entry.ChartEntryModelProducer
 import com.patrykandpatrick.vico.core.entry.entryOf
 import com.thesis.mobile.model.SentimentSnapshotView
 import com.thesis.mobile.model.SentimentSubScoreView
+import com.thesis.mobile.ui.copy.Phase4Copy
 import com.thesis.mobile.ui.theme.HeadingFont
 import com.thesis.mobile.ui.theme.ThesisColors
 import com.thesis.mobile.ui.theme.ThesisDimens
@@ -63,9 +64,14 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.util.Locale
 
+private val macroStressRangeOptions = listOf(7, 14, 30, 90)
+
+private fun normalizeMacroStressRange(days: Int): Int =
+    if (macroStressRangeOptions.contains(days)) days else 30
+
 @OptIn(ExperimentalMaterialApi::class)
 @Composable
-fun SentimentDashboardScreen(
+fun MacroStressDashboardScreen(
     current: SentimentSnapshotView?,
     history: List<SentimentSnapshotView>,
     selectedRangeDays: Int,
@@ -74,6 +80,7 @@ fun SentimentDashboardScreen(
     onBack: () -> Unit,
     onRefresh: (() -> Unit)? = null
 ) {
+    val activeRangeDays = remember(selectedRangeDays) { normalizeMacroStressRange(selectedRangeDays) }
     val chartRows = remember(history) { history.sortedBy { it.marketDate } }
     val recentRows = remember(chartRows) { chartRows.sortedByDescending { it.marketDate }.take(10) }
     val trailingWindow = remember(chartRows) { chartRows.takeLast(7) }
@@ -104,7 +111,7 @@ fun SentimentDashboardScreen(
         refreshing = isRefreshing,
         onRefresh = {
             isRefreshing = true
-            onRefresh?.invoke() ?: onSelectRange(selectedRangeDays)
+            onRefresh?.invoke() ?: onSelectRange(activeRangeDays)
             scope.launch {
                 delay(1800L)
                 isRefreshing = false
@@ -173,7 +180,7 @@ fun SentimentDashboardScreen(
 
                 item {
                     SentimentRangeSelector(
-                        selectedRangeDays = selectedRangeDays,
+                        selectedRangeDays = activeRangeDays,
                         onSelectRange = onSelectRange
                     )
                 }
@@ -192,7 +199,7 @@ fun SentimentDashboardScreen(
                                 color = ThesisColors.TextPrimary
                             )
                             Text(
-                                text = "Last $selectedRangeDays day sentiment history.",
+                                text = "Last $activeRangeDays day macro stress history.",
                                 style = ThesisTypography.bodySmall,
                                 color = ThesisColors.TextMuted
                             )
@@ -208,20 +215,20 @@ fun SentimentDashboardScreen(
                                 horizontalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)
                             ) {
                                 RegimeBandLegendItem(
-                                    label = "Fear",
-                                    range = "0-40",
+                                    label = "Elevated",
+                                    range = "70-100",
                                     color = ThesisColors.SignalNegative,
                                     modifier = Modifier.weight(1f)
                                 )
                                 RegimeBandLegendItem(
-                                    label = "Neutral",
-                                    range = "41-60",
+                                    label = "Balanced",
+                                    range = "36-69",
                                     color = ThesisColors.SignalNeutral,
                                     modifier = Modifier.weight(1f)
                                 )
                                 RegimeBandLegendItem(
-                                    label = "Greed",
-                                    range = "61-100",
+                                    label = "Contained",
+                                    range = "0-35",
                                     color = ThesisColors.SignalPositive,
                                     modifier = Modifier.weight(1f)
                                 )
@@ -268,7 +275,7 @@ fun SentimentDashboardScreen(
                             Spacer(modifier = Modifier.height(12.dp))
                             if (chartRows.isEmpty()) {
                                 Text(
-                                    text = "No sentiment history available for this range yet.",
+                                    text = "No macro stress history available for this range yet.",
                                     style = ThesisTypography.bodySmall,
                                     color = ThesisColors.TextMuted
                                 )
@@ -316,7 +323,7 @@ fun SentimentDashboardScreen(
 
                 item {
                     Text(
-                        text = "Sub-score Breakdown",
+                        text = "Macro Factor Breakdown",
                         style = ThesisTypography.headlineMedium.copy(fontWeight = FontWeight.Medium),
                         color = ThesisColors.TextPrimary
                     )
@@ -331,7 +338,7 @@ fun SentimentDashboardScreen(
                             border = androidx.compose.foundation.BorderStroke(ThesisDimens.BorderWidth, ThesisColors.Border)
                         ) {
                             Text(
-                                text = "Sub-scores are not available yet.",
+                                text = "Macro factors are not available yet.",
                                 style = ThesisTypography.bodySmall,
                                 color = ThesisColors.TextMuted,
                                 modifier = Modifier.padding(ThesisDimens.CardPadding)
@@ -413,12 +420,33 @@ fun SentimentDashboardScreen(
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = ThesisColors.Primary)
             }
             Text(
-                text = "Fear & Greed Dashboard",
+                text = Phase4Copy.todayMacroStressDashboardTitle,
                 style = ThesisTypography.headlineMedium.copy(fontWeight = FontWeight.Medium),
                 color = ThesisColors.TextPrimary
             )
         }
     }
+}
+
+@Composable
+fun SentimentDashboardScreen(
+    current: SentimentSnapshotView?,
+    history: List<SentimentSnapshotView>,
+    selectedRangeDays: Int,
+    sentimentError: String?,
+    onSelectRange: (Int) -> Unit,
+    onBack: () -> Unit,
+    onRefresh: (() -> Unit)? = null
+) {
+    MacroStressDashboardScreen(
+        current = current,
+        history = history,
+        selectedRangeDays = selectedRangeDays,
+        sentimentError = sentimentError,
+        onSelectRange = onSelectRange,
+        onBack = onBack,
+        onRefresh = onRefresh
+    )
 }
 
 @Composable
@@ -471,7 +499,7 @@ private fun SentimentRangeSelector(
     onSelectRange: (Int) -> Unit
 ) {
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        listOf(7, 14, 30, 90).forEach { option ->
+        macroStressRangeOptions.forEach { option ->
             val selected = selectedRangeDays == option
             AssistChip(
                 onClick = { onSelectRange(option) },
@@ -486,18 +514,16 @@ private fun SentimentRangeSelector(
 }
 
 private fun formatDashboardLabel(label: String?): String = when (label?.lowercase()) {
-    "extreme_fear" -> "Extreme Fear"
-    "fear" -> "Fear"
-    "neutral" -> "Neutral"
-    "greed" -> "Greed"
-    "extreme_greed" -> "Extreme Greed"
+    "extreme_fear", "fear", "high_stress", "elevated", "elevated_pressure" -> "Elevated Pressure"
+    "neutral", "balanced", "moderate" -> "Balanced"
+    "greed", "extreme_greed", "low_stress", "risk_on", "low_pressure" -> "Contained Pressure"
     else -> "Unavailable"
 }
 
 private fun dashboardLabelColor(label: String?): Color = when (label?.lowercase()) {
-    "extreme_fear", "fear" -> ThesisColors.SignalNegative
-    "greed", "extreme_greed" -> ThesisColors.SignalPositive
-    "neutral" -> ThesisColors.SignalNeutral
+    "extreme_fear", "fear", "high_stress", "elevated", "elevated_pressure" -> ThesisColors.SignalNegative
+    "greed", "extreme_greed", "low_stress", "risk_on", "low_pressure" -> ThesisColors.SignalPositive
+    "neutral", "balanced", "moderate" -> ThesisColors.SignalNeutral
     else -> ThesisColors.TextMuted
 }
 
@@ -510,17 +536,15 @@ private fun SentimentGaugeCard(
     val clampedScore = score.coerceIn(0.0, 100.0)
     val progress = (clampedScore / 100.0).toFloat()
     val label = when (current?.label?.lowercase()) {
-        "extreme_fear" -> "Extreme Fear"
-        "fear" -> "Fear"
-        "neutral" -> "Neutral"
-        "greed" -> "Greed"
-        "extreme_greed" -> "Extreme Greed"
+        "extreme_fear", "fear", "high_stress", "elevated", "elevated_pressure" -> "Elevated Pressure"
+        "neutral", "balanced", "moderate" -> "Balanced"
+        "greed", "extreme_greed", "low_stress", "risk_on", "low_pressure" -> "Contained Pressure"
         else -> "Unavailable"
     }
     val color = when (current?.label?.lowercase()) {
-        "extreme_fear", "fear" -> ThesisColors.SignalNegative
-        "greed", "extreme_greed" -> ThesisColors.SignalPositive
-        "neutral" -> ThesisColors.SignalNeutral
+        "extreme_fear", "fear", "high_stress", "elevated", "elevated_pressure" -> ThesisColors.SignalNegative
+        "greed", "extreme_greed", "low_stress", "risk_on", "low_pressure" -> ThesisColors.SignalPositive
+        "neutral", "balanced", "moderate" -> ThesisColors.SignalNeutral
         else -> ThesisColors.TextTertiaryDark
     }
 
@@ -537,7 +561,7 @@ private fun SentimentGaugeCard(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
-                text = "Current Sentiment",
+                text = "Current Macro Stress",
                 style = ThesisTypography.headlineMedium.copy(fontWeight = FontWeight.Medium),
                 color = ThesisColors.TextPrimary
             )

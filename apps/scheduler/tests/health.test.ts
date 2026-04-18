@@ -10,6 +10,7 @@ type HealthPayload = {
   mode: "scheduled" | "test";
   timezone: string;
   schedule: string;
+  macro_stress_schedule: string;
   sentiment_schedule: string;
   historical_sync_schedule: string;
   calendar_sync_schedule: string;
@@ -18,6 +19,7 @@ type HealthPayload = {
   weekly_digest_schedule: string;
   next_fire_at?: string;
   next_pulse_fire_at?: string;
+  next_macro_stress_fire_at?: string;
   next_sentiment_fire_at?: string;
   next_historical_sync_at?: string;
   next_calendar_sync_at?: string;
@@ -39,6 +41,7 @@ test("GET /health returns the expected payload", async () => {
   assert.equal(typeof payload.mode, "string");
   assert.equal(typeof payload.timezone, "string");
   assert.equal(typeof payload.schedule, "string");
+  assert.equal(typeof payload.macro_stress_schedule, "string");
   assert.equal(typeof payload.sentiment_schedule, "string");
   assert.equal(typeof payload.historical_sync_schedule, "string");
   assert.equal(typeof payload.calendar_sync_schedule, "string");

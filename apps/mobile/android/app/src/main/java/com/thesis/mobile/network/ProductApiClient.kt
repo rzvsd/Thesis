@@ -521,20 +521,19 @@ class ProductApiClient {
             )
         }
 
-    suspend fun getCurrentSentiment(
+    suspend fun getCurrentMacroStress(
         baseUrl: String,
         accessToken: String
     ): SentimentSnapshotView? = withContext(Dispatchers.IO) {
         runCatching {
-            val json = requestJson(
-                baseUrl,
-                "GET",
-                "/v1/sentiment/current",
-                accessToken = accessToken
-            )
-            mapSentimentSnapshot(json.optJSONObject("data"))
+            val json = requestCurrentMacroStress(baseUrl, accessToken)
+            mapSentimentSnapshot(json.optJSONObject("data") ?: json)
         }.getOrElse { error ->
-            if (error is ProductApiException && error.code == 404 && error.errorCode == "sentiment_not_found") {
+            if (
+                error is ProductApiException &&
+                error.code == 404 &&
+                (error.errorCode == "macro_stress_not_found" || error.errorCode == "sentiment_not_found")
+            ) {
                 null
             } else {
                 throw error
@@ -542,30 +541,85 @@ class ProductApiClient {
         }
     }
 
-    suspend fun getSentimentHistory(
+    suspend fun getMacroStressHistory(
         baseUrl: String,
         accessToken: String,
         days: Int
     ): List<SentimentSnapshotView> = withContext(Dispatchers.IO) {
         runCatching {
-            val json = requestJson(
-                baseUrl,
-                "GET",
-                "/v1/sentiment/history?days=$days",
-                accessToken = accessToken
-            )
-            val rows = json.optJSONArray("data") ?: JSONArray()
+            val json = requestMacroStressHistory(baseUrl, accessToken, days)
+            val rows = json.optFirstArray("data", "history", "snapshots") ?: JSONArray()
             (0 until rows.length()).mapNotNull { index ->
                 mapSentimentSnapshot(rows.optJSONObject(index))
             }
         }.getOrElse { error ->
-            if (error is ProductApiException && error.code == 404 && error.errorCode == "sentiment_not_found") {
+            if (
+                error is ProductApiException &&
+                error.code == 404 &&
+                (error.errorCode == "macro_stress_not_found" || error.errorCode == "sentiment_not_found")
+            ) {
                 emptyList()
             } else {
                 throw error
             }
         }
     }
+
+    suspend fun getCurrentSentiment(
+        baseUrl: String,
+        accessToken: String
+    ): SentimentSnapshotView? = getCurrentMacroStress(baseUrl, accessToken)
+
+    suspend fun getSentimentHistory(
+        baseUrl: String,
+        accessToken: String,
+        days: Int
+    ): List<SentimentSnapshotView> = getMacroStressHistory(baseUrl, accessToken, days)
+
+    private fun shouldFallbackToLegacySentiment(error: ProductApiException): Boolean =
+        error.code == 404 && error.errorCode !in setOf("macro_stress_not_found", "sentiment_not_found")
+
+    private fun requestCurrentMacroStress(baseUrl: String, accessToken: String): JSONObject =
+        try {
+            requestJson(
+                baseUrl,
+                "GET",
+                "/v1/macro-stress/current",
+                accessToken = accessToken
+            )
+        } catch (error: ProductApiException) {
+            if (shouldFallbackToLegacySentiment(error)) {
+                requestJson(
+                    baseUrl,
+                    "GET",
+                    "/v1/sentiment/current",
+                    accessToken = accessToken
+                )
+            } else {
+                throw error
+            }
+        }
+
+    private fun requestMacroStressHistory(baseUrl: String, accessToken: String, days: Int): JSONObject =
+        try {
+            requestJson(
+                baseUrl,
+                "GET",
+                "/v1/macro-stress/history?days=$days",
+                accessToken = accessToken
+            )
+        } catch (error: ProductApiException) {
+            if (shouldFallbackToLegacySentiment(error)) {
+                requestJson(
+                    baseUrl,
+                    "GET",
+                    "/v1/sentiment/history?days=$days",
+                    accessToken = accessToken
+                )
+            } else {
+                throw error
+            }
+        }
 
     suspend fun getMonitorSnapshots(
         baseUrl: String,
@@ -681,6 +735,9 @@ class ProductApiClient {
     private fun parsePulseReport(json: JSONObject): PulseReportView {
         val sectionsObj = json.optJSONObject("sections") ?: JSONObject()
         val preferredOrder = listOf(
+            "macro_stress",
+            "macro_stress_context",
+            "official_macro_pressure",
             "market_moves",
             "macro_releases",
             "rates_fx_commodities",
@@ -688,7 +745,16 @@ class ProductApiClient {
             "uncertainty_flags",
             "watchlist_overlay"
         )
-        val sections = preferredOrder.mapNotNull { key ->
+        val discoveredKeys = mutableListOf<String>()
+        val keys = sectionsObj.keys()
+        while (keys.hasNext()) {
+            val key = keys.next().trim()
+            if (key.isNotBlank()) {
+                discoveredKeys += key
+            }
+        }
+        val orderedKeys = (preferredOrder + discoveredKeys).distinct()
+        val sections = orderedKeys.mapNotNull { key ->
             sectionsObj.optJSONObject(key)?.let { row ->
                 SectionView(
                     sectionId = row.optNullableString("section_id") ?: key,
@@ -1208,17 +1274,41 @@ class ProductApiClient {
             return null
         }
 
-        val id = row.optString("id").ifBlank { return null }
-        val marketDate = row.optString("market_date").ifBlank { return null }
-        val score = row.optNullableDouble("score") ?: return null
-        val label = row.optString("label").ifBlank { return null }
-        val calculatedAt = row.optString("calculated_at").ifBlank { return null }
+        val id = row.optFirstString("id", "snapshot_id", "macro_stress_id", "sentiment_id") ?: return null
+        val marketDate = row.optFirstString("market_date", "as_of", "as_of_date", "date") ?: return null
+        val score = row.optFirstNullableDouble(
+            "score",
+            "macro_stress_score",
+            "stress_score",
+            "pressure_score",
+            "index_value",
+            "value"
+        ) ?: return null
+        val label = row.optFirstString(
+            "label",
+            "stress_label",
+            "pressure_label",
+            "regime_label",
+            "sentiment_label"
+        ) ?: deriveMacroStressLabel(score)
+        val calculatedAt = row.optFirstString(
+            "calculated_at",
+            "generated_at",
+            "updated_at",
+            "captured_at",
+            "evaluated_at"
+        ) ?: marketDate
 
-        val subScoresJson = row.optJSONArray("sub_scores") ?: JSONArray()
+        val subScoresJson = row.optFirstArray("sub_scores", "components", "factors", "series") ?: JSONArray()
         val subScores = (0 until subScoresJson.length()).mapNotNull { index ->
             mapSentimentSubScore(subScoresJson.optJSONObject(index))
         }
-        val missingInputsJson = row.optJSONArray("missing_inputs") ?: JSONArray()
+        val missingInputsJson = row.optFirstArray(
+            "missing_inputs",
+            "missing_series",
+            "omitted_series",
+            "degraded_inputs"
+        ) ?: JSONArray()
         val missingInputs = (0 until missingInputsJson.length()).mapNotNull { index ->
             missingInputsJson.optString(index).takeIf { it.isNotBlank() }
         }
@@ -1239,21 +1329,33 @@ class ProductApiClient {
             return null
         }
 
-        val inputName = row.optString("input_name").ifBlank { return null }
-        val provider = row.optString("provider").ifBlank { return null }
-        val available = row.optBoolean("available", false)
-        val weight = row.optNullableDouble("weight") ?: return null
+        val inputName = row.optFirstString("input_name", "name", "series_id", "factor", "metric")
+            ?: return null
+        val provider = row.optFirstString("provider", "source", "feed", "dataset")
+            ?: "official_macro"
+        val available = if (row.has("available") && !row.isNull("available")) {
+            row.optBoolean("available", false)
+        } else {
+            true
+        }
+        val weight = row.optFirstNullableDouble("weight", "contribution_weight", "importance") ?: 0.0
 
         return SentimentSubScoreView(
             inputName = inputName,
             provider = provider,
             available = available,
             weight = weight,
-            normalizedScore = row.optNullableDouble("normalized_score"),
-            rawValue = row.optNullableDouble("raw_value"),
-            retrievedAt = row.optNullableString("retrieved_at"),
-            notes = row.optNullableString("notes")
+            normalizedScore = row.optFirstNullableDouble("normalized_score", "score", "value", "pressure_score"),
+            rawValue = row.optFirstNullableDouble("raw_value", "raw", "latest_value"),
+            retrievedAt = row.optFirstString("retrieved_at", "as_of", "updated_at"),
+            notes = row.optFirstString("notes", "status", "reason")
         )
+    }
+
+    private fun deriveMacroStressLabel(score: Double): String = when {
+        score >= 70.0 -> "high_stress"
+        score <= 35.0 -> "low_stress"
+        else -> "balanced"
     }
 
     @Throws(IOException::class, ProductApiException::class)
@@ -1363,6 +1465,26 @@ class ProductApiClient {
         }
         val value = optInt(key, Int.MIN_VALUE)
         return if (value == Int.MIN_VALUE) null else value
+    }
+
+    private fun JSONObject.optFirstNullableDouble(vararg keys: String): Double? {
+        keys.forEach { key ->
+            val value = optNullableDouble(key)
+            if (value != null) {
+                return value
+            }
+        }
+        return null
+    }
+
+    private fun JSONObject.optFirstArray(vararg keys: String): JSONArray? {
+        keys.forEach { key ->
+            val value = opt(key)
+            if (value is JSONArray) {
+                return value
+            }
+        }
+        return null
     }
 
     private fun JSONObject.optFirstString(vararg keys: String): String? {

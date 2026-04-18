@@ -265,6 +265,10 @@ data class SentimentSnapshotView(
   val calculatedAt: String
 )
 
+// Phase 6 M3: keep type-compatible aliases while UI/API terminology transitions to Macro Stress.
+typealias MacroStressSubScoreView = SentimentSubScoreView
+typealias MacroStressSnapshotView = SentimentSnapshotView
+
 data class ThesisMonitorSnapshotView(
     val ticker: String,
     val state: String,

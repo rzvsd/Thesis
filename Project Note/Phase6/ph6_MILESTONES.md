@@ -322,13 +322,13 @@ Rebuild the daily briefing around official macro, disclosure events, and bounded
 
 ## Acceptance Criteria
 
-- [ ] Scheduler generates a valid morning briefing without deprecated provider dependencies
-- [ ] Briefing sections are sourced from official macro, canonical events, and rights-safe context items
-- [ ] Macro Stress snapshot is generated from approved official-only inputs
-- [ ] Active Fear & Greed dashboard behavior is not reachable as a first-class Phase 6 surface unless it is explicitly archived/history-only
-- [ ] If no material changes occurred, the briefing says so explicitly
-- [ ] My Names relevance works through event/context matching rather than quote-board assumptions
-- [ ] Pulse storage and delivery remain operational
+- [x] Scheduler generates a valid morning briefing without deprecated provider dependencies
+- [x] Briefing sections are sourced from official macro, canonical events, and rights-safe context items
+- [x] Macro Stress snapshot is generated from approved official-only inputs
+- [x] Active Fear & Greed dashboard behavior is not reachable as a first-class Phase 6 surface unless it is explicitly archived/history-only
+- [x] If no material changes occurred, the briefing says so explicitly
+- [x] My Names relevance works through event/context matching rather than quote-board assumptions
+- [x] Pulse storage and delivery remain operational
 
 ## Smoke Test
 
