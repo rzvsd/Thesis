@@ -1,0 +1,380 @@
+# Deep Dive Revamp Milestones
+
+**Status:** Active
+**Last Revised:** 2026-04-20
+**Related Documents:** `DeepDive_ROADMAP.md`, `DeepDive_BLUEBOOK.md`, `DeepDive_PRD.md`, `DEEPDIVE_REPORT_STANDARD.md`, `DEEPDIVE_REFERENCE_MAPPING.md`, `DEEPDIVE_REPORT_TEMPLATE.md`, `DEEPDIVE_TEST_MATRIX.md`
+
+---
+
+## How To Read This Document
+
+Each milestone defines:
+
+- what ambiguity it removes
+- what must be built
+- what must be tested
+- what acceptance proof is required
+- what rollback looks like
+
+A milestone is not closed unless every acceptance criterion is checked off or explicitly deferred by owner decision.
+
+---
+
+## Milestone Index
+
+| # | Name | What It Produces |
+|---|---|---|
+| M0 | Report Standard and Interface Lock | Canonical report standard, decisions, and exact interface names |
+| M1 | Structured Report Contract | Typed additive report artifact accepted by Product API, Dexter, and mobile |
+| M2 | Financial Analysis Engine | Deterministic financial tables, trend metrics, quality metrics, omissions |
+| M3 | Value Discipline Scorecard | Piotroski-inspired and context-aware value/quality section |
+| M4 | Research Authoring Engine | Evidence-backed institutional memo writing |
+| M5 | Institutional PDF Export | Serious PDF report with exhibits and appendix |
+| M6 | Mobile Research Reader | Mobile Deep Dive reader backed by the structured artifact |
+| M7 | End-to-End Quality and Device Proof | Full smoke, regression, device evidence, and closeout |
+
+---
+
+# M0 - Report Standard and Interface Lock
+
+## Goal
+
+Define exactly what a serious Thesis Deep Dive report is before implementation begins.
+
+## Deliverables
+
+| Deliverable | Description |
+|---|---|
+| Report standard | Canonical structure in `DEEPDIVE_REPORT_STANDARD.md` |
+| Reference mapping | Explicit translation from `report.pdf` and `value investing.pdf` to Thesis requirements |
+| Report template | Page-by-page PDF and mobile reader template |
+| Test matrix | Hard gates, fixtures, and fail conditions |
+| Decision locks | Locked/open decisions in `DeepDive_DECISION_LOCKS.md` |
+| ADRs | Deep Dive Revamp decision records |
+| Milestone scaffolding | M0-M7 milestone AGENTS, smoke plans, evidence folders |
+| Interface naming | Public names for report artifact sections before M1 |
+
+## Acceptance Criteria
+
+- [x] DeepDive root docs exist in prior-phase style
+- [x] Reference PDFs are documented as quality references, not source material to copy
+- [x] Reference PDFs are mapped to exact Thesis requirements
+- [x] Page-by-page PDF and mobile reader templates are locked
+- [x] Test matrix defines hard gates and fail conditions
+- [x] M0-M7 milestone folders contain AGENTS, smoke plan, and evidence folder
+- [x] Report structure is locked before contract implementation
+- [x] Open decisions required before M1 are named
+
+## Smoke Test
+
+```text
+Step 1: Confirm root docs exist.
+Step 2: Confirm M0-M7 milestone folders and evidence folders exist.
+Step 3: Confirm report standard names all required sections.
+Step 4: Confirm decisions file names locked and open decisions.
+Step 5: Confirm reference mapping, report template, and test matrix exist.
+```
+
+## Rollback
+
+Remove Deep Dive Revamp docs only if owner abandons the workstream. Existing Deep Dive implementation remains unchanged.
+
+---
+
+# M1 - Structured Report Contract
+
+## Goal
+
+Create the typed report artifact that every renderer and service can trust.
+
+## Deliverables
+
+| Deliverable | Description |
+|---|---|
+| Contract fields | Typed sections for investment memo, financials, value score, valuation, risks, evidence, appendix |
+| Runtime validation | Product API and Dexter validation for new fields |
+| Backward compatibility | Old reports still parse and render |
+| Fixture payloads | Full, partial, sparse, and legacy examples |
+
+## Acceptance Criteria
+
+- [x] Contract names and schema are implemented in `packages/contracts`
+- [x] Product API validates new report artifact fields
+- [x] Dexter can emit the new artifact shape
+- [x] Old reports without new fields still deserialize
+- [x] Contract tests cover full and sparse payloads
+- [x] Contract fields can represent every required page/section in `DEEPDIVE_REPORT_TEMPLATE.md`
+- [x] Fixtures satisfy `DEEPDIVE_TEST_MATRIX.md` full, partial, sparse, degraded, no-prior-thesis, and legacy categories
+- [x] Unsupported required template sections degrade into omissions, not renderer guesses
+
+## Smoke Test
+
+```text
+Step 1: Build contracts.
+Step 2: Run Product API report validation tests.
+Step 3: Run Dexter schema validation tests.
+Step 4: Deserialize one old report fixture and one v2 report fixture.
+Step 5: Confirm v2 fixture can drive the canonical report template.
+```
+
+## Rollback
+
+Keep old report fields active and ignore new additive fields in mobile until fixed.
+
+---
+
+# M2 - Financial Analysis Engine
+
+## Goal
+
+Compute the real financial substance of the report.
+
+## Deliverables
+
+| Deliverable | Description |
+|---|---|
+| 5-year table builder | Annual and quarterly financial history where available |
+| Trend metrics | CAGR, margins, FCF, debt, cash, share count, dilution |
+| Quality metrics | ROIC/ROE, cash conversion, accrual quality where inputs exist |
+| Omission engine | Missing metrics are explicit and confidence-impacting |
+| Tests | Deterministic metric tests across complete and sparse data |
+
+## Acceptance Criteria
+
+- [x] Financial tables are generated from structured inputs
+- [x] No metric is emitted without required inputs
+- [x] Omission list explains missing inputs
+- [x] Tests cover complete, partial, and sparse company histories
+- [x] Existing Deep Dive job lifecycle still works
+- [x] 3-5 year financial exhibit is present when data exists
+- [x] Sparse-data and valuation-degraded fixtures produce explicit omission panels
+- [x] Financial outputs satisfy the M2 rows in `DEEPDIVE_TEST_MATRIX.md`
+
+## Smoke Test
+
+```text
+Step 1: Run financial engine unit tests.
+Step 2: Generate report for AAPL/MSFT fixture.
+Step 3: Confirm 5-year table and trend metrics exist where data exists.
+Step 4: Confirm sparse fixture produces omissions, not fake values.
+Step 5: Confirm each emitted metric has required input provenance.
+```
+
+## Rollback
+
+Disable financial table rendering while preserving old report sections.
+
+---
+
+# M3 - Value Discipline Scorecard
+
+## Goal
+
+Add a value-investing lens grounded in financial statement signals.
+
+## Deliverables
+
+| Deliverable | Description |
+|---|---|
+| Piotroski-style inputs | Profitability, leverage/liquidity, operating efficiency, accruals, issuance |
+| Context adapter | Interprets score differently for value/distressed vs quality/growth names |
+| Value-trap warnings | Flags cheapness plus deteriorating quality |
+| Plain-English explanation | Explains what the score means and does not mean |
+
+## Acceptance Criteria
+
+- [x] Scorecard computes only available signals
+- [x] Missing signals are listed
+- [x] Interpretation changes by company context
+- [x] Tests cover value, quality mega-cap, sparse, and distressed fixtures
+- [x] Mobile/PDF labels do not overstate the score
+- [x] Scorecard aligns to the value-discipline section in `DEEPDIVE_REPORT_TEMPLATE.md`
+- [x] Tests cover full, partial, sparse, value, quality, and distressed contexts
+- [x] The scorecard includes "what this does not prove" language
+
+## Smoke Test
+
+```text
+Step 1: Run value-score unit tests.
+Step 2: Generate one quality mega-cap report and one value-style report.
+Step 3: Confirm score interpretation differs appropriately.
+Step 4: Confirm missing inputs degrade score confidence.
+Step 5: Confirm no full score is emitted when required inputs are missing.
+```
+
+## Rollback
+
+Hide the scorecard and keep financial analysis visible.
+
+---
+
+# M4 - Research Authoring Engine
+
+## Goal
+
+Upgrade Dexter from section assembly to evidence-backed investment memo writing.
+
+## Deliverables
+
+| Deliverable | Description |
+|---|---|
+| Memo prompt | Writes investment thesis from structured facts |
+| Claim controls | Material claims require metric/evidence/omission support |
+| Narrative sections | Thesis, what changed, business quality, valuation, risks |
+| Snapshot tests | Company-specific output for AAPL, MSFT, TSLA, sparse fixture |
+
+## Acceptance Criteria
+
+- [ ] Memo opens with a specific investment argument
+- [ ] Writing references computed facts instead of generic phrasing
+- [ ] Material claims map to evidence or computed metrics
+- [ ] Sparse data output is honest and useful
+- [ ] LangSmith prompt registration is complete or explicitly TBD with local prompt proof
+- [ ] Memo sections follow the writing template in `DEEPDIVE_REPORT_TEMPLATE.md`
+- [ ] Snapshot tests fail generic company-agnostic prose
+- [ ] Claim-to-evidence mapping is captured for material claims
+
+## Smoke Test
+
+```text
+Step 1: Generate reports for AAPL, MSFT, TSLA, and sparse fixture.
+Step 2: Confirm each memo is company-specific.
+Step 3: Confirm unsupported claims are absent.
+Step 4: Confirm degraded data still produces readable omission-forward prose.
+Step 5: Confirm generic template-cloned prose fails the snapshot gate.
+```
+
+## Rollback
+
+Use deterministic section summaries and keep the structured report artifact.
+
+---
+
+# M5 - Institutional PDF Export
+
+## Goal
+
+Produce a serious report artifact that can be downloaded, shared, and reviewed.
+
+## Deliverables
+
+| Deliverable | Description |
+|---|---|
+| PDF renderer | Generates report pages from structured artifact |
+| Exhibits | Tables, valuation bands, scorecards, risks, evidence |
+| Appendix | Raw financial tables, assumptions, omissions, source notes |
+| Visual QA | Rendered PDF pages checked for layout defects |
+
+## Acceptance Criteria
+
+- [ ] PDF includes one-page memo, thesis, financials, value score, valuation, risks, evidence, appendix
+- [ ] PDF is not a mobile screenshot or card dump
+- [ ] Missing data appears as omissions
+- [ ] Rendered pages are visually inspected
+- [ ] Export path works from Product API and mobile entry point
+- [ ] PDF follows the page-by-page template in `DEEPDIVE_REPORT_TEMPLATE.md`
+- [ ] Rendered PNG pages are stored as evidence
+- [ ] Visual QA confirms exhibit captions, source notes, page numbers, and appendix
+
+## Smoke Test
+
+```text
+Step 1: Generate a complete report.
+Step 2: Export PDF.
+Step 3: Render PDF pages to images.
+Step 4: Confirm no clipped text, broken tables, unreadable charts, or missing page numbers.
+Step 5: Confirm PDF is not a mobile-card printout and includes appendix/source notes.
+```
+
+## Rollback
+
+Disable PDF v2 route and keep legacy export path.
+
+---
+
+# M6 - Mobile Research Reader
+
+## Goal
+
+Make the phone experience feel like a guided research reader, not random cards.
+
+## Deliverables
+
+| Deliverable | Description |
+|---|---|
+| Executive reader | Verdict, thesis, what changed, value discipline, valuation, risks |
+| Exhibit cards | Data-native mobile visuals backed by report artifact |
+| Proof navigation | Evidence and appendix remain reachable |
+| Offline cache | New artifact fields round-trip offline |
+| Legacy fallback | Old reports still render cleanly |
+
+## Acceptance Criteria
+
+- [ ] Mobile reads the structured report artifact
+- [ ] Old reports still render
+- [ ] Deep Dive screen remains one continuous readable flow
+- [ ] PDF export entry point is visible where appropriate
+- [ ] Android unit tests and device smoke pass
+- [ ] Mobile reader follows the order in `DEEPDIVE_REPORT_TEMPLATE.md`
+- [ ] Mobile and PDF render the same report truth for signal, valuation, risks, and omissions
+- [ ] Device proof shows executive reader, financial quality, value discipline, valuation, risks, evidence, and export entry
+
+## Smoke Test
+
+```text
+Step 1: Install app on phone.
+Step 2: Login.
+Step 3: Run/open Deep Dive.
+Step 4: Confirm memo, financial quality, value score, valuation, risks, evidence, and export entry render.
+Step 5: Force offline cache path and reopen report.
+Step 6: Confirm old report fallback and new artifact rendering both work.
+```
+
+## Rollback
+
+Return to current Deep Dive screen using legacy presentation fields.
+
+---
+
+# M7 - End-to-End Quality and Device Proof
+
+## Goal
+
+Close the workstream with real evidence.
+
+## Deliverables
+
+| Deliverable | Description |
+|---|---|
+| Full test run | Contracts, Product API, Dexter, Android, PDF, Maestro |
+| Device evidence | Physical phone screenshots or Maestro proof |
+| Regression proof | Login, Research, History, Deep Dive, offline, export |
+| Closeout docs | Acceptance and evidence updated |
+
+## Acceptance Criteria
+
+- [ ] Deep Dive run completes end to end
+- [ ] Report artifact contains required sections
+- [ ] PDF export opens and renders cleanly
+- [ ] Mobile reader displays the artifact correctly
+- [ ] Old report fallback is verified
+- [ ] Evidence is stored under milestone folders
+- [ ] The generated report passes owner-level tests in `DEEPDIVE_TEST_MATRIX.md`
+- [ ] Device proof and PDF proof are both attached to M7 evidence
+- [ ] Known limitations are explicit and do not violate locked hard gates
+
+## Smoke Test
+
+```text
+Step 1: Start full local stack.
+Step 2: Login on phone.
+Step 3: Run AAPL or MSFT Deep Dive.
+Step 4: Open report from History.
+Step 5: Export PDF.
+Step 6: Verify all core sections and evidence.
+Step 7: Run owner acceptance checklist from `DEEPDIVE_TEST_MATRIX.md`.
+```
+
+## Rollback
+
+Keep structured artifacts stored but route mobile and export back to old rendering until defects are fixed.

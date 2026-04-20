@@ -233,6 +233,99 @@ export interface CoverageTruthBlock {
   missing: string[];
 }
 
+export type FinancialMetricUnit = "currency" | "pct" | "ratio" | "count";
+export type FinancialMetricDirection =
+  | "improving"
+  | "deteriorating"
+  | "flat"
+  | "unavailable";
+export type FinancialMetricStatus = "available" | "omitted";
+
+export interface FinancialHistoryRow {
+  period: string;
+  period_type: "annual" | "quarterly";
+  fiscal_year: number;
+  fiscal_quarter?: number;
+  revenue?: number;
+  gross_margin?: number;
+  operating_margin?: number;
+  net_income?: number;
+  free_cash_flow?: number;
+  debt_total?: number;
+  cash_and_equivalents?: number;
+  shares_outstanding?: number;
+}
+
+export interface FinancialDerivedMetric {
+  key: string;
+  label: string;
+  value?: number;
+  unit: FinancialMetricUnit;
+  status: FinancialMetricStatus;
+  direction: FinancialMetricDirection;
+  note?: string;
+}
+
+export interface FinancialOmission {
+  code: string;
+  label: string;
+  reason: string;
+  impacts: string[];
+}
+
+export interface FinancialAnalysisBlock {
+  annual_history: FinancialHistoryRow[];
+  quarterly_history: FinancialHistoryRow[];
+  trend_metrics: FinancialDerivedMetric[];
+  quality_metrics: FinancialDerivedMetric[];
+  omissions: FinancialOmission[];
+}
+
+export type ValueDisciplineSignalFamily =
+  | "profitability"
+  | "leverage_liquidity"
+  | "operating_efficiency"
+  | "earnings_quality"
+  | "capital_discipline";
+
+export type ValueDisciplineSignalStatus = "pass" | "fail" | "unavailable";
+
+export interface ValueDisciplineSignal {
+  key: string;
+  label: string;
+  family: ValueDisciplineSignalFamily;
+  status: ValueDisciplineSignalStatus;
+  reason: string;
+  value?: number;
+}
+
+export type ValueDisciplineContextLabel =
+  | "quality_mega_cap"
+  | "value_cyclical"
+  | "distressed"
+  | "financial"
+  | "sparse_data"
+  | "general";
+
+export interface ValueTrapWarning {
+  triggered: boolean;
+  summary: string;
+  reason_codes: string[];
+}
+
+export interface ValueDisciplineBlock {
+  score: number;
+  max_score: number;
+  available_signals: number;
+  completeness: "complete" | "partial" | "insufficient_data";
+  context_label: ValueDisciplineContextLabel;
+  interpretation: string;
+  missing_signals: string[];
+  does_not_prove: string;
+  signals: ValueDisciplineSignal[];
+  value_trap_warning: ValueTrapWarning;
+}
+
 export interface AnalysisReport {
   report_id: string;
   job_id: string;
@@ -253,6 +346,8 @@ export interface AnalysisReport {
   explainers?: DeepDiveExplainers;
   watch_items?: string[];
   coverage_truth?: CoverageTruthBlock;
+  financial_analysis?: FinancialAnalysisBlock;
+  value_discipline?: ValueDisciplineBlock;
   sections: ReportSection[];
   flags: string[];
   data_sources: string[];
@@ -617,6 +712,221 @@ export const analysisReportSchema = {
         missing: {
           type: "array",
           items: { type: "string" }
+        }
+      }
+    },
+    financial_analysis: {
+      type: "object",
+      additionalProperties: false,
+      required: [
+        "annual_history",
+        "quarterly_history",
+        "trend_metrics",
+        "quality_metrics",
+        "omissions"
+      ],
+      properties: {
+        annual_history: {
+          type: "array",
+          items: {
+            type: "object",
+            additionalProperties: false,
+            required: ["period", "period_type", "fiscal_year"],
+            properties: {
+              period: { type: "string" },
+              period_type: {
+                type: "string",
+                enum: ["annual", "quarterly"]
+              },
+              fiscal_year: { type: "number" },
+              fiscal_quarter: { type: "number" },
+              revenue: { type: "number" },
+              gross_margin: { type: "number" },
+              operating_margin: { type: "number" },
+              net_income: { type: "number" },
+              free_cash_flow: { type: "number" },
+              debt_total: { type: "number" },
+              cash_and_equivalents: { type: "number" },
+              shares_outstanding: { type: "number" }
+            }
+          }
+        },
+        quarterly_history: {
+          type: "array",
+          items: {
+            type: "object",
+            additionalProperties: false,
+            required: ["period", "period_type", "fiscal_year"],
+            properties: {
+              period: { type: "string" },
+              period_type: {
+                type: "string",
+                enum: ["annual", "quarterly"]
+              },
+              fiscal_year: { type: "number" },
+              fiscal_quarter: { type: "number" },
+              revenue: { type: "number" },
+              gross_margin: { type: "number" },
+              operating_margin: { type: "number" },
+              net_income: { type: "number" },
+              free_cash_flow: { type: "number" },
+              debt_total: { type: "number" },
+              cash_and_equivalents: { type: "number" },
+              shares_outstanding: { type: "number" }
+            }
+          }
+        },
+        trend_metrics: {
+          type: "array",
+          items: {
+            type: "object",
+            additionalProperties: false,
+            required: ["key", "label", "unit", "status", "direction"],
+            properties: {
+              key: { type: "string" },
+              label: { type: "string" },
+              value: { type: "number" },
+              unit: {
+                type: "string",
+                enum: ["currency", "pct", "ratio", "count"]
+              },
+              status: {
+                type: "string",
+                enum: ["available", "omitted"]
+              },
+              direction: {
+                type: "string",
+                enum: ["improving", "deteriorating", "flat", "unavailable"]
+              },
+              note: { type: "string" }
+            }
+          }
+        },
+        quality_metrics: {
+          type: "array",
+          items: {
+            type: "object",
+            additionalProperties: false,
+            required: ["key", "label", "unit", "status", "direction"],
+            properties: {
+              key: { type: "string" },
+              label: { type: "string" },
+              value: { type: "number" },
+              unit: {
+                type: "string",
+                enum: ["currency", "pct", "ratio", "count"]
+              },
+              status: {
+                type: "string",
+                enum: ["available", "omitted"]
+              },
+              direction: {
+                type: "string",
+                enum: ["improving", "deteriorating", "flat", "unavailable"]
+              },
+              note: { type: "string" }
+            }
+          }
+        },
+        omissions: {
+          type: "array",
+          items: {
+            type: "object",
+            additionalProperties: false,
+            required: ["code", "label", "reason", "impacts"],
+            properties: {
+              code: { type: "string" },
+              label: { type: "string" },
+              reason: { type: "string" },
+              impacts: {
+                type: "array",
+                items: { type: "string" }
+              }
+            }
+          }
+        }
+      }
+    },
+    value_discipline: {
+      type: "object",
+      additionalProperties: false,
+      required: [
+        "score",
+        "max_score",
+        "available_signals",
+        "completeness",
+        "context_label",
+        "interpretation",
+        "missing_signals",
+        "does_not_prove",
+        "signals",
+        "value_trap_warning"
+      ],
+      properties: {
+        score: { type: "number" },
+        max_score: { type: "number" },
+        available_signals: { type: "number" },
+        completeness: {
+          type: "string",
+          enum: ["complete", "partial", "insufficient_data"]
+        },
+        context_label: {
+          type: "string",
+          enum: [
+            "quality_mega_cap",
+            "value_cyclical",
+            "distressed",
+            "financial",
+            "sparse_data",
+            "general"
+          ]
+        },
+        interpretation: { type: "string" },
+        missing_signals: {
+          type: "array",
+          items: { type: "string" }
+        },
+        does_not_prove: { type: "string" },
+        signals: {
+          type: "array",
+          items: {
+            type: "object",
+            additionalProperties: false,
+            required: ["key", "label", "family", "status", "reason"],
+            properties: {
+              key: { type: "string" },
+              label: { type: "string" },
+              family: {
+                type: "string",
+                enum: [
+                  "profitability",
+                  "leverage_liquidity",
+                  "operating_efficiency",
+                  "earnings_quality",
+                  "capital_discipline"
+                ]
+              },
+              status: {
+                type: "string",
+                enum: ["pass", "fail", "unavailable"]
+              },
+              reason: { type: "string" },
+              value: { type: "number" }
+            }
+          }
+        },
+        value_trap_warning: {
+          type: "object",
+          additionalProperties: false,
+          required: ["triggered", "summary", "reason_codes"],
+          properties: {
+            triggered: { type: "boolean" },
+            summary: { type: "string" },
+            reason_codes: {
+              type: "array",
+              items: { type: "string" }
+            }
+          }
         }
       }
     },

@@ -1,0 +1,130 @@
+﻿{
+    "generated_at":  "2026-04-20T19:58:50.1926361+03:00",
+    "status":  "PASS",
+    "root":  [
+                 {
+                     "path":  "DeepDive_README.md",
+                     "exists":  true
+                 },
+                 {
+                     "path":  "DeepDive_AGENTS.md",
+                     "exists":  true
+                 },
+                 {
+                     "path":  "DeepDive_BLUEBOOK.md",
+                     "exists":  true
+                 },
+                 {
+                     "path":  "DeepDive_PRD.md",
+                     "exists":  true
+                 },
+                 {
+                     "path":  "DeepDive_ROADMAP.md",
+                     "exists":  true
+                 },
+                 {
+                     "path":  "DeepDive_MILESTONES.md",
+                     "exists":  true
+                 },
+                 {
+                     "path":  "DeepDive_DECISION_LOCKS.md",
+                     "exists":  true
+                 },
+                 {
+                     "path":  "DEEPDIVE_REPORT_STANDARD.md",
+                     "exists":  true
+                 },
+                 {
+                     "path":  "DEEPDIVE_REFERENCE_MAPPING.md",
+                     "exists":  true
+                 },
+                 {
+                     "path":  "DEEPDIVE_REPORT_TEMPLATE.md",
+                     "exists":  true
+                 },
+                 {
+                     "path":  "DEEPDIVE_TEST_MATRIX.md",
+                     "exists":  true
+                 },
+                 {
+                     "path":  "DeepDive_ACCEPTANCE.md",
+                     "exists":  true
+                 },
+                 {
+                     "path":  "report.pdf",
+                     "exists":  true
+                 },
+                 {
+                     "path":  "value investing.pdf",
+                     "exists":  true
+                 }
+             ],
+    "milestones":  [
+                       {
+                           "milestone":  "M0",
+                           "exists":  true,
+                           "agents":  true,
+                           "smoke":  true,
+                           "evidence":  true
+                       },
+                       {
+                           "milestone":  "M1",
+                           "exists":  true,
+                           "agents":  true,
+                           "smoke":  true,
+                           "evidence":  true
+                       },
+                       {
+                           "milestone":  "M2",
+                           "exists":  true,
+                           "agents":  true,
+                           "smoke":  true,
+                           "evidence":  true
+                       },
+                       {
+                           "milestone":  "M3",
+                           "exists":  true,
+                           "agents":  true,
+                           "smoke":  true,
+                           "evidence":  true
+                       },
+                       {
+                           "milestone":  "M4",
+                           "exists":  true,
+                           "agents":  true,
+                           "smoke":  true,
+                           "evidence":  true
+                       },
+                       {
+                           "milestone":  "M5",
+                           "exists":  true,
+                           "agents":  true,
+                           "smoke":  true,
+                           "evidence":  true
+                       },
+                       {
+                           "milestone":  "M6",
+                           "exists":  true,
+                           "agents":  true,
+                           "smoke":  true,
+                           "evidence":  true
+                       },
+                       {
+                           "milestone":  "M7",
+                           "exists":  true,
+                           "agents":  true,
+                           "smoke":  true,
+                           "evidence":  true
+                       }
+                   ],
+    "checks":  {
+                   "root_docs_present":  true,
+                   "milestone_scaffold_present":  true,
+                   "mapping_references_report_pdf":  true,
+                   "mapping_references_value_pdf":  true,
+                   "template_has_pdf_pages":  true,
+                   "matrix_has_m1_to_m7":  true,
+                   "milestones_reference_new_docs":  true,
+                   "acceptance_reference_new_docs":  true
+               }
+}

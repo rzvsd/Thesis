@@ -36,6 +36,8 @@ import {
   getFixtureScenario,
   type FixtureScenario
 } from "./fixtures";
+import { buildFinancialAnalysis } from "./financial-analysis";
+import { buildValueDisciplineScorecard } from "./value-discipline";
 import {
   loadHistoricalContext,
   type ComparableDeepDiveSummary
@@ -641,20 +643,33 @@ function buildCoverageTruth(args: {
   context: M2SectionContext;
   trustMetadata: TrustMetadata;
   sections: ReportSection[];
+  financialAnalysis: AnalysisReport["financial_analysis"];
+  valueDiscipline: AnalysisReport["value_discipline"];
 }): CoverageTruthBlock {
   const covered = [
     args.context.latest?.period ? `Latest financial snapshot (${args.context.latest.period})` : undefined,
     args.context.priorQuarter?.period ? `Prior-quarter comparison (${args.context.priorQuarter.period})` : undefined,
     args.context.yearAgo?.period ? `Year-ago comparison (${args.context.yearAgo.period})` : undefined,
     args.context.latestTranscript?.period ? `Management transcript (${args.context.latestTranscript.period})` : undefined,
+    (args.financialAnalysis?.annual_history.length ?? 0) > 0
+      ? `Financial history table (${args.financialAnalysis?.annual_history.length} annual rows)`
+      : undefined,
     args.sections.some((section) => section.section_id === "valuation")
       ? "Deterministic DCF valuation block"
       : undefined
   ].filter((item): item is string => Boolean(item));
 
-  const missing = args.trustMetadata.missing_data_notes.length > 0
-    ? args.trustMetadata.missing_data_notes
-    : ["No material omission notes were recorded."];
+  const financialOmissions = args.financialAnalysis?.omissions.map(
+    (omission) => `${omission.label}: ${omission.reason}`
+  ) ?? [];
+  const valueOmissions = args.valueDiscipline?.missing_signals.map(
+    (signal) => `Value signal unavailable: ${signal}`
+  ) ?? [];
+  const missing = [
+    ...args.trustMetadata.missing_data_notes,
+    ...financialOmissions,
+    ...valueOmissions
+  ];
 
   return {
     summary: summarizeText(
@@ -662,17 +677,23 @@ function buildCoverageTruth(args: {
       160
     ),
     covered,
-    missing
+    missing: missing.length > 0
+      ? Array.from(new Set(missing))
+      : ["No material omission notes were recorded."]
   };
 }
 
 function buildWatchItems(
   trustMetadata: TrustMetadata,
-  killSwitchConditions: KillSwitchConditionDraft[]
+  killSwitchConditions: KillSwitchConditionDraft[],
+  valueDiscipline: AnalysisReport["value_discipline"]
 ): string[] {
   const items = [
     trustMetadata.thesis_drift.summary,
     ...killSwitchConditions.slice(0, 2).map((condition) => condition.condition_text),
+    valueDiscipline?.value_trap_warning.triggered
+      ? valueDiscipline.value_trap_warning.summary
+      : undefined,
     trustMetadata.missing_data_notes[0]
   ]
     .filter((item): item is string => typeof item === "string" && item.trim().length > 0)
@@ -823,6 +844,33 @@ function buildEvidenceReferenceSection(evidence: EvidenceItem[]): ReportSection 
     body,
     status: "complete",
     evidence
+  };
+}
+
+function buildValueDisciplineSection(
+  valueDiscipline: NonNullable<AnalysisReport["value_discipline"]>
+): ReportSection {
+  const status: ReportSection["status"] = valueDiscipline.completeness === "complete"
+    ? "complete"
+    : valueDiscipline.completeness === "partial"
+      ? "data_incomplete"
+      : "data_unavailable";
+  const body = [
+    `Value-discipline score: ${valueDiscipline.score}/${valueDiscipline.max_score} (${valueDiscipline.available_signals} signals available).`,
+    `Context: ${valueDiscipline.context_label}.`,
+    valueDiscipline.interpretation,
+    valueDiscipline.missing_signals.length > 0
+      ? `Missing signals: ${valueDiscipline.missing_signals.join("; ")}.`
+      : "No scorecard inputs were missing.",
+    valueDiscipline.does_not_prove
+  ].join(" ");
+
+  return {
+    section_id: "value_discipline",
+    title: "Value Discipline",
+    body,
+    status,
+    evidence: []
   };
 }
 
@@ -2367,9 +2415,17 @@ export async function runAnalysisPipeline(
         : ["Live mode still depends on external provider and model health."]
   };
   const valuationSection = buildValuationSection(ticker, m2Context);
+  const financialAnalysis = buildFinancialAnalysis(m2Context.financials);
+  const valueDiscipline = buildValueDisciplineScorecard({
+    ticker,
+    snapshots: m2Context.financials,
+    financialAnalysis,
+    valuation: valuationSection.valuation
+  });
   const derivedSections: ReportSection[] = [
     buildThesisStatementSection(ticker, m2Context),
     buildWhatChangedSection(m2Context),
+    buildValueDisciplineSection(valueDiscipline),
     valuationSection.section,
     buildExecutiveSummary(ticker, executedSections, signal.value),
     buildResearchSignalSection(signal.value, signal.reasons, signal.evidence),
@@ -2462,11 +2518,17 @@ export async function runAnalysisPipeline(
     trustMetadata,
     valuation: valuationSection.valuation
   });
-  const watchItems = buildWatchItems(trustMetadata, killSwitchExtraction.conditions);
+  const watchItems = buildWatchItems(
+    trustMetadata,
+    killSwitchExtraction.conditions,
+    valueDiscipline
+  );
   const coverageTruth = buildCoverageTruth({
     context: m2Context,
     trustMetadata,
-    sections: orderedSections
+    sections: orderedSections,
+    financialAnalysis,
+    valueDiscipline
   });
 
   const report: AnalysisReport = {
@@ -2489,6 +2551,8 @@ export async function runAnalysisPipeline(
     explainers,
     watch_items: watchItems,
     coverage_truth: coverageTruth,
+    financial_analysis: financialAnalysis,
+    value_discipline: valueDiscipline,
     sections: orderedSections,
     flags: buildFlags(scenario, orderedSections, signal.value, traceMode),
     data_sources: buildDataSources(scenario, orderedSections)
@@ -2501,6 +2565,16 @@ export async function runAnalysisPipeline(
     evidence_count: trustMetadata.evidence_count,
     contradiction_state: trustMetadata.contradiction_state,
     valuation_state: trustMetadata.valuation_state
+  });
+  logInfo("Value-discipline scorecard generated", {
+    job_id: request.job_id,
+    ticker,
+    score: valueDiscipline.score,
+    max_score: valueDiscipline.max_score,
+    available_signals: valueDiscipline.available_signals,
+    completeness: valueDiscipline.completeness,
+    context_label: valueDiscipline.context_label,
+    value_trap_warning: valueDiscipline.value_trap_warning.triggered
   });
   if (trustMetadata.thesis_drift.status === "unavailable") {
     logWarn("Thesis-drift summary unavailable", {

@@ -492,6 +492,228 @@ function validateCoverageTruth(value: unknown, path: string, errors: string[]): 
   }
 }
 
+function validateFinancialHistoryRow(value: unknown, path: string, errors: string[]): void {
+  if (!isObject(value)) {
+    errors.push(`${path} must be an object`);
+    return;
+  }
+  if (typeof value.period !== "string" || value.period.trim().length === 0) {
+    errors.push(`${path}.period must be a non-empty string`);
+  }
+  if (!["annual", "quarterly"].includes(String(value.period_type))) {
+    errors.push(`${path}.period_type must be valid`);
+  }
+  if (typeof value.fiscal_year !== "number") {
+    errors.push(`${path}.fiscal_year must be a number`);
+  }
+  if (value.fiscal_quarter !== undefined && typeof value.fiscal_quarter !== "number") {
+    errors.push(`${path}.fiscal_quarter must be a number when provided`);
+  }
+  for (const field of [
+    "revenue",
+    "gross_margin",
+    "operating_margin",
+    "net_income",
+    "free_cash_flow",
+    "debt_total",
+    "cash_and_equivalents",
+    "shares_outstanding"
+  ] as const) {
+    if (value[field] !== undefined && typeof value[field] !== "number") {
+      errors.push(`${path}.${field} must be a number when provided`);
+    }
+  }
+}
+
+function validateFinancialDerivedMetric(value: unknown, path: string, errors: string[]): void {
+  if (!isObject(value)) {
+    errors.push(`${path} must be an object`);
+    return;
+  }
+  if (typeof value.key !== "string" || value.key.trim().length === 0) {
+    errors.push(`${path}.key must be a non-empty string`);
+  }
+  if (typeof value.label !== "string" || value.label.trim().length === 0) {
+    errors.push(`${path}.label must be a non-empty string`);
+  }
+  if (value.value !== undefined && typeof value.value !== "number") {
+    errors.push(`${path}.value must be a number when provided`);
+  }
+  if (!["currency", "pct", "ratio", "count"].includes(String(value.unit))) {
+    errors.push(`${path}.unit must be valid`);
+  }
+  if (!["available", "omitted"].includes(String(value.status))) {
+    errors.push(`${path}.status must be valid`);
+  }
+  if (
+    !["improving", "deteriorating", "flat", "unavailable"].includes(
+      String(value.direction)
+    )
+  ) {
+    errors.push(`${path}.direction must be valid`);
+  }
+  if (value.note !== undefined && typeof value.note !== "string") {
+    errors.push(`${path}.note must be a string when provided`);
+  }
+}
+
+function validateFinancialOmission(value: unknown, path: string, errors: string[]): void {
+  if (!isObject(value)) {
+    errors.push(`${path} must be an object`);
+    return;
+  }
+  if (typeof value.code !== "string" || value.code.trim().length === 0) {
+    errors.push(`${path}.code must be a non-empty string`);
+  }
+  if (typeof value.label !== "string" || value.label.trim().length === 0) {
+    errors.push(`${path}.label must be a non-empty string`);
+  }
+  if (typeof value.reason !== "string" || value.reason.trim().length === 0) {
+    errors.push(`${path}.reason must be a non-empty string`);
+  }
+  if (!isStringArray(value.impacts)) {
+    errors.push(`${path}.impacts must be an array of strings`);
+  }
+}
+
+function validateFinancialAnalysis(value: unknown, path: string, errors: string[]): void {
+  if (!isObject(value)) {
+    errors.push(`${path} must be an object`);
+    return;
+  }
+  if (!Array.isArray(value.annual_history)) {
+    errors.push(`${path}.annual_history must be an array`);
+  } else {
+    value.annual_history.forEach((entry, index) => {
+      validateFinancialHistoryRow(entry, `${path}.annual_history[${index}]`, errors);
+    });
+  }
+  if (!Array.isArray(value.quarterly_history)) {
+    errors.push(`${path}.quarterly_history must be an array`);
+  } else {
+    value.quarterly_history.forEach((entry, index) => {
+      validateFinancialHistoryRow(entry, `${path}.quarterly_history[${index}]`, errors);
+    });
+  }
+  if (!Array.isArray(value.trend_metrics)) {
+    errors.push(`${path}.trend_metrics must be an array`);
+  } else {
+    value.trend_metrics.forEach((entry, index) => {
+      validateFinancialDerivedMetric(entry, `${path}.trend_metrics[${index}]`, errors);
+    });
+  }
+  if (!Array.isArray(value.quality_metrics)) {
+    errors.push(`${path}.quality_metrics must be an array`);
+  } else {
+    value.quality_metrics.forEach((entry, index) => {
+      validateFinancialDerivedMetric(entry, `${path}.quality_metrics[${index}]`, errors);
+    });
+  }
+  if (!Array.isArray(value.omissions)) {
+    errors.push(`${path}.omissions must be an array`);
+  } else {
+    value.omissions.forEach((entry, index) => {
+      validateFinancialOmission(entry, `${path}.omissions[${index}]`, errors);
+    });
+  }
+}
+
+function validateValueDisciplineSignal(value: unknown, path: string, errors: string[]): void {
+  if (!isObject(value)) {
+    errors.push(`${path} must be an object`);
+    return;
+  }
+  if (typeof value.key !== "string" || value.key.trim().length === 0) {
+    errors.push(`${path}.key must be a non-empty string`);
+  }
+  if (typeof value.label !== "string" || value.label.trim().length === 0) {
+    errors.push(`${path}.label must be a non-empty string`);
+  }
+  if (
+    ![
+      "profitability",
+      "leverage_liquidity",
+      "operating_efficiency",
+      "earnings_quality",
+      "capital_discipline"
+    ].includes(String(value.family))
+  ) {
+    errors.push(`${path}.family must be valid`);
+  }
+  if (!["pass", "fail", "unavailable"].includes(String(value.status))) {
+    errors.push(`${path}.status must be valid`);
+  }
+  if (typeof value.reason !== "string" || value.reason.trim().length === 0) {
+    errors.push(`${path}.reason must be a non-empty string`);
+  }
+  if (value.value !== undefined && typeof value.value !== "number") {
+    errors.push(`${path}.value must be a number when provided`);
+  }
+}
+
+function validateValueDiscipline(value: unknown, path: string, errors: string[]): void {
+  if (!isObject(value)) {
+    errors.push(`${path} must be an object`);
+    return;
+  }
+  if (typeof value.score !== "number") {
+    errors.push(`${path}.score must be a number`);
+  }
+  if (typeof value.max_score !== "number") {
+    errors.push(`${path}.max_score must be a number`);
+  }
+  if (typeof value.available_signals !== "number") {
+    errors.push(`${path}.available_signals must be a number`);
+  }
+  if (!["complete", "partial", "insufficient_data"].includes(String(value.completeness))) {
+    errors.push(`${path}.completeness must be valid`);
+  }
+  if (
+    ![
+      "quality_mega_cap",
+      "value_cyclical",
+      "distressed",
+      "financial",
+      "sparse_data",
+      "general"
+    ].includes(String(value.context_label))
+  ) {
+    errors.push(`${path}.context_label must be valid`);
+  }
+  if (typeof value.interpretation !== "string" || value.interpretation.trim().length === 0) {
+    errors.push(`${path}.interpretation must be a non-empty string`);
+  }
+  if (!isStringArray(value.missing_signals)) {
+    errors.push(`${path}.missing_signals must be an array of strings`);
+  }
+  if (typeof value.does_not_prove !== "string" || value.does_not_prove.trim().length === 0) {
+    errors.push(`${path}.does_not_prove must be a non-empty string`);
+  }
+  if (!Array.isArray(value.signals)) {
+    errors.push(`${path}.signals must be an array`);
+  } else {
+    value.signals.forEach((entry, index) => {
+      validateValueDisciplineSignal(entry, `${path}.signals[${index}]`, errors);
+    });
+  }
+  if (!isObject(value.value_trap_warning)) {
+    errors.push(`${path}.value_trap_warning must be an object`);
+  } else {
+    if (typeof value.value_trap_warning.triggered !== "boolean") {
+      errors.push(`${path}.value_trap_warning.triggered must be a boolean`);
+    }
+    if (
+      typeof value.value_trap_warning.summary !== "string" ||
+      value.value_trap_warning.summary.trim().length === 0
+    ) {
+      errors.push(`${path}.value_trap_warning.summary must be a non-empty string`);
+    }
+    if (!isStringArray(value.value_trap_warning.reason_codes)) {
+      errors.push(`${path}.value_trap_warning.reason_codes must be an array of strings`);
+    }
+  }
+}
+
 export function validateIncomingAnalysisReport(report: unknown): string[] {
   const errors: string[] = [];
 
@@ -662,6 +884,12 @@ export function validateIncomingAnalysisReport(report: unknown): string[] {
 
   if (report.coverage_truth !== undefined) {
     validateCoverageTruth(report.coverage_truth, "coverage_truth", errors);
+  }
+  if (report.financial_analysis !== undefined) {
+    validateFinancialAnalysis(report.financial_analysis, "financial_analysis", errors);
+  }
+  if (report.value_discipline !== undefined) {
+    validateValueDiscipline(report.value_discipline, "value_discipline", errors);
   }
 
   if (!Array.isArray(report.sections) || report.sections.length === 0) {

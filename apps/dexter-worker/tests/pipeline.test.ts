@@ -51,7 +51,16 @@ test("MSFT fixture request produces a schema-valid report with no blank sections
   assert.ok(report.explainers?.signal.length);
   assert.ok((report.watch_items?.length ?? 0) >= 1);
   assert.ok((report.coverage_truth?.covered.length ?? 0) >= 1);
+  assert.ok((report.financial_analysis?.annual_history.length ?? 0) >= 3);
+  assert.ok((report.financial_analysis?.trend_metrics.length ?? 0) >= 1);
+  assert.ok((report.financial_analysis?.quality_metrics.length ?? 0) >= 1);
+  assert.ok((report.value_discipline?.signals.length ?? 0) >= 1);
+  assert.ok((report.value_discipline?.available_signals ?? 0) >= 1);
+  assert.ok((report.value_discipline?.does_not_prove.length ?? 0) > 20);
   assert.equal(findSection(report.sections, "what_changed").status, "complete");
+  assert.ok(["complete", "data_incomplete", "data_unavailable"].includes(
+    findSection(report.sections, "value_discipline").status
+  ));
   assert.equal(findSection(report.sections, "valuation").status, "complete");
   assert.equal(findSection(report.sections, "quarter_over_quarter_changes").status, "complete");
   assert.equal(findSection(report.sections, "year_over_year_changes").status, "complete");
@@ -85,7 +94,13 @@ test("LIMITED fixture request degrades affected sections honestly", async () => 
   assert.equal(report.trust_metadata?.thesis_drift.status, "unavailable");
   assert.equal(report.trust_metadata?.valuation_state, "degraded");
   assert.ok((report.trust_metadata?.missing_data_notes.length ?? 0) > 0);
+  assert.ok((report.financial_analysis?.omissions.length ?? 0) > 0);
+  assert.equal(report.value_discipline?.context_label, "sparse_data");
+  assert.ok((report.value_discipline?.missing_signals.length ?? 0) > 0);
+  assert.notEqual(report.value_discipline?.completeness, "complete");
   assert.ok(report.coverage_truth?.missing.some((entry) => entry.includes("Valuation")));
+  assert.ok(report.coverage_truth?.missing.some((entry) => entry.includes("Annual history is insufficient")));
+  assert.ok(report.coverage_truth?.missing.some((entry) => entry.includes("Value signal unavailable")));
   assert.ok(report.explainers?.omissions.includes("Valuation"));
 });
 
