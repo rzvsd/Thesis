@@ -233,6 +233,47 @@ export interface CoverageTruthBlock {
   missing: string[];
 }
 
+export type InvestmentMemoSectionId =
+  | "investment_thesis"
+  | "what_changed"
+  | "business_quality"
+  | "valuation"
+  | "risks";
+
+export interface InvestmentMemoSection {
+  section_id: InvestmentMemoSectionId;
+  title: string;
+  narrative: string;
+  key_points: string[];
+}
+
+export type MemoClaimSupportType = "metric" | "evidence" | "omission";
+
+export interface MemoClaimSupportRef {
+  support_type: MemoClaimSupportType;
+  ref_id: string;
+  summary: string;
+}
+
+export interface InvestmentMemoClaim {
+  claim_id: string;
+  section_id: InvestmentMemoSectionId;
+  statement: string;
+  materiality: "material" | "context";
+  supports: MemoClaimSupportRef[];
+}
+
+export interface InvestmentMemoBlock {
+  prompt_version: string;
+  generation_mode: "deterministic_fixture" | "live_prompt" | "fallback";
+  company_angle: string;
+  decision_question: string;
+  sections: InvestmentMemoSection[];
+  material_claims: InvestmentMemoClaim[];
+  unsupported_claims: string[];
+  sparse_data_honesty_note: string;
+}
+
 export type FinancialMetricUnit = "currency" | "pct" | "ratio" | "count";
 export type FinancialMetricDirection =
   | "improving"
@@ -346,6 +387,7 @@ export interface AnalysisReport {
   explainers?: DeepDiveExplainers;
   watch_items?: string[];
   coverage_truth?: CoverageTruthBlock;
+  investment_memo?: InvestmentMemoBlock;
   financial_analysis?: FinancialAnalysisBlock;
   value_discipline?: ValueDisciplineBlock;
   sections: ReportSection[];
@@ -713,6 +755,102 @@ export const analysisReportSchema = {
           type: "array",
           items: { type: "string" }
         }
+      }
+    },
+    investment_memo: {
+      type: "object",
+      additionalProperties: false,
+      required: [
+        "prompt_version",
+        "generation_mode",
+        "company_angle",
+        "decision_question",
+        "sections",
+        "material_claims",
+        "unsupported_claims",
+        "sparse_data_honesty_note"
+      ],
+      properties: {
+        prompt_version: { type: "string" },
+        generation_mode: {
+          type: "string",
+          enum: ["deterministic_fixture", "live_prompt", "fallback"]
+        },
+        company_angle: { type: "string" },
+        decision_question: { type: "string" },
+        sections: {
+          type: "array",
+          items: {
+            type: "object",
+            additionalProperties: false,
+            required: ["section_id", "title", "narrative", "key_points"],
+            properties: {
+              section_id: {
+                type: "string",
+                enum: [
+                  "investment_thesis",
+                  "what_changed",
+                  "business_quality",
+                  "valuation",
+                  "risks"
+                ]
+              },
+              title: { type: "string" },
+              narrative: { type: "string" },
+              key_points: {
+                type: "array",
+                items: { type: "string" }
+              }
+            }
+          }
+        },
+        material_claims: {
+          type: "array",
+          items: {
+            type: "object",
+            additionalProperties: false,
+            required: ["claim_id", "section_id", "statement", "materiality", "supports"],
+            properties: {
+              claim_id: { type: "string" },
+              section_id: {
+                type: "string",
+                enum: [
+                  "investment_thesis",
+                  "what_changed",
+                  "business_quality",
+                  "valuation",
+                  "risks"
+                ]
+              },
+              statement: { type: "string" },
+              materiality: {
+                type: "string",
+                enum: ["material", "context"]
+              },
+              supports: {
+                type: "array",
+                items: {
+                  type: "object",
+                  additionalProperties: false,
+                  required: ["support_type", "ref_id", "summary"],
+                  properties: {
+                    support_type: {
+                      type: "string",
+                      enum: ["metric", "evidence", "omission"]
+                    },
+                    ref_id: { type: "string" },
+                    summary: { type: "string" }
+                  }
+                }
+              }
+            }
+          }
+        },
+        unsupported_claims: {
+          type: "array",
+          items: { type: "string" }
+        },
+        sparse_data_honesty_note: { type: "string" }
       }
     },
     financial_analysis: {

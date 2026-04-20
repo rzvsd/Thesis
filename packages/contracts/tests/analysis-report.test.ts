@@ -197,6 +197,66 @@ function fullReportFixture(): AnalysisReport {
       ],
       missing: []
     },
+    investment_memo: {
+      prompt_version: "m4-synthesizer-fixture-v1",
+      generation_mode: "deterministic_fixture",
+      company_angle: "installed-base monetization and ecosystem pricing power",
+      decision_question:
+        "Does AAPL still justify confidence on installed-base monetization and ecosystem pricing power?",
+      sections: [
+        {
+          section_id: "investment_thesis",
+          title: "Investment Thesis",
+          narrative: "AAPL remains a constructive thesis with explicit valuation discipline.",
+          key_points: [
+            "Signal is neutral with stable quality.",
+            "Confidence depends on durable cash conversion."
+          ]
+        },
+        {
+          section_id: "what_changed",
+          title: "What Changed",
+          narrative: "Recent quarters improved cash conversion and margin stability.",
+          key_points: ["Revenue improved versus baseline."]
+        },
+        {
+          section_id: "business_quality",
+          title: "Business Quality",
+          narrative: "Quality is anchored on pricing power and recurring ecosystem demand.",
+          key_points: ["Business quality remains durable."]
+        },
+        {
+          section_id: "valuation",
+          title: "Valuation",
+          narrative: "Valuation range remains explicit and assumption-led.",
+          key_points: ["Valuation is deterministic."]
+        },
+        {
+          section_id: "risks",
+          title: "Risks",
+          narrative: "Primary risks are omission visibility and multiple compression.",
+          key_points: ["Missing-data controls remain explicit."]
+        }
+      ],
+      material_claims: [
+        {
+          claim_id: "claim-thesis-direction",
+          section_id: "investment_thesis",
+          statement: "AAPL remains a constructive thesis with explicit valuation discipline.",
+          materiality: "material",
+          supports: [
+            {
+              support_type: "metric",
+              ref_id: "qoq:revenue",
+              summary: "Revenue moved up quarter-over-quarter."
+            }
+          ]
+        }
+      ],
+      unsupported_claims: [],
+      sparse_data_honesty_note:
+        "Sparse-data handling is inactive for this fixture because core inputs are present."
+    },
     financial_analysis: {
       annual_history: [
         {
@@ -519,4 +579,35 @@ test("M3 contract rejects invalid value-discipline signal status", () => {
 
   const errors = schemaErrors(invalid);
   assert.ok(errors.some((entry) => entry.includes("value_discipline.signals[0].status")));
+});
+
+test("M4 contract rejects invalid investment-memo support type", () => {
+  const base = fullReportFixture();
+  const baseMemo = (base.investment_memo as Record<string, unknown> | undefined) ?? {};
+  const invalid = {
+    ...base,
+    investment_memo: {
+      ...baseMemo,
+      material_claims: [
+        {
+          claim_id: "claim-1",
+          section_id: "investment_thesis",
+          statement: "Invalid support type claim.",
+          materiality: "material",
+          supports: [
+            {
+              support_type: "invalid_support",
+              ref_id: "x",
+              summary: "bad"
+            }
+          ]
+        }
+      ]
+    }
+  } as unknown as AnalysisReport;
+
+  const errors = schemaErrors(invalid);
+  assert.ok(errors.some((entry) =>
+    entry.includes("investment_memo.material_claims[0].supports[0].support_type")
+  ));
 });

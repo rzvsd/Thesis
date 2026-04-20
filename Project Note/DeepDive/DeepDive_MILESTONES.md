@@ -225,14 +225,14 @@ Upgrade Dexter from section assembly to evidence-backed investment memo writing.
 
 ## Acceptance Criteria
 
-- [ ] Memo opens with a specific investment argument
-- [ ] Writing references computed facts instead of generic phrasing
-- [ ] Material claims map to evidence or computed metrics
-- [ ] Sparse data output is honest and useful
-- [ ] LangSmith prompt registration is complete or explicitly TBD with local prompt proof
-- [ ] Memo sections follow the writing template in `DEEPDIVE_REPORT_TEMPLATE.md`
-- [ ] Snapshot tests fail generic company-agnostic prose
-- [ ] Claim-to-evidence mapping is captured for material claims
+- [x] Memo opens with a specific investment argument
+- [x] Writing references computed facts instead of generic phrasing
+- [x] Material claims map to evidence or computed metrics
+- [x] Sparse data output is honest and useful
+- [x] LangSmith prompt registration is complete or explicitly TBD with local prompt proof
+- [x] Memo sections follow the writing template in `DEEPDIVE_REPORT_TEMPLATE.md`
+- [x] Snapshot tests fail generic company-agnostic prose
+- [x] Claim-to-evidence mapping is captured for material claims
 
 ## Smoke Test
 

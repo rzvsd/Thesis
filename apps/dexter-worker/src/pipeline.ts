@@ -11,6 +11,7 @@ import type {
   DeepDiveExplainers,
   DeepDiveVisualPanel,
   EvidenceItem,
+  InvestmentMemoBlock,
   KillSwitchConditionDraft,
   NameRelationshipDraft,
   ReportSection,
@@ -639,6 +640,255 @@ function buildExplainers(args: {
   };
 }
 
+function companyAngleForTicker(ticker: string): string {
+  switch (ticker.trim().toUpperCase()) {
+    case "AAPL":
+      return "installed-base monetization and ecosystem pricing power";
+    case "MSFT":
+      return "enterprise cloud, productivity bundling, and AI monetization discipline";
+    case "TSLA":
+      return "volume growth durability versus margin pressure in auto and energy scale-up";
+    default:
+      return "execution quality, cash conversion, and valuation discipline";
+  }
+}
+
+function extractComparisonLine(args: {
+  context: M2SectionContext;
+  metric: "revenue" | "operating_margin" | "free_cash_flow";
+  basis: "qoq" | "yoy";
+}): {
+  line: string;
+  refId: string;
+  available: boolean;
+  direction?: "up" | "down" | "flat" | "unavailable";
+  deltaPct?: number;
+} {
+  const comparisons = buildComparisons({
+    latest: args.context.latest,
+    priorQuarter: args.context.priorQuarter,
+    yearAgo: args.context.yearAgo
+  });
+  const source = args.basis === "qoq" ? comparisons.qoq : comparisons.yoy;
+  const metric = source.find((entry) => entry.metric === args.metric);
+
+  if (!metric || metric.direction === "unavailable") {
+    return {
+      line: `${humanizeMetric(args.metric)} ${args.basis.toUpperCase()} comparison is unavailable from current inputs.`,
+      refId: `${args.basis}:${args.metric}`,
+      available: false
+    };
+  }
+
+  return {
+    line: `${humanizeMetric(args.metric)} moved ${metric.direction} (${formatPercent(metric.percent_change)} ${args.basis.toUpperCase()}) at ${formatMetricDelta(metric.current, metric.reference)}.`,
+    refId: `${args.basis}:${args.metric}`,
+    available: true,
+    direction: metric.direction,
+    deltaPct: metric.percent_change
+  };
+}
+
+function buildInvestmentMemo(args: {
+  ticker: string;
+  signalValue: SignalValue;
+  confidence: ConfidenceBlock;
+  trustMetadata: TrustMetadata;
+  context: M2SectionContext;
+  valuation?: ValuationBlock;
+  valueDiscipline: NonNullable<AnalysisReport["value_discipline"]>;
+  financialAnalysis: NonNullable<AnalysisReport["financial_analysis"]>;
+  signalEvidence: EvidenceItem[];
+  promptVersion: string;
+  fixtureMode: boolean;
+}): InvestmentMemoBlock {
+  const ticker = args.ticker.trim().toUpperCase();
+  const companyAngle = companyAngleForTicker(ticker);
+  const revenueQoq = extractComparisonLine({
+    context: args.context,
+    metric: "revenue",
+    basis: "qoq"
+  });
+  const marginQoq = extractComparisonLine({
+    context: args.context,
+    metric: "operating_margin",
+    basis: "qoq"
+  });
+  const fcfYoy = extractComparisonLine({
+    context: args.context,
+    metric: "free_cash_flow",
+    basis: "yoy"
+  });
+  const missingSummary = args.trustMetadata.missing_data_notes.length > 0
+    ? args.trustMetadata.missing_data_notes.join(" ")
+    : "No major omission note is currently flagged.";
+  const valuationSummary = args.valuation?.degraded_reason
+    ? `Valuation is degraded because ${args.valuation.degraded_reason}.`
+    : args.valuation?.fair_value_mid !== undefined
+      ? `Deterministic valuation is centered near ${formatNumber(args.valuation.fair_value_mid)} with explicit scenario bounds.`
+      : "Valuation is currently omission-forward because deterministic assumptions are incomplete.";
+  const decisionQuestion = `Does ${ticker} still justify confidence on ${companyAngle}, or did the latest evidence shift the thesis into watch mode?`;
+  const openingArgument = args.signalValue === "positive"
+    ? `${ticker} keeps a constructive thesis because ${companyAngle} is still translating into measurable operating outcomes.`
+    : args.signalValue === "negative"
+      ? `${ticker} now reads defensively because recent evidence weakens the prior thesis on ${companyAngle}.`
+      : args.signalValue === "neutral"
+        ? `${ticker} remains balanced: the thesis on ${companyAngle} is intact, but the latest evidence does not justify a stronger directional call.`
+        : `${ticker} is currently a watch-case because evidence quality is not yet strong enough to support a directional thesis on ${companyAngle}.`;
+
+  const sections: InvestmentMemoBlock["sections"] = [
+    {
+      section_id: "investment_thesis",
+      title: "Investment Thesis",
+      narrative: `${openingArgument} Confidence is ${args.confidence.label} (${Math.round(args.confidence.score * 100)}/100), and the decision still depends on whether execution remains durable through the next filing cycle.`,
+      key_points: [
+        `Decision question: ${decisionQuestion}`,
+        `Current signal: ${args.signalValue}`,
+        `Confidence limiter: ${args.confidence.limiting_factors[0] ?? "No single dominant limiter flagged."}`
+      ]
+    },
+    {
+      section_id: "what_changed",
+      title: "What Changed",
+      narrative: `${revenueQoq.line} ${marginQoq.line} Thesis drift status is ${args.trustMetadata.thesis_drift.status}: ${args.trustMetadata.thesis_drift.summary}`,
+      key_points: [
+        revenueQoq.line,
+        marginQoq.line,
+        `Thesis drift: ${args.trustMetadata.thesis_drift.summary}`
+      ]
+    },
+    {
+      section_id: "business_quality",
+      title: "Business Quality",
+      narrative: `${ticker}'s quality lens is anchored on ${companyAngle}. ${fcfYoy.line} Value-discipline context is ${args.valueDiscipline.context_label} with score ${args.valueDiscipline.score}/${args.valueDiscipline.max_score}.`,
+      key_points: [
+        `Quality angle: ${companyAngle}`,
+        fcfYoy.line,
+        `Value context: ${args.valueDiscipline.context_label}`
+      ]
+    },
+    {
+      section_id: "valuation",
+      title: "Valuation",
+      narrative: valuationSummary,
+      key_points: [
+        args.valuation?.fair_value_mid !== undefined
+          ? `Fair-value midpoint: ${formatNumber(args.valuation.fair_value_mid)}`
+          : "Fair-value midpoint unavailable.",
+        args.valuation?.implied_upside_pct !== undefined
+          ? `Implied upside: ${formatPercent(args.valuation.implied_upside_pct)}`
+          : "Implied upside unavailable.",
+        args.valuation?.degraded_reason
+          ? `Degraded reason: ${args.valuation.degraded_reason}`
+          : "Deterministic assumptions are available."
+      ]
+    },
+    {
+      section_id: "risks",
+      title: "Risks",
+      narrative: args.valueDiscipline.value_trap_warning.triggered
+        ? `${args.valueDiscipline.value_trap_warning.summary} ${missingSummary}`
+        : `Primary risk controls remain evidence freshness and omission visibility. ${missingSummary}`,
+      key_points: [
+        args.valueDiscipline.value_trap_warning.summary,
+        `Freshness state: ${args.trustMetadata.freshness_state}`,
+        `Missing-data note: ${args.trustMetadata.missing_data_notes[0] ?? "No major missing-data note."}`
+      ]
+    }
+  ];
+
+  const evidenceSupport = args.signalEvidence[0];
+  const materialClaims: InvestmentMemoBlock["material_claims"] = [
+    {
+      claim_id: "claim-thesis-direction",
+      section_id: "investment_thesis",
+      statement: openingArgument,
+      materiality: "material",
+      supports: revenueQoq.available
+        ? [
+            {
+              support_type: "metric",
+              ref_id: revenueQoq.refId,
+              summary: revenueQoq.line
+            }
+          ]
+        : evidenceSupport
+          ? [
+              {
+                support_type: "evidence",
+                ref_id: evidenceSupport.evidence_id,
+                summary: summarizeText(evidenceSupport.excerpt, 120)
+              }
+            ]
+          : [
+              {
+                support_type: "omission",
+                ref_id: "trust:missing_data_notes",
+                summary: args.trustMetadata.missing_data_notes[0] ?? "Evidence depth is currently constrained."
+              }
+            ]
+    },
+    {
+      claim_id: "claim-valuation-range",
+      section_id: "valuation",
+      statement: valuationSummary,
+      materiality: "material",
+      supports: args.valuation?.fair_value_mid !== undefined
+        ? [
+            {
+              support_type: "metric",
+              ref_id: "valuation:fair_value_mid",
+              summary: `Fair-value midpoint ${formatNumber(args.valuation.fair_value_mid)}.`
+            }
+          ]
+        : [
+            {
+              support_type: "omission",
+              ref_id: "valuation:degraded_reason",
+              summary: args.valuation?.degraded_reason ?? "Valuation inputs are insufficient."
+            }
+          ]
+    },
+    {
+      claim_id: "claim-risk-controls",
+      section_id: "risks",
+      statement: sections.find((section) => section.section_id === "risks")?.narrative ??
+        "Risk controls require explicit omission handling.",
+      materiality: "material",
+      supports: args.trustMetadata.missing_data_notes.length > 0
+        ? [
+            {
+              support_type: "omission",
+              ref_id: "trust:missing_data_notes",
+              summary: args.trustMetadata.missing_data_notes[0] ?? "Missing-data note available."
+            }
+          ]
+        : [
+            {
+              support_type: "metric",
+              ref_id: "value_discipline:score",
+              summary: `Value-discipline score ${args.valueDiscipline.score}/${args.valueDiscipline.max_score}.`
+            }
+          ]
+    }
+  ];
+
+  const sparseDataHonestyNote = args.financialAnalysis.omissions.length > 0
+    ? `Sparse-data handling is active: ${args.financialAnalysis.omissions[0]?.reason ?? "financial inputs are incomplete."}`
+    : "Sparse-data handling is inactive for this report because core financial inputs are present.";
+
+  return {
+    prompt_version: args.promptVersion,
+    generation_mode: args.fixtureMode ? "deterministic_fixture" : "fallback",
+    company_angle: companyAngle,
+    decision_question: decisionQuestion,
+    sections,
+    material_claims: materialClaims,
+    unsupported_claims: [],
+    sparse_data_honesty_note: sparseDataHonestyNote
+  };
+}
+
 function buildCoverageTruth(args: {
   context: M2SectionContext;
   trustMetadata: TrustMetadata;
@@ -792,13 +1042,17 @@ function collectSignalEvidence(sections: ReportSection[]): EvidenceItem[] {
 function buildExecutiveSummary(
   ticker: string,
   sections: ReportSection[],
-  signalValue: SignalValue
+  signalValue: SignalValue,
+  investmentMemo?: InvestmentMemoBlock
 ): ReportSection {
   const completeCount = sections.filter((section) => section.status === "complete").length;
   const degradedCount = sections.length - completeCount;
+  const memoOpening = investmentMemo?.sections.find(
+    (section) => section.section_id === "investment_thesis"
+  )?.narrative;
   const body = degradedCount === 0
-    ? `${ticker} completed the deep-dive path with all primary sections available. The current research signal is ${signalValue}. ${canonicalDisclaimer}`
-    : `${ticker} completed the deep-dive path with ${degradedCount} degraded section(s). The current research signal is ${signalValue}, and the report explicitly notes every gap instead of filling it with assumptions. ${canonicalDisclaimer}`;
+    ? `${memoOpening ?? `${ticker} completed the deep-dive path with all primary sections available.`} The current research signal is ${signalValue}. ${canonicalDisclaimer}`
+    : `${memoOpening ?? `${ticker} completed the deep-dive path with ${degradedCount} degraded section(s).`} The current research signal is ${signalValue}, and the report explicitly notes every gap instead of filling it with assumptions. ${canonicalDisclaimer}`;
 
   return {
     section_id: "executive_summary",
@@ -2434,7 +2688,7 @@ export async function runAnalysisPipeline(
   ].filter((section) =>
     selectedDefinitions.some((definition) => definition.id === section.section_id)
   );
-  const orderedSections = orderSections([...executedSections, ...derivedSections]);
+  const orderedSectionsInitial = orderSections([...executedSections, ...derivedSections]);
 
   const traceMode: "mock" | "live" | "disabled" = config.fixtureMode
     ? "mock"
@@ -2465,12 +2719,34 @@ export async function runAnalysisPipeline(
   const trustMetadata = buildTrustMetadata({
     generatedAt,
     context: m2Context,
-    sections: orderedSections,
+    sections: orderedSectionsInitial,
     signal,
     confidence,
     valuation: valuationSection.valuation,
     thesisStatement
   });
+  const investmentMemo = buildInvestmentMemo({
+    ticker,
+    signalValue: signal.value,
+    confidence,
+    trustMetadata,
+    context: m2Context,
+    valuation: valuationSection.valuation,
+    valueDiscipline,
+    financialAnalysis,
+    signalEvidence: signal.evidence,
+    promptVersion: prompts.synthesizer.version,
+    fixtureMode: config.fixtureMode
+  });
+  const executiveSummarySection = buildExecutiveSummary(
+    ticker,
+    executedSections,
+    signal.value,
+    investmentMemo
+  );
+  const orderedSections = orderedSectionsInitial.map((section) =>
+    section.section_id === "executive_summary" ? executiveSummarySection : section
+  );
   const killSwitchExtraction = await extractKillSwitchConditions({
     request,
     config,
@@ -2551,6 +2827,7 @@ export async function runAnalysisPipeline(
     explainers,
     watch_items: watchItems,
     coverage_truth: coverageTruth,
+    investment_memo: investmentMemo,
     financial_analysis: financialAnalysis,
     value_discipline: valueDiscipline,
     sections: orderedSections,
@@ -2575,6 +2852,14 @@ export async function runAnalysisPipeline(
     completeness: valueDiscipline.completeness,
     context_label: valueDiscipline.context_label,
     value_trap_warning: valueDiscipline.value_trap_warning.triggered
+  });
+  logInfo("Investment memo authored", {
+    job_id: request.job_id,
+    ticker,
+    prompt_version: investmentMemo.prompt_version,
+    generation_mode: investmentMemo.generation_mode,
+    section_count: investmentMemo.sections.length,
+    material_claim_count: investmentMemo.material_claims.length
   });
   if (trustMetadata.thesis_drift.status === "unavailable") {
     logWarn("Thesis-drift summary unavailable", {

@@ -492,6 +492,130 @@ function validateCoverageTruth(value: unknown, path: string, errors: string[]): 
   }
 }
 
+function validateInvestmentMemo(value: unknown, path: string, errors: string[]): void {
+  if (!isObject(value)) {
+    errors.push(`${path} must be an object`);
+    return;
+  }
+  if (typeof value.prompt_version !== "string" || value.prompt_version.trim().length === 0) {
+    errors.push(`${path}.prompt_version must be a non-empty string`);
+  }
+  if (
+    !["deterministic_fixture", "live_prompt", "fallback"].includes(
+      String(value.generation_mode)
+    )
+  ) {
+    errors.push(`${path}.generation_mode must be valid`);
+  }
+  if (typeof value.company_angle !== "string" || value.company_angle.trim().length === 0) {
+    errors.push(`${path}.company_angle must be a non-empty string`);
+  }
+  if (
+    typeof value.decision_question !== "string" ||
+    value.decision_question.trim().length === 0
+  ) {
+    errors.push(`${path}.decision_question must be a non-empty string`);
+  }
+  if (
+    typeof value.sparse_data_honesty_note !== "string" ||
+    value.sparse_data_honesty_note.trim().length === 0
+  ) {
+    errors.push(`${path}.sparse_data_honesty_note must be a non-empty string`);
+  }
+  if (!isStringArray(value.unsupported_claims)) {
+    errors.push(`${path}.unsupported_claims must be an array of strings`);
+  }
+
+  if (!Array.isArray(value.sections) || value.sections.length === 0) {
+    errors.push(`${path}.sections must be a non-empty array`);
+  } else {
+    value.sections.forEach((entry, index) => {
+      if (!isObject(entry)) {
+        errors.push(`${path}.sections[${index}] must be an object`);
+        return;
+      }
+      if (
+        ![
+          "investment_thesis",
+          "what_changed",
+          "business_quality",
+          "valuation",
+          "risks"
+        ].includes(String(entry.section_id))
+      ) {
+        errors.push(`${path}.sections[${index}].section_id must be valid`);
+      }
+      if (typeof entry.title !== "string" || entry.title.trim().length === 0) {
+        errors.push(`${path}.sections[${index}].title must be a non-empty string`);
+      }
+      if (typeof entry.narrative !== "string" || entry.narrative.trim().length === 0) {
+        errors.push(`${path}.sections[${index}].narrative must be a non-empty string`);
+      }
+      if (!isStringArray(entry.key_points)) {
+        errors.push(`${path}.sections[${index}].key_points must be an array of strings`);
+      }
+    });
+  }
+
+  if (!Array.isArray(value.material_claims)) {
+    errors.push(`${path}.material_claims must be an array`);
+  } else {
+    value.material_claims.forEach((entry, index) => {
+      if (!isObject(entry)) {
+        errors.push(`${path}.material_claims[${index}] must be an object`);
+        return;
+      }
+      if (typeof entry.claim_id !== "string" || entry.claim_id.trim().length === 0) {
+        errors.push(`${path}.material_claims[${index}].claim_id must be a non-empty string`);
+      }
+      if (
+        ![
+          "investment_thesis",
+          "what_changed",
+          "business_quality",
+          "valuation",
+          "risks"
+        ].includes(String(entry.section_id))
+      ) {
+        errors.push(`${path}.material_claims[${index}].section_id must be valid`);
+      }
+      if (typeof entry.statement !== "string" || entry.statement.trim().length === 0) {
+        errors.push(`${path}.material_claims[${index}].statement must be a non-empty string`);
+      }
+      if (!["material", "context"].includes(String(entry.materiality))) {
+        errors.push(`${path}.material_claims[${index}].materiality must be valid`);
+      }
+      if (!Array.isArray(entry.supports) || entry.supports.length === 0) {
+        errors.push(`${path}.material_claims[${index}].supports must be a non-empty array`);
+        return;
+      }
+      entry.supports.forEach((support, supportIndex) => {
+        if (!isObject(support)) {
+          errors.push(
+            `${path}.material_claims[${index}].supports[${supportIndex}] must be an object`
+          );
+          return;
+        }
+        if (!["metric", "evidence", "omission"].includes(String(support.support_type))) {
+          errors.push(
+            `${path}.material_claims[${index}].supports[${supportIndex}].support_type must be valid`
+          );
+        }
+        if (typeof support.ref_id !== "string" || support.ref_id.trim().length === 0) {
+          errors.push(
+            `${path}.material_claims[${index}].supports[${supportIndex}].ref_id must be a non-empty string`
+          );
+        }
+        if (typeof support.summary !== "string" || support.summary.trim().length === 0) {
+          errors.push(
+            `${path}.material_claims[${index}].supports[${supportIndex}].summary must be a non-empty string`
+          );
+        }
+      });
+    });
+  }
+}
+
 function validateFinancialHistoryRow(value: unknown, path: string, errors: string[]): void {
   if (!isObject(value)) {
     errors.push(`${path} must be an object`);
@@ -884,6 +1008,9 @@ export function validateIncomingAnalysisReport(report: unknown): string[] {
 
   if (report.coverage_truth !== undefined) {
     validateCoverageTruth(report.coverage_truth, "coverage_truth", errors);
+  }
+  if (report.investment_memo !== undefined) {
+    validateInvestmentMemo(report.investment_memo, "investment_memo", errors);
   }
   if (report.financial_analysis !== undefined) {
     validateFinancialAnalysis(report.financial_analysis, "financial_analysis", errors);

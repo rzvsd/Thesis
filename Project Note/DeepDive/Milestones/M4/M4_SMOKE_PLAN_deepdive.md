@@ -1,7 +1,7 @@
 # M4 Smoke Plan - Research Authoring Engine
 
 **Milestone:** M4 - Research Authoring Engine
-**Status:** Pending
+**Status:** Passed (2026-04-20)
 
 ---
 
@@ -31,10 +31,10 @@
 
 | Step | Result | Evidence | Notes |
 |---|---|---|---|
-| 1 | Pending | TBD |  |
-| 2 | Pending | TBD |  |
-| 3 | Pending | TBD |  |
-| 4 | Pending | TBD |  |
-| 5 | Pending | TBD |  |
-| 6 | Pending | TBD |  |
-| 7 | Pending | TBD |  |
+| 1 | Passed | `evidence/2026-04-20_m4-research-authoring-proof.md` | AAPL fixture report generated and validated through dexter tests |
+| 2 | Passed | `evidence/2026-04-20_m4-research-authoring-proof.md` | MSFT fixture report generated and validated through dexter tests |
+| 3 | Passed | `evidence/2026-04-20_m4-research-authoring-proof.md` | TSLA fixture report generated and validated through dexter tests |
+| 4 | Passed | `evidence/2026-04-20_m4-research-authoring-proof.md` | Sparse `LIMITED` fixture verified omission-forward narrative |
+| 5 | Passed | `evidence/2026-04-20_m4-research-authoring-proof.md` | Memos open with ticker-specific investment argument |
+| 6 | Passed | `evidence/2026-04-20_m4-research-authoring-proof.md` | Material claims carry `metric`/`evidence`/`omission` support refs |
+| 7 | Passed | `evidence/2026-04-20_m4-research-authoring-proof.md` | New M4 tests reject generic cross-ticker memo cloning behavior |

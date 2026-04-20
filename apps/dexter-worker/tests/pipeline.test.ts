@@ -57,6 +57,12 @@ test("MSFT fixture request produces a schema-valid report with no blank sections
   assert.ok((report.value_discipline?.signals.length ?? 0) >= 1);
   assert.ok((report.value_discipline?.available_signals ?? 0) >= 1);
   assert.ok((report.value_discipline?.does_not_prove.length ?? 0) > 20);
+  assert.ok(report.investment_memo);
+  assert.equal(report.investment_memo?.prompt_version, "m4-synthesizer-fixture-v1");
+  assert.equal(report.investment_memo?.generation_mode, "deterministic_fixture");
+  assert.equal(report.investment_memo?.sections.length, 5);
+  assert.ok((report.investment_memo?.material_claims.length ?? 0) >= 1);
+  assert.equal(report.investment_memo?.unsupported_claims.length, 0);
   assert.equal(findSection(report.sections, "what_changed").status, "complete");
   assert.ok(["complete", "data_incomplete", "data_unavailable"].includes(
     findSection(report.sections, "value_discipline").status
@@ -98,6 +104,12 @@ test("LIMITED fixture request degrades affected sections honestly", async () => 
   assert.equal(report.value_discipline?.context_label, "sparse_data");
   assert.ok((report.value_discipline?.missing_signals.length ?? 0) > 0);
   assert.notEqual(report.value_discipline?.completeness, "complete");
+  assert.ok(
+    report.investment_memo?.material_claims.some((claim) =>
+      claim.supports.some((support) => support.support_type === "omission")
+    )
+  );
+  assert.ok(report.investment_memo?.sparse_data_honesty_note.includes("Sparse-data handling"));
   assert.ok(report.coverage_truth?.missing.some((entry) => entry.includes("Valuation")));
   assert.ok(report.coverage_truth?.missing.some((entry) => entry.includes("Annual history is insufficient")));
   assert.ok(report.coverage_truth?.missing.some((entry) => entry.includes("Value signal unavailable")));
@@ -172,7 +184,7 @@ test("fixture mode loads prompts from the local manifest", async () => {
 
   assert.equal(prompts.planner.version, "m2-planner-fixture-v1");
   assert.equal(prompts.sectionExecutor.version, "m2-section-fixture-v1");
-  assert.equal(prompts.synthesizer.version, "m2-synthesizer-fixture-v1");
+  assert.equal(prompts.synthesizer.version, "m4-synthesizer-fixture-v1");
   assert.equal(prompts.killSwitchExtractor.version, "m5-kill-switch-fixture-v1");
   assert.equal(prompts.relationshipExtractor.version, "m5-relationship-fixture-v1");
 });
