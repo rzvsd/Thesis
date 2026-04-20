@@ -328,7 +328,6 @@ private fun DeepDiveReportState(
 ) {
     val ticker = report.ticker ?: "Ticker"
     val isWatched = report.ticker != null && watchlist.contains(report.ticker)
-    val highlights = deriveHighlights(report)
     val context = LocalContext.current
     val isPro = userTier.equals("PRO", ignoreCase = true)
 
@@ -348,70 +347,18 @@ private fun DeepDiveReportState(
             verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingXxl)
         ) {
             item {
-                HeaderSection(
-                    ticker = ticker,
-                    isWatched = isWatched,
-                    schemaVersion = report.schemaVersion,
-                    isLegacy = report.isLegacy
-                )
+                DeepDiveStoryHeaderCard(report = report, isWatched = isWatched)
             }
 
-            report.trustMetadata?.let { trust ->
-                item {
-                    TrustOverviewSection(trust = trust)
-                }
-            }
+            item { DeepDiveReadThisFirst(report = report) }
 
-            report.thesisStatement?.takeIf { it.isNotBlank() }?.let { thesis ->
-                item {
-                    SummarySection(
-                        title = "Thesis Statement",
-                        icon = Icons.Default.PushPin,
-                        iconColor = ThesisColors.AccentBlue,
-                        content = thesis
-                    )
-                }
-            }
+            item { DeepDiveSeeTheStory(report = report) }
 
-            item { SignalBlockSection(report = report) }
-
-            item { ResearchSnapshotCard(report = report) }
-
-            item {
-                DeepDiveConvictionSection(
-                    isPro = isPro,
-                    timeline = convictionTimeline,
-                    timelineError = convictionTimelineError,
-                    oppositeCase = oppositeCase,
-                    oppositeCaseError = oppositeCaseError,
-                    isGeneratingOppositeCase = isGeneratingOppositeCase,
-                    onGenerateOppositeCase = onGenerateOppositeCase,
-                    onRefreshTimeline = onRefreshConvictionTimeline,
-                    onRequireUpgrade = onRequireUpgrade
-                )
-            }
-
-            items(highlights.size) { index ->
-                val highlight = highlights[index]
-                SummarySection(
-                    title = highlight.title,
-                    icon = highlight.icon,
-                    iconColor = highlight.iconColor,
-                    content = highlight.content,
-                    isCaution = highlight.isCaution
-                )
-            }
+            item { DeepDiveUnderstandIt(report = report) }
 
             if (report.sections.isNotEmpty()) {
                 item {
-                    Text(
-                        text = "Deep Dive Modules",
-                        style = ThesisTypography.headlineLarge.copy(
-                            fontFamily = HeadingFont,
-                            fontWeight = FontWeight.Normal
-                        ),
-                        color = ThesisColors.TextPrimary
-                    )
+                    DeepDiveProofHeading()
                 }
             }
 
@@ -445,6 +392,20 @@ private fun DeepDiveReportState(
                         }
                     },
                     modifier = Modifier.padding(bottom = ThesisDimens.SpacingSm)
+                )
+            }
+
+            item {
+                DeepDiveConvictionSection(
+                    isPro = isPro,
+                    timeline = convictionTimeline,
+                    timelineError = convictionTimelineError,
+                    oppositeCase = oppositeCase,
+                    oppositeCaseError = oppositeCaseError,
+                    isGeneratingOppositeCase = isGeneratingOppositeCase,
+                    onGenerateOppositeCase = onGenerateOppositeCase,
+                    onRefreshTimeline = onRefreshConvictionTimeline,
+                    onRequireUpgrade = onRequireUpgrade
                 )
             }
 

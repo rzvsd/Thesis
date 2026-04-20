@@ -71,6 +71,20 @@ test("M5 fixture report matches the PRD surface-A section split", async () => {
 
   assert.ok(report.signal, "expected a signal block on the report");
   assert.notEqual(report.signal?.value, "no_signal");
+  assert.ok(report.story_header, "expected a story-first Deep Report header");
+  assert.ok(report.story_header?.headline.includes("MSFT"));
+  assert.ok(report.change_summary, "expected an explicit what-changed summary");
+  assert.ok((report.change_summary?.top_changes.length ?? 0) >= 1);
+  assert.ok(
+    report.visual_panels?.some((panel) => panel.type === "trust_scorecard"),
+    "expected a trust scorecard visual panel"
+  );
+  assert.ok(
+    report.visual_panels?.some((panel) => panel.type === "evidence_ladder"),
+    "expected an evidence ladder visual panel"
+  );
+  assert.ok(report.explainers?.confidence.includes("Confidence"));
+  assert.ok(report.coverage_truth?.summary.includes("missing"));
   assert.ok((report.signal?.evidence.length ?? 0) >= 2);
   assert.ok(report.signal?.evidence.every((item) => item.source_name.trim().length > 0));
   assert.ok((report.kill_switch_conditions?.length ?? 0) >= 3);
@@ -102,6 +116,8 @@ test("M5 limited fixture report downgrades to no_signal with explicit reasons", 
   assert.equal(report.signal?.value, "no_signal");
   assert.ok((report.signal?.reasons.length ?? 0) >= 1);
   assert.ok(report.flags.includes("signal_insufficient_data"));
+  assert.equal(report.story_header?.stance_label, "watch");
+  assert.ok(report.explainers?.signal.includes("watch"));
   assertContainsDisclaimer(report);
 });
 

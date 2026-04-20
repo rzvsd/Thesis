@@ -1,15 +1,28 @@
 package com.thesis.mobile.offline
 
 import com.thesis.mobile.model.ConfidenceDisplayView
+import com.thesis.mobile.model.DeepDiveChangeSummaryView
+import com.thesis.mobile.model.DeepDiveCoverageTruthView
+import com.thesis.mobile.model.DeepDiveExplainersView
 import com.thesis.mobile.model.DeepDiveReportView
+import com.thesis.mobile.model.DeepDiveStoryHeaderView
+import com.thesis.mobile.model.DeepDiveTopChangeView
+import com.thesis.mobile.model.DeepDiveVisualPanelView
 import com.thesis.mobile.model.EvidenceView
+import com.thesis.mobile.model.EvidenceLadderPanelView
 import com.thesis.mobile.model.HistoricalDisplayView
+import com.thesis.mobile.model.MetricDeltaPanelView
 import com.thesis.mobile.model.PulseReportView
+import com.thesis.mobile.model.RangeBandPanelView
 import com.thesis.mobile.model.ReportViewMapper
 import com.thesis.mobile.model.SectionView
 import com.thesis.mobile.model.SentimentSnapshotView
 import com.thesis.mobile.model.SentimentSubScoreView
+import com.thesis.mobile.model.ScenarioComparePanelView
+import com.thesis.mobile.model.TimelinePanelView
+import com.thesis.mobile.model.TrustScorecardPanelView
 import com.thesis.mobile.model.ValuationAssumptionsView
+import com.thesis.mobile.model.ValuationBridgePanelView
 import com.thesis.mobile.model.ValuationDisplayView
 import org.json.JSONArray
 import org.json.JSONObject
@@ -45,6 +58,17 @@ object OfflineJsonCodec {
             .put("report_id", report.reportId)
             .put("ticker", report.ticker)
             .put("schema_version", report.schemaVersion)
+            .put("story_header", storyHeaderToJson(report.storyHeader))
+            .put("change_summary", changeSummaryToJson(report.changeSummary))
+            .put(
+                "visual_panels",
+                JSONArray().apply {
+                    report.visualPanels.forEach { put(visualPanelToJson(it)) }
+                }
+            )
+            .put("explainers", explainersToJson(report.explainers))
+            .put("watch_items", JSONArray(report.watchItems))
+            .put("coverage_truth", coverageTruthToJson(report.coverageTruth))
             .put(
                 "signal",
                 JSONObject()
@@ -144,6 +168,149 @@ object OfflineJsonCodec {
                     }
                 }
             )
+
+    private fun storyHeaderToJson(header: DeepDiveStoryHeaderView?): JSONObject? {
+        if (header == null) {
+            return null
+        }
+        return JSONObject()
+            .put("headline", header.headline)
+            .put("thesis_summary", header.thesisSummary)
+            .put("why_now", header.whyNow)
+            .put("reader_takeaway", header.readerTakeaway)
+            .put("stance_label", header.stanceLabel)
+    }
+
+    private fun changeSummaryToJson(changeSummary: DeepDiveChangeSummaryView?): JSONObject? {
+        if (changeSummary == null) {
+            return null
+        }
+        return JSONObject()
+            .put("previous_view", changeSummary.previousView)
+            .put("current_view", changeSummary.currentView)
+            .put(
+                "top_changes",
+                JSONArray().apply {
+                    changeSummary.topChanges.forEach { put(topChangeToJson(it)) }
+                }
+            )
+    }
+
+    private fun topChangeToJson(change: DeepDiveTopChangeView): JSONObject =
+        JSONObject()
+            .put("title", change.title)
+            .put("direction", change.direction)
+            .put("impact_level", change.impactLevel)
+            .put("why_it_changed", change.whyItChanged)
+            .put("why_it_matters", change.whyItMatters)
+
+    private fun visualPanelToJson(panel: DeepDiveVisualPanelView): JSONObject {
+        val root = JSONObject()
+            .put("type", panel.type)
+            .put("title", panel.title)
+            .put("eyebrow", panel.eyebrow)
+            .put("summary", panel.summary)
+
+        when (panel) {
+            is MetricDeltaPanelView -> root.put(
+                "metrics",
+                JSONArray().apply {
+                    panel.metrics.forEach { metric ->
+                        put(
+                            JSONObject()
+                                .put("label", metric.label)
+                                .put("current_value", metric.currentValue)
+                                .put("reference_value", metric.referenceValue)
+                                .put("delta_pct", metric.deltaPct)
+                                .put("basis", metric.basis)
+                                .put("direction", metric.direction)
+                                .put("note", metric.note)
+                        )
+                    }
+                }
+            )
+            is TimelinePanelView -> root.put(
+                "points",
+                JSONArray().apply {
+                    panel.points.forEach { point ->
+                        put(
+                            JSONObject()
+                                .put("label", point.label)
+                                .put("value", point.value)
+                                .put("emphasis", point.emphasis)
+                        )
+                    }
+                }
+            )
+            is RangeBandPanelView -> root
+                .put("low_value", panel.lowValue)
+                .put("mid_value", panel.midValue)
+                .put("high_value", panel.highValue)
+                .put("reference_value", panel.referenceValue)
+                .put("value_label", panel.valueLabel)
+                .put("reference_label", panel.referenceLabel)
+            is TrustScorecardPanelView -> root
+                .put("freshness_state", panel.freshnessState)
+                .put("contradiction_state", panel.contradictionState)
+                .put("valuation_state", panel.valuationState)
+                .put("evidence_count", panel.evidenceCount)
+            is EvidenceLadderPanelView -> root.put(
+                "rungs",
+                JSONArray().apply {
+                    panel.rungs.forEach { rung ->
+                        put(
+                            JSONObject()
+                                .put("label", rung.label)
+                                .put("count", rung.count)
+                                .put("tone", rung.tone)
+                        )
+                    }
+                }
+            )
+            is ValuationBridgePanelView -> root.put(
+                "points",
+                JSONArray().apply {
+                    panel.points.forEach { point ->
+                        put(
+                            JSONObject()
+                                .put("label", point.label)
+                                .put("value", point.value)
+                                .put("tone", point.tone)
+                        )
+                    }
+                }
+            )
+            is ScenarioComparePanelView -> root
+                .put("base_label", panel.baseLabel)
+                .put("scenario_label", panel.scenarioLabel)
+                .put("base_value", panel.baseValue)
+                .put("scenario_value", panel.scenarioValue)
+                .put("delta_text", panel.deltaText)
+        }
+        return root
+    }
+
+    private fun explainersToJson(explainers: DeepDiveExplainersView?): JSONObject? {
+        if (explainers == null) {
+            return null
+        }
+        return JSONObject()
+            .put("signal", explainers.signal)
+            .put("confidence", explainers.confidence)
+            .put("freshness", explainers.freshness)
+            .put("valuation", explainers.valuation)
+            .put("omissions", explainers.omissions)
+    }
+
+    private fun coverageTruthToJson(coverageTruth: DeepDiveCoverageTruthView?): JSONObject? {
+        if (coverageTruth == null) {
+            return null
+        }
+        return JSONObject()
+            .put("summary", coverageTruth.summary)
+            .put("covered", JSONArray(coverageTruth.covered))
+            .put("missing", JSONArray(coverageTruth.missing))
+    }
 
     private fun sectionsFromJsonArray(rows: JSONArray): List<SectionView> =
         (0 until rows.length()).mapNotNull { index ->

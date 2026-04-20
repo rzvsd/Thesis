@@ -240,6 +240,132 @@ function validateNameRelationshipDraft(value: unknown, path: string, errors: str
   }
 }
 
+function validateStoryHeader(value: unknown, path: string, errors: string[]): void {
+  if (!isObject(value)) {
+    errors.push(`${path} must be an object`);
+    return;
+  }
+  for (const field of ["headline", "thesis_summary", "why_now", "reader_takeaway"] as const) {
+    if (typeof value[field] !== "string" || value[field].trim().length === 0) {
+      errors.push(`${path}.${field} must be a non-empty string`);
+    }
+  }
+  if (!["positive", "neutral", "negative", "watch"].includes(String(value.stance_label))) {
+    errors.push(`${path}.stance_label must be valid`);
+  }
+}
+
+function validateChangeSummary(value: unknown, path: string, errors: string[]): void {
+  if (!isObject(value)) {
+    errors.push(`${path} must be an object`);
+    return;
+  }
+
+  if (typeof value.previous_view !== "string" || value.previous_view.trim().length === 0) {
+    errors.push(`${path}.previous_view must be a non-empty string`);
+  }
+  if (typeof value.current_view !== "string" || value.current_view.trim().length === 0) {
+    errors.push(`${path}.current_view must be a non-empty string`);
+  }
+  if (!Array.isArray(value.top_changes)) {
+    errors.push(`${path}.top_changes must be an array`);
+    return;
+  }
+  value.top_changes.forEach((entry, index) => {
+    if (!isObject(entry)) {
+      errors.push(`${path}.top_changes[${index}] must be an object`);
+      return;
+    }
+    for (const field of ["title", "why_it_changed", "why_it_matters"] as const) {
+      if (typeof entry[field] !== "string" || entry[field].trim().length === 0) {
+        errors.push(`${path}.top_changes[${index}].${field} must be a non-empty string`);
+      }
+    }
+    if (!["up", "down", "mixed", "watch"].includes(String(entry.direction))) {
+      errors.push(`${path}.top_changes[${index}].direction must be valid`);
+    }
+    if (!["high", "medium", "low"].includes(String(entry.impact_level))) {
+      errors.push(`${path}.top_changes[${index}].impact_level must be valid`);
+    }
+  });
+}
+
+function validateVisualPanel(value: unknown, path: string, errors: string[]): void {
+  if (!isObject(value)) {
+    errors.push(`${path} must be an object`);
+    return;
+  }
+  const type = String(value.type);
+  if (
+    ![
+      "metric_delta",
+      "timeline",
+      "range_band",
+      "trust_scorecard",
+      "evidence_ladder",
+      "valuation_bridge",
+      "scenario_compare"
+    ].includes(type)
+  ) {
+    errors.push(`${path}.type must be valid`);
+  }
+  if (typeof value.title !== "string" || value.title.trim().length === 0) {
+    errors.push(`${path}.title must be a non-empty string`);
+  }
+
+  if (type === "metric_delta") {
+    if (!Array.isArray(value.metrics) || value.metrics.length === 0) {
+      errors.push(`${path}.metrics must be a non-empty array`);
+    }
+  }
+  if (type === "timeline" || type === "valuation_bridge") {
+    if (!Array.isArray(value.points) || value.points.length === 0) {
+      errors.push(`${path}.points must be a non-empty array`);
+    }
+  }
+  if (type === "evidence_ladder") {
+    if (!Array.isArray(value.rungs) || value.rungs.length === 0) {
+      errors.push(`${path}.rungs must be a non-empty array`);
+    }
+  }
+  if (type === "scenario_compare") {
+    if (typeof value.base_label !== "string" || value.base_label.trim().length === 0) {
+      errors.push(`${path}.base_label must be a non-empty string`);
+    }
+    if (typeof value.scenario_label !== "string" || value.scenario_label.trim().length === 0) {
+      errors.push(`${path}.scenario_label must be a non-empty string`);
+    }
+  }
+}
+
+function validateExplainers(value: unknown, path: string, errors: string[]): void {
+  if (!isObject(value)) {
+    errors.push(`${path} must be an object`);
+    return;
+  }
+  for (const field of ["signal", "confidence", "freshness", "valuation", "omissions"] as const) {
+    if (typeof value[field] !== "string" || value[field].trim().length === 0) {
+      errors.push(`${path}.${field} must be a non-empty string`);
+    }
+  }
+}
+
+function validateCoverageTruth(value: unknown, path: string, errors: string[]): void {
+  if (!isObject(value)) {
+    errors.push(`${path} must be an object`);
+    return;
+  }
+  if (typeof value.summary !== "string" || value.summary.trim().length === 0) {
+    errors.push(`${path}.summary must be a non-empty string`);
+  }
+  if (!isStringArray(value.covered)) {
+    errors.push(`${path}.covered must be an array of strings`);
+  }
+  if (!isStringArray(value.missing)) {
+    errors.push(`${path}.missing must be an array of strings`);
+  }
+}
+
 export function validateAnalysisRequest(value: unknown): string[] {
   const errors: string[] = [];
 
@@ -440,6 +566,31 @@ export function validateAnalysisReport(value: unknown): string[] {
         );
       });
     }
+  }
+
+  if (value.story_header !== undefined) {
+    validateStoryHeader(value.story_header, "story_header", errors);
+  }
+  if (value.change_summary !== undefined) {
+    validateChangeSummary(value.change_summary, "change_summary", errors);
+  }
+  if (value.visual_panels !== undefined) {
+    if (!Array.isArray(value.visual_panels)) {
+      errors.push("visual_panels must be an array when provided");
+    } else {
+      value.visual_panels.forEach((entry, index) => {
+        validateVisualPanel(entry, `visual_panels[${index}]`, errors);
+      });
+    }
+  }
+  if (value.explainers !== undefined) {
+    validateExplainers(value.explainers, "explainers", errors);
+  }
+  if (value.watch_items !== undefined && !isStringArray(value.watch_items)) {
+    errors.push("watch_items must be an array of strings when provided");
+  }
+  if (value.coverage_truth !== undefined) {
+    validateCoverageTruth(value.coverage_truth, "coverage_truth", errors);
   }
 
   if (!Array.isArray(value.sections) || value.sections.length === 0) {
