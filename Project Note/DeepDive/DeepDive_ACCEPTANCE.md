@@ -18,7 +18,7 @@
 | Financial analysis engine exists | Passed | `Milestones/M2/evidence/2026-04-20_m2-financial-analysis-proof.md` |
 | Value discipline scorecard exists | Passed | `Milestones/M3/evidence/2026-04-20_m3-value-discipline-proof.md` |
 | Dexter authors memo-quality narrative | Passed | `Milestones/M4/evidence/2026-04-20_m4-research-authoring-proof.md` |
-| Institutional PDF export exists | Pending | M5 |
+| Institutional PDF export exists | Passed | `Milestones/M5/evidence/2026-04-20_m5-institutional-pdf-proof.md` |
 | Mobile reader renders new artifact | Pending | M6 |
 | End-to-end device and PDF proof complete | Pending | M7 |
 

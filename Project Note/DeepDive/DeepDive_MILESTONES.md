@@ -267,14 +267,14 @@ Produce a serious report artifact that can be downloaded, shared, and reviewed.
 
 ## Acceptance Criteria
 
-- [ ] PDF includes one-page memo, thesis, financials, value score, valuation, risks, evidence, appendix
-- [ ] PDF is not a mobile screenshot or card dump
-- [ ] Missing data appears as omissions
-- [ ] Rendered pages are visually inspected
-- [ ] Export path works from Product API and mobile entry point
-- [ ] PDF follows the page-by-page template in `DEEPDIVE_REPORT_TEMPLATE.md`
-- [ ] Rendered PNG pages are stored as evidence
-- [ ] Visual QA confirms exhibit captions, source notes, page numbers, and appendix
+- [x] PDF includes one-page memo, thesis, financials, value score, valuation, risks, evidence, appendix
+- [x] PDF is not a mobile screenshot or card dump
+- [x] Missing data appears as omissions
+- [x] Rendered pages are visually inspected
+- [x] Export path works from Product API and mobile entry point
+- [x] PDF follows the page-by-page template in `DEEPDIVE_REPORT_TEMPLATE.md`
+- [x] Rendered PNG pages are stored as evidence
+- [x] Visual QA confirms exhibit captions, source notes, page numbers, and appendix
 
 ## Smoke Test
 

@@ -23,6 +23,7 @@
 | D12 | M1 contract shape is additive fields on `AnalysisReport` | Locked | Lowest-risk path for backward compatibility across Product API, Dexter, and mobile |
 | D13 | M2 ships without peer-comparison dependency | Locked | Financial engine is company-history-first and omission-aware when peer data is unavailable |
 | D14 | M2 fixture baseline uses full-data and sparse-data deterministic paths already in repo | Locked | Avoids blocker dependency while preserving hard-gate test coverage for complete and sparse histories |
+| D15 | M5 PDF renderer ownership is Product API utility plus route, no new service | Locked | Meets template and test gates while preserving existing service boundaries |
 
 ---
 
@@ -30,7 +31,6 @@
 
 | # | Decision Needed | Owner | Needed By | Notes |
 |---|---|---|---|---|
-| O2 | PDF renderer ownership: Product API route vs separate renderer utility under Product API | Engineering Lead | M5 start | No new service by default |
 | O4 | Exact paid/provider data policy for future transcripts/estimates | Product Lead | Before live provider expansion | Current revamp should work with existing allowed data first |
 
 ---

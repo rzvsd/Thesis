@@ -107,6 +107,7 @@ import type { ProductStore } from "./store";
 import { assertIncomingAnalysisReport } from "./report-validation";
 import { assertIncomingMarketPulseReport } from "./market-pulse-validation";
 import { buildMarketPulseReport, withWatchlistOverlay } from "./market-pulse";
+import { buildInstitutionalPdfExport } from "./report-pdf";
 import {
   buildMacroStressSnapshot,
   legacySnapshotToMacroStress,
@@ -982,6 +983,21 @@ function normalizeNotificationQuietUntil(value: string): string | undefined {
 function sendJson(response: ServerResponse, statusCode: number, payload: unknown): void {
   response.writeHead(statusCode, { "content-type": "application/json" });
   response.end(JSON.stringify(payload));
+}
+
+function sendBinary(
+  response: ServerResponse,
+  statusCode: number,
+  body: Buffer,
+  contentType: string,
+  headers: Record<string, string> = {}
+): void {
+  response.writeHead(statusCode, {
+    "content-type": contentType,
+    "content-length": String(body.byteLength),
+    ...headers
+  });
+  response.end(body);
 }
 
 function appendVaryHeader(response: ServerResponse, value: string): void {
@@ -10341,6 +10357,62 @@ export function startServer(port: number = loadConfig().port): Server {
 
       if ((method === "GET" || method === "PUT") && pathname.startsWith("/v1/reports/")) {
         const parts = pathname.split("/").filter(Boolean);
+        if (method === "GET" && parts.length === 5 && parts[0] === "v1" && parts[1] === "reports" && parts[3] === "export" && parts[4] === "pdf") {
+          const reportId = parts[2];
+          if (!reportId) {
+            sendJson(response, 404, { status: "not_found" });
+            return;
+          }
+
+          const reportMetadata = await runtime.store.getReportById(reportId);
+          if (!reportMetadata) {
+            sendJson(response, 404, {
+              error: "report_not_found",
+              error_message: "Report not found."
+            });
+            return;
+          }
+
+          const hasAccess = await runtime.store.hasReportAccessForUser(auth.userId, reportMetadata.id);
+          if (!hasAccess) {
+            sendJson(response, 404, {
+              error: "report_not_found",
+              error_message: "Report not found."
+            });
+            return;
+          }
+
+          const artifact = await runtime.artifactStore.readReport(reportMetadata.artifactKey);
+          if (!artifact || !("type" in artifact) || artifact.type !== "deep_dive") {
+            sendJson(response, 404, {
+              error: "report_not_found",
+              error_message: "Deep Dive report artifact missing."
+            });
+            return;
+          }
+
+          const deepDiveReport = artifact as AnalysisReport;
+          const pdf = buildInstitutionalPdfExport(deepDiveReport);
+          const filenameTicker = deepDiveReport.ticker ? deepDiveReport.ticker.trim().toUpperCase() : "REPORT";
+          await appendAudit(runtime, "report.exported_pdf", {
+            request_id: meta.requestId,
+            route: pathname,
+            report_id: reportId,
+            page_count: pdf.pageCount
+          }, auth.userId);
+
+          sendBinary(
+            response,
+            200,
+            pdf.buffer,
+            "application/pdf",
+            {
+              "content-disposition": `attachment; filename="thesis-deep-dive-${filenameTicker}-${reportId}.pdf"`
+            }
+          );
+          return;
+        }
+
         if (method === "GET" && parts.length === 4 && parts[0] === "v1" && parts[1] === "reports" && parts[3] === "opposite-case") {
           const reportId = parts[2];
           if (!reportId) {

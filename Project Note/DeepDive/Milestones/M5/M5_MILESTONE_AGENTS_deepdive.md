@@ -1,7 +1,7 @@
 # M5 AGENTS - Institutional PDF Export
 
 **Milestone:** Deep Dive Revamp M5 - Institutional PDF Export
-**Status:** Pending
+**Status:** Closed (2026-04-20)
 **Inherits from:** Root `AGENTS.md`, `Project Note/DeepDive/DeepDive_AGENTS.md`
 
 ---
@@ -19,12 +19,12 @@
 
 ## Scope
 
-- [ ] Generate PDF from structured report artifact
-- [ ] Include memo, thesis, financial exhibits, value score, valuation, risks, evidence, appendix
-- [ ] Render pages for visual QA
-- [ ] Add export tests
-- [ ] Preserve legacy export fallback
-- [ ] Prove PDF follows the page-by-page template, not mobile-card layout
+- [x] Generate PDF from structured report artifact
+- [x] Include memo, thesis, financial exhibits, value score, valuation, risks, evidence, appendix
+- [x] Render pages for visual QA
+- [x] Add export tests
+- [x] Preserve legacy export fallback
+- [x] Prove PDF follows the page-by-page template, not mobile-card layout
 
 ## Out Of Scope
 
@@ -34,16 +34,26 @@
 
 ## Required Tests
 
-- Product API export tests
-- PDF generation smoke
-- Rendered page visual inspection
-- Legacy export fallback test
-- M5 hard gates from `DEEPDIVE_TEST_MATRIX.md`
+- [x] Product API export tests
+- [x] PDF generation smoke
+- [x] Rendered page visual inspection
+- [x] Legacy export fallback test
+- [x] M5 hard gates from `DEEPDIVE_TEST_MATRIX.md`
 
 ## Definition Of Done
 
-- [ ] PDF reads like a serious report artifact
-- [ ] No clipped text or broken tables
-- [ ] Source notes and omissions are present
-- [ ] PDF satisfies `DEEPDIVE_REPORT_TEMPLATE.md`
-- [ ] Smoke plan passes
+- [x] PDF reads like a serious report artifact
+- [x] No clipped text or broken tables
+- [x] Source notes and omissions are present
+- [x] PDF satisfies `DEEPDIVE_REPORT_TEMPLATE.md`
+- [x] Smoke plan passes
+
+## Decisions Applied
+
+- Resolved M5 O2 ownership as Product API-owned renderer utility (`report-pdf.ts`) with no new service.
+- Implemented institutional export route at `GET /v1/reports/:reportId/export/pdf`.
+- Preserved existing mobile export entry as fallback behavior to avoid regression while introducing backend institutional export.
+
+## Evidence
+
+- `Milestones/M5/evidence/2026-04-20_m5-institutional-pdf-proof.md`
