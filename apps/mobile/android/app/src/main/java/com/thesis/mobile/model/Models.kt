@@ -113,6 +113,145 @@ data class TrustMetadataView(
     val thesisDrift: TrustThesisDriftView? = null
 )
 
+data class DeepDiveStoryHeaderView(
+    val headline: String,
+    val thesisSummary: String,
+    val whyNow: String,
+    val readerTakeaway: String,
+    val stanceLabel: String
+)
+
+data class DeepDiveTopChangeView(
+    val title: String,
+    val direction: String,
+    val impactLevel: String,
+    val whyItChanged: String,
+    val whyItMatters: String
+)
+
+data class DeepDiveChangeSummaryView(
+    val previousView: String,
+    val currentView: String,
+    val topChanges: List<DeepDiveTopChangeView> = emptyList()
+)
+
+sealed interface DeepDiveVisualPanelView {
+    val type: String
+    val title: String
+    val eyebrow: String?
+    val summary: String?
+}
+
+data class MetricDeltaItemView(
+    val label: String,
+    val currentValue: Double? = null,
+    val referenceValue: Double? = null,
+    val deltaPct: Double? = null,
+    val basis: String,
+    val direction: String,
+    val note: String? = null
+)
+
+data class TimelinePointView(
+    val label: String,
+    val value: String,
+    val emphasis: String? = null
+)
+
+data class EvidenceLadderRungView(
+    val label: String,
+    val count: Int,
+    val tone: String
+)
+
+data class ValuationBridgePointView(
+    val label: String,
+    val value: Double,
+    val tone: String
+)
+
+data class MetricDeltaPanelView(
+    override val type: String = "metric_delta",
+    override val title: String,
+    override val eyebrow: String? = null,
+    override val summary: String? = null,
+    val metrics: List<MetricDeltaItemView> = emptyList()
+) : DeepDiveVisualPanelView
+
+data class TimelinePanelView(
+    override val type: String = "timeline",
+    override val title: String,
+    override val eyebrow: String? = null,
+    override val summary: String? = null,
+    val points: List<TimelinePointView> = emptyList()
+) : DeepDiveVisualPanelView
+
+data class RangeBandPanelView(
+    override val type: String = "range_band",
+    override val title: String,
+    override val eyebrow: String? = null,
+    override val summary: String? = null,
+    val lowValue: Double? = null,
+    val midValue: Double? = null,
+    val highValue: Double? = null,
+    val referenceValue: Double? = null,
+    val valueLabel: String? = null,
+    val referenceLabel: String? = null
+) : DeepDiveVisualPanelView
+
+data class TrustScorecardPanelView(
+    override val type: String = "trust_scorecard",
+    override val title: String,
+    override val eyebrow: String? = null,
+    override val summary: String? = null,
+    val freshnessState: String? = null,
+    val contradictionState: String? = null,
+    val valuationState: String? = null,
+    val evidenceCount: Int? = null
+) : DeepDiveVisualPanelView
+
+data class EvidenceLadderPanelView(
+    override val type: String = "evidence_ladder",
+    override val title: String,
+    override val eyebrow: String? = null,
+    override val summary: String? = null,
+    val rungs: List<EvidenceLadderRungView> = emptyList()
+) : DeepDiveVisualPanelView
+
+data class ValuationBridgePanelView(
+    override val type: String = "valuation_bridge",
+    override val title: String,
+    override val eyebrow: String? = null,
+    override val summary: String? = null,
+    val points: List<ValuationBridgePointView> = emptyList()
+) : DeepDiveVisualPanelView
+
+data class ScenarioComparePanelView(
+    override val type: String = "scenario_compare",
+    override val title: String,
+    override val eyebrow: String? = null,
+    override val summary: String? = null,
+    val baseLabel: String,
+    val scenarioLabel: String,
+    val baseValue: Double? = null,
+    val scenarioValue: Double? = null,
+    val deltaText: String? = null
+) : DeepDiveVisualPanelView
+
+data class DeepDiveExplainersView(
+    val signal: String,
+    val confidence: String,
+    val freshness: String,
+    val valuation: String,
+    val omissions: String
+)
+
+data class DeepDiveCoverageTruthView(
+    val summary: String,
+    val covered: List<String> = emptyList(),
+    val missing: List<String> = emptyList()
+)
+
 data class ReportNoteView(
     val content: String,
     val updatedAt: String
@@ -212,6 +351,12 @@ data class DeepDiveReportView(
     val schemaVersion: String = "1.0",
     val isLegacy: Boolean = false,
     val thesisStatement: String? = null,
+    val storyHeader: DeepDiveStoryHeaderView? = null,
+    val changeSummary: DeepDiveChangeSummaryView? = null,
+    val visualPanels: List<DeepDiveVisualPanelView> = emptyList(),
+    val explainers: DeepDiveExplainersView? = null,
+    val watchItems: List<String> = emptyList(),
+    val coverageTruth: DeepDiveCoverageTruthView? = null,
     val confidence: ConfidenceDisplayView? = null,
     val signalValue: String?,
     val signalReasons: List<String> = emptyList(),

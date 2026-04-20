@@ -122,6 +122,63 @@ function sampleReport(jobId: string, reportId: string): JsonObject {
       transcript_available: true,
       missing_reasons: []
     },
+    story_header: {
+      headline: "AAPL: services strength keeps the thesis intact",
+      thesis_summary: "The thesis is intact, but hardware recovery still matters.",
+      why_now: "Revenue improved while valuation stayed disciplined.",
+      reader_takeaway: "Read what changed first, then check the proof layer.",
+      stance_label: "neutral"
+    },
+    change_summary: {
+      previous_view: "Prior thesis watched hardware weakness.",
+      current_view: "Current evidence is stable but not decisive.",
+      top_changes: [
+        {
+          title: "Revenue reset the tone",
+          direction: "up",
+          impact_level: "high",
+          why_it_changed: "Revenue improved in the latest period.",
+          why_it_matters: "Revenue quality determines whether the thesis can hold."
+        }
+      ]
+    },
+    visual_panels: [
+      {
+        type: "trust_scorecard",
+        title: "Trust and Freshness",
+        freshness_state: "fresh",
+        contradiction_state: "none",
+        valuation_state: "available",
+        evidence_count: 1
+      },
+      {
+        type: "metric_delta",
+        title: "Quarter-over-quarter moves",
+        metrics: [
+          {
+            label: "Revenue",
+            current_value: 100,
+            reference_value: 90,
+            delta_pct: 11.1,
+            basis: "qoq",
+            direction: "up"
+          }
+        ]
+      }
+    ],
+    explainers: {
+      signal: "Signal explains the directional call.",
+      confidence: "Confidence explains the limits.",
+      freshness: "Freshness explains whether the report is current.",
+      valuation: "Valuation explains the modeled range.",
+      omissions: "Omissions explain what is missing."
+    },
+    watch_items: ["Watch margin quality."],
+    coverage_truth: {
+      summary: "The report states what it covers and what is missing.",
+      covered: ["Latest financial snapshot"],
+      missing: ["No major omissions"]
+    },
     sections: [
       {
         section_id: "thesis_statement",
@@ -268,6 +325,8 @@ test("job lifecycle supports queue -> running -> complete and report retrieval",
   assert.equal(report.status, 200);
   const reportPayload = report.payload as JsonObject;
   assert.equal(reportPayload.report_id, reportId);
+  assert.equal((reportPayload.story_header as JsonObject).headline, "AAPL: services strength keeps the thesis intact");
+  assert.equal(Array.isArray(reportPayload.visual_panels), true);
 
   await closeServer(server);
   process.env.STORE_BACKEND = previous.STORE_BACKEND;

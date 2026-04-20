@@ -5,12 +5,18 @@ import type {
   AnalysisRequest,
   CanonicalFinancialSnapshot,
   CanonicalTranscript,
+  ChangeSummaryBlock,
   ConfidenceBlock,
+  CoverageTruthBlock,
+  DeepDiveExplainers,
+  DeepDiveVisualPanel,
   EvidenceItem,
   KillSwitchConditionDraft,
   NameRelationshipDraft,
   ReportSection,
   SignalValue,
+  StoryHeaderBlock,
+  TopChangeItem,
   TrustMetadata,
   ValuationBlock
 } from "../../../packages/contracts/src";
@@ -317,6 +323,362 @@ function buildValuationSection(
     },
     valuation
   };
+}
+
+function humanizeMetric(metric: string): string {
+  return metric
+    .split("_")
+    .map((token) => token.toUpperCase() === "EPS"
+      ? "EPS"
+      : token.replace(/^./, (letter) => letter.toUpperCase()))
+    .join(" ");
+}
+
+function summarizeText(text: string, maxLength = 180): string {
+  const normalized = text.replace(/\s+/g, " ").trim();
+  if (normalized.length <= maxLength) {
+    return normalized;
+  }
+  return `${normalized.slice(0, Math.max(0, maxLength - 3)).trimEnd()}...`;
+}
+
+function describeSignal(signalValue: SignalValue): StoryHeaderBlock["stance_label"] {
+  if (signalValue === "positive" || signalValue === "neutral" || signalValue === "negative") {
+    return signalValue;
+  }
+  return "watch";
+}
+
+function changeDirectionFromMetric(
+  direction: "up" | "down" | "flat" | "unavailable"
+): TopChangeItem["direction"] {
+  if (direction === "up" || direction === "down") {
+    return direction;
+  }
+  if (direction === "flat") {
+    return "mixed";
+  }
+  return "watch";
+}
+
+function formatMetricDelta(current: number | undefined, reference: number | undefined): string {
+  if (current === undefined || reference === undefined) {
+    return "comparison unavailable";
+  }
+  return `${formatNumber(current)} vs ${formatNumber(reference)}`;
+}
+
+function buildTopChanges(context: M2SectionContext, trustMetadata: TrustMetadata): TopChangeItem[] {
+  const comparisons = buildComparisons({
+    latest: context.latest,
+    priorQuarter: context.priorQuarter,
+    yearAgo: context.yearAgo
+  });
+
+  const rankedComparisons = [...comparisons.qoq, ...comparisons.yoy]
+    .filter((metric) => metric.direction !== "unavailable")
+    .sort((left, right) => Math.abs(right.percent_change ?? 0) - Math.abs(left.percent_change ?? 0))
+    .slice(0, 3)
+    .map((metric, index) => ({
+      title: `${metric.metric === "revenue" ? "Revenue" : humanizeMetric(metric.metric)} ${index === 0 ? "reset the tone" : "shifted"}`,
+      direction: changeDirectionFromMetric(metric.direction),
+      impact_level: index === 0 ? "high" : index === 1 ? "medium" : "low",
+      why_it_changed: `${humanizeMetric(metric.metric)} moved ${metric.direction} at ${formatMetricDelta(metric.current, metric.reference)} (${formatPercent(metric.percent_change)}).`,
+      why_it_matters: `That matters because Thesis is tracking whether ${humanizeMetric(metric.metric).toLowerCase()} is reinforcing or weakening the current conviction path.`
+    } satisfies TopChangeItem));
+
+  if (trustMetadata.thesis_drift.status === "available") {
+    rankedComparisons.unshift({
+      title: "The thesis itself moved",
+      direction: "mixed",
+      impact_level: "high",
+      why_it_changed: trustMetadata.thesis_drift.summary,
+      why_it_matters: trustMetadata.thesis_drift.reasons[0] ??
+        "The most valuable Deep Dive question is whether the current evidence changed the original view."
+    });
+  }
+
+  return rankedComparisons.slice(0, 3);
+}
+
+function buildStoryHeader(args: {
+  ticker: string;
+  thesisStatement: string;
+  signalValue: SignalValue;
+  trustMetadata: TrustMetadata;
+  topChanges: TopChangeItem[];
+}): StoryHeaderBlock {
+  const freshnessLine = args.trustMetadata.freshness_state === "fresh"
+    ? "The evidence base is still fresh."
+    : args.trustMetadata.freshness_state === "degraded"
+      ? "Parts of the evidence base are aging."
+      : "This thesis is now stale and needs a fresh review.";
+  const strongestChange = args.topChanges[0]?.why_it_changed ??
+    "The latest filing cycle did not produce a clean first-order change signal.";
+
+  return {
+    headline: `${args.ticker}: ${summarizeText(args.thesisStatement, 96)}`,
+    thesis_summary: summarizeText(args.thesisStatement, 150),
+    why_now: summarizeText(`${strongestChange} ${freshnessLine}`, 160),
+    reader_takeaway: summarizeText(
+      `Start with what changed, then read the valuation and trust panels before deciding whether the thesis still deserves confidence.`,
+      150
+    ),
+    stance_label: describeSignal(args.signalValue)
+  };
+}
+
+function buildChangeSummary(args: {
+  context: M2SectionContext;
+  signalValue: SignalValue;
+  trustMetadata: TrustMetadata;
+  topChanges: TopChangeItem[];
+}): ChangeSummaryBlock {
+  const previousView = args.context.comparableReport?.thesis_statement?.trim()
+    || "No prior comparable thesis was stored, so this report becomes the new baseline.";
+  const latestPeriod = args.context.latest?.period ?? "the latest reporting period";
+  const currentView = `${latestPeriod} now points to a ${args.signalValue === "no_signal" ? "watchful" : args.signalValue} stance, with ${
+    args.trustMetadata.thesis_drift.status === "available"
+      ? "an explicit thesis-drift summary attached."
+      : "no prior thesis drift comparison available."
+  }`;
+
+  return {
+    previous_view: summarizeText(previousView, 170),
+    current_view: summarizeText(currentView, 170),
+    top_changes: args.topChanges
+  };
+}
+
+function buildVisualPanels(args: {
+  context: M2SectionContext;
+  trustMetadata: TrustMetadata;
+  valuation?: ValuationBlock;
+  signalEvidence: EvidenceItem[];
+}): DeepDiveVisualPanel[] {
+  const comparisons = buildComparisons({
+    latest: args.context.latest,
+    priorQuarter: args.context.priorQuarter,
+    yearAgo: args.context.yearAgo
+  });
+
+  const panels: DeepDiveVisualPanel[] = [
+    {
+      type: "trust_scorecard",
+      title: "Trust and Freshness",
+      eyebrow: "SEE THE STORY",
+      summary: "Read this before you trust the rest of the report.",
+      freshness_state: args.trustMetadata.freshness_state,
+      contradiction_state: args.trustMetadata.contradiction_state,
+      valuation_state: args.trustMetadata.valuation_state,
+      evidence_count: args.trustMetadata.evidence_count
+    }
+  ];
+
+  const qoqMetrics = comparisons.qoq.slice(0, 3).map((metric) => ({
+    label: humanizeMetric(metric.metric),
+    current_value: metric.current,
+    reference_value: metric.reference,
+    delta_pct: metric.percent_change,
+    basis: "qoq" as const,
+    direction: metric.direction,
+    note: metric.missing_reason
+  }));
+  if (qoqMetrics.some((metric) => metric.current_value !== undefined || metric.note !== undefined)) {
+    panels.push({
+      type: "metric_delta",
+      title: "Quarter-over-quarter moves",
+      summary: "The fastest way to see whether execution really changed.",
+      metrics: qoqMetrics
+    });
+  }
+
+  const yoyMetrics = comparisons.yoy.slice(0, 3).map((metric) => ({
+    label: humanizeMetric(metric.metric),
+    current_value: metric.current,
+    reference_value: metric.reference,
+    delta_pct: metric.percent_change,
+    basis: "yoy" as const,
+    direction: metric.direction,
+    note: metric.missing_reason
+  }));
+  if (yoyMetrics.some((metric) => metric.current_value !== undefined || metric.note !== undefined)) {
+    panels.push({
+      type: "metric_delta",
+      title: "Year-over-year moves",
+      summary: "This keeps one-off quarter noise from dominating the story.",
+      metrics: yoyMetrics
+    });
+  }
+
+  panels.push({
+    type: "timeline",
+    title: "Reporting timeline",
+    summary: "A quick timeline of the periods this report can actually compare.",
+    points: [
+      {
+        label: "Current quarter",
+        value: args.context.latest?.period ?? "Unavailable",
+        emphasis: "current"
+      },
+      {
+        label: "Prior quarter",
+        value: args.context.priorQuarter?.period ?? "Unavailable",
+        emphasis: "reference"
+      },
+      {
+        label: "Year ago",
+        value: args.context.yearAgo?.period ?? "Unavailable",
+        emphasis: "reference"
+      },
+      {
+        label: "Last transcript",
+        value: args.context.latestTranscript?.period ?? "Unavailable",
+        emphasis: "milestone"
+      }
+    ]
+  });
+
+  if (args.valuation) {
+    if (
+      args.valuation.fair_value_low !== undefined ||
+      args.valuation.fair_value_mid !== undefined ||
+      args.valuation.fair_value_high !== undefined ||
+      args.valuation.spot_price !== undefined
+    ) {
+      panels.push({
+        type: "range_band",
+        title: "Valuation range",
+        summary: args.valuation.degraded_reason
+          ? args.valuation.degraded_reason
+          : "The deterministic DCF range shows what the current cash-flow path supports.",
+        low_value: args.valuation.fair_value_low,
+        mid_value: args.valuation.fair_value_mid,
+        high_value: args.valuation.fair_value_high,
+        reference_value: args.valuation.spot_price,
+        value_label: "Fair value",
+        reference_label: "Spot"
+      });
+      panels.push({
+        type: "valuation_bridge",
+        title: "Valuation bridge",
+        summary: "This shows where spot sits against the modeled valuation band.",
+        points: [
+          ...(args.valuation.spot_price !== undefined
+            ? [{ label: "Spot", value: args.valuation.spot_price, tone: "spot" as const }]
+            : []),
+          ...(args.valuation.fair_value_low !== undefined
+            ? [{ label: "Low", value: args.valuation.fair_value_low, tone: "low" as const }]
+            : []),
+          ...(args.valuation.fair_value_mid !== undefined
+            ? [{ label: "Mid", value: args.valuation.fair_value_mid, tone: "mid" as const }]
+            : []),
+          ...(args.valuation.fair_value_high !== undefined
+            ? [{ label: "High", value: args.valuation.fair_value_high, tone: "high" as const }]
+            : [])
+        ]
+      });
+    }
+  }
+
+  const evidenceByType = new Map<string, number>();
+  args.signalEvidence.forEach((item) => {
+    evidenceByType.set(item.source_type, (evidenceByType.get(item.source_type) ?? 0) + 1);
+  });
+  panels.push({
+    type: "evidence_ladder",
+    title: "Evidence ladder",
+    summary: "This is where the report is standing: filings first, then data, then supporting commentary.",
+    rungs: [
+      {
+        label: "Filings",
+        count: evidenceByType.get("filing") ?? 0,
+        tone: "strong"
+      },
+      {
+        label: "Financial data",
+        count: evidenceByType.get("financial_data") ?? 0,
+        tone: "moderate"
+      },
+      {
+        label: "Articles and macro",
+        count: (evidenceByType.get("article") ?? 0) + (evidenceByType.get("macro_data") ?? 0),
+        tone: "light"
+      }
+    ]
+  });
+
+  return panels;
+}
+
+function buildExplainers(args: {
+  signalValue: SignalValue;
+  confidence: ConfidenceBlock;
+  trustMetadata: TrustMetadata;
+  valuation?: ValuationBlock;
+}): DeepDiveExplainers {
+  const confidenceText = args.confidence.limiting_factors.length > 0
+    ? args.confidence.limiting_factors.join(" ")
+    : "The current confidence is broad-based and not being held back by one dominant missing input.";
+  const omissions = args.trustMetadata.missing_data_notes.length > 0
+    ? args.trustMetadata.missing_data_notes.join(" ")
+    : "No major omissions were recorded beyond the normal limits of the current source set.";
+
+  return {
+    signal: args.signalValue === "no_signal"
+      ? "Signal is set to watch because the current evidence did not clear the bar for a directional call."
+      : `Signal is ${args.signalValue}, which means the strongest evidence currently leans ${args.signalValue}.`,
+    confidence: `Confidence is ${args.confidence.label} at ${Math.round(args.confidence.score * 100)} out of 100. ${confidenceText}`,
+    freshness: `Freshness is ${args.trustMetadata.freshness_state}. This tells you whether the thesis is current, aging, or stale before you rely on it.`,
+    valuation: args.valuation?.degraded_reason
+      ? `Valuation is present but degraded: ${args.valuation.degraded_reason}`
+      : "Valuation comes from the deterministic DCF block. It is a disciplined range, not a promise.",
+    omissions
+  };
+}
+
+function buildCoverageTruth(args: {
+  context: M2SectionContext;
+  trustMetadata: TrustMetadata;
+  sections: ReportSection[];
+}): CoverageTruthBlock {
+  const covered = [
+    args.context.latest?.period ? `Latest financial snapshot (${args.context.latest.period})` : undefined,
+    args.context.priorQuarter?.period ? `Prior-quarter comparison (${args.context.priorQuarter.period})` : undefined,
+    args.context.yearAgo?.period ? `Year-ago comparison (${args.context.yearAgo.period})` : undefined,
+    args.context.latestTranscript?.period ? `Management transcript (${args.context.latestTranscript.period})` : undefined,
+    args.sections.some((section) => section.section_id === "valuation")
+      ? "Deterministic DCF valuation block"
+      : undefined
+  ].filter((item): item is string => Boolean(item));
+
+  const missing = args.trustMetadata.missing_data_notes.length > 0
+    ? args.trustMetadata.missing_data_notes
+    : ["No material omission notes were recorded."];
+
+  return {
+    summary: summarizeText(
+      `This report covers the latest company data Thesis could verify and explicitly lists what is missing instead of filling gaps with guesses.`,
+      160
+    ),
+    covered,
+    missing
+  };
+}
+
+function buildWatchItems(
+  trustMetadata: TrustMetadata,
+  killSwitchConditions: KillSwitchConditionDraft[]
+): string[] {
+  const items = [
+    trustMetadata.thesis_drift.summary,
+    ...killSwitchConditions.slice(0, 2).map((condition) => condition.condition_text),
+    trustMetadata.missing_data_notes[0]
+  ]
+    .filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+    .map((item) => summarizeText(item, 120));
+
+  return Array.from(new Set(items)).slice(0, 4);
 }
 
 async function resolveM2SectionContext(
@@ -2074,6 +2436,38 @@ export async function runAnalysisPipeline(
     model
   });
   totalTokenCount += relationshipExtraction.tokenCount;
+  const topChanges = buildTopChanges(m2Context, trustMetadata);
+  const storyHeader = buildStoryHeader({
+    ticker,
+    thesisStatement: thesisStatement ?? `${ticker} thesis remains under active review.`,
+    signalValue: signal.value,
+    trustMetadata,
+    topChanges
+  });
+  const changeSummary = buildChangeSummary({
+    context: m2Context,
+    signalValue: signal.value,
+    trustMetadata,
+    topChanges
+  });
+  const visualPanels = buildVisualPanels({
+    context: m2Context,
+    trustMetadata,
+    valuation: valuationSection.valuation,
+    signalEvidence: signal.evidence
+  });
+  const explainers = buildExplainers({
+    signalValue: signal.value,
+    confidence,
+    trustMetadata,
+    valuation: valuationSection.valuation
+  });
+  const watchItems = buildWatchItems(trustMetadata, killSwitchExtraction.conditions);
+  const coverageTruth = buildCoverageTruth({
+    context: m2Context,
+    trustMetadata,
+    sections: orderedSections
+  });
 
   const report: AnalysisReport = {
     report_id: randomUUID(),
@@ -2089,6 +2483,12 @@ export async function runAnalysisPipeline(
     trust_metadata: trustMetadata,
     kill_switch_conditions: killSwitchExtraction.conditions,
     name_relationships: relationshipExtraction.relationships,
+    story_header: storyHeader,
+    change_summary: changeSummary,
+    visual_panels: visualPanels,
+    explainers,
+    watch_items: watchItems,
+    coverage_truth: coverageTruth,
     sections: orderedSections,
     flags: buildFlags(scenario, orderedSections, signal.value, traceMode),
     data_sources: buildDataSources(scenario, orderedSections)

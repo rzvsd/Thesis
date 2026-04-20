@@ -255,6 +255,243 @@ function validateNameRelationshipDraft(value: unknown, path: string, errors: str
   }
 }
 
+function validateStoryHeader(value: unknown, path: string, errors: string[]): void {
+  if (!isObject(value)) {
+    errors.push(`${path} must be an object`);
+    return;
+  }
+
+  for (const field of ["headline", "thesis_summary", "why_now", "reader_takeaway"] as const) {
+    if (typeof value[field] !== "string" || value[field].trim().length === 0) {
+      errors.push(`${path}.${field} must be a non-empty string`);
+    }
+  }
+  if (!["positive", "neutral", "negative", "watch"].includes(String(value.stance_label))) {
+    errors.push(`${path}.stance_label must be valid`);
+  }
+}
+
+function validateChangeSummary(value: unknown, path: string, errors: string[]): void {
+  if (!isObject(value)) {
+    errors.push(`${path} must be an object`);
+    return;
+  }
+
+  if (typeof value.previous_view !== "string" || value.previous_view.trim().length === 0) {
+    errors.push(`${path}.previous_view must be a non-empty string`);
+  }
+  if (typeof value.current_view !== "string" || value.current_view.trim().length === 0) {
+    errors.push(`${path}.current_view must be a non-empty string`);
+  }
+  if (!Array.isArray(value.top_changes)) {
+    errors.push(`${path}.top_changes must be an array`);
+    return;
+  }
+  value.top_changes.forEach((item, index) => {
+    if (!isObject(item)) {
+      errors.push(`${path}.top_changes[${index}] must be an object`);
+      return;
+    }
+    for (const field of ["title", "why_it_changed", "why_it_matters"] as const) {
+      if (typeof item[field] !== "string" || item[field].trim().length === 0) {
+        errors.push(`${path}.top_changes[${index}].${field} must be a non-empty string`);
+      }
+    }
+    if (!["up", "down", "mixed", "watch"].includes(String(item.direction))) {
+      errors.push(`${path}.top_changes[${index}].direction must be valid`);
+    }
+    if (!["high", "medium", "low"].includes(String(item.impact_level))) {
+      errors.push(`${path}.top_changes[${index}].impact_level must be valid`);
+    }
+  });
+}
+
+function validateVisualPanel(value: unknown, path: string, errors: string[]): void {
+  if (!isObject(value)) {
+    errors.push(`${path} must be an object`);
+    return;
+  }
+
+  const type = String(value.type);
+  if (
+    ![
+      "metric_delta",
+      "timeline",
+      "range_band",
+      "trust_scorecard",
+      "evidence_ladder",
+      "valuation_bridge",
+      "scenario_compare"
+    ].includes(type)
+  ) {
+    errors.push(`${path}.type must be valid`);
+  }
+  if (typeof value.title !== "string" || value.title.trim().length === 0) {
+    errors.push(`${path}.title must be a non-empty string`);
+  }
+  if (value.eyebrow !== undefined && typeof value.eyebrow !== "string") {
+    errors.push(`${path}.eyebrow must be a string when provided`);
+  }
+  if (value.summary !== undefined && typeof value.summary !== "string") {
+    errors.push(`${path}.summary must be a string when provided`);
+  }
+
+  if (type === "metric_delta") {
+    if (!Array.isArray(value.metrics) || value.metrics.length === 0) {
+      errors.push(`${path}.metrics must be a non-empty array`);
+      return;
+    }
+    value.metrics.forEach((item, index) => {
+      if (!isObject(item)) {
+        errors.push(`${path}.metrics[${index}] must be an object`);
+        return;
+      }
+      if (typeof item.label !== "string" || item.label.trim().length === 0) {
+        errors.push(`${path}.metrics[${index}].label must be a non-empty string`);
+      }
+      if (!["qoq", "yoy", "absolute"].includes(String(item.basis))) {
+        errors.push(`${path}.metrics[${index}].basis must be valid`);
+      }
+      if (!["up", "down", "flat", "unavailable"].includes(String(item.direction))) {
+        errors.push(`${path}.metrics[${index}].direction must be valid`);
+      }
+      if (item.note !== undefined && typeof item.note !== "string") {
+        errors.push(`${path}.metrics[${index}].note must be a string when provided`);
+      }
+    });
+  }
+
+  if (type === "timeline" || type === "valuation_bridge") {
+    const key = type === "timeline" ? "points" : "points";
+    const points = value[key];
+    if (!Array.isArray(points) || points.length === 0) {
+      errors.push(`${path}.${key} must be a non-empty array`);
+      return;
+    }
+    points.forEach((item, index) => {
+      if (!isObject(item)) {
+        errors.push(`${path}.${key}[${index}] must be an object`);
+        return;
+      }
+      if (typeof item.label !== "string" || item.label.trim().length === 0) {
+        errors.push(`${path}.${key}[${index}].label must be a non-empty string`);
+      }
+      if (type === "timeline") {
+        if (typeof item.value !== "string" || item.value.trim().length === 0) {
+          errors.push(`${path}.${key}[${index}].value must be a non-empty string`);
+        }
+        if (
+          item.emphasis !== undefined &&
+          !["current", "reference", "milestone"].includes(String(item.emphasis))
+        ) {
+          errors.push(`${path}.${key}[${index}].emphasis must be valid when provided`);
+        }
+      } else {
+        if (typeof item.value !== "number" || Number.isNaN(item.value)) {
+          errors.push(`${path}.${key}[${index}].value must be a valid number`);
+        }
+        if (!["spot", "low", "mid", "high"].includes(String(item.tone))) {
+          errors.push(`${path}.${key}[${index}].tone must be valid`);
+        }
+      }
+    });
+  }
+
+  if (type === "range_band") {
+    if (
+      value.low_value === undefined &&
+      value.mid_value === undefined &&
+      value.high_value === undefined &&
+      value.reference_value === undefined
+    ) {
+      errors.push(`${path} must include at least one numeric range value`);
+    }
+  }
+
+  if (type === "trust_scorecard") {
+    if (
+      value.freshness_state !== undefined &&
+      !["fresh", "degraded", "stale"].includes(String(value.freshness_state))
+    ) {
+      errors.push(`${path}.freshness_state must be valid when provided`);
+    }
+    if (
+      value.contradiction_state !== undefined &&
+      !["none", "present"].includes(String(value.contradiction_state))
+    ) {
+      errors.push(`${path}.contradiction_state must be valid when provided`);
+    }
+    if (
+      value.valuation_state !== undefined &&
+      !["available", "degraded", "omitted"].includes(String(value.valuation_state))
+    ) {
+      errors.push(`${path}.valuation_state must be valid when provided`);
+    }
+  }
+
+  if (type === "evidence_ladder") {
+    if (!Array.isArray(value.rungs) || value.rungs.length === 0) {
+      errors.push(`${path}.rungs must be a non-empty array`);
+      return;
+    }
+    value.rungs.forEach((item, index) => {
+      if (!isObject(item)) {
+        errors.push(`${path}.rungs[${index}] must be an object`);
+        return;
+      }
+      if (typeof item.label !== "string" || item.label.trim().length === 0) {
+        errors.push(`${path}.rungs[${index}].label must be a non-empty string`);
+      }
+      if (typeof item.count !== "number" || item.count < 0) {
+        errors.push(`${path}.rungs[${index}].count must be a non-negative number`);
+      }
+      if (!["strong", "moderate", "light"].includes(String(item.tone))) {
+        errors.push(`${path}.rungs[${index}].tone must be valid`);
+      }
+    });
+  }
+
+  if (type === "scenario_compare") {
+    if (typeof value.base_label !== "string" || value.base_label.trim().length === 0) {
+      errors.push(`${path}.base_label must be a non-empty string`);
+    }
+    if (typeof value.scenario_label !== "string" || value.scenario_label.trim().length === 0) {
+      errors.push(`${path}.scenario_label must be a non-empty string`);
+    }
+    if (value.delta_text !== undefined && typeof value.delta_text !== "string") {
+      errors.push(`${path}.delta_text must be a string when provided`);
+    }
+  }
+}
+
+function validateExplainers(value: unknown, path: string, errors: string[]): void {
+  if (!isObject(value)) {
+    errors.push(`${path} must be an object`);
+    return;
+  }
+  for (const field of ["signal", "confidence", "freshness", "valuation", "omissions"] as const) {
+    if (typeof value[field] !== "string" || value[field].trim().length === 0) {
+      errors.push(`${path}.${field} must be a non-empty string`);
+    }
+  }
+}
+
+function validateCoverageTruth(value: unknown, path: string, errors: string[]): void {
+  if (!isObject(value)) {
+    errors.push(`${path} must be an object`);
+    return;
+  }
+  if (typeof value.summary !== "string" || value.summary.trim().length === 0) {
+    errors.push(`${path}.summary must be a non-empty string`);
+  }
+  if (!isStringArray(value.covered)) {
+    errors.push(`${path}.covered must be an array of strings`);
+  }
+  if (!isStringArray(value.missing)) {
+    errors.push(`${path}.missing must be an array of strings`);
+  }
+}
+
 export function validateIncomingAnalysisReport(report: unknown): string[] {
   const errors: string[] = [];
 
@@ -395,6 +632,36 @@ export function validateIncomingAnalysisReport(report: unknown): string[] {
         );
       });
     }
+  }
+
+  if (report.story_header !== undefined) {
+    validateStoryHeader(report.story_header, "story_header", errors);
+  }
+
+  if (report.change_summary !== undefined) {
+    validateChangeSummary(report.change_summary, "change_summary", errors);
+  }
+
+  if (report.visual_panels !== undefined) {
+    if (!Array.isArray(report.visual_panels)) {
+      errors.push("visual_panels must be an array when provided");
+    } else {
+      report.visual_panels.forEach((panel, index) => {
+        validateVisualPanel(panel, `visual_panels[${index}]`, errors);
+      });
+    }
+  }
+
+  if (report.explainers !== undefined) {
+    validateExplainers(report.explainers, "explainers", errors);
+  }
+
+  if (report.watch_items !== undefined && !isStringArray(report.watch_items)) {
+    errors.push("watch_items must be an array of strings when provided");
+  }
+
+  if (report.coverage_truth !== undefined) {
+    validateCoverageTruth(report.coverage_truth, "coverage_truth", errors);
   }
 
   if (!Array.isArray(report.sections) || report.sections.length === 0) {

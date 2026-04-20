@@ -43,6 +43,14 @@ test("MSFT fixture request produces a schema-valid report with no blank sections
   assert.ok(report.sections.every((section) => section.body.trim().length > 0));
   assert.ok(report.sections.every((section) => section.status.length > 0));
   assert.equal(report.sections[0]?.section_id, "thesis_statement");
+  assert.ok(report.story_header?.headline.includes("MSFT"));
+  assert.ok((report.story_header?.reader_takeaway.length ?? 0) > 20);
+  assert.ok((report.change_summary?.top_changes.length ?? 0) >= 1);
+  assert.ok(report.visual_panels?.some((panel) => panel.type === "trust_scorecard"));
+  assert.ok(report.visual_panels?.some((panel) => panel.type === "metric_delta"));
+  assert.ok(report.explainers?.signal.length);
+  assert.ok((report.watch_items?.length ?? 0) >= 1);
+  assert.ok((report.coverage_truth?.covered.length ?? 0) >= 1);
   assert.equal(findSection(report.sections, "what_changed").status, "complete");
   assert.equal(findSection(report.sections, "valuation").status, "complete");
   assert.equal(findSection(report.sections, "quarter_over_quarter_changes").status, "complete");
@@ -77,6 +85,8 @@ test("LIMITED fixture request degrades affected sections honestly", async () => 
   assert.equal(report.trust_metadata?.thesis_drift.status, "unavailable");
   assert.equal(report.trust_metadata?.valuation_state, "degraded");
   assert.ok((report.trust_metadata?.missing_data_notes.length ?? 0) > 0);
+  assert.ok(report.coverage_truth?.missing.some((entry) => entry.includes("Valuation")));
+  assert.ok(report.explainers?.omissions.includes("Valuation"));
 });
 
 test("NOSIG fixture request returns no_signal with an explicit reason", async () => {

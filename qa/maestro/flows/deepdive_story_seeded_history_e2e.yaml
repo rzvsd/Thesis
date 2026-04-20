@@ -1,0 +1,92 @@
+appId: ${MAESTRO_APP_ID}
+---
+- launchApp:
+    clearState: true
+
+- runFlow:
+    when:
+      visible: "System UI isn't responding"
+    commands:
+      - tapOn: "Wait"
+
+- runFlow:
+    when:
+      visible: "Get Started"
+    commands:
+      - tapOn: "Get Started"
+
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+
+- runFlow:
+    when:
+      visible: "Allow"
+    commands:
+      - tapOn: "Allow"
+
+- extendedWaitUntil:
+    visible: "you@example.com"
+    timeout: 60000
+- tapOn: "you@example.com"
+- inputText: "${MAESTRO_TEST_EMAIL}"
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      text: "Enter password"
+    direction: DOWN
+    timeout: 30000
+- tapOn: "Enter password"
+- inputText: "${MAESTRO_TEST_PASSWORD}"
+- hideKeyboard
+- tapOn: "Log In"
+
+- extendedWaitUntil:
+    visible: "Today"
+    timeout: 60000
+- tapOn: "Research"
+
+- extendedWaitUntil:
+    visible: "History"
+    timeout: 30000
+- tapOn: "History"
+
+- extendedWaitUntil:
+    visible: "${MAESTRO_DEEP_DIVE_TICKER}"
+    timeout: 60000
+- tapOn: "${MAESTRO_DEEP_DIVE_TICKER}"
+
+- extendedWaitUntil:
+    visible: "Read This First"
+    timeout: 60000
+- assertVisible: "${MAESTRO_DEEP_DIVE_TICKER}"
+- assertVisible: "Read This First"
+
+- scrollUntilVisible:
+    element:
+      text: "See The Story"
+    direction: DOWN
+    timeout: 30000
+- assertVisible: "See The Story"
+
+- scrollUntilVisible:
+    element:
+      text: "Understand It"
+    direction: DOWN
+    timeout: 30000
+- assertVisible: "Understand It"
+
+- scrollUntilVisible:
+    element:
+      text: "Check The Proof"
+    direction: DOWN
+    timeout: 30000
+- assertVisible: "Check The Proof"
