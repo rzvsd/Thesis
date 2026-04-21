@@ -67,6 +67,17 @@ async function requestBinary(
   };
 }
 
+function assertNoDebugPdfLeakage(pdfText: string): void {
+  assert.doesNotMatch(pdfText, /Page 1 -/);
+  assert.doesNotMatch(pdfText, /Page 9 - Appendix/);
+  assert.doesNotMatch(pdfText, /deterministic_dcf/);
+  assert.doesNotMatch(pdfText, /quality_mega_cap/);
+  assert.doesNotMatch(pdfText, /fresh_transcript_excerpt/);
+  assert.doesNotMatch(pdfText, /\b[a-z]+(?:_[a-z0-9]+)+\b/);
+  assert.doesNotMatch(pdfText, /\bundefined\b/i);
+  assert.doesNotMatch(pdfText, /\bnull\b/i);
+}
+
 async function createVerifiedSession(baseUrl: string, email: string): Promise<{
   accessToken: string;
   internalToken: string;
@@ -559,18 +570,20 @@ test("M5.2 PDF export route returns institutional multi-page artifact with visua
     assert.equal(exportResponse.bytes.subarray(0, 8).toString("utf8"), "%PDF-1.4");
 
     const pdfText = exportResponse.bytes.toString("utf8");
-    assert.match(pdfText, /Page 1 - Cover and One-Page Memo/);
-    assert.match(pdfText, /Page 9 - Appendix/);
-    assert.match(pdfText, /Page 1 of 9/);
-    assert.match(pdfText, /Ticker: AAPL/);
-    assert.match(pdfText, /Exhibit - Valuation Range/);
-    assert.match(pdfText, /Exhibit - Margin Profile/);
-    assert.match(pdfText, /Exhibit - Value Discipline Signal Map/);
-    assert.match(pdfText, /Exhibit - Valuation Bridge/);
-    assert.match(pdfText, /Exhibit - Kill-Switch Coverage/);
-    assert.match(pdfText, /Unit: Percent/);
-    assert.match(pdfText, /Spot 191/);
+    assert.match(pdfText, /Thesis Investment Memo/);
+    assert.match(pdfText, /Executive Memo/);
+    assert.match(pdfText, /Decision question/);
+    assert.match(pdfText, /Mini valuation range/);
+    assert.match(pdfText, /Business quality scorecard/);
+    assert.match(pdfText, /Financial progression/);
+    assert.match(pdfText, /Scenario table/);
+    assert.match(pdfText, /Coverage limitations/);
+    assert.match(pdfText, /DCF-based scenario framework/);
+    assert.match(pdfText, /Large-cap quality context/);
+    assert.match(pdfText, /Transcript freshness is limited/);
+    assert.match(pdfText, /Page 1 of 6/);
     assert.match(pdfText, /FY-2025/);
+    assertNoDebugPdfLeakage(pdfText);
 
     const blocked = await requestJson(baseUrl, `/v1/reports/${reportId}/export/pdf`, {
       method: "GET",
@@ -648,12 +661,13 @@ test("M5.2 PDF export renders omission-aware fallbacks for sparse reports", asyn
     assert.equal(exportResponse.status, 200);
     assert.equal(exportResponse.headers.get("content-type"), "application/pdf");
     const pdfText = exportResponse.bytes.toString("utf8");
-    assert.match(pdfText, /Exhibit - Valuation Range/);
-    assert.match(pdfText, /Exhibit - Financial Trend/);
-    assert.match(pdfText, /Exhibit - Value Discipline Signal Map/);
-    assert.match(pdfText, /Exhibit - Valuation Bridge/);
-    assert.match(pdfText, /Exhibit - Kill-Switch Coverage/);
-    assert.match(pdfText, /Omission-aware fallback/);
+    assert.match(pdfText, /Thesis Investment Memo/);
+    assert.match(pdfText, /Coverage limitations/);
+    assert.match(pdfText, /Valuation range is not available for this report/);
+    assert.match(pdfText, /Coverage/);
+    assert.match(pdfText, /Limited/);
+    assert.match(pdfText, /Sparse financial history supports observation/);
+    assertNoDebugPdfLeakage(pdfText);
   } finally {
     await closeServer(server);
     process.env.STORE_BACKEND = previous.STORE_BACKEND;
@@ -725,8 +739,11 @@ test("M5.2 PDF export keeps legacy report fallback exportable", async () => {
     assert.equal(exportResponse.headers.get("content-type"), "application/pdf");
     assert.equal(exportResponse.bytes.subarray(0, 8).toString("utf8"), "%PDF-1.4");
     const pdfText = exportResponse.bytes.toString("utf8");
-    assert.match(pdfText, /Page 9 - Appendix/);
-    assert.match(pdfText, /omitted/i);
+    assert.match(pdfText, /Thesis Investment Memo/);
+    assert.match(pdfText, /Coverage limitations/);
+    assert.match(pdfText, /Valuation range is not available for this report/);
+    assert.match(pdfText, /The current investment argument is limited and should be treated as a watchlist view/);
+    assertNoDebugPdfLeakage(pdfText);
   } finally {
     await closeServer(server);
     process.env.STORE_BACKEND = previous.STORE_BACKEND;
