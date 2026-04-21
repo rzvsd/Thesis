@@ -252,6 +252,113 @@ data class DeepDiveCoverageTruthView(
     val missing: List<String> = emptyList()
 )
 
+data class MemoClaimSupportRefView(
+    val supportType: String,
+    val refId: String,
+    val summary: String
+)
+
+data class InvestmentMemoClaimView(
+    val claimId: String,
+    val sectionId: String,
+    val statement: String,
+    val materiality: String,
+    val supports: List<MemoClaimSupportRefView> = emptyList()
+)
+
+data class InvestmentMemoSectionView(
+    val sectionId: String,
+    val title: String,
+    val narrative: String,
+    val keyPoints: List<String> = emptyList()
+)
+
+data class InvestmentMemoView(
+    val promptVersion: String,
+    val generationMode: String,
+    val companyAngle: String,
+    val decisionQuestion: String,
+    val sections: List<InvestmentMemoSectionView> = emptyList(),
+    val materialClaims: List<InvestmentMemoClaimView> = emptyList(),
+    val unsupportedClaims: List<String> = emptyList(),
+    val sparseDataHonestyNote: String
+)
+
+data class FinancialHistoryRowView(
+    val period: String,
+    val periodType: String,
+    val fiscalYear: Int,
+    val fiscalQuarter: Int? = null,
+    val revenue: Double? = null,
+    val grossMargin: Double? = null,
+    val operatingMargin: Double? = null,
+    val netIncome: Double? = null,
+    val freeCashFlow: Double? = null,
+    val debtTotal: Double? = null,
+    val cashAndEquivalents: Double? = null,
+    val sharesOutstanding: Double? = null
+)
+
+data class FinancialDerivedMetricView(
+    val key: String,
+    val label: String,
+    val value: Double? = null,
+    val unit: String,
+    val status: String,
+    val direction: String,
+    val note: String? = null
+)
+
+data class FinancialOmissionView(
+    val code: String,
+    val label: String,
+    val reason: String,
+    val impacts: List<String> = emptyList()
+)
+
+data class FinancialAnalysisView(
+    val annualHistory: List<FinancialHistoryRowView> = emptyList(),
+    val quarterlyHistory: List<FinancialHistoryRowView> = emptyList(),
+    val trendMetrics: List<FinancialDerivedMetricView> = emptyList(),
+    val qualityMetrics: List<FinancialDerivedMetricView> = emptyList(),
+    val omissions: List<FinancialOmissionView> = emptyList()
+)
+
+data class ValueDisciplineSignalView(
+    val key: String,
+    val label: String,
+    val family: String,
+    val status: String,
+    val reason: String,
+    val value: Double? = null
+)
+
+data class ValueTrapWarningView(
+    val triggered: Boolean,
+    val summary: String,
+    val reasonCodes: List<String> = emptyList()
+)
+
+data class ValueDisciplineView(
+    val score: Int,
+    val maxScore: Int,
+    val availableSignals: Int,
+    val completeness: String,
+    val contextLabel: String,
+    val interpretation: String,
+    val missingSignals: List<String> = emptyList(),
+    val doesNotProve: String,
+    val signals: List<ValueDisciplineSignalView> = emptyList(),
+    val valueTrapWarning: ValueTrapWarningView
+)
+
+data class KillSwitchConditionView(
+    val conditionText: String,
+    val signalType: String,
+    val direction: String,
+    val thresholdDescription: String? = null
+)
+
 data class ReportNoteView(
     val content: String,
     val updatedAt: String
@@ -357,6 +464,9 @@ data class DeepDiveReportView(
     val explainers: DeepDiveExplainersView? = null,
     val watchItems: List<String> = emptyList(),
     val coverageTruth: DeepDiveCoverageTruthView? = null,
+    val investmentMemo: InvestmentMemoView? = null,
+    val financialAnalysis: FinancialAnalysisView? = null,
+    val valueDiscipline: ValueDisciplineView? = null,
     val confidence: ConfidenceDisplayView? = null,
     val signalValue: String?,
     val signalReasons: List<String> = emptyList(),
@@ -365,6 +475,7 @@ data class DeepDiveReportView(
     val valuation: ValuationDisplayView? = null,
     val historical: HistoricalDisplayView? = null,
     val trustMetadata: TrustMetadataView? = null,
+    val killSwitchConditions: List<KillSwitchConditionView> = emptyList(),
     val sections: List<SectionView>
 )
 

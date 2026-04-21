@@ -1,13 +1,15 @@
 import { spawn } from "node:child_process";
 import { resolve } from "node:path";
 
-import type { DexterConfig } from "./config";
+import { resolveLiveProviderAttempts, type DexterConfig } from "./config";
 import { appRoot } from "./fs-roots";
 
 export interface LiveDexterResult {
   answer: string;
   iterations: number;
   tokenCount: number;
+  provider?: string;
+  model?: string;
   toolCalls: Array<{
     tool: string;
     args: Record<string, unknown>;
@@ -16,23 +18,21 @@ export interface LiveDexterResult {
   }>;
 }
 
-export function runLiveDexterQuery(
+function runLiveDexterAttempt(
   query: string,
   config: DexterConfig,
-  timeoutMs: number = config.sectionTimeoutMs,
-  maxIterations: number = config.maxAgentIterations
+  model: string,
+  modelProvider: string,
+  timeoutMs: number,
+  maxIterations: number
 ): Promise<LiveDexterResult> {
   const runnerPath = resolve(appRoot, "src", "live-runner.mjs");
 
   return new Promise((resolvePromise, reject) => {
-    const child = spawn(
-      config.bunBin,
-      [runnerPath],
-      {
-        env: process.env,
-        stdio: ["pipe", "pipe", "pipe"]
-      }
-    );
+    const child = spawn(config.bunBin, [runnerPath], {
+      env: process.env,
+      stdio: ["pipe", "pipe", "pipe"]
+    });
 
     let stdout = "";
     let stderr = "";
@@ -60,12 +60,16 @@ export function runLiveDexterQuery(
       clearTimeout(timeout);
 
       if (timedOut) {
-        reject(new Error("Dexter live runner timed out"));
+        reject(new Error(`Dexter live runner timed out for provider ${modelProvider}`));
         return;
       }
 
       if (code !== 0) {
-        reject(new Error(stderr || `Dexter live runner exited with code ${code}`));
+        reject(
+          new Error(
+            stderr || `Dexter live runner exited with code ${code} for provider ${modelProvider}`
+          )
+        );
         return;
       }
 
@@ -86,6 +90,8 @@ export function runLiveDexterQuery(
           answer: parsed.answer,
           iterations: parsed.iterations,
           tokenCount: parsed.token_count,
+          provider: modelProvider,
+          model,
           toolCalls: parsed.tool_calls ?? []
         });
       } catch (error) {
@@ -96,10 +102,51 @@ export function runLiveDexterQuery(
     child.stdin.write(
       JSON.stringify({
         query,
-        model: config.model,
+        model,
+        modelProvider,
         maxIterations
       })
     );
     child.stdin.end();
   });
+}
+
+export function runLiveDexterQuery(
+  query: string,
+  config: DexterConfig,
+  timeoutMs: number = config.sectionTimeoutMs,
+  maxIterations: number = config.maxAgentIterations
+): Promise<LiveDexterResult> {
+  const attempts = resolveLiveProviderAttempts(config);
+  if (attempts.length === 0) {
+    return Promise.reject(
+      new Error("Dexter live runner has no configured providers available for this environment")
+    );
+  }
+
+  return (async () => {
+    const attemptedProviders: string[] = [];
+    let lastError: unknown;
+
+    for (const attempt of attempts) {
+      attemptedProviders.push(`${attempt.provider}:${attempt.model}`);
+      try {
+        return await runLiveDexterAttempt(
+          query,
+          config,
+          attempt.model,
+          attempt.provider,
+          timeoutMs,
+          maxIterations
+        );
+      } catch (error) {
+        lastError = error;
+      }
+    }
+
+    const lastMessage = lastError instanceof Error ? lastError.message : String(lastError);
+    throw new Error(
+      `Dexter live runner failed for all providers (${attemptedProviders.join(", ")}): ${lastMessage}`
+    );
+  })();
 }

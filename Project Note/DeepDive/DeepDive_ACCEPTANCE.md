@@ -1,62 +1,40 @@
-# Deep Report Overhaul Acceptance
+# Deep Dive Revamp Acceptance Register
 
-Status: Implemented
-Last Revised: 2026-04-18
+**Status:** Passed
+**Last Revised:** 2026-04-21
 
-## Scope Delivered
+---
 
-- Added additive Deep Report presentation blocks to `AnalysisReport`:
-  - `story_header`
-  - `change_summary`
-  - `visual_panels`
-  - `explainers`
-  - `watch_items`
-  - `coverage_truth`
-- Kept legacy `sections` as the proof layer and export/source-of-truth base.
-- Added Product API and Dexter runtime validation for the new additive blocks.
-- Added Dexter report shaping so fixture/live-compatible reports now produce story-first presentation data from deterministic context.
-- Refactored Android Deep Dive rendering into a layered story surface:
-  - Read This First
-  - See The Story
-  - Understand It
-  - Check The Proof
-- Preserved Thesis visual language:
-  - dark/gold palette
-  - serif editorial headings
-  - monospace metadata labels
-  - thin-border cards
-  - no decorative/synthetic imagery
-- Preserved old report readability when presentation fields are missing.
-- Preserved offline-cache round trip for new presentation fields.
+## Workstream Acceptance
 
-## Acceptance Criteria
+| Requirement | Status | Evidence |
+|---|---|---|
+| Formal Deep Dive workstream docs exist | Passed | `Milestones/M0/evidence/2026-04-20/m0-docs-inventory.json` |
+| Report standard is locked | Passed | `DEEPDIVE_REPORT_STANDARD.md` |
+| Reference PDFs are mapped to Thesis requirements | Passed | `DEEPDIVE_REFERENCE_MAPPING.md` |
+| Page-by-page report template is locked | Passed | `DEEPDIVE_REPORT_TEMPLATE.md` |
+| Test matrix and hard fail gates are locked | Passed | `DEEPDIVE_TEST_MATRIX.md` |
+| Structured report contract exists | Passed | `Milestones/M1/evidence/2026-04-20/m1-contract-proof.md` |
+| Financial analysis engine exists | Passed | `Milestones/M2/evidence/2026-04-20_m2-financial-analysis-proof.md` |
+| Value discipline scorecard exists | Passed | `Milestones/M3/evidence/2026-04-20_m3-value-discipline-proof.md` |
+| Dexter authors memo-quality narrative | Passed | `Milestones/M4/evidence/2026-04-20_m4-research-authoring-proof.md` |
+| Institutional PDF export exists | Passed | `Milestones/M5/evidence/2026-04-20_m5-institutional-pdf-proof.md` |
+| Visual exhibit layer exists | Passed | `Milestones/M5_2/evidence/2026-04-20_m5_2-visual-exhibits-proof.md` |
+| Mobile reader renders new artifact | Passed | `Milestones/M6/evidence/2026-04-21_m6-device-reader-proof.md` |
+| End-to-end device and PDF proof complete | Passed | `Milestones/M7/evidence/2026-04-21_m7-closeout-proof.md` |
+| Live OpenRouter Deep Dive generation is proven | Passed | `Milestones/M7/evidence/2026-04-21/m7_live_closeout_summary.json` |
 
-- Non-technical reader can understand the core thesis before opening proof modules: Passed.
-- Serious reader can still reach raw proof sections and evidence: Passed.
-- Report feels company-specific through headline, why-now, what-changed, and watch items: Passed for deterministic fixture path.
-- Missing inputs remain explicit through explainers and coverage truth: Passed.
-- No visual panel is generated from fake data: Passed by deterministic panel generation and degraded omission behavior.
-- Existing report payloads without new fields still deserialize and render: Passed.
-- Mobile keeps same Thesis colors, typography, tone, and component style: Passed by reusing existing theme tokens and card language.
+---
 
-## Quality Evidence
+## Final Closeout Bar
 
-- `corepack pnpm lint`: Passed.
-- `corepack pnpm --filter @thesis/dexter-worker test`: Passed, 18 tests.
-- `corepack pnpm --filter @thesis/product-api test`: Passed, 82 tests.
-- Android unit/compile check with bundled Android Studio JBR:
-  - `$env:JAVA_HOME='C:\Program Files\Android\Android Studio\jbr'; .\gradlew.bat :app:testDebugUnitTest --tests "com.thesis.mobile.model.ReportViewMapperTest" --tests "com.thesis.mobile.offline.OfflineJsonCodecTest"`
-  - Passed.
-- Device smoke:
-  - `C:\Users\razva\AppData\Local\Android\Sdk\platform-tools\adb.exe devices`
-  - Device visible: `R3CXA03J3LH`.
-  - Debug app rebuilt/installed with local API base URL over USB reverse.
-  - Seeded completed `AAPL` Deep Dive via `qa/maestro/scripts/seed-deepdive-story.mjs`.
-  - `C:\Users\razva\.maestro\bin\maestro.bat test qa\maestro\flows\deepdive_story_seeded_history_e2e.yaml`: Passed.
-  - Verified on phone: login, Research, History, seeded report open, `Read This First`, `See The Story`, `Understand It`, and `Check The Proof`.
+The workstream is complete only when:
 
-## Notes
-
-- The first implementation is presentation-aware through deterministic report shaping. Live LLM prompt wording can be upgraded next via LangSmith without changing the mobile contract.
-- The current PDF export still uses the legacy export path. The in-app Deep Report is now story-led; premium 5-7 page PDF export remains a focused follow-up if we want the downloaded artifact to match the new reading experience.
-- Real-device Maestro smoke passed against a seeded completed report. The generated `.maestro.env` contains temporary QA credentials and must remain uncommitted.
+- a new Deep Dive can run end to end
+- generated report contains memo, financials, value discipline, valuation, risks, evidence, appendix
+- PDF export renders cleanly
+- phone reader opens the same report artifact
+- old reports still render
+- missing data is explicit
+- tests and smoke evidence are recorded
+- the output satisfies the reference mapping, report template, and test matrix

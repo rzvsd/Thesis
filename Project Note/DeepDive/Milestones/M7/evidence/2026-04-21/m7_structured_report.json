@@ -1,0 +1,1072 @@
+{
+  "report_id": "7604fd7b-ee3b-4988-a402-846b3ddfd952",
+  "job_id": "e4fbf5c6-567d-495d-90a1-a7a3d6d1b54e",
+  "schema_version": "2.0",
+  "type": "deep_dive",
+  "ticker": "MSFT",
+  "generated_at": "2026-04-21T08:33:56.339Z",
+  "confidence": {
+    "score": 0.83,
+    "label": "high",
+    "limiting_factors": [
+      "Market conditions can still compress multiples despite strong execution."
+    ]
+  },
+  "signal": {
+    "value": "positive",
+    "reasons": [
+      "Revenue quality improved while margins expanded.",
+      "Liquidity and balance-sheet posture remain strong."
+    ],
+    "evidence": [
+      {
+        "evidence_id": "msft-events-1",
+        "source_type": "filing",
+        "source_name": "Company filings",
+        "excerpt": "No transformative acquisition closed in the quarter.",
+        "retrieved_at": "2026-03-15T08:00:00.000Z",
+        "url": "https://example.com/msft/events-1"
+      },
+      {
+        "evidence_id": "msft-commentary-1",
+        "source_type": "article",
+        "source_name": "FY2025 Q2 earnings call",
+        "excerpt": "Leadership reiterated AI capex discipline.",
+        "retrieved_at": "2026-03-15T08:00:00.000Z",
+        "url": "https://example.com/msft/commentary-1"
+      }
+    ]
+  },
+  "historical_context": {
+    "latest_period": "2025-Q4",
+    "prior_quarter_period": "2025-Q3",
+    "year_ago_period": "2024-Q4",
+    "transcript_period": "2025-Q4",
+    "financial_snapshot_count": 6,
+    "transcript_count": 1,
+    "transcript_available": true,
+    "missing_reasons": []
+  },
+  "valuation": {
+    "fair_value_mid": 206.09514254734827,
+    "fair_value_low": 175.18087116524603,
+    "fair_value_high": 237.0094139294505,
+    "spot_price": 428.52,
+    "implied_upside_pct": -51.90536204906462,
+    "assumptions": {
+      "methodology": "deterministic_dcf",
+      "projection_years": 5,
+      "terminal_growth_rate": 0.025,
+      "wacc": 0.095,
+      "effective_tax_rate": 0.18,
+      "shares_outstanding": 7420000000
+    }
+  },
+  "trust_metadata": {
+    "generated_at": "2026-04-21T08:33:56.339Z",
+    "freshness_state": "fresh",
+    "evidence_count": 14,
+    "contradiction_state": "none",
+    "contradictions": [],
+    "valuation_state": "available",
+    "missing_data_notes": [
+      "Latest source timestamp is 32 day(s) old.",
+      "Degraded report sections: Value Discipline."
+    ],
+    "quote_provenance": [
+      {
+        "quote": "Management highlighted durable cloud demand and disciplined AI infrastructure spend while maintaining margin focus",
+        "source_name": "transcript:fixture_transcript",
+        "source_type": "article",
+        "source_period": "2025-Q4",
+        "transcript_id": "MSFT-2025-q4",
+        "retrieved_at": "2026-03-20T08:00:00.000Z"
+      }
+    ],
+    "thesis_drift": {
+      "status": "available",
+      "summary": "Compared with the prior thesis from 2026-01-15, Signal shifted from neutral to positive. Confidence moved by 25.0 points versus the prior thesis. Core thesis framing changed materially from the prior report.",
+      "reasons": [
+        "Signal shifted from neutral to positive.",
+        "Confidence moved by 25.0 points versus the prior thesis.",
+        "Core thesis framing changed materially from the prior report."
+      ],
+      "comparable_report_id": "MSFT-prior-thesis",
+      "comparable_generated_at": "2026-01-15T09:00:00.000Z",
+      "comparable_schema_version": "2.0"
+    }
+  },
+  "kill_switch_conditions": [
+    {
+      "condition_id": "ks_price_against_signal",
+      "condition_text": "Price moves 5% against the thesis anchor.",
+      "signal_type": "price_move_pct",
+      "rationale": "Detects immediate market divergence against your positive thesis.",
+      "threshold_value": 5,
+      "threshold_unit": "pct",
+      "direction": "against_signal",
+      "prompt_version": "m5-kill-switch-fixture-v1"
+    },
+    {
+      "condition_id": "ks_thesis_state_degrades",
+      "condition_text": "Thesis monitor state becomes weakened or unresolved.",
+      "signal_type": "thesis_state",
+      "rationale": "Captures structural thesis degradation from monitor recompute, not only price volatility.",
+      "direction": "any",
+      "prompt_version": "m5-kill-switch-fixture-v1"
+    },
+    {
+      "condition_id": "ks_earnings_negative_surprise",
+      "condition_text": "Earnings event introduces a material surprise versus thesis assumptions.",
+      "signal_type": "earnings_event",
+      "rationale": "Prioritizes quarterly events that can quickly invalidate assumptions.",
+      "direction": "any",
+      "prompt_version": "m5-kill-switch-fixture-v1"
+    },
+    {
+      "condition_id": "ks_sec_material_filing",
+      "condition_text": "A material SEC filing introduces contradiction to the thesis.",
+      "signal_type": "sec_filing",
+      "rationale": "Tracks hard-signal regulatory filings that change risk posture.",
+      "direction": "any",
+      "prompt_version": "m5-kill-switch-fixture-v1"
+    },
+    {
+      "condition_id": "ks_guidance_revision",
+      "condition_text": "Management guidance is revised in a direction that weakens conviction.",
+      "signal_type": "guidance_revision",
+      "rationale": "Protects conviction when confidence (0.83) no longer matches updated guidance.",
+      "direction": "any",
+      "prompt_version": "m5-kill-switch-fixture-v1"
+    }
+  ],
+  "name_relationships": [],
+  "story_header": {
+    "headline": "MSFT: MSFT thesis: the current quarter (2025-Q4) shows execution strength, but conviction should tr...",
+    "thesis_summary": "MSFT thesis: the current quarter (2025-Q4) shows execution strength, but conviction should track whether reported momentum survives the next filing...",
+    "why_now": "Compared with the prior thesis from 2026-01-15, Signal shifted from neutral to positive. Confidence moved by 25.0 points versus the prior thesis. Core thesis...",
+    "reader_takeaway": "Start with what changed, then read the valuation and trust panels before deciding whether the thesis still deserves confidence.",
+    "stance_label": "positive"
+  },
+  "change_summary": {
+    "previous_view": "Prior thesis: execution was stable but lacked strong directional confirmation.",
+    "current_view": "2025-Q4 now points to a positive stance, with an explicit thesis-drift summary attached.",
+    "top_changes": [
+      {
+        "title": "The thesis itself moved",
+        "direction": "mixed",
+        "impact_level": "high",
+        "why_it_changed": "Compared with the prior thesis from 2026-01-15, Signal shifted from neutral to positive. Confidence moved by 25.0 points versus the prior thesis. Core thesis framing changed materially from the prior report.",
+        "why_it_matters": "Signal shifted from neutral to positive."
+      },
+      {
+        "title": "Net Income reset the tone",
+        "direction": "up",
+        "impact_level": "high",
+        "why_it_changed": "Net Income moved up at 24.67B vs 21.35B (15.54%).",
+        "why_it_matters": "That matters because Thesis is tracking whether net income is reinforcing or weakening the current conviction path."
+      },
+      {
+        "title": "Free Cash Flow shifted",
+        "direction": "up",
+        "impact_level": "medium",
+        "why_it_changed": "Free Cash Flow moved up at 22.4B vs 19.4B (15.46%).",
+        "why_it_matters": "That matters because Thesis is tracking whether free cash flow is reinforcing or weakening the current conviction path."
+      }
+    ]
+  },
+  "visual_panels": [
+    {
+      "type": "trust_scorecard",
+      "title": "Trust and Freshness",
+      "eyebrow": "SEE THE STORY",
+      "summary": "Read this before you trust the rest of the report.",
+      "freshness_state": "fresh",
+      "contradiction_state": "none",
+      "valuation_state": "available",
+      "evidence_count": 14
+    },
+    {
+      "type": "metric_delta",
+      "title": "Quarter-over-quarter moves",
+      "summary": "The fastest way to see whether execution really changed.",
+      "metrics": [
+        {
+          "label": "Revenue",
+          "current_value": 69632000000,
+          "reference_value": 64700000000,
+          "delta_pct": 7.622874806800619,
+          "basis": "qoq",
+          "direction": "up"
+        },
+        {
+          "label": "EPS",
+          "current_value": 3.3,
+          "reference_value": 3.05,
+          "delta_pct": 8.196721311475411,
+          "basis": "qoq",
+          "direction": "up"
+        },
+        {
+          "label": "Net Income",
+          "current_value": 24667000000,
+          "reference_value": 22800000000,
+          "delta_pct": 8.18859649122807,
+          "basis": "qoq",
+          "direction": "up"
+        }
+      ]
+    },
+    {
+      "type": "metric_delta",
+      "title": "Year-over-year moves",
+      "summary": "This keeps one-off quarter noise from dominating the story.",
+      "metrics": [
+        {
+          "label": "Revenue",
+          "current_value": 69632000000,
+          "reference_value": 62000000000,
+          "delta_pct": 12.30967741935484,
+          "basis": "yoy",
+          "direction": "up"
+        },
+        {
+          "label": "EPS",
+          "current_value": 3.3,
+          "reference_value": 2.91,
+          "delta_pct": 13.402061855670091,
+          "basis": "yoy",
+          "direction": "up"
+        },
+        {
+          "label": "Net Income",
+          "current_value": 24667000000,
+          "reference_value": 21350000000,
+          "delta_pct": 15.536299765807962,
+          "basis": "yoy",
+          "direction": "up"
+        }
+      ]
+    },
+    {
+      "type": "timeline",
+      "title": "Reporting timeline",
+      "summary": "A quick timeline of the periods this report can actually compare.",
+      "points": [
+        {
+          "label": "Current quarter",
+          "value": "2025-Q4",
+          "emphasis": "current"
+        },
+        {
+          "label": "Prior quarter",
+          "value": "2025-Q3",
+          "emphasis": "reference"
+        },
+        {
+          "label": "Year ago",
+          "value": "2024-Q4",
+          "emphasis": "reference"
+        },
+        {
+          "label": "Last transcript",
+          "value": "2025-Q4",
+          "emphasis": "milestone"
+        }
+      ]
+    },
+    {
+      "type": "range_band",
+      "title": "Valuation range",
+      "summary": "The deterministic DCF range shows what the current cash-flow path supports.",
+      "low_value": 175.18087116524603,
+      "mid_value": 206.09514254734827,
+      "high_value": 237.0094139294505,
+      "reference_value": 428.52,
+      "value_label": "Fair value",
+      "reference_label": "Spot"
+    },
+    {
+      "type": "valuation_bridge",
+      "title": "Valuation bridge",
+      "summary": "This shows where spot sits against the modeled valuation band.",
+      "points": [
+        {
+          "label": "Spot",
+          "value": 428.52,
+          "tone": "spot"
+        },
+        {
+          "label": "Low",
+          "value": 175.18087116524603,
+          "tone": "low"
+        },
+        {
+          "label": "Mid",
+          "value": 206.09514254734827,
+          "tone": "mid"
+        },
+        {
+          "label": "High",
+          "value": 237.0094139294505,
+          "tone": "high"
+        }
+      ]
+    },
+    {
+      "type": "evidence_ladder",
+      "title": "Evidence ladder",
+      "summary": "This is where the report is standing: filings first, then data, then supporting commentary.",
+      "rungs": [
+        {
+          "label": "Filings",
+          "count": 1,
+          "tone": "strong"
+        },
+        {
+          "label": "Financial data",
+          "count": 0,
+          "tone": "moderate"
+        },
+        {
+          "label": "Articles and macro",
+          "count": 1,
+          "tone": "light"
+        }
+      ]
+    }
+  ],
+  "explainers": {
+    "signal": "Signal is positive, which means the strongest evidence currently leans positive.",
+    "confidence": "Confidence is high at 83 out of 100. Market conditions can still compress multiples despite strong execution.",
+    "freshness": "Freshness is fresh. This tells you whether the thesis is current, aging, or stale before you rely on it.",
+    "valuation": "Valuation comes from the deterministic DCF block. It is a disciplined range, not a promise.",
+    "omissions": "Latest source timestamp is 32 day(s) old. Degraded report sections: Value Discipline."
+  },
+  "watch_items": [
+    "Compared with the prior thesis from 2026-01-15, Signal shifted from neutral to positive. Confidence moved by 25.0 poi...",
+    "Price moves 5% against the thesis anchor.",
+    "Thesis monitor state becomes weakened or unresolved.",
+    "Latest source timestamp is 32 day(s) old."
+  ],
+  "coverage_truth": {
+    "summary": "This report covers the latest company data Thesis could verify and explicitly lists what is missing instead of filling gaps with guesses.",
+    "covered": [
+      "Latest financial snapshot (2025-Q4)",
+      "Prior-quarter comparison (2025-Q3)",
+      "Year-ago comparison (2024-Q4)",
+      "Management transcript (2025-Q4)",
+      "Financial history table (3 annual rows)",
+      "Deterministic DCF valuation block"
+    ],
+    "missing": [
+      "Latest source timestamp is 32 day(s) old.",
+      "Degraded report sections: Value Discipline.",
+      "Revenue CAGR unavailable: Revenue CAGR could not be computed from annual snapshot history.",
+      "Cash conversion unavailable: Operating cash flow and net income were not both available for latest annual period.",
+      "Value signal unavailable: Positive return on assets",
+      "Value signal unavailable: Positive operating cash flow",
+      "Value signal unavailable: ROA improving vs prior year",
+      "Value signal unavailable: Cash flow exceeds net income",
+      "Value signal unavailable: Leverage declining",
+      "Value signal unavailable: Liquidity buffer improving",
+      "Value signal unavailable: Gross margin improving",
+      "Value signal unavailable: Asset turnover improving"
+    ]
+  },
+  "investment_memo": {
+    "prompt_version": "m4-synthesizer-fixture-v1",
+    "generation_mode": "deterministic_fixture",
+    "company_angle": "enterprise cloud, productivity bundling, and AI monetization discipline",
+    "decision_question": "Does MSFT still justify confidence on enterprise cloud, productivity bundling, and AI monetization discipline, or did the latest evidence shift the thesis into watch mode?",
+    "sections": [
+      {
+        "section_id": "investment_thesis",
+        "title": "Investment Thesis",
+        "narrative": "MSFT keeps a constructive thesis because enterprise cloud, productivity bundling, and AI monetization discipline is still translating into measurable operating outcomes. Confidence is high (83/100), and the decision still depends on whether execution remains durable through the next filing cycle.",
+        "key_points": [
+          "Decision question: Does MSFT still justify confidence on enterprise cloud, productivity bundling, and AI monetization discipline, or did the latest evidence shift the thesis into watch mode?",
+          "Current signal: positive",
+          "Confidence limiter: Market conditions can still compress multiples despite strong execution."
+        ]
+      },
+      {
+        "section_id": "what_changed",
+        "title": "What Changed",
+        "narrative": "Revenue moved up (7.62% QOQ) at 69.63B vs 64.7B. Operating Margin moved up (4.50% QOQ) at 44.1 vs 42.2. Thesis drift status is available: Compared with the prior thesis from 2026-01-15, Signal shifted from neutral to positive. Confidence moved by 25.0 points versus the prior thesis. Core thesis framing changed materially from the prior report.",
+        "key_points": [
+          "Revenue moved up (7.62% QOQ) at 69.63B vs 64.7B.",
+          "Operating Margin moved up (4.50% QOQ) at 44.1 vs 42.2.",
+          "Thesis drift: Compared with the prior thesis from 2026-01-15, Signal shifted from neutral to positive. Confidence moved by 25.0 points versus the prior thesis. Core thesis framing changed materially from the prior report."
+        ]
+      },
+      {
+        "section_id": "business_quality",
+        "title": "Business Quality",
+        "narrative": "MSFT's quality lens is anchored on enterprise cloud, productivity bundling, and AI monetization discipline. Free Cash Flow moved up (15.46% YOY) at 22.4B vs 19.4B. Value-discipline context is sparse_data with score 1/9.",
+        "key_points": [
+          "Quality angle: enterprise cloud, productivity bundling, and AI monetization discipline",
+          "Free Cash Flow moved up (15.46% YOY) at 22.4B vs 19.4B.",
+          "Value context: sparse_data"
+        ]
+      },
+      {
+        "section_id": "valuation",
+        "title": "Valuation",
+        "narrative": "Deterministic valuation is centered near 206.1 with explicit scenario bounds.",
+        "key_points": [
+          "Fair-value midpoint: 206.1",
+          "Implied upside: -51.91%",
+          "Deterministic assumptions are available."
+        ]
+      },
+      {
+        "section_id": "risks",
+        "title": "Risks",
+        "narrative": "Primary risk controls remain evidence freshness and omission visibility. Latest source timestamp is 32 day(s) old. Degraded report sections: Value Discipline.",
+        "key_points": [
+          "No active value-trap warning based on current value-discipline signals.",
+          "Freshness state: fresh",
+          "Missing-data note: Latest source timestamp is 32 day(s) old."
+        ]
+      }
+    ],
+    "material_claims": [
+      {
+        "claim_id": "claim-thesis-direction",
+        "section_id": "investment_thesis",
+        "statement": "MSFT keeps a constructive thesis because enterprise cloud, productivity bundling, and AI monetization discipline is still translating into measurable operating outcomes.",
+        "materiality": "material",
+        "supports": [
+          {
+            "support_type": "metric",
+            "ref_id": "qoq:revenue",
+            "summary": "Revenue moved up (7.62% QOQ) at 69.63B vs 64.7B."
+          }
+        ]
+      },
+      {
+        "claim_id": "claim-valuation-range",
+        "section_id": "valuation",
+        "statement": "Deterministic valuation is centered near 206.1 with explicit scenario bounds.",
+        "materiality": "material",
+        "supports": [
+          {
+            "support_type": "metric",
+            "ref_id": "valuation:fair_value_mid",
+            "summary": "Fair-value midpoint 206.1."
+          }
+        ]
+      },
+      {
+        "claim_id": "claim-risk-controls",
+        "section_id": "risks",
+        "statement": "Primary risk controls remain evidence freshness and omission visibility. Latest source timestamp is 32 day(s) old. Degraded report sections: Value Discipline.",
+        "materiality": "material",
+        "supports": [
+          {
+            "support_type": "omission",
+            "ref_id": "trust:missing_data_notes",
+            "summary": "Latest source timestamp is 32 day(s) old."
+          }
+        ]
+      }
+    ],
+    "unsupported_claims": [],
+    "sparse_data_honesty_note": "Sparse-data handling is active: Revenue CAGR could not be computed from annual snapshot history."
+  },
+  "financial_analysis": {
+    "annual_history": [
+      {
+        "period": "2025-FY",
+        "period_type": "annual",
+        "fiscal_year": 2025,
+        "free_cash_flow": 84100000000,
+        "shares_outstanding": 7420000000
+      },
+      {
+        "period": "2024-FY",
+        "period_type": "annual",
+        "fiscal_year": 2024,
+        "free_cash_flow": 78800000000,
+        "shares_outstanding": 7450000000
+      },
+      {
+        "period": "2023-FY",
+        "period_type": "annual",
+        "fiscal_year": 2023,
+        "free_cash_flow": 72600000000,
+        "shares_outstanding": 7480000000
+      }
+    ],
+    "quarterly_history": [
+      {
+        "period": "2025-Q4",
+        "period_type": "quarterly",
+        "fiscal_year": 2025,
+        "fiscal_quarter": 4,
+        "revenue": 69632000000,
+        "operating_margin": 44.1,
+        "net_income": 24667000000,
+        "free_cash_flow": 22400000000,
+        "shares_outstanding": 7420000000
+      },
+      {
+        "period": "2025-Q3",
+        "period_type": "quarterly",
+        "fiscal_year": 2025,
+        "fiscal_quarter": 3,
+        "revenue": 64700000000,
+        "operating_margin": 42.2,
+        "net_income": 22800000000,
+        "free_cash_flow": 20900000000,
+        "shares_outstanding": 7425000000
+      },
+      {
+        "period": "2024-Q4",
+        "period_type": "quarterly",
+        "fiscal_year": 2024,
+        "fiscal_quarter": 4,
+        "revenue": 62000000000,
+        "operating_margin": 40.5,
+        "net_income": 21350000000,
+        "free_cash_flow": 19400000000,
+        "shares_outstanding": 7450000000
+      }
+    ],
+    "trend_metrics": [
+      {
+        "key": "revenue_cagr_3y_pct",
+        "label": "Revenue CAGR (3y)",
+        "unit": "pct",
+        "status": "omitted",
+        "direction": "unavailable",
+        "note": "Revenue CAGR requires at least two annual revenue points with positive values."
+      },
+      {
+        "key": "gross_margin_delta_3y_pp",
+        "label": "Gross margin change (3y)",
+        "unit": "pct",
+        "status": "omitted",
+        "direction": "unavailable",
+        "note": "Gross-margin trend needs annual gross-margin values."
+      },
+      {
+        "key": "operating_margin_delta_3y_pp",
+        "label": "Operating margin change (3y)",
+        "unit": "pct",
+        "status": "omitted",
+        "direction": "unavailable",
+        "note": "Operating-margin trend needs annual operating-margin values."
+      },
+      {
+        "key": "free_cash_flow_cagr_3y_pct",
+        "label": "Free cash flow CAGR (3y)",
+        "value": 7.629094758654809,
+        "unit": "pct",
+        "status": "available",
+        "direction": "improving"
+      },
+      {
+        "key": "debt_total_change_3y",
+        "label": "Debt total change (3y)",
+        "unit": "currency",
+        "status": "omitted",
+        "direction": "unavailable",
+        "note": "Debt trend requires annual debt_total values."
+      },
+      {
+        "key": "cash_change_3y",
+        "label": "Cash and equivalents change (3y)",
+        "unit": "currency",
+        "status": "omitted",
+        "direction": "unavailable",
+        "note": "Cash trend requires annual cash_and_equivalents values."
+      },
+      {
+        "key": "share_count_change_3y_pct",
+        "label": "Share count change (3y)",
+        "value": -0.8021390374331552,
+        "unit": "pct",
+        "status": "available",
+        "direction": "improving"
+      }
+    ],
+    "quality_metrics": [
+      {
+        "key": "return_on_equity_latest",
+        "label": "Return on equity (latest)",
+        "unit": "ratio",
+        "status": "omitted",
+        "direction": "unavailable",
+        "note": "ROE requires latest net income and shareholders equity."
+      },
+      {
+        "key": "return_on_assets_latest",
+        "label": "Return on assets (latest)",
+        "unit": "ratio",
+        "status": "omitted",
+        "direction": "unavailable",
+        "note": "ROA requires latest net income and total assets."
+      },
+      {
+        "key": "cash_conversion_latest",
+        "label": "Cash conversion (latest)",
+        "unit": "ratio",
+        "status": "omitted",
+        "direction": "unavailable",
+        "note": "Cash conversion requires operating cash flow and net income."
+      },
+      {
+        "key": "debt_to_equity_latest",
+        "label": "Debt to equity (latest)",
+        "unit": "ratio",
+        "status": "omitted",
+        "direction": "unavailable",
+        "note": "Debt-to-equity needs debt_total and shareholders_equity."
+      },
+      {
+        "key": "accrual_ratio_latest",
+        "label": "Accrual ratio (latest)",
+        "unit": "ratio",
+        "status": "omitted",
+        "direction": "unavailable",
+        "note": "Accrual ratio needs net_income, operating_cash_flow, and total_assets."
+      },
+      {
+        "key": "free_cash_flow_margin_latest",
+        "label": "Free cash flow margin (latest)",
+        "unit": "ratio",
+        "status": "omitted",
+        "direction": "unavailable",
+        "note": "FCF margin needs free_cash_flow and revenue in latest annual period."
+      }
+    ],
+    "omissions": [
+      {
+        "code": "revenue_cagr_missing",
+        "label": "Revenue CAGR unavailable",
+        "reason": "Revenue CAGR could not be computed from annual snapshot history.",
+        "impacts": [
+          "financial_statement_analysis",
+          "valuation"
+        ]
+      },
+      {
+        "code": "cash_conversion_missing",
+        "label": "Cash conversion unavailable",
+        "reason": "Operating cash flow and net income were not both available for latest annual period.",
+        "impacts": [
+          "financial_statement_analysis",
+          "value_discipline"
+        ]
+      }
+    ]
+  },
+  "value_discipline": {
+    "score": 1,
+    "max_score": 9,
+    "available_signals": 1,
+    "completeness": "partial",
+    "context_label": "sparse_data",
+    "interpretation": "MSFT scores 1/9 on available value-discipline signals (1 available). Context is sparse-data: use this as a checkpoint, not a conviction-grade value call. 8 signal(s) were unavailable, so the score is partial. No active value-trap warning was triggered by the current inputs.",
+    "missing_signals": [
+      "Positive return on assets",
+      "Positive operating cash flow",
+      "ROA improving vs prior year",
+      "Cash flow exceeds net income",
+      "Leverage declining",
+      "Liquidity buffer improving",
+      "Gross margin improving",
+      "Asset turnover improving"
+    ],
+    "does_not_prove": "This score is a structured quality/value checkpoint, not a buy or sell recommendation, and it does not replace full valuation or risk work.",
+    "signals": [
+      {
+        "key": "roa_positive",
+        "label": "Positive return on assets",
+        "family": "profitability",
+        "status": "unavailable",
+        "reason": "ROA needs latest net income and total assets."
+      },
+      {
+        "key": "operating_cash_flow_positive",
+        "label": "Positive operating cash flow",
+        "family": "profitability",
+        "status": "unavailable",
+        "reason": "Operating cash-flow signal needs latest operating_cash_flow."
+      },
+      {
+        "key": "roa_improving",
+        "label": "ROA improving vs prior year",
+        "family": "profitability",
+        "status": "unavailable",
+        "reason": "ROA trend needs latest and prior annual net income + total assets."
+      },
+      {
+        "key": "cash_flow_exceeds_earnings",
+        "label": "Cash flow exceeds net income",
+        "family": "earnings_quality",
+        "status": "unavailable",
+        "reason": "Accrual-quality signal needs latest operating_cash_flow and net_income."
+      },
+      {
+        "key": "leverage_declining",
+        "label": "Leverage declining",
+        "family": "leverage_liquidity",
+        "status": "unavailable",
+        "reason": "Leverage trend needs latest and prior debt_total + total_assets."
+      },
+      {
+        "key": "liquidity_buffer_improving",
+        "label": "Liquidity buffer improving",
+        "family": "leverage_liquidity",
+        "status": "unavailable",
+        "reason": "Liquidity buffer needs cash, debt, and total-assets values for latest and prior years."
+      },
+      {
+        "key": "gross_margin_improving",
+        "label": "Gross margin improving",
+        "family": "operating_efficiency",
+        "status": "unavailable",
+        "reason": "Gross-margin trend needs latest and prior annual gross_margin."
+      },
+      {
+        "key": "asset_turnover_improving",
+        "label": "Asset turnover improving",
+        "family": "operating_efficiency",
+        "status": "unavailable",
+        "reason": "Asset-turnover trend needs revenue and total_assets for latest and prior annual periods."
+      },
+      {
+        "key": "share_count_not_diluting",
+        "label": "Share count discipline",
+        "family": "capital_discipline",
+        "status": "pass",
+        "reason": "Share count is stable or improved versus prior year.",
+        "value": 30000000
+      }
+    ],
+    "value_trap_warning": {
+      "triggered": false,
+      "summary": "No active value-trap warning based on current value-discipline signals.",
+      "reason_codes": []
+    }
+  },
+  "sections": [
+    {
+      "section_id": "thesis_statement",
+      "title": "Thesis Statement",
+      "body": "MSFT thesis: the current quarter (2025-Q4) shows execution strength, but conviction should track whether reported momentum survives the next filing cycle. Quarter-over-quarter context is available and included below. Year-over-year context is available and included below.",
+      "status": "complete",
+      "evidence": [
+        {
+          "evidence_id": "historical-MSFT-2025-q4",
+          "source_type": "financial_data",
+          "source_name": "historical:fixture_historical",
+          "excerpt": "MSFT 2025-Q4 snapshot",
+          "retrieved_at": "2026-04-21T08:33:56.333Z"
+        },
+        {
+          "evidence_id": "transcript-MSFT-2025-q4",
+          "source_type": "article",
+          "source_name": "historical:fixture_transcript",
+          "excerpt": "MSFT 2025-Q4 earnings call transcript",
+          "retrieved_at": "2026-04-21T08:33:56.333Z"
+        }
+      ]
+    },
+    {
+      "section_id": "what_changed",
+      "title": "What Changed",
+      "body": "QoQ revenue: 69.63B vs 64.7B (7.62%) QoQ eps: 3.3 vs 3.05 (8.20%) QoQ net_income: 24.67B vs 22.8B (8.19%) QoQ operating_margin: 44.1 vs 42.2 (4.50%) QoQ free_cash_flow: 22.4B vs 20.9B (7.18%) YoY revenue: 69.63B vs 62B (12.31%) YoY eps: 3.3 vs 2.91 (13.40%) YoY net_income: 24.67B vs 21.35B (15.54%) YoY operating_margin: 44.1 vs 40.5 (8.89%) YoY free_cash_flow: 22.4B vs 19.4B (15.46%) Segment context: Cloud (29.1B revenue), Productivity (19.7B revenue). Management quote: \"Management highlighted durable cloud demand and disciplined AI infrastructure spend while maintaining margin focus.\"",
+      "status": "complete",
+      "evidence": [
+        {
+          "evidence_id": "historical-MSFT-2025-q4",
+          "source_type": "financial_data",
+          "source_name": "historical:fixture_historical",
+          "excerpt": "MSFT 2025-Q4 snapshot",
+          "retrieved_at": "2026-04-21T08:33:56.338Z"
+        },
+        {
+          "evidence_id": "transcript-MSFT-2025-q4",
+          "source_type": "article",
+          "source_name": "historical:fixture_transcript",
+          "excerpt": "MSFT 2025-Q4 earnings call transcript",
+          "retrieved_at": "2026-04-21T08:33:56.338Z"
+        }
+      ]
+    },
+    {
+      "section_id": "value_discipline",
+      "title": "Value Discipline",
+      "body": "Value-discipline score: 1/9 (1 signals available). Context: sparse_data. MSFT scores 1/9 on available value-discipline signals (1 available). Context is sparse-data: use this as a checkpoint, not a conviction-grade value call. 8 signal(s) were unavailable, so the score is partial. No active value-trap warning was triggered by the current inputs. Missing signals: Positive return on assets; Positive operating cash flow; ROA improving vs prior year; Cash flow exceeds net income; Leverage declining; Liquidity buffer improving; Gross margin improving; Asset turnover improving. This score is a structured quality/value checkpoint, not a buy or sell recommendation, and it does not replace full valuation or risk work.",
+      "status": "data_incomplete",
+      "evidence": []
+    },
+    {
+      "section_id": "valuation",
+      "title": "Valuation",
+      "body": "Deterministic DCF fair-value mid: 206.1 per share (range 175.18 to 237.01). Spot reference: 428.52; implied upside -51.91%. Assumptions: WACC 9.50%, terminal growth 2.50%, projection horizon 5 years.",
+      "status": "complete",
+      "evidence": [
+        {
+          "evidence_id": "historical-MSFT-2025-q4",
+          "source_type": "financial_data",
+          "source_name": "historical:fixture_historical",
+          "excerpt": "MSFT 2025-Q4 snapshot",
+          "retrieved_at": "2026-04-21T08:33:56.331Z"
+        },
+        {
+          "evidence_id": "transcript-MSFT-2025-q4",
+          "source_type": "article",
+          "source_name": "historical:fixture_transcript",
+          "excerpt": "MSFT 2025-Q4 earnings call transcript",
+          "retrieved_at": "2026-04-21T08:33:56.331Z"
+        }
+      ]
+    },
+    {
+      "section_id": "executive_summary",
+      "title": "Executive Summary",
+      "body": "MSFT keeps a constructive thesis because enterprise cloud, productivity bundling, and AI monetization discipline is still translating into measurable operating outcomes. Confidence is high (83/100), and the decision still depends on whether execution remains durable through the next filing cycle. The current research signal is positive. This is a research summary, not financial advice. Always do your own research.",
+      "status": "complete",
+      "evidence": [
+        {
+          "evidence_id": "msft-events-1",
+          "source_type": "filing",
+          "source_name": "Company filings",
+          "excerpt": "No transformative acquisition closed in the quarter.",
+          "retrieved_at": "2026-03-15T08:00:00.000Z",
+          "url": "https://example.com/msft/events-1"
+        },
+        {
+          "evidence_id": "msft-commentary-1",
+          "source_type": "article",
+          "source_name": "FY2025 Q2 earnings call",
+          "excerpt": "Leadership reiterated AI capex discipline.",
+          "retrieved_at": "2026-03-15T08:00:00.000Z",
+          "url": "https://example.com/msft/commentary-1"
+        },
+        {
+          "evidence_id": "msft-commentary-2",
+          "source_type": "filing",
+          "source_name": "10-Q risk factors",
+          "excerpt": "Cybersecurity and competition remain key risks.",
+          "retrieved_at": "2026-03-15T08:00:00.000Z",
+          "url": "https://example.com/msft/commentary-2"
+        }
+      ]
+    },
+    {
+      "section_id": "quarter_over_quarter_changes",
+      "title": "Quarter-over-Quarter Changes",
+      "status": "complete",
+      "body": "MSFT delivered sequential growth with cloud demand carrying the headline acceleration.",
+      "evidence": [
+        {
+          "evidence_id": "msft-qoq-1",
+          "source_type": "filing",
+          "source_name": "FY2025 Q2 10-Q",
+          "excerpt": "Revenue increased quarter over quarter.",
+          "retrieved_at": "2026-03-15T08:00:00.000Z",
+          "url": "https://example.com/msft/qoq-1"
+        },
+        {
+          "evidence_id": "msft-qoq-2",
+          "source_type": "article",
+          "source_name": "FY2025 Q2 earnings call",
+          "excerpt": "Cloud demand improved sequentially.",
+          "retrieved_at": "2026-03-15T08:00:00.000Z",
+          "url": "https://example.com/msft/qoq-2"
+        }
+      ]
+    },
+    {
+      "section_id": "year_over_year_changes",
+      "title": "Year-over-Year Changes",
+      "status": "complete",
+      "body": "MSFT delivered year-over-year growth with cloud demand carrying the headline acceleration.",
+      "evidence": [
+        {
+          "evidence_id": "msft-yoy-1",
+          "source_type": "filing",
+          "source_name": "FY2025 Q2 10-Q",
+          "excerpt": "Revenue increased 15% year over year.",
+          "retrieved_at": "2026-03-15T08:00:00.000Z",
+          "url": "https://example.com/msft/yoy-1"
+        },
+        {
+          "evidence_id": "msft-yoy-2",
+          "source_type": "article",
+          "source_name": "FY2025 Q2 earnings call",
+          "excerpt": "Management highlighted Azure demand resilience.",
+          "retrieved_at": "2026-03-15T08:00:00.000Z",
+          "url": "https://example.com/msft/yoy-2"
+        }
+      ]
+    },
+    {
+      "section_id": "revenue_margin_analysis",
+      "title": "Revenue and Margin Analysis",
+      "status": "complete",
+      "body": "MSFT expanded margins alongside revenue, suggesting operating leverage rather than one-off accounting noise.",
+      "evidence": [
+        {
+          "evidence_id": "msft-margin-1",
+          "source_type": "financial_data",
+          "source_name": "FY2025 Q2 10-Q",
+          "excerpt": "Gross margin expanded by 120 basis points.",
+          "retrieved_at": "2026-03-15T08:00:00.000Z",
+          "url": "https://example.com/msft/margin-1"
+        },
+        {
+          "evidence_id": "msft-margin-2",
+          "source_type": "financial_data",
+          "source_name": "FY2025 Q2 10-Q",
+          "excerpt": "Operating income outpaced revenue growth.",
+          "retrieved_at": "2026-03-15T08:00:00.000Z",
+          "url": "https://example.com/msft/margin-2"
+        }
+      ]
+    },
+    {
+      "section_id": "debt_liquidity",
+      "title": "Debt and Liquidity",
+      "status": "complete",
+      "body": "MSFT remains liquid and conservatively financed, with cash coverage that limits near-term balance-sheet stress.",
+      "evidence": [
+        {
+          "evidence_id": "msft-debt-1",
+          "source_type": "financial_data",
+          "source_name": "FY2025 Q2 balance sheet",
+          "excerpt": "Cash and short-term investments exceed total debt.",
+          "retrieved_at": "2026-03-15T08:00:00.000Z",
+          "url": "https://example.com/msft/debt-1"
+        },
+        {
+          "evidence_id": "msft-debt-2",
+          "source_type": "financial_data",
+          "source_name": "FY2025 Q2 cash flow",
+          "excerpt": "Free cash flow remained positive.",
+          "retrieved_at": "2026-03-15T08:00:00.000Z",
+          "url": "https://example.com/msft/debt-2"
+        }
+      ]
+    },
+    {
+      "section_id": "acquisitions_major_events",
+      "title": "Acquisitions and Major Events",
+      "status": "complete",
+      "body": "Major event flow was manageable and did not materially distort the core operating picture for MSFT.",
+      "evidence": [
+        {
+          "evidence_id": "msft-events-1",
+          "source_type": "filing",
+          "source_name": "Company filings",
+          "excerpt": "No transformative acquisition closed in the quarter.",
+          "retrieved_at": "2026-03-15T08:00:00.000Z",
+          "url": "https://example.com/msft/events-1"
+        }
+      ]
+    },
+    {
+      "section_id": "management_commentary",
+      "title": "Management Commentary",
+      "status": "complete",
+      "body": "Management commentary stayed constructive while still acknowledging execution and risk priorities for MSFT.",
+      "evidence": [
+        {
+          "evidence_id": "msft-commentary-1",
+          "source_type": "article",
+          "source_name": "FY2025 Q2 earnings call",
+          "excerpt": "Leadership reiterated AI capex discipline.",
+          "retrieved_at": "2026-03-15T08:00:00.000Z",
+          "url": "https://example.com/msft/commentary-1"
+        },
+        {
+          "evidence_id": "msft-commentary-2",
+          "source_type": "filing",
+          "source_name": "10-Q risk factors",
+          "excerpt": "Cybersecurity and competition remain key risks.",
+          "retrieved_at": "2026-03-15T08:00:00.000Z",
+          "url": "https://example.com/msft/commentary-2"
+        },
+        {
+          "evidence_id": "msft-commentary-3",
+          "source_type": "filing",
+          "source_name": "10-Q risk factors",
+          "excerpt": "Regulatory and macro volatility remain material uncertainties.",
+          "retrieved_at": "2026-03-15T08:00:00.000Z",
+          "url": "https://example.com/msft/commentary-3"
+        }
+      ]
+    },
+    {
+      "section_id": "research_signal",
+      "title": "Research Signal",
+      "body": "Research signal: positive. Revenue quality improved while margins expanded. Liquidity and balance-sheet posture remain strong.",
+      "status": "complete",
+      "evidence": [
+        {
+          "evidence_id": "msft-events-1",
+          "source_type": "filing",
+          "source_name": "Company filings",
+          "excerpt": "No transformative acquisition closed in the quarter.",
+          "retrieved_at": "2026-03-15T08:00:00.000Z",
+          "url": "https://example.com/msft/events-1"
+        },
+        {
+          "evidence_id": "msft-commentary-1",
+          "source_type": "article",
+          "source_name": "FY2025 Q2 earnings call",
+          "excerpt": "Leadership reiterated AI capex discipline.",
+          "retrieved_at": "2026-03-15T08:00:00.000Z",
+          "url": "https://example.com/msft/commentary-1"
+        }
+      ]
+    },
+    {
+      "section_id": "confidence_score",
+      "title": "Confidence Score and Limiting Factors",
+      "body": "Confidence score 0.83 (high). Limiting factors: Market conditions can still compress multiples despite strong execution.",
+      "status": "complete",
+      "evidence": []
+    },
+    {
+      "section_id": "evidence_references",
+      "title": "Evidence References",
+      "body": "Company filings: No transformative acquisition closed in the quarter.\nFY2025 Q2 earnings call: Leadership reiterated AI capex discipline.",
+      "status": "complete",
+      "evidence": [
+        {
+          "evidence_id": "msft-events-1",
+          "source_type": "filing",
+          "source_name": "Company filings",
+          "excerpt": "No transformative acquisition closed in the quarter.",
+          "retrieved_at": "2026-03-15T08:00:00.000Z",
+          "url": "https://example.com/msft/events-1"
+        },
+        {
+          "evidence_id": "msft-commentary-1",
+          "source_type": "article",
+          "source_name": "FY2025 Q2 earnings call",
+          "excerpt": "Leadership reiterated AI capex discipline.",
+          "retrieved_at": "2026-03-15T08:00:00.000Z",
+          "url": "https://example.com/msft/commentary-1"
+        }
+      ]
+    }
+  ],
+  "flags": [
+    "fixture_mode",
+    "value_discipline:data_incomplete",
+    "langsmith_trace_mock"
+  ],
+  "data_sources": [
+    "dexter-native:financial_search",
+    "dexter-native:read_filings",
+    "dexter-native:web_search"
+  ]
+}

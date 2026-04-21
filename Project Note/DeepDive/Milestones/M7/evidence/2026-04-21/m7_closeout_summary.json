@@ -1,0 +1,44 @@
+{
+  "suite": "deepdive-m7-closeout",
+  "started_at": "2026-04-21T08:33:52.703Z",
+  "base_url": "http://127.0.0.1:51881",
+  "steps": [
+    {
+      "name": "health",
+      "status": "pass"
+    },
+    {
+      "name": "auth_and_pro_upgrade",
+      "status": "pass"
+    },
+    {
+      "name": "structured_report_run_complete_retrieve",
+      "status": "pass"
+    },
+    {
+      "name": "structured_report_pdf_export",
+      "status": "pass"
+    },
+    {
+      "name": "legacy_report_fallback_retrieve_export",
+      "status": "pass"
+    }
+  ],
+  "health": {
+    "status": "ok"
+  },
+  "user_id": "def08212-f197-41a6-932d-7ac0449c8c48",
+  "structured_report_id": "7604fd7b-ee3b-4988-a402-846b3ddfd952",
+  "legacy_report_id": "m7-legacy-1776760436917",
+  "structured_pdf_path": "C:\\BOTS\\Thesis\\fintech\\Project Note\\DeepDive\\Milestones\\M7\\evidence\\2026-04-21\\m7_structured_export.pdf",
+  "legacy_pdf_path": "C:\\BOTS\\Thesis\\fintech\\Project Note\\DeepDive\\Milestones\\M7\\evidence\\2026-04-21\\m7_legacy_export.pdf",
+  "required_structured_checks": {
+    "investment_memo": true,
+    "financial_analysis": true,
+    "value_discipline": true,
+    "valuation": true,
+    "kill_switch_conditions": true,
+    "evidence_sections": true
+  },
+  "history_count": 2
+}

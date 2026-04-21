@@ -5,6 +5,7 @@ import type { CanonicalFinancialSnapshot } from "../../../packages/contracts/src
 
 import { buildComparisons } from "../src/comparisons";
 import { computeDeterministicDcf } from "../src/dcf";
+import { buildFinancialAnalysis } from "../src/financial-analysis";
 
 function snapshot(input: {
   id: string;
@@ -153,4 +154,135 @@ test("deterministic DCF degrades when there is not enough annual free-cash-flow 
 
   assert.equal(result.valuation, undefined);
   assert.match(result.degradedReason ?? "", /At least 3 annual free-cash-flow points/);
+});
+
+test("financial analysis builds deterministic tables and metrics from complete annual history", () => {
+  const analysis = buildFinancialAnalysis([
+    snapshot({
+      id: "fy2021",
+      period: "2021-FY",
+      fiscalYear: 2021,
+      periodType: "annual",
+      data: {
+        revenue: 300_000_000_000,
+        gross_margin: 41.2,
+        operating_margin: 31.1,
+        net_income: 90_000_000_000,
+        free_cash_flow: 95_000_000_000,
+        debt_total: 140_000_000_000,
+        cash_and_equivalents: 80_000_000_000,
+        shares_outstanding: 16_200_000_000,
+        operating_cash_flow: 110_000_000_000,
+        shareholders_equity: 70_000_000_000,
+        total_assets: 350_000_000_000
+      }
+    }),
+    snapshot({
+      id: "fy2022",
+      period: "2022-FY",
+      fiscalYear: 2022,
+      periodType: "annual",
+      data: {
+        revenue: 325_000_000_000,
+        gross_margin: 42.1,
+        operating_margin: 31.8,
+        net_income: 96_000_000_000,
+        free_cash_flow: 101_000_000_000,
+        debt_total: 138_000_000_000,
+        cash_and_equivalents: 84_000_000_000,
+        shares_outstanding: 16_050_000_000,
+        operating_cash_flow: 116_000_000_000,
+        shareholders_equity: 75_000_000_000,
+        total_assets: 360_000_000_000
+      }
+    }),
+    snapshot({
+      id: "fy2023",
+      period: "2023-FY",
+      fiscalYear: 2023,
+      periodType: "annual",
+      data: {
+        revenue: 346_000_000_000,
+        gross_margin: 43.4,
+        operating_margin: 32.5,
+        net_income: 104_000_000_000,
+        free_cash_flow: 111_000_000_000,
+        debt_total: 132_000_000_000,
+        cash_and_equivalents: 90_000_000_000,
+        shares_outstanding: 15_950_000_000,
+        operating_cash_flow: 126_000_000_000,
+        shareholders_equity: 83_000_000_000,
+        total_assets: 372_000_000_000
+      }
+    }),
+    snapshot({
+      id: "q4-2025",
+      period: "2025-Q4",
+      fiscalYear: 2025,
+      fiscalQuarter: 4,
+      periodType: "quarterly",
+      data: {
+        revenue: 100_000_000_000,
+        gross_margin: 44.2,
+        operating_margin: 33.1,
+        net_income: 26_000_000_000,
+        free_cash_flow: 24_000_000_000,
+        debt_total: 130_000_000_000,
+        cash_and_equivalents: 95_000_000_000,
+        shares_outstanding: 15_900_000_000
+      }
+    })
+  ]);
+
+  assert.equal(analysis.annual_history.length, 3);
+  assert.equal(analysis.quarterly_history.length, 1);
+  assert.ok(analysis.trend_metrics.some((metric) =>
+    metric.key === "revenue_cagr_3y_pct" &&
+    metric.status === "available"
+  ));
+  assert.ok(analysis.trend_metrics.some((metric) =>
+    metric.key === "share_count_change_3y_pct" &&
+    metric.direction === "improving"
+  ));
+  assert.ok(analysis.quality_metrics.some((metric) =>
+    metric.key === "cash_conversion_latest" &&
+    metric.status === "available"
+  ));
+  assert.equal(analysis.omissions.length, 0);
+});
+
+test("financial analysis emits omissions instead of fabricating sparse metrics", () => {
+  const analysis = buildFinancialAnalysis([
+    snapshot({
+      id: "fy2025",
+      period: "2025-FY",
+      fiscalYear: 2025,
+      periodType: "annual",
+      data: {
+        free_cash_flow: 50_000_000_000
+      }
+    }),
+    snapshot({
+      id: "q4-2025",
+      period: "2025-Q4",
+      fiscalYear: 2025,
+      fiscalQuarter: 4,
+      periodType: "quarterly",
+      data: {
+        revenue: 20_000_000_000
+      }
+    })
+  ]);
+
+  assert.equal(analysis.annual_history.length, 1);
+  assert.ok(analysis.trend_metrics.some((metric) =>
+    metric.key === "revenue_cagr_3y_pct" &&
+    metric.status === "omitted"
+  ));
+  assert.ok(analysis.quality_metrics.some((metric) =>
+    metric.key === "cash_conversion_latest" &&
+    metric.status === "omitted"
+  ));
+  assert.ok(analysis.omissions.some((omission) => omission.code === "annual_history_insufficient"));
+  assert.ok(analysis.omissions.some((omission) => omission.code === "free_cash_flow_trend_missing"));
 });

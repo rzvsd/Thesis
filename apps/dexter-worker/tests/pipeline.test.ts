@@ -3,7 +3,7 @@ import test from "node:test";
 
 import type { AnalysisRequest, ReportSection } from "../../../packages/contracts/src";
 
-import { loadConfig, validateLiveModeConfig } from "../src/config";
+import { loadConfig, resolveLiveProviderAttempts, validateLiveModeConfig } from "../src/config";
 import { runAnalysisPipeline } from "../src/pipeline";
 import { loadRuntimePrompts } from "../src/prompt-store";
 import { validateAnalysisReport } from "../src/schema-validation";
@@ -51,7 +51,22 @@ test("MSFT fixture request produces a schema-valid report with no blank sections
   assert.ok(report.explainers?.signal.length);
   assert.ok((report.watch_items?.length ?? 0) >= 1);
   assert.ok((report.coverage_truth?.covered.length ?? 0) >= 1);
+  assert.ok((report.financial_analysis?.annual_history.length ?? 0) >= 3);
+  assert.ok((report.financial_analysis?.trend_metrics.length ?? 0) >= 1);
+  assert.ok((report.financial_analysis?.quality_metrics.length ?? 0) >= 1);
+  assert.ok((report.value_discipline?.signals.length ?? 0) >= 1);
+  assert.ok((report.value_discipline?.available_signals ?? 0) >= 1);
+  assert.ok((report.value_discipline?.does_not_prove.length ?? 0) > 20);
+  assert.ok(report.investment_memo);
+  assert.equal(report.investment_memo?.prompt_version, "m4-synthesizer-fixture-v1");
+  assert.equal(report.investment_memo?.generation_mode, "deterministic_fixture");
+  assert.equal(report.investment_memo?.sections.length, 5);
+  assert.ok((report.investment_memo?.material_claims.length ?? 0) >= 1);
+  assert.equal(report.investment_memo?.unsupported_claims.length, 0);
   assert.equal(findSection(report.sections, "what_changed").status, "complete");
+  assert.ok(["complete", "data_incomplete", "data_unavailable"].includes(
+    findSection(report.sections, "value_discipline").status
+  ));
   assert.equal(findSection(report.sections, "valuation").status, "complete");
   assert.equal(findSection(report.sections, "quarter_over_quarter_changes").status, "complete");
   assert.equal(findSection(report.sections, "year_over_year_changes").status, "complete");
@@ -85,7 +100,19 @@ test("LIMITED fixture request degrades affected sections honestly", async () => 
   assert.equal(report.trust_metadata?.thesis_drift.status, "unavailable");
   assert.equal(report.trust_metadata?.valuation_state, "degraded");
   assert.ok((report.trust_metadata?.missing_data_notes.length ?? 0) > 0);
+  assert.ok((report.financial_analysis?.omissions.length ?? 0) > 0);
+  assert.equal(report.value_discipline?.context_label, "sparse_data");
+  assert.ok((report.value_discipline?.missing_signals.length ?? 0) > 0);
+  assert.notEqual(report.value_discipline?.completeness, "complete");
+  assert.ok(
+    report.investment_memo?.material_claims.some((claim) =>
+      claim.supports.some((support) => support.support_type === "omission")
+    )
+  );
+  assert.ok(report.investment_memo?.sparse_data_honesty_note.includes("Sparse-data handling"));
   assert.ok(report.coverage_truth?.missing.some((entry) => entry.includes("Valuation")));
+  assert.ok(report.coverage_truth?.missing.some((entry) => entry.includes("Annual history is insufficient")));
+  assert.ok(report.coverage_truth?.missing.some((entry) => entry.includes("Value signal unavailable")));
   assert.ok(report.explainers?.omissions.includes("Valuation"));
 });
 
@@ -157,7 +184,7 @@ test("fixture mode loads prompts from the local manifest", async () => {
 
   assert.equal(prompts.planner.version, "m2-planner-fixture-v1");
   assert.equal(prompts.sectionExecutor.version, "m2-section-fixture-v1");
-  assert.equal(prompts.synthesizer.version, "m2-synthesizer-fixture-v1");
+  assert.equal(prompts.synthesizer.version, "m4-synthesizer-fixture-v1");
   assert.equal(prompts.killSwitchExtractor.version, "m5-kill-switch-fixture-v1");
   assert.equal(prompts.relationshipExtractor.version, "m5-relationship-fixture-v1");
 });
@@ -181,25 +208,64 @@ test("GRAPH fixture extracts report-backed name relationships", async () => {
   ));
 });
 
-test("live mode validation requires model, Anthropic, and LangSmith settings", () => {
+test("live mode validation accepts an openrouter-first config without paid data dependencies", () => {
   const config = loadConfig({
     PORT: "3002",
     DEXTER_FIXTURE_MODE: "false",
-    DEXTER_MODEL: "",
+    DEXTER_PROVIDER_ORDER: "openrouter,anthropic,openai",
+    DEXTER_OPENROUTER_MODEL: "openrouter:openai/gpt-5.4-mini",
+    OPENROUTER_API_KEY: "test-openrouter-key",
     LANGSMITH_TRACING: "false",
     LANGSMITH_PROJECT: "",
-    ANTHROPIC_API_KEY: "",
-    FINANCIAL_DATASETS_API_KEY: ""
+    LANGSMITH_API_KEY: ""
   });
 
   const errors = validateLiveModeConfig(config);
 
-  assert.ok(errors.includes("DEXTER_MODEL is required when DEXTER_FIXTURE_MODE=false"));
-  assert.ok(errors.includes("ANTHROPIC_API_KEY is required when DEXTER_FIXTURE_MODE=false"));
+  assert.deepEqual(errors, []);
+  assert.deepEqual(resolveLiveProviderAttempts(config), [
+    {
+      provider: "openrouter",
+      model: "openrouter:openai/gpt-5.4-mini"
+    }
+  ]);
+});
+
+test("live mode validation fails when no provider credential is configured", () => {
+  const config = loadConfig({
+    PORT: "3002",
+    DEXTER_FIXTURE_MODE: "false",
+    DEXTER_PROVIDER_ORDER: "openrouter,anthropic,openai",
+    DEXTER_OPENROUTER_MODEL: "openrouter:openai/gpt-5.4-mini",
+    DEXTER_OPENAI_MODEL: "gpt-5.4-mini",
+    DEXTER_ANTHROPIC_MODEL: "claude-sonnet-4-5-20250929",
+    OPENROUTER_API_KEY: "",
+    OPENAI_API_KEY: "",
+    ANTHROPIC_API_KEY: ""
+  });
+
+  const errors = validateLiveModeConfig(config);
+
   assert.ok(
-    errors.includes("FINANCIAL_DATASETS_API_KEY is required when DEXTER_FIXTURE_MODE=false")
+    errors.some((error) =>
+      error.includes("At least one live provider is required when DEXTER_FIXTURE_MODE=false")
+    )
   );
-  assert.ok(errors.includes("LANGSMITH_TRACING=true is required when DEXTER_FIXTURE_MODE=false"));
-  assert.ok(errors.includes("LANGSMITH_API_KEY is required when DEXTER_FIXTURE_MODE=false"));
-  assert.ok(errors.includes("LANGSMITH_PROJECT is required when DEXTER_FIXTURE_MODE=false"));
+});
+
+test("langsmith prompt mode falls back to the local prompt manifest when remote pull is unavailable", async () => {
+  const config = loadConfig({
+    ...process.env,
+    DEXTER_FIXTURE_MODE: "false",
+    DEXTER_PROVIDER_ORDER: "anthropic",
+    DEXTER_ANTHROPIC_MODEL: "claude-sonnet-4-5-20250929",
+    ANTHROPIC_API_KEY: "test-anthropic-key",
+    DEXTER_PROMPT_SOURCE: "langsmith",
+    LANGSMITH_API_KEY: ""
+  });
+
+  const prompts = await loadRuntimePrompts(config);
+
+  assert.equal(prompts.planner.version, "m2-planner-fixture-v1");
+  assert.equal(prompts.sectionExecutor.version, "m2-section-fixture-v1");
 });

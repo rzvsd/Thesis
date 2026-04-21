@@ -127,7 +127,12 @@ export async function loadRuntimePrompts(config: DexterConfig): Promise<LoadedPr
     return loadPrompts(config.promptManifestPath);
   }
 
+  if (config.promptSource === "local") {
+    return loadPrompts(config.promptManifestPath);
+  }
+
   const cacheKey = [
+    config.promptSource,
     config.langsmithPlannerPrompt,
     config.langsmithSectionExecutorPrompt,
     config.langsmithSynthesizerPrompt,
@@ -141,18 +146,22 @@ export async function loadRuntimePrompts(config: DexterConfig): Promise<LoadedPr
     return cachedLivePrompts.prompts;
   }
 
-  const prompts: LoadedPrompts = {
-    planner: await pullPromptTemplate(config.langsmithPlannerPrompt),
-    sectionExecutor: await pullPromptTemplate(config.langsmithSectionExecutorPrompt),
-    synthesizer: await pullPromptTemplate(config.langsmithSynthesizerPrompt),
-    killSwitchExtractor: await pullPromptTemplate(config.langsmithKillSwitchPrompt),
-    relationshipExtractor: await pullPromptTemplate(config.langsmithRelationshipPrompt),
-    oppositeCase: await pullPromptTemplate(config.langsmithOppositeCasePrompt),
-    coherenceAnalyzer: await pullPromptTemplate(config.langsmithCoherenceAnalyzerPrompt)
-  };
+  try {
+    const prompts: LoadedPrompts = {
+      planner: await pullPromptTemplate(config.langsmithPlannerPrompt),
+      sectionExecutor: await pullPromptTemplate(config.langsmithSectionExecutorPrompt),
+      synthesizer: await pullPromptTemplate(config.langsmithSynthesizerPrompt),
+      killSwitchExtractor: await pullPromptTemplate(config.langsmithKillSwitchPrompt),
+      relationshipExtractor: await pullPromptTemplate(config.langsmithRelationshipPrompt),
+      oppositeCase: await pullPromptTemplate(config.langsmithOppositeCasePrompt),
+      coherenceAnalyzer: await pullPromptTemplate(config.langsmithCoherenceAnalyzerPrompt)
+    };
 
-  cachedLivePrompts = { cacheKey, prompts };
-  return prompts;
+    cachedLivePrompts = { cacheKey, prompts };
+    return prompts;
+  } catch {
+    return loadPrompts(config.promptManifestPath);
+  }
 }
 
 export function renderPrompt(

@@ -1,0 +1,51 @@
+{
+  "report_id": "m7-legacy-1776760436917",
+  "job_id": "ee88e712-940d-402f-a8c7-343628241723",
+  "schema_version": "2.0",
+  "type": "deep_dive",
+  "ticker": "AAPL",
+  "generated_at": "2026-04-21T09:00:00.000Z",
+  "confidence": {
+    "score": 0.61,
+    "label": "medium",
+    "limiting_factors": [
+      "Legacy fixture for fallback verification."
+    ]
+  },
+  "signal": {
+    "value": "neutral",
+    "reasons": [
+      "Legacy fallback report kept for render compatibility proof."
+    ],
+    "evidence": []
+  },
+  "sections": [
+    {
+      "section_id": "thesis_statement",
+      "title": "Thesis Statement",
+      "body": "AAPL legacy report kept for backward-compatible mobile and PDF fallback proof.",
+      "status": "complete",
+      "evidence": []
+    },
+    {
+      "section_id": "executive_summary",
+      "title": "Executive Summary",
+      "body": "Legacy report rendering remains available without the new structured blocks.",
+      "status": "complete",
+      "evidence": []
+    },
+    {
+      "section_id": "valuation",
+      "title": "Valuation",
+      "body": "Legacy valuation text remains exportable and omission-forward.",
+      "status": "data_incomplete",
+      "evidence": []
+    }
+  ],
+  "flags": [
+    "legacy_fixture"
+  ],
+  "data_sources": [
+    "legacy-fixture"
+  ]
+}

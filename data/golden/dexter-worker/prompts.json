@@ -8,8 +8,8 @@
     "template": "Prepare the {section_title} section for ticker {ticker}. {section_guidance} Operating budget: complete in at most 2 tool calls, avoid broad browsing, and prioritize filing-quality or other high-trust evidence. If relevant evidence is unavailable within that budget, say so explicitly and return an honest degraded section instead of continuing to search. Keep output concise (maximum 220 words). Use only trustworthy evidence, state uncertainty explicitly, and do not invent facts. Requested at {requested_at}. Job ID: {job_id}."
   },
   "synthesizer": {
-    "version": "m2-synthesizer-fixture-v1",
-    "template": "Assemble an honest executive summary for {ticker} from completed sections only. Explicitly mention degradation when sections are incomplete, unavailable, or failed."
+    "version": "m4-synthesizer-fixture-v1",
+    "template": "Write a company-specific investment memo for {ticker} from structured facts only. Every material claim must map to a metric, evidence item, or explicit omission. Avoid generic prose and state uncertainty directly."
   },
   "kill_switch_extractor": {
     "version": "m5-kill-switch-fixture-v1",

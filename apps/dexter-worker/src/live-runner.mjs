@@ -20,6 +20,7 @@ async function main() {
   const input = JSON.parse(raw);
   const agent = await Agent.create({
     model: input.model,
+    modelProvider: input.modelProvider,
     maxIterations: input.maxIterations,
     memoryEnabled: false
   });

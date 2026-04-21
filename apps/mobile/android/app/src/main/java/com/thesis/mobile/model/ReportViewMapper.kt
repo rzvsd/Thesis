@@ -32,6 +32,9 @@ object ReportViewMapper {
             explainers = mapExplainers(payload.optJSONObject("explainers")),
             watchItems = mapStringArray(payload.optJSONArray("watch_items")),
             coverageTruth = mapCoverageTruth(payload.optJSONObject("coverage_truth")),
+            investmentMemo = mapInvestmentMemo(payload.optJSONObject("investment_memo")),
+            financialAnalysis = mapFinancialAnalysis(payload.optJSONObject("financial_analysis")),
+            valueDiscipline = mapValueDiscipline(payload.optJSONObject("value_discipline")),
             confidence = mapConfidence(payload.optJSONObject("confidence")),
             signalValue = payload.optJSONObject("signal")?.optNullableString("value"),
             signalReasons = mapStringArray(payload.optJSONObject("signal")?.optJSONArray("reasons")),
@@ -40,6 +43,7 @@ object ReportViewMapper {
             valuation = mapValuation(payload.optJSONObject("valuation")),
             historical = mapHistorical(payload.optJSONObject("historical_context")),
             trustMetadata = mapTrustMetadata(payload.optJSONObject("trust_metadata")),
+            killSwitchConditions = mapKillSwitchConditions(payload.optJSONArray("kill_switch_conditions")),
             sections = sections
         )
     }
@@ -317,6 +321,300 @@ object ReportViewMapper {
             covered = mapStringArray(row.optJSONArray("covered")),
             missing = mapStringArray(row.optJSONArray("missing"))
         )
+    }
+
+    private fun mapInvestmentMemo(row: JSONObject?): InvestmentMemoView? {
+        if (row == null) {
+            return null
+        }
+        val promptVersion = row.optString("prompt_version", "").trim()
+        val generationMode = row.optString("generation_mode", "").trim()
+        val companyAngle = row.optString("company_angle", "").trim()
+        val decisionQuestion = row.optString("decision_question", "").trim()
+        val sparseDataHonestyNote = row.optString("sparse_data_honesty_note", "").trim()
+        if (
+            promptVersion.isBlank() ||
+            generationMode.isBlank() ||
+            companyAngle.isBlank() ||
+            decisionQuestion.isBlank() ||
+            sparseDataHonestyNote.isBlank()
+        ) {
+            return null
+        }
+        return InvestmentMemoView(
+            promptVersion = promptVersion,
+            generationMode = generationMode,
+            companyAngle = companyAngle,
+            decisionQuestion = decisionQuestion,
+            sections = mapInvestmentMemoSections(row.optJSONArray("sections")),
+            materialClaims = mapInvestmentMemoClaims(row.optJSONArray("material_claims")),
+            unsupportedClaims = mapStringArray(row.optJSONArray("unsupported_claims")),
+            sparseDataHonestyNote = sparseDataHonestyNote
+        )
+    }
+
+    private fun mapInvestmentMemoSections(rows: JSONArray?): List<InvestmentMemoSectionView> {
+        if (rows == null) {
+            return emptyList()
+        }
+        return (0 until rows.length()).mapNotNull { index ->
+            rows.optJSONObject(index)?.let { section ->
+                val sectionId = section.optString("section_id", "").trim()
+                val title = section.optString("title", "").trim()
+                val narrative = section.optString("narrative", "").trim()
+                if (sectionId.isBlank() || title.isBlank() || narrative.isBlank()) {
+                    null
+                } else {
+                    InvestmentMemoSectionView(
+                        sectionId = sectionId,
+                        title = title,
+                        narrative = narrative,
+                        keyPoints = mapStringArray(section.optJSONArray("key_points"))
+                    )
+                }
+            }
+        }
+    }
+
+    private fun mapInvestmentMemoClaims(rows: JSONArray?): List<InvestmentMemoClaimView> {
+        if (rows == null) {
+            return emptyList()
+        }
+        return (0 until rows.length()).mapNotNull { index ->
+            rows.optJSONObject(index)?.let { claim ->
+                val claimId = claim.optString("claim_id", "").trim()
+                val sectionId = claim.optString("section_id", "").trim()
+                val statement = claim.optString("statement", "").trim()
+                val materiality = claim.optString("materiality", "").trim()
+                if (claimId.isBlank() || sectionId.isBlank() || statement.isBlank() || materiality.isBlank()) {
+                    null
+                } else {
+                    InvestmentMemoClaimView(
+                        claimId = claimId,
+                        sectionId = sectionId,
+                        statement = statement,
+                        materiality = materiality,
+                        supports = mapMemoClaimSupports(claim.optJSONArray("supports"))
+                    )
+                }
+            }
+        }
+    }
+
+    private fun mapMemoClaimSupports(rows: JSONArray?): List<MemoClaimSupportRefView> {
+        if (rows == null) {
+            return emptyList()
+        }
+        return (0 until rows.length()).mapNotNull { index ->
+            rows.optJSONObject(index)?.let { support ->
+                val supportType = support.optString("support_type", "").trim()
+                val refId = support.optString("ref_id", "").trim()
+                val summary = support.optString("summary", "").trim()
+                if (supportType.isBlank() || refId.isBlank() || summary.isBlank()) {
+                    null
+                } else {
+                    MemoClaimSupportRefView(
+                        supportType = supportType,
+                        refId = refId,
+                        summary = summary
+                    )
+                }
+            }
+        }
+    }
+
+    private fun mapFinancialAnalysis(row: JSONObject?): FinancialAnalysisView? {
+        if (row == null) {
+            return null
+        }
+        return FinancialAnalysisView(
+            annualHistory = mapFinancialHistory(row.optJSONArray("annual_history")),
+            quarterlyHistory = mapFinancialHistory(row.optJSONArray("quarterly_history")),
+            trendMetrics = mapFinancialDerivedMetrics(row.optJSONArray("trend_metrics")),
+            qualityMetrics = mapFinancialDerivedMetrics(row.optJSONArray("quality_metrics")),
+            omissions = mapFinancialOmissions(row.optJSONArray("omissions"))
+        )
+    }
+
+    private fun mapFinancialHistory(rows: JSONArray?): List<FinancialHistoryRowView> {
+        if (rows == null) {
+            return emptyList()
+        }
+        return (0 until rows.length()).mapNotNull { index ->
+            rows.optJSONObject(index)?.let { entry ->
+                val period = entry.optString("period", "").trim()
+                val periodType = entry.optString("period_type", "").trim()
+                if (period.isBlank() || periodType.isBlank() || !entry.has("fiscal_year")) {
+                    null
+                } else {
+                    FinancialHistoryRowView(
+                        period = period,
+                        periodType = periodType,
+                        fiscalYear = entry.optInt("fiscal_year"),
+                        fiscalQuarter = entry.optNullableInt("fiscal_quarter"),
+                        revenue = entry.optNullableDouble("revenue"),
+                        grossMargin = entry.optNullableDouble("gross_margin"),
+                        operatingMargin = entry.optNullableDouble("operating_margin"),
+                        netIncome = entry.optNullableDouble("net_income"),
+                        freeCashFlow = entry.optNullableDouble("free_cash_flow"),
+                        debtTotal = entry.optNullableDouble("debt_total"),
+                        cashAndEquivalents = entry.optNullableDouble("cash_and_equivalents"),
+                        sharesOutstanding = entry.optNullableDouble("shares_outstanding")
+                    )
+                }
+            }
+        }
+    }
+
+    private fun mapFinancialDerivedMetrics(rows: JSONArray?): List<FinancialDerivedMetricView> {
+        if (rows == null) {
+            return emptyList()
+        }
+        return (0 until rows.length()).mapNotNull { index ->
+            rows.optJSONObject(index)?.let { metric ->
+                val key = metric.optString("key", "").trim()
+                val label = metric.optString("label", "").trim()
+                val unit = metric.optString("unit", "").trim()
+                val status = metric.optString("status", "").trim()
+                val direction = metric.optString("direction", "").trim()
+                if (key.isBlank() || label.isBlank() || unit.isBlank() || status.isBlank() || direction.isBlank()) {
+                    null
+                } else {
+                    FinancialDerivedMetricView(
+                        key = key,
+                        label = label,
+                        value = metric.optNullableDouble("value"),
+                        unit = unit,
+                        status = status,
+                        direction = direction,
+                        note = metric.optNullableString("note")
+                    )
+                }
+            }
+        }
+    }
+
+    private fun mapFinancialOmissions(rows: JSONArray?): List<FinancialOmissionView> {
+        if (rows == null) {
+            return emptyList()
+        }
+        return (0 until rows.length()).mapNotNull { index ->
+            rows.optJSONObject(index)?.let { omission ->
+                val code = omission.optString("code", "").trim()
+                val label = omission.optString("label", "").trim()
+                val reason = omission.optString("reason", "").trim()
+                if (code.isBlank() || label.isBlank() || reason.isBlank()) {
+                    null
+                } else {
+                    FinancialOmissionView(
+                        code = code,
+                        label = label,
+                        reason = reason,
+                        impacts = mapStringArray(omission.optJSONArray("impacts"))
+                    )
+                }
+            }
+        }
+    }
+
+    private fun mapValueDiscipline(row: JSONObject?): ValueDisciplineView? {
+        if (row == null) {
+            return null
+        }
+        val completeness = row.optString("completeness", "").trim()
+        val contextLabel = row.optString("context_label", "").trim()
+        val interpretation = row.optString("interpretation", "").trim()
+        val doesNotProve = row.optString("does_not_prove", "").trim()
+        val valueTrapWarning = mapValueTrapWarning(row.optJSONObject("value_trap_warning")) ?: return null
+        if (completeness.isBlank() || contextLabel.isBlank() || interpretation.isBlank() || doesNotProve.isBlank()) {
+            return null
+        }
+        return ValueDisciplineView(
+            score = row.optInt("score"),
+            maxScore = row.optInt("max_score"),
+            availableSignals = row.optInt("available_signals"),
+            completeness = completeness,
+            contextLabel = contextLabel,
+            interpretation = interpretation,
+            missingSignals = mapStringArray(row.optJSONArray("missing_signals")),
+            doesNotProve = doesNotProve,
+            signals = mapValueDisciplineSignals(row.optJSONArray("signals")),
+            valueTrapWarning = valueTrapWarning
+        )
+    }
+
+    private fun mapValueDisciplineSignals(rows: JSONArray?): List<ValueDisciplineSignalView> {
+        if (rows == null) {
+            return emptyList()
+        }
+        return (0 until rows.length()).mapNotNull { index ->
+            rows.optJSONObject(index)?.let { signal ->
+                val key = signal.optString("key", "").trim()
+                val label = signal.optString("label", "").trim()
+                val family = signal.optString("family", "").trim()
+                val status = signal.optString("status", "").trim()
+                val reason = signal.optString("reason", "").trim()
+                if (key.isBlank() || label.isBlank() || family.isBlank() || status.isBlank() || reason.isBlank()) {
+                    null
+                } else {
+                    ValueDisciplineSignalView(
+                        key = key,
+                        label = label,
+                        family = family,
+                        status = status,
+                        reason = reason,
+                        value = signal.optNullableDouble("value")
+                    )
+                }
+            }
+        }
+    }
+
+    private fun mapValueTrapWarning(row: JSONObject?): ValueTrapWarningView? {
+        if (row == null) {
+            return null
+        }
+        val summary = row.optString("summary", "").trim()
+        if (summary.isBlank()) {
+            return null
+        }
+        return ValueTrapWarningView(
+            triggered = row.optBoolean("triggered", false),
+            summary = summary,
+            reasonCodes = mapStringArray(row.optJSONArray("reason_codes"))
+        )
+    }
+
+    private fun mapKillSwitchConditions(rows: JSONArray?): List<KillSwitchConditionView> {
+        if (rows == null) {
+            return emptyList()
+        }
+        return (0 until rows.length()).mapNotNull { index ->
+            rows.optJSONObject(index)?.let { condition ->
+                val conditionText = condition.optString("condition_text", "").trim()
+                val signalType = condition.optString("signal_type", "").trim()
+                if (conditionText.isBlank() || signalType.isBlank()) {
+                    null
+                } else {
+                    KillSwitchConditionView(
+                        conditionText = conditionText,
+                        signalType = signalType,
+                        direction = condition.optString("direction", "any"),
+                        thresholdDescription = buildThresholdDescription(condition)
+                    )
+                }
+            }
+        }
+    }
+
+    private fun buildThresholdDescription(row: JSONObject): String? {
+        val thresholdValue = row.optNullableDouble("threshold_value")
+        val thresholdUnit = row.optNullableString("threshold_unit")
+        return when {
+            thresholdValue != null && thresholdUnit != null -> "$thresholdValue $thresholdUnit"
+            thresholdValue != null -> thresholdValue.toString()
+            else -> row.optNullableString("rationale")
+        }
     }
 
     fun mapReportNote(payload: JSONObject): ReportNoteView? {

@@ -22,6 +22,7 @@ regexes = [
   '''ph5-m7-webhook-secret''',
   '''^(?:TREASURY_DAILY_10Y|TREASURY_DAILY_2Y|BLS_CPI_U_ALL_ITEMS|BLS_UNEMPLOYMENT_RATE|BEA_REAL_GDP|EIA_WTI_SPOT)$''',
   '''registry_key["']\s*:\s*["'](?:TREASURY_DAILY_10Y|TREASURY_DAILY_2Y|BLS_CPI_U_ALL_ITEMS|BLS_UNEMPLOYMENT_RATE|BEA_REAL_GDP|EIA_WTI_SPOT)["']''',
+  '''(?:revenue_cagr_3y_pct|gross_margin_delta_3y_pp|operating_margin_delta_3y_pp|free_cash_flow_cagr_3y_pct|debt_total_change_3y|cash_change_3y|share_count_change_3y_pct|return_on_equity_latest|return_on_assets_latest|cash_conversion_latest|debt_to_equity_latest|accrual_ratio_latest|free_cash_flow_margin_latest)''',
   '''fixture-guidance-cut-key''',
   '''fixture-guidance-cut-ref'''
 ]
