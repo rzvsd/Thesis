@@ -2,7 +2,7 @@
 
 **Status:** Active
 **Last Revised:** 2026-04-20
-**Applies To:** Deep Dive Revamp M1-M7
+**Applies To:** Deep Dive Revamp M1-M7, including M5.2 visual exhibits
 
 ---
 
@@ -37,6 +37,7 @@ The point is simple: a report that renders successfully but reads like nonsense 
 | M3 Value Discipline Scorecard | Unit tests for signal families; missing-input tests; company-context interpretation tests | Value, quality mega-cap, distressed, financial/special-case, and sparse fixtures | Full score is emitted with missing inputs; interpretation is identical across contexts |
 | M4 Research Authoring Engine | Snapshot tests; claim-support tests; unsupported-claim rejection tests; degraded-data narrative tests | AAPL, MSFT, TSLA, and sparse snapshots; claim-to-evidence map | Memo is generic; material claim lacks evidence/metric/omission; missing data is hidden |
 | M5 Institutional PDF Export | PDF generation tests; page render tests; visual inspection; old/new artifact export tests | Rendered PNG pages; PDF file; visual QA note in M5 evidence | PDF is a mobile card dump; clipped text; broken tables; missing page numbers; no appendix |
+| M5.2 Visual Exhibits Layer | Visual-render tests; chart data-mapping tests; sparse-data fallback tests; PNG visual inspection; legacy export compatibility | Chart-rich PDF sample; rendered PNG pages; visual QA note comparing exhibit quality vs text-first export | Charts use fake/inferred values; output stays plain text-first; labels/units missing; sparse-data charts fake completeness |
 | M6 Mobile Research Reader | Mapper unit tests; legacy fallback tests; Android UI tests; offline cache tests; device smoke | Screenshots or Maestro proof; mapper test output; offline reopen proof | Mobile starts with accordions; old report fails; PDF/mobile disagree; offline cache loses fields |
 | M7 End-to-End Quality | Full stack smoke; report run; history reopen; PDF export; phone proof; regression tests | Final closeout evidence folder with commands, screenshots, and known limitations | Deep Dive cannot complete end to end; report lacks core sections; proof is not captured |
 
@@ -70,6 +71,7 @@ These are non-technical acceptance tests. They should be used during owner revie
 | Omission test | A user can see what Thesis does not know |
 | Mobile test | A user can understand the report on phone without opening every proof accordion |
 | Serious-artifact test | The PDF feels credible enough to save, share, or revisit before an investment decision |
+| Visual-exhibit test | The PDF uses chart-rich exhibits that explain the numbers faster than plain text alone |
 
 ---
 
@@ -113,4 +115,3 @@ Close only when:
 - acceptance criteria are updated
 - output meets the report template
 - omissions and limitations are explicit
-

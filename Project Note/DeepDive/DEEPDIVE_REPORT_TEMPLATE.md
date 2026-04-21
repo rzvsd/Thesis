@@ -2,7 +2,7 @@
 
 **Status:** Active
 **Last Revised:** 2026-04-20
-**Applies To:** Deep Dive Revamp M1-M7
+**Applies To:** Deep Dive Revamp M1-M7, with M5.2 governing the visual exhibit layer
 
 ---
 
@@ -43,6 +43,7 @@ Sparse reports may be shorter, but they must become explicit "limited-data repor
 - confidence/freshness strip
 - fair value range or valuation omitted panel
 - "what would change our mind" mini-list
+- visual hierarchy strong enough that Page 1 does not read like a plain text export
 
 ### Fail Conditions
 
@@ -69,6 +70,7 @@ Sparse reports may be shorter, but they must become explicit "limited-data repor
 - change timeline or top-change stack
 - previous view versus current view table where prior report exists
 - omission panel if no prior thesis exists
+- grouped delta bars or equivalent visual when numeric change comparison exists
 
 ### Fail Conditions
 
@@ -96,6 +98,7 @@ Sparse reports may be shorter, but they must become explicit "limited-data repor
 - business quality scorecard
 - segment/revenue mix table when available
 - moat/risk matrix
+- segment/revenue mix visual when structured mix data exists
 
 ### Fail Conditions
 
@@ -121,6 +124,8 @@ Sparse reports may be shorter, but they must become explicit "limited-data repor
 - 5-year financial table or sparse-data equivalent
 - metric delta cards for revenue, margins, FCF, debt, and share count
 - cash conversion panel
+- at least one real trend chart from report figures when 3+ periods exist
+- grouped or overlaid comparison bars where comparisons are the most honest summary
 
 ### Fail Conditions
 
@@ -149,6 +154,7 @@ Sparse reports may be shorter, but they must become explicit "limited-data repor
 - missing-input list
 - context label, for example quality mega-cap, cyclical, distressed, financial, sparse-data
 - "what this score does not prove" note
+- visual pass/fail/unavailable semantics that are readable in both PDF and mobile
 
 ### Fail Conditions
 
@@ -176,12 +182,36 @@ Sparse reports may be shorter, but they must become explicit "limited-data repor
 - scenario comparison table
 - assumption table
 - valuation bridge when inputs support it
+- density/distribution or bridge-style visual when scenario spread or implied expectations are best shown visually
 
 ### Fail Conditions
 
 - "Undervalued" or "overvalued" appears without assumptions.
 - Scenario math is not deterministic.
 - Missing price or assumption data does not produce a degraded valuation state.
+
+---
+
+## M5.2 Visual Exhibit Standard
+
+The PDF must move beyond correct structure into visually persuasive, data-native explanation.
+
+This layer is governed by `DEEPDIVE_VISUAL_EXHIBITS_STANDARD.md`.
+
+### Required Visual Behavior
+
+- Use chart-rich exhibits when they explain the numbers faster than prose alone.
+- Prefer grouped bars, overlaid peak-vs-latest bars, distribution curves, contribution bars, range bands, timelines, waterfalls, and scorecards.
+- Keep every exhibit tied to explicit values already present in the report artifact or deterministically derived from it.
+- If the data is too sparse for a clean chart, render an omission-aware panel instead of a fake chart.
+- Make the page feel editorial and institutional, not like a spreadsheet export or BI dashboard.
+
+### Required Visual Quality Checks
+
+- Axes, units, legends, and period labels must be readable in PDF and page renders.
+- Exhibits must earn their space; do not add decorative charts that repeat the paragraph above them.
+- Visual hierarchy must still preserve the Thesis memo-first reading flow.
+- The chart language should feel cohesive across memo, financials, valuation, and risks.
 
 ---
 
@@ -200,6 +230,7 @@ Sparse reports may be shorter, but they must become explicit "limited-data repor
 - risk matrix
 - catalyst timeline
 - kill-switch table with trigger, evidence source, and action
+- contribution/delta or timeline exhibit when risk or catalyst sequencing matters
 
 ### Fail Conditions
 
@@ -224,6 +255,7 @@ Sparse reports may be shorter, but they must become explicit "limited-data repor
 - evidence ladder
 - source freshness table
 - claim-to-evidence matrix
+- visual hierarchy that makes strongest evidence immediately visible
 
 ### Fail Conditions
 
@@ -250,6 +282,7 @@ Sparse reports may be shorter, but they must become explicit "limited-data repor
 - assumptions table
 - omissions table
 - report generation metadata
+- chart notes, axis units, and exhibit footnotes where visual exhibits require them
 
 ### Fail Conditions
 
@@ -262,6 +295,8 @@ Sparse reports may be shorter, but they must become explicit "limited-data repor
 ## Mobile Reader Template
 
 Mobile is not a mini-PDF. It is the executive reading path over the same report artifact.
+
+M5.2 governs the PDF chart language first. M6 must inherit the same exhibit truth, not invent a second visual interpretation.
 
 Required order:
 
@@ -302,4 +337,3 @@ Good:
 ```text
 Revenue growth matters here because the thesis depends on the company converting demand into durable operating profit. The available history shows whether growth came with better margins or simply with higher spending. If margin or cash-flow inputs are missing, Thesis must say that directly before assigning confidence.
 ```
-

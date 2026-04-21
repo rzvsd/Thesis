@@ -20,6 +20,7 @@ This workstream creates a new report standard:
 - a value-investing discipline layer
 - evidence-backed narrative writing
 - a serious PDF artifact
+- chart-rich visual exhibits from real report figures
 - a mobile reader that summarizes without flattening the research
 
 ---
@@ -58,9 +59,10 @@ If the answer is no, the milestone is not done.
 | `DEEPDIVE_REPORT_STANDARD.md` | Canonical report structure and quality bar |
 | `DEEPDIVE_REFERENCE_MAPPING.md` | What the two PDFs teach Thesis, and what must not be copied |
 | `DEEPDIVE_REPORT_TEMPLATE.md` | Page-by-page PDF template and mobile reader template |
+| `DEEPDIVE_VISUAL_EXHIBITS_STANDARD.md` | Approved exhibit families, styling, and fail conditions for chart-rich output |
 | `DEEPDIVE_TEST_MATRIX.md` | Required tests, fixtures, hard gates, and fail conditions |
 | `DeepDive_ACCEPTANCE.md` | Workstream-level acceptance register |
-| `Milestones/M#/` | Milestone-local guides, smoke plans, evidence |
+| `Milestones/M#/` and `Milestones/M5_2/` | Milestone-local guides, smoke plans, evidence |
 | `Decisions/` | Deep Dive Revamp ADRs |
 
 ---
@@ -75,6 +77,7 @@ If the answer is no, the milestone is not done.
 | M3 | Value Discipline Scorecard | Adds Piotroski-inspired value logic with context-aware weighting |
 | M4 | Research Authoring Engine | Upgrades Dexter from section assembly to evidence-backed memo writing |
 | M5 | Institutional PDF Export | Produces a serious report artifact with exhibits and appendix |
+| M5.2 | Visual Exhibits Layer | Turns PDF exhibits into chart-rich, publication-worthy research visuals |
 | M6 | Mobile Research Reader | Turns mobile Deep Dive into a guided executive reading surface |
 | M7 | End-to-End Quality and Device Proof | Proves the full workflow from run to report to PDF to phone |
 

@@ -3,7 +3,7 @@ import test from "node:test";
 
 import type { AnalysisRequest, ReportSection } from "../../../packages/contracts/src";
 
-import { loadConfig, validateLiveModeConfig } from "../src/config";
+import { loadConfig, resolveLiveProviderAttempts, validateLiveModeConfig } from "../src/config";
 import { runAnalysisPipeline } from "../src/pipeline";
 import { loadRuntimePrompts } from "../src/prompt-store";
 import { validateAnalysisReport } from "../src/schema-validation";
@@ -208,25 +208,64 @@ test("GRAPH fixture extracts report-backed name relationships", async () => {
   ));
 });
 
-test("live mode validation requires model, Anthropic, and LangSmith settings", () => {
+test("live mode validation accepts an openrouter-first config without paid data dependencies", () => {
   const config = loadConfig({
     PORT: "3002",
     DEXTER_FIXTURE_MODE: "false",
-    DEXTER_MODEL: "",
+    DEXTER_PROVIDER_ORDER: "openrouter,anthropic,openai",
+    DEXTER_OPENROUTER_MODEL: "openrouter:openai/gpt-5.4-mini",
+    OPENROUTER_API_KEY: "test-openrouter-key",
     LANGSMITH_TRACING: "false",
     LANGSMITH_PROJECT: "",
-    ANTHROPIC_API_KEY: "",
-    FINANCIAL_DATASETS_API_KEY: ""
+    LANGSMITH_API_KEY: ""
   });
 
   const errors = validateLiveModeConfig(config);
 
-  assert.ok(errors.includes("DEXTER_MODEL is required when DEXTER_FIXTURE_MODE=false"));
-  assert.ok(errors.includes("ANTHROPIC_API_KEY is required when DEXTER_FIXTURE_MODE=false"));
+  assert.deepEqual(errors, []);
+  assert.deepEqual(resolveLiveProviderAttempts(config), [
+    {
+      provider: "openrouter",
+      model: "openrouter:openai/gpt-5.4-mini"
+    }
+  ]);
+});
+
+test("live mode validation fails when no provider credential is configured", () => {
+  const config = loadConfig({
+    PORT: "3002",
+    DEXTER_FIXTURE_MODE: "false",
+    DEXTER_PROVIDER_ORDER: "openrouter,anthropic,openai",
+    DEXTER_OPENROUTER_MODEL: "openrouter:openai/gpt-5.4-mini",
+    DEXTER_OPENAI_MODEL: "gpt-5.4-mini",
+    DEXTER_ANTHROPIC_MODEL: "claude-sonnet-4-5-20250929",
+    OPENROUTER_API_KEY: "",
+    OPENAI_API_KEY: "",
+    ANTHROPIC_API_KEY: ""
+  });
+
+  const errors = validateLiveModeConfig(config);
+
   assert.ok(
-    errors.includes("FINANCIAL_DATASETS_API_KEY is required when DEXTER_FIXTURE_MODE=false")
+    errors.some((error) =>
+      error.includes("At least one live provider is required when DEXTER_FIXTURE_MODE=false")
+    )
   );
-  assert.ok(errors.includes("LANGSMITH_TRACING=true is required when DEXTER_FIXTURE_MODE=false"));
-  assert.ok(errors.includes("LANGSMITH_API_KEY is required when DEXTER_FIXTURE_MODE=false"));
-  assert.ok(errors.includes("LANGSMITH_PROJECT is required when DEXTER_FIXTURE_MODE=false"));
+});
+
+test("langsmith prompt mode falls back to the local prompt manifest when remote pull is unavailable", async () => {
+  const config = loadConfig({
+    ...process.env,
+    DEXTER_FIXTURE_MODE: "false",
+    DEXTER_PROVIDER_ORDER: "anthropic",
+    DEXTER_ANTHROPIC_MODEL: "claude-sonnet-4-5-20250929",
+    ANTHROPIC_API_KEY: "test-anthropic-key",
+    DEXTER_PROMPT_SOURCE: "langsmith",
+    LANGSMITH_API_KEY: ""
+  });
+
+  const prompts = await loadRuntimePrompts(config);
+
+  assert.equal(prompts.planner.version, "m2-planner-fixture-v1");
+  assert.equal(prompts.sectionExecutor.version, "m2-section-fixture-v1");
 });

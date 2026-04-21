@@ -24,6 +24,10 @@
 | D13 | M2 ships without peer-comparison dependency | Locked | Financial engine is company-history-first and omission-aware when peer data is unavailable |
 | D14 | M2 fixture baseline uses full-data and sparse-data deterministic paths already in repo | Locked | Avoids blocker dependency while preserving hard-gate test coverage for complete and sparse histories |
 | D15 | M5 PDF renderer ownership is Product API utility plus route, no new service | Locked | Meets template and test gates while preserving existing service boundaries |
+| D16 | M5.2 is a formal visual-exhibits milestone between M5 and M6 | Locked | Keeps implementation separate from final proof and prevents M7 scope pollution |
+| D17 | Chart visuals must be generated from real report figures with omission-aware fallback | Locked | Beautiful output must stay honest and reproducible |
+| D18 | M5.2 visual references set exhibit style direction only, not layout to copy | Locked | Thesis should be inspired by institutional research quality without cloning proprietary work |
+| D19 | Live Deep Dive uses free Thesis data sources plus OpenRouter-first provider routing | Locked | Removes the paid-data blocker while keeping backend auth server-safe and fallback-capable |
 
 ---
 

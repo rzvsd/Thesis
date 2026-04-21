@@ -11,6 +11,10 @@ import com.thesis.mobile.model.DeepDiveVisualPanelView
 import com.thesis.mobile.model.EvidenceView
 import com.thesis.mobile.model.EvidenceLadderPanelView
 import com.thesis.mobile.model.HistoricalDisplayView
+import com.thesis.mobile.model.InvestmentMemoClaimView
+import com.thesis.mobile.model.InvestmentMemoSectionView
+import com.thesis.mobile.model.InvestmentMemoView
+import com.thesis.mobile.model.KillSwitchConditionView
 import com.thesis.mobile.model.MetricDeltaPanelView
 import com.thesis.mobile.model.PulseReportView
 import com.thesis.mobile.model.RangeBandPanelView
@@ -21,9 +25,16 @@ import com.thesis.mobile.model.SentimentSubScoreView
 import com.thesis.mobile.model.ScenarioComparePanelView
 import com.thesis.mobile.model.TimelinePanelView
 import com.thesis.mobile.model.TrustScorecardPanelView
+import com.thesis.mobile.model.FinancialAnalysisView
+import com.thesis.mobile.model.FinancialDerivedMetricView
+import com.thesis.mobile.model.FinancialHistoryRowView
+import com.thesis.mobile.model.FinancialOmissionView
 import com.thesis.mobile.model.ValuationAssumptionsView
 import com.thesis.mobile.model.ValuationBridgePanelView
 import com.thesis.mobile.model.ValuationDisplayView
+import com.thesis.mobile.model.ValueDisciplineSignalView
+import com.thesis.mobile.model.ValueDisciplineView
+import com.thesis.mobile.model.ValueTrapWarningView
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -69,6 +80,9 @@ object OfflineJsonCodec {
             .put("explainers", explainersToJson(report.explainers))
             .put("watch_items", JSONArray(report.watchItems))
             .put("coverage_truth", coverageTruthToJson(report.coverageTruth))
+            .put("investment_memo", investmentMemoToJson(report.investmentMemo))
+            .put("financial_analysis", financialAnalysisToJson(report.financialAnalysis))
+            .put("value_discipline", valueDisciplineToJson(report.valueDiscipline))
             .put(
                 "signal",
                 JSONObject()
@@ -78,6 +92,12 @@ object OfflineJsonCodec {
             .put("confidence", confidenceToJson(report.confidence))
             .put("valuation", valuationToJson(report.valuation))
             .put("historical_context", historicalToJson(report.historical))
+            .put(
+                "kill_switch_conditions",
+                JSONArray().apply {
+                    report.killSwitchConditions.forEach { put(killSwitchConditionToJson(it)) }
+                }
+            )
             .put(
                 "sections",
                 JSONArray().apply {
@@ -311,6 +331,171 @@ object OfflineJsonCodec {
             .put("covered", JSONArray(coverageTruth.covered))
             .put("missing", JSONArray(coverageTruth.missing))
     }
+
+    private fun investmentMemoToJson(investmentMemo: InvestmentMemoView?): JSONObject? {
+        if (investmentMemo == null) {
+            return null
+        }
+        return JSONObject()
+            .put("prompt_version", investmentMemo.promptVersion)
+            .put("generation_mode", investmentMemo.generationMode)
+            .put("company_angle", investmentMemo.companyAngle)
+            .put("decision_question", investmentMemo.decisionQuestion)
+            .put(
+                "sections",
+                JSONArray().apply {
+                    investmentMemo.sections.forEach { put(investmentMemoSectionToJson(it)) }
+                }
+            )
+            .put(
+                "material_claims",
+                JSONArray().apply {
+                    investmentMemo.materialClaims.forEach { put(investmentMemoClaimToJson(it)) }
+                }
+            )
+            .put("unsupported_claims", JSONArray(investmentMemo.unsupportedClaims))
+            .put("sparse_data_honesty_note", investmentMemo.sparseDataHonestyNote)
+    }
+
+    private fun investmentMemoSectionToJson(section: InvestmentMemoSectionView): JSONObject =
+        JSONObject()
+            .put("section_id", section.sectionId)
+            .put("title", section.title)
+            .put("narrative", section.narrative)
+            .put("key_points", JSONArray(section.keyPoints))
+
+    private fun investmentMemoClaimToJson(claim: InvestmentMemoClaimView): JSONObject =
+        JSONObject()
+            .put("claim_id", claim.claimId)
+            .put("section_id", claim.sectionId)
+            .put("statement", claim.statement)
+            .put("materiality", claim.materiality)
+            .put(
+                "supports",
+                JSONArray().apply {
+                    claim.supports.forEach { support ->
+                        put(
+                            JSONObject()
+                                .put("support_type", support.supportType)
+                                .put("ref_id", support.refId)
+                                .put("summary", support.summary)
+                        )
+                    }
+                }
+            )
+
+    private fun financialAnalysisToJson(financialAnalysis: FinancialAnalysisView?): JSONObject? {
+        if (financialAnalysis == null) {
+            return null
+        }
+        return JSONObject()
+            .put(
+                "annual_history",
+                JSONArray().apply {
+                    financialAnalysis.annualHistory.forEach { put(financialHistoryRowToJson(it)) }
+                }
+            )
+            .put(
+                "quarterly_history",
+                JSONArray().apply {
+                    financialAnalysis.quarterlyHistory.forEach { put(financialHistoryRowToJson(it)) }
+                }
+            )
+            .put(
+                "trend_metrics",
+                JSONArray().apply {
+                    financialAnalysis.trendMetrics.forEach { put(financialDerivedMetricToJson(it)) }
+                }
+            )
+            .put(
+                "quality_metrics",
+                JSONArray().apply {
+                    financialAnalysis.qualityMetrics.forEach { put(financialDerivedMetricToJson(it)) }
+                }
+            )
+            .put(
+                "omissions",
+                JSONArray().apply {
+                    financialAnalysis.omissions.forEach { put(financialOmissionToJson(it)) }
+                }
+            )
+    }
+
+    private fun financialHistoryRowToJson(row: FinancialHistoryRowView): JSONObject =
+        JSONObject()
+            .put("period", row.period)
+            .put("period_type", row.periodType)
+            .put("fiscal_year", row.fiscalYear)
+            .put("fiscal_quarter", row.fiscalQuarter)
+            .put("revenue", row.revenue)
+            .put("gross_margin", row.grossMargin)
+            .put("operating_margin", row.operatingMargin)
+            .put("net_income", row.netIncome)
+            .put("free_cash_flow", row.freeCashFlow)
+            .put("debt_total", row.debtTotal)
+            .put("cash_and_equivalents", row.cashAndEquivalents)
+            .put("shares_outstanding", row.sharesOutstanding)
+
+    private fun financialDerivedMetricToJson(metric: FinancialDerivedMetricView): JSONObject =
+        JSONObject()
+            .put("key", metric.key)
+            .put("label", metric.label)
+            .put("value", metric.value)
+            .put("unit", metric.unit)
+            .put("status", metric.status)
+            .put("direction", metric.direction)
+            .put("note", metric.note)
+
+    private fun financialOmissionToJson(omission: FinancialOmissionView): JSONObject =
+        JSONObject()
+            .put("code", omission.code)
+            .put("label", omission.label)
+            .put("reason", omission.reason)
+            .put("impacts", JSONArray(omission.impacts))
+
+    private fun valueDisciplineToJson(valueDiscipline: ValueDisciplineView?): JSONObject? {
+        if (valueDiscipline == null) {
+            return null
+        }
+        return JSONObject()
+            .put("score", valueDiscipline.score)
+            .put("max_score", valueDiscipline.maxScore)
+            .put("available_signals", valueDiscipline.availableSignals)
+            .put("completeness", valueDiscipline.completeness)
+            .put("context_label", valueDiscipline.contextLabel)
+            .put("interpretation", valueDiscipline.interpretation)
+            .put("missing_signals", JSONArray(valueDiscipline.missingSignals))
+            .put("does_not_prove", valueDiscipline.doesNotProve)
+            .put(
+                "signals",
+                JSONArray().apply {
+                    valueDiscipline.signals.forEach { put(valueDisciplineSignalToJson(it)) }
+                }
+            )
+            .put("value_trap_warning", valueTrapWarningToJson(valueDiscipline.valueTrapWarning))
+    }
+
+    private fun valueDisciplineSignalToJson(signal: ValueDisciplineSignalView): JSONObject =
+        JSONObject()
+            .put("key", signal.key)
+            .put("label", signal.label)
+            .put("family", signal.family)
+            .put("status", signal.status)
+            .put("reason", signal.reason)
+            .put("value", signal.value)
+
+    private fun valueTrapWarningToJson(warning: ValueTrapWarningView): JSONObject =
+        JSONObject()
+            .put("triggered", warning.triggered)
+            .put("summary", warning.summary)
+            .put("reason_codes", JSONArray(warning.reasonCodes))
+
+    private fun killSwitchConditionToJson(condition: KillSwitchConditionView): JSONObject =
+        JSONObject()
+            .put("condition_text", condition.conditionText)
+            .put("signal_type", condition.signalType)
+            .put("direction", condition.direction)
+            .put("rationale", condition.thresholdDescription)
 
     private fun sectionsFromJsonArray(rows: JSONArray): List<SectionView> =
         (0 until rows.length()).mapNotNull { index ->

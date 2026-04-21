@@ -1,0 +1,2287 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [4 0 R 6 0 R 8 0 R 10 0 R 12 0 R 14 0 R 16 0 R 18 0 R 20 0 R] /Count 9 >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+4 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 5 0 R >>
+endobj
+5 0 obj
+<< /Length 3999 >>
+stream
+q
+0.770 0.630 0.350 RG
+1.4 w
+72 744 m
+540 744 l
+S
+Q
+BT
+0.070 0.070 0.070 rg
+/F1 16 Tf
+1 0 0 1 72 758 Tm
+(Page 1 - Cover and One-Page Memo) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 724 Tm
+(Ticker: MSFT) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 710 Tm
+(Report date: 2026-04-21T10:45:00.993Z) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 696 Tm
+(Signal: NEUTRAL) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 682 Tm
+(Confidence: MEDIUM \(0.62\)) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 668 Tm
+(Thesis summary: MSFT thesis: the current quarter \(latest period\) shows execution strength,) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 654 Tm
+(but conviction should track whether reported momentum survives the next...) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 640 Tm
+(Decision question: Does MSFT still justify confidence on enterprise cloud, productivity) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 626 Tm
+(bundling, and AI monetization discipline, or did the latest evidence shift the thesis into) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 612 Tm
+(watch mode?) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 598 Tm
+(Top reasons this matters now:) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 584 Tm
+(- Decision question: Does MSFT still justify confidence on enterprise cloud, productivity) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 570 Tm
+(bundling, and AI monetization discipline, or did the latest evidence shift the thesis into) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 556 Tm
+(watch mode?) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 542 Tm
+(- Current signal: neutral) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 528 Tm
+(- Confidence limiter: Live mode still depends on external provider and model health.) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 514 Tm
+(Top thesis risks:) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 500 Tm
+(- No active value-trap warning based on current value-discipline signals.) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 486 Tm
+(- Freshness state: stale) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 472 Tm
+(- Missing-data note: Historical comparison unavailable.) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 458 Tm
+(Coverage truth: This report covers the latest company data Thesis could verify and) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 444 Tm
+(explicitly lists what is missing instead of filling gaps with guesses.) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 430 Tm
+(What would change our mind:) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 416 Tm
+(- Comparable prior thesis is unavailable in the 120-day lookback window.) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 402 Tm
+(- Next reported quarter shows Azure/cloud revenue growth below 20% year over year, or a) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 388 Tm
+(clear deceleration versus the l...) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 374 Tm
+(- Operating margin compresses by 200 bps or more versus the latest reported quarter.) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 360 Tm
+(- Historical comparison unavailable.) Tj
+ET
+q
+0.980 0.970 0.950 rg
+0.150 0.150 0.150 RG
+0.8 w
+72 70 468 116 re
+B
+Q
+q
+0.950 0.920 0.840 rg
+72 162 468 24 re
+f
+Q
+BT
+0.070 0.070 0.070 rg
+/F1 11 Tf
+1 0 0 1 84 170 Tm
+(Exhibit - Valuation Range) Tj
+ET
+BT
+0.430 0.430 0.430 rg
+/F1 8 Tf
+1 0 0 1 84 155 Tm
+(M5.2 omission-aware fallback) Tj
+ET
+q
+0.950 0.920 0.840 rg
+0.770 0.630 0.350 RG
+0.6 w
+90 92 432 60 re
+B
+Q
+BT
+0.070 0.070 0.070 rg
+/F1 9 Tf
+1 0 0 1 102 128 Tm
+(Omission-aware fallback) Tj
+ET
+BT
+0.430 0.430 0.430 rg
+/F1 8.5 Tf
+1 0 0 1 102 112 Tm
+(No reliable fair-value band is available for this report, so Thesis) Tj
+ET
+BT
+0.430 0.430 0.430 rg
+/F1 8.5 Tf
+1 0 0 1 102 100 Tm
+(renders an honest omission panel instead of a fake valuation chart.) Tj
+ET
+BT
+0.430 0.430 0.430 rg
+/F1 10 Tf
+1 0 0 1 72 36 Tm
+(Page 1 of 9) Tj
+ET
+endstream
+endobj
+6 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 7 0 R >>
+endobj
+7 0 obj
+<< /Length 2362 >>
+stream
+q
+0.770 0.630 0.350 RG
+1.4 w
+72 744 m
+540 744 l
+S
+Q
+BT
+0.070 0.070 0.070 rg
+/F1 16 Tf
+1 0 0 1 72 758 Tm
+(Page 2 - Investment Thesis and What Changed) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 724 Tm
+(Central investment argument: MSFT remains balanced: the thesis on enterprise cloud,) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 710 Tm
+(productivity bundling, and AI monetization discipline is intact, but the latest evidence) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 696 Tm
+(does not justify a stronger directional call. Confidence is medium \(62/100\), and the) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 682 Tm
+(decision still depends on whether execution remains durable through the next filing cycle.) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 668 Tm
+(Why now: The latest filing cycle did not produce a clean first-order change signal. This) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 654 Tm
+(thesis is now stale and needs a fresh review.) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 640 Tm
+(Reader takeaway: Start with what changed, then read the valuation and trust panels before) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 626 Tm
+(deciding whether the thesis still deserves confidence.) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 612 Tm
+(Previous view: No prior comparable thesis was stored, so this report becomes the new) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 598 Tm
+(baseline.) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 584 Tm
+(Current view: the latest reporting period now points to a neutral stance, with no prior) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 570 Tm
+(thesis drift comparison available.) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 556 Tm
+(Top changes: omitted \(no prior comparable report or change stack\).) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 542 Tm
+(What changed narrative: Revenue QOQ comparison is unavailable from current inputs.) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 528 Tm
+(Operating Margin QOQ comparison is unavailable from current inputs. Thesis drift status is) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 514 Tm
+(unavailable: Comparable prior thesis is unavailable in the 120-day lookback window.) Tj
+ET
+BT
+0.430 0.430 0.430 rg
+/F1 10 Tf
+1 0 0 1 72 36 Tm
+(Page 2 of 9) Tj
+ET
+endstream
+endobj
+8 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 9 0 R >>
+endobj
+9 0 obj
+<< /Length 4060 >>
+stream
+q
+0.770 0.630 0.350 RG
+1.4 w
+72 744 m
+540 744 l
+S
+Q
+BT
+0.070 0.070 0.070 rg
+/F1 16 Tf
+1 0 0 1 72 758 Tm
+(Page 3 - Business Quality) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 724 Tm
+(Business model and quality narrative: MSFT's quality lens is anchored on enterprise cloud,) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 710 Tm
+(productivity bundling, and AI monetization discipline. Free Cash Flow YOY comparison is) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 696 Tm
+(unavailable from current inputs. Value-discipline context is sparse_data with score 0/9.) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 682 Tm
+(Business quality highlights:) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 668 Tm
+(- Quality angle: enterprise cloud, productivity bundling, and AI monetization discipline) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 654 Tm
+(- Free Cash Flow YOY comparison is unavailable from current inputs.) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 640 Tm
+(- Value context: sparse_data) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 626 Tm
+(Context label: sparse_data) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 612 Tm
+(Context interpretation: MSFT scores 0/9 on available value-discipline signals \(0) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 598 Tm
+(available\). Context is sparse-data: use this as a checkpoint, not a conviction-grade value) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 584 Tm
+(call. 9 signal\(s\) were unavailable, so the score is partial. No active value-trap warning) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 570 Tm
+(was triggered by the current inputs.) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 556 Tm
+(Uncertainty and missing inputs: Historical comparison unavailable.; Transcript data) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 542 Tm
+(unavailable.; Prior-quarter snapshot missing.; Year-ago snapshot missing.; Source) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 528 Tm
+(freshness could not be verified from retrievable timestamps.; At least 3 annual) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 514 Tm
+(free-cash-flow points are required for DCF.; Degraded report sections: What Changed, Value) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 500 Tm
+(Discipline, Valuation.; No traceable management quote was available in the latest) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 486 Tm
+(transcript context.; Annual history is insufficient: Only 0 annual snapshot\(s\) were) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 472 Tm
+(available; at least 3 are required for 3-5 year trend reliability.; Revenue CAGR) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 458 Tm
+(unavailable: Revenue CAGR could not be computed from annual snapshot history.; Free cash) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 444 Tm
+(flow trend unavailable: Annual free-cash-flow history is insufficient for a deterministic) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 430 Tm
+(trend.; Cash conversion unavailable: Operating cash flow and net income were not both) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 416 Tm
+(available for latest annual period.; Value signal unavailable: Positive return on assets;) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 402 Tm
+(Value signal unavailable: Positive operating cash flow; Value signal unavailable: ROA) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 388 Tm
+(improving vs prior year; Value signal unavailable: Cash flow exceeds net income; Value) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 374 Tm
+(signal unavailable: Leverage declining; Value signal unavailable: Liquidity buffer) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 360 Tm
+(improving; Value signal unavailable: Gross margin improving; Value signal unavailable:) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 346 Tm
+(Asset turnover improving; Value signal unavailable: Share count discipline) Tj
+ET
+BT
+0.430 0.430 0.430 rg
+/F1 10 Tf
+1 0 0 1 72 36 Tm
+(Page 3 of 9) Tj
+ET
+endstream
+endobj
+10 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 11 0 R >>
+endobj
+11 0 obj
+<< /Length 5424 >>
+stream
+q
+0.770 0.630 0.350 RG
+1.4 w
+72 744 m
+540 744 l
+S
+Q
+BT
+0.070 0.070 0.070 rg
+/F1 16 Tf
+1 0 0 1 72 758 Tm
+(Page 4 - Financial Statement Analysis) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 724 Tm
+(Annual history: omitted.) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 710 Tm
+(Quarterly history: omitted.) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 696 Tm
+(Trend metrics:) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 682 Tm
+(- Revenue CAGR \(3y\) | status omitted | direction unavailable | value n/a | Revenue CAGR) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 668 Tm
+(requires at least two annual revenue points with positive values.) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 654 Tm
+(- Gross margin change \(3y\) | status omitted | direction unavailable | value n/a |) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 640 Tm
+(Gross-margin trend needs annual gross-margin values.) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 626 Tm
+(- Operating margin change \(3y\) | status omitted | direction unavailable | value n/a |) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 612 Tm
+(Operating-margin trend needs annual operating-margin values.) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 598 Tm
+(- Free cash flow CAGR \(3y\) | status omitted | direction unavailable | value n/a | FCF CAGR) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 584 Tm
+(requires at least two annual free-cash-flow points with positive values.) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 570 Tm
+(- Debt total change \(3y\) | status omitted | direction unavailable | value n/a | Debt trend) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 556 Tm
+(requires annual debt_total values.) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 542 Tm
+(- Cash and equivalents change \(3y\) | status omitted | direction unavailable | value n/a |) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 528 Tm
+(Cash trend requires annual cash_and_equivalents values.) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 514 Tm
+(- Share count change \(3y\) | status omitted | direction unavailable | value n/a |) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 500 Tm
+(Share-count change requires annual shares_outstanding values.) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 486 Tm
+(Quality metrics:) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 472 Tm
+(- Return on equity \(latest\) | status omitted | direction unavailable | value n/a | ROE) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 458 Tm
+(requires latest net income and shareholders equity.) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 444 Tm
+(- Return on assets \(latest\) | status omitted | direction unavailable | value n/a | ROA) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 430 Tm
+(requires latest net income and total assets.) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 416 Tm
+(- Cash conversion \(latest\) | status omitted | direction unavailable | value n/a | Cash) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 402 Tm
+(conversion requires operating cash flow and net income.) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 388 Tm
+(- Debt to equity \(latest\) | status omitted | direction unavailable | value n/a |) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 374 Tm
+(Debt-to-equity needs debt_total and shareholders_equity.) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 360 Tm
+(- Accrual ratio \(latest\) | status omitted | direction unavailable | value n/a | Accrual) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 346 Tm
+(ratio needs net_income, operating_cash_flow, and total_assets.) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 332 Tm
+(- Free cash flow margin \(latest\) | status omitted | direction unavailable | value n/a |) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 318 Tm
+(FCF margin needs free_cash_flow and revenue in latest annual period.) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 304 Tm
+(Financial omissions:) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 290 Tm
+(- Annual history is insufficient | Only 0 annual snapshot\(s\) were available; at least 3) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 276 Tm
+(are required for 3-5 year trend reliability. | impacts financial_statement_analysis,) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 262 Tm
+(valuation, value_discipline) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 248 Tm
+(- Revenue CAGR unavailable | Revenue CAGR could not be computed from annual snapshot) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 234 Tm
+([Content truncated in PDF page; canonical JSON artifact remains complete.]) Tj
+ET
+q
+0.980 0.970 0.950 rg
+0.150 0.150 0.150 RG
+0.8 w
+72 70 468 124 re
+B
+Q
+q
+0.950 0.920 0.840 rg
+72 170 468 24 re
+f
+Q
+BT
+0.070 0.070 0.070 rg
+/F1 11 Tf
+1 0 0 1 84 178 Tm
+(Exhibit - Financial Trend) Tj
+ET
+BT
+0.430 0.430 0.430 rg
+/F1 8 Tf
+1 0 0 1 84 163 Tm
+(M5.2 omission-aware fallback) Tj
+ET
+q
+0.950 0.920 0.840 rg
+0.770 0.630 0.350 RG
+0.6 w
+90 92 432 68 re
+B
+Q
+BT
+0.070 0.070 0.070 rg
+/F1 9 Tf
+1 0 0 1 102 136 Tm
+(Omission-aware fallback) Tj
+ET
+BT
+0.430 0.430 0.430 rg
+/F1 8.5 Tf
+1 0 0 1 102 120 Tm
+(There are not enough comparable reported periods to justify a) Tj
+ET
+BT
+0.430 0.430 0.430 rg
+/F1 8.5 Tf
+1 0 0 1 102 108 Tm
+(multi-period financial exhibit on this page.) Tj
+ET
+BT
+0.430 0.430 0.430 rg
+/F1 10 Tf
+1 0 0 1 72 36 Tm
+(Page 4 of 9) Tj
+ET
+endstream
+endobj
+12 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 13 0 R >>
+endobj
+13 0 obj
+<< /Length 6097 >>
+stream
+q
+0.770 0.630 0.350 RG
+1.4 w
+72 744 m
+540 744 l
+S
+Q
+BT
+0.070 0.070 0.070 rg
+/F1 16 Tf
+1 0 0 1 72 758 Tm
+(Page 5 - Value Discipline Scorecard) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 724 Tm
+(Score: 0/9 | available signals: 0 | completeness: insufficient_data) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 710 Tm
+(Context: sparse_data) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 696 Tm
+(Interpretation: MSFT scores 0/9 on available value-discipline signals \(0 available\).) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 682 Tm
+(Context is sparse-data: use this as a checkpoint, not a conviction-grade value call. 9) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 668 Tm
+(signal\(s\) were unavailable, so the score is partial. No active value-trap warning was) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 654 Tm
+(triggered by the current inputs.) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 640 Tm
+(Missing signals:) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 626 Tm
+(- Positive return on assets) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 612 Tm
+(- Positive operating cash flow) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 598 Tm
+(- ROA improving vs prior year) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 584 Tm
+(- Cash flow exceeds net income) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 570 Tm
+(- Leverage declining) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 556 Tm
+(- Liquidity buffer improving) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 542 Tm
+(- Gross margin improving) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 528 Tm
+(- Asset turnover improving) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 514 Tm
+(- Share count discipline) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 500 Tm
+(Signal families:) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 486 Tm
+(- profitability | Positive return on assets | unavailable | ROA needs latest net income) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 472 Tm
+(and total assets.) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 458 Tm
+(- profitability | Positive operating cash flow | unavailable | Operating cash-flow signal) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 444 Tm
+(needs latest operating_cash_flow.) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 430 Tm
+(- profitability | ROA improving vs prior year | unavailable | ROA trend needs latest and) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 416 Tm
+(prior annual net income + total assets.) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 402 Tm
+(- earnings_quality | Cash flow exceeds net income | unavailable | Accrual-quality signal) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 388 Tm
+(needs latest operating_cash_flow and net_income.) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 374 Tm
+(- leverage_liquidity | Leverage declining | unavailable | Leverage trend needs latest and) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 360 Tm
+(prior debt_total + total_assets.) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 346 Tm
+(- leverage_liquidity | Liquidity buffer improving | unavailable | Liquidity buffer needs) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 332 Tm
+(cash, debt, and total-assets values for latest and prior years.) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 318 Tm
+(- operating_efficiency | Gross margin improving | unavailable | Gross-margin trend needs) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 304 Tm
+([Content truncated in PDF page; canonical JSON artifact remains complete.]) Tj
+ET
+q
+0.980 0.970 0.950 rg
+0.150 0.150 0.150 RG
+0.8 w
+72 70 468 184 re
+B
+Q
+q
+0.950 0.920 0.840 rg
+72 230 468 24 re
+f
+Q
+BT
+0.070 0.070 0.070 rg
+/F1 11 Tf
+1 0 0 1 84 238 Tm
+(Exhibit - Value Discipline Signal Map) Tj
+ET
+BT
+0.430 0.430 0.430 rg
+/F1 8 Tf
+1 0 0 1 84 223 Tm
+(0/9 available signals in sparse_data context) Tj
+ET
+q
+0.950 0.920 0.840 RG
+0.4 w
+86 199 m
+526 199 l
+S
+Q
+q
+0.480 0.520 0.570 rg
+0.150 0.150 0.150 RG
+0.3 w
+92 196 8 8 re
+B
+Q
+BT
+0.070 0.070 0.070 rg
+/F1 8.5 Tf
+1 0 0 1 106 202 Tm
+(Positive return on assets \(profitability\)) Tj
+ET
+BT
+0.430 0.430 0.430 rg
+/F1 8 Tf
+1 0 0 1 452 202 Tm
+(UNAVAILABLE) Tj
+ET
+q
+0.950 0.920 0.840 RG
+0.4 w
+86 181 m
+526 181 l
+S
+Q
+q
+0.480 0.520 0.570 rg
+0.150 0.150 0.150 RG
+0.3 w
+92 178 8 8 re
+B
+Q
+BT
+0.070 0.070 0.070 rg
+/F1 8.5 Tf
+1 0 0 1 106 184 Tm
+(Positive operating cash flow \(profitability\)) Tj
+ET
+BT
+0.430 0.430 0.430 rg
+/F1 8 Tf
+1 0 0 1 452 184 Tm
+(UNAVAILABLE) Tj
+ET
+q
+0.950 0.920 0.840 RG
+0.4 w
+86 163 m
+526 163 l
+S
+Q
+q
+0.480 0.520 0.570 rg
+0.150 0.150 0.150 RG
+0.3 w
+92 160 8 8 re
+B
+Q
+BT
+0.070 0.070 0.070 rg
+/F1 8.5 Tf
+1 0 0 1 106 166 Tm
+(ROA improving vs prior year \(profitability\)) Tj
+ET
+BT
+0.430 0.430 0.430 rg
+/F1 8 Tf
+1 0 0 1 452 166 Tm
+(UNAVAILABLE) Tj
+ET
+q
+0.950 0.920 0.840 RG
+0.4 w
+86 145 m
+526 145 l
+S
+Q
+q
+0.480 0.520 0.570 rg
+0.150 0.150 0.150 RG
+0.3 w
+92 142 8 8 re
+B
+Q
+BT
+0.070 0.070 0.070 rg
+/F1 8.5 Tf
+1 0 0 1 106 148 Tm
+(Cash flow exceeds net income \(earnings_quality\)) Tj
+ET
+BT
+0.430 0.430 0.430 rg
+/F1 8 Tf
+1 0 0 1 452 148 Tm
+(UNAVAILABLE) Tj
+ET
+q
+0.950 0.920 0.840 RG
+0.4 w
+86 127 m
+526 127 l
+S
+Q
+q
+0.480 0.520 0.570 rg
+0.150 0.150 0.150 RG
+0.3 w
+92 124 8 8 re
+B
+Q
+BT
+0.070 0.070 0.070 rg
+/F1 8.5 Tf
+1 0 0 1 106 130 Tm
+(Leverage declining \(leverage_liquidity\)) Tj
+ET
+BT
+0.430 0.430 0.430 rg
+/F1 8 Tf
+1 0 0 1 452 130 Tm
+(UNAVAILABLE) Tj
+ET
+q
+0.950 0.920 0.840 RG
+0.4 w
+86 109 m
+526 109 l
+S
+Q
+q
+0.480 0.520 0.570 rg
+0.150 0.150 0.150 RG
+0.3 w
+92 106 8 8 re
+B
+Q
+BT
+0.070 0.070 0.070 rg
+/F1 8.5 Tf
+1 0 0 1 106 112 Tm
+(Liquidity buffer improving \(leverage_liquidity\)) Tj
+ET
+BT
+0.430 0.430 0.430 rg
+/F1 8 Tf
+1 0 0 1 452 112 Tm
+(UNAVAILABLE) Tj
+ET
+q
+0.950 0.920 0.840 RG
+0.4 w
+86 91 m
+526 91 l
+S
+Q
+q
+0.480 0.520 0.570 rg
+0.150 0.150 0.150 RG
+0.3 w
+92 88 8 8 re
+B
+Q
+BT
+0.070 0.070 0.070 rg
+/F1 8.5 Tf
+1 0 0 1 106 94 Tm
+(Gross margin improving \(operating_efficiency\)) Tj
+ET
+BT
+0.430 0.430 0.430 rg
+/F1 8 Tf
+1 0 0 1 452 94 Tm
+(UNAVAILABLE) Tj
+ET
+BT
+0.430 0.430 0.430 rg
+/F1 10 Tf
+1 0 0 1 72 36 Tm
+(Page 5 of 9) Tj
+ET
+endstream
+endobj
+14 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 15 0 R >>
+endobj
+15 0 obj
+<< /Length 2100 >>
+stream
+q
+0.770 0.630 0.350 RG
+1.4 w
+72 744 m
+540 744 l
+S
+Q
+BT
+0.070 0.070 0.070 rg
+/F1 16 Tf
+1 0 0 1 72 758 Tm
+(Page 6 - Valuation and Scenarios) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 724 Tm
+(Fair value low/mid/high: n/a / n/a / n/a) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 710 Tm
+(Spot price: n/a | Implied upside: n/a) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 696 Tm
+(Methodology: deterministic_dcf) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 682 Tm
+(Projection years: 5) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 668 Tm
+(Terminal growth: 2.50%) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 654 Tm
+(WACC: 10.00%) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 640 Tm
+(Valuation degraded reason: At least 3 annual free-cash-flow points are required for DCF.) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 626 Tm
+(Valuation narrative: Valuation is degraded because At least 3 annual free-cash-flow points) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 612 Tm
+(are required for DCF..) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 598 Tm
+(Valuation key points:) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 584 Tm
+(- Fair-value midpoint unavailable.) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 570 Tm
+(- Implied upside unavailable.) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 556 Tm
+(- Degraded reason: At least 3 annual free-cash-flow points are required for DCF.) Tj
+ET
+q
+0.980 0.970 0.950 rg
+0.150 0.150 0.150 RG
+0.8 w
+72 70 468 128 re
+B
+Q
+q
+0.950 0.920 0.840 rg
+72 174 468 24 re
+f
+Q
+BT
+0.070 0.070 0.070 rg
+/F1 11 Tf
+1 0 0 1 84 182 Tm
+(Exhibit - Valuation Bridge) Tj
+ET
+BT
+0.430 0.430 0.430 rg
+/F1 8 Tf
+1 0 0 1 84 167 Tm
+(M5.2 omission-aware fallback) Tj
+ET
+q
+0.950 0.920 0.840 rg
+0.770 0.630 0.350 RG
+0.6 w
+90 92 432 72 re
+B
+Q
+BT
+0.070 0.070 0.070 rg
+/F1 9 Tf
+1 0 0 1 102 140 Tm
+(Omission-aware fallback) Tj
+ET
+BT
+0.430 0.430 0.430 rg
+/F1 8.5 Tf
+1 0 0 1 102 124 Tm
+(At least 3 annual free-cash-flow points are required for DCF.) Tj
+ET
+BT
+0.430 0.430 0.430 rg
+/F1 10 Tf
+1 0 0 1 72 36 Tm
+(Page 6 of 9) Tj
+ET
+endstream
+endobj
+16 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 17 0 R >>
+endobj
+17 0 obj
+<< /Length 4457 >>
+stream
+q
+0.770 0.630 0.350 RG
+1.4 w
+72 744 m
+540 744 l
+S
+Q
+BT
+0.070 0.070 0.070 rg
+/F1 16 Tf
+1 0 0 1 72 758 Tm
+(Page 7 - Risks, Catalysts, and Kill Switches) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 724 Tm
+(Risk narrative: Primary risk controls remain evidence freshness and omission visibility.) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 710 Tm
+(Historical comparison unavailable. Transcript data unavailable. Prior-quarter snapshot) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 696 Tm
+(missing. Year-ago snapshot missing. Source freshness could not be verified from) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 682 Tm
+(retrievable timestamps. At least 3 annual free-cash-flow points are required for DCF.) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 668 Tm
+(Degraded report sections: What Changed, Value Discipline, Valuation. No traceable) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 654 Tm
+(management quote was available in the latest transcript context.) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 640 Tm
+(Risk highlights:) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 626 Tm
+(- No active value-trap warning based on current value-discipline signals.) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 612 Tm
+(- Freshness state: stale) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 598 Tm
+(- Missing-data note: Historical comparison unavailable.) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 584 Tm
+(Watch items:) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 570 Tm
+(- Comparable prior thesis is unavailable in the 120-day lookback window.) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 556 Tm
+(- Next reported quarter shows Azure/cloud revenue growth below 20% year over year, or a) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 542 Tm
+(clear deceleration versus the l...) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 528 Tm
+(- Operating margin compresses by 200 bps or more versus the latest reported quarter.) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 514 Tm
+(- Historical comparison unavailable.) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 500 Tm
+(Kill-switch conditions:) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 486 Tm
+(- MSFT-KS1 | custom | below | Next reported quarter shows Azure/cloud revenue growth below) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 472 Tm
+(20% year over year, or a clear deceleration versus the latest reported quarter.) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 458 Tm
+(- MSFT-KS2 | custom | below | Operating margin compresses by 200 bps or more versus the) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 444 Tm
+(latest reported quarter.) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 430 Tm
+(- MSFT-KS3 | custom | below | Free cash flow for the next reported period declines year) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 416 Tm
+(over year despite revenue growth.) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 402 Tm
+(- MSFT-KS4 | guidance_revision | below | Management guides next-quarter revenue or) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 388 Tm
+(operating income below consensus by 3% or more.) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 374 Tm
+(- MSFT-KS5 | custom | against_signal | Any major AI/cloud capacity or capital spending) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 360 Tm
+(announcement is not matched by a corresponding acceleration in revenue growth within the) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 346 Tm
+(next two reported quarters.) Tj
+ET
+q
+0.980 0.970 0.950 rg
+0.150 0.150 0.150 RG
+0.8 w
+72 70 468 148 re
+B
+Q
+q
+0.950 0.920 0.840 rg
+72 194 468 24 re
+f
+Q
+BT
+0.070 0.070 0.070 rg
+/F1 11 Tf
+1 0 0 1 84 202 Tm
+(Exhibit - Kill-Switch Coverage) Tj
+ET
+BT
+0.430 0.430 0.430 rg
+/F1 8 Tf
+1 0 0 1 84 187 Tm
+(Active kill-switch conditions by signal family) Tj
+ET
+BT
+0.430 0.430 0.430 rg
+/F1 8 Tf
+1 0 0 1 94 174 Tm
+(Unit: Rules) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 8 Tf
+1 0 0 1 94 122 Tm
+(custom) Tj
+ET
+q
+0.820 0.350 0.340 rg
+0.150 0.150 0.150 RG
+0.3 w
+186 118 304 10 re
+B
+Q
+BT
+0.430 0.430 0.430 rg
+/F1 8 Tf
+1 0 0 1 496 122 Tm
+(4) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 8 Tf
+1 0 0 1 94 104 Tm
+(guidance_revision) Tj
+ET
+q
+0.910 0.670 0.170 rg
+0.150 0.150 0.150 RG
+0.3 w
+186 100 76 10 re
+B
+Q
+BT
+0.430 0.430 0.430 rg
+/F1 8 Tf
+1 0 0 1 268 104 Tm
+(1) Tj
+ET
+BT
+0.430 0.430 0.430 rg
+/F1 10 Tf
+1 0 0 1 72 36 Tm
+(Page 7 of 9) Tj
+ET
+endstream
+endobj
+18 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 19 0 R >>
+endobj
+19 0 obj
+<< /Length 9152 >>
+stream
+q
+0.770 0.630 0.350 RG
+1.4 w
+72 744 m
+540 744 l
+S
+Q
+BT
+0.070 0.070 0.070 rg
+/F1 16 Tf
+1 0 0 1 72 758 Tm
+(Page 8 - Evidence Book) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 724 Tm
+(Evidence count: 15) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 710 Tm
+(- Executive Summary | read_filings |) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 696 Tm
+({"data":{"0000950170-25-100235":{"resource":"filing_items","ticker":"MSFT","cik":"0000789019","filing_type":"10-K","accession_number":"0000950170-25-100235","filing_url":"https://www.sec.gov/Archives/edgar/data/789019/000095017025100235/msft-20250630.htm","year":2025,"items":[{"number":"Item) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 682 Tm
+(1A","title":"Risk Factors","text":"ITEM 1A. RISK FACTORS Our operations and financial) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 668 Tm
+(results are subject) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 654 Tm
+(- Executive Summary | read_filings |) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 640 Tm
+({"data":{"0000950170-25-100235":{"resource":"filing_items","ticker":"MSFT","cik":"0000789019","filing_type":"10-K","accession_number":"0000950170-25-100235","filing_url":"https://www.sec.gov/Archives/edgar/data/789019/000095017025100235/msft-20250630.htm","year":2025,"items":[{"number":"Item) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 626 Tm
+(7","title":"Management Discussion & Analysis \(MD&A\)","text":"ITEM 7. MANAGEMENT S) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 612 Tm
+(DISCUSSION AND ANALYSIS O) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 598 Tm
+(- Executive Summary | financial_metrics |) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 584 Tm
+({"data":{"get_all_financial_statements_MSFT":{"income_statements":[{"ticker":"MSFT","report_period":"2025-12-31","fiscal_period":"2026-Q2","filing_url":"https://www.sec.gov/Archives/edgar/data/789019/000119312526027207/0001193125-26-027207-index.htm","revenue":81273000000,"cost_of_revenue":25978000000,"gross_profit":55295000000,"operating_expense":17020000000,"selling_general_and_administrative_ex) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 570 Tm
+(- Quarter-over-Quarter Changes | financial_metrics |) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 556 Tm
+({"data":{"get_all_financial_statements_MSFT":{"income_statements":[{"ticker":"MSFT","report_period":"2025-12-31","fiscal_period":"2026-Q2","filing_url":"https://www.sec.gov/Archives/edgar/data/789019/000119312526027207/0001193125-26-027207-index.htm","revenue":81273000000,"cost_of_revenue":25978000000,"gross_profit":55295000000,"operating_expense":17020000000,"selling_general_and_administrative_ex) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 542 Tm
+(- Year-over-Year Changes | financial_metrics |) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 528 Tm
+({"data":{"get_all_financial_statements_MSFT":{"income_statements":[{"ticker":"MSFT","report_period":"2025-06-30","fiscal_period":"FY2025","filing_url":"https://www.sec.gov/Archives/edgar/data/789019/000095017025100235/0000950170-25-100235-index.htm","revenue":281724000000,"cost_of_revenue":87831000000,"gross_profit":193893000000,"operating_expense":65365000000,"selling_general_and_administrative_e) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 514 Tm
+(- Year-over-Year Changes | read_filings |) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 500 Tm
+({"data":{"0001193125-26-027207":{"resource":"filing_items","ticker":"MSFT","cik":"0000789019","filing_type":"10-Q","accession_number":"0001193125-26-027207","filing_url":"https://www.sec.gov/Archives/edgar/data/789019/000119312526027207/msft-20251231.htm","year":2026,"quarter":2,"items":[{"number":"Part) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 486 Tm
+(I, Item 1","title":"Financial Statements","text":"ITEM 1. FINANCIAL STATEMENTS INCOME) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 472 Tm
+(STATEMEN) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 458 Tm
+(- Revenue and Margin Analysis | financial_metrics |) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 444 Tm
+({"data":{"get_all_financial_statements_MSFT":{"income_statements":[{"ticker":"MSFT","report_period":"2025-12-31","fiscal_period":"2026-Q2","filing_url":"https://www.sec.gov/Archives/edgar/data/789019/000119312526027207/0001193125-26-027207-index.htm","revenue":81273000000,"cost_of_revenue":25978000000,"gross_profit":55295000000,"operating_expense":17020000000,"selling_general_and_administrative_ex) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 430 Tm
+(- Debt and Liquidity | financial_metrics |) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 416 Tm
+({"data":{"get_balance_sheets_MSFT":[{"ticker":"MSFT","report_period":"2025-12-31","fiscal_period":"2026-Q2","filing_url":"https://www.sec.gov/Archives/edgar/data/789019/000119312526027207/0001193125-26-027207-index.htm","total_assets":665302000000,"current_assets":180190000000,"cash_and_equivalents":24296000000,"inventory":1059000000,"current_investments":65166000000,"trade_and_non_trade_receivabl) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 402 Tm
+(- Debt and Liquidity | read_filings |) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 388 Tm
+({"data":{"0001193125-26-027207":{"resource":"filing_items","ticker":"MSFT","cik":"0000789019","filing_type":"10-Q","accession_number":"0001193125-26-027207","filing_url":"https://www.sec.gov/Archives/edgar/data/789019/000119312526027207/msft-20251231.htm","year":2026,"quarter":2,"items":[{"number":"Part) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 374 Tm
+(I, Item 1","title":"Financial Statements","text":"ITEM 1. FINANCIAL STATEMENTS INCOME) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 360 Tm
+(STATEMEN) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 346 Tm
+(- Acquisitions and Major Events | read_filings |) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 332 Tm
+({"data":{"0000950170-25-100235":{"resource":"filing_items","ticker":"MSFT","cik":"0000789019","filing_type":"10-K","accession_number":"0000950170-25-100235","filing_url":"https://www.sec.gov/Archives/edgar/data/789019/000095017025100235/msft-20250630.htm","year":2025,"items":[{"number":"Item) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 318 Tm
+(1A","title":"Risk Factors","text":"ITEM 1A. RISK FACTORS Our operations and financial) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 304 Tm
+(results are subject) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 290 Tm
+(- Management Commentary | read_filings |) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 276 Tm
+({"data":{"0000950170-25-100235":{"resource":"filing_items","ticker":"MSFT","cik":"0000789019","filing_type":"10-K","accession_number":"0000950170-25-100235","filing_url":"https://www.sec.gov/Archives/edgar/data/789019/000095017025100235/msft-20250630.htm","year":2025,"items":[{"number":"Item) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 262 Tm
+(7","title":"Management Discussion & Analysis \(MD&A\)","text":"ITEM 7. MANAGEMENT S) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 248 Tm
+(DISCUSSION AND ANALYSIS O) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 234 Tm
+(- Research Signal | read_filings |) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 220 Tm
+({"data":{"0000950170-25-100235":{"resource":"filing_items","ticker":"MSFT","cik":"0000789019","filing_type":"10-K","accession_number":"0000950170-25-100235","filing_url":"https://www.sec.gov/Archives/edgar/data/789019/000095017025100235/msft-20250630.htm","year":2025,"items":[{"number":"Item) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 206 Tm
+(1A","title":"Risk Factors","text":"ITEM 1A. RISK FACTORS Our operations and financial) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 192 Tm
+(results are subject) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 178 Tm
+(- Research Signal | read_filings |) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 164 Tm
+({"data":{"0000950170-25-100235":{"resource":"filing_items","ticker":"MSFT","cik":"0000789019","filing_type":"10-K","accession_number":"0000950170-25-100235","filing_url":"https://www.sec.gov/Archives/edgar/data/789019/000095017025100235/msft-20250630.htm","year":2025,"items":[{"number":"Item) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 150 Tm
+(7","title":"Management Discussion & Analysis \(MD&A\)","text":"ITEM 7. MANAGEMENT S) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 136 Tm
+(DISCUSSION AND ANALYSIS O) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 122 Tm
+(- Evidence References | read_filings |) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 108 Tm
+({"data":{"0000950170-25-100235":{"resource":"filing_items","ticker":"MSFT","cik":"0000789019","filing_type":"10-K","accession_number":"0000950170-25-100235","filing_url":"https://www.sec.gov/Archives/edgar/data/789019/000095017025100235/msft-20250630.htm","year":2025,"items":[{"number":"Item) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 94 Tm
+([Content truncated in PDF page; canonical JSON artifact remains complete.]) Tj
+ET
+BT
+0.430 0.430 0.430 rg
+/F1 10 Tf
+1 0 0 1 72 36 Tm
+(Page 8 of 9) Tj
+ET
+endstream
+endobj
+20 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 21 0 R >>
+endobj
+21 0 obj
+<< /Length 4555 >>
+stream
+q
+0.770 0.630 0.350 RG
+1.4 w
+72 744 m
+540 744 l
+S
+Q
+BT
+0.070 0.070 0.070 rg
+/F1 16 Tf
+1 0 0 1 72 758 Tm
+(Page 9 - Appendix) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 724 Tm
+(Report ID: 905f5327-8d97-40f1-b6c7-12c35561ded7) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 710 Tm
+(Job ID: 361bad16-d271-451c-ae4a-f1cb54751fa2) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 696 Tm
+(Schema version: 2.0) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 682 Tm
+(Generated at: 2026-04-21T10:45:00.993Z) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 668 Tm
+(Prompt version: m4-synthesizer-fixture-v1) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 654 Tm
+(Data sources:) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 640 Tm
+(- dexter-native:agent) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 626 Tm
+(- read_filings) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 612 Tm
+(- financial_metrics) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 598 Tm
+(Flags:) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 584 Tm
+(- what_changed:data_incomplete) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 570 Tm
+(- value_discipline:data_unavailable) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 556 Tm
+(- valuation:data_incomplete) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 542 Tm
+(Financial omissions:) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 528 Tm
+(- Annual history is insufficient | Only 0 annual snapshot\(s\) were available; at least 3) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 514 Tm
+(are required for 3-5 year trend reliability. | impacts financial_statement_analysis,) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 500 Tm
+(valuation, value_discipline) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 486 Tm
+(- Revenue CAGR unavailable | Revenue CAGR could not be computed from annual snapshot) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 472 Tm
+(history. | impacts financial_statement_analysis, valuation) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 458 Tm
+(- Free cash flow trend unavailable | Annual free-cash-flow history is insufficient for a) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 444 Tm
+(deterministic trend. | impacts financial_statement_analysis, valuation) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 430 Tm
+(- Cash conversion unavailable | Operating cash flow and net income were not both available) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 416 Tm
+(for latest annual period. | impacts financial_statement_analysis, value_discipline) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 402 Tm
+(Coverage missing:) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 388 Tm
+(- Historical comparison unavailable.) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 374 Tm
+(- Transcript data unavailable.) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 360 Tm
+(- Prior-quarter snapshot missing.) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 346 Tm
+(- Year-ago snapshot missing.) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 332 Tm
+(- Source freshness could not be verified from retrievable timestamps.) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 318 Tm
+(- At least 3 annual free-cash-flow points are required for DCF.) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 304 Tm
+(- Degraded report sections: What Changed, Value Discipline, Valuation.) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 290 Tm
+(- No traceable management quote was available in the latest transcript context.) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 276 Tm
+(- Annual history is insufficient: Only 0 annual snapshot\(s\) were available; at least 3 are) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 262 Tm
+(required for 3-5 year trend reliability.) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 248 Tm
+(- Revenue CAGR unavailable: Revenue CAGR could not be computed from annual snapshot) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 234 Tm
+(history.) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 220 Tm
+(- Free cash flow trend unavailable: Annual free-cash-flow history is insufficient for a) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 206 Tm
+(deterministic trend.) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 192 Tm
+(- Cash conversion unavailable: Operating cash flow and net income were not both available) Tj
+ET
+BT
+0.070 0.070 0.070 rg
+/F1 10 Tf
+1 0 0 1 72 178 Tm
+(for latest annual period.) Tj
+ET
+BT
+0.430 0.430 0.430 rg
+/F1 10 Tf
+1 0 0 1 72 36 Tm
+(Page 9 of 9) Tj
+ET
+endstream
+endobj
+xref
+0 22
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000169 00000 n 
+0000000239 00000 n 
+0000000365 00000 n 
+0000004416 00000 n 
+0000004542 00000 n 
+0000006956 00000 n 
+0000007082 00000 n 
+0000011194 00000 n 
+0000011322 00000 n 
+0000016799 00000 n 
+0000016927 00000 n 
+0000023077 00000 n 
+0000023205 00000 n 
+0000025358 00000 n 
+0000025486 00000 n 
+0000029996 00000 n 
+0000030124 00000 n 
+0000039329 00000 n 
+0000039457 00000 n 
+trailer
+<< /Size 22 /Root 1 0 R >>
+startxref
+44065
+%%EOF

@@ -54,6 +54,7 @@ import com.thesis.mobile.model.ReportHistoryItem
 import com.thesis.mobile.model.ScenarioResultView
 import com.thesis.mobile.model.TrustMetadataView
 import com.thesis.mobile.model.ValuationDisplayView
+import com.thesis.mobile.model.toReaderOutline
 import com.thesis.mobile.ui.components.ConfidenceRing
 import com.thesis.mobile.ui.components.DeepDiveUnavailableState
 import com.thesis.mobile.ui.components.EvidenceDots
@@ -330,6 +331,7 @@ private fun DeepDiveReportState(
     val isWatched = report.ticker != null && watchlist.contains(report.ticker)
     val context = LocalContext.current
     val isPro = userTier.equals("PRO", ignoreCase = true)
+    val usesStructuredReader = report.toReaderOutline().usesStructuredArtifact
 
     Box(
         modifier = Modifier
@@ -352,9 +354,17 @@ private fun DeepDiveReportState(
 
             item { DeepDiveReadThisFirst(report = report) }
 
-            item { DeepDiveSeeTheStory(report = report) }
-
-            item { DeepDiveUnderstandIt(report = report) }
+            if (usesStructuredReader) {
+                item { DeepDiveExecutiveMemo(report = report) }
+                item { DeepDiveFinancialQuality(report = report) }
+                item { DeepDiveValueDiscipline(report = report) }
+                item { DeepDiveValuationSection(report = report) }
+                item { DeepDiveRisksAndKillSwitches(report = report) }
+                item { DeepDiveEvidenceAndAppendix(report = report) }
+            } else {
+                item { DeepDiveSeeTheStory(report = report) }
+                item { DeepDiveUnderstandIt(report = report) }
+            }
 
             if (report.sections.isNotEmpty()) {
                 item {

@@ -11,6 +11,15 @@ const defaultSignalEvidenceThreshold = 2;
 const defaultAgentMaxIterations = 2;
 const defaultMaxParallelSections = 4;
 const defaultMaxSectionRetries = 0;
+const defaultOpenRouterModel = "openrouter:openai/gpt-5.4-mini";
+const defaultOpenAiModel = "gpt-5.4-mini";
+
+export type DexterLiveProvider = "openrouter" | "anthropic" | "openai";
+
+export interface LiveProviderAttempt {
+  provider: DexterLiveProvider;
+  model: string;
+}
 
 function parseBoolean(value: string | undefined, fallback: boolean): boolean {
   if (!value) {
@@ -51,13 +60,29 @@ function parseTickerSet(value: string | undefined): Set<string> {
   );
 }
 
+function parseProviderOrder(value: string | undefined): DexterLiveProvider[] {
+  const allowed = new Set<DexterLiveProvider>(["openrouter", "anthropic", "openai"]);
+  const parsed = (value ?? "")
+    .split(",")
+    .map((entry) => entry.trim().toLowerCase())
+    .filter((entry): entry is DexterLiveProvider => allowed.has(entry as DexterLiveProvider));
+
+  return parsed.length > 0 ? parsed : ["openrouter", "anthropic", "openai"];
+}
+
 export interface DexterConfig {
   port: number;
   fixtureMode: boolean;
   model: string;
+  providerOrder: DexterLiveProvider[];
+  promptSource: "local" | "langsmith";
+  openrouterModel: string;
+  openaiModel: string;
+  anthropicModel?: string;
   bunBin: string;
   anthropicApiKeyPresent: boolean;
-  financialDatasetsApiKeyPresent: boolean;
+  openrouterApiKeyPresent: boolean;
+  openaiApiKeyPresent: boolean;
   webSearchProviderKeyPresent: boolean;
   maxAgentIterations: number;
   maxParallelSections: number;
@@ -90,14 +115,49 @@ export interface DexterConfig {
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): DexterConfig {
   const fixtureMode = parseBoolean(env.DEXTER_FIXTURE_MODE, true);
+  const legacyModel = env.DEXTER_MODEL?.trim() ?? "";
+  const providerOrder: DexterLiveProvider[] =
+    env.DEXTER_PROVIDER_ORDER && env.DEXTER_PROVIDER_ORDER.trim().length > 0
+      ? parseProviderOrder(env.DEXTER_PROVIDER_ORDER)
+      : legacyModel.startsWith("claude-")
+        ? (["anthropic", "openrouter", "openai"] as DexterLiveProvider[])
+        : legacyModel.startsWith("openrouter:")
+          ? (["openrouter", "anthropic", "openai"] as DexterLiveProvider[])
+          : parseProviderOrder(undefined);
+  const promptSource = env.DEXTER_PROMPT_SOURCE === "langsmith" ? "langsmith" : "local";
+  const anthropicModel =
+    (env.DEXTER_ANTHROPIC_MODEL ?? "").trim() ||
+    (legacyModel.startsWith("claude-") ? legacyModel : "");
+  const openrouterModel =
+    (env.DEXTER_OPENROUTER_MODEL ?? "").trim() ||
+    (legacyModel.startsWith("openrouter:") ? legacyModel : defaultOpenRouterModel);
+  const openaiModel =
+    (env.DEXTER_OPENAI_MODEL ?? "").trim() ||
+    (legacyModel.length > 0 &&
+    !legacyModel.startsWith("claude-") &&
+    !legacyModel.startsWith("openrouter:")
+      ? legacyModel
+      : defaultOpenAiModel);
+  const primaryModelByProvider: Record<DexterLiveProvider, string> = {
+    openrouter: openrouterModel,
+    anthropic: anthropicModel,
+    openai: openaiModel
+  };
+  const primaryProvider: DexterLiveProvider = providerOrder[0] ?? "openrouter";
 
   return {
     port: parseInteger(env.PORT, defaultPort),
     fixtureMode,
-    model: fixtureMode ? "fixture-dexter-m3" : env.DEXTER_MODEL ?? "",
+    model: fixtureMode ? "fixture-dexter-m3" : primaryModelByProvider[primaryProvider] ?? "",
+    providerOrder,
+    promptSource,
+    openrouterModel,
+    openaiModel,
+    anthropicModel: anthropicModel || undefined,
     bunBin: env.DEXTER_BUN_BIN ?? "bun",
     anthropicApiKeyPresent: Boolean(env.ANTHROPIC_API_KEY),
-    financialDatasetsApiKeyPresent: Boolean(env.FINANCIAL_DATASETS_API_KEY),
+    openrouterApiKeyPresent: Boolean(env.OPENROUTER_API_KEY),
+    openaiApiKeyPresent: Boolean(env.OPENAI_API_KEY),
     webSearchProviderKeyPresent: Boolean(
       env.EXASEARCH_API_KEY || env.PERPLEXITY_API_KEY || env.TAVILY_API_KEY
     ),
@@ -161,31 +221,53 @@ export function validateLiveModeConfig(config: DexterConfig): string[] {
     return errors;
   }
 
-  if (config.model.trim().length === 0) {
-    errors.push("DEXTER_MODEL is required when DEXTER_FIXTURE_MODE=false");
+  const attempts = resolveLiveProviderAttempts(config);
+  if (attempts.length === 0) {
+    errors.push(
+      "At least one live provider is required when DEXTER_FIXTURE_MODE=false (set OPENROUTER_API_KEY, ANTHROPIC_API_KEY, or OPENAI_API_KEY with a matching model configuration)"
+    );
   }
 
-  if (!config.anthropicApiKeyPresent) {
-    errors.push("ANTHROPIC_API_KEY is required when DEXTER_FIXTURE_MODE=false");
-  }
-
-  if (!config.financialDatasetsApiKeyPresent) {
-    errors.push("FINANCIAL_DATASETS_API_KEY is required when DEXTER_FIXTURE_MODE=false");
-  }
-
-  if (!config.langsmithTracingEnabled) {
-    errors.push("LANGSMITH_TRACING=true is required when DEXTER_FIXTURE_MODE=false");
-  }
-
-  if (!config.langsmithApiKeyPresent) {
-    errors.push("LANGSMITH_API_KEY is required when DEXTER_FIXTURE_MODE=false");
-  }
-
-  if (!config.langsmithProject || config.langsmithProject.trim().length === 0) {
-    errors.push("LANGSMITH_PROJECT is required when DEXTER_FIXTURE_MODE=false");
+  if (config.promptSource === "langsmith" && !config.langsmithApiKeyPresent) {
+    errors.push("LANGSMITH_API_KEY is required when DEXTER_PROMPT_SOURCE=langsmith");
   }
 
   return errors;
+}
+
+export function resolveLiveProviderAttempts(config: DexterConfig): LiveProviderAttempt[] {
+  if (config.fixtureMode) {
+    return [];
+  }
+
+  const attempts: LiveProviderAttempt[] = [];
+  for (const provider of config.providerOrder) {
+    if (
+      provider === "openrouter" &&
+      config.openrouterApiKeyPresent &&
+      config.openrouterModel.trim().length > 0
+    ) {
+      attempts.push({ provider, model: config.openrouterModel });
+    }
+
+    if (
+      provider === "anthropic" &&
+      config.anthropicApiKeyPresent &&
+      (config.anthropicModel ?? "").trim().length > 0
+    ) {
+      attempts.push({ provider, model: config.anthropicModel!.trim() });
+    }
+
+    if (
+      provider === "openai" &&
+      config.openaiApiKeyPresent &&
+      config.openaiModel.trim().length > 0
+    ) {
+      attempts.push({ provider, model: config.openaiModel });
+    }
+  }
+
+  return attempts;
 }
 
 export function validateQueueModeConfig(config: DexterConfig): string[] {

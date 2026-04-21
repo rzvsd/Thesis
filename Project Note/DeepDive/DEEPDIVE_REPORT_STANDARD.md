@@ -2,7 +2,7 @@
 
 **Status:** Active
 **Last Revised:** 2026-04-20
-**Companion Docs:** `DEEPDIVE_REFERENCE_MAPPING.md`, `DEEPDIVE_REPORT_TEMPLATE.md`, `DEEPDIVE_TEST_MATRIX.md`
+**Companion Docs:** `DEEPDIVE_REFERENCE_MAPPING.md`, `DEEPDIVE_REPORT_TEMPLATE.md`, `DEEPDIVE_VISUAL_EXHIBITS_STANDARD.md`, `DEEPDIVE_TEST_MATRIX.md`
 
 ---
 
@@ -209,5 +209,7 @@ Use data-native visuals:
 - evidence ladders
 - value scorecards
 - risk matrices
+
+Chart-rich institutional exhibit families are locked in `DEEPDIVE_VISUAL_EXHIBITS_STANDARD.md`.
 
 Do not use decorative images, logos, AI art, or fake charts.

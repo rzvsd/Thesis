@@ -22,6 +22,7 @@ qa/maestro/output/
 artifacts/
 tmp/
 tmp_mobile*.png
+.dexter/
 Project Note/Phase3/Milestones/*/evidence/**/env.used
 Project Note/Phase3/Milestones/*/evidence/**/local-service-pids.json
 Project Note/Phase3/Milestones/*/evidence/**/*local*.log

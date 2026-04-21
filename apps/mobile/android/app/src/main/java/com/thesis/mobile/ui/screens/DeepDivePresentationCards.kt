@@ -25,12 +25,15 @@ import androidx.compose.ui.unit.dp
 import com.thesis.mobile.model.DeepDiveReportView
 import com.thesis.mobile.model.DeepDiveVisualPanelView
 import com.thesis.mobile.model.EvidenceLadderPanelView
+import com.thesis.mobile.model.FinancialDerivedMetricView
 import com.thesis.mobile.model.MetricDeltaPanelView
 import com.thesis.mobile.model.RangeBandPanelView
 import com.thesis.mobile.model.ScenarioComparePanelView
 import com.thesis.mobile.model.TimelinePanelView
 import com.thesis.mobile.model.TrustScorecardPanelView
 import com.thesis.mobile.model.ValuationBridgePanelView
+import com.thesis.mobile.model.memoSection
+import com.thesis.mobile.model.toReaderOutline
 import com.thesis.mobile.ui.components.SignalBadge
 import com.thesis.mobile.ui.copy.DeepDiveCopy
 import com.thesis.mobile.ui.theme.HeadingFont
@@ -91,6 +94,14 @@ internal fun DeepDiveStoryHeaderCard(
                 style = ThesisTypography.bodyLarge,
                 color = ThesisColors.TextSecondary
             )
+            Row(horizontalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)) {
+                LabelValuePill("Confidence", report.confidenceLabel ?: report.confidence?.label ?: "unknown")
+                LabelValuePill("Freshness", report.trustMetadata?.freshnessState ?: "unknown")
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)) {
+                LabelValuePill("Evidence", report.trustMetadata?.evidenceCount?.toString() ?: "n/a")
+                LabelValuePill("Valuation", report.trustMetadata?.valuationState ?: "unknown")
+            }
             InlineCallout(
                 label = "WHY NOW",
                 text = whyNow,
@@ -102,8 +113,20 @@ internal fun DeepDiveStoryHeaderCard(
 
 @Composable
 internal fun DeepDiveReadThisFirst(report: DeepDiveReportView) {
+    val outline = report.toReaderOutline()
     Column(verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingMd)) {
         SectionTitle(DeepDiveCopy.readThisFirst)
+        report.investmentMemo?.decisionQuestion?.let { decisionQuestion ->
+            StorySurface {
+                MetaLabel(DeepDiveCopy.decisionQuestion.uppercase())
+                Spacer(modifier = Modifier.height(ThesisDimens.SpacingSm))
+                Text(
+                    text = decisionQuestion,
+                    style = ThesisTypography.bodyLarge,
+                    color = ThesisColors.TextPrimary
+                )
+            }
+        }
         report.storyHeader?.readerTakeaway?.let { takeaway ->
             StorySurface {
                 MetaLabel(DeepDiveCopy.readerTakeaway.uppercase())
@@ -139,12 +162,368 @@ internal fun DeepDiveReadThisFirst(report: DeepDiveReportView) {
                 )
             }
         }
+        if (outline.topRisks.isNotEmpty()) {
+            StorySurface(
+                borderColor = ThesisColors.SignalWarning.copy(alpha = 0.2f),
+                backgroundColor = ThesisColors.SignalWarning.copy(alpha = 0.06f)
+            ) {
+                MetaLabel(DeepDiveCopy.topRisks.uppercase())
+                Spacer(modifier = Modifier.height(ThesisDimens.SpacingSm))
+                outline.topRisks.forEach { risk ->
+                    BulletText(text = risk)
+                }
+            }
+        }
         if (report.watchItems.isNotEmpty()) {
             StorySurface {
                 MetaLabel(DeepDiveCopy.watchNext.uppercase())
                 Spacer(modifier = Modifier.height(ThesisDimens.SpacingSm))
                 report.watchItems.forEach { item ->
                     BulletText(text = item)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+internal fun DeepDiveExecutiveMemo(report: DeepDiveReportView) {
+    val memo = report.investmentMemo ?: return
+    Column(verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingMd)) {
+        SectionTitle(DeepDiveCopy.executiveMemo)
+        StorySurface {
+            MetaLabel(DeepDiveCopy.companyAngle.uppercase())
+            Spacer(modifier = Modifier.height(ThesisDimens.SpacingSm))
+            Text(
+                text = memo.companyAngle,
+                style = ThesisTypography.bodyMedium,
+                color = ThesisColors.TextSecondary
+            )
+        }
+        memo.sections.take(3).forEach { section ->
+            StorySurface {
+                MetaLabel(section.title.uppercase())
+                Spacer(modifier = Modifier.height(ThesisDimens.SpacingSm))
+                Text(
+                    text = section.narrative,
+                    style = ThesisTypography.bodyMedium,
+                    color = ThesisColors.TextSecondary
+                )
+                if (section.keyPoints.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(ThesisDimens.SpacingSm))
+                    section.keyPoints.forEach { BulletText(text = it) }
+                }
+            }
+        }
+        if (memo.sparseDataHonestyNote.isNotBlank()) {
+            StorySurface(
+                borderColor = ThesisColors.BorderSubtle,
+                backgroundColor = ThesisColors.SurfaceElevated
+            ) {
+                MetaLabel(DeepDiveCopy.omittedInputs.uppercase())
+                Spacer(modifier = Modifier.height(ThesisDimens.SpacingSm))
+                Text(
+                    text = memo.sparseDataHonestyNote,
+                    style = ThesisTypography.bodySmall,
+                    color = ThesisColors.TextMuted
+                )
+            }
+        }
+    }
+}
+
+@Composable
+internal fun DeepDiveFinancialQuality(report: DeepDiveReportView) {
+    val financials = report.financialAnalysis ?: return
+    val outline = report.toReaderOutline()
+    Column(verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingMd)) {
+        SectionTitle(DeepDiveCopy.financialQuality)
+        if (financials.annualHistory.isNotEmpty()) {
+            StorySurface {
+                MetaLabel(DeepDiveCopy.fiveYearView.uppercase())
+                Spacer(modifier = Modifier.height(ThesisDimens.SpacingSm))
+                financials.annualHistory.takeLast(5).forEach { row ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = row.period,
+                            style = ThesisTypography.labelSmall,
+                            color = ThesisColors.TextMuted
+                        )
+                        Text(
+                            text = "Revenue ${formatMaybeNumber(row.revenue)} | FCF ${formatMaybeNumber(row.freeCashFlow)} | Debt ${formatMaybeNumber(row.debtTotal)}",
+                            style = ThesisTypography.bodySmall,
+                            color = ThesisColors.TextSecondary
+                        )
+                    }
+                }
+            }
+        }
+        if (financials.trendMetrics.isNotEmpty()) {
+            StorySurface {
+                MetaLabel("TREND METRICS")
+                Spacer(modifier = Modifier.height(ThesisDimens.SpacingSm))
+                MetricGrid(metrics = financials.trendMetrics)
+            }
+        }
+        if (financials.qualityMetrics.isNotEmpty()) {
+            StorySurface {
+                MetaLabel("QUALITY METRICS")
+                Spacer(modifier = Modifier.height(ThesisDimens.SpacingSm))
+                MetricGrid(metrics = financials.qualityMetrics)
+            }
+        }
+        outline.financialPanels.forEach { panel ->
+            VisualPanelCard(panel = panel)
+        }
+        if (financials.omissions.isNotEmpty()) {
+            StorySurface {
+                MetaLabel(DeepDiveCopy.omittedInputs.uppercase())
+                Spacer(modifier = Modifier.height(ThesisDimens.SpacingSm))
+                financials.omissions.forEach { omission ->
+                    BulletText(text = "${omission.label}: ${omission.reason}")
+                }
+            }
+        }
+    }
+}
+
+@Composable
+internal fun DeepDiveValueDiscipline(report: DeepDiveReportView) {
+    val valueDiscipline = report.valueDiscipline ?: return
+    Column(verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingMd)) {
+        SectionTitle(DeepDiveCopy.valueDiscipline)
+        StorySurface {
+            MetaLabel("SCORECARD")
+            Spacer(modifier = Modifier.height(ThesisDimens.SpacingSm))
+            Row(horizontalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)) {
+                StatColumn("Score", valueDiscipline.score.toDouble())
+                StatColumn("Max", valueDiscipline.maxScore.toDouble())
+                StatColumn("Signals", valueDiscipline.availableSignals.toDouble())
+            }
+            Spacer(modifier = Modifier.height(ThesisDimens.SpacingSm))
+            ComparisonLine("Context", valueDiscipline.contextLabel.replace('_', ' '))
+            Spacer(modifier = Modifier.height(ThesisDimens.SpacingSm))
+            Text(
+                text = valueDiscipline.interpretation,
+                style = ThesisTypography.bodyMedium,
+                color = ThesisColors.TextSecondary
+            )
+        }
+        valueDiscipline.signals.groupBy { it.family }.forEach { (family, signals) ->
+            StorySurface {
+                MetaLabel(family.replace('_', ' ').uppercase())
+                Spacer(modifier = Modifier.height(ThesisDimens.SpacingSm))
+                signals.forEach { signal ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = signal.label,
+                                style = ThesisTypography.labelLarge,
+                                color = ThesisColors.TextPrimary
+                            )
+                            Text(
+                                text = signal.reason,
+                                style = ThesisTypography.bodySmall,
+                                color = ThesisColors.TextMuted
+                            )
+                        }
+                        Text(
+                            text = signal.status.uppercase(),
+                            style = ThesisTypography.labelSmall,
+                            color = valueSignalTint(signal.status)
+                        )
+                    }
+                }
+            }
+        }
+        if (valueDiscipline.missingSignals.isNotEmpty()) {
+            StorySurface {
+                MetaLabel(DeepDiveCopy.omittedInputs.uppercase())
+                Spacer(modifier = Modifier.height(ThesisDimens.SpacingSm))
+                valueDiscipline.missingSignals.forEach { BulletText(text = it) }
+            }
+        }
+        StorySurface(
+            borderColor = ThesisColors.SignalWarning.copy(alpha = 0.2f),
+            backgroundColor = ThesisColors.SignalWarning.copy(alpha = 0.06f)
+        ) {
+            MetaLabel(DeepDiveCopy.whatThisDoesNotProve.uppercase())
+            Spacer(modifier = Modifier.height(ThesisDimens.SpacingSm))
+            Text(
+                text = valueDiscipline.doesNotProve,
+                style = ThesisTypography.bodyMedium,
+                color = ThesisColors.TextSecondary
+            )
+            if (valueDiscipline.valueTrapWarning.summary.isNotBlank()) {
+                Spacer(modifier = Modifier.height(ThesisDimens.SpacingSm))
+                Text(
+                    text = valueDiscipline.valueTrapWarning.summary,
+                    style = ThesisTypography.bodySmall,
+                    color = ThesisColors.TextMuted
+                )
+            }
+        }
+    }
+}
+
+@Composable
+internal fun DeepDiveValuationSection(report: DeepDiveReportView) {
+    val outline = report.toReaderOutline()
+    if (report.valuation == null && outline.valuationPanels.isEmpty()) {
+        return
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingMd)) {
+        SectionTitle(DeepDiveCopy.valuation)
+        report.valuation?.let { valuation ->
+            StorySurface {
+                MetaLabel("FAIR VALUE")
+                Spacer(modifier = Modifier.height(ThesisDimens.SpacingSm))
+                Row(horizontalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)) {
+                    StatColumn("Low", valuation.fairValueLow)
+                    StatColumn("Mid", valuation.fairValueMid)
+                    StatColumn("High", valuation.fairValueHigh)
+                }
+                Spacer(modifier = Modifier.height(ThesisDimens.SpacingSm))
+                ComparisonLine("Spot", formatMaybeNumber(valuation.spotPrice))
+                valuation.assumptions?.let { assumptions ->
+                    Spacer(modifier = Modifier.height(ThesisDimens.SpacingSm))
+                    Text(
+                        text = "DCF over ${assumptions.projectionYears ?: 0} years, terminal growth ${formatMaybePercent(assumptions.terminalGrowthRate)}, WACC ${formatMaybePercent(assumptions.wacc)}",
+                        style = ThesisTypography.bodySmall,
+                        color = ThesisColors.TextMuted
+                    )
+                }
+                valuation.degradedReason?.let { degradedReason ->
+                    Spacer(modifier = Modifier.height(ThesisDimens.SpacingSm))
+                    Text(
+                        text = degradedReason,
+                        style = ThesisTypography.bodySmall,
+                        color = ThesisColors.TextMuted
+                    )
+                }
+            }
+        }
+        outline.valuationPanels.forEach { panel ->
+            VisualPanelCard(panel = panel)
+        }
+        report.explainers?.valuation?.let { explanation ->
+            ExplainerCard("Valuation", explanation)
+        }
+    }
+}
+
+@Composable
+internal fun DeepDiveRisksAndKillSwitches(report: DeepDiveReportView) {
+    val outline = report.toReaderOutline()
+    val riskSection = report.memoSection("risks")
+    if (riskSection == null && report.killSwitchConditions.isEmpty() && outline.topRisks.isEmpty() && report.watchItems.isEmpty()) {
+        return
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingMd)) {
+        SectionTitle(DeepDiveCopy.risksAndKillSwitches)
+        riskSection?.let { section ->
+            StorySurface {
+                MetaLabel(section.title.uppercase())
+                Spacer(modifier = Modifier.height(ThesisDimens.SpacingSm))
+                Text(
+                    text = section.narrative,
+                    style = ThesisTypography.bodyMedium,
+                    color = ThesisColors.TextSecondary
+                )
+                if (section.keyPoints.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(ThesisDimens.SpacingSm))
+                    section.keyPoints.forEach { BulletText(text = it) }
+                }
+            }
+        }
+        if (report.killSwitchConditions.isNotEmpty()) {
+            StorySurface(
+                borderColor = ThesisColors.SignalNegative.copy(alpha = 0.2f),
+                backgroundColor = ThesisColors.SignalNegative.copy(alpha = 0.05f)
+            ) {
+                MetaLabel(DeepDiveCopy.killSwitches.uppercase())
+                Spacer(modifier = Modifier.height(ThesisDimens.SpacingSm))
+                report.killSwitchConditions.forEach { condition ->
+                    Text(
+                        text = condition.conditionText,
+                        style = ThesisTypography.labelLarge,
+                        color = ThesisColors.TextPrimary
+                    )
+                    Text(
+                        text = listOfNotNull(condition.signalType, condition.thresholdDescription).joinToString(" | "),
+                        style = ThesisTypography.bodySmall,
+                        color = ThesisColors.TextMuted
+                    )
+                    Spacer(modifier = Modifier.height(ThesisDimens.SpacingSm))
+                }
+            }
+        }
+        if (report.watchItems.isNotEmpty()) {
+            StorySurface {
+                MetaLabel(DeepDiveCopy.watchNext.uppercase())
+                Spacer(modifier = Modifier.height(ThesisDimens.SpacingSm))
+                report.watchItems.forEach { BulletText(text = it) }
+            }
+        }
+        outline.riskPanels.forEach { panel ->
+            VisualPanelCard(panel = panel)
+        }
+    }
+}
+
+@Composable
+internal fun DeepDiveEvidenceAndAppendix(report: DeepDiveReportView) {
+    val outline = report.toReaderOutline()
+    if (report.investmentMemo == null && outline.evidencePanels.isEmpty() && report.coverageTruth == null) {
+        return
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingMd)) {
+        SectionTitle(DeepDiveCopy.evidenceAndAppendix)
+        report.investmentMemo?.materialClaims?.take(4)?.let { claims ->
+            if (claims.isNotEmpty()) {
+                StorySurface {
+                    MetaLabel(DeepDiveCopy.claimSupport.uppercase())
+                    Spacer(modifier = Modifier.height(ThesisDimens.SpacingSm))
+                    claims.forEach { claim ->
+                        Text(
+                            text = claim.statement,
+                            style = ThesisTypography.labelLarge,
+                            color = ThesisColors.TextPrimary
+                        )
+                        claim.supports.forEach { support ->
+                            BulletText(text = "${support.supportType}: ${support.summary}")
+                        }
+                        Spacer(modifier = Modifier.height(ThesisDimens.SpacingSm))
+                    }
+                }
+            }
+        }
+        outline.evidencePanels.forEach { panel ->
+            VisualPanelCard(panel = panel)
+        }
+        report.coverageTruth?.let { coverage ->
+            StorySurface {
+                MetaLabel(DeepDiveCopy.coverageTruth.uppercase())
+                Spacer(modifier = Modifier.height(ThesisDimens.SpacingSm))
+                Text(
+                    text = coverage.summary,
+                    style = ThesisTypography.bodyMedium,
+                    color = ThesisColors.TextSecondary
+                )
+                if (coverage.covered.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(ThesisDimens.SpacingSm))
+                    coverage.covered.forEach { BulletText(text = it) }
+                }
+                if (coverage.missing.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(ThesisDimens.SpacingSm))
+                    coverage.missing.forEach { BulletText(text = it) }
                 }
             }
         }
@@ -569,6 +948,39 @@ private fun BulletText(text: String) {
     }
 }
 
+@Composable
+private fun MetricGrid(metrics: List<FinancialDerivedMetricView>) {
+    Column(verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)) {
+        metrics.forEach { metric ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = metric.label,
+                        style = ThesisTypography.labelLarge,
+                        color = ThesisColors.TextPrimary
+                    )
+                    metric.note?.let { note ->
+                        Text(
+                            text = note,
+                            style = ThesisTypography.bodySmall,
+                            color = ThesisColors.TextMuted
+                        )
+                    }
+                }
+                Text(
+                    text = formatMetricValue(metric),
+                    style = ThesisTypography.labelLarge,
+                    color = metricTint(metric.direction, metric.status)
+                )
+            }
+        }
+    }
+}
+
 private fun signalTint(signal: String): Color = when (signal.lowercase()) {
     "positive" -> ThesisColors.SignalPositive
     "negative" -> ThesisColors.SignalNegative
@@ -596,6 +1008,35 @@ private fun bridgeTint(tone: String): Color = when (tone.lowercase()) {
     "high" -> ThesisColors.SignalPositive
     "low" -> ThesisColors.SignalNegative
     else -> ThesisColors.TextPrimary
+}
+
+private fun valueSignalTint(status: String): Color = when (status.lowercase()) {
+    "pass" -> ThesisColors.SignalPositive
+    "fail" -> ThesisColors.SignalNegative
+    else -> ThesisColors.SignalWarning
+}
+
+private fun metricTint(direction: String, status: String): Color {
+    if (status.equals("omitted", ignoreCase = true)) {
+        return ThesisColors.TextMuted
+    }
+    return when (direction.lowercase()) {
+        "improving" -> ThesisColors.SignalPositive
+        "deteriorating" -> ThesisColors.SignalNegative
+        "flat" -> ThesisColors.SignalNeutral
+        else -> ThesisColors.TextMuted
+    }
+}
+
+private fun formatMetricValue(metric: FinancialDerivedMetricView): String {
+    if (!metric.status.equals("available", ignoreCase = true)) {
+        return "omitted"
+    }
+    val value = metric.value ?: return "n/a"
+    return when (metric.unit.lowercase()) {
+        "pct" -> formatMaybePercent(value)
+        else -> formatMaybeNumber(value)
+    }
 }
 
 private fun formatMaybeNumber(value: Double?): String =

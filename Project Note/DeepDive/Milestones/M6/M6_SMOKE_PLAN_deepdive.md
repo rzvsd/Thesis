@@ -1,7 +1,7 @@
 # M6 Smoke Plan - Mobile Research Reader
 
 **Milestone:** M6 - Mobile Research Reader
-**Status:** Pending
+**Status:** Passed
 
 ---
 
@@ -16,6 +16,7 @@
 7. Verify offline cache path.
 8. Open legacy report fixture.
 9. Confirm mobile follows the reader order in `DEEPDIVE_REPORT_TEMPLATE.md`.
+10. Confirm mobile visual panels feel consistent with the M5.2 exhibit language where the artifact provides them.
 
 ---
 
@@ -27,6 +28,7 @@
 - Screenshots or UI assertions
 - Offline cache proof
 - Mobile reader template checklist
+- Shared exhibit-language checklist
 
 ---
 
@@ -34,12 +36,13 @@
 
 | Step | Result | Evidence | Notes |
 |---|---|---|---|
-| 1 | Pending | TBD |  |
-| 2 | Pending | TBD |  |
-| 3 | Pending | TBD |  |
-| 4 | Pending | TBD |  |
-| 5 | Pending | TBD |  |
-| 6 | Pending | TBD |  |
-| 7 | Pending | TBD |  |
-| 8 | Pending | TBD |  |
-| 9 | Pending | TBD |  |
+| 1 | Passed | `evidence/2026-04-20_m6-mobile-reader-code-proof.md` | Android compile/test path verified via `testDebugUnitTest` and `lintDebug` |
+| 2 | Passed | `evidence/2026-04-21_m6-device-reader-proof.md` | Installed local debug build on Samsung `SM-S928B` (`R3CXA03J3LH`) |
+| 3 | Passed | `evidence/2026-04-21_m6-device-reader-proof.md` | Device session used an already authenticated app state |
+| 4 | Passed | `evidence/2026-04-21_m6-device-reader-proof.md` | Deep Dive opened on phone and rendered structured reader sections |
+| 5 | Passed | `evidence/2026-04-21_m6-device-reader-proof.md` | Memo, financial quality, value discipline, valuation, risks, evidence, and export controls all captured |
+| 6 | Passed | `evidence/2026-04-21_m6-device-reader-proof.md` | Report reopened from cached device state repeatedly during scroll proof |
+| 7 | Passed | `evidence/2026-04-21_m6-device-reader-proof.md` | Structured artifact was validated through the device offline cache database and reopened on phone |
+| 8 | Passed | `evidence/2026-04-20_m6-mobile-reader-code-proof.md` | Legacy fixture render remains covered by fallback unit tests |
+| 9 | Passed | `evidence/2026-04-21_m6-device-reader-proof.md` | Device screenshots confirm the mobile reader order in the report template |
+| 10 | Passed | `evidence/2026-04-21_m6-device-reader-proof.md` | Shared exhibit-language sections render on-device with Thesis styling |

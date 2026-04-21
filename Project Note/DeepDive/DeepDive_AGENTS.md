@@ -1,7 +1,7 @@
 # Deep Dive Revamp - AGENTS.md
 
 **Scope:** Deep Dive Revamp workstream. Every milestone, every service touched by this report overhaul.
-**Read this first. Then read `Milestones/M#/M#_MILESTONE_AGENTS_deepdive.md`.**
+**Read this first. Then read the current milestone-local AGENTS file under `Milestones/` such as `Milestones/M#/M#_MILESTONE_AGENTS_deepdive.md` or `Milestones/M5_2/M5_2_MILESTONE_AGENTS_deepdive.md`.**
 
 ---
 
@@ -29,7 +29,7 @@ When a product or investment-methodology decision is missing, stop and flag it. 
 | `DeepDive_PRD.md` | Product requirements and user-facing behavior |
 | `DeepDive_DECISION_LOCKS.md` | Locked decisions and open decisions |
 | `DeepDive_AGENTS.md` | Workstream operating rules |
-| `Milestones/M#/` | Milestone-local implementation guide and smoke plan |
+| `Milestones/M#/` and `Milestones/M5_2/` | Milestone-local implementation guide and smoke plan |
 | `Decisions/DDR-*.md` | Deep Dive Revamp architecture decisions |
 
 Earlier Phase 1-6 documents still govern existing service boundaries, auth, data, notification, and mobile rules. This workstream extends them.

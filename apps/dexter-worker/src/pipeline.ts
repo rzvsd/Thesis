@@ -2478,7 +2478,7 @@ export async function runAnalysisPipeline(
 
   initSentry({ enabled: false });
   const langSmithRuntime = initLangSmith({
-    enabled: config.langsmithTracingEnabled,
+    enabled: config.langsmithTracingEnabled || config.promptSource === "langsmith",
     apiKey: process.env.LANGSMITH_API_KEY,
     project: config.langsmithProject
   });

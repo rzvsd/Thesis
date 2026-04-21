@@ -1,7 +1,7 @@
 # Deep Dive Revamp Acceptance Register
 
-**Status:** Active
-**Last Revised:** 2026-04-20
+**Status:** Passed
+**Last Revised:** 2026-04-21
 
 ---
 
@@ -19,8 +19,10 @@
 | Value discipline scorecard exists | Passed | `Milestones/M3/evidence/2026-04-20_m3-value-discipline-proof.md` |
 | Dexter authors memo-quality narrative | Passed | `Milestones/M4/evidence/2026-04-20_m4-research-authoring-proof.md` |
 | Institutional PDF export exists | Passed | `Milestones/M5/evidence/2026-04-20_m5-institutional-pdf-proof.md` |
-| Mobile reader renders new artifact | Pending | M6 |
-| End-to-end device and PDF proof complete | Pending | M7 |
+| Visual exhibit layer exists | Passed | `Milestones/M5_2/evidence/2026-04-20_m5_2-visual-exhibits-proof.md` |
+| Mobile reader renders new artifact | Passed | `Milestones/M6/evidence/2026-04-21_m6-device-reader-proof.md` |
+| End-to-end device and PDF proof complete | Passed | `Milestones/M7/evidence/2026-04-21_m7-closeout-proof.md` |
+| Live OpenRouter Deep Dive generation is proven | Passed | `Milestones/M7/evidence/2026-04-21/m7_live_closeout_summary.json` |
 
 ---
 

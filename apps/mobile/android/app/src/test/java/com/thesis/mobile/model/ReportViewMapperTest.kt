@@ -75,6 +75,122 @@ class ReportViewMapperTest {
                 "covered": ["Latest quarter"],
                 "missing": ["No major omissions"]
               },
+              "investment_memo": {
+                "prompt_version": "m4.1",
+                "generation_mode": "deterministic_fixture",
+                "company_angle": "Services durability offsets a slower device cycle.",
+                "decision_question": "Is services durability enough to defend the current multiple?",
+                "sections": [
+                  {
+                    "section_id": "investment_thesis",
+                    "title": "Investment Thesis",
+                    "narrative": "Services mix keeps returns steadier than the market expects.",
+                    "key_points": ["Services mix is expanding."]
+                  },
+                  {
+                    "section_id": "risks",
+                    "title": "Top Risks",
+                    "narrative": "Hardware weakness could still drag the setup.",
+                    "key_points": ["China demand remains uneven."]
+                  }
+                ],
+                "material_claims": [
+                  {
+                    "claim_id": "claim_1",
+                    "section_id": "investment_thesis",
+                    "statement": "Services resilience stabilizes the thesis.",
+                    "materiality": "material",
+                    "supports": [
+                      {
+                        "support_type": "metric",
+                        "ref_id": "metric_1",
+                        "summary": "Services revenue mix improved."
+                      }
+                    ]
+                  }
+                ],
+                "unsupported_claims": [],
+                "sparse_data_honesty_note": "Transcript coverage is limited."
+              },
+              "financial_analysis": {
+                "annual_history": [
+                  {
+                    "period": "FY2023",
+                    "period_type": "annual",
+                    "fiscal_year": 2023,
+                    "revenue": 383.3,
+                    "free_cash_flow": 99.6,
+                    "debt_total": 111.1
+                  }
+                ],
+                "quarterly_history": [],
+                "trend_metrics": [
+                  {
+                    "key": "revenue_growth",
+                    "label": "Revenue Growth",
+                    "value": 5.4,
+                    "unit": "pct",
+                    "status": "available",
+                    "direction": "improving",
+                    "note": "Revenue inflected back up."
+                  }
+                ],
+                "quality_metrics": [
+                  {
+                    "key": "cash_conversion",
+                    "label": "Cash Conversion",
+                    "value": 92.0,
+                    "unit": "pct",
+                    "status": "available",
+                    "direction": "flat",
+                    "note": "Cash conversion remains strong."
+                  }
+                ],
+                "omissions": [
+                  {
+                    "code": "shares_missing",
+                    "label": "Share count detail",
+                    "reason": "Quarterly share-count path unavailable.",
+                    "impacts": ["dilution trend"]
+                  }
+                ]
+              },
+              "value_discipline": {
+                "score": 7,
+                "max_score": 9,
+                "available_signals": 8,
+                "completeness": "partial",
+                "context_label": "quality_mega_cap",
+                "interpretation": "The score supports quality, not cheapness.",
+                "missing_signals": ["Asset turnover"],
+                "does_not_prove": "This does not make the stock automatically cheap.",
+                "signals": [
+                  {
+                    "key": "profit_margin",
+                    "label": "Profit Margin",
+                    "family": "profitability",
+                    "status": "pass",
+                    "reason": "Margins stayed healthy.",
+                    "value": 1.0
+                  }
+                ],
+                "value_trap_warning": {
+                  "triggered": false,
+                  "summary": "No value trap warning.",
+                  "reason_codes": []
+                }
+              },
+              "kill_switch_conditions": [
+                {
+                  "condition_id": "ks_1",
+                  "condition_text": "Services growth drops below the target band.",
+                  "signal_type": "guidance_revision",
+                  "rationale": "Services resilience is a core part of the thesis.",
+                  "threshold_value": 5,
+                  "threshold_unit": "pct",
+                  "direction": "below"
+                }
+              ],
               "confidence": {
                 "score": 0.7,
                 "label": "medium",
@@ -108,6 +224,10 @@ class ReportViewMapperTest {
         assertEquals(1, view.changeSummary?.topChanges?.size)
         assertEquals("Watch margin quality.", view.watchItems.single())
         assertEquals("The report states what it covers.", view.coverageTruth?.summary)
+        assertEquals("Is services durability enough to defend the current multiple?", view.investmentMemo?.decisionQuestion)
+        assertEquals(1, view.financialAnalysis?.trendMetrics?.size)
+        assertEquals("quality_mega_cap", view.valueDiscipline?.contextLabel)
+        assertEquals(1, view.killSwitchConditions.size)
         assertTrue(view.visualPanels[0] is MetricDeltaPanelView)
         assertTrue(view.visualPanels[1] is TrustScorecardPanelView)
     }

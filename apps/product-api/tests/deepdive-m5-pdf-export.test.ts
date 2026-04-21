@@ -150,7 +150,7 @@ function sampleInstitutionalReport(jobId: string, reportId: string): JsonObject 
       fair_value_low: 178.0,
       fair_value_high: 236.0,
       spot_price: 191.0,
-      implied_upside_pct: 8.9,
+      implied_upside_pct: 0.089,
       assumptions: {
         methodology: "deterministic_dcf",
         projection_years: 5,
@@ -216,6 +216,33 @@ function sampleInstitutionalReport(jobId: string, reportId: string): JsonObject 
     financial_analysis: {
       annual_history: [
         {
+          period: "FY-2022",
+          period_type: "annual",
+          fiscal_year: 2022,
+          revenue: 365800,
+          gross_margin: 0.43,
+          operating_margin: 0.298,
+          free_cash_flow: 99500
+        },
+        {
+          period: "FY-2023",
+          period_type: "annual",
+          fiscal_year: 2023,
+          revenue: 372100,
+          gross_margin: 0.438,
+          operating_margin: 0.304,
+          free_cash_flow: 102400
+        },
+        {
+          period: "FY-2024",
+          period_type: "annual",
+          fiscal_year: 2024,
+          revenue: 381500,
+          gross_margin: 0.445,
+          operating_margin: 0.309,
+          free_cash_flow: 107300
+        },
+        {
           period: "FY-2025",
           period_type: "annual",
           fiscal_year: 2025,
@@ -255,6 +282,27 @@ function sampleInstitutionalReport(jobId: string, reportId: string): JsonObject 
           family: "profitability",
           status: "pass",
           reason: "ROA remained positive in the latest annual period."
+        },
+        {
+          key: "operating_margin_up",
+          label: "Operating margin up",
+          family: "operating_efficiency",
+          status: "pass",
+          reason: "Operating margin improved from the prior fiscal year."
+        },
+        {
+          key: "share_count_discipline",
+          label: "Share count discipline",
+          family: "capital_discipline",
+          status: "pass",
+          reason: "Dilution remained contained while buybacks stayed active."
+        },
+        {
+          key: "cash_conversion_consistent",
+          label: "Cash conversion consistent",
+          family: "earnings_quality",
+          status: "pass",
+          reason: "Free cash flow remained aligned with operating profit."
         }
       ],
       value_trap_warning: {
@@ -263,6 +311,31 @@ function sampleInstitutionalReport(jobId: string, reportId: string): JsonObject 
         reason_codes: []
       }
     },
+    kill_switch_conditions: [
+      {
+        condition_id: "ks-1",
+        condition_text: "Operating margin deteriorates below the recent base case.",
+        signal_type: "sec_filing",
+        rationale: "Margin compression would directly weaken the durable-cash thesis.",
+        direction: "below",
+        threshold_value: 0.03,
+        threshold_unit: "pct"
+      },
+      {
+        condition_id: "ks-2",
+        condition_text: "Management guides materially below prior free-cash-flow expectations.",
+        signal_type: "guidance_revision",
+        rationale: "Guidance deterioration would weaken confidence in the base valuation case.",
+        direction: "against_signal"
+      },
+      {
+        condition_id: "ks-3",
+        condition_text: "A material supply-chain disruption changes shipment cadence.",
+        signal_type: "news_sentiment",
+        rationale: "Material disruption headlines would challenge near-term execution assumptions.",
+        direction: "against_signal"
+      }
+    ],
     watch_items: ["Re-check margin stability after the next earnings release."],
     coverage_truth: {
       summary: "Coverage is strong on financials, with moderate transcript freshness limits.",
@@ -288,6 +361,108 @@ function sampleInstitutionalReport(jobId: string, reportId: string): JsonObject 
     ],
     flags: [],
     data_sources: ["fixture-financials", "fixture-dexter"]
+  };
+}
+
+function sampleSparseReport(jobId: string, reportId: string): JsonObject {
+  return {
+    report_id: reportId,
+    job_id: jobId,
+    schema_version: "2.0",
+    type: "deep_dive",
+    ticker: "AAPL",
+    generated_at: "2026-04-20T10:15:00.000Z",
+    confidence: {
+      score: 0.32,
+      label: "low",
+      limiting_factors: ["limited_history", "missing_valuation_inputs"]
+    },
+    story_header: {
+      headline: "Coverage is too thin for a full conviction call.",
+      thesis_summary: "Sparse financial history supports observation, not a strong investment stance.",
+      why_now: "The name is interesting, but the evidence set is incomplete.",
+      reader_takeaway: "Review again only when cleaner financial history and valuation inputs arrive.",
+      stance_label: "watch"
+    },
+    investment_memo: {
+      prompt_version: "m4-synthesizer-fixture-v1",
+      generation_mode: "deterministic_fixture",
+      company_angle: "sparse_watchlist",
+      decision_question: "Is there enough information to move beyond watchlist status?",
+      sections: [
+        {
+          section_id: "investment_thesis",
+          title: "Investment Thesis",
+          narrative: "The current thesis is intentionally limited by missing comparables and incomplete history.",
+          key_points: ["Do not force conviction from a thin dataset."]
+        },
+        {
+          section_id: "what_changed",
+          title: "What Changed",
+          narrative: "No prior report exists for a comparable change stack.",
+          key_points: []
+        },
+        {
+          section_id: "business_quality",
+          title: "Business Quality",
+          narrative: "There are early signs of product-market fit, but not enough durable evidence.",
+          key_points: ["Business model evidence remains partial."]
+        },
+        {
+          section_id: "valuation",
+          title: "Valuation",
+          narrative: "Valuation is intentionally omitted because the required inputs are not available.",
+          key_points: []
+        },
+        {
+          section_id: "risks",
+          title: "Risks",
+          narrative: "The main risk is false precision from sparse evidence.",
+          key_points: ["Sparse history makes comparative analysis unstable."]
+        }
+      ],
+      material_claims: [],
+      unsupported_claims: [],
+      sparse_data_honesty_note: "Sparse report fixture used to prove omission-aware rendering."
+    },
+    financial_analysis: {
+      annual_history: [
+        {
+          period: "FY-2025",
+          period_type: "annual",
+          fiscal_year: 2025,
+          revenue: 210,
+          free_cash_flow: -28
+        }
+      ],
+      quarterly_history: [],
+      trend_metrics: [],
+      quality_metrics: [],
+      omissions: [
+        {
+          code: "valuation_inputs_missing",
+          label: "Valuation inputs missing",
+          reason: "No reliable spot price and no stable base-year assumptions are available.",
+          impacts: ["valuation", "confidence"]
+        }
+      ]
+    },
+    coverage_truth: {
+      summary: "Coverage is intentionally limited and omission-forward.",
+      covered: ["basic_financial_snapshot"],
+      missing: ["valuation_inputs", "comparable_history", "kill_switch_rules"]
+    },
+    sections: [
+      {
+        section_id: "thesis_statement",
+        title: "Thesis Statement",
+        body: "Sparse report fixture for omission-aware export validation.",
+        status: "complete",
+        evidence: []
+      }
+    ],
+    flags: ["sparse_fixture"],
+    data_sources: ["fixture-sparse"]
   };
 }
 
@@ -318,7 +493,7 @@ function sampleLegacyReport(jobId: string, reportId: string): JsonObject {
   };
 }
 
-test("M5 PDF export route returns institutional multi-page artifact and enforces access", async () => {
+test("M5.2 PDF export route returns institutional multi-page artifact with visual exhibits and enforces access", async () => {
   const previous = {
     STORE_BACKEND: process.env.STORE_BACKEND,
     QUEUE_BACKEND: process.env.QUEUE_BACKEND,
@@ -388,6 +563,14 @@ test("M5 PDF export route returns institutional multi-page artifact and enforces
     assert.match(pdfText, /Page 9 - Appendix/);
     assert.match(pdfText, /Page 1 of 9/);
     assert.match(pdfText, /Ticker: AAPL/);
+    assert.match(pdfText, /Exhibit - Valuation Range/);
+    assert.match(pdfText, /Exhibit - Margin Profile/);
+    assert.match(pdfText, /Exhibit - Value Discipline Signal Map/);
+    assert.match(pdfText, /Exhibit - Valuation Bridge/);
+    assert.match(pdfText, /Exhibit - Kill-Switch Coverage/);
+    assert.match(pdfText, /Unit: Percent/);
+    assert.match(pdfText, /Spot 191/);
+    assert.match(pdfText, /FY-2025/);
 
     const blocked = await requestJson(baseUrl, `/v1/reports/${reportId}/export/pdf`, {
       method: "GET",
@@ -405,7 +588,83 @@ test("M5 PDF export route returns institutional multi-page artifact and enforces
   }
 });
 
-test("M5 PDF export keeps legacy report fallback exportable", async () => {
+test("M5.2 PDF export renders omission-aware fallbacks for sparse reports", async () => {
+  const previous = {
+    STORE_BACKEND: process.env.STORE_BACKEND,
+    QUEUE_BACKEND: process.env.QUEUE_BACKEND,
+    AUTH_EXPOSE_VERIFICATION_TOKEN: process.env.AUTH_EXPOSE_VERIFICATION_TOKEN,
+    JWT_SECRET: process.env.JWT_SECRET,
+    INTERNAL_WORKER_TOKEN: process.env.INTERNAL_WORKER_TOKEN
+  };
+
+  process.env.STORE_BACKEND = "memory";
+  process.env.QUEUE_BACKEND = "memory";
+  process.env.AUTH_EXPOSE_VERIFICATION_TOKEN = "true";
+  process.env.JWT_SECRET = "dev-jwt-secret-change-me";
+  process.env.INTERNAL_WORKER_TOKEN = "dev-internal-worker-token";
+
+  const server = startServer(0);
+  await once(server, "listening");
+  const { port } = server.address() as AddressInfo;
+  const baseUrl = `http://127.0.0.1:${port}`;
+
+  try {
+    const owner = await createVerifiedSession(baseUrl, "m5-export-sparse@example.com");
+    const ownerAuth = { authorization: `Bearer ${owner.accessToken}` };
+
+    const createJob = await requestJson(baseUrl, "/jobs", {
+      method: "POST",
+      headers: ownerAuth,
+      body: { ticker: "AAPL" }
+    });
+    assert.equal(createJob.status, 202);
+    const jobId = createJob.payload.job_id;
+    assert.equal(typeof jobId, "string");
+
+    const claim = await requestJson(baseUrl, `/internal/jobs/${jobId as string}/claim`, {
+      method: "POST",
+      headers: {
+        "x-internal-token": owner.internalToken
+      }
+    });
+    assert.equal(claim.status, 200);
+
+    const reportId = "m5-export-sparse-report-001";
+    const complete = await requestJson(baseUrl, `/internal/jobs/${jobId as string}/complete`, {
+      method: "POST",
+      headers: {
+        "x-internal-token": owner.internalToken
+      },
+      body: {
+        report: sampleSparseReport(jobId as string, reportId)
+      }
+    });
+    assert.equal(complete.status, 200);
+
+    const exportResponse = await requestBinary(baseUrl, `/v1/reports/${reportId}/export/pdf`, {
+      method: "GET",
+      headers: ownerAuth
+    });
+    assert.equal(exportResponse.status, 200);
+    assert.equal(exportResponse.headers.get("content-type"), "application/pdf");
+    const pdfText = exportResponse.bytes.toString("utf8");
+    assert.match(pdfText, /Exhibit - Valuation Range/);
+    assert.match(pdfText, /Exhibit - Financial Trend/);
+    assert.match(pdfText, /Exhibit - Value Discipline Signal Map/);
+    assert.match(pdfText, /Exhibit - Valuation Bridge/);
+    assert.match(pdfText, /Exhibit - Kill-Switch Coverage/);
+    assert.match(pdfText, /Omission-aware fallback/);
+  } finally {
+    await closeServer(server);
+    process.env.STORE_BACKEND = previous.STORE_BACKEND;
+    process.env.QUEUE_BACKEND = previous.QUEUE_BACKEND;
+    process.env.AUTH_EXPOSE_VERIFICATION_TOKEN = previous.AUTH_EXPOSE_VERIFICATION_TOKEN;
+    process.env.JWT_SECRET = previous.JWT_SECRET;
+    process.env.INTERNAL_WORKER_TOKEN = previous.INTERNAL_WORKER_TOKEN;
+  }
+});
+
+test("M5.2 PDF export keeps legacy report fallback exportable", async () => {
   const previous = {
     STORE_BACKEND: process.env.STORE_BACKEND,
     QUEUE_BACKEND: process.env.QUEUE_BACKEND,

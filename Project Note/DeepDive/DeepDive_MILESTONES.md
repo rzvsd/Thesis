@@ -1,8 +1,8 @@
 # Deep Dive Revamp Milestones
 
-**Status:** Active
+**Status:** Passed
 **Last Revised:** 2026-04-20
-**Related Documents:** `DeepDive_ROADMAP.md`, `DeepDive_BLUEBOOK.md`, `DeepDive_PRD.md`, `DEEPDIVE_REPORT_STANDARD.md`, `DEEPDIVE_REFERENCE_MAPPING.md`, `DEEPDIVE_REPORT_TEMPLATE.md`, `DEEPDIVE_TEST_MATRIX.md`
+**Related Documents:** `DeepDive_ROADMAP.md`, `DeepDive_BLUEBOOK.md`, `DeepDive_PRD.md`, `DEEPDIVE_REPORT_STANDARD.md`, `DEEPDIVE_REFERENCE_MAPPING.md`, `DEEPDIVE_REPORT_TEMPLATE.md`, `DEEPDIVE_VISUAL_EXHIBITS_STANDARD.md`, `DEEPDIVE_TEST_MATRIX.md`
 
 ---
 
@@ -30,6 +30,7 @@ A milestone is not closed unless every acceptance criterion is checked off or ex
 | M3 | Value Discipline Scorecard | Piotroski-inspired and context-aware value/quality section |
 | M4 | Research Authoring Engine | Evidence-backed institutional memo writing |
 | M5 | Institutional PDF Export | Serious PDF report with exhibits and appendix |
+| M5.2 | Visual Exhibits Layer | Chart-rich, publication-worthy exhibits rendered from real report figures |
 | M6 | Mobile Research Reader | Mobile Deep Dive reader backed by the structured artifact |
 | M7 | End-to-End Quality and Device Proof | Full smoke, regression, device evidence, and closeout |
 
@@ -51,7 +52,7 @@ Define exactly what a serious Thesis Deep Dive report is before implementation b
 | Test matrix | Hard gates, fixtures, and fail conditions |
 | Decision locks | Locked/open decisions in `DeepDive_DECISION_LOCKS.md` |
 | ADRs | Deep Dive Revamp decision records |
-| Milestone scaffolding | M0-M7 milestone AGENTS, smoke plans, evidence folders |
+| Milestone scaffolding | M0-M7 milestone AGENTS, smoke plans, evidence folders, plus M5.2 visual-exhibits milestone docs |
 | Interface naming | Public names for report artifact sections before M1 |
 
 ## Acceptance Criteria
@@ -61,7 +62,7 @@ Define exactly what a serious Thesis Deep Dive report is before implementation b
 - [x] Reference PDFs are mapped to exact Thesis requirements
 - [x] Page-by-page PDF and mobile reader templates are locked
 - [x] Test matrix defines hard gates and fail conditions
-- [x] M0-M7 milestone folders contain AGENTS, smoke plan, and evidence folder
+- [x] M0-M7 milestone folders plus M5.2 milestone docs contain AGENTS, smoke plan, and evidence folder
 - [x] Report structure is locked before contract implementation
 - [x] Open decisions required before M1 are named
 
@@ -69,7 +70,7 @@ Define exactly what a serious Thesis Deep Dive report is before implementation b
 
 ```text
 Step 1: Confirm root docs exist.
-Step 2: Confirm M0-M7 milestone folders and evidence folders exist.
+Step 2: Confirm M0-M7 milestone folders plus M5.2 milestone docs and evidence folders exist.
 Step 3: Confirm report standard names all required sections.
 Step 4: Confirm decisions file names locked and open decisions.
 Step 5: Confirm reference mapping, report template, and test matrix exist.
@@ -292,6 +293,49 @@ Disable PDF v2 route and keep legacy export path.
 
 ---
 
+# M5.2 - Visual Exhibits Layer
+
+## Goal
+
+Upgrade Deep Dive PDF output from structurally correct export to visually serious institutional research publication quality.
+
+## Deliverables
+
+| Deliverable | Description |
+|---|---|
+| Exhibit renderer upgrade | Real chart visuals generated from structured report figures |
+| Exhibit family set | Grouped bars, overlay bars, density/distribution charts, bridges, timelines, scorecards, risk matrices |
+| Visual styling system | Thesis-native editorial chart language for PDF exhibits |
+| Sparse-data exhibit policy | Explicit omission panels and degraded chart fallbacks |
+| Visual QA hardening | Chart-level PNG proof and readability checks |
+
+## Acceptance Criteria
+
+- [x] PDF charts are generated from real report figures, never decorative placeholders
+- [x] Visuals follow `DEEPDIVE_VISUAL_EXHIBITS_STANDARD.md`
+- [x] At least the following report areas gain chart-rich exhibits where data exists: financial analysis, value discipline, valuation, risks/kill switches
+- [x] Cover/memo page includes a visually strong range band or equivalent pricing/valuation exhibit
+- [x] Multi-period and comparison charts use clear units, legends, and restrained color hierarchy
+- [x] Sparse-data reports show omission-forward fallback panels instead of fake complete visuals
+- [x] Rendered PNG evidence proves the output is no longer text-first/plain-export quality
+- [x] Visual QA confirms charts are readable, aligned, and feel publication-worthy rather than dashboard-generic
+
+## Smoke Test
+
+```text
+Step 1: Generate a full-data Deep Dive report with M5.2 export.
+Step 2: Confirm chart-rich exhibits appear on memo, financial, value, valuation, and risk pages where data exists.
+Step 3: Render PDF pages to PNG and inspect legend readability, axis labels, units, and spacing.
+Step 4: Generate a sparse-data report and confirm omission panels replace unsupported visuals.
+Step 5: Confirm the export still preserves appendix, source notes, and legacy fallback behavior.
+```
+
+## Rollback
+
+Keep M5 text-first institutional export active and disable the M5.2 visual renderer path until chart defects are fixed.
+
+---
+
 # M6 - Mobile Research Reader
 
 ## Goal
@@ -310,14 +354,14 @@ Make the phone experience feel like a guided research reader, not random cards.
 
 ## Acceptance Criteria
 
-- [ ] Mobile reads the structured report artifact
-- [ ] Old reports still render
-- [ ] Deep Dive screen remains one continuous readable flow
-- [ ] PDF export entry point is visible where appropriate
-- [ ] Android unit tests and device smoke pass
-- [ ] Mobile reader follows the order in `DEEPDIVE_REPORT_TEMPLATE.md`
-- [ ] Mobile and PDF render the same report truth for signal, valuation, risks, and omissions
-- [ ] Device proof shows executive reader, financial quality, value discipline, valuation, risks, evidence, and export entry
+- [x] Mobile reads the structured report artifact
+- [x] Old reports still render
+- [x] Deep Dive screen remains one continuous readable flow
+- [x] PDF export entry point is visible where appropriate
+- [x] Android unit tests and device smoke pass
+- [x] Mobile reader follows the order in `DEEPDIVE_REPORT_TEMPLATE.md`
+- [x] Mobile and PDF render the same report truth for signal, valuation, risks, and omissions
+- [x] Device proof shows executive reader, financial quality, value discipline, valuation, risks, evidence, and export entry
 
 ## Smoke Test
 
@@ -353,15 +397,15 @@ Close the workstream with real evidence.
 
 ## Acceptance Criteria
 
-- [ ] Deep Dive run completes end to end
-- [ ] Report artifact contains required sections
-- [ ] PDF export opens and renders cleanly
-- [ ] Mobile reader displays the artifact correctly
-- [ ] Old report fallback is verified
-- [ ] Evidence is stored under milestone folders
-- [ ] The generated report passes owner-level tests in `DEEPDIVE_TEST_MATRIX.md`
-- [ ] Device proof and PDF proof are both attached to M7 evidence
-- [ ] Known limitations are explicit and do not violate locked hard gates
+- [x] Deep Dive run completes end to end
+- [x] Report artifact contains required sections
+- [x] PDF export opens and renders cleanly
+- [x] Mobile reader displays the artifact correctly
+- [x] Old report fallback is verified
+- [x] Evidence is stored under milestone folders
+- [x] The generated report passes owner-level tests in `DEEPDIVE_TEST_MATRIX.md`
+- [x] Device proof and PDF proof are both attached to M7 evidence
+- [x] Known limitations are explicit and do not violate locked hard gates
 
 ## Smoke Test
 
