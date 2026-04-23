@@ -40,6 +40,7 @@ export * from "./scenario-request";
 export * from "./scenario-stress";
 export * from "./service-response";
 export * from "./subscription-tier";
+export * from "./structural-context";
 export * from "./ticker-coverage";
 export * from "./thesis-monitor-snapshot";
 export * from "./ticker-registry-entry";

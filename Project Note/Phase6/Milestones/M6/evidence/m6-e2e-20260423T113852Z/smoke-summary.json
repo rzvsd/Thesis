@@ -1,0 +1,116 @@
+{
+  "run_id": "m6-e2e-20260423T113852Z",
+  "run_dir": "C:\\BOTS\\Thesis\\fintech\\Project Note\\Phase6\\Milestones\\M6\\evidence\\m6-e2e-20260423T113852Z",
+  "log_dir": "C:\\BOTS\\Thesis\\fintech\\tmp\\m6-e2e-20260423T113852Z",
+  "steps": [
+    {
+      "step": "start-services",
+      "status": "pass",
+      "ports": {
+        "openbb": 52608,
+        "news": 52609,
+        "dexter": 52610,
+        "product": 52611,
+        "scheduler": 52612
+      }
+    },
+    {
+      "step": "admin-login",
+      "status": "pass",
+      "email": "admin@thesis.local"
+    },
+    {
+      "step": "structural-context",
+      "status": "pass",
+      "world_bank_observations": 11,
+      "imf_omissions": 6,
+      "as_of": "2025-02-14"
+    },
+    {
+      "step": "scheduler-pulse-latest",
+      "status": "pass",
+      "pulse_date": "2026-04-23",
+      "macro_stress_categories": [
+        "energy",
+        "growth",
+        "inflation",
+        "labor",
+        "rates"
+      ]
+    },
+    {
+      "step": "deep-dive-e2e",
+      "status": "pass",
+      "report_id": "bc9608a7-4ca7-4a2e-8eae-115fefb8a65a",
+      "enriched_sections": [
+        "competitive_positioning",
+        "risks_and_challenges",
+        "growth_opportunities_and_outlook"
+      ],
+      "issuer_metadata": {
+        "name": "Apple Inc.",
+        "exchange": "NASDAQ",
+        "currency": "USD",
+        "domicile_country": "US",
+        "region": "North America",
+        "sector": "Technology",
+        "industry": "Consumer Electronics"
+      }
+    },
+    {
+      "step": "imf-non-blocking",
+      "status": "pass",
+      "mode": "fixture-disabled-live-imf",
+      "world_bank_observations": 11,
+      "imf_omissions": 6
+    },
+    {
+      "step": "historical-replay",
+      "status": "pass",
+      "as_of": "2025-02-14",
+      "replay_deep_dive_report_id": "57c78ee4-df82-483f-8a9b-6c0006b85f76",
+      "replay_pulse_report_id": "0fa45c32-cb5e-4ebb-97ae-204c28514700"
+    },
+    {
+      "step": "research-lab",
+      "status": "pass",
+      "evaluation_score": 7,
+      "evaluation_max": 7,
+      "debate_publish_blocked": true
+    },
+    {
+      "step": "dependency-scan",
+      "status": "pass",
+      "output": "> thesis-fintech@0.1.0 phase6:m5:dependency-scan C:\\BOTS\\Thesis\\fintech\n> node scripts/phase6/m5-core-dependency-scan.mjs\n\nPhase 6 M5 core dependency scan: pass (0 deprecated provider findings)."
+    }
+  ],
+  "ports": {
+    "openbb": 52608,
+    "news": 52609,
+    "dexter": 52610,
+    "product": 52611,
+    "scheduler": 52612
+  },
+  "artifacts": {
+    "data-openbb_stdout": "C:\\BOTS\\Thesis\\fintech\\tmp\\m6-e2e-20260423T113852Z\\data-openbb.out.log",
+    "data-openbb_stderr": "C:\\BOTS\\Thesis\\fintech\\tmp\\m6-e2e-20260423T113852Z\\data-openbb.err.log",
+    "news-ingest_stdout": "C:\\BOTS\\Thesis\\fintech\\tmp\\m6-e2e-20260423T113852Z\\news-ingest.out.log",
+    "news-ingest_stderr": "C:\\BOTS\\Thesis\\fintech\\tmp\\m6-e2e-20260423T113852Z\\news-ingest.err.log",
+    "dexter-worker_stdout": "C:\\BOTS\\Thesis\\fintech\\tmp\\m6-e2e-20260423T113852Z\\dexter-worker.out.log",
+    "dexter-worker_stderr": "C:\\BOTS\\Thesis\\fintech\\tmp\\m6-e2e-20260423T113852Z\\dexter-worker.err.log",
+    "product-api_stdout": "C:\\BOTS\\Thesis\\fintech\\tmp\\m6-e2e-20260423T113852Z\\product-api.out.log",
+    "product-api_stderr": "C:\\BOTS\\Thesis\\fintech\\tmp\\m6-e2e-20260423T113852Z\\product-api.err.log",
+    "scheduler_stdout": "C:\\BOTS\\Thesis\\fintech\\tmp\\m6-e2e-20260423T113852Z\\scheduler.out.log",
+    "scheduler_stderr": "C:\\BOTS\\Thesis\\fintech\\tmp\\m6-e2e-20260423T113852Z\\scheduler.err.log",
+    "world-bank-structural-context.json": "C:\\BOTS\\Thesis\\fintech\\Project Note\\Phase6\\Milestones\\M6\\evidence\\m6-e2e-20260423T113852Z\\world-bank-structural-context.json",
+    "morning-exception-briefing-latest.json": "C:\\BOTS\\Thesis\\fintech\\Project Note\\Phase6\\Milestones\\M6\\evidence\\m6-e2e-20260423T113852Z\\morning-exception-briefing-latest.json",
+    "deep-dive-report.json": "C:\\BOTS\\Thesis\\fintech\\Project Note\\Phase6\\Milestones\\M6\\evidence\\m6-e2e-20260423T113852Z\\deep-dive-report.json",
+    "replay-deep-dive-report.json": "C:\\BOTS\\Thesis\\fintech\\Project Note\\Phase6\\Milestones\\M6\\evidence\\m6-e2e-20260423T113852Z\\replay-deep-dive-report.json",
+    "replay-morning-exception-briefing.json": "C:\\BOTS\\Thesis\\fintech\\Project Note\\Phase6\\Milestones\\M6\\evidence\\m6-e2e-20260423T113852Z\\replay-morning-exception-briefing.json",
+    "historical-replay-artifact.json": "C:\\BOTS\\Thesis\\fintech\\Project Note\\Phase6\\Milestones\\M6\\evidence\\m6-e2e-20260423T113852Z\\historical-replay-artifact.json",
+    "evaluation-artifact.json": "C:\\BOTS\\Thesis\\fintech\\Project Note\\Phase6\\Milestones\\M6\\evidence\\m6-e2e-20260423T113852Z\\evaluation-artifact.json",
+    "debate-artifact.json": "C:\\BOTS\\Thesis\\fintech\\Project Note\\Phase6\\Milestones\\M6\\evidence\\m6-e2e-20260423T113852Z\\debate-artifact.json",
+    "dependency-scan.json": "C:\\BOTS\\Thesis\\fintech\\Project Note\\Phase6\\Milestones\\M6\\evidence\\m6-e2e-20260423T113852Z\\dependency-scan.json"
+  },
+  "status": "pass"
+}

@@ -12,7 +12,7 @@
 | **Milestone** | M3 - Morning Exception Briefing & Macro Stress |
 | **Linear Project** | PH6 M3 - Morning Exception Briefing & Macro Stress |
 | **Owner** | Scheduler Owner + Product Lead |
-| **Status** | Closed locally - owner approved; GitHub CI closeout pending on push |
+| **Status** | Closed - owner approved; Engineering Lead accepted by owner delegation on 2026-04-23 |
 | **Depends on** | M2 complete |
 
 ---
@@ -174,7 +174,7 @@ Notes: Evidence captured in `evidence/2026-04-18_m3-morning-briefing-macro-stres
 
 | Issue | Why deferred | Linear ticket | Target milestone |
 |---|---|---|---|
-| GitHub CI closeout | Local lint/typecheck/test/assemble/guard proof is complete; hosted CI closeout happens on push | N/A per owner Linear skip pattern | M3 closeout |
+| Hosted GitHub CI run | Final hosted CI proof will occur on the next push; owner approved local closeout without treating hosted CI as a blocker | N/A per owner Linear skip pattern | Post-closeout hygiene |
 
 ---
 
@@ -182,5 +182,5 @@ Notes: Evidence captured in `evidence/2026-04-18_m3-morning-briefing-macro-stres
 
 | Role | Status | Evidence |
 |---|---|---|
-| Owner | Accepted | Owner approval message on 2026-04-18 |
-| Engineering Lead | Accepted by owner delegation | Owner approval message on 2026-04-18 |
+| Owner | Accepted | Owner approval message on 2026-04-23 closed remaining Phase 6 closeout items |
+| Engineering Lead | Accepted by owner delegation | Owner approval message on 2026-04-23 closed remaining Phase 6 closeout items |

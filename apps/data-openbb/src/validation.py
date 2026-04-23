@@ -44,6 +44,14 @@ def validate_schema(schema_name: str, value: Any) -> None:
 
 
 def _validate(schema: dict[str, Any], value: Any, path: str) -> None:
+    if "$ref" in schema:
+        ref = schema["$ref"]
+        if not isinstance(ref, str) or not ref.endswith(".schema.json"):
+            raise SchemaValidationError(f"{path} uses unsupported schema reference: {ref}")
+        ref_name = Path(ref).name.removesuffix(".schema.json")
+        _validate(load_schema(ref_name), value, path)
+        return
+
     if "oneOf" in schema:
         errors: list[str] = []
 

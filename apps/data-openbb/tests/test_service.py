@@ -33,6 +33,16 @@ class FakeLiveClient:
         self.company_records = company_records or ({}, {}, {})
         self.macro_records = macro_records or ([], {})
         self.calendar_records = calendar_records or []
+        self.structural_context = {
+            "subject_type": "issuer",
+            "subject_id": "AAPL",
+            "as_of": "2026-04-22",
+            "coverage_state": "partial",
+            "summary": "Fixture structural context.",
+            "observations": [],
+            "omissions": [],
+            "retrievals": [],
+        }
 
     def fetch_company_records(self, ticker: str) -> tuple[dict[str, object], dict[str, object], dict[str, object]]:  # noqa: ARG002
         return self.company_records
@@ -42,6 +52,15 @@ class FakeLiveClient:
 
     def fetch_earnings_calendar_rows(self, start_date: str, end_date: str) -> list[dict[str, object]]:  # noqa: ARG002
         return self.calendar_records
+
+    def fetch_official_structural_context(
+        self,
+        *,
+        ticker: str | None = None,  # noqa: ARG002
+        country: str | None = None,  # noqa: ARG002
+        subject_type: str | None = None,  # noqa: ARG002
+    ) -> dict[str, object]:
+        return self.structural_context
 
 
 class DataOpenbbEndpointTests(unittest.TestCase):
@@ -150,6 +169,45 @@ class DataOpenbbEndpointTests(unittest.TestCase):
         self.assertIn("BLS_UNEMPLOYMENT_RATE", registry_ids)
         self.assertGreaterEqual(len(macro_data["canonical_events"]), 1)
         self.assertEqual(macro_data["canonical_events"][0]["family"], "macro_release_published")
+
+    def test_official_macro_truth_honors_as_of(self) -> None:
+        status, payload = self.request_json("/v1/official/macro?scope=daily&as_of=2025-02-14")
+
+        self.assertEqual(status, 200)
+        macro_data = payload["data"]
+        self.assertIsInstance(macro_data, dict)
+        periods = {observation["period"] for observation in macro_data["observations"]}
+        self.assertIn("2025-02-14", periods)
+        self.assertIn("2025-Q1", periods)
+
+    def test_official_structural_context_returns_world_bank_backdrop(self) -> None:
+        status, payload = self.request_json("/v1/official/structural?ticker=AAPL")
+
+        self.assertEqual(status, 200)
+        self.assertTrue(payload["ok"])
+        self.assertFalse(payload["error_flag"])
+        self.assertEqual(payload["provider"], "official_structural_context")
+        structural_data = payload["data"]
+        self.assertIsInstance(structural_data, dict)
+        self.assertEqual(structural_data["subject_type"], "issuer")
+        self.assertEqual(structural_data["subject_id"], "AAPL")
+        self.assertEqual(structural_data["issuer_metadata"]["domicile_country"], "US")
+        self.assertGreaterEqual(len(structural_data["observations"]), 5)
+        self.assertGreaterEqual(len(structural_data["retrievals"]), 1)
+        families = {entry["family"] for entry in structural_data["observations"]}
+        self.assertIn("gdp_per_capita", families)
+        self.assertIn("population", families)
+
+    def test_official_structural_context_honors_as_of(self) -> None:
+        status, payload = self.request_json("/v1/official/structural?ticker=AAPL&as_of=2024-12-31")
+
+        self.assertEqual(status, 200)
+        structural_data = payload["data"]
+        self.assertIsInstance(structural_data, dict)
+        self.assertEqual(structural_data["as_of"], "2024-12-31")
+        self.assertTrue(
+            all(observation["period"] <= "2024" for observation in structural_data["observations"])
+        )
 
     def test_missing_fields_are_declared_without_zero_substitution(self) -> None:
         status, payload = self.request_json("/v1/finance/company?ticker=DUMMY")

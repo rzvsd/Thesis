@@ -1,0 +1,495 @@
+{
+  "ok": true,
+  "data": {
+    "subject_type": "issuer",
+    "subject_id": "AAPL",
+    "as_of": "2025-02-14",
+    "coverage_state": "partial",
+    "summary": "United States structural context remains broadly supportive for scaled issuers, while public-debt and inflation-related sensitivity keep the backdrop disciplined.",
+    "issuer_metadata": {
+      "name": "Apple Inc.",
+      "exchange": "NASDAQ",
+      "currency": "USD",
+      "domicile_country": "US",
+      "region": "North America",
+      "sector": "Technology",
+      "industry": "Consumer Electronics"
+    },
+    "observations": [
+      {
+        "observation_id": "wb_ny.gdp.mktp.cd",
+        "family": "gdp_level",
+        "label": "GDP level",
+        "summary": "United States remains a very large output base, which supports demand resilience for scaled businesses.",
+        "geography": "United States",
+        "period": "2025",
+        "source_family": "world_bank",
+        "retrieval": {
+          "source": {
+            "source_id": "WB_NY.GDP.MKTP.CD",
+            "source_family": "world_bank",
+            "source_name": "World Bank GDP level",
+            "source_url": "https://api.worldbank.org/v2/country/USA/indicator/NY.GDP.MKTP.CD",
+            "agency": "World Bank",
+            "agency_series_id": "NY.GDP.MKTP.CD"
+          },
+          "retrieved_at": "2026-04-23T11:39:09.363137Z",
+          "retrieval_status": "fresh",
+          "source_period": "2025"
+        },
+        "missing_fields": [],
+        "value": 29500000000000.0,
+        "unit": "usd"
+      },
+      {
+        "observation_id": "wb_ny.gdp.pcap.cd",
+        "family": "gdp_per_capita",
+        "label": "GDP per capita",
+        "summary": "United States remains a high-income market, which supports premium pricing and services monetization.",
+        "geography": "United States",
+        "period": "2025",
+        "source_family": "world_bank",
+        "retrieval": {
+          "source": {
+            "source_id": "WB_NY.GDP.PCAP.CD",
+            "source_family": "world_bank",
+            "source_name": "World Bank GDP per capita",
+            "source_url": "https://api.worldbank.org/v2/country/USA/indicator/NY.GDP.PCAP.CD",
+            "agency": "World Bank",
+            "agency_series_id": "NY.GDP.PCAP.CD"
+          },
+          "retrieved_at": "2026-04-23T11:39:09.363137Z",
+          "retrieval_status": "fresh",
+          "source_period": "2025"
+        },
+        "missing_fields": [],
+        "value": 82500.0,
+        "unit": "usd"
+      },
+      {
+        "observation_id": "wb_sp.pop.totl",
+        "family": "population",
+        "label": "Population",
+        "summary": "United States still offers a large domestic demand base for scaled consumer and enterprise franchises.",
+        "geography": "United States",
+        "period": "2025",
+        "source_family": "world_bank",
+        "retrieval": {
+          "source": {
+            "source_id": "WB_SP.POP.TOTL",
+            "source_family": "world_bank",
+            "source_name": "World Bank Population",
+            "source_url": "https://api.worldbank.org/v2/country/USA/indicator/SP.POP.TOTL",
+            "agency": "World Bank",
+            "agency_series_id": "SP.POP.TOTL"
+          },
+          "retrieved_at": "2026-04-23T11:39:09.363137Z",
+          "retrieval_status": "fresh",
+          "source_period": "2025"
+        },
+        "missing_fields": [],
+        "value": 341000000.0,
+        "unit": "people"
+      },
+      {
+        "observation_id": "wb_ne.trd.gnfs.zs",
+        "family": "trade_openness",
+        "label": "Trade openness",
+        "summary": "Trade intensity stays relevant for supply-chain exposure and imported-input sensitivity.",
+        "geography": "United States",
+        "period": "2025",
+        "source_family": "world_bank",
+        "retrieval": {
+          "source": {
+            "source_id": "WB_NE.TRD.GNFS.ZS",
+            "source_family": "world_bank",
+            "source_name": "World Bank Trade openness",
+            "source_url": "https://api.worldbank.org/v2/country/USA/indicator/NE.TRD.GNFS.ZS",
+            "agency": "World Bank",
+            "agency_series_id": "NE.TRD.GNFS.ZS"
+          },
+          "retrieved_at": "2026-04-23T11:39:09.363137Z",
+          "retrieval_status": "fresh",
+          "source_period": "2025"
+        },
+        "missing_fields": [],
+        "value": 25.4,
+        "unit": "pct_gdp"
+      },
+      {
+        "observation_id": "wb_gc.dod.totl.gd.zs",
+        "family": "debt_context",
+        "label": "Government debt context",
+        "summary": "Public debt remains elevated enough to keep macro policy sensitivity in view.",
+        "geography": "United States",
+        "period": "2025",
+        "source_family": "world_bank",
+        "retrieval": {
+          "source": {
+            "source_id": "WB_GC.DOD.TOTL.GD.ZS",
+            "source_family": "world_bank",
+            "source_name": "World Bank Government debt context",
+            "source_url": "https://api.worldbank.org/v2/country/USA/indicator/GC.DOD.TOTL.GD.ZS",
+            "agency": "World Bank",
+            "agency_series_id": "GC.DOD.TOTL.GD.ZS"
+          },
+          "retrieved_at": "2026-04-23T11:39:09.363137Z",
+          "retrieval_status": "fresh",
+          "source_period": "2025"
+        },
+        "missing_fields": [],
+        "value": 121.0,
+        "unit": "pct_gdp"
+      },
+      {
+        "observation_id": "wb_si.pov.gini",
+        "family": "inequality",
+        "label": "Gini inequality",
+        "summary": "Inequality remains a structural watch item because it can change the breadth of demand recovery.",
+        "geography": "United States",
+        "period": "2024",
+        "source_family": "world_bank",
+        "retrieval": {
+          "source": {
+            "source_id": "WB_SI.POV.GINI",
+            "source_family": "world_bank",
+            "source_name": "World Bank Gini inequality",
+            "source_url": "https://api.worldbank.org/v2/country/USA/indicator/SI.POV.GINI",
+            "agency": "World Bank",
+            "agency_series_id": "SI.POV.GINI"
+          },
+          "retrieved_at": "2026-04-23T11:39:09.363137Z",
+          "retrieval_status": "fresh",
+          "source_period": "2024"
+        },
+        "missing_fields": [],
+        "value": 41.3,
+        "unit": "index"
+      },
+      {
+        "observation_id": "wb_lp.lpi.ovrl.xq",
+        "family": "logistics",
+        "label": "Logistics performance",
+        "summary": "Logistics quality remains supportive for national distribution and supply-chain reliability.",
+        "geography": "United States",
+        "period": "2023",
+        "source_family": "world_bank",
+        "retrieval": {
+          "source": {
+            "source_id": "WB_LP.LPI.OVRL.XQ",
+            "source_family": "world_bank",
+            "source_name": "World Bank Logistics performance",
+            "source_url": "https://api.worldbank.org/v2/country/USA/indicator/LP.LPI.OVRL.XQ",
+            "agency": "World Bank",
+            "agency_series_id": "LP.LPI.OVRL.XQ"
+          },
+          "retrieved_at": "2026-04-23T11:39:09.363137Z",
+          "retrieval_status": "fresh",
+          "source_period": "2023"
+        },
+        "missing_fields": [],
+        "value": 3.9,
+        "unit": "score"
+      },
+      {
+        "observation_id": "wb_it.net.secr.p6",
+        "family": "infrastructure",
+        "label": "Secure internet servers",
+        "summary": "Digital infrastructure remains supportive for platform distribution and enterprise adoption.",
+        "geography": "United States",
+        "period": "2024",
+        "source_family": "world_bank",
+        "retrieval": {
+          "source": {
+            "source_id": "WB_IT.NET.SECR.P6",
+            "source_family": "world_bank",
+            "source_name": "World Bank Secure internet servers",
+            "source_url": "https://api.worldbank.org/v2/country/USA/indicator/IT.NET.SECR.P6",
+            "agency": "World Bank",
+            "agency_series_id": "IT.NET.SECR.P6"
+          },
+          "retrieved_at": "2026-04-23T11:39:09.363137Z",
+          "retrieval_status": "fresh",
+          "source_period": "2024"
+        },
+        "missing_fields": [],
+        "value": 18000.0,
+        "unit": "per_million"
+      },
+      {
+        "observation_id": "wb_se.ter.enrr",
+        "family": "education",
+        "label": "Tertiary enrollment",
+        "summary": "Human-capital depth remains supportive for skilled-labor availability and product adoption.",
+        "geography": "United States",
+        "period": "2024",
+        "source_family": "world_bank",
+        "retrieval": {
+          "source": {
+            "source_id": "WB_SE.TER.ENRR",
+            "source_family": "world_bank",
+            "source_name": "World Bank Tertiary enrollment",
+            "source_url": "https://api.worldbank.org/v2/country/USA/indicator/SE.TER.ENRR",
+            "agency": "World Bank",
+            "agency_series_id": "SE.TER.ENRR"
+          },
+          "retrieved_at": "2026-04-23T11:39:09.363137Z",
+          "retrieval_status": "fresh",
+          "source_period": "2024"
+        },
+        "missing_fields": [],
+        "value": 88.4,
+        "unit": "pct"
+      },
+      {
+        "observation_id": "wb_eg.elc.accs.zs",
+        "family": "energy_access",
+        "label": "Energy access",
+        "summary": "Energy access is not a current bottleneck for nationwide operations.",
+        "geography": "United States",
+        "period": "2024",
+        "source_family": "world_bank",
+        "retrieval": {
+          "source": {
+            "source_id": "WB_EG.ELC.ACCS.ZS",
+            "source_family": "world_bank",
+            "source_name": "World Bank Energy access",
+            "source_url": "https://api.worldbank.org/v2/country/USA/indicator/EG.ELC.ACCS.ZS",
+            "agency": "World Bank",
+            "agency_series_id": "EG.ELC.ACCS.ZS"
+          },
+          "retrieved_at": "2026-04-23T11:39:09.363137Z",
+          "retrieval_status": "fresh",
+          "source_period": "2024"
+        },
+        "missing_fields": [],
+        "value": 100.0,
+        "unit": "pct"
+      },
+      {
+        "observation_id": "wb_nv.srv.totl.zs",
+        "family": "sector_mix",
+        "label": "Services share of GDP",
+        "summary": "The services mix remains supportive for higher-margin digital and recurring-revenue models.",
+        "geography": "United States",
+        "period": "2025",
+        "source_family": "world_bank",
+        "retrieval": {
+          "source": {
+            "source_id": "WB_NV.SRV.TOTL.ZS",
+            "source_family": "world_bank",
+            "source_name": "World Bank Services share of GDP",
+            "source_url": "https://api.worldbank.org/v2/country/USA/indicator/NV.SRV.TOTL.ZS",
+            "agency": "World Bank",
+            "agency_series_id": "NV.SRV.TOTL.ZS"
+          },
+          "retrieved_at": "2026-04-23T11:39:09.363137Z",
+          "retrieval_status": "fresh",
+          "source_period": "2025"
+        },
+        "missing_fields": [],
+        "value": 77.6,
+        "unit": "pct_gdp"
+      }
+    ],
+    "omissions": [
+      {
+        "omission_id": "imf-gdp-growth-outlook-unavailable",
+        "family": "gdp_growth_outlook",
+        "source_family": "imf",
+        "reason_code": "source_unavailable",
+        "reason_text": "IMF forecast inputs are optional in M6 and were not available in this run.",
+        "blocking": false
+      },
+      {
+        "omission_id": "imf-inflation-regime-unavailable",
+        "family": "inflation_regime",
+        "source_family": "imf",
+        "reason_code": "source_unavailable",
+        "reason_text": "IMF inflation-regime inputs were not available in this run.",
+        "blocking": false
+      },
+      {
+        "omission_id": "imf-fiscal-balance-unavailable",
+        "family": "fiscal_balance",
+        "source_family": "imf",
+        "reason_code": "source_unavailable",
+        "reason_text": "IMF fiscal-balance inputs were not available in this run.",
+        "blocking": false
+      },
+      {
+        "omission_id": "imf-public-debt-unavailable",
+        "family": "public_debt",
+        "source_family": "imf",
+        "reason_code": "source_unavailable",
+        "reason_text": "IMF public-debt inputs were not available in this run.",
+        "blocking": false
+      },
+      {
+        "omission_id": "imf-fx-reserves-unavailable",
+        "family": "fx_reserves",
+        "source_family": "imf",
+        "reason_code": "source_unavailable",
+        "reason_text": "IMF reserves inputs were not available in this run.",
+        "blocking": false
+      },
+      {
+        "omission_id": "imf-current-account-unavailable",
+        "family": "current_account",
+        "source_family": "imf",
+        "reason_code": "source_unavailable",
+        "reason_text": "IMF current-account inputs were not available in this run.",
+        "blocking": false
+      }
+    ],
+    "retrievals": [
+      {
+        "source": {
+          "source_id": "WB_NY.GDP.MKTP.CD",
+          "source_family": "world_bank",
+          "source_name": "World Bank GDP level",
+          "source_url": "https://api.worldbank.org/v2/country/USA/indicator/NY.GDP.MKTP.CD",
+          "agency": "World Bank",
+          "agency_series_id": "NY.GDP.MKTP.CD"
+        },
+        "retrieved_at": "2026-04-23T11:39:09.363137Z",
+        "retrieval_status": "fresh",
+        "source_period": "2025"
+      },
+      {
+        "source": {
+          "source_id": "WB_NY.GDP.PCAP.CD",
+          "source_family": "world_bank",
+          "source_name": "World Bank GDP per capita",
+          "source_url": "https://api.worldbank.org/v2/country/USA/indicator/NY.GDP.PCAP.CD",
+          "agency": "World Bank",
+          "agency_series_id": "NY.GDP.PCAP.CD"
+        },
+        "retrieved_at": "2026-04-23T11:39:09.363137Z",
+        "retrieval_status": "fresh",
+        "source_period": "2025"
+      },
+      {
+        "source": {
+          "source_id": "WB_SP.POP.TOTL",
+          "source_family": "world_bank",
+          "source_name": "World Bank Population",
+          "source_url": "https://api.worldbank.org/v2/country/USA/indicator/SP.POP.TOTL",
+          "agency": "World Bank",
+          "agency_series_id": "SP.POP.TOTL"
+        },
+        "retrieved_at": "2026-04-23T11:39:09.363137Z",
+        "retrieval_status": "fresh",
+        "source_period": "2025"
+      },
+      {
+        "source": {
+          "source_id": "WB_NE.TRD.GNFS.ZS",
+          "source_family": "world_bank",
+          "source_name": "World Bank Trade openness",
+          "source_url": "https://api.worldbank.org/v2/country/USA/indicator/NE.TRD.GNFS.ZS",
+          "agency": "World Bank",
+          "agency_series_id": "NE.TRD.GNFS.ZS"
+        },
+        "retrieved_at": "2026-04-23T11:39:09.363137Z",
+        "retrieval_status": "fresh",
+        "source_period": "2025"
+      },
+      {
+        "source": {
+          "source_id": "WB_GC.DOD.TOTL.GD.ZS",
+          "source_family": "world_bank",
+          "source_name": "World Bank Government debt context",
+          "source_url": "https://api.worldbank.org/v2/country/USA/indicator/GC.DOD.TOTL.GD.ZS",
+          "agency": "World Bank",
+          "agency_series_id": "GC.DOD.TOTL.GD.ZS"
+        },
+        "retrieved_at": "2026-04-23T11:39:09.363137Z",
+        "retrieval_status": "fresh",
+        "source_period": "2025"
+      },
+      {
+        "source": {
+          "source_id": "WB_SI.POV.GINI",
+          "source_family": "world_bank",
+          "source_name": "World Bank Gini inequality",
+          "source_url": "https://api.worldbank.org/v2/country/USA/indicator/SI.POV.GINI",
+          "agency": "World Bank",
+          "agency_series_id": "SI.POV.GINI"
+        },
+        "retrieved_at": "2026-04-23T11:39:09.363137Z",
+        "retrieval_status": "fresh",
+        "source_period": "2024"
+      },
+      {
+        "source": {
+          "source_id": "WB_LP.LPI.OVRL.XQ",
+          "source_family": "world_bank",
+          "source_name": "World Bank Logistics performance",
+          "source_url": "https://api.worldbank.org/v2/country/USA/indicator/LP.LPI.OVRL.XQ",
+          "agency": "World Bank",
+          "agency_series_id": "LP.LPI.OVRL.XQ"
+        },
+        "retrieved_at": "2026-04-23T11:39:09.363137Z",
+        "retrieval_status": "fresh",
+        "source_period": "2023"
+      },
+      {
+        "source": {
+          "source_id": "WB_IT.NET.SECR.P6",
+          "source_family": "world_bank",
+          "source_name": "World Bank Secure internet servers",
+          "source_url": "https://api.worldbank.org/v2/country/USA/indicator/IT.NET.SECR.P6",
+          "agency": "World Bank",
+          "agency_series_id": "IT.NET.SECR.P6"
+        },
+        "retrieved_at": "2026-04-23T11:39:09.363137Z",
+        "retrieval_status": "fresh",
+        "source_period": "2024"
+      },
+      {
+        "source": {
+          "source_id": "WB_SE.TER.ENRR",
+          "source_family": "world_bank",
+          "source_name": "World Bank Tertiary enrollment",
+          "source_url": "https://api.worldbank.org/v2/country/USA/indicator/SE.TER.ENRR",
+          "agency": "World Bank",
+          "agency_series_id": "SE.TER.ENRR"
+        },
+        "retrieved_at": "2026-04-23T11:39:09.363137Z",
+        "retrieval_status": "fresh",
+        "source_period": "2024"
+      },
+      {
+        "source": {
+          "source_id": "WB_EG.ELC.ACCS.ZS",
+          "source_family": "world_bank",
+          "source_name": "World Bank Energy access",
+          "source_url": "https://api.worldbank.org/v2/country/USA/indicator/EG.ELC.ACCS.ZS",
+          "agency": "World Bank",
+          "agency_series_id": "EG.ELC.ACCS.ZS"
+        },
+        "retrieved_at": "2026-04-23T11:39:09.363137Z",
+        "retrieval_status": "fresh",
+        "source_period": "2024"
+      },
+      {
+        "source": {
+          "source_id": "WB_NV.SRV.TOTL.ZS",
+          "source_family": "world_bank",
+          "source_name": "World Bank Services share of GDP",
+          "source_url": "https://api.worldbank.org/v2/country/USA/indicator/NV.SRV.TOTL.ZS",
+          "agency": "World Bank",
+          "agency_series_id": "NV.SRV.TOTL.ZS"
+        },
+        "retrieved_at": "2026-04-23T11:39:09.363137Z",
+        "retrieval_status": "fresh",
+        "source_period": "2025"
+      }
+    ]
+  },
+  "error_flag": false,
+  "request_id": "1692a5e6-d38d-4d73-9d25-a2ab51ba9b1b",
+  "provider": "official_structural_context",
+  "retrieved_at": "2026-04-23T11:39:09.366290Z"
+}

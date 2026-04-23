@@ -2,10 +2,12 @@ import type { EvidenceItem } from "./evidence-item";
 import type { KillSwitchConditionDraft } from "./kill-switch-rule";
 import type { NameRelationshipDraft } from "./name-relationship";
 import type { ReportSection } from "./report-section";
+import type { StructuralContextPack } from "./structural-context";
 import { evidenceItemSchema } from "./evidence-item";
 import { killSwitchConditionDraftSchema } from "./kill-switch-rule";
 import { nameRelationshipDraftSchema } from "./name-relationship";
 import { reportSectionSchema } from "./report-section";
+import { structuralContextPackSchema } from "./structural-context";
 
 export type ConfidenceLabel = "high" | "medium" | "low" | "insufficient_data";
 export type SignalValue = "positive" | "neutral" | "negative" | "no_signal";
@@ -274,6 +276,43 @@ export interface InvestmentMemoBlock {
   sparse_data_honesty_note: string;
 }
 
+export type DueDiligenceSectionId =
+  | "financial_analysis"
+  | "competitive_positioning"
+  | "management_and_governance"
+  | "risks_and_challenges"
+  | "growth_opportunities_and_outlook"
+  | "valuation_and_thesis_stance";
+
+export type DueDiligenceCoverageState = "full" | "partial" | "limited";
+
+export interface DueDiligenceSection {
+  section_id: DueDiligenceSectionId;
+  title: string;
+  summary: string;
+  narrative_paragraphs: string[];
+  key_points: string[];
+  evidence_refs: string[];
+  omissions: string[];
+  coverage_state: DueDiligenceCoverageState;
+}
+
+export interface DueDiligenceBlock {
+  prompt_version: string;
+  generation_mode: "deterministic_fixture" | "live_prompt" | "fallback";
+  sections: DueDiligenceSection[];
+}
+
+export interface IssuerBlock {
+  name: string;
+  exchange?: string;
+  currency?: string;
+  domicile_country?: string;
+  region?: string;
+  sector?: string;
+  industry?: string;
+}
+
 export type FinancialMetricUnit = "currency" | "pct" | "ratio" | "count";
 export type FinancialMetricDirection =
   | "improving"
@@ -373,6 +412,7 @@ export interface AnalysisReport {
   schema_version: string;
   type: "deep_dive" | "market_pulse";
   ticker?: string;
+  issuer?: IssuerBlock;
   generated_at: string;
   confidence: ConfidenceBlock;
   signal?: ReportSignal;
@@ -388,6 +428,8 @@ export interface AnalysisReport {
   watch_items?: string[];
   coverage_truth?: CoverageTruthBlock;
   investment_memo?: InvestmentMemoBlock;
+  due_diligence?: DueDiligenceBlock;
+  structural_context?: StructuralContextPack;
   financial_analysis?: FinancialAnalysisBlock;
   value_discipline?: ValueDisciplineBlock;
   sections: ReportSection[];
@@ -434,6 +476,97 @@ export const reportSignalSchema = {
   }
 } as const;
 
+export const dueDiligenceSectionSchema = {
+  $id: "DueDiligenceSection",
+  type: "object",
+  additionalProperties: false,
+  anyOf: [
+    {
+      properties: {
+        evidence_refs: {
+          type: "array",
+          minItems: 1,
+          items: { type: "string" }
+        }
+      }
+    },
+    {
+      properties: {
+        omissions: {
+          type: "array",
+          minItems: 1,
+          items: { type: "string" }
+        }
+      }
+    }
+  ],
+  required: [
+    "section_id",
+    "title",
+    "summary",
+    "narrative_paragraphs",
+    "key_points",
+    "evidence_refs",
+    "omissions",
+    "coverage_state"
+  ],
+  properties: {
+    section_id: {
+      type: "string",
+      enum: [
+        "financial_analysis",
+        "competitive_positioning",
+        "management_and_governance",
+        "risks_and_challenges",
+        "growth_opportunities_and_outlook",
+        "valuation_and_thesis_stance"
+      ]
+    },
+    title: { type: "string" },
+    summary: { type: "string" },
+    narrative_paragraphs: {
+      type: "array",
+      minItems: 1,
+      items: { type: "string" }
+    },
+    key_points: {
+      type: "array",
+      items: { type: "string" }
+    },
+    evidence_refs: {
+      type: "array",
+      items: { type: "string" }
+    },
+    omissions: {
+      type: "array",
+      items: { type: "string" }
+    },
+    coverage_state: {
+      type: "string",
+      enum: ["full", "partial", "limited"]
+    }
+  }
+} as const;
+
+export const dueDiligenceBlockSchema = {
+  $id: "DueDiligenceBlock",
+  type: "object",
+  additionalProperties: false,
+  required: ["prompt_version", "generation_mode", "sections"],
+  properties: {
+    prompt_version: { type: "string" },
+    generation_mode: {
+      type: "string",
+      enum: ["deterministic_fixture", "live_prompt", "fallback"]
+    },
+    sections: {
+      type: "array",
+      minItems: 1,
+      items: dueDiligenceSectionSchema
+    }
+  }
+} as const;
+
 export const analysisReportSchema = {
   $id: "AnalysisReport",
   type: "object",
@@ -455,6 +588,20 @@ export const analysisReportSchema = {
     schema_version: { type: "string" },
     type: { type: "string", enum: ["deep_dive", "market_pulse"] },
     ticker: { type: "string" },
+    issuer: {
+      type: "object",
+      additionalProperties: false,
+      required: ["name"],
+      properties: {
+        name: { type: "string" },
+        exchange: { type: "string" },
+        currency: { type: "string" },
+        domicile_country: { type: "string" },
+        region: { type: "string" },
+        sector: { type: "string" },
+        industry: { type: "string" }
+      }
+    },
     generated_at: { type: "string" },
     confidence: confidenceBlockSchema,
     signal: reportSignalSchema,
@@ -853,6 +1000,8 @@ export const analysisReportSchema = {
         sparse_data_honesty_note: { type: "string" }
       }
     },
+    due_diligence: dueDiligenceBlockSchema,
+    structural_context: structuralContextPackSchema,
     financial_analysis: {
       type: "object",
       additionalProperties: false,

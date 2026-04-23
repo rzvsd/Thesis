@@ -12,7 +12,8 @@ import type {
   MacroStressOmission,
   MacroStressSnapshot,
   MarketPulseReport,
-  ReportSection
+  ReportSection,
+  StructuralContextPack
 } from "../../../packages/contracts/src";
 import { buildMacroStressSnapshot } from "./macro-stress";
 
@@ -160,6 +161,23 @@ async function fetchEnvelope<TData>(
       errorMessage: error instanceof Error ? error.message : "network error"
     };
   }
+}
+
+function summarizeStructuralContext(
+  structuralContext: StructuralContextPack | undefined,
+  families: string[]
+): string | undefined {
+  if (!structuralContext) {
+    return undefined;
+  }
+
+  const observations = structuralContext.observations.filter((entry) => families.includes(entry.family));
+  const summaryParts = observations.slice(0, 2).map((entry) => `${entry.label}: ${entry.summary}`);
+  const omission = structuralContext.omissions.find((entry) => entry.source_family === "imf");
+  if (omission) {
+    summaryParts.push(`Coverage note: ${omission.reason_text}`);
+  }
+  return summaryParts.length > 0 ? summaryParts.join(" ") : undefined;
 }
 
 function toEvidence(
@@ -461,8 +479,12 @@ export async function buildMarketPulseReport(
   const asOf = options.cycleEnd.slice(0, 10);
 
   const macroResult = await fetchEnvelope<OfficialMacroTruthData>(
-    `${options.dataOpenbbBaseUrl}/v1/official/macro?scope=daily`
+    `${options.dataOpenbbBaseUrl}/v1/official/macro?scope=daily&as_of=${encodeURIComponent(asOf)}`
   );
+  const structuralContextResult = await fetchEnvelope<StructuralContextPack>(
+    `${options.dataOpenbbBaseUrl}/v1/official/structural?country=US&subject_type=market_pulse&as_of=${encodeURIComponent(asOf)}`
+  );
+  const structuralContext = structuralContextResult.ok ? structuralContextResult.data : undefined;
   const macroObservations = macroResult.ok ? macroResult.data.observations ?? [] : [];
   const macroCanonicalEvents = macroResult.ok
     ? asCanonicalEvents(macroResult.data.canonical_events)
@@ -648,6 +670,13 @@ export async function buildMarketPulseReport(
             return `${input.label}: ${value}${unit} [${input.pressure}]${period}.`;
           })
           .join(" ");
+  const structuralMacroSummary = summarizeStructuralContext(structuralContext, [
+    "gdp_level",
+    "gdp_per_capita",
+    "debt_context",
+    "inflation_regime",
+    "public_debt"
+  ]);
 
   const canonicalEventsBody =
     canonicalEventsStatus === "data_unavailable"
@@ -675,6 +704,13 @@ export async function buildMarketPulseReport(
             .slice(0, 6)
             .map((item, index) => `${index + 1}. ${item.ticker} - ${item.title}.`)
             .join(" ");
+  const structuralBoundedSummary = summarizeStructuralContext(structuralContext, [
+    "population",
+    "infrastructure",
+    "education",
+    "energy_access",
+    "sector_mix"
+  ]);
 
   const boundedContextEvidence = filteredContextItems.slice(0, 8).map((item) =>
     toEvidence(
@@ -764,6 +800,7 @@ export async function buildMarketPulseReport(
       no_material_change: noMaterialChange
     },
     context,
+    structural_context: structuralContext,
     sections: {
       macro_stress: section(
         "macro_stress",
@@ -775,7 +812,7 @@ export async function buildMarketPulseReport(
       official_macro_pressure: section(
         "official_macro_pressure",
         "Official Macro Pressure",
-        officialMacroBody,
+        [officialMacroBody, structuralMacroSummary].filter((entry): entry is string => Boolean(entry)).join(" "),
         macroStressStatus,
         macroEvidence
       ),
@@ -789,7 +826,9 @@ export async function buildMarketPulseReport(
       bounded_context: section(
         "bounded_context",
         "Bounded Context",
-        boundedContextBody,
+        [boundedContextBody, structuralBoundedSummary]
+          .filter((entry): entry is string => Boolean(entry))
+          .join(" "),
         boundedContextStatus,
         boundedContextEvidence
       ),

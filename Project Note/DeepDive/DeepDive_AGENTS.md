@@ -1,7 +1,7 @@
 # Deep Dive Revamp - AGENTS.md
 
 **Scope:** Deep Dive Revamp workstream. Every milestone, every service touched by this report overhaul.
-**Read this first. Then read the current milestone-local AGENTS file under `Milestones/` such as `Milestones/M#/M#_MILESTONE_AGENTS_deepdive.md` or `Milestones/M5_2/M5_2_MILESTONE_AGENTS_deepdive.md`.**
+**Read this first. Then read the current milestone-local AGENTS file under `Milestones/` such as `Milestones/M#/M#_MILESTONE_AGENTS_deepdive.md`, `Milestones/M5_2/M5_2_MILESTONE_AGENTS_deepdive.md`, `Milestones/M8/M8_MILESTONE_AGENTS_deepdive.md`, or `Milestones/M9/M9_MILESTONE_AGENTS_deepdive.md`.**
 
 ---
 
@@ -29,7 +29,7 @@ When a product or investment-methodology decision is missing, stop and flag it. 
 | `DeepDive_PRD.md` | Product requirements and user-facing behavior |
 | `DeepDive_DECISION_LOCKS.md` | Locked decisions and open decisions |
 | `DeepDive_AGENTS.md` | Workstream operating rules |
-| `Milestones/M#/` and `Milestones/M5_2/` | Milestone-local implementation guide and smoke plan |
+| `Milestones/M#/`, `Milestones/M5_2/`, `Milestones/M8/`, and `Milestones/M9/` | Milestone-local implementation guide and smoke plan |
 | `Decisions/DDR-*.md` | Deep Dive Revamp architecture decisions |
 
 Earlier Phase 1-6 documents still govern existing service boundaries, auth, data, notification, and mobile rules. This workstream extends them.
@@ -47,7 +47,7 @@ Earlier Phase 1-6 documents still govern existing service boundaries, auth, data
 - [ ] Read the current milestone-local AGENTS file.
 - [ ] Identify all contracts touched.
 - [ ] Identify all services touched.
-- [ ] Confirm whether the change affects existing Deep Dive, History, offline cache, PDF export, or mobile rendering.
+- [ ] Confirm whether the change affects `investment_memo`, `due_diligence`, issuer metadata, evidence book, appendix, mobile summary-first inline-expand flow, or editorial HTML/CSS-to-PDF pagination.
 - [ ] Confirm what data is deterministic and what text is LLM-authored.
 
 ---
@@ -62,9 +62,10 @@ Earlier Phase 1-6 documents still govern existing service boundaries, auth, data
 6. **PDF is not decorative export.** The PDF is a serious research artifact with pages, exhibits, appendix, and source notes.
 7. **Value investing is contextual.** Piotroski-style logic is powerful, but not universal. It must be interpreted by company type and data availability.
 8. **Backward compatibility is mandatory.** Existing reports without new fields must still deserialize and render.
-9. **No source copying.** The reference PDFs define quality and structure, not copy, brand, or proprietary layout.
-10. **Do not close a milestone without proof.** Tests, smoke evidence, and docs must agree.
-11. **No shallow report closeout.** A report that technically renders but fails the template/user tests is not accepted.
+9. **Canonical due diligence beats summary copy.** `due_diligence` is the long-form source of truth; `investment_memo` is a compatibility summary and must not drift.
+10. **No source copying.** The reference PDFs define quality and structure, not copy, brand, or proprietary layout.
+11. **Do not close a milestone without proof.** Tests, smoke evidence, and docs must agree.
+12. **No shallow report closeout.** A report that technically renders but fails the template/user tests is not accepted.
 
 ---
 
@@ -103,10 +104,12 @@ If a full command cannot run locally, record the environment reason and run the 
 
 Stop before implementation if any of these are unclear:
 
-- whether a new report field is canonical or presentation-only
+- whether a new field is canonical `due_diligence`, compatibility-only `investment_memo`, or supporting proof metadata
+- whether issuer metadata belongs in the summary surface, supporting metadata, or both
 - whether a provider/data source is allowed
 - how to interpret a missing financial metric
 - whether Piotroski should be weighted for a specific company type
 - whether a valuation assumption should be hard-coded
 - whether a PDF section is required or optional
-- whether old reports may be migrated or only rendered via fallback
+- whether editorial HTML/CSS layout changes alter the locked page target or mobile summary-first behavior
+- whether old reports may be backfilled, lazily projected, or only rendered via fallback

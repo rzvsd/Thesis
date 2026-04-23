@@ -23,6 +23,8 @@ object ReportViewMapper {
         return DeepDiveReportView(
             reportId = payload.optString("report_id"),
             ticker = payload.optNullableString("ticker"),
+            generatedAt = payload.optNullableString("generated_at"),
+            issuer = mapIssuer(payload.optJSONObject("issuer"), payload),
             schemaVersion = schemaVersion,
             isLegacy = majorVersion < 2,
             thesisStatement = thesisFromSection,
@@ -33,6 +35,7 @@ object ReportViewMapper {
             watchItems = mapStringArray(payload.optJSONArray("watch_items")),
             coverageTruth = mapCoverageTruth(payload.optJSONObject("coverage_truth")),
             investmentMemo = mapInvestmentMemo(payload.optJSONObject("investment_memo")),
+            dueDiligence = mapDueDiligence(payload.optJSONObject("due_diligence")),
             financialAnalysis = mapFinancialAnalysis(payload.optJSONObject("financial_analysis")),
             valueDiscipline = mapValueDiscipline(payload.optJSONObject("value_discipline")),
             confidence = mapConfidence(payload.optJSONObject("confidence")),
@@ -45,6 +48,22 @@ object ReportViewMapper {
             trustMetadata = mapTrustMetadata(payload.optJSONObject("trust_metadata")),
             killSwitchConditions = mapKillSwitchConditions(payload.optJSONArray("kill_switch_conditions")),
             sections = sections
+        )
+    }
+
+    private fun mapIssuer(row: JSONObject?, payload: JSONObject): IssuerView? {
+        val rolloutIssuer = payload.opt("issuer")
+        val name = row?.optNullableString("name")
+            ?: row?.optNullableString("company_name")
+            ?: payload.optNullableString("company_name")
+            ?: payload.optNullableString("issuer_name")
+            ?: (rolloutIssuer as? String)?.trim()?.takeIf { it.isNotBlank() }
+            ?: return null
+        val exchange = row?.optNullableString("exchange")
+            ?: payload.optNullableString("exchange")
+        return IssuerView(
+            name = name,
+            exchange = exchange
         )
     }
 
@@ -422,6 +441,77 @@ object ReportViewMapper {
             }
         }
     }
+
+    private fun mapDueDiligence(row: JSONObject?): DueDiligenceView? {
+        if (row == null) {
+            return null
+        }
+        val promptVersion = row.optString("prompt_version", "").trim()
+        val generationMode = row.optString("generation_mode", "").trim()
+        val sections = mapDueDiligenceSections(row.optJSONArray("sections"))
+        if (promptVersion.isBlank() || generationMode.isBlank() || sections.isEmpty()) {
+            return null
+        }
+        return DueDiligenceView(
+            promptVersion = promptVersion,
+            generationMode = generationMode,
+            sections = sections
+        )
+    }
+
+    private fun mapDueDiligenceSections(rows: JSONArray?): List<DueDiligenceSectionView> {
+        if (rows == null) {
+            return emptyList()
+        }
+        return (0 until rows.length()).mapNotNull { index ->
+            rows.optJSONObject(index)?.let { section ->
+                val sectionId = section.optString("section_id", "").trim()
+                val title = section.optString("title", "").trim()
+                val summary = section.optString("summary", "").trim()
+                val coverageState = section.optString("coverage_state", "").trim()
+                val narrativeParagraphs = mapNarrativeParagraphs(section)
+                if (
+                    sectionId.isBlank() ||
+                    title.isBlank() ||
+                    summary.isBlank() ||
+                    coverageState.isBlank() ||
+                    narrativeParagraphs.isEmpty()
+                ) {
+                    null
+                } else {
+                    DueDiligenceSectionView(
+                        sectionId = sectionId,
+                        title = title,
+                        summary = summary,
+                        narrativeParagraphs = narrativeParagraphs,
+                        keyPoints = mapStringArray(section.optJSONArray("key_points")),
+                        evidenceRefs = mapStringArray(section.optJSONArray("evidence_refs")),
+                        omissions = mapStringArray(section.optJSONArray("omissions")),
+                        coverageState = coverageState
+                    )
+                }
+            }
+        }
+    }
+
+    private fun mapNarrativeParagraphs(section: JSONObject): List<String> {
+        val paragraphs = mapStringArray(section.optJSONArray("narrative_paragraphs"))
+        if (paragraphs.isNotEmpty()) {
+            return paragraphs
+        }
+
+        return listOfNotNull(
+            section.optNullableString("narrative"),
+            section.optNullableString("full_narrative"),
+            section.optNullableString("body")
+        ).flatMap(::splitNarrativeParagraphs).distinct()
+    }
+
+    private fun splitNarrativeParagraphs(text: String): List<String> =
+        text.replace("\r\n", "\n")
+            .split(Regex("\\n\\s*\\n"))
+            .map { paragraph -> paragraph.replace(Regex("\\s+"), " ").trim() }
+            .filter { paragraph -> paragraph.isNotBlank() }
 
     private fun mapFinancialAnalysis(row: JSONObject?): FinancialAnalysisView? {
         if (row == null) {

@@ -1,8 +1,8 @@
 # Deep Dive Test Matrix
 
 **Status:** Active
-**Last Revised:** 2026-04-20
-**Applies To:** Deep Dive Revamp M1-M7, including M5.2 visual exhibits
+**Last Revised:** 2026-04-22
+**Applies To:** Deep Dive Revamp M1-M9, including M5.2 visual exhibits
 
 ---
 
@@ -22,7 +22,10 @@ The point is simple: a report that renders successfully but reads like nonsense 
 | Deterministic math gate | LLM can fabricate or distort financial facts |
 | Evidence gate | Claims can appear without proof |
 | Omission gate | Missing data can be hidden |
-| PDF render gate | Export can look unprofessional or unreadable |
+| Editorial authoring gate | A report can technically render while the due-diligence body stays shallow, padded, or generic |
+| Issuer metadata gate | Listing/context metadata can be omitted or invented without detection |
+| Due-diligence mapping gate | `investment_memo` and `due_diligence` can drift or lose sections |
+| PDF render gate | Editorial HTML/CSS export can look unprofessional, unreadable, or lose print discipline |
 | Mobile device gate | The app can pass unit tests while failing on phone |
 | Legacy fallback gate | Existing report history can break |
 
@@ -40,6 +43,8 @@ The point is simple: a report that renders successfully but reads like nonsense 
 | M5.2 Visual Exhibits Layer | Visual-render tests; chart data-mapping tests; sparse-data fallback tests; PNG visual inspection; legacy export compatibility | Chart-rich PDF sample; rendered PNG pages; visual QA note comparing exhibit quality vs text-first export | Charts use fake/inferred values; output stays plain text-first; labels/units missing; sparse-data charts fake completeness |
 | M6 Mobile Research Reader | Mapper unit tests; legacy fallback tests; Android UI tests; offline cache tests; device smoke | Screenshots or Maestro proof; mapper test output; offline reopen proof | Mobile starts with accordions; old report fails; PDF/mobile disagree; offline cache loses fields |
 | M7 End-to-End Quality | Full stack smoke; report run; history reopen; PDF export; phone proof; regression tests | Final closeout evidence folder with commands, screenshots, and known limitations | Deep Dive cannot complete end to end; report lacks core sections; proof is not captured |
+| M8 Due Diligence Default Upgrade | Contract/schema tests for `due_diligence` and `investment_memo` compatibility; PDF template/page-count tests; mobile summary-first reader tests; omission-honesty regressions; legacy fallback tests | Full, sparse, degraded, and legacy fixtures; section-mapping snapshots; rendered PDF pages; device screenshots proving collapsed and expanded states | Any canonical due-diligence section is missing; `investment_memo` contradicts canonical sections; mobile requires full expansion to understand the thesis; full-data PDF misses evidence/appendix or falls outside the 10-14 page target without honest degradation |
+| M9 Verbose Due Diligence Authoring And Editorial PDF Upgrade | Verbose-authoring snapshot tests; issuer-metadata fixture tests; HTML/CSS-to-PDF export tests; print CSS/page-count tests; mobile summary-first inline-expand regressions; legacy fallback/parity tests | Full, sparse, degraded, and legacy fixtures; verbose section snapshots; issuer metadata JSON/HTML/PDF samples; rendered PDF pages; print QA note; mobile screenshots proving collapsed and inline-expanded states | Due-diligence sections read like padded filler or bullet stubs; editorial export exceeds 14 pages without honest degradation; issuer metadata is absent or invented; mobile defaults to expanded long-form text; PDF drops evidence/appendix or contradicts canonical report truth |
 
 ---
 
@@ -54,6 +59,8 @@ The point is simple: a report that renders successfully but reads like nonsense 
 | Legacy v1 report | Proves history and offline cache safety |
 | Valuation-degraded report | Proves valuation does not fake precision |
 | No-prior-thesis report | Proves "what changed" handles first-run reality |
+| Management/governance-rich company | Proves the new section is evidence-backed, not generic filler |
+| Thin-governance-coverage company | Proves omission honesty in the new section taxonomy |
 
 ---
 
@@ -63,13 +70,17 @@ These are non-technical acceptance tests. They should be used during owner revie
 
 | Test | Pass Standard |
 |---|---|
-| First-page test | A user can explain the thesis, why now, and top risks after reading Page 1 |
+| Summary-first test | A user can explain the thesis, why now, and top risks from the summary before opening detailed proof |
+| Editorial readability test | A user feels each due-diligence section explains why the evidence matters instead of dumping bullets or generic filler |
 | Numbers test | A user can see whether revenue, margins, cash flow, debt, and shares improved or deteriorated |
+| Competitive-positioning test | A user understands what makes the company strong, weak, or uncertain competitively |
+| Management/governance test | A user can see what Thesis knows and does not know about leadership, governance, and capital allocation |
 | Value-discipline test | A user understands whether the company is financially improving or becoming a value trap |
 | Valuation test | A user can see the fair value range and the assumptions behind it |
+| Issuer-metadata test | A user can tell exactly which issuer/listing context, currency, and metadata gaps the report covers |
 | Evidence test | A user can trace the important claims to proof |
 | Omission test | A user can see what Thesis does not know |
-| Mobile test | A user can understand the report on phone without opening every proof accordion |
+| Mobile test | A user can understand the report on phone without opening every proof section |
 | Serious-artifact test | The PDF feels credible enough to save, share, or revisit before an investment decision |
 | Visual-exhibit test | The PDF uses chart-rich exhibits that explain the numbers faster than plain text alone |
 
@@ -101,6 +112,12 @@ PDF proof must include:
 - rendered page images
 - visual QA note
 - known limitations, if any
+
+Editorial PDF proof should also include:
+
+- generated HTML/CSS path or equivalent editorial export capture
+- page count note
+- issuer metadata proof
 
 ---
 

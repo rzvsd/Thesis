@@ -13,6 +13,7 @@ type JsonSchema = {
   items?: JsonSchema;
   minItems?: number;
   maxItems?: number;
+  anyOf?: readonly JsonSchema[];
 };
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -20,6 +21,17 @@ function isObject(value: unknown): value is Record<string, unknown> {
 }
 
 function validateWithSchema(value: unknown, schema: JsonSchema, path: string, errors: string[]): void {
+  if (schema.anyOf && schema.anyOf.length > 0) {
+    const branchMatched = schema.anyOf.some((branch) => {
+      const branchErrors: string[] = [];
+      validateWithSchema(value, branch, path, branchErrors);
+      return branchErrors.length === 0;
+    });
+    if (!branchMatched) {
+      errors.push(`${path} must satisfy at least one conditional schema branch`);
+    }
+  }
+
   if (schema.type === "string" && typeof value !== "string") {
     errors.push(`${path} must be a string`);
     return;
@@ -125,6 +137,15 @@ function fullReportFixture(): AnalysisReport {
     ...legacyReportFixture(),
     report_id: "full-rpt-1",
     schema_version: "2.0",
+    issuer: {
+      name: "Apple Inc.",
+      exchange: "NASDAQ",
+      currency: "USD",
+      domicile_country: "US",
+      region: "North America",
+      sector: "Technology",
+      industry: "Consumer Electronics"
+    },
     signal: {
       value: "neutral",
       reasons: ["Signal is balanced."],
@@ -256,6 +277,157 @@ function fullReportFixture(): AnalysisReport {
       unsupported_claims: [],
       sparse_data_honesty_note:
         "Sparse-data handling is inactive for this fixture because core inputs are present."
+    },
+    due_diligence: {
+      prompt_version: "m8-due-diligence-fixture-v1",
+      generation_mode: "deterministic_fixture",
+      sections: [
+        {
+          section_id: "financial_analysis",
+          title: "Financial Analysis",
+          summary: "Financial performance remains constructive with explicit omission handling.",
+          narrative_paragraphs: [
+            "Revenue, margin, and free-cash-flow trends are discussed together so the report does not over-index on a single headline metric.",
+            "Where annual history is complete enough, the report turns those trends into a more durable financial read rather than a quarter-only reaction."
+          ],
+          key_points: ["Revenue trend remains constructive.", "Cash conversion still matters."],
+          evidence_refs: ["section:revenue_margin_analysis", "metric:revenue_cagr_3y_pct"],
+          omissions: [],
+          coverage_state: "full"
+        },
+        {
+          section_id: "competitive_positioning",
+          title: "Competitive Positioning",
+          summary: "Competitive read stays grounded in approved evidence only.",
+          narrative_paragraphs: [
+            "The report uses segment mix and approved context to discuss where the business still looks durable.",
+            "It does not claim unsupported market-share precision when the source set is thinner than that."
+          ],
+          key_points: ["Segment mix remains relevant."],
+          evidence_refs: ["section:management_commentary"],
+          omissions: ["Exact market-share evidence is not part of this fixture."],
+          coverage_state: "partial"
+        },
+        {
+          section_id: "management_and_governance",
+          title: "Management and Governance",
+          summary: "Management commentary is usable, governance remains intentionally constrained.",
+          narrative_paragraphs: [
+            "Management tone is interpreted through approved transcript and filing evidence rather than impressionistic commentary.",
+            "Governance detail is limited unless proxy-grade materials are explicitly available in the run."
+          ],
+          key_points: ["Management commentary is available."],
+          evidence_refs: ["section:management_commentary"],
+          omissions: ["Proxy-grade governance detail unavailable in this fixture."],
+          coverage_state: "partial"
+        },
+        {
+          section_id: "risks_and_challenges",
+          title: "Risks and Challenges",
+          summary: "Risks remain falsifiable through explicit break conditions.",
+          narrative_paragraphs: [
+            "The risk section uses explicit kill switches and omission notes rather than generic warnings.",
+            "That keeps the report accountable to conditions that could actually change the stance."
+          ],
+          key_points: ["Risk review is falsifiable."],
+          evidence_refs: ["section:management_commentary", "kill_switch:guidance"],
+          omissions: [],
+          coverage_state: "full"
+        },
+        {
+          section_id: "growth_opportunities_and_outlook",
+          title: "Growth Opportunities and Outlook",
+          summary: "Outlook is discussed conservatively and only where approved evidence supports it.",
+          narrative_paragraphs: [
+            "Growth opportunities are framed around visible business drivers and management commentary.",
+            "The report avoids stretching the source plane into unsupported long-range forecasts."
+          ],
+          key_points: ["Growth outlook stays evidence-aware."],
+          evidence_refs: ["section:quarter_over_quarter_changes"],
+          omissions: [],
+          coverage_state: "full"
+        },
+        {
+          section_id: "valuation_and_thesis_stance",
+          title: "Valuation and Thesis Stance",
+          summary: "Valuation stays deterministic and tied to stance language rather than buy or sell labels.",
+          narrative_paragraphs: [
+            "The valuation section keeps fair-value framing inside a deterministic scenario framework.",
+            "It also explains what would change the current stance instead of treating price targets as the thesis itself."
+          ],
+          key_points: ["Valuation is deterministic."],
+          evidence_refs: ["section:valuation", "valuation:fair_value_mid"],
+          omissions: [],
+          coverage_state: "full"
+        }
+      ]
+    },
+    structural_context: {
+      subject_type: "issuer",
+      subject_id: "AAPL",
+      as_of: "2026-04-22",
+      coverage_state: "partial",
+      summary:
+        "U.S. structural context remains supportive for premium-device demand, while debt and inflation keep the backdrop disciplined.",
+      issuer_metadata: {
+        currency: "USD",
+        domicile_country: "US",
+        region: "North America",
+        sector: "Technology",
+        industry: "Consumer Electronics"
+      },
+      observations: [
+        {
+          observation_id: "world-bank-us-gdp-per-capita",
+          family: "gdp_per_capita",
+          label: "GDP per capita",
+          summary: "High disposable-income context supports premium hardware and services spend.",
+          geography: "United States",
+          period: "2025",
+          source_family: "world_bank",
+          retrieval: {
+            source: {
+              source_id: "WB_NY_GDP_PCAP_CD",
+              source_family: "world_bank",
+              source_name: "World Bank GDP per capita",
+              source_url: "https://api.worldbank.org/v2/country/USA/indicator/NY.GDP.PCAP.CD",
+              agency: "World Bank",
+              agency_series_id: "NY.GDP.PCAP.CD"
+            },
+            retrieved_at: "2026-04-22T10:00:00.000Z",
+            retrieval_status: "fresh",
+            source_period: "2025"
+          },
+          missing_fields: [],
+          value: 82500,
+          unit: "usd"
+        }
+      ],
+      omissions: [
+        {
+          omission_id: "imf-fx-reserves-unavailable",
+          family: "fx_reserves",
+          source_family: "imf",
+          reason_code: "source_unavailable",
+          reason_text: "IMF reserves feed was unavailable in this fixture run.",
+          blocking: false
+        }
+      ],
+      retrievals: [
+        {
+          source: {
+            source_id: "WB_NY_GDP_PCAP_CD",
+            source_family: "world_bank",
+            source_name: "World Bank GDP per capita",
+            source_url: "https://api.worldbank.org/v2/country/USA/indicator/NY.GDP.PCAP.CD",
+            agency: "World Bank",
+            agency_series_id: "NY.GDP.PCAP.CD"
+          },
+          retrieved_at: "2026-04-22T10:00:00.000Z",
+          retrieval_status: "fresh",
+          source_period: "2025"
+        }
+      ]
     },
     financial_analysis: {
       annual_history: [
@@ -403,6 +575,24 @@ function sparseReportFixture(): AnalysisReport {
       reader_takeaway: "Use this as a watchlist checkpoint, not a full thesis reset.",
       stance_label: "watch"
     },
+    due_diligence: {
+      prompt_version: "m8-due-diligence-fixture-v1",
+      generation_mode: "deterministic_fixture",
+      sections: [
+        {
+          section_id: "financial_analysis",
+          title: "Financial Analysis",
+          summary: "Financial coverage is limited because core history is missing.",
+          narrative_paragraphs: [
+            "The report preserves the available financial read but avoids presenting a stronger trend case than the sparse evidence allows."
+          ],
+          key_points: ["Sparse-data checkpoint only."],
+          evidence_refs: [],
+          omissions: ["Annual history is insufficient for a stronger financial read."],
+          coverage_state: "limited"
+        }
+      ]
+    },
     explainers: {
       signal: "Signal is limited by sparse evidence.",
       confidence: "Confidence remains low due to missing financial history.",
@@ -497,6 +687,29 @@ test("M1 contract accepts partial fixture", () => {
   assert.equal(errors.length, 0, errors.join("\n"));
 });
 
+test("M1 contract accepts issuer metadata when present", () => {
+  const report: AnalysisReport = {
+    ...legacyReportFixture(),
+    schema_version: "2.0",
+    issuer: {
+      name: "Apple Inc.",
+      exchange: "NASDAQ",
+      currency: "USD",
+      domicile_country: "US"
+    }
+  };
+
+  const errors = schemaErrors(report);
+  assert.equal(errors.length, 0, errors.join("\n"));
+});
+
+test("M6 contract accepts structural context pack", () => {
+  const report = fullReportFixture();
+  const errors = schemaErrors(report);
+  assert.equal(errors.length, 0, errors.join("\n"));
+  assert.equal(report.structural_context?.subject_type, "issuer");
+});
+
 test("M1 contract accepts sparse fixture", () => {
   const errors = schemaErrors(sparseReportFixture());
   assert.equal(errors.length, 0, errors.join("\n"));
@@ -530,6 +743,31 @@ test("M1 contract rejects invalid visual panel type", () => {
 
   const errors = schemaErrors(invalid);
   assert.ok(errors.some((entry) => entry.includes("visual_panels[0].type")));
+});
+
+test("M1 contract rejects due-diligence sections without evidence refs or omissions", () => {
+  const invalid = {
+    ...fullReportFixture(),
+    due_diligence: {
+      prompt_version: "m8-due-diligence-fixture-v1",
+      generation_mode: "deterministic_fixture",
+      sections: [
+        {
+          section_id: "financial_analysis",
+          title: "Financial Analysis",
+          summary: "Invalid section",
+          narrative_paragraphs: ["Paragraph one."],
+          key_points: [],
+          evidence_refs: [],
+          omissions: [],
+          coverage_state: "full"
+        }
+      ]
+    }
+  } as unknown as AnalysisReport;
+
+  const errors = schemaErrors(invalid);
+  assert.ok(errors.some((entry) => entry.includes("must satisfy at least one conditional schema branch")));
 });
 
 test("M2 contract rejects invalid financial metric status", () => {

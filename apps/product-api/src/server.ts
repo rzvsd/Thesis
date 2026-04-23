@@ -59,6 +59,7 @@ import type {
   ScenarioRequest,
   ScenarioInputOmission,
   ScenarioResponse,
+  StructuralContextPack,
   SubscriptionFeedbackCode,
   SubscriptionFeedbackSubmission,
   SubscriptionTier,
@@ -3599,6 +3600,248 @@ function computeScenarioResponse(
   };
 }
 
+function mergeIssuerMetadata(
+  report: AnalysisReport,
+  issuer?: {
+    name?: string;
+    exchange?: string;
+    currency?: string;
+    domicile_country?: string;
+    region?: string;
+    sector?: string;
+    industry?: string;
+  }
+): AnalysisReport {
+  const issuerName = issuer?.name?.trim();
+  if (
+    !issuerName &&
+    !issuer?.exchange &&
+    !issuer?.currency &&
+    !issuer?.domicile_country &&
+    !issuer?.region &&
+    !issuer?.sector &&
+    !issuer?.industry
+  ) {
+    return report;
+  }
+
+  const nextIssuer = {
+    name: report.issuer?.name?.trim() || issuerName || "",
+    exchange: report.issuer?.exchange?.trim() || issuer?.exchange?.trim() || undefined,
+    currency: report.issuer?.currency?.trim() || issuer?.currency?.trim() || undefined,
+    domicile_country:
+      report.issuer?.domicile_country?.trim() || issuer?.domicile_country?.trim() || undefined,
+    region: report.issuer?.region?.trim() || issuer?.region?.trim() || undefined,
+    sector: report.issuer?.sector?.trim() || issuer?.sector?.trim() || undefined,
+    industry: report.issuer?.industry?.trim() || issuer?.industry?.trim() || undefined
+  };
+  if (!nextIssuer.name) {
+    return report;
+  }
+
+  if (
+    report.issuer?.name === nextIssuer.name &&
+    report.issuer?.exchange === nextIssuer.exchange &&
+    report.issuer?.currency === nextIssuer.currency &&
+    report.issuer?.domicile_country === nextIssuer.domicile_country &&
+    report.issuer?.region === nextIssuer.region &&
+    report.issuer?.sector === nextIssuer.sector &&
+    report.issuer?.industry === nextIssuer.industry
+  ) {
+    return report;
+  }
+
+  return {
+    ...report,
+    issuer: nextIssuer
+  };
+}
+
+async function fetchStructuralContext(
+  runtime: Runtime,
+  input: {
+    ticker?: string;
+    country?: string;
+    subjectType?: "issuer" | "market_pulse";
+    asOf?: string;
+  }
+): Promise<StructuralContextPack | undefined> {
+  const params = new URLSearchParams();
+  if (input.ticker) {
+    params.set("ticker", input.ticker);
+  }
+  if (input.country) {
+    params.set("country", input.country);
+  }
+  if (input.subjectType) {
+    params.set("subject_type", input.subjectType);
+  }
+  if (input.asOf) {
+    params.set("as_of", input.asOf);
+  }
+
+  try {
+    const response = await fetch(
+      `${runtime.config.marketPulseDataOpenbbBaseUrl}/v1/official/structural?${params.toString()}`
+    );
+    if (!response.ok) {
+      logWarn("Structural context fetch degraded", {
+        ticker: input.ticker,
+        country: input.country,
+        subject_type: input.subjectType,
+        as_of: input.asOf,
+        status_code: response.status
+      });
+      return undefined;
+    }
+    const payload = (await response.json()) as {
+      ok?: boolean;
+      data?: StructuralContextPack;
+      error_message?: string;
+    };
+    if (!payload.ok || !payload.data) {
+      logWarn("Structural context payload missing data", {
+        ticker: input.ticker,
+        country: input.country,
+        subject_type: input.subjectType,
+        as_of: input.asOf,
+        error_message: payload.error_message
+      });
+      return undefined;
+    }
+    return payload.data;
+  } catch (error) {
+    logWarn("Structural context fetch failed", {
+      ticker: input.ticker,
+      country: input.country,
+      subject_type: input.subjectType,
+      as_of: input.asOf,
+      error_message: error instanceof Error ? error.message : String(error)
+    });
+    return undefined;
+  }
+}
+
+function appendUniqueParagraph(paragraphs: string[], nextParagraph: string): string[] {
+  if (paragraphs.includes(nextParagraph)) {
+    return paragraphs;
+  }
+  return [...paragraphs, nextParagraph];
+}
+
+function appendUniqueKeyPoint(points: string[], nextPoint: string): string[] {
+  if (points.includes(nextPoint)) {
+    return points;
+  }
+  return [...points, nextPoint];
+}
+
+function mergeStructuralContextIntoDueDiligence(
+  report: AnalysisReport,
+  structuralContext: StructuralContextPack
+): AnalysisReport {
+  if (!report.due_diligence) {
+    return {
+      ...report,
+      structural_context: report.structural_context ?? structuralContext
+    };
+  }
+
+  const competitiveObservation = structuralContext.observations.find((entry) =>
+    ["gdp_per_capita", "sector_mix", "education"].includes(entry.family)
+  );
+  const growthObservation = structuralContext.observations.find((entry) =>
+    ["population", "infrastructure", "energy_access"].includes(entry.family)
+  );
+  const riskObservation = structuralContext.observations.find((entry) =>
+    ["debt_context", "inequality", "inflation_regime", "public_debt"].includes(entry.family)
+  );
+  const imfOmission = structuralContext.omissions.find((entry) => entry.source_family === "imf");
+
+  const nextSections = report.due_diligence.sections.map((section) => {
+    if (section.section_id === "competitive_positioning" && competitiveObservation) {
+      const paragraph = `Structural context: ${competitiveObservation.summary}`;
+      return {
+        ...section,
+        narrative_paragraphs: appendUniqueParagraph(section.narrative_paragraphs, paragraph),
+        key_points: appendUniqueKeyPoint(
+          section.key_points,
+          `${competitiveObservation.label} remains a relevant backdrop.`
+        )
+      };
+    }
+
+    if (section.section_id === "growth_opportunities_and_outlook" && growthObservation) {
+      const paragraph = `Structural context: ${growthObservation.summary}`;
+      return {
+        ...section,
+        narrative_paragraphs: appendUniqueParagraph(section.narrative_paragraphs, paragraph),
+        key_points: appendUniqueKeyPoint(
+          section.key_points,
+          `${growthObservation.label} helps frame the current opportunity set.`
+        )
+      };
+    }
+
+    if (section.section_id === "risks_and_challenges" && (riskObservation || imfOmission)) {
+      const paragraph = riskObservation
+        ? `Structural context: ${riskObservation.summary}`
+        : `Coverage limitation: ${imfOmission?.reason_text}`;
+      const keyPoint = riskObservation
+        ? `${riskObservation.label} remains part of the macro risk frame.`
+        : "IMF context remains intentionally non-blocking in this run.";
+      return {
+        ...section,
+        narrative_paragraphs: appendUniqueParagraph(section.narrative_paragraphs, paragraph),
+        key_points: appendUniqueKeyPoint(section.key_points, keyPoint)
+      };
+    }
+
+    return section;
+  });
+
+  return {
+    ...report,
+    structural_context: report.structural_context ?? structuralContext,
+    due_diligence: {
+      ...report.due_diligence,
+      sections: nextSections
+    }
+  };
+}
+
+async function enrichAnalysisReportIssuer(runtime: Runtime, report: AnalysisReport): Promise<AnalysisReport> {
+  if (!report.ticker) {
+    return report;
+  }
+
+  const supportedTicker = await runtime.store.getSupportedTicker(report.ticker);
+  if (!supportedTicker) {
+    return report;
+  }
+
+  let nextReport = mergeIssuerMetadata(report, {
+    name: supportedTicker.companyName,
+    exchange: supportedTicker.exchange
+  });
+
+  if (nextReport.structural_context?.subject_type === "issuer") {
+    return mergeIssuerMetadata(nextReport, nextReport.structural_context.issuer_metadata);
+  }
+
+  const structuralContext = await fetchStructuralContext(runtime, {
+    ticker: report.ticker,
+    subjectType: "issuer",
+    asOf: report.generated_at.slice(0, 10)
+  });
+  if (!structuralContext) {
+    return nextReport;
+  }
+
+  nextReport = mergeIssuerMetadata(nextReport, structuralContext.issuer_metadata);
+  return mergeStructuralContextIntoDueDiligence(nextReport, structuralContext);
+}
+
 async function cleanupStoredReport(
   runtime: Runtime,
   reportId: string,
@@ -5988,6 +6231,8 @@ export function startServer(port: number = loadConfig().port): Server {
             return;
           }
 
+          report = await enrichAnalysisReportIssuer(runtime, report);
+
           sendJson(response, 200, {
             missing: false,
             data: toComparableSummary(report)
@@ -8192,6 +8437,8 @@ export function startServer(port: number = loadConfig().port): Server {
               return;
             }
 
+            report = await enrichAnalysisReportIssuer(runtime, report);
+
             if (report.job_id !== jobId) {
               sendJson(response, 422, {
                 error: "validation_failed",
@@ -10085,7 +10332,7 @@ export function startServer(port: number = loadConfig().port): Server {
             return;
           }
 
-          const reusableReport = assertIncomingAnalysisReport(reusableArtifact);
+          const reusableReport = await enrichAnalysisReportIssuer(runtime, assertIncomingAnalysisReport(reusableArtifact));
           const reusedReportId = createId();
           const reusedReport = cloneReusableDeepDiveReport(reusableReport, {
             reportId: reusedReportId,
@@ -10335,8 +10582,19 @@ export function startServer(port: number = loadConfig().port): Server {
           return;
         }
 
-        const report = await runtime.artifactStore.readReport(reportMetadata.artifactKey);
-        if (!report) {
+        const artifact = await runtime.artifactStore.readReport(reportMetadata.artifactKey);
+        if (!artifact) {
+          sendJson(response, 404, {
+            error: "report_not_found",
+            error_message: "Report artifact missing."
+          });
+          return;
+        }
+
+        let report: AnalysisReport;
+        try {
+          report = await enrichAnalysisReportIssuer(runtime, assertIncomingAnalysisReport(artifact));
+        } catch {
           sendJson(response, 404, {
             error: "report_not_found",
             error_message: "Report artifact missing."
@@ -10391,27 +10649,57 @@ export function startServer(port: number = loadConfig().port): Server {
             return;
           }
 
-          const deepDiveReport = artifact as AnalysisReport;
-          const pdf = buildInstitutionalPdfExport(deepDiveReport);
-          const filenameTicker = deepDiveReport.ticker ? deepDiveReport.ticker.trim().toUpperCase() : "REPORT";
-          await appendAudit(runtime, "report.exported_pdf", {
-            request_id: meta.requestId,
-            route: pathname,
-            report_id: reportId,
-            page_count: pdf.pageCount
-          }, auth.userId);
+          let deepDiveReport: AnalysisReport;
+          try {
+            deepDiveReport = await enrichAnalysisReportIssuer(runtime, assertIncomingAnalysisReport(artifact));
+          } catch {
+            sendJson(response, 404, {
+              error: "report_not_found",
+              error_message: "Deep Dive report artifact missing."
+            });
+            return;
+          }
+            try {
+              const pdf = buildInstitutionalPdfExport(deepDiveReport);
+              const filenameTicker = deepDiveReport.ticker ? deepDiveReport.ticker.trim().toUpperCase() : "REPORT";
+              await appendAudit(runtime, "report.exported_pdf", {
+                request_id: meta.requestId,
+                route: pathname,
+                report_id: reportId,
+                page_count: pdf.pageCount
+              }, auth.userId);
 
-          sendBinary(
-            response,
-            200,
-            pdf.buffer,
-            "application/pdf",
-            {
-              "content-disposition": `attachment; filename="thesis-deep-dive-${filenameTicker}-${reportId}.pdf"`
+              sendBinary(
+                response,
+                200,
+                pdf.buffer,
+                "application/pdf",
+                {
+                  "content-disposition": `attachment; filename="thesis-deep-dive-${filenameTicker}-${reportId}.pdf"`
+                }
+              );
+              return;
+            } catch (error) {
+              const message = error instanceof Error ? error.message : "Unknown PDF export failure";
+              logError("PDF export failed", {
+                request_id: meta.requestId,
+                route: pathname,
+                report_id: reportId,
+                error_message: message
+              });
+              captureException(new Error(message), {
+                service: serviceName,
+                request_id: meta.requestId,
+                route: pathname,
+                report_id: reportId
+              });
+              sendJson(response, 500, {
+                error: "internal_error",
+                error_message: "PDF export failed."
+              });
+              return;
             }
-          );
-          return;
-        }
+          }
 
         if (method === "GET" && parts.length === 4 && parts[0] === "v1" && parts[1] === "reports" && parts[3] === "opposite-case") {
           const reportId = parts[2];
@@ -10623,7 +10911,7 @@ export function startServer(port: number = loadConfig().port): Server {
             return;
           }
 
-          const report = assertIncomingAnalysisReport(artifact);
+          const report = await enrichAnalysisReportIssuer(runtime, assertIncomingAnalysisReport(artifact));
           if (report.type !== "deep_dive" || !report.ticker) {
             sendJson(response, 422, {
               error: "validation_failed",
@@ -10726,7 +11014,7 @@ export function startServer(port: number = loadConfig().port): Server {
             return;
           }
 
-          const report = assertIncomingAnalysisReport(artifact);
+          const report = await enrichAnalysisReportIssuer(runtime, assertIncomingAnalysisReport(artifact));
           if (report.type !== "deep_dive") {
             sendJson(response, 422, {
               error: "validation_failed",

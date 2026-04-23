@@ -1,8 +1,10 @@
 # Deep Dive Reference Mapping
 
 **Status:** Active
-**Last Revised:** 2026-04-20
-**Applies To:** Deep Dive Revamp M0-M7
+**Last Revised:** 2026-04-22
+**Applies To:** Deep Dive Revamp M0-M9
+
+M8 and M9 keep these reference requirements intact while remapping the output into the canonical `due_diligence` section taxonomy and an editorial HTML/CSS-to-PDF report shape.
 
 ---
 
@@ -109,4 +111,3 @@ If any link is missing, the milestone is not complete.
 - [ ] Did missing data produce omission panels, not fake conclusions?
 - [ ] Did PDF output feel like a report artifact, not a mobile screenshot?
 - [ ] Did mobile preserve the same research truth as PDF?
-

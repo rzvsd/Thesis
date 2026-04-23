@@ -1,0 +1,71 @@
+{
+  "artifact_id": "replay-9af405e6-5940-4078-9255-09205161f436",
+  "as_of": "2025-02-14",
+  "generated_at": "2026-04-23T11:38:39.164Z",
+  "deep_dive": {
+    "report_id": "41358135-9914-4aee-ab72-dac26cd70d86",
+    "ticker": "MSFT",
+    "structural_context_as_of": "2025-02-14",
+    "enriched_sections": [
+      "competitive_positioning",
+      "risks_and_challenges",
+      "growth_opportunities_and_outlook"
+    ],
+    "checks": [
+      {
+        "check_id": "deep-dive-structural-as-of",
+        "title": "Deep Dive structural context is time-bounded",
+        "passed": true,
+        "detail": "Deep Dive structural context is pinned to 2025-02-14."
+      },
+      {
+        "check_id": "deep-dive-observation-periods",
+        "title": "Deep Dive observations avoid look-ahead leakage",
+        "passed": true,
+        "detail": "All observed periods stayed on or before 2025-02-14."
+      },
+      {
+        "check_id": "deep-dive-due-diligence-enriched",
+        "title": "Deep Dive due-diligence sections were structurally enriched",
+        "passed": true,
+        "detail": "Enriched sections: competitive_positioning, risks_and_challenges, growth_opportunities_and_outlook."
+      }
+    ]
+  },
+  "morning_exception_briefing": {
+    "report_id": "0e2013d8-7ba8-4b20-90dc-ae5caab72945",
+    "pulse_date": "2026-04-23",
+    "structural_context_as_of": "2025-02-14",
+    "macro_stress_as_of": "2025-02-14",
+    "enriched_sections": [
+      "official_macro_pressure",
+      "bounded_context"
+    ],
+    "checks": [
+      {
+        "check_id": "pulse-structural-as-of",
+        "title": "Morning briefing structural context is time-bounded",
+        "passed": true,
+        "detail": "Morning briefing structural context is pinned to 2025-02-14."
+      },
+      {
+        "check_id": "pulse-observation-periods",
+        "title": "Morning briefing observations avoid look-ahead leakage",
+        "passed": true,
+        "detail": "All observed periods stayed on or before 2025-02-14."
+      },
+      {
+        "check_id": "pulse-macro-as-of",
+        "title": "Macro Stress keeps the requested as_of date",
+        "passed": true,
+        "detail": "Macro Stress stayed on 2025-02-14."
+      },
+      {
+        "check_id": "pulse-briefing-enriched",
+        "title": "Morning briefing sections were structurally enriched",
+        "passed": true,
+        "detail": "Enriched sections: official_macro_pressure, bounded_context."
+      }
+    ]
+  }
+}

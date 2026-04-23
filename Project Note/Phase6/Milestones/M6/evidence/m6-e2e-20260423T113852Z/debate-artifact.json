@@ -1,0 +1,28 @@
+{
+  "artifact_id": "debate-657d9372-c3a1-4e6c-bfdd-e524488cb8bc",
+  "as_of": "2025-02-14",
+  "generated_at": "2026-04-23T11:39:16.832Z",
+  "mode": "internal_only",
+  "publish_blocked": true,
+  "publish_route": null,
+  "report_id": "57c78ee4-df82-483f-8a9b-6c0006b85f76",
+  "ticker": "MSFT",
+  "motions": [
+    "Does the current structural context strengthen the original thesis?",
+    "Would the current risk stack overturn the thesis if conditions worsen?"
+  ],
+  "rounds": [
+    {
+      "side": "thesis",
+      "text": "MSFT thesis: the current quarter (2025-Q4) shows execution strength, but conviction should track whether reported momentum survives the next filing..."
+    },
+    {
+      "side": "challenge",
+      "text": "The central risk question is not whether MSFT faces generic uncertainty. Every company does. The real question is which conditions would invalidate the current stance quickly enough that the thesis should be rewritten rather than merely monitored. The report is already carrying explicit omission pressure: Latest source timestamp is 34 day(s) old. Degraded report sections: Value Discipline. That framing matters because a disciplined risk section should tell the reader when a thesis is broken, when it is merely noisier, and which evidence would separate those two states."
+    }
+  ],
+  "verdict": {
+    "outcome": "thesis_holds",
+    "rationale": "The experiment kept the thesis side ahead, but the artifact is explicitly internal-only."
+  }
+}

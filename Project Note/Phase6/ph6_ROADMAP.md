@@ -6,11 +6,13 @@ Marketing for the app : "Every position needs one"
 **Thesis - every position needs one**
 
 **Version:** 1.0  
-**Status:** Active  
-**Last Revised:** 2026-04-16  
+**Status:** Closed (Phase 6 complete in the local repo; final hosted CI will run on next push)  
+**Last Revised:** 2026-04-23
 **Related Documents:** `ph6_BLUEBOOK.md`, `ph6_MILESTONES.md`, `ph6_PRD.md`, `PH6_DECISION_LOCKS.md`
 
 > Phase 6 is the final data-substrate architecture phase. It exists to remove paid and rights-ambiguous market-data assumptions from the core product while preserving the Thesis product edge.
+
+> Closeout note (2026-04-23): The sequence below is fully complete in the local repo through M6, with milestone evidence recorded and owner approval given to normalize closeout status.
 
 ---
 
@@ -23,6 +25,7 @@ M0 Dependency Audit & Cutover Plan
   -> M3 Morning Exception Briefing & Macro Stress
   -> M4 Earnings State & War Room Substrate
   -> M5 Deep Dive / Scenario Final Cutover & Hardening
+  -> M6 Official Structural Context & Internal Research Lab
 ```
 
 No milestone begins until the previous one is closed. Closed means:
@@ -50,6 +53,7 @@ Project Note/Phase6/Milestones/M#/evidence/
 | M3 | Morning Exception Briefing & Macro Stress | Pulse is rebuilt around official macro, disclosure events, and bounded context |
 | M4 | Earnings State & War Room Substrate | Estimated/confirmed/actual timing and evidence-pack workflows are live |
 | M5 | Deep Dive / Scenario Final Cutover & Hardening | Deep Dive and Scenario paths no longer depend on deprecated providers, and Phase 6 closes cleanly |
+| M6 | Official Structural Context & Internal Research Lab | World Bank structural context enriches Deep Dive and Briefing while internal replay/eval/debate tooling hardens quality without changing product identity |
 
 ---
 
@@ -74,3 +78,4 @@ These items are intentionally unscheduled after Phase 6. They require a fresh AD
 3. Rights metadata is not optional for evidence-bearing features.
 4. A milestone that keeps the UI intact but leaves the old provider dependency hidden is not done.
 5. Phase 6 is complete only when Thesis can run its core intelligence loop without paid market-data APIs.
+6. Structural context in Phase 6 must enrich existing Thesis surfaces; it must not turn Thesis into a public macro dashboard, public backtest product, or AI debate theater app.

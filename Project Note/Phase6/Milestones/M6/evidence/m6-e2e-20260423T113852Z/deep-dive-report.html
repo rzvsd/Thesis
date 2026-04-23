@@ -1,0 +1,1307 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Apple Inc. Due Diligence Report</title>
+<style>
+
+  @page {
+    size: Letter;
+    margin: 0;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    margin: 0;
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    color: #1f262d;
+    background: #f3eee4;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  h1, h2, h3 {
+    font-family: Georgia, "Times New Roman", serif;
+    font-weight: 700;
+    color: #1a2128;
+    margin: 0;
+  }
+
+  h1 { font-size: 28px; line-height: 1.08; }
+  h2 { font-size: 20px; line-height: 1.2; }
+  h3 { font-size: 15px; line-height: 1.25; }
+  p {
+    margin: 0;
+    color: #33404b;
+    font-size: 12.1px;
+    line-height: 1.48;
+  }
+
+  .page {
+    width: 8.5in;
+    height: 11in;
+    page-break-after: always;
+    padding: 0.58in 0.62in 0.46in 0.62in;
+    background: #f8f4eb;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    overflow: hidden;
+  }
+
+  .page:last-child {
+    page-break-after: auto;
+  }
+
+  .page-header,
+  .page-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+  }
+
+  .page-header {
+    border-bottom: 1px solid #d2c8b6;
+    padding-bottom: 10px;
+    margin-bottom: 18px;
+  }
+
+  .page-header__brand {
+    display: grid;
+    gap: 4px;
+  }
+
+  .page-header__wordmark {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: #7e6337;
+  }
+
+  .page-header__meta,
+  .page-header__date,
+  .page-header__ticker,
+  .page-footer {
+    font-size: 10px;
+    color: #6a706f;
+  }
+
+  .page-body {
+    display: grid;
+    gap: 16px;
+    flex: 1 1 auto;
+    min-height: 0;
+    align-content: start;
+  }
+
+  .page-footer {
+    border-top: 1px solid #d2c8b6;
+    padding-top: 9px;
+    margin-top: auto;
+  }
+
+  .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: #7e6337;
+    font-weight: 700;
+  }
+
+  .hero {
+    display: grid;
+    grid-template-columns: 1.8fr 0.8fr;
+    gap: 18px;
+    align-items: start;
+  }
+
+  .hero__copy {
+    display: grid;
+    gap: 10px;
+  }
+
+  .hero__subtitle {
+    font-size: 14px;
+    color: #55616c;
+    line-height: 1.45;
+  }
+
+  .hero__signal {
+    background: #213141;
+    color: #f4efe4;
+    border-radius: 18px;
+    padding: 16px;
+    display: grid;
+    gap: 8px;
+    text-align: right;
+  }
+
+  .price-chip {
+    justify-self: end;
+    background: rgba(216, 194, 153, 0.18);
+    border: 1px solid rgba(216, 194, 153, 0.34);
+    color: #f2e7d2;
+    padding: 6px 10px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .hero__spot {
+    font-size: 28px;
+    font-family: Georgia, "Times New Roman", serif;
+  }
+
+  .hero__upside {
+    font-size: 11px;
+    color: #d8d0bf;
+  }
+
+  .chip-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .chip {
+    padding: 10px 12px;
+    border-radius: 14px;
+    display: flex;
+    gap: 10px;
+    align-items: baseline;
+    border: 1px solid #d9d0c1;
+    background: #fffdf8;
+    font-size: 11px;
+  }
+
+  .chip strong {
+    font-size: 12px;
+    color: #1f262d;
+  }
+
+  .chip.positive {
+    border-color: rgba(48, 96, 74, 0.2);
+    background: #eaf2ee;
+  }
+
+  .chip.warning {
+    border-color: rgba(179, 135, 79, 0.28);
+    background: #f3ead8;
+  }
+
+  .chip.gold {
+    border-color: rgba(192, 160, 96, 0.28);
+    background: #f6efe0;
+  }
+
+  .thesis-box,
+  .decision-box,
+  .section-panel,
+  .editorial-card,
+  .side-card,
+  .mini-card,
+  .risk-card,
+  .appendix-item {
+    background: #fffdf8;
+    border: 1px solid #ded5c6;
+    border-radius: 18px;
+  }
+
+  .thesis-box,
+  .section-panel {
+    padding: 18px;
+  }
+
+  .thesis-box {
+    display: grid;
+    gap: 10px;
+  }
+
+  .decision-box {
+    padding: 16px 18px;
+    background: #f1ebdf;
+    border-color: #d7c7a8;
+    display: grid;
+    gap: 8px;
+  }
+
+  .decision-box__label {
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #7e6337;
+    font-weight: 700;
+  }
+
+  .decision-box__question {
+    font-size: 17px;
+    line-height: 1.35;
+    color: #27323b;
+    font-family: Georgia, "Times New Roman", serif;
+  }
+
+  .three-up,
+  .two-up,
+  .mini-grid,
+  .appendix-grid {
+    display: grid;
+    gap: 14px;
+  }
+
+  .three-up {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .two-up {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .mini-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .appendix-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .editorial-card,
+  .risk-card,
+  .appendix-item {
+    padding: 14px;
+    display: grid;
+    gap: 8px;
+  }
+
+  .editorial-card__title,
+  .side-card__label,
+  .section-panel__kicker,
+  .risk-card__label,
+  .appendix-item__meta {
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: #7e6337;
+  }
+
+  .summary-pill {
+    border-radius: 999px;
+    padding: 8px 12px;
+    font-size: 11px;
+    line-height: 1.35;
+    border: 1px solid #d7c7a8;
+    background: #f6efe0;
+    color: #4a5660;
+  }
+
+  .summary-pill.positive {
+    background: #eaf2ee;
+    border-color: rgba(48, 96, 74, 0.2);
+  }
+
+  .summary-pill.warning {
+    background: #f3ead8;
+    border-color: rgba(179, 135, 79, 0.28);
+  }
+
+  .summary-pill.neutral {
+    background: #f5f1e8;
+    border-color: #ded5c6;
+  }
+
+  .summary-pill.gold {
+    background: #f6efe0;
+    border-color: rgba(192, 160, 96, 0.28);
+  }
+
+  .narrative-header,
+  .section-panel__header {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    align-items: start;
+  }
+
+  .narrative-columns {
+    display: grid;
+    grid-template-columns: 1.8fr 0.9fr;
+    gap: 16px;
+  }
+
+  .narrative-columns__main,
+  .narrative-columns__side {
+    display: grid;
+    gap: 12px;
+  }
+
+  .side-card {
+    padding: 14px;
+    display: grid;
+    gap: 8px;
+  }
+
+  .mini-card {
+    padding: 12px;
+    font-size: 11.4px;
+    line-height: 1.45;
+    color: #32404c;
+  }
+
+  .meta-strip {
+    display: flex;
+    gap: 14px;
+    flex-wrap: wrap;
+    font-size: 10px;
+    color: #6a706f;
+  }
+
+  .coverage-note,
+  .appendix-note {
+    padding: 12px 14px;
+    border-radius: 16px;
+    background: #f2ede3;
+    border: 1px solid #ddd3c2;
+    font-size: 11px;
+    color: #5a6670;
+    line-height: 1.45;
+  }
+
+  .financial-table,
+  .scenario-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11px;
+  }
+
+  .financial-table th,
+  .financial-table td,
+  .scenario-table th,
+  .scenario-table td {
+    padding: 10px 8px;
+    text-align: left;
+    border-bottom: 1px solid #e8e0d2;
+  }
+
+  .financial-table thead th,
+  .scenario-table thead th {
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #6a706f;
+  }
+
+  .evidence-list {
+    margin: 0;
+    padding-left: 18px;
+    display: grid;
+    gap: 8px;
+    color: #32404c;
+    font-size: 11.5px;
+    line-height: 1.45;
+  }
+
+  .chart-svg,
+  .range-svg {
+    width: 100%;
+    height: auto;
+    display: block;
+  }
+
+  .chart-title {
+    font-size: 12px;
+    font-family: Georgia, "Times New Roman", serif;
+    fill: #223042;
+  }
+
+  .chart-svg text,
+  .range-svg text {
+    font-size: 10px;
+    fill: #5a6670;
+    font-family: "Helvetica Neue", Arial, sans-serif;
+  }
+
+  .range-label {
+    font-size: 9px;
+  }
+
+</style>
+</head>
+<body>
+
+    <section class="page">
+      <header class="page-header">
+        <div class="page-header__brand">
+          <div class="page-header__wordmark">Thesis</div>
+          <div class="page-header__meta">Apple Inc. | NASDAQ</div>
+        </div>
+        <div class="page-header__right">
+          <div class="page-header__ticker">AAPL</div>
+          <div class="page-header__date">April 23, 2026</div>
+        </div>
+      </header>
+      <main class="page-body">
+        
+    <div class="eyebrow">Thesis Investment Memo</div>
+    <div class="hero">
+      <div class="hero__copy">
+        <h1>Apple Inc.</h1>
+        <p class="hero__subtitle">AAPL: AAPL thesis: the current quarter (2025-Q4) shows execution strength, but conviction should tr...</p>
+      </div>
+      <div class="hero__signal">
+        <div class="price-chip">Positive</div>
+        <div class="hero__spot">$428.5</div>
+        <div class="hero__upside">-51.9% implied move</div>
+      </div>
+    </div>
+
+    <div class="chip-row">
+      <div class="chip positive"><span>Signal</span><strong>Positive</strong></div>
+      <div class="chip neutral"><span>Confidence</span><strong>high</strong></div>
+      <div class="chip gold"><span>Valuation</span><strong>Valuation range available</strong></div>
+      <div class="chip warning"><span>Coverage</span><strong>12 limitations</strong></div>
+    </div>
+
+    <div class="thesis-box">
+      <h2>Investment view</h2>
+      <p>AAPL thesis: the current quarter (2025-Q4) shows execution strength, but conviction should track whether reported momentum survives the next filing...</p>
+    </div>
+
+    <div class="decision-box">
+      <div class="decision-box__label">Decision question</div>
+      <div class="decision-box__question">Does AAPL still justify confidence on installed-base monetization and ecosystem pricing power, or did the latest...</div>
+    </div>
+
+    <div class="three-up">
+      
+    <div class="editorial-card">
+      <div class="editorial-card__title">What matters now</div>
+      <p>Compared with the prior thesis from 2026-01-15, Signal shifted from neutral to positive. Confidence moved by 25.0 points versus the prior thesis. Core thesis...</p>
+    </div>
+  
+      
+    <div class="editorial-card">
+      <div class="editorial-card__title">What changed</div>
+      <p>2025-Q4 now points to a positive stance, with an explicit thesis-drift summary attached.</p>
+    </div>
+  
+      
+    <div class="editorial-card">
+      <div class="editorial-card__title">What could break the thesis</div>
+      <p>The risk framework is still usable for AAPL, but it needs to be read alongside the current omission notes and evidence-depth limits. The central risk question is not whether AAPL fac...</p>
+    </div>
+  
+    </div>
+
+    <div class="section-panel">
+      <div class="section-panel__header">
+        <div>
+          <div class="section-panel__kicker">Valuation range</div>
+          <h2>Decision range, not a point target</h2>
+        </div>
+        <div class="section-panel__note">Low, base, and high values show how much execution the current price is already asking the business to deli...</div>
+      </div>
+      
+    <svg class="range-svg" viewBox="0 0 540 110" role="img" aria-label="Valuation range">
+      <rect x="0" y="0" width="540" height="110" rx="18" fill="#fbf8f1" />
+      <rect x="42" y="52" width="456" height="12" rx="6" fill="#ded8cb" />
+      <rect x="78.48" y="46" width="93.48261805955963" height="24" rx="12" fill="#d8c299" />
+      
+    <line x1="78.48" y1="34" x2="78.48" y2="76" stroke="#8f8b82" stroke-width="2" />
+    <text x="78.48" y="24" text-anchor="middle" class="range-label">Low $175.2</text>
+  
+      
+    <line x1="125.22130902977983" y1="34" x2="125.22130902977983" y2="76" stroke="#b3874f" stroke-width="2" />
+    <text x="125.22130902977983" y="24" text-anchor="middle" class="range-label">Base $206.1</text>
+  
+      
+    <line x1="171.96261805955962" y1="34" x2="171.96261805955962" y2="76" stroke="#8f8b82" stroke-width="2" />
+    <text x="171.96261805955962" y="24" text-anchor="middle" class="range-label">High $237</text>
+  
+      
+        <circle cx="461.52000000000004" cy="58" r="7" fill="#213141" />
+        <text x="461.52000000000004" y="92" text-anchor="middle" class="range-label">Spot $428.5</text>
+      
+    </svg>
+  
+    </div>
+  
+      </main>
+      <footer class="page-footer">
+        <div>Thesis Due Diligence Report</div>
+        <div>Executive Summary</div>
+        <div>Page 1 of 10</div>
+      </footer>
+    </section>
+  
+
+    <section class="page">
+      <header class="page-header">
+        <div class="page-header__brand">
+          <div class="page-header__wordmark">Thesis</div>
+          <div class="page-header__meta">Apple Inc. | NASDAQ</div>
+        </div>
+        <div class="page-header__right">
+          <div class="page-header__ticker">AAPL</div>
+          <div class="page-header__date">April 23, 2026</div>
+        </div>
+      </header>
+      <main class="page-body">
+        
+    <div class="eyebrow">Financial Analysis</div>
+    <div class="narrative-header">
+      <h1>Financial Analysis</h1>
+      <div class="summary-pill neutral">The financial read remains usable for AAPL, but it is constrained by missing history that needs to stay explicit in the final interpretation.</div>
+    </div>
+    
+      <div class="meta-strip">
+        <span>Coverage: partial</span>
+        <span>Evidence refs: 8</span>
+        <span>Omissions: 2</span>
+      </div>
+    
+    <div class="narrative-columns">
+      <div class="narrative-columns__main">
+        <p>AAPL&#39;s financial case still begins with whether recent operating results are broad enough to support a durable thesis rather than a quarter-only bounce. Revenue moved up (7.62% QOQ) at 69.63B vs 64.7B. Operating Margin moved up (4.50% QOQ) at 44.1 vs 42.2. Free Cash Flow moved up (15.46% YOY) at 22.4B vs 19.4B. The underlying section read remains consistent with that direction: AAPL expanded margins alongside revenue, suggesting operating leverage rather than one-off accounting noise. The point is not that every metric moved perfectly in the same direction, but that revenue conversion, margin behavior, and cash generation can still be discussed as one coherent story instead of as disconnected headlines. That distinction matters because the market often overreacts to single-line beats or misses long before it re-underwrites the quality of the full earnings engine.</p>
+<p>The statement history now available to Thesis includes 3 annual rows and 3 quarterly rows. AAPL delivered year-over-year growth with cloud demand carrying the headline acceleration. Revenue CAGR cannot yet be stated with full confidence from the current annual history. Operating-margin trend is directionally visible, but it remains less complete than a full long-cycle history. That broader time frame matters because investment mistakes usually happen when a single quarter is allowed to overpower the more durable earnings and cash-flow pattern.</p>
+<p>The balance-sheet read remains part of the same story, not a separate appendix. AAPL remains liquid and conservatively financed, with cash coverage that limits near-term balance-sheet stress. Cash-conversion quality is not fully measurable from the current dataset. Leadership reiterated AI capex discipline. When cash generation, liquidity, and operating evidence are aligned, the report can speak with more conviction about quality. When they are not aligned, the correct response is to narrow the stance rather than forcing a cleaner story than the filings support.</p>
+<p>Financial coverage is still omission-aware even when the overall section is usable. Revenue CAGR unavailable: Revenue CAGR could not be computed from annual snapshot history. Cash conversion unavailable: Operating cash flow and net income were not both available for latest annual period. Those omissions matter because they set the edge of what this report can responsibly claim. They do not erase the available evidence, but they do define the confidence interval around any thesis built on that evidence.</p>
+      </div>
+      <aside class="narrative-columns__side">
+        <div class="side-card">
+          <div class="side-card__label">Why this section matters</div>
+          <p>The financial read remains usable for AAPL, but it is constrained by missing history that needs to stay explicit in the final interpretation.</p>
+        </div>
+        <div class="side-card">
+          <div class="side-card__label">Coverage state</div>
+          <p>partial</p>
+        </div>
+        
+          <div class="side-card">
+            <div class="side-card__label">Current limitation</div>
+            <p>Revenue CAGR unavailable: Revenue CAGR could not be computed from annual snapshot history.</p>
+          </div>
+        
+      </aside>
+    </div>
+    
+      <div class="mini-grid">
+        <div class="mini-card">Revenue moved up (7.62% QOQ) at 69.63B vs 64.7B.</div>
+<div class="mini-card">Operating Margin moved up (4.50% QOQ) at 44.1 vs 42.2.</div>
+<div class="mini-card">Free Cash Flow moved up (15.46% YOY) at 22.4B vs 19.4B.</div>
+<div class="mini-card">Cash-conversion quality is not fully measurable from the current dataset.</div>
+      </div>
+    
+    
+  
+      </main>
+      <footer class="page-footer">
+        <div>Thesis Due Diligence Report</div>
+        <div>Financial Analysis</div>
+        <div>Page 2 of 10</div>
+      </footer>
+    </section>
+  
+
+    <section class="page">
+      <header class="page-header">
+        <div class="page-header__brand">
+          <div class="page-header__wordmark">Thesis</div>
+          <div class="page-header__meta">Apple Inc. | NASDAQ</div>
+        </div>
+        <div class="page-header__right">
+          <div class="page-header__ticker">AAPL</div>
+          <div class="page-header__date">April 23, 2026</div>
+        </div>
+      </header>
+      <main class="page-body">
+        
+    <div class="eyebrow">Financial Exhibits</div>
+    <div class="narrative-header">
+      <h1>Financial statement follow-through</h1>
+      <div class="summary-pill neutral">The table and exhibits below are meant to support the narrative, not replace it.</div>
+    </div>
+    <div class="section-panel">
+      <div class="section-panel__header">
+        <div>
+          <div class="section-panel__kicker">Statement table</div>
+          <h2>Four-period financial progression</h2>
+        </div>
+        <div class="section-panel__note">The current table is intentionally shorter because the annual history is incomplete.</div>
+      </div>
+      
+    <table class="financial-table">
+      <thead>
+        <tr>
+          <th>Metric</th>
+          <th>2025-FY</th><th>2024-FY</th><th>2023-FY</th>
+        </tr>
+      </thead>
+      <tbody>
+        
+          <tr>
+            <td>Revenue</td>
+            <td>n/a</td><td>n/a</td><td>n/a</td>
+          </tr>
+        
+
+          <tr>
+            <td>Gross margin</td>
+            <td>n/a</td><td>n/a</td><td>n/a</td>
+          </tr>
+        
+
+          <tr>
+            <td>Operating margin</td>
+            <td>n/a</td><td>n/a</td><td>n/a</td>
+          </tr>
+        
+
+          <tr>
+            <td>Free cash flow</td>
+            <td>$84.1B</td><td>$78.8B</td><td>$72.6B</td>
+          </tr>
+        
+
+          <tr>
+            <td>Net income</td>
+            <td>n/a</td><td>n/a</td><td>n/a</td>
+          </tr>
+        
+      </tbody>
+    </table>
+  
+    </div>
+    <div class="two-up">
+      <div class="section-panel">
+        <div class="section-panel__header">
+          <div>
+            <div class="section-panel__kicker">Trend chart</div>
+            <h2>Revenue and free cash flow</h2>
+          </div>
+        </div>
+        
+    <svg class="chart-svg" viewBox="0 0 420 210" role="img" aria-label="Revenue vs free cash flow">
+      <rect x="0" y="0" width="420" height="210" rx="18" fill="#fbf8f1" />
+      <text x="28" y="22" class="chart-title">Revenue vs free cash flow</text>
+      <line x1="34" y1="170" x2="396" y2="170" stroke="#b9b2a3" stroke-width="1" />
+      
+      <g>
+        <rect x="48" y="166" width="20" height="4" rx="3" fill="#c0a060" />
+        <rect x="74" y="60" width="20" height="110" rx="3" fill="#223042" />
+        <text x="71" y="188" text-anchor="middle">2025-FY</text>
+      </g>
+    
+
+      <g>
+        <rect x="126" y="166" width="20" height="4" rx="3" fill="#c0a060" />
+        <rect x="152" y="66.93222354340072" width="20" height="103.06777645659928" rx="3" fill="#223042" />
+        <text x="149" y="188" text-anchor="middle">2024-FY</text>
+      </g>
+    
+
+      <g>
+        <rect x="204" y="166" width="20" height="4" rx="3" fill="#c0a060" />
+        <rect x="230" y="75.04161712247324" width="20" height="94.95838287752676" rx="3" fill="#223042" />
+        <text x="227" y="188" text-anchor="middle">2023-FY</text>
+      </g>
+    
+    </svg>
+  
+      </div>
+      <div class="section-panel">
+        <div class="section-panel__header">
+          <div>
+            <div class="section-panel__kicker">Margin profile</div>
+            <h2>Gross and operating margin</h2>
+          </div>
+        </div>
+        
+    <svg class="chart-svg" viewBox="0 0 420 210" role="img" aria-label="Gross margin vs operating margin">
+      <rect x="0" y="0" width="420" height="210" rx="18" fill="#fbf8f1" />
+      <text x="28" y="22" class="chart-title">Gross margin vs operating margin</text>
+      <line x1="34" y1="170" x2="396" y2="170" stroke="#b9b2a3" stroke-width="1" />
+      
+      <g>
+        <rect x="48" y="166" width="20" height="4" rx="3" fill="#a7b7c6" />
+        <rect x="74" y="166" width="20" height="4" rx="3" fill="#2f5f4b" />
+        <text x="71" y="188" text-anchor="middle">2025-FY</text>
+      </g>
+    
+
+      <g>
+        <rect x="126" y="166" width="20" height="4" rx="3" fill="#a7b7c6" />
+        <rect x="152" y="166" width="20" height="4" rx="3" fill="#2f5f4b" />
+        <text x="149" y="188" text-anchor="middle">2024-FY</text>
+      </g>
+    
+
+      <g>
+        <rect x="204" y="166" width="20" height="4" rx="3" fill="#a7b7c6" />
+        <rect x="230" y="166" width="20" height="4" rx="3" fill="#2f5f4b" />
+        <text x="227" y="188" text-anchor="middle">2023-FY</text>
+      </g>
+    
+    </svg>
+  
+      </div>
+    </div>
+  
+      </main>
+      <footer class="page-footer">
+        <div>Thesis Due Diligence Report</div>
+        <div>Financial Exhibits</div>
+        <div>Page 3 of 10</div>
+      </footer>
+    </section>
+  
+
+    <section class="page">
+      <header class="page-header">
+        <div class="page-header__brand">
+          <div class="page-header__wordmark">Thesis</div>
+          <div class="page-header__meta">Apple Inc. | NASDAQ</div>
+        </div>
+        <div class="page-header__right">
+          <div class="page-header__ticker">AAPL</div>
+          <div class="page-header__date">April 23, 2026</div>
+        </div>
+      </header>
+      <main class="page-body">
+        
+    <div class="eyebrow">Competitive Positioning</div>
+    <div class="narrative-header">
+      <h1>Competitive Positioning</h1>
+      <div class="summary-pill neutral">Competitive positioning for AAPL is directionally useful, but the report stays disciplined about what the current source plane can and cannot prove.</div>
+    </div>
+    
+      <div class="meta-strip">
+        <span>Coverage: partial</span>
+        <span>Evidence refs: 7</span>
+        <span>Omissions: 1</span>
+      </div>
+    
+    <div class="narrative-columns">
+      <div class="narrative-columns__main">
+        <p>The competitive question for AAPL is less about brand familiarity and more about whether installed-base monetization and ecosystem pricing power still shows up in approved evidence as a durable commercial advantage. The current segment read points to Cloud at 29.1B of revenue, Productivity at 19.7B of revenue That matters because business quality becomes more believable when the report can see where revenue concentration sits and how that concentration interacts with pricing power, customer dependence, or ecosystem stickiness. It also matters because a real competitive edge should eventually reveal itself in the mix of business that management is willing to defend and reinvest behind, not just in descriptive marketing language.</p>
+<p>Cross-name relationship extraction was lighter in this run, so the competitive read leans more heavily on business mix, filings language, and management commentary than on explicit name-to-name mapping. That is still acceptable so long as the report stays disciplined about what it is doing: describing where competitive durability might still exist, not claiming a full industry map that the evidence did not provide.</p>
+<p>Management and event context help turn competitive description into interpretation. Management commentary stayed constructive while still acknowledging execution and risk priorities for AAPL. Major event flow was manageable and did not materially distort the core operating picture for AAPL. Together, those sections matter because competitive positioning is rarely visible in a single data point. It usually shows up in how management explains demand, where product or segment momentum is concentrated, and whether recent corporate events reinforce or complicate the existing thesis.</p>
+<p>This section therefore stays deliberately conservative about unsupported claims. It can say the current evidence still supports a business-quality read when segment mix, relationship mapping, and management commentary point in the same direction. It cannot claim precise market-share dominance, peer displacement, or durable structural advantage unless the approved source set says so directly.</p>
+<p>Structural context: United States remains a high-income market, which supports premium pricing and services monetization.</p>
+      </div>
+      <aside class="narrative-columns__side">
+        <div class="side-card">
+          <div class="side-card__label">Why this section matters</div>
+          <p>Competitive positioning for AAPL is directionally useful, but the report stays disciplined about what the current source plane can and cannot prove.</p>
+        </div>
+        <div class="side-card">
+          <div class="side-card__label">Coverage state</div>
+          <p>partial</p>
+        </div>
+        
+          <div class="side-card">
+            <div class="side-card__label">Current limitation</div>
+            <p>No Explicit Cross Name Relationship Map Was Available For This Run. is limited in this report.</p>
+          </div>
+        
+      </aside>
+    </div>
+    
+      <div class="mini-grid">
+        <div class="mini-card">Cloud remains a visible operating anchor in the latest snapshot.</div>
+<div class="mini-card">Direct cross-name mapping is limited in this run.</div>
+<div class="mini-card">Management context: Management highlighted durable cloud demand and disciplined AI infrastructure spend while maintaining margin focus</div>
+<div class="mini-card">GDP per capita remains a relevant backdrop.</div>
+      </div>
+    
+    
+  
+      </main>
+      <footer class="page-footer">
+        <div>Thesis Due Diligence Report</div>
+        <div>Competitive Positioning</div>
+        <div>Page 4 of 10</div>
+      </footer>
+    </section>
+  
+
+    <section class="page">
+      <header class="page-header">
+        <div class="page-header__brand">
+          <div class="page-header__wordmark">Thesis</div>
+          <div class="page-header__meta">Apple Inc. | NASDAQ</div>
+        </div>
+        <div class="page-header__right">
+          <div class="page-header__ticker">AAPL</div>
+          <div class="page-header__date">April 23, 2026</div>
+        </div>
+      </header>
+      <main class="page-body">
+        
+    <div class="eyebrow">Management and Governance</div>
+    <div class="narrative-header">
+      <h1>Management and Governance</h1>
+      <div class="summary-pill neutral">Management commentary is usable for AAPL, but governance analysis remains intentionally limited to what approved filings and transcripts can actually support.</div>
+    </div>
+    
+    <div class="narrative-columns">
+      <div class="narrative-columns__main">
+        <p>Management commentary matters here because it can either reinforce or weaken the financial interpretation of the quarter. Management commentary stayed constructive while still acknowledging execution and risk priorities for AAPL. The freshest traceable management evidence currently reads: Leadership reiterated AI capex discipline. That language does not settle the thesis by itself, but it does help show whether management priorities, disclosed tradeoffs, and current execution all line up in a way that makes the broader report more credible. In practice, the most useful management signal is not optimism by itself but whether disclosure cadence and operating follow-through stay consistent once the next filing arrives.</p>
+<p>Governance should be read with more humility than management tone. Thesis can discuss capital allocation, disclosure posture, and the consistency between what management says and what the financial statements later confirm. It should not simulate a full board-effectiveness or incentive-design review when proxy-grade evidence is absent. Governance detail is limited because proxy-grade material was not available in this run. That omission is exactly the kind of guardrail that keeps a long-form report from sliding into polished speculation.</p>
+<p>The practical conclusion is that management quality for this run is best inferred from disciplined follow-through rather than adjectives. Value-discipline context remains sparse-data context at 1/9, share-count behavior remains part of the read, and the next step is simple: if management language and the next filing stay consistent, governance confidence can gradually widen; if they do not, the stance should narrow quickly.</p>
+      </div>
+      <aside class="narrative-columns__side">
+        <div class="side-card">
+          <div class="side-card__label">Why this section matters</div>
+          <p>Management commentary is usable for AAPL, but governance analysis remains intentionally limited to what approved filings and transcripts can actually support.</p>
+        </div>
+        <div class="side-card">
+          <div class="side-card__label">Coverage state</div>
+          <p>partial</p>
+        </div>
+        
+          <div class="side-card">
+            <div class="side-card__label">Current limitation</div>
+            <p>Proxy Grade Governance Detail Is Unavailable In The Current Approved Source Plane. is limited in this report.</p>
+          </div>
+        
+      </aside>
+    </div>
+    
+      <div class="mini-grid">
+        <div class="mini-card">Transcript read: Management highlighted durable cloud demand and disciplined AI infrastructure spend while maintaining margin focus</div>
+<div class="mini-card">Value-discipline context: sparse-data context (1/9).</div>
+<div class="mini-card">Governance coverage is limited to approved filings and transcript evidence.</div>
+      </div>
+    
+    <div class="coverage-note">Proxy Grade Governance Detail Is Unavailable In The Current Approved Source Plane. is limited in this report.</div>
+  
+      </main>
+      <footer class="page-footer">
+        <div>Thesis Due Diligence Report</div>
+        <div>Management and Governance</div>
+        <div>Page 5 of 10</div>
+      </footer>
+    </section>
+  
+
+    <section class="page">
+      <header class="page-header">
+        <div class="page-header__brand">
+          <div class="page-header__wordmark">Thesis</div>
+          <div class="page-header__meta">Apple Inc. | NASDAQ</div>
+        </div>
+        <div class="page-header__right">
+          <div class="page-header__ticker">AAPL</div>
+          <div class="page-header__date">April 23, 2026</div>
+        </div>
+      </header>
+      <main class="page-body">
+        
+    <div class="eyebrow">Risks And Challenges</div>
+    <div class="narrative-header">
+      <h1>Risks and Challenges</h1>
+      <div class="summary-pill warning">The risk framework is still usable for AAPL, but it needs to be read alongside the current omission notes and evidence-depth limits.</div>
+    </div>
+    <div class="narrative-columns">
+      <div class="narrative-columns__main">
+        <p>The central risk question is not whether AAPL faces generic uncertainty. Every company does. The real question is which conditions would invalidate the current stance quickly enough that the thesis should be rewritten rather than merely monitored. The report is already carrying explicit omission pressure: Latest source timestamp is 34 day(s) old. Degraded report sections: Value Discipline. That framing matters because a disciplined risk section should tell the reader when a thesis is broken, when it is merely noisier, and which evidence would separate those two states.</p>
+<p>The active kill-switch set is what makes this section actionable instead of decorative. Current break conditions include Price moves 5% against the thesis anchor.; Thesis monitor state becomes weakened or unresolved.; Earnings event introduces a material surprise versus thesis assumptions. These are not generic warning bullets. They define the evidence pattern that would force the current stance back into review even if the top-line story still sounded attractive at first glance.</p>
+<p>The current value-discipline layer does not trigger a value-trap warning, but that is not the same thing as a risk-free setup. Multiple compression, execution slippage, weaker cash conversion, or a deterioration in management guidance can still damage the thesis long before a static quality score fully catches up.</p>
+<p>This is why the risk section stays explicit about uncertainty instead of hiding it inside polished prose. The report should tell the reader what would break the thesis, where omission pressure still exists, and which next filing or management update matters most. If it cannot do those things, it should sound incomplete.</p>
+<p>Structural context: Public debt remains elevated enough to keep macro policy sensitivity in view.</p>
+      </div>
+      <aside class="narrative-columns__side">
+        <div class="side-card">
+          <div class="side-card__label">What would change our mind</div>
+          <p>Compared with the prior thesis from 2026-01-15, Signal shifted from neutral to positive. Confidence moved by 25.0 poi... Price moves 5% against the thesis anchor.</p>
+        </div>
+      </aside>
+    </div>
+    <div class="three-up">
+      
+    <div class="risk-card">
+      <div class="risk-card__label">Price move</div>
+      <h3>Price moves 5% against the thesis anchor.</h3>
+      <p>Detects immediate market divergence against your positive thesis.</p>
+    </div>
+  
+
+    <div class="risk-card">
+      <div class="risk-card__label">Thesis state</div>
+      <h3>Thesis monitor state becomes weakened or unresolved.</h3>
+      <p>Captures structural thesis degradation from monitor recompute, not only price volatility.</p>
+    </div>
+  
+
+    <div class="risk-card">
+      <div class="risk-card__label">Earnings Event</div>
+      <h3>Earnings event introduces a material surprise versus thesis assumptions.</h3>
+      <p>Prioritizes quarterly events that can quickly invalidate assumptions.</p>
+    </div>
+  
+    </div>
+  
+      </main>
+      <footer class="page-footer">
+        <div>Thesis Due Diligence Report</div>
+        <div>Risks and Challenges</div>
+        <div>Page 6 of 10</div>
+      </footer>
+    </section>
+  
+
+    <section class="page">
+      <header class="page-header">
+        <div class="page-header__brand">
+          <div class="page-header__wordmark">Thesis</div>
+          <div class="page-header__meta">Apple Inc. | NASDAQ</div>
+        </div>
+        <div class="page-header__right">
+          <div class="page-header__ticker">AAPL</div>
+          <div class="page-header__date">April 23, 2026</div>
+        </div>
+      </header>
+      <main class="page-body">
+        
+    <div class="eyebrow">Growth Opportunities and Outlook</div>
+    <div class="narrative-header">
+      <h1>Growth Opportunities and Outlook</h1>
+      <div class="summary-pill neutral">The outlook section remains useful for AAPL, but it is intentionally narrow where approved growth evidence is incomplete.</div>
+    </div>
+    
+      <div class="meta-strip">
+        <span>Coverage: partial</span>
+        <span>Evidence refs: 8</span>
+        <span>Omissions: 1</span>
+      </div>
+    
+    <div class="narrative-columns">
+      <div class="narrative-columns__main">
+        <p>The most important growth question for AAPL is whether installed-base monetization and ecosystem pricing power still has enough operating support to matter over the next several reporting windows. Cloud at 29.1B of revenue, Productivity at 19.7B of revenue That matters because the outlook is strongest when it can point to visible business drivers rather than to abstract stories about optionality or total addressable market. The next reporting window should therefore be judged by which driver is actually funding incremental margin, cash generation, or strategic reinvestment rather than by headline enthusiasm alone.</p>
+<p>Management context helps sharpen that read without overreaching. The latest approved transcript language suggests &quot;Management highlighted durable cloud demand and disciplined AI infrastructure spend while maintaining margin focus.&quot; That is meaningful only if later filings continue to validate disciplined execution, demand durability, or margin conversion. In other words, transcript color is useful when it frames the next evidence to watch, not when it substitutes for that evidence.</p>
+<p>Recent operating context also matters because outlook is rarely a clean continuation of the last quarter. AAPL delivered sequential growth with cloud demand carrying the headline acceleration. Major event flow was manageable and did not materially distort the core operating picture for AAPL. Together, those pieces help the report explain why the next step in the thesis is not just &quot;more growth,&quot; but a more specific question about whether visible business drivers are still converting into durable operating quality and cash generation.</p>
+<p>This section therefore stays conservative by design. It can identify catalysts, segment pressure points, and areas where management appears to be investing behind the thesis. It should not pretend to know the full forward arc unless that view is already supported inside the approved source plane.</p>
+<p>Structural context: United States still offers a large domestic demand base for scaled consumer and enterprise franchises.</p>
+      </div>
+      <aside class="narrative-columns__side">
+        <div class="side-card">
+          <div class="side-card__label">Why this section matters</div>
+          <p>The outlook section remains useful for AAPL, but it is intentionally narrow where approved growth evidence is incomplete.</p>
+        </div>
+        <div class="side-card">
+          <div class="side-card__label">Coverage state</div>
+          <p>partial</p>
+        </div>
+        
+          <div class="side-card">
+            <div class="side-card__label">Current limitation</div>
+            <p>Latest source timestamp is 34 day(s) old.</p>
+          </div>
+        
+      </aside>
+    </div>
+    
+      <div class="mini-grid">
+        <div class="mini-card">Cloud is the clearest visible growth lens in the latest snapshot.</div>
+<div class="mini-card">Management outlook: Management highlighted durable cloud demand and disciplined AI infrastructure spend while maintaining margin focus</div>
+<div class="mini-card">Compared with the prior thesis from 2026-01-15, Signal shifted from neutral to positive. Confidence moved by 25.0 points versus the prior thesis. Core thesis framing changed materially from the prior report.</div>
+<div class="mini-card">Population helps frame the current opportunity set.</div>
+      </div>
+    
+    
+  
+      </main>
+      <footer class="page-footer">
+        <div>Thesis Due Diligence Report</div>
+        <div>Growth Outlook</div>
+        <div>Page 7 of 10</div>
+      </footer>
+    </section>
+  
+
+    <section class="page">
+      <header class="page-header">
+        <div class="page-header__brand">
+          <div class="page-header__wordmark">Thesis</div>
+          <div class="page-header__meta">Apple Inc. | NASDAQ</div>
+        </div>
+        <div class="page-header__right">
+          <div class="page-header__ticker">AAPL</div>
+          <div class="page-header__date">April 23, 2026</div>
+        </div>
+      </header>
+      <main class="page-body">
+        
+    <div class="eyebrow">Valuation And Thesis Stance</div>
+    <div class="narrative-header">
+      <h1>Valuation and Thesis Stance</h1>
+      <div class="summary-pill gold">Thesis stance for AAPL remains positive, with deterministic valuation providing a disciplined range rather than a narrative shortcut.</div>
+    </div>
+    <div class="narrative-columns">
+      <div class="narrative-columns__main">
+        <p>The current Thesis stance on AAPL remains positive, and the valuation discussion is deliberately framed as a decision process rather than as a single-point target. Fair value centers near 206.1 with a bounded range from 175.18 to 237.01. Against a spot reference of 428.52, that leaves implied upside at -51.91%. The range matters less as a marketing number than as a discipline check on whether the current operating evidence is strong enough to justify staying constructive at today&#39;s price.</p>
+<p>That numerical range only matters because it sits on top of an operating case. The stance remains constructive only if installed-base monetization and ecosystem pricing power continues to convert into reported outcomes, omission pressure remains controlled, and the trust state does not deteriorate without explanation. Compared with the prior thesis from 2026-01-15, Signal shifted from neutral to positive. Confidence moved by 25.0 points versus the prior thesis. Core thesis framing changed materially from the prior report. In that sense, valuation is not the thesis itself. It is the framework that tests whether the thesis is still worth owning at the current price.</p>
+<p>The assumption discipline is equally important. The deterministic setup remains usable with WACC at 9.50%, terminal growth at 2.50%, and a 5-year projection horizon. That matters because long-form due diligence becomes less useful, not more, when it hides the assumptions doing the real work.</p>
+<p>What would change our mind is not vague. The current stance would need to be reviewed if conditions such as Price moves 5% against the thesis anchor. or Thesis monitor state becomes weakened or unresolved. begin showing up in the evidence. That keeps valuation anchored to falsifiable business outcomes instead of letting the report drift into a static target-price exercise.</p>
+      </div>
+      <aside class="narrative-columns__side">
+        <div class="side-card">
+          <div class="side-card__label">Assumption frame</div>
+          <p>DCF-based scenario framework</p>
+        </div>
+      </aside>
+    </div>
+    <div class="two-up">
+      <div class="section-panel">
+        <div class="section-panel__header">
+          <div>
+            <div class="section-panel__kicker">Scenario table</div>
+            <h2>Bear, base, and bull</h2>
+          </div>
+        </div>
+        
+    <table class="scenario-table">
+      <thead>
+        <tr>
+          <th></th>
+          <th>Bear</th>
+          <th>Base</th>
+          <th>Bull</th>
+        </tr>
+      </thead>
+      <tbody>
+        
+          <tr>
+            <td>Fair value</td>
+            <td>$175.2</td>
+            <td>$206.1</td>
+            <td>$237</td>
+          </tr>
+        
+
+          <tr>
+            <td>Implied move</td>
+            <td>-59.1%</td>
+            <td>-51.9%</td>
+            <td>-44.7%</td>
+          </tr>
+        
+
+          <tr>
+            <td>Key assumption</td>
+            <td>Lower conversion from growth into cash flow</td>
+            <td>WACC 9.5%</td>
+            <td>Margin resilience and stronger cash conversion</td>
+          </tr>
+        
+
+          <tr>
+            <td>Main risk</td>
+            <td>Price moves 5% against the thesis anchor.</td>
+            <td>The current operating case stalls</td>
+            <td>The market already discounts the upside</td>
+          </tr>
+        
+      </tbody>
+    </table>
+  
+      </div>
+      <div class="section-panel">
+        <div class="section-panel__header">
+          <div>
+            <div class="section-panel__kicker">Range view</div>
+            <h2>Where spot sits today</h2>
+          </div>
+        </div>
+        
+    <svg class="range-svg" viewBox="0 0 540 110" role="img" aria-label="Valuation range">
+      <rect x="0" y="0" width="540" height="110" rx="18" fill="#fbf8f1" />
+      <rect x="42" y="52" width="456" height="12" rx="6" fill="#ded8cb" />
+      <rect x="78.48" y="46" width="93.48261805955963" height="24" rx="12" fill="#d8c299" />
+      
+    <line x1="78.48" y1="34" x2="78.48" y2="76" stroke="#8f8b82" stroke-width="2" />
+    <text x="78.48" y="24" text-anchor="middle" class="range-label">Low $175.2</text>
+  
+      
+    <line x1="125.22130902977983" y1="34" x2="125.22130902977983" y2="76" stroke="#b3874f" stroke-width="2" />
+    <text x="125.22130902977983" y="24" text-anchor="middle" class="range-label">Base $206.1</text>
+  
+      
+    <line x1="171.96261805955962" y1="34" x2="171.96261805955962" y2="76" stroke="#8f8b82" stroke-width="2" />
+    <text x="171.96261805955962" y="24" text-anchor="middle" class="range-label">High $237</text>
+  
+      
+        <circle cx="461.52000000000004" cy="58" r="7" fill="#213141" />
+        <text x="461.52000000000004" y="92" text-anchor="middle" class="range-label">Spot $428.5</text>
+      
+    </svg>
+  
+      </div>
+    </div>
+  
+      </main>
+      <footer class="page-footer">
+        <div>Thesis Due Diligence Report</div>
+        <div>Valuation and Stance</div>
+        <div>Page 8 of 10</div>
+      </footer>
+    </section>
+  
+
+    <section class="page">
+      <header class="page-header">
+        <div class="page-header__brand">
+          <div class="page-header__wordmark">Thesis</div>
+          <div class="page-header__meta">Apple Inc. | NASDAQ</div>
+        </div>
+        <div class="page-header__right">
+          <div class="page-header__ticker">AAPL</div>
+          <div class="page-header__date">April 23, 2026</div>
+        </div>
+      </header>
+      <main class="page-body">
+        
+    <div class="eyebrow">Evidence And Coverage</div>
+    <div class="narrative-header">
+      <h1>Evidence, omissions, and source discipline</h1>
+      <div class="summary-pill neutral">This report covers the latest company data Thesis could verify and explicitly lists what is missing instead of filling gaps with guesses.</div>
+    </div>
+    <div class="two-up">
+      <div class="section-panel">
+        <div class="section-panel__header">
+          <div>
+            <div class="section-panel__kicker">Evidence used</div>
+            <h2>Primary support trail</h2>
+          </div>
+        </div>
+        <ul class="evidence-list">
+          <li>historical:fixture_historical: AAPL 2025-Q4 snapshot</li>
+<li>historical:fixture_transcript: AAPL 2025-Q4 earnings call transcript</li>
+<li>Company filings: No transformative acquisition closed in the quarter.</li>
+<li>FY2025 Q2 earnings call: Leadership reiterated AI capex discipline.</li>
+<li>10-Q risk factors: Cybersecurity and competition remain key risks.</li>
+<li>FY2025 Q2 10-Q: Revenue increased quarter over quarter.</li>
+<li>FY2025 Q2 earnings call: Cloud demand improved sequentially.</li>
+<li>FY2025 Q2 10-Q: Revenue increased 15% year over year.</li>
+        </ul>
+      </div>
+      <div class="section-panel">
+        <div class="section-panel__header">
+          <div>
+            <div class="section-panel__kicker">Coverage limitations</div>
+            <h2>What stayed constrained</h2>
+          </div>
+        </div>
+        <ul class="evidence-list">
+          <li>Latest source timestamp is 34 day(s) old.</li>
+<li>Degraded report sections: Value Discipline.</li>
+<li>Revenue CAGR unavailable: Revenue CAGR could not be computed from annual snapshot history.</li>
+<li>Cash conversion unavailable: Operating cash flow and net income were not both available for latest annual period.</li>
+<li>Value signal unavailable: Positive return on assets</li>
+<li>Value signal unavailable: Positive operating cash flow</li>
+<li>Value signal unavailable: ROA improving vs prior year</li>
+<li>Value signal unavailable: Cash flow exceeds net income</li>
+<li>Value signal unavailable: Leverage declining</li>
+<li>Value signal unavailable: Liquidity buffer improving</li>
+        </ul>
+      </div>
+    </div>
+  
+      </main>
+      <footer class="page-footer">
+        <div>Thesis Due Diligence Report</div>
+        <div>Evidence and Omissions</div>
+        <div>Page 9 of 10</div>
+      </footer>
+    </section>
+  
+
+    <section class="page">
+      <header class="page-header">
+        <div class="page-header__brand">
+          <div class="page-header__wordmark">Thesis</div>
+          <div class="page-header__meta">Apple Inc. | NASDAQ</div>
+        </div>
+        <div class="page-header__right">
+          <div class="page-header__ticker">AAPL</div>
+          <div class="page-header__date">April 23, 2026</div>
+        </div>
+      </header>
+      <main class="page-body">
+        
+    <div class="eyebrow">Appendix And Source Notes</div>
+    <div class="narrative-header">
+      <h1>Appendix</h1>
+      <div class="summary-pill neutral">This closing page preserves the structured trail behind the long-form memo.</div>
+    </div>
+    <div class="section-panel">
+      <div class="section-panel__header">
+        <div>
+          <div class="section-panel__kicker">Section ledger</div>
+          <h2>Canonical due-diligence map</h2>
+        </div>
+      </div>
+      <div class="appendix-grid">
+        
+    <div class="appendix-item">
+      <div class="appendix-item__title">Financial Analysis</div>
+      <div class="appendix-item__meta">Coverage partial | Evidence refs 8</div>
+      <p>The financial read remains usable for AAPL, but it is constrained by missing history that needs to stay explicit in the final interpretation.</p>
+    </div>
+  
+
+    <div class="appendix-item">
+      <div class="appendix-item__title">Competitive Positioning</div>
+      <div class="appendix-item__meta">Coverage partial | Evidence refs 7</div>
+      <p>Competitive positioning for AAPL is directionally useful, but the report stays disciplined about what the current source plane can and cannot prove.</p>
+    </div>
+  
+
+    <div class="appendix-item">
+      <div class="appendix-item__title">Management and Governance</div>
+      <div class="appendix-item__meta">Coverage partial | Evidence refs 6</div>
+      <p>Management commentary is usable for AAPL, but governance analysis remains intentionally limited to what approved filings and transcripts can actually support.</p>
+    </div>
+  
+
+    <div class="appendix-item">
+      <div class="appendix-item__title">Risks and Challenges</div>
+      <div class="appendix-item__meta">Coverage partial | Evidence refs 8</div>
+      <p>The risk framework is still usable for AAPL, but it needs to be read alongside the current omission notes and evidence-depth limits.</p>
+    </div>
+  
+
+    <div class="appendix-item">
+      <div class="appendix-item__title">Growth Opportunities and Outlook</div>
+      <div class="appendix-item__meta">Coverage partial | Evidence refs 8</div>
+      <p>The outlook section remains useful for AAPL, but it is intentionally narrow where approved growth evidence is incomplete.</p>
+    </div>
+  
+
+    <div class="appendix-item">
+      <div class="appendix-item__title">Valuation and Thesis Stance</div>
+      <div class="appendix-item__meta">Coverage full | Evidence refs 8</div>
+      <p>Thesis stance for AAPL remains positive, with deterministic valuation providing a disciplined range rather than a narrative shortcut.</p>
+    </div>
+  
+      </div>
+    </div>
+    <div class="appendix-note">Generated April 23, 2026. Thesis uses stance language only and remains omission-aware where the source plane is incomplete.</div>
+  
+      </main>
+      <footer class="page-footer">
+        <div>Thesis Due Diligence Report</div>
+        <div>Appendix</div>
+        <div>Page 10 of 10</div>
+      </footer>
+    </section>
+  
+</body>
+</html>

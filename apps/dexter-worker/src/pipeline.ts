@@ -9,6 +9,7 @@ import type {
   ConfidenceBlock,
   CoverageTruthBlock,
   DeepDiveExplainers,
+  DueDiligenceBlock,
   DeepDiveVisualPanel,
   EvidenceItem,
   InvestmentMemoBlock,
@@ -653,6 +654,77 @@ function companyAngleForTicker(ticker: string): string {
   }
 }
 
+function issuerForTicker(ticker: string): AnalysisReport["issuer"] | undefined {
+  switch (ticker.trim().toUpperCase()) {
+    case "AAPL":
+      return { name: "Apple Inc.", exchange: "NASDAQ" };
+    case "MSFT":
+      return { name: "Microsoft Corporation", exchange: "NASDAQ" };
+    case "TSLA":
+      return { name: "Tesla, Inc.", exchange: "NASDAQ" };
+    case "NVDA":
+      return { name: "NVIDIA Corporation", exchange: "NASDAQ" };
+    case "AMZN":
+      return { name: "Amazon.com, Inc.", exchange: "NASDAQ" };
+    case "META":
+      return { name: "Meta Platforms, Inc.", exchange: "NASDAQ" };
+    case "GOOGL":
+      return { name: "Alphabet Inc.", exchange: "NASDAQ" };
+    default:
+      return undefined;
+  }
+}
+
+function humanizeContextLabel(contextLabel: string): string {
+  switch (contextLabel) {
+    case "quality_mega_cap":
+      return "large-cap quality context";
+    case "value_cyclical":
+      return "cyclical value context";
+    case "distressed":
+      return "distressed context";
+    case "financial":
+      return "financial-company context";
+    case "sparse_data":
+      return "sparse-data context";
+    default:
+      return contextLabel.replace(/[_-]+/g, " ");
+  }
+}
+
+function reportSectionBodyExcerpt(
+  sections: ReportSection[],
+  sectionId: string,
+  fallback: string,
+  maxLength = 260
+): string {
+  const body = findReportSection(sections, sectionId)?.body;
+  if (!body || body.trim().length === 0) {
+    return fallback;
+  }
+  return summarizeText(body, maxLength);
+}
+
+function reportSectionEvidenceExcerpt(
+  sections: ReportSection[],
+  sectionId: string,
+  fallback: string,
+  maxLength = 180
+): string {
+  const evidence = findReportSection(sections, sectionId)?.evidence[0]?.excerpt;
+  if (!evidence || evidence.trim().length === 0) {
+    return fallback;
+  }
+  return summarizeText(evidence, maxLength);
+}
+
+function findDueDiligenceSection(
+  dueDiligence: DueDiligenceBlock,
+  sectionId: string
+) {
+  return dueDiligence.sections.find((section) => section.section_id === sectionId);
+}
+
 function extractComparisonLine(args: {
   context: M2SectionContext;
   metric: "revenue" | "operating_margin" | "free_cash_flow";
@@ -698,49 +770,42 @@ function buildInvestmentMemo(args: {
   valuation?: ValuationBlock;
   valueDiscipline: NonNullable<AnalysisReport["value_discipline"]>;
   financialAnalysis: NonNullable<AnalysisReport["financial_analysis"]>;
+  dueDiligence: DueDiligenceBlock;
   signalEvidence: EvidenceItem[];
   promptVersion: string;
   fixtureMode: boolean;
 }): InvestmentMemoBlock {
   const ticker = args.ticker.trim().toUpperCase();
   const companyAngle = companyAngleForTicker(ticker);
-  const revenueQoq = extractComparisonLine({
-    context: args.context,
-    metric: "revenue",
-    basis: "qoq"
-  });
-  const marginQoq = extractComparisonLine({
-    context: args.context,
-    metric: "operating_margin",
-    basis: "qoq"
-  });
-  const fcfYoy = extractComparisonLine({
-    context: args.context,
-    metric: "free_cash_flow",
-    basis: "yoy"
-  });
+  const financialSection = findDueDiligenceSection(args.dueDiligence, "financial_analysis");
+  const competitiveSection = findDueDiligenceSection(args.dueDiligence, "competitive_positioning");
+  const riskSection = findDueDiligenceSection(args.dueDiligence, "risks_and_challenges");
+  const valuationSection = findDueDiligenceSection(args.dueDiligence, "valuation_and_thesis_stance");
+  const growthSection = findDueDiligenceSection(args.dueDiligence, "growth_opportunities_and_outlook");
   const missingSummary = args.trustMetadata.missing_data_notes.length > 0
     ? args.trustMetadata.missing_data_notes.join(" ")
     : "No major omission note is currently flagged.";
-  const valuationSummary = args.valuation?.degraded_reason
-    ? `Valuation is degraded because ${args.valuation.degraded_reason}.`
-    : args.valuation?.fair_value_mid !== undefined
-      ? `Deterministic valuation is centered near ${formatNumber(args.valuation.fair_value_mid)} with explicit scenario bounds.`
-      : "Valuation is currently omission-forward because deterministic assumptions are incomplete.";
+  const valuationSummary = valuationSection?.summary
+    ?? (args.valuation?.degraded_reason
+      ? `Valuation is degraded because ${args.valuation.degraded_reason}.`
+      : args.valuation?.fair_value_mid !== undefined
+        ? `Deterministic valuation is centered near ${formatNumber(args.valuation.fair_value_mid)} with explicit scenario bounds.`
+        : "Valuation is currently omission-forward because deterministic assumptions are incomplete.");
   const decisionQuestion = `Does ${ticker} still justify confidence on ${companyAngle}, or did the latest evidence shift the thesis into watch mode?`;
-  const openingArgument = args.signalValue === "positive"
-    ? `${ticker} keeps a constructive thesis because ${companyAngle} is still translating into measurable operating outcomes.`
-    : args.signalValue === "negative"
-      ? `${ticker} now reads defensively because recent evidence weakens the prior thesis on ${companyAngle}.`
-      : args.signalValue === "neutral"
-        ? `${ticker} remains balanced: the thesis on ${companyAngle} is intact, but the latest evidence does not justify a stronger directional call.`
-        : `${ticker} is currently a watch-case because evidence quality is not yet strong enough to support a directional thesis on ${companyAngle}.`;
+  const openingArgument = financialSection?.summary
+    ?? (args.signalValue === "positive"
+      ? `${ticker} keeps a constructive thesis because ${companyAngle} is still translating into measurable operating outcomes.`
+      : args.signalValue === "negative"
+        ? `${ticker} now reads defensively because recent evidence weakens the prior thesis on ${companyAngle}.`
+        : args.signalValue === "neutral"
+          ? `${ticker} remains balanced: the thesis on ${companyAngle} is intact, but the latest evidence does not justify a stronger directional call.`
+          : `${ticker} is currently a watch-case because evidence quality is not yet strong enough to support a directional thesis on ${companyAngle}.`);
 
   const sections: InvestmentMemoBlock["sections"] = [
     {
       section_id: "investment_thesis",
       title: "Investment Thesis",
-      narrative: `${openingArgument} Confidence is ${args.confidence.label} (${Math.round(args.confidence.score * 100)}/100), and the decision still depends on whether execution remains durable through the next filing cycle.`,
+      narrative: `${openingArgument} ${financialSection?.narrative_paragraphs[0] ?? ""} Confidence is ${args.confidence.label} (${Math.round(args.confidence.score * 100)}/100), and the decision still depends on whether execution remains durable through the next filing cycle.`,
       key_points: [
         `Decision question: ${decisionQuestion}`,
         `Current signal: ${args.signalValue}`,
@@ -750,27 +815,27 @@ function buildInvestmentMemo(args: {
     {
       section_id: "what_changed",
       title: "What Changed",
-      narrative: `${revenueQoq.line} ${marginQoq.line} Thesis drift status is ${args.trustMetadata.thesis_drift.status}: ${args.trustMetadata.thesis_drift.summary}`,
+      narrative: `${competitiveSection?.summary ?? "Competitive posture still matters to the current thesis."} ${growthSection?.summary ?? ""} Thesis drift status is ${args.trustMetadata.thesis_drift.status}: ${args.trustMetadata.thesis_drift.summary}`,
       key_points: [
-        revenueQoq.line,
-        marginQoq.line,
+        financialSection?.key_points[0] ?? "Financial direction still matters.",
+        growthSection?.key_points[0] ?? "The next filing still matters more than the headline alone.",
         `Thesis drift: ${args.trustMetadata.thesis_drift.summary}`
       ]
     },
     {
       section_id: "business_quality",
       title: "Business Quality",
-      narrative: `${ticker}'s quality lens is anchored on ${companyAngle}. ${fcfYoy.line} Value-discipline context is ${args.valueDiscipline.context_label} with score ${args.valueDiscipline.score}/${args.valueDiscipline.max_score}.`,
+      narrative: `${competitiveSection?.summary ?? `${ticker}'s quality lens is anchored on ${companyAngle}.`} ${competitiveSection?.narrative_paragraphs[0] ?? ""} Value-discipline context is ${humanizeContextLabel(args.valueDiscipline.context_label)} with score ${args.valueDiscipline.score}/${args.valueDiscipline.max_score}.`,
       key_points: [
         `Quality angle: ${companyAngle}`,
-        fcfYoy.line,
-        `Value context: ${args.valueDiscipline.context_label}`
+        competitiveSection?.key_points[0] ?? "Business quality remains tied to execution quality.",
+        `Value context: ${humanizeContextLabel(args.valueDiscipline.context_label)}`
       ]
     },
     {
       section_id: "valuation",
       title: "Valuation",
-      narrative: valuationSummary,
+      narrative: `${valuationSummary} ${valuationSection?.narrative_paragraphs[0] ?? ""}`.trim(),
       key_points: [
         args.valuation?.fair_value_mid !== undefined
           ? `Fair-value midpoint: ${formatNumber(args.valuation.fair_value_mid)}`
@@ -787,8 +852,8 @@ function buildInvestmentMemo(args: {
       section_id: "risks",
       title: "Risks",
       narrative: args.valueDiscipline.value_trap_warning.triggered
-        ? `${args.valueDiscipline.value_trap_warning.summary} ${missingSummary}`
-        : `Primary risk controls remain evidence freshness and omission visibility. ${missingSummary}`,
+        ? `${args.valueDiscipline.value_trap_warning.summary} ${riskSection?.summary ?? ""} ${missingSummary}`
+        : `${riskSection?.summary ?? "Primary risk controls remain evidence freshness and omission visibility."} ${riskSection?.narrative_paragraphs[0] ?? ""} ${missingSummary}`,
       key_points: [
         args.valueDiscipline.value_trap_warning.summary,
         `Freshness state: ${args.trustMetadata.freshness_state}`,
@@ -798,18 +863,34 @@ function buildInvestmentMemo(args: {
   ];
 
   const evidenceSupport = args.signalEvidence[0];
+  const financialSupportRefs = financialSection?.evidence_refs ?? [];
+  const valuationSupportRefs = valuationSection?.evidence_refs ?? [];
+  const riskSupportRefs = riskSection?.evidence_refs ?? [];
+  const financialCoverageLimited = financialSection?.coverage_state === "limited";
+  const valuationCoverageLimited = valuationSection?.coverage_state === "limited" || Boolean(args.valuation?.degraded_reason);
+  const riskCoverageLimited = riskSection?.coverage_state === "limited" || args.trustMetadata.missing_data_notes.length > 0;
   const materialClaims: InvestmentMemoBlock["material_claims"] = [
     {
       claim_id: "claim-thesis-direction",
       section_id: "investment_thesis",
       statement: openingArgument,
       materiality: "material",
-      supports: revenueQoq.available
+      supports: financialCoverageLimited
+        ? [
+            {
+              support_type: "omission",
+              ref_id: "trust:missing_data_notes",
+              summary: args.trustMetadata.missing_data_notes[0]
+                ?? financialSection?.omissions[0]
+                ?? "Evidence depth is currently constrained."
+            }
+          ]
+        : financialSupportRefs.length > 0
         ? [
             {
               support_type: "metric",
-              ref_id: revenueQoq.refId,
-              summary: revenueQoq.line
+              ref_id: financialSupportRefs[0] ?? "due_diligence:financial_analysis",
+              summary: financialSection?.summary ?? openingArgument
             }
           ]
         : evidenceSupport
@@ -833,12 +914,22 @@ function buildInvestmentMemo(args: {
       section_id: "valuation",
       statement: valuationSummary,
       materiality: "material",
-      supports: args.valuation?.fair_value_mid !== undefined
+      supports: valuationCoverageLimited
+        ? [
+            {
+              support_type: "omission",
+              ref_id: "valuation:degraded_reason",
+              summary: args.valuation?.degraded_reason
+                ?? valuationSection?.omissions[0]
+                ?? "Valuation inputs are insufficient."
+            }
+          ]
+        : valuationSupportRefs.length > 0
         ? [
             {
               support_type: "metric",
-              ref_id: "valuation:fair_value_mid",
-              summary: `Fair-value midpoint ${formatNumber(args.valuation.fair_value_mid)}.`
+              ref_id: valuationSupportRefs[0] ?? "valuation:fair_value_mid",
+              summary: valuationSection?.summary ?? valuationSummary
             }
           ]
         : [
@@ -855,12 +946,22 @@ function buildInvestmentMemo(args: {
       statement: sections.find((section) => section.section_id === "risks")?.narrative ??
         "Risk controls require explicit omission handling.",
       materiality: "material",
-      supports: args.trustMetadata.missing_data_notes.length > 0
+      supports: riskCoverageLimited
         ? [
             {
               support_type: "omission",
               ref_id: "trust:missing_data_notes",
-              summary: args.trustMetadata.missing_data_notes[0] ?? "Missing-data note available."
+              summary: args.trustMetadata.missing_data_notes[0]
+                ?? riskSection?.omissions[0]
+                ?? "Missing-data note available."
+            }
+          ]
+        : riskSupportRefs.length > 0
+        ? [
+            {
+              support_type: "evidence",
+              ref_id: riskSupportRefs[0] ?? "due_diligence:risks_and_challenges",
+              summary: riskSection?.summary ?? "Risk framework remains explicit."
             }
           ]
         : [
@@ -873,8 +974,8 @@ function buildInvestmentMemo(args: {
     }
   ];
 
-  const sparseDataHonestyNote = args.financialAnalysis.omissions.length > 0
-    ? `Sparse-data handling is active: ${args.financialAnalysis.omissions[0]?.reason ?? "financial inputs are incomplete."}`
+  const sparseDataHonestyNote = args.dueDiligence.sections.some((section) => section.coverage_state === "limited")
+    ? `Sparse-data handling is active: ${args.dueDiligence.sections.find((section) => section.coverage_state === "limited")?.omissions[0] ?? args.financialAnalysis.omissions[0]?.reason ?? "financial inputs are incomplete."}`
     : "Sparse-data handling is inactive for this report because core financial inputs are present.";
 
   return {
@@ -886,6 +987,468 @@ function buildInvestmentMemo(args: {
     material_claims: materialClaims,
     unsupported_claims: [],
     sparse_data_honesty_note: sparseDataHonestyNote
+  };
+}
+
+function uniqueStrings(values: Array<string | undefined>, maxItems?: number): string[] {
+  const deduped = Array.from(
+    new Set(
+      values.filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+    )
+  );
+  return maxItems === undefined ? deduped : deduped.slice(0, maxItems);
+}
+
+function findReportSection(sections: ReportSection[], sectionId: string): ReportSection | undefined {
+  return sections.find((section) => section.section_id === sectionId);
+}
+
+function collectEvidenceRefs(args: {
+  sections: ReportSection[];
+  sectionIds?: string[];
+  evidence?: EvidenceItem[];
+  extras?: string[];
+  maxItems?: number;
+}): string[] {
+  const refs: string[] = [];
+
+  for (const sectionId of args.sectionIds ?? []) {
+    const section = findReportSection(args.sections, sectionId);
+    if (!section) {
+      continue;
+    }
+    refs.push(`section:${section.section_id}`);
+    refs.push(...section.evidence.map((item) => `evidence:${item.evidence_id}`));
+  }
+
+  for (const item of args.evidence ?? []) {
+    refs.push(`evidence:${item.evidence_id}`);
+  }
+
+  refs.push(...(args.extras ?? []));
+  return uniqueStrings(refs, args.maxItems ?? 8);
+}
+
+function trendMetricByKey(
+  financialAnalysis: NonNullable<AnalysisReport["financial_analysis"]>,
+  key: string
+) {
+  return financialAnalysis.trend_metrics.find((metric) => metric.key === key) ??
+    financialAnalysis.quality_metrics.find((metric) => metric.key === key);
+}
+
+function annualMetricSummary(
+  financialAnalysis: NonNullable<AnalysisReport["financial_analysis"]>,
+  key: string,
+  fallback: string
+): string {
+  const metric = trendMetricByKey(financialAnalysis, key);
+  if (!metric || metric.status !== "available" || metric.value === undefined) {
+    return fallback;
+  }
+
+  const formattedValue = metric.unit === "pct"
+    ? formatPercent(metric.value)
+    : metric.unit === "ratio"
+      ? metric.value.toFixed(2)
+      : formatNumber(metric.value);
+  return `${metric.label} is ${formattedValue} and currently reads ${metric.direction}.`;
+}
+
+function buildDueDiligence(args: {
+  ticker: string;
+  signalValue: SignalValue;
+  confidence: ConfidenceBlock;
+  trustMetadata: TrustMetadata;
+  context: M2SectionContext;
+  valuation?: ValuationBlock;
+  valueDiscipline: NonNullable<AnalysisReport["value_discipline"]>;
+  financialAnalysis: NonNullable<AnalysisReport["financial_analysis"]>;
+  sections: ReportSection[];
+  killSwitchConditions: KillSwitchConditionDraft[];
+  nameRelationships: NameRelationshipDraft[];
+  promptVersion: string;
+  fixtureMode: boolean;
+}): DueDiligenceBlock {
+  const ticker = args.ticker.trim().toUpperCase();
+  const companyAngle = companyAngleForTicker(ticker);
+  const revenueMarginBody = reportSectionBodyExcerpt(
+    args.sections,
+    "revenue_margin_analysis",
+    "Recent operating results need to be read through the joint lens of revenue conversion, margin quality, and cash generation."
+  );
+  const qoqBody = reportSectionBodyExcerpt(
+    args.sections,
+    "quarter_over_quarter_changes",
+    "Quarter-over-quarter changes remain useful, but they should not dominate the thesis on their own."
+  );
+  const yoyBody = reportSectionBodyExcerpt(
+    args.sections,
+    "year_over_year_changes",
+    "Year-over-year comparisons help keep one-quarter noise from becoming the whole story."
+  );
+  const debtBody = reportSectionBodyExcerpt(
+    args.sections,
+    "debt_liquidity",
+    "Balance-sheet resilience still matters because valuation only deserves confidence when liquidity remains intact."
+  );
+  const eventsBody = reportSectionBodyExcerpt(
+    args.sections,
+    "acquisitions_major_events",
+    "Major-event context is limited in this run, so the narrative should stay anchored in disclosed operating evidence."
+  );
+  const commentaryBody = reportSectionBodyExcerpt(
+    args.sections,
+    "management_commentary",
+    "Management commentary is useful only when it helps explain operating evidence rather than replace it."
+  );
+  const commentaryEvidence = reportSectionEvidenceExcerpt(
+    args.sections,
+    "management_commentary",
+    "Approved management commentary is limited in this run."
+  );
+  const revenueQoq = extractComparisonLine({
+    context: args.context,
+    metric: "revenue",
+    basis: "qoq"
+  });
+  const marginQoq = extractComparisonLine({
+    context: args.context,
+    metric: "operating_margin",
+    basis: "qoq"
+  });
+  const fcfYoy = extractComparisonLine({
+    context: args.context,
+    metric: "free_cash_flow",
+    basis: "yoy"
+  });
+  const financialOmissions = args.financialAnalysis.omissions.map(
+    (omission) => `${omission.label}: ${omission.reason}`
+  );
+  const growthOmissions = uniqueStrings([
+    args.context.latest?.segments?.length ? undefined : "Segment disclosures were not available in the latest approved snapshot.",
+    args.context.latestTranscript ? undefined : "Management outlook commentary was not available from an approved transcript.",
+    args.trustMetadata.missing_data_notes[0]
+  ]);
+  const segmentSummary = args.context.latest?.segments && args.context.latest.segments.length > 0
+    ? args.context.latest.segments
+      .slice(0, 3)
+      .map((segment) => `${segment.segment_name} at ${formatNumber(segment.revenue)} of revenue`)
+      .join(", ")
+    : "The latest approved snapshot did not carry segment-level revenue detail.";
+  const relationshipSummaries = args.nameRelationships.slice(0, 3).map((relationship) =>
+    `${relationship.source_ticker} ${relationship.relationship_type} ${relationship.target_ticker} (${Math.round(relationship.confidence * 100)}% confidence)`
+  );
+  const relationshipNarrative = relationshipSummaries.length > 0
+    ? relationshipSummaries.join("; ")
+    : "Cross-name mapping was not rich enough in this run to support a stronger relationship map.";
+  const killSwitchSummary = args.killSwitchConditions
+    .slice(0, 3)
+    .map((condition) => condition.condition_text);
+  const transcriptSentence = transcriptQuote(args.context.latestTranscript);
+  const valuationAvailable = args.valuation?.fair_value_mid !== undefined &&
+    !args.valuation?.degraded_reason;
+  const financialCoverage: "full" | "partial" | "limited" = financialOmissions.length === 0 &&
+    revenueQoq.available &&
+    marginQoq.available
+    ? "full"
+    : args.financialAnalysis.annual_history.length >= 2 || revenueQoq.available || marginQoq.available
+      ? "partial"
+      : "limited";
+  const competitiveCoverage: "full" | "partial" | "limited" =
+    args.context.latest?.segments?.length && relationshipSummaries.length > 0
+      ? "full"
+      : args.context.latest?.segments?.length || relationshipSummaries.length > 0 || Boolean(transcriptSentence)
+        ? "partial"
+        : "limited";
+  const managementCoverage: "full" | "partial" | "limited" = transcriptSentence
+    ? "partial"
+    : "limited";
+  const riskCoverage: "full" | "partial" | "limited" = killSwitchSummary.length >= 3 &&
+    args.trustMetadata.missing_data_notes.length === 0
+    ? "full"
+    : killSwitchSummary.length > 0 || args.trustMetadata.missing_data_notes.length > 0
+      ? "partial"
+      : "limited";
+  const growthCoverage: "full" | "partial" | "limited" = growthOmissions.length === 0 &&
+    (args.context.latest?.segments?.length ?? 0) > 0
+    ? "full"
+    : Boolean(args.context.latestTranscript) || (args.context.latest?.segments?.length ?? 0) > 0
+      ? "partial"
+      : "limited";
+  const valuationCoverage: "full" | "partial" | "limited" = valuationAvailable
+    ? "full"
+    : args.valuation
+      ? "partial"
+      : "limited";
+  const governanceLimitNote = "Governance detail is limited because proxy-grade material was not available in this run.";
+  const financialNarrativeParagraphs = financialCoverage === "limited"
+    ? [
+        `Financial analysis is intentionally limited for ${ticker} because the current source set does not yet support a durable multi-period read. ${revenueQoq.line} ${marginQoq.line} ${fcfYoy.line} In this state, the report can still describe what the latest numbers say, but it should not pretend that one or two partial comparisons settle the longer financial debate.`,
+        `The safest interpretation is omission-forward rather than thinly confident. ${financialOmissions.join(" ") || "Statement history is not deep enough for a stronger trend read."}`
+      ]
+    : [
+        `${ticker}'s financial case still begins with whether recent operating results are broad enough to support a durable thesis rather than a quarter-only bounce. ${revenueQoq.line} ${marginQoq.line} ${fcfYoy.line} The underlying section read remains consistent with that direction: ${revenueMarginBody} The point is not that every metric moved perfectly in the same direction, but that revenue conversion, margin behavior, and cash generation can still be discussed as one coherent story instead of as disconnected headlines. That distinction matters because the market often overreacts to single-line beats or misses long before it re-underwrites the quality of the full earnings engine.`,
+        `The statement history now available to Thesis includes ${args.financialAnalysis.annual_history.length} annual rows and ${args.financialAnalysis.quarterly_history.length} quarterly rows. ${yoyBody} ${annualMetricSummary(args.financialAnalysis, "revenue_cagr_3y_pct", "Revenue CAGR cannot yet be stated with full confidence from the current annual history.")} ${annualMetricSummary(args.financialAnalysis, "operating_margin_delta_3y_pp", "Operating-margin trend is directionally visible, but it remains less complete than a full long-cycle history.")} That broader time frame matters because investment mistakes usually happen when a single quarter is allowed to overpower the more durable earnings and cash-flow pattern.`,
+        `The balance-sheet read remains part of the same story, not a separate appendix. ${debtBody} ${annualMetricSummary(args.financialAnalysis, "cash_conversion_latest", "Cash-conversion quality is not fully measurable from the current dataset.")} ${commentaryEvidence} When cash generation, liquidity, and operating evidence are aligned, the report can speak with more conviction about quality. When they are not aligned, the correct response is to narrow the stance rather than forcing a cleaner story than the filings support.`,
+        financialOmissions.length > 0
+          ? `Financial coverage is still omission-aware even when the overall section is usable. ${financialOmissions.join(" ")} Those omissions matter because they set the edge of what this report can responsibly claim. They do not erase the available evidence, but they do define the confidence interval around any thesis built on that evidence.`
+          : `No major financial-statement omissions were detected in the current run, which is why this section can move beyond a memo-thin summary into a fuller analyst read. Even so, the discipline remains the same: the financial story only stays strong if the next filing cycle confirms that current margins and cash generation were not a temporary lift.`
+      ];
+  const competitiveNarrativeParagraphs = competitiveCoverage === "limited"
+    ? [
+        `Competitive-positioning coverage is limited for ${ticker} because the run does not have enough approved evidence to support a stronger industry-structure view. The report can still say that ${companyAngle} remains the central business question, but it cannot responsibly convert that into precise market-share or peer-ranking claims without sources that explicitly carry that burden.`,
+        `That limitation is a feature, not a defect. When segment detail, relationship mapping, or approved contextual evidence are thin, the correct report behavior is to stay close to disclosed business mix and to state uncertainty plainly instead of filling the gap with confident-sounding competitive language.`
+      ]
+    : [
+        `The competitive question for ${ticker} is less about brand familiarity and more about whether ${companyAngle} still shows up in approved evidence as a durable commercial advantage. The current segment read points to ${segmentSummary} That matters because business quality becomes more believable when the report can see where revenue concentration sits and how that concentration interacts with pricing power, customer dependence, or ecosystem stickiness. It also matters because a real competitive edge should eventually reveal itself in the mix of business that management is willing to defend and reinvest behind, not just in descriptive marketing language.`,
+        relationshipSummaries.length > 0
+          ? `Cross-name relationship extraction adds a more useful layer than generic peer name-dropping. The current relationship map surfaces ${relationshipNarrative} This does not prove exact share gains or losses, but it does help the report talk about dependency chains, adjacent pressure points, and where the thesis could be influenced by supplier, partner, sector, or competitor dynamics already visible in the approved source plane.`
+          : `Cross-name relationship extraction was lighter in this run, so the competitive read leans more heavily on business mix, filings language, and management commentary than on explicit name-to-name mapping. That is still acceptable so long as the report stays disciplined about what it is doing: describing where competitive durability might still exist, not claiming a full industry map that the evidence did not provide.`,
+        `Management and event context help turn competitive description into interpretation. ${commentaryBody} ${eventsBody} Together, those sections matter because competitive positioning is rarely visible in a single data point. It usually shows up in how management explains demand, where product or segment momentum is concentrated, and whether recent corporate events reinforce or complicate the existing thesis.`,
+        `This section therefore stays deliberately conservative about unsupported claims. It can say the current evidence still supports a business-quality read when segment mix, relationship mapping, and management commentary point in the same direction. It cannot claim precise market-share dominance, peer displacement, or durable structural advantage unless the approved source set says so directly.`
+      ];
+  const managementNarrativeParagraphs = managementCoverage === "limited"
+    ? [
+        `Management-and-governance coverage is limited for ${ticker} because the run did not recover enough approved commentary to support a stronger qualitative read. The safest interpretation is to judge leadership primarily through reported operating outcomes and capital-allocation evidence rather than through tone or reputation. ${governanceLimitNote}`,
+        `That means the management section remains useful in a narrow way: it keeps the report from implying more confidence than the source plane deserves. Share-count discipline, cash conversion, and execution follow-through still matter, but governance language should stay restrained until the run includes proxy-grade support.`
+      ]
+    : [
+        `Management commentary matters here because it can either reinforce or weaken the financial interpretation of the quarter. ${commentaryBody} The freshest traceable management evidence currently reads: ${commentaryEvidence} That language does not settle the thesis by itself, but it does help show whether management priorities, disclosed tradeoffs, and current execution all line up in a way that makes the broader report more credible. In practice, the most useful management signal is not optimism by itself but whether disclosure cadence and operating follow-through stay consistent once the next filing arrives.`,
+        `Governance should be read with more humility than management tone. Thesis can discuss capital allocation, disclosure posture, and the consistency between what management says and what the financial statements later confirm. It should not simulate a full board-effectiveness or incentive-design review when proxy-grade evidence is absent. ${governanceLimitNote} That omission is exactly the kind of guardrail that keeps a long-form report from sliding into polished speculation.`,
+        `The practical conclusion is that management quality for this run is best inferred from disciplined follow-through rather than adjectives. Value-discipline context remains ${humanizeContextLabel(args.valueDiscipline.context_label)} at ${args.valueDiscipline.score}/${args.valueDiscipline.max_score}, share-count behavior remains part of the read, and the next step is simple: if management language and the next filing stay consistent, governance confidence can gradually widen; if they do not, the stance should narrow quickly.`
+      ];
+  const riskNarrativeParagraphs = riskCoverage === "limited"
+    ? [
+        `Risk coverage for ${ticker} remains usable but incomplete because the current run did not surface enough break conditions to make the thesis fully stress-tested. In that state, the report should emphasize omission pressure and fragile assumptions rather than pretending the downside case has been mapped with precision.`,
+        `Even a limited risk section still serves a purpose: it tells the reader where the confidence boundary sits. ${args.trustMetadata.missing_data_notes.join(" ") || "The current run carries fewer explicit omission notes than usual, but risk framing is still narrower than a full-data case."}`
+      ]
+    : [
+        `The central risk question is not whether ${ticker} faces generic uncertainty. Every company does. The real question is which conditions would invalidate the current stance quickly enough that the thesis should be rewritten rather than merely monitored. ${args.trustMetadata.missing_data_notes.length > 0
+          ? `The report is already carrying explicit omission pressure: ${args.trustMetadata.missing_data_notes.join(" ")}`
+          : "The trust layer is relatively clean in this run, which allows the section to focus more on business and valuation risk than on missing-data risk."} That framing matters because a disciplined risk section should tell the reader when a thesis is broken, when it is merely noisier, and which evidence would separate those two states.`,
+        killSwitchSummary.length > 0
+          ? `The active kill-switch set is what makes this section actionable instead of decorative. Current break conditions include ${killSwitchSummary.join("; ")} These are not generic warning bullets. They define the evidence pattern that would force the current stance back into review even if the top-line story still sounded attractive at first glance.`
+          : `Explicit kill-switch coverage is lighter than ideal in this run, so risk discussion leans more heavily on source-backed caution and evidence freshness. That is still better than pretending to own a precise downside map that the current source set does not actually support.`,
+        args.valueDiscipline.value_trap_warning.triggered
+          ? `${args.valueDiscipline.value_trap_warning.summary} That warning deserves extra weight because a superficially cheaper multiple can still be the wrong signal when quality evidence is weakening underneath it. In other words, valuation only helps if the operating story remains intact.`
+          : `The current value-discipline layer does not trigger a value-trap warning, but that is not the same thing as a risk-free setup. Multiple compression, execution slippage, weaker cash conversion, or a deterioration in management guidance can still damage the thesis long before a static quality score fully catches up.`,
+        `This is why the risk section stays explicit about uncertainty instead of hiding it inside polished prose. The report should tell the reader what would break the thesis, where omission pressure still exists, and which next filing or management update matters most. If it cannot do those things, it should sound incomplete.`
+      ];
+  const growthNarrativeParagraphs = growthCoverage === "limited"
+    ? [
+        `Growth-and-outlook coverage is intentionally narrow for ${ticker} because the current run does not have enough approved driver evidence to support a more ambitious forecast. The report can still name the next things to watch, but it should not turn thin management language or missing segment detail into a durable growth story.`,
+        `That means the most honest outlook is conditional: future upside remains possible, but conviction has to wait for cleaner evidence on business drivers, execution follow-through, and what the next reporting cycle confirms.`
+      ]
+    : [
+        `The most important growth question for ${ticker} is whether ${companyAngle} still has enough operating support to matter over the next several reporting windows. ${segmentSummary} That matters because the outlook is strongest when it can point to visible business drivers rather than to abstract stories about optionality or total addressable market. The next reporting window should therefore be judged by which driver is actually funding incremental margin, cash generation, or strategic reinvestment rather than by headline enthusiasm alone.`,
+        transcriptSentence
+          ? `Management context helps sharpen that read without overreaching. The latest approved transcript language suggests "${transcriptSentence}." That is meaningful only if later filings continue to validate disciplined execution, demand durability, or margin conversion. In other words, transcript color is useful when it frames the next evidence to watch, not when it substitutes for that evidence.`
+          : `Approved management outlook commentary is limited in this run, so the report keeps the outlook close to disclosed operating reality. That is still enough to form a view on what the next filing should confirm, but it is not enough to justify a louder multi-year narrative than the approved source set can carry.`,
+        `Recent operating context also matters because outlook is rarely a clean continuation of the last quarter. ${qoqBody} ${eventsBody} Together, those pieces help the report explain why the next step in the thesis is not just "more growth," but a more specific question about whether visible business drivers are still converting into durable operating quality and cash generation.`,
+        `This section therefore stays conservative by design. It can identify catalysts, segment pressure points, and areas where management appears to be investing behind the thesis. It should not pretend to know the full forward arc unless that view is already supported inside the approved source plane.`
+      ];
+  const valuationNarrativeParagraphs = valuationCoverage === "limited"
+    ? [
+        `Valuation-and-stance coverage is limited for ${ticker} because the current run does not support a fully specified deterministic range. The report can still describe the stance, but it must do so without implying a level of price precision that the evidence does not justify.`,
+        `In this state, the better question is not "what is the target?" but "what would need to improve before a stronger range deserves trust?" That keeps the report honest when valuation inputs are incomplete.`
+      ]
+    : [
+        valuationAvailable
+          ? `The current Thesis stance on ${ticker} remains ${args.signalValue}, and the valuation discussion is deliberately framed as a decision process rather than as a single-point target. Fair value centers near ${formatNumber(args.valuation?.fair_value_mid)} with a bounded range from ${formatNumber(args.valuation?.fair_value_low)} to ${formatNumber(args.valuation?.fair_value_high)}. ${args.valuation?.spot_price !== undefined
+            ? `Against a spot reference of ${formatNumber(args.valuation.spot_price)}, that leaves implied upside at ${formatPercent(args.valuation.implied_upside_pct)}.`
+            : "Spot-price comparison is not currently available from the approved quote path."} The range matters less as a marketing number than as a discipline check on whether the current operating evidence is strong enough to justify staying constructive at today's price.`
+          : `The current Thesis stance on ${ticker} remains ${args.signalValue}, but valuation precision is still constrained in this run because ${args.valuation?.degraded_reason ?? "the deterministic range inputs remain incomplete"}. The report can still explain the stance, but it should not imply a cleaner entry framework than the evidence can support.`,
+        `That numerical range only matters because it sits on top of an operating case. The stance remains constructive only if ${companyAngle} continues to convert into reported outcomes, omission pressure remains controlled, and the trust state does not deteriorate without explanation. ${args.trustMetadata.thesis_drift.summary} In that sense, valuation is not the thesis itself. It is the framework that tests whether the thesis is still worth owning at the current price.`,
+        `The assumption discipline is equally important. ${args.valuation?.degraded_reason
+          ? `This run still carries a valuation limitation: ${args.valuation.degraded_reason}.`
+          : `The deterministic setup remains usable with WACC at ${formatPercent((args.valuation?.assumptions.wacc ?? 0) * 100)}, terminal growth at ${formatPercent((args.valuation?.assumptions.terminal_growth_rate ?? 0) * 100)}, and a ${args.valuation?.assumptions.projection_years ?? 5}-year projection horizon.`} That matters because long-form due diligence becomes less useful, not more, when it hides the assumptions doing the real work.`,
+        killSwitchSummary.length > 0
+          ? `What would change our mind is not vague. The current stance would need to be reviewed if conditions such as ${killSwitchSummary.slice(0, 2).join(" or ")} begin showing up in the evidence. That keeps valuation anchored to falsifiable business outcomes instead of letting the report drift into a static target-price exercise.`
+          : `Break conditions are lighter than ideal in this run, so the report states the stance with more caution than certainty. Where the falsification map is thinner, the valuation section should sound appropriately provisional rather than cosmetically complete.`
+      ];
+
+  const sections: DueDiligenceBlock["sections"] = [
+    {
+      section_id: "financial_analysis",
+      title: "Financial Analysis",
+      summary: financialCoverage === "full"
+        ? `${ticker}'s latest financial read still supports the thesis with revenue momentum, margin follow-through, and cash generation moving in the same direction.`
+        : `The financial read remains usable for ${ticker}, but it is constrained by missing history that needs to stay explicit in the final interpretation.`,
+      narrative_paragraphs: financialNarrativeParagraphs,
+      key_points: uniqueStrings([
+        revenueQoq.line,
+        marginQoq.line,
+        fcfYoy.line,
+        annualMetricSummary(args.financialAnalysis, "cash_conversion_latest", "Cash-conversion quality is not fully measurable from the current dataset.")
+      ], 4),
+      evidence_refs: collectEvidenceRefs({
+        sections: args.sections,
+        sectionIds: ["quarter_over_quarter_changes", "year_over_year_changes", "revenue_margin_analysis", "debt_liquidity"],
+        extras: uniqueStrings([
+          revenueQoq.available ? revenueQoq.refId : undefined,
+          marginQoq.available ? marginQoq.refId : undefined,
+          fcfYoy.available ? fcfYoy.refId : undefined,
+          "metric:revenue_cagr_3y_pct",
+          "metric:free_cash_flow_cagr_3y_pct"
+        ]),
+        maxItems: 8
+      }),
+      omissions: financialOmissions,
+      coverage_state: financialCoverage
+    },
+    {
+      section_id: "competitive_positioning",
+      title: "Competitive Positioning",
+      summary: competitiveCoverage === "full"
+        ? `${ticker}'s competitive read is grounded in segment concentration plus explicit cross-name relationships, not unsupported market-share claims.`
+        : `Competitive positioning for ${ticker} is directionally useful, but the report stays disciplined about what the current source plane can and cannot prove.`,
+      narrative_paragraphs: competitiveNarrativeParagraphs,
+      key_points: uniqueStrings([
+        args.context.latest?.segments?.[0]?.segment_name
+          ? `${args.context.latest.segments[0].segment_name} remains a visible operating anchor in the latest snapshot.`
+          : "Latest segment concentration is not directly observable in this run.",
+        relationshipSummaries[0]
+          ? `Relationship map: ${relationshipSummaries[0]}`
+          : "Direct cross-name mapping is limited in this run.",
+        transcriptSentence ? `Management context: ${transcriptSentence}` : undefined
+      ], 4),
+      evidence_refs: collectEvidenceRefs({
+        sections: args.sections,
+        sectionIds: ["quarter_over_quarter_changes", "management_commentary"],
+        extras: uniqueStrings([
+          ...args.nameRelationships.slice(0, 3).map((relationship) =>
+            `relationship:${relationship.source_ticker}:${relationship.relationship_type}:${relationship.target_ticker}`
+          )
+        ]),
+        maxItems: 8
+      }),
+      omissions: uniqueStrings([
+        args.context.latest?.segments?.length ? undefined : "Latest segment disclosures were unavailable.",
+        relationshipSummaries.length > 0 ? undefined : "No explicit cross-name relationship map was available for this run."
+      ]),
+      coverage_state: competitiveCoverage
+    },
+    {
+      section_id: "management_and_governance",
+      title: "Management and Governance",
+      summary: transcriptSentence
+        ? `Management commentary is usable for ${ticker}, but governance analysis remains intentionally limited to what approved filings and transcripts can actually support.`
+        : `Management and governance coverage is limited because the run did not surface enough approved commentary to support a deeper qualitative read.`,
+      narrative_paragraphs: managementNarrativeParagraphs,
+      key_points: uniqueStrings([
+        transcriptSentence ? `Transcript read: ${transcriptSentence}` : "Fresh management quote unavailable.",
+        `Value-discipline context: ${humanizeContextLabel(args.valueDiscipline.context_label)} (${args.valueDiscipline.score}/${args.valueDiscipline.max_score}).`,
+        "Governance coverage is limited to approved filings and transcript evidence."
+      ], 4),
+      evidence_refs: collectEvidenceRefs({
+        sections: args.sections,
+        sectionIds: ["management_commentary"],
+        evidence: args.context.latestTranscript
+          ? [{
+              evidence_id: `transcript:${args.context.latestTranscript.transcript_id}`,
+              source_type: "article",
+              source_name: args.context.latestTranscript.provider,
+              excerpt: args.context.latestTranscript.body_text,
+              retrieved_at: args.context.latestTranscript.retrieved_at
+            }]
+          : [],
+        extras: ["metric:value_discipline_score"],
+        maxItems: 8
+      }),
+      omissions: uniqueStrings([
+        transcriptSentence ? undefined : "Fresh management transcript excerpt unavailable.",
+        "Proxy-grade governance detail is unavailable in the current approved source plane."
+      ]),
+      coverage_state: managementCoverage
+    },
+    {
+      section_id: "risks_and_challenges",
+      title: "Risks and Challenges",
+      summary: riskCoverage === "full"
+        ? `The risk framework for ${ticker} is explicit and falsifiable, with documented kill switches and visible omission notes rather than vague cautionary language.`
+        : `The risk framework is still usable for ${ticker}, but it needs to be read alongside the current omission notes and evidence-depth limits.`,
+      narrative_paragraphs: riskNarrativeParagraphs,
+      key_points: uniqueStrings([
+        killSwitchSummary[0],
+        args.trustMetadata.missing_data_notes[0],
+        args.valueDiscipline.value_trap_warning.summary
+      ], 4),
+      evidence_refs: collectEvidenceRefs({
+        sections: args.sections,
+        sectionIds: ["management_commentary"],
+        extras: uniqueStrings([
+          ...args.killSwitchConditions.slice(0, 4).map((condition) => `kill_switch:${condition.condition_id}`),
+          "trust:missing_data_notes"
+        ]),
+        maxItems: 8
+      }),
+      omissions: uniqueStrings([
+        killSwitchSummary.length > 0 ? undefined : "Explicit kill-switch conditions were limited in this run.",
+        ...args.trustMetadata.missing_data_notes
+      ]),
+      coverage_state: riskCoverage
+    },
+    {
+      section_id: "growth_opportunities_and_outlook",
+      title: "Growth Opportunities and Outlook",
+      summary: growthCoverage === "full"
+        ? `${ticker}'s outlook remains grounded in visible growth drivers rather than unsupported total-addressable-market storytelling.`
+        : `The outlook section remains useful for ${ticker}, but it is intentionally narrow where approved growth evidence is incomplete.`,
+      narrative_paragraphs: growthNarrativeParagraphs,
+      key_points: uniqueStrings([
+        args.context.latest?.segments?.[0]?.segment_name
+          ? `${args.context.latest.segments[0].segment_name} is the clearest visible growth lens in the latest snapshot.`
+          : "Latest segment mix is unavailable.",
+        transcriptSentence ? `Management outlook: ${transcriptSentence}` : "Management outlook commentary is limited.",
+        args.trustMetadata.thesis_drift.summary
+      ], 4),
+      evidence_refs: collectEvidenceRefs({
+        sections: args.sections,
+        sectionIds: ["quarter_over_quarter_changes", "management_commentary", "acquisitions_major_events"],
+        maxItems: 8
+      }),
+      omissions: growthOmissions,
+      coverage_state: growthCoverage
+    },
+    {
+      section_id: "valuation_and_thesis_stance",
+      title: "Valuation and Thesis Stance",
+      summary: valuationAvailable
+        ? `Thesis stance for ${ticker} remains ${args.signalValue}, with deterministic valuation providing a disciplined range rather than a narrative shortcut.`
+        : `The current Thesis stance for ${ticker} can still be stated, but valuation needs to be read as constrained or degraded rather than precise.`,
+      narrative_paragraphs: valuationNarrativeParagraphs,
+      key_points: uniqueStrings([
+        valuationAvailable
+          ? `Fair-value midpoint: ${formatNumber(args.valuation?.fair_value_mid)}`
+          : "Deterministic fair-value midpoint unavailable.",
+        args.valuation?.implied_upside_pct !== undefined
+          ? `Implied upside: ${formatPercent(args.valuation.implied_upside_pct)}`
+          : args.valuation?.degraded_reason,
+        args.trustMetadata.thesis_drift.summary
+      ], 4),
+      evidence_refs: collectEvidenceRefs({
+        sections: args.sections,
+        sectionIds: ["valuation", "thesis_statement"],
+        extras: uniqueStrings([
+          valuationAvailable ? "valuation:fair_value_mid" : undefined,
+          args.valuation?.implied_upside_pct !== undefined ? "valuation:implied_upside_pct" : undefined,
+          ...args.killSwitchConditions.slice(0, 2).map((condition) => `kill_switch:${condition.condition_id}`)
+        ]),
+        maxItems: 8
+      }),
+      omissions: uniqueStrings([
+        args.valuation?.degraded_reason,
+        !valuationAvailable ? "Deterministic valuation is degraded or incomplete in this run." : undefined
+      ]),
+      coverage_state: valuationCoverage
+    }
+  ];
+
+  return {
+    prompt_version: args.fixtureMode ? "m9-due-diligence-fixture-v1" : "m9-due-diligence-live-v1",
+    generation_mode: args.fixtureMode ? "deterministic_fixture" : "fallback",
+    sections
   };
 }
 
@@ -913,7 +1476,7 @@ function buildCoverageTruth(args: {
     (omission) => `${omission.label}: ${omission.reason}`
   ) ?? [];
   const valueOmissions = args.valueDiscipline?.missing_signals.map(
-    (signal) => `Value signal unavailable: ${signal}`
+    (signal) => `Value signal unavailable: ${humanizeMetric(signal)}`
   ) ?? [];
   const missing = [
     ...args.trustMetadata.missing_data_notes,
@@ -1111,10 +1674,10 @@ function buildValueDisciplineSection(
       : "data_unavailable";
   const body = [
     `Value-discipline score: ${valueDiscipline.score}/${valueDiscipline.max_score} (${valueDiscipline.available_signals} signals available).`,
-    `Context: ${valueDiscipline.context_label}.`,
+    `Context: ${humanizeContextLabel(valueDiscipline.context_label)}.`,
     valueDiscipline.interpretation,
     valueDiscipline.missing_signals.length > 0
-      ? `Missing signals: ${valueDiscipline.missing_signals.join("; ")}.`
+      ? `Missing signals: ${valueDiscipline.missing_signals.map((signal) => humanizeMetric(signal)).join("; ")}.`
       : "No scorecard inputs were missing.",
     valueDiscipline.does_not_prove
   ].join(" ");
@@ -2725,28 +3288,6 @@ export async function runAnalysisPipeline(
     valuation: valuationSection.valuation,
     thesisStatement
   });
-  const investmentMemo = buildInvestmentMemo({
-    ticker,
-    signalValue: signal.value,
-    confidence,
-    trustMetadata,
-    context: m2Context,
-    valuation: valuationSection.valuation,
-    valueDiscipline,
-    financialAnalysis,
-    signalEvidence: signal.evidence,
-    promptVersion: prompts.synthesizer.version,
-    fixtureMode: config.fixtureMode
-  });
-  const executiveSummarySection = buildExecutiveSummary(
-    ticker,
-    executedSections,
-    signal.value,
-    investmentMemo
-  );
-  const orderedSections = orderedSectionsInitial.map((section) =>
-    section.section_id === "executive_summary" ? executiveSummarySection : section
-  );
   const killSwitchExtraction = await extractKillSwitchConditions({
     request,
     config,
@@ -2762,7 +3303,7 @@ export async function runAnalysisPipeline(
     request,
     config,
     prompts,
-    sections: orderedSections,
+    sections: orderedSectionsInitial,
     thesisStatement,
     rootTrace,
     model
@@ -2799,6 +3340,44 @@ export async function runAnalysisPipeline(
     killSwitchExtraction.conditions,
     valueDiscipline
   );
+  const dueDiligence = buildDueDiligence({
+    ticker,
+    signalValue: signal.value,
+    confidence,
+    trustMetadata,
+    context: m2Context,
+    valuation: valuationSection.valuation,
+    valueDiscipline,
+    financialAnalysis,
+    sections: orderedSectionsInitial,
+    killSwitchConditions: killSwitchExtraction.conditions,
+    nameRelationships: relationshipExtraction.relationships,
+    promptVersion: prompts.synthesizer.version,
+    fixtureMode: config.fixtureMode
+  });
+  const investmentMemo = buildInvestmentMemo({
+    ticker,
+    signalValue: signal.value,
+    confidence,
+    trustMetadata,
+    context: m2Context,
+    valuation: valuationSection.valuation,
+    valueDiscipline,
+    financialAnalysis,
+    dueDiligence,
+    signalEvidence: signal.evidence,
+    promptVersion: prompts.synthesizer.version,
+    fixtureMode: config.fixtureMode
+  });
+  const executiveSummarySection = buildExecutiveSummary(
+    ticker,
+    executedSections,
+    signal.value,
+    investmentMemo
+  );
+  const orderedSections = orderedSectionsInitial.map((section) =>
+    section.section_id === "executive_summary" ? executiveSummarySection : section
+  );
   const coverageTruth = buildCoverageTruth({
     context: m2Context,
     trustMetadata,
@@ -2813,6 +3392,7 @@ export async function runAnalysisPipeline(
     schema_version: schemaVersion,
     type: "deep_dive",
     ticker,
+    issuer: issuerForTicker(ticker),
     generated_at: generatedAt,
     confidence,
     signal,
@@ -2828,6 +3408,7 @@ export async function runAnalysisPipeline(
     watch_items: watchItems,
     coverage_truth: coverageTruth,
     investment_memo: investmentMemo,
+    due_diligence: dueDiligence,
     financial_analysis: financialAnalysis,
     value_discipline: valueDiscipline,
     sections: orderedSections,
@@ -2860,6 +3441,14 @@ export async function runAnalysisPipeline(
     generation_mode: investmentMemo.generation_mode,
     section_count: investmentMemo.sections.length,
     material_claim_count: investmentMemo.material_claims.length
+  });
+  logInfo("Due-diligence narrative compiled", {
+    job_id: request.job_id,
+    ticker,
+    prompt_version: dueDiligence.prompt_version,
+    generation_mode: dueDiligence.generation_mode,
+    section_count: dueDiligence.sections.length,
+    limited_sections: dueDiligence.sections.filter((section) => section.coverage_state === "limited").length
   });
   if (trustMetadata.thesis_drift.status === "unavailable") {
     logWarn("Thesis-drift summary unavailable", {

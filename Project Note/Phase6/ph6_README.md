@@ -17,18 +17,21 @@ Phase 6 turns Thesis into a cleaner, more defensible intelligence product built 
 
 - SEC / EDGAR / XBRL / filing exhibits
 - official macro releases and official public datasets
+- official structural context where country or regime data materially sharpens a thesis
 - first-party company context such as IR pages, press releases, and investor presentations
 - bounded headline / summary / link context where rights are explicit
 - deterministic event, freshness, decay, and scenario logic
 - LLM synthesis only after the deterministic substrate has spoken
 
+Phase 6 also allows internal-only replay, evaluation, and debate tooling to improve the engine without changing what the user-facing product is.
+
 ---
 
 ## What Thesis Still Does
 
-**Company Deep Dive** - structured company research grounded in filings, historical truth, first-party artifacts, and explicit evidence.
+**Company Deep Dive** - structured company research grounded in filings, historical truth, structural context where relevant, first-party artifacts, and explicit evidence.
 
-**Morning Exception Briefing** - a scheduled daily briefing that explains what changed in macro, watched-name disclosures, and first-party company context since the last cycle.
+**Morning Exception Briefing** - a scheduled daily briefing that explains what changed in macro, structural context, watched-name disclosures, and first-party company context since the last cycle.
 
 **Earnings War Room** - pre-event, event-day, and post-event workflows based on confirmed/estimated/actual timing, release artifacts, and contradiction tracking.
 
@@ -38,7 +41,7 @@ Phase 6 turns Thesis into a cleaner, more defensible intelligence product built 
 
 ## Architecture in One Paragraph
 
-The three-plane architecture stays intact. The Product Plane still owns user state, jobs, alerts, and delivery. The Reasoning Plane still centers on `dexter-worker` for synthesis and thesis-native interpretation. The Data Plane is repurposed: `data-openbb` remains only as a temporary service name while becoming an official/public-source adapter boundary, and `news-ingest` becomes a bounded first-party and allowlisted-context ingest service. The mobile app still never bypasses Product API. Nothing in Phase 6 reintroduces FMP, OpenBB, yfinance, Alpha Vantage, or any similar provider as production truth.
+The three-plane architecture stays intact. The Product Plane still owns user state, jobs, alerts, and delivery. The Reasoning Plane still centers on `dexter-worker` for synthesis and thesis-native interpretation. The Data Plane is repurposed: `data-openbb` remains only as a temporary service name while becoming an official/public-source adapter boundary for company, macro, and structural context, and `news-ingest` becomes a bounded first-party and allowlisted-context ingest service. The mobile app still never bypasses Product API. Nothing in Phase 6 reintroduces FMP, OpenBB, yfinance, Alpha Vantage, or any similar provider as production truth.
 
 ---
 
@@ -66,6 +69,7 @@ The three-plane architecture stays intact. The Product Plane still owns user sta
 - No price-derived feature may imply coverage the system does not actually have.
 - Missing market-derived inputs must be shown as missing, not guessed.
 - Every event, alert, and claim must retain a reason path.
+- No public backtest, public debate desk, or public AI hedge-fund theater is introduced by Phase 6.
 
 ---
 

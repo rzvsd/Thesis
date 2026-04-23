@@ -3,7 +3,9 @@ export const officialSourceFamilies = [
   "treasury",
   "bls",
   "bea",
-  "eia"
+  "eia",
+  "world_bank",
+  "imf"
 ] as const;
 
 export type OfficialSourceFamily = (typeof officialSourceFamilies)[number];

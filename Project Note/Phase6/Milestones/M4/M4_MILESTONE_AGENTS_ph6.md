@@ -12,7 +12,7 @@
 | **Milestone** | M4 - Earnings State & War Room Substrate |
 | **Linear Project** | PH6 M4 - Earnings State & War Room Substrate |
 | **Owner** | Product API Owner + AI/Reasoning Engineer |
-| **Status** | Implemented locally - smoke and quality gates passed; awaiting owner closeout + GitHub CI run |
+| **Status** | Closed - owner approved; Engineering Lead accepted by owner delegation on 2026-04-23 |
 | **Depends on** | M3 complete |
 
 ---
@@ -129,8 +129,8 @@ Never log secrets, tokens, or unreviewed full text.
 - [x] CI-equivalent local quality checks pass
 - [x] Deprecated dependency check passes
 - [x] Rollback path confirmed
-- [ ] Owner signs off
-- [ ] Engineering Lead countersigns
+- [x] Owner signs off
+- [x] Engineering Lead countersigns
 
 ---
 
@@ -175,7 +175,7 @@ Notes: Evidence captured in `evidence/2026-04-18_m4-earnings-state-war-room-smok
 
 | Issue | Why deferred | Linear ticket | Target milestone |
 |---|---|---|---|
-| GitHub CI closeout | Local lint/typecheck/test/guard proof is complete; hosted CI closeout happens after push | N/A per owner Linear skip pattern | M4 closeout |
+| Hosted GitHub CI run | Final hosted CI proof will occur on the next push; owner approved local closeout without treating hosted CI as a blocker | N/A per owner Linear skip pattern | Post-closeout hygiene |
 
 ---
 
@@ -183,5 +183,5 @@ Notes: Evidence captured in `evidence/2026-04-18_m4-earnings-state-war-room-smok
 
 | Role | Status | Evidence |
 |---|---|---|
-| Owner | Pending | Waiting for owner closeout approval after review |
-| Engineering Lead | Pending | To be countersigned after owner closeout |
+| Owner | Accepted | Owner approval message on 2026-04-23 closed remaining Phase 6 closeout items |
+| Engineering Lead | Accepted by owner delegation | Owner approval message on 2026-04-23 closed remaining Phase 6 closeout items |
