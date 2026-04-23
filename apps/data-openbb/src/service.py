@@ -37,6 +37,7 @@ MACRO_PROVIDER = "FMP"
 CALENDAR_PROVIDER = "yfinance"
 OFFICIAL_COMPANY_PROVIDER = "sec_edgar"
 OFFICIAL_MACRO_PROVIDER = "official_public_macro"
+OFFICIAL_STRUCTURAL_PROVIDER = "official_structural_context"
 COMPANY_RATE_LIMIT_KEY = "FMP_FINANCE"
 MACRO_RATE_LIMIT_KEY = "FMP_MACRO"
 CALENDAR_RATE_LIMIT_KEY = "YFINANCE_CALENDAR"
@@ -59,11 +60,178 @@ CALENDAR_FIXTURE_ROOT = FIXTURE_ROOT / "calendar"
 OFFICIAL_FIXTURE_ROOT = FIXTURE_ROOT / "official"
 OFFICIAL_COMPANY_FIXTURE_ROOT = OFFICIAL_FIXTURE_ROOT / "company"
 OFFICIAL_MACRO_FIXTURE_ROOT = OFFICIAL_FIXTURE_ROOT / "macro"
+OFFICIAL_STRUCTURAL_FIXTURE_ROOT = OFFICIAL_FIXTURE_ROOT / "structural"
 OFFICIAL_COMPANY_TICKERS = {
     "AAPL": "0000320193",
     "MSFT": "0000789019",
     "TSLA": "0001318605",
 }
+STRUCTURAL_CONTEXT_TICKER_METADATA = {
+    "AAPL": {
+        "name": "Apple Inc.",
+        "exchange": "NASDAQ",
+        "currency": "USD",
+        "domicile_country": "US",
+        "region": "North America",
+        "sector": "Technology",
+        "industry": "Consumer Electronics",
+    },
+    "MSFT": {
+        "name": "Microsoft Corporation",
+        "exchange": "NASDAQ",
+        "currency": "USD",
+        "domicile_country": "US",
+        "region": "North America",
+        "sector": "Technology",
+        "industry": "Software",
+    },
+    "TSLA": {
+        "name": "Tesla, Inc.",
+        "exchange": "NASDAQ",
+        "currency": "USD",
+        "domicile_country": "US",
+        "region": "North America",
+        "sector": "Consumer Discretionary",
+        "industry": "Automobiles",
+    },
+    "NVDA": {
+        "name": "NVIDIA Corporation",
+        "exchange": "NASDAQ",
+        "currency": "USD",
+        "domicile_country": "US",
+        "region": "North America",
+        "sector": "Technology",
+        "industry": "Semiconductors",
+    },
+    "AMZN": {
+        "name": "Amazon.com, Inc.",
+        "exchange": "NASDAQ",
+        "currency": "USD",
+        "domicile_country": "US",
+        "region": "North America",
+        "sector": "Consumer Discretionary",
+        "industry": "Broadline Retail",
+    },
+    "META": {
+        "name": "Meta Platforms, Inc.",
+        "exchange": "NASDAQ",
+        "currency": "USD",
+        "domicile_country": "US",
+        "region": "North America",
+        "sector": "Communication Services",
+        "industry": "Interactive Media and Services",
+    },
+    "GOOGL": {
+        "name": "Alphabet Inc.",
+        "exchange": "NASDAQ",
+        "currency": "USD",
+        "domicile_country": "US",
+        "region": "North America",
+        "sector": "Communication Services",
+        "industry": "Interactive Media and Services",
+    },
+}
+STRUCTURAL_CONTEXT_COUNTRY_METADATA = {
+    "US": {
+        "country_name": "United States",
+        "country_code": "USA",
+        "region": "North America",
+    }
+}
+WORLD_BANK_STRUCTURAL_REGISTRY = [
+    {
+        "family": "gdp_level",
+        "label": "GDP level",
+        "indicator": "NY.GDP.MKTP.CD",
+        "unit": "usd",
+    },
+    {
+        "family": "gdp_per_capita",
+        "label": "GDP per capita",
+        "indicator": "NY.GDP.PCAP.CD",
+        "unit": "usd",
+    },
+    {
+        "family": "population",
+        "label": "Population",
+        "indicator": "SP.POP.TOTL",
+        "unit": "people",
+    },
+    {
+        "family": "trade_openness",
+        "label": "Trade openness",
+        "indicator": "NE.TRD.GNFS.ZS",
+        "unit": "pct_gdp",
+    },
+    {
+        "family": "debt_context",
+        "label": "Government debt context",
+        "indicator": "GC.DOD.TOTL.GD.ZS",
+        "unit": "pct_gdp",
+    },
+    {
+        "family": "inequality",
+        "label": "Gini inequality",
+        "indicator": "SI.POV.GINI",
+        "unit": "index",
+    },
+    {
+        "family": "logistics",
+        "label": "Logistics performance",
+        "indicator": "LP.LPI.OVRL.XQ",
+        "unit": "score",
+    },
+    {
+        "family": "infrastructure",
+        "label": "Secure internet servers",
+        "indicator": "IT.NET.SECR.P6",
+        "unit": "per_million",
+    },
+    {
+        "family": "education",
+        "label": "Tertiary enrollment",
+        "indicator": "SE.TER.ENRR",
+        "unit": "pct",
+    },
+    {
+        "family": "energy_access",
+        "label": "Energy access",
+        "indicator": "EG.ELC.ACCS.ZS",
+        "unit": "pct",
+    },
+    {
+        "family": "sector_mix",
+        "label": "Services share of GDP",
+        "indicator": "NV.SRV.TOTL.ZS",
+        "unit": "pct_gdp",
+    },
+]
+IMF_STRUCTURAL_REGISTRY = [
+    {
+        "family": "gdp_growth_outlook",
+        "label": "GDP growth outlook",
+    },
+    {
+        "family": "inflation_regime",
+        "label": "Inflation outlook",
+    },
+    {
+        "family": "fiscal_balance",
+        "label": "Fiscal balance",
+    },
+    {
+        "family": "public_debt",
+        "label": "Public debt",
+    },
+    {
+        "family": "fx_reserves",
+        "label": "FX reserves",
+    },
+    {
+        "family": "current_account",
+        "label": "Current-account context",
+    },
+]
 OFFICIAL_MACRO_REGISTRY = [
     {
         "registry_id": "TREASURY_DAILY_10Y",
@@ -262,6 +430,23 @@ def iso_timestamp() -> str:
 
 def today_period() -> str:
     return date.today().isoformat()
+
+
+def _resolved_as_of_date(value: str | None) -> str:
+    return _normalize_iso_date(value) or today_period()
+
+
+def _quarter_period_for_iso_date(value: str) -> str:
+    parsed = datetime.strptime(value, "%Y-%m-%d")
+    quarter = ((parsed.month - 1) // 3) + 1
+    return f"{parsed.year}-Q{quarter}"
+
+
+def _structural_period_within_as_of(period: str, as_of: str) -> bool:
+    if len(period) == 4 and period.isdigit():
+        return int(period) <= int(as_of[:4])
+    normalized = _normalize_iso_date(period)
+    return normalized is not None and normalized <= as_of
 
 
 def log(level: str, message: str, **fields: Any) -> None:
@@ -815,7 +1000,8 @@ def _official_company_default_fixture(ticker: str) -> dict[str, Any]:
     }
 
 
-def _official_macro_default_fixture() -> dict[str, Any]:
+def _official_macro_default_fixture(*, as_of: str | None = None) -> dict[str, Any]:
+    replay_as_of = _resolved_as_of_date(as_of)
     retrieved_at = iso_timestamp()
     observations: list[dict[str, Any]] = []
     events: list[dict[str, Any]] = []
@@ -827,13 +1013,11 @@ def _official_macro_default_fixture() -> dict[str, Any]:
         "BEA_REAL_GDP": 2.1,
         "EIA_WTI_SPOT": 79.42,
     }
-    period_by_key = {
-        "BEA_REAL_GDP": "2026-Q1",
-    }
+    period_by_key = {"BEA_REAL_GDP": _quarter_period_for_iso_date(replay_as_of)}
 
     for item in OFFICIAL_MACRO_REGISTRY:
         registry_id = str(item["registry_id"])
-        period = period_by_key.get(registry_id, today_period())
+        period = period_by_key.get(registry_id, replay_as_of)
         source = _official_source_reference(
             source_id=registry_id,
             source_family=str(item["source_family"]),
@@ -920,13 +1104,25 @@ def _fixture_official_company_payload(ticker: str) -> dict[str, Any]:
     return fixture
 
 
-def _fixture_official_macro_payload() -> dict[str, Any]:
+def _fixture_official_macro_payload(*, as_of: str | None = None) -> dict[str, Any]:
     fixture = _load_json_fixture(
         OFFICIAL_MACRO_FIXTURE_ROOT / "daily.json",
-        default_factory=_official_macro_default_fixture,
+        default_factory=lambda: _official_macro_default_fixture(as_of=as_of),
     )
+    replay_as_of = _resolved_as_of_date(as_of)
     if "retrieved_at" not in fixture:
         fixture["retrieved_at"] = iso_timestamp()
+    for observation in fixture.get("observations", []):
+        if isinstance(observation, dict):
+            if isinstance(observation.get("period"), str):
+                observation["period"] = (
+                    _quarter_period_for_iso_date(replay_as_of)
+                    if str(observation.get("registry_id")) == "BEA_REAL_GDP"
+                    else replay_as_of
+                )
+            retrieval = observation.get("retrieval")
+            if isinstance(retrieval, dict):
+                retrieval["source_period"] = str(observation.get("period") or replay_as_of)
     for observation in fixture.get("observations", []):
         if not isinstance(observation, dict):
             continue
@@ -938,7 +1134,286 @@ def _fixture_official_macro_payload() -> dict[str, Any]:
                 validate_schema("official-missing-field-state", missing)
     for event in fixture.get("canonical_events", []):
         if isinstance(event, dict):
+            metadata = event.get("metadata")
+            if isinstance(metadata, dict):
+                if str(metadata.get("registry_id")) == "BEA_REAL_GDP":
+                    metadata["period"] = _quarter_period_for_iso_date(replay_as_of)
+                else:
+                    metadata["period"] = replay_as_of
+            event["occurred_at"] = _iso_datetime_from_date(replay_as_of)
             validate_schema("canonical-event", event)
+    return fixture
+
+
+def _structural_subject_metadata(
+    *,
+    ticker: str | None = None,
+    country: str | None = None,
+    subject_type: str | None = None,
+) -> tuple[str, str, dict[str, Any] | None, dict[str, str]]:
+    normalized_ticker = (ticker or "").strip().upper() or None
+    issuer_metadata = STRUCTURAL_CONTEXT_TICKER_METADATA.get(normalized_ticker or "")
+    normalized_country = (
+        (country or "").strip().upper()
+        or (issuer_metadata.get("domicile_country") if issuer_metadata else "US")
+    )
+    country_metadata = STRUCTURAL_CONTEXT_COUNTRY_METADATA.get(normalized_country) or {
+        "country_name": normalized_country,
+        "country_code": normalized_country,
+        "region": issuer_metadata.get("region") if issuer_metadata else "",
+    }
+    resolved_subject_type = (
+        "market_pulse"
+        if subject_type == "market_pulse" or (not normalized_ticker and subject_type == "market_pulse")
+        else "issuer"
+    )
+    subject_id = normalized_ticker or normalized_country
+    return resolved_subject_type, subject_id, issuer_metadata, country_metadata
+
+
+def _structural_observation(
+    *,
+    family: str,
+    label: str,
+    summary: str,
+    geography: str,
+    period: str,
+    source_family: str,
+    source_id: str,
+    source_name: str,
+    source_url: str,
+    agency: str,
+    agency_series_id: str | None,
+    retrieved_at: str,
+    value: float | None = None,
+    unit: str | None = None,
+    retrieval_status: str = "fresh",
+) -> dict[str, Any]:
+    source = _official_source_reference(
+        source_id=source_id,
+        source_family=source_family,
+        source_name=source_name,
+        source_url=source_url,
+        agency=agency,
+        agency_series_id=agency_series_id,
+    )
+    retrieval = _official_retrieval_metadata(
+        source=source,
+        retrieved_at=retrieved_at,
+        retrieval_status=retrieval_status,
+        source_period=period,
+    )
+    observation = {
+        "observation_id": source_id.lower(),
+        "family": family,
+        "label": label,
+        "summary": summary,
+        "geography": geography,
+        "period": period,
+        "source_family": source_family,
+        "retrieval": retrieval,
+        "missing_fields": [],
+    }
+    if value is not None:
+        observation["value"] = float(value)
+    if unit:
+        observation["unit"] = unit
+    return observation
+
+
+def _structural_omission(
+    *,
+    omission_id: str,
+    family: str,
+    source_family: str,
+    reason_code: str,
+    reason_text: str,
+    blocking: bool,
+) -> dict[str, Any]:
+    return {
+        "omission_id": omission_id,
+        "family": family,
+        "source_family": source_family,
+        "reason_code": reason_code,
+        "reason_text": reason_text,
+        "blocking": blocking,
+    }
+
+
+def _official_structural_default_fixture(
+    *,
+    ticker: str | None = None,
+    country: str | None = None,
+    subject_type: str | None = None,
+    as_of: str | None = None,
+) -> dict[str, Any]:
+    replay_as_of = _resolved_as_of_date(as_of)
+    retrieved_at = iso_timestamp()
+    resolved_subject_type, subject_id, issuer_metadata, country_metadata = _structural_subject_metadata(
+        ticker=ticker,
+        country=country,
+        subject_type=subject_type,
+    )
+    geography = str(country_metadata["country_name"])
+    country_code = str(country_metadata["country_code"])
+
+    fixture_values = {
+        "gdp_level": (29500000000000, "2025"),
+        "gdp_per_capita": (82500, "2025"),
+        "population": (341000000, "2025"),
+        "trade_openness": (25.4, "2025"),
+        "debt_context": (121.0, "2025"),
+        "inequality": (41.3, "2024"),
+        "logistics": (3.9, "2023"),
+        "infrastructure": (18000, "2024"),
+        "education": (88.4, "2024"),
+        "energy_access": (100.0, "2024"),
+        "sector_mix": (77.6, "2025"),
+    }
+
+    observations: list[dict[str, Any]] = []
+    retrievals: list[dict[str, Any]] = []
+    for item in WORLD_BANK_STRUCTURAL_REGISTRY:
+        family = str(item["family"])
+        value, period = fixture_values.get(family, (None, replay_as_of[:4]))
+        if len(period) == 4 and period.isdigit() and int(period) > int(replay_as_of[:4]):
+            period = replay_as_of[:4]
+        label = str(item["label"])
+        summary = {
+            "gdp_level": f"{geography} remains a very large output base, which supports demand resilience for scaled businesses.",
+            "gdp_per_capita": f"{geography} remains a high-income market, which supports premium pricing and services monetization.",
+            "population": f"{geography} still offers a large domestic demand base for scaled consumer and enterprise franchises.",
+            "trade_openness": f"Trade intensity stays relevant for supply-chain exposure and imported-input sensitivity.",
+            "debt_context": f"Public debt remains elevated enough to keep macro policy sensitivity in view.",
+            "inequality": f"Inequality remains a structural watch item because it can change the breadth of demand recovery.",
+            "logistics": f"Logistics quality remains supportive for national distribution and supply-chain reliability.",
+            "infrastructure": f"Digital infrastructure remains supportive for platform distribution and enterprise adoption.",
+            "education": f"Human-capital depth remains supportive for skilled-labor availability and product adoption.",
+            "energy_access": f"Energy access is not a current bottleneck for nationwide operations.",
+            "sector_mix": f"The services mix remains supportive for higher-margin digital and recurring-revenue models.",
+        }.get(family, f"{geography} structural context remains relevant for {label}.")
+        observation = _structural_observation(
+            family=family,
+            label=label,
+            summary=summary,
+            geography=geography,
+            period=period,
+            source_family="world_bank",
+            source_id=f"WB_{item['indicator']}",
+            source_name=f"World Bank {item['label']}",
+            source_url=f"https://api.worldbank.org/v2/country/{country_code}/indicator/{item['indicator']}",
+            agency="World Bank",
+            agency_series_id=str(item["indicator"]),
+            retrieved_at=retrieved_at,
+            value=value,
+            unit=str(item["unit"]),
+        )
+        observations.append(observation)
+        retrievals.append(observation["retrieval"])
+
+    omissions = [
+        _structural_omission(
+            omission_id="imf-gdp-growth-outlook-unavailable",
+            family="gdp_growth_outlook",
+            source_family="imf",
+            reason_code="source_unavailable",
+            reason_text="IMF forecast inputs are optional in M6 and were not available in this run.",
+            blocking=False,
+        ),
+        _structural_omission(
+            omission_id="imf-inflation-regime-unavailable",
+            family="inflation_regime",
+            source_family="imf",
+            reason_code="source_unavailable",
+            reason_text="IMF inflation-regime inputs were not available in this run.",
+            blocking=False,
+        ),
+        _structural_omission(
+            omission_id="imf-fiscal-balance-unavailable",
+            family="fiscal_balance",
+            source_family="imf",
+            reason_code="source_unavailable",
+            reason_text="IMF fiscal-balance inputs were not available in this run.",
+            blocking=False,
+        ),
+        _structural_omission(
+            omission_id="imf-public-debt-unavailable",
+            family="public_debt",
+            source_family="imf",
+            reason_code="source_unavailable",
+            reason_text="IMF public-debt inputs were not available in this run.",
+            blocking=False,
+        ),
+        _structural_omission(
+            omission_id="imf-fx-reserves-unavailable",
+            family="fx_reserves",
+            source_family="imf",
+            reason_code="source_unavailable",
+            reason_text="IMF reserves inputs were not available in this run.",
+            blocking=False,
+        ),
+        _structural_omission(
+            omission_id="imf-current-account-unavailable",
+            family="current_account",
+            source_family="imf",
+            reason_code="source_unavailable",
+            reason_text="IMF current-account inputs were not available in this run.",
+            blocking=False,
+        ),
+    ]
+    if normalized_country := (country or "").strip().upper():
+        if normalized_country not in STRUCTURAL_CONTEXT_COUNTRY_METADATA:
+            omissions.append(
+                _structural_omission(
+                    omission_id="world-bank-country-seed-scope",
+                    family="registry",
+                    source_family="world_bank",
+                    reason_code="outside_seed_scope",
+                    reason_text=f"{normalized_country} is outside the M6 reviewed country seed scope.",
+                    blocking=False,
+                )
+            )
+    summary = (
+        f"{geography} structural context remains broadly supportive for scaled issuers, "
+        "while public-debt and inflation-related sensitivity keep the backdrop disciplined."
+    )
+    payload = {
+        "subject_type": resolved_subject_type,
+        "subject_id": subject_id,
+        "as_of": replay_as_of,
+        "coverage_state": "partial",
+        "summary": summary,
+        "issuer_metadata": issuer_metadata or None,
+        "observations": observations,
+        "omissions": omissions,
+        "retrievals": retrievals,
+    }
+    if payload["issuer_metadata"] is None:
+        payload.pop("issuer_metadata")
+    validate_schema("structural-context", payload)
+    return payload
+
+
+def _fixture_official_structural_payload(
+    *,
+    ticker: str | None = None,
+    country: str | None = None,
+    subject_type: str | None = None,
+    as_of: str | None = None,
+) -> dict[str, Any]:
+    fixture_name = (ticker or country or "US").strip().upper()
+    fixture = _load_json_fixture(
+        OFFICIAL_STRUCTURAL_FIXTURE_ROOT / f"{fixture_name}.json",
+        default_factory=lambda: _official_structural_default_fixture(
+            ticker=ticker,
+            country=country,
+            subject_type=subject_type,
+            as_of=as_of,
+        ),
+    )
+    replay_as_of = _resolved_as_of_date(as_of)
+    fixture["as_of"] = replay_as_of
+    validate_schema("structural-context", fixture)
     return fixture
 
 
@@ -1299,10 +1774,129 @@ class OpenBBLiveClient:
             "canonical_events": [event],
         }
 
-    def fetch_official_macro_truth(self) -> dict[str, Any]:
+    def fetch_official_macro_truth(self, *, as_of: str | None = None) -> dict[str, Any]:
         # M1 keeps live official macro retrieval deterministic by contract shape; later
         # milestones may add per-agency parsers without changing the public payload.
-        return _official_macro_default_fixture()
+        return _official_macro_default_fixture(as_of=as_of)
+
+    def fetch_official_structural_context(
+        self,
+        *,
+        ticker: str | None = None,
+        country: str | None = None,
+        subject_type: str | None = None,
+        as_of: str | None = None,
+    ) -> dict[str, Any]:
+        replay_as_of = _resolved_as_of_date(as_of)
+        retrieved_at = iso_timestamp()
+        resolved_subject_type, subject_id, issuer_metadata, country_metadata = _structural_subject_metadata(
+            ticker=ticker,
+            country=country,
+            subject_type=subject_type,
+        )
+        geography = str(country_metadata["country_name"])
+        country_code = str(country_metadata["country_code"])
+        headers = {"accept": "application/json"}
+
+        observations: list[dict[str, Any]] = []
+        retrievals: list[dict[str, Any]] = []
+        omissions: list[dict[str, Any]] = []
+
+        for item in WORLD_BANK_STRUCTURAL_REGISTRY:
+            try:
+                payload = self._fetch_json_list(
+                    f"https://api.worldbank.org/v2/country/{country_code}/indicator/{item['indicator']}?format=json&per_page=6",
+                    headers=headers,
+                )
+            except (OSError, URLError, TimeoutError) as error:
+                raise ProviderIntegrationError(
+                    OFFICIAL_STRUCTURAL_PROVIDER,
+                    error_code="PROVIDER_OUTAGE",
+                    message="World Bank structural context is unavailable.",
+                ) from error
+
+            value: float | None = None
+            period = replay_as_of
+            if isinstance(payload, list) and len(payload) > 1 and isinstance(payload[1], list):
+                for row in payload[1]:
+                    if not isinstance(row, dict):
+                        continue
+                    row_period = str(row.get("date") or "")
+                    if not _structural_period_within_as_of(row_period, replay_as_of):
+                        continue
+                    row_value = row.get("value")
+                    if isinstance(row_value, (int, float)):
+                        value = float(row_value)
+                        period = row_period or replay_as_of
+                        if isinstance(row.get("country"), dict):
+                            geography = str(row["country"].get("value") or geography)
+                        break
+            if value is None:
+                omissions.append(
+                    _structural_omission(
+                        omission_id=f"world-bank-{item['family']}-missing",
+                        family=str(item["family"]),
+                        source_family="world_bank",
+                        reason_code="not_reported",
+                        reason_text=f"World Bank returned no value for {item['label']} in this run.",
+                        blocking=False,
+                    )
+                )
+                continue
+
+            observation = _structural_observation(
+                family=str(item["family"]),
+                label=str(item["label"]),
+                summary=f"{geography} structural context remains relevant for {item['label'].lower()}.",
+                geography=geography,
+                period=period,
+                source_family="world_bank",
+                source_id=f"WB_{item['indicator']}",
+                source_name=f"World Bank {item['label']}",
+                source_url=f"https://api.worldbank.org/v2/country/{country_code}/indicator/{item['indicator']}",
+                agency="World Bank",
+                agency_series_id=str(item["indicator"]),
+                retrieved_at=retrieved_at,
+                value=value,
+                unit=str(item["unit"]),
+            )
+            observations.append(observation)
+            retrievals.append(observation["retrieval"])
+
+        for item in IMF_STRUCTURAL_REGISTRY:
+            omissions.append(
+                _structural_omission(
+                    omission_id=f"imf-{item['family']}-unavailable",
+                    family=str(item["family"]),
+                    source_family="imf",
+                    reason_code="source_unavailable",
+                    reason_text=f"IMF {item['label'].lower()} is optional in M6 and unavailable in the live path.",
+                    blocking=False,
+                )
+            )
+
+        if not observations:
+            raise ProviderIntegrationError(
+                OFFICIAL_STRUCTURAL_PROVIDER,
+                error_code="PROVIDER_OUTAGE",
+                message="World Bank structural context returned no observations.",
+            )
+
+        payload = {
+            "subject_type": resolved_subject_type,
+            "subject_id": subject_id,
+            "as_of": replay_as_of,
+            "coverage_state": "partial" if omissions else "full",
+            "summary": f"{geography} structural context remains relevant for demand durability, policy sensitivity, and operating backdrop.",
+            "issuer_metadata": issuer_metadata or None,
+            "observations": observations,
+            "omissions": omissions,
+            "retrievals": retrievals,
+        }
+        if payload["issuer_metadata"] is None:
+            payload.pop("issuer_metadata")
+        validate_schema("structural-context", payload)
+        return payload
 
     def _fetch_json(self, url: str, *, headers: Mapping[str, str]) -> dict[str, Any]:
         request = Request(url, headers=dict(headers))
@@ -1310,6 +1904,14 @@ class OpenBBLiveClient:
             payload = json.loads(response.read().decode("utf-8"))
             if not isinstance(payload, dict):
                 raise OSError("official source returned a non-object JSON payload")
+            return payload
+
+    def _fetch_json_list(self, url: str, *, headers: Mapping[str, str]) -> list[Any]:
+        request = Request(url, headers=dict(headers))
+        with urlopen(request, timeout=15) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+            if not isinstance(payload, list):
+                raise OSError("official source returned a non-array JSON payload")
             return payload
 
 
@@ -1348,8 +1950,26 @@ class DataOpenBBService:
     def get_official_company_truth(self, ticker: str | None, request_id: str) -> tuple[int, dict[str, Any]]:
         return self._official_company_truth_response(ticker, request_id)
 
-    def get_official_macro_truth(self, scope: str | None, request_id: str) -> tuple[int, dict[str, Any]]:
-        return self._official_macro_truth_response(scope, request_id)
+    def get_official_macro_truth(
+        self, scope: str | None, as_of: str | None, request_id: str
+    ) -> tuple[int, dict[str, Any]]:
+        return self._official_macro_truth_response(scope, as_of, request_id)
+
+    def get_official_structural_context(
+        self,
+        ticker: str | None,
+        country: str | None,
+        subject_type: str | None,
+        as_of: str | None,
+        request_id: str,
+    ) -> tuple[int, dict[str, Any]]:
+        return self._official_structural_context_response(
+            ticker=ticker,
+            country=country,
+            subject_type=subject_type,
+            as_of=as_of,
+            request_id=request_id,
+        )
 
     def get_calendar_earnings(
         self,
@@ -1640,8 +2260,11 @@ class DataOpenBBService:
         )
         return 200, response
 
-    def _official_macro_truth_response(self, scope: str | None, request_id: str) -> tuple[int, dict[str, Any]]:
+    def _official_macro_truth_response(
+        self, scope: str | None, as_of: str | None, request_id: str
+    ) -> tuple[int, dict[str, Any]]:
         normalized_scope = (scope or "").strip().lower()
+        normalized_as_of = _normalize_iso_date(as_of)
 
         if normalized_scope != "daily":
             response = error_response(
@@ -1662,7 +2285,7 @@ class DataOpenBBService:
         )
 
         try:
-            payload = build_official_macro_payload(service=self)
+            payload = build_official_macro_payload(as_of=normalized_as_of, service=self)
         except ProviderIntegrationError as error:
             log(
                 "ERROR",
@@ -1687,6 +2310,7 @@ class DataOpenBBService:
             request_id=request_id,
             provider=OFFICIAL_MACRO_PROVIDER,
             dataset="official_macro_truth",
+            as_of=normalized_as_of or None,
             event_count=len(payload.get("canonical_events", [])),
             latency_ms=latency_ms,
         )
@@ -1696,6 +2320,90 @@ class DataOpenBBService:
             data=payload,
             provider=OFFICIAL_MACRO_PROVIDER,
             retrieved_at=str(payload["retrieved_at"]),
+        )
+        return 200, response
+
+    def _official_structural_context_response(
+        self,
+        *,
+        ticker: str | None,
+        country: str | None,
+        subject_type: str | None,
+        as_of: str | None,
+        request_id: str,
+    ) -> tuple[int, dict[str, Any]]:
+        normalized_ticker = (ticker or "").strip().upper()
+        normalized_country = (country or "").strip().upper()
+        normalized_subject_type = (subject_type or "").strip().lower() or None
+        normalized_as_of = _normalize_iso_date(as_of)
+
+        if not normalized_ticker and not normalized_country:
+            response = error_response(
+                status_code=400,
+                request_id=request_id,
+                message="ticker or country query parameter is required",
+                provider=OFFICIAL_STRUCTURAL_PROVIDER,
+            )
+            return response.status_code, response.body
+
+        started_at = time.perf_counter()
+        log(
+            "INFO",
+            "Official structural context retrieval started",
+            request_id=request_id,
+            provider=OFFICIAL_STRUCTURAL_PROVIDER,
+            ticker=normalized_ticker or None,
+            country=normalized_country or None,
+            dataset="official_structural_context",
+        )
+
+        try:
+            payload = build_official_structural_payload(
+                ticker=normalized_ticker or None,
+                country=normalized_country or None,
+                subject_type=normalized_subject_type,
+                as_of=normalized_as_of,
+                service=self,
+            )
+        except ProviderIntegrationError as error:
+            log(
+                "ERROR",
+                "Official structural context retrieval failed",
+                request_id=request_id,
+                provider=error.provider,
+                ticker=normalized_ticker or None,
+                country=normalized_country or None,
+                error_message=str(error),
+            )
+            response = error_response(
+                status_code=error.status_code,
+                request_id=request_id,
+                message=str(error),
+                error_code=error.error_code,
+                provider=error.provider,
+            )
+            return response.status_code, response.body
+
+        latency_ms = int((time.perf_counter() - started_at) * 1000)
+        log(
+            "INFO",
+            "Official structural context retrieval succeeded",
+            request_id=request_id,
+            provider=OFFICIAL_STRUCTURAL_PROVIDER,
+            ticker=normalized_ticker or None,
+            country=normalized_country or None,
+            dataset="official_structural_context",
+            as_of=normalized_as_of or None,
+            observation_count=len(payload.get("observations", [])),
+            omission_count=len(payload.get("omissions", [])),
+            latency_ms=latency_ms,
+        )
+
+        response = success_response(
+            request_id=request_id,
+            data=payload,
+            provider=OFFICIAL_STRUCTURAL_PROVIDER,
+            retrieved_at=iso_timestamp(),
         )
         return 200, response
 
@@ -1797,8 +2505,25 @@ def build_official_company_response(ticker: str | None, request_id: str) -> Resp
     return ResponsePayload(status_code=status_code, body=body)
 
 
-def build_official_macro_response(scope: str | None, request_id: str) -> ResponsePayload:
-    status_code, body = default_service().get_official_macro_truth(scope, request_id)
+def build_official_macro_response(scope: str | None, as_of: str | None, request_id: str) -> ResponsePayload:
+    status_code, body = default_service().get_official_macro_truth(scope, as_of, request_id)
+    return ResponsePayload(status_code=status_code, body=body)
+
+
+def build_official_structural_response(
+    ticker: str | None,
+    country: str | None,
+    subject_type: str | None,
+    as_of: str | None,
+    request_id: str,
+) -> ResponsePayload:
+    status_code, body = default_service().get_official_structural_context(
+        ticker,
+        country,
+        subject_type,
+        as_of,
+        request_id,
+    )
     return ResponsePayload(status_code=status_code, body=body)
 
 
@@ -1933,12 +2658,39 @@ def build_official_company_payload(ticker: str, *, service: DataOpenBBService | 
     return active_service.live_client().fetch_official_company_truth(ticker)
 
 
-def build_official_macro_payload(*, service: DataOpenBBService | None = None) -> dict[str, Any]:
+def build_official_macro_payload(
+    *, as_of: str | None = None, service: DataOpenBBService | None = None
+) -> dict[str, Any]:
     active_service = service or default_service()
     if active_service.settings.fixture_mode:
-        return _fixture_official_macro_payload()
+        return _fixture_official_macro_payload(as_of=as_of)
 
-    return active_service.live_client().fetch_official_macro_truth()
+    return active_service.live_client().fetch_official_macro_truth(as_of=as_of)
+
+
+def build_official_structural_payload(
+    *,
+    ticker: str | None = None,
+    country: str | None = None,
+    subject_type: str | None = None,
+    as_of: str | None = None,
+    service: DataOpenBBService | None = None,
+) -> dict[str, Any]:
+    active_service = service or default_service()
+    if active_service.settings.fixture_mode:
+        return _fixture_official_structural_payload(
+            ticker=ticker,
+            country=country,
+            subject_type=subject_type,
+            as_of=as_of,
+        )
+
+    return active_service.live_client().fetch_official_structural_context(
+        ticker=ticker,
+        country=country,
+        subject_type=subject_type,
+        as_of=as_of,
+    )
 
 
 def build_calendar_payload(

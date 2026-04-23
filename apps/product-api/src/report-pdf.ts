@@ -5,6 +5,7 @@ import type {
   ValueDisciplineSignal
 } from "../../../packages/contracts/src";
 import { reportLabelMap, reportSentenceMap } from "./report-label-map";
+import { buildEditorialPdfExport, supportsEditorialPdfExport } from "./report-pdf-editorial";
 
 type PdfRgb = [number, number, number];
 type PdfFontKey = "body" | "bodyBold" | "display" | "mono";
@@ -114,10 +115,64 @@ interface ReportViewModel {
   coverageNote: string;
 }
 
+type CanonicalDueDiligenceSectionId =
+  | "financial_analysis"
+  | "competitive_positioning"
+  | "management_and_governance"
+  | "risks_and_challenges"
+  | "growth_opportunities_and_outlook"
+  | "valuation_and_thesis_stance";
+
+type AnalysisReportWithDueDiligence = AnalysisReport & {
+  due_diligence?: unknown;
+};
+
+interface DetailPair {
+  label: string;
+  value: string;
+}
+
+interface ValueSignalRow {
+  label: string;
+  family: string;
+  status: string;
+  tone: PdfTone;
+  reason: string;
+}
+
+interface DueDiligenceSectionView {
+  id: CanonicalDueDiligenceSectionId;
+  title: string;
+  subtitle: string;
+  summary: string;
+  narrative: string;
+  bullets: string[];
+  detailPairs: DetailPair[];
+  omissions: string[];
+}
+
+interface DueDiligenceViewModel {
+  base: ReportViewModel;
+  sectionCount: number;
+  sparse: boolean;
+  financialAnalysis: DueDiligenceSectionView;
+  competitivePositioning: DueDiligenceSectionView;
+  managementAndGovernance: DueDiligenceSectionView;
+  risksAndChallenges: DueDiligenceSectionView;
+  growthOpportunitiesAndOutlook: DueDiligenceSectionView;
+  valuationAndThesisStance: DueDiligenceSectionView;
+  financialMetricTiles: MetricTile[];
+  valueSignalRows: ValueSignalRow[];
+  valuationAssumptions: DetailPair[];
+  evidenceSupport: DetailPair[];
+  appendixNotes: string[];
+  sourceNotes: string[];
+}
+
 export interface InstitutionalPdfExportResult {
   buffer: Buffer;
   pageCount: number;
-  pageTitles: string[];
+  pageTitles: string[]; 
 }
 
 const pageWidth = 612;
@@ -150,6 +205,15 @@ const fontResources: Record<PdfFontKey, { resource: string; baseFont: string }> 
 };
 
 export function buildInstitutionalPdfExport(report: AnalysisReport): InstitutionalPdfExportResult {
+  if (report.due_diligence?.sections?.length) {
+    if (supportsEditorialPdfExport()) {
+      return buildEditorialPdfExport(report);
+    }
+  }
+  return buildLegacyInstitutionalPdfExport(report);
+}
+
+export function buildLegacyInstitutionalPdfExport(report: AnalysisReport): InstitutionalPdfExportResult {
   const pages = buildInstitutionalPdfPages(report);
   const buffer = renderSimplePdf(pages);
   return {
@@ -160,7 +224,15 @@ export function buildInstitutionalPdfExport(report: AnalysisReport): Institution
 }
 
 export function buildInstitutionalPdfPages(report: AnalysisReport): PdfPageContent[] {
-  const view = buildReportViewModel(report);
+  const dueDiligence = extractDueDiligenceSectionMap(report as AnalysisReportWithDueDiligence);
+  const view = buildReportViewModel(report, dueDiligence);
+  if (dueDiligence) {
+    return buildDueDiligencePdfPages(report, view, dueDiligence);
+  }
+  return buildLegacyInstitutionalPdfPages(view);
+}
+
+function buildLegacyInstitutionalPdfPages(view: ReportViewModel): PdfPageContent[] {
   return [
     {
       title: "Executive Memo",
@@ -190,7 +262,10 @@ export function buildInstitutionalPdfPages(report: AnalysisReport): PdfPageConte
   ];
 }
 
-function buildReportViewModel(report: AnalysisReport): ReportViewModel {
+function buildReportViewModel(
+  report: AnalysisReport,
+  dueDiligence?: Partial<Record<CanonicalDueDiligenceSectionId, Record<string, unknown>>>
+): ReportViewModel {
   const ticker = sanitizeInline(report.ticker ?? "REPORT");
   const memoSections = report.investment_memo?.sections ?? [];
   const thesisSection = findMemoSection(memoSections, "investment_thesis");
@@ -199,9 +274,12 @@ function buildReportViewModel(report: AnalysisReport): ReportViewModel {
   const valuationSection = findMemoSection(memoSections, "valuation");
   const risksSection = findMemoSection(memoSections, "risks");
   const changeCards = buildChangeCards(report);
-  const financialView = buildFinancialView(report.financial_analysis?.annual_history ?? []);
-  const coverageMissing = buildMissingInputs(report);
-  const riskItems = buildRiskItems(report, risksSection);
+  const financialView = buildFinancialView(
+    report.financial_analysis?.annual_history ?? [],
+    extractSectionText(dueDiligence?.financial_analysis, ["summary", "narrative", "body", "analysis"])
+  );
+  const coverageMissing = buildMissingInputs(report, dueDiligence);
+  const riskItems = buildRiskItems(report, risksSection, dueDiligence?.risks_and_challenges);
   const mindChangeItems = buildMindChangeItems(report);
   const valuationRange = report.valuation
     ? {
@@ -218,8 +296,9 @@ function buildReportViewModel(report: AnalysisReport): ReportViewModel {
     reportDate: formatReportDate(report.generated_at),
     subtitle: firstNonEmpty(
       report.story_header?.headline,
+      extractSectionText(dueDiligence?.competitive_positioning, ["summary", "headline", "narrative"]),
       thesisSection?.narrative,
-      "Evidence-led investment memo."
+      "Institutional due-diligence report."
     ),
     signalChips: buildSignalChips(report, coverageMissing.length),
     qualityChips: buildQualityChips(report, coverageMissing.length),
@@ -236,6 +315,7 @@ function buildReportViewModel(report: AnalysisReport): ReportViewModel {
         report.story_header?.thesis_summary,
         thesisSection?.narrative,
         report.sections.find((section) => section.section_id === "thesis_statement")?.body,
+        extractSectionText(dueDiligence?.valuation_and_thesis_stance, ["summary", "narrative"]),
         "The available evidence is not yet strong enough to support a sharper investment claim."
       ),
       190
@@ -255,6 +335,7 @@ function buildReportViewModel(report: AnalysisReport): ReportViewModel {
             report.story_header?.why_now,
             report.change_summary?.top_changes[0]?.why_it_matters,
             changeSection?.narrative,
+            extractSectionText(dueDiligence?.growth_opportunities_and_outlook, ["summary", "narrative"]),
             "The next review window should focus on whether recent execution keeps supporting the base case."
           ),
           150
@@ -280,6 +361,7 @@ function buildReportViewModel(report: AnalysisReport): ReportViewModel {
           firstNonEmpty(
             riskItems[0],
             report.kill_switch_conditions?.[0]?.condition_text,
+            extractSectionText(dueDiligence?.risks_and_challenges, ["watch_item", "watch_items", "body"]),
             "The most important watch point is whether core evidence starts moving against the current base case."
           ),
           150
@@ -309,7 +391,8 @@ function buildReportViewModel(report: AnalysisReport): ReportViewModel {
       firstNonEmpty(
         report.change_summary?.current_view,
         thesisSection?.narrative,
-        "The current view relies on the evidence available in this run."
+        extractSectionText(dueDiligence?.valuation_and_thesis_stance, ["summary", "narrative"]),
+        "The current view relies on the evidence available in this report."
       ),
       180
     ),
@@ -317,6 +400,7 @@ function buildReportViewModel(report: AnalysisReport): ReportViewModel {
       firstNonEmpty(
         report.story_header?.reader_takeaway,
         valuationSection?.narrative,
+        extractSectionText(dueDiligence?.growth_opportunities_and_outlook, ["summary", "narrative"]),
         report.coverage_truth?.summary,
         "The current evidence supports further review rather than blind conviction."
       ),
@@ -329,6 +413,7 @@ function buildReportViewModel(report: AnalysisReport): ReportViewModel {
       : "General operating context",
     qualityInterpretation: shortenText(
       firstNonEmpty(
+        extractSectionText(dueDiligence?.competitive_positioning, ["summary", "narrative", "analysis"]),
         report.value_discipline?.interpretation,
         qualitySection?.narrative,
         "Quality readings are informative, but they do not replace full competitive and valuation work."
@@ -345,6 +430,7 @@ function buildReportViewModel(report: AnalysisReport): ReportViewModel {
       : "Valuation framework unavailable",
     valuationNarrative: shortenText(
       firstNonEmpty(
+        extractSectionText(dueDiligence?.valuation_and_thesis_stance, ["summary", "narrative", "analysis"]),
         valuationSection?.narrative,
         report.valuation?.degraded_reason,
         "Valuation should be read as a scenario framework rather than a single-point answer."
@@ -358,6 +444,7 @@ function buildReportViewModel(report: AnalysisReport): ReportViewModel {
     mindChangeItems,
     coverageNote: shortenText(
       firstNonEmpty(
+        extractSectionText(dueDiligence?.financial_analysis, ["summary", "narrative", "analysis"]),
         report.coverage_truth?.summary,
         report.investment_memo?.sparse_data_honesty_note,
         "Coverage is constrained by the available evidence and should be read with that limitation in mind."
@@ -365,6 +452,618 @@ function buildReportViewModel(report: AnalysisReport): ReportViewModel {
       180
     )
   };
+}
+
+function buildDueDiligencePdfPages(
+  report: AnalysisReport,
+  baseView: ReportViewModel,
+  dueDiligence: Partial<Record<CanonicalDueDiligenceSectionId, Record<string, unknown>>>
+): PdfPageContent[] {
+  const model = buildDueDiligenceViewModel(report, baseView, dueDiligence);
+  if (model.sparse) {
+    return [
+      {
+        title: "Executive Memo",
+        draw: (commands, pageNumber, totalPages) => drawExecutiveMemoPage(commands, model.base, pageNumber, totalPages)
+      },
+      {
+        title: "Investment Memo",
+        draw: (commands, pageNumber, totalPages) => drawThesisAndChangePage(commands, model.base, pageNumber, totalPages)
+      },
+      {
+        title: "Due Diligence Overview",
+        draw: (commands, pageNumber, totalPages) => drawSparseDueDiligenceOverviewPage(commands, model, pageNumber, totalPages)
+      },
+      {
+        title: "Growth Outlook and Valuation",
+        draw: (commands, pageNumber, totalPages) => drawSparseConvictionPage(commands, model, pageNumber, totalPages)
+      },
+      {
+        title: "Evidence and Risks",
+        draw: (commands, pageNumber, totalPages) => drawEvidenceAndRiskPage(commands, model.base, pageNumber, totalPages)
+      },
+      {
+        title: "Appendix and Source Notes",
+        draw: (commands, pageNumber, totalPages) => drawAppendixPage(commands, model, pageNumber, totalPages)
+      }
+    ];
+  }
+
+  return [
+    {
+      title: "Executive Memo",
+      draw: (commands, pageNumber, totalPages) => drawExecutiveMemoPage(commands, model.base, pageNumber, totalPages)
+    },
+    {
+      title: "Investment Memo",
+      draw: (commands, pageNumber, totalPages) => drawThesisAndChangePage(commands, model.base, pageNumber, totalPages)
+    },
+    {
+      title: "Financial Statement Analysis",
+      draw: (commands, pageNumber, totalPages) => drawFinancialStatementPage(commands, model.base, pageNumber, totalPages)
+    },
+    {
+      title: "Competitive Positioning",
+      draw: (commands, pageNumber, totalPages) => drawCompetitivePositioningPage(commands, model, pageNumber, totalPages)
+    },
+    {
+      title: "Management and Governance",
+      draw: (commands, pageNumber, totalPages) => drawFinancialAppendixPage(commands, model, pageNumber, totalPages)
+    },
+    {
+      title: "Risks and Challenges",
+      draw: (commands, pageNumber, totalPages) => drawRiskMonitoringPage(commands, model, pageNumber, totalPages)
+    },
+    {
+      title: "Growth Opportunities and Outlook",
+      draw: (commands, pageNumber, totalPages) => drawValueDisciplinePage(commands, model, pageNumber, totalPages)
+    },
+    {
+      title: "Valuation and Thesis Stance",
+      draw: (commands, pageNumber, totalPages) => drawValuationThesisStancePage(commands, model, pageNumber, totalPages)
+    },
+    {
+      title: "Evidence and Coverage",
+      draw: (commands, pageNumber, totalPages) => drawEvidenceBookPage(commands, model, pageNumber, totalPages)
+    },
+    {
+      title: "Appendix and Source Notes",
+      draw: (commands, pageNumber, totalPages) => drawAppendixPage(commands, model, pageNumber, totalPages)
+    }
+  ];
+}
+
+function buildDueDiligenceViewModel(
+  report: AnalysisReport,
+  base: ReportViewModel,
+  dueDiligence: Partial<Record<CanonicalDueDiligenceSectionId, Record<string, unknown>>>
+): DueDiligenceViewModel {
+  const valueSignals = report.value_discipline?.signals ?? [];
+  const valueSignalRows = valueSignals.slice(0, 6).map((signal) => ({
+    label: sanitizeDisplayLabel(signal.label),
+    family: reportLabelMap(signal.family),
+    status: mapSignalStatus(signal.status),
+    tone: mapSignalTone(signal.status),
+    reason: shortenText(firstNonEmpty(signal.reason, "Supporting evidence is limited."), 96)
+  }));
+  const financialMetricTiles = [
+    ...buildMetricTilesFromFinancialRows(base.financialRows),
+    ...buildMetricTilesFromDerivedMetrics(report)
+  ].slice(0, 4);
+  const valuationAssumptions = buildValuationAssumptionPairs(report);
+  const evidenceSupport = buildEvidenceSupportPairs(report);
+  const appendixNotes = buildBulletSet([
+    ...base.missingInputs,
+    ...collectStringList(dueDiligence.financial_analysis, ["omissions", "missing", "limitations"]),
+    ...collectStringList(dueDiligence.management_and_governance, ["omissions", "missing", "limitations"]),
+    ...collectStringList(dueDiligence.valuation_and_thesis_stance, ["omissions", "missing", "limitations"]),
+    ...collectStringList(dueDiligence.risks_and_challenges, ["omissions", "missing", "limitations"])
+  ], 6);
+  const sourceNotes = buildSourceNotes(report);
+  const annualPeriods = report.financial_analysis?.annual_history.filter((row) =>
+    hasAtLeastOneValue([
+      row.revenue,
+      row.gross_margin,
+      row.operating_margin,
+      row.net_income,
+      row.free_cash_flow,
+      row.debt_total,
+      row.cash_and_equivalents,
+      row.shares_outstanding
+    ])
+  ).length ?? 0;
+  const sparse =
+    annualPeriods < 3 ||
+    !report.valuation?.fair_value_mid ||
+    base.missingInputs.length >= 3 ||
+    report.confidence.label === "low";
+
+  return {
+    base,
+    sectionCount: Object.keys(dueDiligence).length,
+    sparse,
+    financialAnalysis: buildDueDiligenceSectionView("financial_analysis", dueDiligence.financial_analysis, {
+      title: "Financial Statement Analysis",
+      subtitle: "What the numbers show across revenue, margins, cash flow, and balance sheet.",
+      summary: firstNonEmpty(base.financialNote, base.coverageNote),
+      narrative: firstNonEmpty(base.financialNote, base.coverageNote),
+      bullets: [
+        ...base.financialRows.slice(0, 4).map((row) => `${row.label}: ${row.values.at(-1) ?? "--"}`),
+        ...base.missingInputs.slice(0, 2)
+      ],
+      detailPairs: base.financialRows.slice(0, 4).map((row) => ({
+        label: row.label,
+        value: row.values.at(-1) ?? "--"
+      })),
+      omissions: [
+        ...base.missingInputs,
+        ...(report.financial_analysis?.omissions ?? []).map((entry) => sanitizeDisplaySentence(entry.reason))
+      ]
+    }),
+    competitivePositioning: buildDueDiligenceSectionView(
+      "competitive_positioning",
+      dueDiligence.competitive_positioning,
+      {
+        title: "Competitive Positioning",
+        subtitle: "How the company earns, defends returns, and positions itself in the market.",
+        summary: firstNonEmpty(base.qualityInterpretation, base.centralArgument),
+        narrative: firstNonEmpty(base.qualityInterpretation, base.centralArgument),
+        bullets: [
+          ...base.qualityRows.slice(0, 3).map((row) => `${row.factor}: ${row.reading}`),
+          ...base.riskItems.slice(0, 1)
+        ],
+        detailPairs: [
+          { label: "Context", value: base.qualityContext },
+          { label: "Signal", value: base.signalChips[0]?.label ?? "Signal: Watch" },
+          { label: "Confidence", value: base.signalChips[1]?.label ?? "Confidence: Limited" }
+        ],
+        omissions: base.missingInputs
+      }
+    ),
+    managementAndGovernance: buildDueDiligenceSectionView(
+      "management_and_governance",
+      dueDiligence.management_and_governance,
+      {
+        title: "Management and Governance",
+        subtitle: "Capital allocation, accountability, and execution discipline.",
+        summary: firstNonEmpty(base.changeCards[0]?.body, base.coverageNote),
+        narrative: firstNonEmpty(base.changeCards[0]?.body, base.coverageNote),
+        bullets: [
+          ...base.changeCards.map((card) => `${card.title}: ${card.body}`),
+          ...base.mindChangeItems.slice(0, 1)
+        ],
+        detailPairs: [
+          { label: "Capital discipline", value: base.qualityRows[3]?.reading ?? "Limited" },
+          { label: "Operating stance", value: base.currentView },
+          { label: "Governance watchpoint", value: base.riskItems[0] ?? "Limited" }
+        ],
+        omissions: base.missingInputs
+      }
+    ),
+    risksAndChallenges: buildDueDiligenceSectionView(
+      "risks_and_challenges",
+      dueDiligence.risks_and_challenges,
+      {
+        title: "Risks and Challenges",
+        subtitle: "What could break the thesis and what evidence would force a new read.",
+        summary: firstNonEmpty(base.riskItems[0], base.coverageNote),
+        narrative: firstNonEmpty(base.riskItems[0], base.coverageNote),
+        bullets: [...base.riskItems, ...base.mindChangeItems],
+        detailPairs: (report.kill_switch_conditions ?? []).slice(0, 3).map((condition) => ({
+          label: reportLabelMap(condition.signal_type),
+          value: shortenText(condition.condition_text, 88)
+        })),
+        omissions: base.missingInputs
+      }
+    ),
+    growthOpportunitiesAndOutlook: buildDueDiligenceSectionView(
+      "growth_opportunities_and_outlook",
+      dueDiligence.growth_opportunities_and_outlook,
+      {
+        title: "Growth Opportunities and Outlook",
+        subtitle: "Where upside could come from and what must still be confirmed.",
+        summary: firstNonEmpty(base.implication, base.coverageNote),
+        narrative: firstNonEmpty(base.implication, base.coverageNote),
+        bullets: [
+          ...base.changeCards.map((card) => `${card.title}: ${card.body}`),
+          ...base.mindChangeItems.slice(0, 2)
+        ],
+        detailPairs: [
+          { label: "Why now", value: base.executiveCards[0]?.body ?? base.implication },
+          { label: "Current view", value: base.currentView },
+          { label: "What to monitor", value: base.mindChangeItems[0] ?? "Limited" }
+        ],
+        omissions: base.missingInputs
+      }
+    ),
+    valuationAndThesisStance: buildDueDiligenceSectionView(
+      "valuation_and_thesis_stance",
+      dueDiligence.valuation_and_thesis_stance,
+      {
+        title: "Valuation and Thesis Stance",
+        subtitle: "How valuation and conviction fit together in the current report.",
+        summary: firstNonEmpty(base.valuationNarrative, base.centralArgument),
+        narrative: firstNonEmpty(base.valuationNarrative, base.centralArgument),
+        bullets: [
+          ...base.scenarioColumns.map((column) => `${column.label}: ${column.keyAssumption}`),
+          ...valueSignalRows.slice(0, 2).map((row) => `${row.label}: ${row.reason}`)
+        ],
+        detailPairs: [
+          { label: "Framework", value: base.valuationFrameworkLabel },
+          { label: "Base value", value: formatPrice(report.valuation?.fair_value_mid) },
+          { label: "Spot price", value: formatPrice(report.valuation?.spot_price) },
+          { label: "Stance", value: base.signalChips[0]?.label ?? "Signal: Watch" }
+        ],
+        omissions: base.missingInputs
+      }
+    ),
+    financialMetricTiles,
+    valueSignalRows,
+    valuationAssumptions,
+    evidenceSupport,
+    appendixNotes,
+    sourceNotes
+  };
+}
+
+function buildDueDiligenceSectionView(
+  id: CanonicalDueDiligenceSectionId,
+  rawSection: Record<string, unknown> | undefined,
+  fallback: {
+    title: string;
+    subtitle: string;
+    summary: string;
+    narrative: string;
+    bullets: string[];
+    detailPairs: DetailPair[];
+    omissions: string[];
+  }
+): DueDiligenceSectionView {
+  return {
+    id,
+    title: sanitizeDisplayLabel(firstNonEmpty(extractSectionText(rawSection, ["title", "label"]), fallback.title)),
+    subtitle: shortenText(
+      firstNonEmpty(extractSectionText(rawSection, ["subtitle", "eyebrow", "deck"]), fallback.subtitle),
+      120
+    ),
+    summary: shortenText(
+      firstNonEmpty(
+        extractSectionText(rawSection, ["summary", "body", "narrative", "narrative_paragraphs"]),
+        fallback.summary
+      ),
+      180
+    ),
+    narrative: shortenText(
+      firstNonEmpty(
+        extractSectionText(rawSection, ["analysis", "narrative", "body", "conclusion", "narrative_paragraphs"]),
+        fallback.narrative
+      ),
+      220
+    ),
+    bullets: buildBulletSet(
+      [
+        ...collectStringList(rawSection, ["key_points", "bullets", "findings", "watch_items", "questions"]),
+        ...fallback.bullets
+      ],
+      6
+    ),
+    detailPairs: buildDetailPairs([
+      ...collectDetailPairs(rawSection, ["metrics", "items", "assumptions", "claims"]),
+      ...fallback.detailPairs
+    ], 4),
+    omissions: buildBulletSet(
+      [
+        ...collectStringList(rawSection, ["omissions", "missing", "limitations"]),
+        ...fallback.omissions
+      ],
+      4
+    )
+  };
+}
+
+function extractDueDiligenceSectionMap(
+  report: AnalysisReportWithDueDiligence
+): Partial<Record<CanonicalDueDiligenceSectionId, Record<string, unknown>>> | undefined {
+  const block = report.due_diligence;
+  if (!isRecord(block)) {
+    return undefined;
+  }
+
+  const collected: Partial<Record<CanonicalDueDiligenceSectionId, Record<string, unknown>>> = {};
+  const directAliases: Record<CanonicalDueDiligenceSectionId, string[]> = {
+    financial_analysis: ["financial_analysis", "financial_statement_analysis"],
+    competitive_positioning: ["competitive_positioning"],
+    management_and_governance: ["management_and_governance"],
+    risks_and_challenges: ["risks_and_challenges", "risks"],
+    growth_opportunities_and_outlook: ["growth_opportunities_and_outlook"],
+    valuation_and_thesis_stance: ["valuation_and_thesis_stance", "valuation"]
+  };
+
+  for (const [canonicalId, aliases] of Object.entries(directAliases) as Array<[CanonicalDueDiligenceSectionId, string[]]>) {
+    for (const alias of aliases) {
+      const candidate = block[alias];
+      if (isRecord(candidate)) {
+        collected[canonicalId] = candidate;
+        break;
+      }
+    }
+  }
+
+  const sections = block.sections;
+  if (Array.isArray(sections)) {
+    for (const section of sections) {
+      if (!isRecord(section)) {
+        continue;
+      }
+      const normalizedId = normalizeDueDiligenceSectionId(
+        firstNonEmpty(
+          readUnknownText(section.section_id),
+          readUnknownText(section.id),
+          readUnknownText(section.key),
+          readUnknownText(section.kind),
+          readUnknownText(section.title)
+        )
+      );
+      if (normalizedId && !collected[normalizedId]) {
+        collected[normalizedId] = section;
+      }
+    }
+  }
+
+  return Object.keys(collected).length > 0 ? collected : undefined;
+}
+
+function normalizeDueDiligenceSectionId(value: string): CanonicalDueDiligenceSectionId | undefined {
+  const normalized = sanitizeInline(value).toLowerCase();
+  if (normalized.includes("financial")) {
+    return "financial_analysis";
+  }
+  if (normalized.includes("competitive")) {
+    return "competitive_positioning";
+  }
+  if (normalized.includes("management") || normalized.includes("governance")) {
+    return "management_and_governance";
+  }
+  if (normalized.includes("risk") || normalized.includes("challenge")) {
+    return "risks_and_challenges";
+  }
+  if (normalized.includes("growth") || normalized.includes("outlook") || normalized.includes("opportun")) {
+    return "growth_opportunities_and_outlook";
+  }
+  if (normalized.includes("valuation") || normalized.includes("stance") || normalized.includes("thesis")) {
+    return "valuation_and_thesis_stance";
+  }
+  return undefined;
+}
+
+function extractSectionText(section: Record<string, unknown> | undefined, fields: string[]): string | undefined {
+  if (!section) {
+    return undefined;
+  }
+  for (const field of fields) {
+    const value = section[field];
+    const text = readUnknownText(value);
+    if (text) {
+      return text;
+    }
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        const candidate = readUnknownText(item);
+        if (candidate) {
+          return candidate;
+        }
+      }
+    }
+  }
+  return undefined;
+}
+
+function collectStringList(section: Record<string, unknown> | undefined, fields: string[]): string[] {
+  if (!section) {
+    return [];
+  }
+  const values: string[] = [];
+  for (const field of fields) {
+    const candidate = section[field];
+    if (Array.isArray(candidate)) {
+      for (const item of candidate) {
+        const text = readUnknownText(item);
+        if (text) {
+          values.push(sanitizeDisplaySentence(text));
+        }
+      }
+      continue;
+    }
+    const text = readUnknownText(candidate);
+    if (text) {
+      values.push(sanitizeDisplaySentence(text));
+    }
+  }
+  return values;
+}
+
+function collectDetailPairs(section: Record<string, unknown> | undefined, fields: string[]): DetailPair[] {
+  if (!section) {
+    return [];
+  }
+  const pairs: DetailPair[] = [];
+  for (const field of fields) {
+    const candidate = section[field];
+    if (!Array.isArray(candidate)) {
+      continue;
+    }
+    for (const item of candidate) {
+      if (!isRecord(item)) {
+        continue;
+      }
+      const label = sanitizeDisplayLabel(
+        firstNonEmpty(
+          readUnknownText(item.label),
+          readUnknownText(item.title),
+          readUnknownText(item.name),
+          readUnknownText(item.key)
+        )
+      );
+      const value = sanitizeDisplaySentence(
+        firstNonEmpty(
+          readUnknownText(item.value),
+          readUnknownText(item.summary),
+          readUnknownText(item.body),
+          readUnknownText(item.note)
+        )
+      );
+      if (label && value) {
+        pairs.push({ label, value });
+      }
+    }
+  }
+  return pairs;
+}
+
+function buildDetailPairs(pairs: DetailPair[], limit: number): DetailPair[] {
+  const seen = new Set<string>();
+  const next: DetailPair[] = [];
+  for (const pair of pairs) {
+    const label = sanitizeDisplayLabel(pair.label);
+    const value = sanitizeDisplaySentence(pair.value);
+    if (!label || !value) {
+      continue;
+    }
+    const key = `${label}::${value}`;
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    next.push({ label, value });
+    if (next.length === limit) {
+      break;
+    }
+  }
+  return next;
+}
+
+function buildBulletSet(items: string[], limit: number): string[] {
+  const seen = new Set<string>();
+  const next: string[] = [];
+  for (const item of items) {
+    const normalized = sanitizeDisplaySentence(item);
+    if (!normalized || seen.has(normalized)) {
+      continue;
+    }
+    seen.add(normalized);
+    next.push(shortenText(normalized, 112));
+    if (next.length === limit) {
+      break;
+    }
+  }
+  return next;
+}
+
+function buildMetricTilesFromFinancialRows(rows: FinancialTableRow[]): MetricTile[] {
+  return rows.slice(0, 4).map((row, index) => ({
+    label: row.label,
+    value: row.values.at(-1) ?? "--",
+    tone: index === 0 ? "gold" : index === 1 ? "positive" : index === 2 ? "neutral" : "warning"
+  }));
+}
+
+function buildMetricTilesFromDerivedMetrics(report: AnalysisReport): MetricTile[] {
+  const metrics = [
+    ...(report.financial_analysis?.trend_metrics ?? []),
+    ...(report.financial_analysis?.quality_metrics ?? [])
+  ];
+  return metrics.slice(0, 4).map((metric, index) => ({
+    label: sanitizeDisplayLabel(metric.label),
+    value:
+      metric.unit === "pct"
+        ? formatPct(metric.value)
+        : metric.unit === "ratio"
+          ? metric.value?.toFixed(2) ?? "--"
+          : metric.unit === "count"
+            ? metric.value?.toFixed(0) ?? "--"
+            : formatFinancialAmount(metric.value),
+    tone: metric.direction === "improving" ? "positive" : metric.direction === "deteriorating" ? "warning" : index % 2 === 0 ? "gold" : "neutral"
+  }));
+}
+
+function buildValuationAssumptionPairs(report: AnalysisReport): DetailPair[] {
+  if (!report.valuation) {
+    return [{ label: "Valuation status", value: "Scenario math is not available in this report." }];
+  }
+  const assumptions = report.valuation.assumptions;
+  return buildDetailPairs(
+    [
+      { label: "Methodology", value: reportLabelMap(assumptions.methodology) },
+      { label: "Projection years", value: String(assumptions.projection_years) },
+      { label: "Terminal growth", value: formatPct(assumptions.terminal_growth_rate) },
+      { label: "WACC", value: formatPct(assumptions.wacc) }
+    ],
+    4
+  );
+}
+
+function buildEvidenceSupportPairs(report: AnalysisReport): DetailPair[] {
+  const pairs: DetailPair[] = [];
+  for (const claim of report.investment_memo?.material_claims ?? []) {
+    const support = claim.supports[0];
+    if (!support) {
+      continue;
+    }
+    pairs.push({
+      label: shortenText(claim.statement, 48),
+      value: shortenText(firstNonEmpty(support.summary, reportLabelMap(support.ref_id)), 92)
+    });
+    if (pairs.length === 4) {
+      return pairs;
+    }
+  }
+  if (pairs.length > 0) {
+    return pairs;
+  }
+  return report.sections.slice(0, 4).map((section) => ({
+    label: shortenText(section.title, 42),
+    value: shortenText(firstNonEmpty(section.evidence[0]?.excerpt, section.body, "Source support is limited in this section."), 92)
+  }));
+}
+
+function buildSourceNotes(report: AnalysisReport): string[] {
+  const items = report.data_sources.map((source) => reportLabelMap(source));
+  const ifNone = items.length > 0 ? items : ["Source notes were not attached to this report export."];
+  return buildBulletSet(ifNone, 6);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function readUnknownText(value: unknown): string | undefined {
+  if (typeof value === "string") {
+    return sanitizeInline(value);
+  }
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return String(value);
+  }
+  return undefined;
+}
+
+function sanitizeDisplayLabel(value: string): string {
+  const safe = sanitizeInline(value);
+  if (!safe) {
+    return "";
+  }
+  return looksLikeInternalIdentifier(safe) ? reportLabelMap(safe) : safe;
+}
+
+function sanitizeDisplaySentence(value: string): string {
+  const safe = sanitizeInline(value);
+  if (!safe) {
+    return "";
+  }
+  return looksLikeInternalIdentifier(safe) ? reportSentenceMap(safe) : safe;
+}
+
+function looksLikeInternalIdentifier(value: string): boolean {
+  return /^[a-z0-9]+(?:[_-][a-z0-9]+)+$/i.test(value);
 }
 
 function drawExecutiveMemoPage(
@@ -498,7 +1197,7 @@ function drawThesisAndChangePage(
     size: 18,
     color: charcoal
   });
-  drawText(commands, pageMargin + 18, 402, "Three concise change notes, written for a human reader rather than a JSON parser.", {
+  drawText(commands, pageMargin + 18, 402, "Three concise change notes that highlight the decision-relevant deltas.", {
     font: "body",
     size: 9,
     color: muted
@@ -742,6 +1441,554 @@ function drawEvidenceAndRiskPage(
   );
 }
 
+function drawSparseDueDiligenceOverviewPage(
+  commands: string[],
+  model: DueDiligenceViewModel,
+  pageNumber: number,
+  totalPages: number
+): void {
+  drawPageFrame(commands, model.base, "Due Diligence Overview", pageNumber, totalPages);
+  drawSectionHeading(
+    commands,
+    "Due Diligence Overview",
+    "Competitive positioning and financial reality on one restrained summary page."
+  );
+
+  drawThesisBox(commands, pageMargin, 98, contentWidth, 84, model.competitivePositioning.title, model.competitivePositioning.summary);
+
+  const columnWidth = (contentWidth - 16) / 2;
+  drawLabeledPanel(
+    commands,
+    pageMargin,
+    202,
+    columnWidth,
+    132,
+    model.competitivePositioning.subtitle,
+    model.competitivePositioning.narrative,
+    "gold"
+  );
+  drawLabeledPanel(
+    commands,
+    pageMargin + columnWidth + 16,
+    202,
+    columnWidth,
+    132,
+    model.financialAnalysis.subtitle,
+    model.financialAnalysis.narrative,
+    "neutral"
+  );
+
+  drawPanel(commands, pageMargin, 354, contentWidth, 76, {
+    fill: panelIvory,
+    stroke: divider,
+    lineWidth: 0.8
+  });
+  drawText(commands, pageMargin + 18, 374, "Financial anchors", {
+    font: "display",
+    size: 18,
+    color: charcoal
+  });
+  drawMetricTileStrip(commands, pageMargin + 18, 392, contentWidth - 36, model.financialMetricTiles);
+
+  drawRiskList(
+    commands,
+    pageMargin,
+    450,
+    columnWidth,
+    206,
+    "Key diligence takeaways",
+    [...model.competitivePositioning.bullets, ...model.financialAnalysis.bullets].slice(0, 5),
+    "gold"
+  );
+  drawRiskList(
+    commands,
+    pageMargin + columnWidth + 16,
+    450,
+    columnWidth,
+    206,
+    "Open limitations",
+    [...model.competitivePositioning.omissions, ...model.financialAnalysis.omissions].slice(0, 5),
+    "warning"
+  );
+}
+
+function drawCompetitivePositioningPage(
+  commands: string[],
+  model: DueDiligenceViewModel,
+  pageNumber: number,
+  totalPages: number
+): void {
+  drawPageFrame(commands, model.base, "Competitive Positioning", pageNumber, totalPages);
+  drawSectionHeading(
+    commands,
+    "Competitive Positioning",
+    "How the company competes, where the moat sits, and what still needs proof."
+  );
+
+  drawThesisBox(
+    commands,
+    pageMargin,
+    98,
+    contentWidth,
+    82,
+    model.competitivePositioning.title,
+    model.competitivePositioning.summary
+  );
+
+  const columnWidth = (contentWidth - 16) / 2;
+  drawDetailPairsPanel(
+    commands,
+    pageMargin,
+    198,
+    columnWidth,
+    228,
+    "Positioning anchors",
+    model.competitivePositioning.detailPairs,
+    "gold"
+  );
+  drawRiskList(
+    commands,
+    pageMargin + columnWidth + 16,
+    198,
+    columnWidth,
+    228,
+    "Competitive observations",
+    model.competitivePositioning.bullets,
+    "neutral"
+  );
+  drawThesisBox(
+    commands,
+    pageMargin,
+    446,
+    contentWidth,
+    96,
+    "Interpretation",
+    `${model.base.qualityContext}. ${model.competitivePositioning.narrative}`
+  );
+  drawRiskList(
+    commands,
+    pageMargin,
+    562,
+    contentWidth,
+    92,
+    "Open competitive questions",
+    model.competitivePositioning.omissions,
+    "warning"
+  );
+}
+
+function drawValuationThesisStancePage(
+  commands: string[],
+  model: DueDiligenceViewModel,
+  pageNumber: number,
+  totalPages: number
+): void {
+  drawPageFrame(commands, model.base, "Valuation and Thesis Stance", pageNumber, totalPages);
+  drawSectionHeading(
+    commands,
+    "Valuation and Thesis Stance",
+    "How the price framework and the current stance fit together in one page."
+  );
+
+  drawThesisBox(
+    commands,
+    pageMargin,
+    98,
+    contentWidth,
+    78,
+    model.valuationAndThesisStance.title,
+    model.valuationAndThesisStance.summary
+  );
+  drawLabeledPanel(
+    commands,
+    pageMargin,
+    194,
+    contentWidth,
+    68,
+    "Framework and stance",
+    `${model.base.valuationFrameworkLabel}. ${model.valuationAndThesisStance.narrative}`,
+    "gold"
+  );
+  drawScenarioTable(commands, pageMargin, 282, contentWidth, 236, model.base.scenarioColumns);
+  drawValuationRange(commands, pageMargin + 18, 540, contentWidth - 36, 58, model.base.valuationRange, {
+    lowLabel: "Bear",
+    midLabel: "Base",
+    highLabel: "Bull",
+    spotLabel: "Spot"
+  });
+  drawMetricTileStrip(commands, pageMargin + 18, 598, contentWidth - 36, model.base.valuationTiles);
+  drawRiskList(
+    commands,
+    pageMargin,
+    648,
+    contentWidth,
+    52,
+    "Valuation notes",
+    model.valuationAndThesisStance.bullets,
+    "neutral"
+  );
+}
+
+function drawSparseConvictionPage(
+  commands: string[],
+  model: DueDiligenceViewModel,
+  pageNumber: number,
+  totalPages: number
+): void {
+  drawPageFrame(commands, model.base, "Growth Outlook and Valuation", pageNumber, totalPages);
+  drawSectionHeading(
+    commands,
+    "Growth Outlook and Valuation",
+    "What the forward opportunity looks like, what valuation implies, and where limits remain."
+  );
+
+  drawChipRow(commands, pageMargin, 98, contentWidth, model.base.signalChips);
+
+  const leftWidth = 238;
+  drawPanel(commands, pageMargin, 142, leftWidth, 272, {
+    fill: panelIvory,
+    stroke: divider,
+    lineWidth: 0.8
+  });
+  drawText(commands, pageMargin + 18, 162, "Growth opportunities and outlook", {
+    font: "display",
+    size: 18,
+    color: charcoal
+  });
+  drawTextBlock(commands, pageMargin + 18, 188, leftWidth - 36, model.growthOpportunitiesAndOutlook.summary, {
+    font: "body",
+    size: 9.5,
+    leading: 13,
+    color: ink,
+    maxLines: 5
+  });
+  drawValueSignalTable(commands, pageMargin + 18, 268, leftWidth - 36, 124, model.valueSignalRows.slice(0, 3));
+
+  drawPanel(commands, pageMargin + leftWidth + 16, 142, contentWidth - leftWidth - 16, 272, {
+    fill: panelIvory,
+    stroke: divider,
+    lineWidth: 0.8
+  });
+  drawText(commands, pageMargin + leftWidth + 34, 162, "Valuation and thesis stance", {
+    font: "display",
+    size: 18,
+    color: charcoal
+  });
+  drawValuationRange(commands, pageMargin + leftWidth + 34, 198, contentWidth - leftWidth - 52, 72, model.base.valuationRange, {
+    lowLabel: "Bear",
+    midLabel: "Base",
+    highLabel: "Bull",
+    spotLabel: "Spot"
+  });
+  drawMetricTileStrip(commands, pageMargin + leftWidth + 34, 274, contentWidth - leftWidth - 52, model.base.valuationTiles);
+  drawTextBlock(commands, pageMargin + leftWidth + 34, 334, contentWidth - leftWidth - 52, model.valuationAndThesisStance.narrative, {
+    font: "body",
+    size: 9,
+    leading: 12,
+    color: ink,
+    maxLines: 4
+  });
+
+  drawScenarioTable(commands, pageMargin, 434, contentWidth, 224, model.base.scenarioColumns);
+}
+
+function drawFinancialAppendixPage(
+  commands: string[],
+  model: DueDiligenceViewModel,
+  pageNumber: number,
+  totalPages: number
+): void {
+  drawPageFrame(commands, model.base, "Management and Governance", pageNumber, totalPages);
+  drawSectionHeading(
+    commands,
+    "Management and Governance",
+    "Leadership quality, capital allocation, and the governance questions that still matter."
+  );
+
+  drawThesisBox(
+    commands,
+    pageMargin,
+    98,
+    contentWidth,
+    82,
+    model.managementAndGovernance.title,
+    model.managementAndGovernance.summary
+  );
+
+  drawPanel(commands, pageMargin, 198, contentWidth, 76, {
+    fill: panelIvory,
+    stroke: divider,
+    lineWidth: 0.8
+  });
+  drawText(commands, pageMargin + 18, 218, "Management anchors", {
+    font: "display",
+    size: 18,
+    color: charcoal
+  });
+  drawMetricTileStrip(commands, pageMargin + 18, 236, contentWidth - 36, model.financialMetricTiles);
+
+  const columnWidth = (contentWidth - 16) / 2;
+  drawDetailPairsPanel(
+    commands,
+    pageMargin,
+    294,
+    columnWidth,
+    246,
+    "Governance considerations",
+    model.managementAndGovernance.detailPairs,
+    "gold"
+  );
+  drawRiskList(
+    commands,
+    pageMargin + columnWidth + 16,
+    294,
+    columnWidth,
+    246,
+    "Open governance questions",
+    model.managementAndGovernance.omissions,
+    "warning"
+  );
+
+  drawThesisBox(
+    commands,
+    pageMargin,
+    558,
+    contentWidth,
+    96,
+    "Read-through",
+    model.managementAndGovernance.narrative
+  );
+}
+
+function drawValueDisciplinePage(
+  commands: string[],
+  model: DueDiligenceViewModel,
+  pageNumber: number,
+  totalPages: number
+): void {
+  drawPageFrame(commands, model.base, "Growth Opportunities and Outlook", pageNumber, totalPages);
+  drawSectionHeading(
+    commands,
+    "Growth Opportunities and Outlook",
+    "Where upside could come from next, and what still needs confirmation."
+  );
+
+  drawChipRow(commands, pageMargin, 98, contentWidth, model.base.qualityChips);
+
+  const cardWidth = (contentWidth - 24) / 3;
+  drawInfoCard(commands, pageMargin, 142, cardWidth, 112, "Why now", model.growthOpportunitiesAndOutlook.detailPairs[0]?.value ?? "Limited", "gold");
+  drawInfoCard(
+    commands,
+    pageMargin + cardWidth + 12,
+    142,
+    cardWidth,
+    112,
+    "Current view",
+    model.growthOpportunitiesAndOutlook.detailPairs[1]?.value ?? model.base.currentView,
+    "neutral"
+  );
+  drawInfoCard(
+    commands,
+    pageMargin + (cardWidth + 12) * 2,
+    142,
+    cardWidth,
+    112,
+    "What must still happen",
+    model.growthOpportunitiesAndOutlook.narrative,
+    "warning"
+  );
+
+  drawPanel(commands, pageMargin, 274, contentWidth, 248, {
+    fill: panelIvory,
+    stroke: divider,
+    lineWidth: 0.8
+  });
+  drawText(commands, pageMargin + 18, 294, "Supporting scorecard and monitor points", {
+    font: "display",
+    size: 18,
+    color: charcoal
+  });
+  drawValueSignalTable(commands, pageMargin + 18, 320, contentWidth - 36, 178, model.valueSignalRows);
+
+  const columnWidth = (contentWidth - 16) / 2;
+  drawRiskList(
+    commands,
+    pageMargin,
+    542,
+    columnWidth,
+    112,
+    "Supporting observations",
+    model.growthOpportunitiesAndOutlook.bullets,
+    "gold"
+  );
+  drawRiskList(
+    commands,
+    pageMargin + columnWidth + 16,
+    542,
+    columnWidth,
+    112,
+    "Missing pieces",
+    model.growthOpportunitiesAndOutlook.omissions,
+    "warning"
+  );
+}
+
+function drawRiskMonitoringPage(
+  commands: string[],
+  model: DueDiligenceViewModel,
+  pageNumber: number,
+  totalPages: number
+): void {
+  drawPageFrame(commands, model.base, "Risks and Challenges", pageNumber, totalPages);
+  drawSectionHeading(
+    commands,
+    "Risks and Challenges",
+    "Falsifiable risk framing and the conditions that would trigger a fresh review."
+  );
+
+  drawThesisBox(commands, pageMargin, 98, contentWidth, 84, model.risksAndChallenges.title, model.risksAndChallenges.summary);
+
+  const columnWidth = (contentWidth - 16) / 2;
+  drawRiskList(commands, pageMargin, 202, columnWidth, 208, "Top risks", model.base.riskItems, "warning");
+  drawRiskList(
+    commands,
+    pageMargin + columnWidth + 16,
+    202,
+    columnWidth,
+    208,
+    "What would change our mind",
+    model.base.mindChangeItems,
+    "gold"
+  );
+
+  drawDetailPairsPanel(
+    commands,
+    pageMargin,
+    430,
+    columnWidth,
+    200,
+    "Kill-switch triggers",
+    model.risksAndChallenges.detailPairs,
+    "warning"
+  );
+  drawRiskList(
+    commands,
+    pageMargin + columnWidth + 16,
+    430,
+    columnWidth,
+    200,
+    "Monitoring notes",
+    model.risksAndChallenges.bullets,
+    "neutral"
+  );
+}
+
+function drawEvidenceBookPage(
+  commands: string[],
+  model: DueDiligenceViewModel,
+  pageNumber: number,
+  totalPages: number
+): void {
+  drawPageFrame(commands, model.base, "Evidence and Coverage", pageNumber, totalPages);
+  drawSectionHeading(
+    commands,
+    "Evidence and Coverage",
+    "The strongest supporting evidence, where it comes from, and what still lacks support."
+  );
+
+  drawThesisBox(commands, pageMargin, 98, contentWidth, 84, "Evidence and coverage", model.base.coverageNote);
+
+  const columnWidth = (contentWidth - 16) / 2;
+  drawEvidencePanel(commands, pageMargin, 202, columnWidth, 248, model.base.evidenceCards);
+  drawDetailPairsPanel(
+    commands,
+    pageMargin + columnWidth + 16,
+    202,
+    columnWidth,
+    248,
+    "Claim support",
+    model.evidenceSupport,
+    "gold"
+  );
+  drawCoverageNote(
+    commands,
+    pageMargin,
+    470,
+    columnWidth,
+    160,
+    model.base.coverageNote,
+    model.appendixNotes
+  );
+  drawRiskList(
+    commands,
+    pageMargin + columnWidth + 16,
+    470,
+    columnWidth,
+    160,
+    "Source notes",
+    model.sourceNotes,
+    "neutral"
+  );
+}
+
+function drawAppendixPage(
+  commands: string[],
+  model: DueDiligenceViewModel,
+  pageNumber: number,
+  totalPages: number
+): void {
+  drawPageFrame(commands, model.base, "Appendix and Source Notes", pageNumber, totalPages);
+  drawSectionHeading(
+    commands,
+    "Appendix and Source Notes",
+    "Assumptions, open limitations, and report provenance in one closing reference page."
+  );
+
+  drawThesisBox(commands, pageMargin, 98, contentWidth, 76, "Coverage truth", model.base.coverageNote);
+
+  const columnWidth = (contentWidth - 16) / 2;
+  drawDetailPairsPanel(
+    commands,
+    pageMargin,
+    194,
+    columnWidth,
+    196,
+    "Valuation assumptions",
+    model.valuationAssumptions,
+    "gold"
+  );
+  drawRiskList(
+    commands,
+    pageMargin + columnWidth + 16,
+    194,
+    columnWidth,
+    196,
+    "Primary sources",
+    model.sourceNotes,
+    "neutral"
+  );
+  drawRiskList(
+    commands,
+    pageMargin,
+    410,
+    columnWidth,
+    210,
+    "Open limitations",
+    model.appendixNotes,
+    "warning"
+  );
+  drawRiskList(
+    commands,
+    pageMargin + columnWidth + 16,
+    410,
+    columnWidth,
+    210,
+    "What to revisit next",
+    model.base.mindChangeItems,
+    "gold"
+  );
+}
+
 function drawPageFrame(
   commands: string[],
   view: ReportViewModel,
@@ -771,7 +2018,7 @@ function drawPageFrame(
   });
   drawDivider(commands, pageMargin, 34, pageWidth - pageMargin, 34);
   drawDivider(commands, pageMargin, 736, pageWidth - pageMargin, 736);
-  drawText(commands, pageMargin, 748, "Generated by Thesis | Premium research memo", {
+  drawText(commands, pageMargin, 748, "Generated by Thesis | Institutional research export", {
     font: "body",
     size: 8.5,
     color: muted
@@ -1308,7 +2555,7 @@ function drawMarginChart(
   chart: MarginChartView | undefined
 ): void {
   if (!chart || chart.labels.length === 0) {
-    drawText(commands, x, top + 12, "Comparable annual margin history is not available for this run.", {
+    drawText(commands, x, top + 12, "Comparable annual margin history is not available for this report.", {
       font: "body",
       size: 9,
       color: muted
@@ -1505,6 +2752,134 @@ function drawRiskList(
   });
 }
 
+function drawDetailPairsPanel(
+  commands: string[],
+  x: number,
+  top: number,
+  width: number,
+  height: number,
+  title: string,
+  pairs: DetailPair[],
+  tone: PdfTone
+): void {
+  const palette = tonePalette(tone);
+  drawPanel(commands, x, top, width, height, {
+    fill: tone === "neutral" ? panelIvory : palette.softFill,
+    stroke: divider,
+    lineWidth: 0.8
+  });
+  drawText(commands, x + 18, top + 20, title, {
+    font: "display",
+    size: 18,
+    color: charcoal
+  });
+
+  let rowTop = top + 52;
+  const labelColumnWidth = Math.min(108, Math.max(72, width * 0.28));
+  const valueX = x + 24 + labelColumnWidth;
+  const valueWidth = Math.max(54, width - labelColumnWidth - 52);
+  const safePairs =
+    pairs.length > 0
+      ? pairs
+      : [{ label: "Coverage note", value: "No additional structured detail was attached for this page." }];
+  safePairs.slice(0, 5).forEach((pair, index) => {
+    drawPanel(commands, x + 14, rowTop, width - 28, 30, {
+      fill: index % 2 === 0 ? white : panelSlate,
+      stroke: divider,
+      lineWidth: 0.35
+    });
+    drawText(commands, x + 24, rowTop + 10, pair.label, {
+      font: "bodyBold",
+      size: 8.8,
+      color: tone === "neutral" ? ink : palette.stroke
+    });
+    drawTextBlock(commands, valueX, rowTop + 8, valueWidth, pair.value, {
+      font: "body",
+      size: 8.5,
+      leading: 10.5,
+      color: ink,
+      maxLines: 2
+    });
+    rowTop += 30;
+  });
+}
+
+function drawValueSignalTable(
+  commands: string[],
+  x: number,
+  top: number,
+  width: number,
+  height: number,
+  rows: ValueSignalRow[]
+): void {
+  const safeRows =
+    rows.length > 0
+      ? rows
+      : [
+          {
+            label: "Signal coverage",
+            family: "Unavailable",
+            status: "Limited",
+            tone: "warning" as const,
+            reason: "The report did not attach a structured value-discipline breakdown."
+          }
+        ];
+
+  drawPanel(commands, x, top, width, height, {
+    fill: white,
+    stroke: divider,
+    lineWidth: 0.5
+  });
+  drawText(commands, x + 12, top + 10, "Signal", {
+    font: "bodyBold",
+    size: 8.5,
+    color: muted
+  });
+  drawText(commands, x + 188, top + 10, "Family", {
+    font: "bodyBold",
+    size: 8.5,
+    color: muted
+  });
+  drawText(commands, x + 266, top + 10, "Status", {
+    font: "bodyBold",
+    size: 8.5,
+    color: muted
+  });
+  drawText(commands, x + 330, top + 10, "Reason", {
+    font: "bodyBold",
+    size: 8.5,
+    color: muted
+  });
+
+  let rowTop = top + 24;
+  safeRows.slice(0, 5).forEach((row, index) => {
+    drawPanel(commands, x, rowTop, width, 30, {
+      fill: index % 2 === 0 ? white : panelSlate,
+      stroke: divider,
+      lineWidth: 0.25
+    });
+    drawText(commands, x + 12, rowTop + 10, row.label, {
+      font: "bodyBold",
+      size: 8.5,
+      color: ink
+    });
+    drawText(commands, x + 188, rowTop + 10, row.family, {
+      font: "body",
+      size: 8.2,
+      color: muted
+    });
+    drawStatusChip(commands, x + 246, rowTop + 4, 70, row.status, row.tone);
+    drawTextBlock(commands, x + 330, rowTop + 8, width - 342, row.reason, {
+      font: "body",
+      size: 7.8,
+      leading: 9.4,
+      color: ink,
+      maxLines: 2
+    });
+    rowTop += 30;
+  });
+}
+
 function drawBulletList(
   commands: string[],
   x: number,
@@ -1520,7 +2895,7 @@ function drawBulletList(
   }
 ): number {
   let currentTop = top;
-  const safeItems = items.length > 0 ? items : ["No explicit item was emitted for this section."];
+  const safeItems = items.length > 0 ? items : ["No additional detail was attached for this section."];
   for (const item of safeItems) {
     const lines = wrapText(item, width - 18, options.size, options.font);
     appendCircle(commands, x + 4.5, pageHeight - currentTop - 9.5, 2.2, options.bulletColor, options.bulletColor);
@@ -1738,7 +3113,7 @@ function buildKillSwitchCards(report: AnalysisReport): ExecutiveCard[] {
     return [
       {
         title: "Coverage note",
-        body: "No explicit kill-switch rules were attached to this run, so the memo keeps risk framing qualitative.",
+        body: "No explicit kill-switch rules were attached to this report, so the risk framing remains qualitative.",
         tone: "warning"
       }
     ];
@@ -1909,7 +3284,7 @@ function buildQualityRow(
   };
 }
 
-function buildFinancialView(annualHistory: FinancialHistoryRow[]): {
+function buildFinancialView(annualHistory: FinancialHistoryRow[], noteOverride?: string): {
   years: string[];
   rows: FinancialTableRow[];
   note: string;
@@ -1953,10 +3328,12 @@ function buildFinancialView(annualHistory: FinancialHistoryRow[]): {
         values: revenueGrowth.map((value) => formatPct(value))
       }
     ],
-    note:
+    note: firstNonEmpty(
+      noteOverride,
       history.filter((row) => row.gross_margin !== undefined || row.operating_margin !== undefined).length >= 2
         ? "Figures are shown in investor-friendly shorthand. Revenue and free cash flow are abbreviated for readability, while margins are shown as percentages."
-        : "Only limited financial history was available, so the chart remains intentionally restrained.",
+        : "Only limited financial history was available, so the chart remains intentionally restrained."
+    ),
     chart:
       history.filter((row) => row.gross_margin !== undefined || row.operating_margin !== undefined).length >= 2
         ? {
@@ -1974,7 +3351,7 @@ function buildScenarioColumns(
   risksSection: InvestmentMemoSection | undefined
 ): ScenarioColumn[] {
   if (!report.valuation) {
-    const fallback = "Valuation was not available for this run.";
+    const fallback = "Valuation was not available for this report.";
     return [
       { label: "Bear", fairValue: "n/a", impliedMove: "n/a", keyAssumption: fallback, mainRisk: fallback, tone: "warning" },
       { label: "Base", fairValue: "n/a", impliedMove: "n/a", keyAssumption: fallback, mainRisk: fallback, tone: "neutral" },
@@ -2021,7 +3398,17 @@ function buildScenarioColumns(
   ];
 }
 
-function buildEvidenceCards(report: AnalysisReport): EvidenceCard[] {
+function buildEvidenceCards(
+  report: AnalysisReport,
+  dueDiligenceSection?: Record<string, unknown>
+): EvidenceCard[] {
+  const diligenceHighlights = collectStringList(dueDiligenceSection, ["key_points", "bullets", "findings"]);
+  if (diligenceHighlights.length > 0) {
+    return diligenceHighlights.slice(0, 4).map((entry, index) => ({
+      title: index === 0 ? "Lead support" : `Support ${index + 1}`,
+      body: shortenText(entry, 100)
+    }));
+  }
   const cards: EvidenceCard[] = [];
   for (const section of report.sections) {
     for (const evidence of section.evidence) {
@@ -2040,19 +3427,27 @@ function buildEvidenceCards(report: AnalysisReport): EvidenceCard[] {
   return [
     {
       title: "Evidence note",
-      body: "No evidence snippets were attached to this report artifact, so the export does not pretend otherwise."
+      body: "No evidence excerpts were attached to this report, so the export stays explicit about that limit."
     },
     {
       title: "Coverage note",
-      body: shortenText(firstNonEmpty(report.coverage_truth?.summary, "Evidence coverage is limited in this run."), 100)
+      body: shortenText(firstNonEmpty(report.coverage_truth?.summary, "Evidence coverage is limited in this report."), 100)
     }
   ];
 }
 
-function buildMissingInputs(report: AnalysisReport): string[] {
+function buildMissingInputs(
+  report: AnalysisReport,
+  dueDiligence?: Partial<Record<CanonicalDueDiligenceSectionId, Record<string, unknown>>>
+): string[] {
   const notes = new Set<string>();
   for (const missing of report.coverage_truth?.missing ?? []) {
     notes.add(reportSentenceMap(missing));
+  }
+  for (const section of Object.values(dueDiligence ?? {})) {
+    for (const omission of collectStringList(section, ["omissions", "missing", "limitations"])) {
+      notes.add(shortenText(omission, 104));
+    }
   }
   for (const omission of report.financial_analysis?.omissions ?? []) {
     notes.add(shortenText(`${reportLabelMap(omission.label)}: ${sanitizeInline(omission.reason)}`, 104));
@@ -2063,8 +3458,13 @@ function buildMissingInputs(report: AnalysisReport): string[] {
   return [...notes].slice(0, 5);
 }
 
-function buildRiskItems(report: AnalysisReport, risksSection: InvestmentMemoSection | undefined): string[] {
+function buildRiskItems(
+  report: AnalysisReport,
+  risksSection: InvestmentMemoSection | undefined,
+  dueDiligenceSection?: Record<string, unknown>
+): string[] {
   const items = [
+    ...collectStringList(dueDiligenceSection, ["key_points", "bullets", "findings"]),
     ...(risksSection?.key_points ?? []),
     ...(report.kill_switch_conditions ?? []).map((condition) =>
       `${reportLabelMap(condition.signal_type)}: ${sanitizeInline(condition.condition_text)}`
@@ -2081,7 +3481,7 @@ function buildRiskItems(report: AnalysisReport, risksSection: InvestmentMemoSect
     shortenText(
       firstNonEmpty(
         report.coverage_truth?.summary,
-        "Risk coverage is limited because explicit risk items were not emitted in this run."
+        "Risk coverage is limited because explicit risk items were not attached to this report."
       ),
       100
     )

@@ -1,7 +1,10 @@
 package com.thesis.mobile.ui.screens
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,16 +17,25 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.thesis.mobile.model.DeepDiveReportView
 import com.thesis.mobile.model.DeepDiveVisualPanelView
+import com.thesis.mobile.model.DueDiligenceSectionView
 import com.thesis.mobile.model.EvidenceLadderPanelView
 import com.thesis.mobile.model.FinancialDerivedMetricView
 import com.thesis.mobile.model.MetricDeltaPanelView
@@ -33,6 +45,8 @@ import com.thesis.mobile.model.TimelinePanelView
 import com.thesis.mobile.model.TrustScorecardPanelView
 import com.thesis.mobile.model.ValuationBridgePanelView
 import com.thesis.mobile.model.memoSection
+import com.thesis.mobile.model.readerIssuerMetadataLine
+import com.thesis.mobile.model.readerIssuerName
 import com.thesis.mobile.model.toReaderOutline
 import com.thesis.mobile.ui.components.SignalBadge
 import com.thesis.mobile.ui.copy.DeepDiveCopy
@@ -47,8 +61,9 @@ internal fun DeepDiveStoryHeaderCard(
     isWatched: Boolean
 ) {
     val header = report.storyHeader
-    val ticker = report.ticker ?: "Ticker"
-    val headline = header?.headline ?: "$ticker Deep Dive"
+    val issuerName = report.readerIssuerName()
+    val issuerMetadataLine = report.readerIssuerMetadataLine()
+    val headline = header?.headline ?: "$issuerName Deep Dive"
     val thesisSummary = header?.thesisSummary ?: report.thesisStatement ?: "Thesis summary unavailable."
     val whyNow = header?.whyNow ?: "Why-now context is unavailable for this legacy report."
     val stance = header?.stanceLabel ?: report.signalValue ?: "watch"
@@ -64,12 +79,19 @@ internal fun DeepDiveStoryHeaderCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingXs)) {
-                    MetaLabel("DEEP REPORT")
+                    MetaLabel(DeepDiveCopy.deepReport.uppercase())
                     Text(
-                        text = ticker,
+                        text = issuerName,
                         style = ThesisTypography.displayMedium.copy(fontFamily = HeadingFont),
                         color = ThesisColors.TextPrimary
                     )
+                    issuerMetadataLine?.let { metadataLine ->
+                        Text(
+                            text = metadataLine,
+                            style = ThesisTypography.labelLarge,
+                            color = ThesisColors.TextMuted
+                        )
+                    }
                 }
                 Column(
                     horizontalAlignment = Alignment.End,
@@ -228,6 +250,20 @@ internal fun DeepDiveExecutiveMemo(report: DeepDiveReportView) {
                     color = ThesisColors.TextMuted
                 )
             }
+        }
+    }
+}
+
+@Composable
+internal fun DeepDiveDueDiligence(report: DeepDiveReportView) {
+    val outline = report.toReaderOutline()
+    if (outline.dueDiligenceSections.isEmpty()) {
+        return
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingMd)) {
+        SectionTitle(DeepDiveCopy.dueDiligence)
+        outline.dueDiligenceSections.forEach { section ->
+            DueDiligenceSectionCard(section = section)
         }
     }
 }
@@ -481,7 +517,12 @@ internal fun DeepDiveRisksAndKillSwitches(report: DeepDiveReportView) {
 @Composable
 internal fun DeepDiveEvidenceAndAppendix(report: DeepDiveReportView) {
     val outline = report.toReaderOutline()
-    if (report.investmentMemo == null && outline.evidencePanels.isEmpty() && report.coverageTruth == null) {
+    if (
+        report.investmentMemo == null &&
+        outline.evidencePanels.isEmpty() &&
+        outline.dueDiligenceEvidenceSections.isEmpty() &&
+        report.coverageTruth == null
+    ) {
         return
     }
     Column(verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingMd)) {
@@ -507,6 +548,29 @@ internal fun DeepDiveEvidenceAndAppendix(report: DeepDiveReportView) {
         }
         outline.evidencePanels.forEach { panel ->
             VisualPanelCard(panel = panel)
+        }
+        if (outline.dueDiligenceEvidenceSections.isNotEmpty()) {
+            StorySurface {
+                MetaLabel(DeepDiveCopy.dueDiligenceTrail.uppercase())
+                Spacer(modifier = Modifier.height(ThesisDimens.SpacingSm))
+                outline.dueDiligenceEvidenceSections.forEach { section ->
+                    Text(
+                        text = section.title,
+                        style = ThesisTypography.labelLarge,
+                        color = ThesisColors.TextPrimary
+                    )
+                    Text(
+                        text = listOf(
+                            "${section.evidenceRefs.size} evidence refs",
+                            "${section.omissions.size} omissions",
+                            "${coverageStateLabel(section.coverageState)} coverage"
+                        ).joinToString(" | "),
+                        style = ThesisTypography.bodySmall,
+                        color = ThesisColors.TextMuted
+                    )
+                    Spacer(modifier = Modifier.height(ThesisDimens.SpacingSm))
+                }
+            }
         }
         report.coverageTruth?.let { coverage ->
             StorySurface {
@@ -700,6 +764,123 @@ private fun TopChangeCard(
             text = matters,
             style = ThesisTypography.bodySmall,
             color = ThesisColors.TextMuted
+        )
+    }
+}
+
+@Composable
+private fun DueDiligenceSectionCard(section: DueDiligenceSectionView) {
+    var isExpanded by rememberSaveable(section.sectionId) { mutableStateOf(false) }
+    val tint = coverageStateTint(section.coverageState)
+    val chevronRotation by animateFloatAsState(
+        targetValue = if (isExpanded) 180f else 0f,
+        label = "due_diligence_section_chevron"
+    )
+    val shape = RoundedCornerShape(ThesisDimens.CardCornerRadius)
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(tint.copy(alpha = 0.06f))
+            .border(ThesisDimens.BorderWidth, tint.copy(alpha = 0.25f), shape)
+            .clickable { isExpanded = !isExpanded }
+            .padding(ThesisDimens.CardPadding),
+        verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.Top
+        ) {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingXs)
+            ) {
+                MetaLabel(section.sectionId.replace('_', ' ').uppercase())
+                Text(
+                    text = section.title,
+                    style = ThesisTypography.headlineMedium.copy(fontWeight = FontWeight.Medium),
+                    color = ThesisColors.TextPrimary
+                )
+            }
+            Spacer(modifier = Modifier.width(ThesisDimens.SpacingSm))
+            CoverageStateChip(section.coverageState)
+            Spacer(modifier = Modifier.width(ThesisDimens.SpacingSm))
+            Icon(
+                imageVector = Icons.Default.KeyboardArrowDown,
+                contentDescription = if (isExpanded) "Collapse due diligence section" else "Expand due diligence section",
+                tint = tint,
+                modifier = Modifier.rotate(chevronRotation)
+            )
+        }
+
+        MetaLabel(DeepDiveCopy.summaryPreview.uppercase())
+        Text(
+            text = section.summary,
+            style = ThesisTypography.bodyMedium,
+            color = ThesisColors.TextSecondary
+        )
+        Text(
+            text = if (isExpanded) DeepDiveCopy.hideFullSection else DeepDiveCopy.readFullSection,
+            style = ThesisTypography.labelLarge,
+            color = tint
+        )
+
+        AnimatedVisibility(visible = isExpanded) {
+            Column(verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)) {
+                MetaLabel(DeepDiveCopy.fullNarrative.uppercase())
+                section.narrativeParagraphs.forEach { paragraph ->
+                    Text(
+                        text = paragraph,
+                        style = ThesisTypography.bodyMedium,
+                        color = ThesisColors.TextSecondary
+                    )
+                }
+
+                if (section.keyPoints.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(ThesisDimens.SpacingXs))
+                    MetaLabel(DeepDiveCopy.keyPoints.uppercase())
+                    section.keyPoints.forEach { point ->
+                        BulletText(text = point)
+                    }
+                }
+
+                if (section.evidenceRefs.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(ThesisDimens.SpacingXs))
+                    MetaLabel(DeepDiveCopy.evidenceRefs.uppercase())
+                    section.evidenceRefs.forEach { ref ->
+                        BulletText(text = ref)
+                    }
+                }
+
+                if (section.omissions.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(ThesisDimens.SpacingXs))
+                    MetaLabel(DeepDiveCopy.omittedInputs.uppercase())
+                    section.omissions.forEach { omission ->
+                        BulletText(text = omission)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CoverageStateChip(coverageState: String) {
+    val tint = coverageStateTint(coverageState)
+    val shape = RoundedCornerShape(ThesisDimens.CardCornerRadius)
+    Box(
+        modifier = Modifier
+            .clip(shape)
+            .background(tint.copy(alpha = 0.12f))
+            .border(ThesisDimens.BorderWidth, tint.copy(alpha = 0.2f), shape)
+            .padding(horizontal = ThesisDimens.SpacingSm, vertical = ThesisDimens.SpacingXs)
+    ) {
+        Text(
+            text = coverageStateLabel(coverageState).uppercase(),
+            style = ThesisTypography.labelSmall,
+            color = tint
         )
     }
 }
@@ -1014,6 +1195,19 @@ private fun valueSignalTint(status: String): Color = when (status.lowercase()) {
     "pass" -> ThesisColors.SignalPositive
     "fail" -> ThesisColors.SignalNegative
     else -> ThesisColors.SignalWarning
+}
+
+private fun coverageStateTint(coverageState: String): Color = when (coverageState.lowercase()) {
+    "full" -> ThesisColors.Primary
+    "limited" -> ThesisColors.SignalNegative
+    else -> ThesisColors.SignalWarning
+}
+
+private fun coverageStateLabel(coverageState: String): String = when (coverageState.lowercase()) {
+    "full" -> "Full"
+    "partial" -> "Partial"
+    "limited" -> "Limited"
+    else -> coverageState.replace('_', ' ')
 }
 
 private fun metricTint(direction: String, status: String): Color {

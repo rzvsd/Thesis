@@ -1,8 +1,10 @@
 package com.thesis.mobile.ui.copy
 
 object DeepDiveCopy {
+    const val deepReport = "Deep Report"
     const val readThisFirst = "Read This First"
     const val executiveMemo = "Executive Memo"
+    const val dueDiligence = "Full Due Diligence"
     const val financialQuality = "Financial Quality"
     const val valueDiscipline = "Value Discipline"
     const val valuation = "Valuation"
@@ -22,6 +24,14 @@ object DeepDiveCopy {
     const val whatThisDoesNotProve = "What This Does Not Prove"
     const val killSwitches = "Kill Switches"
     const val claimSupport = "Claim Support"
+    const val dueDiligenceTrail = "Due Diligence Trail"
+    const val summaryPreview = "Summary Preview"
+    const val fullNarrative = "Full Narrative"
+    const val keyPoints = "Key Points"
+    const val evidenceRefs = "Evidence Refs"
+    const val readFullSection = "Read Full Section"
+    const val hideFullSection = "Hide Full Section"
+    const val coverageState = "Coverage State"
     const val previousView = "Previous View"
     const val currentView = "Current View"
     const val coverageTruth = "Coverage Truth"

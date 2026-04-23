@@ -8,12 +8,15 @@ import com.thesis.mobile.model.DeepDiveReportView
 import com.thesis.mobile.model.DeepDiveStoryHeaderView
 import com.thesis.mobile.model.DeepDiveTopChangeView
 import com.thesis.mobile.model.DeepDiveVisualPanelView
+import com.thesis.mobile.model.DueDiligenceSectionView
+import com.thesis.mobile.model.DueDiligenceView
 import com.thesis.mobile.model.EvidenceView
 import com.thesis.mobile.model.EvidenceLadderPanelView
 import com.thesis.mobile.model.HistoricalDisplayView
 import com.thesis.mobile.model.InvestmentMemoClaimView
 import com.thesis.mobile.model.InvestmentMemoSectionView
 import com.thesis.mobile.model.InvestmentMemoView
+import com.thesis.mobile.model.IssuerView
 import com.thesis.mobile.model.KillSwitchConditionView
 import com.thesis.mobile.model.MetricDeltaPanelView
 import com.thesis.mobile.model.PulseReportView
@@ -68,6 +71,8 @@ object OfflineJsonCodec {
         val payload = JSONObject()
             .put("report_id", report.reportId)
             .put("ticker", report.ticker)
+            .put("generated_at", report.generatedAt)
+            .put("issuer", issuerToJson(report.issuer))
             .put("schema_version", report.schemaVersion)
             .put("story_header", storyHeaderToJson(report.storyHeader))
             .put("change_summary", changeSummaryToJson(report.changeSummary))
@@ -81,6 +86,7 @@ object OfflineJsonCodec {
             .put("watch_items", JSONArray(report.watchItems))
             .put("coverage_truth", coverageTruthToJson(report.coverageTruth))
             .put("investment_memo", investmentMemoToJson(report.investmentMemo))
+            .put("due_diligence", dueDiligenceToJson(report.dueDiligence))
             .put("financial_analysis", financialAnalysisToJson(report.financialAnalysis))
             .put("value_discipline", valueDisciplineToJson(report.valueDiscipline))
             .put(
@@ -199,6 +205,15 @@ object OfflineJsonCodec {
             .put("why_now", header.whyNow)
             .put("reader_takeaway", header.readerTakeaway)
             .put("stance_label", header.stanceLabel)
+    }
+
+    private fun issuerToJson(issuer: IssuerView?): JSONObject? {
+        if (issuer == null) {
+            return null
+        }
+        return JSONObject()
+            .put("name", issuer.name)
+            .put("exchange", issuer.exchange)
     }
 
     private fun changeSummaryToJson(changeSummary: DeepDiveChangeSummaryView?): JSONObject? {
@@ -356,6 +371,32 @@ object OfflineJsonCodec {
             .put("unsupported_claims", JSONArray(investmentMemo.unsupportedClaims))
             .put("sparse_data_honesty_note", investmentMemo.sparseDataHonestyNote)
     }
+
+    private fun dueDiligenceToJson(dueDiligence: DueDiligenceView?): JSONObject? {
+        if (dueDiligence == null) {
+            return null
+        }
+        return JSONObject()
+            .put("prompt_version", dueDiligence.promptVersion)
+            .put("generation_mode", dueDiligence.generationMode)
+            .put(
+                "sections",
+                JSONArray().apply {
+                    dueDiligence.sections.forEach { put(dueDiligenceSectionToJson(it)) }
+                }
+            )
+    }
+
+    private fun dueDiligenceSectionToJson(section: DueDiligenceSectionView): JSONObject =
+        JSONObject()
+            .put("section_id", section.sectionId)
+            .put("title", section.title)
+            .put("summary", section.summary)
+            .put("narrative_paragraphs", JSONArray(section.narrativeParagraphs))
+            .put("key_points", JSONArray(section.keyPoints))
+            .put("evidence_refs", JSONArray(section.evidenceRefs))
+            .put("omissions", JSONArray(section.omissions))
+            .put("coverage_state", section.coverageState)
 
     private fun investmentMemoSectionToJson(section: InvestmentMemoSectionView): JSONObject =
         JSONObject()

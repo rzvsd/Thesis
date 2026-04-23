@@ -25,7 +25,7 @@
 - [ ] Lock page-by-page report template
 - [ ] Lock test matrix and hard fail gates
 - [ ] Lock decision records
-- [ ] Create M0-M7 milestone scaffolding
+- [ ] Create foundation milestone scaffolding for M0-M7 plus M5.2
 - [ ] Name interface surfaces for M1
 
 ## Out Of Scope
@@ -66,4 +66,8 @@ Result: PASS
 
 Evidence:
 - Project Note/DeepDive/Milestones/M0/evidence/2026-04-20/m0-docs-inventory.json
+
+Historical scope note:
+- This M0 proof covers the original foundation scaffold.
+- Follow-on milestones after M7 continue the same naming convention and are tracked separately.
 ```

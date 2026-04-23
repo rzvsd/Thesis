@@ -1,7 +1,7 @@
 # Deep Dive Revamp Milestones
 
-**Status:** Passed
-**Last Revised:** 2026-04-20
+**Status:** M8 closeout pending; M9 implementation complete with final closeout pending
+**Last Revised:** 2026-04-22
 **Related Documents:** `DeepDive_ROADMAP.md`, `DeepDive_BLUEBOOK.md`, `DeepDive_PRD.md`, `DEEPDIVE_REPORT_STANDARD.md`, `DEEPDIVE_REFERENCE_MAPPING.md`, `DEEPDIVE_REPORT_TEMPLATE.md`, `DEEPDIVE_VISUAL_EXHIBITS_STANDARD.md`, `DEEPDIVE_TEST_MATRIX.md`
 
 ---
@@ -18,6 +18,13 @@ Each milestone defines:
 
 A milestone is not closed unless every acceptance criterion is checked off or explicitly deferred by owner decision.
 
+M0-M7 are the passed foundation milestones. M8 is the active follow-on upgrade that makes full due diligence the default Deep Dive output while preserving compatibility. M9 is the implemented follow-on upgrade that makes that due-diligence artifact more editorial, issuer-aware, and HTML/CSS-to-PDF disciplined without changing the canonical structure, with final closeout still pending the stricter mobile proof bar.
+
+Milestone naming convention stays in the established DeepDive style:
+
+- whole-number milestones for the main implementation path (`M0` ... `M9`)
+- decimal-suffix milestones only when a cross-cutting slice must be inserted between locked milestones, as with `M5.2`
+
 ---
 
 ## Milestone Index
@@ -33,6 +40,8 @@ A milestone is not closed unless every acceptance criterion is checked off or ex
 | M5.2 | Visual Exhibits Layer | Chart-rich, publication-worthy exhibits rendered from real report figures |
 | M6 | Mobile Research Reader | Mobile Deep Dive reader backed by the structured artifact |
 | M7 | End-to-End Quality and Device Proof | Full smoke, regression, device evidence, and closeout |
+| M8 | Due Diligence Default Upgrade | Canonical `due_diligence` layer, compatibility summary behavior, 10-14 page PDF target, and summary-first mobile reader |
+| M9 | Verbose Due Diligence Authoring And Editorial PDF Upgrade | Verbose editorial due diligence, issuer metadata, 10-14 page HTML/CSS-to-PDF export, and summary-first inline-expand mobile behavior |
 
 ---
 
@@ -48,11 +57,11 @@ Define exactly what a serious Thesis Deep Dive report is before implementation b
 |---|---|
 | Report standard | Canonical structure in `DEEPDIVE_REPORT_STANDARD.md` |
 | Reference mapping | Explicit translation from `report.pdf` and `value investing.pdf` to Thesis requirements |
-| Report template | Page-by-page PDF and mobile reader template |
+| Report template | Editorial PDF and mobile reader template |
 | Test matrix | Hard gates, fixtures, and fail conditions |
 | Decision locks | Locked/open decisions in `DeepDive_DECISION_LOCKS.md` |
 | ADRs | Deep Dive Revamp decision records |
-| Milestone scaffolding | M0-M7 milestone AGENTS, smoke plans, evidence folders, plus M5.2 visual-exhibits milestone docs |
+| Milestone scaffolding | Foundation scaffolding for M0-M7 plus M5.2, with follow-on milestones added in the same numbering style |
 | Interface naming | Public names for report artifact sections before M1 |
 
 ## Acceptance Criteria
@@ -60,9 +69,9 @@ Define exactly what a serious Thesis Deep Dive report is before implementation b
 - [x] DeepDive root docs exist in prior-phase style
 - [x] Reference PDFs are documented as quality references, not source material to copy
 - [x] Reference PDFs are mapped to exact Thesis requirements
-- [x] Page-by-page PDF and mobile reader templates are locked
+- [x] Editorial PDF and mobile reader templates are locked
 - [x] Test matrix defines hard gates and fail conditions
-- [x] M0-M7 milestone folders plus M5.2 milestone docs contain AGENTS, smoke plan, and evidence folder
+- [x] Foundation milestone folders M0-M7 plus M5.2 contain AGENTS, smoke plan, and evidence folder
 - [x] Report structure is locked before contract implementation
 - [x] Open decisions required before M1 are named
 
@@ -70,7 +79,7 @@ Define exactly what a serious Thesis Deep Dive report is before implementation b
 
 ```text
 Step 1: Confirm root docs exist.
-Step 2: Confirm M0-M7 milestone folders plus M5.2 milestone docs and evidence folders exist.
+Step 2: Confirm foundation milestone folders M0-M7 plus M5.2 milestone docs and evidence folders exist.
 Step 3: Confirm report standard names all required sections.
 Step 4: Confirm decisions file names locked and open decisions.
 Step 5: Confirm reference mapping, report template, and test matrix exist.
@@ -273,7 +282,7 @@ Produce a serious report artifact that can be downloaded, shared, and reviewed.
 - [x] Missing data appears as omissions
 - [x] Rendered pages are visually inspected
 - [x] Export path works from Product API and mobile entry point
-- [x] PDF follows the page-by-page template in `DEEPDIVE_REPORT_TEMPLATE.md`
+- [x] PDF follows the editorial template order and page-neighborhood rules in `DEEPDIVE_REPORT_TEMPLATE.md`
 - [x] Rendered PNG pages are stored as evidence
 - [x] Visual QA confirms exhibit captions, source notes, page numbers, and appendix
 
@@ -384,7 +393,7 @@ Return to current Deep Dive screen using legacy presentation fields.
 
 ## Goal
 
-Close the workstream with real evidence.
+Close the foundation workstream with real evidence.
 
 ## Deliverables
 
@@ -422,3 +431,103 @@ Step 7: Run owner acceptance checklist from `DEEPDIVE_TEST_MATRIX.md`.
 ## Rollback
 
 Keep structured artifacts stored but route mobile and export back to old rendering until defects are fixed.
+
+---
+
+# M8 - Due Diligence Default Upgrade
+
+## Goal
+
+Keep the product entrypoint named `Deep Dive` while making the default artifact a full due diligence report with a canonical `due_diligence` layer and a short compatibility `investment_memo` summary.
+
+## Deliverables
+
+| Deliverable | Description |
+|---|---|
+| Canonical due-diligence layer | `due_diligence` becomes the authoritative long-form report shape |
+| Six-section taxonomy | `financial_analysis`, `competitive_positioning`, `management_and_governance`, `risks_and_challenges`, `growth_opportunities_and_outlook`, `valuation_and_thesis_stance` |
+| Compatibility summary layer | `investment_memo` remains present as a short summary for legacy consumers and summary-first entry points |
+| PDF expansion | Full-data PDF target becomes 10-14 pages while preserving evidence and appendix |
+| Mobile summary-first reader | Phone view opens with summary and expands into detailed proof by due-diligence section |
+| Omission honesty rules | Every due-diligence section has explicit sparse-data and omission behavior |
+| Regression/test plan | Fixtures, smoke tests, and hard gates for section mapping, compatibility, pagination, and mobile summary flow |
+
+## Acceptance Criteria
+
+- [x] `Deep Dive` remains the user-facing product entrypoint and no new top-level navigation is introduced
+- [x] The canonical artifact defines `due_diligence` as the long-form source of truth with exactly the six approved sections
+- [ ] `investment_memo` remains present as a short compatibility summary and does not introduce truth absent from `due_diligence`
+- [ ] Existing financial analysis and value-discipline work survives inside the due-diligence model without creating a second competing taxonomy
+- [x] Full-data PDF target becomes 10-14 pages and follows `DEEPDIVE_REPORT_TEMPLATE.md`
+- [ ] Mobile reader is summary-first with expandable proof/detail modules for each due-diligence section
+- [x] Each due-diligence section has explicit omission and sparse-data behavior
+- [x] Legacy reports and compatibility consumers continue to render via fallback behavior
+- [x] Tests cover full, partial, sparse, degraded, and legacy fixtures for section mapping, omissions, and pagination/reader behavior
+- [ ] M8 evidence proves section completeness, compatibility behavior, PDF template fit, and mobile summary-first flow
+
+## Smoke Test
+
+```text
+Step 1: Run contract and validation tests for the additive report shape.
+Step 2: Generate one full-data report and confirm `investment_memo` plus all six `due_diligence` sections exist.
+Step 3: Generate sparse and legacy fixtures and confirm omissions/fallbacks behave honestly.
+Step 4: Export a full-data PDF and confirm the 10-14 page target with evidence and appendix still present.
+Step 5: Open the report on mobile and confirm summary-first reading plus section-level expansion into proof.
+```
+
+## Rollback
+
+Keep the M7 artifact and reader behavior as default, and gate M8 `due_diligence` rendering behind additive compatibility fallback until section parity and regressions are clean.
+
+Implementation note:
+
+- Legacy compatibility is locked to fallback rendering behavior. M8 does not introduce lazy `due_diligence` projection or stored migration for old reports.
+
+---
+
+# M9 - Verbose Due Diligence Authoring And Editorial PDF Upgrade
+
+## Goal
+
+Keep the canonical M8 due-diligence artifact, but make it read and export like a serious editorial report without breaking compatibility or the summary-first mobile experience.
+
+## Deliverables
+
+| Deliverable | Description |
+|---|---|
+| Verbose due-diligence authoring standard | Each canonical section gains a takeaway plus enough editorial body to explain evidence, causality, omissions, and uncertainty |
+| Editorial HTML/CSS export | Full-data reports export through the HTML/CSS-to-PDF path while staying inside the 10-14 page target |
+| Issuer metadata surface | Cover and appendix metadata expose issuer/listing context or explicit metadata omissions |
+| Mobile inline-expand preservation | Phone remains summary-first and expands into proof inline instead of defaulting to long-form text |
+| Regression/test plan | Hard gates and evidence for authoring depth, issuer metadata, page discipline, print QA, and backward compatibility |
+
+## Acceptance Criteria
+
+- [x] The canonical `due_diligence` artifact keeps exactly the six approved sections and each section meets the verbose editorial writing standard
+- [x] `investment_memo` remains present as a short compatibility summary and does not become a second long-form report
+- [x] Full-data HTML/CSS-to-PDF editorial export lands in the 10-14 page target and preserves evidence, omissions, and appendix truth
+- [x] Issuer metadata is visible on the report cover and appendix metadata, or degrades with explicit metadata omissions
+- [x] Mobile reader remains summary-first with inline section expansion into proof and does not default to expanded long-form text
+- [x] Sparse and degraded reports remain omission-forward under the editorial standard
+- [x] Legacy reports and compatibility consumers continue to render via fallback behavior
+- [x] Tests cover verbose authoring quality, issuer metadata, editorial print/layout, page target, mobile summary flow, and legacy fallback
+- [ ] M9 evidence proves authoring depth, metadata completeness, editorial PDF quality, and mobile summary-first inline-expand behavior to the final physical-device or Maestro closeout standard
+
+## Smoke Test
+
+```text
+Step 1: Run contract, Product API, Dexter, and mobile checks relevant to verbose due-diligence authoring, issuer metadata, and editorial export.
+Step 2: Generate one full-data report and confirm `investment_memo` stays short while all six `due_diligence` sections meet the verbose editorial standard.
+Step 3: Confirm issuer metadata appears on the cover and metadata appendix, or degrades with explicit metadata omissions.
+Step 4: Export a full-data report through the HTML/CSS-to-PDF path and confirm the 10-14 page target with evidence and appendix preserved.
+Step 5: Open the report on mobile and confirm summary-first reading plus inline expansion into proof.
+Step 6: Generate sparse and legacy fixtures and confirm omission-forward behavior plus compatibility fallback.
+```
+
+## Rollback
+
+Keep the M8 due-diligence default and prior export behavior active, and gate M9 editorial HTML/CSS export plus verbose authoring behavior behind fallback until layout, pagination, and mobile regressions are clean.
+
+Implementation note:
+
+- M9 upgrades authoring depth and editorial export quality. It does not rename the product, change the six-section taxonomy, or move renderer ownership outside Product API.

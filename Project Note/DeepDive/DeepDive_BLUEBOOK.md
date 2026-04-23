@@ -1,20 +1,21 @@
 # Deep Dive Revamp Bluebook
 
 **Status:** Active
-**Last Revised:** 2026-04-20
+**Last Revised:** 2026-04-22
 
 ---
 
 ## Architecture Doctrine
 
-Deep Dive Revamp introduces a report compiler model.
+Deep Dive Revamp introduces a report compiler model with a summary layer over a canonical due-diligence artifact and an editorial print path over the same report truth.
 
 ```text
 Data inputs
   -> deterministic analysis engine
-  -> structured report artifact
-  -> evidence-constrained narrative authoring
-  -> mobile reader and PDF renderer
+  -> canonical due_diligence layer
+  -> compatibility investment_memo summary
+  -> issuer metadata and proof layers
+  -> mobile reader and editorial HTML/CSS-to-PDF renderer
 ```
 
 The report artifact is the source of truth. Mobile and PDF are renderers.
@@ -36,16 +37,32 @@ The report artifact is the source of truth. Mobile and PDF are renderers.
 
 ## Canonical Artifact
 
-The future canonical artifact is an additive `AnalysisReport` evolution, referred to in docs as `DeepResearchReport`.
+The canonical artifact remains an additive `AnalysisReport` evolution.
 
-Implementation may choose either:
+M8 locks two report layers inside that additive shape. M9 keeps those two layers and adds issuer metadata plus editorial export expectations alongside them:
 
-- additive fields inside `AnalysisReport`, or
-- a typed companion contract referenced by `AnalysisReport`
+- `investment_memo`: short summary layer kept for compatibility, legacy consumers, and summary-first entry points
+- `due_diligence`: canonical long-form layer with six required sections:
+  - `financial_analysis`
+  - `competitive_positioning`
+  - `management_and_governance`
+  - `risks_and_challenges`
+  - `growth_opportunities_and_outlook`
+  - `valuation_and_thesis_stance`
 
-The choice is locked in M1 before coding begins.
+Supporting proof layers remain required alongside those report layers:
 
-Regardless of implementation choice, the artifact must contain enough structured data to render `DEEPDIVE_REPORT_TEMPLATE.md` without mobile or PDF inventing interpretation.
+- issuer metadata / listing context
+- evidence book / claim mapping
+- omissions ledger
+- appendix tables
+- data freshness
+- calculation notes
+- generation metadata
+
+`investment_memo` may summarize or mirror the canonical layer, but it must not introduce report truth that is absent from `due_diligence`.
+
+Regardless of presentation choice, the artifact must contain enough structured data to render `DEEPDIVE_REPORT_TEMPLATE.md` without mobile or PDF inventing interpretation.
 
 ---
 
@@ -55,10 +72,12 @@ Regardless of implementation choice, the artifact must contain enough structured
 |---|---|---|
 | Input context | Product API + data providers | Financial snapshots, transcripts, prices, filings, evidence |
 | Deterministic analysis | Dexter worker or shared pure module | Trend math, value score, quality score, valuation, omissions |
-| Narrative | Dexter worker | Memo writing constrained to structured facts |
-| Persistence | Product API | Stores report artifact and export metadata |
-| Mobile rendering | Android | Executive reader and proof navigation |
-| PDF rendering | Product API or dedicated renderer path | Serious report artifact with exhibits and appendix |
+| Summary layer | Dexter worker | Short `investment_memo` compatible with existing clients and summary-first views |
+| Canonical due diligence | Dexter worker plus deterministic modules | Six-section long-form report that owns the detailed thesis |
+| Issuer metadata and proof layers | Product API + Dexter worker | Listing context, report freshness, appendix metadata, evidence, omissions, and export metadata |
+| Persistence | Product API | Stores report artifact, issuer metadata, and export metadata |
+| Mobile rendering | Android | Summary-first inline-expand reader and proof navigation |
+| PDF rendering | Product API editorial HTML/CSS-to-PDF path | Serious report artifact with exhibits, issuer metadata, and appendix |
 
 Renderers must not derive missing report substance from UI heuristics. If the artifact lacks a required template section, the renderer shows an omission or degraded state.
 
@@ -92,11 +111,13 @@ These computations must be directly testable under `DEEPDIVE_TEST_MATRIX.md`.
 
 Dexter may write:
 
-- investment thesis
+- summary thesis and why now
 - plain-language explanation of financial trends
-- business-quality narrative
+- competitive-positioning narrative
+- management/governance narrative
 - value-discipline interpretation
 - risk explanation
+- growth/outlook narrative
 - conclusion and watch items
 
 Dexter may not invent:
@@ -106,6 +127,7 @@ Dexter may not invent:
 - source citations
 - peer data
 - Piotroski input values
+- management quality claims without evidence
 - claims unsupported by evidence or computed metrics
 
 ---
@@ -119,8 +141,10 @@ Minimum complete report target:
 - at least 5 years of annual financials where available
 - latest transcript when available
 - current or recent price reference
+- issuer metadata block where supported: primary exchange/listing, currency, domicile/region, and sector/industry context
 - evidence items for material claims
 - valuation assumptions
+- management/governance evidence where available
 - explicit missing-data list
 
 Sparse reports are allowed only if they become omission-forward reports, not fake complete reports.
@@ -143,11 +167,11 @@ Sparse reports are allowed only if they become omission-forward reports, not fak
 
 ## Rollback Doctrine
 
-Every milestone must be additive until M7.
+Every milestone must be additive through M9.
 
 Rollback path:
 
 1. keep old report rendering active
 2. hide new mobile sections behind missing-field fallback
-3. disable PDF v2 export without deleting stored reports
+3. disable M9 editorial HTML/CSS export behavior without deleting stored reports
 4. preserve old report history and cache readability

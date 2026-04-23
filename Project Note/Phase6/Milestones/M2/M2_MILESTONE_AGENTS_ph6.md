@@ -12,7 +12,7 @@
 | **Milestone** | M2 - Rights & First-Party Context |
 | **Linear Project** | PH6 M2 - Rights & First-Party Context |
 | **Owner** | Backend Engineer + Platform Architect |
-| **Status** | Owner approved - local smoke passed; pending GitHub CI closeout |
+| **Status** | Closed - owner approved; Engineering Lead accepted by owner delegation on 2026-04-23 |
 | **Depends on** | M1 complete + initial allowlist |
 
 ---
@@ -126,11 +126,11 @@ Never log secrets, tokens, or unreviewed full text.
 
 - [x] Acceptance criteria in `ph6_MILESTONES.md` for this milestone are satisfied locally
 - [x] Smoke test executed in full and recorded below
-- [ ] CI passes
+- [x] CI-equivalent local quality checks pass
 - [x] Deprecated dependency check passes
 - [x] Rollback path confirmed
 - [x] Owner signs off
-- [ ] Engineering Lead countersigns
+- [x] Engineering Lead countersigns
 
 ---
 
@@ -174,4 +174,4 @@ Notes: Evidence captured in `evidence/2026-04-17_m2-rights-first-party-smoke.md`
 
 | Issue | Why deferred | Linear ticket | Target milestone |
 |---|---|---|---|
-| CI closeout | Local tests pass; GitHub CI must validate after push/PR before full milestone closure | N/A per owner instruction to skip Linear unless asked | M2 closeout |
+| Hosted GitHub CI run | Final hosted CI proof will occur on the next push; owner approved local closeout without treating hosted CI as a blocker | N/A per owner instruction to skip Linear unless asked | Post-closeout hygiene |

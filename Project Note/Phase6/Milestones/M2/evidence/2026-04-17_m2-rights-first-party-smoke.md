@@ -113,4 +113,5 @@ Do not roll back by storing unclassified full text or by reintroducing deprecate
 ## Sign-Off State
 
 Owner approval: Approved.  
-Engineering closeout: Pending GitHub CI after push/PR.  
+Engineering closeout: Accepted by owner delegation on 2026-04-23.  
+Hosted GitHub CI: Deferred to the next push; not treated as an open Phase 6 blocker in the local closeout record.

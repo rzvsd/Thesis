@@ -1,0 +1,40 @@
+{
+  "AAPL": {
+    "json": "C:\\BOTS\\Thesis\\fintech\\Project Note\\DeepDive\\Milestones\\M9\\evidence\\2026-04-22\\m9_due_diligence_aapl_2026-04-22.json",
+    "pdf": "C:\\BOTS\\Thesis\\fintech\\Project Note\\DeepDive\\Milestones\\M9\\evidence\\2026-04-22\\m9_due_diligence_aapl_2026-04-22.pdf",
+    "templatePageCount": 10,
+    "pageTitles": [
+      "Executive Summary",
+      "Financial Analysis",
+      "Financial Exhibits",
+      "Competitive Positioning",
+      "Management and Governance",
+      "Risks and Challenges",
+      "Growth Outlook",
+      "Valuation and Stance",
+      "Evidence and Omissions",
+      "Appendix"
+    ],
+    "dueDiligenceWordCount": 1752,
+    "renderedPageCount": 10
+  },
+  "NVDA": {
+    "json": "C:\\BOTS\\Thesis\\fintech\\Project Note\\DeepDive\\Milestones\\M9\\evidence\\2026-04-22\\m9_due_diligence_nvda_2026-04-22.json",
+    "pdf": "C:\\BOTS\\Thesis\\fintech\\Project Note\\DeepDive\\Milestones\\M9\\evidence\\2026-04-22\\m9_due_diligence_nvda_2026-04-22.pdf",
+    "templatePageCount": 10,
+    "pageTitles": [
+      "Executive Summary",
+      "Financial Analysis",
+      "Financial Exhibits",
+      "Competitive Positioning",
+      "Management and Governance",
+      "Risks and Challenges",
+      "Growth Outlook",
+      "Valuation and Stance",
+      "Evidence and Omissions",
+      "Appendix"
+    ],
+    "dueDiligenceWordCount": 1755,
+    "renderedPageCount": 10
+  }
+}

@@ -3,7 +3,12 @@ import { once } from "node:events";
 import type { AddressInfo } from "node:net";
 import test from "node:test";
 
+import type { AnalysisReport } from "../../../packages/contracts/src";
 import { startServer } from "../src/server";
+import {
+  buildEditorialReportHtml,
+  buildEditorialReportPages,
+} from "../src/report-pdf-editorial";
 
 type JsonObject = Record<string, unknown>;
 
@@ -67,15 +72,24 @@ async function requestBinary(
   };
 }
 
-function assertNoDebugPdfLeakage(pdfText: string): void {
-  assert.doesNotMatch(pdfText, /Page 1 -/);
-  assert.doesNotMatch(pdfText, /Page 9 - Appendix/);
-  assert.doesNotMatch(pdfText, /deterministic_dcf/);
-  assert.doesNotMatch(pdfText, /quality_mega_cap/);
-  assert.doesNotMatch(pdfText, /fresh_transcript_excerpt/);
-  assert.doesNotMatch(pdfText, /\b[a-z]+(?:_[a-z0-9]+)+\b/);
-  assert.doesNotMatch(pdfText, /\bundefined\b/i);
-  assert.doesNotMatch(pdfText, /\bnull\b/i);
+function assertNoDebugLeakage(renderedText: string): void {
+  assert.doesNotMatch(renderedText, /Page 1 -/);
+  assert.doesNotMatch(renderedText, /Page 9 - Appendix/);
+  assert.doesNotMatch(renderedText, /deterministic_dcf/);
+  assert.doesNotMatch(renderedText, /quality_mega_cap/);
+  assert.doesNotMatch(renderedText, /fresh_transcript_excerpt/);
+  assert.doesNotMatch(renderedText, /\bfixture\b/i);
+  assert.doesNotMatch(renderedText, /\bdebug\b/i);
+  assert.doesNotMatch(renderedText, /\bplaceholder\b/i);
+  assert.doesNotMatch(renderedText, /JSON parser/i);
+  assert.doesNotMatch(renderedText, /\b[a-z]+(?:_[a-z0-9]+)+\b/);
+  assert.doesNotMatch(renderedText, /\bundefined\b/i);
+  assert.doesNotMatch(renderedText, /\bnull\b/i);
+}
+
+function assertLooksLikePdf(bytes: Buffer): void {
+  assert.equal(bytes.subarray(0, 4).toString("ascii"), "%PDF");
+  assert.ok(bytes.length > 2_000);
 }
 
 async function createVerifiedSession(baseUrl: string, email: string): Promise<{
@@ -125,6 +139,10 @@ function sampleInstitutionalReport(jobId: string, reportId: string): JsonObject 
     schema_version: "2.0",
     type: "deep_dive",
     ticker: "AAPL",
+    issuer: {
+      name: "Apple Inc.",
+      exchange: "NASDAQ"
+    },
     generated_at: "2026-04-20T08:00:00.000Z",
     confidence: {
       score: 0.74,
@@ -353,6 +371,138 @@ function sampleInstitutionalReport(jobId: string, reportId: string): JsonObject 
       covered: ["financial_statements", "valuation_assumptions"],
       missing: ["fresh_transcript_excerpt"]
     },
+    due_diligence: {
+      prompt_version: "dd-v2-fixture-v1",
+      generation_mode: "deterministic_fixture",
+      sections: [
+        {
+          section_id: "competitive_positioning",
+          title: "Competitive Positioning",
+          subtitle: "Installed-base durability and pricing power remain central.",
+          summary: "Installed-base loyalty and pricing power still anchor the competitive case.",
+          narrative:
+            "The business remains durable because repeat engagement, ecosystem stickiness, and disciplined capital returns reinforce margin stability.",
+          narrative_paragraphs: [
+            "The business remains durable because repeat engagement, ecosystem stickiness, and disciplined capital returns reinforce margin stability.",
+            "Competitive advantage still looks strongest where recurring ecosystem demand supports margin quality without requiring heroic assumptions."
+          ],
+          key_points: [
+            "Recurring ecosystem demand continues to support margin quality.",
+            "Capital allocation remains disciplined rather than promotional.",
+            "The next debate is durability, not basic business viability."
+          ],
+          evidence_refs: ["ev-1", "fcf_trend"],
+          metrics: [
+            {
+              label: "Positioning context",
+              value: "Large-cap quality context"
+            }
+          ],
+          omissions: ["fresh_transcript_excerpt"],
+          coverage_state: "partial"
+        },
+        {
+          section_id: "financial_analysis",
+          title: "Financial Statement Analysis",
+          subtitle: "Revenue, margins, and free cash flow stay supportive.",
+          summary: "Four reported years show rising free cash flow with stable margins.",
+          narrative:
+            "The latest annual history still shows the thesis being financed by real cash generation rather than narrative alone.",
+          narrative_paragraphs: [
+            "The latest annual history still shows the thesis being financed by real cash generation rather than narrative alone.",
+            "The trend still matters because the core debate is whether revenue keeps converting into durable operating profit and free cash flow."
+          ],
+          key_points: [
+            "Revenue continued to compound through the latest annual period.",
+            "Operating margin stabilized rather than deteriorated.",
+            "Free cash flow continued to cover capital returns."
+          ],
+          evidence_refs: ["ev-1", "fcf_trend"],
+          omissions: [],
+          coverage_state: "full"
+        },
+        {
+          section_id: "management_and_governance",
+          title: "Management and Governance",
+          subtitle: "Capital allocation and operating discipline remain important.",
+          summary: "Capital allocation remains disciplined, but execution still has to validate the quality case.",
+          narrative:
+            "Management still looks strongest where cost control, buyback pacing, and operating discipline stay aligned with the long-term thesis.",
+          narrative_paragraphs: [
+            "Management still looks strongest where cost control, buyback pacing, and operating discipline stay aligned with the long-term thesis.",
+            "Governance quality still needs to be judged through consistent execution rather than management rhetoric alone."
+          ],
+          key_points: [
+            "Share count discipline still supports the quality case.",
+            "Operating discipline improved rather than weakened.",
+            "Governance quality still has to be confirmed through the next reporting window."
+          ],
+          evidence_refs: ["share_count_discipline"],
+          omissions: [],
+          coverage_state: "partial"
+        },
+        {
+          section_id: "growth_opportunities_and_outlook",
+          title: "Growth Opportunities and Outlook",
+          subtitle: "Future upside still depends on conversion from demand into durable margin and cash flow.",
+          summary: "The outlook remains constructive, but it still hinges on operating leverage showing up in cash terms.",
+          narrative:
+            "The best upside path comes from steadier margins and cleaner free-cash-flow follow-through rather than from a heroic change in the demand story.",
+          narrative_paragraphs: [
+            "The best upside path comes from steadier margins and cleaner free-cash-flow follow-through rather than from a heroic change in the demand story.",
+            "The next review window should focus on whether margin resilience keeps funding the thesis."
+          ],
+          key_points: [
+            "Base case requires margin stability rather than heroic acceleration.",
+            "Bull case needs cleaner operating leverage.",
+            "The next review window should focus on whether margin resilience keeps funding the thesis."
+          ],
+          evidence_refs: ["operating_margin_up"],
+          omissions: [],
+          coverage_state: "partial"
+        },
+        {
+          section_id: "risks_and_challenges",
+          title: "Risks and Challenges",
+          subtitle: "The key question is whether execution keeps validating the cash case.",
+          summary: "Execution risk and demand normalization remain the primary thesis breakers.",
+          narrative:
+            "The monitoring burden is straightforward: if margin durability slips or guidance weakens, the quality case needs to be revisited quickly.",
+          narrative_paragraphs: [
+            "The monitoring burden is straightforward: if margin durability slips or guidance weakens, the quality case needs to be revisited quickly.",
+            "The report stays explicit about challenge points so risk framing remains falsifiable rather than generic."
+          ],
+          key_points: [
+            "Demand normalization could pressure margin durability.",
+            "Guidance deterioration would weaken the base case.",
+            "Supply-chain disruption would challenge near-term execution."
+          ],
+          evidence_refs: ["ks-1", "ks-2", "ks-3"],
+          omissions: [],
+          coverage_state: "full"
+        },
+        {
+          section_id: "valuation_and_thesis_stance",
+          title: "Valuation and Thesis Stance",
+          subtitle: "A deterministic range still supports the thesis, but only with explicit execution discipline.",
+          summary: "Base valuation remains above spot, but the spread is not wide enough to ignore execution risk.",
+          narrative:
+            "The range remains sensitive to WACC and terminal growth, so the report treats valuation as a decision framework rather than a point estimate.",
+          narrative_paragraphs: [
+            "The range remains sensitive to WACC and terminal growth, so the report treats valuation as a decision framework rather than a point estimate.",
+            "The stance stays constructive only while margin resilience and cash conversion continue to support the base case."
+          ],
+          key_points: [
+            "Base case requires margin stability rather than heroic acceleration.",
+            "Bull case needs cleaner operating leverage.",
+            "Bear case assumes weaker conversion from demand into cash flow."
+          ],
+          evidence_refs: ["deterministic_dcf", "ev-1"],
+          omissions: [],
+          coverage_state: "full"
+        }
+      ]
+    },
     sections: [
       {
         section_id: "thesis_statement",
@@ -382,6 +532,10 @@ function sampleSparseReport(jobId: string, reportId: string): JsonObject {
     schema_version: "2.0",
     type: "deep_dive",
     ticker: "AAPL",
+    issuer: {
+      name: "Apple Inc.",
+      exchange: "NASDAQ"
+    },
     generated_at: "2026-04-20T10:15:00.000Z",
     confidence: {
       score: 0.32,
@@ -463,11 +617,113 @@ function sampleSparseReport(jobId: string, reportId: string): JsonObject {
       covered: ["basic_financial_snapshot"],
       missing: ["valuation_inputs", "comparable_history", "kill_switch_rules"]
     },
+    due_diligence: {
+      prompt_version: "dd-v2-fixture-v1",
+      generation_mode: "deterministic_fixture",
+      sections: [
+        {
+          section_id: "competitive_positioning",
+          title: "Competitive Positioning",
+          summary: "Limited reporting history keeps the competitive-positioning read tentative.",
+          narrative:
+            "Early signs may be encouraging, but the evidence base is still too thin to turn the memo into a full conviction call.",
+          narrative_paragraphs: [
+            "Early signs may be encouraging, but the evidence base is still too thin to turn the memo into a full conviction call."
+          ],
+          key_points: [
+            "Do not confuse early promise with durable quality.",
+            "Business-model evidence remains partial."
+          ],
+          evidence_refs: [],
+          omissions: ["limited_history", "comparable_history"],
+          coverage_state: "limited"
+        },
+        {
+          section_id: "financial_analysis",
+          title: "Financial Statement Analysis",
+          summary: "Only one annual period is available, so trend conclusions stay modest.",
+          narrative:
+            "Sparse reporting history means the report can highlight the latest numbers but should not imply a reliable multi-year pattern.",
+          narrative_paragraphs: [
+            "Sparse reporting history means the report can highlight the latest numbers but should not imply a reliable multi-year pattern."
+          ],
+          key_points: [
+            "Only one reported annual period is available.",
+            "Cash flow remains negative in the latest snapshot."
+          ],
+          evidence_refs: [],
+          omissions: ["valuation_inputs", "comparable_history"],
+          coverage_state: "limited"
+        },
+        {
+          section_id: "management_and_governance",
+          title: "Management and Governance",
+          summary: "Management assessment remains limited because the evidence base is still thin.",
+          narrative:
+            "The governance layer is still useful because it prevents the report from overstating what a thin dataset can prove.",
+          narrative_paragraphs: [
+            "The governance layer is still useful because it prevents the report from overstating what a thin dataset can prove."
+          ],
+          key_points: [
+            "Partial evidence should stay partial in the output."
+          ],
+          evidence_refs: [],
+          omissions: ["limited_history"],
+          coverage_state: "limited"
+        },
+        {
+          section_id: "growth_opportunities_and_outlook",
+          title: "Growth Opportunities and Outlook",
+          summary: "The outlook stays preliminary because the reporting base is still too small.",
+          narrative:
+            "The report can name what might matter next, but it should not imply a durable growth path from a single period of evidence.",
+          narrative_paragraphs: [
+            "The report can name what might matter next, but it should not imply a durable growth path from a single period of evidence."
+          ],
+          key_points: ["Future upside still depends on evidence that does not exist yet."],
+          evidence_refs: [],
+          omissions: ["limited_history"],
+          coverage_state: "limited"
+        },
+        {
+          section_id: "risks_and_challenges",
+          title: "Risks and Challenges",
+          summary: "False precision is the biggest risk when evidence is this thin.",
+          narrative:
+            "The next review should focus on building a cleaner financial history before making a stronger thesis call.",
+          narrative_paragraphs: [
+            "The next review should focus on building a cleaner financial history before making a stronger thesis call."
+          ],
+          key_points: [
+            "Sparse history makes comparative analysis unstable."
+          ],
+          evidence_refs: [],
+          omissions: ["limited_history"],
+          coverage_state: "limited"
+        },
+        {
+          section_id: "valuation_and_thesis_stance",
+          title: "Valuation and Thesis Stance",
+          summary: "Valuation remains omitted because the minimum inputs are not available.",
+          narrative:
+            "The report stays honest by showing a degraded valuation state rather than inventing scenario precision.",
+          narrative_paragraphs: [
+            "The report stays honest by showing a degraded valuation state rather than inventing scenario precision."
+          ],
+          key_points: [
+            "Coverage is intentionally omission-forward."
+          ],
+          evidence_refs: [],
+          omissions: ["valuation_inputs"],
+          coverage_state: "limited"
+        }
+      ]
+    },
     sections: [
       {
         section_id: "thesis_statement",
         title: "Thesis Statement",
-        body: "Sparse report fixture for omission-aware export validation.",
+        body: "Sparse report used to validate omission-aware export behavior.",
         status: "complete",
         evidence: []
       }
@@ -484,6 +740,10 @@ function sampleLegacyReport(jobId: string, reportId: string): JsonObject {
     schema_version: "1.0",
     type: "deep_dive",
     ticker: "MSFT",
+    issuer: {
+      name: "Microsoft Corporation",
+      exchange: "NASDAQ"
+    },
     generated_at: "2026-04-20T09:00:00.000Z",
     confidence: {
       score: 0.58,
@@ -548,13 +808,47 @@ test("M5.2 PDF export route returns institutional multi-page artifact with visua
     assert.equal(claim.status, 200);
 
     const reportId = "m5-export-report-001";
+    const reportFixture = sampleInstitutionalReport(jobId as string, reportId) as unknown as AnalysisReport;
+    const editorialPages = buildEditorialReportPages(reportFixture);
+    const editorialHtml = buildEditorialReportHtml(reportFixture, editorialPages);
+
+    assert.equal(editorialPages.length, 10);
+    assert.deepEqual(
+      editorialPages.map((page) => page.title),
+      [
+        "Executive Summary",
+        "Financial Analysis",
+        "Financial Exhibits",
+        "Competitive Positioning",
+        "Management and Governance",
+        "Risks and Challenges",
+        "Growth Outlook",
+        "Valuation and Stance",
+        "Evidence and Omissions",
+        "Appendix"
+      ]
+    );
+    assert.match(editorialHtml, /Thesis Due Diligence Report/);
+    assert.match(editorialHtml, /Apple Inc\./);
+    assert.match(editorialHtml, /Decision question/);
+    assert.match(editorialHtml, /Competitive Positioning/);
+    assert.match(editorialHtml, /Financial statement follow-through/);
+    assert.match(editorialHtml, /Management and Governance/);
+    assert.match(editorialHtml, /Growth Opportunities and Outlook/);
+    assert.match(editorialHtml, /Valuation and Thesis Stance/);
+    assert.match(editorialHtml, /Evidence, omissions, and source discipline/);
+    assert.match(editorialHtml, /Appendix And Source Notes/);
+    assert.match(editorialHtml, /Installed-base loyalty/);
+    assert.match(editorialHtml, /Page 10 of 10/);
+    assertNoDebugLeakage(editorialHtml);
+
     const complete = await requestJson(baseUrl, `/internal/jobs/${jobId as string}/complete`, {
       method: "POST",
       headers: {
         "x-internal-token": owner.internalToken
       },
       body: {
-        report: sampleInstitutionalReport(jobId as string, reportId)
+        report: reportFixture as unknown as JsonObject
       }
     });
     assert.equal(complete.status, 200);
@@ -566,24 +860,7 @@ test("M5.2 PDF export route returns institutional multi-page artifact with visua
     assert.equal(exportResponse.status, 200);
     assert.equal(exportResponse.headers.get("content-type"), "application/pdf");
     assert.match(exportResponse.headers.get("content-disposition") ?? "", /thesis-deep-dive-AAPL/i);
-    assert.ok(exportResponse.bytes.length > 1024);
-    assert.equal(exportResponse.bytes.subarray(0, 8).toString("utf8"), "%PDF-1.4");
-
-    const pdfText = exportResponse.bytes.toString("utf8");
-    assert.match(pdfText, /Thesis Investment Memo/);
-    assert.match(pdfText, /Executive Memo/);
-    assert.match(pdfText, /Decision question/);
-    assert.match(pdfText, /Mini valuation range/);
-    assert.match(pdfText, /Business quality scorecard/);
-    assert.match(pdfText, /Financial progression/);
-    assert.match(pdfText, /Scenario table/);
-    assert.match(pdfText, /Coverage limitations/);
-    assert.match(pdfText, /DCF-based scenario framework/);
-    assert.match(pdfText, /Large-cap quality context/);
-    assert.match(pdfText, /Transcript freshness is limited/);
-    assert.match(pdfText, /Page 1 of 6/);
-    assert.match(pdfText, /FY-2025/);
-    assertNoDebugPdfLeakage(pdfText);
+    assertLooksLikePdf(exportResponse.bytes);
 
     const blocked = await requestJson(baseUrl, `/v1/reports/${reportId}/export/pdf`, {
       method: "GET",
@@ -643,13 +920,36 @@ test("M5.2 PDF export renders omission-aware fallbacks for sparse reports", asyn
     assert.equal(claim.status, 200);
 
     const reportId = "m5-export-sparse-report-001";
+    const reportFixture = sampleSparseReport(jobId as string, reportId) as unknown as AnalysisReport;
+    const editorialPages = buildEditorialReportPages(reportFixture);
+    const editorialHtml = buildEditorialReportHtml(reportFixture, editorialPages);
+
+    assert.equal(editorialPages.length, 6);
+    assert.deepEqual(
+      editorialPages.map((page) => page.title),
+      [
+        "Executive Summary",
+        "Due Diligence Overview",
+        "Financial Snapshot",
+        "Risks and Valuation Limits",
+        "Evidence and Omissions",
+        "Appendix"
+      ]
+    );
+    assert.match(editorialHtml, /Apple Inc\./);
+    assert.match(editorialHtml, /Due Diligence Overview/);
+    assert.match(editorialHtml, /Coverage stays intentionally narrow/);
+    assert.match(editorialHtml, /Valuation range is not available for this report/);
+    assert.match(editorialHtml, /Page 6 of 6/);
+    assertNoDebugLeakage(editorialHtml);
+
     const complete = await requestJson(baseUrl, `/internal/jobs/${jobId as string}/complete`, {
       method: "POST",
       headers: {
         "x-internal-token": owner.internalToken
       },
       body: {
-        report: sampleSparseReport(jobId as string, reportId)
+        report: reportFixture as unknown as JsonObject
       }
     });
     assert.equal(complete.status, 200);
@@ -660,14 +960,7 @@ test("M5.2 PDF export renders omission-aware fallbacks for sparse reports", asyn
     });
     assert.equal(exportResponse.status, 200);
     assert.equal(exportResponse.headers.get("content-type"), "application/pdf");
-    const pdfText = exportResponse.bytes.toString("utf8");
-    assert.match(pdfText, /Thesis Investment Memo/);
-    assert.match(pdfText, /Coverage limitations/);
-    assert.match(pdfText, /Valuation range is not available for this report/);
-    assert.match(pdfText, /Coverage/);
-    assert.match(pdfText, /Limited/);
-    assert.match(pdfText, /Sparse financial history supports observation/);
-    assertNoDebugPdfLeakage(pdfText);
+    assertLooksLikePdf(exportResponse.bytes);
   } finally {
     await closeServer(server);
     process.env.STORE_BACKEND = previous.STORE_BACKEND;
@@ -737,13 +1030,14 @@ test("M5.2 PDF export keeps legacy report fallback exportable", async () => {
     });
     assert.equal(exportResponse.status, 200);
     assert.equal(exportResponse.headers.get("content-type"), "application/pdf");
-    assert.equal(exportResponse.bytes.subarray(0, 8).toString("utf8"), "%PDF-1.4");
+    assertLooksLikePdf(exportResponse.bytes);
     const pdfText = exportResponse.bytes.toString("utf8");
     assert.match(pdfText, /Thesis Investment Memo/);
     assert.match(pdfText, /Coverage limitations/);
     assert.match(pdfText, /Valuation range is not available for this report/);
     assert.match(pdfText, /The current investment argument is limited and should be treated as a watchlist view/);
-    assertNoDebugPdfLeakage(pdfText);
+    assert.match(pdfText, /Page 1 of 6/);
+    assertNoDebugLeakage(pdfText);
   } finally {
     await closeServer(server);
     process.env.STORE_BACKEND = previous.STORE_BACKEND;

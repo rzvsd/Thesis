@@ -1,9 +1,9 @@
 # Thesis - Phase 6 Milestone Briefs
 
 **Version:** 1.0  
-**Status:** Active  
+**Status:** Closed (M0-M6 complete; owner-approved closeout recorded locally on 2026-04-23)  
 **Owner:** Engineering Lead + Product Lead  
-**Last Revised:** 2026-04-18
+**Last Revised:** 2026-04-23
 **Related Documents:** `ph6_BLUEBOOK.md`, `ph6_PRD.md`, `ph6_ROADMAP.md`, `ph6_SECURITY.md`, `PH6_DECISION_LOCKS.md`
 
 ---
@@ -22,6 +22,8 @@ Each milestone records proof under:
 Project Note/Phase6/Milestones/M#/evidence/
 ```
 
+**Closeout normalization note (2026-04-23):** Phase 6 is fully closed in the local repo. Milestone-local smoke proof, dependency-guard proof, and end-to-end evidence are complete through M6, and owner approval was given to normalize the remaining "pending closeout" headers. Hosted GitHub CI for the final Phase 6 state will occur on the next push and is not treated as an open phase blocker in the local closeout record.
+
 ---
 
 ## Milestone Index
@@ -34,6 +36,7 @@ Project Note/Phase6/Milestones/M#/evidence/
 | M3 | Morning Exception Briefing & Macro Stress | Pulse rebuilt around official macro, disclosure events, and bounded context |
 | M4 | Earnings State & War Room Substrate | Estimated/confirmed/actual timing and release-artifact workflows |
 | M5 | Deep Dive / Scenario Final Cutover & Hardening | Final provider-free Deep Dive and Scenario path with end-to-end smoke proof |
+| M6 | Official Structural Context & Internal Research Lab | World Bank structural context enriches Deep Dive and Briefing; IMF is optional/non-blocking; internal replay/eval/debate tooling hardens Thesis quality without changing product identity |
 
 ---
 
@@ -507,6 +510,130 @@ Roll back the cutover behind flags or versioned read paths while preserving data
 ## Owner
 
 Engineering Lead + Product Lead
+
+---
+
+# M6_Official Structural Context & Internal Research Lab
+
+## Goal
+
+Extend Thesis from official company truth plus official macro truth into official structural context, then add internal quality tooling that measures whether Thesis reasoning actually improves decision quality over time.
+
+**Plain English:** Give Deep Dive and Morning Exception Briefing better country and regime context, then build the internal replay and evaluation tooling that improves Thesis without turning it into a trading terminal or AI hedge-fund demo.
+
+## Deliverables
+
+| Deliverable | Description |
+|---|---|
+| World Bank adapter | Production-grade official/public structural context source with a fixed reviewed indicator-family registry |
+| IMF adapter | Curated forecast, fiscal, and external-balance context source; non-blocking for milestone closeout if runtime access is partial |
+| Structural context contracts | Additive official-source families, structural-context model, and issuer metadata expansion for report and briefing use |
+| Deep Dive enrichment | Structural context enriches `competitive_positioning`, `growth_opportunities_and_outlook`, and `risks_and_challenges` without changing the six-section taxonomy |
+| Morning Exception Briefing enrichment | Structural context enriches `official_macro_pressure` and/or `bounded_context` while Macro Stress keeps the same core category model |
+| Internal Research Lab | Historical replay sandbox, agent evaluation harness, and experiment-only debate workflow |
+| DBnomics internal accelerator | Internal-only discovery path for research helpers; forbidden from protected runtime paths and user-facing provenance |
+
+## Locked M6 Interface Plan
+
+| Area | Locked shape |
+|---|---|
+| Official-source family extension | `packages/contracts/src/official-source.ts` extends `OfficialSourceFamily` with `world_bank` and `imf` |
+| Structural context contract | `packages/contracts/src/structural-context.ts` with `StructuralContextPack`, `StructuralContextObservation`, and `StructuralContextOmission` |
+| Analysis report extension | `packages/contracts/src/analysis-report.ts` adds optional `structural_context` and additive issuer metadata fields |
+| Morning briefing extension | `MarketPulseReport` adds optional `structural_context` support for briefing context and omission truth |
+| Issuer metadata expansion | `IssuerBlock` gains `currency`, `domicile_country`, `region`, `sector`, and `industry` when available |
+| Adapter boundary | `data-openbb` remains the official/public-source adapter boundary for World Bank and IMF retrieval |
+| Internal lab runners | Internal scripts, jobs, or test harnesses only; no new public route or mobile tab is introduced |
+
+## Locked Structural-Context Source Scope
+
+**World Bank required seed families**
+
+- GDP level / GDP per capita
+- population
+- trade openness
+- debt context
+- inequality
+- logistics
+- infrastructure proxy
+- education proxy
+- energy access
+- sector mix proxy
+
+**IMF target families**
+
+- GDP growth outlook
+- inflation regime / inflation outlook
+- fiscal balance
+- public debt
+- FX reserves
+- current-account context
+
+**World Bank is required for M6 closeout. IMF is not.**
+
+## Acceptance Criteria
+
+- [x] World Bank structural context is returned as a contract-valid pack with retrieval metadata and omission truth
+- [x] Structural context is visible in Deep Dive for at least one supported report run and improves the relevant due-diligence sections without changing the six-section taxonomy
+- [x] Structural context is visible in Morning Exception Briefing through `official_macro_pressure` and/or `bounded_context`
+- [x] Macro Stress schema and category model remain unchanged
+- [x] Expanded issuer metadata is populated when available and omission-forward when missing
+- [x] IMF path either returns contract-valid context for the approved seed scope or remains explicitly partial/non-blocking with fixtures and omission truth recorded
+- [x] No protected runtime path requires DBnomics
+- [x] Historical replay can rerun at least one Deep Dive and one Morning Exception Briefing using an as-of date without look-ahead leakage
+- [x] Evaluation harness emits a scored artifact for replayed runs
+- [x] Debate workflow cannot publish directly to user-facing report generation
+- [x] No new top-level product surface, tab, or terminal-style workflow is introduced
+
+## Smoke Test
+
+```text
+Step 1: Start Product API, data-openbb, dexter-worker, and scheduler in local Phase 6 mode.
+Step 2: Request World Bank structural context for the approved seed scope.
+Step 3: Confirm - contract-valid payload, official provenance, and omission states are returned.
+Step 4: Run one Deep Dive for a supported issuer.
+Step 5: Confirm - structural context appears in the due-diligence output and issuer metadata without changing the six-section model.
+Step 6: Trigger Morning Exception Briefing in test mode.
+Step 7: Confirm - structural context appears in briefing context while Macro Stress shape remains unchanged.
+Step 8: Remove or disable IMF runtime access.
+Step 9: Confirm - World Bank path still works and IMF degrades explicitly without blocking the product path.
+Step 10: Run one historical replay for Deep Dive and one for Morning Exception Briefing.
+Step 11: Confirm - replay artifacts are produced with no look-ahead leakage.
+Step 12: Run one evaluation harness pass and one debate experiment.
+Step 13: Confirm - scored artifacts are produced and debate cannot publish directly to the live user path.
+Step 14: Run the Phase 6 dependency scan.
+Step 15: Confirm - DBnomics does not appear in protected runtime paths.
+```
+
+## Success
+
+Thesis becomes better at explaining why macro structure matters to a company thesis while also gaining internal tools that make the reasoning stack more testable, more honest, and more durable.
+
+## Failure Modes
+
+| What breaks | How we detect it | Impact |
+|---|---|---|
+| Structural context becomes generic macro wallpaper | Report review shows filler stats with no issuer relevance | Deep Dive quality drops despite more data |
+| Macro Stress gets silently widened | Contract diff or smoke output changes the category model | Product semantics drift |
+| IMF blocks the whole milestone | Runtime access fails and the rest of M6 cannot close | Scope mistake |
+| DBnomics leaks into runtime | Dependency guard or code review shows runtime imports or user-facing provenance | Rights and provenance doctrine weakens |
+| Historical replay leaks future information | Replay assertions fail or output uses post-date truth | Eval results become untrustworthy |
+| Debate becomes product theater | Debate path reaches live output or becomes a visible app surface | Thesis drifts toward an AI demo app |
+
+## Rollback
+
+Disable `structural_context` generation and rendering while leaving additive contracts in place; keep the World Bank and IMF registries on disk but stop surfacing them; disable replay/eval/debate runners without touching user-facing Deep Dive, Morning Exception Briefing, War Room, or Scenario paths. Do not substitute DBnomics or any paid provider as a rollback shortcut.
+
+## Dependencies
+
+- M5 complete
+- current official-source and first-party substrate remains healthy
+- issuer metadata expansion approved as additive contract work
+- IMF remains optional/non-blocking if runtime access is materially harder than World Bank
+
+## Owner
+
+Data Platform Engineer + Product API Owner + Reasoning / ML Engineer + Product Lead
 
 ---
 

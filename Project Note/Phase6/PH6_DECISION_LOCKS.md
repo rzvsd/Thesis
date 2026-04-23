@@ -1,10 +1,10 @@
 # Thesis - Phase 6 Decision Locks
 
-**Status:** Active  
-**Last Revised:** 2026-04-17  
+**Status:** Closed with Phase 6; remains the governing lock file for the completed phase  
+**Last Revised:** 2026-04-23
 **Purpose:** Lock the minimum product, architecture, contract, and evidence decisions needed before Phase 6 implementation starts.
 
-This file exists so Phase 6 does not begin with hidden ambiguity. If a milestone needs a decision that is not covered here, stop and ask before coding.
+This file exists so Phase 6 does not begin with hidden ambiguity. Phase 6 is now closed locally; this file remains the governing record of the decisions that shaped the final cutover.
 
 ---
 
@@ -17,6 +17,7 @@ This file exists so Phase 6 does not begin with hidden ambiguity. If a milestone
 | Provider stance | OpenBB/FMP/Polygon/Alpha Vantage/yfinance-style dependencies are not allowed in protected core production paths | Removes cost, rights, and fragility risk |
 | `data-openbb` name | Keep the folder/service name through Phase 6 for migration continuity; optional rename to `data-public` is post-phase backlog | Avoids churn while changing the production meaning |
 | Transcripts | Transcript text is optional and rights-gated; first-party release artifacts, slides, filings, and webcast references come first | Keeps War Room and Deep Dive useful without unsafe transcript dependency |
+| Product identity | Thesis remains a financial intelligence and conviction system; it must not become a public trading lab, public backtest product, or AI debate theater app | Keeps Phase 6 aligned with the existing user promise |
 
 ---
 
@@ -142,6 +143,7 @@ Canonical contract files and public names:
 | `packages/contracts/src/earnings-state.ts` | `EarningsEventState`, `EarningsEventTimingState`, `EarningsEventEvidenceState` |
 | `packages/contracts/src/macro-stress.ts` | `MacroStressSnapshot`, `MacroStressInput`, `MacroStressState`, `MacroStressOmission` |
 | `packages/contracts/src/analysis-report-context.ts` | `AnalysisReportEvidenceContext`, `AnalysisReportOmission`, `AnalysisReportSourceState` |
+| `packages/contracts/src/structural-context.ts` | `StructuralContextPack`, `StructuralContextObservation`, `StructuralContextOmission` |
 
 Contract rules:
 
@@ -151,9 +153,76 @@ Contract rules:
 - Every omission must be explicit and user-safe.
 - Older report artifacts must remain readable.
 
+M6 additive contract lock:
+
+- `OfficialSourceFamily` may extend with `world_bank` and `imf`.
+- `AnalysisReport` and `MarketPulseReport` may gain optional `structural_context`.
+- `IssuerBlock` may gain additive metadata fields: `currency`, `domicile_country`, `region`, `sector`, `industry`.
+- `MacroStressCategory` must **not** expand in M6.
+
 ---
 
-## 6. Evidence Folder Standard
+## 6. M6 Structural Context And Internal Research Lab Locks
+
+These decisions are locked for the M6 milestone.
+
+### 6.1 Source policy
+
+- `World Bank` is approved as an official/public structural-context source for Phase 6 M6.
+- `IMF` is approved as an official/public structural-context source for Phase 6 M6, but remains optional and non-blocking for closeout if runtime access is partial or materially harder than World Bank.
+- `DBnomics` is allowed only as an internal discovery accelerator for research helpers, scripts, and notebooks.
+- `DBnomics` must not become:
+  - a protected runtime dependency,
+  - a required env var,
+  - a user-facing source label,
+  - or a silent fallback that substitutes for World Bank or IMF.
+
+### 6.2 Product behavior
+
+- Structural context enriches existing Thesis surfaces. It does not create a new top-level product concept.
+- Deep Dive remains company-first. Structural context appears only when it helps explain thesis durability, risk, growth, or regime sensitivity.
+- Morning Exception Briefing may use structural context to explain why a macro state matters, but it must not become a general macro dashboard.
+- Macro Stress keeps the existing five-category model:
+  - `rates`
+  - `inflation`
+  - `labor`
+  - `growth`
+  - `energy`
+
+### 6.3 Internal quality tooling
+
+- Historical replay is approved only as an internal thesis-replay tool. It is not a user-facing backtesting feature.
+- Agent evaluation harnesses are approved only for internal quality measurement and promotion gates.
+- Debate workflows are approved only for internal experiments and evaluation. Debate output must not publish directly to users without explicit later promotion into the main compiler design.
+- No new top-level mobile tab, public app route, or terminal-style product surface may be introduced for replay, eval, or debate in M6.
+
+### 6.4 M6 seed structural-context scope
+
+World Bank required seed families:
+
+- GDP level / GDP per capita
+- population
+- trade openness
+- debt context
+- inequality
+- logistics
+- infrastructure proxy
+- education proxy
+- energy access
+- sector mix proxy
+
+IMF target families:
+
+- GDP growth outlook
+- inflation regime / inflation outlook
+- fiscal balance
+- public debt
+- FX reserves
+- current-account context
+
+---
+
+## 7. Evidence Folder Standard
 
 Every milestone uses the same evidence pattern as successful prior phases:
 
@@ -172,13 +241,15 @@ Each evidence file should include:
 
 ---
 
-## 7. Open Decisions That Still Require Stop-And-Ask
+## 8. Open Decisions That Still Require Stop-And-Ask
 
 These are not needed for the documentation normalization pass, but they must be resolved before the named milestone begins implementation.
 
 | Decision | Needed before | Default if not decided |
 |---|---|---|
 | Exact official macro series IDs | M1/M3 implementation | Use only the locked source families and record selected series in evidence |
+| Exact World Bank indicator IDs and mapping rules | M6 implementation | Use only the locked seed families and record selected indicators in evidence |
+| Exact IMF series / table selection and runtime access posture | M6 implementation | Keep IMF optional/non-blocking and record any partial coverage truth in evidence |
 | Any licensed quote provider re-entry | Any implementation | Not allowed |
 | Any licensed transcript provider | M4 implementation or later | Not allowed; use first-party call artifacts |
 | Repo rename from `data-openbb` to `data-public` | Post-Phase 6 only | Keep `data-openbb` |

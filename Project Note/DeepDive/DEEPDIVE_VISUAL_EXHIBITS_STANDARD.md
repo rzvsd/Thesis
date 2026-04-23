@@ -1,8 +1,8 @@
 # Deep Dive Visual Exhibits Standard
 
 **Status:** Active  
-**Last Revised:** 2026-04-20  
-**Applies To:** Deep Dive Revamp M5.2, M6, M7
+**Last Revised:** 2026-04-22  
+**Applies To:** Deep Dive Revamp M5.2, M6, M7, M8, M9
 
 ---
 
@@ -280,3 +280,7 @@ to:
 - institutionally visual, chart-led, and publication-worthy
 
 This milestone is the visual exhibit pass before M6 uses the same exhibit language on mobile.
+
+M8 preserves this exhibit language while reorganizing the report into the `due_diligence` section taxonomy.
+
+M9 preserves the same exhibit language while moving the serious export path to editorial HTML/CSS-to-PDF.

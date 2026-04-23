@@ -331,7 +331,8 @@ private fun DeepDiveReportState(
     val isWatched = report.ticker != null && watchlist.contains(report.ticker)
     val context = LocalContext.current
     val isPro = userTier.equals("PRO", ignoreCase = true)
-    val usesStructuredReader = report.toReaderOutline().usesStructuredArtifact
+    val readerOutline = report.toReaderOutline()
+    val usesStructuredReader = readerOutline.usesStructuredArtifact
 
     Box(
         modifier = Modifier
@@ -356,6 +357,7 @@ private fun DeepDiveReportState(
 
             if (usesStructuredReader) {
                 item { DeepDiveExecutiveMemo(report = report) }
+                item { DeepDiveDueDiligence(report = report) }
                 item { DeepDiveFinancialQuality(report = report) }
                 item { DeepDiveValueDiscipline(report = report) }
                 item { DeepDiveValuationSection(report = report) }

@@ -113,6 +113,11 @@ data class TrustMetadataView(
     val thesisDrift: TrustThesisDriftView? = null
 )
 
+data class IssuerView(
+    val name: String,
+    val exchange: String? = null
+)
+
 data class DeepDiveStoryHeaderView(
     val headline: String,
     val thesisSummary: String,
@@ -282,6 +287,23 @@ data class InvestmentMemoView(
     val materialClaims: List<InvestmentMemoClaimView> = emptyList(),
     val unsupportedClaims: List<String> = emptyList(),
     val sparseDataHonestyNote: String
+)
+
+data class DueDiligenceSectionView(
+    val sectionId: String,
+    val title: String,
+    val summary: String,
+    val narrativeParagraphs: List<String> = emptyList(),
+    val keyPoints: List<String> = emptyList(),
+    val evidenceRefs: List<String> = emptyList(),
+    val omissions: List<String> = emptyList(),
+    val coverageState: String
+)
+
+data class DueDiligenceView(
+    val promptVersion: String,
+    val generationMode: String,
+    val sections: List<DueDiligenceSectionView> = emptyList()
 )
 
 data class FinancialHistoryRowView(
@@ -455,6 +477,8 @@ data class ScenarioStressRunView(
 data class DeepDiveReportView(
     val reportId: String,
     val ticker: String?,
+    val generatedAt: String? = null,
+    val issuer: IssuerView? = null,
     val schemaVersion: String = "1.0",
     val isLegacy: Boolean = false,
     val thesisStatement: String? = null,
@@ -465,6 +489,7 @@ data class DeepDiveReportView(
     val watchItems: List<String> = emptyList(),
     val coverageTruth: DeepDiveCoverageTruthView? = null,
     val investmentMemo: InvestmentMemoView? = null,
+    val dueDiligence: DueDiligenceView? = null,
     val financialAnalysis: FinancialAnalysisView? = null,
     val valueDiscipline: ValueDisciplineView? = null,
     val confidence: ConfidenceDisplayView? = null,

@@ -1,7 +1,7 @@
 # Deep Dive Revamp
 
-**Status:** Active planning
-**Last Revised:** 2026-04-20
+**Status:** M8 closeout pending; M9 planning active
+**Last Revised:** 2026-04-22
 **Predecessors:** Phase 2 M7 report UX, Phase 5 active intelligence, Phase 6 data substrate
 **Reference PDFs:** `report.pdf`, `value investing.pdf`
 
@@ -9,19 +9,20 @@
 
 ## Purpose
 
-Deep Dive Revamp turns Thesis from a short generated research summary into a serious investment research product.
+Deep Dive Revamp turned Thesis from a short generated research summary into a serious investment research foundation.
 
-The current Deep Dive proves that Thesis can assemble evidence, trust metadata, valuation panels, and a mobile reading flow. That is useful, but it does not yet feel like an institutional research memo or a report a user would rely on before allocating meaningful capital.
+That foundation is now complete through M7. The active follow-on path keeps `Deep Dive` as the entrypoint, makes full due diligence the default artifact in M8, and upgrades that artifact in M9 with verbose editorial authoring, issuer metadata, and HTML/CSS-to-PDF export while preserving backward compatibility and summary-first product ergonomics.
 
-This workstream creates a new report standard:
+This follow-on standard requires:
 
-- a structured investment memo
-- deterministic financial analysis
-- a value-investing discipline layer
+- a canonical `due_diligence` layer
+- six long-form due-diligence sections
+- a short `investment_memo` compatibility layer
+- deterministic financial and valuation discipline
 - evidence-backed narrative writing
-- a serious PDF artifact
-- chart-rich visual exhibits from real report figures
-- a mobile reader that summarizes without flattening the research
+- a serious 10-14 page HTML/CSS-to-PDF editorial artifact
+- issuer metadata in the report surface and metadata appendix
+- a mobile summary-first reader that expands inline into proof
 
 ---
 
@@ -58,11 +59,11 @@ If the answer is no, the milestone is not done.
 | `DeepDive_DECISION_LOCKS.md` | Locked decisions and unresolved decisions |
 | `DEEPDIVE_REPORT_STANDARD.md` | Canonical report structure and quality bar |
 | `DEEPDIVE_REFERENCE_MAPPING.md` | What the two PDFs teach Thesis, and what must not be copied |
-| `DEEPDIVE_REPORT_TEMPLATE.md` | Page-by-page PDF template and mobile reader template |
+| `DEEPDIVE_REPORT_TEMPLATE.md` | Editorial PDF template and mobile reader template |
 | `DEEPDIVE_VISUAL_EXHIBITS_STANDARD.md` | Approved exhibit families, styling, and fail conditions for chart-rich output |
 | `DEEPDIVE_TEST_MATRIX.md` | Required tests, fixtures, hard gates, and fail conditions |
 | `DeepDive_ACCEPTANCE.md` | Workstream-level acceptance register |
-| `Milestones/M#/` and `Milestones/M5_2/` | Milestone-local guides, smoke plans, evidence |
+| `Milestones/M#/`, `Milestones/M5_2/`, `Milestones/M8/`, and `Milestones/M9/` | Milestone-local guides, smoke plans, and evidence |
 | `Decisions/` | Deep Dive Revamp ADRs |
 
 ---
@@ -80,6 +81,8 @@ If the answer is no, the milestone is not done.
 | M5.2 | Visual Exhibits Layer | Turns PDF exhibits into chart-rich, publication-worthy research visuals |
 | M6 | Mobile Research Reader | Turns mobile Deep Dive into a guided executive reading surface |
 | M7 | End-to-End Quality and Device Proof | Proves the full workflow from run to report to PDF to phone |
+| M8 | Due Diligence Default Upgrade | Keeps the `Deep Dive` name while making full due diligence the default artifact |
+| M9 | Verbose Due Diligence Authoring And Editorial PDF Upgrade | Makes due diligence read like an editorial report and exports it through a 10-14 page HTML/CSS-to-PDF path |
 
 ---
 
@@ -88,7 +91,8 @@ If the answer is no, the milestone is not done.
 - No fabricated data.
 - No unsourced investment claims.
 - No valuation without assumptions and omissions.
-- No Piotroski score when required inputs are missing.
+- No Piotroski-style summary without missing-input disclosure.
+- No `investment_memo` claim that outruns the canonical `due_diligence` sections.
 - No PDF that is just a screenshot of mobile cards.
 - No UI-only closeout without backend/report artifact proof.
 - Existing Deep Dive reports must remain readable.

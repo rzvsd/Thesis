@@ -18,6 +18,10 @@ class ReportViewMapperTest {
               "type": "deep_dive",
               "ticker": "AAPL",
               "generated_at": "2026-04-18T10:00:00Z",
+              "issuer": {
+                "name": "Apple Inc.",
+                "exchange": "NASDAQ"
+              },
               "story_header": {
                 "headline": "AAPL: services strength keeps the thesis alive",
                 "thesis_summary": "The thesis is intact, but hardware recovery still matters.",
@@ -111,6 +115,75 @@ class ReportViewMapperTest {
                 ],
                 "unsupported_claims": [],
                 "sparse_data_honesty_note": "Transcript coverage is limited."
+              },
+              "due_diligence": {
+                "prompt_version": "dd2.0",
+                "generation_mode": "live_prompt",
+                "sections": [
+                  {
+                    "section_id": "financial_analysis",
+                    "title": "Financial Analysis",
+                    "summary": "Cash generation held up better than the market expected.",
+                    "narrative_paragraphs": [
+                      "Free cash flow stayed resilient against a mixed device cycle.",
+                      "Balance-sheet flexibility still supports the thesis."
+                    ],
+                    "key_points": ["Cash generation stayed resilient."],
+                    "evidence_refs": ["metric_1", "filing_2025"],
+                    "omissions": ["Quarterly segment mix remains incomplete."],
+                    "coverage_state": "partial"
+                  },
+                  {
+                    "section_id": "competitive_positioning",
+                    "title": "Competitive Positioning",
+                    "summary": "The moat still comes from ecosystem depth and pricing power.",
+                    "narrative_paragraphs": ["Competitive position remains durable."],
+                    "key_points": ["Installed base remains sticky."],
+                    "evidence_refs": ["filing_2025"],
+                    "omissions": [],
+                    "coverage_state": "full"
+                  },
+                  {
+                    "section_id": "management_and_governance",
+                    "title": "Management and Governance",
+                    "summary": "Capital allocation remains disciplined.",
+                    "narrative_paragraphs": ["Management still looks aligned with the thesis."],
+                    "key_points": ["Buyback pacing remains disciplined."],
+                    "evidence_refs": ["filing_2025"],
+                    "omissions": [],
+                    "coverage_state": "partial"
+                  },
+                  {
+                    "section_id": "risks_and_challenges",
+                    "title": "Risks and Challenges",
+                    "summary": "The main risk is a weaker hardware recovery.",
+                    "narrative_paragraphs": ["Execution risk remains real."],
+                    "key_points": ["China demand remains uneven."],
+                    "evidence_refs": ["metric_1"],
+                    "omissions": [],
+                    "coverage_state": "full"
+                  },
+                  {
+                    "section_id": "growth_opportunities_and_outlook",
+                    "title": "Growth Opportunities and Outlook",
+                    "summary": "Services and installed-base monetization still support the outlook.",
+                    "narrative_paragraphs": ["The outlook remains constructive if services durability holds."],
+                    "key_points": ["Services mix still supports upside."],
+                    "evidence_refs": ["metric_1"],
+                    "omissions": [],
+                    "coverage_state": "partial"
+                  },
+                  {
+                    "section_id": "valuation_and_thesis_stance",
+                    "title": "Valuation and Thesis Stance",
+                    "summary": "The range still supports a constructive stance.",
+                    "narrative_paragraphs": ["Valuation remains a range, not a point estimate."],
+                    "key_points": ["The base case still depends on execution."],
+                    "evidence_refs": ["metric_1"],
+                    "omissions": [],
+                    "coverage_state": "full"
+                  }
+                ]
               },
               "financial_analysis": {
                 "annual_history": [
@@ -219,17 +292,96 @@ class ReportViewMapperTest {
         val view = ReportViewMapper.mapAnalysisReport(json)
 
         assertEquals("AAPL", view.ticker)
+        assertEquals("2026-04-18T10:00:00Z", view.generatedAt)
+        assertEquals("Apple Inc.", view.issuer?.name)
+        assertEquals("NASDAQ", view.issuer?.exchange)
         assertNotNull(view.storyHeader)
         assertEquals("positive", view.storyHeader?.stanceLabel)
         assertEquals(1, view.changeSummary?.topChanges?.size)
         assertEquals("Watch margin quality.", view.watchItems.single())
         assertEquals("The report states what it covers.", view.coverageTruth?.summary)
         assertEquals("Is services durability enough to defend the current multiple?", view.investmentMemo?.decisionQuestion)
+        assertEquals(6, view.dueDiligence?.sections?.size)
+        assertEquals(
+            listOf(
+                "financial_analysis",
+                "competitive_positioning",
+                "management_and_governance",
+                "risks_and_challenges",
+                "growth_opportunities_and_outlook",
+                "valuation_and_thesis_stance"
+            ),
+            view.dueDiligence?.sections?.map { it.sectionId }
+        )
+        assertEquals("partial", view.dueDiligence?.sections?.first()?.coverageState)
+        assertEquals(listOf("metric_1", "filing_2025"), view.dueDiligence?.sections?.first()?.evidenceRefs)
         assertEquals(1, view.financialAnalysis?.trendMetrics?.size)
         assertEquals("quality_mega_cap", view.valueDiscipline?.contextLabel)
         assertEquals(1, view.killSwitchConditions.size)
         assertTrue(view.visualPanels[0] is MetricDeltaPanelView)
         assertTrue(view.visualPanels[1] is TrustScorecardPanelView)
+    }
+
+    @Test
+    fun mapAnalysisReport_acceptsIssuerAndNarrativeFallbacksDuringRollout() {
+        val json = JSONObject(
+            """
+            {
+              "report_id": "report_rollout",
+              "job_id": "job_rollout",
+              "schema_version": "2.1",
+              "type": "deep_dive",
+              "ticker": "NVDA",
+              "company_name": "NVIDIA Corporation",
+              "exchange": "NASDAQ",
+              "generated_at": "2026-04-18T10:00:00Z",
+              "confidence": {
+                "score": 0.6,
+                "label": "medium",
+                "limiting_factors": []
+              },
+              "due_diligence": {
+                "prompt_version": "dd2.0",
+                "generation_mode": "live_prompt",
+                "sections": [
+                  {
+                    "section_id": "financial_analysis",
+                    "title": "Financial Analysis",
+                    "summary": "Demand remains stronger than feared.",
+                    "narrative": "Demand stayed strong through the quarter.\n\nGross margin remained elevated.",
+                    "key_points": [],
+                    "evidence_refs": ["metric_1"],
+                    "omissions": [],
+                    "coverage_state": "full"
+                  }
+                ]
+              },
+              "sections": [
+                {
+                  "section_id": "thesis_statement",
+                  "title": "Thesis Statement",
+                  "body": "Legacy proof layer remains available.",
+                  "status": "complete",
+                  "evidence": []
+                }
+              ],
+              "flags": [],
+              "data_sources": []
+            }
+            """.trimIndent()
+        )
+
+        val view = ReportViewMapper.mapAnalysisReport(json)
+
+        assertEquals("NVIDIA Corporation", view.issuer?.name)
+        assertEquals("NASDAQ", view.issuer?.exchange)
+        assertEquals(
+            listOf(
+                "Demand stayed strong through the quarter.",
+                "Gross margin remained elevated."
+            ),
+            view.dueDiligence?.sections?.single()?.narrativeParagraphs
+        )
     }
 
     @Test
@@ -266,6 +418,7 @@ class ReportViewMapperTest {
         val view = ReportViewMapper.mapAnalysisReport(json)
 
         assertEquals("MSFT", view.ticker)
+        assertEquals("2026-04-18T10:00:00Z", view.generatedAt)
         assertEquals(true, view.isLegacy)
         assertEquals(null, view.storyHeader)
         assertEquals(emptyList<DeepDiveVisualPanelView>(), view.visualPanels)

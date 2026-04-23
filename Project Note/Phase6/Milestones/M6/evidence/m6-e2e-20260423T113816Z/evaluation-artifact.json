@@ -1,0 +1,53 @@
+{
+  "artifact_id": "eval-267fb849-bc4b-433d-bb77-e1e8080b43c1",
+  "replay_artifact_id": "replay-9af405e6-5940-4078-9255-09205161f436",
+  "as_of": "2025-02-14",
+  "generated_at": "2026-04-23T11:38:39.166Z",
+  "score": 7,
+  "max_score": 7,
+  "verdict": "pass",
+  "checks": [
+    {
+      "check_id": "deep-dive-structural-as-of",
+      "title": "Deep Dive structural context is time-bounded",
+      "passed": true,
+      "detail": "Deep Dive structural context is pinned to 2025-02-14."
+    },
+    {
+      "check_id": "deep-dive-observation-periods",
+      "title": "Deep Dive observations avoid look-ahead leakage",
+      "passed": true,
+      "detail": "All observed periods stayed on or before 2025-02-14."
+    },
+    {
+      "check_id": "deep-dive-due-diligence-enriched",
+      "title": "Deep Dive due-diligence sections were structurally enriched",
+      "passed": true,
+      "detail": "Enriched sections: competitive_positioning, risks_and_challenges, growth_opportunities_and_outlook."
+    },
+    {
+      "check_id": "pulse-structural-as-of",
+      "title": "Morning briefing structural context is time-bounded",
+      "passed": true,
+      "detail": "Morning briefing structural context is pinned to 2025-02-14."
+    },
+    {
+      "check_id": "pulse-observation-periods",
+      "title": "Morning briefing observations avoid look-ahead leakage",
+      "passed": true,
+      "detail": "All observed periods stayed on or before 2025-02-14."
+    },
+    {
+      "check_id": "pulse-macro-as-of",
+      "title": "Macro Stress keeps the requested as_of date",
+      "passed": true,
+      "detail": "Macro Stress stayed on 2025-02-14."
+    },
+    {
+      "check_id": "pulse-briefing-enriched",
+      "title": "Morning briefing sections were structurally enriched",
+      "passed": true,
+      "detail": "Enriched sections: official_macro_pressure, bounded_context."
+    }
+  ]
+}

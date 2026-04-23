@@ -2,10 +2,12 @@ import type { ConfidenceBlock } from "./analysis-report";
 import type { AnalysisReportEvidenceContext } from "./analysis-report-context";
 import type { MacroStressSnapshot } from "./macro-stress";
 import type { ReportSection } from "./report-section";
+import type { StructuralContextPack } from "./structural-context";
 import { confidenceBlockSchema } from "./analysis-report";
 import { analysisReportEvidenceContextSchema } from "./analysis-report-context";
 import { macroStressSnapshotSchema } from "./macro-stress";
 import { reportSectionSchema } from "./report-section";
+import { structuralContextPackSchema } from "./structural-context";
 
 export interface MarketPulseSections {
   macro_stress: ReportSection;
@@ -29,6 +31,7 @@ export interface MarketPulseReport {
   cycle_end: string;
   macro_stress: MacroStressSnapshot;
   context?: AnalysisReportEvidenceContext;
+  structural_context?: StructuralContextPack;
   sections: MarketPulseSections;
   flags: string[];
   confidence: ConfidenceBlock;
@@ -57,6 +60,7 @@ export const marketPulseReportSchema = {
     cycle_end: { type: "string" },
     macro_stress: macroStressSnapshotSchema,
     context: analysisReportEvidenceContextSchema,
+    structural_context: structuralContextPackSchema,
     sections: {
       type: "object",
       additionalProperties: false,

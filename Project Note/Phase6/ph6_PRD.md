@@ -1,8 +1,8 @@
 # Thesis - Phase 6 PRD Addendum
 
-**Version:** 1.0  
-**Status:** Living Document  
-**Last Revised:** 2026-04-16  
+**Version:** 1.0
+**Status:** Living Document
+**Last Revised:** 2026-04-22
 **Owner:** Product Lead + Platform Architect
 
 > This document extends `PRD.md`. It does not replace the original product requirements document.
@@ -35,6 +35,7 @@ Phase 6 sharpens Thesis rather than shrinking it.
 The product intent is:
 
 - explain what changed in a company or in macro conditions
+- explain when country or regime context materially changes a company thesis
 - show why that change matters to a held or watched thesis
 - surface only meaningful exceptions
 - keep conviction freshness explicit over time
@@ -42,17 +43,20 @@ The product intent is:
 
 Phase 6 does not optimize for institutional-terminal completeness. It optimizes for a serious early-stage intelligence product that a real user can trust.
 
+Internal replay, evaluation, and debate workflows may exist to harden Thesis quality, but they are not public product surfaces.
+
 ---
 
 ## 2. What Thesis Is After Phase 6
 
-Thesis is a mobile-first financial intelligence product built on five layers:
+Thesis is a mobile-first financial intelligence product built on six layers:
 
 1. **Official issuer truth** - filings, XBRL facts, exhibits, and filing history.
 2. **Official macro truth** - macro releases, rates, FX, energy, and fiscal context from official sources.
-3. **First-party company context** - IR pages, company-hosted releases, presentations, webcast pages, and filed exhibits.
-4. **Canonical events** - deterministic typed events such as `filing_posted`, `earnings_date_confirmed`, `guidance_changed`, `macro_release_published`.
-5. **Narrated intelligence** - LLM explanations, contradiction summaries, question generation, and scenario interpretation downstream of deterministic truth.
+3. **Official structural context** - country and regime context from approved official/public datasets such as World Bank first and IMF second when available.
+4. **First-party company context** - IR pages, company-hosted releases, presentations, webcast pages, and filed exhibits.
+5. **Canonical events** - deterministic typed events such as `filing_posted`, `earnings_date_confirmed`, `guidance_changed`, `macro_release_published`.
+6. **Narrated intelligence** - LLM explanations, contradiction summaries, question generation, and scenario interpretation downstream of deterministic truth.
 
 ---
 
@@ -67,6 +71,7 @@ Phase 6 keeps the non-goals intact and adds a few sharper clarifications.
 | "Use any transcript you can find" | Transcript text is optional and rights-gated; first-party call artifacts come first |
 | "Store every article body for search later" | Thesis stores only what rights allow, often headline/summary/link or excerpt-only |
 | "Compute market-quality beta/correlation everywhere" | Scenario and valuation logic use macro/fundamental and thesis-native inputs when market-derived inputs are unavailable |
+| "Give me a public backtesting lab or AI debate desk" | Replay, eval, and debate are internal quality tooling, not public Thesis product surfaces |
 
 ---
 
@@ -123,6 +128,7 @@ Deep Dive remains a primary surface.
 Phase 6 Deep Dive is built from:
 
 - filing history and XBRL truth
+- official structural context where it materially sharpens thesis, growth, or risk interpretation
 - first-party company artifacts
 - deterministic period-over-period and thesis-relevant diffs
 - contradiction summaries and freshness context
@@ -137,6 +143,7 @@ The old quote-led reading of Market Pulse is deprecated.
 Phase 6 Morning Exception Briefing answers:
 
 - what official macro changed since the last cycle
+- what structural context matters for the watched thesis set
 - what changed in my watched names at the filing or first-party layer
 - what is confirmed vs estimated vs uncertain
 - what likely deserves a deeper review today
@@ -275,6 +282,7 @@ The user-facing framing may remain "My Names," but the backend model still behav
 | **No market-derived required valuation input** | Beta/correlation-style inputs are optional; omission must be explicit |
 | **No "all clear" hallucination** | "No material change" is a deterministic state, not a language flourish |
 | **No old provider ghosting** | Deprecated provider calls are treated as regression bugs |
+| **No public research-lab theater** | Replay, eval, and debate may harden the engine internally but must not become a user-facing Thesis surface in Phase 6 |
 
 ---
 

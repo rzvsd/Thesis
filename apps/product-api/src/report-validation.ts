@@ -616,6 +616,81 @@ function validateInvestmentMemo(value: unknown, path: string, errors: string[]):
   }
 }
 
+function validateDueDiligence(value: unknown, path: string, errors: string[]): void {
+  if (!isObject(value)) {
+    errors.push(`${path} must be an object`);
+    return;
+  }
+  if (typeof value.prompt_version !== "string" || value.prompt_version.trim().length === 0) {
+    errors.push(`${path}.prompt_version must be a non-empty string`);
+  }
+  if (
+    !["deterministic_fixture", "live_prompt", "fallback"].includes(
+      String(value.generation_mode)
+    )
+  ) {
+    errors.push(`${path}.generation_mode must be valid`);
+  }
+  if (!Array.isArray(value.sections) || value.sections.length === 0) {
+    errors.push(`${path}.sections must be a non-empty array`);
+    return;
+  }
+
+  value.sections.forEach((entry, index) => {
+    if (!isObject(entry)) {
+      errors.push(`${path}.sections[${index}] must be an object`);
+      return;
+    }
+    if (
+      ![
+        "financial_analysis",
+        "competitive_positioning",
+        "management_and_governance",
+        "risks_and_challenges",
+        "growth_opportunities_and_outlook",
+        "valuation_and_thesis_stance"
+      ].includes(String(entry.section_id))
+    ) {
+      errors.push(`${path}.sections[${index}].section_id must be valid`);
+    }
+    if (typeof entry.title !== "string" || entry.title.trim().length === 0) {
+      errors.push(`${path}.sections[${index}].title must be a non-empty string`);
+    }
+    if (typeof entry.summary !== "string" || entry.summary.trim().length === 0) {
+      errors.push(`${path}.sections[${index}].summary must be a non-empty string`);
+    }
+    if (!Array.isArray(entry.narrative_paragraphs) || entry.narrative_paragraphs.length === 0) {
+      errors.push(`${path}.sections[${index}].narrative_paragraphs must be a non-empty array`);
+    } else if (!entry.narrative_paragraphs.every((paragraph) =>
+      typeof paragraph === "string" && paragraph.trim().length > 0
+    )) {
+      errors.push(`${path}.sections[${index}].narrative_paragraphs must contain non-empty strings`);
+    }
+    if (!isStringArray(entry.key_points)) {
+      errors.push(`${path}.sections[${index}].key_points must be an array of strings`);
+    }
+    if (!isStringArray(entry.evidence_refs)) {
+      errors.push(`${path}.sections[${index}].evidence_refs must be an array of strings`);
+    }
+    if (!isStringArray(entry.omissions)) {
+      errors.push(`${path}.sections[${index}].omissions must be an array of strings`);
+    }
+    if (!["full", "partial", "limited"].includes(String(entry.coverage_state))) {
+      errors.push(`${path}.sections[${index}].coverage_state must be valid`);
+    }
+    if (
+      Array.isArray(entry.evidence_refs) &&
+      Array.isArray(entry.omissions) &&
+      entry.evidence_refs.length === 0 &&
+      entry.omissions.length === 0
+    ) {
+      errors.push(
+        `${path}.sections[${index}] must include evidence_refs or omissions so unsupported depth cannot slip through`
+      );
+    }
+  });
+}
+
 function validateFinancialHistoryRow(value: unknown, path: string, errors: string[]): void {
   if (!isObject(value)) {
     errors.push(`${path} must be an object`);
@@ -838,6 +913,148 @@ function validateValueDiscipline(value: unknown, path: string, errors: string[])
   }
 }
 
+function validateStructuralContext(value: unknown, path: string, errors: string[]): void {
+  if (!isObject(value)) {
+    errors.push(`${path} must be an object`);
+    return;
+  }
+
+  if (!["issuer", "market_pulse"].includes(String(value.subject_type))) {
+    errors.push(`${path}.subject_type must be valid`);
+  }
+  if (typeof value.subject_id !== "string" || value.subject_id.trim().length === 0) {
+    errors.push(`${path}.subject_id must be a non-empty string`);
+  }
+  if (typeof value.as_of !== "string" || value.as_of.trim().length === 0) {
+    errors.push(`${path}.as_of must be a non-empty string`);
+  }
+  if (!["full", "partial", "limited"].includes(String(value.coverage_state))) {
+    errors.push(`${path}.coverage_state must be valid`);
+  }
+  if (typeof value.summary !== "string" || value.summary.trim().length === 0) {
+    errors.push(`${path}.summary must be a non-empty string`);
+  }
+
+  if (value.issuer_metadata !== undefined) {
+    if (!isObject(value.issuer_metadata)) {
+      errors.push(`${path}.issuer_metadata must be an object when provided`);
+    } else {
+      for (const field of [
+        "name",
+        "exchange",
+        "currency",
+        "domicile_country",
+        "region",
+        "sector",
+        "industry"
+      ] as const) {
+        const fieldValue = value.issuer_metadata[field];
+        if (fieldValue !== undefined && typeof fieldValue !== "string") {
+          errors.push(`${path}.issuer_metadata.${field} must be a string when provided`);
+        }
+      }
+    }
+  }
+
+  if (!Array.isArray(value.observations)) {
+    errors.push(`${path}.observations must be an array`);
+  } else {
+    value.observations.forEach((entry, index) => {
+      if (!isObject(entry)) {
+        errors.push(`${path}.observations[${index}] must be an object`);
+        return;
+      }
+      if (typeof entry.observation_id !== "string" || entry.observation_id.trim().length === 0) {
+        errors.push(`${path}.observations[${index}].observation_id must be a non-empty string`);
+      }
+      if (
+        ![
+          "gdp_level",
+          "gdp_per_capita",
+          "population",
+          "trade_openness",
+          "debt_context",
+          "inequality",
+          "logistics",
+          "infrastructure",
+          "education",
+          "energy_access",
+          "sector_mix",
+          "gdp_growth_outlook",
+          "inflation_regime",
+          "fiscal_balance",
+          "public_debt",
+          "fx_reserves",
+          "current_account"
+        ].includes(String(entry.family))
+      ) {
+        errors.push(`${path}.observations[${index}].family must be valid`);
+      }
+      for (const field of ["label", "summary", "geography", "period"] as const) {
+        if (typeof entry[field] !== "string" || entry[field].trim().length === 0) {
+          errors.push(`${path}.observations[${index}].${field} must be a non-empty string`);
+        }
+      }
+      if (
+        !["sec_edgar", "treasury", "bls", "bea", "eia", "world_bank", "imf"].includes(
+          String(entry.source_family)
+        )
+      ) {
+        errors.push(`${path}.observations[${index}].source_family must be valid`);
+      }
+      if (!isObject(entry.retrieval)) {
+        errors.push(`${path}.observations[${index}].retrieval must be an object`);
+      } else {
+        if (!isIsoDateTime(entry.retrieval.retrieved_at)) {
+          errors.push(
+            `${path}.observations[${index}].retrieval.retrieved_at must be an ISO datetime string`
+          );
+        }
+      }
+      if (!Array.isArray(entry.missing_fields)) {
+        errors.push(`${path}.observations[${index}].missing_fields must be an array`);
+      }
+    });
+  }
+
+  if (!Array.isArray(value.omissions)) {
+    errors.push(`${path}.omissions must be an array`);
+  } else {
+    value.omissions.forEach((entry, index) => {
+      if (!isObject(entry)) {
+        errors.push(`${path}.omissions[${index}] must be an object`);
+        return;
+      }
+      if (typeof entry.omission_id !== "string" || entry.omission_id.trim().length === 0) {
+        errors.push(`${path}.omissions[${index}].omission_id must be a non-empty string`);
+      }
+      if (typeof entry.reason_code !== "string" || entry.reason_code.trim().length === 0) {
+        errors.push(`${path}.omissions[${index}].reason_code must be a non-empty string`);
+      }
+      if (typeof entry.reason_text !== "string" || entry.reason_text.trim().length === 0) {
+        errors.push(`${path}.omissions[${index}].reason_text must be a non-empty string`);
+      }
+      if (typeof entry.blocking !== "boolean") {
+        errors.push(`${path}.omissions[${index}].blocking must be a boolean`);
+      }
+    });
+  }
+
+  if (!Array.isArray(value.retrievals)) {
+    errors.push(`${path}.retrievals must be an array`);
+  } else {
+    value.retrievals.forEach((entry, index) => {
+      if (!isObject(entry)) {
+        errors.push(`${path}.retrievals[${index}] must be an object`);
+        return;
+      }
+      if (!isIsoDateTime(entry.retrieved_at)) {
+        errors.push(`${path}.retrievals[${index}].retrieved_at must be an ISO datetime string`);
+      }
+    });
+  }
+}
+
 export function validateIncomingAnalysisReport(report: unknown): string[] {
   const errors: string[] = [];
 
@@ -859,6 +1076,29 @@ export function validateIncomingAnalysisReport(report: unknown): string[] {
   }
   if (report.ticker !== undefined && (typeof report.ticker !== "string" || report.ticker.trim().length === 0)) {
     errors.push("ticker must be a non-empty string when provided");
+  }
+  if (report.issuer !== undefined) {
+    if (!isObject(report.issuer)) {
+      errors.push("issuer must be an object when provided");
+    } else {
+      if (typeof report.issuer.name !== "string" || report.issuer.name.trim().length === 0) {
+        errors.push("issuer.name must be a non-empty string");
+      }
+      if (report.issuer.exchange !== undefined && typeof report.issuer.exchange !== "string") {
+        errors.push("issuer.exchange must be a string when provided");
+      }
+      for (const field of [
+        "currency",
+        "domicile_country",
+        "region",
+        "sector",
+        "industry"
+      ] as const) {
+        if (report.issuer[field] !== undefined && typeof report.issuer[field] !== "string") {
+          errors.push(`issuer.${field} must be a string when provided`);
+        }
+      }
+    }
   }
   if (!isIsoDateTime(report.generated_at)) {
     errors.push("generated_at must be an ISO datetime string");
@@ -1011,6 +1251,12 @@ export function validateIncomingAnalysisReport(report: unknown): string[] {
   }
   if (report.investment_memo !== undefined) {
     validateInvestmentMemo(report.investment_memo, "investment_memo", errors);
+  }
+  if (report.due_diligence !== undefined) {
+    validateDueDiligence(report.due_diligence, "due_diligence", errors);
+  }
+  if (report.structural_context !== undefined) {
+    validateStructuralContext(report.structural_context, "structural_context", errors);
   }
   if (report.financial_analysis !== undefined) {
     validateFinancialAnalysis(report.financial_analysis, "financial_analysis", errors);

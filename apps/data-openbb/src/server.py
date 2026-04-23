@@ -17,6 +17,7 @@ try:
         build_macro_response,
         build_official_company_response,
         build_official_macro_response,
+        build_official_structural_response,
         get_request_id,
         health_payload,
         internal_error_response,
@@ -36,6 +37,7 @@ except ImportError:  # pragma: no cover - supports direct src imports in sibling
         build_macro_response,
         build_official_company_response,
         build_official_macro_response,
+        build_official_structural_response,
         get_request_id,
         health_payload,
         internal_error_response,
@@ -83,8 +85,27 @@ class DataOpenbbRequestHandler(BaseHTTPRequestHandler):
                     self._write_json(status_code, body, request_id=request_id)
                     return
                 if parsed.path == "/v1/official/macro":
-                    scope = parse_qs(parsed.query).get("scope", [""])[0]
-                    status_code, body = service.get_official_macro_truth(scope, request_id=request_id)
+                    params = parse_qs(parsed.query)
+                    scope = params.get("scope", [""])[0]
+                    as_of = params.get("as_of", [""])[0]
+                    status_code, body = service.get_official_macro_truth(
+                        scope, as_of, request_id=request_id
+                    )
+                    self._write_json(status_code, body, request_id=request_id)
+                    return
+                if parsed.path == "/v1/official/structural":
+                    params = parse_qs(parsed.query)
+                    ticker = params.get("ticker", [""])[0]
+                    country = params.get("country", [""])[0]
+                    subject_type = params.get("subject_type", [""])[0]
+                    as_of = params.get("as_of", [""])[0]
+                    status_code, body = service.get_official_structural_context(
+                        ticker,
+                        country,
+                        subject_type,
+                        as_of,
+                        request_id=request_id,
+                    )
                     self._write_json(status_code, body, request_id=request_id)
                     return
 
@@ -104,8 +125,19 @@ class DataOpenbbRequestHandler(BaseHTTPRequestHandler):
                     request_id=request_id,
                 )
             elif parsed.path == "/v1/official/macro":
+                params = parse_qs(parsed.query)
                 response = build_official_macro_response(
-                    scope=parse_qs(parsed.query).get("scope", [""])[0],
+                    scope=params.get("scope", [""])[0],
+                    as_of=params.get("as_of", [""])[0],
+                    request_id=request_id,
+                )
+            elif parsed.path == "/v1/official/structural":
+                params = parse_qs(parsed.query)
+                response = build_official_structural_response(
+                    ticker=params.get("ticker", [""])[0],
+                    country=params.get("country", [""])[0],
+                    subject_type=params.get("subject_type", [""])[0],
+                    as_of=params.get("as_of", [""])[0],
                     request_id=request_id,
                 )
             else:

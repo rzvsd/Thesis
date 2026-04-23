@@ -1,0 +1,5 @@
+{
+  "returncode": 0,
+  "stdout": "\n> thesis-fintech@0.1.0 phase6:m5:dependency-scan C:\\BOTS\\Thesis\\fintech\n> node scripts/phase6/m5-core-dependency-scan.mjs\n\nPhase 6 M5 core dependency scan: pass (0 deprecated provider findings).\n",
+  "stderr": ""
+}

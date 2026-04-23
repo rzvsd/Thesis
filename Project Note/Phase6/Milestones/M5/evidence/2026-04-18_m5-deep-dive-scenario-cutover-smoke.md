@@ -97,6 +97,6 @@ Do not restore deprecated-provider assumptions as a rollback shortcut.
 
 ## Sign-Off State
 
-- Owner: Pending review
-- Engineering Lead: Pending review
-- GitHub CI: Pending push/hosted run
+- Owner: Approved on 2026-04-23
+- Engineering Lead: Accepted by owner delegation on 2026-04-23
+- Hosted GitHub CI: Deferred to the next push; not treated as an open Phase 6 blocker in the local closeout record

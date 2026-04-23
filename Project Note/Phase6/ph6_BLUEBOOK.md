@@ -1,8 +1,8 @@
 # Thesis - Phase 6 Bluebook
 
-**Version:** 1.0  
-**Status:** Living Document  
-**Last Revised:** 2026-04-16  
+**Version:** 1.0
+**Status:** Living Document
+**Last Revised:** 2026-04-22
 **Owner:** Platform Architect + Product Lead
 
 > This document extends `BLUEBOOK cld.md`, `ph2_BLUEBOOK.md`, `ph3_BLUEBOOK.md`, `ph4_BLUEBOOK.md`, and `ph5_BLUEBOOK.md`.
@@ -37,8 +37,10 @@ The mission:
 
 - remove dependency on paid and rights-ambiguous market-data APIs from core product behavior
 - make official disclosures and official macro releases the hard truth layer
+- add official structural context where it materially sharpens company interpretation
 - make first-party company context a deliberate product edge
 - preserve Thesis usefulness without pretending to be a quote terminal
+- keep internal replay, evaluation, and debate tooling inside the quality loop rather than turning them into public product theater
 - keep explainability, cost control, and shipping speed aligned instead of in conflict
 
 Phase 6 is successful only if Thesis remains a serious intelligence product after the paid-market-data assumptions are removed.
@@ -54,7 +56,7 @@ Earlier doctrines still apply:
 - no opaque output without explainable evidence
 - no score without traceable reasons
 
-Phase 6 adds seven non-negotiables:
+Phase 6 adds eight non-negotiables:
 
 1. **Official-source-first truth.** SEC and official macro agencies outrank wrappers, aggregators, and media summaries.
 2. **No quote theater.** If Thesis does not have licensed market data for a surface, that surface must not simulate quote completeness or precision.
@@ -63,6 +65,7 @@ Phase 6 adds seven non-negotiables:
 5. **Deterministic substrate, narrated surface.** Diffs, freshness math, decay math, alert gating, and scenario math remain deterministic code; the LLM explains but does not decide those results.
 6. **No scrape backbone.** Browser automation is allowlisted, event-driven, and bounded. It is never the system-of-record layer.
 7. **Coverage honesty.** Missing market-derived inputs are surfaced explicitly; Thesis does not hide the difference between "not material" and "not covered."
+8. **No public lab theater.** Replay, evaluation, and debate tooling may improve the engine internally, but they do not become user-facing product surfaces in Phase 6.
 
 ---
 
@@ -84,6 +87,7 @@ But the data plane is reinterpreted as:
 
 - **official-company truth** from SEC / EDGAR / XBRL / exhibits
 - **official macro truth** from BLS, BEA, Treasury, Federal Reserve, and other official public datasets approved by Product and Legal
+- **official structural context** from approved official/public datasets such as World Bank first and IMF second when available
 - **first-party company context** from IR pages, company-hosted press releases, investor presentations, webcast pages, and attached materials
 - **bounded headline context** from allowlisted feeds and summaries, not a full-text publisher warehouse
 
@@ -106,12 +110,13 @@ But the data plane is reinterpreted as:
 
 | System | Purpose | Primary Owners |
 |---|---|---|
-| **Official Truth System** | Builds and refreshes canonical company and macro truth from official sources only | `data-openbb` (temporary boundary name), `product-api`, `scheduler` |
+| **Official Truth System** | Builds and refreshes canonical company, macro, and structural truth from approved official sources only | `data-openbb` (temporary boundary name), `product-api`, `scheduler` |
 | **First-Party Context System** | Ingests IR pages, company releases, presentations, and filing exhibits as bounded enrichment | `news-ingest`, `scheduler`, `product-api` |
 | **Rights and Provenance System** | Tracks what Thesis may store, excerpt, display, and link for every evidence item | `product-api`, `packages/contracts`, `mobile` |
 | **Canonical Event System** | Normalizes filings, guidance changes, confirmed earnings events, macro releases, and disclosure changes into typed events | `product-api`, `scheduler`, `dexter-worker` |
 | **Macro Stress System** | Replaces quote-heavy fear/greed behavior with an official-data-only macro stress view | `product-api`, `scheduler`, `mobile` |
 | **Thesis-Native Scenario System** | Runs deterministic scenario and valuation logic without requiring beta, correlation, or real-time quote dependencies | `product-api`, `dexter-worker`, `mobile` |
+| **Internal Research Lab** | Replays historical truth, scores reasoning quality, and runs experiment-only debate workflows without touching the public product surface | `product-api`, `scheduler`, `dexter-worker`, `LangSmith` |
 
 ### 4.1 Official Truth System
 
@@ -121,6 +126,8 @@ Minimum behaviors:
 - SEC company facts / XBRL normalization
 - nightly and event-driven official refresh
 - official macro release snapshots and revision-aware storage
+- World Bank structural-context retrieval for approved seed families
+- IMF structural-context retrieval where runtime access is available, with explicit partial/non-blocking degradation when it is not
 - explicit missing-field and stale-data handling
 
 ### 4.2 First-Party Context System
@@ -183,19 +190,30 @@ Scenario Stress remains a first-class feature, but it is redefined around:
 
 Where price-derived or market-derived inputs are unavailable or unlicensed, those dimensions are omitted explicitly rather than estimated silently.
 
+### 4.7 Internal Research Lab
+
+The internal research lab is not a new product plane or new user-facing route. It is a quality loop around the existing Thesis engine.
+
+Minimum behaviors:
+
+- historical thesis replay using an as-of date with no look-ahead leakage
+- evaluation harness scoring for evidence coverage, omission honesty, and reasoning quality
+- experiment-only debate workflows that never publish directly to users
+- explicit separation between internal experiments and the protected runtime product path
+
 ---
 
 ## 5. Service Ownership Extensions
 
 | Service | Phase 6 Must Own | Phase 6 Must Not Own |
 |---|---|---|
-| `product-api` | Canonical event persistence, evidence rights metadata, earnings state truth, monitor compatibility, public API responses, alert reason-path serving | Hidden provider fallback rules or mobile-only truth |
-| `scheduler` | Official refresh cadence, event-window fetch triggers, macro release ingestion timing, pulse generation, idempotent cutover jobs | Broad crawling or permanent storage of raw unpublished text |
-| `data-openbb` | SEC and official macro adapter boundary, normalization, source-state and missing-field truth, no-paid-provider production path | Production reliance on OpenBB library, FMP, yfinance, or other provider wrappers |
+| `product-api` | Canonical event persistence, evidence rights metadata, earnings state truth, structural-context persistence, monitor compatibility, public API responses, alert reason-path serving | Hidden provider fallback rules or mobile-only truth |
+| `scheduler` | Official refresh cadence, event-window fetch triggers, macro release ingestion timing, structural-context refresh timing, pulse generation, replay/eval orchestration if approved, idempotent cutover jobs | Broad crawling or permanent storage of raw unpublished text |
+| `data-openbb` | SEC, official macro, and official structural-context adapter boundary, normalization, source-state and missing-field truth, no-paid-provider production path | Production reliance on OpenBB library, FMP, yfinance, or other provider wrappers |
 | `news-ingest` | First-party context retrieval, allowlisted RSS intake, call artifact discovery, context dedupe, rights tagging | Full-text publisher warehousing, broad-market quote ingestion, interpretation ownership |
-| `dexter-worker` | Deterministic-diff-aware synthesis, contradiction summaries, first-party artifact summarization, thesis-native scenario interpretation, omission logic when required inputs are absent | Paid market-data shortcuts, quote-derived signal invention, persistence of user monitor state |
-| `mobile` | Provenance and freshness presentation, estimated-vs-confirmed event labeling, explicit no-material-change UX, evidence-safe source-opening behavior | Reconstructing missing quote coverage locally, implying real-time market-data support |
-| `packages/contracts` | Additive typed contracts for canonical events, rights metadata, call artifacts, macro stress, earnings state, and migration-safe report versions | Product copy, provider-specific scraping rules, mobile-only helper state |
+| `dexter-worker` | Deterministic-diff-aware synthesis, contradiction summaries, structural-context-aware narration, first-party artifact summarization, thesis-native scenario interpretation, omission logic when required inputs are absent | Paid market-data shortcuts, quote-derived signal invention, persistence of user monitor state |
+| `mobile` | Provenance and freshness presentation, estimated-vs-confirmed event labeling, explicit no-material-change UX, additive issuer/structural-context display inside existing surfaces, evidence-safe source-opening behavior | Reconstructing missing quote coverage locally, implying real-time market-data support |
+| `packages/contracts` | Additive typed contracts for canonical events, rights metadata, call artifacts, macro stress, structural context, earnings state, and migration-safe report versions | Product copy, provider-specific scraping rules, mobile-only helper state |
 
 ---
 
@@ -212,6 +230,7 @@ Phase 6 requires additive contract families or versioned extensions in `packages
 | Call artifacts | `call-artifact.ts`: `CallArtifact`, `CallArtifactType`, `CallArtifactCompletenessState` | Release, slides, webcast, transcript, or supplemental company material with completeness and rights flags | `news-ingest`, `product-api` | `dexter-worker`, `mobile` |
 | Earnings state | `earnings-state.ts`: `EarningsEventState`, `EarningsEventTimingState`, `EarningsEventEvidenceState` | `estimated`, `confirmed`, `actual`, with source and timestamp | `product-api`, `scheduler` | `mobile`, `dexter-worker` |
 | Macro stress | `macro-stress.ts`: `MacroStressSnapshot`, `MacroStressInput`, `MacroStressState`, `MacroStressOmission` | Official-only macro stress summary with missing-input audit trail | `scheduler`, `product-api` | `mobile` |
+| Structural context | `structural-context.ts`: `StructuralContextPack`, `StructuralContextObservation`, `StructuralContextOmission` | Official/public structural context and omission truth for Deep Dive and Morning Exception Briefing | `data-openbb`, `product-api` | `dexter-worker`, `mobile` |
 | Report context | `analysis-report-context.ts`: `AnalysisReportEvidenceContext`, `AnalysisReportOmission`, `AnalysisReportSourceState` | Preserves existing report readability while adding provenance and rights-aware context metadata | `dexter-worker` | `product-api`, `mobile` |
 
 Rules:
@@ -238,6 +257,8 @@ Rules:
 9. **Existing alert-ledger, monitor-state, and notification-preference semantics remain compatible.** Phase 6 changes input quality and evidence rules, not durable user control truth.
 10. **Fear-and-greed continuation is not assumed.** If it cannot be supported by official-only inputs, Macro Stress replaces it.
 11. **Dependency guard scope is protected-path aware.** M0 guards active production code, runtime config, contracts, mobile production code, and active Phase 6 docs; archived historical docs and evidence may mention deprecated providers only as superseded history.
+12. **Structural context enriches existing surfaces only.** Deep Dive and Morning Exception Briefing may gain structural context, but Phase 6 does not add a public macro dashboard.
+13. **Replay, eval, and debate stay internal.** They may harden the engine, but they do not create a new public route, screen, or product category in Phase 6.
 
 ---
 

@@ -33,6 +33,16 @@ function findSection(sections: ReportSection[], sectionId: string): ReportSectio
   return section;
 }
 
+function dueDiligenceWordCount(report: Awaited<ReturnType<typeof runAnalysisPipeline>>): number {
+  return report.due_diligence?.sections
+    .flatMap((section) => section.narrative_paragraphs)
+    .join(" ")
+    .trim()
+    .split(/\s+/)
+    .filter((token) => token.length > 0)
+    .length ?? 0;
+}
+
 test("MSFT fixture request produces a schema-valid report with no blank sections", async () => {
   const report = await runAnalysisPipeline(buildRequest("MSFT"), buildFixtureConfig());
 
@@ -40,6 +50,8 @@ test("MSFT fixture request produces a schema-valid report with no blank sections
   assert.equal(report.schema_version, "2.0");
   assert.equal(report.type, "deep_dive");
   assert.equal(report.signal?.value, "positive");
+  assert.equal(report.issuer?.name, "Microsoft Corporation");
+  assert.equal(report.issuer?.exchange, "NASDAQ");
   assert.ok(report.sections.every((section) => section.body.trim().length > 0));
   assert.ok(report.sections.every((section) => section.status.length > 0));
   assert.equal(report.sections[0]?.section_id, "thesis_statement");
@@ -63,6 +75,52 @@ test("MSFT fixture request produces a schema-valid report with no blank sections
   assert.equal(report.investment_memo?.sections.length, 5);
   assert.ok((report.investment_memo?.material_claims.length ?? 0) >= 1);
   assert.equal(report.investment_memo?.unsupported_claims.length, 0);
+  assert.ok(report.due_diligence);
+  assert.equal(report.due_diligence?.prompt_version, "m9-due-diligence-fixture-v1");
+  assert.equal(report.due_diligence?.generation_mode, "deterministic_fixture");
+  assert.equal(report.due_diligence?.sections.length, 6);
+  assert.deepEqual(
+    report.due_diligence?.sections.map((section) => section.section_id),
+    [
+      "financial_analysis",
+      "competitive_positioning",
+      "management_and_governance",
+      "risks_and_challenges",
+      "growth_opportunities_and_outlook",
+      "valuation_and_thesis_stance"
+    ]
+  );
+  assert.ok(
+    report.due_diligence?.sections.every((section) => section.summary.trim().length > 20)
+  );
+  assert.ok(
+    report.due_diligence?.sections
+      .filter((section) => section.coverage_state !== "limited")
+      .every((section) =>
+        section.section_id == "management_and_governance"
+          ? section.narrative_paragraphs.length >= 3
+          : section.narrative_paragraphs.length >= 4
+      )
+  );
+  assert.ok(
+    report.due_diligence?.sections.every((section) =>
+      section.evidence_refs.length > 0 || section.omissions.length > 0
+    )
+  );
+  assert.ok(
+    report.due_diligence?.sections.every((section) =>
+      section.narrative_paragraphs.join(" ").length > 300
+    )
+  );
+  assert.ok(dueDiligenceWordCount(report) >= 1700);
+  assert.ok(
+    report.due_diligence?.sections.every((section) =>
+      !/\b[a-z]+(?:_[a-z0-9]+)+\b/.test(section.summary) &&
+      !/\b[a-z]+(?:_[a-z0-9]+)+\b/.test(section.narrative_paragraphs.join(" ")) &&
+      !/\bundefined\b/i.test(section.narrative_paragraphs.join(" ")) &&
+      !/\bnull\b/i.test(section.narrative_paragraphs.join(" "))
+    )
+  );
   assert.equal(findSection(report.sections, "what_changed").status, "complete");
   assert.ok(["complete", "data_incomplete", "data_unavailable"].includes(
     findSection(report.sections, "value_discipline").status
@@ -110,6 +168,19 @@ test("LIMITED fixture request degrades affected sections honestly", async () => 
     )
   );
   assert.ok(report.investment_memo?.sparse_data_honesty_note.includes("Sparse-data handling"));
+  assert.ok(report.due_diligence);
+  assert.equal(report.due_diligence?.sections.length, 6);
+  assert.ok(
+    report.due_diligence?.sections.some((section) => section.coverage_state === "limited")
+  );
+  assert.ok(
+    report.due_diligence?.sections.some((section) => section.omissions.length > 0)
+  );
+  assert.ok(
+    report.due_diligence?.sections
+      .filter((section) => section.coverage_state === "limited")
+      .every((section) => section.narrative_paragraphs[0]?.toLowerCase().includes("limited"))
+  );
   assert.ok(report.coverage_truth?.missing.some((entry) => entry.includes("Valuation")));
   assert.ok(report.coverage_truth?.missing.some((entry) => entry.includes("Annual history is insufficient")));
   assert.ok(report.coverage_truth?.missing.some((entry) => entry.includes("Value signal unavailable")));

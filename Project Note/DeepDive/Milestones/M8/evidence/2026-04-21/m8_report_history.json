@@ -1,0 +1,10 @@
+[
+  {
+    "report_id": "m8-dd-aapl-proof-001",
+    "job_id": "434b9462-91e2-4d62-ad9c-aa18d671d1c1",
+    "type": "deep_dive",
+    "ticker": "AAPL",
+    "schema_version": "2.0",
+    "created_at": "2026-04-21T08:00:00.000Z"
+  }
+]

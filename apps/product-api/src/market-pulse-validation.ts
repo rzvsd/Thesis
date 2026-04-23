@@ -195,6 +195,42 @@ function validateContext(value: unknown, errors: string[]): void {
   }
 }
 
+function validateStructuralContext(value: unknown, errors: string[]): void {
+  if (value === undefined || value === null) {
+    return;
+  }
+
+  if (!isObject(value)) {
+    errors.push("structural_context must be an object when provided");
+    return;
+  }
+
+  if (!["issuer", "market_pulse"].includes(String(value.subject_type))) {
+    errors.push("structural_context.subject_type must be valid");
+  }
+  if (typeof value.subject_id !== "string" || value.subject_id.trim().length === 0) {
+    errors.push("structural_context.subject_id must be a non-empty string");
+  }
+  if (typeof value.as_of !== "string" || value.as_of.trim().length === 0) {
+    errors.push("structural_context.as_of must be a non-empty string");
+  }
+  if (!["full", "partial", "limited"].includes(String(value.coverage_state))) {
+    errors.push("structural_context.coverage_state must be valid");
+  }
+  if (typeof value.summary !== "string" || value.summary.trim().length === 0) {
+    errors.push("structural_context.summary must be a non-empty string");
+  }
+  if (!Array.isArray(value.observations)) {
+    errors.push("structural_context.observations must be an array");
+  }
+  if (!Array.isArray(value.omissions)) {
+    errors.push("structural_context.omissions must be an array");
+  }
+  if (!Array.isArray(value.retrievals)) {
+    errors.push("structural_context.retrievals must be an array");
+  }
+}
+
 export function validateIncomingMarketPulseReport(report: unknown): string[] {
   const errors: string[] = [];
 
@@ -223,6 +259,7 @@ export function validateIncomingMarketPulseReport(report: unknown): string[] {
 
   validateMacroStress(report.macro_stress, errors);
   validateContext(report.context, errors);
+  validateStructuralContext(report.structural_context, errors);
 
   if (!isObject(report.confidence)) {
     errors.push("confidence must be an object");

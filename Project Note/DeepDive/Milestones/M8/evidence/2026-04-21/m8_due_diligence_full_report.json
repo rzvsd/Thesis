@@ -1,0 +1,426 @@
+{
+  "report_id": "m8-dd-aapl-proof-001",
+  "job_id": "434b9462-91e2-4d62-ad9c-aa18d671d1c1",
+  "schema_version": "2.0",
+  "type": "deep_dive",
+  "ticker": "AAPL",
+  "generated_at": "2026-04-21T08:00:00.000Z",
+  "confidence": {
+    "score": 0.74,
+    "label": "medium",
+    "limiting_factors": [
+      "transcript_delay"
+    ]
+  },
+  "signal": {
+    "value": "positive",
+    "reasons": [
+      "Cash conversion remains resilient."
+    ],
+    "evidence": []
+  },
+  "story_header": {
+    "headline": "Cash resilience is outpacing market skepticism.",
+    "thesis_summary": "AAPL keeps converting demand into durable cash generation.",
+    "why_now": "The next review window centers on margin resilience and buyback pacing.",
+    "reader_takeaway": "Base thesis remains intact with moderate upside and clear risk controls.",
+    "stance_label": "positive"
+  },
+  "change_summary": {
+    "previous_view": "Margin pressure risk dominated.",
+    "current_view": "Margin pressure eased while free cash flow remained durable.",
+    "top_changes": [
+      {
+        "title": "Operating margin stabilized",
+        "direction": "up",
+        "impact_level": "high",
+        "why_it_changed": "Cost controls offset slower top-line momentum.",
+        "why_it_matters": "Thesis depends on growth converting into durable operating profit."
+      }
+    ]
+  },
+  "valuation": {
+    "fair_value_mid": 208,
+    "fair_value_low": 178,
+    "fair_value_high": 236,
+    "spot_price": 191,
+    "implied_upside_pct": 0.089,
+    "assumptions": {
+      "methodology": "deterministic_dcf",
+      "projection_years": 5,
+      "terminal_growth_rate": 0.025,
+      "wacc": 0.095
+    }
+  },
+  "investment_memo": {
+    "prompt_version": "m4-synthesizer-fixture-v1",
+    "generation_mode": "deterministic_fixture",
+    "company_angle": "durable_cash_compounder",
+    "decision_question": "Does margin stability support a durable free-cash-flow compounding case?",
+    "sections": [
+      {
+        "section_id": "investment_thesis",
+        "title": "Investment Thesis",
+        "narrative": "Cash conversion remains the central driver of the thesis.",
+        "key_points": [
+          "Cash conversion stayed resilient.",
+          "Capital returns remain disciplined."
+        ]
+      },
+      {
+        "section_id": "what_changed",
+        "title": "What Changed",
+        "narrative": "Cost discipline improved operating margin resilience.",
+        "key_points": [
+          "Operating leverage improved year over year."
+        ]
+      },
+      {
+        "section_id": "business_quality",
+        "title": "Business Quality",
+        "narrative": "Ecosystem durability continues to support margin quality.",
+        "key_points": [
+          "Recurring revenue mix supports resilience."
+        ]
+      },
+      {
+        "section_id": "valuation",
+        "title": "Valuation",
+        "narrative": "Base valuation remains sensitive to WACC and terminal growth.",
+        "key_points": [
+          "Range remains wide enough to require risk controls."
+        ]
+      },
+      {
+        "section_id": "risks",
+        "title": "Risks",
+        "narrative": "Execution risk and demand normalization remain key watch points.",
+        "key_points": [
+          "Demand normalization could pressure margin durability."
+        ]
+      }
+    ],
+    "material_claims": [
+      {
+        "claim_id": "claim-1",
+        "section_id": "investment_thesis",
+        "statement": "Cash conversion is still supporting thesis durability.",
+        "materiality": "material",
+        "supports": [
+          {
+            "support_type": "metric",
+            "ref_id": "fcf_trend",
+            "summary": "Free cash flow remained positive through the latest annual snapshots."
+          }
+        ]
+      }
+    ],
+    "unsupported_claims": [],
+    "sparse_data_honesty_note": "No major sparse-data blockers were detected in this fixture."
+  },
+  "financial_analysis": {
+    "annual_history": [
+      {
+        "period": "FY-2022",
+        "period_type": "annual",
+        "fiscal_year": 2022,
+        "revenue": 365800,
+        "gross_margin": 0.43,
+        "operating_margin": 0.298,
+        "free_cash_flow": 99500
+      },
+      {
+        "period": "FY-2023",
+        "period_type": "annual",
+        "fiscal_year": 2023,
+        "revenue": 372100,
+        "gross_margin": 0.438,
+        "operating_margin": 0.304,
+        "free_cash_flow": 102400
+      },
+      {
+        "period": "FY-2024",
+        "period_type": "annual",
+        "fiscal_year": 2024,
+        "revenue": 381500,
+        "gross_margin": 0.445,
+        "operating_margin": 0.309,
+        "free_cash_flow": 107300
+      },
+      {
+        "period": "FY-2025",
+        "period_type": "annual",
+        "fiscal_year": 2025,
+        "revenue": 390000,
+        "gross_margin": 0.45,
+        "operating_margin": 0.31,
+        "free_cash_flow": 110000
+      }
+    ],
+    "quarterly_history": [],
+    "trend_metrics": [
+      {
+        "key": "revenue_growth",
+        "label": "Revenue Growth",
+        "value": 0.08,
+        "unit": "pct",
+        "status": "available",
+        "direction": "improving"
+      }
+    ],
+    "quality_metrics": [],
+    "omissions": []
+  },
+  "value_discipline": {
+    "score": 6,
+    "max_score": 9,
+    "available_signals": 7,
+    "completeness": "partial",
+    "context_label": "quality_mega_cap",
+    "interpretation": "Signals indicate durable quality, but valuation discipline still matters.",
+    "missing_signals": [
+      "asset_turnover_delta"
+    ],
+    "does_not_prove": "This score does not replace full competitive and valuation analysis.",
+    "signals": [
+      {
+        "key": "roa_positive",
+        "label": "ROA positive",
+        "family": "profitability",
+        "status": "pass",
+        "reason": "ROA remained positive in the latest annual period."
+      },
+      {
+        "key": "operating_margin_up",
+        "label": "Operating margin up",
+        "family": "operating_efficiency",
+        "status": "pass",
+        "reason": "Operating margin improved from the prior fiscal year."
+      },
+      {
+        "key": "share_count_discipline",
+        "label": "Share count discipline",
+        "family": "capital_discipline",
+        "status": "pass",
+        "reason": "Dilution remained contained while buybacks stayed active."
+      },
+      {
+        "key": "cash_conversion_consistent",
+        "label": "Cash conversion consistent",
+        "family": "earnings_quality",
+        "status": "pass",
+        "reason": "Free cash flow remained aligned with operating profit."
+      }
+    ],
+    "value_trap_warning": {
+      "triggered": false,
+      "summary": "No immediate value-trap profile in current evidence.",
+      "reason_codes": []
+    }
+  },
+  "kill_switch_conditions": [
+    {
+      "condition_id": "ks-1",
+      "condition_text": "Operating margin deteriorates below the recent base case.",
+      "signal_type": "sec_filing",
+      "rationale": "Margin compression would directly weaken the durable-cash thesis.",
+      "direction": "below",
+      "threshold_value": 0.03,
+      "threshold_unit": "pct"
+    },
+    {
+      "condition_id": "ks-2",
+      "condition_text": "Management guides materially below prior free-cash-flow expectations.",
+      "signal_type": "guidance_revision",
+      "rationale": "Guidance deterioration would weaken confidence in the base valuation case.",
+      "direction": "against_signal"
+    },
+    {
+      "condition_id": "ks-3",
+      "condition_text": "A material supply-chain disruption changes shipment cadence.",
+      "signal_type": "news_sentiment",
+      "rationale": "Material disruption headlines would challenge near-term execution assumptions.",
+      "direction": "against_signal"
+    }
+  ],
+  "watch_items": [
+    "Re-check margin stability after the next earnings release."
+  ],
+  "coverage_truth": {
+    "summary": "Coverage is strong on financials, with moderate transcript freshness limits.",
+    "covered": [
+      "financial_statements",
+      "valuation_assumptions"
+    ],
+    "missing": [
+      "fresh_transcript_excerpt"
+    ]
+  },
+  "due_diligence": {
+    "prompt_version": "dd-v2-fixture-v1",
+    "generation_mode": "deterministic_fixture",
+    "sections": [
+      {
+        "section_id": "competitive_positioning",
+        "title": "Competitive Positioning",
+        "subtitle": "Installed-base durability and pricing power remain central.",
+        "summary": "Installed-base loyalty and pricing power still anchor the competitive case.",
+        "narrative": "The business remains durable because repeat engagement, ecosystem stickiness, and disciplined capital returns reinforce margin stability.",
+        "narrative_paragraphs": [
+          "The business remains durable because repeat engagement, ecosystem stickiness, and disciplined capital returns reinforce margin stability.",
+          "Competitive advantage still looks strongest where recurring ecosystem demand supports margin quality without requiring heroic assumptions."
+        ],
+        "key_points": [
+          "Recurring ecosystem demand continues to support margin quality.",
+          "Capital allocation remains disciplined rather than promotional.",
+          "The next debate is durability, not basic business viability."
+        ],
+        "evidence_refs": [
+          "ev-1",
+          "fcf_trend"
+        ],
+        "metrics": [
+          {
+            "label": "Positioning context",
+            "value": "Large-cap quality context"
+          }
+        ],
+        "omissions": [
+          "fresh_transcript_excerpt"
+        ],
+        "coverage_state": "partial"
+      },
+      {
+        "section_id": "financial_analysis",
+        "title": "Financial Statement Analysis",
+        "subtitle": "Revenue, margins, and free cash flow stay supportive.",
+        "summary": "Four reported years show rising free cash flow with stable margins.",
+        "narrative": "The latest annual history still shows the thesis being financed by real cash generation rather than narrative alone.",
+        "narrative_paragraphs": [
+          "The latest annual history still shows the thesis being financed by real cash generation rather than narrative alone.",
+          "The trend still matters because the core debate is whether revenue keeps converting into durable operating profit and free cash flow."
+        ],
+        "key_points": [
+          "Revenue continued to compound through the latest annual period.",
+          "Operating margin stabilized rather than deteriorated.",
+          "Free cash flow continued to cover capital returns."
+        ],
+        "evidence_refs": [
+          "ev-1",
+          "fcf_trend"
+        ],
+        "omissions": [],
+        "coverage_state": "full"
+      },
+      {
+        "section_id": "management_and_governance",
+        "title": "Management and Governance",
+        "subtitle": "Capital allocation and operating discipline remain important.",
+        "summary": "Capital allocation remains disciplined, but execution still has to validate the quality case.",
+        "narrative": "Management still looks strongest where cost control, buyback pacing, and operating discipline stay aligned with the long-term thesis.",
+        "narrative_paragraphs": [
+          "Management still looks strongest where cost control, buyback pacing, and operating discipline stay aligned with the long-term thesis.",
+          "Governance quality still needs to be judged through consistent execution rather than management rhetoric alone."
+        ],
+        "key_points": [
+          "Share count discipline still supports the quality case.",
+          "Operating discipline improved rather than weakened.",
+          "Governance quality still has to be confirmed through the next reporting window."
+        ],
+        "evidence_refs": [
+          "share_count_discipline"
+        ],
+        "omissions": [],
+        "coverage_state": "partial"
+      },
+      {
+        "section_id": "growth_opportunities_and_outlook",
+        "title": "Growth Opportunities and Outlook",
+        "subtitle": "Future upside still depends on conversion from demand into durable margin and cash flow.",
+        "summary": "The outlook remains constructive, but it still hinges on operating leverage showing up in cash terms.",
+        "narrative": "The best upside path comes from steadier margins and cleaner free-cash-flow follow-through rather than from a heroic change in the demand story.",
+        "narrative_paragraphs": [
+          "The best upside path comes from steadier margins and cleaner free-cash-flow follow-through rather than from a heroic change in the demand story.",
+          "The next review window should focus on whether margin resilience keeps funding the thesis."
+        ],
+        "key_points": [
+          "Base case requires margin stability rather than heroic acceleration.",
+          "Bull case needs cleaner operating leverage.",
+          "The next review window should focus on whether margin resilience keeps funding the thesis."
+        ],
+        "evidence_refs": [
+          "operating_margin_up"
+        ],
+        "omissions": [],
+        "coverage_state": "partial"
+      },
+      {
+        "section_id": "risks_and_challenges",
+        "title": "Risks and Challenges",
+        "subtitle": "The key question is whether execution keeps validating the cash case.",
+        "summary": "Execution risk and demand normalization remain the primary thesis breakers.",
+        "narrative": "The monitoring burden is straightforward: if margin durability slips or guidance weakens, the quality case needs to be revisited quickly.",
+        "narrative_paragraphs": [
+          "The monitoring burden is straightforward: if margin durability slips or guidance weakens, the quality case needs to be revisited quickly.",
+          "The report stays explicit about challenge points so risk framing remains falsifiable rather than generic."
+        ],
+        "key_points": [
+          "Demand normalization could pressure margin durability.",
+          "Guidance deterioration would weaken the base case.",
+          "Supply-chain disruption would challenge near-term execution."
+        ],
+        "evidence_refs": [
+          "ks-1",
+          "ks-2",
+          "ks-3"
+        ],
+        "omissions": [],
+        "coverage_state": "full"
+      },
+      {
+        "section_id": "valuation_and_thesis_stance",
+        "title": "Valuation and Thesis Stance",
+        "subtitle": "A deterministic range still supports the thesis, but only with explicit execution discipline.",
+        "summary": "Base valuation remains above spot, but the spread is not wide enough to ignore execution risk.",
+        "narrative": "The range remains sensitive to WACC and terminal growth, so the report treats valuation as a decision framework rather than a point estimate.",
+        "narrative_paragraphs": [
+          "The range remains sensitive to WACC and terminal growth, so the report treats valuation as a decision framework rather than a point estimate.",
+          "The stance stays constructive only while margin resilience and cash conversion continue to support the base case."
+        ],
+        "key_points": [
+          "Base case requires margin stability rather than heroic acceleration.",
+          "Bull case needs cleaner operating leverage.",
+          "Bear case assumes weaker conversion from demand into cash flow."
+        ],
+        "evidence_refs": [
+          "deterministic_dcf",
+          "ev-1"
+        ],
+        "omissions": [],
+        "coverage_state": "full"
+      }
+    ]
+  },
+  "sections": [
+    {
+      "section_id": "thesis_statement",
+      "title": "Thesis Statement",
+      "body": "AAPL remains a cash-resilient thesis with moderate upside and explicit risk controls.",
+      "status": "complete",
+      "evidence": [
+        {
+          "evidence_id": "ev-1",
+          "source_type": "financial_data",
+          "source_name": "Annual statement snapshot",
+          "excerpt": "Free cash flow remained positive and stable in the latest annual period.",
+          "retrieved_at": "2026-04-21T08:00:00.000Z"
+        }
+      ]
+    }
+  ],
+  "flags": [],
+  "data_sources": [
+    "fixture-financials",
+    "fixture-dexter"
+  ]
+}
