@@ -247,7 +247,6 @@ export function buildEditorialIssue(input: {
     evidence: [...tapeEvidence, ...macroEvidence, ...companyEvidence].slice(0, 10)
   };
 }
-
 function marketEditorialHeadline(
   breadth: "higher" | "lower" | "mixed" | "thin",
   macroState: MacroStressSnapshot["state"]

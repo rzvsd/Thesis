@@ -1045,7 +1045,3 @@ export async function buildMarketPulseReport(
   };
 }
 
-
-
-
-

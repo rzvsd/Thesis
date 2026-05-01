@@ -41,7 +41,6 @@ function uniquePortfolioRows(rows: MarketPulsePortfolioRadarRow[] | undefined): 
   }
   return unique.slice(0, 12);
 }
-
 function marketBoardFromTape(
   pack: MarketTapePack | undefined,
   generatedAt: string

@@ -31,7 +31,6 @@ export function uniqueHeadlineItems(items: MarketPulseHeadlineItem[] | undefined
   }
   return unique.slice(0, 6);
 }
-
 function classifyMacroNewsTopic(headline: string): MarketPulseMacroNewsTopic {
   const normalized = headline.toLowerCase();
   if (normalized.includes("attack") || normalized.includes("invasion") || normalized.includes("war")) {
