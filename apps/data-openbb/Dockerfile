@@ -9,8 +9,14 @@ RUN apt-get update \
 
 WORKDIR /app/apps/data-openbb
 
+ARG INSTALL_LIVE_OPENBB=false
+
 COPY apps/data-openbb/requirements.txt /tmp/data-openbb-requirements.txt
+COPY apps/data-openbb/requirements-live.txt /tmp/data-openbb-requirements-live.txt
 RUN python -m pip install --disable-pip-version-check --no-cache-dir -r /tmp/data-openbb-requirements.txt
+RUN if [ "$INSTALL_LIVE_OPENBB" = "true" ]; then \
+      python -m pip install --disable-pip-version-check --no-cache-dir -r /tmp/data-openbb-requirements-live.txt; \
+    fi
 
 COPY apps/data-openbb /app/apps/data-openbb
 COPY data/golden/data-openbb /app/data/golden/data-openbb

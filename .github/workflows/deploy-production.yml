@@ -7,15 +7,14 @@ on:
         description: "Git ref to deploy (branch, tag, or SHA)"
         required: false
         default: "main"
-  push:
-    branches:
-      - main
-    paths:
-      - "apps/**"
-      - "packages/**"
-      - "infra/**"
-      - "docker-compose.yml"
-      - ".github/workflows/deploy-production.yml"
+      mode:
+        description: "Deployment mode"
+        required: true
+        type: choice
+        default: "remote"
+        options:
+          - remote
+          - proof
 
 permissions:
   contents: read
@@ -33,22 +32,65 @@ jobs:
       deploy_mode: ${{ steps.mode.outputs.deploy_mode }}
 
     steps:
-      - name: Determine deploy mode from configured secrets
+      - name: Validate deployment mode and secrets
         id: mode
         env:
+          DEPLOY_MODE: ${{ github.event.inputs.mode }}
           PROD_SSH_HOST: ${{ secrets.PROD_SSH_HOST }}
           PROD_SSH_USER: ${{ secrets.PROD_SSH_USER }}
           PROD_SSH_PRIVATE_KEY: ${{ secrets.PROD_SSH_PRIVATE_KEY }}
           PROD_REPO_DIR: ${{ secrets.PROD_REPO_DIR }}
+          PROD_SMOKE_EMAIL: ${{ secrets.PROD_SMOKE_EMAIL }}
+          PROD_SMOKE_PASSWORD: ${{ secrets.PROD_SMOKE_PASSWORD }}
+          PROD_INTERNAL_WORKER_TOKEN: ${{ secrets.PROD_INTERNAL_WORKER_TOKEN }}
         run: |
           set -euo pipefail
-          if [ -n "$PROD_SSH_HOST" ] && [ -n "$PROD_SSH_USER" ] && [ -n "$PROD_SSH_PRIVATE_KEY" ] && [ -n "$PROD_REPO_DIR" ]; then
-            echo "deploy_mode=remote" >> "$GITHUB_OUTPUT"
-            echo "Deploy mode: remote"
-          else
-            echo "deploy_mode=proof" >> "$GITHUB_OUTPUT"
-            echo "Deploy mode: proof (missing production SSH secrets)"
-          fi
+
+          fail() {
+            echo "$*" >&2
+            exit 1
+          }
+
+          require_secret() {
+            local name="$1"
+            local value="$2"
+            if [ -z "$value" ]; then
+              fail "$name is required for production remote deploys."
+            fi
+          }
+
+          reject_dev_default() {
+            local name="$1"
+            local value="$2"
+            local dev_default="$3"
+            if [ "$value" = "$dev_default" ]; then
+              fail "$name must not use the local development default."
+            fi
+          }
+
+          case "$DEPLOY_MODE" in
+            remote)
+              require_secret PROD_SSH_HOST "$PROD_SSH_HOST"
+              require_secret PROD_SSH_USER "$PROD_SSH_USER"
+              require_secret PROD_SSH_PRIVATE_KEY "$PROD_SSH_PRIVATE_KEY"
+              require_secret PROD_REPO_DIR "$PROD_REPO_DIR"
+              require_secret PROD_SMOKE_EMAIL "$PROD_SMOKE_EMAIL"
+              require_secret PROD_SMOKE_PASSWORD "$PROD_SMOKE_PASSWORD"
+              require_secret PROD_INTERNAL_WORKER_TOKEN "$PROD_INTERNAL_WORKER_TOKEN"
+              reject_dev_default PROD_INTERNAL_WORKER_TOKEN "$PROD_INTERNAL_WORKER_TOKEN" "dev-internal-worker-token"
+              reject_dev_default PROD_SMOKE_EMAIL "$PROD_SMOKE_EMAIL" "dev@example.com"
+              reject_dev_default PROD_SMOKE_PASSWORD "$PROD_SMOKE_PASSWORD" "dev-password"
+              echo "deploy_mode=remote" >> "$GITHUB_OUTPUT"
+              echo "Deploy mode: remote"
+              ;;
+            proof)
+              echo "deploy_mode=proof" >> "$GITHUB_OUTPUT"
+              echo "Deploy mode: proof"
+              ;;
+            *)
+              fail "Unsupported deploy mode: $DEPLOY_MODE"
+              ;;
+          esac
 
   deploy-remote:
     needs: preflight
@@ -56,16 +98,15 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: production
+    env:
+      PROD_SMOKE_EMAIL: ${{ secrets.PROD_SMOKE_EMAIL }}
+      PROD_SMOKE_PASSWORD: ${{ secrets.PROD_SMOKE_PASSWORD }}
+      PROD_INTERNAL_WORKER_TOKEN: ${{ secrets.PROD_INTERNAL_WORKER_TOKEN }}
 
     steps:
       - name: Resolve deployment ref
         id: resolve_ref
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "ref=${{ github.event.inputs.ref }}" >> "$GITHUB_OUTPUT"
-          else
-            echo "ref=${{ github.sha }}" >> "$GITHUB_OUTPUT"
-          fi
+        run: echo "ref=${{ github.event.inputs.ref }}" >> "$GITHUB_OUTPUT"
 
       - name: Deploy to production host over CI
         uses: appleboy/ssh-action@v1.0.3
@@ -75,6 +116,7 @@ jobs:
           key: ${{ secrets.PROD_SSH_PRIVATE_KEY }}
           script_stop: true
           command_timeout: 30m
+          envs: PROD_SMOKE_EMAIL,PROD_SMOKE_PASSWORD,PROD_INTERNAL_WORKER_TOKEN
           script: |
             set -euo pipefail
 
@@ -91,6 +133,9 @@ jobs:
             git checkout "$DEPLOY_REF"
             git reset --hard "$DEPLOY_REF"
 
+            export NODE_ENV=production
+            export THESIS_ALLOW_PRODUCTION_FIXTURES=false
+
             docker compose pull || true
             docker compose up -d --build
             docker compose ps
@@ -100,6 +145,12 @@ jobs:
             curl -fsS http://localhost:3004/health >/dev/null
             curl -fsS http://localhost:3005/health >/dev/null
 
+            SMOKE_EMAIL="$PROD_SMOKE_EMAIL" \
+              SMOKE_PASSWORD="$PROD_SMOKE_PASSWORD" \
+              INTERNAL_WORKER_TOKEN="$PROD_INTERNAL_WORKER_TOKEN" \
+              PRODUCT_API_BASE_URL="http://localhost:3001" \
+              bash scripts/deploy/post-deploy-smoke.sh
+
             echo "Deployment completed for ref: $DEPLOY_REF"
 
   deploy-proof:
@@ -108,21 +159,45 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: production
+    env:
+      NODE_ENV: ci
+      JWT_SECRET: ci-proof-jwt-secret-change-me-is-not-used-in-production-2026
+      INTERNAL_WORKER_TOKEN: ci-proof-internal-worker-token-2026
+      AUTH_EXPOSE_VERIFICATION_TOKEN: "true"
+      STORE_BACKEND: postgres
+      QUEUE_BACKEND: redis
+      POSTGRES_PASSWORD: ci-proof-postgres-password-2026
+      DATABASE_URL_DOCKER: postgres://postgres:ci-proof-postgres-password-2026@postgres:5432/thesis
+      REDIS_PASSWORD: ci-proof-redis-password-2026
+      REDIS_URL: redis://:ci-proof-redis-password-2026@redis:6379/0
+      THESIS_ALLOW_PRODUCTION_FIXTURES: "false"
+      DATA_OPENBB_FIXTURE_MODE: "true"
+      NEWS_INGEST_FIXTURE_MODE: "true"
+      DEXTER_FIXTURE_MODE: "true"
+      SMOKE_EMAIL: deploy-proof-${{ github.run_id }}@example.com
+      SMOKE_PASSWORD: ProofPass-${{ github.run_id }}!
+      SMOKE_REGISTER_USER: "true"
+      PRODUCT_API_BASE_URL: http://127.0.0.1:3001
 
     steps:
       - name: Resolve deployment ref
         id: resolve_ref
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "ref=${{ github.event.inputs.ref }}" >> "$GITHUB_OUTPUT"
-          else
-            echo "ref=${{ github.sha }}" >> "$GITHUB_OUTPUT"
-          fi
+        run: echo "ref=${{ github.event.inputs.ref }}" >> "$GITHUB_OUTPUT"
 
       - name: Checkout deployment ref
         uses: actions/checkout@v4
         with:
           ref: ${{ steps.resolve_ref.outputs.ref }}
+
+      - name: Validate proof mode secrets are explicit
+        run: |
+          set -euo pipefail
+          test "$JWT_SECRET" != "dev-jwt-secret-change-me"
+          test "$INTERNAL_WORKER_TOKEN" != "dev-internal-worker-token"
+          test "$POSTGRES_PASSWORD" != "postgres"
+          test "$AUTH_EXPOSE_VERIFICATION_TOKEN" = "true"
+          test "$DATA_OPENBB_FIXTURE_MODE" = "true"
+          test "$NEWS_INGEST_FIXTURE_MODE" = "true"
 
       - name: Deploy stack on CI runner (proof mode)
         run: |
@@ -176,6 +251,9 @@ jobs:
           wait_for_service_health "data-openbb"
           wait_for_service_health "news-ingest"
           wait_for_service_health "scheduler"
+
+      - name: Run authenticated and internal-token smoke
+        run: bash scripts/deploy/post-deploy-smoke.sh
 
       - name: Show compose status
         if: always()

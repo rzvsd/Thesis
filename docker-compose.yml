@@ -23,6 +23,7 @@ services:
     user: "${PRODUCT_API_CONTAINER_USER:-node}"
     environment:
       NODE_ENV: "${NODE_ENV:-development}"
+      THESIS_ALLOW_PRODUCTION_FIXTURES: "${THESIS_ALLOW_PRODUCTION_FIXTURES:-false}"
       PORT: 3001
       STORE_BACKEND: "${STORE_BACKEND:-postgres}"
       DATABASE_URL: "${DATABASE_URL_DOCKER:-postgres://postgres:postgres@postgres:5432/thesis}"
@@ -109,6 +110,8 @@ services:
       context: .
       dockerfile: apps/dexter-worker/Dockerfile
     environment:
+      NODE_ENV: "${NODE_ENV:-development}"
+      THESIS_ALLOW_PRODUCTION_FIXTURES: "${THESIS_ALLOW_PRODUCTION_FIXTURES:-false}"
       PORT: 3002
       DEXTER_FIXTURE_MODE: "${DEXTER_FIXTURE_MODE:-true}"
       DEXTER_MODEL: "${DEXTER_MODEL:-}"
@@ -161,7 +164,11 @@ services:
     build:
       context: .
       dockerfile: apps/data-openbb/Dockerfile
+      args:
+        INSTALL_LIVE_OPENBB: "${INSTALL_LIVE_OPENBB:-false}"
     environment:
+      NODE_ENV: "${NODE_ENV:-development}"
+      THESIS_ALLOW_PRODUCTION_FIXTURES: "${THESIS_ALLOW_PRODUCTION_FIXTURES:-false}"
       PORT: 3003
       REDIS_URL: "${REDIS_URL:-redis://redis:6379/0}"
       DATABASE_URL: "${DATABASE_URL_DOCKER:-postgres://postgres:postgres@postgres:5432/thesis}"
@@ -201,6 +208,8 @@ services:
       dockerfile: apps/news-ingest/Dockerfile
     environment:
       PORT: 3004
+      NODE_ENV: "${NODE_ENV:-development}"
+      THESIS_ALLOW_PRODUCTION_FIXTURES: "${THESIS_ALLOW_PRODUCTION_FIXTURES:-false}"
       REDIS_URL: "${REDIS_URL:-redis://redis:6379/0}"
       NEWS_INGEST_FIXTURE_MODE: "${NEWS_INGEST_FIXTURE_MODE:-true}"
       RATE_LIMIT_WINDOW_SECONDS: "${RATE_LIMIT_WINDOW_SECONDS:-60}"
@@ -224,6 +233,8 @@ services:
       context: .
       dockerfile: apps/scheduler/Dockerfile
     environment:
+      NODE_ENV: "${NODE_ENV:-development}"
+      THESIS_ALLOW_PRODUCTION_FIXTURES: "${THESIS_ALLOW_PRODUCTION_FIXTURES:-false}"
       PORT: 3005
       PRODUCT_API_INTERNAL_BASE_URL: "${PRODUCT_API_INTERNAL_BASE_URL:-http://product-api:3001}"
       DATA_OPENBB_INTERNAL_BASE_URL: "${DATA_OPENBB_INTERNAL_BASE_URL:-http://data-openbb:3003}"
@@ -277,9 +288,19 @@ services:
   postgres:
     image: postgres:16-alpine
     environment:
+      NODE_ENV: "${NODE_ENV:-development}"
       POSTGRES_DB: thesis
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-postgres}"
+    entrypoint:
+      - sh
+      - -c
+      - |
+        if [ "$${NODE_ENV}" = "production" ] && [ "$${POSTGRES_PASSWORD}" = "postgres" ]; then
+          echo "POSTGRES_PASSWORD must not use the local development default when NODE_ENV=production" >&2
+          exit 1
+        fi
+        exec docker-entrypoint.sh postgres
     ports:
       - "${POSTGRES_BIND_HOST:-127.0.0.1}:5432:5432"
     volumes:

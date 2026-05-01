@@ -3,7 +3,6 @@ import type { URL } from "node:url";
 
 import type { ProductApiConfig } from "../config";
 import type { ProductStore } from "../store";
-import type { UserSubscriptionRecord } from "../types";
 
 interface PublicRuntime {
   config: ProductApiConfig;
@@ -17,14 +16,6 @@ interface RequestMeta {
 interface AuthContext {
   userId: string;
   sessionId: string;
-}
-
-type SubscriptionProjection = Pick<UserSubscriptionRecord, "tier" | "billingPeriodEnd">;
-
-interface RevenueCatEvent {
-  eventType: string;
-  appUserId: string;
-  billingPeriodEnd?: string;
 }
 
 export interface PublicRouteExecutionContext<TRuntime extends PublicRuntime> {
@@ -44,25 +35,12 @@ export interface PublicRouteDependencies<TRuntime extends PublicRuntime> {
     payload: Record<string, unknown>,
     userId?: string
   ) => Promise<void>;
-  applyWebhookEventToSubscription: (
-    current: UserSubscriptionRecord,
-    eventType: string,
-    billingPeriodEnd?: string
-  ) => SubscriptionProjection;
   authenticateAccessToken: (
     runtime: TRuntime,
     request: IncomingMessage
   ) => Promise<AuthContext | undefined>;
   hasInternalToken: (request: IncomingMessage, expectedToken: string) => boolean;
-  hashRevenueCatAppUserId: (appUserId: string) => string;
-  logWarn: (message: string, payload?: Record<string, unknown>) => void;
-  parseRevenueCatWebhookEvent: (payload: unknown) => RevenueCatEvent | undefined;
-  readJsonBody: <TBody>(request: IncomingMessage) => Promise<TBody>;
   sendJson: (response: ServerResponse, statusCode: number, payload: unknown) => void;
-  verifyRevenueCatWebhookSecret: (
-    authorizationHeader: string | undefined,
-    expectedSecret: string | undefined
-  ) => boolean;
 }
 
 export async function handlePublicRoutes<TRuntime extends PublicRuntime>(
@@ -156,85 +134,6 @@ export async function handlePublicRoutes<TRuntime extends PublicRuntime>(
     deps.sendJson(response, 200, {
       data: coverage ?? null,
       missing: coverage === undefined
-    });
-    return true;
-  }
-
-  if (method === "POST" && pathname === "/v1/webhooks/revenuecat") {
-    const authorizationHeader =
-      typeof request.headers.authorization === "string"
-        ? request.headers.authorization
-        : undefined;
-    if (
-      !deps.verifyRevenueCatWebhookSecret(
-        authorizationHeader,
-        runtime.config.revenuecatWebhookSecret
-      )
-    ) {
-      deps.sendJson(response, 401, {
-        error: "unauthorized",
-        error_message: "Invalid RevenueCat webhook secret."
-      });
-      return true;
-    }
-
-    const payload = await deps.readJsonBody<unknown>(request);
-    const parsedEvent = deps.parseRevenueCatWebhookEvent(payload);
-    if (!parsedEvent) {
-      deps.sendJson(response, 422, {
-        error: "validation_failed",
-        error_message: "Invalid RevenueCat webhook payload."
-      });
-      return true;
-    }
-
-    const directUser = await runtime.store.findUserById(parsedEvent.appUserId);
-    const mappedUserId = directUser
-      ? directUser.id
-      : await runtime.store.findUserIdByRevenuecatAppUserId(parsedEvent.appUserId);
-    if (!mappedUserId) {
-      deps.logWarn("RevenueCat webhook user not found", {
-        route: pathname,
-        event_type: parsedEvent.eventType,
-        revenuecat_user_id_hash: deps.hashRevenueCatAppUserId(parsedEvent.appUserId)
-      });
-      deps.sendJson(response, 202, {
-        status: "ignored",
-        reason: "user_not_found"
-      });
-      return true;
-    }
-
-    const current = await runtime.store.getUserSubscription(mappedUserId);
-    const next = deps.applyWebhookEventToSubscription(
-      current,
-      parsedEvent.eventType,
-      parsedEvent.billingPeriodEnd
-    );
-    const updated = await runtime.store.upsertUserSubscription({
-      userId: mappedUserId,
-      tier: next.tier,
-      billingPeriodEnd: next.billingPeriodEnd,
-      revenuecatAppUserId: parsedEvent.appUserId,
-      updatedAt: new Date().toISOString()
-    });
-
-    await deps.appendAudit(
-      runtime,
-      "subscription.webhook_processed",
-      {
-        request_id: meta.requestId,
-        route: pathname,
-        event_type: parsedEvent.eventType,
-        tier: updated.tier,
-        billing_period_end: updated.billingPeriodEnd,
-        revenuecat_user_id_hash: deps.hashRevenueCatAppUserId(parsedEvent.appUserId)
-      },
-      mappedUserId
-    );
-
-    deps.sendJson(response, 200, {
-      status: "ok"
     });
     return true;
   }

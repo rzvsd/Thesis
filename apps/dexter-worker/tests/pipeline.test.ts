@@ -324,6 +324,27 @@ test("live mode validation fails when no provider credential is configured", () 
   );
 });
 
+test("production validation rejects fixture mode and local internal token", () => {
+  const config = loadConfig({
+    NODE_ENV: "production",
+    DEXTER_FIXTURE_MODE: "true",
+    INTERNAL_WORKER_TOKEN: "dev-internal-worker-token"
+  });
+
+  const errors = validateLiveModeConfig(config);
+
+  assert.ok(
+    errors.includes(
+      "INTERNAL_WORKER_TOKEN must not use the local development default when NODE_ENV=production"
+    )
+  );
+  assert.ok(
+    errors.includes(
+      "DEXTER_FIXTURE_MODE must be false when NODE_ENV=production unless THESIS_ALLOW_PRODUCTION_FIXTURES=true"
+    )
+  );
+});
+
 test("langsmith prompt mode falls back to the local prompt manifest when remote pull is unavailable", async () => {
   const config = loadConfig({
     ...process.env,

@@ -1,7 +1,7 @@
 # Thesis - Phase 7 Roadmap
 
 **Status:** Active  
-**Last Revised:** 2026-04-26
+**Last Revised:** 2026-05-01
 
 ---
 
@@ -9,13 +9,20 @@
 
 | Milestone | Name | Status |
 |---|---|---|
-| M1 | Pulse Market Tape & Clear Daily Context | In progress |
-| M2 | Pulse Editorial Freshness & Daily Delta | In progress |
-| M3 | Pulse Morning Newspaper Edition & Portfolio Radar | In progress |
-| M4 | Pulse Macro News & Geopolitical Shock Layer | In progress |
-| M5 | User Research State & Analyst Refresh Agent | In progress |
-| M6 | Guarded LLM Pulse Editorial Writer | In progress |
-| M7 | Pulse Issue Plan & Professional Newspaper Polish | In progress |
+| M1 | Pulse Market Tape & Clear Daily Context | Validated |
+| M2 | Pulse Editorial Freshness & Daily Delta | Validated |
+| M3 | Pulse Morning Newspaper Edition & Portfolio Radar | Validated |
+| M4 | Pulse Macro News & Geopolitical Shock Layer | Validated |
+| M5 | User Research State & Analyst Refresh Agent | Validated |
+| M6 | Guarded LLM Pulse Editorial Writer | Validated |
+| M7 | Pulse Issue Plan & Professional Newspaper Polish | Active |
+
+## Status Semantics
+
+- `Validated` means implementation evidence exists under the milestone evidence folder and the milestone is no longer the active planning surface.
+- `Active` means this is the current closeout, polish, or production-proof surface.
+- `Deferred` should be used for accepted scope that is intentionally moved out of Phase 7.
+- `Done` should be used only when owner sign-off and production/deploy proof are both recorded.
 
 ---
 

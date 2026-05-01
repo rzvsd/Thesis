@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import json
 import os
+import socket
 import unittest
 from unittest.mock import patch
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
-from src.server import start_server, stop_server
+from src.server import MAX_JSON_BODY_BYTES, start_server, stop_server
 from src.service import (
     FINANCE_FIELDS,
     DataOpenBBService,
@@ -75,6 +76,41 @@ class FakeLiveClient:
         return self.market_tape
 
 
+class DataOpenbbConfigTests(unittest.TestCase):
+    def test_production_rejects_dev_token_fixture_mode_and_default_db_password(self) -> None:
+        with self.assertRaises(ValueError) as error:
+            Settings.from_env(
+                {
+                    "NODE_ENV": "production",
+                    "INTERNAL_WORKER_TOKEN": "dev-internal-worker-token",
+                    "DATA_OPENBB_FIXTURE_MODE": "true",
+                    "DATABASE_URL": "postgres://postgres:postgres@postgres:5432/thesis",
+                }
+            )
+
+        message = str(error.exception)
+        self.assertIn(
+            "INTERNAL_WORKER_TOKEN must not use the local development default",
+            message,
+        )
+        self.assertIn("DATA_OPENBB_FIXTURE_MODE must be false", message)
+        self.assertIn("DATABASE_URL must not use the default postgres password", message)
+
+    def test_production_allows_fixture_mode_only_for_explicit_proof_jobs(self) -> None:
+        settings = Settings.from_env(
+            {
+                "NODE_ENV": "production",
+                "INTERNAL_WORKER_TOKEN": "production-internal-worker-token",
+                "DATA_OPENBB_FIXTURE_MODE": "true",
+                "THESIS_ALLOW_PRODUCTION_FIXTURES": "true",
+                "DATABASE_URL": "postgres://postgres:strong-password@postgres:5432/thesis",
+            }
+        )
+
+        self.assertTrue(settings.fixture_mode)
+        self.assertTrue(settings.allow_production_fixtures)
+
+
 class DataOpenbbEndpointTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
@@ -112,6 +148,33 @@ class DataOpenbbEndpointTests(unittest.TestCase):
         with urlopen(request) as response:
             parsed = json.loads(response.read().decode("utf-8"))
             return response.status, parsed
+
+    def post_declared_json_length(
+        self,
+        path: str,
+        *,
+        declared_length: int,
+        headers: dict[str, str] | None = None,
+    ) -> int:
+        request_headers = {
+            "Host": f"127.0.0.1:{self.server.server_address[1]}",
+            "Content-Type": "application/json",
+            "Content-Length": str(declared_length),
+            "Connection": "close",
+            **(headers or {}),
+        }
+        header_lines = "\r\n".join(f"{key}: {value}" for key, value in request_headers.items())
+        raw_request = f"POST {path} HTTP/1.1\r\n{header_lines}\r\n\r\n".encode("utf-8")
+        with socket.create_connection(("127.0.0.1", self.server.server_address[1]), timeout=5) as sock:
+            sock.sendall(raw_request)
+            chunks = []
+            while True:
+                chunk = sock.recv(4096)
+                if not chunk:
+                    break
+                chunks.append(chunk)
+            status_line = b"".join(chunks).decode("iso-8859-1").splitlines()[0]
+        return int(status_line.split(" ", 2)[1])
 
     def test_health_returns_expected_payload(self) -> None:
         status, payload = self.request_json("/health")
@@ -263,6 +326,15 @@ class DataOpenbbEndpointTests(unittest.TestCase):
             self.post_json("/internal/calendar/earnings", body={"start_date": "2026-03-21"})
         self.assertEqual(context.exception.code, 401)
 
+    def test_internal_calendar_earnings_rejects_oversized_json_body(self) -> None:
+        status = self.post_declared_json_length(
+            "/internal/calendar/earnings",
+            declared_length=MAX_JSON_BODY_BYTES + 1,
+            headers={"x-internal-token": "dev-internal-worker-token"},
+        )
+
+        self.assertEqual(status, 413)
+
     def test_internal_calendar_earnings_returns_service_response_envelope(self) -> None:
         status, payload = self.post_json(
             "/internal/calendar/earnings",
@@ -282,6 +354,15 @@ class DataOpenbbEndpointTests(unittest.TestCase):
         first_event = calendar_data["events"][0]
         self.assertEqual(first_event["provider"], "yfinance")
         self.assertRegex(first_event["event_date"], r"^\d{4}-\d{2}-\d{2}$")
+
+    def test_internal_historical_sync_rejects_oversized_json_body(self) -> None:
+        status = self.post_declared_json_length(
+            "/internal/historical/sync",
+            declared_length=MAX_JSON_BODY_BYTES + 1,
+            headers={"x-internal-token": "dev-internal-worker-token"},
+        )
+
+        self.assertEqual(status, 413)
 
     @patch("src.service.run_historical_delta_sync")
     def test_internal_historical_sync_runs_with_internal_token(self, mocked_sync: object) -> None:

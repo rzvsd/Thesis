@@ -17,6 +17,30 @@ FIXTURE_NOW = datetime(2026, 3, 13, 12, 30, tzinfo=timezone.utc)
 
 
 class NewsServiceTests(unittest.TestCase):
+    def test_production_rejects_fixture_mode_without_proof_override(self) -> None:
+        with self.assertRaisesRegex(
+            ValueError,
+            "NEWS_INGEST_FIXTURE_MODE must be false",
+        ):
+            Settings.from_env(
+                {
+                    "NODE_ENV": "production",
+                    "NEWS_INGEST_FIXTURE_MODE": "true",
+                }
+            )
+
+    def test_production_allows_fixture_mode_for_explicit_proof_jobs(self) -> None:
+        settings = Settings.from_env(
+            {
+                "NODE_ENV": "production",
+                "NEWS_INGEST_FIXTURE_MODE": "true",
+                "THESIS_ALLOW_PRODUCTION_FIXTURES": "true",
+            }
+        )
+
+        self.assertTrue(settings.fixture_mode)
+        self.assertTrue(settings.allow_production_fixtures)
+
     def test_fixture_mode_normalizes_rss_and_html_sources(self) -> None:
         status_code, payload = build_news_response(FIXTURE_DATE, request_id="req-normalized", now=FIXTURE_NOW)
 

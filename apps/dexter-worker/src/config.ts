@@ -13,6 +13,7 @@ const defaultMaxParallelSections = 4;
 const defaultMaxSectionRetries = 0;
 const defaultOpenRouterModel = "openrouter:openai/gpt-5.4-mini";
 const defaultOpenAiModel = "gpt-5.4-mini";
+const devInternalWorkerToken = "dev-internal-worker-token";
 
 export type DexterLiveProvider = "openrouter" | "anthropic" | "openai";
 
@@ -72,6 +73,8 @@ function parseProviderOrder(value: string | undefined): DexterLiveProvider[] {
 
 export interface DexterConfig {
   port: number;
+  nodeEnv: string;
+  allowProductionFixtures: boolean;
   fixtureMode: boolean;
   model: string;
   providerOrder: DexterLiveProvider[];
@@ -114,6 +117,7 @@ export interface DexterConfig {
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): DexterConfig {
+  const nodeEnv = env.NODE_ENV?.trim().toLowerCase() || "development";
   const fixtureMode = parseBoolean(env.DEXTER_FIXTURE_MODE, true);
   const legacyModel = env.DEXTER_MODEL?.trim() ?? "";
   const providerOrder: DexterLiveProvider[] =
@@ -147,6 +151,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): DexterConfig {
 
   return {
     port: parseInteger(env.PORT, defaultPort),
+    nodeEnv,
+    allowProductionFixtures: parseBoolean(env.THESIS_ALLOW_PRODUCTION_FIXTURES, false),
     fixtureMode,
     model: fixtureMode ? "fixture-dexter-m3" : primaryModelByProvider[primaryProvider] ?? "",
     providerOrder,
@@ -209,13 +215,27 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): DexterConfig {
     queueBlockTimeoutSeconds: parseInteger(env.DEXTER_QUEUE_BLOCK_TIMEOUT_SECONDS, 5),
     productApiInternalBaseUrl:
       env.PRODUCT_API_INTERNAL_BASE_URL ?? "http://product-api:3001",
-    internalWorkerToken: env.INTERNAL_WORKER_TOKEN ?? "dev-internal-worker-token",
+    internalWorkerToken: env.INTERNAL_WORKER_TOKEN ?? devInternalWorkerToken,
     forcedFailureTickers: parseTickerSet(env.DEXTER_FORCE_FAIL_TICKERS)
   };
 }
 
 export function validateLiveModeConfig(config: DexterConfig): string[] {
   const errors: string[] = [];
+
+  if (config.nodeEnv === "production") {
+    if (config.internalWorkerToken === devInternalWorkerToken) {
+      errors.push(
+        "INTERNAL_WORKER_TOKEN must not use the local development default when NODE_ENV=production"
+      );
+    }
+
+    if (config.fixtureMode && !config.allowProductionFixtures) {
+      errors.push(
+        "DEXTER_FIXTURE_MODE must be false when NODE_ENV=production unless THESIS_ALLOW_PRODUCTION_FIXTURES=true"
+      );
+    }
+  }
 
   if (config.fixtureMode) {
     return errors;

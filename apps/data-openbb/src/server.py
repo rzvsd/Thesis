@@ -52,9 +52,24 @@ except ImportError:  # pragma: no cover - supports direct src imports in sibling
     from validation import SchemaValidationError
 
 
+MAX_JSON_BODY_BYTES = 1_048_576
+
+
+class RequestBodyTooLargeError(ValueError):
+    pass
+
+
 class DataOpenbbRequestHandler(BaseHTTPRequestHandler):
     server_version = SERVICE_NAME
     sys_version = ""
+
+    def _expected_internal_token(self) -> str:
+        service = getattr(self.server, "data_service", None)
+        settings = getattr(service, "settings", None)
+        token = getattr(settings, "internal_worker_token", None)
+        if isinstance(token, str) and token:
+            return token
+        return os.environ.get("INTERNAL_WORKER_TOKEN", "")
 
     def do_GET(self) -> None:  # noqa: N802
         parsed = urlparse(self.path)
@@ -169,7 +184,7 @@ class DataOpenbbRequestHandler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         request_id = get_request_id(self.headers.get("x-request-id"))
         if parsed.path == "/internal/calendar/earnings":
-            expected_token = os.environ.get("INTERNAL_WORKER_TOKEN", "dev-internal-worker-token")
+            expected_token = self._expected_internal_token()
             if self.headers.get("x-internal-token", "") != expected_token:
                 response = error_response(
                     status_code=401,
@@ -182,6 +197,14 @@ class DataOpenbbRequestHandler(BaseHTTPRequestHandler):
 
             try:
                 body = self._read_json_body()
+            except RequestBodyTooLargeError:
+                response = error_response(
+                    status_code=413,
+                    request_id=request_id,
+                    message="request body exceeds 1 MB limit",
+                )
+                self._write_json(response.status_code, response.body, request_id=request_id)
+                return
             except json.JSONDecodeError:
                 response = error_response(
                     status_code=422,
@@ -220,7 +243,7 @@ class DataOpenbbRequestHandler(BaseHTTPRequestHandler):
             return
 
         if parsed.path == "/internal/historical/sync":
-            expected_token = os.environ.get("INTERNAL_WORKER_TOKEN", "dev-internal-worker-token")
+            expected_token = self._expected_internal_token()
             if self.headers.get("x-internal-token", "") != expected_token:
                 response = error_response(
                     status_code=401,
@@ -233,6 +256,14 @@ class DataOpenbbRequestHandler(BaseHTTPRequestHandler):
 
             try:
                 body = self._read_json_body()
+            except RequestBodyTooLargeError:
+                response = error_response(
+                    status_code=413,
+                    request_id=request_id,
+                    message="request body exceeds 1 MB limit",
+                )
+                self._write_json(response.status_code, response.body, request_id=request_id)
+                return
             except json.JSONDecodeError:
                 response = error_response(
                     status_code=422,
@@ -293,6 +324,8 @@ class DataOpenbbRequestHandler(BaseHTTPRequestHandler):
 
     def _read_json_body(self) -> dict[str, Any]:
         content_length = int(self.headers.get("content-length", "0") or "0")
+        if content_length > MAX_JSON_BODY_BYTES:
+            raise RequestBodyTooLargeError("request body exceeds JSON limit")
         if content_length <= 0:
             return {}
         raw = self.rfile.read(content_length)

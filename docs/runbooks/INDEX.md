@@ -17,4 +17,4 @@ This index maps M9 smoke groups to concrete runbooks, ownership, and rollback co
 
 - Deep Dive-dependent checks remain owner-deferred where explicitly recorded in M9 docs.
 - `deployment-rollback.md` is executable for current docker-hosted staging operations.
-- CI/CD production deployment proof is tracked separately under M9 AC #13.
+- CI/CD production deployment proof is tracked under M9 AC #13 and must use the manual `deploy-production` workflow with protected-environment approval, configured production secrets, authenticated Product API smoke, and internal-token smoke.

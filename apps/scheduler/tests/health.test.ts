@@ -3,7 +3,7 @@ import { once } from "node:events";
 import type { AddressInfo } from "node:net";
 import test from "node:test";
 
-import { startServer } from "../src/server";
+import { loadConfig, startServer, validateConfig } from "../src/server";
 
 type HealthPayload = {
   status: "ok";
@@ -59,4 +59,25 @@ test("GET /health returns the expected payload", async () => {
       resolve();
     });
   });
+});
+
+test("production validation rejects local internal token and test mode", () => {
+  const config = loadConfig({
+    NODE_ENV: "production",
+    INTERNAL_WORKER_TOKEN: "dev-internal-worker-token",
+    SCHEDULER_TEST_MODE: "true"
+  });
+
+  const errors = validateConfig(config);
+
+  assert.ok(
+    errors.includes(
+      "INTERNAL_WORKER_TOKEN must not use the local development default when NODE_ENV=production"
+    )
+  );
+  assert.ok(
+    errors.includes(
+      "SCHEDULER_TEST_MODE must be false when NODE_ENV=production unless THESIS_ALLOW_PRODUCTION_FIXTURES=true"
+    )
+  );
 });

@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-17T08:24:21.407Z",
+  "generated_at": "2026-05-01T11:19:45.789Z",
   "purpose": "Phase 6 M0 baseline of known deprecated-provider references in protected paths. New protected-path findings fail the guard.",
   "protected_roots": [
     "apps/product-api/src",
@@ -29,7 +29,7 @@
       "id": "alpha-vantage",
       "label": "Alpha Vantage market-data provider",
       "file": ".env.example",
-      "line": 103,
+      "line": 109,
       "match": "ALPHA_VANTAGE_API_KEY",
       "text": "ALPHA_VANTAGE_API_KEY="
     },
@@ -37,7 +37,7 @@
       "id": "alpha-vantage",
       "label": "Alpha Vantage market-data provider",
       "file": "apps/data-openbb/src/service.py",
-      "line": 114,
+      "line": 468,
       "match": "ALPHA_VANTAGE",
       "text": "\"ALPHA_VANTAGE\": self.alpha_vantage_rate_limit_per_minute,"
     },
@@ -45,7 +45,7 @@
       "id": "alpha-vantage",
       "label": "Alpha Vantage market-data provider",
       "file": "docker-compose.yml",
-      "line": 166,
+      "line": 185,
       "match": "ALPHA_VANTAGE_API_KEY",
       "text": "ALPHA_VANTAGE_API_KEY: \"${ALPHA_VANTAGE_API_KEY:-}\""
     },
@@ -53,7 +53,7 @@
       "id": "alpha-vantage",
       "label": "Alpha Vantage market-data provider",
       "file": "docker-compose.yml",
-      "line": 166,
+      "line": 185,
       "match": "ALPHA_VANTAGE_API_KEY",
       "text": "ALPHA_VANTAGE_API_KEY: \"${ALPHA_VANTAGE_API_KEY:-}\""
     },
@@ -61,7 +61,7 @@
       "id": "alpha-vantage",
       "label": "Alpha Vantage market-data provider",
       "file": "infra/docker-compose.yml",
-      "line": 116,
+      "line": 131,
       "match": "ALPHA_VANTAGE_API_KEY",
       "text": "ALPHA_VANTAGE_API_KEY: \"${ALPHA_VANTAGE_API_KEY:-}\""
     },
@@ -69,49 +69,9 @@
       "id": "alpha-vantage",
       "label": "Alpha Vantage market-data provider",
       "file": "infra/docker-compose.yml",
-      "line": 116,
+      "line": 131,
       "match": "ALPHA_VANTAGE_API_KEY",
       "text": "ALPHA_VANTAGE_API_KEY: \"${ALPHA_VANTAGE_API_KEY:-}\""
-    },
-    {
-      "id": "fear-greed",
-      "label": "legacy Fear & Greed surface/contract",
-      "file": "apps/mobile/android/app/src/main/java/com/thesis/mobile/ui/screens/HomeScreen.kt",
-      "line": 424,
-      "match": "Fear & Greed",
-      "text": "text = \"Fear & Greed\","
-    },
-    {
-      "id": "fear-greed",
-      "label": "legacy Fear & Greed surface/contract",
-      "file": "apps/mobile/android/app/src/main/java/com/thesis/mobile/ui/screens/HomeScreen.kt",
-      "line": 918,
-      "match": "fearGreed",
-      "text": "val fearGreed = sections.firstOrNull { containsAny(it, \"fear\", \"greed\", \"sentiment\") }"
-    },
-    {
-      "id": "fear-greed",
-      "label": "legacy Fear & Greed surface/contract",
-      "file": "apps/mobile/android/app/src/main/java/com/thesis/mobile/ui/screens/HomeScreen.kt",
-      "line": 924,
-      "match": "fearGreed",
-      "text": "TodayPhase.PRE_MARKET -> listOf(fearGreed, earnings, contrarian, marketMoves, weeklyDigest)"
-    },
-    {
-      "id": "fear-greed",
-      "label": "legacy Fear & Greed surface/contract",
-      "file": "apps/mobile/android/app/src/main/java/com/thesis/mobile/ui/screens/HomeScreen.kt",
-      "line": 925,
-      "match": "fearGreed",
-      "text": "TodayPhase.MARKET_HOURS -> listOf(marketMoves, fearGreed, contrarian, earnings, weeklyDigest)"
-    },
-    {
-      "id": "fear-greed",
-      "label": "legacy Fear & Greed surface/contract",
-      "file": "apps/mobile/android/app/src/main/java/com/thesis/mobile/ui/screens/HomeScreen.kt",
-      "line": 926,
-      "match": "fearGreed",
-      "text": "TodayPhase.AFTER_HOURS -> listOf(marketMoves, fearGreed, earnings, weeklyDigest, contrarian)"
     },
     {
       "id": "fear-greed",
@@ -120,14 +80,6 @@
       "line": 77,
       "match": "Fear & Greed",
       "text": "sampleLabel = \"Fear & Greed\","
-    },
-    {
-      "id": "fear-greed",
-      "label": "legacy Fear & Greed surface/contract",
-      "file": "apps/mobile/android/app/src/main/java/com/thesis/mobile/ui/screens/SentimentDashboardScreen.kt",
-      "line": 416,
-      "match": "Fear & Greed",
-      "text": "text = \"Fear & Greed Dashboard\","
     },
     {
       "id": "fear-greed",
@@ -148,24 +100,8 @@
     {
       "id": "fear-greed",
       "label": "legacy Fear & Greed surface/contract",
-      "file": "apps/product-api/src/server.ts",
-      "line": 7122,
-      "match": "Fear & Greed",
-      "text": "? `Fear & Greed: ${latestFearGreed.score} (${latestFearGreed.label}).`"
-    },
-    {
-      "id": "fear-greed",
-      "label": "legacy Fear & Greed surface/contract",
-      "file": "apps/product-api/src/server.ts",
-      "line": 7123,
-      "match": "Fear & Greed",
-      "text": ": \"Fear & Greed data is not ready yet.\","
-    },
-    {
-      "id": "fear-greed",
-      "label": "legacy Fear & Greed surface/contract",
       "file": "packages/contracts/src/index.ts",
-      "line": 21,
+      "line": 26,
       "match": "fear-greed",
       "text": "export * from \"./fear-greed-snapshot\";"
     },
@@ -181,7 +117,7 @@
       "id": "fmp",
       "label": "FMP / Financial Modeling Prep",
       "file": "apps/data-openbb/src/service.py",
-      "line": 108,
+      "line": 462,
       "match": "FMP",
       "text": "\"FMP\": self.fmp_finance_rate_limit_per_minute,"
     },
@@ -189,7 +125,7 @@
       "id": "fmp",
       "label": "FMP / Financial Modeling Prep",
       "file": "apps/data-openbb/src/service.py",
-      "line": 33,
+      "line": 38,
       "match": "FMP",
       "text": "COMPANY_PROVIDER = \"FMP\""
     },
@@ -197,7 +133,7 @@
       "id": "fmp",
       "label": "FMP / Financial Modeling Prep",
       "file": "apps/data-openbb/src/service.py",
-      "line": 34,
+      "line": 39,
       "match": "FMP",
       "text": "MACRO_PROVIDER = \"FMP\""
     },
@@ -205,7 +141,7 @@
       "id": "fmp",
       "label": "FMP / Financial Modeling Prep",
       "file": "apps/data-openbb/src/service.py",
-      "line": 348,
+      "line": 719,
       "match": "FMP",
       "text": "message=\"FMP returned no usable macro observations for live mode.\","
     },
@@ -213,7 +149,7 @@
       "id": "fmp",
       "label": "FMP / Financial Modeling Prep",
       "file": "apps/data-openbb/src/service.py",
-      "line": 777,
+      "line": 2077,
       "match": "fmp",
       "text": "provider=\"fmp\","
     },
@@ -221,7 +157,7 @@
       "id": "fmp",
       "label": "FMP / Financial Modeling Prep",
       "file": "apps/data-openbb/src/service.py",
-      "line": 788,
+      "line": 2088,
       "match": "fmp",
       "text": "provider=\"fmp\","
     },
@@ -229,7 +165,7 @@
       "id": "fmp",
       "label": "FMP / Financial Modeling Prep",
       "file": "apps/data-openbb/src/service.py",
-      "line": 799,
+      "line": 2099,
       "match": "fmp",
       "text": "provider=\"fmp\","
     },
@@ -237,7 +173,7 @@
       "id": "fmp",
       "label": "FMP / Financial Modeling Prep",
       "file": "apps/data-openbb/src/service.py",
-      "line": 822,
+      "line": 2122,
       "match": "fmp",
       "text": "provider=\"fmp\","
     },
@@ -245,55 +181,7 @@
       "id": "fmp",
       "label": "FMP / Financial Modeling Prep",
       "file": "apps/data-openbb/tests/test_service.py",
-      "line": 102,
-      "match": "FMP",
-      "text": "self.assertEqual(finance_data[\"provider\"], \"FMP\")"
-    },
-    {
-      "id": "fmp",
-      "label": "FMP / Financial Modeling Prep",
-      "file": "apps/data-openbb/tests/test_service.py",
-      "line": 112,
-      "match": "FMP",
-      "text": "self.assertEqual(payload[\"provider\"], \"FMP\")"
-    },
-    {
-      "id": "fmp",
-      "label": "FMP / Financial Modeling Prep",
-      "file": "apps/data-openbb/tests/test_service.py",
-      "line": 117,
-      "match": "FMP",
-      "text": "self.assertEqual(macro_data[\"provider\"], \"FMP\")"
-    },
-    {
-      "id": "fmp",
-      "label": "FMP / Financial Modeling Prep",
-      "file": "apps/data-openbb/tests/test_service.py",
-      "line": 127,
-      "match": "FMP",
-      "text": "self.assertEqual(finance_data[\"provider\"], \"FMP\")"
-    },
-    {
-      "id": "fmp",
-      "label": "FMP / Financial Modeling Prep",
-      "file": "apps/data-openbb/tests/test_service.py",
-      "line": 277,
-      "match": "FMP",
-      "text": "self.assertEqual(payload[\"provider\"], \"FMP\")"
-    },
-    {
-      "id": "fmp",
-      "label": "FMP / Financial Modeling Prep",
-      "file": "apps/data-openbb/tests/test_service.py",
-      "line": 289,
-      "match": "FMP",
-      "text": "self.assertEqual(payload[\"provider\"], \"FMP\")"
-    },
-    {
-      "id": "fmp",
-      "label": "FMP / Financial Modeling Prep",
-      "file": "apps/data-openbb/tests/test_service.py",
-      "line": 353,
+      "line": 566,
       "match": "FMP",
       "text": "limiter.acquire(\"FMP\", rate_limit_key=\"FMP_FINANCE\")"
     },
@@ -301,7 +189,39 @@
       "id": "fmp",
       "label": "FMP / Financial Modeling Prep",
       "file": "apps/data-openbb/tests/test_service.py",
-      "line": 354,
+      "line": 570,
+      "match": "FMP",
+      "text": "limiter.acquire(\"FMP\", rate_limit_key=\"FMP_FINANCE\")"
+    },
+    {
+      "id": "fmp",
+      "label": "FMP / Financial Modeling Prep",
+      "file": "apps/data-openbb/tests/test_service.py",
+      "line": 600,
+      "match": "FMP",
+      "text": "limiter.acquire(\"FMP\", rate_limit_key=\"FMP_FINANCE\")"
+    },
+    {
+      "id": "fmp",
+      "label": "FMP / Financial Modeling Prep",
+      "file": "apps/data-openbb/tests/test_service.py",
+      "line": 601,
+      "match": "FMP",
+      "text": "limiter.acquire(\"FMP\", rate_limit_key=\"FMP_FINANCE\")"
+    },
+    {
+      "id": "fmp",
+      "label": "FMP / Financial Modeling Prep",
+      "file": "apps/data-openbb/tests/test_service.py",
+      "line": 604,
+      "match": "FMP",
+      "text": "limiter.acquire(\"FMP\", rate_limit_key=\"FMP_FINANCE\")"
+    },
+    {
+      "id": "fmp",
+      "label": "FMP / Financial Modeling Prep",
+      "file": "apps/data-openbb/tests/test_service.py",
+      "line": 567,
       "match": "FMP",
       "text": "limiter.acquire(\"FMP\", rate_limit_key=\"FMP_MACRO\")"
     },
@@ -309,39 +229,55 @@
       "id": "fmp",
       "label": "FMP / Financial Modeling Prep",
       "file": "apps/data-openbb/tests/test_service.py",
-      "line": 357,
+      "line": 168,
       "match": "FMP",
-      "text": "limiter.acquire(\"FMP\", rate_limit_key=\"FMP_FINANCE\")"
+      "text": "self.assertEqual(finance_data[\"provider\"], \"FMP\")"
     },
     {
       "id": "fmp",
       "label": "FMP / Financial Modeling Prep",
       "file": "apps/data-openbb/tests/test_service.py",
-      "line": 387,
+      "line": 287,
       "match": "FMP",
-      "text": "limiter.acquire(\"FMP\", rate_limit_key=\"FMP_FINANCE\")"
+      "text": "self.assertEqual(finance_data[\"provider\"], \"FMP\")"
     },
     {
       "id": "fmp",
       "label": "FMP / Financial Modeling Prep",
       "file": "apps/data-openbb/tests/test_service.py",
-      "line": 388,
+      "line": 183,
       "match": "FMP",
-      "text": "limiter.acquire(\"FMP\", rate_limit_key=\"FMP_FINANCE\")"
+      "text": "self.assertEqual(macro_data[\"provider\"], \"FMP\")"
     },
     {
       "id": "fmp",
       "label": "FMP / Financial Modeling Prep",
       "file": "apps/data-openbb/tests/test_service.py",
-      "line": 391,
+      "line": 163,
       "match": "FMP",
-      "text": "limiter.acquire(\"FMP\", rate_limit_key=\"FMP_FINANCE\")"
+      "text": "self.assertEqual(payload[\"provider\"], \"FMP\")"
     },
     {
       "id": "fmp",
       "label": "FMP / Financial Modeling Prep",
       "file": "apps/data-openbb/tests/test_service.py",
-      "line": 97,
+      "line": 178,
+      "match": "FMP",
+      "text": "self.assertEqual(payload[\"provider\"], \"FMP\")"
+    },
+    {
+      "id": "fmp",
+      "label": "FMP / Financial Modeling Prep",
+      "file": "apps/data-openbb/tests/test_service.py",
+      "line": 490,
+      "match": "FMP",
+      "text": "self.assertEqual(payload[\"provider\"], \"FMP\")"
+    },
+    {
+      "id": "fmp",
+      "label": "FMP / Financial Modeling Prep",
+      "file": "apps/data-openbb/tests/test_service.py",
+      "line": 502,
       "match": "FMP",
       "text": "self.assertEqual(payload[\"provider\"], \"FMP\")"
     },
@@ -349,7 +285,7 @@
       "id": "hf-transcript-corpus",
       "label": "rights-ambiguous transcript corpus",
       "file": ".env.example",
-      "line": 187,
+      "line": 206,
       "match": "kurry/sp500_earnings_transcripts",
       "text": "M0_HF_DATASET_ID=kurry/sp500_earnings_transcripts"
     },
@@ -357,7 +293,7 @@
       "id": "hf-transcript-corpus",
       "label": "rights-ambiguous transcript corpus",
       "file": ".env.example",
-      "line": 187,
+      "line": 206,
       "match": "M0_HF_DATASET_ID",
       "text": "M0_HF_DATASET_ID=kurry/sp500_earnings_transcripts"
     },
@@ -380,8 +316,8 @@
     {
       "id": "openbb-library",
       "label": "OpenBB library/provider truth",
-      "file": "apps/data-openbb/requirements.txt",
-      "line": 3,
+      "file": "apps/data-openbb/requirements-live.txt",
+      "line": 5,
       "match": "openbb_platform",
       "text": "git+https://github.com/rzvsd/finBase.git@dddc3b328284bb953b6e5468b167b39c78490001#subdirectory=openbb_platform"
     },
@@ -389,7 +325,7 @@
       "id": "openbb-library",
       "label": "OpenBB library/provider truth",
       "file": "apps/data-openbb/src/service.py",
-      "line": 696,
+      "line": 1996,
       "match": "import openbb",
       "text": "import openbb # type: ignore"
     },
@@ -397,7 +333,7 @@
       "id": "openbb-library",
       "label": "OpenBB library/provider truth",
       "file": "apps/data-openbb/src/service.py",
-      "line": 705,
+      "line": 2005,
       "match": "openbb.",
       "text": "self._obb = openbb.obb"
     },
@@ -405,7 +341,7 @@
       "id": "polygon",
       "label": "Polygon market-data provider",
       "file": ".env.example",
-      "line": 102,
+      "line": 108,
       "match": "POLYGON_API_KEY",
       "text": "POLYGON_API_KEY="
     },
@@ -413,7 +349,7 @@
       "id": "polygon",
       "label": "Polygon market-data provider",
       "file": "apps/data-openbb/src/service.py",
-      "line": 113,
+      "line": 467,
       "match": "POLYGON",
       "text": "\"POLYGON\": self.polygon_rate_limit_per_minute,"
     },
@@ -421,7 +357,7 @@
       "id": "polygon",
       "label": "Polygon market-data provider",
       "file": "docker-compose.yml",
-      "line": 165,
+      "line": 184,
       "match": "POLYGON_API_KEY",
       "text": "POLYGON_API_KEY: \"${POLYGON_API_KEY:-}\""
     },
@@ -429,7 +365,7 @@
       "id": "polygon",
       "label": "Polygon market-data provider",
       "file": "docker-compose.yml",
-      "line": 165,
+      "line": 184,
       "match": "POLYGON_API_KEY",
       "text": "POLYGON_API_KEY: \"${POLYGON_API_KEY:-}\""
     },
@@ -437,7 +373,7 @@
       "id": "polygon",
       "label": "Polygon market-data provider",
       "file": "infra/docker-compose.yml",
-      "line": 115,
+      "line": 130,
       "match": "POLYGON_API_KEY",
       "text": "POLYGON_API_KEY: \"${POLYGON_API_KEY:-}\""
     },
@@ -445,7 +381,7 @@
       "id": "polygon",
       "label": "Polygon market-data provider",
       "file": "infra/docker-compose.yml",
-      "line": 115,
+      "line": 130,
       "match": "POLYGON_API_KEY",
       "text": "POLYGON_API_KEY: \"${POLYGON_API_KEY:-}\""
     },
@@ -455,13 +391,13 @@
       "file": "apps/data-openbb/requirements.txt",
       "line": 8,
       "match": "yfinance",
-      "text": "yfinance"
+      "text": "yfinance==1.2.0"
     },
     {
       "id": "yfinance",
       "label": "yfinance / Yahoo wrapper",
       "file": "apps/data-openbb/src/service.py",
-      "line": 111,
+      "line": 465,
       "match": "YFINANCE",
       "text": "\"YFINANCE\": self.yfinance_rate_limit_per_minute,"
     },
@@ -469,7 +405,7 @@
       "id": "yfinance",
       "label": "yfinance / Yahoo wrapper",
       "file": "apps/data-openbb/src/service.py",
-      "line": 35,
+      "line": 40,
       "match": "yfinance",
       "text": "CALENDAR_PROVIDER = \"yfinance\""
     },
@@ -477,7 +413,7 @@
       "id": "yfinance",
       "label": "yfinance / Yahoo wrapper",
       "file": "apps/data-openbb/src/service.py",
-      "line": 831,
+      "line": 2131,
       "match": "yfinance",
       "text": "import yfinance as yf # type: ignore"
     },
@@ -485,7 +421,7 @@
       "id": "yfinance",
       "label": "yfinance / Yahoo wrapper",
       "file": "apps/data-openbb/src/service.py",
-      "line": 837,
+      "line": 2137,
       "match": "yfinance",
       "text": "message=\"yfinance is not installed for live calendar mode.\","
     },
@@ -493,25 +429,17 @@
       "id": "yfinance",
       "label": "yfinance / Yahoo wrapper",
       "file": "apps/data-openbb/tests/test_service.py",
-      "line": 151,
-      "match": "yfinance",
-      "text": "self.assertEqual(payload[\"provider\"], \"yfinance\")"
-    },
-    {
-      "id": "yfinance",
-      "label": "yfinance / Yahoo wrapper",
-      "file": "apps/data-openbb/tests/test_service.py",
-      "line": 158,
+      "line": 318,
       "match": "yfinance",
       "text": "self.assertEqual(first_event[\"provider\"], \"yfinance\")"
     },
     {
       "id": "yfinance",
       "label": "yfinance / Yahoo wrapper",
-      "file": "apps/product-api/src/sentiment.ts",
-      "line": 326,
-      "match": "yahoo_finance",
-      "text": "provider: \"yahoo_finance\","
+      "file": "apps/data-openbb/tests/test_service.py",
+      "line": 311,
+      "match": "yfinance",
+      "text": "self.assertEqual(payload[\"provider\"], \"yfinance\")"
     },
     {
       "id": "yfinance",
@@ -525,25 +453,9 @@
       "id": "yfinance",
       "label": "yfinance / Yahoo wrapper",
       "file": "apps/product-api/src/sentiment.ts",
-      "line": 352,
-      "match": "yahoo_finance",
-      "text": "provider: \"yahoo_finance\","
-    },
-    {
-      "id": "yfinance",
-      "label": "yfinance / Yahoo wrapper",
-      "file": "apps/product-api/src/sentiment.ts",
       "line": 362,
       "match": "yahoo_finance",
       "text": "\"yahoo_finance\","
-    },
-    {
-      "id": "yfinance",
-      "label": "yfinance / Yahoo wrapper",
-      "file": "apps/product-api/src/sentiment.ts",
-      "line": 386,
-      "match": "yahoo_finance",
-      "text": "provider: \"yahoo_finance\","
     },
     {
       "id": "yfinance",
@@ -557,14 +469,6 @@
       "id": "yfinance",
       "label": "yfinance / Yahoo wrapper",
       "file": "apps/product-api/src/sentiment.ts",
-      "line": 439,
-      "match": "yahoo_finance",
-      "text": "provider: \"yahoo_finance\","
-    },
-    {
-      "id": "yfinance",
-      "label": "yfinance / Yahoo wrapper",
-      "file": "apps/product-api/src/sentiment.ts",
       "line": 450,
       "match": "yahoo_finance",
       "text": "\"yahoo_finance\","
@@ -572,18 +476,34 @@
     {
       "id": "yfinance",
       "label": "yfinance / Yahoo wrapper",
-      "file": "apps/product-api/src/server.ts",
-      "line": 1422,
-      "match": "yfinance",
-      "text": "const provider = typeof row.provider === \"string\" ? row.provider : \"yfinance\";"
+      "file": "apps/product-api/src/sentiment.ts",
+      "line": 326,
+      "match": "yahoo_finance",
+      "text": "provider: \"yahoo_finance\","
     },
     {
       "id": "yfinance",
       "label": "yfinance / Yahoo wrapper",
-      "file": "apps/product-api/src/server.ts",
-      "line": 5675,
-      "match": "yfinance",
-      "text": "provider: event.provider ?? \"yfinance\","
+      "file": "apps/product-api/src/sentiment.ts",
+      "line": 352,
+      "match": "yahoo_finance",
+      "text": "provider: \"yahoo_finance\","
+    },
+    {
+      "id": "yfinance",
+      "label": "yfinance / Yahoo wrapper",
+      "file": "apps/product-api/src/sentiment.ts",
+      "line": 386,
+      "match": "yahoo_finance",
+      "text": "provider: \"yahoo_finance\","
+    },
+    {
+      "id": "yfinance",
+      "label": "yfinance / Yahoo wrapper",
+      "file": "apps/product-api/src/sentiment.ts",
+      "line": 439,
+      "match": "yahoo_finance",
+      "text": "provider: \"yahoo_finance\","
     }
   ]
 }

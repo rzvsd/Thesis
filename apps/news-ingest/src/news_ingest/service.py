@@ -307,6 +307,8 @@ FIRST_PARTY_SOURCE_REGISTRY: tuple[FirstPartySource, ...] = (
 
 @dataclass(frozen=True)
 class Settings:
+    node_env: str
+    allow_production_fixtures: bool
     fixture_mode: bool
     redis_url: str
     rate_limit_window_seconds: int
@@ -316,13 +318,28 @@ class Settings:
 
     @staticmethod
     def from_env(env: dict[str, str]) -> "Settings":
+        node_env = env.get("NODE_ENV", "development").strip().lower() or "development"
+        allow_production_fixtures = env.get("THESIS_ALLOW_PRODUCTION_FIXTURES", "false").strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }
+        fixture_mode = env.get("NEWS_INGEST_FIXTURE_MODE", "true").strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }
+        if node_env == "production" and fixture_mode and not allow_production_fixtures:
+            raise ValueError(
+                "Invalid configuration: NEWS_INGEST_FIXTURE_MODE must be false when "
+                "NODE_ENV=production unless THESIS_ALLOW_PRODUCTION_FIXTURES=true"
+            )
         return Settings(
-            fixture_mode=env.get("NEWS_INGEST_FIXTURE_MODE", "true").strip().lower() in {
-                "1",
-                "true",
-                "yes",
-                "on",
-            },
+            node_env=node_env,
+            allow_production_fixtures=allow_production_fixtures,
+            fixture_mode=fixture_mode,
             redis_url=env.get("REDIS_URL", "redis://localhost:6379/0"),
             rate_limit_window_seconds=int(env.get("RATE_LIMIT_WINDOW_SECONDS", "60")),
             rate_limit_burst_allowance=int(env.get("RATE_LIMIT_BURST_ALLOWANCE", "2")),

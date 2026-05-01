@@ -61,8 +61,8 @@ test("auth lifecycle supports register -> verify -> login -> refresh -> logout",
   process.env.STORE_BACKEND = "memory";
   process.env.QUEUE_BACKEND = "memory";
   process.env.AUTH_EXPOSE_VERIFICATION_TOKEN = "true";
-  process.env.JWT_SECRET = "dev-jwt-secret-change-me";
-  process.env.INTERNAL_WORKER_TOKEN = "dev-internal-worker-token";
+  process.env.JWT_SECRET = "production-jwt-secret-for-auth-test";
+  process.env.INTERNAL_WORKER_TOKEN = "production-internal-worker-token-for-auth-test";
   delete process.env.ADMIN_BOOTSTRAP_ENABLED;
   delete process.env.ADMIN_BOOTSTRAP_EMAIL;
   delete process.env.ADMIN_BOOTSTRAP_PASSWORD_HASH;
@@ -482,8 +482,8 @@ test("admin bootstrap creates verified pro user for non-production login", async
   process.env.STORE_BACKEND = "memory";
   process.env.QUEUE_BACKEND = "memory";
   process.env.AUTH_EXPOSE_VERIFICATION_TOKEN = "false";
-  process.env.JWT_SECRET = "dev-jwt-secret-change-me";
-  process.env.INTERNAL_WORKER_TOKEN = "dev-internal-worker-token";
+  process.env.JWT_SECRET = "production-jwt-secret-for-auth-test";
+  process.env.INTERNAL_WORKER_TOKEN = "production-internal-worker-token-for-auth-test";
   process.env.ADMIN_BOOTSTRAP_ENABLED = "true";
   process.env.ADMIN_BOOTSTRAP_EMAIL = "builder@example.com";
   process.env.ADMIN_BOOTSTRAP_PASSWORD_HASH =
@@ -548,8 +548,8 @@ test("admin bootstrap is ignored in production", async () => {
   process.env.STORE_BACKEND = "memory";
   process.env.QUEUE_BACKEND = "memory";
   process.env.AUTH_EXPOSE_VERIFICATION_TOKEN = "false";
-  process.env.JWT_SECRET = "dev-jwt-secret-change-me";
-  process.env.INTERNAL_WORKER_TOKEN = "dev-internal-worker-token";
+  process.env.JWT_SECRET = "production-jwt-secret-for-auth-test";
+  process.env.INTERNAL_WORKER_TOKEN = "production-internal-worker-token-for-auth-test";
   process.env.ADMIN_BOOTSTRAP_ENABLED = "true";
   process.env.ADMIN_BOOTSTRAP_EMAIL = "builder@example.com";
   process.env.ADMIN_BOOTSTRAP_PASSWORD_HASH =

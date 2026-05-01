@@ -60,8 +60,8 @@ test("production responses include HSTS header", async () => {
     NODE_ENV: "production",
     STORE_BACKEND: "memory",
     QUEUE_BACKEND: "memory",
-    JWT_SECRET: "dev-jwt-secret-change-me",
-    INTERNAL_WORKER_TOKEN: "dev-internal-worker-token",
+    JWT_SECRET: "production-test-jwt-secret-that-is-long-enough",
+    INTERNAL_WORKER_TOKEN: "production-test-internal-worker-token",
     CORS_ALLOWED_ORIGINS: "https://allowed.example"
   });
 

@@ -20,7 +20,23 @@
 ## Important scope note
 
 This runbook is for the current docker-hosted staging operation model.
-CI/CD-only production deployment proof remains a separate M9 gate (AC #13).
+CI/CD production deploys are owned by `.github/workflows/deploy-production.yml`.
+That workflow is manual-only, runs under the `production` GitHub environment, and
+expects repository settings to require protected-environment approval before any
+remote deploy or production proof job runs.
+
+The deploy workflow must not silently downgrade a production deploy into proof
+mode when production secrets are missing. Remote deploy mode fails fast unless
+SSH, smoke-user, and internal-token secrets are configured and are not local
+development defaults. Proof mode is explicit and uses non-dev CI proof values
+instead of Docker Compose defaults.
+
+Post-deploy proof must include:
+- service health checks
+- an authenticated Product API request
+- an internal-token Product API request
+
+Health-only proof is not enough for production release evidence.
 
 ## Procedure
 

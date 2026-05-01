@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { loadConfig, validateConfig } from "../src/config";
+import { DEV_INTERNAL_WORKER_TOKEN, DEV_JWT_SECRET, loadConfig, validateConfig } from "../src/config";
 
 test("invalid SUBSCRIPTION_TIMEZONE fails startup validation", () => {
   const config = loadConfig({
@@ -65,6 +65,35 @@ test("production redis queue requires auth in REDIS_URL", () => {
     errors.includes(
       "REDIS_URL must include password auth when NODE_ENV=production and QUEUE_BACKEND=redis"
     )
+  );
+});
+
+test("production rejects local development auth and database defaults", () => {
+  const config = loadConfig({
+    ...process.env,
+    NODE_ENV: "production",
+    STORE_BACKEND: "postgres",
+    DATABASE_URL: "postgres://postgres:postgres@postgres:5432/thesis",
+    QUEUE_BACKEND: "memory",
+    JWT_SECRET: DEV_JWT_SECRET,
+    INTERNAL_WORKER_TOKEN: DEV_INTERNAL_WORKER_TOKEN,
+    AUTH_EXPOSE_VERIFICATION_TOKEN: "true"
+  });
+
+  const errors = validateConfig(config);
+  assert.ok(
+    errors.includes("JWT_SECRET must not use the local development default when NODE_ENV=production")
+  );
+  assert.ok(
+    errors.includes(
+      "INTERNAL_WORKER_TOKEN must not use the local development default when NODE_ENV=production"
+    )
+  );
+  assert.ok(
+    errors.includes("AUTH_EXPOSE_VERIFICATION_TOKEN must be false when NODE_ENV=production")
+  );
+  assert.ok(
+    errors.includes("DATABASE_URL must not use the default postgres password when NODE_ENV=production")
   );
 });
 

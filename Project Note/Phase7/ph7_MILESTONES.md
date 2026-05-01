@@ -1,16 +1,18 @@
 # Thesis - Phase 7 Milestone Briefs
 
 **Version:** 1.0  
-**Status:** Active (M1-M7 in progress)  
+**Status:** Active (M7 active; M1-M6 validated)
 **Owner:** Engineering Lead + Product Lead  
-**Last Revised:** 2026-04-26  
+**Last Revised:** 2026-05-01
 **Related Documents:** `ph7_BLUEBOOK.md`, `ph7_PRD.md`, `ph7_ROADMAP.md`, `PH7_DECISION_LOCKS.md`
 
 ---
 
 ## How to Read This Document
 
-Phase 7 begins after the Phase 6 substrate closeout. The first milestone sharpens Morning Exception Briefing so it can explain daily market movement with clearer, more obviously daily context while staying within Thesis product doctrine.
+Phase 7 begins after the Phase 6 substrate closeout. The Phase 7 pack is the current planning and doctrine layer for Pulse work. Earlier phase docs remain historical unless this pack explicitly points back to them.
+
+Current milestone state is tracked in `ph7_ROADMAP.md`. As of 2026-05-01, M1-M6 have implementation evidence recorded and M7 is the active Pulse newspaper-template closeout/polish layer.
 
 Proof for each milestone lives under:
 

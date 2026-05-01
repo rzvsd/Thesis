@@ -1,7 +1,7 @@
 # Thesis - Phase 7 Decision Locks
 
 **Status:** Active  
-**Last Revised:** 2026-04-28  
+**Last Revised:** 2026-05-01
 **Purpose:** Lock the product, provider, and implementation decisions for Phase 7 before the milestone is widened in code.
 
 ---
@@ -23,6 +23,16 @@
 - `Yahoo Finance` is not allowed in M1 production runtime or user-facing provenance.
 - `Alpha Vantage` is not allowed in M1 production runtime or user-facing provenance.
 - If FRED does not provide clean free live coverage for a desired family, the system records omission truth instead of hidden substitution.
+
+---
+
+## 2A. Dependency Policy Lock
+
+- Internal TypeScript services use workspace packages rather than private GitHub tarball dependencies.
+- `apps/dexter-worker` does not consume the historical external `dexter` dependency pin from `github:rzvsd/fintech#9e570f88abeded674125a53faaeaded3858dd672`.
+- The old Phase 1 Dexter dependency record is historical and superseded by this Phase 7 lock.
+- Reintroducing a private or GitHub-pinned runtime dependency requires an explicit ADR, updated docs, reproducible CI/deploy proof, and owner approval.
+- Runtime provider dependencies must be public/reproducible in CI or have documented secret-backed authentication that is not committed to the repo.
 
 ---
 

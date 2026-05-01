@@ -1,8 +1,8 @@
-# Pinned OpenBB fork for governed live data-plane integration.
-# Upgrade only through explicit review, doc update, and a tested PR.
-git+https://github.com/rzvsd/finBase.git@dddc3b328284bb953b6e5468b167b39c78490001#subdirectory=openbb_platform
-huggingface_hub
-pyarrow
-psycopg[binary]
-python-dotenv
-yfinance
+# Base runtime dependencies for fixture/offline CI and governed free-source paths.
+# Optional live OpenBB fork dependency is kept in requirements-live.txt because the
+# private GitHub fork is not fetchable in unauthenticated CI.
+huggingface_hub==1.8.0
+pyarrow==21.0.0
+psycopg[binary]==3.3.3
+python-dotenv==1.1.0
+yfinance==1.2.0

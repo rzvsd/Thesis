@@ -13,7 +13,7 @@ RUN corepack enable
 
 COPY . .
 
-RUN pnpm install --no-frozen-lockfile
+RUN pnpm install --frozen-lockfile
 RUN pnpm --filter @thesis/dexter-worker build
 
 EXPOSE 3002

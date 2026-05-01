@@ -10,9 +10,12 @@ import {
 
 const serviceName = "scheduler";
 const defaultPort = Number(process.env.PORT ?? "3005");
+const devInternalWorkerToken = "dev-internal-worker-token";
 
-interface SchedulerConfig {
+export interface SchedulerConfig {
   port: number;
+  nodeEnv: string;
+  allowProductionFixtures: boolean;
   productApiInternalBaseUrl: string;
   dataOpenbbInternalBaseUrl: string;
   internalWorkerToken: string;
@@ -109,7 +112,7 @@ function formatClock(hour: number, minute: number): string {
   return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
 }
 
-function loadConfig(env: NodeJS.ProcessEnv = process.env): SchedulerConfig {
+export function loadConfig(env: NodeJS.ProcessEnv = process.env): SchedulerConfig {
   const schedule = parseScheduleClock(env.SCHEDULER_DELIVERY_TIME_LOCAL ?? "06:30");
   const macroStressSchedule = parseScheduleClock(
     env.SCHEDULER_MACRO_STRESS_TIME_LOCAL ??
@@ -139,11 +142,14 @@ function loadConfig(env: NodeJS.ProcessEnv = process.env): SchedulerConfig {
 
   return {
     port: Number.parseInt(env.PORT ?? String(defaultPort), 10),
+    nodeEnv: env.NODE_ENV?.trim().toLowerCase() || "development",
+    allowProductionFixtures:
+      (env.THESIS_ALLOW_PRODUCTION_FIXTURES ?? "").trim().toLowerCase() === "true",
     productApiInternalBaseUrl:
       env.PRODUCT_API_INTERNAL_BASE_URL?.trim() || "http://product-api:3001",
     dataOpenbbInternalBaseUrl:
       env.DATA_OPENBB_INTERNAL_BASE_URL?.trim() || "http://data-openbb:3003",
-    internalWorkerToken: env.INTERNAL_WORKER_TOKEN ?? "dev-internal-worker-token",
+    internalWorkerToken: env.INTERNAL_WORKER_TOKEN ?? devInternalWorkerToken,
     scheduleTimeZone: env.SCHEDULER_TIMEZONE?.trim() || "America/New_York",
     scheduleHour: schedule.hour,
     scheduleMinute: schedule.minute,
@@ -169,6 +175,26 @@ function loadConfig(env: NodeJS.ProcessEnv = process.env): SchedulerConfig {
       ? testFireInSeconds
       : 120
   };
+}
+
+export function validateConfig(config: SchedulerConfig): string[] {
+  const errors: string[] = [];
+
+  if (config.nodeEnv === "production") {
+    if (config.internalWorkerToken === devInternalWorkerToken) {
+      errors.push(
+        "INTERNAL_WORKER_TOKEN must not use the local development default when NODE_ENV=production"
+      );
+    }
+
+    if (config.testMode && !config.allowProductionFixtures) {
+      errors.push(
+        "SCHEDULER_TEST_MODE must be false when NODE_ENV=production unless THESIS_ALLOW_PRODUCTION_FIXTURES=true"
+      );
+    }
+  }
+
+  return errors;
 }
 
 function marketDateInTimeZone(date: Date, timeZone: string): string {
@@ -555,6 +581,10 @@ export function startServer(port: number = defaultPort): Server {
     ...process.env,
     PORT: String(port)
   });
+  const configErrors = validateConfig(config);
+  if (configErrors.length > 0) {
+    throw new Error(`Invalid configuration: ${configErrors.join("; ")}`);
+  }
 
   initSentry({
     enabled: Boolean(process.env.SENTRY_DSN),

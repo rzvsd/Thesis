@@ -7,6 +7,7 @@ import type {
   ReportSection,
   UserResearchNameState
 } from "../../../packages/contracts/src";
+import { logWarn } from "./logging";
 import { createOpenRouterChatCompletion } from "./openrouter-client";
 import { buildPulseIssuePlan } from "./pulse-issue-plan";
 
@@ -41,17 +42,38 @@ const bannedAdvicePattern =
 
 const allowedMacroTokens = new Set([
   "AI",
+  "BEA",
+  "BLS",
   "API",
   "CPI",
+  "CPIH",
+  "DJIA",
   "DXY",
+  "ECB",
   "ETF",
+  "FED",
   "FOMC",
   "FX",
   "GDP",
   "HY",
+  "ISM",
+  "JOLTS",
+  "NASDAQ",
+  "NDX",
+  "NFP",
+  "NYSE",
+  "OPEC",
+  "PCE",
   "PMI",
+  "PPI",
+  "RUT",
   "SEC",
+  "SPX",
+  "UAW",
+  "UK",
+  "US",
   "USD",
+  "UST",
   "VIX",
   "WTI"
 ]);
@@ -105,24 +127,68 @@ function allowedTickers(report: MarketPulseReport): Set<string> {
   for (const holding of report.user_research_state?.holdings ?? []) {
     values.add(holding.ticker.trim().toUpperCase());
   }
+  for (const row of report.morning_edition?.portfolio_radar ?? []) {
+    values.add(row.ticker.trim().toUpperCase());
+  }
+  for (const event of report.morning_edition?.today_catalysts ?? []) {
+    const match = event.title.match(/\b[A-Z]{1,6}\b/);
+    if (match?.[0]) {
+      values.add(match[0].trim().toUpperCase());
+    }
+  }
   return values;
 }
 
-function assertNoUnknownTickers(text: string, report: MarketPulseReport): string | undefined {
+function assertNoUnknownTickers(
+  text: string,
+  report: MarketPulseReport,
+  options: { scanBareUppercase: boolean }
+): string | undefined {
   const tickers = allowedTickers(report);
   if (tickers.size === 0) {
     return undefined;
   }
-  const matches = [...text.matchAll(/(?:\$|\()([A-Z]{2,5})(?:\))?/g)].map((match) => match[1]);
-  for (const match of matches) {
-    if (!match) {
+  const candidates = new Set<string>();
+  for (const match of text.matchAll(/(?:\$|\()([A-Z]{2,6})(?:\))?/g)) {
+    if (match[1]) {
+      candidates.add(match[1]);
+    }
+  }
+  if (options.scanBareUppercase) {
+    for (const match of text.matchAll(/\b[A-Z]{2,6}\b/g)) {
+      candidates.add(match[0]);
+    }
+  }
+
+  for (const candidate of candidates) {
+    if (!candidate) {
       continue;
     }
-    if (!tickers.has(match) && !allowedMacroTokens.has(match)) {
-      return `unsupported ticker or acronym ${match}`;
+    if (!tickers.has(candidate) && !allowedMacroTokens.has(candidate)) {
+      return `unsupported ticker or acronym ${candidate}`;
     }
   }
   return undefined;
+}
+
+function llmRejectionCategory(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  if (/JSON|object/i.test(message)) {
+    return "malformed_json";
+  }
+  if (/trading advice/i.test(message)) {
+    return "trading_language";
+  }
+  if (/unsupported ticker/i.test(message)) {
+    return "unknown_ticker";
+  }
+  if (/word budget|sentence budget|too short/i.test(message)) {
+    return "shape_violation";
+  }
+  if (/OpenRouter|fetch|timeout|Abort/i.test(message)) {
+    return "provider_unavailable";
+  }
+  return "validation_failed";
 }
 
 function validateField(
@@ -145,7 +211,9 @@ function validateField(
   if (bannedAdvicePattern.test(value)) {
     throw new Error(`LLM editorial output field ${key} contains trading advice language`);
   }
-  const unsupportedTicker = assertNoUnknownTickers(value, report);
+  const unsupportedTicker = assertNoUnknownTickers(value, report, {
+    scanBareUppercase: key !== "headline"
+  });
   if (unsupportedTicker) {
     throw new Error(`LLM editorial output field ${key} contains ${unsupportedTicker}`);
   }
@@ -552,7 +620,14 @@ export async function applyPulseLlmEditorial(
     });
     const draft = validateDraft(parseJsonObject(content), report);
     return applyDraft(report, draft, config, options.now?.() ?? new Date().toISOString());
-  } catch {
+  } catch (error) {
+    logWarn("Pulse LLM editorial pass rejected; deterministic report retained", {
+      report_id: report.report_id,
+      reason_category: llmRejectionCategory(error),
+      provider: "openrouter",
+      model: config.model,
+      prompt_version: config.promptVersion
+    });
     return report;
   }
 }

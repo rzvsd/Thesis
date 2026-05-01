@@ -1,6 +1,6 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 
-import { loadConfig } from "./config";
+import { loadConfig, validateLiveModeConfig } from "./config";
 import { logError, logInfo } from "./logging";
 import { runAnalysisPipeline } from "./pipeline";
 import { startQueueConsumer } from "./queue-consumer";
@@ -38,6 +38,10 @@ export function startServer(port: number = loadConfig().port): Server {
     ...defaultConfig,
     port
   };
+  const configErrors = validateLiveModeConfig(config);
+  if (configErrors.length > 0) {
+    throw new Error(`Invalid configuration: ${configErrors.join("; ")}`);
+  }
 
   const queueConsumerPromise = startQueueConsumer(config).catch((error) => {
     const message = error instanceof Error ? error.message : "Queue consumer failed to start";

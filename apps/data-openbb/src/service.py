@@ -30,6 +30,8 @@ except ImportError:  # pragma: no cover - supports direct src imports in sibling
 
 SERVICE_NAME = "data-openbb"
 DEFAULT_PORT = int(os.environ.get("PORT", "3003"))
+DEV_INTERNAL_WORKER_TOKEN = "dev-internal-worker-token"
+DEV_POSTGRES_PASSWORD = "postgres"
 FINANCE_DATASET = "company_finance"
 MACRO_DATASET = "macro_daily"
 CALENDAR_DATASET = "earnings_calendar"
@@ -382,6 +384,9 @@ class ResponsePayload:
 @dataclass(frozen=True)
 class Settings:
     port: int = DEFAULT_PORT
+    node_env: str = "development"
+    internal_worker_token: str = DEV_INTERNAL_WORKER_TOKEN
+    allow_production_fixtures: bool = False
     fixture_mode: bool = True
     redis_url: str = "redis://localhost:6379/0"
     rate_limit_window_seconds: int = 60
@@ -395,17 +400,47 @@ class Settings:
 
     @classmethod
     def from_env(cls, values: Mapping[str, str]) -> "Settings":
+        def read_bool(name: str, default: bool) -> bool:
+            raw_value = values.get(name)
+            if raw_value is None or str(raw_value).strip() == "":
+                return default
+            return str(raw_value).strip().lower() in {"1", "true", "yes", "on"}
+
         def read_int(name: str, default: int) -> int:
             raw_value = values.get(name)
             if raw_value is None or str(raw_value).strip() == "":
                 return default
             return int(str(raw_value))
 
+        node_env = str(values.get("NODE_ENV", "development")).strip().lower() or "development"
+        internal_worker_token = str(values.get("INTERNAL_WORKER_TOKEN", DEV_INTERNAL_WORKER_TOKEN))
+        allow_production_fixtures = read_bool("THESIS_ALLOW_PRODUCTION_FIXTURES", False)
         fixture_raw = str(values.get("DATA_OPENBB_FIXTURE_MODE", "true")).strip().lower()
         fixture_mode = fixture_raw not in {"0", "false", "no"}
+        database_url = str(values.get("DATABASE_URL", ""))
+
+        production_errors: list[str] = []
+        if node_env == "production":
+            if internal_worker_token == DEV_INTERNAL_WORKER_TOKEN:
+                production_errors.append(
+                    "INTERNAL_WORKER_TOKEN must not use the local development default when NODE_ENV=production"
+                )
+            if fixture_mode and not allow_production_fixtures:
+                production_errors.append(
+                    "DATA_OPENBB_FIXTURE_MODE must be false when NODE_ENV=production unless THESIS_ALLOW_PRODUCTION_FIXTURES=true"
+                )
+            if f":{DEV_POSTGRES_PASSWORD}@" in database_url:
+                production_errors.append(
+                    "DATABASE_URL must not use the default postgres password when NODE_ENV=production"
+                )
+        if production_errors:
+            raise ValueError(f"Invalid configuration: {'; '.join(production_errors)}")
 
         return cls(
             port=read_int("PORT", DEFAULT_PORT),
+            node_env=node_env,
+            internal_worker_token=internal_worker_token,
+            allow_production_fixtures=allow_production_fixtures,
             fixture_mode=fixture_mode,
             redis_url=str(values.get("REDIS_URL", "redis://localhost:6379/0")),
             rate_limit_window_seconds=read_int("RATE_LIMIT_WINDOW_SECONDS", 60),

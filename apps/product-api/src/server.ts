@@ -65,7 +65,6 @@ import type {
   SubscriptionTier,
   ThesisFreshnessState,
   ThesisMonitorSnapshot,
-  UserResearchHolding,
   UserProfile
 } from "../../../packages/contracts/src";
 import {
@@ -82,7 +81,6 @@ import {
   firstPartyPageTypes,
   nameRelationshipStates,
   nameRelationshipTypes,
-  notificationTypes,
   reportFeedbackCodes,
   scenarioStressTemplateIds,
   subscriptionFeedbackCodes
@@ -108,9 +106,7 @@ import { createProductStore } from "./store-factory";
 import type { ProductStore } from "./store";
 import { assertIncomingAnalysisReport } from "./report-validation";
 import { assertIncomingMarketPulseReport } from "./market-pulse-validation";
-import { buildMarketPulseReport, withUserResearchState } from "./market-pulse";
-import { refreshUserResearchStates } from "./research-state";
-import { applyPulseLlmEditorial } from "./pulse-editorial-writer";
+import { buildMarketPulseReport } from "./market-pulse";
 import { buildInstitutionalPdfExport } from "./report-pdf";
 import {
   buildMacroStressSnapshot,
@@ -127,15 +123,19 @@ import { isUsTradingDay, isValidMarketDate } from "./sentiment";
 import { fetchLatestClosePrice, fetchLatestClosePrices } from "./market-prices";
 import { verifyGoogleIdToken } from "./google-oidc";
 import { handleAuthRoutes } from "./routes/auth-routes";
+import { handleNotificationRoutes } from "./routes/notification-routes";
+import { handlePulseRoutes } from "./routes/pulse-routes";
 import { handlePublicRoutes } from "./routes/public-routes";
+import {
+  handleRevenueCatPublicRoutes,
+  handleRevenueCatRoutes
+} from "./routes/revenuecat-routes";
+import {
+  handleInternalResearchStateRoutes,
+  handleResearchStateRoutes
+} from "./routes/research-state-routes";
 import { startTickerSyncScheduler } from "./ticker-sync-scheduler";
 import { startJobRecoveryScheduler } from "./job-recovery-scheduler";
-import {
-  fetchRevenueCatSubscriberSnapshot,
-  hashRevenueCatAppUserId,
-  parseRevenueCatWebhookEvent,
-  verifyRevenueCatWebhookSecret
-} from "./revenuecat";
 import type {
   AlertLedgerRecord,
   AuditEventRecord,
@@ -154,8 +154,7 @@ import type {
   ScenarioStressTemplateRecord,
   ThesisMonitorSnapshotRecord,
   UserFeedbackQueueRecord,
-  UserRecord,
-  UserSubscriptionRecord
+  UserRecord
 } from "./types";
 
 type HealthPayload = { status: "ok" };
@@ -235,7 +234,6 @@ const warRoomPreparationLookaheadDays = 2;
 const crossNamePropagationDefaultConfidenceThreshold = 0.7;
 const convictionOppositeCasePromptVersion = "thesis-m6-opposite-case";
 const convictionCoherencePromptVersion = "thesis-m6-coherence-analyzer";
-const notificationTypeList = [...notificationTypes];
 const alertLedgerCategoryList = [...alertLedgerCategories];
 const alertFeedbackStateList = [...alertFeedbackStates];
 const nameRelationshipTypeList = [...nameRelationshipTypes];
@@ -244,10 +242,6 @@ const reportFeedbackCodeList = [...reportFeedbackCodes];
 const subscriptionFeedbackCodeList = [...subscriptionFeedbackCodes];
 const feedbackSeverityList = [...feedbackSeverityLevels];
 const feedbackTriageStatusList = [...feedbackTriageStatuses];
-
-function isNotificationType(value: string): value is NotificationType {
-  return notificationTypeList.includes(value as NotificationType);
-}
 
 function isAlertLedgerCategory(value: string): value is AlertLedgerCategory {
   return alertLedgerCategoryList.includes(value as AlertLedgerCategory);
@@ -943,47 +937,6 @@ async function fetchInternalJson<T>(
   };
 }
 
-function toNotificationPreferenceView(
-  userId: string,
-  tier: SubscriptionTier,
-  rows: Array<{ type: NotificationType; enabled: boolean; quietUntil?: string }>
-): {
-  user_id: string;
-  tier: SubscriptionTier;
-  preferences: Array<{ type: NotificationType; enabled: boolean; quiet_until?: string }>;
-} {
-  const byType = new Map<NotificationType, { enabled: boolean; quietUntil?: string }>();
-  for (const row of rows) {
-    byType.set(row.type, { enabled: row.enabled, quietUntil: row.quietUntil });
-  }
-  return {
-    user_id: userId,
-    tier,
-    preferences: notificationTypeList.map((type) => {
-      const row = byType.get(type);
-      return {
-        type,
-        enabled: row?.enabled ?? true,
-        quiet_until: row?.quietUntil
-      };
-    })
-  };
-}
-
-function normalizeNotificationQuietUntil(value: string): string | undefined {
-  const trimmed = value.trim();
-  if (!trimmed) {
-    return undefined;
-  }
-
-  const parsed = Date.parse(trimmed);
-  if (!Number.isFinite(parsed)) {
-    return undefined;
-  }
-
-  return new Date(parsed).toISOString();
-}
-
 function sendJson(
   response: ServerResponse,
   statusCode: number,
@@ -993,11 +946,6 @@ function sendJson(
   response.writeHead(statusCode, { "content-type": "application/json", ...headers });
   response.end(JSON.stringify(payload));
 }
-
-const PRIVATE_JSON_HEADERS = {
-  "cache-control": "private, no-store",
-  vary: "Authorization"
-} as const;
 
 function sendBinary(
   response: ServerResponse,
@@ -1607,21 +1555,6 @@ function remainingDeepDives(limit: number, usedToday: number): number {
   return Math.max(0, limit - usedToday);
 }
 
-function shouldGrantProFromWebhookEvent(eventType: string): boolean {
-  return [
-    "INITIAL_PURCHASE",
-    "RENEWAL",
-    "UNCANCELLATION",
-    "NON_RENEWING_PURCHASE",
-    "PRODUCT_CHANGE",
-    "SUBSCRIPTION_EXTENDED"
-  ].includes(eventType);
-}
-
-function shouldExpireFromWebhookEvent(eventType: string): boolean {
-  return ["EXPIRATION", "BILLING_ISSUE", "SUBSCRIPTION_PAUSED"].includes(eventType);
-}
-
 function buildUpgradeRequiredPayload(feature: string, errorMessage: string): Record<string, unknown> {
   return {
     error: "upgrade_required",
@@ -1656,38 +1589,6 @@ async function buildUserProfile(
     watchlist_limit: watchlistLimit,
     daily_deep_dive_limit: deepDiveLimit,
     deep_dives_remaining_today: remainingDeepDives(deepDiveLimit, usedToday)
-  };
-}
-
-function applyWebhookEventToSubscription(
-  current: UserSubscriptionRecord,
-  eventType: string,
-  billingPeriodEnd: string | undefined
-): { tier: SubscriptionTier; billingPeriodEnd?: string } {
-  if (shouldGrantProFromWebhookEvent(eventType)) {
-    return {
-      tier: "PRO",
-      billingPeriodEnd
-    };
-  }
-
-  if (eventType === "CANCELLATION") {
-    return {
-      tier: "PRO",
-      billingPeriodEnd: billingPeriodEnd ?? current.billingPeriodEnd
-    };
-  }
-
-  if (shouldExpireFromWebhookEvent(eventType)) {
-    return {
-      tier: "FREE",
-      billingPeriodEnd: undefined
-    };
-  }
-
-  return {
-    tier: current.tier,
-    billingPeriodEnd: current.billingPeriodEnd
   };
 }
 
@@ -8328,49 +8229,25 @@ export function startServer(port: number = loadConfig().port): Server {
           return;
         }
 
-        if (method === "POST" && pathname === "/internal/research-state/refresh") {
-          const body = await readJsonBody<{ as_of?: string; user_ids?: string[]; dry_run?: boolean }>(request);
-          const asOfDate =
-            normalizeDateInput(
-              body.as_of ?? dateInTimeZone(new Date(), runtime.config.subscriptionTimezone)
-            ) ?? dateInTimeZone(new Date(), runtime.config.subscriptionTimezone);
-          const userIds = Array.isArray(body.user_ids)
-            ? body.user_ids
-                .map((value) => (typeof value === "string" ? value.trim() : ""))
-                .filter((value) => value.length > 0)
-            : undefined;
-
-          const result = await refreshUserResearchStates({
-            store: runtime.store,
-            artifactStore: runtime.artifactStore,
-            asOf: asOfDate,
-            userIds,
-            dryRun: body.dry_run === true
-          });
-
-          await appendAudit(runtime, "research_state.refreshed", {
-            request_id: meta.requestId,
-            route: pathname,
-            as_of: asOfDate,
-            users: result.users,
-            names: result.names,
-            created: result.created,
-            updated: result.updated,
-            omissions: result.omissions,
-            dry_run: result.dry_run
-          });
-
-          sendJson(response, 200, {
-            status: "ok",
-            as_of: asOfDate,
-            users: result.users,
-            names: result.names,
-            created: result.created,
-            updated: result.updated,
-            omissions: result.omissions,
-            dry_run: result.dry_run,
-            states: result.dry_run ? result.states : undefined
-          });
+        if (
+          await handleInternalResearchStateRoutes(
+            {
+              method,
+              pathname,
+              request,
+              response,
+              runtime,
+              meta
+            },
+            {
+              appendAudit,
+              dateInTimeZone,
+              normalizeDateInput,
+              readJsonBody,
+              sendJson
+            }
+          )
+        ) {
           return;
         }
 
@@ -8720,6 +8597,28 @@ export function startServer(port: number = loadConfig().port): Server {
       }
 
       if (
+        await handleRevenueCatPublicRoutes(
+          {
+            method,
+            pathname,
+            request,
+            response,
+            runtime,
+            meta
+          },
+          {
+            appendAudit,
+            buildUserProfile,
+            logWarn,
+            readJsonBody,
+            sendJson
+          }
+        )
+      ) {
+        return;
+      }
+
+      if (
         await handlePublicRoutes(
           {
             method,
@@ -8732,15 +8631,9 @@ export function startServer(port: number = loadConfig().port): Server {
           },
           {
             appendAudit,
-            applyWebhookEventToSubscription,
             authenticateAccessToken,
             hasInternalToken,
-            hashRevenueCatAppUserId,
-            logWarn,
-            parseRevenueCatWebhookEvent,
-            readJsonBody,
-            sendJson,
-            verifyRevenueCatWebhookSecret
+            sendJson
           }
         )
       ) {
@@ -9209,72 +9102,26 @@ export function startServer(port: number = loadConfig().port): Server {
         return;
       }
 
-      if (method === "POST" && pathname === "/v1/user/sync-tier") {
-        const body = await readJsonBody<{ revenuecat_app_user_id?: string }>(request);
-        const existing = await runtime.store.getUserSubscription(auth.userId);
-        const requestedAppUserId = body.revenuecat_app_user_id?.trim();
-        const allowedAppUserIds = new Set<string>([auth.userId]);
-        if (existing.revenuecatAppUserId) {
-          allowedAppUserIds.add(existing.revenuecatAppUserId);
-        }
-        if (requestedAppUserId && !allowedAppUserIds.has(requestedAppUserId)) {
-          sendJson(response, 403, {
-            error: "forbidden",
-            error_message: "revenuecat_app_user_id is not bound to the authenticated user."
-          });
-          return;
-        }
-
-        const appUserId =
-          requestedAppUserId ||
-          existing.revenuecatAppUserId ||
-          auth.userId;
-
-        let snapshot;
-        try {
-          snapshot = await fetchRevenueCatSubscriberSnapshot(runtime.config, appUserId);
-        } catch (error) {
-          const message = error instanceof Error ? error.message : "Failed to sync tier.";
-          sendJson(response, 503, {
-            error: "sync_unavailable",
-            error_message: message
-          });
-          return;
-        }
-
-        const updated = await runtime.store.upsertUserSubscription({
-          userId: auth.userId,
-          tier: snapshot.tier,
-          billingPeriodEnd: snapshot.billingPeriodEnd,
-          revenuecatAppUserId: snapshot.appUserId,
-          updatedAt: new Date().toISOString()
-        });
-
-        const profile = await buildUserProfile(runtime, auth.userId);
-        if (!profile) {
-          sendJson(response, 404, {
-            error: "user_not_found",
-            error_message: "User not found."
-          });
-          return;
-        }
-
-        await appendAudit(
-          runtime,
-          "subscription.sync_tier_completed",
+      if (
+        await handleRevenueCatRoutes(
           {
-            request_id: meta.requestId,
-            route: pathname,
-            tier: updated.tier,
-            billing_period_end: updated.billingPeriodEnd,
-            revenuecat_user_id_hash: hashRevenueCatAppUserId(snapshot.appUserId)
+            method,
+            pathname,
+            request,
+            response,
+            runtime,
+            meta,
+            auth
           },
-          auth.userId
-        );
-
-        sendJson(response, 200, {
-          data: profile
-        });
+          {
+            appendAudit,
+            buildUserProfile,
+            logWarn,
+            readJsonBody,
+            sendJson
+          }
+        )
+      ) {
         return;
       }
 
@@ -9603,244 +9450,24 @@ export function startServer(port: number = loadConfig().port): Server {
         return;
       }
 
-      if (method === "POST" && pathname === "/notifications/device-token") {
-        const body = await readJsonBody<{
-          device_token?: string | null;
-          installation_id?: string | null;
-          platform?: string | null;
-        }>(request);
-        const rawToken = body.device_token;
-        const rawInstallationId = body.installation_id;
-        const rawPlatform = body.platform;
-        const normalizedToken =
-          typeof rawToken === "string" && rawToken.trim().length > 0
-            ? rawToken.trim()
-            : undefined;
-        const normalizedInstallationId =
-          typeof rawInstallationId === "string" && rawInstallationId.trim().length > 0
-            ? rawInstallationId.trim()
-            : undefined;
-        const normalizedPlatform =
-          typeof rawPlatform === "string" && rawPlatform.trim().length > 0
-            ? rawPlatform.trim().toLowerCase()
-            : "android";
-
-        if (normalizedToken && normalizedToken.length < 16) {
-          sendJson(response, 422, {
-            error: "validation_failed",
-            error_message: "device_token must be at least 16 characters."
-          });
-          return;
-        }
-
-        if (normalizedInstallationId && normalizedInstallationId.length < 8) {
-          sendJson(response, 422, {
-            error: "validation_failed",
-            error_message: "installation_id must be at least 8 characters."
-          });
-          return;
-        }
-
-        if (normalizedPlatform.length > 32) {
-          sendJson(response, 422, {
-            error: "validation_failed",
-            error_message: "platform must be 32 characters or fewer."
-          });
-          return;
-        }
-
-        const effectiveInstallationId = normalizedInstallationId ?? `legacy:${auth.userId}`;
-        const nowIso = new Date().toISOString();
-
-        const user = await runtime.store.findUserById(auth.userId);
-        if (!user) {
-          sendJson(response, 404, {
-            error: "user_not_found",
-            error_message: "User not found."
-          });
-          return;
-        }
-
-        if (!normalizedToken) {
-          if (normalizedInstallationId) {
-            await runtime.store.invalidateUserDeviceByInstallation({
-              userId: auth.userId,
-              installationId: effectiveInstallationId,
-              invalidatedAt: nowIso,
-              reason: "client_unregistered"
-            });
-          } else {
-            await runtime.store.invalidateUserDevicesByUser({
-              userId: auth.userId,
-              invalidatedAt: nowIso,
-              reason: "legacy_unset"
-            });
-            await runtime.store.updateUserDeviceToken(auth.userId, undefined);
-          }
-
-          await appendAudit(
+      if (
+        await handleNotificationRoutes(
+          {
+            method,
+            pathname,
+            request,
+            response,
             runtime,
-            "notification.device_token_updated",
-            {
-              request_id: meta.requestId,
-              route: pathname,
-              has_token: false,
-              installation_id: effectiveInstallationId,
-              platform: normalizedPlatform
-            },
-            auth.userId
-          );
-
-          sendJson(response, 200, {
-            status: "ok",
-            has_device_token: false,
-            installation_id: effectiveInstallationId
-          });
-          return;
-        }
-
-        const device = await runtime.store.upsertUserDevice({
-          userId: auth.userId,
-          installationId: effectiveInstallationId,
-          deviceToken: normalizedToken,
-          platform: normalizedPlatform,
-          updatedAt: nowIso
-        });
-        if (!device) {
-          sendJson(response, 500, {
-            error: "device_registration_failed",
-            error_message: "Unable to register device token."
-          });
-          return;
-        }
-
-        await appendAudit(
-          runtime,
-          "notification.device_token_updated",
-          {
-            request_id: meta.requestId,
-            route: pathname,
-            has_token: true,
-            installation_id: effectiveInstallationId,
-            platform: normalizedPlatform
+            meta,
+            auth
           },
-          auth.userId
-        );
-
-        sendJson(response, 200, {
-          status: "ok",
-          has_device_token: true,
-          installation_id: effectiveInstallationId
-        });
-        return;
-      }
-
-      if (method === "GET" && pathname === "/v1/user/notification-preferences") {
-        const subscription = await runtime.store.getUserSubscription(auth.userId);
-        const preferences = await runtime.store.getNotificationPreferences(auth.userId);
-        const view = toNotificationPreferenceView(auth.userId, subscription.tier, preferences);
-
-        await appendAudit(
-          runtime,
-          "notification.preferences_retrieved",
           {
-            request_id: meta.requestId,
-            route: pathname,
-            preference_count: view.preferences.length
-          },
-          auth.userId
-        );
-
-        sendJson(response, 200, {
-          data: view
-        });
-        return;
-      }
-
-      if (method === "PUT" && pathname === "/v1/user/notification-preferences") {
-        const body = await readJsonBody<{
-          preferences?: Array<{ type?: string; enabled?: unknown; quiet_until?: unknown }>;
-        }>(request);
-        const updatesRaw = Array.isArray(body.preferences) ? body.preferences : [];
-        if (updatesRaw.length === 0) {
-          sendJson(response, 422, {
-            error: "validation_failed",
-            error_message: "preferences must include at least one notification type update."
-          });
-          return;
-        }
-
-        const updates: Array<{
-          type: NotificationType;
-          enabled?: boolean;
-          quietUntil?: string | null;
-        }> = [];
-        for (const row of updatesRaw) {
-          const typeRaw = typeof row.type === "string" ? row.type.trim() : "";
-          if (!typeRaw || !isNotificationType(typeRaw)) {
-            sendJson(response, 422, {
-              error: "validation_failed",
-              error_message: `Unsupported notification type: ${typeRaw || "(empty)"}`
-            });
-            return;
+            appendAudit,
+            readJsonBody,
+            sendJson
           }
-          const enabled = typeof row.enabled === "boolean" ? row.enabled : undefined;
-          const quietUntil =
-            row.quiet_until === null
-              ? null
-              : typeof row.quiet_until === "string"
-                ? normalizeNotificationQuietUntil(row.quiet_until)
-                : undefined;
-          if (enabled === undefined && row.quiet_until === undefined) {
-            sendJson(response, 422, {
-              error: "validation_failed",
-              error_message: `preferences for type ${typeRaw} must include enabled or quiet_until.`
-            });
-            return;
-          }
-          if (row.enabled !== undefined && enabled === undefined) {
-            sendJson(response, 422, {
-              error: "validation_failed",
-              error_message: `enabled must be boolean for type ${typeRaw}.`
-            });
-            return;
-          }
-          if (row.quiet_until !== undefined && row.quiet_until !== null && quietUntil === undefined) {
-            sendJson(response, 422, {
-              error: "validation_failed",
-              error_message: `quiet_until must be a valid ISO timestamp or null for type ${typeRaw}.`
-            });
-            return;
-          }
-          updates.push({
-            type: typeRaw,
-            enabled,
-            quietUntil
-          });
-        }
-
-        const updatedRows = await runtime.store.upsertNotificationPreferences({
-          userId: auth.userId,
-          preferences: updates,
-          updatedAt: new Date().toISOString()
-        });
-        const subscription = await runtime.store.getUserSubscription(auth.userId);
-        const view = toNotificationPreferenceView(auth.userId, subscription.tier, updatedRows);
-
-        await appendAudit(
-          runtime,
-          "notification.preferences_updated",
-          {
-            request_id: meta.requestId,
-            route: pathname,
-            updated_types: updates.map((entry) => entry.type)
-          },
-          auth.userId
-        );
-
-        sendJson(response, 200, {
-          data: view
-        });
+        )
+      ) {
         return;
       }
 
@@ -10109,109 +9736,26 @@ export function startServer(port: number = loadConfig().port): Server {
         return;
       }
 
-      if (method === "GET" && pathname === "/v1/user/holdings") {
-        const holdings = await runtime.store.listUserResearchHoldings(auth.userId);
-        sendJson(response, 200, {
-          data: holdings.map((holding): UserResearchHolding => ({
-            ticker: holding.ticker,
-            ...(holding.quantity !== undefined ? { quantity: holding.quantity } : {}),
-            ...(holding.costBasis !== undefined ? { cost_basis: holding.costBasis } : {}),
-            ...(holding.label ? { label: holding.label } : {}),
-            ...(holding.notes ? { notes: holding.notes } : {}),
-            updated_at: holding.updatedAt
-          }))
-        });
-        return;
-      }
-
-      if (method === "POST" && pathname === "/v1/user/holdings") {
-        const body = await readJsonBody<{
-          ticker?: string;
-          quantity?: number;
-          cost_basis?: number;
-          label?: string;
-          notes?: string;
-        }>(request);
-        const ticker = body.ticker?.trim().toUpperCase();
-        if (!ticker || !/^[A-Z.-]{1,12}$/.test(ticker)) {
-          sendJson(response, 422, {
-            error: "validation_failed",
-            error_message: "ticker must be a valid US symbol."
-          });
-          return;
-        }
-        const supportedTicker = await runtime.store.getSupportedTicker(ticker);
-        if (!supportedTicker) {
-          sendJson(response, 404, {
-            error: "ticker_not_found",
-            error_message: "Ticker not found in supported NYSE/NASDAQ universe."
-          });
-          return;
-        }
-        if (body.quantity !== undefined && (!Number.isFinite(body.quantity) || body.quantity < 0)) {
-          sendJson(response, 422, {
-            error: "validation_failed",
-            error_message: "quantity must be a non-negative number when provided."
-          });
-          return;
-        }
-        if (body.cost_basis !== undefined && (!Number.isFinite(body.cost_basis) || body.cost_basis < 0)) {
-          sendJson(response, 422, {
-            error: "validation_failed",
-            error_message: "cost_basis must be a non-negative number when provided."
-          });
-          return;
-        }
-        const updatedAt = new Date().toISOString();
-        const holding = await runtime.store.upsertUserResearchHolding({
-          userId: auth.userId,
-          ticker,
-          quantity: body.quantity,
-          costBasis: body.cost_basis,
-          label: body.label?.trim() || undefined,
-          notes: body.notes?.trim() || undefined,
-          updatedAt
-        });
-        await appendAudit(runtime, "research_holding.upserted", {
-          request_id: meta.requestId,
-          route: pathname,
-          ticker
-        }, auth.userId);
-        sendJson(response, 200, {
-          data: {
-            ticker: holding.ticker,
-            ...(holding.quantity !== undefined ? { quantity: holding.quantity } : {}),
-            ...(holding.costBasis !== undefined ? { cost_basis: holding.costBasis } : {}),
-            ...(holding.label ? { label: holding.label } : {}),
-            ...(holding.notes ? { notes: holding.notes } : {}),
-            updated_at: holding.updatedAt
+      if (
+        await handleResearchStateRoutes(
+          {
+            method,
+            pathname,
+            request,
+            response,
+            runtime,
+            meta,
+            auth
+          },
+          {
+            appendAudit,
+            dateInTimeZone,
+            normalizeDateInput,
+            readJsonBody,
+            sendJson
           }
-        });
-        return;
-      }
-
-      if (method === "DELETE" && pathname.startsWith("/v1/user/holdings/")) {
-        const parts = pathname.split("/").filter(Boolean);
-        if (parts.length !== 4) {
-          sendJson(response, 404, { status: "not_found" });
-          return;
-        }
-        const ticker = parts[3]?.trim().toUpperCase();
-        if (!ticker || !/^[A-Z.-]{1,12}$/.test(ticker)) {
-          sendJson(response, 422, {
-            error: "validation_failed",
-            error_message: "ticker must be a valid US symbol."
-          });
-          return;
-        }
-        const deleted = await runtime.store.deleteUserResearchHolding(auth.userId, ticker);
-        await appendAudit(runtime, "research_holding.deleted", {
-          request_id: meta.requestId,
-          route: pathname,
-          ticker,
-          deleted
-        }, auth.userId);
-        sendJson(response, 200, { deleted });
+        )
+      ) {
         return;
       }
 
@@ -10310,127 +9854,23 @@ export function startServer(port: number = loadConfig().port): Server {
         return;
       }
 
-      if (method === "GET" && pathname === "/pulse/latest") {
-        const reportMetadata = await runtime.store.getLatestReportByType("market_pulse");
-        if (!reportMetadata) {
-          sendJson(response, 404, {
-            error: "report_not_found",
-            error_message: "No Market Pulse report is available yet."
-          });
-          return;
-        }
-
-        const report = await runtime.artifactStore.readReport(reportMetadata.artifactKey);
-        if (!report || !isMarketPulseReport(report)) {
-          sendJson(response, 404, {
-            error: "report_not_found",
-            error_message: "Market Pulse report artifact missing."
-          });
-          return;
-        }
-
-        const researchState = await runtime.store.getLatestUserResearchState({
-          userId: auth.userId,
-          asOf: report.cycle_end.slice(0, 10)
-        });
-        const personalized = await applyPulseLlmEditorial(
-          withUserResearchState(report, researchState?.state),
+      if (
+        await handlePulseRoutes(
           {
-            config: {
-              enabled: runtime.config.pulseLlmEditorialEnabled,
-              apiKey: runtime.config.pulseLlmOpenRouterApiKey,
-              baseUrl: runtime.config.pulseLlmOpenRouterBaseUrl,
-              model: runtime.config.pulseLlmOpenRouterModel,
-              timeoutMs: runtime.config.pulseLlmTimeoutMs,
-              maxTokens: runtime.config.pulseLlmMaxTokens,
-              promptVersion: runtime.config.pulseLlmPromptVersion
-            }
-          }
-        );
-
-        await appendAudit(
-          runtime,
-          "pulse.report_retrieved",
-          {
-            request_id: meta.requestId,
-            route: pathname,
-            report_id: reportMetadata.id,
-            research_state_id: researchState?.stateId
+            method,
+            pathname,
+            response,
+            runtime,
+            meta,
+            auth
           },
-          auth.userId
-        );
-
-        sendJson(response, 200, personalized, PRIVATE_JSON_HEADERS);
-        return;
-      }
-
-      if (method === "GET" && pathname.startsWith("/pulse/")) {
-        const parts = pathname.split("/").filter(Boolean);
-        if (parts.length !== 2 || parts[0] !== "pulse") {
-          sendJson(response, 404, { status: "not_found" });
-          return;
-        }
-
-        const reportDate = normalizeDateInput(parts[1] ?? "");
-        if (!reportDate) {
-          sendJson(response, 422, {
-            error: "validation_failed",
-            error_message: "date must be in YYYY-MM-DD format."
-          });
-          return;
-        }
-
-        const reportMetadata = await runtime.store.getReportByTypeAndDate("market_pulse", reportDate);
-        if (!reportMetadata) {
-          sendJson(response, 404, {
-            error: "report_not_found",
-            error_message: "Market Pulse report not found for the requested date."
-          });
-          return;
-        }
-
-        const report = await runtime.artifactStore.readReport(reportMetadata.artifactKey);
-        if (!report || !isMarketPulseReport(report)) {
-          sendJson(response, 404, {
-            error: "report_not_found",
-            error_message: "Market Pulse report artifact missing."
-          });
-          return;
-        }
-
-        const researchState = await runtime.store.getLatestUserResearchState({
-          userId: auth.userId,
-          asOf: reportDate
-        });
-        const personalized = await applyPulseLlmEditorial(
-          withUserResearchState(report, researchState?.state),
           {
-            config: {
-              enabled: runtime.config.pulseLlmEditorialEnabled,
-              apiKey: runtime.config.pulseLlmOpenRouterApiKey,
-              baseUrl: runtime.config.pulseLlmOpenRouterBaseUrl,
-              model: runtime.config.pulseLlmOpenRouterModel,
-              timeoutMs: runtime.config.pulseLlmTimeoutMs,
-              maxTokens: runtime.config.pulseLlmMaxTokens,
-              promptVersion: runtime.config.pulseLlmPromptVersion
-            }
+            appendAudit,
+            normalizeDateInput,
+            sendJson
           }
-        );
-
-        await appendAudit(
-          runtime,
-          "pulse.report_retrieved",
-          {
-            request_id: meta.requestId,
-            route: pathname,
-            report_id: reportMetadata.id,
-            date: reportDate,
-            research_state_id: researchState?.stateId
-          },
-          auth.userId
-        );
-
-        sendJson(response, 200, personalized, PRIVATE_JSON_HEADERS);
+        )
+      ) {
         return;
       }
 

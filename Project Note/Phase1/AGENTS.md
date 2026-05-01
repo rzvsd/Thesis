@@ -133,10 +133,11 @@ apps/data-openbb/requirements.txt
 **Pinned dependency record — Dexter**
 
 > [!IMPORTANT]
-> Real Dexter fork URL and pinned commit SHA are now documented.
-> Dexter integration must use this exact pin and still requires deliberate implementation, test coverage, and milestone smoke validation.
+> Superseded by Phase 7 dependency policy.
+> This pin documents historical Phase 1 intent only; it is not a current runtime dependency requirement.
 
 - Fork repo: `https://github.com/rzvsd/fintech`
+- Phase 7 supersession: this record is historical. `apps/dexter-worker` no longer consumes the external `dexter` package from this GitHub pin. The current dependency policy lives in the root `README.md` and Phase 7 docs.
 - Upstream base: `https://github.com/virattt/dexter`
 - Pinned commit: `9e570f88abeded674125a53faaeaded3858dd672`
 - Pin owner: `rzvsd`
@@ -149,7 +150,10 @@ apps/dexter-worker/package.json
   → "dexter": "github:rzvsd/fintech#9e570f88abeded674125a53faaeaded3858dd672"
 ```
 
+Phase 7 note: this connection is historical only. Do not restore it without an explicit ADR, updated dependency docs, reproducible CI proof, and owner approval.
+
 **Rules:**
+- Phase 7 supersedes the Dexter-specific rules in this historical block; use the root `README.md` dependency policy for current worker dependencies
 - Never copy OSS code into this monorepo
 - Always pin to a specific commit — never to `main`
 - Upstream changes are reviewed before any upgrade — never auto-pulled

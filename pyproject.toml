@@ -1,0 +1,17 @@
+[project]
+name = "thesis-python-services"
+version = "0.1.0"
+description = "Locked Python dependency set for Thesis service containers."
+requires-python = ">=3.11,<3.12"
+dependencies = [
+  "huggingface_hub==1.8.0",
+  "pyarrow==21.0.0",
+  "psycopg[binary]==3.3.3",
+  "python-dotenv==1.1.0",
+  "yfinance==1.2.0",
+  "chardet==4.0.0",
+  "news-please==1.6.16"
+]
+
+[tool.uv]
+package = false

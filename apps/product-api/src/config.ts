@@ -1,6 +1,10 @@
 import { resolve } from "node:path";
 import { existsSync } from "node:fs";
 
+export const DEV_JWT_SECRET = "dev-jwt-secret-change-me";
+export const DEV_INTERNAL_WORKER_TOKEN = "dev-internal-worker-token";
+export const DEV_POSTGRES_PASSWORD = "postgres";
+
 function parseBoolean(value: string | undefined, fallback: boolean): boolean {
   if (!value) {
     return fallback;
@@ -95,6 +99,22 @@ function hasRedisAuthInUrl(value: string): boolean {
       return false;
     }
     return parsed.password.trim().length > 0;
+  } catch {
+    return false;
+  }
+}
+
+function databaseUrlUsesPassword(value: string | undefined, password: string): boolean {
+  if (!value) {
+    return false;
+  }
+
+  try {
+    const parsed = new URL(value);
+    if (!["postgres:", "postgresql:"].includes(parsed.protocol)) {
+      return false;
+    }
+    return decodeURIComponent(parsed.password) === password;
   } catch {
     return false;
   }
@@ -220,8 +240,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ProductApiConf
         ? "redis"
         : "memory";
 
-  const jwtSecret = env.JWT_SECRET ?? "dev-jwt-secret-change-me";
-  const internalWorkerToken = env.INTERNAL_WORKER_TOKEN ?? "dev-internal-worker-token";
+  const jwtSecret = env.JWT_SECRET ?? DEV_JWT_SECRET;
+  const internalWorkerToken = env.INTERNAL_WORKER_TOKEN ?? DEV_INTERNAL_WORKER_TOKEN;
   const rateLimitWindowSeconds = parseInteger(env.RATE_LIMIT_WINDOW_SECONDS, 60);
   const rateLimitMaxRequests = parseInteger(env.RATE_LIMIT_MAX_REQUESTS, 120);
   const authRateLimitWindowSeconds = parseInteger(
@@ -474,6 +494,30 @@ export function validateConfig(config: ProductApiConfig): string[] {
     errors.push(
       "REDIS_URL must include password auth when NODE_ENV=production and QUEUE_BACKEND=redis"
     );
+  }
+
+  if (config.nodeEnv === "production" && config.jwtSecret === DEV_JWT_SECRET) {
+    errors.push("JWT_SECRET must not use the local development default when NODE_ENV=production");
+  }
+
+  if (
+    config.nodeEnv === "production" &&
+    config.internalWorkerToken === DEV_INTERNAL_WORKER_TOKEN
+  ) {
+    errors.push(
+      "INTERNAL_WORKER_TOKEN must not use the local development default when NODE_ENV=production"
+    );
+  }
+
+  if (config.nodeEnv === "production" && config.exposeVerificationToken) {
+    errors.push("AUTH_EXPOSE_VERIFICATION_TOKEN must be false when NODE_ENV=production");
+  }
+
+  if (
+    config.nodeEnv === "production" &&
+    databaseUrlUsesPassword(config.databaseUrl, DEV_POSTGRES_PASSWORD)
+  ) {
+    errors.push("DATABASE_URL must not use the default postgres password when NODE_ENV=production");
   }
 
   if (config.jwtSecret.trim().length < 16) {
