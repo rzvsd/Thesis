@@ -81,3 +81,16 @@ test("production validation rejects local internal token and test mode", () => {
     )
   );
 });
+
+test("scheduler test fire delay does not enable test mode by itself", () => {
+  const config = loadConfig({
+    NODE_ENV: "production",
+    INTERNAL_WORKER_TOKEN: "production-internal-worker-token",
+    SCHEDULER_TEST_MODE: "false",
+    SCHEDULER_TEST_FIRE_IN_SECONDS: "120"
+  });
+
+  assert.equal(config.testMode, false);
+  assert.equal(config.testFireInSeconds, 120);
+  assert.deepEqual(validateConfig(config), []);
+});

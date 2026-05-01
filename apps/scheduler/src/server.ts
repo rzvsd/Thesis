@@ -135,9 +135,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): SchedulerConfi
     env.SCHEDULER_WEEKLY_DIGEST_TIME_LOCAL ?? "18:00"
   );
   const warRoomDispatchRoute = env.SCHEDULER_WAR_ROOM_DISPATCH_ROUTE?.trim() || undefined;
-  const testMode =
-    (env.SCHEDULER_TEST_MODE ?? "").trim().toLowerCase() === "true" ||
-    (env.SCHEDULER_TEST_FIRE_IN_SECONDS ?? "").trim().length > 0;
+  const explicitTestMode =
+    (env.SCHEDULER_TEST_MODE ?? "").trim().toLowerCase() === "true";
+  const testMode = explicitTestMode;
   const testFireInSeconds = Number.parseInt(env.SCHEDULER_TEST_FIRE_IN_SECONDS ?? "120", 10);
 
   return {
