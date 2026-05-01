@@ -503,8 +503,12 @@ class M6MarketPulseIntegrationTests(unittest.TestCase):
         self.assertEqual(sections["market_moves"]["status"], "complete")
         self.assertEqual(sections["macro_releases"]["status"], "complete")
         self.assertEqual(sections["news_summary"]["status"], "complete")
-        self.assertIn("watchlist_overlay", sections)
-        self.assertIn("AAPL", sections["watchlist_overlay"]["body"])
+        self.assertIn("market_tape", sections)
+        self.assertIn("what_changed", sections)
+        self.assertIn("why_it_matters", sections)
+        self.assertIn("what_to_watch", sections)
+        self.assertIn("signal_vs_noise", sections)
+        self.assertNotIn("watchlist_overlay", sections)
 
         NewsHandler.state.outage = True
         dispatch_status, _ = self.request_json(

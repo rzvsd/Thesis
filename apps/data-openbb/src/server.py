@@ -15,6 +15,7 @@ try:
         SERVICE_NAME,
         build_company_response,
         build_macro_response,
+        build_market_tape_response,
         build_official_company_response,
         build_official_macro_response,
         build_official_structural_response,
@@ -35,6 +36,7 @@ except ImportError:  # pragma: no cover - supports direct src imports in sibling
         SERVICE_NAME,
         build_company_response,
         build_macro_response,
+        build_market_tape_response,
         build_official_company_response,
         build_official_macro_response,
         build_official_structural_response,
@@ -108,6 +110,13 @@ class DataOpenbbRequestHandler(BaseHTTPRequestHandler):
                     )
                     self._write_json(status_code, body, request_id=request_id)
                     return
+                if parsed.path == "/v1/market/tape":
+                    params = parse_qs(parsed.query)
+                    scope = params.get("scope", [""])[0]
+                    as_of = params.get("as_of", [""])[0]
+                    status_code, body = service.get_market_tape(scope, as_of, request_id=request_id)
+                    self._write_json(status_code, body, request_id=request_id)
+                    return
 
             if parsed.path == "/v1/finance/company":
                 response = build_company_response(
@@ -137,6 +146,13 @@ class DataOpenbbRequestHandler(BaseHTTPRequestHandler):
                     ticker=params.get("ticker", [""])[0],
                     country=params.get("country", [""])[0],
                     subject_type=params.get("subject_type", [""])[0],
+                    as_of=params.get("as_of", [""])[0],
+                    request_id=request_id,
+                )
+            elif parsed.path == "/v1/market/tape":
+                params = parse_qs(parsed.query)
+                response = build_market_tape_response(
+                    scope=params.get("scope", [""])[0],
                     as_of=params.get("as_of", [""])[0],
                     request_id=request_id,
                 )

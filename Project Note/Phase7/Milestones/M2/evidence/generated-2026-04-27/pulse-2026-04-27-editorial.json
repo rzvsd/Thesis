@@ -1,0 +1,771 @@
+{
+  "report_id": "pulse-m2-sample-2026-04-27",
+  "schema_version": "1.0.0",
+  "generated_at": "2026-04-27T04:45:00.000Z",
+  "cycle_start": "2026-04-26T00:00:00.000Z",
+  "cycle_end": "2026-04-27T04:45:00.000Z",
+  "macro_stress": {
+    "snapshot_id": "macro-sample-2026-04-27",
+    "as_of": "2026-04-27",
+    "generated_at": "2026-04-27T04:45:00.000Z",
+    "state": "elevated",
+    "summary": "Macro pressure is elevated: rates remain firm while inflation confirmation is still required.",
+    "no_material_change": false,
+    "inputs": [
+      {
+        "registry_id": "TREASURY_DAILY_10Y",
+        "label": "Treasury 10Y",
+        "category": "rates",
+        "pressure": "high",
+        "source_state": "official",
+        "value": 4.21,
+        "unit": "percent",
+        "period": "2026-04-27",
+        "reason": "Treasury 10Y is 4.21 percent.",
+        "source_name": "Daily Treasury Rates - 10 Yr",
+        "retrieved_at": "2026-04-27T04:45:00.000Z"
+      },
+      {
+        "registry_id": "BLS_CORE_CPI",
+        "label": "Core CPI",
+        "category": "inflation",
+        "pressure": "high",
+        "source_state": "official",
+        "value": 0.3,
+        "unit": "percent",
+        "period": "2026-04",
+        "reason": "Core CPI remains the inflation confirmation point.",
+        "source_name": "BLS CPI",
+        "retrieved_at": "2026-04-27T04:45:00.000Z"
+      }
+    ],
+    "omissions": []
+  },
+  "market_tape": {
+    "as_of": "2026-04-27",
+    "coverage_state": "partial",
+    "summary": "The reviewed US tape was broadly higher, led by large-cap technology while volatility eased.",
+    "indices": [
+      {
+        "instrument_id": "SP500",
+        "label": "S&P 500",
+        "family": "core_index",
+        "period": "2026-04-27",
+        "value": 5432.1,
+        "previous_value": 5397.55,
+        "daily_change": 34.55,
+        "daily_change_pct": 0.64,
+        "unit": "index",
+        "direction": "up",
+        "retrieval": {
+          "source": {
+            "source_id": "FRED_SP500",
+            "source_family": "fred",
+            "source_name": "FRED S&P 500",
+            "source_url": "https://fred.stlouisfed.org/series/SP500",
+            "agency": "Federal Reserve Bank of St. Louis",
+            "agency_series_id": "SP500"
+          },
+          "retrieved_at": "2026-04-27T04:45:00.000Z",
+          "retrieval_status": "fresh",
+          "source_period": "2026-04-27"
+        },
+        "missing_fields": []
+      },
+      {
+        "instrument_id": "DJIA",
+        "label": "Dow Jones Industrial Average",
+        "family": "core_index",
+        "period": "2026-04-27",
+        "value": 39780.2,
+        "previous_value": 39680.1,
+        "daily_change": 100.1,
+        "daily_change_pct": 0.25,
+        "unit": "index",
+        "direction": "up",
+        "retrieval": {
+          "source": {
+            "source_id": "FRED_DJIA",
+            "source_family": "fred",
+            "source_name": "FRED Dow Jones Industrial Average",
+            "source_url": "https://fred.stlouisfed.org/series/DJIA",
+            "agency": "Federal Reserve Bank of St. Louis",
+            "agency_series_id": "DJIA"
+          },
+          "retrieved_at": "2026-04-27T04:45:00.000Z",
+          "retrieval_status": "fresh",
+          "source_period": "2026-04-27"
+        },
+        "missing_fields": []
+      },
+      {
+        "instrument_id": "NASDAQCOM",
+        "label": "Nasdaq Composite",
+        "family": "core_index",
+        "period": "2026-04-27",
+        "value": 17120.4,
+        "previous_value": 16920,
+        "daily_change": 200.4,
+        "daily_change_pct": 1.18,
+        "unit": "index",
+        "direction": "up",
+        "retrieval": {
+          "source": {
+            "source_id": "FRED_NASDAQCOM",
+            "source_family": "fred",
+            "source_name": "FRED Nasdaq Composite",
+            "source_url": "https://fred.stlouisfed.org/series/NASDAQCOM",
+            "agency": "Federal Reserve Bank of St. Louis",
+            "agency_series_id": "NASDAQCOM"
+          },
+          "retrieved_at": "2026-04-27T04:45:00.000Z",
+          "retrieval_status": "fresh",
+          "source_period": "2026-04-27"
+        },
+        "missing_fields": []
+      },
+      {
+        "instrument_id": "RUT",
+        "label": "Russell 2000 proxy",
+        "family": "core_index",
+        "period": "2026-04-27",
+        "value": 2102.3,
+        "previous_value": 2113,
+        "daily_change": -10.7,
+        "daily_change_pct": -0.51,
+        "unit": "index",
+        "direction": "down",
+        "retrieval": {
+          "source": {
+            "source_id": "FRED_RUT",
+            "source_family": "fred",
+            "source_name": "FRED Russell 2000 proxy",
+            "source_url": "https://fred.stlouisfed.org/series/RUT",
+            "agency": "Federal Reserve Bank of St. Louis",
+            "agency_series_id": "RUT"
+          },
+          "retrieved_at": "2026-04-27T04:45:00.000Z",
+          "retrieval_status": "fresh",
+          "source_period": "2026-04-27"
+        },
+        "missing_fields": []
+      }
+    ],
+    "cross_asset": [
+      {
+        "instrument_id": "VIXCLS",
+        "label": "VIX",
+        "family": "volatility",
+        "period": "2026-04-27",
+        "value": 16.9,
+        "previous_value": 17.44,
+        "daily_change": -0.54,
+        "daily_change_pct": -3.1,
+        "unit": "index",
+        "direction": "down",
+        "retrieval": {
+          "source": {
+            "source_id": "FRED_VIXCLS",
+            "source_family": "fred",
+            "source_name": "FRED VIX",
+            "source_url": "https://fred.stlouisfed.org/series/VIXCLS",
+            "agency": "Federal Reserve Bank of St. Louis",
+            "agency_series_id": "VIXCLS"
+          },
+          "retrieved_at": "2026-04-27T04:45:00.000Z",
+          "retrieval_status": "fresh",
+          "source_period": "2026-04-27"
+        },
+        "missing_fields": []
+      },
+      {
+        "instrument_id": "DGS10",
+        "label": "Treasury 10Y",
+        "family": "rates",
+        "period": "2026-04-27",
+        "value": 4.21,
+        "previous_value": 4.18,
+        "daily_change": 0.03,
+        "daily_change_pct": 0.72,
+        "unit": "percent",
+        "direction": "up",
+        "retrieval": {
+          "source": {
+            "source_id": "FRED_DGS10",
+            "source_family": "fred",
+            "source_name": "FRED Treasury 10Y",
+            "source_url": "https://fred.stlouisfed.org/series/DGS10",
+            "agency": "Federal Reserve Bank of St. Louis",
+            "agency_series_id": "DGS10"
+          },
+          "retrieved_at": "2026-04-27T04:45:00.000Z",
+          "retrieval_status": "fresh",
+          "source_period": "2026-04-27"
+        },
+        "missing_fields": []
+      },
+      {
+        "instrument_id": "DCOILWTICO",
+        "label": "WTI crude oil",
+        "family": "commodity",
+        "period": "2026-04-27",
+        "value": 79.2,
+        "previous_value": 78.1,
+        "daily_change": 1.1,
+        "daily_change_pct": 1.41,
+        "unit": "usd",
+        "direction": "up",
+        "retrieval": {
+          "source": {
+            "source_id": "FRED_DCOILWTICO",
+            "source_family": "fred",
+            "source_name": "FRED WTI crude oil",
+            "source_url": "https://fred.stlouisfed.org/series/DCOILWTICO",
+            "agency": "Federal Reserve Bank of St. Louis",
+            "agency_series_id": "DCOILWTICO"
+          },
+          "retrieved_at": "2026-04-27T04:45:00.000Z",
+          "retrieval_status": "fresh",
+          "source_period": "2026-04-27"
+        },
+        "missing_fields": []
+      },
+      {
+        "instrument_id": "DTWEXBGS",
+        "label": "Trade-weighted dollar proxy",
+        "family": "currency",
+        "period": "2026-04-27",
+        "value": 121.4,
+        "previous_value": 121,
+        "daily_change": 0.4,
+        "daily_change_pct": 0.33,
+        "unit": "index",
+        "direction": "up",
+        "retrieval": {
+          "source": {
+            "source_id": "FRED_DTWEXBGS",
+            "source_family": "fred",
+            "source_name": "FRED Trade-weighted dollar proxy",
+            "source_url": "https://fred.stlouisfed.org/series/DTWEXBGS",
+            "agency": "Federal Reserve Bank of St. Louis",
+            "agency_series_id": "DTWEXBGS"
+          },
+          "retrieved_at": "2026-04-27T04:45:00.000Z",
+          "retrieval_status": "fresh",
+          "source_period": "2026-04-27"
+        },
+        "missing_fields": []
+      }
+    ],
+    "retrievals": [
+      {
+        "source": {
+          "source_id": "FRED_SP500",
+          "source_family": "fred",
+          "source_name": "FRED S&P 500",
+          "source_url": "https://fred.stlouisfed.org/series/SP500",
+          "agency": "Federal Reserve Bank of St. Louis",
+          "agency_series_id": "SP500"
+        },
+        "retrieved_at": "2026-04-27T04:45:00.000Z",
+        "retrieval_status": "fresh",
+        "source_period": "2026-04-27"
+      },
+      {
+        "source": {
+          "source_id": "FRED_VIXCLS",
+          "source_family": "fred",
+          "source_name": "FRED VIX",
+          "source_url": "https://fred.stlouisfed.org/series/VIXCLS",
+          "agency": "Federal Reserve Bank of St. Louis",
+          "agency_series_id": "VIXCLS"
+        },
+        "retrieved_at": "2026-04-27T04:45:00.000Z",
+        "retrieval_status": "fresh",
+        "source_period": "2026-04-27"
+      }
+    ],
+    "omissions": [
+      {
+        "omission_id": "sector-basket-free-path-unavailable",
+        "family": "sector",
+        "reason_code": "source_unavailable",
+        "reason_text": "Sector ETF leadership is not available in the approved free live path for this run.",
+        "blocking": false
+      }
+    ]
+  },
+  "editorial_issue": {
+    "issue_id": "pulse-editorial-m2-sample-2026-04-27",
+    "headline": "TAPE FIRMS, BUT CONFIRMATION STILL MATTERS",
+    "dek": "The reviewed tape is higher; Nasdaq led at +1.18%; VIX moved -3.10%.",
+    "lead": "Good morning. Today's Pulse separates the actual daily change from the slower macro backdrop: the tape is higher, Macro Stress is elevated, and the next watch items are kept evidence-led.",
+    "prior_cycle_end": "2026-04-26T04:45:00.000Z",
+    "freshness_state": "updated",
+    "in_this_issue": [
+      "Lead Story / Market Tape",
+      "What Changed",
+      "Why It Matters",
+      "What To Watch",
+      "Signal vs Noise",
+      "Macro Regime"
+    ],
+    "what_changed": [
+      {
+        "kind": "market_tape",
+        "title": "Tape comparison",
+        "body": "The reviewed market tape moved from mixed to higher while Macro Stress stayed elevated.",
+        "freshness_state": "updated",
+        "importance": "high",
+        "evidence": [
+          {
+            "evidence_id": "ev-spx",
+            "source_type": "financial_data",
+            "source_name": "FRED S&P 500",
+            "excerpt": "S&P 500: +0.64% daily move.",
+            "retrieved_at": "2026-04-27T04:45:00.000Z",
+            "url": "https://fred.stlouisfed.org/series/SP500"
+          },
+          {
+            "evidence_id": "ev-vix",
+            "source_type": "financial_data",
+            "source_name": "FRED VIX",
+            "excerpt": "VIX: -3.10% daily move.",
+            "retrieved_at": "2026-04-27T04:45:00.000Z",
+            "url": "https://fred.stlouisfed.org/series/VIXCLS"
+          }
+        ]
+      }
+    ],
+    "why_it_matters": [
+      {
+        "kind": "market_tape",
+        "title": "Conviction read",
+        "body": "A broader positive tape can improve context, but Thesis still requires confirmation from volatility, rates, credit, and company evidence before treating one day as a thesis change.",
+        "freshness_state": "updated",
+        "importance": "high",
+        "evidence": [
+          {
+            "evidence_id": "ev-spx",
+            "source_type": "financial_data",
+            "source_name": "FRED S&P 500",
+            "excerpt": "S&P 500: +0.64% daily move.",
+            "retrieved_at": "2026-04-27T04:45:00.000Z",
+            "url": "https://fred.stlouisfed.org/series/SP500"
+          },
+          {
+            "evidence_id": "ev-vix",
+            "source_type": "financial_data",
+            "source_name": "FRED VIX",
+            "excerpt": "VIX: -3.10% daily move.",
+            "retrieved_at": "2026-04-27T04:45:00.000Z",
+            "url": "https://fred.stlouisfed.org/series/VIXCLS"
+          }
+        ]
+      }
+    ],
+    "what_to_watch": [
+      {
+        "kind": "calendar",
+        "title": "AAPL earnings",
+        "body": "AAPL has an earnings event inside the seven-day watch window. Watch for company-specific evidence that changes the briefing context.",
+        "watch_date": "2026-04-29",
+        "freshness_state": "new",
+        "importance": "medium",
+        "evidence": [
+          {
+            "evidence_id": "ev-aapl-calendar",
+            "source_type": "financial_data",
+            "source_name": "Earnings calendar",
+            "excerpt": "AAPL earnings scheduled inside the seven-day watch window.",
+            "retrieved_at": "2026-04-27T04:45:00.000Z"
+          }
+        ]
+      }
+    ],
+    "signal_vs_noise": [
+      {
+        "kind": "context",
+        "title": "Signal",
+        "body": "Nasdaq leadership and lower VIX are useful daily context.",
+        "freshness_state": "updated",
+        "importance": "high",
+        "evidence": [
+          {
+            "evidence_id": "ev-spx",
+            "source_type": "financial_data",
+            "source_name": "FRED S&P 500",
+            "excerpt": "S&P 500: +0.64% daily move.",
+            "retrieved_at": "2026-04-27T04:45:00.000Z",
+            "url": "https://fred.stlouisfed.org/series/SP500"
+          },
+          {
+            "evidence_id": "ev-vix",
+            "source_type": "financial_data",
+            "source_name": "FRED VIX",
+            "excerpt": "VIX: -3.10% daily move.",
+            "retrieved_at": "2026-04-27T04:45:00.000Z",
+            "url": "https://fred.stlouisfed.org/series/VIXCLS"
+          }
+        ]
+      },
+      {
+        "kind": "context",
+        "title": "Noise",
+        "body": "One-day movement does not prove a regime shift; the rates backdrop stays in the macro frame rather than becoming a trade conclusion.",
+        "freshness_state": "unchanged",
+        "importance": "medium",
+        "evidence": [
+          {
+            "evidence_id": "ev-10y",
+            "source_type": "macro_data",
+            "source_name": "Daily Treasury Rates - 10 Yr",
+            "excerpt": "10Y Treasury is 4.21 percent.",
+            "retrieved_at": "2026-04-27T04:45:00.000Z",
+            "url": "https://home.treasury.gov/"
+          },
+          {
+            "evidence_id": "ev-cpi",
+            "source_type": "macro_data",
+            "source_name": "BLS CPI",
+            "excerpt": "Core inflation pressure remains a macro watch item.",
+            "retrieved_at": "2026-04-27T04:45:00.000Z",
+            "url": "https://www.bls.gov/cpi/"
+          }
+        ]
+      }
+    ],
+    "coverage_notes": [
+      "Market tape coverage was incomplete for sectors because the approved free live path does not cover ETF leadership."
+    ],
+    "evidence": [
+      {
+        "evidence_id": "ev-spx",
+        "source_type": "financial_data",
+        "source_name": "FRED S&P 500",
+        "excerpt": "S&P 500: +0.64% daily move.",
+        "retrieved_at": "2026-04-27T04:45:00.000Z",
+        "url": "https://fred.stlouisfed.org/series/SP500"
+      },
+      {
+        "evidence_id": "ev-vix",
+        "source_type": "financial_data",
+        "source_name": "FRED VIX",
+        "excerpt": "VIX: -3.10% daily move.",
+        "retrieved_at": "2026-04-27T04:45:00.000Z",
+        "url": "https://fred.stlouisfed.org/series/VIXCLS"
+      },
+      {
+        "evidence_id": "ev-10y",
+        "source_type": "macro_data",
+        "source_name": "Daily Treasury Rates - 10 Yr",
+        "excerpt": "10Y Treasury is 4.21 percent.",
+        "retrieved_at": "2026-04-27T04:45:00.000Z",
+        "url": "https://home.treasury.gov/"
+      },
+      {
+        "evidence_id": "ev-cpi",
+        "source_type": "macro_data",
+        "source_name": "BLS CPI",
+        "excerpt": "Core inflation pressure remains a macro watch item.",
+        "retrieved_at": "2026-04-27T04:45:00.000Z",
+        "url": "https://www.bls.gov/cpi/"
+      },
+      {
+        "evidence_id": "ev-aapl-calendar",
+        "source_type": "financial_data",
+        "source_name": "Earnings calendar",
+        "excerpt": "AAPL earnings scheduled inside the seven-day watch window.",
+        "retrieved_at": "2026-04-27T04:45:00.000Z"
+      }
+    ]
+  },
+  "context": {
+    "source_state": "partial",
+    "generated_at": "2026-04-27T04:45:00.000Z",
+    "rights": [
+      {
+        "rights_class": "official_public",
+        "display_mode": "full_text_allowed",
+        "source_rank": "official",
+        "source_type": "official_macro",
+        "can_store_full_text": true,
+        "can_display_excerpt": true,
+        "can_display_link": true,
+        "policy_reason": "Official public economic releases and reviewed market data.",
+        "reviewed_at": "2026-04-27T04:45:00.000Z"
+      }
+    ],
+    "omissions": []
+  },
+  "sections": {
+    "macro_stress": {
+      "section_id": "macro_stress",
+      "title": "Macro Stress",
+      "body": "Macro pressure is elevated: rates remain firm while inflation confirmation is still required.",
+      "status": "complete",
+      "evidence": [
+        {
+          "evidence_id": "ev-10y",
+          "source_type": "macro_data",
+          "source_name": "Daily Treasury Rates - 10 Yr",
+          "excerpt": "10Y Treasury is 4.21 percent.",
+          "retrieved_at": "2026-04-27T04:45:00.000Z",
+          "url": "https://home.treasury.gov/"
+        },
+        {
+          "evidence_id": "ev-cpi",
+          "source_type": "macro_data",
+          "source_name": "BLS CPI",
+          "excerpt": "Core inflation pressure remains a macro watch item.",
+          "retrieved_at": "2026-04-27T04:45:00.000Z",
+          "url": "https://www.bls.gov/cpi/"
+        }
+      ]
+    },
+    "market_tape": {
+      "section_id": "market_tape",
+      "title": "Market Tape",
+      "body": "The reviewed US tape was broadly higher, led by large-cap technology while volatility eased. Coverage note: Sector ETF leadership is not available in the approved free live path for this run.",
+      "status": "data_incomplete",
+      "evidence": [
+        {
+          "evidence_id": "ev-spx",
+          "source_type": "financial_data",
+          "source_name": "FRED S&P 500",
+          "excerpt": "S&P 500: +0.64% daily move.",
+          "retrieved_at": "2026-04-27T04:45:00.000Z",
+          "url": "https://fred.stlouisfed.org/series/SP500"
+        },
+        {
+          "evidence_id": "ev-vix",
+          "source_type": "financial_data",
+          "source_name": "FRED VIX",
+          "excerpt": "VIX: -3.10% daily move.",
+          "retrieved_at": "2026-04-27T04:45:00.000Z",
+          "url": "https://fred.stlouisfed.org/series/VIXCLS"
+        }
+      ]
+    },
+    "what_changed": {
+      "section_id": "what_changed",
+      "title": "What Changed",
+      "body": "Tape comparison: The reviewed market tape moved from mixed to higher while Macro Stress stayed elevated.",
+      "status": "complete",
+      "evidence": [
+        {
+          "evidence_id": "ev-spx",
+          "source_type": "financial_data",
+          "source_name": "FRED S&P 500",
+          "excerpt": "S&P 500: +0.64% daily move.",
+          "retrieved_at": "2026-04-27T04:45:00.000Z",
+          "url": "https://fred.stlouisfed.org/series/SP500"
+        },
+        {
+          "evidence_id": "ev-vix",
+          "source_type": "financial_data",
+          "source_name": "FRED VIX",
+          "excerpt": "VIX: -3.10% daily move.",
+          "retrieved_at": "2026-04-27T04:45:00.000Z",
+          "url": "https://fred.stlouisfed.org/series/VIXCLS"
+        }
+      ]
+    },
+    "why_it_matters": {
+      "section_id": "why_it_matters",
+      "title": "Why It Matters",
+      "body": "Conviction read: A broader positive tape can improve context, but Thesis still requires confirmation.",
+      "status": "complete",
+      "evidence": [
+        {
+          "evidence_id": "ev-spx",
+          "source_type": "financial_data",
+          "source_name": "FRED S&P 500",
+          "excerpt": "S&P 500: +0.64% daily move.",
+          "retrieved_at": "2026-04-27T04:45:00.000Z",
+          "url": "https://fred.stlouisfed.org/series/SP500"
+        },
+        {
+          "evidence_id": "ev-vix",
+          "source_type": "financial_data",
+          "source_name": "FRED VIX",
+          "excerpt": "VIX: -3.10% daily move.",
+          "retrieved_at": "2026-04-27T04:45:00.000Z",
+          "url": "https://fred.stlouisfed.org/series/VIXCLS"
+        }
+      ]
+    },
+    "what_to_watch": {
+      "section_id": "what_to_watch",
+      "title": "What To Watch",
+      "body": "AAPL earnings: AAPL has an earnings event inside the seven-day watch window.",
+      "status": "complete",
+      "evidence": [
+        {
+          "evidence_id": "ev-aapl-calendar",
+          "source_type": "financial_data",
+          "source_name": "Earnings calendar",
+          "excerpt": "AAPL earnings scheduled inside the seven-day watch window.",
+          "retrieved_at": "2026-04-27T04:45:00.000Z"
+        }
+      ]
+    },
+    "signal_vs_noise": {
+      "section_id": "signal_vs_noise",
+      "title": "Signal vs Noise",
+      "body": "Signal: Nasdaq leadership and lower VIX are useful daily context. Noise: One-day movement does not prove a regime shift.",
+      "status": "complete",
+      "evidence": [
+        {
+          "evidence_id": "ev-spx",
+          "source_type": "financial_data",
+          "source_name": "FRED S&P 500",
+          "excerpt": "S&P 500: +0.64% daily move.",
+          "retrieved_at": "2026-04-27T04:45:00.000Z",
+          "url": "https://fred.stlouisfed.org/series/SP500"
+        },
+        {
+          "evidence_id": "ev-vix",
+          "source_type": "financial_data",
+          "source_name": "FRED VIX",
+          "excerpt": "VIX: -3.10% daily move.",
+          "retrieved_at": "2026-04-27T04:45:00.000Z",
+          "url": "https://fred.stlouisfed.org/series/VIXCLS"
+        },
+        {
+          "evidence_id": "ev-10y",
+          "source_type": "macro_data",
+          "source_name": "Daily Treasury Rates - 10 Yr",
+          "excerpt": "10Y Treasury is 4.21 percent.",
+          "retrieved_at": "2026-04-27T04:45:00.000Z",
+          "url": "https://home.treasury.gov/"
+        },
+        {
+          "evidence_id": "ev-cpi",
+          "source_type": "macro_data",
+          "source_name": "BLS CPI",
+          "excerpt": "Core inflation pressure remains a macro watch item.",
+          "retrieved_at": "2026-04-27T04:45:00.000Z",
+          "url": "https://www.bls.gov/cpi/"
+        }
+      ]
+    },
+    "official_macro_pressure": {
+      "section_id": "official_macro_pressure",
+      "title": "Official Macro Pressure",
+      "body": "Treasury 10Y is 4.21 percent. Core CPI remains the inflation confirmation point.",
+      "status": "complete",
+      "evidence": [
+        {
+          "evidence_id": "ev-10y",
+          "source_type": "macro_data",
+          "source_name": "Daily Treasury Rates - 10 Yr",
+          "excerpt": "10Y Treasury is 4.21 percent.",
+          "retrieved_at": "2026-04-27T04:45:00.000Z",
+          "url": "https://home.treasury.gov/"
+        },
+        {
+          "evidence_id": "ev-cpi",
+          "source_type": "macro_data",
+          "source_name": "BLS CPI",
+          "excerpt": "Core inflation pressure remains a macro watch item.",
+          "retrieved_at": "2026-04-27T04:45:00.000Z",
+          "url": "https://www.bls.gov/cpi/"
+        }
+      ]
+    },
+    "canonical_events": {
+      "section_id": "canonical_events",
+      "title": "Canonical Events",
+      "body": "No material canonical events were published in this cycle.",
+      "status": "data_incomplete",
+      "evidence": []
+    },
+    "bounded_context": {
+      "section_id": "bounded_context",
+      "title": "Bounded Context",
+      "body": "No bounded first-party context updates were available for this cycle.",
+      "status": "data_incomplete",
+      "evidence": []
+    },
+    "uncertainty_flags": {
+      "section_id": "uncertainty_flags",
+      "title": "Uncertainty Flags",
+      "body": "Coverage note: sector leadership is unavailable in the approved free live path.",
+      "status": "data_incomplete",
+      "evidence": []
+    },
+    "market_moves": {
+      "section_id": "market_moves",
+      "title": "Market Moves",
+      "body": "Issuer filing coverage this cycle: AAPL, MSFT.",
+      "status": "complete",
+      "evidence": []
+    },
+    "macro_releases": {
+      "section_id": "macro_releases",
+      "title": "Macro Releases",
+      "body": "Treasury 10Y and Core CPI remain the principal macro watch inputs.",
+      "status": "complete",
+      "evidence": [
+        {
+          "evidence_id": "ev-10y",
+          "source_type": "macro_data",
+          "source_name": "Daily Treasury Rates - 10 Yr",
+          "excerpt": "10Y Treasury is 4.21 percent.",
+          "retrieved_at": "2026-04-27T04:45:00.000Z",
+          "url": "https://home.treasury.gov/"
+        },
+        {
+          "evidence_id": "ev-cpi",
+          "source_type": "macro_data",
+          "source_name": "BLS CPI",
+          "excerpt": "Core inflation pressure remains a macro watch item.",
+          "retrieved_at": "2026-04-27T04:45:00.000Z",
+          "url": "https://www.bls.gov/cpi/"
+        }
+      ]
+    },
+    "rates_fx_commodities": {
+      "section_id": "rates_fx_commodities",
+      "title": "Rates, FX, and Commodities",
+      "body": "Rates stayed firm while oil and dollar context were modestly higher.",
+      "status": "complete",
+      "evidence": [
+        {
+          "evidence_id": "ev-10y",
+          "source_type": "macro_data",
+          "source_name": "Daily Treasury Rates - 10 Yr",
+          "excerpt": "10Y Treasury is 4.21 percent.",
+          "retrieved_at": "2026-04-27T04:45:00.000Z",
+          "url": "https://home.treasury.gov/"
+        },
+        {
+          "evidence_id": "ev-cpi",
+          "source_type": "macro_data",
+          "source_name": "BLS CPI",
+          "excerpt": "Core inflation pressure remains a macro watch item.",
+          "retrieved_at": "2026-04-27T04:45:00.000Z",
+          "url": "https://www.bls.gov/cpi/"
+        }
+      ]
+    },
+    "news_summary": {
+      "section_id": "news_summary",
+      "title": "News Summary",
+      "body": "No bounded context headlines were available for this cycle.",
+      "status": "data_incomplete",
+      "evidence": []
+    }
+  },
+  "flags": [
+    "data_incomplete:market_tape"
+  ],
+  "confidence": {
+    "score": 0.78,
+    "label": "high",
+    "limiting_factors": [
+      "data_incomplete:market_tape"
+    ]
+  }
+}

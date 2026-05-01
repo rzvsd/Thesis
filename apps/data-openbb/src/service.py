@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
 import time
 import uuid
@@ -38,6 +39,7 @@ CALENDAR_PROVIDER = "yfinance"
 OFFICIAL_COMPANY_PROVIDER = "sec_edgar"
 OFFICIAL_MACRO_PROVIDER = "official_public_macro"
 OFFICIAL_STRUCTURAL_PROVIDER = "official_structural_context"
+MARKET_TAPE_PROVIDER = "market_tape"
 COMPANY_RATE_LIMIT_KEY = "FMP_FINANCE"
 MACRO_RATE_LIMIT_KEY = "FMP_MACRO"
 CALENDAR_RATE_LIMIT_KEY = "YFINANCE_CALENDAR"
@@ -61,6 +63,7 @@ OFFICIAL_FIXTURE_ROOT = FIXTURE_ROOT / "official"
 OFFICIAL_COMPANY_FIXTURE_ROOT = OFFICIAL_FIXTURE_ROOT / "company"
 OFFICIAL_MACRO_FIXTURE_ROOT = OFFICIAL_FIXTURE_ROOT / "macro"
 OFFICIAL_STRUCTURAL_FIXTURE_ROOT = OFFICIAL_FIXTURE_ROOT / "structural"
+MARKET_TAPE_FIXTURE_ROOT = FIXTURE_ROOT / "market-tape"
 OFFICIAL_COMPANY_TICKERS = {
     "AAPL": "0000320193",
     "MSFT": "0000789019",
@@ -294,6 +297,80 @@ OFFICIAL_MACRO_REGISTRY = [
         "category": "energy",
     },
 ]
+MARKET_TAPE_SERIES = [
+    {
+        "instrument_id": "SP500",
+        "label": "S&P 500",
+        "family": "core_index",
+        "series_id": "SP500",
+        "unit": "index",
+    },
+    {
+        "instrument_id": "DJIA",
+        "label": "Dow Jones Industrial Average",
+        "family": "core_index",
+        "series_id": "DJIA",
+        "unit": "index",
+    },
+    {
+        "instrument_id": "NASDAQCOM",
+        "label": "Nasdaq Composite",
+        "family": "core_index",
+        "series_id": "NASDAQCOM",
+        "unit": "index",
+    },
+    {
+        "instrument_id": "RUSSELL2000",
+        "label": "Russell 2000",
+        "family": "core_index",
+        "series_id": None,
+        "unit": "index",
+    },
+    {
+        "instrument_id": "VIXCLS",
+        "label": "VIX",
+        "family": "volatility",
+        "series_id": "VIXCLS",
+        "unit": "index",
+    },
+    {
+        "instrument_id": "DGS10",
+        "label": "Treasury 10Y",
+        "family": "rates",
+        "series_id": "DGS10",
+        "unit": "percent",
+    },
+    {
+        "instrument_id": "DGS2",
+        "label": "Treasury 2Y",
+        "family": "rates",
+        "series_id": "DGS2",
+        "unit": "percent",
+    },
+    {
+        "instrument_id": "DCOILWTICO",
+        "label": "WTI",
+        "family": "commodity",
+        "series_id": "DCOILWTICO",
+        "unit": "usd_per_barrel",
+    },
+    {
+        "instrument_id": "DTWEXBGS",
+        "label": "Nominal Broad Dollar Index",
+        "family": "currency",
+        "series_id": "DTWEXBGS",
+        "unit": "index",
+    },
+    {
+        "instrument_id": "BAMLH0A0HYM2",
+        "label": "US High Yield OAS",
+        "family": "credit",
+        "series_id": "BAMLH0A0HYM2",
+        "unit": "percent",
+    },
+]
+MARKET_TAPE_SECTOR_BASKET = ["XLB", "XLE", "XLF", "XLI", "XLK", "XLP", "XLRE", "XLU", "XLV", "XLY"]
+MARKET_TAPE_HTML_ROW_PATTERN = re.compile(r"#(?P<date>\d{4}-\d{2}-\d{2})\|(?P<value>[^\r\n<]+)")
 
 
 @dataclass(frozen=True)
@@ -1240,6 +1317,146 @@ def _structural_omission(
     }
 
 
+def _market_tape_retrieval(
+    *,
+    instrument_id: str,
+    label: str,
+    series_id: str,
+    retrieved_at: str,
+    period: str,
+) -> dict[str, Any]:
+    return _official_retrieval_metadata(
+        source=_official_source_reference(
+            source_id=f"FRED_{instrument_id}",
+            source_family="fred",
+            source_name=f"FRED {label}",
+            source_url=f"https://fred.stlouisfed.org/series/{series_id}",
+            agency="Federal Reserve Bank of St. Louis",
+            agency_series_id=series_id,
+        ),
+        retrieved_at=retrieved_at,
+        retrieval_status="fresh",
+        source_period=period,
+    )
+
+
+def _market_tape_move(
+    *,
+    instrument_id: str,
+    label: str,
+    family: str,
+    period: str,
+    retrieved_at: str,
+    series_id: str,
+    value: float,
+    previous_value: float,
+    unit: str,
+) -> dict[str, Any]:
+    daily_change = round(value - previous_value, 4)
+    daily_change_pct = 0.0 if previous_value == 0 else round((daily_change / previous_value) * 100, 4)
+    if abs(daily_change) < 0.0001:
+        direction = "flat"
+    else:
+        direction = "up" if daily_change > 0 else "down"
+    return {
+        "instrument_id": instrument_id,
+        "label": label,
+        "family": family,
+        "period": period,
+        "value": round(value, 4),
+        "previous_value": round(previous_value, 4),
+        "daily_change": daily_change,
+        "daily_change_pct": daily_change_pct,
+        "unit": unit,
+        "direction": direction,
+        "retrieval": _market_tape_retrieval(
+            instrument_id=instrument_id,
+            label=label,
+            series_id=series_id,
+            retrieved_at=retrieved_at,
+            period=period,
+        ),
+        "missing_fields": [],
+    }
+
+
+def _market_tape_omission(
+    *,
+    omission_id: str,
+    family: str,
+    reason_code: str,
+    reason_text: str,
+    blocking: bool,
+    instrument_id: str | None = None,
+) -> dict[str, Any]:
+    payload = {
+        "omission_id": omission_id,
+        "family": family,
+        "reason_code": reason_code,
+        "reason_text": reason_text,
+        "blocking": blocking,
+    }
+    if instrument_id:
+        payload["instrument_id"] = instrument_id
+    return payload
+
+
+def _summarize_market_tape(
+    *,
+    indices: list[dict[str, Any]],
+    cross_asset: list[dict[str, Any]],
+    sector_leadership: dict[str, Any] | None,
+    omissions: list[dict[str, Any]],
+) -> str:
+    core_indices = [entry for entry in indices if str(entry.get("family")) == "core_index"]
+    up_count = sum(1 for entry in core_indices if str(entry.get("direction")) == "up")
+    down_count = sum(1 for entry in core_indices if str(entry.get("direction")) == "down")
+    if core_indices and max(up_count, down_count) >= 3:
+        broad_read = "broadly higher" if up_count > down_count else "broadly lower"
+    elif core_indices:
+        broad_read = "mixed"
+    else:
+        broad_read = "incomplete"
+
+    quiet_day = all(abs(float(entry.get("daily_change_pct") or 0.0)) < 0.35 for entry in core_indices)
+    if core_indices and quiet_day and not sector_leadership and len(cross_asset) == 0:
+        return "There was no material tape shift across the available market-tape inputs."
+
+    first_sentence = (
+        f"US risk assets were {broad_read} on the day."
+        if broad_read != "incomplete"
+        else "Tape coverage was incomplete in this cycle."
+    )
+
+    leadership_sentence = "Sector leadership was unavailable in the approved free path for this run."
+    if sector_leadership:
+        leaders = ", ".join(entry["label"] for entry in sector_leadership.get("leaders", [])[:3])
+        laggards = ", ".join(entry["label"] for entry in sector_leadership.get("laggards", [])[:3])
+        leadership_sentence = f"Sector leaders were {leaders}; laggards were {laggards}."
+
+    cross_asset_parts: list[str] = []
+    for entry in cross_asset[:4]:
+        label = str(entry.get("label") or entry.get("instrument_id") or "Cross asset")
+        direction = str(entry.get("direction") or "flat")
+        move = float(entry.get("daily_change") or 0.0)
+        cross_asset_parts.append(f"{label} {direction} by {abs(move):.2f}")
+    cross_asset_sentence = (
+        f"Cross-asset context: {'; '.join(cross_asset_parts)}."
+        if cross_asset_parts
+        else "Cross-asset context was limited in this cycle."
+    )
+
+    omission_sentence = ""
+    if omissions:
+        omission_sentence = f"Coverage note: {omissions[0]['reason_text']}"
+
+    return " ".join(
+        sentence
+        for sentence in [first_sentence, leadership_sentence, cross_asset_sentence, omission_sentence]
+        if sentence
+    )
+
+
 def _official_structural_default_fixture(
     *,
     ticker: str | None = None,
@@ -1414,6 +1631,233 @@ def _fixture_official_structural_payload(
     replay_as_of = _resolved_as_of_date(as_of)
     fixture["as_of"] = replay_as_of
     validate_schema("structural-context", fixture)
+    return fixture
+
+
+def _market_tape_default_fixture(*, as_of: str | None = None) -> dict[str, Any]:
+    replay_as_of = _resolved_as_of_date(as_of)
+    retrieved_at = iso_timestamp()
+    indices = [
+        _market_tape_move(
+            instrument_id="SP500",
+            label="S&P 500",
+            family="core_index",
+            period=replay_as_of,
+            retrieved_at=retrieved_at,
+            series_id="SP500",
+            value=5484.77,
+            previous_value=5375.86,
+            unit="index",
+        ),
+        _market_tape_move(
+            instrument_id="DJIA",
+            label="Dow Jones Industrial Average",
+            family="core_index",
+            period=replay_as_of,
+            retrieved_at=retrieved_at,
+            series_id="DJIA",
+            value=40143.89,
+            previous_value=39606.57,
+            unit="index",
+        ),
+        _market_tape_move(
+            instrument_id="NASDAQCOM",
+            label="Nasdaq Composite",
+            family="core_index",
+            period=replay_as_of,
+            retrieved_at=retrieved_at,
+            series_id="NASDAQCOM",
+            value=17122.44,
+            previous_value=16708.05,
+            unit="index",
+        ),
+        _market_tape_move(
+            instrument_id="RUSSELL2000",
+            label="Russell 2000",
+            family="core_index",
+            period=replay_as_of,
+            retrieved_at=retrieved_at,
+            series_id="RUSSELL2000",
+            value=2024.15,
+            previous_value=1987.66,
+            unit="index",
+        ),
+    ]
+    cross_asset = [
+        _market_tape_move(
+            instrument_id="VIXCLS",
+            label="VIX",
+            family="volatility",
+            period=replay_as_of,
+            retrieved_at=retrieved_at,
+            series_id="VIXCLS",
+            value=17.43,
+            previous_value=18.21,
+            unit="index",
+        ),
+        _market_tape_move(
+            instrument_id="DGS10",
+            label="Treasury 10Y",
+            family="rates",
+            period=replay_as_of,
+            retrieved_at=retrieved_at,
+            series_id="DGS10",
+            value=4.29,
+            previous_value=4.40,
+            unit="percent",
+        ),
+        _market_tape_move(
+            instrument_id="DGS2",
+            label="Treasury 2Y",
+            family="rates",
+            period=replay_as_of,
+            retrieved_at=retrieved_at,
+            series_id="DGS2",
+            value=4.74,
+            previous_value=4.83,
+            unit="percent",
+        ),
+        _market_tape_move(
+            instrument_id="DCOILWTICO",
+            label="WTI",
+            family="commodity",
+            period=replay_as_of,
+            retrieved_at=retrieved_at,
+            series_id="DCOILWTICO",
+            value=79.42,
+            previous_value=81.12,
+            unit="usd_per_barrel",
+        ),
+        _market_tape_move(
+            instrument_id="DTWEXBGS",
+            label="Nominal Broad Dollar Index",
+            family="currency",
+            period=replay_as_of,
+            retrieved_at=retrieved_at,
+            series_id="DTWEXBGS",
+            value=124.28,
+            previous_value=123.74,
+            unit="index",
+        ),
+        _market_tape_move(
+            instrument_id="BAMLH0A0HYM2",
+            label="US High Yield OAS",
+            family="credit",
+            period=replay_as_of,
+            retrieved_at=retrieved_at,
+            series_id="BAMLH0A0HYM2",
+            value=3.64,
+            previous_value=3.57,
+            unit="percent",
+        ),
+    ]
+    leaders = [
+        _market_tape_move(
+            instrument_id="XLE",
+            label="XLE",
+            family="sector",
+            period=replay_as_of,
+            retrieved_at=retrieved_at,
+            series_id="XLE",
+            value=91.37,
+            previous_value=88.63,
+            unit="usd",
+        ),
+        _market_tape_move(
+            instrument_id="XLK",
+            label="XLK",
+            family="sector",
+            period=replay_as_of,
+            retrieved_at=retrieved_at,
+            series_id="XLK",
+            value=214.55,
+            previous_value=209.94,
+            unit="usd",
+        ),
+        _market_tape_move(
+            instrument_id="XLY",
+            label="XLY",
+            family="sector",
+            period=replay_as_of,
+            retrieved_at=retrieved_at,
+            series_id="XLY",
+            value=183.41,
+            previous_value=180.82,
+            unit="usd",
+        ),
+    ]
+    laggards = [
+        _market_tape_move(
+            instrument_id="XLU",
+            label="XLU",
+            family="sector",
+            period=replay_as_of,
+            retrieved_at=retrieved_at,
+            series_id="XLU",
+            value=66.12,
+            previous_value=66.55,
+            unit="usd",
+        ),
+        _market_tape_move(
+            instrument_id="XLP",
+            label="XLP",
+            family="sector",
+            period=replay_as_of,
+            retrieved_at=retrieved_at,
+            series_id="XLP",
+            value=79.02,
+            previous_value=79.44,
+            unit="usd",
+        ),
+        _market_tape_move(
+            instrument_id="XLV",
+            label="XLV",
+            family="sector",
+            period=replay_as_of,
+            retrieved_at=retrieved_at,
+            series_id="XLV",
+            value=145.73,
+            previous_value=146.52,
+            unit="usd",
+        ),
+    ]
+    sector_leadership = {
+        "basket_id": "spdr_sector_etfs",
+        "leaders": leaders,
+        "laggards": laggards,
+        "spread_pct": round(float(leaders[0]["daily_change_pct"]) - float(laggards[-1]["daily_change_pct"]), 4),
+        "notable": True,
+        "note": "Leadership derived from the reviewed sector ETF basket."
+    }
+    payload = {
+        "as_of": replay_as_of,
+        "coverage_state": "full",
+        "summary": _summarize_market_tape(
+            indices=indices,
+            cross_asset=cross_asset,
+            sector_leadership=sector_leadership,
+            omissions=[],
+        ),
+        "indices": indices,
+        "sector_leadership": sector_leadership,
+        "cross_asset": cross_asset,
+        "retrievals": [
+            entry["retrieval"] for entry in indices + cross_asset + leaders + laggards
+        ],
+        "omissions": [],
+    }
+    validate_schema("market-tape", payload)
+    return payload
+
+
+def _fixture_market_tape_payload(*, as_of: str | None = None) -> dict[str, Any]:
+    fixture = _load_json_fixture(
+        MARKET_TAPE_FIXTURE_ROOT / "daily.json",
+        default_factory=lambda: _market_tape_default_fixture(as_of=as_of),
+    )
+    replay_as_of = _resolved_as_of_date(as_of)
+    fixture["as_of"] = replay_as_of
+    validate_schema("market-tape", fixture)
     return fixture
 
 
@@ -1898,6 +2342,116 @@ class OpenBBLiveClient:
         validate_schema("structural-context", payload)
         return payload
 
+    def fetch_market_tape(self, *, as_of: str | None = None) -> dict[str, Any]:
+        replay_as_of = _resolved_as_of_date(as_of)
+        retrieved_at = iso_timestamp()
+        indices: list[dict[str, Any]] = []
+        cross_asset: list[dict[str, Any]] = []
+        omissions: list[dict[str, Any]] = []
+
+        for item in MARKET_TAPE_SERIES:
+            instrument_id = str(item["instrument_id"])
+            label = str(item["label"])
+            family = str(item["family"])
+            series_id = item.get("series_id")
+            if not isinstance(series_id, str) or not series_id.strip():
+                omissions.append(
+                    _market_tape_omission(
+                        omission_id=f"{instrument_id.lower()}-omitted",
+                        family=family,
+                        instrument_id=instrument_id,
+                        reason_code="source_unavailable",
+                        reason_text=f"{label} is not available in the approved free live path for this run.",
+                        blocking=family == "core_index",
+                    )
+                )
+                continue
+
+            try:
+                current, previous, period = self._fetch_fred_series_pair(series_id, replay_as_of)
+            except (OSError, URLError, TimeoutError) as error:
+                omissions.append(
+                    _market_tape_omission(
+                        omission_id=f"{instrument_id.lower()}-fetch-failed",
+                        family=family,
+                        instrument_id=instrument_id,
+                        reason_code="source_unavailable",
+                        reason_text=f"FRED retrieval failed for {label}.",
+                        blocking=family == "core_index",
+                    )
+                )
+                log(
+                    "WARN",
+                    "Market tape series retrieval failed",
+                    provider=MARKET_TAPE_PROVIDER,
+                    instrument_id=instrument_id,
+                    series_id=series_id,
+                    error_message=str(error),
+                )
+                continue
+            if current is None or previous is None or period is None:
+                omissions.append(
+                    _market_tape_omission(
+                        omission_id=f"{instrument_id.lower()}-missing",
+                        family=family,
+                        instrument_id=instrument_id,
+                        reason_code="not_reported",
+                        reason_text=f"FRED returned no usable {label} pair for {replay_as_of}.",
+                        blocking=family == "core_index",
+                    )
+                )
+                continue
+
+            move = _market_tape_move(
+                instrument_id=instrument_id,
+                label=label,
+                family=family,
+                period=period,
+                retrieved_at=retrieved_at,
+                series_id=series_id,
+                value=current,
+                previous_value=previous,
+                unit=str(item["unit"]),
+            )
+            if family == "core_index":
+                indices.append(move)
+            else:
+                cross_asset.append(move)
+
+        sector_omission = _market_tape_omission(
+            omission_id="sector-basket-free-path-unavailable",
+            family="sector",
+            reason_code="source_unavailable",
+            reason_text="Sector ETF leadership is not available in the approved free live path for this run.",
+            blocking=False,
+        )
+        omissions.append(sector_omission)
+
+        coverage_state = "limited"
+        if len(indices) >= 3 and len(cross_asset) >= 2:
+            coverage_state = "partial"
+        if len(indices) >= 4 and len(cross_asset) >= 4 and all(
+            omission["family"] != "sector" for omission in omissions
+        ):
+            coverage_state = "full"
+
+        payload = {
+            "as_of": replay_as_of,
+            "coverage_state": coverage_state,
+            "summary": _summarize_market_tape(
+                indices=indices,
+                cross_asset=cross_asset,
+                sector_leadership=None,
+                omissions=omissions,
+            ),
+            "indices": indices,
+            "cross_asset": cross_asset,
+            "retrievals": [entry["retrieval"] for entry in indices + cross_asset],
+            "omissions": omissions,
+        }
+        validate_schema("market-tape", payload)
+        return payload
+
     def _fetch_json(self, url: str, *, headers: Mapping[str, str]) -> dict[str, Any]:
         request = Request(url, headers=dict(headers))
         with urlopen(request, timeout=15) as response:
@@ -1913,6 +2467,38 @@ class OpenBBLiveClient:
             if not isinstance(payload, list):
                 raise OSError("official source returned a non-array JSON payload")
             return payload
+
+    def _fetch_fred_series_pair(self, series_id: str, as_of: str) -> tuple[float | None, float | None, str | None]:
+        request = Request(
+            f"https://fred.stlouisfed.org/data/{series_id}.txt",
+            headers={
+                "user-agent": "Thesis Phase7 market-tape fetch",
+                "accept": "text/html,text/plain",
+            },
+        )
+        with urlopen(request, timeout=20) as response:
+            body = response.read().decode("utf-8", errors="ignore")
+
+        matches = []
+        for match in MARKET_TAPE_HTML_ROW_PATTERN.finditer(body):
+            date_value = match.group("date")
+            raw_value = match.group("value").strip()
+            if raw_value in {".", ""}:
+                continue
+            try:
+                value = float(raw_value)
+            except ValueError:
+                continue
+            if date_value <= as_of:
+                matches.append((date_value, value))
+
+        if len(matches) < 2:
+            return None, None, None
+
+        matches.sort(key=lambda entry: entry[0])
+        period, current = matches[-1]
+        _, previous = matches[-2]
+        return current, previous, period
 
 
 class DataOpenBBService:
@@ -1970,6 +2556,11 @@ class DataOpenBBService:
             as_of=as_of,
             request_id=request_id,
         )
+
+    def get_market_tape(
+        self, scope: str | None, as_of: str | None, request_id: str
+    ) -> tuple[int, dict[str, Any]]:
+        return self._market_tape_response(scope, as_of, request_id)
 
     def get_calendar_earnings(
         self,
@@ -2407,6 +2998,77 @@ class DataOpenBBService:
         )
         return 200, response
 
+    def _market_tape_response(
+        self, scope: str | None, as_of: str | None, request_id: str
+    ) -> tuple[int, dict[str, Any]]:
+        normalized_scope = (scope or "").strip().lower()
+        normalized_as_of = _normalize_iso_date(as_of)
+
+        if normalized_scope != "daily":
+            response = error_response(
+                status_code=400,
+                request_id=request_id,
+                message="scope query parameter must be 'daily'",
+                provider=MARKET_TAPE_PROVIDER,
+            )
+            return response.status_code, response.body
+
+        started_at = time.perf_counter()
+        log(
+            "INFO",
+            "Market tape retrieval started",
+            request_id=request_id,
+            provider=MARKET_TAPE_PROVIDER,
+            dataset="market_tape",
+            as_of=normalized_as_of or None,
+        )
+
+        try:
+            payload = build_market_tape_payload(as_of=normalized_as_of, service=self)
+        except ProviderIntegrationError as error:
+            log(
+                "ERROR",
+                "Market tape retrieval failed",
+                request_id=request_id,
+                provider=error.provider,
+                error_message=str(error),
+            )
+            response = error_response(
+                status_code=error.status_code,
+                request_id=request_id,
+                message=str(error),
+                error_code=error.error_code,
+                provider=error.provider,
+            )
+            return response.status_code, response.body
+
+        latency_ms = int((time.perf_counter() - started_at) * 1000)
+        log(
+            "INFO",
+            "Market tape retrieval succeeded",
+            request_id=request_id,
+            provider=MARKET_TAPE_PROVIDER,
+            dataset="market_tape",
+            as_of=normalized_as_of or None,
+            index_count=len(payload.get("indices", [])),
+            cross_asset_count=len(payload.get("cross_asset", [])),
+            omission_count=len(payload.get("omissions", [])),
+            latency_ms=latency_ms,
+        )
+
+        retrieved_at = (
+            str(payload["retrievals"][0]["retrieved_at"])
+            if payload.get("retrievals")
+            else iso_timestamp()
+        )
+        response = success_response(
+            request_id=request_id,
+            data=payload,
+            provider=MARKET_TAPE_PROVIDER,
+            retrieved_at=retrieved_at,
+        )
+        return 200, response
+
     def _calendar_earnings_response(
         self,
         start_date: str | None,
@@ -2524,6 +3186,11 @@ def build_official_structural_response(
         as_of,
         request_id,
     )
+    return ResponsePayload(status_code=status_code, body=body)
+
+
+def build_market_tape_response(scope: str | None, as_of: str | None, request_id: str) -> ResponsePayload:
+    status_code, body = default_service().get_market_tape(scope, as_of, request_id)
     return ResponsePayload(status_code=status_code, body=body)
 
 
@@ -2691,6 +3358,16 @@ def build_official_structural_payload(
         subject_type=subject_type,
         as_of=as_of,
     )
+
+
+def build_market_tape_payload(
+    *, as_of: str | None = None, service: DataOpenBBService | None = None
+) -> dict[str, Any]:
+    active_service = service or default_service()
+    if active_service.settings.fixture_mode:
+        return _fixture_market_tape_payload(as_of=as_of)
+
+    return active_service.live_client().fetch_market_tape(as_of=as_of)
 
 
 def build_calendar_payload(

@@ -11,9 +11,26 @@ import type {
   MacroStressInput,
   MacroStressOmission,
   MacroStressSnapshot,
+  MarketPulseEditorialIssue,
+  MarketPulseEditorialItem,
+  MarketPulseCatalystItem,
+  MarketPulseHeadlineItem,
+  MarketPulseMacroNewsConfirmationState,
+  MarketPulseMacroNewsItem,
+  MarketPulseMacroNewsPack,
+  MarketPulseMacroNewsSeverity,
+  MarketPulseMacroNewsTopic,
+  MarketPulseMarketBoardCard,
+  MarketPulseMorningEdition,
+  MarketPulsePortfolioRadarRow,
+  MarketPulseSectorPulseItem,
+  MarketPulseWatchItem,
+  MarketTapePack,
   MarketPulseReport,
   ReportSection,
-  StructuralContextPack
+  StructuralContextPack,
+  UserResearchNameState,
+  UserResearchState
 } from "../../../packages/contracts/src";
 import { buildMacroStressSnapshot } from "./macro-stress";
 
@@ -65,6 +82,27 @@ export interface BuildMarketPulseOptions {
   tickers: string[];
   dataOpenbbBaseUrl: string;
   newsIngestBaseUrl: string;
+  previousReport?: MarketPulseReport;
+  calendarEvents?: MarketPulseCalendarEvent[];
+  calendarFetchState?: "complete" | "data_unavailable";
+  calendarUnavailableReason?: string;
+  headlineItems?: MarketPulseHeadlineItem[];
+  portfolioRadarRows?: MarketPulsePortfolioRadarRow[];
+  marketBoardCards?: MarketPulseMarketBoardCard[];
+  sectorPulseItems?: MarketPulseSectorPulseItem[];
+  macroNewsItems?: MarketPulseMacroNewsItem[];
+  macroNewsFetchState?: "complete" | "data_unavailable";
+  macroNewsUnavailableReason?: string;
+}
+
+export interface MarketPulseCalendarEvent {
+  ticker: string;
+  event_type: "earnings";
+  event_date: string;
+  event_time?: "before_market" | "after_market" | "during_market";
+  provider?: string;
+  retrieved_at?: string;
+  reason_text?: string;
 }
 
 const firstPartyContextSourceByTicker: Record<string, string> = {
@@ -180,6 +218,95 @@ function summarizeStructuralContext(
   return summaryParts.length > 0 ? summaryParts.join(" ") : undefined;
 }
 
+function summarizeMarketTape(pack: MarketTapePack): string {
+  const omissionNote = pack.omissions[0]?.reason_text;
+  const parts = [pack.summary];
+  if (pack.sector_leadership) {
+    const leaders = pack.sector_leadership.leaders.slice(0, 3).map((entry) => entry.label).join(", ");
+    const laggards = pack.sector_leadership.laggards.slice(0, 3).map((entry) => entry.label).join(", ");
+    if (leaders && laggards) {
+      parts.push(`Sector leaders: ${leaders}. Sector laggards: ${laggards}.`);
+    }
+  }
+  if (omissionNote) {
+    parts.push(`Coverage note: ${omissionNote}`);
+  }
+  return parts.join(" ");
+}
+
+function marketTapeEvidence(pack: MarketTapePack, generatedAt: string): EvidenceItem[] {
+  const rows = [
+    ...pack.indices,
+    ...pack.cross_asset,
+    ...(pack.sector_leadership?.leaders ?? []),
+    ...(pack.sector_leadership?.laggards ?? [])
+  ];
+  return rows.slice(0, 10).map((entry) =>
+    toEvidence(
+      "financial_data",
+      entry.retrieval?.source?.source_name ?? "market_tape",
+      `${entry.label}: ${entry.daily_change_pct ?? entry.daily_change ?? "n/a"} ${entry.unit ?? ""}`.trim(),
+      entry.retrieval?.retrieved_at ?? generatedAt,
+      entry.retrieval?.source?.source_url
+    )
+  );
+}
+
+function marketTapeStatus(result: { ok: true; data: MarketTapePack } | { ok: false; errorMessage: string }): ReportSection["status"] {
+  if (!result.ok) {
+    return "data_unavailable";
+  }
+  if (result.data.coverage_state === "full") {
+    return "complete";
+  }
+  return "data_incomplete";
+}
+
+function marketTapeNoMaterialChange(pack: MarketTapePack | undefined): boolean {
+  if (!pack) {
+    return false;
+  }
+  const coreIndices = pack.indices.filter((entry) => entry.family === "core_index");
+  if (coreIndices.length === 0) {
+    return false;
+  }
+  return coreIndices.every((entry) => Math.abs(entry.daily_change_pct ?? 0) < 0.35);
+}
+
+function sectionFromEditorialItems(
+  id: string,
+  title: string,
+  items: MarketPulseEditorialItem[],
+  status: ReportSection["status"]
+): ReportSection {
+  const body = items.length > 0
+    ? items.map((item) => `${item.title}: ${item.body}`).join(" ")
+    : "No material update for this issue.";
+  return section(
+    id,
+    title,
+    body,
+    status,
+    items.flatMap((item) => item.evidence).slice(0, 8)
+  );
+}
+
+function sectionFromWatchItems(
+  items: MarketPulseWatchItem[],
+  status: ReportSection["status"]
+): ReportSection {
+  const body = items.length > 0
+    ? items.map((item) => `${item.title}: ${item.body}`).join(" ")
+    : "No dated watch items were available for the next cycle.";
+  return section(
+    "what_to_watch",
+    "What To Watch",
+    body,
+    status,
+    items.flatMap((item) => item.evidence).slice(0, 8)
+  );
+}
+
 function toEvidence(
   sourceType: EvidenceItem["source_type"],
   sourceName: string,
@@ -195,6 +322,911 @@ function toEvidence(
     retrieved_at: retrievedAt,
     url
   };
+}
+
+function displayMovePct(value: number | undefined): string {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return "n/a";
+  }
+  return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
+}
+
+function shortTapeLabel(label: string): string {
+  const normalized = label.toLowerCase();
+  if (normalized.includes("s&p")) {
+    return "S&P 500";
+  }
+  if (normalized.includes("nasdaq")) {
+    return "Nasdaq Composite";
+  }
+  if (normalized.includes("dow")) {
+    return "Dow";
+  }
+  if (normalized.includes("russell")) {
+    return "Russell 2000";
+  }
+  if (normalized.includes("vix")) {
+    return "VIX";
+  }
+  if (normalized.includes("treasury 10")) {
+    return "10Y Treasury";
+  }
+  if (normalized.includes("treasury 2")) {
+    return "2Y Treasury";
+  }
+  return label;
+}
+
+function tapeBreadth(pack: MarketTapePack | undefined): "higher" | "lower" | "mixed" | "thin" {
+  const core = pack?.indices.filter((entry) => entry.family === "core_index") ?? [];
+  if (core.length < 2) {
+    return "thin";
+  }
+  const up = core.filter((entry) => entry.direction === "up").length;
+  const down = core.filter((entry) => entry.direction === "down").length;
+  if (up >= 3) {
+    return "higher";
+  }
+  if (down >= 3) {
+    return "lower";
+  }
+  return "mixed";
+}
+
+function strongestTapeMove(pack: MarketTapePack | undefined): MarketTapePack["indices"][number] | undefined {
+  return [...(pack?.indices ?? [])]
+    .filter((entry) => typeof entry.daily_change_pct === "number")
+    .sort((left, right) => (right.daily_change_pct ?? 0) - (left.daily_change_pct ?? 0))[0];
+}
+
+function weakestTapeMove(pack: MarketTapePack | undefined): MarketTapePack["indices"][number] | undefined {
+  return [...(pack?.indices ?? [])]
+    .filter((entry) => typeof entry.daily_change_pct === "number")
+    .sort((left, right) => (left.daily_change_pct ?? 0) - (right.daily_change_pct ?? 0))[0];
+}
+
+function findCrossAssetMove(pack: MarketTapePack | undefined, family: MarketTapePack["cross_asset"][number]["family"]): MarketTapePack["cross_asset"][number] | undefined {
+  return pack?.cross_asset.find((entry) => entry.family === family);
+}
+
+function formatCalendarTiming(value: MarketPulseCalendarEvent["event_time"]): string {
+  switch (value) {
+    case "before_market":
+      return "before the open";
+    case "after_market":
+      return "after the close";
+    case "during_market":
+      return "during the session";
+    default:
+      return "timing pending";
+  }
+}
+
+function calendarEvidence(event: MarketPulseCalendarEvent, generatedAt: string): EvidenceItem {
+  return toEvidence(
+    "financial_data",
+    "Earnings calendar",
+    `${event.ticker} earnings scheduled for ${event.event_date}.`,
+    event.retrieved_at ?? generatedAt
+  );
+}
+
+function normalizeCalendarEvents(
+  events: MarketPulseCalendarEvent[] | undefined,
+  tickers: string[],
+  cycleEnd: string
+): MarketPulseCalendarEvent[] {
+  const watched = new Set(tickers.map((ticker) => ticker.trim().toUpperCase()).filter(Boolean));
+  const start = cycleEnd.slice(0, 10);
+  const endDate = new Date(`${start}T12:00:00.000Z`);
+  endDate.setUTCDate(endDate.getUTCDate() + 7);
+  const end = endDate.toISOString().slice(0, 10);
+  return (events ?? [])
+    .map((event) => ({
+      ...event,
+      ticker: event.ticker.trim().toUpperCase()
+    }))
+    .filter((event) =>
+      watched.has(event.ticker) &&
+      event.event_type === "earnings" &&
+      event.event_date >= start &&
+      event.event_date <= end
+    )
+    .sort((left, right) =>
+      left.event_date.localeCompare(right.event_date) || left.ticker.localeCompare(right.ticker)
+    );
+}
+
+function directionFromChange(value: number | undefined): "up" | "down" | "flat" {
+  if (typeof value !== "number" || Math.abs(value) < 0.005) {
+    return "flat";
+  }
+  return value > 0 ? "up" : "down";
+}
+
+function uniqueHeadlineItems(items: MarketPulseHeadlineItem[] | undefined): MarketPulseHeadlineItem[] {
+  const seen = new Set<string>();
+  const unique: MarketPulseHeadlineItem[] = [];
+  for (const item of items ?? []) {
+    const headline = item.headline.trim();
+    const sourceName = item.source_name.trim();
+    if (!headline || !sourceName) {
+      continue;
+    }
+    const key = `${sourceName.toLowerCase()}::${headline.toLowerCase()}`;
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    unique.push({
+      ...item,
+      headline,
+      source_name: sourceName,
+      evidence: item.evidence.slice(0, 3)
+    });
+  }
+  return unique.slice(0, 6);
+}
+
+function classifyMacroNewsTopic(headline: string): MarketPulseMacroNewsTopic {
+  const normalized = headline.toLowerCase();
+  if (normalized.includes("attack") || normalized.includes("invasion") || normalized.includes("war")) {
+    return "war_conflict";
+  }
+  if (normalized.includes("tariff") || normalized.includes("trade")) {
+    return "trade";
+  }
+  if (normalized.includes("oil") || normalized.includes("energy")) {
+    return "energy";
+  }
+  if (normalized.includes("supply") || normalized.includes("semiconductor")) {
+    return "supply_chain";
+  }
+  if (normalized.includes("fed") || normalized.includes("ecb") || normalized.includes("central bank")) {
+    return "central_bank";
+  }
+  return "geopolitical";
+}
+
+function classifyMacroNewsSeverity(headline: string): MarketPulseMacroNewsSeverity {
+  const normalized = headline.toLowerCase();
+  if (
+    normalized.includes("attack") ||
+    normalized.includes("invasion") ||
+    normalized.includes("missile") ||
+    normalized.includes("war") ||
+    normalized.includes("emergency")
+  ) {
+    return "shock";
+  }
+  if (
+    normalized.includes("sanction") ||
+    normalized.includes("tariff") ||
+    normalized.includes("shutdown") ||
+    normalized.includes("crisis") ||
+    normalized.includes("taiwan")
+  ) {
+    return "notable";
+  }
+  return "normal";
+}
+
+function macroNewsAffectedRegions(headline: string): string[] {
+  const normalized = headline.toLowerCase();
+  const regions: string[] = [];
+  if (normalized.includes("taiwan")) {
+    regions.push("Taiwan");
+  }
+  if (normalized.includes("china")) {
+    regions.push("China");
+  }
+  if (normalized.includes("us ") || normalized.includes("u.s.") || normalized.includes("united states")) {
+    regions.push("United States");
+  }
+  if (normalized.includes("europe") || normalized.includes("ecb")) {
+    regions.push("Europe");
+  }
+  return regions.length > 0 ? regions : ["Global"];
+}
+
+function macroNewsAffectedAssets(headline: string, topic: MarketPulseMacroNewsTopic): string[] {
+  const normalized = headline.toLowerCase();
+  const assets = new Set<string>();
+  if (topic === "war_conflict" || topic === "geopolitical") {
+    assets.add("volatility");
+    assets.add("risk appetite");
+  }
+  if (normalized.includes("taiwan") || normalized.includes("semiconductor") || normalized.includes("chip")) {
+    assets.add("semiconductors");
+    assets.add("supply chains");
+  }
+  if (normalized.includes("oil") || normalized.includes("energy")) {
+    assets.add("energy");
+  }
+  if (normalized.includes("fed") || normalized.includes("rates") || normalized.includes("inflation")) {
+    assets.add("rates");
+  }
+  return [...assets].slice(0, 5);
+}
+
+function defaultMacroNewsWhyItMatters(
+  headline: string,
+  severity: MarketPulseMacroNewsSeverity,
+  topic: MarketPulseMacroNewsTopic
+): string {
+  if (severity === "shock") {
+    return "A shock-level macro or geopolitical event can change the interpretation of market tape, volatility, rates, supply-chain exposure, and issuer-specific risk.";
+  }
+  if (topic === "central_bank" || topic === "macro_policy") {
+    return "Policy-sensitive news can change the rate and inflation frame that Pulse uses to interpret the day.";
+  }
+  return `This headline is relevant to the macro backdrop and is treated as context, not a trading instruction: ${headline}`;
+}
+
+function normalizeMacroNewsInputs(
+  items: MarketPulseMacroNewsItem[] | undefined
+): MarketPulseMacroNewsItem[] {
+  const seen = new Set<string>();
+  const normalized: MarketPulseMacroNewsItem[] = [];
+  for (const item of items ?? []) {
+    const headline = item.headline.trim();
+    const sourceName = item.source_name.trim();
+    if (!headline || !sourceName) {
+      continue;
+    }
+    const key = `${sourceName.toLowerCase()}::${headline.toLowerCase()}`;
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    normalized.push({
+      ...item,
+      headline,
+      source_name: sourceName,
+      corroboration_count: Math.max(1, item.corroboration_count),
+      evidence: item.evidence.slice(0, 4)
+    });
+  }
+  return normalized.slice(0, 8);
+}
+
+function macroNewsFromHeadlines(
+  items: MarketPulseHeadlineItem[] | undefined,
+  generatedAt: string
+): MarketPulseMacroNewsItem[] {
+  const candidates = uniqueHeadlineItems(items).filter((item) => {
+    const topic = item.topic ?? "market";
+    const headline = item.headline.toLowerCase();
+    return (
+      topic === "macro" ||
+      topic === "policy" ||
+      topic === "sector" ||
+      headline.includes("china") ||
+      headline.includes("taiwan") ||
+      headline.includes("attack") ||
+      headline.includes("war") ||
+      headline.includes("fed") ||
+      headline.includes("tariff") ||
+      headline.includes("oil") ||
+      headline.includes("inflation")
+    );
+  });
+
+  const shockCandidateCount = candidates.filter((item) => classifyMacroNewsSeverity(item.headline) === "shock").length;
+
+  return candidates.slice(0, 8).map((item) => {
+    const topic = classifyMacroNewsTopic(item.headline);
+    const severity = classifyMacroNewsSeverity(item.headline);
+    const confirmationState: MarketPulseMacroNewsConfirmationState =
+      severity === "shock" && shockCandidateCount >= 2 ? "corroborated" : "reported";
+    const affectedAssets = macroNewsAffectedAssets(item.headline, topic);
+    return {
+      headline: item.headline,
+      source_name: item.source_name,
+      source_url: item.source_url,
+      published_at: item.published_at,
+      topic,
+      severity,
+      confirmation_state: confirmationState,
+      corroboration_count: severity === "shock" ? Math.max(1, shockCandidateCount) : 1,
+      affected_regions: macroNewsAffectedRegions(item.headline),
+      affected_assets: affectedAssets.length > 0 ? affectedAssets : ["market context"],
+      why_it_matters: defaultMacroNewsWhyItMatters(item.headline, severity, topic),
+      evidence: item.evidence.length > 0
+        ? item.evidence.slice(0, 4)
+        : [
+            toEvidence(
+              "article",
+              item.source_name,
+              `Headline only: ${item.headline}`,
+              item.published_at ?? generatedAt,
+              item.source_url
+            )
+          ]
+    };
+  });
+}
+
+function macroNewsState(items: MarketPulseMacroNewsItem[]): MarketPulseMacroNewsPack["state"] {
+  if (items.some((item) => item.severity === "shock")) {
+    return "shock";
+  }
+  if (items.some((item) => item.severity === "notable")) {
+    return "watch";
+  }
+  return "calm";
+}
+
+function buildMacroNewsPack(input: {
+  asOf: string;
+  generatedAt: string;
+  headlineItems: MarketPulseHeadlineItem[] | undefined;
+  macroNewsItems: MarketPulseMacroNewsItem[] | undefined;
+  macroNewsFetchState: "complete" | "data_unavailable" | undefined;
+  macroNewsUnavailableReason: string | undefined;
+}): MarketPulseMacroNewsPack {
+  const explicitItems = normalizeMacroNewsInputs(input.macroNewsItems);
+  const headlineItems = macroNewsFromHeadlines(input.headlineItems, input.generatedAt);
+  const items = normalizeMacroNewsInputs([...explicitItems, ...headlineItems]);
+  const state = macroNewsState(items);
+  const omissions: MarketPulseMacroNewsPack["omissions"] = [];
+  const coverageNotes: string[] = [];
+
+  if (input.macroNewsFetchState === "data_unavailable") {
+    omissions.push({
+      omission_id: "macro-news-source-unavailable",
+      family: "macro_news",
+      reason_code: "source_unavailable",
+      reason_text:
+        input.macroNewsUnavailableReason?.trim() ||
+        "Approved macro/geopolitical headline inputs were unavailable for this issue.",
+      blocking: false
+    });
+  }
+  if (items.length === 0) {
+    coverageNotes.push("No approved macro or geopolitical headline inputs were supplied for this issue.");
+  }
+  if (items.some((item) => item.severity === "shock" && item.confirmation_state === "reported")) {
+    coverageNotes.push("Shock-level reported headlines require corroboration or official confirmation before being treated as confirmed facts.");
+  }
+
+  const lead =
+    state === "shock"
+      ? "A shock-level macro or geopolitical headline is present; Pulse treats it as the first risk context and labels confirmation state explicitly."
+      : state === "watch"
+        ? "Notable macro or geopolitical headlines are present and should be read as context around the tape."
+        : "No notable approved macro or geopolitical headline changed the issue lead.";
+
+  return {
+    as_of: input.asOf,
+    state,
+    lead,
+    items,
+    omissions,
+    coverage_notes: coverageNotes
+  };
+}
+
+function sectionFromMacroNews(pack: MarketPulseMacroNewsPack): ReportSection | undefined {
+  if (pack.items.length === 0 && pack.omissions.length === 0) {
+    return undefined;
+  }
+  const body = pack.items.length > 0
+    ? pack.items
+        .slice(0, 4)
+        .map((item) => `${item.confirmation_state}: ${item.headline}. ${item.why_it_matters}`)
+        .join(" ")
+    : pack.coverage_notes.join(" ");
+  const status: ReportSection["status"] =
+    pack.omissions.length > 0 && pack.items.length === 0 ? "data_incomplete" : "complete";
+  return section(
+    "macro_news",
+    "Macro News",
+    body || pack.lead,
+    status,
+    pack.items.flatMap((item) => item.evidence).slice(0, 8)
+  );
+}
+
+function uniquePortfolioRows(rows: MarketPulsePortfolioRadarRow[] | undefined): MarketPulsePortfolioRadarRow[] {
+  const seen = new Set<string>();
+  const unique: MarketPulsePortfolioRadarRow[] = [];
+  for (const row of rows ?? []) {
+    const ticker = row.ticker.trim().toUpperCase();
+    if (!ticker || seen.has(ticker)) {
+      continue;
+    }
+    seen.add(ticker);
+    unique.push({
+      ...row,
+      ticker,
+      direction: row.direction ?? directionFromChange(row.change_pct),
+      evidence: row.evidence.slice(0, 3)
+    });
+  }
+  return unique.slice(0, 12);
+}
+
+function marketBoardFromTape(
+  pack: MarketTapePack | undefined,
+  generatedAt: string
+): MarketPulseMarketBoardCard[] {
+  if (!pack) {
+    return [];
+  }
+
+  return [...pack.indices, ...pack.cross_asset]
+    .filter((entry) => entry.family === "core_index" || entry.family === "volatility")
+    .slice(0, 5)
+    .map((entry) => ({
+      label: shortTapeLabel(entry.label),
+      value: entry.value,
+      one_day_change: entry.daily_change,
+      one_day_change_pct: entry.daily_change_pct,
+      direction: entry.direction,
+      evidence: [
+        toEvidence(
+          "financial_data",
+          entry.retrieval?.source?.source_name ?? "market_tape",
+          `${entry.label}: ${displayMovePct(entry.daily_change_pct)} for ${entry.period}.`,
+          entry.retrieval?.retrieved_at ?? generatedAt,
+          entry.retrieval?.source?.source_url
+        )
+      ]
+    }));
+}
+
+function sectorPulseFromTape(
+  pack: MarketTapePack | undefined,
+  generatedAt: string
+): MarketPulseSectorPulseItem[] {
+  const leadership = pack?.sector_leadership;
+  if (!leadership) {
+    return [];
+  }
+
+  return [...leadership.leaders.slice(0, 3), ...leadership.laggards.slice(0, 3)].map((entry) => ({
+    label: entry.label,
+    change_pct: entry.daily_change_pct,
+    direction: entry.direction,
+    evidence: [
+      toEvidence(
+        "financial_data",
+        entry.retrieval?.source?.source_name ?? "market_tape",
+        `${entry.label}: ${displayMovePct(entry.daily_change_pct)} for ${entry.period}.`,
+        entry.retrieval?.retrieved_at ?? generatedAt,
+        entry.retrieval?.source?.source_url
+      )
+    ]
+  }));
+}
+
+function buildCatalystItems(input: {
+  calendarEvents: MarketPulseCalendarEvent[] | undefined;
+  tickers: string[];
+  cycleEnd: string;
+  generatedAt: string;
+  canonicalEvents: CanonicalEvent[];
+}): MarketPulseCatalystItem[] {
+  const calendarItems = normalizeCalendarEvents(input.calendarEvents, input.tickers, input.cycleEnd)
+    .slice(0, 5)
+    .map((event): MarketPulseCatalystItem => ({
+      time_label: formatCalendarTiming(event.event_time),
+      title: `${event.ticker} earnings`,
+      category: "earnings",
+      impact: "medium",
+      evidence: [calendarEvidence(event, input.generatedAt)]
+    }));
+
+  const macroItems = input.canonicalEvents
+    .filter((event) => event.family === "macro_release_published")
+    .slice(0, Math.max(0, 5 - calendarItems.length))
+    .map((event): MarketPulseCatalystItem => ({
+      time_label: event.occurred_at.slice(11, 16),
+      title: event.title,
+      category: "macro",
+      impact: "medium",
+      evidence: [toCanonicalEventEvidence(event)]
+    }));
+
+  return [...calendarItems, ...macroItems].slice(0, 6);
+}
+
+function buildMorningEdition(input: {
+  generatedAt: string;
+  marketTape: MarketTapePack | undefined;
+  flags: string[];
+  headlineItems: MarketPulseHeadlineItem[] | undefined;
+  portfolioRadarRows: MarketPulsePortfolioRadarRow[] | undefined;
+  marketBoardCards: MarketPulseMarketBoardCard[] | undefined;
+  sectorPulseItems: MarketPulseSectorPulseItem[] | undefined;
+  calendarEvents: MarketPulseCalendarEvent[] | undefined;
+  tickers: string[];
+  cycleEnd: string;
+  canonicalEvents: CanonicalEvent[];
+  calendarFetchState: "complete" | "data_unavailable" | undefined;
+  calendarUnavailableReason: string | undefined;
+}): MarketPulseMorningEdition {
+  const marketBoard = (input.marketBoardCards ?? []).length > 0
+    ? (input.marketBoardCards ?? []).slice(0, 6)
+    : marketBoardFromTape(input.marketTape, input.generatedAt);
+  const sectorPulse = (input.sectorPulseItems ?? []).length > 0
+    ? (input.sectorPulseItems ?? []).slice(0, 8)
+    : sectorPulseFromTape(input.marketTape, input.generatedAt);
+  const coverageNotes = input.flags
+    .filter((flag) => flag.startsWith("data_unavailable:") || flag.startsWith("data_incomplete:"))
+    .map(readableCoverageNote);
+
+  if (input.calendarFetchState === "data_unavailable") {
+    coverageNotes.push(
+      input.calendarUnavailableReason?.trim() ||
+        "Calendar visibility was limited for this issue."
+    );
+  }
+  if ((input.headlineItems ?? []).length === 0) {
+    coverageNotes.push("Approved headline digest was not supplied for this issue.");
+  }
+  if ((input.portfolioRadarRows ?? []).length === 0) {
+    coverageNotes.push("Portfolio radar was omitted because watchlist price rows were not supplied.");
+  }
+
+  return {
+    headline_digest: uniqueHeadlineItems(input.headlineItems),
+    portfolio_radar: uniquePortfolioRows(input.portfolioRadarRows),
+    market_board: marketBoard,
+    today_catalysts: buildCatalystItems({
+      calendarEvents: input.calendarEvents,
+      tickers: input.tickers,
+      cycleEnd: input.cycleEnd,
+      generatedAt: input.generatedAt,
+      canonicalEvents: input.canonicalEvents
+    }),
+    sector_pulse: sectorPulse,
+    coverage_notes: [...new Set(coverageNotes)].slice(0, 8)
+  };
+}
+
+function sectionFromMarketBoard(cards: MarketPulseMarketBoardCard[]): ReportSection | undefined {
+  if (cards.length === 0) {
+    return undefined;
+  }
+  return section(
+    "market_board",
+    "Market Board",
+    cards
+      .map((card) => `${card.label}: ${displayMovePct(card.one_day_change_pct)}`)
+      .join(" "),
+    "complete",
+    cards.flatMap((card) => card.evidence).slice(0, 8)
+  );
+}
+
+function sectionFromPortfolioRadar(rows: MarketPulsePortfolioRadarRow[]): ReportSection | undefined {
+  if (rows.length === 0) {
+    return undefined;
+  }
+  return section(
+    "portfolio_radar",
+    "Portfolio Radar",
+    rows
+      .map((row) => `${row.ticker}: ${displayMovePct(row.change_pct)}${row.reason ? ` - ${row.reason}` : ""}`)
+      .join(" "),
+    "complete",
+    rows.flatMap((row) => row.evidence).slice(0, 8)
+  );
+}
+
+function sectionFromCatalysts(items: MarketPulseCatalystItem[]): ReportSection | undefined {
+  if (items.length === 0) {
+    return undefined;
+  }
+  return section(
+    "today_catalysts",
+    "Today's Catalysts",
+    items.map((item) => `${item.time_label ? `${item.time_label} - ` : ""}${item.title}`).join(" "),
+    "complete",
+    items.flatMap((item) => item.evidence).slice(0, 8)
+  );
+}
+
+function sectionFromHeadlines(items: MarketPulseHeadlineItem[]): ReportSection | undefined {
+  if (items.length === 0) {
+    return undefined;
+  }
+  return section(
+    "headline_digest",
+    "Headlines Worth Knowing",
+    items.map((item) => `${item.source_name}: ${item.headline}`).join(" "),
+    "complete",
+    items.flatMap((item) => item.evidence).slice(0, 8)
+  );
+}
+
+function sectionFromSectorPulse(items: MarketPulseSectorPulseItem[]): ReportSection | undefined {
+  if (items.length === 0) {
+    return undefined;
+  }
+  return section(
+    "sector_pulse",
+    "Sector Pulse",
+    items.map((item) => `${item.label}: ${displayMovePct(item.change_pct)}`).join(" "),
+    "complete",
+    items.flatMap((item) => item.evidence).slice(0, 8)
+  );
+}
+
+function readableCoverageNote(flag: string): string {
+  const [, sectionName = "coverage"] = flag.split(":");
+  const label = sectionName.replaceAll("_", " ");
+  if (flag.startsWith("data_unavailable:")) {
+    return `${label} was unavailable for this run.`;
+  }
+  if (flag.startsWith("data_incomplete:")) {
+    return `${label} coverage was incomplete for this run.`;
+  }
+  return flag.replaceAll("_", " ");
+}
+
+function buildEditorialIssue(input: {
+  reportId: string;
+  cycleEnd: string;
+  generatedAt: string;
+  tickers: string[];
+  marketTape: MarketTapePack | undefined;
+  previousReport: MarketPulseReport | undefined;
+  macroStress: MacroStressSnapshot;
+  sections: MarketPulseReport["sections"];
+  flags: string[];
+  calendarEvents: MarketPulseCalendarEvent[] | undefined;
+  calendarFetchState: "complete" | "data_unavailable" | undefined;
+  calendarUnavailableReason: string | undefined;
+}): MarketPulseEditorialIssue {
+  const previous = input.previousReport;
+  const currentBreadth = tapeBreadth(input.marketTape);
+  const priorBreadth = tapeBreadth(previous?.market_tape);
+  const strongest = strongestTapeMove(input.marketTape);
+  const weakest = weakestTapeMove(input.marketTape);
+  const vix = findCrossAssetMove(input.marketTape, "volatility");
+  const tenYear = findCrossAssetMove(input.marketTape, "rates");
+  const calendarEvents = normalizeCalendarEvents(input.calendarEvents, input.tickers, input.cycleEnd);
+  const tapeEvidence = input.sections.market_tape.evidence.slice(0, 4);
+  const macroEvidence = input.sections.official_macro_pressure.evidence.slice(0, 4);
+  const companyEvidence = input.sections.canonical_events.evidence.slice(0, 4);
+  const coverageNotes = input.flags
+    .filter((flag) => flag.startsWith("data_unavailable:") || flag.startsWith("data_incomplete:"))
+    .map(readableCoverageNote);
+
+  if (input.calendarFetchState === "data_unavailable") {
+    coverageNotes.push(
+      input.calendarUnavailableReason?.trim() ||
+        "Earnings calendar access was unavailable, so dated issuer watch items are limited."
+    );
+  }
+
+  const previousVix = findCrossAssetMove(previous?.market_tape, "volatility");
+  const vixRegimeCrossed = Boolean(
+    vix &&
+      previousVix &&
+      typeof vix.value === "number" &&
+      typeof previousVix.value === "number" &&
+      ((previousVix.value < 20 && vix.value >= 20) || (previousVix.value >= 20 && vix.value < 20))
+  );
+  const currentSectorLeader = input.marketTape?.sector_leadership?.leaders[0]?.instrument_id;
+  const priorSectorLeader = previous?.market_tape?.sector_leadership?.leaders[0]?.instrument_id;
+  const sectorLeadershipRotated = Boolean(
+    previous &&
+      currentSectorLeader &&
+      priorSectorLeader &&
+      currentSectorLeader !== priorSectorLeader
+  );
+  const tapeBreadthChanged = Boolean(previous && priorBreadth !== currentBreadth);
+  const macroRegimeChanged = Boolean(previous && previous.macro_stress.state !== input.macroStress.state);
+  const nothingMaterialChanged = Boolean(
+    previous &&
+      !tapeBreadthChanged &&
+      !macroRegimeChanged &&
+      !sectorLeadershipRotated &&
+      !vixRegimeCrossed &&
+      calendarEvents.length === 0
+  );
+
+  const baselineBody = !previous
+    ? "This is the first editorial Pulse baseline in the available report history."
+    : nothingMaterialChanged
+      ? "No material change from yesterday's issue."
+      : `The reviewed market tape moved from ${priorBreadth} to ${currentBreadth}, while Macro Stress is ${input.macroStress.state}.`;
+
+  const whatChanged: MarketPulseEditorialItem[] = [
+    {
+      kind: "market_tape",
+      title: previous ? "Tape comparison" : "Baseline established",
+      body: baselineBody,
+      freshness_state: previous
+        ? nothingMaterialChanged || !tapeBreadthChanged
+          ? "unchanged"
+          : "updated"
+        : "baseline",
+      importance: previous && tapeBreadthChanged ? "high" : "medium",
+      evidence: tapeEvidence
+    }
+  ];
+
+  if (macroRegimeChanged) {
+    whatChanged.push({
+      kind: "macro",
+      title: "Macro stress changed",
+      body: `Macro Stress moved from ${previous?.macro_stress.state ?? "unknown"} to ${input.macroStress.state}.`,
+      freshness_state: "updated",
+      importance: "high",
+      evidence: macroEvidence
+    });
+  }
+
+  if (sectorLeadershipRotated) {
+    whatChanged.push({
+      kind: "market_tape",
+      title: "Sector leadership changed",
+      body: "The leading sector basket changed from the prior issue.",
+      freshness_state: "updated",
+      importance: "medium",
+      evidence: tapeEvidence
+    });
+  }
+
+  const whyItMatters: MarketPulseEditorialItem[] = [
+    {
+      kind: "market_tape",
+      title: "Conviction read",
+      body:
+        nothingMaterialChanged
+          ? "No fresh daily input changed enough to justify a larger read."
+          : currentBreadth === "higher"
+          ? "A broader positive tape can improve context, but Thesis still requires confirmation from volatility, rates, credit, and company evidence before treating one day as a thesis change."
+          : currentBreadth === "lower"
+            ? "A weaker tape matters because it can pressure timing and risk appetite even when company-specific evidence has not changed."
+            : "A mixed tape matters because it argues for selectivity rather than a sweeping market conclusion.",
+      freshness_state: nothingMaterialChanged ? "unchanged" : "updated",
+      importance: "high",
+      evidence: tapeEvidence
+    },
+    {
+      kind: "macro",
+      title: "Macro frame",
+      body: `Macro regime: ${input.macroStress.state}. ${macroRegimeChanged ? "Changed from the prior issue." : "Unchanged."}`,
+      freshness_state: previous?.macro_stress.state === input.macroStress.state ? "unchanged" : "updated",
+      importance: "medium",
+      evidence: macroEvidence
+    }
+  ];
+
+  const watchItems: MarketPulseWatchItem[] = calendarEvents.slice(0, 5).map((event) => ({
+    kind: "calendar",
+    title: `${event.ticker} earnings`,
+    body: `${event.ticker} has an earnings event on ${event.event_date} (${formatCalendarTiming(event.event_time)}). ${event.reason_text ?? "Watch for company-specific evidence that changes the briefing context."}`,
+    watch_date: event.event_date,
+    freshness_state: "new",
+    importance: "medium",
+    evidence: [calendarEvidence(event, input.generatedAt)]
+  }));
+
+  if (watchItems.length === 0) {
+    watchItems.push({
+      kind: "market_tape",
+      title: nothingMaterialChanged ? "Next issue" : "Tape follow-through",
+      body: nothingMaterialChanged
+        ? "No material watch item changed today; the next issue should focus on new tape, headlines, or calendar events."
+        : strongest
+        ? `Watch whether ${shortTapeLabel(strongest.label)} leadership at ${displayMovePct(strongest.daily_change_pct)} is confirmed or faded in the next reviewed cycle.`
+        : "Watch whether the next reviewed cycle gives enough market breadth to move beyond a bounded read.",
+      freshness_state: nothingMaterialChanged ? "unchanged" : "updated",
+      importance: "medium",
+      evidence: tapeEvidence
+    });
+  }
+
+  if (vix && !nothingMaterialChanged) {
+    watchItems.push({
+      kind: "market_tape",
+      title: "Volatility confirmation",
+      body: `VIX moved ${displayMovePct(vix.daily_change_pct)}; watch whether volatility confirms or contradicts the equity tape.`,
+      freshness_state: "updated",
+      importance: "medium",
+      evidence: tapeEvidence
+    });
+  }
+
+  const signalVsNoise: MarketPulseEditorialItem[] = [
+    {
+      kind: "market_tape",
+      title: "Signal",
+      body: nothingMaterialChanged
+        ? "No new signal emerged."
+        : strongest && weakest
+        ? `${shortTapeLabel(strongest.label)} led at ${displayMovePct(strongest.daily_change_pct)}, while ${shortTapeLabel(weakest.label)} lagged at ${displayMovePct(weakest.daily_change_pct)}.`
+        : "The available tape is useful as context, but it is not broad enough to make a stronger daily claim.",
+      freshness_state: nothingMaterialChanged ? "unchanged" : "updated",
+      importance: "high",
+      evidence: tapeEvidence
+    },
+    {
+      kind: "context",
+      title: "Noise",
+      body: nothingMaterialChanged
+        ? "Unchanged index levels are not a story."
+        : tenYear
+        ? `One-day market movement does not prove a regime shift; the 10Y Treasury move of ${displayMovePct(tenYear.daily_change_pct)} is treated as context, not a standalone conclusion.`
+        : "One-day movement does not prove a regime shift; missing cross-asset fields stay in coverage notes rather than confident prose.",
+      freshness_state: "unchanged",
+      importance: "medium",
+      evidence: macroEvidence
+    }
+  ];
+
+  const lead =
+    nothingMaterialChanged
+      ? "No material change from yesterday's issue. Markets, macro pressure, and tracked context did not move enough to justify a larger story."
+      : previous
+      ? `Good morning. Today's Pulse separates the actual daily change from the slower macro backdrop: the tape is ${currentBreadth}, Macro Stress is ${input.macroStress.state}, and the next watch items are kept evidence-led.`
+      : "Good morning. Today's Pulse starts an editorial baseline: the tape is summarized, the macro frame is bounded, and future issues can now say what truly changed.";
+
+  return {
+    issue_id: `pulse-editorial-${input.reportId}`,
+    headline: nothingMaterialChanged
+      ? "QUIET DAY. NO MATERIAL CHANGE."
+      : marketEditorialHeadline(currentBreadth, input.macroStress.state),
+    dek: nothingMaterialChanged
+      ? "No fresh tape, macro, or calendar delta changed the issue."
+      : marketEditorialDek(currentBreadth, strongest, vix),
+    lead,
+    ...(previous ? { prior_cycle_end: previous.cycle_end } : {}),
+    freshness_state: previous ? (nothingMaterialChanged ? "unchanged" : "updated") : "baseline",
+    in_this_issue: [
+      "The Tape",
+      "What Changed",
+      ...(calendarEvents.length > 0 ? ["Today's Calendar"] : []),
+      "Signal vs Noise",
+      "The Backdrop"
+    ],
+    what_changed: whatChanged,
+    why_it_matters: whyItMatters,
+    what_to_watch: watchItems.slice(0, 6),
+    signal_vs_noise: signalVsNoise,
+    coverage_notes: [...new Set(coverageNotes)].slice(0, 6),
+    evidence: [...tapeEvidence, ...macroEvidence, ...companyEvidence].slice(0, 10)
+  };
+}
+
+function marketEditorialHeadline(
+  breadth: "higher" | "lower" | "mixed" | "thin",
+  macroState: MacroStressSnapshot["state"]
+): string {
+  if (breadth === "higher") {
+    return "TAPE FIRMS, BUT CONFIRMATION STILL MATTERS";
+  }
+  if (breadth === "lower") {
+    return "TAPE SOFTENS AS RISK CONTEXT TIGHTENS";
+  }
+  if (macroState === "elevated") {
+    return "SELECTIVE TAPE MEETS ELEVATED MACRO PRESSURE";
+  }
+  return "MARKET TAPE KEEPS CONVICTION SELECTIVE";
+}
+
+function marketEditorialDek(
+  breadth: "higher" | "lower" | "mixed" | "thin",
+  strongest: MarketTapePack["indices"][number] | undefined,
+  vix: MarketTapePack["cross_asset"][number] | undefined
+): string {
+  const lead = breadth === "thin"
+    ? "The available tape is narrow"
+    : `The reviewed tape is ${breadth}`;
+  const leader = strongest
+    ? `${shortTapeLabel(strongest.label)} led at ${displayMovePct(strongest.daily_change_pct)}`
+    : "leadership was not fully visible";
+  const volatility = vix
+    ? `VIX moved ${displayMovePct(vix.daily_change_pct)}`
+    : "volatility coverage was limited";
+  return `${lead}; ${leader}; ${volatility}.`;
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -287,17 +1319,6 @@ function uniqueByContextId(items: FirstPartyContextItem[]): FirstPartyContextIte
     unique.push(item);
   }
   return unique;
-}
-
-function sortedUppercase(values: Iterable<string>): string[] {
-  return [...values]
-    .map((value) => value.trim().toUpperCase())
-    .filter((value) => value.length > 0)
-    .sort((left, right) => left.localeCompare(right));
-}
-
-function escapeRegex(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function dedupeRights(rights: EvidenceRightsMetadata[]): EvidenceRightsMetadata[] {
@@ -400,65 +1421,94 @@ function sectionStatusForMacro(
   return "complete";
 }
 
-export function buildWatchlistOverlaySection(
-  report: MarketPulseReport,
-  watchlistTickers: string[]
+function researchStateEvidence(state: UserResearchState, name?: UserResearchNameState): EvidenceItem[] {
+  return [
+    toEvidence(
+      "article",
+      "User Research State",
+      name
+        ? `${name.ticker} research state refreshed for ${state.as_of}.`
+        : `User research state refreshed for ${state.as_of}.`,
+      state.generated_at
+    )
+  ];
+}
+
+function portfolioRowsFromResearchState(state: UserResearchState): MarketPulsePortfolioRadarRow[] {
+  return state.names.slice(0, 12).map((name): MarketPulsePortfolioRadarRow => ({
+    ticker: name.ticker,
+    company_name: name.company_name,
+    direction: "flat",
+    reason: name.what_changed,
+    evidence: researchStateEvidence(state, name)
+  }));
+}
+
+function sectionFromResearchNames(
+  state: UserResearchState,
+  sectionId: "portfolio_radar" | "what_changed" | "why_it_matters" | "what_to_watch"
 ): ReportSection | undefined {
-  const normalizedWatchlist = sortedUppercase(watchlistTickers);
-  if (normalizedWatchlist.length === 0) {
+  if (state.names.length === 0) {
     return undefined;
   }
-
-  const sections = report.sections;
-  const briefingText = [
-    sections.macro_stress.body,
-    sections.official_macro_pressure.body,
-    sections.canonical_events.body,
-    sections.bounded_context.body,
-    sections.news_summary?.body,
-    sections.uncertainty_flags.body
-  ]
-    .filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0)
-    .join(" ")
-    .toUpperCase();
-
-  const matches = normalizedWatchlist.filter((ticker) =>
-    new RegExp(`\\b${escapeRegex(ticker)}\\b`).test(briefingText)
-  );
-  if (matches.length === 0) {
-    return undefined;
-  }
-
-  const now = new Date().toISOString();
+  const names = state.names.slice(0, 5);
+  const bodyBySection = {
+    portfolio_radar: names
+      .map((name) => `${name.ticker}: ${name.summary}`)
+      .join(" "),
+    what_changed: names
+      .map((name) => `${name.ticker}: ${name.what_changed}`)
+      .join(" "),
+    why_it_matters: names
+      .map((name) => `${name.ticker}: ${name.why_it_matters}`)
+      .join(" "),
+    what_to_watch: names
+      .map((name) => `${name.ticker}: ${name.what_to_watch}`)
+      .join(" ")
+  } satisfies Record<typeof sectionId, string>;
+  const titleBySection = {
+    portfolio_radar: "Portfolio Radar",
+    what_changed: "What Changed",
+    why_it_matters: "Why It Matters",
+    what_to_watch: "What To Watch"
+  } satisfies Record<typeof sectionId, string>;
   return section(
-    "watchlist_overlay",
-    "Watchlist Overlay",
-    `Followed names with explicit mention this cycle: ${matches.join(", ")}.`,
-    "complete",
-    [
-      toEvidence(
-        "article",
-        "Market Pulse Aggregation",
-        `Exact ticker-symbol match found for: ${matches.join(", ")}`,
-        now
-      )
-    ]
+    sectionId,
+    titleBySection[sectionId],
+    bodyBySection[sectionId],
+    state.omissions.length > 0 ? "data_incomplete" : "complete",
+    researchStateEvidence(state)
   );
 }
 
-export function withWatchlistOverlay(
+export function withUserResearchState(
   report: MarketPulseReport,
-  watchlistTickers: string[]
+  state?: UserResearchState
 ): MarketPulseReport {
-  const overlay = buildWatchlistOverlaySection(report, watchlistTickers);
-  if (!overlay) {
+  if (!state) {
     return report;
   }
+  const portfolioRows = portfolioRowsFromResearchState(state);
+  const morningEdition = report.morning_edition
+    ? {
+        ...report.morning_edition,
+        portfolio_radar: portfolioRows
+      }
+    : report.morning_edition;
+  const portfolioSection = sectionFromResearchNames(state, "portfolio_radar");
+  const whatChangedSection = sectionFromResearchNames(state, "what_changed");
+  const whyItMattersSection = sectionFromResearchNames(state, "why_it_matters");
+  const whatToWatchSection = sectionFromResearchNames(state, "what_to_watch");
   return {
     ...report,
+    user_research_state: state,
+    ...(morningEdition ? { morning_edition: morningEdition } : {}),
     sections: {
       ...report.sections,
-      watchlist_overlay: overlay
+      ...(portfolioSection ? { portfolio_radar: portfolioSection } : {}),
+      ...(whatChangedSection ? { what_changed: whatChangedSection } : {}),
+      ...(whyItMattersSection ? { why_it_matters: whyItMattersSection } : {}),
+      ...(whatToWatchSection ? { what_to_watch: whatToWatchSection } : {})
     }
   };
 }
@@ -477,7 +1527,13 @@ export async function buildMarketPulseReport(
   const cycleEndMs = Date.parse(options.cycleEnd);
   const generatedAt = new Date().toISOString();
   const asOf = options.cycleEnd.slice(0, 10);
+  if (options.calendarFetchState === "data_unavailable") {
+    addFlag("data_incomplete:what_to_watch");
+  }
 
+  const marketTapeResult = await fetchEnvelope<MarketTapePack>(
+    `${options.dataOpenbbBaseUrl}/v1/market/tape?scope=daily&as_of=${encodeURIComponent(asOf)}`
+  );
   const macroResult = await fetchEnvelope<OfficialMacroTruthData>(
     `${options.dataOpenbbBaseUrl}/v1/official/macro?scope=daily&as_of=${encodeURIComponent(asOf)}`
   );
@@ -485,10 +1541,18 @@ export async function buildMarketPulseReport(
     `${options.dataOpenbbBaseUrl}/v1/official/structural?country=US&subject_type=market_pulse&as_of=${encodeURIComponent(asOf)}`
   );
   const structuralContext = structuralContextResult.ok ? structuralContextResult.data : undefined;
+  const marketTape = marketTapeResult.ok ? marketTapeResult.data : undefined;
   const macroObservations = macroResult.ok ? macroResult.data.observations ?? [] : [];
   const macroCanonicalEvents = macroResult.ok
     ? asCanonicalEvents(macroResult.data.canonical_events)
     : [];
+
+  const tapeSectionStatus = marketTapeStatus(marketTapeResult);
+  if (tapeSectionStatus === "data_unavailable") {
+    addFlag("data_unavailable:market_tape");
+  } else if (tapeSectionStatus === "data_incomplete") {
+    addFlag("data_incomplete:market_tape");
+  }
 
   const macroOmissions: MacroStressOmission[] = [];
   if (!macroResult.ok) {
@@ -645,8 +1709,14 @@ export async function buildMarketPulseReport(
 
   const noMaterialChange =
     macroStress.no_material_change &&
+    marketTapeNoMaterialChange(marketTape) &&
     filteredCanonicalEvents.length === 0 &&
     filteredContextItems.length === 0;
+
+  const tapeEvidence = marketTape ? marketTapeEvidence(marketTape, generatedAt) : [];
+  const marketTapeBody = !marketTapeResult.ok
+    ? "Market tape was unavailable for this cycle."
+    : summarizeMarketTape(marketTapeResult.data);
 
   const macroEvidence = macroStress.inputs.slice(0, 8).map((input) =>
     toEvidence(
@@ -789,103 +1859,217 @@ export async function buildMarketPulseReport(
     omissions: toContextOmissions(macroStress.omissions, flags)
   };
 
+  const reportId = randomUUID();
+  const pulseMacroStress = {
+    ...macroStress,
+    no_material_change: noMaterialChange
+  };
+  const baseSections: MarketPulseReport["sections"] = {
+    macro_stress: section(
+      "macro_stress",
+      "Macro Stress",
+      macroStress.summary,
+      macroStressStatus,
+      macroEvidence
+    ),
+    market_tape: section(
+      "market_tape",
+      "Market Tape",
+      marketTapeBody,
+      tapeSectionStatus,
+      tapeEvidence
+    ),
+    official_macro_pressure: section(
+      "official_macro_pressure",
+      "Official Macro Pressure",
+      [officialMacroBody, structuralMacroSummary].filter((entry): entry is string => Boolean(entry)).join(" "),
+      macroStressStatus,
+      macroEvidence
+    ),
+    canonical_events: section(
+      "canonical_events",
+      "Canonical Events",
+      canonicalEventsBody,
+      canonicalEventsStatus,
+      canonicalEventsEvidence
+    ),
+    bounded_context: section(
+      "bounded_context",
+      "Bounded Context",
+      [boundedContextBody, structuralBoundedSummary]
+        .filter((entry): entry is string => Boolean(entry))
+        .join(" "),
+      boundedContextStatus,
+      boundedContextEvidence
+    ),
+    uncertainty_flags: section(
+      "uncertainty_flags",
+      "Uncertainty Flags",
+      uncertaintyBody,
+      uncertaintyStatus,
+      []
+    ),
+    ...(noMaterialChange
+      ? {
+          no_material_change: section(
+            "no_material_change",
+            "No Material Change",
+            "No material macro, filing, or bounded-context events were detected in this cycle.",
+            "complete",
+            []
+          )
+        }
+      : {}),
+    market_moves: section(
+      "market_moves",
+      "Market Moves",
+      marketMovesBody,
+      marketMovesStatus,
+      marketMovesEvidence
+    ),
+    macro_releases: section(
+      "macro_releases",
+      "Macro Releases",
+      officialMacroBody,
+      macroStressStatus,
+      macroEvidence
+    ),
+    rates_fx_commodities: section(
+      "rates_fx_commodities",
+      "Rates, FX, and Commodities",
+      ratesFxBody,
+      macroStressStatus,
+      ratesAndEnergyInputs.map((input: MacroStressInput) =>
+        toEvidence(
+          "macro_data",
+          input.source_name ?? "official_macro",
+          input.reason,
+          input.retrieved_at ?? generatedAt
+        )
+      )
+    ),
+    news_summary: section(
+      "news_summary",
+      "News Summary",
+      newsSummaryBody,
+      newsSummaryStatus,
+      boundedContextEvidence
+    )
+  };
+  const macroNewsPack = buildMacroNewsPack({
+    asOf,
+    generatedAt,
+    headlineItems: options.headlineItems,
+    macroNewsItems: options.macroNewsItems,
+    macroNewsFetchState: options.macroNewsFetchState,
+    macroNewsUnavailableReason: options.macroNewsUnavailableReason
+  });
+  const editorialIssueBase = buildEditorialIssue({
+    reportId,
+    cycleEnd: options.cycleEnd,
+    generatedAt,
+    tickers: options.tickers,
+    marketTape,
+    previousReport: options.previousReport,
+    macroStress: pulseMacroStress,
+    sections: baseSections,
+    flags,
+    calendarEvents: options.calendarEvents,
+    calendarFetchState: options.calendarFetchState,
+    calendarUnavailableReason: options.calendarUnavailableReason
+  });
+  const editorialIssue: MarketPulseEditorialIssue =
+    macroNewsPack.state === "shock"
+      ? {
+          ...editorialIssueBase,
+          headline: "MACRO SHOCK MOVES TO THE FRONT OF THE ISSUE",
+          dek: macroNewsPack.items[0]
+            ? `${macroNewsPack.items[0].confirmation_state}: ${macroNewsPack.items[0].headline}`
+            : macroNewsPack.lead,
+          lead: `${macroNewsPack.lead} ${editorialIssueBase.lead}`,
+          in_this_issue: [
+            "The Tape",
+            "Headlines Worth Knowing",
+            ...editorialIssueBase.in_this_issue.filter((entry) => entry !== "The Tape")
+          ]
+        }
+      : macroNewsPack.state === "watch"
+        ? {
+            ...editorialIssueBase,
+            in_this_issue: [
+              "The Tape",
+              "Headlines Worth Knowing",
+              ...editorialIssueBase.in_this_issue.filter((entry) => entry !== "The Tape")
+            ]
+          }
+        : editorialIssueBase;
+  const morningEdition = buildMorningEdition({
+    generatedAt,
+    marketTape,
+    flags,
+    headlineItems: options.headlineItems,
+    portfolioRadarRows: options.portfolioRadarRows,
+    marketBoardCards: options.marketBoardCards,
+    sectorPulseItems: options.sectorPulseItems,
+    calendarEvents: options.calendarEvents,
+    tickers: options.tickers,
+    cycleEnd: options.cycleEnd,
+    canonicalEvents: filteredCanonicalEvents,
+    calendarFetchState: options.calendarFetchState,
+    calendarUnavailableReason: options.calendarUnavailableReason
+  });
+  const marketBoardSection = sectionFromMarketBoard(morningEdition.market_board);
+  const portfolioRadarSection = sectionFromPortfolioRadar(morningEdition.portfolio_radar);
+  const catalystSection = sectionFromCatalysts(morningEdition.today_catalysts);
+  const headlineSection = sectionFromHeadlines(morningEdition.headline_digest);
+  const sectorPulseSection = sectionFromSectorPulse(morningEdition.sector_pulse);
+  const macroNewsSection = sectionFromMacroNews(macroNewsPack);
+  const sections: MarketPulseReport["sections"] = {
+    ...baseSections,
+    ...(macroNewsSection ? { macro_news: macroNewsSection } : {}),
+    ...(marketBoardSection ? { market_board: marketBoardSection } : {}),
+    ...(portfolioRadarSection ? { portfolio_radar: portfolioRadarSection } : {}),
+    ...(catalystSection ? { today_catalysts: catalystSection } : {}),
+    ...(headlineSection ? { headline_digest: headlineSection } : {}),
+    ...(sectorPulseSection ? { sector_pulse: sectorPulseSection } : {}),
+    what_changed: sectionFromEditorialItems(
+      "what_changed",
+      "What Changed",
+      editorialIssue.what_changed,
+      "complete"
+    ),
+    why_it_matters: sectionFromEditorialItems(
+      "why_it_matters",
+      "Why It Matters",
+      editorialIssue.why_it_matters,
+      "complete"
+    ),
+    what_to_watch: sectionFromWatchItems(
+      editorialIssue.what_to_watch,
+      options.calendarFetchState === "data_unavailable" ? "data_incomplete" : "complete"
+    ),
+    signal_vs_noise: sectionFromEditorialItems(
+      "signal_vs_noise",
+      "Signal vs Noise",
+      editorialIssue.signal_vs_noise,
+      "complete"
+    )
+  };
+
   return {
-    report_id: randomUUID(),
+    report_id: reportId,
     schema_version: options.schemaVersion,
     generated_at: generatedAt,
     cycle_start: options.cycleStart,
     cycle_end: options.cycleEnd,
-    macro_stress: {
-      ...macroStress,
-      no_material_change: noMaterialChange
-    },
+    macro_stress: pulseMacroStress,
+    market_tape: marketTape,
+    editorial_issue: editorialIssue,
+    macro_news: macroNewsPack,
+    morning_edition: morningEdition,
     context,
     structural_context: structuralContext,
-    sections: {
-      macro_stress: section(
-        "macro_stress",
-        "Macro Stress",
-        macroStress.summary,
-        macroStressStatus,
-        macroEvidence
-      ),
-      official_macro_pressure: section(
-        "official_macro_pressure",
-        "Official Macro Pressure",
-        [officialMacroBody, structuralMacroSummary].filter((entry): entry is string => Boolean(entry)).join(" "),
-        macroStressStatus,
-        macroEvidence
-      ),
-      canonical_events: section(
-        "canonical_events",
-        "Canonical Events",
-        canonicalEventsBody,
-        canonicalEventsStatus,
-        canonicalEventsEvidence
-      ),
-      bounded_context: section(
-        "bounded_context",
-        "Bounded Context",
-        [boundedContextBody, structuralBoundedSummary]
-          .filter((entry): entry is string => Boolean(entry))
-          .join(" "),
-        boundedContextStatus,
-        boundedContextEvidence
-      ),
-      uncertainty_flags: section(
-        "uncertainty_flags",
-        "Uncertainty Flags",
-        uncertaintyBody,
-        uncertaintyStatus,
-        []
-      ),
-      ...(noMaterialChange
-        ? {
-            no_material_change: section(
-              "no_material_change",
-              "No Material Change",
-              "No material macro, filing, or bounded-context events were detected in this cycle.",
-              "complete",
-              []
-            )
-          }
-        : {}),
-      market_moves: section(
-        "market_moves",
-        "Market Moves",
-        marketMovesBody,
-        marketMovesStatus,
-        marketMovesEvidence
-      ),
-      macro_releases: section(
-        "macro_releases",
-        "Macro Releases",
-        officialMacroBody,
-        macroStressStatus,
-        macroEvidence
-      ),
-      rates_fx_commodities: section(
-        "rates_fx_commodities",
-        "Rates, FX, and Commodities",
-        ratesFxBody,
-        macroStressStatus,
-        ratesAndEnergyInputs.map((input: MacroStressInput) =>
-          toEvidence(
-            "macro_data",
-            input.source_name ?? "official_macro",
-            input.reason,
-            input.retrieved_at ?? generatedAt
-          )
-        )
-      ),
-      news_summary: section(
-        "news_summary",
-        "News Summary",
-        newsSummaryBody,
-        newsSummaryStatus,
-        boundedContextEvidence
-      )
-    },
+    sections,
     flags,
     confidence: buildConfidence(flags)
   };

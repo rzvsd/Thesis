@@ -45,7 +45,8 @@ import type {
   ScenarioStressTemplateId,
   ScenarioStressThesisBreakLikelihood,
   SubscriptionFeedbackCode,
-  SubscriptionTier
+  SubscriptionTier,
+  UserResearchState
 } from "../../../packages/contracts/src";
 import type {
   ThesisMonitorState,
@@ -304,6 +305,25 @@ export interface ThesisMonitorSnapshotRecord {
   killSwitchTriggeredAt?: string;
   freshnessReason: string;
   updatedAt: string;
+}
+
+export interface UserResearchHoldingRecord {
+  userId: string;
+  ticker: string;
+  quantity?: number;
+  costBasis?: number;
+  label?: string;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface UserResearchStateRecord {
+  stateId: string;
+  userId: string;
+  asOf: string;
+  generatedAt: string;
+  state: UserResearchState;
 }
 
 export interface ReportNoteRecord {
