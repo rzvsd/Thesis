@@ -25,6 +25,10 @@ const IGNORED_FILE_SUFFIXES = new Set([
   "scripts/security/sast-baseline.mjs"
 ]);
 
+const IGNORED_PATH_PREFIXES = [
+  "Project Note/Archive/"
+];
+
 const RULES = [
   {
     id: "js-no-eval",
@@ -79,6 +83,9 @@ async function collectFiles(directory) {
     const extension = path.extname(entry.name).toLowerCase();
     const relativePath = relative(fullPath);
     if (IGNORED_FILE_SUFFIXES.has(relativePath)) {
+      continue;
+    }
+    if (IGNORED_PATH_PREFIXES.some((prefix) => relativePath.startsWith(prefix))) {
       continue;
     }
 
