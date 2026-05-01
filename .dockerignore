@@ -5,3 +5,26 @@ dist
 .git
 .env
 .DS_Store
+
+# Local planning notes, evidence bundles, screenshots, and cleanup archives are
+# not runtime inputs for Docker images.
+Project Note
+Project Note/
+Project Note/**
+tmp
+tmp/
+tmp/**
+artifacts
+artifacts/
+artifacts/**
+.dexter
+.dexter/
+.dexter/**
+
+# Keep Docker build context lean while preserving data files copied by service
+# Dockerfiles.
+data/**
+!data/golden
+!data/golden/**
+!data/sp500_universe.csv
+!data/xbrl_concept_map.json

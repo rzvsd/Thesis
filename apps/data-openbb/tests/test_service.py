@@ -43,6 +43,15 @@ class FakeLiveClient:
             "omissions": [],
             "retrievals": [],
         }
+        self.market_tape = {
+            "as_of": "2026-04-22",
+            "coverage_state": "partial",
+            "summary": "US risk assets were mixed on the day.",
+            "indices": [],
+            "cross_asset": [],
+            "retrievals": [],
+            "omissions": [],
+        }
 
     def fetch_company_records(self, ticker: str) -> tuple[dict[str, object], dict[str, object], dict[str, object]]:  # noqa: ARG002
         return self.company_records
@@ -61,6 +70,9 @@ class FakeLiveClient:
         subject_type: str | None = None,  # noqa: ARG002
     ) -> dict[str, object]:
         return self.structural_context
+
+    def fetch_market_tape(self, *, as_of: str | None = None) -> dict[str, object]:  # noqa: ARG002
+        return self.market_tape
 
 
 class DataOpenbbEndpointTests(unittest.TestCase):
@@ -209,6 +221,27 @@ class DataOpenbbEndpointTests(unittest.TestCase):
             all(observation["period"] <= "2024" for observation in structural_data["observations"])
         )
 
+    def test_market_tape_returns_contract_valid_payload(self) -> None:
+        status, payload = self.request_json("/v1/market/tape?scope=daily")
+
+        self.assertEqual(status, 200)
+        self.assertTrue(payload["ok"])
+        self.assertFalse(payload["error_flag"])
+        self.assertEqual(payload["provider"], "market_tape")
+        market_tape = payload["data"]
+        self.assertIsInstance(market_tape, dict)
+        self.assertIn(market_tape["coverage_state"], {"full", "partial", "limited"})
+        self.assertGreaterEqual(len(market_tape["indices"]), 4)
+        self.assertGreaterEqual(len(market_tape["cross_asset"]), 4)
+
+    def test_market_tape_honors_as_of(self) -> None:
+        status, payload = self.request_json("/v1/market/tape?scope=daily&as_of=2025-02-14")
+
+        self.assertEqual(status, 200)
+        market_tape = payload["data"]
+        self.assertIsInstance(market_tape, dict)
+        self.assertEqual(market_tape["as_of"], "2025-02-14")
+
     def test_missing_fields_are_declared_without_zero_substitution(self) -> None:
         status, payload = self.request_json("/v1/finance/company?ticker=DUMMY")
 
@@ -355,6 +388,59 @@ class DataOpenbbLiveModeTests(unittest.TestCase):
         self.assertEqual(macro_data["value"], 4.18)
         self.assertEqual(macro_data["period"], "2026-03-13")
         self.assertEqual(macro_data["unit"], "percent")
+
+    def test_live_market_tape_uses_live_client_payload(self) -> None:
+        settings = Settings(fixture_mode=False)
+        fake_live = FakeLiveClient()
+        fake_live.market_tape = {
+            "as_of": "2026-04-22",
+            "coverage_state": "partial",
+            "summary": "US risk assets were mixed on the day.",
+            "indices": [
+                {
+                    "instrument_id": "SP500",
+                    "label": "S&P 500",
+                    "family": "core_index",
+                    "period": "2026-04-22",
+                    "value": 5287.76,
+                    "previous_value": 5158.2,
+                    "daily_change": 129.56,
+                    "daily_change_pct": 2.5118,
+                    "unit": "index",
+                    "direction": "up",
+                    "retrieval": {
+                        "source": {
+                            "source_id": "FRED_SP500",
+                            "source_family": "fred",
+                            "source_name": "FRED S&P 500",
+                            "source_url": "https://fred.stlouisfed.org/series/SP500",
+                            "agency": "Federal Reserve Bank of St. Louis",
+                            "agency_series_id": "SP500",
+                        },
+                        "retrieved_at": "2026-04-22T00:00:00.000Z",
+                        "retrieval_status": "fresh",
+                        "source_period": "2026-04-22",
+                    },
+                    "missing_fields": [],
+                }
+            ],
+            "cross_asset": [],
+            "retrievals": [],
+            "omissions": [],
+        }
+        service = DataOpenBBService(
+            settings=settings,
+            rate_limiter=NoopRateLimiter(),
+            live_client=fake_live,
+        )
+
+        status, payload = service.get_market_tape("daily", "2026-04-22", request_id="req-market-tape")
+
+        self.assertEqual(status, 200)
+        self.assertTrue(payload["ok"])
+        market_tape = payload["data"]
+        self.assertEqual(market_tape["as_of"], "2026-04-22")
+        self.assertEqual(market_tape["indices"][0]["instrument_id"], "SP500")
 
     def test_live_company_requires_fmp_key_without_override_client(self) -> None:
         settings = Settings(fixture_mode=False)

@@ -12,7 +12,7 @@
         "source_id": { "type": "string" },
         "source_family": {
           "type": "string",
-          "enum": ["sec_edgar", "treasury", "bls", "bea", "eia", "world_bank", "imf"]
+          "enum": ["sec_edgar", "treasury", "bls", "bea", "eia", "fred", "world_bank", "imf"]
         },
         "source_name": { "type": "string" },
         "source_url": { "type": "string" },

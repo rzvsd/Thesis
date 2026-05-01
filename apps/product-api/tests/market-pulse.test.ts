@@ -13,6 +13,8 @@ type JsonObject = Record<string, unknown>;
 type OpenbbMockState = {
   failCompany: boolean;
   failMacro: boolean;
+  failTape?: boolean;
+  failCalendar?: boolean;
 };
 
 type NewsMockState = {
@@ -27,6 +29,36 @@ function sendJson(response: ServerResponse, status: number, payload: unknown): v
 async function startOpenbbMock(state: OpenbbMockState): Promise<{ server: Server; baseUrl: string }> {
   const server = createServer((request, response) => {
     const url = new URL(request.url ?? "/", "http://127.0.0.1");
+    if (url.pathname === "/internal/calendar/earnings") {
+      if (state.failCalendar) {
+        sendJson(response, 503, {
+          ok: false,
+          data: null,
+          error_flag: true,
+          error_message: "calendar outage"
+        });
+        return;
+      }
+      sendJson(response, 200, {
+        ok: true,
+        data: {
+          events: [
+            {
+              ticker: "AAPL",
+              event_type: "earnings",
+              event_date: "2026-03-24",
+              event_time: "after_market",
+              provider: "earnings_calendar",
+              retrieved_at: "2026-03-21T08:00:00.000Z",
+              reason_text: "Fixture earnings calendar item for watch-next coverage."
+            }
+          ]
+        },
+        error_flag: false
+      });
+      return;
+    }
+
     if (url.pathname === "/v1/official/company") {
       if (state.failCompany) {
         sendJson(response, 503, {
@@ -197,6 +229,179 @@ async function startOpenbbMock(state: OpenbbMockState): Promise<{ server: Server
       return;
     }
 
+    if (url.pathname === "/v1/market/tape") {
+      if (state.failTape) {
+        sendJson(response, 503, {
+          ok: false,
+          data: null,
+          error_flag: true,
+          error_message: "tape outage"
+        });
+        return;
+      }
+
+      sendJson(response, 200, {
+        ok: true,
+        data: {
+          as_of: "2026-03-21",
+          coverage_state: "partial",
+          summary: "US risk assets were broadly higher on the day.",
+          indices: [
+            {
+              instrument_id: "SP500",
+              label: "S&P 500",
+              family: "core_index",
+              period: "2026-03-21",
+              value: 5287.76,
+              previous_value: 5158.2,
+              daily_change: 129.56,
+              daily_change_pct: 2.5118,
+              unit: "index",
+              direction: "up",
+              retrieval: {
+                source: {
+                  source_id: "FRED_SP500",
+                  source_family: "fred",
+                  source_name: "FRED S&P 500",
+                  source_url: "https://fred.stlouisfed.org/series/SP500",
+                  agency: "Federal Reserve Bank of St. Louis",
+                  agency_series_id: "SP500"
+                },
+                retrieved_at: "2026-03-21T08:00:00.000Z",
+                retrieval_status: "fresh",
+                source_period: "2026-03-21"
+              },
+              missing_fields: []
+            },
+            {
+              instrument_id: "DJIA",
+              label: "Dow Jones Industrial Average",
+              family: "core_index",
+              period: "2026-03-21",
+              value: 39606.57,
+              previous_value: 39110.31,
+              daily_change: 496.26,
+              daily_change_pct: 1.269,
+              unit: "index",
+              direction: "up",
+              retrieval: {
+                source: {
+                  source_id: "FRED_DJIA",
+                  source_family: "fred",
+                  source_name: "FRED DJIA",
+                  source_url: "https://fred.stlouisfed.org/series/DJIA",
+                  agency: "Federal Reserve Bank of St. Louis",
+                  agency_series_id: "DJIA"
+                },
+                retrieved_at: "2026-03-21T08:00:00.000Z",
+                retrieval_status: "fresh",
+                source_period: "2026-03-21"
+              },
+              missing_fields: []
+            },
+            {
+              instrument_id: "NASDAQCOM",
+              label: "Nasdaq Composite",
+              family: "core_index",
+              period: "2026-03-21",
+              value: 16708.05,
+              previous_value: 16401.84,
+              daily_change: 306.21,
+              daily_change_pct: 1.867,
+              unit: "index",
+              direction: "up",
+              retrieval: {
+                source: {
+                  source_id: "FRED_NASDAQCOM",
+                  source_family: "fred",
+                  source_name: "FRED Nasdaq Composite",
+                  source_url: "https://fred.stlouisfed.org/series/NASDAQCOM",
+                  agency: "Federal Reserve Bank of St. Louis",
+                  agency_series_id: "NASDAQCOM"
+                },
+                retrieved_at: "2026-03-21T08:00:00.000Z",
+                retrieval_status: "fresh",
+                source_period: "2026-03-21"
+              },
+              missing_fields: []
+            }
+          ],
+          cross_asset: [
+            {
+              instrument_id: "VIXCLS",
+              label: "VIX",
+              family: "volatility",
+              period: "2026-03-21",
+              value: 17.43,
+              previous_value: 18.21,
+              daily_change: -0.78,
+              daily_change_pct: -4.2834,
+              unit: "index",
+              direction: "down",
+              retrieval: {
+                source: {
+                  source_id: "FRED_VIXCLS",
+                  source_family: "fred",
+                  source_name: "FRED VIX",
+                  source_url: "https://fred.stlouisfed.org/series/VIXCLS",
+                  agency: "Federal Reserve Bank of St. Louis",
+                  agency_series_id: "VIXCLS"
+                },
+                retrieved_at: "2026-03-21T08:00:00.000Z",
+                retrieval_status: "fresh",
+                source_period: "2026-03-21"
+              },
+              missing_fields: []
+            }
+          ],
+          retrievals: [
+            {
+              source: {
+                source_id: "FRED_SP500",
+                source_family: "fred",
+                source_name: "FRED S&P 500",
+                source_url: "https://fred.stlouisfed.org/series/SP500",
+                agency: "Federal Reserve Bank of St. Louis",
+                agency_series_id: "SP500"
+              },
+              retrieved_at: "2026-03-21T08:00:00.000Z",
+              retrieval_status: "fresh",
+              source_period: "2026-03-21"
+            }
+          ],
+          omissions: [
+            {
+              omission_id: "sector-basket-free-path-unavailable",
+              family: "sector",
+              reason_code: "source_unavailable",
+              reason_text: "Sector ETF leadership is not available in the approved free live path for this run.",
+              blocking: false
+            }
+          ]
+        },
+        error_flag: false
+      });
+      return;
+    }
+
+    if (url.pathname === "/v1/official/structural") {
+      sendJson(response, 200, {
+        ok: true,
+        data: {
+          subject_type: "market_pulse",
+          subject_id: "US",
+          as_of: "2026-03-21",
+          coverage_state: "partial",
+          summary: "United States structural context remains broadly supportive while policy sensitivity stays in view.",
+          observations: [],
+          omissions: [],
+          retrievals: []
+        },
+        error_flag: false
+      });
+      return;
+    }
+
     sendJson(response, 404, { status: "not_found" });
   });
 
@@ -299,7 +504,7 @@ async function requestJson(
     body?: JsonObject;
     headers?: Record<string, string>;
   } = {}
-): Promise<{ status: number; payload: JsonObject }> {
+): Promise<{ status: number; payload: JsonObject; headers: Headers }> {
   const response = await fetch(`${baseUrl}${path}`, {
     method: options.method ?? "GET",
     headers: {
@@ -311,7 +516,8 @@ async function requestJson(
   const payload = (await response.json()) as JsonObject;
   return {
     status: response.status,
-    payload
+    payload,
+    headers: response.headers
   };
 }
 
@@ -376,7 +582,7 @@ async function waitForPulseReport(
   throw new Error(`Timed out waiting for pulse report at ${path}`);
 }
 
-test("market pulse dispatch stores reports, personalizes watchlist overlay, and handles degradation/failure", async () => {
+test("market pulse dispatch stores reports, personalizes through research state, and handles degradation/failure", async () => {
   const openbbState: OpenbbMockState = {
     failCompany: false,
     failMacro: false
@@ -451,6 +657,19 @@ test("market pulse dispatch stores reports, personalizes watchlist overlay, and 
     });
     assert.equal(addWatchlist.status, 200);
 
+    const addHolding = await requestJson(baseUrl, "/v1/user/holdings", {
+      method: "POST",
+      headers: authHeaders,
+      body: {
+        ticker: "AAPL",
+        quantity: 2,
+        cost_basis: 170,
+        label: "Core manual holding"
+      }
+    });
+    assert.equal(addHolding.status, 200);
+    assert.equal((addHolding.payload.data as Record<string, unknown>).ticker, "AAPL");
+
     const dispatchSuccess = await requestJson(baseUrl, "/internal/pulse/dispatch", {
       method: "POST",
       headers: internalHeaders,
@@ -461,19 +680,68 @@ test("market pulse dispatch stores reports, personalizes watchlist overlay, and 
     });
     assert.equal(dispatchSuccess.status, 202);
 
+    const firstBaseReport = await waitForPulseReport(
+      baseUrl,
+      session.accessToken,
+      "/pulse/2026-03-21"
+    );
+    const firstBase = await requestJson(baseUrl, "/pulse/2026-03-21", {
+      headers: authHeaders
+    });
+    assert.equal(firstBase.headers.get("cache-control"), "private, no-store");
+    assert.equal(firstBase.headers.get("vary"), "Authorization");
+    assert.equal(firstBaseReport.sections.watchlist_overlay, undefined);
+    assert.equal(firstBaseReport.user_research_state, undefined);
+
+    const refreshResearchState = await requestJson(baseUrl, "/internal/research-state/refresh", {
+      method: "POST",
+      headers: internalHeaders,
+      body: {
+        as_of: "2026-03-21"
+      }
+    });
+    assert.equal(refreshResearchState.status, 200);
+    assert.equal(refreshResearchState.payload.users, 1);
+    assert.equal(refreshResearchState.payload.names, 1);
+
     const firstReport = await waitForPulseReport(
       baseUrl,
       session.accessToken,
       "/pulse/2026-03-21"
     );
+    const firstRetrieved = await requestJson(baseUrl, "/pulse/2026-03-21", {
+      headers: authHeaders
+    });
+    assert.equal(firstRetrieved.headers.get("cache-control"), "private, no-store");
+    assert.equal(firstRetrieved.headers.get("vary"), "Authorization");
     assert.equal(firstReport.sections.macro_stress.status, "complete");
+    assert.equal(firstReport.sections.market_tape.status, "data_incomplete");
     assert.equal(firstReport.sections.official_macro_pressure.status, "complete");
     assert.equal(firstReport.sections.canonical_events.status, "complete");
     assert.equal(firstReport.sections.bounded_context.status, "complete");
     assert.equal(firstReport.sections.news_summary?.status, "complete");
     assert.equal(firstReport.sections.market_moves?.status, "complete");
-    assert.ok(firstReport.sections.watchlist_overlay);
-    assert.match(firstReport.sections.watchlist_overlay?.body ?? "", /AAPL/);
+    assert.ok(firstReport.flags.includes("data_incomplete:market_tape"));
+    assert.equal(firstReport.sections.watchlist_overlay, undefined);
+    assert.ok(firstReport.user_research_state);
+    assert.match(firstReport.sections.portfolio_radar?.body ?? "", /AAPL/);
+    assert.equal(firstReport.user_research_state?.holdings[0]?.ticker, "AAPL");
+    assert.equal(firstReport.editorial_issue?.freshness_state, "baseline");
+    assert.match(firstReport.editorial_issue?.lead ?? "", /editorial baseline/);
+    assert.ok(firstReport.sections.what_changed);
+    assert.ok(firstReport.sections.why_it_matters);
+    assert.ok(firstReport.sections.what_to_watch);
+    assert.ok(firstReport.sections.signal_vs_noise);
+    assert.match(firstReport.sections.what_to_watch?.body ?? "", /AAPL/);
+    assert.ok(firstReport.morning_edition);
+    assert.equal(firstReport.macro_news?.state, "calm");
+    assert.equal(firstReport.sections.macro_news, undefined);
+    assert.ok((firstReport.morning_edition?.market_board.length ?? 0) > 0);
+    assert.ok((firstReport.morning_edition?.today_catalysts.length ?? 0) > 0);
+    assert.ok(firstReport.sections.market_board);
+    assert.ok(firstReport.sections.today_catalysts);
+    assert.ok(firstReport.sections.portfolio_radar);
+    assert.equal(firstReport.sections.headline_digest, undefined);
 
     newsState.outage = true;
     const dispatchDegraded = await requestJson(baseUrl, "/internal/pulse/dispatch", {
@@ -494,6 +762,9 @@ test("market pulse dispatch stores reports, personalizes watchlist overlay, and 
     assert.equal(degradedReport.sections.bounded_context.status, "data_unavailable");
     assert.equal(degradedReport.sections.news_summary?.status, "data_unavailable");
     assert.ok(degradedReport.flags.includes("data_unavailable:bounded_context"));
+    assert.equal(degradedReport.editorial_issue?.freshness_state, "updated");
+    assert.equal(degradedReport.editorial_issue?.prior_cycle_end?.slice(0, 10), "2026-03-21");
+    assert.match(degradedReport.sections.what_changed?.body ?? "", /AAPL|Tape comparison/);
     const degradedSentryLog = capturedErrors.some((line) =>
       line.includes('"message":"Sentry capture"') &&
       line.includes("Market Pulse degraded with unavailable data")
@@ -523,6 +794,8 @@ test("market pulse dispatch stores reports, personalizes watchlist overlay, and 
       headers: authHeaders
     });
     assert.equal(latestAfterFailure.status, 200);
+    assert.equal(latestAfterFailure.headers.get("cache-control"), "private, no-store");
+    assert.equal(latestAfterFailure.headers.get("vary"), "Authorization");
     const latestPayload = latestAfterFailure.payload as unknown as MarketPulseReport;
     assert.equal(latestPayload.cycle_end.slice(0, 10), "2026-03-22");
   } finally {

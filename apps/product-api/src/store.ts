@@ -47,7 +47,8 @@ import type {
   ScenarioStressThesisBreakLikelihood,
   SubscriptionFeedbackCode,
   SubscriptionTier,
-  TickerCoverage
+  TickerCoverage,
+  UserResearchState
 } from "../../../packages/contracts/src";
 
 import type {
@@ -79,6 +80,8 @@ import type {
   TickerRegistryRecord,
   TickerRegistryUpsertInput,
   TickerSearchResult,
+  UserResearchHoldingRecord,
+  UserResearchStateRecord,
   UserDeviceRecord,
   UserRecord,
   UserSubscriptionRecord,
@@ -456,6 +459,20 @@ export interface ProductStore {
   }): Promise<EarningsWarRoomTimelineEventRecord[]>;
   upsertThesisMonitorSnapshot(input: ThesisMonitorSnapshotRecord): Promise<ThesisMonitorSnapshotRecord>;
   listThesisMonitorSnapshotsByUser(userId: string): Promise<ThesisMonitorSnapshotRecord[]>;
+  upsertUserResearchHolding(input: {
+    userId: string;
+    ticker: string;
+    quantity?: number;
+    costBasis?: number;
+    label?: string;
+    notes?: string;
+    updatedAt: string;
+  }): Promise<UserResearchHoldingRecord>;
+  listUserResearchHoldings(userId: string): Promise<UserResearchHoldingRecord[]>;
+  deleteUserResearchHolding(userId: string, ticker: string): Promise<boolean>;
+  listUsersWithResearchUniverse(): Promise<Array<{ userId: string; watchlistTickers: string[]; holdingTickers: string[] }>>;
+  upsertUserResearchState(input: UserResearchStateRecord): Promise<UserResearchStateRecord>;
+  getLatestUserResearchState(input: { userId: string; asOf?: string }): Promise<UserResearchStateRecord | undefined>;
   listUsersWithDeviceTokenByNotificationType(input: {
     notificationType: NotificationType;
     tier?: SubscriptionTier;
@@ -1263,6 +1280,42 @@ function mapThesisMonitorSnapshot(row: Record<string, unknown>): ThesisMonitorSn
   };
 }
 
+function cloneUserResearchState(state: UserResearchState): UserResearchState {
+  return JSON.parse(JSON.stringify(state)) as UserResearchState;
+}
+
+function cloneUserResearchStateRecord(record: UserResearchStateRecord): UserResearchStateRecord {
+  return {
+    ...record,
+    state: cloneUserResearchState(record.state)
+  };
+}
+
+function mapUserResearchHolding(row: Record<string, unknown>): UserResearchHoldingRecord {
+  return {
+    userId: String(row.user_id),
+    ticker: String(row.ticker),
+    quantity: row.quantity == null ? undefined : Number(row.quantity),
+    costBasis: row.cost_basis == null ? undefined : Number(row.cost_basis),
+    label: row.label == null ? undefined : String(row.label),
+    notes: row.notes == null ? undefined : String(row.notes),
+    createdAt: asIsoString(row.created_at) ?? new Date().toISOString(),
+    updatedAt: asIsoString(row.updated_at) ?? new Date().toISOString()
+  };
+}
+
+function mapUserResearchState(row: Record<string, unknown>): UserResearchStateRecord {
+  const state = (asRecord(row.state) ?? {}) as unknown as UserResearchState;
+  const asOf = asIsoString(row.as_of)?.slice(0, 10) ?? String(row.as_of).slice(0, 10);
+  return {
+    stateId: String(row.state_id),
+    userId: String(row.user_id),
+    asOf,
+    generatedAt: asIsoString(row.generated_at) ?? new Date().toISOString(),
+    state: cloneUserResearchState(state)
+  };
+}
+
 function mapReportNote(row: Record<string, unknown>): ReportNoteRecord {
   return {
     reportId: String(row.report_id),
@@ -1523,6 +1576,8 @@ export class InMemoryStore implements ProductStore {
   private readonly reportNotes = new Map<string, ReportNoteRecord>();
   private readonly userFeedbackQueue = new Map<string, UserFeedbackQueueRecord>();
   private readonly thesisMonitorSnapshots = new Map<string, ThesisMonitorSnapshotRecord>();
+  private readonly userResearchHoldings = new Map<string, UserResearchHoldingRecord>();
+  private readonly userResearchStates = new Map<string, UserResearchStateRecord>();
   private readonly alertLedgerByUser = new Map<string, Map<string, AlertLedgerRecord>>();
   private readonly convictionJournalByUser = new Map<
     string,
@@ -3613,6 +3668,88 @@ export class InMemoryStore implements ProductStore {
       .filter((snapshot) => snapshot.userId === userId)
       .sort((left, right) => left.ticker.localeCompare(right.ticker))
       .map((snapshot) => ({ ...snapshot }));
+  }
+
+  async upsertUserResearchHolding(input: {
+    userId: string;
+    ticker: string;
+    quantity?: number;
+    costBasis?: number;
+    label?: string;
+    notes?: string;
+    updatedAt: string;
+  }): Promise<UserResearchHoldingRecord> {
+    const ticker = input.ticker.trim().toUpperCase();
+    const key = `${input.userId}:${ticker}`;
+    const existing = this.userResearchHoldings.get(key);
+    const record: UserResearchHoldingRecord = {
+      userId: input.userId,
+      ticker,
+      quantity: input.quantity,
+      costBasis: input.costBasis,
+      label: input.label,
+      notes: input.notes,
+      createdAt: existing?.createdAt ?? input.updatedAt,
+      updatedAt: input.updatedAt
+    };
+    this.userResearchHoldings.set(key, record);
+    return { ...record };
+  }
+
+  async listUserResearchHoldings(userId: string): Promise<UserResearchHoldingRecord[]> {
+    return [...this.userResearchHoldings.values()]
+      .filter((holding) => holding.userId === userId)
+      .sort((left, right) => left.ticker.localeCompare(right.ticker))
+      .map((holding) => ({ ...holding }));
+  }
+
+  async deleteUserResearchHolding(userId: string, ticker: string): Promise<boolean> {
+    return this.userResearchHoldings.delete(`${userId}:${ticker.trim().toUpperCase()}`);
+  }
+
+  async listUsersWithResearchUniverse(): Promise<Array<{ userId: string; watchlistTickers: string[]; holdingTickers: string[] }>> {
+    const users = new Map<string, { userId: string; watchlistTickers: string[]; holdingTickers: string[] }>();
+    for (const entry of await this.listUsersWithWatchlist()) {
+      users.set(entry.userId, {
+        userId: entry.userId,
+        watchlistTickers: [...entry.tickers],
+        holdingTickers: []
+      });
+    }
+    for (const holding of this.userResearchHoldings.values()) {
+      const entry = users.get(holding.userId) ?? {
+        userId: holding.userId,
+        watchlistTickers: [],
+        holdingTickers: []
+      };
+      entry.holdingTickers.push(holding.ticker);
+      users.set(holding.userId, entry);
+    }
+    return [...users.values()]
+      .map((entry) => ({
+        ...entry,
+        watchlistTickers: [...new Set(entry.watchlistTickers)].sort((left, right) => left.localeCompare(right)),
+        holdingTickers: [...new Set(entry.holdingTickers)].sort((left, right) => left.localeCompare(right))
+      }))
+      .filter((entry) => entry.watchlistTickers.length > 0 || entry.holdingTickers.length > 0)
+      .sort((left, right) => left.userId.localeCompare(right.userId));
+  }
+
+  async upsertUserResearchState(input: UserResearchStateRecord): Promise<UserResearchStateRecord> {
+    const key = `${input.userId}:${input.asOf}`;
+    const record = cloneUserResearchStateRecord(input);
+    this.userResearchStates.set(key, record);
+    return cloneUserResearchStateRecord(record);
+  }
+
+  async getLatestUserResearchState(input: { userId: string; asOf?: string }): Promise<UserResearchStateRecord | undefined> {
+    const candidates = [...this.userResearchStates.values()]
+      .filter((state) => state.userId === input.userId)
+      .filter((state) => !input.asOf || state.asOf <= input.asOf)
+      .sort((left, right) =>
+        right.asOf.localeCompare(left.asOf) || right.generatedAt.localeCompare(left.generatedAt)
+      );
+    return candidates[0] ? cloneUserResearchStateRecord(candidates[0]) : undefined;
   }
 
   async getReportNote(
@@ -6932,6 +7069,122 @@ export class PostgresStore implements ProductStore {
       [userId]
     );
     return result.rows.map((row) => mapThesisMonitorSnapshot(row as Record<string, unknown>));
+  }
+
+  async upsertUserResearchHolding(input: {
+    userId: string;
+    ticker: string;
+    quantity?: number;
+    costBasis?: number;
+    label?: string;
+    notes?: string;
+    updatedAt: string;
+  }): Promise<UserResearchHoldingRecord> {
+    const result = await this.pool.query(
+      `insert into user_research_holdings (
+         user_id, ticker, quantity, cost_basis, label, notes, created_at, updated_at
+       )
+       values ($1, $2, $3, $4, $5, $6, $7::timestamptz, $7::timestamptz)
+       on conflict (user_id, ticker) do update set
+         quantity = excluded.quantity,
+         cost_basis = excluded.cost_basis,
+         label = excluded.label,
+         notes = excluded.notes,
+         updated_at = excluded.updated_at
+       returning *`,
+      [
+        input.userId,
+        input.ticker.trim().toUpperCase(),
+        input.quantity ?? null,
+        input.costBasis ?? null,
+        input.label ?? null,
+        input.notes ?? null,
+        input.updatedAt
+      ]
+    );
+    return mapUserResearchHolding(result.rows[0] as Record<string, unknown>);
+  }
+
+  async listUserResearchHoldings(userId: string): Promise<UserResearchHoldingRecord[]> {
+    const result = await this.pool.query(
+      `select *
+         from user_research_holdings
+        where user_id = $1
+        order by ticker asc`,
+      [userId]
+    );
+    return result.rows.map((row) => mapUserResearchHolding(row as Record<string, unknown>));
+  }
+
+  async deleteUserResearchHolding(userId: string, ticker: string): Promise<boolean> {
+    const result = await this.pool.query(
+      `delete from user_research_holdings
+        where user_id = $1
+          and ticker = $2`,
+      [userId, ticker.trim().toUpperCase()]
+    );
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  async listUsersWithResearchUniverse(): Promise<Array<{ userId: string; watchlistTickers: string[]; holdingTickers: string[] }>> {
+    const result = await this.pool.query(
+      `select user_id,
+              array_agg(distinct ticker order by ticker) filter (where source = 'watchlist') as watchlist_tickers,
+              array_agg(distinct ticker order by ticker) filter (where source = 'holding') as holding_tickers
+         from (
+           select user_id, ticker, 'watchlist' as source from watchlists
+           union all
+           select user_id, ticker, 'holding' as source from user_research_holdings
+         ) universe
+        group by user_id
+        order by user_id asc`
+    );
+    return result.rows.map((row) => ({
+      userId: String(row.user_id),
+      watchlistTickers: Array.isArray(row.watchlist_tickers)
+        ? row.watchlist_tickers.map((value: unknown) => String(value))
+        : [],
+      holdingTickers: Array.isArray(row.holding_tickers)
+        ? row.holding_tickers.map((value: unknown) => String(value))
+        : []
+    }));
+  }
+
+  async upsertUserResearchState(input: UserResearchStateRecord): Promise<UserResearchStateRecord> {
+    const result = await this.pool.query(
+      `insert into user_research_states (
+         state_id, user_id, as_of, generated_at, state, created_at, updated_at
+       )
+       values ($1, $2, $3::date, $4::timestamptz, $5::jsonb, $4::timestamptz, $4::timestamptz)
+       on conflict (user_id, as_of) do update set
+         state_id = excluded.state_id,
+         generated_at = excluded.generated_at,
+         state = excluded.state,
+         updated_at = excluded.updated_at
+       returning *`,
+      [
+        input.stateId,
+        input.userId,
+        input.asOf,
+        input.generatedAt,
+        JSON.stringify(input.state)
+      ]
+    );
+    return mapUserResearchState(result.rows[0] as Record<string, unknown>);
+  }
+
+  async getLatestUserResearchState(input: { userId: string; asOf?: string }): Promise<UserResearchStateRecord | undefined> {
+    const result = await this.pool.query(
+      `select *
+         from user_research_states
+        where user_id = $1
+          and ($2::date is null or as_of <= $2::date)
+        order by as_of desc, generated_at desc
+        limit 1`,
+      [input.userId, input.asOf ?? null]
+    );
+    const row = result.rows[0] as Record<string, unknown> | undefined;
+    return row ? mapUserResearchState(row) : undefined;
   }
 
   async listUsersWithDeviceTokenByNotificationType(input: {

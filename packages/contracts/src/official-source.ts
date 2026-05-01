@@ -4,6 +4,7 @@ export const officialSourceFamilies = [
   "bls",
   "bea",
   "eia",
+  "fred",
   "world_bank",
   "imf"
 ] as const;

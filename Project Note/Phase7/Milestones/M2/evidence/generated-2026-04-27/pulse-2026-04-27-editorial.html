@@ -1,0 +1,798 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Thesis Pulse</title>
+<style>
+
+  @page {
+    size: 5.8in 9.2in;
+    margin: 0.18in;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    margin: 0;
+    background: #050505;
+    color: #f6f1e6;
+    font-family: Georgia, "Times New Roman", serif;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  h1,
+  h2,
+  h3,
+  strong {
+    color: #fff8ec;
+  }
+
+  h1,
+  h2 {
+    font-family: Georgia, "Times New Roman", serif;
+    font-weight: 700;
+    letter-spacing: 0;
+    margin: 0;
+  }
+
+  h1 {
+    font-size: 31px;
+    line-height: 1.01;
+    text-transform: uppercase;
+    text-shadow: 2px 0 0 #173961, 4px 0 0 #8c241e;
+  }
+
+  h2 {
+    font-size: 21px;
+    line-height: 1.1;
+    text-transform: uppercase;
+    text-shadow: 1px 0 0 #173961, 2px 0 0 #8c241e;
+  }
+
+  p {
+    margin: 0;
+    font-size: 14px;
+    line-height: 1.62;
+    color: #f3eee6;
+  }
+
+  .issue-shell {
+    width: min(100%, 510px);
+    margin: 18px auto;
+    background: #101010;
+    border: 1px solid #28231c;
+    border-radius: 12px 12px 0 0;
+    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.62);
+    overflow: hidden;
+  }
+
+  .masthead {
+    padding: 40px 20px 0;
+    border-bottom: 2px solid #d7b985;
+  }
+
+  .issue-meta {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #2a2926;
+    color: #f0c777;
+    font: 700 10px/1.2 Arial, "Helvetica Neue", sans-serif;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+  }
+
+  .brand-lockup {
+    display: flex;
+    justify-content: center;
+    align-items: baseline;
+    gap: 8px;
+    padding-top: 10px;
+    color: #fff6e6;
+  }
+
+  .brand-lockup__thesis {
+    font-size: 40px;
+    line-height: 1;
+    font-weight: 800;
+    text-shadow: 2px 0 0 #173961, 4px 0 0 #8c241e;
+  }
+
+  .brand-lockup__pulse {
+    color: #dcb878;
+    font-size: 33px;
+    font-style: italic;
+    line-height: 1;
+  }
+
+  .masthead__dek {
+    margin: 6px 0 18px;
+    text-align: center;
+    color: #c7d1da;
+    font: 700 11px/1.2 Arial, "Helvetica Neue", sans-serif;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+  }
+
+  .ticker-strip {
+    display: flex;
+    gap: 12px;
+    padding: 16px 0 9px;
+    border-top: 1px solid #2d2b27;
+    overflow: hidden;
+  }
+
+  .ticker-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    color: #f7f3ea;
+    font: 700 12px/1.2 Arial, "Helvetica Neue", sans-serif;
+    white-space: nowrap;
+  }
+
+  .ticker-item span {
+    color: #cfd7df;
+    font-weight: 500;
+  }
+
+  .ticker-item em,
+  .matrix-row em {
+    border-radius: 4px;
+    padding: 3px 5px;
+    font-style: normal;
+    font-size: 10px;
+    line-height: 1;
+  }
+
+  .up {
+    background: #073d2b;
+    color: #31db8b;
+  }
+
+  .down {
+    background: #4a1110;
+    color: #ff6a61;
+  }
+
+  .flat {
+    background: #24211c;
+    color: #d7b985;
+  }
+
+  .report-column {
+    display: grid;
+  }
+
+  .issue-opening {
+    padding: 22px 20px 24px;
+    border-bottom: 1px solid #28231c;
+  }
+
+  .online-link {
+    display: inline-block;
+    margin-bottom: 18px;
+    color: #aeb7bf;
+    font: 700 11px/1.2 Arial, "Helvetica Neue", sans-serif;
+    letter-spacing: 0.04em;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  .opening-note {
+    color: #f6f1e6;
+    font-size: 16px;
+    line-height: 1.65;
+  }
+
+  .read-time {
+    margin-top: 16px;
+    color: #d7b985;
+    font: 700 12px/1.35 Arial, "Helvetica Neue", sans-serif;
+  }
+
+  .issue-contents {
+    margin-top: 22px;
+    border-top: 1px solid #292724;
+    border-bottom: 1px solid #292724;
+    padding: 14px 0;
+  }
+
+  .issue-contents ol {
+    margin: 10px 0 0;
+    padding-left: 20px;
+    display: grid;
+    gap: 8px;
+    color: #f3eee6;
+    font: 700 13px/1.35 Arial, "Helvetica Neue", sans-serif;
+  }
+
+  .lead-story,
+  .briefing-section,
+  .quote-section,
+  .split-section,
+  .matrix-section,
+  .method-card,
+  .issue-footer {
+    padding: 26px 20px;
+    border-bottom: 1px solid #28231c;
+  }
+
+  .lead-story {
+    padding-top: 22px;
+  }
+
+  .lede {
+    display: grid;
+    gap: 18px;
+    margin-top: 18px;
+  }
+
+  .story-deck {
+    margin-top: 10px;
+    color: #cbd6df;
+    font: 700 13px/1.5 Arial, "Helvetica Neue", sans-serif;
+  }
+
+  .story-body {
+    display: grid;
+    gap: 16px;
+    margin: 22px 0 16px;
+  }
+
+  .coverage-line {
+    margin: 2px 0 16px;
+    color: #c9b58b;
+    font-size: 12px;
+    font-style: italic;
+  }
+
+  .dropcap::first-letter {
+    float: left;
+    padding: 5px 9px 0 0;
+    color: #d7b985;
+    font-size: 52px;
+    line-height: 0.78;
+    font-weight: 800;
+  }
+
+  .tape-chart {
+    margin: 28px 18px 14px;
+    padding: 18px 16px;
+    border: 1px solid #2c2a27;
+    border-radius: 6px;
+    background: #171717;
+  }
+
+  .tape-chart figcaption {
+    margin-bottom: 20px;
+    text-align: center;
+    color: #f0c777;
+    font: 800 10px/1.2 Arial, "Helvetica Neue", sans-serif;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  .chart-bars {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 9px;
+    align-items: end;
+    min-height: 132px;
+  }
+
+  .chart-bar {
+    display: grid;
+    justify-items: center;
+    gap: 6px;
+    align-self: end;
+  }
+
+  .chart-bar__value {
+    color: #9aa4ae;
+    font: 10px/1 Arial, "Helvetica Neue", sans-serif;
+  }
+
+  .chart-bar__fill {
+    width: 16px;
+    min-height: 12px;
+    border-radius: 3px 3px 0 0;
+    background: #383633;
+  }
+
+  .bar--up {
+    background: #d7b985;
+  }
+
+  .bar--down {
+    background: #4e4b45;
+  }
+
+  .bar--flat {
+    background: #777065;
+  }
+
+  .chart-bar__label {
+    color: #9aa4ae;
+    font: 10px/1 Arial, "Helvetica Neue", sans-serif;
+  }
+
+  .tape-chart p {
+    margin-top: 14px;
+    color: #aeb7bf;
+    font-size: 11px;
+    font-style: italic;
+  }
+
+  .signature-line {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    color: #c5ccd2;
+    font: italic 10px/1.2 Georgia, "Times New Roman", serif;
+  }
+
+  .briefing-section__header,
+  .matrix-section__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 18px;
+    border-bottom: 1px solid #292724;
+    padding-bottom: 9px;
+  }
+
+  .eyebrow {
+    color: #f0c777;
+    font: 800 11px/1.2 Arial, "Helvetica Neue", sans-serif;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  .status-note {
+    color: #b8c1ca;
+    font: 700 10px/1.2 Arial, "Helvetica Neue", sans-serif;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .signal-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 999px;
+    background: #d7b985;
+    box-shadow: 0 0 10px #d7b985;
+  }
+
+  .section-body {
+    display: grid;
+    gap: 12px;
+    margin-top: 12px;
+  }
+
+  .briefing-section--editorial {
+    background: #121212;
+  }
+
+  .editorial-item {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 18px;
+    padding: 15px 0;
+    border-bottom: 1px solid #292724;
+  }
+
+  .editorial-item:first-of-type {
+    padding-top: 4px;
+  }
+
+  .editorial-item h3 {
+    margin: 0 0 6px;
+    color: #fff8ec;
+    font: 800 13px/1.2 Arial, "Helvetica Neue", sans-serif;
+    letter-spacing: 0;
+  }
+
+  .editorial-item p {
+    color: #f3eee6;
+  }
+
+  .editorial-item time,
+  .editorial-item span {
+    align-self: start;
+    color: #d7b985;
+    font: 800 10px/1.2 Arial, "Helvetica Neue", sans-serif;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .briefing-section--regime {
+    border-top: 2px solid #d7b985;
+  }
+
+  .quote-section blockquote {
+    margin: 18px 0 0;
+    border-left: 3px solid #d7b985;
+    padding-left: 16px;
+    color: #fff7ec;
+    font-size: 16px;
+    line-height: 1.55;
+    font-style: italic;
+  }
+
+  .center-rule {
+    margin-bottom: 20px;
+    border-top: 1px solid #292724;
+    border-bottom: 1px solid #292724;
+    padding: 10px 0;
+    color: #aeb7bf;
+    text-align: center;
+    font: 800 10px/1.2 Arial, "Helvetica Neue", sans-serif;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+
+  .move-item + .move-item {
+    margin-top: 22px;
+  }
+
+  .split-section {
+    display: grid;
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+    padding: 0;
+  }
+
+  .split-section > div {
+    padding: 20px;
+  }
+
+  .split-section__caution {
+    border-left: 1px solid #2c281f;
+    background: #18120c;
+  }
+
+  .split-section strong {
+    display: block;
+    margin: 14px 0 6px;
+    color: #fff8ec;
+    font: 800 11px/1.2 Arial, "Helvetica Neue", sans-serif;
+    text-transform: uppercase;
+  }
+
+  .matrix-section__header span {
+    color: #aeb7bf;
+    font: 10px/1.2 Arial, "Helvetica Neue", sans-serif;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  .matrix-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0 26px;
+  }
+
+  .matrix-row {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    gap: 8px;
+    align-items: baseline;
+    border-bottom: 1px solid #292724;
+    padding: 11px 0;
+    color: #b8c1ca;
+    font: 12px/1.2 Arial, "Helvetica Neue", sans-serif;
+  }
+
+  .matrix-row strong {
+    font-size: 14px;
+  }
+
+  .method-card {
+    background: #0b0b0b;
+  }
+
+  .method-list {
+    display: grid;
+    gap: 12px;
+    margin-top: 14px;
+  }
+
+  .issue-footer {
+    background: #070707;
+  }
+
+  .issue-footer p + p {
+    margin-top: 12px;
+  }
+
+  .evidence-block,
+  .omission-block {
+    margin-top: 16px;
+    padding-top: 14px;
+    border-top: 1px solid #292724;
+  }
+
+  .evidence-block ul,
+  .simple-list {
+    margin: 8px 0 0;
+    padding-left: 18px;
+    display: grid;
+    gap: 8px;
+  }
+
+  .evidence-block li,
+  .simple-list li {
+    color: #cdd5dc;
+    font-size: 12px;
+    line-height: 1.5;
+  }
+
+  .evidence-block li span {
+    display: block;
+    color: #9fa8b1;
+  }
+
+  @media (max-width: 560px) {
+    .issue-shell {
+      margin: 0;
+      border-radius: 0;
+      width: 100%;
+    }
+
+    .brand-lockup__thesis {
+      font-size: 34px;
+    }
+
+    .brand-lockup__pulse {
+      font-size: 29px;
+    }
+
+    .split-section,
+    .matrix-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .split-section__caution {
+      border-left: 0;
+      border-top: 1px solid #2c281f;
+    }
+  }
+
+</style>
+</head>
+<body>
+<div class="issue-shell">
+<header class="masthead">
+<div class="issue-meta">
+<span>VOL. VII - NO. 1</span>
+<span>MONDAY, APR 27</span>
+</div>
+<div class="brand-lockup">
+<span class="brand-lockup__thesis">THESIS</span>
+<span class="brand-lockup__pulse">pulse</span>
+</div>
+<div class="masthead__dek">THE DAILY FINANCIAL BRIEFING</div>
+<div class="ticker-strip">
+<div class="ticker-item"><strong>SPX</strong><span>5432.1</span><em class="up">+0.6%</em></div>
+<div class="ticker-item"><strong>DJIA</strong><span>39780.2</span><em class="up">+0.3%</em></div>
+<div class="ticker-item"><strong>NDX</strong><span>17120.4</span><em class="up">+1.2%</em></div>
+<div class="ticker-item"><strong>RUT</strong><span>2102.3</span><em class="down">-0.5%</em></div>
+</div>
+</header>
+<section class="issue-opening">
+<a class="online-link">Open online</a>
+<p class="opening-note">Good morning. Today&#39;s Pulse separates the actual daily change from the slower macro backdrop: the tape is higher, Macro Stress is elevated, and the next watch items are kept evidence-led.</p>
+<p class="read-time">Estimated read: 3 minutes</p>
+<div class="issue-contents">
+<div class="eyebrow">In This Issue</div>
+<ol><li>Lead Story / Market Tape</li><li>What Changed</li><li>Why It Matters</li><li>What To Watch</li><li>Signal vs Noise</li><li>Macro Regime</li></ol>
+</div>
+</section>
+<main class="report-column"><section class="lead-story">
+<div class="eyebrow lead-story__eyebrow">Market Tape</div>
+<h1>TAPE FIRMS, BUT CONFIRMATION STILL MATTERS</h1>
+<p class="story-deck">The reviewed tape is higher; Nasdaq led at +1.18%; VIX moved -3.10%.</p>
+<div class="lede"><p class="dropcap">Good morning. Today&#39;s Pulse separates the actual daily change from the slower macro backdrop: the tape is higher, Macro Stress is elevated, and the next watch items are kept evidence-led.</p>
+<p>The point for Thesis is not the index move alone. A daily tape becomes useful when it shows whether price, volatility, rates, dollar pressure, and credit stress are confirming the same story or pulling in different directions. Coverage was selected rather than complete, so the missing families are disclosed outside the main read instead of being inferred.</p></div>
+<figure class="tape-chart">
+<figcaption>S&P 500: price vs tape context</figcaption>
+<div class="chart-bars"><div class="chart-bar">
+<div class="chart-bar__value">+0.6%</div>
+<div class="chart-bar__fill bar--up" style="height:31px"></div>
+<div class="chart-bar__label">SPX</div>
+</div>
+<div class="chart-bar">
+<div class="chart-bar__value">+0.3%</div>
+<div class="chart-bar__fill bar--up" style="height:22px"></div>
+<div class="chart-bar__label">DJIA</div>
+</div>
+<div class="chart-bar">
+<div class="chart-bar__value">+1.2%</div>
+<div class="chart-bar__fill bar--up" style="height:44px"></div>
+<div class="chart-bar__label">NDX</div>
+</div>
+<div class="chart-bar">
+<div class="chart-bar__value">-0.5%</div>
+<div class="chart-bar__fill bar--down" style="height:28px"></div>
+<div class="chart-bar__label">RUT</div>
+</div>
+<div class="chart-bar">
+<div class="chart-bar__value">-3.1%</div>
+<div class="chart-bar__fill bar--down" style="height:90px"></div>
+<div class="chart-bar__label">VIX</div>
+</div>
+<div class="chart-bar">
+<div class="chart-bar__value">+0.7%</div>
+<div class="chart-bar__fill bar--up" style="height:33px"></div>
+<div class="chart-bar__label">US 10Y</div>
+</div>
+<div class="chart-bar">
+<div class="chart-bar__value">+1.4%</div>
+<div class="chart-bar__fill bar--up" style="height:50px"></div>
+<div class="chart-bar__label">WTI</div>
+</div></div>
+<p>Sector ETF leadership is not available in the approved free live path for this run.</p>
+</figure>
+<div class="story-body"><p>The index board was led by NDX and restrained by RUT. The reviewed basket read: SPX +0.6%, DJIA +0.3%, NDX +1.2%, RUT -0.5%. That gives the story a firmer daily anchor than the macro release calendar alone, while still keeping Pulse away from terminal-style price narration.</p>
+<p>Volatility eased by -3.1%, which supports the view that investors were more willing to carry exposure through the session. That does not erase macro pressure, but it does suggest the day was less about immediate stress and more about controlled repricing.</p>
+<p>The rates backdrop was not a throwaway detail: 10-year yields moved +0.03 points, while the 2-year was unavailable. For a research product, that matters because equity strength is more durable when it is not fighting a hostile discount-rate move at the same time.</p>
+<p>The cross-asset board added a second check on the equity read: WTI moved +1.4%, the dollar proxy moved +0.3%. Pulse should use those moves as guardrails, not as trading instructions, because one session can explain pressure without proving a new regime.</p>
+<p>The customer-facing conclusion is therefore deliberately bounded: the tape gives better daily color than macro releases alone, but selected coverage remains part of the read. Macro stress is elevated, source state is partial, and the report should preserve that caution without showing internal failure language.</p></div>
+<p class="coverage-line">Coverage note: Sector ETF leadership is not available in the approved free live path for this run.</p>
+<div class="signature-line"><span>Status: Selected coverage</span><strong>- T. Research</strong></div>
+</section>
+<section class="briefing-section briefing-section--editorial">
+<div class="briefing-section__header">
+<div class="eyebrow">What Changed</div>
+<span class="status-note positive">Verified</span>
+</div>
+<h2>What Changed</h2>
+<article class="editorial-item">
+<div>
+<h3>Tape comparison</h3>
+<p>The reviewed market tape moved from mixed to higher while Macro Stress stayed elevated.</p>
+</div>
+<span>Updated</span>
+</article>
+<div class="evidence-block"><div class="eyebrow eyebrow--muted">Evidence</div><ul><li><strong>FRED S&amp;P 500</strong><span>S&amp;P 500: +0.64% daily move.</span></li>
+<li><strong>FRED VIX</strong><span>VIX: -3.10% daily move.</span></li></ul></div>
+</section>
+<section class="briefing-section briefing-section--editorial">
+<div class="briefing-section__header">
+<div class="eyebrow">Why It Matters</div>
+<span class="status-note positive">Verified</span>
+</div>
+<h2>Why It Matters</h2>
+<article class="editorial-item">
+<div>
+<h3>Conviction read</h3>
+<p>A broader positive tape can improve context, but Thesis still requires confirmation from volatility, rates, credit, and company evidence before treating one day as a thesis change.</p>
+</div>
+<span>Updated</span>
+</article>
+<div class="evidence-block"><div class="eyebrow eyebrow--muted">Evidence</div><ul><li><strong>FRED S&amp;P 500</strong><span>S&amp;P 500: +0.64% daily move.</span></li>
+<li><strong>FRED VIX</strong><span>VIX: -3.10% daily move.</span></li></ul></div>
+</section>
+<section class="briefing-section briefing-section--editorial">
+<div class="briefing-section__header">
+<div class="eyebrow">What To Watch</div>
+<span class="status-note positive">Verified</span>
+</div>
+<h2>What To Watch</h2>
+<article class="editorial-item">
+<div>
+<h3>AAPL earnings</h3>
+<p>AAPL has an earnings event inside the seven-day watch window. Watch for company-specific evidence that changes the briefing context.</p>
+</div>
+<time>2026-04-29</time>
+</article>
+<div class="evidence-block"><div class="eyebrow eyebrow--muted">Evidence</div><ul><li><strong>Earnings calendar</strong><span>AAPL earnings scheduled inside the seven-day watch window.</span></li></ul></div>
+</section>
+<section class="briefing-section briefing-section--editorial">
+<div class="briefing-section__header">
+<div class="eyebrow">Signal vs Noise</div>
+<span class="status-note positive">Verified</span>
+</div>
+<h2>Signal vs Noise</h2>
+<article class="editorial-item">
+<div>
+<h3>Signal</h3>
+<p>Nasdaq leadership and lower VIX are useful daily context.</p>
+</div>
+<span>Updated</span>
+</article>
+<article class="editorial-item">
+<div>
+<h3>Noise</h3>
+<p>One-day movement does not prove a regime shift; the rates backdrop stays in the macro frame rather than becoming a trade conclusion.</p>
+</div>
+<span>Unchanged</span>
+</article>
+<div class="evidence-block"><div class="eyebrow eyebrow--muted">Evidence</div><ul><li><strong>FRED S&amp;P 500</strong><span>S&amp;P 500: +0.64% daily move.</span></li>
+<li><strong>FRED VIX</strong><span>VIX: -3.10% daily move.</span></li>
+<li><strong>Daily Treasury Rates - 10 Yr</strong><span>10Y Treasury is 4.21 percent.</span></li>
+<li><strong>BLS CPI</strong><span>Core inflation pressure remains a macro watch item.</span></li></ul></div>
+</section>
+<section class="briefing-section briefing-section--regime">
+<div class="briefing-section__header">
+<div class="eyebrow">The Macro Regime</div>
+<span class="signal-dot warning"></span>
+</div>
+<h2>DISINFLATIONARY SLOWDOWN</h2>
+<p class="story-deck">Treasury 10Y and Core CPI remain the pressure points; medium-pressure inputs define the follow-through risk.</p>
+<div class="section-body"><p>The official macro board is elevated, not because every input is flashing the same color, but because the combination of rates, inflation, labor, growth, and energy still matters for company-level conviction.</p>
+<p>High-pressure inputs were Treasury 10Y at 4.21 percent, Core CPI at 0.3 percent. Medium-pressure confirmation was limited. Low-pressure offsets were limited.</p>
+<p>Structural context was not available in enough detail to expand the macro read, so the report leaves the regime interpretation close to the official input board.</p>
+<p>No structural omission dominated this cycle, so the regime read can rely more directly on the official macro board and World Bank context.</p>
+<p>For the reader, the practical takeaway is measured rather than theatrical. Macro pressure can explain why valuation support, capital costs, and demand sensitivity deserve attention, but it does not turn Pulse into a global macro dashboard or a trading call.</p></div>
+</section>
+<section class="briefing-section">
+<div class="briefing-section__header">
+<div class="eyebrow">canonical events</div>
+<span class="status-note warning">Selected coverage</span>
+</div>
+<h2>Canonical Events</h2>
+<div class="section-body"><p>No material canonical events were published in this cycle.</p></div>
+
+</section>
+<section class="briefing-section">
+<div class="briefing-section__header">
+<div class="eyebrow">uncertainty flags</div>
+<span class="status-note warning">Selected coverage</span>
+</div>
+<h2>Uncertainty Flags</h2>
+<div class="section-body"><p>Coverage note: sector leadership is unavailable in the approved free live path.</p></div>
+
+</section>
+<section class="split-section">
+<div>
+<div class="eyebrow">The Docket</div>
+<p>Treasury 10Y and Core CPI remain the principal macro watch inputs.</p>
+</div>
+<div class="split-section__caution">
+<div class="eyebrow">Caution</div>
+<strong>Selected coverage</strong><p>Coverage note: sector leadership is unavailable in the approved free live path.</p>
+</div>
+</section>
+<section class="matrix-section">
+<div class="matrix-section__header"><div class="eyebrow">Global Matrix</div><span>End of Day</span></div>
+<div class="matrix-grid"><div class="matrix-row"><span>US 10Y</span><strong>4.21 percent</strong><em class="down">high</em></div>
+<div class="matrix-row"><span>CORE CPI</span><strong>0.3 percent</strong><em class="down">high</em></div></div>
+</section>
+<section class="briefing-section">
+<div class="briefing-section__header">
+<div class="eyebrow">news summary</div>
+<span class="status-note warning">Selected coverage</span>
+</div>
+<h2>News Summary</h2>
+<div class="section-body"><p>No bounded context headlines were available for this cycle.</p></div>
+
+</section><section class="method-card">
+<div class="briefing-section__header">
+<div class="eyebrow">Method</div>
+<span class="status-note warning">Partial coverage</span>
+</div>
+<h2>Coverage and Discipline</h2>
+<div class="section-body"><p>Generated 2026-04-27T04:45:00.000Z. Thesis remains omission-aware and keeps Pulse bounded to decision-relevant context.</p></div>
+<div class="method-list">
+<div><strong>Confidence</strong><p>78% high</p></div>
+<div><strong>Limiting factors</strong><ul class="simple-list"><li>Incomplete: market tape</li></ul></div>
+<div><strong>Rights and provenance</strong><ul class="simple-list"><li>official_macro: Official public economic releases and reviewed market data.</li></ul></div>
+<div><strong>Coverage notes</strong><ul class="simple-list"><li>Incomplete: market tape</li></ul></div>
+</div>
+</section><footer class="issue-footer">
+<div class="eyebrow">Reader Note</div>
+<p>Thesis is a research and conviction system. This briefing is not investment advice, an execution instruction, or a trading signal.</p>
+<p>Generated from reviewed source families at 2026-04-27T04:45:00.000Z. Missing or limited coverage is disclosed as coverage context rather than hidden behind confident prose.</p>
+</footer></main>
+</div>
+</body>
+</html>

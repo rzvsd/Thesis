@@ -1,0 +1,854 @@
+{
+  "report_id": "1b73a2cb-38df-4cf4-bc7e-221d6273101e",
+  "schema_version": "1.0.0",
+  "generated_at": "2026-04-25T14:09:09.773Z",
+  "cycle_start": "2026-04-25T00:00:00.000Z",
+  "cycle_end": "2026-04-25T23:59:00.000Z",
+  "macro_stress": {
+    "snapshot_id": "aa79885282eea168fff5ea128c317f5706d573275a28367f29c3c7d94acf9116",
+    "as_of": "2026-04-25",
+    "generated_at": "2026-04-25T14:09:09.773Z",
+    "state": "elevated",
+    "summary": "Macro pressure is elevated: CPI-U All Items (high), Treasury 10Y (medium).",
+    "no_material_change": false,
+    "inputs": [
+      {
+        "registry_id": "TREASURY_DAILY_10Y",
+        "label": "Treasury 10Y",
+        "category": "rates",
+        "pressure": "medium",
+        "source_state": "official",
+        "value": 4.29,
+        "unit": "percent",
+        "period": "2026-04-25",
+        "reason": "Treasury 10Y is 4.29 percent (2026-04-25).",
+        "source_name": "U.S. Treasury",
+        "retrieved_at": "2026-04-25T20:00:00.000Z"
+      },
+      {
+        "registry_id": "TREASURY_DAILY_2Y",
+        "label": "Treasury 2Y",
+        "category": "rates",
+        "pressure": "medium",
+        "source_state": "official",
+        "value": 3.93,
+        "unit": "percent",
+        "period": "2026-04-25",
+        "reason": "Treasury 2Y is 3.93 percent (2026-04-25).",
+        "source_name": "U.S. Treasury",
+        "retrieved_at": "2026-04-25T20:00:00.000Z"
+      },
+      {
+        "registry_id": "BLS_CPI_U_ALL_ITEMS",
+        "label": "CPI-U All Items",
+        "category": "inflation",
+        "pressure": "high",
+        "source_state": "official",
+        "value": 312.23,
+        "unit": "index",
+        "period": "2026-04",
+        "reason": "CPI-U All Items is 312.23 index (2026-04).",
+        "source_name": "BLS",
+        "retrieved_at": "2026-04-25T20:00:00.000Z"
+      },
+      {
+        "registry_id": "BLS_UNEMPLOYMENT_RATE",
+        "label": "Unemployment Rate",
+        "category": "labor",
+        "pressure": "medium",
+        "source_state": "official",
+        "value": 4,
+        "unit": "percent",
+        "period": "2026-04",
+        "reason": "Unemployment Rate is 4 percent (2026-04).",
+        "source_name": "BLS",
+        "retrieved_at": "2026-04-25T20:00:00.000Z"
+      },
+      {
+        "registry_id": "BEA_REAL_GDP",
+        "label": "Real GDP",
+        "category": "growth",
+        "pressure": "low",
+        "source_state": "official",
+        "value": 2.1,
+        "unit": "annualized_percent",
+        "period": "2026-Q2",
+        "reason": "Real GDP is 2.1 annualized_percent (2026-Q2).",
+        "source_name": "BEA",
+        "retrieved_at": "2026-04-25T20:00:00.000Z"
+      },
+      {
+        "registry_id": "EIA_WTI_SPOT",
+        "label": "WTI Spot",
+        "category": "energy",
+        "pressure": "low",
+        "source_state": "official",
+        "value": 63.02,
+        "unit": "usd_per_barrel",
+        "period": "2026-04-25",
+        "reason": "WTI Spot is 63.02 usd_per_barrel (2026-04-25).",
+        "source_name": "EIA",
+        "retrieved_at": "2026-04-25T20:00:00.000Z"
+      }
+    ],
+    "omissions": []
+  },
+  "market_tape": {
+    "as_of": "2026-04-25",
+    "coverage_state": "partial",
+    "summary": "US risk assets were broadly higher on the day. Sector leadership was unavailable in the approved free live path for this run. Cross-asset context: VIX down by 0.78; Treasury 10Y down by 0.03; Treasury 2Y down by 0.05; WTI up by 1.14. Coverage note: Sector ETF leadership is not available in the approved free live path for this run.",
+    "indices": [
+      {
+        "instrument_id": "SP500",
+        "label": "S&P 500",
+        "family": "core_index",
+        "period": "2026-04-25",
+        "value": 5525.21,
+        "previous_value": 5484.77,
+        "daily_change": 40.44,
+        "daily_change_pct": 0.7373,
+        "unit": "index",
+        "direction": "up",
+        "retrieval": {
+          "source": {
+            "source_id": "FRED_SP500",
+            "source_family": "fred",
+            "source_name": "FRED S&P 500",
+            "source_url": "https://fred.stlouisfed.org/series/SP500",
+            "agency": "Federal Reserve Bank of St. Louis",
+            "agency_series_id": "SP500"
+          },
+          "retrieved_at": "2026-04-25T20:00:00.000Z",
+          "retrieval_status": "fresh",
+          "source_period": "2026-04-25"
+        },
+        "missing_fields": []
+      },
+      {
+        "instrument_id": "DJIA",
+        "label": "Dow Jones Industrial Average",
+        "family": "core_index",
+        "period": "2026-04-25",
+        "value": 40413.78,
+        "previous_value": 40093.4,
+        "daily_change": 320.38,
+        "daily_change_pct": 0.7991,
+        "unit": "index",
+        "direction": "up",
+        "retrieval": {
+          "source": {
+            "source_id": "FRED_DJIA",
+            "source_family": "fred",
+            "source_name": "FRED DJIA",
+            "source_url": "https://fred.stlouisfed.org/series/DJIA",
+            "agency": "Federal Reserve Bank of St. Louis",
+            "agency_series_id": "DJIA"
+          },
+          "retrieved_at": "2026-04-25T20:00:00.000Z",
+          "retrieval_status": "fresh",
+          "source_period": "2026-04-25"
+        },
+        "missing_fields": []
+      },
+      {
+        "instrument_id": "NASDAQCOM",
+        "label": "Nasdaq Composite",
+        "family": "core_index",
+        "period": "2026-04-25",
+        "value": 17382.94,
+        "previous_value": 17122.44,
+        "daily_change": 260.5,
+        "daily_change_pct": 1.5213,
+        "unit": "index",
+        "direction": "up",
+        "retrieval": {
+          "source": {
+            "source_id": "FRED_NASDAQCOM",
+            "source_family": "fred",
+            "source_name": "FRED Nasdaq Composite",
+            "source_url": "https://fred.stlouisfed.org/series/NASDAQCOM",
+            "agency": "Federal Reserve Bank of St. Louis",
+            "agency_series_id": "NASDAQCOM"
+          },
+          "retrieved_at": "2026-04-25T20:00:00.000Z",
+          "retrieval_status": "fresh",
+          "source_period": "2026-04-25"
+        },
+        "missing_fields": []
+      }
+    ],
+    "cross_asset": [
+      {
+        "instrument_id": "VIXCLS",
+        "label": "VIX",
+        "family": "volatility",
+        "period": "2026-04-25",
+        "value": 17.43,
+        "previous_value": 18.21,
+        "daily_change": -0.78,
+        "daily_change_pct": -4.2834,
+        "unit": "index",
+        "direction": "down",
+        "retrieval": {
+          "source": {
+            "source_id": "FRED_VIXCLS",
+            "source_family": "fred",
+            "source_name": "FRED VIX",
+            "source_url": "https://fred.stlouisfed.org/series/VIXCLS",
+            "agency": "Federal Reserve Bank of St. Louis",
+            "agency_series_id": "VIXCLS"
+          },
+          "retrieved_at": "2026-04-25T20:00:00.000Z",
+          "retrieval_status": "fresh",
+          "source_period": "2026-04-25"
+        },
+        "missing_fields": []
+      },
+      {
+        "instrument_id": "DGS10",
+        "label": "Treasury 10Y",
+        "family": "rates",
+        "period": "2026-04-25",
+        "value": 4.29,
+        "previous_value": 4.32,
+        "daily_change": -0.03,
+        "daily_change_pct": -0.6944,
+        "unit": "percent",
+        "direction": "down",
+        "retrieval": {
+          "source": {
+            "source_id": "FRED_DGS10",
+            "source_family": "fred",
+            "source_name": "FRED Treasury 10Y",
+            "source_url": "https://fred.stlouisfed.org/series/DGS10",
+            "agency": "Federal Reserve Bank of St. Louis",
+            "agency_series_id": "DGS10"
+          },
+          "retrieved_at": "2026-04-25T20:00:00.000Z",
+          "retrieval_status": "fresh",
+          "source_period": "2026-04-25"
+        },
+        "missing_fields": []
+      },
+      {
+        "instrument_id": "DGS2",
+        "label": "Treasury 2Y",
+        "family": "rates",
+        "period": "2026-04-25",
+        "value": 3.93,
+        "previous_value": 3.98,
+        "daily_change": -0.05,
+        "daily_change_pct": -1.2563,
+        "unit": "percent",
+        "direction": "down",
+        "retrieval": {
+          "source": {
+            "source_id": "FRED_DGS2",
+            "source_family": "fred",
+            "source_name": "FRED Treasury 2Y",
+            "source_url": "https://fred.stlouisfed.org/series/DGS2",
+            "agency": "Federal Reserve Bank of St. Louis",
+            "agency_series_id": "DGS2"
+          },
+          "retrieved_at": "2026-04-25T20:00:00.000Z",
+          "retrieval_status": "fresh",
+          "source_period": "2026-04-25"
+        },
+        "missing_fields": []
+      },
+      {
+        "instrument_id": "DCOILWTICO",
+        "label": "WTI",
+        "family": "commodity",
+        "period": "2026-04-25",
+        "value": 63.02,
+        "previous_value": 61.88,
+        "daily_change": 1.14,
+        "daily_change_pct": 1.8423,
+        "unit": "usd_per_barrel",
+        "direction": "up",
+        "retrieval": {
+          "source": {
+            "source_id": "FRED_DCOILWTICO",
+            "source_family": "fred",
+            "source_name": "FRED WTI",
+            "source_url": "https://fred.stlouisfed.org/series/DCOILWTICO",
+            "agency": "Federal Reserve Bank of St. Louis",
+            "agency_series_id": "DCOILWTICO"
+          },
+          "retrieved_at": "2026-04-25T20:00:00.000Z",
+          "retrieval_status": "fresh",
+          "source_period": "2026-04-25"
+        },
+        "missing_fields": []
+      },
+      {
+        "instrument_id": "DTWEXBGS",
+        "label": "Nominal Broad Dollar Index",
+        "family": "currency",
+        "period": "2026-04-25",
+        "value": 120.84,
+        "previous_value": 120.62,
+        "daily_change": 0.22,
+        "daily_change_pct": 0.1824,
+        "unit": "index",
+        "direction": "up",
+        "retrieval": {
+          "source": {
+            "source_id": "FRED_DTWEXBGS",
+            "source_family": "fred",
+            "source_name": "FRED Broad Dollar Index",
+            "source_url": "https://fred.stlouisfed.org/series/DTWEXBGS",
+            "agency": "Federal Reserve Bank of St. Louis",
+            "agency_series_id": "DTWEXBGS"
+          },
+          "retrieved_at": "2026-04-25T20:00:00.000Z",
+          "retrieval_status": "fresh",
+          "source_period": "2026-04-25"
+        },
+        "missing_fields": []
+      },
+      {
+        "instrument_id": "BAMLH0A0HYM2",
+        "label": "US High Yield OAS",
+        "family": "credit",
+        "period": "2026-04-25",
+        "value": 3.67,
+        "previous_value": 3.71,
+        "daily_change": -0.04,
+        "daily_change_pct": -1.0782,
+        "unit": "percent",
+        "direction": "down",
+        "retrieval": {
+          "source": {
+            "source_id": "FRED_BAMLH0A0HYM2",
+            "source_family": "fred",
+            "source_name": "FRED US High Yield OAS",
+            "source_url": "https://fred.stlouisfed.org/series/BAMLH0A0HYM2",
+            "agency": "Federal Reserve Bank of St. Louis",
+            "agency_series_id": "BAMLH0A0HYM2"
+          },
+          "retrieved_at": "2026-04-25T20:00:00.000Z",
+          "retrieval_status": "fresh",
+          "source_period": "2026-04-25"
+        },
+        "missing_fields": []
+      }
+    ],
+    "retrievals": [
+      {
+        "source": {
+          "source_id": "FRED_SP500",
+          "source_family": "fred",
+          "source_name": "FRED S&P 500",
+          "source_url": "https://fred.stlouisfed.org/series/SP500",
+          "agency": "Federal Reserve Bank of St. Louis",
+          "agency_series_id": "SP500"
+        },
+        "retrieved_at": "2026-04-25T20:00:00.000Z",
+        "retrieval_status": "fresh",
+        "source_period": "2026-04-25"
+      }
+    ],
+    "omissions": [
+      {
+        "omission_id": "sector-basket-free-path-unavailable",
+        "family": "sector",
+        "reason_code": "source_unavailable",
+        "reason_text": "Sector ETF leadership is not available in the approved free live path for this run.",
+        "blocking": false
+      },
+      {
+        "omission_id": "russell-2000-free-path-unavailable",
+        "family": "core_index",
+        "instrument_id": "RUSSELL2000",
+        "reason_code": "source_unavailable",
+        "reason_text": "Russell 2000 is not available in the approved free live path for this run.",
+        "blocking": true
+      }
+    ]
+  },
+  "context": {
+    "source_state": "bounded_context",
+    "generated_at": "2026-04-25T14:09:09.773Z",
+    "rights": [
+      {
+        "rights_class": "official_public",
+        "display_mode": "full_text_allowed",
+        "source_rank": "official",
+        "source_type": "official_macro",
+        "can_store_full_text": true,
+        "can_display_excerpt": true,
+        "can_display_link": true,
+        "policy_reason": "Official public economic releases and filings.",
+        "reviewed_at": "2026-04-25T14:09:09.773Z"
+      },
+      {
+        "rights_class": "first_party_public",
+        "display_mode": "excerpt_only",
+        "source_rank": "first_party",
+        "source_type": "investor_relations",
+        "can_store_full_text": false,
+        "can_display_excerpt": true,
+        "can_display_link": true,
+        "policy_reason": "Approved first-party source.",
+        "reviewed_at": "2026-03-01T00:00:00.000Z"
+      }
+    ],
+    "omissions": [
+      {
+        "omission_code": "data_incomplete:market_tape",
+        "omission_text": "data incomplete:market tape",
+        "affects_sections": [
+          "market_tape"
+        ]
+      }
+    ]
+  },
+  "structural_context": {
+    "subject_type": "market_pulse",
+    "subject_id": "US",
+    "as_of": "2026-04-25",
+    "coverage_state": "partial",
+    "summary": "United States structural context remains broadly supportive for scaled issuers, while public-debt and inflation-related sensitivity keep the backdrop disciplined.",
+    "observations": [
+      {
+        "observation_id": "wb-gdp-level",
+        "family": "gdp_level",
+        "label": "GDP level",
+        "summary": "United States remains a very large output base, which supports demand resilience for scaled businesses.",
+        "geography": "United States",
+        "period": "2025",
+        "source_family": "world_bank",
+        "retrieval": {
+          "source": {
+            "source_id": "WB_NY.GDP.MKTP.CD",
+            "source_family": "world_bank",
+            "source_name": "World Bank GDP level",
+            "source_url": "https://api.worldbank.org/v2/country/USA/indicator/NY.GDP.MKTP.CD",
+            "agency": "World Bank",
+            "agency_series_id": "NY.GDP.MKTP.CD"
+          },
+          "retrieved_at": "2026-04-25T20:00:00.000Z",
+          "retrieval_status": "fresh",
+          "source_period": "2025"
+        },
+        "missing_fields": []
+      },
+      {
+        "observation_id": "wb-population",
+        "family": "population",
+        "label": "Population",
+        "summary": "United States still offers a large domestic demand base for scaled consumer and enterprise franchises.",
+        "geography": "United States",
+        "period": "2025",
+        "source_family": "world_bank",
+        "retrieval": {
+          "source": {
+            "source_id": "WB_SP.POP.TOTL",
+            "source_family": "world_bank",
+            "source_name": "World Bank Population",
+            "source_url": "https://api.worldbank.org/v2/country/USA/indicator/SP.POP.TOTL",
+            "agency": "World Bank",
+            "agency_series_id": "SP.POP.TOTL"
+          },
+          "retrieved_at": "2026-04-25T20:00:00.000Z",
+          "retrieval_status": "fresh",
+          "source_period": "2025"
+        },
+        "missing_fields": []
+      }
+    ],
+    "omissions": [
+      {
+        "omission_id": "imf-forecast-unavailable",
+        "family": "gdp_growth_outlook",
+        "source_family": "imf",
+        "reason_code": "source_unavailable",
+        "reason_text": "IMF forecast inputs are optional in M6 and were not available in this run.",
+        "blocking": false
+      }
+    ],
+    "retrievals": [
+      {
+        "source": {
+          "source_id": "WB_NY.GDP.MKTP.CD",
+          "source_family": "world_bank",
+          "source_name": "World Bank GDP level",
+          "source_url": "https://api.worldbank.org/v2/country/USA/indicator/NY.GDP.MKTP.CD",
+          "agency": "World Bank",
+          "agency_series_id": "NY.GDP.MKTP.CD"
+        },
+        "retrieved_at": "2026-04-25T20:00:00.000Z",
+        "retrieval_status": "fresh",
+        "source_period": "2025"
+      }
+    ]
+  },
+  "sections": {
+    "macro_stress": {
+      "section_id": "macro_stress",
+      "title": "Macro Stress",
+      "body": "Macro pressure is elevated: CPI-U All Items (high), Treasury 10Y (medium).",
+      "status": "complete",
+      "evidence": [
+        {
+          "evidence_id": "5711a806-fff7-4197-96af-8e0cfc4b01ca",
+          "source_type": "macro_data",
+          "source_name": "U.S. Treasury",
+          "excerpt": "Treasury 10Y is 4.29 percent (2026-04-25).",
+          "retrieved_at": "2026-04-25T20:00:00.000Z"
+        },
+        {
+          "evidence_id": "ed3afcb3-3258-466a-87fa-0e07d6fd010c",
+          "source_type": "macro_data",
+          "source_name": "U.S. Treasury",
+          "excerpt": "Treasury 2Y is 3.93 percent (2026-04-25).",
+          "retrieved_at": "2026-04-25T20:00:00.000Z"
+        },
+        {
+          "evidence_id": "c36f2063-b15c-4616-87dd-332040373216",
+          "source_type": "macro_data",
+          "source_name": "BLS",
+          "excerpt": "CPI-U All Items is 312.23 index (2026-04).",
+          "retrieved_at": "2026-04-25T20:00:00.000Z"
+        },
+        {
+          "evidence_id": "627ca15c-3b15-43ad-bc80-de604d0c232e",
+          "source_type": "macro_data",
+          "source_name": "BLS",
+          "excerpt": "Unemployment Rate is 4 percent (2026-04).",
+          "retrieved_at": "2026-04-25T20:00:00.000Z"
+        },
+        {
+          "evidence_id": "e3a42655-630d-49fb-9301-1fa8d26bab7d",
+          "source_type": "macro_data",
+          "source_name": "BEA",
+          "excerpt": "Real GDP is 2.1 annualized_percent (2026-Q2).",
+          "retrieved_at": "2026-04-25T20:00:00.000Z"
+        },
+        {
+          "evidence_id": "38f52934-af5c-43bc-b2ee-5148cde634ae",
+          "source_type": "macro_data",
+          "source_name": "EIA",
+          "excerpt": "WTI Spot is 63.02 usd_per_barrel (2026-04-25).",
+          "retrieved_at": "2026-04-25T20:00:00.000Z"
+        }
+      ]
+    },
+    "market_tape": {
+      "section_id": "market_tape",
+      "title": "Market Tape",
+      "body": "US risk assets were broadly higher on the day. Sector leadership was unavailable in the approved free live path for this run. Cross-asset context: VIX down by 0.78; Treasury 10Y down by 0.03; Treasury 2Y down by 0.05; WTI up by 1.14. Coverage note: Sector ETF leadership is not available in the approved free live path for this run. Coverage note: Sector ETF leadership is not available in the approved free live path for this run.",
+      "status": "data_incomplete",
+      "evidence": [
+        {
+          "evidence_id": "998194c1-c40b-4d01-9c4c-923b86217fad",
+          "source_type": "financial_data",
+          "source_name": "FRED S&P 500",
+          "excerpt": "S&P 500: 0.7373 index",
+          "retrieved_at": "2026-04-25T20:00:00.000Z",
+          "url": "https://fred.stlouisfed.org/series/SP500"
+        },
+        {
+          "evidence_id": "c9916dd5-3e55-4184-a646-aef59316a856",
+          "source_type": "financial_data",
+          "source_name": "FRED DJIA",
+          "excerpt": "Dow Jones Industrial Average: 0.7991 index",
+          "retrieved_at": "2026-04-25T20:00:00.000Z",
+          "url": "https://fred.stlouisfed.org/series/DJIA"
+        },
+        {
+          "evidence_id": "7f76f7a2-9884-4f09-895d-63250704db2c",
+          "source_type": "financial_data",
+          "source_name": "FRED Nasdaq Composite",
+          "excerpt": "Nasdaq Composite: 1.5213 index",
+          "retrieved_at": "2026-04-25T20:00:00.000Z",
+          "url": "https://fred.stlouisfed.org/series/NASDAQCOM"
+        },
+        {
+          "evidence_id": "db241c2c-e5f3-4009-b3a9-122889abcc9c",
+          "source_type": "financial_data",
+          "source_name": "FRED VIX",
+          "excerpt": "VIX: -4.2834 index",
+          "retrieved_at": "2026-04-25T20:00:00.000Z",
+          "url": "https://fred.stlouisfed.org/series/VIXCLS"
+        },
+        {
+          "evidence_id": "203f68dc-5054-40d0-9859-025fceb7c65f",
+          "source_type": "financial_data",
+          "source_name": "FRED Treasury 10Y",
+          "excerpt": "Treasury 10Y: -0.6944 percent",
+          "retrieved_at": "2026-04-25T20:00:00.000Z",
+          "url": "https://fred.stlouisfed.org/series/DGS10"
+        },
+        {
+          "evidence_id": "038d9af3-5db9-4338-8aec-9363bc6ec3b8",
+          "source_type": "financial_data",
+          "source_name": "FRED Treasury 2Y",
+          "excerpt": "Treasury 2Y: -1.2563 percent",
+          "retrieved_at": "2026-04-25T20:00:00.000Z",
+          "url": "https://fred.stlouisfed.org/series/DGS2"
+        },
+        {
+          "evidence_id": "e30e79d7-da9d-483a-849d-ea31734a6018",
+          "source_type": "financial_data",
+          "source_name": "FRED WTI",
+          "excerpt": "WTI: 1.8423 usd_per_barrel",
+          "retrieved_at": "2026-04-25T20:00:00.000Z",
+          "url": "https://fred.stlouisfed.org/series/DCOILWTICO"
+        },
+        {
+          "evidence_id": "591d9249-de6b-4c35-9993-7be0401881b5",
+          "source_type": "financial_data",
+          "source_name": "FRED Broad Dollar Index",
+          "excerpt": "Nominal Broad Dollar Index: 0.1824 index",
+          "retrieved_at": "2026-04-25T20:00:00.000Z",
+          "url": "https://fred.stlouisfed.org/series/DTWEXBGS"
+        },
+        {
+          "evidence_id": "cc791a22-b311-42cd-9d21-ebb5492d4d41",
+          "source_type": "financial_data",
+          "source_name": "FRED US High Yield OAS",
+          "excerpt": "US High Yield OAS: -1.0782 percent",
+          "retrieved_at": "2026-04-25T20:00:00.000Z",
+          "url": "https://fred.stlouisfed.org/series/BAMLH0A0HYM2"
+        }
+      ]
+    },
+    "official_macro_pressure": {
+      "section_id": "official_macro_pressure",
+      "title": "Official Macro Pressure",
+      "body": "Treasury 10Y: 4.29 percent [medium] (2026-04-25). Treasury 2Y: 3.93 percent [medium] (2026-04-25). CPI-U All Items: 312.23 index [high] (2026-04). Unemployment Rate: 4 percent [medium] (2026-04). Real GDP: 2.1 annualized_percent [low] (2026-Q2). WTI Spot: 63.02 usd_per_barrel [low] (2026-04-25). GDP level: United States remains a very large output base, which supports demand resilience for scaled businesses. Coverage note: IMF forecast inputs are optional in M6 and were not available in this run.",
+      "status": "complete",
+      "evidence": [
+        {
+          "evidence_id": "5711a806-fff7-4197-96af-8e0cfc4b01ca",
+          "source_type": "macro_data",
+          "source_name": "U.S. Treasury",
+          "excerpt": "Treasury 10Y is 4.29 percent (2026-04-25).",
+          "retrieved_at": "2026-04-25T20:00:00.000Z"
+        },
+        {
+          "evidence_id": "ed3afcb3-3258-466a-87fa-0e07d6fd010c",
+          "source_type": "macro_data",
+          "source_name": "U.S. Treasury",
+          "excerpt": "Treasury 2Y is 3.93 percent (2026-04-25).",
+          "retrieved_at": "2026-04-25T20:00:00.000Z"
+        },
+        {
+          "evidence_id": "c36f2063-b15c-4616-87dd-332040373216",
+          "source_type": "macro_data",
+          "source_name": "BLS",
+          "excerpt": "CPI-U All Items is 312.23 index (2026-04).",
+          "retrieved_at": "2026-04-25T20:00:00.000Z"
+        },
+        {
+          "evidence_id": "627ca15c-3b15-43ad-bc80-de604d0c232e",
+          "source_type": "macro_data",
+          "source_name": "BLS",
+          "excerpt": "Unemployment Rate is 4 percent (2026-04).",
+          "retrieved_at": "2026-04-25T20:00:00.000Z"
+        },
+        {
+          "evidence_id": "e3a42655-630d-49fb-9301-1fa8d26bab7d",
+          "source_type": "macro_data",
+          "source_name": "BEA",
+          "excerpt": "Real GDP is 2.1 annualized_percent (2026-Q2).",
+          "retrieved_at": "2026-04-25T20:00:00.000Z"
+        },
+        {
+          "evidence_id": "38f52934-af5c-43bc-b2ee-5148cde634ae",
+          "source_type": "macro_data",
+          "source_name": "EIA",
+          "excerpt": "WTI Spot is 63.02 usd_per_barrel (2026-04-25).",
+          "retrieved_at": "2026-04-25T20:00:00.000Z"
+        }
+      ]
+    },
+    "canonical_events": {
+      "section_id": "canonical_events",
+      "title": "Canonical Events",
+      "body": "1. AAPL - AAPL filed a new 8-K (filing_posted). 2. MSFT - MSFT filed a new 8-K (filing_posted). 3. BLS_CPI_U_ALL_ITEMS - CPI update published (macro_release_published).",
+      "status": "complete",
+      "evidence": [
+        {
+          "evidence_id": "c2b4608d-c9a0-412e-aad6-cdcaf14655d9",
+          "source_type": "filing",
+          "source_name": "SEC EDGAR",
+          "excerpt": "AAPL filed a new 8-K",
+          "retrieved_at": "2026-04-25T19:05:00.000Z",
+          "url": "https://www.sec.gov/AAPL"
+        },
+        {
+          "evidence_id": "75d544a6-c004-4395-8702-e5930d9c4c95",
+          "source_type": "filing",
+          "source_name": "SEC EDGAR",
+          "excerpt": "MSFT filed a new 8-K",
+          "retrieved_at": "2026-04-25T19:05:00.000Z",
+          "url": "https://www.sec.gov/MSFT"
+        },
+        {
+          "evidence_id": "2b170e74-824c-4dd7-8a55-b4ba5a19b5b4",
+          "source_type": "macro_data",
+          "source_name": "BLS CPI",
+          "excerpt": "CPI update published",
+          "retrieved_at": "2026-04-25T12:05:00.000Z",
+          "url": "https://www.bls.gov/cpi/"
+        }
+      ]
+    },
+    "bounded_context": {
+      "section_id": "bounded_context",
+      "title": "Bounded Context",
+      "body": "1. AAPL - Apple investor update. Population: United States still offers a large domestic demand base for scaled consumer and enterprise franchises. Coverage note: IMF forecast inputs are optional in M6 and were not available in this run.",
+      "status": "complete",
+      "evidence": [
+        {
+          "evidence_id": "841c3c01-e7ec-434f-a2dc-019cfb38f0aa",
+          "source_type": "article",
+          "source_name": "investor.apple.com",
+          "excerpt": "Apple investor update confirms release cadence.",
+          "retrieved_at": "2026-04-25T20:05:00.000Z",
+          "url": "https://investor.apple.com/investor-relations/"
+        }
+      ]
+    },
+    "uncertainty_flags": {
+      "section_id": "uncertainty_flags",
+      "title": "Uncertainty Flags",
+      "body": "Uncertainty flags for this cycle: data_incomplete:market_tape.",
+      "status": "data_incomplete",
+      "evidence": []
+    },
+    "market_moves": {
+      "section_id": "market_moves",
+      "title": "Market Moves",
+      "body": "Issuer filing coverage this cycle: AAPL, MSFT.",
+      "status": "complete",
+      "evidence": [
+        {
+          "evidence_id": "cc4094eb-ceee-459a-a6f9-4bee28f36da1",
+          "source_type": "filing",
+          "source_name": "SEC EDGAR",
+          "excerpt": "AAPL filed a new 8-K",
+          "retrieved_at": "2026-04-25T19:05:00.000Z",
+          "url": "https://www.sec.gov/AAPL"
+        },
+        {
+          "evidence_id": "86ffc03b-5f15-4fb9-8063-43b97af1b962",
+          "source_type": "filing",
+          "source_name": "SEC EDGAR",
+          "excerpt": "MSFT filed a new 8-K",
+          "retrieved_at": "2026-04-25T19:05:00.000Z",
+          "url": "https://www.sec.gov/MSFT"
+        }
+      ]
+    },
+    "macro_releases": {
+      "section_id": "macro_releases",
+      "title": "Macro Releases",
+      "body": "Treasury 10Y: 4.29 percent [medium] (2026-04-25). Treasury 2Y: 3.93 percent [medium] (2026-04-25). CPI-U All Items: 312.23 index [high] (2026-04). Unemployment Rate: 4 percent [medium] (2026-04). Real GDP: 2.1 annualized_percent [low] (2026-Q2). WTI Spot: 63.02 usd_per_barrel [low] (2026-04-25).",
+      "status": "complete",
+      "evidence": [
+        {
+          "evidence_id": "5711a806-fff7-4197-96af-8e0cfc4b01ca",
+          "source_type": "macro_data",
+          "source_name": "U.S. Treasury",
+          "excerpt": "Treasury 10Y is 4.29 percent (2026-04-25).",
+          "retrieved_at": "2026-04-25T20:00:00.000Z"
+        },
+        {
+          "evidence_id": "ed3afcb3-3258-466a-87fa-0e07d6fd010c",
+          "source_type": "macro_data",
+          "source_name": "U.S. Treasury",
+          "excerpt": "Treasury 2Y is 3.93 percent (2026-04-25).",
+          "retrieved_at": "2026-04-25T20:00:00.000Z"
+        },
+        {
+          "evidence_id": "c36f2063-b15c-4616-87dd-332040373216",
+          "source_type": "macro_data",
+          "source_name": "BLS",
+          "excerpt": "CPI-U All Items is 312.23 index (2026-04).",
+          "retrieved_at": "2026-04-25T20:00:00.000Z"
+        },
+        {
+          "evidence_id": "627ca15c-3b15-43ad-bc80-de604d0c232e",
+          "source_type": "macro_data",
+          "source_name": "BLS",
+          "excerpt": "Unemployment Rate is 4 percent (2026-04).",
+          "retrieved_at": "2026-04-25T20:00:00.000Z"
+        },
+        {
+          "evidence_id": "e3a42655-630d-49fb-9301-1fa8d26bab7d",
+          "source_type": "macro_data",
+          "source_name": "BEA",
+          "excerpt": "Real GDP is 2.1 annualized_percent (2026-Q2).",
+          "retrieved_at": "2026-04-25T20:00:00.000Z"
+        },
+        {
+          "evidence_id": "38f52934-af5c-43bc-b2ee-5148cde634ae",
+          "source_type": "macro_data",
+          "source_name": "EIA",
+          "excerpt": "WTI Spot is 63.02 usd_per_barrel (2026-04-25).",
+          "retrieved_at": "2026-04-25T20:00:00.000Z"
+        }
+      ]
+    },
+    "rates_fx_commodities": {
+      "section_id": "rates_fx_commodities",
+      "title": "Rates, FX, and Commodities",
+      "body": "Treasury 10Y: Treasury 10Y is 4.29 percent (2026-04-25). Treasury 2Y: Treasury 2Y is 3.93 percent (2026-04-25). WTI Spot: WTI Spot is 63.02 usd_per_barrel (2026-04-25).",
+      "status": "complete",
+      "evidence": [
+        {
+          "evidence_id": "18477412-a263-49f7-8715-ba40b886c568",
+          "source_type": "macro_data",
+          "source_name": "U.S. Treasury",
+          "excerpt": "Treasury 10Y is 4.29 percent (2026-04-25).",
+          "retrieved_at": "2026-04-25T20:00:00.000Z"
+        },
+        {
+          "evidence_id": "4d3c47f7-5fbe-47c5-a5be-0e7faac95cf6",
+          "source_type": "macro_data",
+          "source_name": "U.S. Treasury",
+          "excerpt": "Treasury 2Y is 3.93 percent (2026-04-25).",
+          "retrieved_at": "2026-04-25T20:00:00.000Z"
+        },
+        {
+          "evidence_id": "0c2dd42a-a0f6-4ad2-b3e1-0c860ca0820f",
+          "source_type": "macro_data",
+          "source_name": "EIA",
+          "excerpt": "WTI Spot is 63.02 usd_per_barrel (2026-04-25).",
+          "retrieved_at": "2026-04-25T20:00:00.000Z"
+        }
+      ]
+    },
+    "news_summary": {
+      "section_id": "news_summary",
+      "title": "News Summary",
+      "body": "1. Apple investor update (investor.apple.com)",
+      "status": "complete",
+      "evidence": [
+        {
+          "evidence_id": "841c3c01-e7ec-434f-a2dc-019cfb38f0aa",
+          "source_type": "article",
+          "source_name": "investor.apple.com",
+          "excerpt": "Apple investor update confirms release cadence.",
+          "retrieved_at": "2026-04-25T20:05:00.000Z",
+          "url": "https://investor.apple.com/investor-relations/"
+        }
+      ]
+    }
+  },
+  "flags": [
+    "data_incomplete:market_tape"
+  ],
+  "confidence": {
+    "score": 0.78,
+    "label": "high",
+    "limiting_factors": [
+      "data incomplete:market tape"
+    ]
+  }
+}

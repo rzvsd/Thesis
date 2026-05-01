@@ -1,0 +1,88 @@
+﻿# Phase 7 M5 test output - 2026-04-27
+
+## Product API build
+> corepack pnpm --filter @thesis/product-api build
+
+> @thesis/product-api@0.1.0 build C:\BOTS\Thesis\fintech\apps\product-api
+> tsc -p tsconfig.json
+
+
+exit_code=0
+
+## Contracts tests
+> corepack pnpm --filter @thesis/contracts test
+
+> @thesis/contracts@0.1.0 test C:\BOTS\Thesis\fintech\packages\contracts
+> tsc -p tsconfig.json && node --test dist/tests/*.js
+
+✔ M1 contract accepts full fixture (5.7364ms)
+✔ M1 contract accepts partial fixture (0.9385ms)
+✔ M1 contract accepts issuer metadata when present (1.4482ms)
+✔ M6 contract accepts structural context pack (2.5774ms)
+✔ M1 contract accepts sparse fixture (1.5648ms)
+✔ M1 contract accepts degraded valuation fixture (1.2918ms)
+✔ M1 contract accepts no-prior-thesis fixture (0.9006ms)
+✔ M1 contract keeps legacy fixtures valid (0.3113ms)
+✔ M1 contract rejects invalid visual panel type (1.5248ms)
+✔ M1 contract rejects due-diligence sections without evidence refs or omissions (1.044ms)
+✔ M2 contract rejects invalid financial metric status (1.0943ms)
+✔ M3 contract rejects invalid value-discipline signal status (1.6307ms)
+✔ M4 contract rejects invalid investment-memo support type (1.2793ms)
+✔ MarketPulseReport contract accepts additive editorial issue (3.192ms)
+✔ MarketPulseReport contract remains backward compatible without editorial issue (0.4819ms)
+✔ UserResearchState contract accepts complete fixture (4.7012ms)
+✔ UserResearchState contract accepts baseline omission-forward fixture (0.7804ms)
+ℹ tests 17
+ℹ suites 0
+ℹ pass 17
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 662.9259
+
+exit_code=0
+
+## Market Pulse focused test
+> node --test dist/apps/product-api/tests/market-pulse.test.js
+{"level":"INFO","service":"product-api","message":"Job recovery scheduler disabled","timestamp":"2026-04-27T10:42:15.690Z","enabled":true,"queue_backend":"memory"}
+{"level":"INFO","service":"product-api","message":"Service started","timestamp":"2026-04-27T10:42:15.691Z","port":0}
+{"level":"INFO","service":"product-api","message":"Verification email sent","timestamp":"2026-04-27T10:42:16.253Z","request_id":"177e3dbc-e9c2-4833-8133-f2e370cd7c74","user_id":"b5c4df91-4f9c-42d1-b18e-03fcdbff9995","provider":"stub"}
+{"level":"INFO","service":"product-api","message":"Pulse job queued","timestamp":"2026-04-27T10:42:16.755Z","request_id":"787e23f0-b6a3-4a6a-9b5f-920038436671","job_id":"6b14b344-ad66-4983-9a45-07371cc36202","cycle_start":"2026-03-21T00:00:00.000Z","cycle_end":"2026-03-21T23:59:00.000Z"}
+{"level":"INFO","service":"product-api","message":"Market Pulse push delivery attempted","timestamp":"2026-04-27T10:42:16.855Z","job_id":"6b14b344-ad66-4983-9a45-07371cc36202","attempted":1,"delivered":1,"failed":0,"provider":"stub","free_sent":1,"free_deduped":0,"pro_sent":0,"pro_deduped":0,"pro_no_change":0,"pro_exceptions":0}
+{"level":"INFO","service":"product-api","message":"Pulse job queued","timestamp":"2026-04-27T10:42:16.975Z","request_id":"9cd8410e-0986-447c-a8c1-691e7adaa592","job_id":"6df1cfd9-5e94-43b4-ad44-51672d5cafdd","cycle_start":"2026-03-22T00:00:00.000Z","cycle_end":"2026-03-22T23:59:00.000Z"}
+{"level":"ERROR","service":"product-api","message":"Sentry capture","timestamp":"2026-04-27T10:42:17.021Z","error_message":"Market Pulse degraded with unavailable data","sentry_event_id":"6eda04c1b1ca4a98bfe366931dfc7879","job_id":"6df1cfd9-5e94-43b4-ad44-51672d5cafdd","report_id":"e105ec40-63a7-48ba-9f9e-cb3c2a33ba7d","cycle_start":"2026-03-22T00:00:00.000Z","cycle_end":"2026-03-22T23:59:00.000Z","unavailable_flags":["data_unavailable:bounded_context","data_unavailable:news_summary"]}
+{"level":"INFO","service":"product-api","message":"Market Pulse push delivery attempted","timestamp":"2026-04-27T10:42:17.022Z","job_id":"6df1cfd9-5e94-43b4-ad44-51672d5cafdd","attempted":1,"delivered":1,"failed":0,"provider":"stub","free_sent":1,"free_deduped":0,"pro_sent":0,"pro_deduped":0,"pro_no_change":0,"pro_exceptions":0}
+{"level":"INFO","service":"product-api","message":"Pulse job queued","timestamp":"2026-04-27T10:42:17.143Z","request_id":"649f2106-d082-4a4e-959a-a78c69bdf797","job_id":"bc456e79-5674-4f4d-be16-1b1e82101c69","cycle_start":"2026-03-23T00:00:00.000Z","cycle_end":"2026-03-23T23:59:00.000Z"}
+{"level":"ERROR","service":"product-api","message":"Sentry capture","timestamp":"2026-04-27T10:42:17.145Z","error_message":"Forced market pulse failure","sentry_event_id":"ef8abeb0902b4e14bfefd1c4efc9acb1","job_id":"bc456e79-5674-4f4d-be16-1b1e82101c69"}
+✔ market pulse dispatch stores reports, personalizes through research state, and handles degradation/failure (2333.9367ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 1
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 6681.9208
+
+exit_code=0
+
+## Monitoring focused regression test
+> node --test dist/apps/product-api/tests/m2-monitoring.test.js
+{"level":"INFO","service":"product-api","message":"Job recovery scheduler disabled","timestamp":"2026-04-27T10:42:20.532Z","enabled":true,"queue_backend":"memory"}
+{"level":"INFO","service":"product-api","message":"Service started","timestamp":"2026-04-27T10:42:20.535Z","port":0}
+{"level":"INFO","service":"product-api","message":"Verification email sent","timestamp":"2026-04-27T10:42:21.124Z","request_id":"56c041db-99b3-4e4d-b68b-03b21d9c8d48","user_id":"432538df-a0c3-4bf2-808d-44b0fedf9817","provider":"stub"}
+{"level":"INFO","service":"product-api","message":"Job queued","timestamp":"2026-04-27T10:42:21.738Z","request_id":"fa827740-5214-489c-af87-19039f6b64b6","user_id":"432538df-a0c3-4bf2-808d-44b0fedf9817","job_id":"81ac59ea-fd7c-4caf-9c4a-5c749bead837","ticker":"AAPL"}
+{"level":"WARN","service":"product-api","message":"Structural context fetch failed","timestamp":"2026-04-27T10:42:21.765Z","ticker":"AAPL","subject_type":"issuer","as_of":"2026-04-27","error_message":"fetch failed"}
+{"level":"WARN","service":"product-api","message":"Kill-switch rule extraction skipped due to insufficient conditions","timestamp":"2026-04-27T10:42:21.798Z","request_id":"0468fbda-1ec1-48c0-a5cf-3ad75bcca97c","route":"/internal/jobs/81ac59ea-fd7c-4caf-9c4a-5c749bead837/complete","report_id":"report-m2-monitor-aapl","ticker":"AAPL","condition_count":0}
+✔ M2 monitor snapshots persist on deep-dive completion and recompute unresolved followed names (1430.226ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 1
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3993.2948
+
+exit_code=0

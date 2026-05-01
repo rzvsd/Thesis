@@ -65,6 +65,7 @@ import type {
   SubscriptionTier,
   ThesisFreshnessState,
   ThesisMonitorSnapshot,
+  UserResearchHolding,
   UserProfile
 } from "../../../packages/contracts/src";
 import {
@@ -107,7 +108,9 @@ import { createProductStore } from "./store-factory";
 import type { ProductStore } from "./store";
 import { assertIncomingAnalysisReport } from "./report-validation";
 import { assertIncomingMarketPulseReport } from "./market-pulse-validation";
-import { buildMarketPulseReport, withWatchlistOverlay } from "./market-pulse";
+import { buildMarketPulseReport, withUserResearchState } from "./market-pulse";
+import { refreshUserResearchStates } from "./research-state";
+import { applyPulseLlmEditorial } from "./pulse-editorial-writer";
 import { buildInstitutionalPdfExport } from "./report-pdf";
 import {
   buildMacroStressSnapshot,
@@ -981,10 +984,20 @@ function normalizeNotificationQuietUntil(value: string): string | undefined {
   return new Date(parsed).toISOString();
 }
 
-function sendJson(response: ServerResponse, statusCode: number, payload: unknown): void {
-  response.writeHead(statusCode, { "content-type": "application/json" });
+function sendJson(
+  response: ServerResponse,
+  statusCode: number,
+  payload: unknown,
+  headers: Record<string, string> = {}
+): void {
+  response.writeHead(statusCode, { "content-type": "application/json", ...headers });
   response.end(JSON.stringify(payload));
 }
+
+const PRIVATE_JSON_HEADERS = {
+  "cache-control": "private, no-store",
+  vary: "Authorization"
+} as const;
 
 function sendBinary(
   response: ServerResponse,
@@ -2824,6 +2837,7 @@ function isMarketPulseReport(report: unknown): report is MarketPulseReport {
   }
   return (
     isObject(report.sections.market_moves) &&
+    isObject(report.sections.market_tape) &&
     isObject(report.sections.macro_releases) &&
     isObject(report.sections.rates_fx_commodities) &&
     isObject(report.sections.news_summary) &&
@@ -5423,13 +5437,55 @@ async function processMarketPulseJob(
       throw new Error("Forced market pulse failure");
     }
 
+    let previousReport: MarketPulseReport | undefined;
+    try {
+      const latestPulse = await runtime.store.getLatestReportByType("market_pulse");
+      if (latestPulse) {
+        const artifact = await runtime.artifactStore.readReport(latestPulse.artifactKey);
+        if (isMarketPulseReport(artifact)) {
+          previousReport = artifact;
+        }
+      }
+    } catch (error) {
+      logWarn("Previous Market Pulse unavailable for editorial delta", {
+        job_id: running.id,
+        error: error instanceof Error ? error.message : "unknown error"
+      });
+    }
+
+    const asOfDate = cycleEnd.slice(0, 10);
+    let calendarEvents: Awaited<ReturnType<typeof fetchCalendarEventsFromDataOpenbb>> = [];
+    let calendarFetchState: "complete" | "data_unavailable" = "complete";
+    let calendarUnavailableReason: string | undefined;
+    try {
+      calendarEvents = await fetchCalendarEventsFromDataOpenbb(runtime, {
+        requestId: running.id,
+        startDate: asOfDate,
+        endDate: addDaysToIsoDate(asOfDate, 7)
+      });
+    } catch (error) {
+      calendarFetchState = "data_unavailable";
+      calendarUnavailableReason =
+        error instanceof Error
+          ? `Earnings calendar access was unavailable: ${error.message}`
+          : "Earnings calendar access was unavailable.";
+      logWarn("Market Pulse earnings calendar unavailable", {
+        job_id: running.id,
+        error: calendarUnavailableReason
+      });
+    }
+
     const pulseReport = await buildMarketPulseReport({
       cycleStart,
       cycleEnd,
       schemaVersion: runtime.config.marketPulseSchemaVersion,
       tickers: runtime.config.marketPulseTickers,
       dataOpenbbBaseUrl: runtime.config.marketPulseDataOpenbbBaseUrl,
-      newsIngestBaseUrl: runtime.config.marketPulseNewsIngestBaseUrl
+      newsIngestBaseUrl: runtime.config.marketPulseNewsIngestBaseUrl,
+      previousReport,
+      calendarEvents,
+      calendarFetchState,
+      calendarUnavailableReason
     });
     const report = assertIncomingMarketPulseReport(pulseReport);
 
@@ -8272,6 +8328,52 @@ export function startServer(port: number = loadConfig().port): Server {
           return;
         }
 
+        if (method === "POST" && pathname === "/internal/research-state/refresh") {
+          const body = await readJsonBody<{ as_of?: string; user_ids?: string[]; dry_run?: boolean }>(request);
+          const asOfDate =
+            normalizeDateInput(
+              body.as_of ?? dateInTimeZone(new Date(), runtime.config.subscriptionTimezone)
+            ) ?? dateInTimeZone(new Date(), runtime.config.subscriptionTimezone);
+          const userIds = Array.isArray(body.user_ids)
+            ? body.user_ids
+                .map((value) => (typeof value === "string" ? value.trim() : ""))
+                .filter((value) => value.length > 0)
+            : undefined;
+
+          const result = await refreshUserResearchStates({
+            store: runtime.store,
+            artifactStore: runtime.artifactStore,
+            asOf: asOfDate,
+            userIds,
+            dryRun: body.dry_run === true
+          });
+
+          await appendAudit(runtime, "research_state.refreshed", {
+            request_id: meta.requestId,
+            route: pathname,
+            as_of: asOfDate,
+            users: result.users,
+            names: result.names,
+            created: result.created,
+            updated: result.updated,
+            omissions: result.omissions,
+            dry_run: result.dry_run
+          });
+
+          sendJson(response, 200, {
+            status: "ok",
+            as_of: asOfDate,
+            users: result.users,
+            names: result.names,
+            created: result.created,
+            updated: result.updated,
+            omissions: result.omissions,
+            dry_run: result.dry_run,
+            states: result.dry_run ? result.states : undefined
+          });
+          return;
+        }
+
         if (method === "POST" && pathname === "/internal/monitor/recompute") {
           const body = await readJsonBody<{ as_of?: string; user_ids?: string[] }>(request);
           const asOfDate =
@@ -10007,6 +10109,112 @@ export function startServer(port: number = loadConfig().port): Server {
         return;
       }
 
+      if (method === "GET" && pathname === "/v1/user/holdings") {
+        const holdings = await runtime.store.listUserResearchHoldings(auth.userId);
+        sendJson(response, 200, {
+          data: holdings.map((holding): UserResearchHolding => ({
+            ticker: holding.ticker,
+            ...(holding.quantity !== undefined ? { quantity: holding.quantity } : {}),
+            ...(holding.costBasis !== undefined ? { cost_basis: holding.costBasis } : {}),
+            ...(holding.label ? { label: holding.label } : {}),
+            ...(holding.notes ? { notes: holding.notes } : {}),
+            updated_at: holding.updatedAt
+          }))
+        });
+        return;
+      }
+
+      if (method === "POST" && pathname === "/v1/user/holdings") {
+        const body = await readJsonBody<{
+          ticker?: string;
+          quantity?: number;
+          cost_basis?: number;
+          label?: string;
+          notes?: string;
+        }>(request);
+        const ticker = body.ticker?.trim().toUpperCase();
+        if (!ticker || !/^[A-Z.-]{1,12}$/.test(ticker)) {
+          sendJson(response, 422, {
+            error: "validation_failed",
+            error_message: "ticker must be a valid US symbol."
+          });
+          return;
+        }
+        const supportedTicker = await runtime.store.getSupportedTicker(ticker);
+        if (!supportedTicker) {
+          sendJson(response, 404, {
+            error: "ticker_not_found",
+            error_message: "Ticker not found in supported NYSE/NASDAQ universe."
+          });
+          return;
+        }
+        if (body.quantity !== undefined && (!Number.isFinite(body.quantity) || body.quantity < 0)) {
+          sendJson(response, 422, {
+            error: "validation_failed",
+            error_message: "quantity must be a non-negative number when provided."
+          });
+          return;
+        }
+        if (body.cost_basis !== undefined && (!Number.isFinite(body.cost_basis) || body.cost_basis < 0)) {
+          sendJson(response, 422, {
+            error: "validation_failed",
+            error_message: "cost_basis must be a non-negative number when provided."
+          });
+          return;
+        }
+        const updatedAt = new Date().toISOString();
+        const holding = await runtime.store.upsertUserResearchHolding({
+          userId: auth.userId,
+          ticker,
+          quantity: body.quantity,
+          costBasis: body.cost_basis,
+          label: body.label?.trim() || undefined,
+          notes: body.notes?.trim() || undefined,
+          updatedAt
+        });
+        await appendAudit(runtime, "research_holding.upserted", {
+          request_id: meta.requestId,
+          route: pathname,
+          ticker
+        }, auth.userId);
+        sendJson(response, 200, {
+          data: {
+            ticker: holding.ticker,
+            ...(holding.quantity !== undefined ? { quantity: holding.quantity } : {}),
+            ...(holding.costBasis !== undefined ? { cost_basis: holding.costBasis } : {}),
+            ...(holding.label ? { label: holding.label } : {}),
+            ...(holding.notes ? { notes: holding.notes } : {}),
+            updated_at: holding.updatedAt
+          }
+        });
+        return;
+      }
+
+      if (method === "DELETE" && pathname.startsWith("/v1/user/holdings/")) {
+        const parts = pathname.split("/").filter(Boolean);
+        if (parts.length !== 4) {
+          sendJson(response, 404, { status: "not_found" });
+          return;
+        }
+        const ticker = parts[3]?.trim().toUpperCase();
+        if (!ticker || !/^[A-Z.-]{1,12}$/.test(ticker)) {
+          sendJson(response, 422, {
+            error: "validation_failed",
+            error_message: "ticker must be a valid US symbol."
+          });
+          return;
+        }
+        const deleted = await runtime.store.deleteUserResearchHolding(auth.userId, ticker);
+        await appendAudit(runtime, "research_holding.deleted", {
+          request_id: meta.requestId,
+          route: pathname,
+          ticker,
+          deleted
+        }, auth.userId);
+        sendJson(response, 200, { deleted });
+        return;
+      }
+
       if (method === "POST" && pathname === "/watchlist") {
         const body = await readJsonBody<{ ticker?: string }>(request);
         const ticker = body.ticker?.trim().toUpperCase();
@@ -10121,8 +10329,24 @@ export function startServer(port: number = loadConfig().port): Server {
           return;
         }
 
-        const watchlistTickers = await runtime.store.listWatchlistTickersByUser(auth.userId);
-        const personalized = withWatchlistOverlay(report, watchlistTickers);
+        const researchState = await runtime.store.getLatestUserResearchState({
+          userId: auth.userId,
+          asOf: report.cycle_end.slice(0, 10)
+        });
+        const personalized = await applyPulseLlmEditorial(
+          withUserResearchState(report, researchState?.state),
+          {
+            config: {
+              enabled: runtime.config.pulseLlmEditorialEnabled,
+              apiKey: runtime.config.pulseLlmOpenRouterApiKey,
+              baseUrl: runtime.config.pulseLlmOpenRouterBaseUrl,
+              model: runtime.config.pulseLlmOpenRouterModel,
+              timeoutMs: runtime.config.pulseLlmTimeoutMs,
+              maxTokens: runtime.config.pulseLlmMaxTokens,
+              promptVersion: runtime.config.pulseLlmPromptVersion
+            }
+          }
+        );
 
         await appendAudit(
           runtime,
@@ -10131,12 +10355,12 @@ export function startServer(port: number = loadConfig().port): Server {
             request_id: meta.requestId,
             route: pathname,
             report_id: reportMetadata.id,
-            watchlist_size: watchlistTickers.length
+            research_state_id: researchState?.stateId
           },
           auth.userId
         );
 
-        sendJson(response, 200, personalized);
+        sendJson(response, 200, personalized, PRIVATE_JSON_HEADERS);
         return;
       }
 
@@ -10174,8 +10398,24 @@ export function startServer(port: number = loadConfig().port): Server {
           return;
         }
 
-        const watchlistTickers = await runtime.store.listWatchlistTickersByUser(auth.userId);
-        const personalized = withWatchlistOverlay(report, watchlistTickers);
+        const researchState = await runtime.store.getLatestUserResearchState({
+          userId: auth.userId,
+          asOf: reportDate
+        });
+        const personalized = await applyPulseLlmEditorial(
+          withUserResearchState(report, researchState?.state),
+          {
+            config: {
+              enabled: runtime.config.pulseLlmEditorialEnabled,
+              apiKey: runtime.config.pulseLlmOpenRouterApiKey,
+              baseUrl: runtime.config.pulseLlmOpenRouterBaseUrl,
+              model: runtime.config.pulseLlmOpenRouterModel,
+              timeoutMs: runtime.config.pulseLlmTimeoutMs,
+              maxTokens: runtime.config.pulseLlmMaxTokens,
+              promptVersion: runtime.config.pulseLlmPromptVersion
+            }
+          }
+        );
 
         await appendAudit(
           runtime,
@@ -10185,12 +10425,12 @@ export function startServer(port: number = loadConfig().port): Server {
             route: pathname,
             report_id: reportMetadata.id,
             date: reportDate,
-            watchlist_size: watchlistTickers.length
+            research_state_id: researchState?.stateId
           },
           auth.userId
         );
 
-        sendJson(response, 200, personalized);
+        sendJson(response, 200, personalized, PRIVATE_JSON_HEADERS);
         return;
       }
 

@@ -1,0 +1,84 @@
+﻿# Phase 7 M6 test output - 2026-04-27
+
+## Product API build
+> corepack pnpm --filter @thesis/product-api build
+
+> @thesis/product-api@0.1.0 build C:\BOTS\Thesis\fintech\apps\product-api
+> tsc -p tsconfig.json
+
+
+exit_code=0
+
+## Contracts tests
+> corepack pnpm --filter @thesis/contracts test
+
+> @thesis/contracts@0.1.0 test C:\BOTS\Thesis\fintech\packages\contracts
+> tsc -p tsconfig.json && node --test dist/tests/*.js
+
+✔ M1 contract accepts full fixture (5.115ms)
+✔ M1 contract accepts partial fixture (0.2909ms)
+✔ M1 contract accepts issuer metadata when present (0.2702ms)
+✔ M6 contract accepts structural context pack (1.4205ms)
+✔ M1 contract accepts sparse fixture (0.813ms)
+✔ M1 contract accepts degraded valuation fixture (0.7522ms)
+✔ M1 contract accepts no-prior-thesis fixture (0.6825ms)
+✔ M1 contract keeps legacy fixtures valid (0.448ms)
+✔ M1 contract rejects invalid visual panel type (0.9722ms)
+✔ M1 contract rejects due-diligence sections without evidence refs or omissions (0.6487ms)
+✔ M2 contract rejects invalid financial metric status (0.7927ms)
+✔ M3 contract rejects invalid value-discipline signal status (0.699ms)
+✔ M4 contract rejects invalid investment-memo support type (0.6833ms)
+✔ MarketPulseReport contract accepts additive editorial issue (2.4677ms)
+✔ MarketPulseReport contract remains backward compatible without editorial issue (0.693ms)
+✔ UserResearchState contract accepts complete fixture (3.6736ms)
+✔ UserResearchState contract accepts baseline omission-forward fixture (0.5029ms)
+ℹ tests 17
+ℹ suites 0
+ℹ pass 17
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 234.712
+
+exit_code=0
+
+## LLM editorial writer tests
+> node --test dist/apps/product-api/tests/pulse-editorial-writer.test.js
+✔ LLM editorial writer applies valid bounded output (48.9305ms)
+✔ LLM editorial writer falls back when disabled or missing key (0.222ms)
+✔ LLM editorial writer rejects malformed JSON and trading language (1.07ms)
+ℹ tests 3
+ℹ suites 0
+ℹ pass 3
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 199.0559
+
+exit_code=0
+
+## Market Pulse regression test
+> node --test dist/apps/product-api/tests/market-pulse.test.js
+{"level":"INFO","service":"product-api","message":"Job recovery scheduler disabled","timestamp":"2026-04-27T15:30:01.156Z","enabled":true,"queue_backend":"memory"}
+{"level":"INFO","service":"product-api","message":"Service started","timestamp":"2026-04-27T15:30:01.157Z","port":0}
+{"level":"INFO","service":"product-api","message":"Verification email sent","timestamp":"2026-04-27T15:30:01.581Z","request_id":"d38a0d83-2bc7-440b-8e00-ce8d7eea48ec","user_id":"688c4abd-7600-4e5c-afeb-99f6e83cb5d7","provider":"stub"}
+{"level":"INFO","service":"product-api","message":"Pulse job queued","timestamp":"2026-04-27T15:30:01.955Z","request_id":"4c847790-82de-407c-a1c8-04f2e2319322","job_id":"41370416-c3ef-4e8d-8e47-88e60efd0aa1","cycle_start":"2026-03-21T00:00:00.000Z","cycle_end":"2026-03-21T23:59:00.000Z"}
+{"level":"INFO","service":"product-api","message":"Market Pulse push delivery attempted","timestamp":"2026-04-27T15:30:02.024Z","job_id":"41370416-c3ef-4e8d-8e47-88e60efd0aa1","attempted":1,"delivered":1,"failed":0,"provider":"stub","free_sent":1,"free_deduped":0,"pro_sent":0,"pro_deduped":0,"pro_no_change":0,"pro_exceptions":0}
+{"level":"INFO","service":"product-api","message":"Pulse job queued","timestamp":"2026-04-27T15:30:02.161Z","request_id":"496c1108-daa4-4f0e-afb6-1545d5d85a9e","job_id":"12326442-9f00-442e-a912-bffdcc622a36","cycle_start":"2026-03-22T00:00:00.000Z","cycle_end":"2026-03-22T23:59:00.000Z"}
+{"level":"ERROR","service":"product-api","message":"Sentry capture","timestamp":"2026-04-27T15:30:02.190Z","error_message":"Market Pulse degraded with unavailable data","sentry_event_id":"708cac211bde44a2a7e9f8212c8bdad3","job_id":"12326442-9f00-442e-a912-bffdcc622a36","report_id":"d4f28849-fb22-48b8-b107-3ca1f93e4662","cycle_start":"2026-03-22T00:00:00.000Z","cycle_end":"2026-03-22T23:59:00.000Z","unavailable_flags":["data_unavailable:bounded_context","data_unavailable:news_summary"]}
+{"level":"INFO","service":"product-api","message":"Market Pulse push delivery attempted","timestamp":"2026-04-27T15:30:02.190Z","job_id":"12326442-9f00-442e-a912-bffdcc622a36","attempted":1,"delivered":1,"failed":0,"provider":"stub","free_sent":1,"free_deduped":0,"pro_sent":0,"pro_deduped":0,"pro_no_change":0,"pro_exceptions":0}
+{"level":"INFO","service":"product-api","message":"Pulse job queued","timestamp":"2026-04-27T15:30:02.325Z","request_id":"5091794b-a8a1-4af6-9beb-d184ef2bc06a","job_id":"db51bbb4-f279-4fa4-a117-81399f4d1f46","cycle_start":"2026-03-23T00:00:00.000Z","cycle_end":"2026-03-23T23:59:00.000Z"}
+{"level":"ERROR","service":"product-api","message":"Sentry capture","timestamp":"2026-04-27T15:30:02.326Z","error_message":"Forced market pulse failure","sentry_event_id":"bb8bb0aecaf04ef58afb88e834eb13c2","job_id":"db51bbb4-f279-4fa4-a117-81399f4d1f46"}
+✔ market pulse dispatch stores reports, personalizes through research state, and handles degradation/failure (1972.0861ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 1
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 4594.5217
+
+exit_code=0
