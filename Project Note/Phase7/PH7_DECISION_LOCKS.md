@@ -1,7 +1,7 @@
 # Thesis - Phase 7 Decision Locks
 
 **Status:** Active  
-**Last Revised:** 2026-05-01
+**Last Revised:** 2026-05-02
 **Purpose:** Lock the product, provider, and implementation decisions for Phase 7 before the milestone is widened in code.
 
 ---
@@ -231,3 +231,21 @@ M1 implementation thresholds:
 - LLM output cannot use buy/sell/hold language, price targets, execution language, unsupported tickers, unsupported source names, or `because` causality unless a future fact pack explicitly carries a causal link.
 - Sources and method appear once in the footer.
 - Source tiers remain: official/free data first, official calendars second, headline metadata only third, and no Yahoo/Alpha Vantage/article-body scraping in Pulse production.
+
+---
+
+## 17. M9 Dexter Evidence Quality Skills Locks
+
+- M9 is a Dexter-owned internal evidence-quality milestone.
+- M9 is separate from the existing `m9-due-diligence-*` prompt label; that label remains a due-diligence authoring/version marker, not the M9 skills milestone.
+- TradingAgents-CN, last30days-skill, and scientific-agent-skills are inspiration/reference only in M9 and are not imported as runtime dependencies.
+- New evidence tools are Dexter-native, optional, and disabled by default in production.
+- The first M9 implementation does not modify Product API contracts, mobile UI, Docker services, public routes, or Pulse customer output.
+- Financial validation is deterministic and omission-forward; missing values must not be treated as zero.
+- Evidence debate is deterministic in M9 and may use supporting/challenging/unresolved internal language, but customer-facing bull/bear/buy/sell/hold/risk-manager language is forbidden.
+- Recent context is fixture-only in M9. Live last30days integration requires later license, dependency, auth, rate-limit, source-policy, and ADR review.
+- Social/community sources, including Reddit, X, YouTube, Hacker News, Polymarket, and generic web findings, default to `internal_only`.
+- Polymarket may be used only as attention or consensus context, never as factual event confirmation.
+- Internal-only recent context cannot be quoted, summarized, attributed, or treated as fact in customer-facing report copy.
+- Tool failures must return omissions and must not block Deep Dive generation.
+- No trading advice, price targets, position sizing, broker flow, public lab, terminal behavior, or social-source customer copy is introduced in M9.

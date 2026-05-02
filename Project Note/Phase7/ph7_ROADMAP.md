@@ -1,7 +1,7 @@
 # Thesis - Phase 7 Roadmap
 
 **Status:** Active  
-**Last Revised:** 2026-05-01
+**Last Revised:** 2026-05-02
 
 ---
 
@@ -17,6 +17,7 @@
 | M6 | Guarded LLM Pulse Editorial Writer | Validated |
 | M7 | Pulse Issue Plan & Professional Newspaper Polish | Validated |
 | M8 | Pulse Morning Brief Reset | Active |
+| M9 | Dexter Evidence Quality Skills | Active |
 
 ## Status Semantics
 
@@ -190,3 +191,24 @@
 - article-body scraping or summarization
 - terminal, screener, broker, or trading workflow
 - customer-facing provider debug labels or omitted-module apologies
+
+---
+
+## M9 Execution Order
+
+1. preserve the current Pulse revamp work separately before touching Dexter
+2. add the Dexter-native tool contract, safe runner, policy, evidence, and prompt-context helpers
+3. add deterministic financial validator, evidence debate evaluator, and fixture-only recent context tools
+4. wire the tools into Deep Dive generation as internal prompt context and conservative confidence limits
+5. keep all tools disabled by default and optional at runtime
+6. prove that no internal-only recent context leaks into customer report text
+7. record proof under `Project Note/Phase7/Milestones/M9/evidence/`
+
+## Non-Goals For M9
+
+- importing TradingAgents-CN, last30days-skill, scientific-agent-skills, or other external repos
+- live last30days calls
+- Product API, contract, mobile, Docker, or public route changes
+- new Pulse customer sections
+- trading advice, price targets, broker flows, social-source customer copy, public lab, or terminal behavior
+- treating M9 as the same thing as the existing `m9-due-diligence-*` prompt label

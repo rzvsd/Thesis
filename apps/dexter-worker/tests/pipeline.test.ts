@@ -141,6 +141,35 @@ test("MSFT fixture request produces a schema-valid report with no blank sections
   );
 });
 
+test("tools-enabled fixture request stays schema-valid and does not leak internal recent context", async () => {
+  const report = await runAnalysisPipeline(
+    buildRequest("MSFT"),
+    buildFixtureConfig({
+      DEXTER_TOOLS_ENABLED: "true",
+      DEXTER_FINANCIAL_ANALYSIS_TOOL_ENABLED: "true",
+      DEXTER_EVIDENCE_DEBATE_TOOL_ENABLED: "true",
+      DEXTER_RECENT_CONTEXT_TOOL_ENABLED: "true",
+      DEXTER_RECENT_CONTEXT_CUSTOMER_VISIBLE: "false",
+      DEXTER_TOOL_MAX_RESULTS: "4"
+    })
+  );
+
+  assert.equal(validateAnalysisReport(report).length, 0);
+  const customerText = [
+    ...report.sections.map((section) => section.body),
+    report.story_header?.headline,
+    report.story_header?.reader_takeaway,
+    report.investment_memo?.sections
+      .flatMap((section) => [section.narrative, ...section.key_points])
+      .join(" "),
+    report.due_diligence?.sections
+      .flatMap((section) => [section.summary, ...section.narrative_paragraphs])
+      .join(" ")
+  ].filter(Boolean).join(" ");
+
+  assert.doesNotMatch(customerText, /\bINTERNAL ONLY\b|\breddit\b|\bhackernews\b|\bpolymarket\b/i);
+});
+
 test("LIMITED fixture request degrades affected sections honestly", async () => {
   const report = await runAnalysisPipeline(buildRequest("LIMITED"), buildFixtureConfig());
 

@@ -117,6 +117,15 @@ export interface DexterConfig {
   pulseLlmEditorialEnabled: boolean;
   pulseLlmPromptVersion: string;
   pulseLlmMaxTokens: number;
+  toolsEnabled: boolean;
+  financialAnalysisToolEnabled: boolean;
+  evidenceDebateToolEnabled: boolean;
+  recentContextToolEnabled: boolean;
+  recentContextCustomerVisible: boolean;
+  toolTimeoutMs: number;
+  toolMaxResults: number;
+  recentContextBaseUrl?: string;
+  recentContextApiKeyPresent: boolean;
   forcedFailureTickers: Set<string>;
 }
 
@@ -228,6 +237,21 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): DexterConfig {
     pulseLlmPromptVersion:
       env.PULSE_LLM_PROMPT_VERSION?.trim() || "ph7-dexter-pulse-brief-v1",
     pulseLlmMaxTokens: parseInteger(env.PULSE_LLM_MAX_TOKENS, 420),
+    toolsEnabled: parseBoolean(env.DEXTER_TOOLS_ENABLED, false),
+    financialAnalysisToolEnabled: parseBoolean(
+      env.DEXTER_FINANCIAL_ANALYSIS_TOOL_ENABLED,
+      false
+    ),
+    evidenceDebateToolEnabled: parseBoolean(env.DEXTER_EVIDENCE_DEBATE_TOOL_ENABLED, false),
+    recentContextToolEnabled: parseBoolean(env.DEXTER_RECENT_CONTEXT_TOOL_ENABLED, false),
+    recentContextCustomerVisible: parseBoolean(
+      env.DEXTER_RECENT_CONTEXT_CUSTOMER_VISIBLE,
+      false
+    ),
+    toolTimeoutMs: parseInteger(env.DEXTER_TOOL_TIMEOUT_MS, 6000),
+    toolMaxResults: parseInteger(env.DEXTER_TOOL_MAX_RESULTS, 12),
+    recentContextBaseUrl: env.LAST30DAYS_BASE_URL?.trim() || undefined,
+    recentContextApiKeyPresent: Boolean(env.LAST30DAYS_API_KEY),
     forcedFailureTickers: parseTickerSet(env.DEXTER_FORCE_FAIL_TICKERS)
   };
 }

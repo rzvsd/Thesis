@@ -1,9 +1,9 @@
 # Thesis - Phase 7 Milestone Briefs
 
 **Version:** 1.0  
-**Status:** Active (M8 active; M1-M7 validated)
+**Status:** Active (M8 Pulse track preserved separately; M9 Dexter evidence track active)
 **Owner:** Engineering Lead + Product Lead  
-**Last Revised:** 2026-05-01
+**Last Revised:** 2026-05-02
 **Related Documents:** `ph7_BLUEBOOK.md`, `ph7_PRD.md`, `ph7_ROADMAP.md`, `PH7_DECISION_LOCKS.md`
 
 ---
@@ -12,7 +12,7 @@
 
 Phase 7 begins after the Phase 6 substrate closeout. The Phase 7 pack is the current planning and doctrine layer for Pulse work. Earlier phase docs remain historical unless this pack explicitly points back to them.
 
-Current milestone state is tracked in `ph7_ROADMAP.md`. As of 2026-05-01, M1-M7 have implementation evidence recorded and M8 is the active Pulse Morning Brief reset.
+Current milestone state is tracked in `ph7_ROADMAP.md`. As of 2026-05-02, M1-M7 have implementation evidence recorded, M8 remains the separate Pulse Morning Brief track, and M9 is the active Dexter evidence-quality track.
 
 Proof for each milestone lives under:
 
@@ -34,6 +34,7 @@ Project Note/Phase7/Milestones/M#/evidence/
 | M6 | Guarded LLM Pulse Editorial Writer | Adds an optional OpenRouter copy-editing layer that rewrites deterministic Pulse narrative without mutating facts, provenance, tickers, prices, or events |
 | M7 | Pulse Newspaper Template Revamp | Replaces the old 13-module issue idea with the compact newspaper template: Tape, Changed, Names, Calendar, Headlines, Signal/Noise, Backdrop, and footer sources |
 | M8 | Pulse Morning Brief Reset | Replaces newspaper-style rendering with a compact quiet/normal/event Morning Brief, deterministic daily delta, one useful insight, optional user/calendar/headline modules, and a strict six-field LLM copy contract |
+| M9 | Dexter Evidence Quality Skills | Adds internal-only Dexter tools for deterministic financial validation, evidence-quality debate, and fixture-only recent context without changing Product API, contracts, mobile, Pulse, or public surfaces |
 
 ---
 
@@ -622,3 +623,70 @@ Step 7: Confirm - no repeated inline evidence, visible method card, trading lang
 ## Rollback
 
 Re-enable the previous renderer only as an emergency path. Do not restore the 13-module issue model, repeated inline evidence, raw customer-facing status labels, or weak filler sections.
+
+---
+
+# M9_Dexter Evidence Quality Skills
+
+## Goal
+
+Add a Dexter-native evidence skills layer that improves Deep Dive quality through deterministic math validation, evidence-quality review, and internal recent-context awareness.
+
+**Plain English:** Dexter gets better internal tools for checking its work, but the product does not become a trading agent, public lab, terminal, or social-news summarizer.
+
+## Deliverables
+
+| Deliverable | Description |
+|---|---|
+| Tool foundation | Shared tool result contract, omissions, safe runner, source policy, evidence helper, and prompt-context renderer under `apps/dexter-worker/src/tools/` |
+| Config flags | Disabled-by-default flags for all tools and future recent-context adapter settings |
+| Financial validator | Deterministic validator for growth, margins, cash conversion, and debt context from existing snapshots |
+| Evidence debate evaluator | Deterministic supporting/challenging/unresolved evidence review with claim-quality score |
+| Recent context fixture adapter | Fixture-only provider for AAPL, MSFT, TSLA, macro inflation, and geopolitical risk |
+| Pipeline integration | Internal prompt context and confidence limiting factors; no new public section |
+| Test proof | Tool tests plus tools-enabled fixture pipeline proof |
+
+## Locked Interface Plan
+
+| Area | Locked shape |
+|---|---|
+| Ownership | Dexter worker only |
+| External repos | Inspiration only, not dependencies |
+| Runtime default | `DEXTER_TOOLS_ENABLED=false` |
+| Product API/contracts/mobile | No changes in M9 |
+| Recent context | Fixture-only, no live calls |
+| Customer surface | No new public section, route, tab, lab, or terminal workflow |
+
+## Acceptance Criteria
+
+- [ ] M9 docs and evidence scaffold exist
+- [ ] Tool layer is Dexter-native and dependency-free
+- [ ] Tools are optional and disabled by default
+- [ ] Financial validator emits deterministic metrics, evidence, and omissions
+- [ ] Evidence debate emits support/challenge/unresolved analysis without trading language
+- [ ] Recent context fixtures work without live calls and keep social sources internal-only
+- [ ] Deep Dive remains resilient if a tool is disabled, times out, or fails
+- [ ] No internal-only recent context appears in customer report text
+- [ ] No Product API, contract, mobile, Docker, public route, broker, or Pulse customer-surface change is introduced
+
+## Smoke Test
+
+```text
+Step 1: Run @thesis/dexter-worker tests.
+Step 2: Confirm tool runner success, disabled, timeout, and internal-error paths.
+Step 3: Confirm policy blocks trading advice, price targets, position sizing, and unsafe causality.
+Step 4: Confirm financial validator computes metrics and records omissions for missing inputs.
+Step 5: Confirm evidence debate scores stronger evidence higher and avoids trading language.
+Step 6: Confirm recent context fixtures are bounded, internal-only by default, and Polymarket is attention only.
+Step 7: Run tools-enabled fixture Deep Dive.
+Step 8: Confirm the report is contract-valid and internal-only recent context does not leak.
+Step 9: Run contracts, typecheck, and lint.
+```
+
+## Rollback
+
+Set `DEXTER_TOOLS_ENABLED=false`. The normal Deep Dive path remains intact because every M9 tool is optional and omission-forward.
+
+## Owner
+
+Reasoning / ML Engineer + Product Lead

@@ -55,6 +55,13 @@ import {
   selectSectionDefinitions,
   type SectionDefinition
 } from "./sections";
+import { runEvidenceDebateTool } from "./tools/evidence-debate/evidence-debate-tool";
+import { runFinancialAnalysisTool } from "./tools/financial-analysis/financial-analysis-tool";
+import { runRecentContextTool } from "./tools/recent-context/recent-context-tool";
+import {
+  renderToolContextForPrompt,
+  type DexterEvidenceToolContext
+} from "./tools/tool-prompt-context";
 
 const schemaVersion = "2.0";
 const canonicalDisclaimer =
@@ -1650,6 +1657,40 @@ function buildConfidenceSection(confidence: ConfidenceBlock): ReportSection {
   };
 }
 
+function augmentConfidenceWithToolContext(
+  confidence: ConfidenceBlock,
+  toolContext: DexterEvidenceToolContext
+): ConfidenceBlock {
+  const limitingFactors = new Set(confidence.limiting_factors);
+  let scorePenalty = 0;
+
+  const financialRedFlags = toolContext.financialAnalysis?.data?.red_flags ?? [];
+  if (financialRedFlags.some((flag) => flag.severity === "high")) {
+    limitingFactors.add("Financial validator found high-severity math flags; confidence remains conservative.");
+    scorePenalty += 0.05;
+  }
+  if ((toolContext.financialAnalysis?.omissions.length ?? 0) > 0) {
+    limitingFactors.add("Financial validator omitted some ratios because source inputs were incomplete.");
+  }
+
+  const debateScore = toolContext.evidenceDebate?.data?.claim_quality_score;
+  if (typeof debateScore === "number" && debateScore < 0.5) {
+    limitingFactors.add("Evidence quality review found unresolved support across sections.");
+    scorePenalty += 0.05;
+  }
+  if ((toolContext.evidenceDebate?.omissions.length ?? 0) > 0) {
+    limitingFactors.add("Evidence quality review kept unresolved sections in the confidence limits.");
+  }
+
+  const score = Math.max(0, confidence.score - scorePenalty);
+  return {
+    ...confidence,
+    score,
+    label: score < 0.4 ? "low" : confidence.label,
+    limiting_factors: [...limitingFactors]
+  };
+}
+
 function buildEvidenceReferenceSection(evidence: EvidenceItem[]): ReportSection {
   const body = evidence.length === 0
     ? "No scored evidence references were available for this run. The report remains honest by returning no_signal instead of inventing support."
@@ -2879,7 +2920,8 @@ async function executeLiveSection(
   request: AnalysisRequest,
   config: DexterConfig,
   prompts: LoadedPrompts,
-  timeoutMs: number
+  timeoutMs: number,
+  toolContextPrompt = ""
 ): Promise<ExecutedSection> {
   const configErrors = validateLiveModeConfig(config);
   if (configErrors.length > 0) {
@@ -2889,7 +2931,9 @@ async function executeLiveSection(
   const query = renderPrompt(prompts.sectionExecutor, {
     ticker: request.ticker ?? "",
     section_title: definition.title,
-    section_guidance: definition.liveGuidance ?? "",
+    section_guidance: [definition.liveGuidance ?? "", toolContextPrompt]
+      .filter((entry) => entry.trim().length > 0)
+      .join("\n\n"),
     requested_at: request.requested_at,
     job_id: request.job_id
   });
@@ -2942,7 +2986,8 @@ async function executeSectionWithRetry(
   definition: SectionDefinition,
   request: AnalysisRequest,
   config: DexterConfig,
-  prompts: LoadedPrompts
+  prompts: LoadedPrompts,
+  toolContextPrompt = ""
 ): Promise<ExecutedSection> {
   let attempt = 0;
   const maxAttempts = config.maxSectionRetries + 1;
@@ -2955,7 +3000,7 @@ async function executeSectionWithRetry(
     try {
       return config.fixtureMode
         ? await executeFixtureSection(definition, request, config)
-        : await executeLiveSection(definition, request, config, prompts, timeoutMs);
+        : await executeLiveSection(definition, request, config, prompts, timeoutMs, toolContextPrompt);
     } catch (error) {
       if (attempt >= config.maxSectionRetries) {
         throw error;
@@ -3022,6 +3067,29 @@ export async function runAnalysisPipeline(
     );
   const model = config.fixtureMode ? scenario?.model ?? "fixture-dexter-m3" : config.model;
   const m2Context = await resolveM2SectionContext(request, config);
+  const issuer = issuerForTicker(ticker);
+  const toolContext: DexterEvidenceToolContext = {};
+  toolContext.financialAnalysis = await runFinancialAnalysisTool(
+    {
+      ticker,
+      latest: m2Context.latest,
+      priorQuarter: m2Context.priorQuarter,
+      yearAgo: m2Context.yearAgo
+    },
+    config
+  );
+  toolContext.recentContext = await runRecentContextTool(
+    {
+      query: `${ticker} ${issuer?.name ?? ""}`.trim() || ticker,
+      ticker,
+      companyName: issuer?.name,
+      lookbackDays: 30,
+      maxResults: config.toolMaxResults,
+      mode: "deep_dive"
+    },
+    config
+  );
+  const preSectionToolContextPrompt = renderToolContextForPrompt(toolContext);
 
   if (!config.fixtureMode) {
     const preflightErrors = validateLiveModeConfig(config);
@@ -3120,7 +3188,13 @@ export async function runAnalysisPipeline(
     }
 
     try {
-      const result = await executeSectionWithRetry(definition, request, config, prompts);
+      const result = await executeSectionWithRetry(
+        definition,
+        request,
+        config,
+        prompts,
+        preSectionToolContextPrompt
+      );
       if (sectionTrace) {
         await sectionTrace.end(
           {
@@ -3223,7 +3297,7 @@ export async function runAnalysisPipeline(
   }
 
   const signal = buildSignal(request.job_id, config, scenario, executedSections);
-  const confidence = scenario?.confidence ?? {
+  let confidence = scenario?.confidence ?? {
     score: signal.value === "no_signal" ? 0.35 : 0.62,
     label: signal.value === "no_signal" ? "insufficient_data" : "medium",
     limiting_factors:
@@ -3239,7 +3313,7 @@ export async function runAnalysisPipeline(
     financialAnalysis,
     valuation: valuationSection.valuation
   });
-  const derivedSections: ReportSection[] = [
+  let derivedSections: ReportSection[] = [
     buildThesisStatementSection(ticker, m2Context),
     buildWhatChangedSection(m2Context),
     buildValueDisciplineSection(valueDiscipline),
@@ -3251,7 +3325,22 @@ export async function runAnalysisPipeline(
   ].filter((section) =>
     selectedDefinitions.some((definition) => definition.id === section.section_id)
   );
-  const orderedSectionsInitial = orderSections([...executedSections, ...derivedSections]);
+  let orderedSectionsInitial = orderSections([...executedSections, ...derivedSections]);
+  const thesisStatement = derivedSections.find((section) => section.section_id === "thesis_statement")?.body;
+  toolContext.evidenceDebate = await runEvidenceDebateTool(
+    {
+      ticker,
+      thesisStatement,
+      sections: orderedSectionsInitial,
+      financialTool: toolContext.financialAnalysis?.data
+    },
+    config
+  );
+  confidence = augmentConfidenceWithToolContext(confidence, toolContext);
+  derivedSections = derivedSections.map((section) =>
+    section.section_id === "confidence_score" ? buildConfidenceSection(confidence) : section
+  );
+  orderedSectionsInitial = orderSections([...executedSections, ...derivedSections]);
 
   const traceMode: "mock" | "live" | "disabled" = config.fixtureMode
     ? "mock"
@@ -3278,7 +3367,6 @@ export async function runAnalysisPipeline(
   }
 
   const generatedAt = new Date().toISOString();
-  const thesisStatement = derivedSections.find((section) => section.section_id === "thesis_statement")?.body;
   const trustMetadata = buildTrustMetadata({
     generatedAt,
     context: m2Context,
