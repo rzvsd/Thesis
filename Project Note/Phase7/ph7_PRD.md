@@ -130,7 +130,7 @@ M10 keeps the Morning Brief shape but makes it more readable and memorable:
 - sector strip and expanded sparklines where typed data exists
 - evidence and method still in one footer
 
-The M8 six-field/180-word LLM copy limit is superseded by a guarded 500-word M10 limit. The LLM still cannot decide facts, mutate values, add sources, add tickers, infer unsupported causality, or create trading advice.
+The M8 six-field/180-word LLM copy limit is superseded by a guarded 1500-word M10 limit. Normal/event issues target 150-210 words per visible narrative section so the report can explain, not merely label, each part of the morning. The LLM still cannot decide facts, mutate values, add sources, add tickers, infer unsupported causality, or create trading advice.
 
 Quiet days are intentionally short. A brief that says "nothing moved the needle" is a valid output when the reviewed data supports it.
 

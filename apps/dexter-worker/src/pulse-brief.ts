@@ -378,8 +378,8 @@ function deterministicBrief(report: MarketPulseReport): MarketPulseBriefEditoria
   const rows = report.morning_edition?.portfolio_radar ?? [];
   const vix = report.market_tape?.cross_asset.find((move) => move.family === "volatility");
   const oneThing = vix && vix.direction === "down"
-    ? "Volatility cooled alongside the equity move, giving the session cleaner texture than price alone."
-    : "Market movement stayed contextual until official events or company evidence confirm more.";
+    ? "Volatility cooled alongside the equity move, giving the session cleaner texture than price alone. That is the detail worth keeping. It does not magically convert one market day into a new thesis, but it does make the session less flimsy than a green index print standing alone. The market gets credit for better texture, not a trophy for permanent improvement. A serious morning read should be able to say both things without sweating. The useful observation is not that the board was green. The useful observation is that stress moved in the friendlier direction while equities held the line. That makes the session easier to respect, but it still needs repetition, official evidence, or company-specific confirmation before it deserves a larger conclusion. Nice day, yes. New worldview, calm down."
+    : "Market movement stayed contextual until official events or company evidence confirm more. That sounds restrained, which is exactly the point. The brief is not here to cosplay certainty. It is here to sort what actually changed from what merely moved around on the screen. If the evidence stack does not confirm a bigger story, the smarter read is to keep the move in context and move on with dignity intact. The one thing to remember is the boundary: market motion can change tone, but evidence changes conviction. Until filings, official macro data, or verified events add weight, the move stays in the context drawer. That drawer is useful. It is not a throne room.";
   const morningStory = breadth === "higher"
     ? [
         "Risk appetite improved, but conviction did not reset. Yesterday's tape was broadly better: equities rose, volatility cooled, and the cross-asset backdrop was easier to digest.",
@@ -387,7 +387,8 @@ function deterministicBrief(report: MarketPulseReport): MarketPulseBriefEditoria
         rows.length > 0
           ? "Your tracked names mostly moved with that broader context. That makes the day useful, but not company-specific evidence."
           : "No tracked-name evidence created a separate company story, so the read stays anchored in the tape.",
-        "The morning conclusion is simple: better texture, not a new regime."
+        "The morning conclusion is simple: better texture, not a new regime. The market is allowed to have a decent day without receiving a framed certificate for structural improvement. The read is warmer, not transformed. That is the kind of distinction a good brief should make before everyone starts throwing adjectives at a one-session move.",
+        "The job is to connect the tape to the user's actual attention set. If the board improved and the names moved with it, that is market context. If a filing, first-party update, or confirmed catalyst appears, that becomes a company story. The gap between those two things is where good morning research lives. It is also where bad market commentary tends to trip over its own enthusiasm."
       ].join("\n\n")
     : breadth === "lower"
       ? [
@@ -396,7 +397,8 @@ function deterministicBrief(report: MarketPulseReport): MarketPulseBriefEditoria
           rows.length > 0
             ? "Your tracked names are checked against that tape first, then against company-specific evidence."
             : "No tracked-name evidence created a separate story.",
-          "The morning conclusion is caution without theater."
+          "The morning conclusion is caution without theater. A weaker session deserves attention, not interpretive jazz hands. If the evidence stack confirms deterioration, Thesis can say so plainly. If it does not, the brief keeps the move in the market-context bucket and refuses to promote a wobble into a thesis break.",
+          "That is the value of the format. It gives the user enough context to notice pressure, then refuses to confuse pressure with proof. A softer tape can matter a lot when rates, credit, volatility, and company events point in the same direction. When they do not, the better read is sharper and smaller. The market may want drama. The brief has chores."
         ].join("\n\n")
       : [
           "The tape was mixed, and macro did not give the market a clean new answer.",
@@ -404,7 +406,8 @@ function deterministicBrief(report: MarketPulseReport): MarketPulseBriefEditoria
           rows.length > 0
             ? "Your tracked names mostly sit inside that mixed context."
             : "No tracked-name evidence created a separate story.",
-          "The morning conclusion is patience."
+          "The morning conclusion is patience. Mixed tapes are annoying precisely when they are useful. They stop the brief from getting too cute with direction, force attention back to evidence, and remind the reader that ambiguity is not a bug. Sometimes the market's most honest sentence is a shrug with footnotes.",
+          "That does not make the day empty. It makes the read selective. The brief should identify the few parts of the board that moved, show where confirmation was missing, and keep tracked names attached to evidence instead of mood. A mixed session is not a failed narrative. It is a useful warning against pretending the market handed over a clean message."
         ].join("\n\n");
   return {
     the_read:
@@ -414,19 +417,19 @@ function deterministicBrief(report: MarketPulseReport): MarketPulseBriefEditoria
           ? "Risk appetite softened, but the brief keeps movement separate from thesis change. The right question is whether volatility, rates, credit, or company evidence confirmed the move. Without that confirmation, yesterday reads as market context rather than a reset."
           : "Markets were mixed, so the useful read is what changed versus what stayed quiet. Thesis keeps the brief focused on confirmed movement, macro context, and tracked-name evidence rather than forcing a directional story.",
     what_changed_summary:
-      "The tape changed first, volatility and rates shaped the quality of the move, and no company-specific event changed the tracked-name story. The rest stays framed as context until official or first-party evidence says more.",
+      "The tape changed first, volatility and rates shaped the quality of the move, and no company-specific event changed the tracked-name story. That is the change set, not a permission slip to narrate a new era. The brief gives market movement credit where it earned it, then keeps the company read anchored to first-party or official evidence. This is the useful discipline: name the move, check the confirmation, and avoid pretending every daily print deserves a ceremonial parade. The user should come away knowing which facts actually moved versus which ones merely remained relevant. If the market improved but the macro frame did not, say that. If tracked names followed the tape without company evidence, say that too. The section is deliberately plain: deltas first, interpretation second, drama nowhere near the steering wheel.",
     why_it_matters:
       vix && typeof vix.daily_change_pct === "number" && vix.direction === "down"
-        ? "The useful part is not that stocks went up. It is that the move came with lower volatility, which gives the session better texture than price alone. That helps the morning read, but conviction still needs repeated confirmation or company-specific evidence."
-        : "The useful part is the split between market movement and conviction. A cleaner session can improve context, but a thesis change still needs repeated confirmation, official events, or company-specific evidence.",
+        ? "The useful part is not that stocks went up. It is that the move came with lower volatility, which gives the session better texture than price alone. That helps the morning read, but conviction still needs repeated confirmation or company-specific evidence. A rally with calmer volatility is easier to respect than a rally fighting stress, but respect is not the same as surrendering the whole thesis to one session. The brief should tell the reader why the tape looked cleaner, then keep the conclusion contained. This is where smart commentary beats dashboard decoration: it explains the texture of the move without pretending the market suddenly became a reliable narrator."
+        : "The useful part is the split between market movement and conviction. A cleaner session can improve context, but a thesis change still needs repeated confirmation, official events, or company-specific evidence. That distinction is the reason the brief exists. A terminal can show the move; Thesis should explain whether the move deserves memory. If cross-asset confirmation is thin, the answer stays modest. If company evidence is absent, tracked-name moves remain context. It is not less useful to be restrained. It is exactly the service the reader needs before the market starts yelling in capital letters.",
     ...(rows.length > 0
       ? {
           your_names_comment:
-            "Your names mostly moved with the broader tape. That makes yesterday useful context, but not company-specific evidence."
+            "Your names mostly moved with the broader tape. That makes yesterday useful context, but not company-specific evidence. The distinction is not cosmetic. If AAPL, MSFT, or any tracked name moves with the market, the first read is market participation, not a company thesis update. Thesis checks whether the move came with filings, first-party evidence, calendar catalysts, or approved event context before letting it become a name-specific story. That keeps the section personal without making it gullible. The user sees what happened to their names, but the brief does not flatter every price move into a revelation. Portfolio relevance, yes. Portfolio astrology, no."
         }
       : {}),
     smart_comment:
-      "Yesterday gave users a cleaner tape, not a stronger thesis. The difference matters. A better session can improve context, but conviction should come from repeated confirmation, official events, or company-specific evidence rather than one market day.",
+      "Yesterday gave users a cleaner tape, not a stronger thesis. The difference matters. A better session can improve context, but conviction should come from repeated confirmation, official events, or company-specific evidence rather than one market day. This is where a terminal can show the number and still miss the point. The point is whether the move came with enough confirming texture to matter tomorrow. If not, the brief should be charmingly unimpressed. The smart read keeps the improved context on the page while refusing to let it overstay its authority. Markets are excellent at producing motion and mediocre at explaining themselves. Thesis should do the explaining, then stop before the explanation becomes a costume party for a daily print.",
     morning_story: morningStory,
     tape_color:
       breadth === "higher" && vix?.direction === "down"
@@ -434,10 +437,16 @@ function deterministicBrief(report: MarketPulseReport): MarketPulseBriefEditoria
         : breadth === "lower"
           ? "Softer tape, confirmation still selective"
           : "Mixed tape, selective read",
+    tape_narrative:
+      breadth === "higher"
+        ? "The tape leaned better, and the important part was the texture around the move. Equities can rise in a way that feels clean, or they can rise like someone spilled coffee on a keyboard. When volatility cools and the cross-asset backdrop is easier to digest, the session deserves more respect. Still, respect is not the same as conviction. This section treats the numbers as market context, then checks whether anything official or company-specific is strong enough to move the thesis. The reader should leave with the quality of the move, not just the direction. A green board can hide stress, narrow leadership, or missing confirmation. A cleaner board earns a better sentence. It does not earn unlimited narrative credit, despite what the excited side of finance would enjoy very much."
+        : breadth === "lower"
+          ? "The tape leaned weaker, which deserves attention without theatrics. Red numbers are not analysis; they are an invitation to ask whether volatility, rates, credit, macro releases, or company evidence confirmed a more durable shift. Without that confirmation, the move stays contextual. The brief can be alert without acting like every down day arrived carrying a scroll from the gods. The useful read separates pressure from panic. If the cross-asset stack confirms the weakness, the morning can get louder. If it does not, the brief should keep the move in proportion. A softer session matters. It just does not automatically deserve a full orchestra and a smoke machine."
+          : "The tape was mixed, which is less satisfying than a clean verdict and usually more useful. Mixed sessions punish lazy storytelling. Some pieces move, other pieces refuse to confirm, and the right read is to keep that contradiction visible. The brief is not trying to flatten the board into a single mood. It is trying to show where the market actually had something to say. That means naming the leaders, naming the laggards, and admitting when the cross-asset picture did not cooperate. A mixed tape is not empty. It is the market speaking in fragments, which is irritating but still better than a fake sentence.",
     ...(rows.length > 0
       ? {
           names_narrative:
-            "Your names mostly moved with the broader tape. That makes the session useful context, but not company-specific evidence."
+            "Your names mostly moved with the broader tape. That makes the session useful context, but not company-specific evidence. If a tracked name rises with the market, the lazy sentence is that the company had a good day. The better sentence is that the name participated in a stronger tape while no confirmed company catalyst changed the read. Thesis checks price action first, then makes it earn a company story through filings, first-party updates, or approved evidence. That keeps the section personal without turning it into horoscope finance. A watchlist should tell the user what matters to them, not flatter every price wiggle into a revelation. When a tracked name separates from the tape, the brief can get sharper. Until then, market context stays market context."
         }
       : {}),
     one_thing: oneThing,
@@ -476,11 +485,14 @@ function validateCopy(
     merged.smart_comment,
     merged.morning_story,
     merged.tape_color,
+    merged.tape_narrative,
+    merged.calendar_narrative,
+    merged.headlines_narrative,
     merged.names_narrative,
     merged.one_thing
   ].join(" ").split(/\s+/).filter(Boolean).length;
-  if (totalWords > 500) {
-    throw new Error("brief editorial exceeds 500 word budget");
+  if (totalWords > 1500) {
+    throw new Error("brief editorial exceeds 1500 word budget");
   }
   return {
     the_read: validateCopyField("the_read", merged.the_read, report, 90, 12),
@@ -488,36 +500,59 @@ function validateCopy(
       "what_changed_summary",
       merged.what_changed_summary,
       report,
-      80,
-      8
+      230,
+      120
     ),
-    why_it_matters: validateCopyField("why_it_matters", merged.why_it_matters, report, 90, 12),
+    why_it_matters: validateCopyField("why_it_matters", merged.why_it_matters, report, 230, 120),
     ...(merged.your_names_comment
       ? {
           your_names_comment: validateCopyField(
             "your_names_comment",
             merged.your_names_comment,
             report,
-            80,
-            6
+            230,
+            120
           )
         }
       : {}),
-    smart_comment: validateCopyField("smart_comment", merged.smart_comment, report, 100, 10),
-    morning_story: validateCopyField("morning_story", merged.morning_story, report, 280, 45),
+    smart_comment: validateCopyField("smart_comment", merged.smart_comment, report, 230, 120),
+    morning_story: validateCopyField("morning_story", merged.morning_story, report, 230, 120),
     tape_color: validateCopyField("tape_color", merged.tape_color, report, 18, 3),
+    tape_narrative: validateCopyField("tape_narrative", merged.tape_narrative, report, 230, 120),
+    ...(merged.calendar_narrative
+      ? {
+          calendar_narrative: validateCopyField(
+            "calendar_narrative",
+            merged.calendar_narrative,
+            report,
+            230,
+            120
+          )
+        }
+      : {}),
+    ...(merged.headlines_narrative
+      ? {
+          headlines_narrative: validateCopyField(
+            "headlines_narrative",
+            merged.headlines_narrative,
+            report,
+            230,
+            120
+          )
+        }
+      : {}),
     ...(merged.names_narrative
       ? {
           names_narrative: validateCopyField(
             "names_narrative",
             merged.names_narrative,
             report,
-            80,
-            8
+            230,
+            120
           )
         }
       : {}),
-    one_thing: validateCopyField("one_thing", merged.one_thing, report, 45, 8),
+    one_thing: validateCopyField("one_thing", merged.one_thing, report, 230, 120),
     mood: validateMood(merged.mood)
   };
 }

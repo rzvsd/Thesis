@@ -80,6 +80,9 @@ export interface MarketPulseBriefEditorial {
   noise?: string;
   morning_story?: string;
   tape_color?: string;
+  tape_narrative?: string;
+  calendar_narrative?: string;
+  headlines_narrative?: string;
   names_narrative?: string;
   one_thing?: string;
   mood?: "confident" | "cautious" | "curious" | "calm";
@@ -103,6 +106,9 @@ export const marketPulseBriefEditorialSchema = {
     noise: { type: "string" },
     morning_story: { type: "string" },
     tape_color: { type: "string" },
+    tape_narrative: { type: "string" },
+    calendar_narrative: { type: "string" },
+    headlines_narrative: { type: "string" },
     names_narrative: { type: "string" },
     one_thing: { type: "string" },
     mood: {

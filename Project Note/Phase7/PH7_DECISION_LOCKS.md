@@ -257,8 +257,10 @@ M1 implementation thresholds:
 - M10 is the Pulse engagement overhaul and does not rename or overwrite M9 Dexter Evidence Quality Skills.
 - Pulse remains a research and conviction morning brief, not a newspaper cosplay surface, dashboard, market terminal, screener, broker flow, or trading product.
 - The M8 six-field/180-word LLM cap is superseded for M10 only.
-- M10 allows expanded Pulse editorial copy up to 500 total words, while preserving all guardrails around facts, prices, tickers, sources, events, and provenance.
-- New LLM fields are optional: `morning_story`, `tape_color`, `names_narrative`, `one_thing`, and `mood`.
+- M10 allows expanded Pulse editorial copy up to 1500 total words, while preserving all guardrails around facts, prices, tickers, sources, events, and provenance.
+- Visible section commentary should target 150-210 words on normal/event days, with quiet days allowed to stay intentionally brief.
+- New LLM fields are optional: `morning_story`, `tape_color`, `tape_narrative`, `calendar_narrative`, `headlines_narrative`, `names_narrative`, `one_thing`, and `mood`.
+- LLM tone may be sharper and lightly smart-ass, but never rude, theatrical, promotional, or advice-like.
 - The LLM may improve wording and narrative connection only; it cannot decide facts, data values, section visibility, sources, tickers, prices, events, omissions, or provenance.
 - The renderer branches by deterministic issue mode: `quiet`, `normal`, or `event`.
 - Quiet days may collapse aggressively into a short issue when the tape, macro, headlines, and tracked names do not cross thresholds.

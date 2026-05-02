@@ -148,6 +148,12 @@ function fixture(): MarketPulseReport {
       morning_story:
         "Risk appetite improved, but conviction did not reset. The tape was cleaner because equities rose while volatility cooled, and that is more useful than a green-index day fighting a tougher cross-asset setup. Macro pressure still did not disappear. The better read is that markets tolerated it more calmly for one session.",
       tape_color: "S&P led while volatility cooled.",
+      tape_narrative:
+        "The tape leaned higher, and the useful read was the texture around the move rather than the index color by itself.",
+      calendar_narrative:
+        "The calendar gives the reader attention appointments, not predictions, and every item still needs evidence after it lands.",
+      headlines_narrative:
+        "The headline set is treated as approved metadata and context, not as a license to summarize publisher bodies.",
       names_narrative:
         "AAPL moved with the broader tape rather than creating its own company-specific story.",
       one_thing:

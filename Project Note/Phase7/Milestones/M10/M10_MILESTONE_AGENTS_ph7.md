@@ -14,10 +14,10 @@ Create a 5-10 minute morning read that feels like a sharp analyst friend at coff
 
 | Deliverable | Description |
 |---|---|
-| Expanded editorial contract | Optional `morning_story`, `tape_color`, `names_narrative`, `one_thing`, and `mood` fields on `MarketPulseBriefEditorial` |
+| Expanded editorial contract | Optional `morning_story`, `tape_color`, `tape_narrative`, `calendar_narrative`, `headlines_narrative`, `names_narrative`, `one_thing`, and `mood` fields on `MarketPulseBriefEditorial` |
 | Richer fact pack | Deterministic `narrative_facts`, one-thing candidate selection, and per-name context |
 | Better fallback copy | Declarative reader-facing copy for quiet, normal, and event days |
-| Expanded Dexter prompt | LLM prompt with deterministic fact pack, tension summary, and 500-word guarded output budget |
+| Expanded Dexter prompt | LLM prompt with deterministic fact pack, tension summary, and 1500-word guarded output budget |
 | Adaptive renderer | Quiet, normal, and event layouts with stronger hierarchy |
 | New visual elements | One-thing callout, sector strip, larger sparklines, and richer name cards |
 | Tests and proof | Contract, render, Product API, Dexter, typecheck, and lint evidence |
@@ -27,6 +27,8 @@ Create a 5-10 minute morning read that feels like a sharp analyst friend at coff
 - Deterministic facts remain the source of truth.
 - LLM output cannot mutate facts, values, sources, tickers, prices, events, omissions, or provenance.
 - Quiet days can be short and explicit.
+- Normal/event day visible commentary targets 150-210 words per narrative section.
+- The LLM may be sharper and lightly smart-ass, but must remain evidence-bound and customer-safe.
 - Optional modules hide when typed data is absent.
 - No empty community-signal slot renders until an approved data path exists.
 - No trading advice, price targets, execution language, broker/screener/terminal flow, or article-body scraping.

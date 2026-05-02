@@ -68,7 +68,7 @@ function renderFullIssue(
     renderInterestingBit(copy),
     renderDeltas(factPack, copy),
     renderYourNames(factPack, copy),
-    renderCalendarAndHeadlines(factPack),
+    renderCalendarAndHeadlines(factPack, copy),
     renderSmartComment(copy),
     "</main>"
   ].join("\n");
@@ -121,6 +121,7 @@ function renderTape(
     moves.length > 0
       ? `<div class="tape-grid">${moves.map(renderMoveCard).join("\n")}</div>`
       : "<p class=\"empty-note\">Market tape values were not available in the approved path.</p>",
+    `<p class="section-kicker">${escapeHtml(copy.tape_narrative)}</p>`,
     compact ? "" : renderSectorHeatmap(report),
     compact ? "" : renderMarketSparklines(report),
     `<p class="tape-color">${escapeHtml(copy.tape_color)}</p>`,
@@ -280,7 +281,7 @@ function renderNameCard(row: PulseBriefUserNameRow): string {
   ].join("");
 }
 
-function renderCalendarAndHeadlines(factPack: PulseBriefFactPack): string {
+function renderCalendarAndHeadlines(factPack: PulseBriefFactPack, copy: PulseBriefCopy): string {
   const calendar = factPack.calendar ?? [];
   const headlines = factPack.headlines ?? [];
   if (calendar.length === 0 && headlines.length === 0) {
@@ -289,10 +290,10 @@ function renderCalendarAndHeadlines(factPack: PulseBriefFactPack): string {
   return [
     "<section class=\"brief-section calendar-headlines\">",
     calendar.length > 0
-      ? `<div><h2>Things To Watch</h2>${calendar.slice(0, 5).map(renderCalendarItem).join("\n")}</div>`
+      ? `<div><h2>Things To Watch</h2>${copy.calendar_narrative ? `<p class="section-kicker">${escapeHtml(copy.calendar_narrative)}</p>` : ""}${calendar.slice(0, 5).map(renderCalendarItem).join("\n")}</div>`
       : "",
     headlines.length > 0
-      ? `<div><h2>Headlines Worth Knowing</h2>${headlines.slice(0, 5).map(renderHeadline).join("\n")}</div>`
+      ? `<div><h2>Headlines Worth Knowing</h2>${copy.headlines_narrative ? `<p class="section-kicker">${escapeHtml(copy.headlines_narrative)}</p>` : ""}${headlines.slice(0, 5).map(renderHeadline).join("\n")}</div>`
       : "",
     "</section>"
   ].filter(Boolean).join("\n");

@@ -587,8 +587,8 @@ test("buildMarketPulseReportHtml renders the Morning Brief reset", () => {
   assert.doesNotMatch(html, /The customer-facing conclusion/);
   assert.doesNotMatch(html, /data_incomplete/);
   assert.doesNotMatch(html, /bounded_context/);
-  assert.ok(html.length < 15000, `expected compact HTML, got ${html.length} chars`);
-  assert.ok(html.split("\n").length < 500, "expected fewer than 500 lines");
+  assert.ok(html.length < 32000, `expected bounded editorial HTML, got ${html.length} chars`);
+  assert.ok(html.split("\n").length < 700, "expected fewer than 700 lines");
 });
 
 test("buildMarketPulseReportHtml hides optional modules when typed data is absent", () => {

@@ -145,7 +145,9 @@ The renderer should prefer:
 
 Pulse should feel like a sharp colleague explaining the morning, not a schema export with nicer typography.
 
-M10 adds room for a real Morning Story, but not room for hallucination. The deterministic fact pack decides the mode, facts, section visibility, one-thing candidate, and user-name context. The LLM may only improve wording inside a guarded budget.
+M10 adds room for a real Morning Story and section-level explanation, but not room for hallucination. The deterministic fact pack decides the mode, facts, section visibility, one-thing candidate, and user-name context. The LLM may only improve wording inside a guarded budget.
+
+Normal/event issues should explain each visible narrative section in roughly 150-210 words. The voice can be sharper and lightly smart-ass when useful, but the wit must serve clarity. It cannot become theater, advice, unsupported causality, or source-free confidence.
 
 The reader promise is:
 
