@@ -95,6 +95,7 @@ import com.thesis.mobile.ui.screens.InboxScreen
 import com.thesis.mobile.ui.screens.MonthlyCoherenceSection
 import com.thesis.mobile.ui.screens.NamesScreen
 import com.thesis.mobile.ui.screens.OnboardingScreen
+import com.thesis.mobile.ui.screens.PulseScreen
 import com.thesis.mobile.ui.screens.ScenarioStressScreen
 import com.thesis.mobile.ui.screens.MacroStressDashboardScreen
 import com.thesis.mobile.ui.screens.WarRoomScreen
@@ -113,6 +114,7 @@ import java.time.format.DateTimeFormatter
 
 private enum class TodayMode {
     HOME,
+    PULSE,
     MACRO_STRESS_DASHBOARD,
     WEEKLY_DIGEST
 }
@@ -456,6 +458,7 @@ fun ThesisApp(
                                 weeklyDigestDate = uiState.sentimentCurrent?.marketDate
                                 mainViewModel.openWeeklyDigest(fromPush = false)
                             },
+                            onOpenPulseBrief = { todayMode = TodayMode.PULSE },
                             onOpenMorningBriefing = openAlertTarget,
                             onResumeLastViewed = {
                                 if (it.type == "DEEP_DIVE") {
@@ -464,6 +467,19 @@ fun ThesisApp(
                                 mainViewModel.resumeLastViewed(it)
                             },
                             onDismissResume = { mainViewModel.dismissResumeCard() }
+                        )
+
+                        TodayMode.PULSE -> PulseScreen(
+                            pulse = uiState.pulseReport,
+                            watchlist = uiState.watchlist,
+                            onBack = { todayMode = TodayMode.HOME },
+                            onRunDeepDive = { ticker ->
+                                mainViewModel.selectTicker(ticker)
+                                researchMode = ResearchMode.DEEP_DIVE
+                                mainViewModel.setTab(AppTab.RESEARCH)
+                                mainViewModel.runDeepDive()
+                            },
+                            onRefresh = mainViewModel::refreshPulse
                         )
 
                         TodayMode.MACRO_STRESS_DASHBOARD -> MacroStressDashboardScreen(

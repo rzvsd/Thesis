@@ -92,6 +92,7 @@ fun HomeScreen(
     onRetryPulse: () -> Unit,
     onOpenMacroStressDashboard: () -> Unit,
     onOpenWeeklyDigest: () -> Unit,
+    onOpenPulseBrief: () -> Unit,
     onOpenMorningBriefing: (AlertLedgerItemView) -> Unit = {},
     onResumeLastViewed: ((LastViewedReport) -> Unit)? = null,
     onDismissResume: (() -> Unit)? = null
@@ -271,6 +272,7 @@ fun HomeScreen(
                 BottomLinksSection(
                     showFullPulse = showFullPulse,
                     onToggleFullPulse = { showFullPulse = !showFullPulse },
+                    onOpenPulseBrief = onOpenPulseBrief,
                     onOpenHistory = onOpenHistory
                 )
             }
@@ -727,6 +729,7 @@ private fun FullPulseSection(sections: List<SectionView>) {
 private fun BottomLinksSection(
     showFullPulse: Boolean,
     onToggleFullPulse: () -> Unit,
+    onOpenPulseBrief: () -> Unit,
     onOpenHistory: () -> Unit
 ) {
     Row(
@@ -735,14 +738,33 @@ private fun BottomLinksSection(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
-            text = if (showFullPulse) "HIDE FULL PULSE" else "FULL PULSE",
+            text = "MORNING BRIEF",
             style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Medium),
             color = ThesisColors.Primary,
+            modifier = Modifier
+                .clickable { onOpenPulseBrief() }
+                .padding(ThesisDimens.SpacingMd)
+                .semantics {
+                    contentDescription = "Open the full Pulse morning brief"
+                    role = Role.Button
+                }
+        )
+        Spacer(modifier = Modifier.size(ThesisDimens.SpacingLg))
+        Text(
+            text = "/",
+            style = ThesisTypography.labelSmall,
+            color = ThesisColors.Border
+        )
+        Spacer(modifier = Modifier.size(ThesisDimens.SpacingLg))
+        Text(
+            text = if (showFullPulse) "HIDE SECTIONS" else "SHOW SECTIONS",
+            style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Medium),
+            color = ThesisColors.TextMuted,
             modifier = Modifier
                 .clickable { onToggleFullPulse() }
                 .padding(ThesisDimens.SpacingMd)
                 .semantics {
-                    contentDescription = if (showFullPulse) "Hide full pulse" else "Show full pulse"
+                    contentDescription = if (showFullPulse) "Hide pulse sections" else "Show pulse sections"
                     role = Role.Button
                 }
         )
