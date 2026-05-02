@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.ExperimentalMaterialApi
@@ -57,6 +58,9 @@ import com.thesis.mobile.ui.components.NoNamesEmptyState
 import com.thesis.mobile.ui.components.NoPulseEmptyState
 import com.thesis.mobile.ui.components.OfflineEmptyState
 import com.thesis.mobile.ui.components.PulseUnavailableState
+import com.thesis.mobile.ui.animations.AnimatedCounter
+import com.thesis.mobile.ui.animations.RevealAnimation
+import com.thesis.mobile.ui.animations.StaggeredEntrance
 import com.thesis.mobile.ui.copy.Phase4Copy
 import com.thesis.mobile.ui.theme.HeadingFont
 import com.thesis.mobile.ui.theme.ThesisColors
@@ -138,73 +142,81 @@ fun HomeScreen(
             contentPadding = PaddingValues(bottom = ThesisDimens.ScreenPaddingBottom)
         ) {
             item {
-                Spacer(modifier = Modifier.height(ThesisDimens.ScreenPaddingTop))
-                Column {
-                    Text(
-                        text = dateLabel.uppercase(),
-                        style = ThesisTypography.labelSmall,
-                        color = ThesisColors.TextMuted
-                    )
-                    Spacer(modifier = Modifier.height(ThesisDimens.SpacingSm))
-                    Text(
-                        text = phase.title,
-                        style = ThesisTypography.displayLarge.copy(
-                            fontFamily = HeadingFont,
-                            fontWeight = FontWeight.Normal
-                        ),
-                        color = ThesisColors.TextPrimary
-                    )
-                    Spacer(modifier = Modifier.height(ThesisDimens.SpacingMd))
-                    Text(
-                        text = pulseLead,
-                        style = ThesisTypography.bodyLarge,
-                        color = ThesisColors.TextSecondary
-                    )
-                    if (!pulseTimestamp.isNullOrBlank()) {
-                        Spacer(modifier = Modifier.height(ThesisDimens.SpacingSm))
+                StaggeredEntrance(index = 0, baseDelayMs = 50L) {
+                    Spacer(modifier = Modifier.height(ThesisDimens.ScreenPaddingTop))
+                    Column {
                         Text(
-                            text = "Updated $pulseTimestamp",
+                            text = dateLabel.uppercase(),
                             style = ThesisTypography.labelSmall,
                             color = ThesisColors.TextMuted
                         )
-                    }
-                    if (!pulseFreshnessText.isNullOrBlank()) {
-                        Spacer(modifier = Modifier.height(ThesisDimens.SpacingXs))
+                        Spacer(modifier = Modifier.height(ThesisDimens.SpacingSm))
                         Text(
-                            text = pulseFreshnessText,
-                            style = ThesisTypography.labelSmall,
-                            color = if (pulseLoadedFromCache) ThesisColors.SignalWarning else ThesisColors.TextMuted
+                            text = phase.title,
+                            style = ThesisTypography.displayLarge.copy(
+                                fontFamily = HeadingFont,
+                                fontWeight = FontWeight.Normal
+                            ),
+                            color = ThesisColors.TextPrimary
                         )
+                        Spacer(modifier = Modifier.height(ThesisDimens.SpacingMd))
+                        Text(
+                            text = pulseLead,
+                            style = ThesisTypography.bodyLarge,
+                            color = ThesisColors.TextSecondary
+                        )
+                        if (!pulseTimestamp.isNullOrBlank()) {
+                            Spacer(modifier = Modifier.height(ThesisDimens.SpacingSm))
+                            Text(
+                                text = "Updated $pulseTimestamp",
+                                style = ThesisTypography.labelSmall,
+                                color = ThesisColors.TextMuted
+                            )
+                        }
+                        if (!pulseFreshnessText.isNullOrBlank()) {
+                            Spacer(modifier = Modifier.height(ThesisDimens.SpacingXs))
+                            Text(
+                                text = pulseFreshnessText,
+                                style = ThesisTypography.labelSmall,
+                                color = if (pulseLoadedFromCache) ThesisColors.SignalWarning else ThesisColors.TextMuted
+                            )
+                        }
                     }
                 }
             }
 
             item {
-                MacroStressSummaryCard(
-                    current = sentimentCurrent,
-                    history = sentimentHistory,
-                    sentimentError = sentimentError,
-                    onOpenDashboard = onOpenMacroStressDashboard,
-                    onOpenWeeklyDigest = onOpenWeeklyDigest
-                )
+                StaggeredEntrance(index = 1) {
+                    MacroStressSummaryCard(
+                        current = sentimentCurrent,
+                        history = sentimentHistory,
+                        sentimentError = sentimentError,
+                        onOpenDashboard = onOpenMacroStressDashboard,
+                        onOpenWeeklyDigest = onOpenWeeklyDigest
+                    )
+                }
             }
 
             if (morningBriefing != null) {
                 item {
-                    MorningBriefingCard(
-                        alert = morningBriefing,
-                        onOpen = { onOpenMorningBriefing(morningBriefing) }
-                    )
+                    StaggeredEntrance(index = 2) {
+                        MorningBriefingCard(
+                            alert = morningBriefing,
+                            onOpen = { onOpenMorningBriefing(morningBriefing) }
+                        )
+                    }
                 }
             }
 
             if (lastViewedReport != null && onResumeLastViewed != null && onDismissResume != null) {
                 item {
-                    ResumeCard(
-                        title = resumeTitle(lastViewedReport),
-                        onResume = { onResumeLastViewed(lastViewedReport) },
-                        onDismiss = onDismissResume
-                    )
+                    StaggeredEntrance(index = 3) {
+                        ResumeCard(
+                            title = resumeTitle(lastViewedReport),
+                            onResume = { onResumeLastViewed(lastViewedReport) },
+                            onDismiss = onDismissResume
+                        )
+                    }
                 }
             }
 
@@ -238,27 +250,33 @@ fun HomeScreen(
 
                 else -> {
                     item {
-                        WhatMovedSection(
-                            subtitle = todayPlan.subtitle,
-                            sections = todayPlan.prioritySections.take(4)
-                        )
+                        StaggeredEntrance(index = 4) {
+                            WhatMovedSection(
+                                subtitle = todayPlan.subtitle,
+                                sections = todayPlan.prioritySections.take(4)
+                            )
+                        }
                     }
                 }
             }
 
             item {
-                YourNamesSection(
-                    watchlist = watchlist,
-                    pulse = pulse,
-                    monitorSnapshots = monitorSnapshots,
-                    onManageNames = onManageNames,
-                    onRunDeepDive = onRunDeepDive
-                )
+                StaggeredEntrance(index = 5) {
+                    YourNamesSection(
+                        watchlist = watchlist,
+                        pulse = pulse,
+                        monitorSnapshots = monitorSnapshots,
+                        onManageNames = onManageNames,
+                        onRunDeepDive = onRunDeepDive
+                    )
+                }
             }
 
             if (insight != null) {
                 item {
-                    InsightAlertSection(insight = insight, onRunDeepDive = onRunDeepDive)
+                    StaggeredEntrance(index = 6) {
+                        InsightAlertSection(insight = insight, onRunDeepDive = onRunDeepDive)
+                    }
                 }
             }
 
@@ -269,12 +287,14 @@ fun HomeScreen(
             }
 
             item {
-                BottomLinksSection(
-                    showFullPulse = showFullPulse,
-                    onToggleFullPulse = { showFullPulse = !showFullPulse },
-                    onOpenPulseBrief = onOpenPulseBrief,
-                    onOpenHistory = onOpenHistory
-                )
+                StaggeredEntrance(index = 7) {
+                    BottomLinksSection(
+                        showFullPulse = showFullPulse,
+                        onToggleFullPulse = { showFullPulse = !showFullPulse },
+                        onOpenPulseBrief = onOpenPulseBrief,
+                        onOpenHistory = onOpenHistory
+                    )
+                }
             }
         }
 
@@ -407,7 +427,7 @@ private fun MacroStressSummaryCard(
     } else {
         null
     }
-    val scoreText = current?.score?.let { it.toInt().toString() } ?: "--"
+    val scoreValue = current?.score?.toInt()
     val marketDate = current?.marketDate
 
     val shape = RoundedCornerShape(ThesisDimens.CardCornerRadius)
@@ -452,14 +472,29 @@ private fun MacroStressSummaryCard(
                 )
             }
             Column(horizontalAlignment = Alignment.End) {
-                Text(
-                    text = scoreText,
-                    style = ThesisTypography.displayMedium.copy(
-                        fontFamily = HeadingFont,
-                        fontWeight = FontWeight.Normal
-                    ),
-                    color = ThesisColors.TextPrimary
-                )
+                RevealAnimation(delayMs = 200L) {
+                    if (scoreValue != null) {
+                        AnimatedCounter(
+                            targetValue = scoreValue,
+                            style = ThesisTypography.displayLarge.copy(
+                                fontFamily = HeadingFont,
+                                fontWeight = FontWeight.Normal
+                            ),
+                            color = ThesisColors.TextPrimary,
+                            durationMs = 900,
+                            delayMs = 100L
+                        )
+                    } else {
+                        Text(
+                            text = "--",
+                            style = ThesisTypography.displayLarge.copy(
+                                fontFamily = HeadingFont,
+                                fontWeight = FontWeight.Normal
+                            ),
+                            color = ThesisColors.TextPrimary
+                        )
+                    }
+                }
                 Text(
                     text = macroStressLabel,
                     style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Medium),
@@ -613,6 +648,14 @@ private fun YourNamesSection(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    Box(
+                        modifier = Modifier
+                            .width(3.dp)
+                            .height(42.dp)
+                            .clip(RoundedCornerShape(2.dp))
+                            .background(ThesisColors.Primary)
+                    )
+                    Spacer(modifier = Modifier.width(ThesisDimens.SpacingMd))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = ticker,
@@ -656,11 +699,17 @@ private fun InsightAlertSection(
         modifier = Modifier
             .fillMaxWidth()
             .clip(shape)
-            .background(ThesisColors.Surface)
-            .border(ThesisDimens.BorderWidth, ThesisColors.Primary.copy(alpha = 0.3f), shape)
+            .background(ThesisColors.SurfaceElevated)
+            .border(ThesisDimens.BorderWidth, ThesisColors.Primary.copy(alpha = 0.45f), shape)
             .padding(ThesisDimens.CardPadding),
         verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingMd)
     ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(2.dp)
+                .background(ThesisColors.Primary)
+        )
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(
                 imageVector = Icons.Default.Insights,

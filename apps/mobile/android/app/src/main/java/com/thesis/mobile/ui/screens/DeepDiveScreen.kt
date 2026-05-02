@@ -63,6 +63,13 @@ import com.thesis.mobile.ui.components.OfflineEmptyState
 import com.thesis.mobile.ui.components.SectionAccordion
 import com.thesis.mobile.ui.components.SignalBadge
 import com.thesis.mobile.ui.components.ThesisButton
+import com.thesis.mobile.ui.animations.StaggeredEntrance
+import com.thesis.mobile.ui.charts.EvidenceRadar
+import com.thesis.mobile.ui.charts.RadarDataPoint
+import com.thesis.mobile.ui.charts.ScenarioData
+import com.thesis.mobile.ui.charts.ScenarioFanChart
+import com.thesis.mobile.ui.charts.SectionHealthItem
+import com.thesis.mobile.ui.charts.SectionHealthStrip
 import com.thesis.mobile.ui.theme.HeadingFont
 import com.thesis.mobile.ui.theme.ThesisColors
 import com.thesis.mobile.ui.theme.ThesisDimens
@@ -350,61 +357,101 @@ private fun DeepDiveReportState(
             verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingXxl)
         ) {
             item {
-                DeepDiveStoryHeaderCard(report = report, isWatched = isWatched)
+                StaggeredEntrance(index = 0) {
+                    DeepDiveStoryHeaderCard(report = report, isWatched = isWatched)
+                }
             }
 
-            item { DeepDiveReadThisFirst(report = report) }
-
-            if (usesStructuredReader) {
-                item { DeepDiveExecutiveMemo(report = report) }
-                item { DeepDiveDueDiligence(report = report) }
-                item { DeepDiveFinancialQuality(report = report) }
-                item { DeepDiveValueDiscipline(report = report) }
-                item { DeepDiveValuationSection(report = report) }
-                item { DeepDiveRisksAndKillSwitches(report = report) }
-                item { DeepDiveEvidenceAndAppendix(report = report) }
-            } else {
-                item { DeepDiveSeeTheStory(report = report) }
-                item { DeepDiveUnderstandIt(report = report) }
+            item {
+                StaggeredEntrance(index = 1) {
+                    DeepDiveReadThisFirst(report = report)
+                }
             }
 
             if (report.sections.isNotEmpty()) {
                 item {
-                    DeepDiveProofHeading()
+                    StaggeredEntrance(index = 2) {
+                        SectionHealthStrip(
+                            sections = report.sections.map {
+                                SectionHealthItem(label = it.title, status = it.status)
+                            }
+                        )
+                    }
+                }
+            }
+
+            if (usesStructuredReader) {
+                item { StaggeredEntrance(index = 3) { DeepDiveExecutiveMemo(report = report) } }
+                item { StaggeredEntrance(index = 4) { DeepDiveDueDiligence(report = report) } }
+                item { StaggeredEntrance(index = 5) { DeepDiveFinancialQuality(report = report) } }
+                item { StaggeredEntrance(index = 6) { DeepDiveValueDiscipline(report = report) } }
+                item { StaggeredEntrance(index = 7) { DeepDiveValuationSection(report = report) } }
+                item { StaggeredEntrance(index = 8) { DeepDiveRisksAndKillSwitches(report = report) } }
+                item { StaggeredEntrance(index = 9) { DeepDiveEvidenceAndAppendix(report = report) } }
+            } else {
+                item { StaggeredEntrance(index = 3) { DeepDiveSeeTheStory(report = report) } }
+                item { StaggeredEntrance(index = 4) { DeepDiveUnderstandIt(report = report) } }
+            }
+
+            if (report.sections.isNotEmpty()) {
+                item {
+                    StaggeredEntrance(index = 10) {
+                        DeepDiveProofHeading()
+                    }
+                }
+                item {
+                    val maxEvidence = report.sections.maxOfOrNull { it.evidence.size }?.coerceAtLeast(1) ?: 1
+                    val radarData = report.sections
+                        .filter { it.evidence.isNotEmpty() }
+                        .take(6)
+                        .map {
+                            RadarDataPoint(
+                                label = it.title.take(10),
+                                value = it.evidence.size.toFloat() / maxEvidence.toFloat(),
+                                rawCount = it.evidence.size
+                            )
+                        }
+                    if (radarData.size >= 3) {
+                        StaggeredEntrance(index = 11) {
+                            EvidenceRadar(data = radarData)
+                        }
+                    }
                 }
             }
 
             items(report.sections.size) { index ->
                 val section = report.sections[index]
-                SectionAccordion(
-                    title = section.title,
-                    statusText = section.status ?: "UNKNOWN",
-                    initiallyExpanded = section.status.equals("complete", ignoreCase = true),
-                    content = {
-                        Column(verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingMd)) {
-                            Text(
-                                text = section.body.ifBlank { "No section summary returned." },
-                                style = ThesisTypography.bodyMedium,
-                                color = ThesisColors.TextSecondary
-                            )
+                StaggeredEntrance(index = 12 + index) {
+                    SectionAccordion(
+                        title = section.title,
+                        statusText = section.status ?: "UNKNOWN",
+                        initiallyExpanded = section.status.equals("complete", ignoreCase = true),
+                        content = {
+                            Column(verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingMd)) {
+                                Text(
+                                    text = section.body.ifBlank { "No section summary returned." },
+                                    style = ThesisTypography.bodyMedium,
+                                    color = ThesisColors.TextSecondary
+                                )
 
-                            if (section.evidence.isNotEmpty()) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    EvidenceDots(count = section.evidence.size)
-                                    Spacer(modifier = Modifier.size(ThesisDimens.SpacingSm))
-                                    Text(
-                                        text = "${section.evidence.size} sources",
-                                        style = ThesisTypography.labelSmall,
-                                        color = ThesisColors.TextMuted
-                                    )
+                                if (section.evidence.isNotEmpty()) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        EvidenceDots(count = section.evidence.size)
+                                        Spacer(modifier = Modifier.size(ThesisDimens.SpacingSm))
+                                        Text(
+                                            text = "${section.evidence.size} sources",
+                                            style = ThesisTypography.labelSmall,
+                                            color = ThesisColors.TextMuted
+                                        )
+                                    }
+
+                                    EvidenceList(evidence = section.evidence)
                                 }
-
-                                EvidenceList(evidence = section.evidence)
                             }
-                        }
-                    },
-                    modifier = Modifier.padding(bottom = ThesisDimens.SpacingSm)
-                )
+                        },
+                        modifier = Modifier.padding(bottom = ThesisDimens.SpacingSm)
+                    )
+                }
             }
 
             item {
@@ -1072,6 +1119,17 @@ private fun ScenarioSection(
                         style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Medium),
                         color = ThesisColors.TextPrimary
                     )
+                    val scenarioMid = result.scenario.fairValueMid
+                    if (scenarioMid != null) {
+                        ScenarioFanChart(
+                            data = ScenarioData(
+                                bullPrice = (result.scenario.fairValueHigh ?: scenarioMid).toFloat(),
+                                basePrice = scenarioMid.toFloat(),
+                                bearPrice = (result.scenario.fairValueLow ?: scenarioMid).toFloat(),
+                                currentPrice = result.base.spotPrice?.toFloat()
+                            )
+                        )
+                    }
                     Text(
                         text = "Base fair value: ${formatMaybeNumber(result.base.fairValueMid)}",
                         style = ThesisTypography.bodySmall,

@@ -38,8 +38,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -88,6 +86,8 @@ import com.thesis.mobile.model.SectionView
 import com.thesis.mobile.model.UserProfileView
 import com.thesis.mobile.model.WarRoomView
 import com.thesis.mobile.ui.copy.Phase4Copy
+import com.thesis.mobile.ui.navigation.ThesisBottomBar
+import com.thesis.mobile.ui.navigation.ThesisNavItem
 import com.thesis.mobile.ui.screens.DeepDiveScreen
 import com.thesis.mobile.ui.screens.HistoryScreen
 import com.thesis.mobile.ui.screens.HomeScreen
@@ -372,36 +372,35 @@ fun ThesisApp(
         Scaffold(
             snackbarHost = { SnackbarHost(snackbarHostState) },
             bottomBar = {
-                NavigationBar {
-                    visibleTabs.forEach { tab ->
-                        NavigationBarItem(
-                            selected = uiState.currentTab == tab.target,
-                            onClick = {
-                                val isCurrentTab = uiState.currentTab == tab.target
-                                if (isCurrentTab && tab.target == AppTab.TODAY) {
-                                    todayMode = TodayMode.HOME
-                                }
-                                if (tab.target == AppTab.NAMES) {
-                                    namesFocusedTicker = null
-                                }
-                                if (isCurrentTab && tab.target == AppTab.RESEARCH) {
-                                    researchMode = preferredResearchRoot
-                                } else if (
-                                    tab.target == AppTab.RESEARCH &&
-                                    researchMode == ResearchMode.DEEP_DIVE &&
-                                    uiState.deepDiveReport == null &&
-                                    uiState.selectedTicker.isNullOrBlank() &&
-                                    uiState.reportHistory.isNotEmpty()
-                                ) {
-                                    researchMode = ResearchMode.HISTORY
-                                }
-                                mainViewModel.setTab(tab.target)
-                            },
-                            icon = { Icon(tab.icon, contentDescription = tab.label) },
-                            label = { Text(tab.label) }
-                        )
+                ThesisBottomBar(
+                    items = visibleTabs.map { tab ->
+                        ThesisNavItem(label = tab.label, icon = tab.icon, tag = tab.name)
+                    },
+                    selectedTag = visibleTabs.firstOrNull { it.target == uiState.currentTab }?.name
+                        ?: TabItem.Today.name,
+                    onSelect = { tag ->
+                        val tab = visibleTabs.firstOrNull { it.name == tag } ?: return@ThesisBottomBar
+                        val isCurrentTab = uiState.currentTab == tab.target
+                        if (isCurrentTab && tab.target == AppTab.TODAY) {
+                            todayMode = TodayMode.HOME
+                        }
+                        if (tab.target == AppTab.NAMES) {
+                            namesFocusedTicker = null
+                        }
+                        if (isCurrentTab && tab.target == AppTab.RESEARCH) {
+                            researchMode = preferredResearchRoot
+                        } else if (
+                            tab.target == AppTab.RESEARCH &&
+                            researchMode == ResearchMode.DEEP_DIVE &&
+                            uiState.deepDiveReport == null &&
+                            uiState.selectedTicker.isNullOrBlank() &&
+                            uiState.reportHistory.isNotEmpty()
+                        ) {
+                            researchMode = ResearchMode.HISTORY
+                        }
+                        mainViewModel.setTab(tab.target)
                     }
-                }
+                )
             }
         ) { padding ->
             val showGlobalLoading = uiState.isLoading && uiState.currentTab != AppTab.RESEARCH
