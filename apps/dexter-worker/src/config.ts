@@ -113,6 +113,10 @@ export interface DexterConfig {
   queueBlockTimeoutSeconds: number;
   productApiInternalBaseUrl: string;
   internalWorkerToken: string;
+  pulsePriceBaseUrl: string;
+  pulseLlmEditorialEnabled: boolean;
+  pulseLlmPromptVersion: string;
+  pulseLlmMaxTokens: number;
   forcedFailureTickers: Set<string>;
 }
 
@@ -216,6 +220,14 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): DexterConfig {
     productApiInternalBaseUrl:
       env.PRODUCT_API_INTERNAL_BASE_URL ?? "http://product-api:3001",
     internalWorkerToken: env.INTERNAL_WORKER_TOKEN ?? devInternalWorkerToken,
+    pulsePriceBaseUrl:
+      env.DEXTER_PULSE_PRICE_BASE_URL?.trim() ||
+      env.SENTIMENT_YAHOO_BASE_URL?.trim() ||
+      "https://query1.finance.yahoo.com",
+    pulseLlmEditorialEnabled: parseBoolean(env.PULSE_LLM_EDITORIAL_ENABLED, false),
+    pulseLlmPromptVersion:
+      env.PULSE_LLM_PROMPT_VERSION?.trim() || "ph7-dexter-pulse-brief-v1",
+    pulseLlmMaxTokens: parseInteger(env.PULSE_LLM_MAX_TOKENS, 420),
     forcedFailureTickers: parseTickerSet(env.DEXTER_FORCE_FAIL_TICKERS)
   };
 }

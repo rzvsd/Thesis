@@ -1,18 +1,14 @@
 import type { ServerResponse } from "node:http";
-import { randomUUID } from "node:crypto";
 
 import type {
-  MarketPulsePortfolioRadarRow,
   MarketPulseReport,
   UserResearchState
 } from "../../../../packages/contracts/src";
 import type { ArtifactStore } from "../artifact-store";
 import type { ProductApiConfig } from "../config";
-import { fetchLatestClosePricePairs, type ClosePricePair } from "../market-prices";
-import { applyPulseBriefLlmEditorial } from "../pulse-brief-editor";
+import { logWarn } from "../logging";
 import type { ProductStore } from "../store";
 import { withUserResearchState } from "../market-pulse";
-import { sectionFromPortfolioRadar } from "../pulse/morning-edition";
 
 const PRIVATE_JSON_HEADERS = {
   "cache-control": "private, no-store",
@@ -93,116 +89,21 @@ function uniqueTickers(values: Array<string | undefined>): string[] {
   ];
 }
 
-function marketBreadth(report: MarketPulseReport): "higher" | "lower" | "mixed" | "thin" {
-  const core = report.market_tape?.indices.filter((entry) => entry.family === "core_index") ?? [];
-  if (core.length < 2) {
-    return "thin";
-  }
-  const up = core.filter((entry) => entry.direction === "up").length;
-  const down = core.filter((entry) => entry.direction === "down").length;
-  if (up >= 3) {
-    return "higher";
-  }
-  if (down >= 3) {
-    return "lower";
-  }
-  return "mixed";
+interface DexterPulseBriefPayload {
+  report?: unknown;
 }
 
-function directionFromChange(value: number): MarketPulsePortfolioRadarRow["direction"] {
-  if (Math.abs(value) < 0.005) {
-    return "flat";
-  }
-  return value > 0 ? "up" : "down";
-}
-
-function companyNameForTicker(
-  ticker: string,
-  report: MarketPulseReport,
-  state?: UserResearchState
-): string | undefined {
-  const researchName = state?.names.find((name) => name.ticker === ticker);
-  if (researchName?.company_name) {
-    return researchName.company_name;
-  }
-  const existingRow = report.morning_edition?.portfolio_radar.find((row) => row.ticker === ticker);
-  return existingRow?.company_name;
-}
-
-function portfolioPriceReason(
-  direction: MarketPulsePortfolioRadarRow["direction"],
-  changePct: number | undefined,
-  breadth: ReturnType<typeof marketBreadth>
-): string {
-  if (typeof changePct !== "number" || !Number.isFinite(changePct)) {
-    return "Latest close was available, but the prior close was not; no price move is shown.";
-  }
-  if (Math.abs(changePct) < 0.5) {
-    return "No material price move. No company-specific evidence confirmed in approved sources.";
-  }
-  if (direction === "up" && breadth === "higher") {
-    return "Moved with the broader tape. No company-specific evidence confirmed in approved sources.";
-  }
-  if (direction === "down" && breadth === "higher") {
-    return "Lagged a firmer tape. No company-specific evidence confirmed in approved sources.";
-  }
-  if (direction === "up" && breadth === "lower") {
-    return "Outpaced a softer tape. No company-specific evidence confirmed in approved sources.";
-  }
-  if (Math.abs(changePct) >= 2) {
-    return "Bigger move, but no confirmed company-specific catalyst in approved sources.";
-  }
-  return "Moved with market context rather than confirmed company-specific evidence.";
-}
-
-function portfolioRowFromPrice(input: {
-  ticker: string;
-  companyName?: string;
-  pair: ClosePricePair;
-  report: MarketPulseReport;
-  retrievedAt: string;
-}): MarketPulsePortfolioRadarRow {
-  const previousClose = input.pair.previousClose;
-  const latestPrice = input.pair.latestClose;
-  const change =
-    typeof previousClose === "number" && Number.isFinite(previousClose)
-      ? latestPrice - previousClose
-      : undefined;
-  const changePct =
-    change !== undefined && previousClose && previousClose > 0
-      ? (change / previousClose) * 100
-      : undefined;
-  const direction = directionFromChange(changePct ?? 0);
-  return {
-    ticker: input.ticker,
-    ...(input.companyName ? { company_name: input.companyName } : {}),
-    ...(typeof previousClose === "number" ? { previous_close: previousClose } : {}),
-    latest_price: latestPrice,
-    ...(typeof change === "number" ? { change } : {}),
-    ...(typeof changePct === "number" ? { change_pct: changePct } : {}),
-    direction,
-    reason: portfolioPriceReason(direction, changePct, marketBreadth(input.report)),
-    evidence: [
-      {
-        evidence_id: randomUUID(),
-        source_type: "financial_data",
-        source_name: "Dexter price tracker",
-        excerpt:
-          typeof previousClose === "number"
-            ? `${input.ticker}: latest close ${latestPrice.toFixed(2)} versus prior close ${previousClose.toFixed(2)}.`
-            : `${input.ticker}: latest close ${latestPrice.toFixed(2)}; prior close unavailable.`,
-        retrieved_at: input.retrievedAt
-      }
-    ]
-  };
-}
-
-async function buildUserPortfolioRadarRows<TRuntime extends PulseRuntime>(
+async function requestDexterPulseBrief<TRuntime extends PulseRuntime>(
   runtime: TRuntime,
   report: MarketPulseReport,
   userId: string,
+  asOf: string,
   state?: UserResearchState
-): Promise<MarketPulsePortfolioRadarRow[]> {
+): Promise<MarketPulseReport | undefined> {
+  if (!runtime.config.pulseDexterBriefEnabled) {
+    return undefined;
+  }
+
   const [watchlistTickers, holdings] = await Promise.all([
     runtime.store.listWatchlistTickersByUser(userId),
     runtime.store.listUserResearchHoldings(userId)
@@ -212,65 +113,40 @@ async function buildUserPortfolioRadarRows<TRuntime extends PulseRuntime>(
     ...holdings.map((holding) => holding.ticker),
     ...(state?.names.map((name) => name.ticker) ?? [])
   ]).slice(0, 12);
-  if (tickers.length === 0) {
-    return [];
-  }
 
-  const retrievedAt = new Date().toISOString();
-  const prices = await fetchLatestClosePricePairs(
-    runtime.config.sentimentYahooBaseUrl,
-    tickers,
-    6
-  );
-  return tickers
-    .map((ticker) => {
-      const pair = prices.get(ticker);
-      if (!pair) {
-        return undefined;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), runtime.config.pulseDexterTimeoutMs);
+  try {
+    const response = await fetch(
+      `${runtime.config.pulseDexterWorkerBaseUrl.replace(/\/$/, "")}/internal/pulse/brief`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-internal-token": runtime.config.internalWorkerToken
+        },
+        body: JSON.stringify({
+          report,
+          user_id: userId,
+          as_of: asOf,
+          user_research_state: state,
+          tickers
+        }),
+        signal: controller.signal
       }
-      return portfolioRowFromPrice({
-        ticker,
-        companyName: companyNameForTicker(ticker, report, state),
-        pair,
-        report,
-        retrievedAt
-      });
-    })
-    .filter((row): row is MarketPulsePortfolioRadarRow => Boolean(row));
-}
+    );
 
-function withPortfolioPriceRows(
-  report: MarketPulseReport,
-  rows: MarketPulsePortfolioRadarRow[]
-): MarketPulseReport {
-  if (rows.length === 0) {
-    return report;
-  }
-  const byTicker = new Map<string, MarketPulsePortfolioRadarRow>();
-  for (const row of rows) {
-    byTicker.set(row.ticker, row);
-  }
-  for (const row of report.morning_edition?.portfolio_radar ?? []) {
-    if (!byTicker.has(row.ticker)) {
-      byTicker.set(row.ticker, row);
+    if (!response.ok) {
+      throw new Error(`Dexter Pulse brief failed with HTTP ${response.status}`);
     }
-  }
-  const mergedRows = [...byTicker.values()].slice(0, 12);
-  const morningEdition = report.morning_edition
-    ? {
-        ...report.morning_edition,
-        portfolio_radar: mergedRows
-      }
-    : report.morning_edition;
-  const portfolioSection = sectionFromPortfolioRadar(mergedRows);
-  return {
-    ...report,
-    ...(morningEdition ? { morning_edition: morningEdition } : {}),
-    sections: {
-      ...report.sections,
-      ...(portfolioSection ? { portfolio_radar: portfolioSection } : {})
+    const payload = (await response.json()) as DexterPulseBriefPayload;
+    if (!isMarketPulseReport(payload.report)) {
+      throw new Error("Dexter Pulse brief response did not include a valid report");
     }
-  };
+    return payload.report;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 async function personalizePulseForUser<TRuntime extends PulseRuntime>(
@@ -283,28 +159,24 @@ async function personalizePulseForUser<TRuntime extends PulseRuntime>(
     userId,
     asOf
   });
-  const researchPersonalized = withUserResearchState(report, researchState?.state);
-  const portfolioPriceRows = await buildUserPortfolioRadarRows(
-    runtime,
-    researchPersonalized,
-    userId,
-    researchState?.state
-  );
-  const pricePersonalized = withPortfolioPriceRows(researchPersonalized, portfolioPriceRows);
-  const personalized = await applyPulseBriefLlmEditorial(
-    pricePersonalized,
-    {
-      config: {
-        enabled: runtime.config.pulseLlmEditorialEnabled,
-        apiKey: runtime.config.pulseLlmOpenRouterApiKey,
-        baseUrl: runtime.config.pulseLlmOpenRouterBaseUrl,
-        model: runtime.config.pulseLlmOpenRouterModel,
-        timeoutMs: runtime.config.pulseLlmTimeoutMs,
-        maxTokens: runtime.config.pulseLlmMaxTokens,
-        promptVersion: runtime.config.pulseLlmPromptVersion
-      }
-    }
-  );
+  let personalized: MarketPulseReport | undefined;
+  try {
+    personalized = await requestDexterPulseBrief(
+      runtime,
+      report,
+      userId,
+      asOf,
+      researchState?.state
+    );
+  } catch (error) {
+    logWarn("Dexter Pulse brief unavailable; serving deterministic Product API fallback.", {
+      report_id: report.report_id,
+      user_id: userId,
+      error_message: error instanceof Error ? error.message : String(error)
+    });
+  }
+
+  personalized ??= withUserResearchState(report, researchState?.state);
   return {
     report: personalized,
     researchStateId: researchState?.stateId

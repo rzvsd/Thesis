@@ -1,14 +1,16 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
+import { timingSafeEqual } from "node:crypto";
 
 import { loadConfig, validateLiveModeConfig } from "./config";
 import { logError, logInfo } from "./logging";
 import { runAnalysisPipeline } from "./pipeline";
+import { buildDexterPulseBrief, type DexterPulseBriefRequest } from "./pulse-brief";
 import { startQueueConsumer } from "./queue-consumer";
 import { assertAnalysisRequest, validateAnalysisRequest } from "./schema-validation";
 
 type HealthPayload = { status: "ok" };
 
-async function readJsonBody(request: IncomingMessage): Promise<unknown> {
+async function readJsonBody<T = unknown>(request: IncomingMessage): Promise<T> {
   return new Promise((resolve, reject) => {
     let buffer = "";
 
@@ -18,7 +20,7 @@ async function readJsonBody(request: IncomingMessage): Promise<unknown> {
     });
     request.on("end", () => {
       try {
-        resolve(JSON.parse(buffer || "{}"));
+        resolve(JSON.parse(buffer || "{}") as T);
       } catch (error) {
         reject(error);
       }
@@ -30,6 +32,16 @@ async function readJsonBody(request: IncomingMessage): Promise<unknown> {
 function sendJson(response: ServerResponse, statusCode: number, payload: unknown): void {
   response.writeHead(statusCode, { "content-type": "application/json" });
   response.end(JSON.stringify(payload));
+}
+
+function hasInternalToken(request: IncomingMessage, expectedToken: string): boolean {
+  const header = request.headers["x-internal-token"];
+  if (typeof header !== "string") {
+    return false;
+  }
+  const providedBytes = Buffer.from(header, "utf-8");
+  const expectedBytes = Buffer.from(expectedToken, "utf-8");
+  return providedBytes.length === expectedBytes.length && timingSafeEqual(providedBytes, expectedBytes);
 }
 
 export function startServer(port: number = loadConfig().port): Server {
@@ -83,6 +95,31 @@ export function startServer(port: number = loadConfig().port): Server {
         sendJson(response, 500, {
           error: "pipeline_failed",
           error_message: "Dexter pipeline failed"
+        });
+        return;
+      }
+    }
+
+    if (request.method === "POST" && request.url === "/internal/pulse/brief") {
+      if (!hasInternalToken(request, config.internalWorkerToken)) {
+        sendJson(response, 401, {
+          error: "unauthorized",
+          error_message: "Internal token mismatch."
+        });
+        return;
+      }
+
+      try {
+        const body = await readJsonBody<DexterPulseBriefRequest>(request);
+        const result = await buildDexterPulseBrief(body, config);
+        sendJson(response, 200, result);
+        return;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Unknown Pulse brief error";
+        logError("Unhandled Dexter Pulse brief failure", { error_message: message });
+        sendJson(response, 500, {
+          error: "pulse_brief_failed",
+          error_message: "Dexter Pulse brief generation failed"
         });
         return;
       }

@@ -175,13 +175,9 @@ export interface ProductApiConfig {
   marketPulseNewsIngestBaseUrl: string;
   marketPulseTickers: string[];
   marketPulseSchemaVersion: string;
-  pulseLlmEditorialEnabled: boolean;
-  pulseLlmOpenRouterApiKey?: string;
-  pulseLlmOpenRouterBaseUrl: string;
-  pulseLlmOpenRouterModel: string;
-  pulseLlmTimeoutMs: number;
-  pulseLlmMaxTokens: number;
-  pulseLlmPromptVersion: string;
+  pulseDexterBriefEnabled: boolean;
+  pulseDexterWorkerBaseUrl: string;
+  pulseDexterTimeoutMs: number;
   sentimentSchemaVersion: string;
   sentimentYahooBaseUrl: string;
   sentimentFredBaseUrl: string;
@@ -354,21 +350,12 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ProductApiConf
       env.MARKET_PULSE_NEWS_INGEST_BASE_URL?.trim() || "http://news-ingest:3004",
     marketPulseTickers: parseCsv(env.MARKET_PULSE_TICKERS, ["AAPL", "MSFT", "TSLA"]),
     marketPulseSchemaVersion: env.MARKET_PULSE_SCHEMA_VERSION?.trim() || "1.0.0",
-    pulseLlmEditorialEnabled: parseBoolean(env.PULSE_LLM_EDITORIAL_ENABLED, false),
-    pulseLlmOpenRouterApiKey:
-      env.PULSE_LLM_OPENROUTER_API_KEY?.trim() ||
-      env.OPENROUTER_API_KEY?.trim() ||
-      undefined,
-    pulseLlmOpenRouterBaseUrl:
-      env.PULSE_LLM_OPENROUTER_BASE_URL?.trim() || "https://openrouter.ai/api/v1",
-    pulseLlmOpenRouterModel:
-      env.PULSE_LLM_OPENROUTER_MODEL?.trim() ||
-      env.OPENROUTER_MODEL?.trim() ||
-      "openai/gpt-5.4-mini",
-    pulseLlmTimeoutMs: parseInteger(env.PULSE_LLM_TIMEOUT_MS, 8000),
-    pulseLlmMaxTokens: parseInteger(env.PULSE_LLM_MAX_TOKENS, 600),
-    pulseLlmPromptVersion:
-      env.PULSE_LLM_PROMPT_VERSION?.trim() || "ph7-m6-pulse-editorial-v1",
+    pulseDexterBriefEnabled: parseBoolean(env.PULSE_DEXTER_BRIEF_ENABLED, false),
+    pulseDexterWorkerBaseUrl:
+      env.PULSE_DEXTER_WORKER_BASE_URL?.trim() ||
+      env.DEXTER_WORKER_BASE_URL?.trim() ||
+      "http://dexter-worker:3002",
+    pulseDexterTimeoutMs: parseInteger(env.PULSE_DEXTER_TIMEOUT_MS, 6000),
     sentimentSchemaVersion: env.SENTIMENT_SCHEMA_VERSION?.trim() || "1.0.0",
     sentimentYahooBaseUrl:
       env.SENTIMENT_YAHOO_BASE_URL?.trim() || "https://query1.finance.yahoo.com",

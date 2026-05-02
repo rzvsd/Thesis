@@ -537,6 +537,103 @@ async function startYahooMock(state: YahooMockState): Promise<{ server: Server; 
   };
 }
 
+async function startDexterPulseMock(): Promise<{ server: Server; baseUrl: string }> {
+  const server = createServer((request, response) => {
+    if (request.method !== "POST" || request.url !== "/internal/pulse/brief") {
+      sendJson(response, 404, { status: "not_found" });
+      return;
+    }
+    let body = "";
+    request.setEncoding("utf-8");
+    request.on("data", (chunk) => {
+      body += chunk;
+    });
+    request.on("end", () => {
+      const parsed = JSON.parse(body || "{}") as {
+        report?: MarketPulseReport;
+        user_research_state?: MarketPulseReport["user_research_state"];
+      };
+      const report = parsed.report;
+      if (!report) {
+        sendJson(response, 422, { error: "validation_failed" });
+        return;
+      }
+      if (!parsed.user_research_state) {
+        sendJson(response, 200, {
+          analyst: "dexter",
+          report
+        });
+        return;
+      }
+      const row = {
+        ticker: "AAPL",
+        company_name: "Apple Inc.",
+        previous_close: 171.5,
+        latest_price: 174.2,
+        change: 2.7,
+        change_pct: 1.5743,
+        direction: "up" as const,
+        reason: "Moved with the broader tape. No company-specific evidence confirmed in approved sources.",
+        evidence: [
+          {
+            evidence_id: "dexter-price-aapl",
+            source_type: "financial_data" as const,
+            source_name: "Dexter price tracker",
+            excerpt: "AAPL: latest close 174.20 versus prior close 171.50.",
+            retrieved_at: "2026-03-21T08:15:00.000Z"
+          }
+        ]
+      };
+      sendJson(response, 200, {
+        analyst: "dexter",
+        report: {
+          ...report,
+          user_research_state: parsed.user_research_state,
+          morning_edition: report.morning_edition
+            ? {
+                ...report.morning_edition,
+                portfolio_radar: [row]
+              }
+            : report.morning_edition,
+          sections: {
+            ...report.sections,
+            portfolio_radar: {
+              section_id: "portfolio_radar",
+              title: "Your Names",
+              body: "AAPL: +1.57%. Moved with the broader tape.",
+              status: "complete",
+              evidence: row.evidence
+            }
+          },
+          brief_editorial: {
+            morning_line: "Risk appetite improved, but confirmation still matters.",
+            yesterday_comment: "Dexter kept the tape read compact and evidence-led.",
+            interesting_bit:
+              "The useful read is portfolio context against the tape, not a trading signal.",
+            your_names_comment: "AAPL followed the tape rather than a company-specific catalyst.",
+            signal: "Risk appetite improved.",
+            noise: "One session is not a regime shift."
+          },
+          editorial_generation: {
+            mode: "deterministic",
+            status: "generated",
+            source_report_id: report.report_id,
+            coverage_notes: ["Dexter mock generated the personalized Pulse brief."]
+          }
+        }
+      });
+    });
+  });
+
+  server.listen(0);
+  await once(server, "listening");
+  const address = server.address() as AddressInfo;
+  return {
+    server,
+    baseUrl: `http://127.0.0.1:${address.port}`
+  };
+}
+
 async function closeServer(server: Server): Promise<void> {
   await new Promise<void>((resolve, reject) => {
     server.close((error) => {
@@ -652,6 +749,7 @@ test("market pulse dispatch stores reports, personalizes through research state,
   const openbbMock = await startOpenbbMock(openbbState);
   const newsMock = await startNewsMock(newsState);
   const yahooMock = await startYahooMock(yahooState);
+  const dexterMock = await startDexterPulseMock();
 
   const previous = {
     STORE_BACKEND: process.env.STORE_BACKEND,
@@ -664,6 +762,9 @@ test("market pulse dispatch stores reports, personalizes through research state,
     MARKET_PULSE_NEWS_INGEST_BASE_URL: process.env.MARKET_PULSE_NEWS_INGEST_BASE_URL,
     MARKET_PULSE_TICKERS: process.env.MARKET_PULSE_TICKERS,
     MARKET_PULSE_SCHEMA_VERSION: process.env.MARKET_PULSE_SCHEMA_VERSION,
+    PULSE_DEXTER_BRIEF_ENABLED: process.env.PULSE_DEXTER_BRIEF_ENABLED,
+    PULSE_DEXTER_WORKER_BASE_URL: process.env.PULSE_DEXTER_WORKER_BASE_URL,
+    PULSE_DEXTER_TIMEOUT_MS: process.env.PULSE_DEXTER_TIMEOUT_MS,
     SENTIMENT_YAHOO_BASE_URL: process.env.SENTIMENT_YAHOO_BASE_URL,
     PUSH_PROVIDER_MODE: process.env.PUSH_PROVIDER_MODE
   };
@@ -677,6 +778,9 @@ test("market pulse dispatch stores reports, personalizes through research state,
   process.env.MARKET_PULSE_NEWS_INGEST_BASE_URL = newsMock.baseUrl;
   process.env.MARKET_PULSE_TICKERS = "AAPL,MSFT";
   process.env.MARKET_PULSE_SCHEMA_VERSION = "1.0.0";
+  process.env.PULSE_DEXTER_BRIEF_ENABLED = "true";
+  process.env.PULSE_DEXTER_WORKER_BASE_URL = dexterMock.baseUrl;
+  process.env.PULSE_DEXTER_TIMEOUT_MS = "1000";
   process.env.SENTIMENT_YAHOO_BASE_URL = yahooMock.baseUrl;
   process.env.PUSH_PROVIDER_MODE = "stub";
 
@@ -794,6 +898,7 @@ test("market pulse dispatch stores reports, personalizes through research state,
     assert.equal(aaplRadarRow?.latest_price, 174.2);
     assert.equal(Math.round((aaplRadarRow?.change_pct ?? 0) * 100) / 100, 1.57);
     assert.equal(aaplRadarRow?.evidence[0]?.source_name, "Dexter price tracker");
+    assert.equal(firstReport.editorial_generation?.coverage_notes[0], "Dexter mock generated the personalized Pulse brief.");
     assert.equal(firstReport.user_research_state?.holdings[0]?.ticker, "AAPL");
     assert.equal(firstReport.editorial_issue?.freshness_state, "baseline");
     assert.match(firstReport.editorial_issue?.lead ?? "", /editorial baseline/);
@@ -875,6 +980,7 @@ test("market pulse dispatch stores reports, personalizes through research state,
     await closeServer(openbbMock.server);
     await closeServer(newsMock.server);
     await closeServer(yahooMock.server);
+    await closeServer(dexterMock.server);
   }
 
   process.env.STORE_BACKEND = previous.STORE_BACKEND;
@@ -887,6 +993,9 @@ test("market pulse dispatch stores reports, personalizes through research state,
   process.env.MARKET_PULSE_NEWS_INGEST_BASE_URL = previous.MARKET_PULSE_NEWS_INGEST_BASE_URL;
   process.env.MARKET_PULSE_TICKERS = previous.MARKET_PULSE_TICKERS;
   process.env.MARKET_PULSE_SCHEMA_VERSION = previous.MARKET_PULSE_SCHEMA_VERSION;
+  process.env.PULSE_DEXTER_BRIEF_ENABLED = previous.PULSE_DEXTER_BRIEF_ENABLED;
+  process.env.PULSE_DEXTER_WORKER_BASE_URL = previous.PULSE_DEXTER_WORKER_BASE_URL;
+  process.env.PULSE_DEXTER_TIMEOUT_MS = previous.PULSE_DEXTER_TIMEOUT_MS;
   process.env.SENTIMENT_YAHOO_BASE_URL = previous.SENTIMENT_YAHOO_BASE_URL;
   process.env.PUSH_PROVIDER_MODE = previous.PUSH_PROVIDER_MODE;
 });
