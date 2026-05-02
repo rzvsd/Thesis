@@ -141,3 +141,28 @@ The renderer should prefer:
 - no repeated inline evidence blocks
 
 The LLM, when enabled, may improve wording only after the deterministic issue plan is created. It must not decide structure.
+
+## M8 Morning Brief Doctrine
+
+M8 corrects the product shape again: Pulse should feel like a premium morning brief, not a newspaper cosplay.
+
+The user should know in seconds:
+
+- did anything material change?
+- what did the tape do?
+- what is the one useful interpretation?
+- did anything in my names matter?
+- what should I keep on the calendar?
+
+The brief should be brave enough to say "nothing material changed" on quiet days. That honesty is more premium than filler.
+
+The renderer should favor:
+
+- compact sections
+- restrained data visuals
+- no visible internal status labels
+- no orphaned headings in PDF
+- optional modules hidden when empty
+- sources and method once at the end
+
+The LLM is a copy editor only. It writes short sentences from a fact pack. It never becomes the analyst of record.

@@ -15,7 +15,8 @@
 | M4 | Pulse Macro News & Geopolitical Shock Layer | Validated |
 | M5 | User Research State & Analyst Refresh Agent | Validated |
 | M6 | Guarded LLM Pulse Editorial Writer | Validated |
-| M7 | Pulse Issue Plan & Professional Newspaper Polish | Active |
+| M7 | Pulse Issue Plan & Professional Newspaper Polish | Validated |
+| M8 | Pulse Morning Brief Reset | Active |
 
 ## Status Semantics
 
@@ -167,3 +168,25 @@
 - screener, terminal, or trading workflow
 - letting the LLM decide issue structure
 - restoring Market Overview, standalone Why It Matters, standalone What To Watch, Company/Event Notes, or visible Coverage Notes as main-flow sections
+
+---
+
+## M8 Execution Order
+
+1. add a deterministic `PulseBriefFactPack`
+2. classify each issue as quiet, normal, or event
+3. compute daily delta and curiosity candidates from typed Pulse data
+4. replace the customer-facing export renderer with the Morning Brief structure
+5. add a strict six-field brief LLM contract and validator
+6. hide empty optional modules without apology copy
+7. render sources/method once in the footer
+8. verify HTML/PDF compactness, page-break safety, and no raw internal labels
+
+## Non-Goals For M8
+
+- newspaper masthead/issue theater
+- freestyle LLM report writing
+- new data providers
+- article-body scraping or summarization
+- terminal, screener, broker, or trading workflow
+- customer-facing provider debug labels or omitted-module apologies

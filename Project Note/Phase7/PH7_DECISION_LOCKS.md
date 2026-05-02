@@ -212,3 +212,22 @@ M1 implementation thresholds:
 - LLM output remains a copy pass only; it cannot decide issue structure, module visibility, data values, sources, tickers, prices, or events.
 - Quiet days bypass the LLM and render a valid short issue.
 - HTML/PDF exports must stay compact, avoid orphaned headings with explicit print rules, and keep customer copy free of raw internal labels.
+
+---
+
+## 16. M8 Pulse Morning Brief Reset Locks
+
+- M8 supersedes the M7 newspaper presentation as the customer-facing Pulse export default.
+- Pulse is a Morning Brief, not a newspaper, dashboard, terminal, or report dump.
+- The daily issue mode is deterministic: `quiet`, `normal`, or `event`.
+- The locked reader flow is Morning Line, What Happened Yesterday, What Changed Since Yesterday, The Interesting Bit, optional Your Names, optional Things To Watch, optional Headlines Worth Knowing, Signal vs Noise, footer Sources and Method.
+- The old newspaper volume/issue masthead, `In This Issue`, and standalone backdrop are removed from the main renderer.
+- Empty optional modules hide completely; customer copy must not apologize for missing portfolio radar, headlines, or calendar rows.
+- Daily delta is deterministic and must not fake comparison when no prior Pulse exists.
+- The Interesting Bit is selected from deterministic candidates before any LLM wording.
+- LLM brief copy is optional and limited to six fields: `morning_line`, `yesterday_comment`, `interesting_bit`, `your_names_comment`, `signal`, and `noise`.
+- Total LLM brief copy must stay under 180 words.
+- LLM output cannot decide structure, section visibility, facts, numbers, sources, tickers, prices, events, or provenance.
+- LLM output cannot use buy/sell/hold language, price targets, execution language, unsupported tickers, unsupported source names, or `because` causality unless a future fact pack explicitly carries a causal link.
+- Sources and method appear once in the footer.
+- Source tiers remain: official/free data first, official calendars second, headline metadata only third, and no Yahoo/Alpha Vantage/article-body scraping in Pulse production.

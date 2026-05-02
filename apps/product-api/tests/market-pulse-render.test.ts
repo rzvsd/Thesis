@@ -541,35 +541,35 @@ function createReport(): MarketPulseReport {
   };
 }
 
-test("buildMarketPulseReportHtml renders Thesis pulse briefing structure", () => {
+test("buildMarketPulseReportHtml renders the Morning Brief reset", () => {
   const html = buildMarketPulseReportHtml(createReport());
 
   assert.match(html, /THESIS/);
-  assert.match(html, /THE DAILY FINANCIAL BRIEFING/);
-  assert.match(html, /In This Issue/);
-  assert.match(html, /The Tape/);
-  assert.match(html, /One-day market tape/);
+  assert.match(html, /Morning Brief/);
+  assert.match(html, /What Happened Yesterday/);
+  assert.match(html, /What Changed Since Yesterday/);
+  assert.match(html, /The Interesting Bit/);
   assert.match(html, /Your Names/);
-  assert.match(html, /Today&#39;s Calendar/);
+  assert.match(html, /Things To Watch/);
   assert.match(html, /Headlines Worth Knowing/);
   assert.match(html, /Stocks advance as investors weigh rates and earnings/);
   assert.match(html, /AAPL/);
   assert.match(html, /Apple Inc\./);
-  assert.match(html, /Technology/);
-  assert.match(html, /MACRO SHOCK MOVES TO THE FRONT OF THE ISSUE/);
+  assert.match(html, /\$171\.50 to \$174\.20/);
   assert.match(html, /Reports say China has attacked Taiwan/);
-  assert.match(html, /What Changed/);
   assert.match(html, /Signal vs Noise/);
-  assert.match(html, /The Backdrop/);
-  assert.match(html, /Sources and method/);
-  assert.match(html, /not investment advice/);
+  assert.match(html, /Sources and Method/);
+  assert.match(html, /Risk context before tape color|attention event moved to the front/i);
   assert.match(html, /break-inside:avoid/);
   assert.match(html, /page-break-inside:avoid/);
+  assert.doesNotMatch(html, /VOL\. VII/);
+  assert.doesNotMatch(html, /THE DAILY FINANCIAL BRIEFING/);
+  assert.doesNotMatch(html, /In This Issue/);
+  assert.doesNotMatch(html, /The Tape/);
   assert.doesNotMatch(html, /Estimated read:/);
   assert.doesNotMatch(html, /Market Overview/);
   assert.doesNotMatch(html, /Lead Story/);
   assert.doesNotMatch(html, /Why It Matters/);
-  assert.doesNotMatch(html, /What To Watch/);
   assert.doesNotMatch(html, /Macro News/);
   assert.doesNotMatch(html, /The Macro Regime/);
   assert.doesNotMatch(html, /DISINFLATIONARY SLOWDOWN/);
@@ -584,4 +584,32 @@ test("buildMarketPulseReportHtml renders Thesis pulse briefing structure", () =>
   assert.doesNotMatch(html, /bounded_context/);
   assert.ok(html.length < 15000, `expected compact HTML, got ${html.length} chars`);
   assert.ok(html.split("\n").length < 500, "expected fewer than 500 lines");
+});
+
+test("buildMarketPulseReportHtml hides optional modules when typed data is absent", () => {
+  const report = createReport();
+  report.morning_edition = {
+    headline_digest: [],
+    portfolio_radar: [],
+    market_board: [],
+    today_catalysts: [],
+    sector_pulse: [],
+    coverage_notes: []
+  };
+  report.macro_news = {
+    as_of: "2026-04-23",
+    state: "calm",
+    lead: "No approved macro-news shock input was present.",
+    items: [],
+    omissions: [],
+    coverage_notes: []
+  };
+  const html = buildMarketPulseReportHtml(report);
+
+  assert.doesNotMatch(html, /Your Names/);
+  assert.doesNotMatch(html, /Things To Watch/);
+  assert.doesNotMatch(html, /Headlines Worth Knowing/);
+  assert.doesNotMatch(html, /portfolio radar was omitted/i);
+  assert.match(html, /Signal vs Noise/);
+  assert.match(html, /Sources and Method/);
 });

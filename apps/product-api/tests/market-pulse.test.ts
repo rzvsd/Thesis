@@ -21,6 +21,10 @@ type NewsMockState = {
   outage: boolean;
 };
 
+type YahooMockState = {
+  closesByTicker: Record<string, Array<number | null>>;
+};
+
 function sendJson(response: ServerResponse, status: number, payload: unknown): void {
   response.writeHead(status, { "content-type": "application/json" });
   response.end(JSON.stringify(payload));
@@ -484,6 +488,55 @@ async function startNewsMock(state: NewsMockState): Promise<{ server: Server; ba
   };
 }
 
+async function startYahooMock(state: YahooMockState): Promise<{ server: Server; baseUrl: string }> {
+  const server = createServer((request, response) => {
+    const url = new URL(request.url ?? "/", "http://127.0.0.1");
+    const match = /^\/v8\/finance\/chart\/([^/]+)$/.exec(url.pathname);
+    if (!match) {
+      sendJson(response, 404, { status: "not_found" });
+      return;
+    }
+
+    const ticker = decodeURIComponent(match[1] ?? "").toUpperCase();
+    const closes = state.closesByTicker[ticker];
+    if (!closes) {
+      sendJson(response, 404, {
+        chart: {
+          result: null,
+          error: {
+            code: "Not Found"
+          }
+        }
+      });
+      return;
+    }
+
+    sendJson(response, 200, {
+      chart: {
+        result: [
+          {
+            indicators: {
+              quote: [
+                {
+                  close: closes
+                }
+              ]
+            }
+          }
+        ]
+      }
+    });
+  });
+
+  server.listen(0);
+  await once(server, "listening");
+  const address = server.address() as AddressInfo;
+  return {
+    server,
+    baseUrl: `http://127.0.0.1:${address.port}`
+  };
+}
+
 async function closeServer(server: Server): Promise<void> {
   await new Promise<void>((resolve, reject) => {
     server.close((error) => {
@@ -590,9 +643,15 @@ test("market pulse dispatch stores reports, personalizes through research state,
   const newsState: NewsMockState = {
     outage: false
   };
+  const yahooState: YahooMockState = {
+    closesByTicker: {
+      AAPL: [171.5, null, 174.2]
+    }
+  };
 
   const openbbMock = await startOpenbbMock(openbbState);
   const newsMock = await startNewsMock(newsState);
+  const yahooMock = await startYahooMock(yahooState);
 
   const previous = {
     STORE_BACKEND: process.env.STORE_BACKEND,
@@ -605,6 +664,7 @@ test("market pulse dispatch stores reports, personalizes through research state,
     MARKET_PULSE_NEWS_INGEST_BASE_URL: process.env.MARKET_PULSE_NEWS_INGEST_BASE_URL,
     MARKET_PULSE_TICKERS: process.env.MARKET_PULSE_TICKERS,
     MARKET_PULSE_SCHEMA_VERSION: process.env.MARKET_PULSE_SCHEMA_VERSION,
+    SENTIMENT_YAHOO_BASE_URL: process.env.SENTIMENT_YAHOO_BASE_URL,
     PUSH_PROVIDER_MODE: process.env.PUSH_PROVIDER_MODE
   };
   process.env.STORE_BACKEND = "memory";
@@ -617,6 +677,7 @@ test("market pulse dispatch stores reports, personalizes through research state,
   process.env.MARKET_PULSE_NEWS_INGEST_BASE_URL = newsMock.baseUrl;
   process.env.MARKET_PULSE_TICKERS = "AAPL,MSFT";
   process.env.MARKET_PULSE_SCHEMA_VERSION = "1.0.0";
+  process.env.SENTIMENT_YAHOO_BASE_URL = yahooMock.baseUrl;
   process.env.PUSH_PROVIDER_MODE = "stub";
 
   const capturedErrors: string[] = [];
@@ -725,6 +786,14 @@ test("market pulse dispatch stores reports, personalizes through research state,
     assert.equal(firstReport.sections.watchlist_overlay, undefined);
     assert.ok(firstReport.user_research_state);
     assert.match(firstReport.sections.portfolio_radar?.body ?? "", /AAPL/);
+    assert.match(firstReport.sections.portfolio_radar?.body ?? "", /\+1\.57%/);
+    const aaplRadarRow = firstReport.morning_edition?.portfolio_radar.find(
+      (row) => row.ticker === "AAPL"
+    );
+    assert.equal(aaplRadarRow?.previous_close, 171.5);
+    assert.equal(aaplRadarRow?.latest_price, 174.2);
+    assert.equal(Math.round((aaplRadarRow?.change_pct ?? 0) * 100) / 100, 1.57);
+    assert.equal(aaplRadarRow?.evidence[0]?.source_name, "Dexter price tracker");
     assert.equal(firstReport.user_research_state?.holdings[0]?.ticker, "AAPL");
     assert.equal(firstReport.editorial_issue?.freshness_state, "baseline");
     assert.match(firstReport.editorial_issue?.lead ?? "", /editorial baseline/);
@@ -805,6 +874,7 @@ test("market pulse dispatch stores reports, personalizes through research state,
     }
     await closeServer(openbbMock.server);
     await closeServer(newsMock.server);
+    await closeServer(yahooMock.server);
   }
 
   process.env.STORE_BACKEND = previous.STORE_BACKEND;
@@ -817,5 +887,6 @@ test("market pulse dispatch stores reports, personalizes through research state,
   process.env.MARKET_PULSE_NEWS_INGEST_BASE_URL = previous.MARKET_PULSE_NEWS_INGEST_BASE_URL;
   process.env.MARKET_PULSE_TICKERS = previous.MARKET_PULSE_TICKERS;
   process.env.MARKET_PULSE_SCHEMA_VERSION = previous.MARKET_PULSE_SCHEMA_VERSION;
+  process.env.SENTIMENT_YAHOO_BASE_URL = previous.SENTIMENT_YAHOO_BASE_URL;
   process.env.PUSH_PROVIDER_MODE = previous.PUSH_PROVIDER_MODE;
 });

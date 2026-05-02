@@ -55,6 +55,7 @@ export interface MarketPulseReport {
   macro_stress: MacroStressSnapshot;
   market_tape?: MarketTapePack;
   editorial_issue?: MarketPulseEditorialIssue;
+  brief_editorial?: MarketPulseBriefEditorial;
   editorial_generation?: MarketPulseEditorialGeneration;
   macro_news?: MarketPulseMacroNewsPack;
   morning_edition?: MarketPulseMorningEdition;
@@ -65,6 +66,36 @@ export interface MarketPulseReport {
   flags: string[];
   confidence: ConfidenceBlock;
 }
+
+export interface MarketPulseBriefEditorial {
+  morning_line: string;
+  yesterday_comment: string;
+  interesting_bit: string;
+  your_names_comment?: string;
+  signal: string;
+  noise: string;
+}
+
+export const marketPulseBriefEditorialSchema = {
+  $id: "MarketPulseBriefEditorial",
+  type: "object",
+  additionalProperties: false,
+  required: [
+    "morning_line",
+    "yesterday_comment",
+    "interesting_bit",
+    "signal",
+    "noise"
+  ],
+  properties: {
+    morning_line: { type: "string" },
+    yesterday_comment: { type: "string" },
+    interesting_bit: { type: "string" },
+    your_names_comment: { type: "string" },
+    signal: { type: "string" },
+    noise: { type: "string" }
+  }
+} as const;
 
 export const marketPulseReportSchema = {
   $id: "MarketPulseReport",
@@ -90,6 +121,7 @@ export const marketPulseReportSchema = {
     macro_stress: macroStressSnapshotSchema,
     market_tape: marketTapePackSchema,
     editorial_issue: marketPulseEditorialIssueSchema,
+    brief_editorial: marketPulseBriefEditorialSchema,
     editorial_generation: marketPulseEditorialGenerationSchema,
     macro_news: marketPulseMacroNewsPackSchema,
     morning_edition: marketPulseMorningEditionSchema,
