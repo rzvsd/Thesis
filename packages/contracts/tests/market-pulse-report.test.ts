@@ -135,6 +135,14 @@ function fixture(): MarketPulseReport {
       coverage_notes: [],
       evidence: []
     },
+    brief_editorial: {
+      morning_line: "Risk appetite improved, but confirmation still matters.",
+      yesterday_comment: "The board was higher while volatility cooled alongside the move.",
+      interesting_bit: "The useful part is that the tape improved without asking macro to do more work.",
+      your_names_comment: "Your tracked names mostly followed the broader tape.",
+      signal: "Risk appetite broadened.",
+      noise: "One session is not a regime shift."
+    },
     editorial_generation: {
       mode: "llm",
       status: "generated",
@@ -252,7 +260,7 @@ function fixture(): MarketPulseReport {
   };
 }
 
-test("MarketPulseReport contract accepts additive editorial issue", () => {
+test("MarketPulseReport contract accepts additive editorial issue and Morning Brief copy", () => {
   const errors = schemaErrors(fixture());
   assert.equal(errors.length, 0, errors.join("\n"));
 });
@@ -260,6 +268,7 @@ test("MarketPulseReport contract accepts additive editorial issue", () => {
 test("MarketPulseReport contract remains backward compatible without editorial issue", () => {
   const report = fixture();
   delete report.editorial_issue;
+  delete report.brief_editorial;
   delete report.editorial_generation;
   delete report.macro_news;
   delete report.morning_edition;

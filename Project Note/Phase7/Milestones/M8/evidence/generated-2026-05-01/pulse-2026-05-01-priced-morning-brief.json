@@ -1,0 +1,750 @@
+{
+  "report_id": "pulse-2026-05-01-priced-demo",
+  "schema_version": "1.0.0",
+  "generated_at": "2026-05-01T09:00:00.000Z",
+  "cycle_start": "2026-05-01T00:00:00.000Z",
+  "cycle_end": "2026-05-01T23:59:00.000Z",
+  "macro_stress": {
+    "as_of": "2026-05-01",
+    "state": "elevated",
+    "categories": [
+      {
+        "category": "rates",
+        "state": "watch",
+        "score": 62,
+        "summary": "Rates remain firm enough to matter for duration-sensitive names."
+      },
+      {
+        "category": "inflation",
+        "state": "watch",
+        "score": 58,
+        "summary": "Inflation pressure is not resolved."
+      },
+      {
+        "category": "growth",
+        "state": "stable",
+        "score": 48,
+        "summary": "Growth inputs remain mixed."
+      }
+    ],
+    "retrievals": [],
+    "omissions": []
+  },
+  "market_tape": {
+    "as_of": "2026-05-01",
+    "coverage_state": "full",
+    "summary": "The reviewed tape was broadly higher, with volatility lower and rates friendlier.",
+    "indices": [
+      {
+        "instrument_id": "SP500",
+        "label": "S&P 500",
+        "family": "core_index",
+        "value": 5245.67,
+        "previous_value": 5210.12,
+        "daily_change": 35.55,
+        "daily_change_pct": 0.68,
+        "unit": "index",
+        "direction": "up",
+        "period": "1d",
+        "retrieval": {
+          "source": {
+            "source_id": "SP500",
+            "source_family": "fred",
+            "source_name": "FRED",
+            "source_url": "https://fred.stlouisfed.org/series/SP500"
+          },
+          "retrieved_at": "2026-05-01T09:00:00.000Z",
+          "retrieval_status": "fresh",
+          "source_period": "2026-04-30"
+        }
+      },
+      {
+        "instrument_id": "NASDAQCOM",
+        "label": "Nasdaq Composite",
+        "family": "core_index",
+        "value": 16420.3,
+        "previous_value": 16250.8,
+        "daily_change": 169.5,
+        "daily_change_pct": 1.04,
+        "unit": "index",
+        "direction": "up",
+        "period": "1d",
+        "retrieval": {
+          "source": {
+            "source_id": "NASDAQCOM",
+            "source_family": "fred",
+            "source_name": "FRED",
+            "source_url": "https://fred.stlouisfed.org/series/NASDAQCOM"
+          },
+          "retrieved_at": "2026-05-01T09:00:00.000Z",
+          "retrieval_status": "fresh",
+          "source_period": "2026-04-30"
+        }
+      },
+      {
+        "instrument_id": "DJIA",
+        "label": "Dow Jones Industrial Average",
+        "family": "core_index",
+        "value": 39112.5,
+        "previous_value": 39150,
+        "daily_change": -37.5,
+        "daily_change_pct": -0.1,
+        "unit": "index",
+        "direction": "down",
+        "period": "1d",
+        "retrieval": {
+          "source": {
+            "source_id": "DJIA",
+            "source_family": "fred",
+            "source_name": "FRED",
+            "source_url": "https://fred.stlouisfed.org/series/DJIA"
+          },
+          "retrieved_at": "2026-05-01T09:00:00.000Z",
+          "retrieval_status": "fresh",
+          "source_period": "2026-04-30"
+        }
+      },
+      {
+        "instrument_id": "RUT",
+        "label": "Russell 2000",
+        "family": "core_index",
+        "value": 2048.2,
+        "previous_value": 2032.3,
+        "daily_change": 15.9,
+        "daily_change_pct": 0.78,
+        "unit": "index",
+        "direction": "up",
+        "period": "1d",
+        "retrieval": {
+          "source": {
+            "source_id": "RUT",
+            "source_family": "fred",
+            "source_name": "FRED",
+            "source_url": "https://fred.stlouisfed.org/series/RUT"
+          },
+          "retrieved_at": "2026-05-01T09:00:00.000Z",
+          "retrieval_status": "fresh",
+          "source_period": "2026-04-30"
+        }
+      }
+    ],
+    "sector_leadership": {
+      "leaders": [
+        {
+          "instrument_id": "XLK",
+          "label": "Technology",
+          "family": "sector",
+          "value": 238.2,
+          "previous_value": 235.4,
+          "daily_change": 2.8,
+          "daily_change_pct": 1.2,
+          "unit": "price",
+          "direction": "up",
+          "period": "1d",
+          "retrieval": {
+            "source": {
+              "source_id": "XLK",
+              "source_family": "fred",
+              "source_name": "FRED",
+              "source_url": "https://fred.stlouisfed.org/series/XLK"
+            },
+            "retrieved_at": "2026-05-01T09:00:00.000Z",
+            "retrieval_status": "fresh",
+            "source_period": "2026-04-30"
+          }
+        }
+      ],
+      "laggards": [
+        {
+          "instrument_id": "XLF",
+          "label": "Financials",
+          "family": "sector",
+          "value": 41.1,
+          "previous_value": 41.6,
+          "daily_change": -0.5,
+          "daily_change_pct": -1.1,
+          "unit": "price",
+          "direction": "down",
+          "period": "1d",
+          "retrieval": {
+            "source": {
+              "source_id": "XLF",
+              "source_family": "fred",
+              "source_name": "FRED",
+              "source_url": "https://fred.stlouisfed.org/series/XLF"
+            },
+            "retrieved_at": "2026-05-01T09:00:00.000Z",
+            "retrieval_status": "fresh",
+            "source_period": "2026-04-30"
+          }
+        }
+      ]
+    },
+    "cross_asset": [
+      {
+        "instrument_id": "VIXCLS",
+        "label": "VIX",
+        "family": "volatility",
+        "value": 17.43,
+        "previous_value": 18.21,
+        "daily_change": -0.78,
+        "daily_change_pct": -4.28,
+        "unit": "index",
+        "direction": "down",
+        "period": "1d",
+        "retrieval": {
+          "source": {
+            "source_id": "VIXCLS",
+            "source_family": "fred",
+            "source_name": "FRED",
+            "source_url": "https://fred.stlouisfed.org/series/VIXCLS"
+          },
+          "retrieved_at": "2026-05-01T09:00:00.000Z",
+          "retrieval_status": "fresh",
+          "source_period": "2026-04-30"
+        }
+      },
+      {
+        "instrument_id": "DGS10",
+        "label": "10Y Treasury",
+        "family": "rates",
+        "value": 4.21,
+        "previous_value": 4.24,
+        "daily_change": -0.03,
+        "daily_change_pct": -0.71,
+        "unit": "percent",
+        "direction": "down",
+        "period": "1d",
+        "retrieval": {
+          "source": {
+            "source_id": "DGS10",
+            "source_family": "fred",
+            "source_name": "FRED",
+            "source_url": "https://fred.stlouisfed.org/series/DGS10"
+          },
+          "retrieved_at": "2026-05-01T09:00:00.000Z",
+          "retrieval_status": "fresh",
+          "source_period": "2026-04-30"
+        }
+      },
+      {
+        "instrument_id": "DCOILWTICO",
+        "label": "WTI crude oil",
+        "family": "commodity",
+        "value": 81.4,
+        "previous_value": 79.96,
+        "daily_change": 1.44,
+        "daily_change_pct": 1.8,
+        "unit": "usd",
+        "direction": "up",
+        "period": "1d",
+        "retrieval": {
+          "source": {
+            "source_id": "DCOILWTICO",
+            "source_family": "fred",
+            "source_name": "FRED",
+            "source_url": "https://fred.stlouisfed.org/series/DCOILWTICO"
+          },
+          "retrieved_at": "2026-05-01T09:00:00.000Z",
+          "retrieval_status": "fresh",
+          "source_period": "2026-04-30"
+        }
+      },
+      {
+        "instrument_id": "BAMLH0A0HYM2",
+        "label": "High-yield spread",
+        "family": "credit",
+        "value": 3.38,
+        "previous_value": 3.42,
+        "daily_change": -0.04,
+        "daily_change_pct": -1.1,
+        "unit": "percent",
+        "direction": "down",
+        "period": "1d",
+        "retrieval": {
+          "source": {
+            "source_id": "BAMLH0A0HYM2",
+            "source_family": "fred",
+            "source_name": "FRED",
+            "source_url": "https://fred.stlouisfed.org/series/BAMLH0A0HYM2"
+          },
+          "retrieved_at": "2026-05-01T09:00:00.000Z",
+          "retrieval_status": "fresh",
+          "source_period": "2026-04-30"
+        }
+      }
+    ],
+    "retrievals": [
+      {
+        "source": {
+          "source_id": "SP500",
+          "source_family": "fred",
+          "source_name": "FRED",
+          "source_url": "https://fred.stlouisfed.org/series/SP500"
+        },
+        "retrieved_at": "2026-05-01T09:00:00.000Z",
+        "retrieval_status": "fresh",
+        "source_period": "2026-04-30"
+      },
+      {
+        "source": {
+          "source_id": "NASDAQCOM",
+          "source_family": "fred",
+          "source_name": "FRED",
+          "source_url": "https://fred.stlouisfed.org/series/NASDAQCOM"
+        },
+        "retrieved_at": "2026-05-01T09:00:00.000Z",
+        "retrieval_status": "fresh",
+        "source_period": "2026-04-30"
+      },
+      {
+        "source": {
+          "source_id": "VIXCLS",
+          "source_family": "fred",
+          "source_name": "FRED",
+          "source_url": "https://fred.stlouisfed.org/series/VIXCLS"
+        },
+        "retrieved_at": "2026-05-01T09:00:00.000Z",
+        "retrieval_status": "fresh",
+        "source_period": "2026-04-30"
+      },
+      {
+        "source": {
+          "source_id": "DGS10",
+          "source_family": "fred",
+          "source_name": "FRED",
+          "source_url": "https://fred.stlouisfed.org/series/DGS10"
+        },
+        "retrieved_at": "2026-05-01T09:00:00.000Z",
+        "retrieval_status": "fresh",
+        "source_period": "2026-04-30"
+      }
+    ],
+    "omissions": []
+  },
+  "editorial_issue": {
+    "headline": "Risk appetite improved without changing the thesis frame",
+    "dek": "A cleaner tape, not a new regime.",
+    "lead": "The market showed better tolerance for the same macro pressure.",
+    "what_changed": [
+      {
+        "title": "Tape direction",
+        "body": "Tape moved from mixed to broadly higher.",
+        "importance": "high"
+      },
+      {
+        "title": "Volatility",
+        "body": "VIX cooled below the prior session.",
+        "importance": "medium"
+      },
+      {
+        "title": "Rates",
+        "body": "Rates moved in a friendlier direction.",
+        "importance": "medium"
+      }
+    ],
+    "why_it_matters": [
+      {
+        "title": "Conviction frame",
+        "body": "The move helps context, but one session does not reset conviction.",
+        "importance": "medium"
+      }
+    ],
+    "what_to_watch": [
+      {
+        "title": "Next checks",
+        "body": "Fed communications and mega-cap earnings remain the cleaner next checks.",
+        "importance": "medium"
+      }
+    ],
+    "signal_vs_noise": [
+      {
+        "signal": "Risk appetite broadened.",
+        "noise": "One green session is not a regime shift."
+      }
+    ],
+    "freshness_state": "updated",
+    "prior_cycle_end": "2026-04-30T23:59:00.000Z",
+    "coverage_notes": [],
+    "evidence": [
+      {
+        "evidence_id": "ev-editorial-1",
+        "source_type": "financial_data",
+        "source_name": "FRED",
+        "excerpt": "Market tape observations reviewed for 2026-05-01.",
+        "retrieved_at": "2026-05-01T09:00:00.000Z"
+      }
+    ]
+  },
+  "brief_editorial": {
+    "morning_line": "Risk appetite improved, but the move still needs confirmation beyond one session.",
+    "yesterday_comment": "Tech led the tape, volatility eased, and rates moved in a friendlier direction. That combination reads cleaner, but it is still context rather than a thesis change.",
+    "interesting_bit": "The interesting part is not new macro relief. The market simply tolerated the same pressure better, which is more useful than a green-index headline by itself.",
+    "your_names_comment": "Your tracked names mostly followed market context unless approved company evidence says otherwise.",
+    "signal": "Risk appetite broadened in the reviewed tape.",
+    "noise": "One session does not prove a regime shift."
+  },
+  "macro_news": {
+    "as_of": "2026-05-01",
+    "state": "calm",
+    "items": [
+      {
+        "headline": "Fed officials keep focus on inflation progress",
+        "source_name": "Federal Reserve",
+        "source_url": "https://www.federalreserve.gov/",
+        "published_at": "2026-05-01T07:30:00.000Z",
+        "topic": "policy",
+        "severity": "context",
+        "evidence": [
+          {
+            "evidence_id": "ev-fed-1",
+            "source_type": "article",
+            "source_name": "Federal Reserve",
+            "excerpt": "Federal Reserve headline metadata reviewed.",
+            "retrieved_at": "2026-05-01T09:00:00.000Z"
+          }
+        ]
+      },
+      {
+        "headline": "Treasury yields hold near recent highs before data",
+        "source_name": "Treasury",
+        "source_url": "https://home.treasury.gov/",
+        "published_at": "2026-05-01T08:00:00.000Z",
+        "topic": "macro",
+        "severity": "context",
+        "evidence": [
+          {
+            "evidence_id": "ev-treasury-1",
+            "source_type": "macro_data",
+            "source_name": "Treasury",
+            "excerpt": "Treasury headline metadata reviewed.",
+            "retrieved_at": "2026-05-01T09:00:00.000Z"
+          }
+        ]
+      }
+    ],
+    "omissions": []
+  },
+  "morning_edition": {
+    "headline_digest": [
+      {
+        "headline": "Fed officials keep focus on inflation progress",
+        "source_name": "Federal Reserve",
+        "source_url": "https://www.federalreserve.gov/",
+        "published_at": "2026-05-01T07:30:00.000Z",
+        "topic": "policy",
+        "evidence": [
+          {
+            "evidence_id": "ev-headline-fed",
+            "source_type": "article",
+            "source_name": "Federal Reserve",
+            "excerpt": "Headline metadata only; no article body stored.",
+            "retrieved_at": "2026-05-01T09:00:00.000Z"
+          }
+        ]
+      },
+      {
+        "headline": "Apple files scheduled investor materials after close",
+        "source_name": "SEC EDGAR",
+        "source_url": "https://www.sec.gov/",
+        "published_at": "2026-05-01T08:30:00.000Z",
+        "topic": "company",
+        "evidence": [
+          {
+            "evidence_id": "ev-headline-sec",
+            "source_type": "filing",
+            "source_name": "SEC EDGAR",
+            "excerpt": "Company filing metadata reviewed.",
+            "retrieved_at": "2026-05-01T09:00:00.000Z"
+          }
+        ]
+      }
+    ],
+    "portfolio_radar": [
+      {
+        "ticker": "AAPL",
+        "company_name": "Apple Inc.",
+        "previous_close": 171.5,
+        "latest_price": 174.2,
+        "change": 2.7,
+        "change_pct": 1.57,
+        "direction": "up",
+        "reason": "Moved with the broader tape. No company-specific evidence confirmed in approved sources.",
+        "evidence": [
+          {
+            "evidence_id": "ev-price-aapl",
+            "source_type": "financial_data",
+            "source_name": "Dexter price tracker",
+            "excerpt": "AAPL: latest close 174.20 versus prior close 171.50.",
+            "retrieved_at": "2026-05-01T09:00:00.000Z"
+          }
+        ]
+      },
+      {
+        "ticker": "MSFT",
+        "company_name": "Microsoft",
+        "previous_close": 422.1,
+        "latest_price": 420.55,
+        "change": -1.55,
+        "change_pct": -0.37,
+        "direction": "down",
+        "reason": "Lagged a firmer tape. No thesis-level change confirmed in approved sources.",
+        "evidence": [
+          {
+            "evidence_id": "ev-price-msft",
+            "source_type": "financial_data",
+            "source_name": "Dexter price tracker",
+            "excerpt": "MSFT: latest close 420.55 versus prior close 422.10.",
+            "retrieved_at": "2026-05-01T09:00:00.000Z"
+          }
+        ]
+      }
+    ],
+    "market_board": [
+      {
+        "label": "S&P 500",
+        "value": 5245.67,
+        "one_day_change": 35.55,
+        "one_day_change_pct": 0.68,
+        "five_day_change_pct": 1.14,
+        "direction": "up",
+        "sparkline": [
+          5180,
+          5204,
+          5218,
+          5210,
+          5245.67
+        ],
+        "evidence": [
+          {
+            "evidence_id": "ev-spx",
+            "source_type": "financial_data",
+            "source_name": "FRED",
+            "excerpt": "S&P 500: +0.68% for 1d.",
+            "retrieved_at": "2026-05-01T09:00:00.000Z"
+          }
+        ]
+      },
+      {
+        "label": "Nasdaq",
+        "value": 16420.3,
+        "one_day_change": 169.5,
+        "one_day_change_pct": 1.04,
+        "five_day_change_pct": 1.88,
+        "direction": "up",
+        "sparkline": [
+          16020,
+          16180,
+          16230,
+          16195,
+          16420.3
+        ],
+        "evidence": [
+          {
+            "evidence_id": "ev-ndx",
+            "source_type": "financial_data",
+            "source_name": "FRED",
+            "excerpt": "Nasdaq: +1.04% for 1d.",
+            "retrieved_at": "2026-05-01T09:00:00.000Z"
+          }
+        ]
+      },
+      {
+        "label": "VIX",
+        "value": 17.43,
+        "one_day_change": -0.78,
+        "one_day_change_pct": -4.28,
+        "five_day_change_pct": -6.2,
+        "direction": "down",
+        "sparkline": [
+          19.1,
+          18.9,
+          18.4,
+          18.21,
+          17.43
+        ],
+        "evidence": [
+          {
+            "evidence_id": "ev-vix",
+            "source_type": "financial_data",
+            "source_name": "FRED",
+            "excerpt": "VIX: -4.28% for 1d.",
+            "retrieved_at": "2026-05-01T09:00:00.000Z"
+          }
+        ]
+      }
+    ],
+    "today_catalysts": [
+      {
+        "time_label": "08:30 ET",
+        "title": "Inflation data watch",
+        "category": "macro",
+        "impact": "high",
+        "evidence": [
+          {
+            "evidence_id": "ev-calendar-1",
+            "source_type": "macro_data",
+            "source_name": "Official calendar",
+            "excerpt": "Inflation data calendar metadata reviewed.",
+            "retrieved_at": "2026-05-01T09:00:00.000Z"
+          }
+        ]
+      },
+      {
+        "time_label": "after close",
+        "title": "AAPL earnings watch",
+        "category": "earnings",
+        "impact": "medium",
+        "evidence": [
+          {
+            "evidence_id": "ev-calendar-2",
+            "source_type": "financial_data",
+            "source_name": "Earnings calendar",
+            "excerpt": "AAPL earnings metadata reviewed.",
+            "retrieved_at": "2026-05-01T09:00:00.000Z"
+          }
+        ]
+      }
+    ],
+    "sector_pulse": [
+      {
+        "label": "Technology",
+        "change_pct": 1.2,
+        "direction": "up",
+        "evidence": []
+      },
+      {
+        "label": "Financials",
+        "change_pct": -1.1,
+        "direction": "down",
+        "evidence": []
+      }
+    ],
+    "coverage_notes": []
+  },
+  "sections": {
+    "macro_stress": {
+      "section_id": "macro_stress",
+      "title": "Macro Stress",
+      "body": "Macro regime remains elevated.",
+      "status": "complete",
+      "evidence": [
+        {
+          "evidence_id": "ev-macro",
+          "source_type": "macro_data",
+          "source_name": "FRED",
+          "excerpt": "Macro stress inputs reviewed.",
+          "retrieved_at": "2026-05-01T09:00:00.000Z"
+        }
+      ]
+    },
+    "market_tape": {
+      "section_id": "market_tape",
+      "title": "Market Tape",
+      "body": "The reviewed tape was broadly higher.",
+      "status": "complete",
+      "evidence": [
+        {
+          "evidence_id": "ev-tape",
+          "source_type": "financial_data",
+          "source_name": "FRED",
+          "excerpt": "Market tape values reviewed.",
+          "retrieved_at": "2026-05-01T09:00:00.000Z"
+        }
+      ]
+    },
+    "official_macro_pressure": {
+      "section_id": "official_macro_pressure",
+      "title": "Official Macro Pressure",
+      "body": "Rates and inflation remain the main official macro pressure points.",
+      "status": "complete",
+      "evidence": [
+        {
+          "evidence_id": "ev-official-macro",
+          "source_type": "macro_data",
+          "source_name": "FRED",
+          "excerpt": "Official macro inputs reviewed.",
+          "retrieved_at": "2026-05-01T09:00:00.000Z"
+        }
+      ]
+    },
+    "canonical_events": {
+      "section_id": "canonical_events",
+      "title": "Canonical Events",
+      "body": "No new high-confidence issuer event changed the brief.",
+      "status": "complete",
+      "evidence": []
+    },
+    "bounded_context": {
+      "section_id": "bounded_context",
+      "title": "Bounded Context",
+      "body": "Approved context remains bounded to official and reviewed sources.",
+      "status": "complete",
+      "evidence": []
+    },
+    "uncertainty_flags": {
+      "section_id": "uncertainty_flags",
+      "title": "Uncertainty Flags",
+      "body": "No material coverage limitation changed interpretation.",
+      "status": "complete",
+      "evidence": []
+    },
+    "what_changed": {
+      "section_id": "what_changed",
+      "title": "What Changed",
+      "body": "Tape moved from mixed to broadly higher. VIX cooled. Rates moved lower.",
+      "status": "complete",
+      "evidence": [
+        {
+          "evidence_id": "ev-what-changed",
+          "source_type": "financial_data",
+          "source_name": "FRED",
+          "excerpt": "Daily deltas reviewed.",
+          "retrieved_at": "2026-05-01T09:00:00.000Z"
+        }
+      ]
+    },
+    "signal_vs_noise": {
+      "section_id": "signal_vs_noise",
+      "title": "Signal vs Noise",
+      "body": "Signal: Risk appetite broadened. Noise: One session does not prove a regime shift.",
+      "status": "complete",
+      "evidence": []
+    },
+    "portfolio_radar": {
+      "section_id": "portfolio_radar",
+      "title": "Portfolio Radar",
+      "body": "AAPL: +1.57% - Moved with the broader tape. MSFT: -0.37% - Lagged a firmer tape.",
+      "status": "complete",
+      "evidence": [
+        {
+          "evidence_id": "ev-price-aapl-section",
+          "source_type": "financial_data",
+          "source_name": "Dexter price tracker",
+          "excerpt": "AAPL: latest close 174.20 versus prior close 171.50.",
+          "retrieved_at": "2026-05-01T09:00:00.000Z"
+        }
+      ]
+    },
+    "today_catalysts": {
+      "section_id": "today_catalysts",
+      "title": "Today's Catalysts",
+      "body": "08:30 ET - Inflation data watch. after close - AAPL earnings watch.",
+      "status": "complete",
+      "evidence": []
+    },
+    "headline_digest": {
+      "section_id": "headline_digest",
+      "title": "Headlines Worth Knowing",
+      "body": "Federal Reserve: Fed officials keep focus on inflation progress. SEC EDGAR: Apple files scheduled investor materials after close.",
+      "status": "complete",
+      "evidence": []
+    }
+  },
+  "flags": [],
+  "confidence": {
+    "score": 0.78,
+    "label": "medium",
+    "rationale": "Official/free market data and evidence-backed personalization are available."
+  }
+}

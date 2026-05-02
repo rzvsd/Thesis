@@ -1,7 +1,7 @@
 # Thesis - Phase 7 Milestone Briefs
 
 **Version:** 1.0  
-**Status:** Active (M7 active; M1-M6 validated)
+**Status:** Active (M8 active; M1-M7 validated)
 **Owner:** Engineering Lead + Product Lead  
 **Last Revised:** 2026-05-01
 **Related Documents:** `ph7_BLUEBOOK.md`, `ph7_PRD.md`, `ph7_ROADMAP.md`, `PH7_DECISION_LOCKS.md`
@@ -12,7 +12,7 @@
 
 Phase 7 begins after the Phase 6 substrate closeout. The Phase 7 pack is the current planning and doctrine layer for Pulse work. Earlier phase docs remain historical unless this pack explicitly points back to them.
 
-Current milestone state is tracked in `ph7_ROADMAP.md`. As of 2026-05-01, M1-M6 have implementation evidence recorded and M7 is the active Pulse newspaper-template closeout/polish layer.
+Current milestone state is tracked in `ph7_ROADMAP.md`. As of 2026-05-01, M1-M7 have implementation evidence recorded and M8 is the active Pulse Morning Brief reset.
 
 Proof for each milestone lives under:
 
@@ -33,6 +33,7 @@ Project Note/Phase7/Milestones/M#/evidence/
 | M5 | User Research State & Analyst Refresh Agent | Adds the persistent per-user analyst state that correlates watchlists, manual holdings, Deep Dive, Pulse, monitor freshness, and official context into typed personalization |
 | M6 | Guarded LLM Pulse Editorial Writer | Adds an optional OpenRouter copy-editing layer that rewrites deterministic Pulse narrative without mutating facts, provenance, tickers, prices, or events |
 | M7 | Pulse Newspaper Template Revamp | Replaces the old 13-module issue idea with the compact newspaper template: Tape, Changed, Names, Calendar, Headlines, Signal/Noise, Backdrop, and footer sources |
+| M8 | Pulse Morning Brief Reset | Replaces newspaper-style rendering with a compact quiet/normal/event Morning Brief, deterministic daily delta, one useful insight, optional user/calendar/headline modules, and a strict six-field LLM copy contract |
 
 ---
 

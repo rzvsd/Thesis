@@ -61,6 +61,8 @@ Phase 7 M1 uses a free-data policy:
 
 If exact free live coverage does not exist for a desired family, Thesis must say so explicitly instead of pretending the data exists.
 
+As of M8, Pulse rendering uses the Morning Brief shape. The product promise is no longer "daily newspaper"; it is the few market, macro, and user-name facts that changed while the user was away. The issue must adapt to quiet, normal, and event days instead of forcing all days into the same density.
+
 ---
 
 ## 5. Commentary Rules
@@ -98,6 +100,21 @@ The right rail stays focused on:
 - coverage / method discipline
 
 It must not become a mini-terminal.
+
+## 10. M8 Morning Brief Reset
+
+M8 resets the customer-facing Pulse export around a tighter daily reading experience:
+
+- one-sentence Morning Line
+- compact tape row
+- deterministic change list
+- one Interesting Bit
+- user names only when real typed rows exist
+- calendar and headlines only when real metadata exists
+- Signal vs Noise always
+- sources/method once in the footer
+
+The brief may use optional LLM wording only for six short copy fields after deterministic facts and deltas exist. The LLM cannot choose sections, mutate facts, invent causality, add tickers, add sources, or create trading advice.
 
 ---
 
