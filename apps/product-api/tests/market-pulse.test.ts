@@ -606,13 +606,15 @@ async function startDexterPulseMock(): Promise<{ server: Server; baseUrl: string
             }
           },
           brief_editorial: {
-            morning_line: "Risk appetite improved, but confirmation still matters.",
-            yesterday_comment: "Dexter kept the tape read compact and evidence-led.",
-            interesting_bit:
-              "The useful read is portfolio context against the tape, not a trading signal.",
+            the_read:
+              "Risk appetite improved, but conviction did not reset. Dexter kept the tape read compact and evidence-led while separating market movement from company-specific proof.",
+            what_changed_summary:
+              "The tape improved, AAPL had an approved price row, and no confirmed company-specific catalyst changed the tracked-name story.",
+            why_it_matters:
+              "The useful read is portfolio context against the tape, not a trading signal. A better market session can improve context without changing a company thesis.",
             your_names_comment: "AAPL followed the tape rather than a company-specific catalyst.",
-            signal: "Risk appetite improved.",
-            noise: "One session is not a regime shift."
+            smart_comment:
+              "Dexter treated the move as a cleaner market session, not a stronger thesis. Conviction still needs repeated confirmation or company-specific evidence."
           },
           editorial_generation: {
             mode: "deterministic",

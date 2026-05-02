@@ -176,7 +176,9 @@ test("Dexter Pulse brief adds price-backed portfolio rows and bounded copy", asy
     assert.equal(row?.latest_price, 174.2);
     assert.equal(row?.evidence[0]?.source_name, "Dexter price tracker");
     assert.equal(result.report.editorial_generation?.mode, "deterministic");
-    assert.match(result.report.brief_editorial?.morning_line ?? "", /Risk appetite|Markets were/);
+    assert.match(result.report.brief_editorial?.the_read ?? "", /Risk appetite|Markets were/);
+    assert.match(result.report.brief_editorial?.why_it_matters ?? "", /company-specific evidence|conviction/i);
+    assert.match(result.report.brief_editorial?.smart_comment ?? "", /cleaner tape|market day/i);
   } finally {
     await closeServer(priceMock.server);
   }

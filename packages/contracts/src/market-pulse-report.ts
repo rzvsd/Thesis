@@ -68,32 +68,47 @@ export interface MarketPulseReport {
 }
 
 export interface MarketPulseBriefEditorial {
-  morning_line: string;
-  yesterday_comment: string;
-  interesting_bit: string;
+  the_read?: string;
+  what_changed_summary?: string;
+  why_it_matters?: string;
   your_names_comment?: string;
-  signal: string;
-  noise: string;
+  smart_comment?: string;
+  morning_line?: string;
+  yesterday_comment?: string;
+  interesting_bit?: string;
+  signal?: string;
+  noise?: string;
+  morning_story?: string;
+  tape_color?: string;
+  names_narrative?: string;
+  one_thing?: string;
+  mood?: "confident" | "cautious" | "curious" | "calm";
 }
 
 export const marketPulseBriefEditorialSchema = {
   $id: "MarketPulseBriefEditorial",
   type: "object",
   additionalProperties: false,
-  required: [
-    "morning_line",
-    "yesterday_comment",
-    "interesting_bit",
-    "signal",
-    "noise"
-  ],
+  required: [],
   properties: {
+    the_read: { type: "string" },
+    what_changed_summary: { type: "string" },
+    why_it_matters: { type: "string" },
+    smart_comment: { type: "string" },
     morning_line: { type: "string" },
     yesterday_comment: { type: "string" },
     interesting_bit: { type: "string" },
     your_names_comment: { type: "string" },
     signal: { type: "string" },
-    noise: { type: "string" }
+    noise: { type: "string" },
+    morning_story: { type: "string" },
+    tape_color: { type: "string" },
+    names_narrative: { type: "string" },
+    one_thing: { type: "string" },
+    mood: {
+      type: "string",
+      enum: ["confident", "cautious", "curious", "calm"]
+    }
   }
 } as const;
 

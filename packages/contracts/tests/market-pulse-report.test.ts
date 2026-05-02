@@ -136,12 +136,23 @@ function fixture(): MarketPulseReport {
       evidence: []
     },
     brief_editorial: {
-      morning_line: "Risk appetite improved, but confirmation still matters.",
-      yesterday_comment: "The board was higher while volatility cooled alongside the move.",
-      interesting_bit: "The useful part is that the tape improved without asking macro to do more work.",
+      the_read:
+        "Risk appetite improved, but conviction did not reset. The board was higher while volatility cooled alongside the move, which made the session cleaner than price alone.",
+      what_changed_summary:
+        "The tape improved, volatility cooled, rates did not deliver a clear macro reset, and no company-specific event changed the tracked-name story.",
+      why_it_matters:
+        "The useful part is that the tape improved without asking macro to do more work. That improves context, but one session is not a regime change.",
       your_names_comment: "Your tracked names mostly followed the broader tape.",
-      signal: "Risk appetite broadened.",
-      noise: "One session is not a regime shift."
+      smart_comment:
+        "Yesterday gave users a cleaner tape, not a stronger thesis. Conviction still needs repeated confirmation, official events, or company-specific evidence.",
+      morning_story:
+        "Risk appetite improved, but conviction did not reset. The tape was cleaner because equities rose while volatility cooled, and that is more useful than a green-index day fighting a tougher cross-asset setup. Macro pressure still did not disappear. The better read is that markets tolerated it more calmly for one session.",
+      tape_color: "S&P led while volatility cooled.",
+      names_narrative:
+        "AAPL moved with the broader tape rather than creating its own company-specific story.",
+      one_thing:
+        "The memorable part was not the green tape; it was the cleaner texture underneath it.",
+      mood: "curious"
     },
     editorial_generation: {
       mode: "llm",

@@ -249,3 +249,22 @@ M1 implementation thresholds:
 - Internal-only recent context cannot be quoted, summarized, attributed, or treated as fact in customer-facing report copy.
 - Tool failures must return omissions and must not block Deep Dive generation.
 - No trading advice, price targets, position sizing, broker flow, public lab, terminal behavior, or social-source customer copy is introduced in M9.
+
+---
+
+## 18. M10 Pulse A+ Morning Brief Engagement Locks
+
+- M10 is the Pulse engagement overhaul and does not rename or overwrite M9 Dexter Evidence Quality Skills.
+- Pulse remains a research and conviction morning brief, not a newspaper cosplay surface, dashboard, market terminal, screener, broker flow, or trading product.
+- The M8 six-field/180-word LLM cap is superseded for M10 only.
+- M10 allows expanded Pulse editorial copy up to 500 total words, while preserving all guardrails around facts, prices, tickers, sources, events, and provenance.
+- New LLM fields are optional: `morning_story`, `tape_color`, `names_narrative`, `one_thing`, and `mood`.
+- The LLM may improve wording and narrative connection only; it cannot decide facts, data values, section visibility, sources, tickers, prices, events, omissions, or provenance.
+- The renderer branches by deterministic issue mode: `quiet`, `normal`, or `event`.
+- Quiet days may collapse aggressively into a short issue when the tape, macro, headlines, and tracked names do not cross thresholds.
+- `Why It Matters` is no longer a standalone customer section in the Morning Brief renderer; its substance is absorbed into the morning story, one-thing callout, and honest read.
+- `The One Thing` is selected from deterministic candidates before any LLM copy pass.
+- Sector strip and sparklines are visualizations of already-approved typed data only.
+- User-name cards may show price/context rows only when typed portfolio radar rows exist.
+- Community/social signal rendering remains hidden until approved data and source policy exist; empty slots must not render.
+- No article-body scraping, article-body summarization, Yahoo/AlphaVantage market-tape runtime, trading advice, price targets, execution language, or unsupported causality is introduced.

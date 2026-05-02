@@ -2,7 +2,7 @@
 
 **Version:** 1.0  
 **Status:** Active  
-**Last Revised:** 2026-04-26
+**Last Revised:** 2026-05-02
 
 ---
 
@@ -138,6 +138,24 @@ The renderer should prefer:
 - compact charts where they clarify the read
 - no orphaned headings in PDF output
 - footer/method placement for provenance and limitations
+
+---
+
+## M10 Engagement Doctrine
+
+Pulse should feel like a sharp colleague explaining the morning, not a schema export with nicer typography.
+
+M10 adds room for a real Morning Story, but not room for hallucination. The deterministic fact pack decides the mode, facts, section visibility, one-thing candidate, and user-name context. The LLM may only improve wording inside a guarded budget.
+
+The reader promise is:
+
+- lead with the interesting thing
+- show the tape cleanly
+- connect tape, macro, and names
+- be short when nothing happened
+- never invent novelty to fill space
+
+The visual system should remain compact and premium: one strong lead, clear data, one memorable callout, then the tail.
 - no repeated inline evidence blocks
 
 The LLM, when enabled, may improve wording only after the deterministic issue plan is created. It must not decide structure.

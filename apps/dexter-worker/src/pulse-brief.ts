@@ -10,6 +10,7 @@ import type {
 import type { DexterConfig } from "./config";
 import { logWarn } from "./logging";
 import { runLiveDexterQuery } from "./live-dexter";
+import { buildPulseEditorialPrompt } from "./pulse-editorial-prompt";
 
 interface YahooChartResponse {
   chart?: {
@@ -372,46 +373,75 @@ function withUserState(report: MarketPulseReport, state?: UserResearchState): Ma
   };
 }
 
-function formatMove(value: number | undefined): string {
-  if (typeof value !== "number" || !Number.isFinite(value)) {
-    return "n/a";
-  }
-  return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
-}
-
 function deterministicBrief(report: MarketPulseReport): MarketPulseBriefEditorial {
   const breadth = marketBreadth(report);
   const rows = report.morning_edition?.portfolio_radar ?? [];
-  const strongest = report.market_tape?.indices
-    .slice()
-    .sort((left, right) => (right.daily_change_pct ?? 0) - (left.daily_change_pct ?? 0))[0];
-  const weakest = report.market_tape?.indices
-    .slice()
-    .sort((left, right) => (left.daily_change_pct ?? 0) - (right.daily_change_pct ?? 0))[0];
   const vix = report.market_tape?.cross_asset.find((move) => move.family === "volatility");
+  const oneThing = vix && vix.direction === "down"
+    ? "Volatility cooled alongside the equity move, giving the session cleaner texture than price alone."
+    : "Market movement stayed contextual until official events or company evidence confirm more.";
+  const morningStory = breadth === "higher"
+    ? [
+        "Risk appetite improved, but conviction did not reset. Yesterday's tape was broadly better: equities rose, volatility cooled, and the cross-asset backdrop was easier to digest.",
+        "That combination matters more than a green index print by itself. A cleaner session is easier to respect when volatility is not fighting the move.",
+        rows.length > 0
+          ? "Your tracked names mostly moved with that broader context. That makes the day useful, but not company-specific evidence."
+          : "No tracked-name evidence created a separate company story, so the read stays anchored in the tape.",
+        "The morning conclusion is simple: better texture, not a new regime."
+      ].join("\n\n")
+    : breadth === "lower"
+      ? [
+          "Risk appetite softened, but the brief keeps movement separate from thesis change.",
+          "The useful question is whether volatility, rates, credit, or company evidence confirmed the weakness. Without that, the move remains market context.",
+          rows.length > 0
+            ? "Your tracked names are checked against that tape first, then against company-specific evidence."
+            : "No tracked-name evidence created a separate story.",
+          "The morning conclusion is caution without theater."
+        ].join("\n\n")
+      : [
+          "The tape was mixed, and macro did not give the market a clean new answer.",
+          "That makes today more about separating useful context from noise than forcing a directional story.",
+          rows.length > 0
+            ? "Your tracked names mostly sit inside that mixed context."
+            : "No tracked-name evidence created a separate story.",
+          "The morning conclusion is patience."
+        ].join("\n\n");
   return {
-    morning_line:
+    the_read:
       breadth === "higher"
-        ? "Risk appetite improved, but one session does not reset the macro backdrop."
+        ? "Risk appetite improved, but conviction did not reset. Yesterday's tape was broadly better: equities rose, volatility cooled, and the cross-asset backdrop was easier to digest. That is healthier than price alone, but it is still a cleaner session rather than a new regime."
         : breadth === "lower"
-          ? "The tape softened, and today should be read through confirmation rather than drama."
-          : "Markets were mixed, so the useful read is what changed versus what stayed quiet.",
-    yesterday_comment:
-      strongest && weakest
-        ? `${strongest.label} was strongest at ${formatMove(strongest.daily_change_pct)}, while ${weakest.label} lagged at ${formatMove(weakest.daily_change_pct)}.`
-        : "The available tape is thin, so Thesis keeps the market read bounded.",
-    interesting_bit:
-      vix && typeof vix.daily_change_pct === "number"
-        ? `The interesting part is that volatility moved ${formatMove(vix.daily_change_pct)} while breadth was ${breadth}; that is context, not a regime call.`
-        : `The interesting part is the split between ${breadth} price action and a macro frame that still needs confirmation.`,
+          ? "Risk appetite softened, but the brief keeps movement separate from thesis change. The right question is whether volatility, rates, credit, or company evidence confirmed the move. Without that confirmation, yesterday reads as market context rather than a reset."
+          : "Markets were mixed, so the useful read is what changed versus what stayed quiet. Thesis keeps the brief focused on confirmed movement, macro context, and tracked-name evidence rather than forcing a directional story.",
+    what_changed_summary:
+      "The tape changed first, volatility and rates shaped the quality of the move, and no company-specific event changed the tracked-name story. The rest stays framed as context until official or first-party evidence says more.",
+    why_it_matters:
+      vix && typeof vix.daily_change_pct === "number" && vix.direction === "down"
+        ? "The useful part is not that stocks went up. It is that the move came with lower volatility, which gives the session better texture than price alone. That helps the morning read, but conviction still needs repeated confirmation or company-specific evidence."
+        : "The useful part is the split between market movement and conviction. A cleaner session can improve context, but a thesis change still needs repeated confirmation, official events, or company-specific evidence.",
     ...(rows.length > 0
       ? {
           your_names_comment:
-            "Your tracked names are interpreted against the tape first, then checked for company-specific evidence."
+            "Your names mostly moved with the broader tape. That makes yesterday useful context, but not company-specific evidence."
         }
       : {}),
-    signal: breadth === "higher" ? "Risk appetite improved." : "Tape signal stayed selective.",
-    noise: "One session does not prove a regime shift."
+    smart_comment:
+      "Yesterday gave users a cleaner tape, not a stronger thesis. The difference matters. A better session can improve context, but conviction should come from repeated confirmation, official events, or company-specific evidence rather than one market day.",
+    morning_story: morningStory,
+    tape_color:
+      breadth === "higher" && vix?.direction === "down"
+        ? "Equities rose while VIX cooled"
+        : breadth === "lower"
+          ? "Softer tape, confirmation still selective"
+          : "Mixed tape, selective read",
+    ...(rows.length > 0
+      ? {
+          names_narrative:
+            "Your names mostly moved with the broader tape. That makes the session useful context, but not company-specific evidence."
+        }
+      : {}),
+    one_thing: oneThing,
+    mood: breadth === "higher" ? "confident" : breadth === "lower" ? "cautious" : "curious"
   };
 }
 
@@ -436,22 +466,59 @@ function validateCopy(
   draft: Partial<MarketPulseBriefEditorial>,
   report: MarketPulseReport
 ): MarketPulseBriefEditorial {
+  const fallback = deterministicBrief(report);
+  const merged = { ...fallback, ...draft };
+  const totalWords = [
+    merged.the_read,
+    merged.what_changed_summary,
+    merged.why_it_matters,
+    merged.your_names_comment,
+    merged.smart_comment,
+    merged.morning_story,
+    merged.tape_color,
+    merged.names_narrative,
+    merged.one_thing
+  ].join(" ").split(/\s+/).filter(Boolean).length;
+  if (totalWords > 500) {
+    throw new Error("brief editorial exceeds 500 word budget");
+  }
   return {
-    morning_line: validateCopyField("morning_line", draft.morning_line, report, 22),
-    yesterday_comment: validateCopyField("yesterday_comment", draft.yesterday_comment, report, 45),
-    interesting_bit: validateCopyField("interesting_bit", draft.interesting_bit, report, 55),
-    ...(draft.your_names_comment
+    the_read: validateCopyField("the_read", merged.the_read, report, 90, 12),
+    what_changed_summary: validateCopyField(
+      "what_changed_summary",
+      merged.what_changed_summary,
+      report,
+      80,
+      8
+    ),
+    why_it_matters: validateCopyField("why_it_matters", merged.why_it_matters, report, 90, 12),
+    ...(merged.your_names_comment
       ? {
           your_names_comment: validateCopyField(
             "your_names_comment",
-            draft.your_names_comment,
+            merged.your_names_comment,
             report,
-            35
+            80,
+            6
           )
         }
       : {}),
-    signal: validateCopyField("signal", draft.signal, report, 14),
-    noise: validateCopyField("noise", draft.noise, report, 14)
+    smart_comment: validateCopyField("smart_comment", merged.smart_comment, report, 100, 10),
+    morning_story: validateCopyField("morning_story", merged.morning_story, report, 280, 45),
+    tape_color: validateCopyField("tape_color", merged.tape_color, report, 18, 3),
+    ...(merged.names_narrative
+      ? {
+          names_narrative: validateCopyField(
+            "names_narrative",
+            merged.names_narrative,
+            report,
+            80,
+            8
+          )
+        }
+      : {}),
+    one_thing: validateCopyField("one_thing", merged.one_thing, report, 45, 8),
+    mood: validateMood(merged.mood)
   };
 }
 
@@ -459,13 +526,15 @@ function validateCopyField(
   key: string,
   value: string | undefined,
   report: MarketPulseReport,
-  maxWords: number
+  maxWords: number,
+  minWords: number
 ): string {
   const text = (value ?? "").replace(/\s+/g, " ").trim();
-  if (text.length < 4) {
+  const wordCount = text.split(/\s+/).filter(Boolean).length;
+  if (wordCount < minWords) {
     throw new Error(`${key} is too short`);
   }
-  if (text.split(/\s+/).filter(Boolean).length > maxWords) {
+  if (wordCount > maxWords) {
     throw new Error(`${key} exceeds word budget`);
   }
   if (bannedAdvicePattern.test(text)) {
@@ -482,6 +551,13 @@ function validateCopyField(
     }
   }
   return text;
+}
+
+function validateMood(value: string | undefined): MarketPulseBriefEditorial["mood"] {
+  if (value === "confident" || value === "cautious" || value === "curious" || value === "calm") {
+    return value;
+  }
+  return "curious";
 }
 
 function parseJsonObject(value: string): unknown {
@@ -515,19 +591,7 @@ async function applyDexterCommentary(
   }
 
   try {
-    const query = [
-      "You are Dexter inside Thesis. Write only strict JSON for the Pulse Morning Brief.",
-      "Allowed keys: morning_line, yesterday_comment, interesting_bit, your_names_comment, signal, noise.",
-      "Use only these facts. No advice, no price targets, no extra tickers, no extra sources, no because.",
-      JSON.stringify({
-        as_of: report.cycle_end.slice(0, 10),
-        breadth: marketBreadth(report),
-        tape: report.market_tape,
-        user_names: report.morning_edition?.portfolio_radar ?? [],
-        macro_state: report.macro_stress.state,
-        headlines: report.morning_edition?.headline_digest ?? []
-      })
-    ].join("\n");
+    const query = buildPulseEditorialPrompt(report);
     const result = await runLiveDexterQuery(
       query,
       config,

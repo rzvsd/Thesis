@@ -546,20 +546,23 @@ test("buildMarketPulseReportHtml renders the Morning Brief reset", () => {
 
   assert.match(html, /THESIS/);
   assert.match(html, /Morning Brief/);
-  assert.match(html, /What Happened Yesterday/);
-  assert.match(html, /What Changed Since Yesterday/);
-  assert.match(html, /The Interesting Bit/);
+  assert.match(html, /The Read/);
+  assert.match(html, /The One Thing/);
+  assert.match(html, /Things Changed|One Thing Changed|Baseline Issue/);
   assert.match(html, /Your Names/);
   assert.match(html, /Things To Watch/);
   assert.match(html, /Headlines Worth Knowing/);
+  assert.match(html, /The Honest Read/);
   assert.match(html, /Stocks advance as investors weigh rates and earnings/);
   assert.match(html, /AAPL/);
   assert.match(html, /Apple Inc\./);
   assert.match(html, /\$171\.50 to \$174\.20/);
   assert.match(html, /Reports say China has attacked Taiwan/);
-  assert.match(html, /Signal vs Noise/);
   assert.match(html, /Sources and Method/);
-  assert.match(html, /Risk context before tape color|attention event moved to the front/i);
+  assert.match(html, /mode-event/);
+  assert.match(html, /reading-progress/);
+  assert.match(html, /sector-strip|spark-row/);
+  assert.match(html, /page-break-before:always/);
   assert.match(html, /break-inside:avoid/);
   assert.match(html, /page-break-inside:avoid/);
   assert.doesNotMatch(html, /VOL\. VII/);
@@ -569,7 +572,9 @@ test("buildMarketPulseReportHtml renders the Morning Brief reset", () => {
   assert.doesNotMatch(html, /Estimated read:/);
   assert.doesNotMatch(html, /Market Overview/);
   assert.doesNotMatch(html, /Lead Story/);
+  assert.doesNotMatch(html, /The Interesting Bit/);
   assert.doesNotMatch(html, /Why It Matters/);
+  assert.doesNotMatch(html, /Smart Comment/);
   assert.doesNotMatch(html, /Macro News/);
   assert.doesNotMatch(html, /The Macro Regime/);
   assert.doesNotMatch(html, /DISINFLATIONARY SLOWDOWN/);
@@ -610,6 +615,46 @@ test("buildMarketPulseReportHtml hides optional modules when typed data is absen
   assert.doesNotMatch(html, /Things To Watch/);
   assert.doesNotMatch(html, /Headlines Worth Knowing/);
   assert.doesNotMatch(html, /portfolio radar was omitted/i);
-  assert.match(html, /Signal vs Noise/);
+  assert.match(html, /The Honest Read/);
   assert.match(html, /Sources and Method/);
+});
+
+test("buildMarketPulseReportHtml adapts quiet days into a short issue", () => {
+  const report = createReport();
+  report.macro_news = undefined;
+  report.editorial_issue = {
+    ...report.editorial_issue!,
+    freshness_state: "updated",
+    prior_cycle_end: "2026-04-22T11:39:14.107Z",
+    what_changed: [],
+    what_to_watch: []
+  };
+  report.morning_edition = {
+    headline_digest: [],
+    portfolio_radar: [],
+    market_board: [],
+    today_catalysts: [],
+    sector_pulse: [],
+    coverage_notes: []
+  };
+  report.market_tape = {
+    ...report.market_tape!,
+    indices: ["SP500", "DJIA", "NASDAQCOM"].map((id, index) => ({
+      ...report.market_tape!.indices[0]!,
+      instrument_id: id,
+      label: index === 0 ? "S&P 500" : index === 1 ? "Dow Jones Industrial Average" : "Nasdaq Composite",
+      daily_change_pct: 0.08,
+      daily_change: 2,
+      direction: "flat" as const
+    })),
+    cross_asset: []
+  };
+
+  const html = buildMarketPulseReportHtml(report);
+
+  assert.match(html, /mode-quiet/);
+  assert.match(html, /Quiet day - 30 second read/);
+  assert.match(html, /Nothing Moved The Needle/);
+  assert.doesNotMatch(html, /Your Names/);
+  assert.doesNotMatch(html, /Headlines Worth Knowing/);
 });

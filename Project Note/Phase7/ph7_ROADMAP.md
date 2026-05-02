@@ -16,8 +16,9 @@
 | M5 | User Research State & Analyst Refresh Agent | Validated |
 | M6 | Guarded LLM Pulse Editorial Writer | Validated |
 | M7 | Pulse Issue Plan & Professional Newspaper Polish | Validated |
-| M8 | Pulse Morning Brief Reset | Active |
-| M9 | Dexter Evidence Quality Skills | Active |
+| M8 | Pulse Morning Brief Reset | Validated |
+| M9 | Dexter Evidence Quality Skills | Validated |
+| M10 | Pulse A+ Morning Brief Engagement Overhaul | Active |
 
 ## Status Semantics
 
@@ -212,3 +213,25 @@
 - new Pulse customer sections
 - trading advice, price targets, broker flows, social-source customer copy, public lab, or terminal behavior
 - treating M9 as the same thing as the existing `m9-due-diligence-*` prompt label
+
+---
+
+## M10 Execution Order
+
+1. restore the preserved Pulse Morning Brief revamp work deliberately
+2. expand `MarketPulseBriefEditorial` with richer narrative fields and mood
+3. add deterministic narrative facts, one-thing selection, and per-name context to the Pulse brief fact pack
+4. replace defensive fallback copy with declarative reader-facing copy
+5. add an expanded Dexter Pulse editorial prompt with deterministic tension summary
+6. overhaul the HTML/PDF renderer into adaptive quiet, normal, and event layouts
+7. add The One Thing callout, sector strip, larger sparklines, and richer name cards
+8. update render and contract tests
+9. record proof under `Project Note/Phase7/Milestones/M10/evidence/`
+
+## Non-Goals For M10
+
+- new providers or article-body scraping
+- LLM-selected facts, data values, sources, tickers, or section visibility
+- broker, screener, terminal, trading, price-target, or execution workflow
+- visible empty community-signal slots before approved data exists
+- weakening omission-forward behavior or source discipline

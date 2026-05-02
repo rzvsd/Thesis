@@ -2,7 +2,7 @@
 
 **Version:** 1.0  
 **Status:** Living Document  
-**Last Revised:** 2026-04-26  
+**Last Revised:** 2026-05-02  
 **Owner:** Product Lead + Platform Architect
 
 > This document extends `PRD.md`. It does not replace the base PRD.
@@ -117,6 +117,22 @@ M8 resets the customer-facing Pulse export around a tighter daily reading experi
 The brief may use optional LLM wording only for six short copy fields after deterministic facts and deltas exist. The LLM cannot choose sections, mutate facts, invent causality, add tickers, add sources, or create trading advice.
 
 ---
+
+## 11. M10 Pulse A+ Engagement Overhaul
+
+M10 keeps the Morning Brief shape but makes it more readable and memorable:
+
+- richer Morning Story
+- deterministic narrative facts
+- one memorable observation
+- adaptive quiet/normal/event density
+- richer user-name context
+- sector strip and expanded sparklines where typed data exists
+- evidence and method still in one footer
+
+The M8 six-field/180-word LLM copy limit is superseded by a guarded 500-word M10 limit. The LLM still cannot decide facts, mutate values, add sources, add tickers, infer unsupported causality, or create trading advice.
+
+Quiet days are intentionally short. A brief that says "nothing moved the needle" is a valid output when the reviewed data supports it.
 
 ## 7. M2 Editorial Freshness
 
