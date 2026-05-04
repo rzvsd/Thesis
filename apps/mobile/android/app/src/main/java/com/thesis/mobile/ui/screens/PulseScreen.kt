@@ -21,6 +21,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.pullrefresh.PullRefreshIndicator
 import androidx.compose.material.pullrefresh.pullRefresh
 import androidx.compose.material.pullrefresh.rememberPullRefreshState
@@ -65,6 +66,7 @@ fun PulseScreen(
     watchlist: List<String>,
     onBack: () -> Unit,
     onRunDeepDive: (String) -> Unit,
+    onExportPdf: () -> Unit,
     onRefresh: () -> Unit
 ) {
     val sections = pulse?.sections.orEmpty()
@@ -107,6 +109,7 @@ fun PulseScreen(
                         dateLabel = dateLabel,
                         generatedAt = generatedAt,
                         onBack = onBack,
+                        onExportPdf = onExportPdf,
                         onRefresh = onRefresh
                     )
                 }
@@ -218,6 +221,7 @@ private fun BriefTopBar(
     dateLabel: String,
     generatedAt: String?,
     onBack: () -> Unit,
+    onExportPdf: () -> Unit,
     onRefresh: () -> Unit
 ) {
     Row(
@@ -260,12 +264,21 @@ private fun BriefTopBar(
                 )
             }
         }
-        IconButton(onClick = onRefresh) {
-            Icon(
-                imageVector = Icons.Default.Refresh,
-                contentDescription = "Refresh Pulse",
-                tint = ThesisColors.TextMuted
-            )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onExportPdf) {
+                Icon(
+                    imageVector = Icons.Default.Share,
+                    contentDescription = "Export Pulse PDF",
+                    tint = ThesisColors.TextMuted
+                )
+            }
+            IconButton(onClick = onRefresh) {
+                Icon(
+                    imageVector = Icons.Default.Refresh,
+                    contentDescription = "Refresh Pulse",
+                    tint = ThesisColors.TextMuted
+                )
+            }
         }
     }
 }

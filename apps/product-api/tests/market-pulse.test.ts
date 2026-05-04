@@ -6,6 +6,7 @@ import { URL } from "node:url";
 import test from "node:test";
 
 import type { MarketPulseReport } from "../../../packages/contracts/src";
+import { supportsMarketPulsePdfExport } from "../src/market-pulse-render";
 import { startServer } from "../src/server";
 
 type JsonObject = Record<string, unknown>;
@@ -673,6 +674,26 @@ async function requestJson(
   };
 }
 
+async function requestBinary(
+  baseUrl: string,
+  path: string,
+  options: {
+    method?: string;
+    headers?: Record<string, string>;
+  } = {}
+): Promise<{ status: number; bytes: Buffer; headers: Headers }> {
+  const response = await fetch(`${baseUrl}${path}`, {
+    method: options.method ?? "GET",
+    headers: options.headers
+  });
+  const arrayBuffer = await response.arrayBuffer();
+  return {
+    status: response.status,
+    bytes: Buffer.from(arrayBuffer),
+    headers: response.headers
+  };
+}
+
 async function createVerifiedSession(baseUrl: string): Promise<{
   accessToken: string;
   internalToken: string;
@@ -918,6 +939,25 @@ test("market pulse dispatch stores reports, personalizes through research state,
     assert.ok(firstReport.sections.today_catalysts);
     assert.ok(firstReport.sections.portfolio_radar);
     assert.equal(firstReport.sections.headline_digest, undefined);
+    if (supportsMarketPulsePdfExport()) {
+      const pdfExport = await requestBinary(baseUrl, "/pulse/2026-03-21/export/pdf", {
+        headers: authHeaders
+      });
+      assert.equal(pdfExport.status, 200);
+      assert.equal(pdfExport.headers.get("content-type"), "application/pdf");
+      assert.match(
+        pdfExport.headers.get("content-disposition") ?? "",
+        /attachment; filename="thesis-pulse-2026-03-21-/
+      );
+      assert.equal(pdfExport.bytes.subarray(0, 4).toString("ascii"), "%PDF");
+      assert.ok(pdfExport.bytes.length > 2_000);
+
+      const latestPdfExport = await requestBinary(baseUrl, "/pulse/latest/export/pdf", {
+        headers: authHeaders
+      });
+      assert.equal(latestPdfExport.status, 200);
+      assert.equal(latestPdfExport.bytes.subarray(0, 4).toString("ascii"), "%PDF");
+    }
 
     newsState.outage = true;
     const dispatchDegraded = await requestJson(baseUrl, "/internal/pulse/dispatch", {

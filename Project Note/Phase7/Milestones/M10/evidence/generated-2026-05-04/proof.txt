@@ -1,0 +1,7 @@
+Generated Pulse Morning Brief for as_of=2026-05-04.
+Data note: data-openbb was run in DATA_OPENBB_FIXTURE_MODE=true for local artifact generation.
+Portfolio rows use Dexter price tracker fixture inputs supplied to Product API builder.
+JSON: C:\BOTS\Thesis\fintech\Project Note\Phase7\Milestones\M10\evidence\generated-2026-05-04\pulse-2026-05-04-morning-brief.json
+HTML: C:\BOTS\Thesis\fintech\Project Note\Phase7\Milestones\M10\evidence\generated-2026-05-04\pulse-2026-05-04-morning-brief.html
+PDF: C:\BOTS\Thesis\fintech\Project Note\Phase7\Milestones\M10\evidence\generated-2026-05-04\pulse-2026-05-04-morning-brief.pdf
+Adjusted cycle_end to 2026-05-04T12:00:00.000Z so the Bucharest-rendered masthead remains May 4.

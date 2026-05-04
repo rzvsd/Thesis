@@ -1,0 +1,2769 @@
+{
+  "report_id": "a0bbfcd7-4d13-4621-bf9c-23b9970c5567",
+  "schema_version": "1.0.0",
+  "generated_at": "2026-05-04T10:48:11.380Z",
+  "cycle_start": "2026-05-04T00:00:00.000Z",
+  "cycle_end": "2026-05-04T12:00:00.000Z",
+  "macro_stress": {
+    "snapshot_id": "b80366e2649b15a2629850a87ec1d568f6daa55e4dc5995b79d354dc0f81c55a",
+    "as_of": "2026-05-04",
+    "generated_at": "2026-05-04T10:48:11.380Z",
+    "state": "elevated",
+    "summary": "Macro pressure is elevated: Treasury 2Y (high), CPI-U All Items (high).",
+    "no_material_change": false,
+    "inputs": [
+      {
+        "registry_id": "TREASURY_DAILY_10Y",
+        "label": "Treasury 10Y",
+        "category": "rates",
+        "pressure": "medium",
+        "source_state": "official",
+        "value": 4.18,
+        "unit": "percent",
+        "period": "2026-05-04",
+        "reason": "Treasury 10Y is 4.18 percent (2026-05-04).",
+        "source_name": "Daily Treasury Rates - 10 Yr",
+        "retrieved_at": "2026-04-17T00:00:00.000Z"
+      },
+      {
+        "registry_id": "TREASURY_DAILY_2Y",
+        "label": "Treasury 2Y",
+        "category": "rates",
+        "pressure": "high",
+        "source_state": "official",
+        "value": 4.83,
+        "unit": "percent",
+        "period": "2026-05-04",
+        "reason": "Treasury 2Y is 4.83 percent (2026-05-04).",
+        "source_name": "Daily Treasury Rates - 2 Yr",
+        "retrieved_at": "2026-04-17T00:00:00.000Z"
+      },
+      {
+        "registry_id": "BLS_CPI_U_ALL_ITEMS",
+        "label": "CPI-U All Items",
+        "category": "inflation",
+        "pressure": "high",
+        "source_state": "official",
+        "value": 312.23,
+        "unit": "index",
+        "period": "2026-05-04",
+        "reason": "CPI-U All Items is 312.23 index (2026-05-04).",
+        "source_name": "CPI-U All Items",
+        "retrieved_at": "2026-04-17T00:00:00.000Z"
+      },
+      {
+        "registry_id": "BLS_UNEMPLOYMENT_RATE",
+        "label": "Unemployment Rate",
+        "category": "labor",
+        "pressure": "medium",
+        "source_state": "official",
+        "value": 4,
+        "unit": "percent",
+        "period": "2026-05-04",
+        "reason": "Unemployment Rate is 4 percent (2026-05-04).",
+        "source_name": "Unemployment Rate",
+        "retrieved_at": "2026-04-17T00:00:00.000Z"
+      },
+      {
+        "registry_id": "BEA_REAL_GDP",
+        "label": "Real GDP",
+        "category": "growth",
+        "pressure": "low",
+        "source_state": "official",
+        "value": 2.1,
+        "unit": "annualized_percent",
+        "period": "2026-Q2",
+        "reason": "Real GDP is 2.1 annualized_percent (2026-Q2).",
+        "source_name": "Real Gross Domestic Product",
+        "retrieved_at": "2026-04-17T00:00:00.000Z"
+      },
+      {
+        "registry_id": "EIA_WTI_SPOT",
+        "label": "WTI Spot",
+        "category": "energy",
+        "pressure": "low",
+        "source_state": "official",
+        "value": 79.42,
+        "unit": "usd_per_barrel",
+        "period": "2026-05-04",
+        "reason": "WTI Spot is 79.42 usd_per_barrel (2026-05-04).",
+        "source_name": "WTI Spot Price",
+        "retrieved_at": "2026-04-17T00:00:00.000Z"
+      }
+    ],
+    "omissions": []
+  },
+  "market_tape": {
+    "as_of": "2026-05-04",
+    "coverage_state": "full",
+    "summary": "US risk assets were broadly higher on the day. Sector leaders were XLE, XLK, XLY; laggards were XLU, XLP, XLV. Cross-asset context: VIX down by 0.78; Treasury 10Y down by 0.11; Treasury 2Y down by 0.09; WTI down by 1.70.",
+    "indices": [
+      {
+        "instrument_id": "SP500",
+        "label": "S&P 500",
+        "family": "core_index",
+        "period": "2026-05-04",
+        "value": 5484.77,
+        "previous_value": 5375.86,
+        "daily_change": 108.91,
+        "daily_change_pct": 2.0259,
+        "unit": "index",
+        "direction": "up",
+        "retrieval": {
+          "source": {
+            "source_id": "FRED_SP500",
+            "source_family": "fred",
+            "source_name": "FRED S&P 500",
+            "source_url": "https://fred.stlouisfed.org/series/SP500",
+            "agency": "Federal Reserve Bank of St. Louis",
+            "agency_series_id": "SP500"
+          },
+          "retrieved_at": "2026-05-04T10:48:11.449186Z",
+          "retrieval_status": "fresh",
+          "source_period": "2026-05-04"
+        },
+        "missing_fields": []
+      },
+      {
+        "instrument_id": "DJIA",
+        "label": "Dow Jones Industrial Average",
+        "family": "core_index",
+        "period": "2026-05-04",
+        "value": 40143.89,
+        "previous_value": 39606.57,
+        "daily_change": 537.32,
+        "daily_change_pct": 1.3566,
+        "unit": "index",
+        "direction": "up",
+        "retrieval": {
+          "source": {
+            "source_id": "FRED_DJIA",
+            "source_family": "fred",
+            "source_name": "FRED Dow Jones Industrial Average",
+            "source_url": "https://fred.stlouisfed.org/series/DJIA",
+            "agency": "Federal Reserve Bank of St. Louis",
+            "agency_series_id": "DJIA"
+          },
+          "retrieved_at": "2026-05-04T10:48:11.449186Z",
+          "retrieval_status": "fresh",
+          "source_period": "2026-05-04"
+        },
+        "missing_fields": []
+      },
+      {
+        "instrument_id": "NASDAQCOM",
+        "label": "Nasdaq Composite",
+        "family": "core_index",
+        "period": "2026-05-04",
+        "value": 17122.44,
+        "previous_value": 16708.05,
+        "daily_change": 414.39,
+        "daily_change_pct": 2.4802,
+        "unit": "index",
+        "direction": "up",
+        "retrieval": {
+          "source": {
+            "source_id": "FRED_NASDAQCOM",
+            "source_family": "fred",
+            "source_name": "FRED Nasdaq Composite",
+            "source_url": "https://fred.stlouisfed.org/series/NASDAQCOM",
+            "agency": "Federal Reserve Bank of St. Louis",
+            "agency_series_id": "NASDAQCOM"
+          },
+          "retrieved_at": "2026-05-04T10:48:11.449186Z",
+          "retrieval_status": "fresh",
+          "source_period": "2026-05-04"
+        },
+        "missing_fields": []
+      },
+      {
+        "instrument_id": "RUSSELL2000",
+        "label": "Russell 2000",
+        "family": "core_index",
+        "period": "2026-05-04",
+        "value": 2024.15,
+        "previous_value": 1987.66,
+        "daily_change": 36.49,
+        "daily_change_pct": 1.8358,
+        "unit": "index",
+        "direction": "up",
+        "retrieval": {
+          "source": {
+            "source_id": "FRED_RUSSELL2000",
+            "source_family": "fred",
+            "source_name": "FRED Russell 2000",
+            "source_url": "https://fred.stlouisfed.org/series/RUSSELL2000",
+            "agency": "Federal Reserve Bank of St. Louis",
+            "agency_series_id": "RUSSELL2000"
+          },
+          "retrieved_at": "2026-05-04T10:48:11.449186Z",
+          "retrieval_status": "fresh",
+          "source_period": "2026-05-04"
+        },
+        "missing_fields": []
+      }
+    ],
+    "sector_leadership": {
+      "basket_id": "spdr_sector_etfs",
+      "leaders": [
+        {
+          "instrument_id": "XLE",
+          "label": "XLE",
+          "family": "sector",
+          "period": "2026-05-04",
+          "value": 91.37,
+          "previous_value": 88.63,
+          "daily_change": 2.74,
+          "daily_change_pct": 3.0915,
+          "unit": "usd",
+          "direction": "up",
+          "retrieval": {
+            "source": {
+              "source_id": "FRED_XLE",
+              "source_family": "fred",
+              "source_name": "FRED XLE",
+              "source_url": "https://fred.stlouisfed.org/series/XLE",
+              "agency": "Federal Reserve Bank of St. Louis",
+              "agency_series_id": "XLE"
+            },
+            "retrieved_at": "2026-05-04T10:48:11.449186Z",
+            "retrieval_status": "fresh",
+            "source_period": "2026-05-04"
+          },
+          "missing_fields": []
+        },
+        {
+          "instrument_id": "XLK",
+          "label": "XLK",
+          "family": "sector",
+          "period": "2026-05-04",
+          "value": 214.55,
+          "previous_value": 209.94,
+          "daily_change": 4.61,
+          "daily_change_pct": 2.1959,
+          "unit": "usd",
+          "direction": "up",
+          "retrieval": {
+            "source": {
+              "source_id": "FRED_XLK",
+              "source_family": "fred",
+              "source_name": "FRED XLK",
+              "source_url": "https://fred.stlouisfed.org/series/XLK",
+              "agency": "Federal Reserve Bank of St. Louis",
+              "agency_series_id": "XLK"
+            },
+            "retrieved_at": "2026-05-04T10:48:11.449186Z",
+            "retrieval_status": "fresh",
+            "source_period": "2026-05-04"
+          },
+          "missing_fields": []
+        },
+        {
+          "instrument_id": "XLY",
+          "label": "XLY",
+          "family": "sector",
+          "period": "2026-05-04",
+          "value": 183.41,
+          "previous_value": 180.82,
+          "daily_change": 2.59,
+          "daily_change_pct": 1.4324,
+          "unit": "usd",
+          "direction": "up",
+          "retrieval": {
+            "source": {
+              "source_id": "FRED_XLY",
+              "source_family": "fred",
+              "source_name": "FRED XLY",
+              "source_url": "https://fred.stlouisfed.org/series/XLY",
+              "agency": "Federal Reserve Bank of St. Louis",
+              "agency_series_id": "XLY"
+            },
+            "retrieved_at": "2026-05-04T10:48:11.449186Z",
+            "retrieval_status": "fresh",
+            "source_period": "2026-05-04"
+          },
+          "missing_fields": []
+        }
+      ],
+      "laggards": [
+        {
+          "instrument_id": "XLU",
+          "label": "XLU",
+          "family": "sector",
+          "period": "2026-05-04",
+          "value": 66.12,
+          "previous_value": 66.55,
+          "daily_change": -0.43,
+          "daily_change_pct": -0.6461,
+          "unit": "usd",
+          "direction": "down",
+          "retrieval": {
+            "source": {
+              "source_id": "FRED_XLU",
+              "source_family": "fred",
+              "source_name": "FRED XLU",
+              "source_url": "https://fred.stlouisfed.org/series/XLU",
+              "agency": "Federal Reserve Bank of St. Louis",
+              "agency_series_id": "XLU"
+            },
+            "retrieved_at": "2026-05-04T10:48:11.449186Z",
+            "retrieval_status": "fresh",
+            "source_period": "2026-05-04"
+          },
+          "missing_fields": []
+        },
+        {
+          "instrument_id": "XLP",
+          "label": "XLP",
+          "family": "sector",
+          "period": "2026-05-04",
+          "value": 79.02,
+          "previous_value": 79.44,
+          "daily_change": -0.42,
+          "daily_change_pct": -0.5287,
+          "unit": "usd",
+          "direction": "down",
+          "retrieval": {
+            "source": {
+              "source_id": "FRED_XLP",
+              "source_family": "fred",
+              "source_name": "FRED XLP",
+              "source_url": "https://fred.stlouisfed.org/series/XLP",
+              "agency": "Federal Reserve Bank of St. Louis",
+              "agency_series_id": "XLP"
+            },
+            "retrieved_at": "2026-05-04T10:48:11.449186Z",
+            "retrieval_status": "fresh",
+            "source_period": "2026-05-04"
+          },
+          "missing_fields": []
+        },
+        {
+          "instrument_id": "XLV",
+          "label": "XLV",
+          "family": "sector",
+          "period": "2026-05-04",
+          "value": 145.73,
+          "previous_value": 146.52,
+          "daily_change": -0.79,
+          "daily_change_pct": -0.5392,
+          "unit": "usd",
+          "direction": "down",
+          "retrieval": {
+            "source": {
+              "source_id": "FRED_XLV",
+              "source_family": "fred",
+              "source_name": "FRED XLV",
+              "source_url": "https://fred.stlouisfed.org/series/XLV",
+              "agency": "Federal Reserve Bank of St. Louis",
+              "agency_series_id": "XLV"
+            },
+            "retrieved_at": "2026-05-04T10:48:11.449186Z",
+            "retrieval_status": "fresh",
+            "source_period": "2026-05-04"
+          },
+          "missing_fields": []
+        }
+      ],
+      "spread_pct": 3.6307,
+      "notable": true,
+      "note": "Leadership derived from the reviewed sector ETF basket."
+    },
+    "cross_asset": [
+      {
+        "instrument_id": "VIXCLS",
+        "label": "VIX",
+        "family": "volatility",
+        "period": "2026-05-04",
+        "value": 17.43,
+        "previous_value": 18.21,
+        "daily_change": -0.78,
+        "daily_change_pct": -4.2834,
+        "unit": "index",
+        "direction": "down",
+        "retrieval": {
+          "source": {
+            "source_id": "FRED_VIXCLS",
+            "source_family": "fred",
+            "source_name": "FRED VIX",
+            "source_url": "https://fred.stlouisfed.org/series/VIXCLS",
+            "agency": "Federal Reserve Bank of St. Louis",
+            "agency_series_id": "VIXCLS"
+          },
+          "retrieved_at": "2026-05-04T10:48:11.449186Z",
+          "retrieval_status": "fresh",
+          "source_period": "2026-05-04"
+        },
+        "missing_fields": []
+      },
+      {
+        "instrument_id": "DGS10",
+        "label": "Treasury 10Y",
+        "family": "rates",
+        "period": "2026-05-04",
+        "value": 4.29,
+        "previous_value": 4.4,
+        "daily_change": -0.11,
+        "daily_change_pct": -2.5,
+        "unit": "percent",
+        "direction": "down",
+        "retrieval": {
+          "source": {
+            "source_id": "FRED_DGS10",
+            "source_family": "fred",
+            "source_name": "FRED Treasury 10Y",
+            "source_url": "https://fred.stlouisfed.org/series/DGS10",
+            "agency": "Federal Reserve Bank of St. Louis",
+            "agency_series_id": "DGS10"
+          },
+          "retrieved_at": "2026-05-04T10:48:11.449186Z",
+          "retrieval_status": "fresh",
+          "source_period": "2026-05-04"
+        },
+        "missing_fields": []
+      },
+      {
+        "instrument_id": "DGS2",
+        "label": "Treasury 2Y",
+        "family": "rates",
+        "period": "2026-05-04",
+        "value": 4.74,
+        "previous_value": 4.83,
+        "daily_change": -0.09,
+        "daily_change_pct": -1.8634,
+        "unit": "percent",
+        "direction": "down",
+        "retrieval": {
+          "source": {
+            "source_id": "FRED_DGS2",
+            "source_family": "fred",
+            "source_name": "FRED Treasury 2Y",
+            "source_url": "https://fred.stlouisfed.org/series/DGS2",
+            "agency": "Federal Reserve Bank of St. Louis",
+            "agency_series_id": "DGS2"
+          },
+          "retrieved_at": "2026-05-04T10:48:11.449186Z",
+          "retrieval_status": "fresh",
+          "source_period": "2026-05-04"
+        },
+        "missing_fields": []
+      },
+      {
+        "instrument_id": "DCOILWTICO",
+        "label": "WTI",
+        "family": "commodity",
+        "period": "2026-05-04",
+        "value": 79.42,
+        "previous_value": 81.12,
+        "daily_change": -1.7,
+        "daily_change_pct": -2.0957,
+        "unit": "usd_per_barrel",
+        "direction": "down",
+        "retrieval": {
+          "source": {
+            "source_id": "FRED_DCOILWTICO",
+            "source_family": "fred",
+            "source_name": "FRED WTI",
+            "source_url": "https://fred.stlouisfed.org/series/DCOILWTICO",
+            "agency": "Federal Reserve Bank of St. Louis",
+            "agency_series_id": "DCOILWTICO"
+          },
+          "retrieved_at": "2026-05-04T10:48:11.449186Z",
+          "retrieval_status": "fresh",
+          "source_period": "2026-05-04"
+        },
+        "missing_fields": []
+      },
+      {
+        "instrument_id": "DTWEXBGS",
+        "label": "Nominal Broad Dollar Index",
+        "family": "currency",
+        "period": "2026-05-04",
+        "value": 124.28,
+        "previous_value": 123.74,
+        "daily_change": 0.54,
+        "daily_change_pct": 0.4364,
+        "unit": "index",
+        "direction": "up",
+        "retrieval": {
+          "source": {
+            "source_id": "FRED_DTWEXBGS",
+            "source_family": "fred",
+            "source_name": "FRED Nominal Broad Dollar Index",
+            "source_url": "https://fred.stlouisfed.org/series/DTWEXBGS",
+            "agency": "Federal Reserve Bank of St. Louis",
+            "agency_series_id": "DTWEXBGS"
+          },
+          "retrieved_at": "2026-05-04T10:48:11.449186Z",
+          "retrieval_status": "fresh",
+          "source_period": "2026-05-04"
+        },
+        "missing_fields": []
+      },
+      {
+        "instrument_id": "BAMLH0A0HYM2",
+        "label": "US High Yield OAS",
+        "family": "credit",
+        "period": "2026-05-04",
+        "value": 3.64,
+        "previous_value": 3.57,
+        "daily_change": 0.07,
+        "daily_change_pct": 1.9608,
+        "unit": "percent",
+        "direction": "up",
+        "retrieval": {
+          "source": {
+            "source_id": "FRED_BAMLH0A0HYM2",
+            "source_family": "fred",
+            "source_name": "FRED US High Yield OAS",
+            "source_url": "https://fred.stlouisfed.org/series/BAMLH0A0HYM2",
+            "agency": "Federal Reserve Bank of St. Louis",
+            "agency_series_id": "BAMLH0A0HYM2"
+          },
+          "retrieved_at": "2026-05-04T10:48:11.449186Z",
+          "retrieval_status": "fresh",
+          "source_period": "2026-05-04"
+        },
+        "missing_fields": []
+      }
+    ],
+    "retrievals": [
+      {
+        "source": {
+          "source_id": "FRED_SP500",
+          "source_family": "fred",
+          "source_name": "FRED S&P 500",
+          "source_url": "https://fred.stlouisfed.org/series/SP500",
+          "agency": "Federal Reserve Bank of St. Louis",
+          "agency_series_id": "SP500"
+        },
+        "retrieved_at": "2026-05-04T10:48:11.449186Z",
+        "retrieval_status": "fresh",
+        "source_period": "2026-05-04"
+      },
+      {
+        "source": {
+          "source_id": "FRED_DJIA",
+          "source_family": "fred",
+          "source_name": "FRED Dow Jones Industrial Average",
+          "source_url": "https://fred.stlouisfed.org/series/DJIA",
+          "agency": "Federal Reserve Bank of St. Louis",
+          "agency_series_id": "DJIA"
+        },
+        "retrieved_at": "2026-05-04T10:48:11.449186Z",
+        "retrieval_status": "fresh",
+        "source_period": "2026-05-04"
+      },
+      {
+        "source": {
+          "source_id": "FRED_NASDAQCOM",
+          "source_family": "fred",
+          "source_name": "FRED Nasdaq Composite",
+          "source_url": "https://fred.stlouisfed.org/series/NASDAQCOM",
+          "agency": "Federal Reserve Bank of St. Louis",
+          "agency_series_id": "NASDAQCOM"
+        },
+        "retrieved_at": "2026-05-04T10:48:11.449186Z",
+        "retrieval_status": "fresh",
+        "source_period": "2026-05-04"
+      },
+      {
+        "source": {
+          "source_id": "FRED_RUSSELL2000",
+          "source_family": "fred",
+          "source_name": "FRED Russell 2000",
+          "source_url": "https://fred.stlouisfed.org/series/RUSSELL2000",
+          "agency": "Federal Reserve Bank of St. Louis",
+          "agency_series_id": "RUSSELL2000"
+        },
+        "retrieved_at": "2026-05-04T10:48:11.449186Z",
+        "retrieval_status": "fresh",
+        "source_period": "2026-05-04"
+      },
+      {
+        "source": {
+          "source_id": "FRED_VIXCLS",
+          "source_family": "fred",
+          "source_name": "FRED VIX",
+          "source_url": "https://fred.stlouisfed.org/series/VIXCLS",
+          "agency": "Federal Reserve Bank of St. Louis",
+          "agency_series_id": "VIXCLS"
+        },
+        "retrieved_at": "2026-05-04T10:48:11.449186Z",
+        "retrieval_status": "fresh",
+        "source_period": "2026-05-04"
+      },
+      {
+        "source": {
+          "source_id": "FRED_DGS10",
+          "source_family": "fred",
+          "source_name": "FRED Treasury 10Y",
+          "source_url": "https://fred.stlouisfed.org/series/DGS10",
+          "agency": "Federal Reserve Bank of St. Louis",
+          "agency_series_id": "DGS10"
+        },
+        "retrieved_at": "2026-05-04T10:48:11.449186Z",
+        "retrieval_status": "fresh",
+        "source_period": "2026-05-04"
+      },
+      {
+        "source": {
+          "source_id": "FRED_DGS2",
+          "source_family": "fred",
+          "source_name": "FRED Treasury 2Y",
+          "source_url": "https://fred.stlouisfed.org/series/DGS2",
+          "agency": "Federal Reserve Bank of St. Louis",
+          "agency_series_id": "DGS2"
+        },
+        "retrieved_at": "2026-05-04T10:48:11.449186Z",
+        "retrieval_status": "fresh",
+        "source_period": "2026-05-04"
+      },
+      {
+        "source": {
+          "source_id": "FRED_DCOILWTICO",
+          "source_family": "fred",
+          "source_name": "FRED WTI",
+          "source_url": "https://fred.stlouisfed.org/series/DCOILWTICO",
+          "agency": "Federal Reserve Bank of St. Louis",
+          "agency_series_id": "DCOILWTICO"
+        },
+        "retrieved_at": "2026-05-04T10:48:11.449186Z",
+        "retrieval_status": "fresh",
+        "source_period": "2026-05-04"
+      },
+      {
+        "source": {
+          "source_id": "FRED_DTWEXBGS",
+          "source_family": "fred",
+          "source_name": "FRED Nominal Broad Dollar Index",
+          "source_url": "https://fred.stlouisfed.org/series/DTWEXBGS",
+          "agency": "Federal Reserve Bank of St. Louis",
+          "agency_series_id": "DTWEXBGS"
+        },
+        "retrieved_at": "2026-05-04T10:48:11.449186Z",
+        "retrieval_status": "fresh",
+        "source_period": "2026-05-04"
+      },
+      {
+        "source": {
+          "source_id": "FRED_BAMLH0A0HYM2",
+          "source_family": "fred",
+          "source_name": "FRED US High Yield OAS",
+          "source_url": "https://fred.stlouisfed.org/series/BAMLH0A0HYM2",
+          "agency": "Federal Reserve Bank of St. Louis",
+          "agency_series_id": "BAMLH0A0HYM2"
+        },
+        "retrieved_at": "2026-05-04T10:48:11.449186Z",
+        "retrieval_status": "fresh",
+        "source_period": "2026-05-04"
+      },
+      {
+        "source": {
+          "source_id": "FRED_XLE",
+          "source_family": "fred",
+          "source_name": "FRED XLE",
+          "source_url": "https://fred.stlouisfed.org/series/XLE",
+          "agency": "Federal Reserve Bank of St. Louis",
+          "agency_series_id": "XLE"
+        },
+        "retrieved_at": "2026-05-04T10:48:11.449186Z",
+        "retrieval_status": "fresh",
+        "source_period": "2026-05-04"
+      },
+      {
+        "source": {
+          "source_id": "FRED_XLK",
+          "source_family": "fred",
+          "source_name": "FRED XLK",
+          "source_url": "https://fred.stlouisfed.org/series/XLK",
+          "agency": "Federal Reserve Bank of St. Louis",
+          "agency_series_id": "XLK"
+        },
+        "retrieved_at": "2026-05-04T10:48:11.449186Z",
+        "retrieval_status": "fresh",
+        "source_period": "2026-05-04"
+      },
+      {
+        "source": {
+          "source_id": "FRED_XLY",
+          "source_family": "fred",
+          "source_name": "FRED XLY",
+          "source_url": "https://fred.stlouisfed.org/series/XLY",
+          "agency": "Federal Reserve Bank of St. Louis",
+          "agency_series_id": "XLY"
+        },
+        "retrieved_at": "2026-05-04T10:48:11.449186Z",
+        "retrieval_status": "fresh",
+        "source_period": "2026-05-04"
+      },
+      {
+        "source": {
+          "source_id": "FRED_XLU",
+          "source_family": "fred",
+          "source_name": "FRED XLU",
+          "source_url": "https://fred.stlouisfed.org/series/XLU",
+          "agency": "Federal Reserve Bank of St. Louis",
+          "agency_series_id": "XLU"
+        },
+        "retrieved_at": "2026-05-04T10:48:11.449186Z",
+        "retrieval_status": "fresh",
+        "source_period": "2026-05-04"
+      },
+      {
+        "source": {
+          "source_id": "FRED_XLP",
+          "source_family": "fred",
+          "source_name": "FRED XLP",
+          "source_url": "https://fred.stlouisfed.org/series/XLP",
+          "agency": "Federal Reserve Bank of St. Louis",
+          "agency_series_id": "XLP"
+        },
+        "retrieved_at": "2026-05-04T10:48:11.449186Z",
+        "retrieval_status": "fresh",
+        "source_period": "2026-05-04"
+      },
+      {
+        "source": {
+          "source_id": "FRED_XLV",
+          "source_family": "fred",
+          "source_name": "FRED XLV",
+          "source_url": "https://fred.stlouisfed.org/series/XLV",
+          "agency": "Federal Reserve Bank of St. Louis",
+          "agency_series_id": "XLV"
+        },
+        "retrieved_at": "2026-05-04T10:48:11.449186Z",
+        "retrieval_status": "fresh",
+        "source_period": "2026-05-04"
+      }
+    ],
+    "omissions": []
+  },
+  "editorial_issue": {
+    "issue_id": "pulse-editorial-a0bbfcd7-4d13-4621-bf9c-23b9970c5567",
+    "headline": "TAPE FIRMS, BUT CONFIRMATION STILL MATTERS",
+    "dek": "The reviewed tape is higher; Nasdaq led at +2.48%; VIX moved -4.28%.",
+    "lead": "Good morning. Today's Pulse separates the actual daily change from the slower macro backdrop: the tape is higher, Macro Stress is elevated, and the next watch items are kept evidence-led.",
+    "prior_cycle_end": "2026-05-01T23:59:00.000Z",
+    "freshness_state": "updated",
+    "in_this_issue": [
+      "The Tape",
+      "What Changed",
+      "Today's Calendar",
+      "Signal vs Noise",
+      "The Backdrop"
+    ],
+    "what_changed": [
+      {
+        "kind": "market_tape",
+        "title": "Tape comparison",
+        "body": "The reviewed market tape moved from higher to higher, while Macro Stress is elevated.",
+        "freshness_state": "unchanged",
+        "importance": "medium",
+        "evidence": [
+          {
+            "evidence_id": "87a7c11d-785d-4a1a-a78b-500c9984d0e8",
+            "source_type": "financial_data",
+            "source_name": "FRED S&P 500",
+            "excerpt": "S&P 500: 2.0259 index",
+            "retrieved_at": "2026-05-04T10:48:11.449186Z",
+            "url": "https://fred.stlouisfed.org/series/SP500"
+          },
+          {
+            "evidence_id": "b13b37cd-bf0d-4af0-96dd-cba198165466",
+            "source_type": "financial_data",
+            "source_name": "FRED Dow Jones Industrial Average",
+            "excerpt": "Dow Jones Industrial Average: 1.3566 index",
+            "retrieved_at": "2026-05-04T10:48:11.449186Z",
+            "url": "https://fred.stlouisfed.org/series/DJIA"
+          },
+          {
+            "evidence_id": "250d3fa3-9efd-446f-94ad-bd52703da077",
+            "source_type": "financial_data",
+            "source_name": "FRED Nasdaq Composite",
+            "excerpt": "Nasdaq Composite: 2.4802 index",
+            "retrieved_at": "2026-05-04T10:48:11.449186Z",
+            "url": "https://fred.stlouisfed.org/series/NASDAQCOM"
+          },
+          {
+            "evidence_id": "59803a73-c222-42a0-9f7d-b6c59b178ca7",
+            "source_type": "financial_data",
+            "source_name": "FRED Russell 2000",
+            "excerpt": "Russell 2000: 1.8358 index",
+            "retrieved_at": "2026-05-04T10:48:11.449186Z",
+            "url": "https://fred.stlouisfed.org/series/RUSSELL2000"
+          }
+        ]
+      },
+      {
+        "kind": "market_tape",
+        "title": "Sector leadership changed",
+        "body": "The leading sector basket changed from the prior issue.",
+        "freshness_state": "updated",
+        "importance": "medium",
+        "evidence": [
+          {
+            "evidence_id": "87a7c11d-785d-4a1a-a78b-500c9984d0e8",
+            "source_type": "financial_data",
+            "source_name": "FRED S&P 500",
+            "excerpt": "S&P 500: 2.0259 index",
+            "retrieved_at": "2026-05-04T10:48:11.449186Z",
+            "url": "https://fred.stlouisfed.org/series/SP500"
+          },
+          {
+            "evidence_id": "b13b37cd-bf0d-4af0-96dd-cba198165466",
+            "source_type": "financial_data",
+            "source_name": "FRED Dow Jones Industrial Average",
+            "excerpt": "Dow Jones Industrial Average: 1.3566 index",
+            "retrieved_at": "2026-05-04T10:48:11.449186Z",
+            "url": "https://fred.stlouisfed.org/series/DJIA"
+          },
+          {
+            "evidence_id": "250d3fa3-9efd-446f-94ad-bd52703da077",
+            "source_type": "financial_data",
+            "source_name": "FRED Nasdaq Composite",
+            "excerpt": "Nasdaq Composite: 2.4802 index",
+            "retrieved_at": "2026-05-04T10:48:11.449186Z",
+            "url": "https://fred.stlouisfed.org/series/NASDAQCOM"
+          },
+          {
+            "evidence_id": "59803a73-c222-42a0-9f7d-b6c59b178ca7",
+            "source_type": "financial_data",
+            "source_name": "FRED Russell 2000",
+            "excerpt": "Russell 2000: 1.8358 index",
+            "retrieved_at": "2026-05-04T10:48:11.449186Z",
+            "url": "https://fred.stlouisfed.org/series/RUSSELL2000"
+          }
+        ]
+      }
+    ],
+    "why_it_matters": [
+      {
+        "kind": "market_tape",
+        "title": "Conviction read",
+        "body": "A broader positive tape can improve context, but Thesis still requires confirmation from volatility, rates, credit, and company evidence before treating one day as a thesis change.",
+        "freshness_state": "updated",
+        "importance": "high",
+        "evidence": [
+          {
+            "evidence_id": "87a7c11d-785d-4a1a-a78b-500c9984d0e8",
+            "source_type": "financial_data",
+            "source_name": "FRED S&P 500",
+            "excerpt": "S&P 500: 2.0259 index",
+            "retrieved_at": "2026-05-04T10:48:11.449186Z",
+            "url": "https://fred.stlouisfed.org/series/SP500"
+          },
+          {
+            "evidence_id": "b13b37cd-bf0d-4af0-96dd-cba198165466",
+            "source_type": "financial_data",
+            "source_name": "FRED Dow Jones Industrial Average",
+            "excerpt": "Dow Jones Industrial Average: 1.3566 index",
+            "retrieved_at": "2026-05-04T10:48:11.449186Z",
+            "url": "https://fred.stlouisfed.org/series/DJIA"
+          },
+          {
+            "evidence_id": "250d3fa3-9efd-446f-94ad-bd52703da077",
+            "source_type": "financial_data",
+            "source_name": "FRED Nasdaq Composite",
+            "excerpt": "Nasdaq Composite: 2.4802 index",
+            "retrieved_at": "2026-05-04T10:48:11.449186Z",
+            "url": "https://fred.stlouisfed.org/series/NASDAQCOM"
+          },
+          {
+            "evidence_id": "59803a73-c222-42a0-9f7d-b6c59b178ca7",
+            "source_type": "financial_data",
+            "source_name": "FRED Russell 2000",
+            "excerpt": "Russell 2000: 1.8358 index",
+            "retrieved_at": "2026-05-04T10:48:11.449186Z",
+            "url": "https://fred.stlouisfed.org/series/RUSSELL2000"
+          }
+        ]
+      },
+      {
+        "kind": "macro",
+        "title": "Macro frame",
+        "body": "Macro regime: elevated. Unchanged.",
+        "freshness_state": "unchanged",
+        "importance": "medium",
+        "evidence": [
+          {
+            "evidence_id": "7baf81f9-a8c9-4d30-a4d2-c2e27fd74051",
+            "source_type": "macro_data",
+            "source_name": "Daily Treasury Rates - 10 Yr",
+            "excerpt": "Treasury 10Y is 4.18 percent (2026-05-04).",
+            "retrieved_at": "2026-04-17T00:00:00.000Z"
+          },
+          {
+            "evidence_id": "8dead0f5-3bf0-4497-8520-ed4818a68026",
+            "source_type": "macro_data",
+            "source_name": "Daily Treasury Rates - 2 Yr",
+            "excerpt": "Treasury 2Y is 4.83 percent (2026-05-04).",
+            "retrieved_at": "2026-04-17T00:00:00.000Z"
+          },
+          {
+            "evidence_id": "0b5efd94-2f7f-414e-9a18-aef17f34955f",
+            "source_type": "macro_data",
+            "source_name": "CPI-U All Items",
+            "excerpt": "CPI-U All Items is 312.23 index (2026-05-04).",
+            "retrieved_at": "2026-04-17T00:00:00.000Z"
+          },
+          {
+            "evidence_id": "55bf3bc5-615d-438e-ab9c-0d56d3ae088f",
+            "source_type": "macro_data",
+            "source_name": "Unemployment Rate",
+            "excerpt": "Unemployment Rate is 4 percent (2026-05-04).",
+            "retrieved_at": "2026-04-17T00:00:00.000Z"
+          }
+        ]
+      }
+    ],
+    "what_to_watch": [
+      {
+        "kind": "calendar",
+        "title": "AAPL earnings",
+        "body": "AAPL has an earnings event on 2026-05-04 (after the close). Tracked-name earnings checkpoint for the current Morning Brief.",
+        "watch_date": "2026-05-04",
+        "freshness_state": "new",
+        "importance": "medium",
+        "evidence": [
+          {
+            "evidence_id": "d60c7970-3ba2-42fe-9d8d-501a0d089d56",
+            "source_type": "financial_data",
+            "source_name": "Earnings calendar",
+            "excerpt": "AAPL earnings scheduled for 2026-05-04.",
+            "retrieved_at": "2026-05-04T09:00:00.000Z"
+          }
+        ]
+      },
+      {
+        "kind": "market_tape",
+        "title": "Volatility confirmation",
+        "body": "VIX moved -4.28%; watch whether volatility confirms or contradicts the equity tape.",
+        "freshness_state": "updated",
+        "importance": "medium",
+        "evidence": [
+          {
+            "evidence_id": "87a7c11d-785d-4a1a-a78b-500c9984d0e8",
+            "source_type": "financial_data",
+            "source_name": "FRED S&P 500",
+            "excerpt": "S&P 500: 2.0259 index",
+            "retrieved_at": "2026-05-04T10:48:11.449186Z",
+            "url": "https://fred.stlouisfed.org/series/SP500"
+          },
+          {
+            "evidence_id": "b13b37cd-bf0d-4af0-96dd-cba198165466",
+            "source_type": "financial_data",
+            "source_name": "FRED Dow Jones Industrial Average",
+            "excerpt": "Dow Jones Industrial Average: 1.3566 index",
+            "retrieved_at": "2026-05-04T10:48:11.449186Z",
+            "url": "https://fred.stlouisfed.org/series/DJIA"
+          },
+          {
+            "evidence_id": "250d3fa3-9efd-446f-94ad-bd52703da077",
+            "source_type": "financial_data",
+            "source_name": "FRED Nasdaq Composite",
+            "excerpt": "Nasdaq Composite: 2.4802 index",
+            "retrieved_at": "2026-05-04T10:48:11.449186Z",
+            "url": "https://fred.stlouisfed.org/series/NASDAQCOM"
+          },
+          {
+            "evidence_id": "59803a73-c222-42a0-9f7d-b6c59b178ca7",
+            "source_type": "financial_data",
+            "source_name": "FRED Russell 2000",
+            "excerpt": "Russell 2000: 1.8358 index",
+            "retrieved_at": "2026-05-04T10:48:11.449186Z",
+            "url": "https://fred.stlouisfed.org/series/RUSSELL2000"
+          }
+        ]
+      }
+    ],
+    "signal_vs_noise": [
+      {
+        "kind": "market_tape",
+        "title": "Signal",
+        "body": "Nasdaq led at +2.48%, while Dow lagged at +1.36%.",
+        "freshness_state": "updated",
+        "importance": "high",
+        "evidence": [
+          {
+            "evidence_id": "87a7c11d-785d-4a1a-a78b-500c9984d0e8",
+            "source_type": "financial_data",
+            "source_name": "FRED S&P 500",
+            "excerpt": "S&P 500: 2.0259 index",
+            "retrieved_at": "2026-05-04T10:48:11.449186Z",
+            "url": "https://fred.stlouisfed.org/series/SP500"
+          },
+          {
+            "evidence_id": "b13b37cd-bf0d-4af0-96dd-cba198165466",
+            "source_type": "financial_data",
+            "source_name": "FRED Dow Jones Industrial Average",
+            "excerpt": "Dow Jones Industrial Average: 1.3566 index",
+            "retrieved_at": "2026-05-04T10:48:11.449186Z",
+            "url": "https://fred.stlouisfed.org/series/DJIA"
+          },
+          {
+            "evidence_id": "250d3fa3-9efd-446f-94ad-bd52703da077",
+            "source_type": "financial_data",
+            "source_name": "FRED Nasdaq Composite",
+            "excerpt": "Nasdaq Composite: 2.4802 index",
+            "retrieved_at": "2026-05-04T10:48:11.449186Z",
+            "url": "https://fred.stlouisfed.org/series/NASDAQCOM"
+          },
+          {
+            "evidence_id": "59803a73-c222-42a0-9f7d-b6c59b178ca7",
+            "source_type": "financial_data",
+            "source_name": "FRED Russell 2000",
+            "excerpt": "Russell 2000: 1.8358 index",
+            "retrieved_at": "2026-05-04T10:48:11.449186Z",
+            "url": "https://fred.stlouisfed.org/series/RUSSELL2000"
+          }
+        ]
+      },
+      {
+        "kind": "context",
+        "title": "Noise",
+        "body": "One-day market movement does not prove a regime shift; the 10Y Treasury move of -2.50% is treated as context, not a standalone conclusion.",
+        "freshness_state": "unchanged",
+        "importance": "medium",
+        "evidence": [
+          {
+            "evidence_id": "7baf81f9-a8c9-4d30-a4d2-c2e27fd74051",
+            "source_type": "macro_data",
+            "source_name": "Daily Treasury Rates - 10 Yr",
+            "excerpt": "Treasury 10Y is 4.18 percent (2026-05-04).",
+            "retrieved_at": "2026-04-17T00:00:00.000Z"
+          },
+          {
+            "evidence_id": "8dead0f5-3bf0-4497-8520-ed4818a68026",
+            "source_type": "macro_data",
+            "source_name": "Daily Treasury Rates - 2 Yr",
+            "excerpt": "Treasury 2Y is 4.83 percent (2026-05-04).",
+            "retrieved_at": "2026-04-17T00:00:00.000Z"
+          },
+          {
+            "evidence_id": "0b5efd94-2f7f-414e-9a18-aef17f34955f",
+            "source_type": "macro_data",
+            "source_name": "CPI-U All Items",
+            "excerpt": "CPI-U All Items is 312.23 index (2026-05-04).",
+            "retrieved_at": "2026-04-17T00:00:00.000Z"
+          },
+          {
+            "evidence_id": "55bf3bc5-615d-438e-ab9c-0d56d3ae088f",
+            "source_type": "macro_data",
+            "source_name": "Unemployment Rate",
+            "excerpt": "Unemployment Rate is 4 percent (2026-05-04).",
+            "retrieved_at": "2026-04-17T00:00:00.000Z"
+          }
+        ]
+      }
+    ],
+    "coverage_notes": [
+      "bounded context was unavailable for this run.",
+      "news summary was unavailable for this run."
+    ],
+    "evidence": [
+      {
+        "evidence_id": "87a7c11d-785d-4a1a-a78b-500c9984d0e8",
+        "source_type": "financial_data",
+        "source_name": "FRED S&P 500",
+        "excerpt": "S&P 500: 2.0259 index",
+        "retrieved_at": "2026-05-04T10:48:11.449186Z",
+        "url": "https://fred.stlouisfed.org/series/SP500"
+      },
+      {
+        "evidence_id": "b13b37cd-bf0d-4af0-96dd-cba198165466",
+        "source_type": "financial_data",
+        "source_name": "FRED Dow Jones Industrial Average",
+        "excerpt": "Dow Jones Industrial Average: 1.3566 index",
+        "retrieved_at": "2026-05-04T10:48:11.449186Z",
+        "url": "https://fred.stlouisfed.org/series/DJIA"
+      },
+      {
+        "evidence_id": "250d3fa3-9efd-446f-94ad-bd52703da077",
+        "source_type": "financial_data",
+        "source_name": "FRED Nasdaq Composite",
+        "excerpt": "Nasdaq Composite: 2.4802 index",
+        "retrieved_at": "2026-05-04T10:48:11.449186Z",
+        "url": "https://fred.stlouisfed.org/series/NASDAQCOM"
+      },
+      {
+        "evidence_id": "59803a73-c222-42a0-9f7d-b6c59b178ca7",
+        "source_type": "financial_data",
+        "source_name": "FRED Russell 2000",
+        "excerpt": "Russell 2000: 1.8358 index",
+        "retrieved_at": "2026-05-04T10:48:11.449186Z",
+        "url": "https://fred.stlouisfed.org/series/RUSSELL2000"
+      },
+      {
+        "evidence_id": "7baf81f9-a8c9-4d30-a4d2-c2e27fd74051",
+        "source_type": "macro_data",
+        "source_name": "Daily Treasury Rates - 10 Yr",
+        "excerpt": "Treasury 10Y is 4.18 percent (2026-05-04).",
+        "retrieved_at": "2026-04-17T00:00:00.000Z"
+      },
+      {
+        "evidence_id": "8dead0f5-3bf0-4497-8520-ed4818a68026",
+        "source_type": "macro_data",
+        "source_name": "Daily Treasury Rates - 2 Yr",
+        "excerpt": "Treasury 2Y is 4.83 percent (2026-05-04).",
+        "retrieved_at": "2026-04-17T00:00:00.000Z"
+      },
+      {
+        "evidence_id": "0b5efd94-2f7f-414e-9a18-aef17f34955f",
+        "source_type": "macro_data",
+        "source_name": "CPI-U All Items",
+        "excerpt": "CPI-U All Items is 312.23 index (2026-05-04).",
+        "retrieved_at": "2026-04-17T00:00:00.000Z"
+      },
+      {
+        "evidence_id": "55bf3bc5-615d-438e-ab9c-0d56d3ae088f",
+        "source_type": "macro_data",
+        "source_name": "Unemployment Rate",
+        "excerpt": "Unemployment Rate is 4 percent (2026-05-04).",
+        "retrieved_at": "2026-04-17T00:00:00.000Z"
+      },
+      {
+        "evidence_id": "1f88fb1d-d925-41ff-a150-838d280de87d",
+        "source_type": "macro_data",
+        "source_name": "Daily Treasury Rates - 10 Yr",
+        "excerpt": "Daily Treasury Rates - 10 Yr official observation published",
+        "retrieved_at": "2026-04-17T00:00:00.000Z",
+        "url": "https://home.treasury.gov/resource-center/data-chart-center/interest-rates/pages/xml?data=daily_treasury_rates"
+      },
+      {
+        "evidence_id": "8b09e2f4-a2d4-4ddc-ba1b-4589c0131dc0",
+        "source_type": "macro_data",
+        "source_name": "Unemployment Rate",
+        "excerpt": "Unemployment Rate official observation published",
+        "retrieved_at": "2026-04-17T00:00:00.000Z",
+        "url": "https://api.bls.gov/publicAPI/v2/timeseries/data/LNS14000000"
+      }
+    ]
+  },
+  "macro_news": {
+    "as_of": "2026-05-04",
+    "state": "calm",
+    "lead": "No notable approved macro or geopolitical headline changed the issue lead.",
+    "items": [
+      {
+        "headline": "Treasury yields remain the macro checkpoint for duration-sensitive names",
+        "source_name": "Approved Macro Wire",
+        "source_url": "https://example.com/macro/2026-05-04",
+        "published_at": "2026-05-04T10:05:00.000Z",
+        "topic": "geopolitical",
+        "severity": "normal",
+        "confirmation_state": "reported",
+        "corroboration_count": 1,
+        "affected_regions": [
+          "Global"
+        ],
+        "affected_assets": [
+          "volatility",
+          "risk appetite"
+        ],
+        "why_it_matters": "This headline is relevant to the macro backdrop and is treated as context, not a trading instruction: Treasury yields remain the macro checkpoint for duration-sensitive names",
+        "evidence": [
+          {
+            "evidence_id": "ev-05f15d8053ab2",
+            "source_type": "article",
+            "source_name": "Approved Macro Wire",
+            "excerpt": "Headline only: Treasury yields remain the macro checkpoint for duration-sensitive names.",
+            "retrieved_at": "2026-05-04T09:00:00.000Z",
+            "url": "https://example.com/macro/2026-05-04"
+          }
+        ]
+      }
+    ],
+    "omissions": [],
+    "coverage_notes": []
+  },
+  "morning_edition": {
+    "headline_digest": [
+      {
+        "headline": "Stocks rise as volatility cools and large-cap technology leads the tape",
+        "source_name": "Approved Markets Desk",
+        "source_url": "https://example.com/markets/2026-05-04",
+        "published_at": "2026-05-04T10:00:00.000Z",
+        "topic": "market",
+        "evidence": [
+          {
+            "evidence_id": "ev-d2a6aaefb52fe",
+            "source_type": "article",
+            "source_name": "Approved Markets Desk",
+            "excerpt": "Headline only: Stocks rise as volatility cools and large-cap technology leads the tape.",
+            "retrieved_at": "2026-05-04T09:00:00.000Z",
+            "url": "https://example.com/markets/2026-05-04"
+          }
+        ]
+      },
+      {
+        "headline": "Treasury yields remain the macro checkpoint for duration-sensitive names",
+        "source_name": "Approved Macro Wire",
+        "source_url": "https://example.com/macro/2026-05-04",
+        "published_at": "2026-05-04T10:05:00.000Z",
+        "topic": "macro",
+        "evidence": [
+          {
+            "evidence_id": "ev-05f15d8053ab2",
+            "source_type": "article",
+            "source_name": "Approved Macro Wire",
+            "excerpt": "Headline only: Treasury yields remain the macro checkpoint for duration-sensitive names.",
+            "retrieved_at": "2026-05-04T09:00:00.000Z",
+            "url": "https://example.com/macro/2026-05-04"
+          }
+        ]
+      }
+    ],
+    "portfolio_radar": [
+      {
+        "ticker": "AAPL",
+        "company_name": "Apple Inc.",
+        "previous_close": 174.2,
+        "latest_price": 176.74,
+        "change": 2.54,
+        "change_pct": 1.46,
+        "direction": "up",
+        "reason": "Moved with technology leadership; no company-specific evidence changed the read.",
+        "evidence": [
+          {
+            "evidence_id": "ev-f7de0441133108",
+            "source_type": "financial_data",
+            "source_name": "Dexter price tracker fixture",
+            "excerpt": "AAPL: +1.46% for 2026-05-04.",
+            "retrieved_at": "2026-05-04T09:00:00.000Z",
+            "url": "app://dexter/price-tracker"
+          }
+        ]
+      },
+      {
+        "ticker": "MSFT",
+        "company_name": "Microsoft",
+        "previous_close": 420.55,
+        "latest_price": 423.88,
+        "change": 3.33,
+        "change_pct": 0.79,
+        "direction": "up",
+        "reason": "Followed the firmer tape; no confirmed company-specific catalyst stood out.",
+        "evidence": [
+          {
+            "evidence_id": "ev-2c4897bccf6ea8",
+            "source_type": "financial_data",
+            "source_name": "Dexter price tracker fixture",
+            "excerpt": "MSFT: +0.79% for 2026-05-04.",
+            "retrieved_at": "2026-05-04T09:00:00.000Z",
+            "url": "app://dexter/price-tracker"
+          }
+        ]
+      },
+      {
+        "ticker": "TSLA",
+        "company_name": "Tesla Inc.",
+        "previous_close": 180.9,
+        "latest_price": 184.62,
+        "change": 3.72,
+        "change_pct": 2.06,
+        "direction": "up",
+        "reason": "Outpaced the tape without confirmed company-specific evidence.",
+        "evidence": [
+          {
+            "evidence_id": "ev-e179cc75de649",
+            "source_type": "financial_data",
+            "source_name": "Dexter price tracker fixture",
+            "excerpt": "TSLA: +2.06% for 2026-05-04.",
+            "retrieved_at": "2026-05-04T09:00:00.000Z",
+            "url": "app://dexter/price-tracker"
+          }
+        ]
+      }
+    ],
+    "market_board": [
+      {
+        "label": "S&P 500",
+        "value": 5484.77,
+        "one_day_change": 108.91,
+        "one_day_change_pct": 2.03,
+        "direction": "up",
+        "sparkline": [
+          5376,
+          5408,
+          5431,
+          5420,
+          5485
+        ],
+        "evidence": [
+          {
+            "evidence_id": "ev-0b7e1b8c9e4dc8",
+            "source_type": "financial_data",
+            "source_name": "FRED market tape fixture",
+            "excerpt": "S&P 500: +2.03% for 2026-05-04.",
+            "retrieved_at": "2026-05-04T09:00:00.000Z",
+            "url": "https://fred.stlouisfed.org/"
+          }
+        ]
+      },
+      {
+        "label": "Nasdaq",
+        "value": 17122.44,
+        "one_day_change": 414.39,
+        "one_day_change_pct": 2.48,
+        "direction": "up",
+        "sparkline": [
+          16708,
+          16892,
+          16980,
+          16940,
+          17122
+        ],
+        "evidence": [
+          {
+            "evidence_id": "ev-71a30b37495398",
+            "source_type": "financial_data",
+            "source_name": "FRED market tape fixture",
+            "excerpt": "Nasdaq: +2.48% for 2026-05-04.",
+            "retrieved_at": "2026-05-04T09:00:00.000Z",
+            "url": "https://fred.stlouisfed.org/"
+          }
+        ]
+      },
+      {
+        "label": "Dow Jones",
+        "value": 40143.89,
+        "one_day_change": 537.32,
+        "one_day_change_pct": 1.36,
+        "direction": "up",
+        "sparkline": [
+          39607,
+          39720,
+          39905,
+          39880,
+          40144
+        ],
+        "evidence": [
+          {
+            "evidence_id": "ev-9d3e31cfc63808",
+            "source_type": "financial_data",
+            "source_name": "FRED market tape fixture",
+            "excerpt": "Dow Jones: +1.36% for 2026-05-04.",
+            "retrieved_at": "2026-05-04T09:00:00.000Z",
+            "url": "https://fred.stlouisfed.org/"
+          }
+        ]
+      }
+    ],
+    "today_catalysts": [
+      {
+        "time_label": "after the close",
+        "title": "AAPL earnings",
+        "category": "earnings",
+        "impact": "medium",
+        "evidence": [
+          {
+            "evidence_id": "f03d10b0-0760-4a81-a48c-d6de4e8ef7bd",
+            "source_type": "financial_data",
+            "source_name": "Earnings calendar",
+            "excerpt": "AAPL earnings scheduled for 2026-05-04.",
+            "retrieved_at": "2026-05-04T09:00:00.000Z"
+          }
+        ]
+      },
+      {
+        "time_label": "00:00",
+        "title": "Daily Treasury Rates - 10 Yr official observation published",
+        "category": "macro",
+        "impact": "medium",
+        "evidence": [
+          {
+            "evidence_id": "c90ac267-437a-47cd-95e6-e6dcf7e60a3b",
+            "source_type": "macro_data",
+            "source_name": "Daily Treasury Rates - 10 Yr",
+            "excerpt": "Daily Treasury Rates - 10 Yr official observation published",
+            "retrieved_at": "2026-04-17T00:00:00.000Z",
+            "url": "https://home.treasury.gov/resource-center/data-chart-center/interest-rates/pages/xml?data=daily_treasury_rates"
+          }
+        ]
+      },
+      {
+        "time_label": "00:00",
+        "title": "Unemployment Rate official observation published",
+        "category": "macro",
+        "impact": "medium",
+        "evidence": [
+          {
+            "evidence_id": "6d8a1a04-6591-4a24-b9ad-5ed15f10d07b",
+            "source_type": "macro_data",
+            "source_name": "Unemployment Rate",
+            "excerpt": "Unemployment Rate official observation published",
+            "retrieved_at": "2026-04-17T00:00:00.000Z",
+            "url": "https://api.bls.gov/publicAPI/v2/timeseries/data/LNS14000000"
+          }
+        ]
+      }
+    ],
+    "sector_pulse": [
+      {
+        "label": "Energy",
+        "change_pct": 2.12,
+        "direction": "up",
+        "evidence": [
+          {
+            "evidence_id": "ev-70f3db38dd2f5",
+            "source_type": "financial_data",
+            "source_name": "FRED market tape fixture",
+            "excerpt": "Energy: +2.12% for 2026-05-04.",
+            "retrieved_at": "2026-05-04T09:00:00.000Z",
+            "url": "https://fred.stlouisfed.org/"
+          }
+        ]
+      },
+      {
+        "label": "Technology",
+        "change_pct": 1.91,
+        "direction": "up",
+        "evidence": [
+          {
+            "evidence_id": "ev-32222fbfdf676",
+            "source_type": "financial_data",
+            "source_name": "FRED market tape fixture",
+            "excerpt": "Technology: +1.91% for 2026-05-04.",
+            "retrieved_at": "2026-05-04T09:00:00.000Z",
+            "url": "https://fred.stlouisfed.org/"
+          }
+        ]
+      },
+      {
+        "label": "Consumer Discretionary",
+        "change_pct": 1.54,
+        "direction": "up",
+        "evidence": [
+          {
+            "evidence_id": "ev-295cccd71a3268",
+            "source_type": "financial_data",
+            "source_name": "FRED market tape fixture",
+            "excerpt": "Consumer Discretionary: +1.54% for 2026-05-04.",
+            "retrieved_at": "2026-05-04T09:00:00.000Z",
+            "url": "https://fred.stlouisfed.org/"
+          }
+        ]
+      },
+      {
+        "label": "Utilities",
+        "change_pct": -0.52,
+        "direction": "down",
+        "evidence": [
+          {
+            "evidence_id": "ev-477aaab80888c8",
+            "source_type": "financial_data",
+            "source_name": "FRED market tape fixture",
+            "excerpt": "Utilities: -0.52% for 2026-05-04.",
+            "retrieved_at": "2026-05-04T09:00:00.000Z",
+            "url": "https://fred.stlouisfed.org/"
+          }
+        ]
+      }
+    ],
+    "coverage_notes": [
+      "bounded context was unavailable for this run.",
+      "news summary was unavailable for this run."
+    ]
+  },
+  "context": {
+    "source_state": "official",
+    "generated_at": "2026-05-04T10:48:11.380Z",
+    "rights": [
+      {
+        "rights_class": "official_public",
+        "display_mode": "full_text_allowed",
+        "source_rank": "official",
+        "source_type": "official_macro",
+        "can_store_full_text": true,
+        "can_display_excerpt": true,
+        "can_display_link": true,
+        "policy_reason": "Official public economic releases and filings.",
+        "reviewed_at": "2026-05-04T10:48:11.380Z"
+      }
+    ],
+    "omissions": [
+      {
+        "omission_code": "data_unavailable:bounded_context",
+        "omission_text": "data unavailable:bounded context",
+        "affects_sections": [
+          "bounded_context"
+        ]
+      },
+      {
+        "omission_code": "data_unavailable:news_summary",
+        "omission_text": "data unavailable:news summary",
+        "affects_sections": [
+          "news_summary"
+        ]
+      }
+    ]
+  },
+  "structural_context": {
+    "subject_type": "market_pulse",
+    "subject_id": "US",
+    "as_of": "2026-05-04",
+    "coverage_state": "partial",
+    "summary": "United States structural context remains broadly supportive for scaled issuers, while public-debt and inflation-related sensitivity keep the backdrop disciplined.",
+    "observations": [
+      {
+        "observation_id": "wb_ny.gdp.mktp.cd",
+        "family": "gdp_level",
+        "label": "GDP level",
+        "summary": "United States remains a very large output base, which supports demand resilience for scaled businesses.",
+        "geography": "United States",
+        "period": "2025",
+        "source_family": "world_bank",
+        "retrieval": {
+          "source": {
+            "source_id": "WB_NY.GDP.MKTP.CD",
+            "source_family": "world_bank",
+            "source_name": "World Bank GDP level",
+            "source_url": "https://api.worldbank.org/v2/country/USA/indicator/NY.GDP.MKTP.CD",
+            "agency": "World Bank",
+            "agency_series_id": "NY.GDP.MKTP.CD"
+          },
+          "retrieved_at": "2026-05-04T10:48:11.492414Z",
+          "retrieval_status": "fresh",
+          "source_period": "2025"
+        },
+        "missing_fields": [],
+        "value": 29500000000000,
+        "unit": "usd"
+      },
+      {
+        "observation_id": "wb_ny.gdp.pcap.cd",
+        "family": "gdp_per_capita",
+        "label": "GDP per capita",
+        "summary": "United States remains a high-income market, which supports premium pricing and services monetization.",
+        "geography": "United States",
+        "period": "2025",
+        "source_family": "world_bank",
+        "retrieval": {
+          "source": {
+            "source_id": "WB_NY.GDP.PCAP.CD",
+            "source_family": "world_bank",
+            "source_name": "World Bank GDP per capita",
+            "source_url": "https://api.worldbank.org/v2/country/USA/indicator/NY.GDP.PCAP.CD",
+            "agency": "World Bank",
+            "agency_series_id": "NY.GDP.PCAP.CD"
+          },
+          "retrieved_at": "2026-05-04T10:48:11.492414Z",
+          "retrieval_status": "fresh",
+          "source_period": "2025"
+        },
+        "missing_fields": [],
+        "value": 82500,
+        "unit": "usd"
+      },
+      {
+        "observation_id": "wb_sp.pop.totl",
+        "family": "population",
+        "label": "Population",
+        "summary": "United States still offers a large domestic demand base for scaled consumer and enterprise franchises.",
+        "geography": "United States",
+        "period": "2025",
+        "source_family": "world_bank",
+        "retrieval": {
+          "source": {
+            "source_id": "WB_SP.POP.TOTL",
+            "source_family": "world_bank",
+            "source_name": "World Bank Population",
+            "source_url": "https://api.worldbank.org/v2/country/USA/indicator/SP.POP.TOTL",
+            "agency": "World Bank",
+            "agency_series_id": "SP.POP.TOTL"
+          },
+          "retrieved_at": "2026-05-04T10:48:11.492414Z",
+          "retrieval_status": "fresh",
+          "source_period": "2025"
+        },
+        "missing_fields": [],
+        "value": 341000000,
+        "unit": "people"
+      },
+      {
+        "observation_id": "wb_ne.trd.gnfs.zs",
+        "family": "trade_openness",
+        "label": "Trade openness",
+        "summary": "Trade intensity stays relevant for supply-chain exposure and imported-input sensitivity.",
+        "geography": "United States",
+        "period": "2025",
+        "source_family": "world_bank",
+        "retrieval": {
+          "source": {
+            "source_id": "WB_NE.TRD.GNFS.ZS",
+            "source_family": "world_bank",
+            "source_name": "World Bank Trade openness",
+            "source_url": "https://api.worldbank.org/v2/country/USA/indicator/NE.TRD.GNFS.ZS",
+            "agency": "World Bank",
+            "agency_series_id": "NE.TRD.GNFS.ZS"
+          },
+          "retrieved_at": "2026-05-04T10:48:11.492414Z",
+          "retrieval_status": "fresh",
+          "source_period": "2025"
+        },
+        "missing_fields": [],
+        "value": 25.4,
+        "unit": "pct_gdp"
+      },
+      {
+        "observation_id": "wb_gc.dod.totl.gd.zs",
+        "family": "debt_context",
+        "label": "Government debt context",
+        "summary": "Public debt remains elevated enough to keep macro policy sensitivity in view.",
+        "geography": "United States",
+        "period": "2025",
+        "source_family": "world_bank",
+        "retrieval": {
+          "source": {
+            "source_id": "WB_GC.DOD.TOTL.GD.ZS",
+            "source_family": "world_bank",
+            "source_name": "World Bank Government debt context",
+            "source_url": "https://api.worldbank.org/v2/country/USA/indicator/GC.DOD.TOTL.GD.ZS",
+            "agency": "World Bank",
+            "agency_series_id": "GC.DOD.TOTL.GD.ZS"
+          },
+          "retrieved_at": "2026-05-04T10:48:11.492414Z",
+          "retrieval_status": "fresh",
+          "source_period": "2025"
+        },
+        "missing_fields": [],
+        "value": 121,
+        "unit": "pct_gdp"
+      },
+      {
+        "observation_id": "wb_si.pov.gini",
+        "family": "inequality",
+        "label": "Gini inequality",
+        "summary": "Inequality remains a structural watch item because it can change the breadth of demand recovery.",
+        "geography": "United States",
+        "period": "2024",
+        "source_family": "world_bank",
+        "retrieval": {
+          "source": {
+            "source_id": "WB_SI.POV.GINI",
+            "source_family": "world_bank",
+            "source_name": "World Bank Gini inequality",
+            "source_url": "https://api.worldbank.org/v2/country/USA/indicator/SI.POV.GINI",
+            "agency": "World Bank",
+            "agency_series_id": "SI.POV.GINI"
+          },
+          "retrieved_at": "2026-05-04T10:48:11.492414Z",
+          "retrieval_status": "fresh",
+          "source_period": "2024"
+        },
+        "missing_fields": [],
+        "value": 41.3,
+        "unit": "index"
+      },
+      {
+        "observation_id": "wb_lp.lpi.ovrl.xq",
+        "family": "logistics",
+        "label": "Logistics performance",
+        "summary": "Logistics quality remains supportive for national distribution and supply-chain reliability.",
+        "geography": "United States",
+        "period": "2023",
+        "source_family": "world_bank",
+        "retrieval": {
+          "source": {
+            "source_id": "WB_LP.LPI.OVRL.XQ",
+            "source_family": "world_bank",
+            "source_name": "World Bank Logistics performance",
+            "source_url": "https://api.worldbank.org/v2/country/USA/indicator/LP.LPI.OVRL.XQ",
+            "agency": "World Bank",
+            "agency_series_id": "LP.LPI.OVRL.XQ"
+          },
+          "retrieved_at": "2026-05-04T10:48:11.492414Z",
+          "retrieval_status": "fresh",
+          "source_period": "2023"
+        },
+        "missing_fields": [],
+        "value": 3.9,
+        "unit": "score"
+      },
+      {
+        "observation_id": "wb_it.net.secr.p6",
+        "family": "infrastructure",
+        "label": "Secure internet servers",
+        "summary": "Digital infrastructure remains supportive for platform distribution and enterprise adoption.",
+        "geography": "United States",
+        "period": "2024",
+        "source_family": "world_bank",
+        "retrieval": {
+          "source": {
+            "source_id": "WB_IT.NET.SECR.P6",
+            "source_family": "world_bank",
+            "source_name": "World Bank Secure internet servers",
+            "source_url": "https://api.worldbank.org/v2/country/USA/indicator/IT.NET.SECR.P6",
+            "agency": "World Bank",
+            "agency_series_id": "IT.NET.SECR.P6"
+          },
+          "retrieved_at": "2026-05-04T10:48:11.492414Z",
+          "retrieval_status": "fresh",
+          "source_period": "2024"
+        },
+        "missing_fields": [],
+        "value": 18000,
+        "unit": "per_million"
+      },
+      {
+        "observation_id": "wb_se.ter.enrr",
+        "family": "education",
+        "label": "Tertiary enrollment",
+        "summary": "Human-capital depth remains supportive for skilled-labor availability and product adoption.",
+        "geography": "United States",
+        "period": "2024",
+        "source_family": "world_bank",
+        "retrieval": {
+          "source": {
+            "source_id": "WB_SE.TER.ENRR",
+            "source_family": "world_bank",
+            "source_name": "World Bank Tertiary enrollment",
+            "source_url": "https://api.worldbank.org/v2/country/USA/indicator/SE.TER.ENRR",
+            "agency": "World Bank",
+            "agency_series_id": "SE.TER.ENRR"
+          },
+          "retrieved_at": "2026-05-04T10:48:11.492414Z",
+          "retrieval_status": "fresh",
+          "source_period": "2024"
+        },
+        "missing_fields": [],
+        "value": 88.4,
+        "unit": "pct"
+      },
+      {
+        "observation_id": "wb_eg.elc.accs.zs",
+        "family": "energy_access",
+        "label": "Energy access",
+        "summary": "Energy access is not a current bottleneck for nationwide operations.",
+        "geography": "United States",
+        "period": "2024",
+        "source_family": "world_bank",
+        "retrieval": {
+          "source": {
+            "source_id": "WB_EG.ELC.ACCS.ZS",
+            "source_family": "world_bank",
+            "source_name": "World Bank Energy access",
+            "source_url": "https://api.worldbank.org/v2/country/USA/indicator/EG.ELC.ACCS.ZS",
+            "agency": "World Bank",
+            "agency_series_id": "EG.ELC.ACCS.ZS"
+          },
+          "retrieved_at": "2026-05-04T10:48:11.492414Z",
+          "retrieval_status": "fresh",
+          "source_period": "2024"
+        },
+        "missing_fields": [],
+        "value": 100,
+        "unit": "pct"
+      },
+      {
+        "observation_id": "wb_nv.srv.totl.zs",
+        "family": "sector_mix",
+        "label": "Services share of GDP",
+        "summary": "The services mix remains supportive for higher-margin digital and recurring-revenue models.",
+        "geography": "United States",
+        "period": "2025",
+        "source_family": "world_bank",
+        "retrieval": {
+          "source": {
+            "source_id": "WB_NV.SRV.TOTL.ZS",
+            "source_family": "world_bank",
+            "source_name": "World Bank Services share of GDP",
+            "source_url": "https://api.worldbank.org/v2/country/USA/indicator/NV.SRV.TOTL.ZS",
+            "agency": "World Bank",
+            "agency_series_id": "NV.SRV.TOTL.ZS"
+          },
+          "retrieved_at": "2026-05-04T10:48:11.492414Z",
+          "retrieval_status": "fresh",
+          "source_period": "2025"
+        },
+        "missing_fields": [],
+        "value": 77.6,
+        "unit": "pct_gdp"
+      }
+    ],
+    "omissions": [
+      {
+        "omission_id": "imf-gdp-growth-outlook-unavailable",
+        "family": "gdp_growth_outlook",
+        "source_family": "imf",
+        "reason_code": "source_unavailable",
+        "reason_text": "IMF forecast inputs are optional in M6 and were not available in this run.",
+        "blocking": false
+      },
+      {
+        "omission_id": "imf-inflation-regime-unavailable",
+        "family": "inflation_regime",
+        "source_family": "imf",
+        "reason_code": "source_unavailable",
+        "reason_text": "IMF inflation-regime inputs were not available in this run.",
+        "blocking": false
+      },
+      {
+        "omission_id": "imf-fiscal-balance-unavailable",
+        "family": "fiscal_balance",
+        "source_family": "imf",
+        "reason_code": "source_unavailable",
+        "reason_text": "IMF fiscal-balance inputs were not available in this run.",
+        "blocking": false
+      },
+      {
+        "omission_id": "imf-public-debt-unavailable",
+        "family": "public_debt",
+        "source_family": "imf",
+        "reason_code": "source_unavailable",
+        "reason_text": "IMF public-debt inputs were not available in this run.",
+        "blocking": false
+      },
+      {
+        "omission_id": "imf-fx-reserves-unavailable",
+        "family": "fx_reserves",
+        "source_family": "imf",
+        "reason_code": "source_unavailable",
+        "reason_text": "IMF reserves inputs were not available in this run.",
+        "blocking": false
+      },
+      {
+        "omission_id": "imf-current-account-unavailable",
+        "family": "current_account",
+        "source_family": "imf",
+        "reason_code": "source_unavailable",
+        "reason_text": "IMF current-account inputs were not available in this run.",
+        "blocking": false
+      }
+    ],
+    "retrievals": [
+      {
+        "source": {
+          "source_id": "WB_NY.GDP.MKTP.CD",
+          "source_family": "world_bank",
+          "source_name": "World Bank GDP level",
+          "source_url": "https://api.worldbank.org/v2/country/USA/indicator/NY.GDP.MKTP.CD",
+          "agency": "World Bank",
+          "agency_series_id": "NY.GDP.MKTP.CD"
+        },
+        "retrieved_at": "2026-05-04T10:48:11.492414Z",
+        "retrieval_status": "fresh",
+        "source_period": "2025"
+      },
+      {
+        "source": {
+          "source_id": "WB_NY.GDP.PCAP.CD",
+          "source_family": "world_bank",
+          "source_name": "World Bank GDP per capita",
+          "source_url": "https://api.worldbank.org/v2/country/USA/indicator/NY.GDP.PCAP.CD",
+          "agency": "World Bank",
+          "agency_series_id": "NY.GDP.PCAP.CD"
+        },
+        "retrieved_at": "2026-05-04T10:48:11.492414Z",
+        "retrieval_status": "fresh",
+        "source_period": "2025"
+      },
+      {
+        "source": {
+          "source_id": "WB_SP.POP.TOTL",
+          "source_family": "world_bank",
+          "source_name": "World Bank Population",
+          "source_url": "https://api.worldbank.org/v2/country/USA/indicator/SP.POP.TOTL",
+          "agency": "World Bank",
+          "agency_series_id": "SP.POP.TOTL"
+        },
+        "retrieved_at": "2026-05-04T10:48:11.492414Z",
+        "retrieval_status": "fresh",
+        "source_period": "2025"
+      },
+      {
+        "source": {
+          "source_id": "WB_NE.TRD.GNFS.ZS",
+          "source_family": "world_bank",
+          "source_name": "World Bank Trade openness",
+          "source_url": "https://api.worldbank.org/v2/country/USA/indicator/NE.TRD.GNFS.ZS",
+          "agency": "World Bank",
+          "agency_series_id": "NE.TRD.GNFS.ZS"
+        },
+        "retrieved_at": "2026-05-04T10:48:11.492414Z",
+        "retrieval_status": "fresh",
+        "source_period": "2025"
+      },
+      {
+        "source": {
+          "source_id": "WB_GC.DOD.TOTL.GD.ZS",
+          "source_family": "world_bank",
+          "source_name": "World Bank Government debt context",
+          "source_url": "https://api.worldbank.org/v2/country/USA/indicator/GC.DOD.TOTL.GD.ZS",
+          "agency": "World Bank",
+          "agency_series_id": "GC.DOD.TOTL.GD.ZS"
+        },
+        "retrieved_at": "2026-05-04T10:48:11.492414Z",
+        "retrieval_status": "fresh",
+        "source_period": "2025"
+      },
+      {
+        "source": {
+          "source_id": "WB_SI.POV.GINI",
+          "source_family": "world_bank",
+          "source_name": "World Bank Gini inequality",
+          "source_url": "https://api.worldbank.org/v2/country/USA/indicator/SI.POV.GINI",
+          "agency": "World Bank",
+          "agency_series_id": "SI.POV.GINI"
+        },
+        "retrieved_at": "2026-05-04T10:48:11.492414Z",
+        "retrieval_status": "fresh",
+        "source_period": "2024"
+      },
+      {
+        "source": {
+          "source_id": "WB_LP.LPI.OVRL.XQ",
+          "source_family": "world_bank",
+          "source_name": "World Bank Logistics performance",
+          "source_url": "https://api.worldbank.org/v2/country/USA/indicator/LP.LPI.OVRL.XQ",
+          "agency": "World Bank",
+          "agency_series_id": "LP.LPI.OVRL.XQ"
+        },
+        "retrieved_at": "2026-05-04T10:48:11.492414Z",
+        "retrieval_status": "fresh",
+        "source_period": "2023"
+      },
+      {
+        "source": {
+          "source_id": "WB_IT.NET.SECR.P6",
+          "source_family": "world_bank",
+          "source_name": "World Bank Secure internet servers",
+          "source_url": "https://api.worldbank.org/v2/country/USA/indicator/IT.NET.SECR.P6",
+          "agency": "World Bank",
+          "agency_series_id": "IT.NET.SECR.P6"
+        },
+        "retrieved_at": "2026-05-04T10:48:11.492414Z",
+        "retrieval_status": "fresh",
+        "source_period": "2024"
+      },
+      {
+        "source": {
+          "source_id": "WB_SE.TER.ENRR",
+          "source_family": "world_bank",
+          "source_name": "World Bank Tertiary enrollment",
+          "source_url": "https://api.worldbank.org/v2/country/USA/indicator/SE.TER.ENRR",
+          "agency": "World Bank",
+          "agency_series_id": "SE.TER.ENRR"
+        },
+        "retrieved_at": "2026-05-04T10:48:11.492414Z",
+        "retrieval_status": "fresh",
+        "source_period": "2024"
+      },
+      {
+        "source": {
+          "source_id": "WB_EG.ELC.ACCS.ZS",
+          "source_family": "world_bank",
+          "source_name": "World Bank Energy access",
+          "source_url": "https://api.worldbank.org/v2/country/USA/indicator/EG.ELC.ACCS.ZS",
+          "agency": "World Bank",
+          "agency_series_id": "EG.ELC.ACCS.ZS"
+        },
+        "retrieved_at": "2026-05-04T10:48:11.492414Z",
+        "retrieval_status": "fresh",
+        "source_period": "2024"
+      },
+      {
+        "source": {
+          "source_id": "WB_NV.SRV.TOTL.ZS",
+          "source_family": "world_bank",
+          "source_name": "World Bank Services share of GDP",
+          "source_url": "https://api.worldbank.org/v2/country/USA/indicator/NV.SRV.TOTL.ZS",
+          "agency": "World Bank",
+          "agency_series_id": "NV.SRV.TOTL.ZS"
+        },
+        "retrieved_at": "2026-05-04T10:48:11.492414Z",
+        "retrieval_status": "fresh",
+        "source_period": "2025"
+      }
+    ]
+  },
+  "sections": {
+    "macro_stress": {
+      "section_id": "macro_stress",
+      "title": "Macro Stress",
+      "body": "Macro pressure is elevated: Treasury 2Y (high), CPI-U All Items (high).",
+      "status": "complete",
+      "evidence": [
+        {
+          "evidence_id": "7baf81f9-a8c9-4d30-a4d2-c2e27fd74051",
+          "source_type": "macro_data",
+          "source_name": "Daily Treasury Rates - 10 Yr",
+          "excerpt": "Treasury 10Y is 4.18 percent (2026-05-04).",
+          "retrieved_at": "2026-04-17T00:00:00.000Z"
+        },
+        {
+          "evidence_id": "8dead0f5-3bf0-4497-8520-ed4818a68026",
+          "source_type": "macro_data",
+          "source_name": "Daily Treasury Rates - 2 Yr",
+          "excerpt": "Treasury 2Y is 4.83 percent (2026-05-04).",
+          "retrieved_at": "2026-04-17T00:00:00.000Z"
+        },
+        {
+          "evidence_id": "0b5efd94-2f7f-414e-9a18-aef17f34955f",
+          "source_type": "macro_data",
+          "source_name": "CPI-U All Items",
+          "excerpt": "CPI-U All Items is 312.23 index (2026-05-04).",
+          "retrieved_at": "2026-04-17T00:00:00.000Z"
+        },
+        {
+          "evidence_id": "55bf3bc5-615d-438e-ab9c-0d56d3ae088f",
+          "source_type": "macro_data",
+          "source_name": "Unemployment Rate",
+          "excerpt": "Unemployment Rate is 4 percent (2026-05-04).",
+          "retrieved_at": "2026-04-17T00:00:00.000Z"
+        },
+        {
+          "evidence_id": "76f3b1dd-3169-4dfa-ae72-cbe5a92e1cc6",
+          "source_type": "macro_data",
+          "source_name": "Real Gross Domestic Product",
+          "excerpt": "Real GDP is 2.1 annualized_percent (2026-Q2).",
+          "retrieved_at": "2026-04-17T00:00:00.000Z"
+        },
+        {
+          "evidence_id": "0b03de5b-e511-439d-bd36-191d285eae30",
+          "source_type": "macro_data",
+          "source_name": "WTI Spot Price",
+          "excerpt": "WTI Spot is 79.42 usd_per_barrel (2026-05-04).",
+          "retrieved_at": "2026-04-17T00:00:00.000Z"
+        }
+      ]
+    },
+    "market_tape": {
+      "section_id": "market_tape",
+      "title": "Market Tape",
+      "body": "US risk assets were broadly higher on the day. Sector leaders were XLE, XLK, XLY; laggards were XLU, XLP, XLV. Cross-asset context: VIX down by 0.78; Treasury 10Y down by 0.11; Treasury 2Y down by 0.09; WTI down by 1.70. Sector leaders: XLE, XLK, XLY. Sector laggards: XLU, XLP, XLV.",
+      "status": "complete",
+      "evidence": [
+        {
+          "evidence_id": "87a7c11d-785d-4a1a-a78b-500c9984d0e8",
+          "source_type": "financial_data",
+          "source_name": "FRED S&P 500",
+          "excerpt": "S&P 500: 2.0259 index",
+          "retrieved_at": "2026-05-04T10:48:11.449186Z",
+          "url": "https://fred.stlouisfed.org/series/SP500"
+        },
+        {
+          "evidence_id": "b13b37cd-bf0d-4af0-96dd-cba198165466",
+          "source_type": "financial_data",
+          "source_name": "FRED Dow Jones Industrial Average",
+          "excerpt": "Dow Jones Industrial Average: 1.3566 index",
+          "retrieved_at": "2026-05-04T10:48:11.449186Z",
+          "url": "https://fred.stlouisfed.org/series/DJIA"
+        },
+        {
+          "evidence_id": "250d3fa3-9efd-446f-94ad-bd52703da077",
+          "source_type": "financial_data",
+          "source_name": "FRED Nasdaq Composite",
+          "excerpt": "Nasdaq Composite: 2.4802 index",
+          "retrieved_at": "2026-05-04T10:48:11.449186Z",
+          "url": "https://fred.stlouisfed.org/series/NASDAQCOM"
+        },
+        {
+          "evidence_id": "59803a73-c222-42a0-9f7d-b6c59b178ca7",
+          "source_type": "financial_data",
+          "source_name": "FRED Russell 2000",
+          "excerpt": "Russell 2000: 1.8358 index",
+          "retrieved_at": "2026-05-04T10:48:11.449186Z",
+          "url": "https://fred.stlouisfed.org/series/RUSSELL2000"
+        },
+        {
+          "evidence_id": "b97b4d60-e67a-439e-8be2-715e68d6b41e",
+          "source_type": "financial_data",
+          "source_name": "FRED VIX",
+          "excerpt": "VIX: -4.2834 index",
+          "retrieved_at": "2026-05-04T10:48:11.449186Z",
+          "url": "https://fred.stlouisfed.org/series/VIXCLS"
+        },
+        {
+          "evidence_id": "7bc75669-6ae5-4404-a611-e4cac8715914",
+          "source_type": "financial_data",
+          "source_name": "FRED Treasury 10Y",
+          "excerpt": "Treasury 10Y: -2.5 percent",
+          "retrieved_at": "2026-05-04T10:48:11.449186Z",
+          "url": "https://fred.stlouisfed.org/series/DGS10"
+        },
+        {
+          "evidence_id": "0ca3a6b3-9c96-473c-bc43-df1cd17fd458",
+          "source_type": "financial_data",
+          "source_name": "FRED Treasury 2Y",
+          "excerpt": "Treasury 2Y: -1.8634 percent",
+          "retrieved_at": "2026-05-04T10:48:11.449186Z",
+          "url": "https://fred.stlouisfed.org/series/DGS2"
+        },
+        {
+          "evidence_id": "cacdb616-b5d3-41ad-9d30-e0b9043bf4c5",
+          "source_type": "financial_data",
+          "source_name": "FRED WTI",
+          "excerpt": "WTI: -2.0957 usd_per_barrel",
+          "retrieved_at": "2026-05-04T10:48:11.449186Z",
+          "url": "https://fred.stlouisfed.org/series/DCOILWTICO"
+        },
+        {
+          "evidence_id": "2796e9e8-614e-47b3-b6f0-9f09652098f4",
+          "source_type": "financial_data",
+          "source_name": "FRED Nominal Broad Dollar Index",
+          "excerpt": "Nominal Broad Dollar Index: 0.4364 index",
+          "retrieved_at": "2026-05-04T10:48:11.449186Z",
+          "url": "https://fred.stlouisfed.org/series/DTWEXBGS"
+        },
+        {
+          "evidence_id": "a4e92ca4-398f-4882-88a6-adf95d249369",
+          "source_type": "financial_data",
+          "source_name": "FRED US High Yield OAS",
+          "excerpt": "US High Yield OAS: 1.9608 percent",
+          "retrieved_at": "2026-05-04T10:48:11.449186Z",
+          "url": "https://fred.stlouisfed.org/series/BAMLH0A0HYM2"
+        }
+      ]
+    },
+    "official_macro_pressure": {
+      "section_id": "official_macro_pressure",
+      "title": "Official Macro Pressure",
+      "body": "Treasury 10Y: 4.18 percent [medium] (2026-05-04). Treasury 2Y: 4.83 percent [high] (2026-05-04). CPI-U All Items: 312.23 index [high] (2026-05-04). Unemployment Rate: 4 percent [medium] (2026-05-04). Real GDP: 2.1 annualized_percent [low] (2026-Q2). WTI Spot: 79.42 usd_per_barrel [low] (2026-05-04). GDP level: United States remains a very large output base, which supports demand resilience for scaled businesses. GDP per capita: United States remains a high-income market, which supports premium pricing and services monetization. Coverage note: IMF forecast inputs are optional in M6 and were not available in this run.",
+      "status": "complete",
+      "evidence": [
+        {
+          "evidence_id": "7baf81f9-a8c9-4d30-a4d2-c2e27fd74051",
+          "source_type": "macro_data",
+          "source_name": "Daily Treasury Rates - 10 Yr",
+          "excerpt": "Treasury 10Y is 4.18 percent (2026-05-04).",
+          "retrieved_at": "2026-04-17T00:00:00.000Z"
+        },
+        {
+          "evidence_id": "8dead0f5-3bf0-4497-8520-ed4818a68026",
+          "source_type": "macro_data",
+          "source_name": "Daily Treasury Rates - 2 Yr",
+          "excerpt": "Treasury 2Y is 4.83 percent (2026-05-04).",
+          "retrieved_at": "2026-04-17T00:00:00.000Z"
+        },
+        {
+          "evidence_id": "0b5efd94-2f7f-414e-9a18-aef17f34955f",
+          "source_type": "macro_data",
+          "source_name": "CPI-U All Items",
+          "excerpt": "CPI-U All Items is 312.23 index (2026-05-04).",
+          "retrieved_at": "2026-04-17T00:00:00.000Z"
+        },
+        {
+          "evidence_id": "55bf3bc5-615d-438e-ab9c-0d56d3ae088f",
+          "source_type": "macro_data",
+          "source_name": "Unemployment Rate",
+          "excerpt": "Unemployment Rate is 4 percent (2026-05-04).",
+          "retrieved_at": "2026-04-17T00:00:00.000Z"
+        },
+        {
+          "evidence_id": "76f3b1dd-3169-4dfa-ae72-cbe5a92e1cc6",
+          "source_type": "macro_data",
+          "source_name": "Real Gross Domestic Product",
+          "excerpt": "Real GDP is 2.1 annualized_percent (2026-Q2).",
+          "retrieved_at": "2026-04-17T00:00:00.000Z"
+        },
+        {
+          "evidence_id": "0b03de5b-e511-439d-bd36-191d285eae30",
+          "source_type": "macro_data",
+          "source_name": "WTI Spot Price",
+          "excerpt": "WTI Spot is 79.42 usd_per_barrel (2026-05-04).",
+          "retrieved_at": "2026-04-17T00:00:00.000Z"
+        }
+      ]
+    },
+    "canonical_events": {
+      "section_id": "canonical_events",
+      "title": "Canonical Events",
+      "body": "1. TREASURY_DAILY_10Y - Daily Treasury Rates - 10 Yr official observation published (macro_release_published). 2. BLS_UNEMPLOYMENT_RATE - Unemployment Rate official observation published (macro_release_published).",
+      "status": "complete",
+      "evidence": [
+        {
+          "evidence_id": "1f88fb1d-d925-41ff-a150-838d280de87d",
+          "source_type": "macro_data",
+          "source_name": "Daily Treasury Rates - 10 Yr",
+          "excerpt": "Daily Treasury Rates - 10 Yr official observation published",
+          "retrieved_at": "2026-04-17T00:00:00.000Z",
+          "url": "https://home.treasury.gov/resource-center/data-chart-center/interest-rates/pages/xml?data=daily_treasury_rates"
+        },
+        {
+          "evidence_id": "8b09e2f4-a2d4-4ddc-ba1b-4589c0131dc0",
+          "source_type": "macro_data",
+          "source_name": "Unemployment Rate",
+          "excerpt": "Unemployment Rate official observation published",
+          "retrieved_at": "2026-04-17T00:00:00.000Z",
+          "url": "https://api.bls.gov/publicAPI/v2/timeseries/data/LNS14000000"
+        }
+      ]
+    },
+    "bounded_context": {
+      "section_id": "bounded_context",
+      "title": "Bounded Context",
+      "body": "Bounded first-party context retrieval was unavailable for this cycle. Population: United States still offers a large domestic demand base for scaled consumer and enterprise franchises. Secure internet servers: Digital infrastructure remains supportive for platform distribution and enterprise adoption. Coverage note: IMF forecast inputs are optional in M6 and were not available in this run.",
+      "status": "data_unavailable",
+      "evidence": []
+    },
+    "uncertainty_flags": {
+      "section_id": "uncertainty_flags",
+      "title": "Uncertainty Flags",
+      "body": "Uncertainty flags for this cycle: data_unavailable:bounded_context.",
+      "status": "data_incomplete",
+      "evidence": []
+    },
+    "market_moves": {
+      "section_id": "market_moves",
+      "title": "Market Moves",
+      "body": "Issuer filing coverage this cycle: AAPL, MSFT, TSLA.",
+      "status": "complete",
+      "evidence": [
+        {
+          "evidence_id": "63818adc-b35b-41c7-b3d5-3b636b0f299d",
+          "source_type": "filing",
+          "source_name": "SEC EDGAR company truth for AAPL",
+          "excerpt": "AAPL 10-Q filed with SEC",
+          "retrieved_at": "2026-04-17T00:00:00.000Z",
+          "url": "https://data.sec.gov/submissions/CIK0000320193.json"
+        },
+        {
+          "evidence_id": "e7680ed7-29d2-4b2a-9d22-732322681def",
+          "source_type": "filing",
+          "source_name": "SEC EDGAR company truth for MSFT",
+          "excerpt": "MSFT 10-Q filed with SEC",
+          "retrieved_at": "2026-04-17T00:00:00.000Z",
+          "url": "https://data.sec.gov/submissions/CIK0000789019.json"
+        },
+        {
+          "evidence_id": "275e1305-db02-49dd-b994-9d7651dabf76",
+          "source_type": "filing",
+          "source_name": "SEC EDGAR company truth for TSLA",
+          "excerpt": "TSLA 10-K filed with SEC",
+          "retrieved_at": "2026-04-17T00:00:00.000Z",
+          "url": "https://data.sec.gov/submissions/CIK0001318605.json"
+        }
+      ]
+    },
+    "macro_releases": {
+      "section_id": "macro_releases",
+      "title": "Macro Releases",
+      "body": "Treasury 10Y: 4.18 percent [medium] (2026-05-04). Treasury 2Y: 4.83 percent [high] (2026-05-04). CPI-U All Items: 312.23 index [high] (2026-05-04). Unemployment Rate: 4 percent [medium] (2026-05-04). Real GDP: 2.1 annualized_percent [low] (2026-Q2). WTI Spot: 79.42 usd_per_barrel [low] (2026-05-04).",
+      "status": "complete",
+      "evidence": [
+        {
+          "evidence_id": "7baf81f9-a8c9-4d30-a4d2-c2e27fd74051",
+          "source_type": "macro_data",
+          "source_name": "Daily Treasury Rates - 10 Yr",
+          "excerpt": "Treasury 10Y is 4.18 percent (2026-05-04).",
+          "retrieved_at": "2026-04-17T00:00:00.000Z"
+        },
+        {
+          "evidence_id": "8dead0f5-3bf0-4497-8520-ed4818a68026",
+          "source_type": "macro_data",
+          "source_name": "Daily Treasury Rates - 2 Yr",
+          "excerpt": "Treasury 2Y is 4.83 percent (2026-05-04).",
+          "retrieved_at": "2026-04-17T00:00:00.000Z"
+        },
+        {
+          "evidence_id": "0b5efd94-2f7f-414e-9a18-aef17f34955f",
+          "source_type": "macro_data",
+          "source_name": "CPI-U All Items",
+          "excerpt": "CPI-U All Items is 312.23 index (2026-05-04).",
+          "retrieved_at": "2026-04-17T00:00:00.000Z"
+        },
+        {
+          "evidence_id": "55bf3bc5-615d-438e-ab9c-0d56d3ae088f",
+          "source_type": "macro_data",
+          "source_name": "Unemployment Rate",
+          "excerpt": "Unemployment Rate is 4 percent (2026-05-04).",
+          "retrieved_at": "2026-04-17T00:00:00.000Z"
+        },
+        {
+          "evidence_id": "76f3b1dd-3169-4dfa-ae72-cbe5a92e1cc6",
+          "source_type": "macro_data",
+          "source_name": "Real Gross Domestic Product",
+          "excerpt": "Real GDP is 2.1 annualized_percent (2026-Q2).",
+          "retrieved_at": "2026-04-17T00:00:00.000Z"
+        },
+        {
+          "evidence_id": "0b03de5b-e511-439d-bd36-191d285eae30",
+          "source_type": "macro_data",
+          "source_name": "WTI Spot Price",
+          "excerpt": "WTI Spot is 79.42 usd_per_barrel (2026-05-04).",
+          "retrieved_at": "2026-04-17T00:00:00.000Z"
+        }
+      ]
+    },
+    "rates_fx_commodities": {
+      "section_id": "rates_fx_commodities",
+      "title": "Rates, FX, and Commodities",
+      "body": "Treasury 10Y: Treasury 10Y is 4.18 percent (2026-05-04). Treasury 2Y: Treasury 2Y is 4.83 percent (2026-05-04). WTI Spot: WTI Spot is 79.42 usd_per_barrel (2026-05-04).",
+      "status": "complete",
+      "evidence": [
+        {
+          "evidence_id": "e5cd6743-e588-4845-8c38-20d404edfa91",
+          "source_type": "macro_data",
+          "source_name": "Daily Treasury Rates - 10 Yr",
+          "excerpt": "Treasury 10Y is 4.18 percent (2026-05-04).",
+          "retrieved_at": "2026-04-17T00:00:00.000Z"
+        },
+        {
+          "evidence_id": "96ba6753-8332-4761-a6b8-ae9eb5c29349",
+          "source_type": "macro_data",
+          "source_name": "Daily Treasury Rates - 2 Yr",
+          "excerpt": "Treasury 2Y is 4.83 percent (2026-05-04).",
+          "retrieved_at": "2026-04-17T00:00:00.000Z"
+        },
+        {
+          "evidence_id": "2ee4f388-8625-44bd-86a2-59525c6cc812",
+          "source_type": "macro_data",
+          "source_name": "WTI Spot Price",
+          "excerpt": "WTI Spot is 79.42 usd_per_barrel (2026-05-04).",
+          "retrieved_at": "2026-04-17T00:00:00.000Z"
+        }
+      ]
+    },
+    "news_summary": {
+      "section_id": "news_summary",
+      "title": "News Summary",
+      "body": "No bounded context headlines were available for this cycle.",
+      "status": "data_unavailable",
+      "evidence": []
+    },
+    "macro_news": {
+      "section_id": "macro_news",
+      "title": "Macro News",
+      "body": "reported: Treasury yields remain the macro checkpoint for duration-sensitive names. This headline is relevant to the macro backdrop and is treated as context, not a trading instruction: Treasury yields remain the macro checkpoint for duration-sensitive names",
+      "status": "complete",
+      "evidence": [
+        {
+          "evidence_id": "ev-05f15d8053ab2",
+          "source_type": "article",
+          "source_name": "Approved Macro Wire",
+          "excerpt": "Headline only: Treasury yields remain the macro checkpoint for duration-sensitive names.",
+          "retrieved_at": "2026-05-04T09:00:00.000Z",
+          "url": "https://example.com/macro/2026-05-04"
+        }
+      ]
+    },
+    "market_board": {
+      "section_id": "market_board",
+      "title": "Market Board",
+      "body": "S&P 500: +2.03% Nasdaq: +2.48% Dow Jones: +1.36%",
+      "status": "complete",
+      "evidence": [
+        {
+          "evidence_id": "ev-0b7e1b8c9e4dc8",
+          "source_type": "financial_data",
+          "source_name": "FRED market tape fixture",
+          "excerpt": "S&P 500: +2.03% for 2026-05-04.",
+          "retrieved_at": "2026-05-04T09:00:00.000Z",
+          "url": "https://fred.stlouisfed.org/"
+        },
+        {
+          "evidence_id": "ev-71a30b37495398",
+          "source_type": "financial_data",
+          "source_name": "FRED market tape fixture",
+          "excerpt": "Nasdaq: +2.48% for 2026-05-04.",
+          "retrieved_at": "2026-05-04T09:00:00.000Z",
+          "url": "https://fred.stlouisfed.org/"
+        },
+        {
+          "evidence_id": "ev-9d3e31cfc63808",
+          "source_type": "financial_data",
+          "source_name": "FRED market tape fixture",
+          "excerpt": "Dow Jones: +1.36% for 2026-05-04.",
+          "retrieved_at": "2026-05-04T09:00:00.000Z",
+          "url": "https://fred.stlouisfed.org/"
+        }
+      ]
+    },
+    "portfolio_radar": {
+      "section_id": "portfolio_radar",
+      "title": "Portfolio Radar",
+      "body": "AAPL: +1.46% - Moved with technology leadership; no company-specific evidence changed the read. MSFT: +0.79% - Followed the firmer tape; no confirmed company-specific catalyst stood out. TSLA: +2.06% - Outpaced the tape without confirmed company-specific evidence.",
+      "status": "complete",
+      "evidence": [
+        {
+          "evidence_id": "ev-f7de0441133108",
+          "source_type": "financial_data",
+          "source_name": "Dexter price tracker fixture",
+          "excerpt": "AAPL: +1.46% for 2026-05-04.",
+          "retrieved_at": "2026-05-04T09:00:00.000Z",
+          "url": "app://dexter/price-tracker"
+        },
+        {
+          "evidence_id": "ev-2c4897bccf6ea8",
+          "source_type": "financial_data",
+          "source_name": "Dexter price tracker fixture",
+          "excerpt": "MSFT: +0.79% for 2026-05-04.",
+          "retrieved_at": "2026-05-04T09:00:00.000Z",
+          "url": "app://dexter/price-tracker"
+        },
+        {
+          "evidence_id": "ev-e179cc75de649",
+          "source_type": "financial_data",
+          "source_name": "Dexter price tracker fixture",
+          "excerpt": "TSLA: +2.06% for 2026-05-04.",
+          "retrieved_at": "2026-05-04T09:00:00.000Z",
+          "url": "app://dexter/price-tracker"
+        }
+      ]
+    },
+    "today_catalysts": {
+      "section_id": "today_catalysts",
+      "title": "Today's Catalysts",
+      "body": "after the close - AAPL earnings 00:00 - Daily Treasury Rates - 10 Yr official observation published 00:00 - Unemployment Rate official observation published",
+      "status": "complete",
+      "evidence": [
+        {
+          "evidence_id": "f03d10b0-0760-4a81-a48c-d6de4e8ef7bd",
+          "source_type": "financial_data",
+          "source_name": "Earnings calendar",
+          "excerpt": "AAPL earnings scheduled for 2026-05-04.",
+          "retrieved_at": "2026-05-04T09:00:00.000Z"
+        },
+        {
+          "evidence_id": "c90ac267-437a-47cd-95e6-e6dcf7e60a3b",
+          "source_type": "macro_data",
+          "source_name": "Daily Treasury Rates - 10 Yr",
+          "excerpt": "Daily Treasury Rates - 10 Yr official observation published",
+          "retrieved_at": "2026-04-17T00:00:00.000Z",
+          "url": "https://home.treasury.gov/resource-center/data-chart-center/interest-rates/pages/xml?data=daily_treasury_rates"
+        },
+        {
+          "evidence_id": "6d8a1a04-6591-4a24-b9ad-5ed15f10d07b",
+          "source_type": "macro_data",
+          "source_name": "Unemployment Rate",
+          "excerpt": "Unemployment Rate official observation published",
+          "retrieved_at": "2026-04-17T00:00:00.000Z",
+          "url": "https://api.bls.gov/publicAPI/v2/timeseries/data/LNS14000000"
+        }
+      ]
+    },
+    "headline_digest": {
+      "section_id": "headline_digest",
+      "title": "Headlines Worth Knowing",
+      "body": "Approved Markets Desk: Stocks rise as volatility cools and large-cap technology leads the tape Approved Macro Wire: Treasury yields remain the macro checkpoint for duration-sensitive names",
+      "status": "complete",
+      "evidence": [
+        {
+          "evidence_id": "ev-d2a6aaefb52fe",
+          "source_type": "article",
+          "source_name": "Approved Markets Desk",
+          "excerpt": "Headline only: Stocks rise as volatility cools and large-cap technology leads the tape.",
+          "retrieved_at": "2026-05-04T09:00:00.000Z",
+          "url": "https://example.com/markets/2026-05-04"
+        },
+        {
+          "evidence_id": "ev-05f15d8053ab2",
+          "source_type": "article",
+          "source_name": "Approved Macro Wire",
+          "excerpt": "Headline only: Treasury yields remain the macro checkpoint for duration-sensitive names.",
+          "retrieved_at": "2026-05-04T09:00:00.000Z",
+          "url": "https://example.com/macro/2026-05-04"
+        }
+      ]
+    },
+    "sector_pulse": {
+      "section_id": "sector_pulse",
+      "title": "Sector Pulse",
+      "body": "Energy: +2.12% Technology: +1.91% Consumer Discretionary: +1.54% Utilities: -0.52%",
+      "status": "complete",
+      "evidence": [
+        {
+          "evidence_id": "ev-70f3db38dd2f5",
+          "source_type": "financial_data",
+          "source_name": "FRED market tape fixture",
+          "excerpt": "Energy: +2.12% for 2026-05-04.",
+          "retrieved_at": "2026-05-04T09:00:00.000Z",
+          "url": "https://fred.stlouisfed.org/"
+        },
+        {
+          "evidence_id": "ev-32222fbfdf676",
+          "source_type": "financial_data",
+          "source_name": "FRED market tape fixture",
+          "excerpt": "Technology: +1.91% for 2026-05-04.",
+          "retrieved_at": "2026-05-04T09:00:00.000Z",
+          "url": "https://fred.stlouisfed.org/"
+        },
+        {
+          "evidence_id": "ev-295cccd71a3268",
+          "source_type": "financial_data",
+          "source_name": "FRED market tape fixture",
+          "excerpt": "Consumer Discretionary: +1.54% for 2026-05-04.",
+          "retrieved_at": "2026-05-04T09:00:00.000Z",
+          "url": "https://fred.stlouisfed.org/"
+        },
+        {
+          "evidence_id": "ev-477aaab80888c8",
+          "source_type": "financial_data",
+          "source_name": "FRED market tape fixture",
+          "excerpt": "Utilities: -0.52% for 2026-05-04.",
+          "retrieved_at": "2026-05-04T09:00:00.000Z",
+          "url": "https://fred.stlouisfed.org/"
+        }
+      ]
+    },
+    "what_changed": {
+      "section_id": "what_changed",
+      "title": "What Changed",
+      "body": "Tape comparison: The reviewed market tape moved from higher to higher, while Macro Stress is elevated. Sector leadership changed: The leading sector basket changed from the prior issue.",
+      "status": "complete",
+      "evidence": [
+        {
+          "evidence_id": "87a7c11d-785d-4a1a-a78b-500c9984d0e8",
+          "source_type": "financial_data",
+          "source_name": "FRED S&P 500",
+          "excerpt": "S&P 500: 2.0259 index",
+          "retrieved_at": "2026-05-04T10:48:11.449186Z",
+          "url": "https://fred.stlouisfed.org/series/SP500"
+        },
+        {
+          "evidence_id": "b13b37cd-bf0d-4af0-96dd-cba198165466",
+          "source_type": "financial_data",
+          "source_name": "FRED Dow Jones Industrial Average",
+          "excerpt": "Dow Jones Industrial Average: 1.3566 index",
+          "retrieved_at": "2026-05-04T10:48:11.449186Z",
+          "url": "https://fred.stlouisfed.org/series/DJIA"
+        },
+        {
+          "evidence_id": "250d3fa3-9efd-446f-94ad-bd52703da077",
+          "source_type": "financial_data",
+          "source_name": "FRED Nasdaq Composite",
+          "excerpt": "Nasdaq Composite: 2.4802 index",
+          "retrieved_at": "2026-05-04T10:48:11.449186Z",
+          "url": "https://fred.stlouisfed.org/series/NASDAQCOM"
+        },
+        {
+          "evidence_id": "59803a73-c222-42a0-9f7d-b6c59b178ca7",
+          "source_type": "financial_data",
+          "source_name": "FRED Russell 2000",
+          "excerpt": "Russell 2000: 1.8358 index",
+          "retrieved_at": "2026-05-04T10:48:11.449186Z",
+          "url": "https://fred.stlouisfed.org/series/RUSSELL2000"
+        },
+        {
+          "evidence_id": "87a7c11d-785d-4a1a-a78b-500c9984d0e8",
+          "source_type": "financial_data",
+          "source_name": "FRED S&P 500",
+          "excerpt": "S&P 500: 2.0259 index",
+          "retrieved_at": "2026-05-04T10:48:11.449186Z",
+          "url": "https://fred.stlouisfed.org/series/SP500"
+        },
+        {
+          "evidence_id": "b13b37cd-bf0d-4af0-96dd-cba198165466",
+          "source_type": "financial_data",
+          "source_name": "FRED Dow Jones Industrial Average",
+          "excerpt": "Dow Jones Industrial Average: 1.3566 index",
+          "retrieved_at": "2026-05-04T10:48:11.449186Z",
+          "url": "https://fred.stlouisfed.org/series/DJIA"
+        },
+        {
+          "evidence_id": "250d3fa3-9efd-446f-94ad-bd52703da077",
+          "source_type": "financial_data",
+          "source_name": "FRED Nasdaq Composite",
+          "excerpt": "Nasdaq Composite: 2.4802 index",
+          "retrieved_at": "2026-05-04T10:48:11.449186Z",
+          "url": "https://fred.stlouisfed.org/series/NASDAQCOM"
+        },
+        {
+          "evidence_id": "59803a73-c222-42a0-9f7d-b6c59b178ca7",
+          "source_type": "financial_data",
+          "source_name": "FRED Russell 2000",
+          "excerpt": "Russell 2000: 1.8358 index",
+          "retrieved_at": "2026-05-04T10:48:11.449186Z",
+          "url": "https://fred.stlouisfed.org/series/RUSSELL2000"
+        }
+      ]
+    },
+    "why_it_matters": {
+      "section_id": "why_it_matters",
+      "title": "Why It Matters",
+      "body": "Conviction read: A broader positive tape can improve context, but Thesis still requires confirmation from volatility, rates, credit, and company evidence before treating one day as a thesis change. Macro frame: Macro regime: elevated. Unchanged.",
+      "status": "complete",
+      "evidence": [
+        {
+          "evidence_id": "87a7c11d-785d-4a1a-a78b-500c9984d0e8",
+          "source_type": "financial_data",
+          "source_name": "FRED S&P 500",
+          "excerpt": "S&P 500: 2.0259 index",
+          "retrieved_at": "2026-05-04T10:48:11.449186Z",
+          "url": "https://fred.stlouisfed.org/series/SP500"
+        },
+        {
+          "evidence_id": "b13b37cd-bf0d-4af0-96dd-cba198165466",
+          "source_type": "financial_data",
+          "source_name": "FRED Dow Jones Industrial Average",
+          "excerpt": "Dow Jones Industrial Average: 1.3566 index",
+          "retrieved_at": "2026-05-04T10:48:11.449186Z",
+          "url": "https://fred.stlouisfed.org/series/DJIA"
+        },
+        {
+          "evidence_id": "250d3fa3-9efd-446f-94ad-bd52703da077",
+          "source_type": "financial_data",
+          "source_name": "FRED Nasdaq Composite",
+          "excerpt": "Nasdaq Composite: 2.4802 index",
+          "retrieved_at": "2026-05-04T10:48:11.449186Z",
+          "url": "https://fred.stlouisfed.org/series/NASDAQCOM"
+        },
+        {
+          "evidence_id": "59803a73-c222-42a0-9f7d-b6c59b178ca7",
+          "source_type": "financial_data",
+          "source_name": "FRED Russell 2000",
+          "excerpt": "Russell 2000: 1.8358 index",
+          "retrieved_at": "2026-05-04T10:48:11.449186Z",
+          "url": "https://fred.stlouisfed.org/series/RUSSELL2000"
+        },
+        {
+          "evidence_id": "7baf81f9-a8c9-4d30-a4d2-c2e27fd74051",
+          "source_type": "macro_data",
+          "source_name": "Daily Treasury Rates - 10 Yr",
+          "excerpt": "Treasury 10Y is 4.18 percent (2026-05-04).",
+          "retrieved_at": "2026-04-17T00:00:00.000Z"
+        },
+        {
+          "evidence_id": "8dead0f5-3bf0-4497-8520-ed4818a68026",
+          "source_type": "macro_data",
+          "source_name": "Daily Treasury Rates - 2 Yr",
+          "excerpt": "Treasury 2Y is 4.83 percent (2026-05-04).",
+          "retrieved_at": "2026-04-17T00:00:00.000Z"
+        },
+        {
+          "evidence_id": "0b5efd94-2f7f-414e-9a18-aef17f34955f",
+          "source_type": "macro_data",
+          "source_name": "CPI-U All Items",
+          "excerpt": "CPI-U All Items is 312.23 index (2026-05-04).",
+          "retrieved_at": "2026-04-17T00:00:00.000Z"
+        },
+        {
+          "evidence_id": "55bf3bc5-615d-438e-ab9c-0d56d3ae088f",
+          "source_type": "macro_data",
+          "source_name": "Unemployment Rate",
+          "excerpt": "Unemployment Rate is 4 percent (2026-05-04).",
+          "retrieved_at": "2026-04-17T00:00:00.000Z"
+        }
+      ]
+    },
+    "what_to_watch": {
+      "section_id": "what_to_watch",
+      "title": "What To Watch",
+      "body": "AAPL earnings: AAPL has an earnings event on 2026-05-04 (after the close). Tracked-name earnings checkpoint for the current Morning Brief. Volatility confirmation: VIX moved -4.28%; watch whether volatility confirms or contradicts the equity tape.",
+      "status": "complete",
+      "evidence": [
+        {
+          "evidence_id": "d60c7970-3ba2-42fe-9d8d-501a0d089d56",
+          "source_type": "financial_data",
+          "source_name": "Earnings calendar",
+          "excerpt": "AAPL earnings scheduled for 2026-05-04.",
+          "retrieved_at": "2026-05-04T09:00:00.000Z"
+        },
+        {
+          "evidence_id": "87a7c11d-785d-4a1a-a78b-500c9984d0e8",
+          "source_type": "financial_data",
+          "source_name": "FRED S&P 500",
+          "excerpt": "S&P 500: 2.0259 index",
+          "retrieved_at": "2026-05-04T10:48:11.449186Z",
+          "url": "https://fred.stlouisfed.org/series/SP500"
+        },
+        {
+          "evidence_id": "b13b37cd-bf0d-4af0-96dd-cba198165466",
+          "source_type": "financial_data",
+          "source_name": "FRED Dow Jones Industrial Average",
+          "excerpt": "Dow Jones Industrial Average: 1.3566 index",
+          "retrieved_at": "2026-05-04T10:48:11.449186Z",
+          "url": "https://fred.stlouisfed.org/series/DJIA"
+        },
+        {
+          "evidence_id": "250d3fa3-9efd-446f-94ad-bd52703da077",
+          "source_type": "financial_data",
+          "source_name": "FRED Nasdaq Composite",
+          "excerpt": "Nasdaq Composite: 2.4802 index",
+          "retrieved_at": "2026-05-04T10:48:11.449186Z",
+          "url": "https://fred.stlouisfed.org/series/NASDAQCOM"
+        },
+        {
+          "evidence_id": "59803a73-c222-42a0-9f7d-b6c59b178ca7",
+          "source_type": "financial_data",
+          "source_name": "FRED Russell 2000",
+          "excerpt": "Russell 2000: 1.8358 index",
+          "retrieved_at": "2026-05-04T10:48:11.449186Z",
+          "url": "https://fred.stlouisfed.org/series/RUSSELL2000"
+        }
+      ]
+    },
+    "signal_vs_noise": {
+      "section_id": "signal_vs_noise",
+      "title": "Signal vs Noise",
+      "body": "Signal: Nasdaq led at +2.48%, while Dow lagged at +1.36%. Noise: One-day market movement does not prove a regime shift; the 10Y Treasury move of -2.50% is treated as context, not a standalone conclusion.",
+      "status": "complete",
+      "evidence": [
+        {
+          "evidence_id": "87a7c11d-785d-4a1a-a78b-500c9984d0e8",
+          "source_type": "financial_data",
+          "source_name": "FRED S&P 500",
+          "excerpt": "S&P 500: 2.0259 index",
+          "retrieved_at": "2026-05-04T10:48:11.449186Z",
+          "url": "https://fred.stlouisfed.org/series/SP500"
+        },
+        {
+          "evidence_id": "b13b37cd-bf0d-4af0-96dd-cba198165466",
+          "source_type": "financial_data",
+          "source_name": "FRED Dow Jones Industrial Average",
+          "excerpt": "Dow Jones Industrial Average: 1.3566 index",
+          "retrieved_at": "2026-05-04T10:48:11.449186Z",
+          "url": "https://fred.stlouisfed.org/series/DJIA"
+        },
+        {
+          "evidence_id": "250d3fa3-9efd-446f-94ad-bd52703da077",
+          "source_type": "financial_data",
+          "source_name": "FRED Nasdaq Composite",
+          "excerpt": "Nasdaq Composite: 2.4802 index",
+          "retrieved_at": "2026-05-04T10:48:11.449186Z",
+          "url": "https://fred.stlouisfed.org/series/NASDAQCOM"
+        },
+        {
+          "evidence_id": "59803a73-c222-42a0-9f7d-b6c59b178ca7",
+          "source_type": "financial_data",
+          "source_name": "FRED Russell 2000",
+          "excerpt": "Russell 2000: 1.8358 index",
+          "retrieved_at": "2026-05-04T10:48:11.449186Z",
+          "url": "https://fred.stlouisfed.org/series/RUSSELL2000"
+        },
+        {
+          "evidence_id": "7baf81f9-a8c9-4d30-a4d2-c2e27fd74051",
+          "source_type": "macro_data",
+          "source_name": "Daily Treasury Rates - 10 Yr",
+          "excerpt": "Treasury 10Y is 4.18 percent (2026-05-04).",
+          "retrieved_at": "2026-04-17T00:00:00.000Z"
+        },
+        {
+          "evidence_id": "8dead0f5-3bf0-4497-8520-ed4818a68026",
+          "source_type": "macro_data",
+          "source_name": "Daily Treasury Rates - 2 Yr",
+          "excerpt": "Treasury 2Y is 4.83 percent (2026-05-04).",
+          "retrieved_at": "2026-04-17T00:00:00.000Z"
+        },
+        {
+          "evidence_id": "0b5efd94-2f7f-414e-9a18-aef17f34955f",
+          "source_type": "macro_data",
+          "source_name": "CPI-U All Items",
+          "excerpt": "CPI-U All Items is 312.23 index (2026-05-04).",
+          "retrieved_at": "2026-04-17T00:00:00.000Z"
+        },
+        {
+          "evidence_id": "55bf3bc5-615d-438e-ab9c-0d56d3ae088f",
+          "source_type": "macro_data",
+          "source_name": "Unemployment Rate",
+          "excerpt": "Unemployment Rate is 4 percent (2026-05-04).",
+          "retrieved_at": "2026-04-17T00:00:00.000Z"
+        }
+      ]
+    }
+  },
+  "flags": [
+    "data_unavailable:bounded_context",
+    "data_unavailable:news_summary"
+  ],
+  "confidence": {
+    "score": 0.48,
+    "label": "low",
+    "limiting_factors": [
+      "data unavailable:bounded context",
+      "data unavailable:news summary"
+    ]
+  }
+}

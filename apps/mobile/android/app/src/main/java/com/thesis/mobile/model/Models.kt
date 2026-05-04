@@ -507,7 +507,8 @@ data class DeepDiveReportView(
 data class PulseReportView(
     val reportId: String,
     val generatedAt: String,
-    val sections: List<SectionView>
+    val sections: List<SectionView>,
+    val cycleEnd: String? = null
 )
 
 data class WarRoomPhaseView(

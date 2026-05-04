@@ -21,6 +21,10 @@ interface PulseRuntime {
   artifactStore: ArtifactStore;
 }
 
+interface PulsePdfExportResult {
+  buffer: Buffer;
+}
+
 interface RequestMeta {
   requestId: string;
 }
@@ -53,6 +57,14 @@ export interface PulseRouteDependencies<TRuntime extends PulseRuntime> {
     payload: unknown,
     headers?: Record<string, string>
   ) => void;
+  sendBinary: (
+    response: ServerResponse,
+    statusCode: number,
+    body: Buffer,
+    contentType: string,
+    headers?: Record<string, string>
+  ) => void;
+  buildMarketPulsePdfExport: (report: MarketPulseReport) => PulsePdfExportResult;
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -183,15 +195,108 @@ async function personalizePulseForUser<TRuntime extends PulseRuntime>(
   };
 }
 
+async function loadPulseReportByDate<TRuntime extends PulseRuntime>(
+  runtime: TRuntime,
+  reportDate: string
+): Promise<{ metadataId: string; report: MarketPulseReport } | undefined> {
+  const reportMetadata = await runtime.store.getReportByTypeAndDate("market_pulse", reportDate);
+  if (!reportMetadata) {
+    return undefined;
+  }
+
+  const report = await runtime.artifactStore.readReport(reportMetadata.artifactKey);
+  if (!report || !isMarketPulseReport(report)) {
+    return undefined;
+  }
+
+  return {
+    metadataId: reportMetadata.id,
+    report
+  };
+}
+
+async function loadLatestPulseReport<TRuntime extends PulseRuntime>(
+  runtime: TRuntime
+): Promise<{ metadataId: string; report: MarketPulseReport } | undefined> {
+  const reportMetadata = await runtime.store.getLatestReportByType("market_pulse");
+  if (!reportMetadata) {
+    return undefined;
+  }
+
+  const report = await runtime.artifactStore.readReport(reportMetadata.artifactKey);
+  if (!report || !isMarketPulseReport(report)) {
+    return undefined;
+  }
+
+  return {
+    metadataId: reportMetadata.id,
+    report
+  };
+}
+
+function pulsePdfFilename(report: MarketPulseReport): string {
+  const date = report.cycle_end.slice(0, 10);
+  const safeReportId = report.report_id.replace(/[^A-Za-z0-9._-]/g, "-");
+  return `thesis-pulse-${date}-${safeReportId}.pdf`;
+}
+
+async function sendPulsePdfExport<TRuntime extends PulseRuntime>(
+  context: PulseRouteExecutionContext<TRuntime>,
+  deps: PulseRouteDependencies<TRuntime>,
+  loaded: { metadataId: string; report: MarketPulseReport },
+  reportDate: string
+): Promise<void> {
+  const { response, runtime, meta, auth, pathname } = context;
+  const personalized = await personalizePulseForUser(
+    runtime,
+    loaded.report,
+    auth.userId,
+    reportDate
+  );
+
+  try {
+    const pdf = deps.buildMarketPulsePdfExport(personalized.report);
+    await deps.appendAudit(
+      runtime,
+      "pulse.report_exported_pdf",
+      {
+        request_id: meta.requestId,
+        route: pathname,
+        report_id: loaded.metadataId,
+        personalized_report_id: personalized.report.report_id,
+        research_state_id: personalized.researchStateId,
+        date: reportDate
+      },
+      auth.userId
+    );
+
+    deps.sendBinary(response, 200, pdf.buffer, "application/pdf", {
+      "content-disposition": `attachment; filename="${pulsePdfFilename(personalized.report)}"`,
+      "cache-control": "private, no-store",
+      vary: "Authorization"
+    });
+  } catch (error) {
+    logWarn("Pulse PDF export failed.", {
+      report_id: loaded.metadataId,
+      user_id: auth.userId,
+      error_message: error instanceof Error ? error.message : String(error)
+    });
+    deps.sendJson(response, 500, {
+      error: "internal_error",
+      error_message: "Pulse PDF export failed."
+    });
+  }
+}
+
 export async function handlePulseRoutes<TRuntime extends PulseRuntime>(
   context: PulseRouteExecutionContext<TRuntime>,
   deps: PulseRouteDependencies<TRuntime>
 ): Promise<boolean> {
   const { method, pathname, response, runtime, meta, auth } = context;
 
-  if (method === "GET" && pathname === "/pulse/latest") {
-    const reportMetadata = await runtime.store.getLatestReportByType("market_pulse");
-    if (!reportMetadata) {
+  if (method === "GET" && pathname === "/pulse/latest/export/pdf") {
+    const loaded = await loadLatestPulseReport(runtime);
+    if (!loaded) {
       deps.sendJson(response, 404, {
         error: "report_not_found",
         error_message: "No Market Pulse report is available yet."
@@ -199,20 +304,59 @@ export async function handlePulseRoutes<TRuntime extends PulseRuntime>(
       return true;
     }
 
-    const report = await runtime.artifactStore.readReport(reportMetadata.artifactKey);
-    if (!report || !isMarketPulseReport(report)) {
+    await sendPulsePdfExport(
+      context,
+      deps,
+      loaded,
+      loaded.report.cycle_end.slice(0, 10)
+    );
+    return true;
+  }
+
+  if (method === "GET" && pathname.startsWith("/pulse/") && pathname.endsWith("/export/pdf")) {
+    const parts = pathname.split("/").filter(Boolean);
+    if (parts.length !== 4 || parts[0] !== "pulse" || parts[2] !== "export" || parts[3] !== "pdf") {
+      deps.sendJson(response, 404, { status: "not_found" });
+      return true;
+    }
+
+    const reportDate = deps.normalizeDateInput(parts[1] ?? "");
+    if (!reportDate) {
+      deps.sendJson(response, 422, {
+        error: "validation_failed",
+        error_message: "date must be in YYYY-MM-DD format."
+      });
+      return true;
+    }
+
+    const loaded = await loadPulseReportByDate(runtime, reportDate);
+    if (!loaded) {
       deps.sendJson(response, 404, {
         error: "report_not_found",
-        error_message: "Market Pulse report artifact missing."
+        error_message: "Market Pulse report not found for the requested date."
+      });
+      return true;
+    }
+
+    await sendPulsePdfExport(context, deps, loaded, reportDate);
+    return true;
+  }
+
+  if (method === "GET" && pathname === "/pulse/latest") {
+    const loaded = await loadLatestPulseReport(runtime);
+    if (!loaded) {
+      deps.sendJson(response, 404, {
+        error: "report_not_found",
+        error_message: "No Market Pulse report is available yet."
       });
       return true;
     }
 
     const personalized = await personalizePulseForUser(
       runtime,
-      report,
+      loaded.report,
       auth.userId,
-      report.cycle_end.slice(0, 10)
+      loaded.report.cycle_end.slice(0, 10)
     );
 
     await deps.appendAudit(
@@ -221,7 +365,7 @@ export async function handlePulseRoutes<TRuntime extends PulseRuntime>(
       {
         request_id: meta.requestId,
         route: pathname,
-        report_id: reportMetadata.id,
+        report_id: loaded.metadataId,
         research_state_id: personalized.researchStateId
       },
       auth.userId
@@ -247,8 +391,8 @@ export async function handlePulseRoutes<TRuntime extends PulseRuntime>(
       return true;
     }
 
-    const reportMetadata = await runtime.store.getReportByTypeAndDate("market_pulse", reportDate);
-    if (!reportMetadata) {
+    const loaded = await loadPulseReportByDate(runtime, reportDate);
+    if (!loaded) {
       deps.sendJson(response, 404, {
         error: "report_not_found",
         error_message: "Market Pulse report not found for the requested date."
@@ -256,16 +400,7 @@ export async function handlePulseRoutes<TRuntime extends PulseRuntime>(
       return true;
     }
 
-    const report = await runtime.artifactStore.readReport(reportMetadata.artifactKey);
-    if (!report || !isMarketPulseReport(report)) {
-      deps.sendJson(response, 404, {
-        error: "report_not_found",
-        error_message: "Market Pulse report artifact missing."
-      });
-      return true;
-    }
-
-    const personalized = await personalizePulseForUser(runtime, report, auth.userId, reportDate);
+    const personalized = await personalizePulseForUser(runtime, loaded.report, auth.userId, reportDate);
 
     await deps.appendAudit(
       runtime,
@@ -273,7 +408,7 @@ export async function handlePulseRoutes<TRuntime extends PulseRuntime>(
       {
         request_id: meta.requestId,
         route: pathname,
-        report_id: reportMetadata.id,
+        report_id: loaded.metadataId,
         date: reportDate,
         research_state_id: personalized.researchStateId
       },

@@ -163,6 +163,28 @@ internal fun createPdfExport(
     )
 }
 
+internal fun createPulsePdfExport(
+    context: Context,
+    pdfBytes: ByteArray,
+    filename: String
+): ExportArtifact {
+    val outputDir = File(context.cacheDir, "exports").apply { mkdirs() }
+    val safeFilename = filename
+        .ifBlank { "thesis-pulse-${System.currentTimeMillis()}.pdf" }
+        .replace(Regex("[^A-Za-z0-9._-]"), "-")
+        .let { if (it.endsWith(".pdf", ignoreCase = true)) it else "$it.pdf" }
+    val output = File(outputDir, safeFilename)
+    FileOutputStream(output).use { stream ->
+        stream.write(pdfBytes)
+    }
+
+    return ExportArtifact(
+        file = output,
+        mimeType = "application/pdf",
+        chooserTitle = "Share Pulse PDF"
+    )
+}
+
 internal fun createShareCard(context: Context, report: DeepDiveReportView): ExportArtifact {
     val bitmap = Bitmap.createBitmap(1080, 1080, Bitmap.Config.ARGB_8888)
     val canvas = Canvas(bitmap)

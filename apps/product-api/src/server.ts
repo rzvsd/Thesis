@@ -107,6 +107,7 @@ import type { ProductStore } from "./store";
 import { assertIncomingAnalysisReport } from "./report-validation";
 import { assertIncomingMarketPulseReport } from "./market-pulse-validation";
 import { buildMarketPulseReport } from "./market-pulse";
+import { buildMarketPulsePdfExport } from "./market-pulse-render";
 import { buildInstitutionalPdfExport } from "./report-pdf";
 import {
   buildMacroStressSnapshot,
@@ -9867,7 +9868,9 @@ export function startServer(port: number = loadConfig().port): Server {
           {
             appendAudit,
             normalizeDateInput,
-            sendJson
+            sendJson,
+            sendBinary,
+            buildMarketPulsePdfExport
           }
         )
       ) {

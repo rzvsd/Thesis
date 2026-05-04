@@ -521,6 +521,16 @@ class ProductApiClient {
             )
         }
 
+    suspend fun getLatestPulsePdf(baseUrl: String, accessToken: String): ByteArray =
+        withContext(Dispatchers.IO) {
+            requestBytes(baseUrl, "/pulse/latest/export/pdf", accessToken)
+        }
+
+    suspend fun getPulsePdfByDate(baseUrl: String, accessToken: String, date: String): ByteArray =
+        withContext(Dispatchers.IO) {
+            requestBytes(baseUrl, "/pulse/${urlEncode(date.trim())}/export/pdf", accessToken)
+        }
+
     suspend fun getCurrentMacroStress(
         baseUrl: String,
         accessToken: String
@@ -768,6 +778,7 @@ class ProductApiClient {
         return PulseReportView(
             reportId = json.optString("report_id"),
             generatedAt = json.optString("generated_at"),
+            cycleEnd = json.optNullableString("cycle_end"),
             sections = sections
         )
     }
@@ -1441,6 +1452,35 @@ class ProductApiClient {
                 throw ProductApiException(response.code, message)
             }
             return if (raw.isBlank()) JSONArray() else JSONArray(raw)
+        }
+    }
+
+    @Throws(IOException::class, ProductApiException::class)
+    private fun requestBytes(baseUrl: String, path: String, accessToken: String? = null): ByteArray {
+        val normalizedBase = baseUrl.trim().trimEnd('/')
+        val url = "$normalizedBase$path"
+
+        val builder = Request.Builder().url(url)
+        if (!accessToken.isNullOrBlank()) {
+            builder.addHeader("Authorization", "Bearer $accessToken")
+        }
+
+        client.newCall(builder.get().build()).execute().use { response ->
+            val bytes = response.body?.bytes() ?: ByteArray(0)
+            if (!response.isSuccessful) {
+                val raw = bytes.toString(Charsets.UTF_8)
+                val message = if (raw.isBlank()) {
+                    "Request failed."
+                } else {
+                    runCatching {
+                        val payload = JSONObject(raw)
+                        payload.optString("error_message")
+                            .ifBlank { payload.optString("error").ifBlank { "Request failed." } }
+                    }.getOrDefault("Request failed.")
+                }
+                throw ProductApiException(response.code, message)
+            }
+            return bytes
         }
     }
 

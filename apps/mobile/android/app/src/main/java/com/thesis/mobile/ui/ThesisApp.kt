@@ -101,6 +101,8 @@ import com.thesis.mobile.ui.screens.MacroStressDashboardScreen
 import com.thesis.mobile.ui.screens.WarRoomScreen
 import com.thesis.mobile.ui.screens.WelcomeScreen
 import com.thesis.mobile.ui.screens.WeeklyDigestScreen
+import com.thesis.mobile.ui.screens.createPulsePdfExport
+import com.thesis.mobile.ui.screens.shareExport
 import com.thesis.mobile.ui.theme.HeadingFont
 import com.thesis.mobile.ui.theme.ThesisColors
 import com.thesis.mobile.ui.theme.ThesisDimens
@@ -138,6 +140,7 @@ fun ThesisApp(
     mainViewModel: MainViewModel = viewModel()
 ) {
     var uiState by remember { mutableStateOf(mainViewModel.state) }
+    val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
     var todayMode by rememberSaveable { mutableStateOf(TodayMode.HOME) }
     var weeklyDigestDate by rememberSaveable { mutableStateOf<String?>(null) }
@@ -477,6 +480,16 @@ fun ThesisApp(
                                 researchMode = ResearchMode.DEEP_DIVE
                                 mainViewModel.setTab(AppTab.RESEARCH)
                                 mainViewModel.runDeepDive()
+                            },
+                            onExportPdf = {
+                                mainViewModel.exportPulsePdf { download ->
+                                    val artifact = createPulsePdfExport(
+                                        context,
+                                        download.bytes,
+                                        download.filename
+                                    )
+                                    shareExport(context, artifact)
+                                }
                             },
                             onRefresh = mainViewModel::refreshPulse
                         )

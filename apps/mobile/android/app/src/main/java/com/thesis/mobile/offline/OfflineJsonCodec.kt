@@ -46,6 +46,7 @@ object OfflineJsonCodec {
         val payload = JSONObject()
             .put("report_id", pulse.reportId)
             .put("generated_at", pulse.generatedAt)
+            .put("cycle_end", pulse.cycleEnd)
             .put(
                 "sections",
                 JSONArray().apply {
@@ -63,6 +64,7 @@ object OfflineJsonCodec {
         PulseReportView(
             reportId = reportId,
             generatedAt = generatedAt,
+            cycleEnd = root.optString("cycle_end").ifBlank { null },
             sections = sections
         )
     }.getOrNull()

@@ -114,6 +114,11 @@ data class UiState(
     val subscriptionActionInFlight: Boolean = false
 )
 
+data class PulsePdfDownload(
+    val bytes: ByteArray,
+    val filename: String
+)
+
 class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val sessionStore = SessionStore(application.applicationContext)
     private val client = ProductApiClient()
@@ -1576,6 +1581,51 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             } else {
                 publish(state.copy(isLoading = false))
             }
+        }
+    }
+
+    fun exportPulsePdf(onReady: (PulsePdfDownload) -> Unit) {
+        viewModelScope.launch {
+            publish(state.copy(message = null))
+            var download: PulsePdfDownload? = null
+            val pulse = state.pulseReport
+            val exportDate = pulse?.cycleEnd?.take(10)
+                ?.takeIf { Regex("^\\d{4}-\\d{2}-\\d{2}$").matches(it) }
+            val error = runAuthorizedWithRefresh {
+                val accessToken = requireTokens().accessToken
+                val bytes = if (exportDate != null) {
+                    client.getPulsePdfByDate(state.apiBaseUrl, accessToken, exportDate)
+                } else {
+                    client.getLatestPulsePdf(state.apiBaseUrl, accessToken)
+                }
+                val filenameDate = exportDate ?: pulse?.generatedAt?.take(10)?.ifBlank { null } ?: "latest"
+                val reportId = pulse?.reportId?.ifBlank { null } ?: "pulse"
+                download = PulsePdfDownload(
+                    bytes = bytes,
+                    filename = "thesis-pulse-$filenameDate-$reportId.pdf"
+                )
+            }
+
+            if (error != null) {
+                publish(state.copy(message = toMessage(error)))
+                return@launch
+            }
+
+            val ready = download
+            if (ready == null) {
+                publish(state.copy(message = "Pulse PDF export failed."))
+                return@launch
+            }
+
+            publish(state.copy(message = "Pulse PDF ready."))
+            trackEvent(
+                "export_generated",
+                mapOf(
+                    "artifact" to "pulse_pdf",
+                    "report_id" to (pulse?.reportId ?: "unknown")
+                )
+            )
+            onReady(ready)
         }
     }
 
