@@ -492,6 +492,59 @@ function validateCoverageTruth(value: unknown, path: string, errors: string[]): 
   }
 }
 
+function validateFilingIntelligence(value: unknown, path: string, errors: string[]): void {
+  if (!isObject(value)) {
+    errors.push(`${path} must be an object`);
+    return;
+  }
+
+  if (typeof value.prompt_version !== "string" || value.prompt_version.trim().length === 0) {
+    errors.push(`${path}.prompt_version must be a non-empty string`);
+  }
+  if (!["deterministic_fixture", "live_prompt", "fallback"].includes(String(value.generation_mode))) {
+    errors.push(`${path}.generation_mode must be valid`);
+  }
+
+  for (const field of ["comparison_filings", "metric_deltas", "language_deltas", "segment_deltas", "top_changes", "good", "bad", "interesting", "omissions", "evidence"] as const) {
+    if (!Array.isArray(value[field])) {
+      errors.push(`${path}.${field} must be an array`);
+    }
+  }
+
+  if (!isObject(value.memo)) {
+    errors.push(`${path}.memo must be an object`);
+  } else {
+    for (const field of ["the_filing_read", "what_changed", "the_good", "the_bad", "the_interesting", "management_tone", "risk_watch", "plain_english_takeaway", "what_to_watch_next"] as const) {
+      if (typeof value.memo[field] !== "string" || value.memo[field].trim().length === 0) {
+        errors.push(`${path}.memo.${field} must be a non-empty string`);
+      }
+    }
+  }
+
+  if (Array.isArray(value.metric_deltas)) {
+    value.metric_deltas.forEach((entry, index) => {
+      if (!isObject(entry)) {
+        errors.push(`${path}.metric_deltas[${index}] must be an object`);
+        return;
+      }
+      for (const field of ["metric", "label", "basis", "current_period", "unit", "direction", "plain_english", "why_it_matters"] as const) {
+        if (typeof entry[field] !== "string" || entry[field].trim().length === 0) {
+          errors.push(`${path}.metric_deltas[${index}].${field} must be a non-empty string`);
+        }
+      }
+      if (!Array.isArray(entry.evidence_refs)) {
+        errors.push(`${path}.metric_deltas[${index}].evidence_refs must be an array`);
+      }
+    });
+  }
+
+  if (Array.isArray(value.evidence)) {
+    value.evidence.forEach((entry, index) => {
+      validateEvidenceItem(entry, `${path}.evidence[${index}]`, errors);
+    });
+  }
+}
+
 function validateInvestmentMemo(value: unknown, path: string, errors: string[]): void {
   if (!isObject(value)) {
     errors.push(`${path} must be an object`);
@@ -1254,6 +1307,9 @@ export function validateIncomingAnalysisReport(report: unknown): string[] {
   }
   if (report.due_diligence !== undefined) {
     validateDueDiligence(report.due_diligence, "due_diligence", errors);
+  }
+  if (report.filing_intelligence !== undefined) {
+    validateFilingIntelligence(report.filing_intelligence, "filing_intelligence", errors);
   }
   if (report.structural_context !== undefined) {
     validateStructuralContext(report.structural_context, "structural_context", errors);

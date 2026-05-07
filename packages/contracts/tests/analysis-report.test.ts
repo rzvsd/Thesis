@@ -362,6 +362,96 @@ function fullReportFixture(): AnalysisReport {
         }
       ]
     },
+    filing_intelligence: {
+      prompt_version: "ph7-m11-filing-intelligence-v1",
+      generation_mode: "deterministic_fixture",
+      latest_filing: {
+        form: "10-Q",
+        period: "2025-Q4",
+        fiscal_year: 2025,
+        fiscal_quarter: 4,
+        filing_date: "2026-01-30"
+      },
+      comparison_filings: [
+        {
+          form: "10-Q",
+          period: "2025-Q3",
+          fiscal_year: 2025,
+          fiscal_quarter: 3
+        },
+        {
+          form: "10-Q",
+          period: "2024-Q4",
+          fiscal_year: 2024,
+          fiscal_quarter: 4
+        },
+        {
+          form: "10-K",
+          period: "2025-FY",
+          fiscal_year: 2025
+        }
+      ],
+      metric_deltas: [
+        {
+          metric: "revenue",
+          label: "Revenue",
+          basis: "yoy",
+          current_period: "2025-Q4",
+          reference_period: "2024-Q4",
+          current_value: 99000000000,
+          reference_value: 94000000000,
+          delta: 5000000000,
+          delta_pct: 5.3,
+          unit: "currency",
+          direction: "improved",
+          plain_english: "Revenue increased versus the same quarter last year.",
+          why_it_matters: "Revenue shows whether demand is expanding before margin effects.",
+          evidence_refs: ["sec-xbrl-aapl-latest-2025-q4"]
+        }
+      ],
+      language_deltas: [
+        {
+          section: "management_commentary",
+          current_excerpt: "Management highlighted durable services revenue and margin discipline.",
+          change_type: "new",
+          plain_english: "Management commentary is available, but numbers still own the memo.",
+          evidence_refs: ["management-commentary-aapl-2025-q4"]
+        }
+      ],
+      segment_deltas: [],
+      memo: {
+        the_filing_read: "The latest filing read is centered on revenue, margin, and cash conversion rather than generic company description.",
+        what_changed: "Revenue improved year over year, while the memo keeps timeframe-specific comparisons separate.",
+        the_good: "The good side is that at least one core filing line improved with SEC-backed evidence.",
+        the_bad: "The bad side is that segment-level evidence is not complete enough for a stronger mix claim.",
+        the_interesting: "The interesting question is whether the numbers and management language keep agreeing.",
+        management_tone: "Management tone is treated as context and tested against the filing numbers.",
+        risk_watch: "The next filing should confirm whether revenue keeps converting into margin and cash flow.",
+        plain_english_takeaway: "Plain English: the memo reads the filing as a business update, not a quote screen.",
+        what_to_watch_next: "Watch revenue, margins, free cash flow, debt, share count, and risk language in the next filing."
+      },
+      top_changes: ["Revenue improved on a YOY basis."],
+      good: ["Revenue improved on a YOY basis."],
+      bad: [],
+      interesting: ["Management language and filing numbers should be compared together."],
+      omissions: [
+        {
+          family: "segments",
+          reason_code: "missing_segment_data",
+          reason: "Segment data was unavailable in the fixture.",
+          blocking: false
+        }
+      ],
+      evidence: [
+        {
+          evidence_id: "sec-xbrl-aapl-latest-2025-q4",
+          source_type: "filing",
+          source_name: "SEC companyfacts/XBRL quarterly snapshot",
+          excerpt: "AAPL 2025-Q4 SEC-backed financial snapshot.",
+          retrieved_at: "2026-04-22T10:00:00.000Z"
+        }
+      ]
+    },
     structural_context: {
       subject_type: "issuer",
       subject_id: "AAPL",

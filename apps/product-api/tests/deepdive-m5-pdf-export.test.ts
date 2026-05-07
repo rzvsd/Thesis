@@ -242,6 +242,125 @@ function sampleInstitutionalReport(jobId: string, reportId: string): JsonObject 
       unsupported_claims: [],
       sparse_data_honesty_note: "No major sparse-data blockers were detected in this fixture."
     },
+    filing_intelligence: {
+      prompt_version: "ph7-m11-filing-intelligence-v1",
+      generation_mode: "deterministic_fixture",
+      latest_filing: {
+        form: "10-Q",
+        period: "2025-Q4",
+        fiscal_year: 2025,
+        fiscal_quarter: 4,
+        filing_date: "2026-01-30"
+      },
+      comparison_filings: [
+        {
+          form: "10-Q",
+          period: "2025-Q3",
+          fiscal_year: 2025,
+          fiscal_quarter: 3
+        },
+        {
+          form: "10-Q",
+          period: "2024-Q4",
+          fiscal_year: 2024,
+          fiscal_quarter: 4
+        }
+      ],
+      metric_deltas: [
+        {
+          metric: "revenue",
+          label: "Revenue",
+          basis: "yoy",
+          current_period: "2025-Q4",
+          reference_period: "2024-Q4",
+          current_value: 124300,
+          reference_value: 119600,
+          delta: 4700,
+          delta_pct: 3.9,
+          unit: "currency",
+          direction: "improved",
+          plain_english: "Revenue increased versus the same quarter last year, so the filing shows more top-line demand before margins do any work.",
+          why_it_matters: "Revenue is the first check on whether the business grew before cost control and capital returns enter the picture.",
+          evidence_refs: ["sec-xbrl-aapl-latest-2025-q4"]
+        },
+        {
+          metric: "operating_margin",
+          label: "Operating margin",
+          basis: "qoq",
+          current_period: "2025-Q4",
+          reference_period: "2025-Q3",
+          current_value: 31.0,
+          reference_value: 30.4,
+          delta: 0.6,
+          unit: "pct",
+          direction: "improved",
+          plain_english: "Operating margin improved versus the prior quarter, which means more of each dollar reached operating profit.",
+          why_it_matters: "Margin follow-through is what separates healthy revenue from expensive revenue.",
+          evidence_refs: ["sec-xbrl-aapl-latest-2025-q4", "sec-xbrl-aapl-prior-2025-q3"]
+        }
+      ],
+      language_deltas: [
+        {
+          section: "management_commentary",
+          current_excerpt: "Management highlighted durable services revenue and margin discipline.",
+          change_type: "new",
+          plain_english: "Management commentary supports the margin discussion, but the numbers still own the memo.",
+          evidence_refs: ["management-commentary-aapl-2025-q4"]
+        }
+      ],
+      segment_deltas: [],
+      memo: {
+        the_filing_read:
+          "The filing read starts with a simple business question: did Apple become a better operating business, or did the quarter merely look cleaner on the surface? The reviewed numbers point to better revenue and firmer margin follow-through, which is useful because the top line and profit line are moving together. That does not make the filing a thesis reset by itself, but it gives the memo a cleaner base than a one-metric story.",
+        what_changed:
+          "Revenue improved year over year and operating margin improved versus the prior quarter. The important part is the combination. More sales are useful, but more sales with better operating conversion are more informative. The memo keeps the timeframes separate so a quarter-over-quarter margin improvement is not confused with a full annual trend.",
+        the_good:
+          "The good side is that the filing has measurable support in both revenue and operating margin. For a non-technical reader, that means the company did not need to rely on only cost cutting or only demand. The filing has at least two lines pointing in the same direction.",
+        the_bad:
+          "The weak side is coverage depth. Segment-level detail is not strong enough in this report run to say which business line carried the change. Without that layer, the memo can say the company improved, but it should be careful about explaining exactly where the improvement came from.",
+        the_interesting:
+          "The interesting point is agreement. When revenue, margin, and management language all lean the same way, the filing becomes easier to read. When one of those disagrees, the memo should slow down. Here the available evidence is cleaner, but still not complete enough for a sweeping claim.",
+        management_tone:
+          "Management commentary is useful because it tells us what leadership wants readers to notice. Thesis treats that as context, not proof. The proof remains in the filing math: revenue, margin, cash flow, debt, and share count.",
+        risk_watch:
+          "The next watch item is whether margin improvement repeats. One good quarter can be timing. Repetition across filing cycles is what would make the business read more durable.",
+        plain_english_takeaway:
+          "Plain English: this was a cleaner filing, not a victory lap. The company showed better revenue and margin follow-through, but the memo still needs segment confirmation before it can explain the full source of the improvement.",
+        what_to_watch_next:
+          "Next filing, watch whether revenue keeps converting into operating profit, whether free cash flow follows, and whether segment detail confirms where the improvement came from."
+      },
+      top_changes: [
+        "Revenue improved on a YOY basis.",
+        "Operating margin improved on a QOQ basis."
+      ],
+      good: ["Revenue improved on a YOY basis.", "Operating margin improved on a QOQ basis."],
+      bad: ["Segment evidence is incomplete."],
+      interesting: ["Revenue, margin, and management language should be tested together."],
+      omissions: [
+        {
+          family: "segments",
+          reason_code: "missing_segment_data",
+          reason: "Segment data was unavailable in this report run.",
+          blocking: false
+        }
+      ],
+      evidence: [
+        {
+          evidence_id: "sec-xbrl-aapl-latest-2025-q4",
+          source_type: "filing",
+          source_name: "SEC companyfacts/XBRL quarterly snapshot",
+          excerpt: "AAPL 2025-Q4 SEC-backed financial snapshot includes revenue and operating margin.",
+          retrieved_at: "2026-04-20T08:00:00.000Z"
+        },
+        {
+          evidence_id: "management-commentary-aapl-2025-q4",
+          source_type: "article",
+          source_name: "Reviewed management commentary",
+          excerpt: "Management highlighted durable services revenue and margin discipline.",
+          retrieved_at: "2026-04-20T08:00:00.000Z"
+        }
+      ]
+    },
     financial_analysis: {
       annual_history: [
         {
@@ -812,10 +931,13 @@ test("M5.2 PDF export route returns institutional multi-page artifact with visua
     const editorialPages = buildEditorialReportPages(reportFixture);
     const editorialHtml = buildEditorialReportHtml(reportFixture, editorialPages);
 
-    assert.equal(editorialPages.length, 10);
+    assert.equal(editorialPages.length, 13);
     assert.deepEqual(
       editorialPages.map((page) => page.title),
       [
+        "Filing Read",
+        "What Changed In The Filing",
+        "Good Bad Interesting",
         "Executive Summary",
         "Financial Analysis",
         "Financial Exhibits",
@@ -830,6 +952,10 @@ test("M5.2 PDF export route returns institutional multi-page artifact with visua
     );
     assert.match(editorialHtml, /Thesis Due Diligence Report/);
     assert.match(editorialHtml, /Apple Inc\./);
+    assert.match(editorialHtml, /The Filing Read/);
+    assert.match(editorialHtml, /What this means in plain English/);
+    assert.match(editorialHtml, /Numbers first, explanation beside them/);
+    assert.match(editorialHtml, /Good \/ Bad \/ Interesting/);
     assert.match(editorialHtml, /Decision question/);
     assert.match(editorialHtml, /Competitive Positioning/);
     assert.match(editorialHtml, /Financial statement follow-through/);
@@ -839,7 +965,7 @@ test("M5.2 PDF export route returns institutional multi-page artifact with visua
     assert.match(editorialHtml, /Evidence, omissions, and source discipline/);
     assert.match(editorialHtml, /Appendix And Source Notes/);
     assert.match(editorialHtml, /Installed-base loyalty/);
-    assert.match(editorialHtml, /Page 10 of 10/);
+    assert.match(editorialHtml, /Page 13 of 13/);
     assertNoDebugLeakage(editorialHtml);
 
     const complete = await requestJson(baseUrl, `/internal/jobs/${jobId as string}/complete`, {

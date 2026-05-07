@@ -1,7 +1,7 @@
 # Thesis - Phase 7 Roadmap
 
 **Status:** Active  
-**Last Revised:** 2026-05-02
+**Last Revised:** 2026-05-04
 
 ---
 
@@ -18,7 +18,8 @@
 | M7 | Pulse Issue Plan & Professional Newspaper Polish | Validated |
 | M8 | Pulse Morning Brief Reset | Validated |
 | M9 | Dexter Evidence Quality Skills | Validated |
-| M10 | Pulse A+ Morning Brief Engagement Overhaul | Active |
+| M10 | Pulse A+ Morning Brief Engagement Overhaul | Validated |
+| M11 | Deep Dive Filing Intelligence Memo Revamp | Active |
 
 ## Status Semantics
 
@@ -235,3 +236,26 @@
 - broker, screener, terminal, trading, price-target, or execution workflow
 - visible empty community-signal slots before approved data exists
 - weakening omission-forward behavior or source discipline
+
+---
+
+## M11 Execution Order
+
+1. add additive `filing_intelligence` contract on `AnalysisReport`
+2. reuse SEC companyfacts/XBRL snapshots for QoQ, YoY, and annual filing comparisons
+3. add bounded SEC filing-section text extraction utility with omission-forward behavior
+4. build deterministic Dexter filing-intelligence fact rows and memo fallback
+5. add guarded LLM filing analyst pass that can rewrite memo fields only
+6. add Deep Dive PDF/HTML opening pages for Filing Read, What Changed, and Good / Bad / Interesting
+7. keep mobile unchanged beyond opening/downloading the improved PDF
+8. run contracts, data-openbb, Dexter, Product API export, typecheck, lint, and dependency guard proof
+9. record proof under `Project Note/Phase7/Milestones/M11/evidence/`
+
+## Non-Goals For M11
+
+- Pulse changes
+- Android screen rewrite
+- new public route or app tab
+- raw SEC filing dumps in customer output
+- buy/sell/hold language, price targets, allocation, broker workflow, or quant-lab behavior
+- LLM mutation of numbers, facts, tickers, sources, or provenance

@@ -106,7 +106,7 @@ fun EvidenceRadar(
                     )
                 }
 
-                // Data polygon (animated)
+    // Animated radar data shape
                 val progress = animProgress.value
                 val dataPath = Path()
                 for (i in 0 until n) {

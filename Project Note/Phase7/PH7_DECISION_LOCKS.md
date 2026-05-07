@@ -1,7 +1,7 @@
 # Thesis - Phase 7 Decision Locks
 
 **Status:** Active  
-**Last Revised:** 2026-05-02
+**Last Revised:** 2026-05-04
 **Purpose:** Lock the product, provider, and implementation decisions for Phase 7 before the milestone is widened in code.
 
 ---
@@ -258,6 +258,21 @@ M1 implementation thresholds:
 - Pulse remains a research and conviction morning brief, not a newspaper cosplay surface, dashboard, market terminal, screener, broker flow, or trading product.
 - The M8 six-field/180-word LLM cap is superseded for M10 only.
 - M10 allows expanded Pulse editorial copy up to 1500 total words, while preserving all guardrails around facts, prices, tickers, sources, events, and provenance.
+
+---
+
+## 19. M11 Deep Dive Filing Intelligence Memo Locks
+
+- M11 is Deep Dive-only and does not change Pulse.
+- The first visible surface is Deep Dive PDF/HTML export; Android may continue opening or downloading the improved PDF.
+- SEC 10-Q and 10-K filings, SEC companyfacts, and XBRL snapshots are the primary source substrate.
+- `AnalysisReport.filing_intelligence` is additive and optional; existing `sections`, `due_diligence`, `investment_memo`, `financial_analysis`, `visual_panels`, and legacy reports remain compatible.
+- Deterministic filing facts own the memo. The LLM may explain, compress, and make the filing readable, but cannot invent facts, mutate numbers, add tickers, add sources, cite unsupported evidence, or create causal claims not present in the fact pack.
+- The memo compares latest quarter versus prior quarter, latest quarter versus same quarter last year, and latest annual filing versus prior annual filing when data exists.
+- Missing latest filing, prior quarter, year-ago data, annual history, segment detail, or filing text must produce explicit omissions.
+- Customer output must show bounded evidence excerpts only. Full raw filing dumps are forbidden.
+- The writing style is smart non-expert: plain English, explanatory, and allowed to be slightly sharp when useful, but never theatrical.
+- No buy/sell/hold language, price targets, allocation, position sizing, broker workflow, public quant lab, or terminal-style behavior is introduced.
 - Visible section commentary should target 150-210 words on normal/event days, with quiet days allowed to stay intentionally brief.
 - New LLM fields are optional: `morning_story`, `tape_color`, `tape_narrative`, `calendar_narrative`, `headlines_narrative`, `names_narrative`, `one_thing`, and `mood`.
 - LLM tone may be sharper and lightly smart-ass, but never rude, theatrical, promotional, or advice-like.

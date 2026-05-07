@@ -2,7 +2,7 @@
 
 **Version:** 1.0  
 **Status:** Active  
-**Last Revised:** 2026-05-02
+**Last Revised:** 2026-05-04
 
 ---
 
@@ -158,6 +158,32 @@ The reader promise is:
 - never invent novelty to fill space
 
 The visual system should remain compact and premium: one strong lead, clear data, one memorable callout, then the tail.
+
+---
+
+## M11 Deep Dive Filing Memo Doctrine
+
+Deep Dive should feel like a filing intelligence memo, not a generic company dossier with prettier formatting.
+
+The memo starts from the latest SEC 10-Q or 10-K and asks what actually changed:
+
+- quarter over quarter
+- same quarter year over year
+- latest annual filing versus prior annual filing
+- management language versus reported numbers
+- segment and risk-factor context where available
+
+The user should not need accounting fluency to understand the result. Charts, before/after rows, and plain-English explanations should translate filing facts into business meaning without drifting into price targets or trade language.
+
+The LLM is the voice, not the evidence owner. It may write the filing read, good/bad/interesting, management tone, risk watch, and plain-English takeaway from a small fact pack. If the model is missing, malformed, or unsafe, deterministic fallback copy remains readable.
+
+The correct reader promise is:
+
+- show the filing first
+- explain what changed
+- teach why the change matters
+- admit what is missing
+- tell the user what to verify next filing
 - no repeated inline evidence blocks
 
 The LLM, when enabled, may improve wording only after the deterministic issue plan is created. It must not decide structure.

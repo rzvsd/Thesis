@@ -24,6 +24,7 @@ export * from "./earnings-state";
 export * from "./evidence-rights";
 export * from "./evidence-item";
 export * from "./fear-greed-snapshot";
+export * from "./filing-intelligence";
 export * from "./first-party-context";
 export * from "./job-status-response";
 export * from "./kill-switch-rule";

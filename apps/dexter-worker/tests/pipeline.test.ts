@@ -75,6 +75,17 @@ test("MSFT fixture request produces a schema-valid report with no blank sections
   assert.equal(report.investment_memo?.sections.length, 5);
   assert.ok((report.investment_memo?.material_claims.length ?? 0) >= 1);
   assert.equal(report.investment_memo?.unsupported_claims.length, 0);
+  assert.ok(report.filing_intelligence);
+  assert.equal(report.filing_intelligence?.prompt_version, "ph7-m11-filing-intelligence-v1");
+  assert.equal(report.filing_intelligence?.generation_mode, "deterministic_fixture");
+  assert.ok((report.filing_intelligence?.metric_deltas.length ?? 0) >= 8);
+  assert.ok((report.filing_intelligence?.top_changes.length ?? 0) >= 1);
+  assert.ok((report.filing_intelligence?.memo.the_filing_read.length ?? 0) > 100);
+  assert.ok(
+    report.filing_intelligence?.omissions.some(
+      (omission) => omission.reason_code === "missing_filing_text"
+    )
+  );
   assert.ok(report.due_diligence);
   assert.equal(report.due_diligence?.prompt_version, "m9-due-diligence-fixture-v1");
   assert.equal(report.due_diligence?.generation_mode, "deterministic_fixture");

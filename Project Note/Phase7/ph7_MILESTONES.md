@@ -1,9 +1,9 @@
 # Thesis - Phase 7 Milestone Briefs
 
 **Version:** 1.0  
-**Status:** Active (M10 Pulse engagement overhaul active; M8-M9 validated)
+**Status:** Active (M11 Deep Dive filing memo revamp active; M1-M10 validated)
 **Owner:** Engineering Lead + Product Lead  
-**Last Revised:** 2026-05-02
+**Last Revised:** 2026-05-04
 **Related Documents:** `ph7_BLUEBOOK.md`, `ph7_PRD.md`, `ph7_ROADMAP.md`, `PH7_DECISION_LOCKS.md`
 
 ---
@@ -12,7 +12,7 @@
 
 Phase 7 begins after the Phase 6 substrate closeout. The Phase 7 pack is the current planning and doctrine layer for Pulse work. Earlier phase docs remain historical unless this pack explicitly points back to them.
 
-Current milestone state is tracked in `ph7_ROADMAP.md`. As of 2026-05-02, M1-M9 have implementation evidence recorded and M10 is the active Pulse engagement overhaul.
+Current milestone state is tracked in `ph7_ROADMAP.md`. As of 2026-05-04, M1-M10 have implementation evidence recorded and M11 is the active Deep Dive filing intelligence memo revamp.
 
 Proof for each milestone lives under:
 
@@ -36,6 +36,7 @@ Project Note/Phase7/Milestones/M#/evidence/
 | M8 | Pulse Morning Brief Reset | Replaces newspaper-style rendering with a compact quiet/normal/event Morning Brief, deterministic daily delta, one useful insight, optional user/calendar/headline modules, and a strict six-field LLM copy contract |
 | M9 | Dexter Evidence Quality Skills | Adds internal-only Dexter tools for deterministic financial validation, evidence-quality debate, and fixture-only recent context without changing Product API, contracts, mobile, Pulse, or public surfaces |
 | M10 | Pulse A+ Morning Brief Engagement Overhaul | Expands Pulse into a richer 5-10 minute adaptive morning read with narrative facts, one-thing callout, expanded LLM copy, sector/tape visuals, and richer user-name context while preserving deterministic evidence |
+| M11 | Deep Dive Filing Intelligence Memo Revamp | Adds a SEC 10-Q/10-K centered filing intelligence memo for Deep Dive PDF/HTML export, with deterministic filing comparisons, guarded LLM explanation, plain-English charting, and omission-forward evidence |
 
 ---
 

@@ -1,0 +1,1830 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Microsoft Corporation Due Diligence Report</title>
+<style>
+
+  @page {
+    size: Letter;
+    margin: 0;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    margin: 0;
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    color: #1f262d;
+    background: #f3eee4;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  h1, h2, h3 {
+    font-family: Georgia, "Times New Roman", serif;
+    font-weight: 700;
+    color: #1a2128;
+    margin: 0;
+  }
+
+  h1 { font-size: 28px; line-height: 1.08; }
+  h2 { font-size: 20px; line-height: 1.2; }
+  h3 { font-size: 15px; line-height: 1.25; }
+  p {
+    margin: 0;
+    color: #33404b;
+    font-size: 12.1px;
+    line-height: 1.48;
+  }
+
+  .page {
+    width: 8.5in;
+    height: 11in;
+    page-break-after: always;
+    padding: 0.58in 0.62in 0.46in 0.62in;
+    background: #f8f4eb;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    overflow: hidden;
+  }
+
+  .page:last-child {
+    page-break-after: auto;
+  }
+
+  .page-header,
+  .page-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+  }
+
+  .page-header {
+    border-bottom: 1px solid #d2c8b6;
+    padding-bottom: 10px;
+    margin-bottom: 18px;
+  }
+
+  .page-header__brand {
+    display: grid;
+    gap: 4px;
+  }
+
+  .page-header__wordmark {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: #7e6337;
+  }
+
+  .page-header__meta,
+  .page-header__date,
+  .page-header__ticker,
+  .page-footer {
+    font-size: 10px;
+    color: #6a706f;
+  }
+
+  .page-body {
+    display: grid;
+    gap: 16px;
+    flex: 1 1 auto;
+    min-height: 0;
+    align-content: start;
+  }
+
+  .page-footer {
+    border-top: 1px solid #d2c8b6;
+    padding-top: 9px;
+    margin-top: auto;
+  }
+
+  .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: #7e6337;
+    font-weight: 700;
+  }
+
+  .hero {
+    display: grid;
+    grid-template-columns: 1.8fr 0.8fr;
+    gap: 18px;
+    align-items: start;
+  }
+
+  .hero__copy {
+    display: grid;
+    gap: 10px;
+  }
+
+  .hero__subtitle {
+    font-size: 14px;
+    color: #55616c;
+    line-height: 1.45;
+  }
+
+  .hero__signal {
+    background: #213141;
+    color: #f4efe4;
+    border-radius: 18px;
+    padding: 16px;
+    display: grid;
+    gap: 8px;
+    text-align: right;
+  }
+
+  .price-chip {
+    justify-self: end;
+    background: rgba(216, 194, 153, 0.18);
+    border: 1px solid rgba(216, 194, 153, 0.34);
+    color: #f2e7d2;
+    padding: 6px 10px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .hero__spot {
+    font-size: 28px;
+    font-family: Georgia, "Times New Roman", serif;
+  }
+
+  .hero__upside {
+    font-size: 11px;
+    color: #d8d0bf;
+  }
+
+  .chip-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .chip {
+    padding: 10px 12px;
+    border-radius: 14px;
+    display: flex;
+    gap: 10px;
+    align-items: baseline;
+    border: 1px solid #d9d0c1;
+    background: #fffdf8;
+    font-size: 11px;
+  }
+
+  .chip strong {
+    font-size: 12px;
+    color: #1f262d;
+  }
+
+  .chip.positive {
+    border-color: rgba(48, 96, 74, 0.2);
+    background: #eaf2ee;
+  }
+
+  .chip.warning {
+    border-color: rgba(179, 135, 79, 0.28);
+    background: #f3ead8;
+  }
+
+  .chip.gold {
+    border-color: rgba(192, 160, 96, 0.28);
+    background: #f6efe0;
+  }
+
+  .thesis-box,
+  .decision-box,
+  .section-panel,
+  .editorial-card,
+  .side-card,
+  .mini-card,
+  .risk-card,
+  .appendix-item {
+    background: #fffdf8;
+    border: 1px solid #ded5c6;
+    border-radius: 18px;
+  }
+
+  .thesis-box,
+  .section-panel {
+    padding: 18px;
+  }
+
+  .thesis-box {
+    display: grid;
+    gap: 10px;
+  }
+
+  .decision-box {
+    padding: 16px 18px;
+    background: #f1ebdf;
+    border-color: #d7c7a8;
+    display: grid;
+    gap: 8px;
+  }
+
+  .decision-box__label {
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #7e6337;
+    font-weight: 700;
+  }
+
+  .decision-box__question {
+    font-size: 17px;
+    line-height: 1.35;
+    color: #27323b;
+    font-family: Georgia, "Times New Roman", serif;
+  }
+
+  .three-up,
+  .two-up,
+  .mini-grid,
+  .appendix-grid {
+    display: grid;
+    gap: 14px;
+  }
+
+  .three-up {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .two-up {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .mini-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .appendix-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .editorial-card,
+  .risk-card,
+  .appendix-item {
+    padding: 14px;
+    display: grid;
+    gap: 8px;
+  }
+
+  .editorial-card__title,
+  .side-card__label,
+  .section-panel__kicker,
+  .risk-card__label,
+  .appendix-item__meta {
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: #7e6337;
+  }
+
+  .summary-pill {
+    border-radius: 999px;
+    padding: 8px 12px;
+    font-size: 11px;
+    line-height: 1.35;
+    border: 1px solid #d7c7a8;
+    background: #f6efe0;
+    color: #4a5660;
+  }
+
+  .summary-pill.positive {
+    background: #eaf2ee;
+    border-color: rgba(48, 96, 74, 0.2);
+  }
+
+  .summary-pill.warning {
+    background: #f3ead8;
+    border-color: rgba(179, 135, 79, 0.28);
+  }
+
+  .summary-pill.neutral {
+    background: #f5f1e8;
+    border-color: #ded5c6;
+  }
+
+  .summary-pill.gold {
+    background: #f6efe0;
+    border-color: rgba(192, 160, 96, 0.28);
+  }
+
+  .narrative-header,
+  .section-panel__header {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    align-items: start;
+  }
+
+  .narrative-columns {
+    display: grid;
+    grid-template-columns: 1.8fr 0.9fr;
+    gap: 16px;
+  }
+
+  .narrative-columns__main,
+  .narrative-columns__side {
+    display: grid;
+    gap: 12px;
+  }
+
+  .side-card {
+    padding: 14px;
+    display: grid;
+    gap: 8px;
+  }
+
+  .mini-card {
+    padding: 12px;
+    font-size: 11.4px;
+    line-height: 1.45;
+    color: #32404c;
+  }
+
+  .meta-strip {
+    display: flex;
+    gap: 14px;
+    flex-wrap: wrap;
+    font-size: 10px;
+    color: #6a706f;
+  }
+
+  .coverage-note,
+  .appendix-note {
+    padding: 12px 14px;
+    border-radius: 16px;
+    background: #f2ede3;
+    border: 1px solid #ddd3c2;
+    font-size: 11px;
+    color: #5a6670;
+    line-height: 1.45;
+  }
+
+  .financial-table,
+  .scenario-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11px;
+  }
+
+  .financial-table th,
+  .financial-table td,
+  .scenario-table th,
+  .scenario-table td {
+    padding: 10px 8px;
+    text-align: left;
+    border-bottom: 1px solid #e8e0d2;
+  }
+
+  .financial-table thead th,
+  .scenario-table thead th {
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #6a706f;
+  }
+
+  .evidence-list {
+    margin: 0;
+    padding-left: 18px;
+    display: grid;
+    gap: 8px;
+    color: #32404c;
+    font-size: 11.5px;
+    line-height: 1.45;
+  }
+
+  .chart-svg,
+  .range-svg {
+    width: 100%;
+    height: auto;
+    display: block;
+  }
+
+  .chart-title {
+    font-size: 12px;
+    font-family: Georgia, "Times New Roman", serif;
+    fill: #223042;
+  }
+
+  .chart-svg text,
+  .range-svg text {
+    font-size: 10px;
+    fill: #5a6670;
+    font-family: "Helvetica Neue", Arial, sans-serif;
+  }
+
+  .range-label {
+    font-size: 9px;
+  }
+
+  .filing-hero {
+    display: flex;
+    justify-content: space-between;
+    gap: 18px;
+    align-items: start;
+    padding: 18px 20px;
+    border-radius: 20px;
+    background: #1d2935;
+    color: #f6efe0;
+  }
+
+  .filing-hero h1 {
+    color: #f8f1e4;
+  }
+
+  .filing-hero__meta {
+    margin-top: 8px;
+    color: #d8d0bf;
+  }
+
+  .filing-hero__badge {
+    padding: 8px 11px;
+    border-radius: 999px;
+    background: rgba(192, 160, 96, 0.18);
+    border: 1px solid rgba(192, 160, 96, 0.34);
+    color: #f2dfb3;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .filing-story {
+    padding: 18px 20px;
+    border-radius: 20px;
+    background: #fffdf8;
+    border: 1px solid #e2d8c6;
+    display: grid;
+    gap: 11px;
+  }
+
+  .filing-story p {
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 12.7px;
+    line-height: 1.58;
+    color: #26323d;
+  }
+
+  .filing-story--compact p {
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    font-size: 11.8px;
+    line-height: 1.5;
+  }
+
+  .filing-callout {
+    border-left: 5px solid #c0a060;
+    padding: 14px 16px;
+    border-radius: 14px;
+    background: #f7eedc;
+    display: grid;
+    gap: 7px;
+  }
+
+  .filing-callout__label,
+  .filing-metric-card__label,
+  .filing-metric-card__basis {
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: #7e6337;
+  }
+
+  .filing-change-grid,
+  .filing-metric-grid {
+    display: grid;
+    gap: 10px;
+  }
+
+  .filing-change-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .filing-change-card {
+    border: 1px solid #e1d7c7;
+    background: #fffdf8;
+    border-radius: 16px;
+    padding: 12px;
+    display: grid;
+    grid-template-columns: 9px 1fr;
+    gap: 9px;
+    align-items: start;
+  }
+
+  .filing-change-card span {
+    width: 9px;
+    height: 9px;
+    border-radius: 999px;
+    background: #c0a060;
+    margin-top: 5px;
+  }
+
+  .filing-metric-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .filing-metric-card {
+    border-radius: 16px;
+    padding: 12px;
+    border: 1px solid #ded5c6;
+    background: #fffdf8;
+    display: grid;
+    gap: 9px;
+    break-inside: avoid;
+  }
+
+  .filing-metric-card.positive {
+    border-color: rgba(47, 95, 75, 0.25);
+  }
+
+  .filing-metric-card.warning {
+    border-color: rgba(139, 63, 55, 0.25);
+  }
+
+  .filing-metric-card__top,
+  .filing-metric-card__values {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  .filing-metric-card__move {
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 18px;
+    color: #1d2935;
+  }
+
+  .filing-metric-card__values {
+    font-size: 10px;
+    color: #6a706f;
+  }
+
+  .filing-gbi .editorial-card p {
+    font-size: 11px;
+    line-height: 1.42;
+  }
+
+  .chart-label {
+    font-weight: 700;
+  }
+
+  .chart-value {
+    font-weight: 700;
+  }
+
+</style>
+</head>
+<body>
+
+    <section class="page">
+      <header class="page-header">
+        <div class="page-header__brand">
+          <div class="page-header__wordmark">Thesis</div>
+          <div class="page-header__meta">Microsoft Corporation | NASDAQ</div>
+        </div>
+        <div class="page-header__right">
+          <div class="page-header__ticker">MSFT</div>
+          <div class="page-header__date">May 4, 2026</div>
+        </div>
+      </header>
+      <main class="page-body">
+        
+    <div class="eyebrow">Filing Intelligence Memo</div>
+    <div class="filing-hero">
+      <div>
+        <h1>The Filing Read</h1>
+        <p class="filing-hero__meta">10-Q | 2025-Q4</p>
+      </div>
+      <div class="filing-hero__badge">Deterministic read</div>
+    </div>
+    <div class="filing-story">
+      <p>MSFT is being read through its latest SEC-backed financial snapshot, with the memo focused on what changed rather than on generic company description. Revenue improved on a QOQ basis. Revenue improved on a YOY basis. Operating margin improved on a QOQ basis. The segment layer is useful because Cloud revenue gives a cleaner clue about business mix than the company total alone. Full filing-language extraction is still marked as an omission, so tone is treated cautiously rather than dressed up as certainty.</p>
+    </div>
+    <div class="filing-callout">
+      <div class="filing-callout__label">What this means in plain English</div>
+      <p>Plain English: this memo reads the filing like a business update, not like a quote screen. The first question is what changed inside the company; the second is whether that change is large enough and well-supported enough to matter.</p>
+    </div>
+    <div class="section-panel">
+      <div class="section-panel__header">
+        <div>
+          <div class="section-panel__kicker">Top filing changes</div>
+          <h2>What moved inside the company</h2>
+        </div>
+        <div class="section-panel__note">These are SEC/XBRL-backed comparisons, not quote-screen moves.</div>
+      </div>
+      <div class="filing-change-grid">
+        
+          <div class="filing-change-card">
+            <span></span>
+            <p>Revenue improved on a QOQ basis.</p>
+          </div>
+        
+
+          <div class="filing-change-card">
+            <span></span>
+            <p>Revenue improved on a YOY basis.</p>
+          </div>
+        
+
+          <div class="filing-change-card">
+            <span></span>
+            <p>Operating margin improved on a QOQ basis.</p>
+          </div>
+        
+
+          <div class="filing-change-card">
+            <span></span>
+            <p>Operating margin improved on a YOY basis.</p>
+          </div>
+        
+      </div>
+    </div>
+  
+      </main>
+      <footer class="page-footer">
+        <div>Thesis Due Diligence Report</div>
+        <div>Filing Read</div>
+        <div>Page 1 of 13</div>
+      </footer>
+    </section>
+  
+
+    <section class="page">
+      <header class="page-header">
+        <div class="page-header__brand">
+          <div class="page-header__wordmark">Thesis</div>
+          <div class="page-header__meta">Microsoft Corporation | NASDAQ</div>
+        </div>
+        <div class="page-header__right">
+          <div class="page-header__ticker">MSFT</div>
+          <div class="page-header__date">May 4, 2026</div>
+        </div>
+      </header>
+      <main class="page-body">
+        
+    <div class="eyebrow">What Changed In The Filing</div>
+    <div class="narrative-header">
+      <h1>Numbers first, explanation beside them</h1>
+      <div class="summary-pill gold">The cleanest changes are the metrics that moved across both the quarter and year-ago comparisons. Revenue improved on a QOQ basis. Revenue improved...</div>
+    </div>
+    <div class="filing-story filing-story--compact">
+      <p>The cleanest changes are the metrics that moved across both the quarter and year-ago comparisons. Revenue improved on a QOQ basis. Revenue improved on a YOY basis. Operating margin improved on a QOQ basis. The memo keeps those changes separate from market-price movement, because a better filing and a better stock day are not the same thing.</p>
+    </div>
+    <div class="section-panel">
+      <div class="section-panel__header">
+        <div>
+          <div class="section-panel__kicker">Before / after</div>
+          <h2>Filing comparison board</h2>
+        </div>
+        <div class="section-panel__note">QoQ, YoY, and annual views stay separate so the memo does not blur timeframes.</div>
+      </div>
+      <div class="filing-metric-grid">
+        
+    <div class="filing-metric-card positive">
+      <div class="filing-metric-card__top">
+        <div>
+          <div class="filing-metric-card__label">Revenue</div>
+          <div class="filing-metric-card__basis">QOQ</div>
+        </div>
+        <div class="filing-metric-card__move">+7.6%</div>
+      </div>
+      <div class="filing-metric-card__values">
+        <span>2025-Q4: $69.6B</span>
+        <span>2025-Q3: $64.7B</span>
+      </div>
+      <p>Revenue increased versus the prior quarter. In plain English, this is the sales line moving, not a market-price opinion.</p>
+    </div>
+  
+
+    <div class="filing-metric-card positive">
+      <div class="filing-metric-card__top">
+        <div>
+          <div class="filing-metric-card__label">Revenue</div>
+          <div class="filing-metric-card__basis">YOY</div>
+        </div>
+        <div class="filing-metric-card__move">+12.3%</div>
+      </div>
+      <div class="filing-metric-card__values">
+        <span>2025-Q4: $69.6B</span>
+        <span>2024-Q4: $62B</span>
+      </div>
+      <p>Revenue increased versus the same quarter last year. In plain English, this is the sales line moving, not a market-price opinion.</p>
+    </div>
+  
+
+    <div class="filing-metric-card positive">
+      <div class="filing-metric-card__top">
+        <div>
+          <div class="filing-metric-card__label">Operating margin</div>
+          <div class="filing-metric-card__basis">QOQ</div>
+        </div>
+        <div class="filing-metric-card__move">+1.9%</div>
+      </div>
+      <div class="filing-metric-card__values">
+        <span>2025-Q4: 44.1%</span>
+        <span>2025-Q3: 42.2%</span>
+      </div>
+      <p>Operating margin increased versus the prior quarter. In plain English, this is the operating profit retained after running the business line moving, not a market-price opinion.</p>
+    </div>
+  
+
+    <div class="filing-metric-card positive">
+      <div class="filing-metric-card__top">
+        <div>
+          <div class="filing-metric-card__label">Operating margin</div>
+          <div class="filing-metric-card__basis">YOY</div>
+        </div>
+        <div class="filing-metric-card__move">+3.6%</div>
+      </div>
+      <div class="filing-metric-card__values">
+        <span>2025-Q4: 44.1%</span>
+        <span>2024-Q4: 40.5%</span>
+      </div>
+      <p>Operating margin increased versus the same quarter last year. In plain English, this is the operating profit retained after running the business line moving, not a market-price opinion.</p>
+    </div>
+  
+
+    <div class="filing-metric-card positive">
+      <div class="filing-metric-card__top">
+        <div>
+          <div class="filing-metric-card__label">Free cash flow</div>
+          <div class="filing-metric-card__basis">QOQ</div>
+        </div>
+        <div class="filing-metric-card__move">+7.2%</div>
+      </div>
+      <div class="filing-metric-card__values">
+        <span>2025-Q4: $22.4B</span>
+        <span>2025-Q3: $20.9B</span>
+      </div>
+      <p>Free cash flow increased versus the prior quarter. In plain English, this is the cash left after operating needs and capital spending line moving, not a market-price opinion.</p>
+    </div>
+  
+
+    <div class="filing-metric-card positive">
+      <div class="filing-metric-card__top">
+        <div>
+          <div class="filing-metric-card__label">Free cash flow</div>
+          <div class="filing-metric-card__basis">YOY</div>
+        </div>
+        <div class="filing-metric-card__move">+15.5%</div>
+      </div>
+      <div class="filing-metric-card__values">
+        <span>2025-Q4: $22.4B</span>
+        <span>2024-Q4: $19.4B</span>
+      </div>
+      <p>Free cash flow increased versus the same quarter last year. In plain English, this is the cash left after operating needs and capital spending line moving, not a market-price opinion.</p>
+    </div>
+  
+
+    <div class="filing-metric-card positive">
+      <div class="filing-metric-card__top">
+        <div>
+          <div class="filing-metric-card__label">Shares outstanding</div>
+          <div class="filing-metric-card__basis">QOQ</div>
+        </div>
+        <div class="filing-metric-card__move">-0.1%</div>
+      </div>
+      <div class="filing-metric-card__values">
+        <span>2025-Q4: 7.4B</span>
+        <span>2025-Q3: 7.4B</span>
+      </div>
+      <p>Shares outstanding declined versus the prior quarter. In plain English, this is the share count and dilution line moving, not a market-price opinion.</p>
+    </div>
+  
+
+    <div class="filing-metric-card positive">
+      <div class="filing-metric-card__top">
+        <div>
+          <div class="filing-metric-card__label">Shares outstanding</div>
+          <div class="filing-metric-card__basis">YOY</div>
+        </div>
+        <div class="filing-metric-card__move">-0.4%</div>
+      </div>
+      <div class="filing-metric-card__values">
+        <span>2025-Q4: 7.4B</span>
+        <span>2024-Q4: 7.5B</span>
+      </div>
+      <p>Shares outstanding declined versus the same quarter last year. In plain English, this is the share count and dilution line moving, not a market-price opinion.</p>
+    </div>
+  
+      </div>
+    </div>
+    <div class="section-panel">
+      <div class="section-panel__header">
+        <div>
+          <div class="section-panel__kicker">Visual explanation</div>
+          <h2>How the main filing lines changed</h2>
+        </div>
+      </div>
+      
+    <svg class="chart-svg filing-delta-chart" viewBox="0 0 560 230" role="img" aria-label="Filing metric deltas">
+      <rect x="0" y="0" width="560" height="230" rx="18" fill="#fbf8f1" />
+      <line x1="280" y1="24" x2="280" y2="210" stroke="#b9b2a3" stroke-width="1" />
+      
+      <g>
+        <text x="24" y="48" class="chart-label">Revenue QOQ</text>
+        <rect x="280" y="38" width="117.65915254731563" height="16" rx="4" fill="#2f5f4b" opacity="0.9" />
+        <text x="405.6591525473156" y="50" class="chart-value" text-anchor="start">+7.6%</text>
+      </g>
+    
+
+      <g>
+        <text x="24" y="84" class="chart-label">Revenue YOY</text>
+        <rect x="280" y="74" width="190" height="16" rx="4" fill="#2f5f4b" opacity="0.9" />
+        <text x="478" y="86" class="chart-value" text-anchor="start">+12.3%</text>
+      </g>
+    
+
+      <g>
+        <text x="24" y="120" class="chart-label">Operating margin QOQ</text>
+        <rect x="280" y="110" width="29.326519916142534" height="16" rx="4" fill="#2f5f4b" opacity="0.9" />
+        <text x="317.32651991614256" y="122" class="chart-value" text-anchor="start">+1.9%</text>
+      </g>
+    
+
+      <g>
+        <text x="24" y="156" class="chart-label">Operating margin YOY</text>
+        <rect x="280" y="146" width="55.56603773584908" height="16" rx="4" fill="#2f5f4b" opacity="0.9" />
+        <text x="343.5660377358491" y="158" class="chart-value" text-anchor="start">+3.6%</text>
+      </g>
+    
+
+      <g>
+        <text x="24" y="192" class="chart-label">Free cash flow QOQ</text>
+        <rect x="280" y="182" width="110.77758719268152" height="16" rx="4" fill="#2f5f4b" opacity="0.9" />
+        <text x="398.7775871926815" y="194" class="chart-value" text-anchor="start">+7.2%</text>
+      </g>
+    
+    </svg>
+  
+    </div>
+  
+      </main>
+      <footer class="page-footer">
+        <div>Thesis Due Diligence Report</div>
+        <div>What Changed In The Filing</div>
+        <div>Page 2 of 13</div>
+      </footer>
+    </section>
+  
+
+    <section class="page">
+      <header class="page-header">
+        <div class="page-header__brand">
+          <div class="page-header__wordmark">Thesis</div>
+          <div class="page-header__meta">Microsoft Corporation | NASDAQ</div>
+        </div>
+        <div class="page-header__right">
+          <div class="page-header__ticker">MSFT</div>
+          <div class="page-header__date">May 4, 2026</div>
+        </div>
+      </header>
+      <main class="page-body">
+        
+    <div class="eyebrow">Good / Bad / Interesting</div>
+    <div class="narrative-header">
+      <h1>The memo read-through</h1>
+      <div class="summary-pill neutral">The point is not to praise or punish the filing. It is to explain what actually changed.</div>
+    </div>
+    <div class="three-up filing-gbi">
+      
+    <div class="editorial-card">
+      <div class="editorial-card__title">The good</div>
+      <p>Revenue increased versus the prior quarter. In plain English, this is the sales line moving, not a market-price opinion. Revenue increased versus the same quarter last year. In plain English, this is the sales line moving, not a market-price opinion. Operating margin increased versus the prior quarter. In plain English, this is the operating profit retained after running the business line moving, not a market-price opinion. That is the constructive side: the filing has at least one measurable line moving in the right direction.</p>
+    </div>
+  
+      
+    <div class="editorial-card">
+      <div class="editorial-card__title">The bad</div>
+      <p>The bad side is less about an obvious deterioration and more about missing confirmation. Without complete filing text and all comparison periods, the memo cannot overstate quality.</p>
+    </div>
+  
+      
+    <div class="editorial-card">
+      <div class="editorial-card__title">The interesting</div>
+      <p>The segment layer is useful because Cloud revenue gives a cleaner clue about business mix than the company total alone. The interesting filing question is whether the same story appears in more than one place: revenue, margins, cash flow, balance sheet, and management language. When those agree, the memo can speak more firmly; when they do not, the right answer is curiosity, not theater.</p>
+    </div>
+  
+    </div>
+    <div class="two-up">
+      <div class="section-panel">
+        <div class="section-panel__header">
+          <div>
+            <div class="section-panel__kicker">Management tone</div>
+            <h2>Do the words agree with the numbers?</h2>
+          </div>
+        </div>
+        <p>Management commentary is available as context, but M11 treats it as something to test against filing numbers rather than as standalone proof. This is treated as management context, not proof by itself. The numbers still own the memo.</p>
+      </div>
+      <div class="section-panel">
+        <div class="section-panel__header">
+          <div>
+            <div class="section-panel__kicker">Risk watch</div>
+            <h2>What needs confirmation next</h2>
+          </div>
+        </div>
+        <p>Watch for confirmation in the next filing: repeated margin strength, cash conversion, segment mix, and any risk-factor language that becomes more specific.</p>
+        <div class="coverage-note">Next filing, the useful checks are simple: did revenue keep converting into profit, did cash flow follow earnings, did debt or share count move the wrong way, and did management language become more cautious or more specific?</div>
+      </div>
+    </div>
+    <div class="section-panel">
+      <div class="section-panel__header">
+        <div>
+          <div class="section-panel__kicker">Omission truth</div>
+          <h2>What the memo refused to fake</h2>
+        </div>
+      </div>
+      <ul class="evidence-list">
+        <li>Full SEC filing-section text extraction is not yet available in this run; management language is bounded to reviewed commentary when present.</li>
+      </ul>
+    </div>
+  
+      </main>
+      <footer class="page-footer">
+        <div>Thesis Due Diligence Report</div>
+        <div>Good Bad Interesting</div>
+        <div>Page 3 of 13</div>
+      </footer>
+    </section>
+  
+
+    <section class="page">
+      <header class="page-header">
+        <div class="page-header__brand">
+          <div class="page-header__wordmark">Thesis</div>
+          <div class="page-header__meta">Microsoft Corporation | NASDAQ</div>
+        </div>
+        <div class="page-header__right">
+          <div class="page-header__ticker">MSFT</div>
+          <div class="page-header__date">May 4, 2026</div>
+        </div>
+      </header>
+      <main class="page-body">
+        
+    <div class="eyebrow">Thesis Investment Memo</div>
+    <div class="hero">
+      <div class="hero__copy">
+        <h1>Microsoft Corporation</h1>
+        <p class="hero__subtitle">MSFT: MSFT thesis: the current quarter (2025-Q4) shows execution strength, but conviction should tr...</p>
+      </div>
+      <div class="hero__signal">
+        <div class="price-chip">Positive</div>
+        <div class="hero__spot">$428.5</div>
+        <div class="hero__upside">-51.9% implied move</div>
+      </div>
+    </div>
+
+    <div class="chip-row">
+      <div class="chip positive"><span>Signal</span><strong>Positive</strong></div>
+      <div class="chip neutral"><span>Confidence</span><strong>high</strong></div>
+      <div class="chip gold"><span>Valuation</span><strong>Valuation range available</strong></div>
+      <div class="chip warning"><span>Coverage</span><strong>12 limitations</strong></div>
+    </div>
+
+    <div class="thesis-box">
+      <h2>Investment view</h2>
+      <p>MSFT thesis: the current quarter (2025-Q4) shows execution strength, but conviction should track whether reported momentum survives the next filing...</p>
+    </div>
+
+    <div class="decision-box">
+      <div class="decision-box__label">Decision question</div>
+      <div class="decision-box__question">Does MSFT still justify confidence on enterprise cloud, productivity bundling, and AI monetization discipline, o...</div>
+    </div>
+
+    <div class="three-up">
+      
+    <div class="editorial-card">
+      <div class="editorial-card__title">What matters now</div>
+      <p>Compared with the prior thesis from 2026-01-15, Signal shifted from neutral to positive. Confidence moved by 25.0 points versus the prior thesis. Core thesis...</p>
+    </div>
+  
+      
+    <div class="editorial-card">
+      <div class="editorial-card__title">What changed</div>
+      <p>2025-Q4 now points to a positive stance, with an explicit thesis-drift summary attached.</p>
+    </div>
+  
+      
+    <div class="editorial-card">
+      <div class="editorial-card__title">What could break the thesis</div>
+      <p>The risk framework is still usable for MSFT, but it needs to be read alongside the current omission notes and evidence-depth limits. The central risk question is not whether MSFT fac...</p>
+    </div>
+  
+    </div>
+
+    <div class="section-panel">
+      <div class="section-panel__header">
+        <div>
+          <div class="section-panel__kicker">Valuation range</div>
+          <h2>Decision range, not a point target</h2>
+        </div>
+        <div class="section-panel__note">Low, base, and high values show how much execution the current price is already asking the business to deli...</div>
+      </div>
+      
+    <svg class="range-svg" viewBox="0 0 540 110" role="img" aria-label="Valuation range">
+      <rect x="0" y="0" width="540" height="110" rx="18" fill="#fbf8f1" />
+      <rect x="42" y="52" width="456" height="12" rx="6" fill="#ded8cb" />
+      <rect x="78.48" y="46" width="93.48261805955963" height="24" rx="12" fill="#d8c299" />
+      
+    <line x1="78.48" y1="34" x2="78.48" y2="76" stroke="#8f8b82" stroke-width="2" />
+    <text x="78.48" y="24" text-anchor="middle" class="range-label">Low $175.2</text>
+  
+      
+    <line x1="125.22130902977983" y1="34" x2="125.22130902977983" y2="76" stroke="#b3874f" stroke-width="2" />
+    <text x="125.22130902977983" y="24" text-anchor="middle" class="range-label">Base $206.1</text>
+  
+      
+    <line x1="171.96261805955962" y1="34" x2="171.96261805955962" y2="76" stroke="#8f8b82" stroke-width="2" />
+    <text x="171.96261805955962" y="24" text-anchor="middle" class="range-label">High $237</text>
+  
+      
+        <circle cx="461.52000000000004" cy="58" r="7" fill="#213141" />
+        <text x="461.52000000000004" y="92" text-anchor="middle" class="range-label">Spot $428.5</text>
+      
+    </svg>
+  
+    </div>
+  
+      </main>
+      <footer class="page-footer">
+        <div>Thesis Due Diligence Report</div>
+        <div>Executive Summary</div>
+        <div>Page 4 of 13</div>
+      </footer>
+    </section>
+  
+
+    <section class="page">
+      <header class="page-header">
+        <div class="page-header__brand">
+          <div class="page-header__wordmark">Thesis</div>
+          <div class="page-header__meta">Microsoft Corporation | NASDAQ</div>
+        </div>
+        <div class="page-header__right">
+          <div class="page-header__ticker">MSFT</div>
+          <div class="page-header__date">May 4, 2026</div>
+        </div>
+      </header>
+      <main class="page-body">
+        
+    <div class="eyebrow">Financial Analysis</div>
+    <div class="narrative-header">
+      <h1>Financial Analysis</h1>
+      <div class="summary-pill neutral">The financial read remains usable for MSFT, but it is constrained by missing history that needs to stay explicit in the final interpretation.</div>
+    </div>
+    
+      <div class="meta-strip">
+        <span>Coverage: partial</span>
+        <span>Evidence refs: 8</span>
+        <span>Omissions: 2</span>
+      </div>
+    
+    <div class="narrative-columns">
+      <div class="narrative-columns__main">
+        <p>MSFT&#39;s financial case still begins with whether recent operating results are broad enough to support a durable thesis rather than a quarter-only bounce. Revenue moved up (7.62% QOQ) at 69.63B vs 64.7B. Operating Margin moved up (4.50% QOQ) at 44.1 vs 42.2. Free Cash Flow moved up (15.46% YOY) at 22.4B vs 19.4B. The underlying section read remains consistent with that direction: MSFT expanded margins alongside revenue, suggesting operating leverage rather than one-off accounting noise. The point is not that every metric moved perfectly in the same direction, but that revenue conversion, margin behavior, and cash generation can still be discussed as one coherent story instead of as disconnected headlines. That distinction matters because the market often overreacts to single-line beats or misses long before it re-underwrites the quality of the full earnings engine.</p>
+<p>The statement history now available to Thesis includes 3 annual rows and 3 quarterly rows. MSFT delivered year-over-year growth with cloud demand carrying the headline acceleration. Revenue CAGR cannot yet be stated with full confidence from the current annual history. Operating-margin trend is directionally visible, but it remains less complete than a full long-cycle history. That broader time frame matters because investment mistakes usually happen when a single quarter is allowed to overpower the more durable earnings and cash-flow pattern.</p>
+<p>The balance-sheet read remains part of the same story, not a separate appendix. MSFT remains liquid and conservatively financed, with cash coverage that limits near-term balance-sheet stress. Cash-conversion quality is not fully measurable from the current dataset. Leadership reiterated AI capex discipline. When cash generation, liquidity, and operating evidence are aligned, the report can speak with more conviction about quality. When they are not aligned, the correct response is to narrow the stance rather than forcing a cleaner story than the filings support.</p>
+<p>Financial coverage is still omission-aware even when the overall section is usable. Revenue CAGR unavailable: Revenue CAGR could not be computed from annual snapshot history. Cash conversion unavailable: Operating cash flow and net income were not both available for latest annual period. Those omissions matter because they set the edge of what this report can responsibly claim. They do not erase the available evidence, but they do define the confidence interval around any thesis built on that evidence.</p>
+      </div>
+      <aside class="narrative-columns__side">
+        <div class="side-card">
+          <div class="side-card__label">Why this section matters</div>
+          <p>The financial read remains usable for MSFT, but it is constrained by missing history that needs to stay explicit in the final interpretation.</p>
+        </div>
+        <div class="side-card">
+          <div class="side-card__label">Coverage state</div>
+          <p>partial</p>
+        </div>
+        
+          <div class="side-card">
+            <div class="side-card__label">Current limitation</div>
+            <p>Revenue CAGR unavailable: Revenue CAGR could not be computed from annual snapshot history.</p>
+          </div>
+        
+      </aside>
+    </div>
+    
+      <div class="mini-grid">
+        <div class="mini-card">Revenue moved up (7.62% QOQ) at 69.63B vs 64.7B.</div>
+<div class="mini-card">Operating Margin moved up (4.50% QOQ) at 44.1 vs 42.2.</div>
+<div class="mini-card">Free Cash Flow moved up (15.46% YOY) at 22.4B vs 19.4B.</div>
+<div class="mini-card">Cash-conversion quality is not fully measurable from the current dataset.</div>
+      </div>
+    
+    
+  
+      </main>
+      <footer class="page-footer">
+        <div>Thesis Due Diligence Report</div>
+        <div>Financial Analysis</div>
+        <div>Page 5 of 13</div>
+      </footer>
+    </section>
+  
+
+    <section class="page">
+      <header class="page-header">
+        <div class="page-header__brand">
+          <div class="page-header__wordmark">Thesis</div>
+          <div class="page-header__meta">Microsoft Corporation | NASDAQ</div>
+        </div>
+        <div class="page-header__right">
+          <div class="page-header__ticker">MSFT</div>
+          <div class="page-header__date">May 4, 2026</div>
+        </div>
+      </header>
+      <main class="page-body">
+        
+    <div class="eyebrow">Financial Exhibits</div>
+    <div class="narrative-header">
+      <h1>Financial statement follow-through</h1>
+      <div class="summary-pill neutral">The table and exhibits below are meant to support the narrative, not replace it.</div>
+    </div>
+    <div class="section-panel">
+      <div class="section-panel__header">
+        <div>
+          <div class="section-panel__kicker">Statement table</div>
+          <h2>Four-period financial progression</h2>
+        </div>
+        <div class="section-panel__note">The current table is intentionally shorter because the annual history is incomplete.</div>
+      </div>
+      
+    <table class="financial-table">
+      <thead>
+        <tr>
+          <th>Metric</th>
+          <th>2025-FY</th><th>2024-FY</th><th>2023-FY</th>
+        </tr>
+      </thead>
+      <tbody>
+        
+          <tr>
+            <td>Revenue</td>
+            <td>n/a</td><td>n/a</td><td>n/a</td>
+          </tr>
+        
+
+          <tr>
+            <td>Gross margin</td>
+            <td>n/a</td><td>n/a</td><td>n/a</td>
+          </tr>
+        
+
+          <tr>
+            <td>Operating margin</td>
+            <td>n/a</td><td>n/a</td><td>n/a</td>
+          </tr>
+        
+
+          <tr>
+            <td>Free cash flow</td>
+            <td>$84.1B</td><td>$78.8B</td><td>$72.6B</td>
+          </tr>
+        
+
+          <tr>
+            <td>Net income</td>
+            <td>n/a</td><td>n/a</td><td>n/a</td>
+          </tr>
+        
+      </tbody>
+    </table>
+  
+    </div>
+    <div class="two-up">
+      <div class="section-panel">
+        <div class="section-panel__header">
+          <div>
+            <div class="section-panel__kicker">Trend chart</div>
+            <h2>Revenue and free cash flow</h2>
+          </div>
+        </div>
+        
+    <svg class="chart-svg" viewBox="0 0 420 210" role="img" aria-label="Revenue vs free cash flow">
+      <rect x="0" y="0" width="420" height="210" rx="18" fill="#fbf8f1" />
+      <text x="28" y="22" class="chart-title">Revenue vs free cash flow</text>
+      <line x1="34" y1="170" x2="396" y2="170" stroke="#b9b2a3" stroke-width="1" />
+      
+      <g>
+        <rect x="48" y="166" width="20" height="4" rx="3" fill="#c0a060" />
+        <rect x="74" y="60" width="20" height="110" rx="3" fill="#223042" />
+        <text x="71" y="188" text-anchor="middle">2025-FY</text>
+      </g>
+    
+
+      <g>
+        <rect x="126" y="166" width="20" height="4" rx="3" fill="#c0a060" />
+        <rect x="152" y="66.93222354340072" width="20" height="103.06777645659928" rx="3" fill="#223042" />
+        <text x="149" y="188" text-anchor="middle">2024-FY</text>
+      </g>
+    
+
+      <g>
+        <rect x="204" y="166" width="20" height="4" rx="3" fill="#c0a060" />
+        <rect x="230" y="75.04161712247324" width="20" height="94.95838287752676" rx="3" fill="#223042" />
+        <text x="227" y="188" text-anchor="middle">2023-FY</text>
+      </g>
+    
+    </svg>
+  
+      </div>
+      <div class="section-panel">
+        <div class="section-panel__header">
+          <div>
+            <div class="section-panel__kicker">Margin profile</div>
+            <h2>Gross and operating margin</h2>
+          </div>
+        </div>
+        
+    <svg class="chart-svg" viewBox="0 0 420 210" role="img" aria-label="Gross margin vs operating margin">
+      <rect x="0" y="0" width="420" height="210" rx="18" fill="#fbf8f1" />
+      <text x="28" y="22" class="chart-title">Gross margin vs operating margin</text>
+      <line x1="34" y1="170" x2="396" y2="170" stroke="#b9b2a3" stroke-width="1" />
+      
+      <g>
+        <rect x="48" y="166" width="20" height="4" rx="3" fill="#a7b7c6" />
+        <rect x="74" y="166" width="20" height="4" rx="3" fill="#2f5f4b" />
+        <text x="71" y="188" text-anchor="middle">2025-FY</text>
+      </g>
+    
+
+      <g>
+        <rect x="126" y="166" width="20" height="4" rx="3" fill="#a7b7c6" />
+        <rect x="152" y="166" width="20" height="4" rx="3" fill="#2f5f4b" />
+        <text x="149" y="188" text-anchor="middle">2024-FY</text>
+      </g>
+    
+
+      <g>
+        <rect x="204" y="166" width="20" height="4" rx="3" fill="#a7b7c6" />
+        <rect x="230" y="166" width="20" height="4" rx="3" fill="#2f5f4b" />
+        <text x="227" y="188" text-anchor="middle">2023-FY</text>
+      </g>
+    
+    </svg>
+  
+      </div>
+    </div>
+  
+      </main>
+      <footer class="page-footer">
+        <div>Thesis Due Diligence Report</div>
+        <div>Financial Exhibits</div>
+        <div>Page 6 of 13</div>
+      </footer>
+    </section>
+  
+
+    <section class="page">
+      <header class="page-header">
+        <div class="page-header__brand">
+          <div class="page-header__wordmark">Thesis</div>
+          <div class="page-header__meta">Microsoft Corporation | NASDAQ</div>
+        </div>
+        <div class="page-header__right">
+          <div class="page-header__ticker">MSFT</div>
+          <div class="page-header__date">May 4, 2026</div>
+        </div>
+      </header>
+      <main class="page-body">
+        
+    <div class="eyebrow">Competitive Positioning</div>
+    <div class="narrative-header">
+      <h1>Competitive Positioning</h1>
+      <div class="summary-pill neutral">Competitive positioning for MSFT is directionally useful, but the report stays disciplined about what the current source plane can and cannot prove.</div>
+    </div>
+    
+      <div class="meta-strip">
+        <span>Coverage: partial</span>
+        <span>Evidence refs: 7</span>
+        <span>Omissions: 1</span>
+      </div>
+    
+    <div class="narrative-columns">
+      <div class="narrative-columns__main">
+        <p>The competitive question for MSFT is less about brand familiarity and more about whether enterprise cloud, productivity bundling, and AI monetization discipline still shows up in approved evidence as a durable commercial advantage. The current segment read points to Cloud at 29.1B of revenue, Productivity at 19.7B of revenue That matters because business quality becomes more believable when the report can see where revenue concentration sits and how that concentration interacts with pricing power, customer dependence, or ecosystem stickiness. It also matters because a real competitive edge should eventually reveal itself in the mix of business that management is willing to defend and reinvest behind, not just in descriptive marketing language.</p>
+<p>Cross-name relationship extraction was lighter in this run, so the competitive read leans more heavily on business mix, filings language, and management commentary than on explicit name-to-name mapping. That is still acceptable so long as the report stays disciplined about what it is doing: describing where competitive durability might still exist, not claiming a full industry map that the evidence did not provide.</p>
+<p>Management and event context help turn competitive description into interpretation. Management commentary stayed constructive while still acknowledging execution and risk priorities for MSFT. Major event flow was manageable and did not materially distort the core operating picture for MSFT. Together, those sections matter because competitive positioning is rarely visible in a single data point. It usually shows up in how management explains demand, where product or segment momentum is concentrated, and whether recent corporate events reinforce or complicate the existing thesis.</p>
+<p>This section therefore stays deliberately conservative about unsupported claims. It can say the current evidence still supports a business-quality read when segment mix, relationship mapping, and management commentary point in the same direction. It cannot claim precise market-share dominance, peer displacement, or durable structural advantage unless the approved source set says so directly.</p>
+      </div>
+      <aside class="narrative-columns__side">
+        <div class="side-card">
+          <div class="side-card__label">Why this section matters</div>
+          <p>Competitive positioning for MSFT is directionally useful, but the report stays disciplined about what the current source plane can and cannot prove.</p>
+        </div>
+        <div class="side-card">
+          <div class="side-card__label">Coverage state</div>
+          <p>partial</p>
+        </div>
+        
+          <div class="side-card">
+            <div class="side-card__label">Current limitation</div>
+            <p>No Explicit Cross Name Relationship Map Was Available For This Run. is limited in this report.</p>
+          </div>
+        
+      </aside>
+    </div>
+    
+      <div class="mini-grid">
+        <div class="mini-card">Cloud remains a visible operating anchor in the latest snapshot.</div>
+<div class="mini-card">Direct cross-name mapping is limited in this run.</div>
+<div class="mini-card">Management context: Management highlighted durable cloud demand and disciplined AI infrastructure spend while maintaining margin focus</div>
+      </div>
+    
+    
+  
+      </main>
+      <footer class="page-footer">
+        <div>Thesis Due Diligence Report</div>
+        <div>Competitive Positioning</div>
+        <div>Page 7 of 13</div>
+      </footer>
+    </section>
+  
+
+    <section class="page">
+      <header class="page-header">
+        <div class="page-header__brand">
+          <div class="page-header__wordmark">Thesis</div>
+          <div class="page-header__meta">Microsoft Corporation | NASDAQ</div>
+        </div>
+        <div class="page-header__right">
+          <div class="page-header__ticker">MSFT</div>
+          <div class="page-header__date">May 4, 2026</div>
+        </div>
+      </header>
+      <main class="page-body">
+        
+    <div class="eyebrow">Management and Governance</div>
+    <div class="narrative-header">
+      <h1>Management and Governance</h1>
+      <div class="summary-pill neutral">Management commentary is usable for MSFT, but governance analysis remains intentionally limited to what approved filings and transcripts can actually support.</div>
+    </div>
+    
+    <div class="narrative-columns">
+      <div class="narrative-columns__main">
+        <p>Management commentary matters here because it can either reinforce or weaken the financial interpretation of the quarter. Management commentary stayed constructive while still acknowledging execution and risk priorities for MSFT. The freshest traceable management evidence currently reads: Leadership reiterated AI capex discipline. That language does not settle the thesis by itself, but it does help show whether management priorities, disclosed tradeoffs, and current execution all line up in a way that makes the broader report more credible. In practice, the most useful management signal is not optimism by itself but whether disclosure cadence and operating follow-through stay consistent once the next filing arrives.</p>
+<p>Governance should be read with more humility than management tone. Thesis can discuss capital allocation, disclosure posture, and the consistency between what management says and what the financial statements later confirm. It should not simulate a full board-effectiveness or incentive-design review when proxy-grade evidence is absent. Governance detail is limited because proxy-grade material was not available in this run. That omission is exactly the kind of guardrail that keeps a long-form report from sliding into polished speculation.</p>
+<p>The practical conclusion is that management quality for this run is best inferred from disciplined follow-through rather than adjectives. Value-discipline context remains sparse-data context at 1/9, share-count behavior remains part of the read, and the next step is simple: if management language and the next filing stay consistent, governance confidence can gradually widen; if they do not, the stance should narrow quickly.</p>
+      </div>
+      <aside class="narrative-columns__side">
+        <div class="side-card">
+          <div class="side-card__label">Why this section matters</div>
+          <p>Management commentary is usable for MSFT, but governance analysis remains intentionally limited to what approved filings and transcripts can actually support.</p>
+        </div>
+        <div class="side-card">
+          <div class="side-card__label">Coverage state</div>
+          <p>partial</p>
+        </div>
+        
+          <div class="side-card">
+            <div class="side-card__label">Current limitation</div>
+            <p>Proxy Grade Governance Detail Is Unavailable In The Current Approved Source Plane. is limited in this report.</p>
+          </div>
+        
+      </aside>
+    </div>
+    
+      <div class="mini-grid">
+        <div class="mini-card">Transcript read: Management highlighted durable cloud demand and disciplined AI infrastructure spend while maintaining margin focus</div>
+<div class="mini-card">Value-discipline context: sparse-data context (1/9).</div>
+<div class="mini-card">Governance coverage is limited to approved filings and transcript evidence.</div>
+      </div>
+    
+    <div class="coverage-note">Proxy Grade Governance Detail Is Unavailable In The Current Approved Source Plane. is limited in this report.</div>
+  
+      </main>
+      <footer class="page-footer">
+        <div>Thesis Due Diligence Report</div>
+        <div>Management and Governance</div>
+        <div>Page 8 of 13</div>
+      </footer>
+    </section>
+  
+
+    <section class="page">
+      <header class="page-header">
+        <div class="page-header__brand">
+          <div class="page-header__wordmark">Thesis</div>
+          <div class="page-header__meta">Microsoft Corporation | NASDAQ</div>
+        </div>
+        <div class="page-header__right">
+          <div class="page-header__ticker">MSFT</div>
+          <div class="page-header__date">May 4, 2026</div>
+        </div>
+      </header>
+      <main class="page-body">
+        
+    <div class="eyebrow">Risks And Challenges</div>
+    <div class="narrative-header">
+      <h1>Risks and Challenges</h1>
+      <div class="summary-pill warning">The risk framework is still usable for MSFT, but it needs to be read alongside the current omission notes and evidence-depth limits.</div>
+    </div>
+    <div class="narrative-columns">
+      <div class="narrative-columns__main">
+        <p>The central risk question is not whether MSFT faces generic uncertainty. Every company does. The real question is which conditions would invalidate the current stance quickly enough that the thesis should be rewritten rather than merely monitored. The report is already carrying explicit omission pressure: Latest source timestamp is 45 day(s) old. Degraded report sections: Value Discipline. That framing matters because a disciplined risk section should tell the reader when a thesis is broken, when it is merely noisier, and which evidence would separate those two states.</p>
+<p>The active kill-switch set is what makes this section actionable instead of decorative. Current break conditions include Price moves 5% against the thesis anchor.; Thesis monitor state becomes weakened or unresolved.; Earnings event introduces a material surprise versus thesis assumptions. These are not generic warning bullets. They define the evidence pattern that would force the current stance back into review even if the top-line story still sounded attractive at first glance.</p>
+<p>The current value-discipline layer does not trigger a value-trap warning, but that is not the same thing as a risk-free setup. Multiple compression, execution slippage, weaker cash conversion, or a deterioration in management guidance can still damage the thesis long before a static quality score fully catches up.</p>
+<p>This is why the risk section stays explicit about uncertainty instead of hiding it inside polished prose. The report should tell the reader what would break the thesis, where omission pressure still exists, and which next filing or management update matters most. If it cannot do those things, it should sound incomplete.</p>
+      </div>
+      <aside class="narrative-columns__side">
+        <div class="side-card">
+          <div class="side-card__label">What would change our mind</div>
+          <p>Compared with the prior thesis from 2026-01-15, Signal shifted from neutral to positive. Confidence moved by 25.0 poi... Price moves 5% against the thesis anchor.</p>
+        </div>
+      </aside>
+    </div>
+    <div class="three-up">
+      
+    <div class="risk-card">
+      <div class="risk-card__label">Price move</div>
+      <h3>Price moves 5% against the thesis anchor.</h3>
+      <p>Detects immediate market divergence against your positive thesis.</p>
+    </div>
+  
+
+    <div class="risk-card">
+      <div class="risk-card__label">Thesis state</div>
+      <h3>Thesis monitor state becomes weakened or unresolved.</h3>
+      <p>Captures structural thesis degradation from monitor recompute, not only price volatility.</p>
+    </div>
+  
+
+    <div class="risk-card">
+      <div class="risk-card__label">Earnings Event</div>
+      <h3>Earnings event introduces a material surprise versus thesis assumptions.</h3>
+      <p>Prioritizes quarterly events that can quickly invalidate assumptions.</p>
+    </div>
+  
+    </div>
+  
+      </main>
+      <footer class="page-footer">
+        <div>Thesis Due Diligence Report</div>
+        <div>Risks and Challenges</div>
+        <div>Page 9 of 13</div>
+      </footer>
+    </section>
+  
+
+    <section class="page">
+      <header class="page-header">
+        <div class="page-header__brand">
+          <div class="page-header__wordmark">Thesis</div>
+          <div class="page-header__meta">Microsoft Corporation | NASDAQ</div>
+        </div>
+        <div class="page-header__right">
+          <div class="page-header__ticker">MSFT</div>
+          <div class="page-header__date">May 4, 2026</div>
+        </div>
+      </header>
+      <main class="page-body">
+        
+    <div class="eyebrow">Growth Opportunities and Outlook</div>
+    <div class="narrative-header">
+      <h1>Growth Opportunities and Outlook</h1>
+      <div class="summary-pill neutral">The outlook section remains useful for MSFT, but it is intentionally narrow where approved growth evidence is incomplete.</div>
+    </div>
+    
+      <div class="meta-strip">
+        <span>Coverage: partial</span>
+        <span>Evidence refs: 8</span>
+        <span>Omissions: 1</span>
+      </div>
+    
+    <div class="narrative-columns">
+      <div class="narrative-columns__main">
+        <p>The most important growth question for MSFT is whether enterprise cloud, productivity bundling, and AI monetization discipline still has enough operating support to matter over the next several reporting windows. Cloud at 29.1B of revenue, Productivity at 19.7B of revenue That matters because the outlook is strongest when it can point to visible business drivers rather than to abstract stories about optionality or total addressable market. The next reporting window should therefore be judged by which driver is actually funding incremental margin, cash generation, or strategic reinvestment rather than by headline enthusiasm alone.</p>
+<p>Management context helps sharpen that read without overreaching. The latest approved transcript language suggests &quot;Management highlighted durable cloud demand and disciplined AI infrastructure spend while maintaining margin focus.&quot; That is meaningful only if later filings continue to validate disciplined execution, demand durability, or margin conversion. In other words, transcript color is useful when it frames the next evidence to watch, not when it substitutes for that evidence.</p>
+<p>Recent operating context also matters because outlook is rarely a clean continuation of the last quarter. MSFT delivered sequential growth with cloud demand carrying the headline acceleration. Major event flow was manageable and did not materially distort the core operating picture for MSFT. Together, those pieces help the report explain why the next step in the thesis is not just &quot;more growth,&quot; but a more specific question about whether visible business drivers are still converting into durable operating quality and cash generation.</p>
+<p>This section therefore stays conservative by design. It can identify catalysts, segment pressure points, and areas where management appears to be investing behind the thesis. It should not pretend to know the full forward arc unless that view is already supported inside the approved source plane.</p>
+      </div>
+      <aside class="narrative-columns__side">
+        <div class="side-card">
+          <div class="side-card__label">Why this section matters</div>
+          <p>The outlook section remains useful for MSFT, but it is intentionally narrow where approved growth evidence is incomplete.</p>
+        </div>
+        <div class="side-card">
+          <div class="side-card__label">Coverage state</div>
+          <p>partial</p>
+        </div>
+        
+          <div class="side-card">
+            <div class="side-card__label">Current limitation</div>
+            <p>Latest source timestamp is 45 day(s) old.</p>
+          </div>
+        
+      </aside>
+    </div>
+    
+      <div class="mini-grid">
+        <div class="mini-card">Cloud is the clearest visible growth lens in the latest snapshot.</div>
+<div class="mini-card">Management outlook: Management highlighted durable cloud demand and disciplined AI infrastructure spend while maintaining margin focus</div>
+<div class="mini-card">Compared with the prior thesis from 2026-01-15, Signal shifted from neutral to positive. Confidence moved by 25.0 points versus the prior thesis. Core thesis framing changed materially from the prior report.</div>
+      </div>
+    
+    
+  
+      </main>
+      <footer class="page-footer">
+        <div>Thesis Due Diligence Report</div>
+        <div>Growth Outlook</div>
+        <div>Page 10 of 13</div>
+      </footer>
+    </section>
+  
+
+    <section class="page">
+      <header class="page-header">
+        <div class="page-header__brand">
+          <div class="page-header__wordmark">Thesis</div>
+          <div class="page-header__meta">Microsoft Corporation | NASDAQ</div>
+        </div>
+        <div class="page-header__right">
+          <div class="page-header__ticker">MSFT</div>
+          <div class="page-header__date">May 4, 2026</div>
+        </div>
+      </header>
+      <main class="page-body">
+        
+    <div class="eyebrow">Valuation And Thesis Stance</div>
+    <div class="narrative-header">
+      <h1>Valuation and Thesis Stance</h1>
+      <div class="summary-pill gold">Thesis stance for MSFT remains positive, with deterministic valuation providing a disciplined range rather than a narrative shortcut.</div>
+    </div>
+    <div class="narrative-columns">
+      <div class="narrative-columns__main">
+        <p>The current Thesis stance on MSFT remains positive, and the valuation discussion is deliberately framed as a decision process rather than as a single-point target. Fair value centers near 206.1 with a bounded range from 175.18 to 237.01. Against a spot reference of 428.52, that leaves implied upside at -51.91%. The range matters less as a marketing number than as a discipline check on whether the current operating evidence is strong enough to justify staying constructive at today&#39;s price.</p>
+<p>That numerical range only matters because it sits on top of an operating case. The stance remains constructive only if enterprise cloud, productivity bundling, and AI monetization discipline continues to convert into reported outcomes, omission pressure remains controlled, and the trust state does not deteriorate without explanation. Compared with the prior thesis from 2026-01-15, Signal shifted from neutral to positive. Confidence moved by 25.0 points versus the prior thesis. Core thesis framing changed materially from the prior report. In that sense, valuation is not the thesis itself. It is the framework that tests whether the thesis is still worth owning at the current price.</p>
+<p>The assumption discipline is equally important. The deterministic setup remains usable with WACC at 9.50%, terminal growth at 2.50%, and a 5-year projection horizon. That matters because long-form due diligence becomes less useful, not more, when it hides the assumptions doing the real work.</p>
+<p>What would change our mind is not vague. The current stance would need to be reviewed if conditions such as Price moves 5% against the thesis anchor. or Thesis monitor state becomes weakened or unresolved. begin showing up in the evidence. That keeps valuation anchored to falsifiable business outcomes instead of letting the report drift into a static target-price exercise.</p>
+      </div>
+      <aside class="narrative-columns__side">
+        <div class="side-card">
+          <div class="side-card__label">Assumption frame</div>
+          <p>DCF-based scenario framework</p>
+        </div>
+      </aside>
+    </div>
+    <div class="two-up">
+      <div class="section-panel">
+        <div class="section-panel__header">
+          <div>
+            <div class="section-panel__kicker">Scenario table</div>
+            <h2>Bear, base, and bull</h2>
+          </div>
+        </div>
+        
+    <table class="scenario-table">
+      <thead>
+        <tr>
+          <th></th>
+          <th>Bear</th>
+          <th>Base</th>
+          <th>Bull</th>
+        </tr>
+      </thead>
+      <tbody>
+        
+          <tr>
+            <td>Fair value</td>
+            <td>$175.2</td>
+            <td>$206.1</td>
+            <td>$237</td>
+          </tr>
+        
+
+          <tr>
+            <td>Implied move</td>
+            <td>-59.1%</td>
+            <td>-51.9%</td>
+            <td>-44.7%</td>
+          </tr>
+        
+
+          <tr>
+            <td>Key assumption</td>
+            <td>Lower conversion from growth into cash flow</td>
+            <td>WACC 9.5%</td>
+            <td>Margin resilience and stronger cash conversion</td>
+          </tr>
+        
+
+          <tr>
+            <td>Main risk</td>
+            <td>Price moves 5% against the thesis anchor.</td>
+            <td>The current operating case stalls</td>
+            <td>The market already discounts the upside</td>
+          </tr>
+        
+      </tbody>
+    </table>
+  
+      </div>
+      <div class="section-panel">
+        <div class="section-panel__header">
+          <div>
+            <div class="section-panel__kicker">Range view</div>
+            <h2>Where spot sits today</h2>
+          </div>
+        </div>
+        
+    <svg class="range-svg" viewBox="0 0 540 110" role="img" aria-label="Valuation range">
+      <rect x="0" y="0" width="540" height="110" rx="18" fill="#fbf8f1" />
+      <rect x="42" y="52" width="456" height="12" rx="6" fill="#ded8cb" />
+      <rect x="78.48" y="46" width="93.48261805955963" height="24" rx="12" fill="#d8c299" />
+      
+    <line x1="78.48" y1="34" x2="78.48" y2="76" stroke="#8f8b82" stroke-width="2" />
+    <text x="78.48" y="24" text-anchor="middle" class="range-label">Low $175.2</text>
+  
+      
+    <line x1="125.22130902977983" y1="34" x2="125.22130902977983" y2="76" stroke="#b3874f" stroke-width="2" />
+    <text x="125.22130902977983" y="24" text-anchor="middle" class="range-label">Base $206.1</text>
+  
+      
+    <line x1="171.96261805955962" y1="34" x2="171.96261805955962" y2="76" stroke="#8f8b82" stroke-width="2" />
+    <text x="171.96261805955962" y="24" text-anchor="middle" class="range-label">High $237</text>
+  
+      
+        <circle cx="461.52000000000004" cy="58" r="7" fill="#213141" />
+        <text x="461.52000000000004" y="92" text-anchor="middle" class="range-label">Spot $428.5</text>
+      
+    </svg>
+  
+      </div>
+    </div>
+  
+      </main>
+      <footer class="page-footer">
+        <div>Thesis Due Diligence Report</div>
+        <div>Valuation and Stance</div>
+        <div>Page 11 of 13</div>
+      </footer>
+    </section>
+  
+
+    <section class="page">
+      <header class="page-header">
+        <div class="page-header__brand">
+          <div class="page-header__wordmark">Thesis</div>
+          <div class="page-header__meta">Microsoft Corporation | NASDAQ</div>
+        </div>
+        <div class="page-header__right">
+          <div class="page-header__ticker">MSFT</div>
+          <div class="page-header__date">May 4, 2026</div>
+        </div>
+      </header>
+      <main class="page-body">
+        
+    <div class="eyebrow">Evidence And Coverage</div>
+    <div class="narrative-header">
+      <h1>Evidence, omissions, and source discipline</h1>
+      <div class="summary-pill neutral">This report covers the latest company data Thesis could verify and explicitly lists what is missing instead of filling gaps with guesses.</div>
+    </div>
+    <div class="two-up">
+      <div class="section-panel">
+        <div class="section-panel__header">
+          <div>
+            <div class="section-panel__kicker">Evidence used</div>
+            <h2>Primary support trail</h2>
+          </div>
+        </div>
+        <ul class="evidence-list">
+          <li>SEC companyfacts/XBRL quarterly snapshot: MSFT 2025-Q4 quarterly SEC-backed financial snapshot; available metrics include revenue, net_income, eps, operating_margin, free_cash_flow, shares_...</li>
+<li>SEC companyfacts/XBRL quarterly snapshot: MSFT 2025-Q3 quarterly SEC-backed financial snapshot; available metrics include revenue, net_income, eps, operating_margin, free_cash_flow, shares_...</li>
+<li>SEC companyfacts/XBRL quarterly snapshot: MSFT 2024-Q4 quarterly SEC-backed financial snapshot; available metrics include revenue, net_income, eps, operating_margin, free_cash_flow, shares_...</li>
+<li>SEC companyfacts/XBRL annual snapshot: MSFT 2025-FY annual SEC-backed financial snapshot; available metrics include free_cash_flow, shares_outstanding, effective_tax_rate.</li>
+<li>SEC companyfacts/XBRL annual snapshot: MSFT 2024-FY annual SEC-backed financial snapshot; available metrics include free_cash_flow, shares_outstanding, effective_tax_rate.</li>
+<li>Reviewed management commentary: Management highlighted durable cloud demand and disciplined AI infrastructure spend while maintaining margin focus.</li>
+<li>historical:fixture_historical: MSFT 2025-Q4 snapshot</li>
+<li>historical:fixture_transcript: MSFT 2025-Q4 earnings call transcript</li>
+        </ul>
+      </div>
+      <div class="section-panel">
+        <div class="section-panel__header">
+          <div>
+            <div class="section-panel__kicker">Coverage limitations</div>
+            <h2>What stayed constrained</h2>
+          </div>
+        </div>
+        <ul class="evidence-list">
+          <li>Latest source timestamp is 45 day(s) old.</li>
+<li>Degraded report sections: Value Discipline.</li>
+<li>Revenue CAGR unavailable: Revenue CAGR could not be computed from annual snapshot history.</li>
+<li>Cash conversion unavailable: Operating cash flow and net income were not both available for latest annual period.</li>
+<li>Value signal unavailable: Positive return on assets</li>
+<li>Value signal unavailable: Positive operating cash flow</li>
+<li>Value signal unavailable: ROA improving vs prior year</li>
+<li>Value signal unavailable: Cash flow exceeds net income</li>
+<li>Value signal unavailable: Leverage declining</li>
+<li>Value signal unavailable: Liquidity buffer improving</li>
+        </ul>
+      </div>
+    </div>
+  
+      </main>
+      <footer class="page-footer">
+        <div>Thesis Due Diligence Report</div>
+        <div>Evidence and Omissions</div>
+        <div>Page 12 of 13</div>
+      </footer>
+    </section>
+  
+
+    <section class="page">
+      <header class="page-header">
+        <div class="page-header__brand">
+          <div class="page-header__wordmark">Thesis</div>
+          <div class="page-header__meta">Microsoft Corporation | NASDAQ</div>
+        </div>
+        <div class="page-header__right">
+          <div class="page-header__ticker">MSFT</div>
+          <div class="page-header__date">May 4, 2026</div>
+        </div>
+      </header>
+      <main class="page-body">
+        
+    <div class="eyebrow">Appendix And Source Notes</div>
+    <div class="narrative-header">
+      <h1>Appendix</h1>
+      <div class="summary-pill neutral">This closing page preserves the structured trail behind the long-form memo.</div>
+    </div>
+    <div class="section-panel">
+      <div class="section-panel__header">
+        <div>
+          <div class="section-panel__kicker">Section ledger</div>
+          <h2>Canonical due-diligence map</h2>
+        </div>
+      </div>
+      <div class="appendix-grid">
+        
+    <div class="appendix-item">
+      <div class="appendix-item__title">Financial Analysis</div>
+      <div class="appendix-item__meta">Coverage partial | Evidence refs 8</div>
+      <p>The financial read remains usable for MSFT, but it is constrained by missing history that needs to stay explicit in the final interpretation.</p>
+    </div>
+  
+
+    <div class="appendix-item">
+      <div class="appendix-item__title">Competitive Positioning</div>
+      <div class="appendix-item__meta">Coverage partial | Evidence refs 7</div>
+      <p>Competitive positioning for MSFT is directionally useful, but the report stays disciplined about what the current source plane can and cannot prove.</p>
+    </div>
+  
+
+    <div class="appendix-item">
+      <div class="appendix-item__title">Management and Governance</div>
+      <div class="appendix-item__meta">Coverage partial | Evidence refs 6</div>
+      <p>Management commentary is usable for MSFT, but governance analysis remains intentionally limited to what approved filings and transcripts can actually support.</p>
+    </div>
+  
+
+    <div class="appendix-item">
+      <div class="appendix-item__title">Risks and Challenges</div>
+      <div class="appendix-item__meta">Coverage partial | Evidence refs 8</div>
+      <p>The risk framework is still usable for MSFT, but it needs to be read alongside the current omission notes and evidence-depth limits.</p>
+    </div>
+  
+
+    <div class="appendix-item">
+      <div class="appendix-item__title">Growth Opportunities and Outlook</div>
+      <div class="appendix-item__meta">Coverage partial | Evidence refs 8</div>
+      <p>The outlook section remains useful for MSFT, but it is intentionally narrow where approved growth evidence is incomplete.</p>
+    </div>
+  
+
+    <div class="appendix-item">
+      <div class="appendix-item__title">Valuation and Thesis Stance</div>
+      <div class="appendix-item__meta">Coverage full | Evidence refs 8</div>
+      <p>Thesis stance for MSFT remains positive, with deterministic valuation providing a disciplined range rather than a narrative shortcut.</p>
+    </div>
+  
+      </div>
+    </div>
+    <div class="appendix-note">Generated May 4, 2026. Thesis uses stance language only and remains omission-aware where the source plane is incomplete.</div>
+  
+      </main>
+      <footer class="page-footer">
+        <div>Thesis Due Diligence Report</div>
+        <div>Appendix</div>
+        <div>Page 13 of 13</div>
+      </footer>
+    </section>
+  
+</body>
+</html>

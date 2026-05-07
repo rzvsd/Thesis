@@ -1,0 +1,583 @@
+{
+  "report_id": "a0e71345-8017-4c98-b1cf-f98909ec28e1",
+  "ticker": "MSFT",
+  "page_count": 13,
+  "page_titles": [
+    "Filing Read",
+    "What Changed In The Filing",
+    "Good Bad Interesting",
+    "Executive Summary",
+    "Financial Analysis",
+    "Financial Exhibits",
+    "Competitive Positioning",
+    "Management and Governance",
+    "Risks and Challenges",
+    "Growth Outlook",
+    "Valuation and Stance",
+    "Evidence and Omissions",
+    "Appendix"
+  ],
+  "filing_intelligence": {
+    "prompt_version": "ph7-m11-filing-intelligence-v1",
+    "generation_mode": "deterministic_fixture",
+    "latest_filing": {
+      "form": "10-Q",
+      "period": "2025-Q4",
+      "fiscal_year": 2025,
+      "fiscal_quarter": 4
+    },
+    "comparison_filings": [
+      {
+        "form": "10-Q",
+        "period": "2025-Q3",
+        "fiscal_year": 2025,
+        "fiscal_quarter": 3
+      },
+      {
+        "form": "10-Q",
+        "period": "2024-Q4",
+        "fiscal_year": 2024,
+        "fiscal_quarter": 4
+      },
+      {
+        "form": "10-K",
+        "period": "2025-FY",
+        "fiscal_year": 2025
+      },
+      {
+        "form": "10-K",
+        "period": "2024-FY",
+        "fiscal_year": 2024
+      }
+    ],
+    "metric_deltas": [
+      {
+        "metric": "revenue",
+        "label": "Revenue",
+        "basis": "qoq",
+        "current_period": "2025-Q4",
+        "reference_period": "2025-Q3",
+        "current_value": 69632000000,
+        "reference_value": 64700000000,
+        "delta": 4932000000,
+        "delta_pct": 7.622874806800619,
+        "unit": "currency",
+        "direction": "improved",
+        "plain_english": "Revenue increased versus the prior quarter. In plain English, this is the sales line moving, not a market-price opinion.",
+        "why_it_matters": "Revenue tells us whether the company is expanding the top of the income statement before margins do any work.",
+        "evidence_refs": [
+          "sec-xbrl-msft-latest-2025-q4",
+          "sec-xbrl-msft-prior-quarter-2025-q3"
+        ]
+      },
+      {
+        "metric": "revenue",
+        "label": "Revenue",
+        "basis": "yoy",
+        "current_period": "2025-Q4",
+        "reference_period": "2024-Q4",
+        "current_value": 69632000000,
+        "reference_value": 62000000000,
+        "delta": 7632000000,
+        "delta_pct": 12.30967741935484,
+        "unit": "currency",
+        "direction": "improved",
+        "plain_english": "Revenue increased versus the same quarter last year. In plain English, this is the sales line moving, not a market-price opinion.",
+        "why_it_matters": "Revenue tells us whether the company is expanding the top of the income statement before margins do any work.",
+        "evidence_refs": [
+          "sec-xbrl-msft-latest-2025-q4",
+          "sec-xbrl-msft-year-ago-2024-q4"
+        ]
+      },
+      {
+        "metric": "gross_margin",
+        "label": "Gross margin",
+        "basis": "qoq",
+        "current_period": "2025-Q4",
+        "reference_period": "2025-Q3",
+        "unit": "pct",
+        "direction": "unavailable",
+        "plain_english": "Gross margin cannot be compared because one side of the the prior quarter comparison is missing.",
+        "why_it_matters": "Gross margin matters because it helps separate headline growth from the economics underneath it.",
+        "evidence_refs": [
+          "sec-xbrl-msft-latest-2025-q4",
+          "sec-xbrl-msft-prior-quarter-2025-q3"
+        ]
+      },
+      {
+        "metric": "gross_margin",
+        "label": "Gross margin",
+        "basis": "yoy",
+        "current_period": "2025-Q4",
+        "reference_period": "2024-Q4",
+        "unit": "pct",
+        "direction": "unavailable",
+        "plain_english": "Gross margin cannot be compared because one side of the the same quarter last year comparison is missing.",
+        "why_it_matters": "Gross margin matters because it helps separate headline growth from the economics underneath it.",
+        "evidence_refs": [
+          "sec-xbrl-msft-latest-2025-q4",
+          "sec-xbrl-msft-year-ago-2024-q4"
+        ]
+      },
+      {
+        "metric": "operating_margin",
+        "label": "Operating margin",
+        "basis": "qoq",
+        "current_period": "2025-Q4",
+        "reference_period": "2025-Q3",
+        "current_value": 44.1,
+        "reference_value": 42.2,
+        "delta": 1.8999999999999986,
+        "delta_pct": 1.8999999999999986,
+        "unit": "pct",
+        "direction": "improved",
+        "plain_english": "Operating margin increased versus the prior quarter. In plain English, this is the operating profit retained after running the business line moving, not a market-price opinion.",
+        "why_it_matters": "Operating margin matters because it helps separate headline growth from the economics underneath it.",
+        "evidence_refs": [
+          "sec-xbrl-msft-latest-2025-q4",
+          "sec-xbrl-msft-prior-quarter-2025-q3"
+        ]
+      },
+      {
+        "metric": "operating_margin",
+        "label": "Operating margin",
+        "basis": "yoy",
+        "current_period": "2025-Q4",
+        "reference_period": "2024-Q4",
+        "current_value": 44.1,
+        "reference_value": 40.5,
+        "delta": 3.6000000000000014,
+        "delta_pct": 3.6000000000000014,
+        "unit": "pct",
+        "direction": "improved",
+        "plain_english": "Operating margin increased versus the same quarter last year. In plain English, this is the operating profit retained after running the business line moving, not a market-price opinion.",
+        "why_it_matters": "Operating margin matters because it helps separate headline growth from the economics underneath it.",
+        "evidence_refs": [
+          "sec-xbrl-msft-latest-2025-q4",
+          "sec-xbrl-msft-year-ago-2024-q4"
+        ]
+      },
+      {
+        "metric": "free_cash_flow",
+        "label": "Free cash flow",
+        "basis": "qoq",
+        "current_period": "2025-Q4",
+        "reference_period": "2025-Q3",
+        "current_value": 22400000000,
+        "reference_value": 20900000000,
+        "delta": 1500000000,
+        "delta_pct": 7.177033492822966,
+        "unit": "currency",
+        "direction": "improved",
+        "plain_english": "Free cash flow increased versus the prior quarter. In plain English, this is the cash left after operating needs and capital spending line moving, not a market-price opinion.",
+        "why_it_matters": "Free cash flow shows whether reported profit is turning into money the business can actually use.",
+        "evidence_refs": [
+          "sec-xbrl-msft-latest-2025-q4",
+          "sec-xbrl-msft-prior-quarter-2025-q3"
+        ]
+      },
+      {
+        "metric": "free_cash_flow",
+        "label": "Free cash flow",
+        "basis": "yoy",
+        "current_period": "2025-Q4",
+        "reference_period": "2024-Q4",
+        "current_value": 22400000000,
+        "reference_value": 19400000000,
+        "delta": 3000000000,
+        "delta_pct": 15.463917525773196,
+        "unit": "currency",
+        "direction": "improved",
+        "plain_english": "Free cash flow increased versus the same quarter last year. In plain English, this is the cash left after operating needs and capital spending line moving, not a market-price opinion.",
+        "why_it_matters": "Free cash flow shows whether reported profit is turning into money the business can actually use.",
+        "evidence_refs": [
+          "sec-xbrl-msft-latest-2025-q4",
+          "sec-xbrl-msft-year-ago-2024-q4"
+        ]
+      },
+      {
+        "metric": "capital_expenditure",
+        "label": "Capital expenditure",
+        "basis": "qoq",
+        "current_period": "2025-Q4",
+        "reference_period": "2025-Q3",
+        "unit": "currency",
+        "direction": "unavailable",
+        "plain_english": "Capital expenditure cannot be compared because one side of the the prior quarter comparison is missing.",
+        "why_it_matters": "Capital expenditure matters because it helps separate headline growth from the economics underneath it.",
+        "evidence_refs": [
+          "sec-xbrl-msft-latest-2025-q4",
+          "sec-xbrl-msft-prior-quarter-2025-q3"
+        ]
+      },
+      {
+        "metric": "capital_expenditure",
+        "label": "Capital expenditure",
+        "basis": "yoy",
+        "current_period": "2025-Q4",
+        "reference_period": "2024-Q4",
+        "unit": "currency",
+        "direction": "unavailable",
+        "plain_english": "Capital expenditure cannot be compared because one side of the the same quarter last year comparison is missing.",
+        "why_it_matters": "Capital expenditure matters because it helps separate headline growth from the economics underneath it.",
+        "evidence_refs": [
+          "sec-xbrl-msft-latest-2025-q4",
+          "sec-xbrl-msft-year-ago-2024-q4"
+        ]
+      },
+      {
+        "metric": "cash_and_equivalents",
+        "label": "Cash and equivalents",
+        "basis": "qoq",
+        "current_period": "2025-Q4",
+        "reference_period": "2025-Q3",
+        "unit": "currency",
+        "direction": "unavailable",
+        "plain_english": "Cash and equivalents cannot be compared because one side of the the prior quarter comparison is missing.",
+        "why_it_matters": "Cash and equivalents matters because it helps separate headline growth from the economics underneath it.",
+        "evidence_refs": [
+          "sec-xbrl-msft-latest-2025-q4",
+          "sec-xbrl-msft-prior-quarter-2025-q3"
+        ]
+      },
+      {
+        "metric": "cash_and_equivalents",
+        "label": "Cash and equivalents",
+        "basis": "yoy",
+        "current_period": "2025-Q4",
+        "reference_period": "2024-Q4",
+        "unit": "currency",
+        "direction": "unavailable",
+        "plain_english": "Cash and equivalents cannot be compared because one side of the the same quarter last year comparison is missing.",
+        "why_it_matters": "Cash and equivalents matters because it helps separate headline growth from the economics underneath it.",
+        "evidence_refs": [
+          "sec-xbrl-msft-latest-2025-q4",
+          "sec-xbrl-msft-year-ago-2024-q4"
+        ]
+      },
+      {
+        "metric": "debt_total",
+        "label": "Total debt",
+        "basis": "qoq",
+        "current_period": "2025-Q4",
+        "reference_period": "2025-Q3",
+        "unit": "currency",
+        "direction": "unavailable",
+        "plain_english": "Total debt cannot be compared because one side of the the prior quarter comparison is missing.",
+        "why_it_matters": "Debt changes tell us whether growth is being supported by a stronger or heavier balance sheet.",
+        "evidence_refs": [
+          "sec-xbrl-msft-latest-2025-q4",
+          "sec-xbrl-msft-prior-quarter-2025-q3"
+        ]
+      },
+      {
+        "metric": "debt_total",
+        "label": "Total debt",
+        "basis": "yoy",
+        "current_period": "2025-Q4",
+        "reference_period": "2024-Q4",
+        "unit": "currency",
+        "direction": "unavailable",
+        "plain_english": "Total debt cannot be compared because one side of the the same quarter last year comparison is missing.",
+        "why_it_matters": "Debt changes tell us whether growth is being supported by a stronger or heavier balance sheet.",
+        "evidence_refs": [
+          "sec-xbrl-msft-latest-2025-q4",
+          "sec-xbrl-msft-year-ago-2024-q4"
+        ]
+      },
+      {
+        "metric": "shares_outstanding",
+        "label": "Shares outstanding",
+        "basis": "qoq",
+        "current_period": "2025-Q4",
+        "reference_period": "2025-Q3",
+        "current_value": 7420000000,
+        "reference_value": 7425000000,
+        "delta": -5000000,
+        "delta_pct": -0.06734006734006734,
+        "unit": "count",
+        "direction": "improved",
+        "plain_english": "Shares outstanding declined versus the prior quarter. In plain English, this is the share count and dilution line moving, not a market-price opinion.",
+        "why_it_matters": "Share count matters because dilution or buybacks change how much of the business each share represents.",
+        "evidence_refs": [
+          "sec-xbrl-msft-latest-2025-q4",
+          "sec-xbrl-msft-prior-quarter-2025-q3"
+        ]
+      },
+      {
+        "metric": "shares_outstanding",
+        "label": "Shares outstanding",
+        "basis": "yoy",
+        "current_period": "2025-Q4",
+        "reference_period": "2024-Q4",
+        "current_value": 7420000000,
+        "reference_value": 7450000000,
+        "delta": -30000000,
+        "delta_pct": -0.4026845637583893,
+        "unit": "count",
+        "direction": "improved",
+        "plain_english": "Shares outstanding declined versus the same quarter last year. In plain English, this is the share count and dilution line moving, not a market-price opinion.",
+        "why_it_matters": "Share count matters because dilution or buybacks change how much of the business each share represents.",
+        "evidence_refs": [
+          "sec-xbrl-msft-latest-2025-q4",
+          "sec-xbrl-msft-year-ago-2024-q4"
+        ]
+      },
+      {
+        "metric": "revenue",
+        "label": "Revenue",
+        "basis": "annual",
+        "current_period": "2025-FY",
+        "reference_period": "2024-FY",
+        "unit": "currency",
+        "direction": "unavailable",
+        "plain_english": "Revenue cannot be compared because one side of the the prior annual filing comparison is missing.",
+        "why_it_matters": "Revenue tells us whether the company is expanding the top of the income statement before margins do any work.",
+        "evidence_refs": [
+          "sec-xbrl-msft-latest-annual-2025-fy",
+          "sec-xbrl-msft-prior-annual-2024-fy"
+        ]
+      },
+      {
+        "metric": "gross_margin",
+        "label": "Gross margin",
+        "basis": "annual",
+        "current_period": "2025-FY",
+        "reference_period": "2024-FY",
+        "unit": "pct",
+        "direction": "unavailable",
+        "plain_english": "Gross margin cannot be compared because one side of the the prior annual filing comparison is missing.",
+        "why_it_matters": "Gross margin matters because it helps separate headline growth from the economics underneath it.",
+        "evidence_refs": [
+          "sec-xbrl-msft-latest-annual-2025-fy",
+          "sec-xbrl-msft-prior-annual-2024-fy"
+        ]
+      },
+      {
+        "metric": "operating_margin",
+        "label": "Operating margin",
+        "basis": "annual",
+        "current_period": "2025-FY",
+        "reference_period": "2024-FY",
+        "unit": "pct",
+        "direction": "unavailable",
+        "plain_english": "Operating margin cannot be compared because one side of the the prior annual filing comparison is missing.",
+        "why_it_matters": "Operating margin matters because it helps separate headline growth from the economics underneath it.",
+        "evidence_refs": [
+          "sec-xbrl-msft-latest-annual-2025-fy",
+          "sec-xbrl-msft-prior-annual-2024-fy"
+        ]
+      },
+      {
+        "metric": "free_cash_flow",
+        "label": "Free cash flow",
+        "basis": "annual",
+        "current_period": "2025-FY",
+        "reference_period": "2024-FY",
+        "current_value": 84100000000,
+        "reference_value": 78800000000,
+        "delta": 5300000000,
+        "delta_pct": 6.725888324873096,
+        "unit": "currency",
+        "direction": "improved",
+        "plain_english": "Free cash flow increased versus the prior annual filing. In plain English, this is the cash left after operating needs and capital spending line moving, not a market-price opinion.",
+        "why_it_matters": "Free cash flow shows whether reported profit is turning into money the business can actually use.",
+        "evidence_refs": [
+          "sec-xbrl-msft-latest-annual-2025-fy",
+          "sec-xbrl-msft-prior-annual-2024-fy"
+        ]
+      },
+      {
+        "metric": "capital_expenditure",
+        "label": "Capital expenditure",
+        "basis": "annual",
+        "current_period": "2025-FY",
+        "reference_period": "2024-FY",
+        "unit": "currency",
+        "direction": "unavailable",
+        "plain_english": "Capital expenditure cannot be compared because one side of the the prior annual filing comparison is missing.",
+        "why_it_matters": "Capital expenditure matters because it helps separate headline growth from the economics underneath it.",
+        "evidence_refs": [
+          "sec-xbrl-msft-latest-annual-2025-fy",
+          "sec-xbrl-msft-prior-annual-2024-fy"
+        ]
+      },
+      {
+        "metric": "cash_and_equivalents",
+        "label": "Cash and equivalents",
+        "basis": "annual",
+        "current_period": "2025-FY",
+        "reference_period": "2024-FY",
+        "unit": "currency",
+        "direction": "unavailable",
+        "plain_english": "Cash and equivalents cannot be compared because one side of the the prior annual filing comparison is missing.",
+        "why_it_matters": "Cash and equivalents matters because it helps separate headline growth from the economics underneath it.",
+        "evidence_refs": [
+          "sec-xbrl-msft-latest-annual-2025-fy",
+          "sec-xbrl-msft-prior-annual-2024-fy"
+        ]
+      },
+      {
+        "metric": "debt_total",
+        "label": "Total debt",
+        "basis": "annual",
+        "current_period": "2025-FY",
+        "reference_period": "2024-FY",
+        "unit": "currency",
+        "direction": "unavailable",
+        "plain_english": "Total debt cannot be compared because one side of the the prior annual filing comparison is missing.",
+        "why_it_matters": "Debt changes tell us whether growth is being supported by a stronger or heavier balance sheet.",
+        "evidence_refs": [
+          "sec-xbrl-msft-latest-annual-2025-fy",
+          "sec-xbrl-msft-prior-annual-2024-fy"
+        ]
+      },
+      {
+        "metric": "shares_outstanding",
+        "label": "Shares outstanding",
+        "basis": "annual",
+        "current_period": "2025-FY",
+        "reference_period": "2024-FY",
+        "current_value": 7420000000,
+        "reference_value": 7450000000,
+        "delta": -30000000,
+        "delta_pct": -0.4026845637583893,
+        "unit": "count",
+        "direction": "improved",
+        "plain_english": "Shares outstanding declined versus the prior annual filing. In plain English, this is the share count and dilution line moving, not a market-price opinion.",
+        "why_it_matters": "Share count matters because dilution or buybacks change how much of the business each share represents.",
+        "evidence_refs": [
+          "sec-xbrl-msft-latest-annual-2025-fy",
+          "sec-xbrl-msft-prior-annual-2024-fy"
+        ]
+      }
+    ],
+    "language_deltas": [
+      {
+        "section": "management_commentary",
+        "current_excerpt": "Management highlighted durable cloud demand and disciplined AI infrastructure spend while maintaining margin focus.",
+        "change_type": "new",
+        "plain_english": "Management commentary is available as context, but M11 treats it as something to test against filing numbers rather than as standalone proof.",
+        "evidence_refs": [
+          "management-commentary-msft-2025-q4"
+        ]
+      }
+    ],
+    "segment_deltas": [
+      {
+        "metric": "segment_revenue:Cloud",
+        "label": "Cloud revenue",
+        "basis": "qoq",
+        "current_period": "2025-Q4",
+        "reference_period": "2025-Q3",
+        "current_value": 29100000000,
+        "unit": "currency",
+        "direction": "unavailable",
+        "plain_english": "Cloud is separated because a company can look stable overall while the mix underneath changes.",
+        "why_it_matters": "Segment mix tells the reader which parts of the company are carrying the filing, instead of treating one revenue total as the whole story.",
+        "evidence_refs": [
+          "sec-xbrl-msft-latest-2025-q4",
+          "sec-xbrl-msft-prior-quarter-2025-q3"
+        ]
+      },
+      {
+        "metric": "segment_revenue:Productivity",
+        "label": "Productivity revenue",
+        "basis": "qoq",
+        "current_period": "2025-Q4",
+        "reference_period": "2025-Q3",
+        "current_value": 19700000000,
+        "unit": "currency",
+        "direction": "unavailable",
+        "plain_english": "Productivity is separated because a company can look stable overall while the mix underneath changes.",
+        "why_it_matters": "Segment mix tells the reader which parts of the company are carrying the filing, instead of treating one revenue total as the whole story.",
+        "evidence_refs": [
+          "sec-xbrl-msft-latest-2025-q4",
+          "sec-xbrl-msft-prior-quarter-2025-q3"
+        ]
+      }
+    ],
+    "memo": {
+      "the_filing_read": "MSFT is being read through its latest SEC-backed financial snapshot, with the memo focused on what changed rather than on generic company description. Revenue improved on a QOQ basis. Revenue improved on a YOY basis. Operating margin improved on a QOQ basis. The segment layer is useful because Cloud revenue gives a cleaner clue about business mix than the company total alone. Full filing-language extraction is still marked as an omission, so tone is treated cautiously rather than dressed up as certainty.",
+      "what_changed": "The cleanest changes are the metrics that moved across both the quarter and year-ago comparisons. Revenue improved on a QOQ basis. Revenue improved on a YOY basis. Operating margin improved on a QOQ basis. The memo keeps those changes separate from market-price movement, because a better filing and a better stock day are not the same thing.",
+      "the_good": "Revenue increased versus the prior quarter. In plain English, this is the sales line moving, not a market-price opinion. Revenue increased versus the same quarter last year. In plain English, this is the sales line moving, not a market-price opinion. Operating margin increased versus the prior quarter. In plain English, this is the operating profit retained after running the business line moving, not a market-price opinion. That is the constructive side: the filing has at least one measurable line moving in the right direction.",
+      "the_bad": "The bad side is less about an obvious deterioration and more about missing confirmation. Without complete filing text and all comparison periods, the memo cannot overstate quality.",
+      "the_interesting": "The segment layer is useful because Cloud revenue gives a cleaner clue about business mix than the company total alone. The interesting filing question is whether the same story appears in more than one place: revenue, margins, cash flow, balance sheet, and management language. When those agree, the memo can speak more firmly; when they do not, the right answer is curiosity, not theater.",
+      "management_tone": "Management commentary is available as context, but M11 treats it as something to test against filing numbers rather than as standalone proof. This is treated as management context, not proof by itself. The numbers still own the memo.",
+      "risk_watch": "Watch for confirmation in the next filing: repeated margin strength, cash conversion, segment mix, and any risk-factor language that becomes more specific.",
+      "plain_english_takeaway": "Plain English: this memo reads the filing like a business update, not like a quote screen. The first question is what changed inside the company; the second is whether that change is large enough and well-supported enough to matter.",
+      "what_to_watch_next": "Next filing, the useful checks are simple: did revenue keep converting into profit, did cash flow follow earnings, did debt or share count move the wrong way, and did management language become more cautious or more specific?"
+    },
+    "top_changes": [
+      "Revenue improved on a QOQ basis.",
+      "Revenue improved on a YOY basis.",
+      "Operating margin improved on a QOQ basis.",
+      "Operating margin improved on a YOY basis.",
+      "Free cash flow improved on a QOQ basis.",
+      "Free cash flow improved on a YOY basis."
+    ],
+    "good": [
+      "Revenue improved on a QOQ basis.",
+      "Revenue improved on a YOY basis.",
+      "Operating margin improved on a QOQ basis."
+    ],
+    "bad": [],
+    "interesting": [
+      "Cloud is separated because a company can look stable overall while the mix underneath changes.",
+      "Management commentary is available as context, but M11 treats it as something to test against filing numbers rather than as standalone proof.",
+      "The memo checks whether numbers, segment mix, and management language agree before increasing conviction."
+    ],
+    "omissions": [
+      {
+        "family": "filing_language",
+        "reason_code": "missing_filing_text",
+        "reason": "Full SEC filing-section text extraction is not yet available in this run; management language is bounded to reviewed commentary when present.",
+        "blocking": false
+      }
+    ],
+    "evidence": [
+      {
+        "evidence_id": "sec-xbrl-msft-latest-2025-q4",
+        "source_type": "filing",
+        "source_name": "SEC companyfacts/XBRL quarterly snapshot",
+        "excerpt": "MSFT 2025-Q4 quarterly SEC-backed financial snapshot; available metrics include revenue, net_income, eps, operating_margin, free_cash_flow, shares_outstanding.",
+        "retrieved_at": "2026-03-20T08:00:00.000Z"
+      },
+      {
+        "evidence_id": "sec-xbrl-msft-prior-quarter-2025-q3",
+        "source_type": "filing",
+        "source_name": "SEC companyfacts/XBRL quarterly snapshot",
+        "excerpt": "MSFT 2025-Q3 quarterly SEC-backed financial snapshot; available metrics include revenue, net_income, eps, operating_margin, free_cash_flow, shares_outstanding.",
+        "retrieved_at": "2026-03-20T08:00:00.000Z"
+      },
+      {
+        "evidence_id": "sec-xbrl-msft-year-ago-2024-q4",
+        "source_type": "filing",
+        "source_name": "SEC companyfacts/XBRL quarterly snapshot",
+        "excerpt": "MSFT 2024-Q4 quarterly SEC-backed financial snapshot; available metrics include revenue, net_income, eps, operating_margin, free_cash_flow, shares_outstanding.",
+        "retrieved_at": "2026-03-20T08:00:00.000Z"
+      },
+      {
+        "evidence_id": "sec-xbrl-msft-latest-annual-2025-fy",
+        "source_type": "filing",
+        "source_name": "SEC companyfacts/XBRL annual snapshot",
+        "excerpt": "MSFT 2025-FY annual SEC-backed financial snapshot; available metrics include free_cash_flow, shares_outstanding, effective_tax_rate.",
+        "retrieved_at": "2026-03-20T08:00:00.000Z"
+      },
+      {
+        "evidence_id": "sec-xbrl-msft-prior-annual-2024-fy",
+        "source_type": "filing",
+        "source_name": "SEC companyfacts/XBRL annual snapshot",
+        "excerpt": "MSFT 2024-FY annual SEC-backed financial snapshot; available metrics include free_cash_flow, shares_outstanding, effective_tax_rate.",
+        "retrieved_at": "2026-03-20T08:00:00.000Z"
+      },
+      {
+        "evidence_id": "management-commentary-msft-2025-q4",
+        "source_type": "article",
+        "source_name": "Reviewed management commentary",
+        "excerpt": "Management highlighted durable cloud demand and disciplined AI infrastructure spend while maintaining margin focus.",
+        "retrieved_at": "2026-03-20T08:00:00.000Z"
+      }
+    ]
+  }
+}

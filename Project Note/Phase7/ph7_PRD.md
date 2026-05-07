@@ -1,8 +1,8 @@
 # Thesis - Phase 7 PRD Addendum
 
-**Version:** 1.0  
-**Status:** Living Document  
-**Last Revised:** 2026-05-02  
+**Version:** 1.0
+**Status:** Living Document
+**Last Revised:** 2026-05-04
 **Owner:** Product Lead + Platform Architect
 
 > This document extends `PRD.md`. It does not replace the base PRD.
@@ -115,6 +115,24 @@ M8 resets the customer-facing Pulse export around a tighter daily reading experi
 - sources/method once in the footer
 
 The brief may use optional LLM wording only for six short copy fields after deterministic facts and deltas exist. The LLM cannot choose sections, mutate facts, invent causality, add tickers, add sources, or create trading advice.
+
+---
+
+## 11. M11 Deep Dive Filing Intelligence Memo
+
+M11 gives Deep Dive the same product-quality lift that Pulse received, but with a different center of gravity: SEC filings.
+
+The Deep Dive export should answer:
+
+- what changed in the latest 10-Q or 10-K?
+- how did the company change versus the prior quarter, same quarter last year, and prior annual filing?
+- did revenue, margins, cash flow, debt, share count, and segment mix tell the same story?
+- did management language support or distract from the numbers?
+- what needs confirmation in the next filing?
+
+The first customer-visible win is PDF/HTML export quality. The Android app can keep using the existing Deep Dive open/download flow.
+
+LLM commentary is allowed only after deterministic filing facts exist. The LLM explains the filing like a sharp analyst for a smart non-expert reader; it does not choose facts, mutate numbers, add sources, or provide trading advice.
 
 ---
 

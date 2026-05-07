@@ -3,7 +3,11 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "no
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import type { AnalysisReport, FinancialHistoryRow } from "../../../packages/contracts/src";
+import type {
+  AnalysisReport,
+  FilingIntelligenceMetricDelta,
+  FinancialHistoryRow
+} from "../../../packages/contracts/src";
 
 import { reportLabelMap, reportSentenceMap } from "./report-label-map";
 
@@ -131,11 +135,15 @@ export function buildEditorialReportHtml(
 
 export function buildEditorialReportPages(report: AnalysisReport): EditorialPage[] {
   const sparse = isSparseReport(report);
+  const filingPages = report.filing_intelligence
+    ? buildFilingIntelligencePages(report)
+    : [];
   if (sparse) {
-    return buildSparseEditorialPages(report);
+    return [...filingPages, ...buildSparseEditorialPages(report)];
   }
 
   return [
+    ...filingPages,
     {
       title: "Executive Summary",
       html: renderExecutiveSummaryPage(report)
@@ -195,6 +203,23 @@ export function buildEditorialReportPages(report: AnalysisReport): EditorialPage
   ];
 }
 
+function buildFilingIntelligencePages(report: AnalysisReport): EditorialPage[] {
+  return [
+    {
+      title: "Filing Read",
+      html: renderFilingReadPage(report)
+    },
+    {
+      title: "What Changed In The Filing",
+      html: renderFilingChangesPage(report)
+    },
+    {
+      title: "Good Bad Interesting",
+      html: renderFilingGoodBadInterestingPage(report)
+    }
+  ];
+}
+
 function buildSparseEditorialPages(report: AnalysisReport): EditorialPage[] {
   return [
     {
@@ -222,6 +247,146 @@ function buildSparseEditorialPages(report: AnalysisReport): EditorialPage[] {
       html: renderAppendixPage(report)
     }
   ];
+}
+
+function renderFilingReadPage(report: AnalysisReport): string {
+  const filing = report.filing_intelligence;
+  if (!filing) {
+    return "";
+  }
+  const latest = filing.latest_filing;
+  const topChanges = filing.top_changes.slice(0, 4);
+  const plainEnglish = filing.memo.plain_english_takeaway;
+  return `
+    <div class="eyebrow">Filing Intelligence Memo</div>
+    <div class="filing-hero">
+      <div>
+        <h1>The Filing Read</h1>
+        <p class="filing-hero__meta">${escapeHtml(latest ? `${latest.form} | ${latest.period}` : "Latest SEC filing unavailable")}</p>
+      </div>
+      <div class="filing-hero__badge">${escapeHtml(filing.generation_mode === "live_prompt" ? "LLM explained" : "Deterministic read")}</div>
+    </div>
+    <div class="filing-story">
+      ${renderMemoParagraphs(filing.memo.the_filing_read)}
+    </div>
+    <div class="filing-callout">
+      <div class="filing-callout__label">What this means in plain English</div>
+      <p>${escapeHtml(plainEnglish)}</p>
+    </div>
+    <div class="section-panel">
+      <div class="section-panel__header">
+        <div>
+          <div class="section-panel__kicker">Top filing changes</div>
+          <h2>What moved inside the company</h2>
+        </div>
+        <div class="section-panel__note">These are SEC/XBRL-backed comparisons, not quote-screen moves.</div>
+      </div>
+      <div class="filing-change-grid">
+        ${(topChanges.length > 0 ? topChanges : ["No clean filing change crossed the reviewed threshold."]).map((change) => `
+          <div class="filing-change-card">
+            <span></span>
+            <p>${escapeHtml(change)}</p>
+          </div>
+        `).join("\n")}
+      </div>
+    </div>
+  `;
+}
+
+function renderFilingChangesPage(report: AnalysisReport): string {
+  const filing = report.filing_intelligence;
+  if (!filing) {
+    return "";
+  }
+  const metricDeltas = filing.metric_deltas
+    .filter((delta) => delta.direction !== "unavailable")
+    .slice(0, 8);
+  const chartDeltas = metricDeltas.slice(0, 5);
+  return `
+    <div class="eyebrow">What Changed In The Filing</div>
+    <div class="narrative-header">
+      <h1>Numbers first, explanation beside them</h1>
+      <div class="summary-pill gold">${escapeHtml(summarizeText(filing.memo.what_changed, 150))}</div>
+    </div>
+    <div class="filing-story filing-story--compact">
+      ${renderMemoParagraphs(filing.memo.what_changed)}
+    </div>
+    <div class="section-panel">
+      <div class="section-panel__header">
+        <div>
+          <div class="section-panel__kicker">Before / after</div>
+          <h2>Filing comparison board</h2>
+        </div>
+        <div class="section-panel__note">QoQ, YoY, and annual views stay separate so the memo does not blur timeframes.</div>
+      </div>
+      <div class="filing-metric-grid">
+        ${metricDeltas.map(renderFilingMetricCard).join("\n")}
+      </div>
+    </div>
+    <div class="section-panel">
+      <div class="section-panel__header">
+        <div>
+          <div class="section-panel__kicker">Visual explanation</div>
+          <h2>How the main filing lines changed</h2>
+        </div>
+      </div>
+      ${buildFilingDeltaSvg(chartDeltas)}
+    </div>
+  `;
+}
+
+function renderFilingGoodBadInterestingPage(report: AnalysisReport): string {
+  const filing = report.filing_intelligence;
+  if (!filing) {
+    return "";
+  }
+  const omissions = filing.omissions.slice(0, 6);
+  return `
+    <div class="eyebrow">Good / Bad / Interesting</div>
+    <div class="narrative-header">
+      <h1>The memo read-through</h1>
+      <div class="summary-pill neutral">The point is not to praise or punish the filing. It is to explain what actually changed.</div>
+    </div>
+    <div class="three-up filing-gbi">
+      ${renderCard("The good", filing.memo.the_good)}
+      ${renderCard("The bad", filing.memo.the_bad)}
+      ${renderCard("The interesting", filing.memo.the_interesting)}
+    </div>
+    <div class="two-up">
+      <div class="section-panel">
+        <div class="section-panel__header">
+          <div>
+            <div class="section-panel__kicker">Management tone</div>
+            <h2>Do the words agree with the numbers?</h2>
+          </div>
+        </div>
+        ${renderMemoParagraphs(filing.memo.management_tone)}
+      </div>
+      <div class="section-panel">
+        <div class="section-panel__header">
+          <div>
+            <div class="section-panel__kicker">Risk watch</div>
+            <h2>What needs confirmation next</h2>
+          </div>
+        </div>
+        ${renderMemoParagraphs(filing.memo.risk_watch)}
+        <div class="coverage-note">${escapeHtml(filing.memo.what_to_watch_next)}</div>
+      </div>
+    </div>
+    <div class="section-panel">
+      <div class="section-panel__header">
+        <div>
+          <div class="section-panel__kicker">Omission truth</div>
+          <h2>What the memo refused to fake</h2>
+        </div>
+      </div>
+      <ul class="evidence-list">
+        ${(omissions.length > 0 ? omissions : [{ reason: "No filing-intelligence omissions were recorded." }]).map((omission) =>
+          `<li>${escapeHtml("reason" in omission ? omission.reason : String(omission))}</li>`
+        ).join("\n")}
+      </ul>
+    </div>
+  `;
 }
 
 function renderPageShell(args: {
@@ -554,7 +719,8 @@ function renderEvidencePage(report: AnalysisReport): string {
   const sourceNotes = collectSourceNotes(report).slice(0, 8);
   const omissions = uniqueList([
     ...(report.coverage_truth?.missing ?? []),
-    ...((report.due_diligence?.sections ?? []).flatMap((section) => section.omissions))
+    ...((report.due_diligence?.sections ?? []).flatMap((section) => section.omissions)),
+    ...((report.filing_intelligence?.omissions ?? []).map((omission) => omission.reason))
   ]).slice(0, 10);
   return `
     <div class="eyebrow">Evidence And Coverage</div>
@@ -897,6 +1063,69 @@ function renderCard(title: string, body: string): string {
   `;
 }
 
+function renderMemoParagraphs(value: string): string {
+  return value
+    .split(/\n{2,}/)
+    .map((paragraph) => paragraph.trim())
+    .filter((paragraph) => paragraph.length > 0)
+    .map((paragraph) => `<p>${escapeHtml(paragraph)}</p>`)
+    .join("\n");
+}
+
+function renderFilingMetricCard(delta: FilingIntelligenceMetricDelta): string {
+  const directionClass =
+    delta.direction === "improved"
+      ? "positive"
+      : delta.direction === "weakened"
+        ? "warning"
+        : "neutral";
+  return `
+    <div class="filing-metric-card ${directionClass}">
+      <div class="filing-metric-card__top">
+        <div>
+          <div class="filing-metric-card__label">${escapeHtml(delta.label)}</div>
+          <div class="filing-metric-card__basis">${escapeHtml(delta.basis.toUpperCase())}</div>
+        </div>
+        <div class="filing-metric-card__move">${escapeHtml(formatFilingDelta(delta))}</div>
+      </div>
+      <div class="filing-metric-card__values">
+        <span>${escapeHtml(delta.current_period)}: ${escapeHtml(formatFilingValue(delta.current_value, delta.unit))}</span>
+        <span>${escapeHtml(delta.reference_period ?? "prior")}: ${escapeHtml(formatFilingValue(delta.reference_value, delta.unit))}</span>
+      </div>
+      <p>${escapeHtml(delta.plain_english)}</p>
+    </div>
+  `;
+}
+
+function buildFilingDeltaSvg(deltas: FilingIntelligenceMetricDelta[]): string {
+  const width = 560;
+  const height = 230;
+  const maxAbs = Math.max(...deltas.map((delta) => Math.abs(delta.delta_pct ?? delta.delta ?? 0)), 1);
+  const centerX = 280;
+  const rows = deltas.map((delta, index) => {
+    const y = 38 + index * 36;
+    const raw = delta.delta_pct ?? delta.delta ?? 0;
+    const barWidth = Math.min(190, (Math.abs(raw) / maxAbs) * 190);
+    const positive = raw >= 0;
+    const x = positive ? centerX : centerX - barWidth;
+    const fill = delta.direction === "improved" ? "#2f5f4b" : delta.direction === "weakened" ? "#8b3f37" : "#8f8a7d";
+    return `
+      <g>
+        <text x="24" y="${y + 10}" class="chart-label">${escapeHtml(delta.label)} ${escapeHtml(delta.basis.toUpperCase())}</text>
+        <rect x="${x}" y="${y}" width="${barWidth}" height="16" rx="4" fill="${fill}" opacity="0.9" />
+        <text x="${positive ? x + barWidth + 8 : x - 8}" y="${y + 12}" class="chart-value" text-anchor="${positive ? "start" : "end"}">${escapeHtml(formatFilingDelta(delta))}</text>
+      </g>
+    `;
+  }).join("\n");
+  return `
+    <svg class="chart-svg filing-delta-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="Filing metric deltas">
+      <rect x="0" y="0" width="${width}" height="${height}" rx="18" fill="#fbf8f1" />
+      <line x1="${centerX}" y1="24" x2="${centerX}" y2="${height - 20}" stroke="#b9b2a3" stroke-width="1" />
+      ${rows}
+    </svg>
+  `;
+}
+
 function renderMiniCard(body: string): string {
   return `<div class="mini-card">${escapeHtml(body)}</div>`;
 }
@@ -964,14 +1193,19 @@ function formatSignalLabel(signal: string): string {
 }
 
 function collectSourceNotes(report: AnalysisReport): string[] {
-  const notes = (report.sections ?? []).flatMap((section) =>
+  const sectionNotes = (report.sections ?? []).flatMap((section) =>
     (section.evidence ?? []).map((evidence) => {
       const source = evidence.source_name || "Source";
       const excerpt = evidence.excerpt || "";
       return `${source}: ${summarizeText(excerpt, 150)}`;
     })
   );
-  return uniqueList(notes);
+  const filingNotes = (report.filing_intelligence?.evidence ?? []).map((evidence) => {
+    const source = evidence.source_name || "Source";
+    const excerpt = evidence.excerpt || "";
+    return `${source}: ${summarizeText(excerpt, 150)}`;
+  });
+  return uniqueList([...filingNotes, ...sectionNotes]);
 }
 
 function humanizeCoverageNote(value: string | undefined): string {
@@ -1006,6 +1240,36 @@ function formatPercentCompact(value: number | undefined): string {
     return "n/a";
   }
   return `${value.toFixed(1)}%`;
+}
+
+function formatFilingValue(
+  value: number | undefined,
+  unit: FilingIntelligenceMetricDelta["unit"]
+): string {
+  if (value === undefined || Number.isNaN(value)) {
+    return "n/a";
+  }
+  if (unit === "currency") {
+    return formatMoneyCompact(value);
+  }
+  if (unit === "pct") {
+    return `${value.toFixed(1)}%`;
+  }
+  if (unit === "count") {
+    return new Intl.NumberFormat("en-US", {
+      notation: "compact",
+      maximumFractionDigits: 1
+    }).format(value);
+  }
+  return value.toFixed(2);
+}
+
+function formatFilingDelta(delta: FilingIntelligenceMetricDelta): string {
+  const value = delta.delta_pct ?? delta.delta;
+  if (value === undefined || Number.isNaN(value)) {
+    return "n/a";
+  }
+  return `${value >= 0 ? "+" : ""}${value.toFixed(1)}${delta.delta_pct !== undefined ? "%" : ""}`;
 }
 
 function formatMoveLabel(spot: number | undefined, fairValue: number | undefined): string {
@@ -1488,5 +1752,161 @@ const editorialCss = `
 
   .range-label {
     font-size: 9px;
+  }
+
+  .filing-hero {
+    display: flex;
+    justify-content: space-between;
+    gap: 18px;
+    align-items: start;
+    padding: 18px 20px;
+    border-radius: 20px;
+    background: #1d2935;
+    color: #f6efe0;
+  }
+
+  .filing-hero h1 {
+    color: #f8f1e4;
+  }
+
+  .filing-hero__meta {
+    margin-top: 8px;
+    color: #d8d0bf;
+  }
+
+  .filing-hero__badge {
+    padding: 8px 11px;
+    border-radius: 999px;
+    background: rgba(192, 160, 96, 0.18);
+    border: 1px solid rgba(192, 160, 96, 0.34);
+    color: #f2dfb3;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .filing-story {
+    padding: 18px 20px;
+    border-radius: 20px;
+    background: #fffdf8;
+    border: 1px solid #e2d8c6;
+    display: grid;
+    gap: 11px;
+  }
+
+  .filing-story p {
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 12.7px;
+    line-height: 1.58;
+    color: #26323d;
+  }
+
+  .filing-story--compact p {
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    font-size: 11.8px;
+    line-height: 1.5;
+  }
+
+  .filing-callout {
+    border-left: 5px solid #c0a060;
+    padding: 14px 16px;
+    border-radius: 14px;
+    background: #f7eedc;
+    display: grid;
+    gap: 7px;
+  }
+
+  .filing-callout__label,
+  .filing-metric-card__label,
+  .filing-metric-card__basis {
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: #7e6337;
+  }
+
+  .filing-change-grid,
+  .filing-metric-grid {
+    display: grid;
+    gap: 10px;
+  }
+
+  .filing-change-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .filing-change-card {
+    border: 1px solid #e1d7c7;
+    background: #fffdf8;
+    border-radius: 16px;
+    padding: 12px;
+    display: grid;
+    grid-template-columns: 9px 1fr;
+    gap: 9px;
+    align-items: start;
+  }
+
+  .filing-change-card span {
+    width: 9px;
+    height: 9px;
+    border-radius: 999px;
+    background: #c0a060;
+    margin-top: 5px;
+  }
+
+  .filing-metric-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .filing-metric-card {
+    border-radius: 16px;
+    padding: 12px;
+    border: 1px solid #ded5c6;
+    background: #fffdf8;
+    display: grid;
+    gap: 9px;
+    break-inside: avoid;
+  }
+
+  .filing-metric-card.positive {
+    border-color: rgba(47, 95, 75, 0.25);
+  }
+
+  .filing-metric-card.warning {
+    border-color: rgba(139, 63, 55, 0.25);
+  }
+
+  .filing-metric-card__top,
+  .filing-metric-card__values {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  .filing-metric-card__move {
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 18px;
+    color: #1d2935;
+  }
+
+  .filing-metric-card__values {
+    font-size: 10px;
+    color: #6a706f;
+  }
+
+  .filing-gbi .editorial-card p {
+    font-size: 11px;
+    line-height: 1.42;
+  }
+
+  .chart-label {
+    font-weight: 700;
+  }
+
+  .chart-value {
+    font-weight: 700;
   }
 `;

@@ -38,6 +38,7 @@ import {
   getFixtureScenario,
   type FixtureScenario
 } from "./fixtures";
+import { buildFilingIntelligence } from "./filing-intelligence";
 import { buildFinancialAnalysis } from "./financial-analysis";
 import { buildValueDisciplineScorecard } from "./value-discipline";
 import {
@@ -3473,6 +3474,19 @@ export async function runAnalysisPipeline(
     financialAnalysis,
     valueDiscipline
   });
+  const filingIntelligence = await buildFilingIntelligence(
+    {
+      ticker,
+      generatedAt,
+      latest: m2Context.latest,
+      priorQuarter: m2Context.priorQuarter,
+      yearAgo: m2Context.yearAgo,
+      financials: m2Context.financials,
+      latestTranscript: m2Context.latestTranscript,
+      fixtureMode: config.fixtureMode
+    },
+    config
+  );
 
   const report: AnalysisReport = {
     report_id: randomUUID(),
@@ -3497,6 +3511,7 @@ export async function runAnalysisPipeline(
     coverage_truth: coverageTruth,
     investment_memo: investmentMemo,
     due_diligence: dueDiligence,
+    filing_intelligence: filingIntelligence,
     financial_analysis: financialAnalysis,
     value_discipline: valueDiscipline,
     sections: orderedSections,

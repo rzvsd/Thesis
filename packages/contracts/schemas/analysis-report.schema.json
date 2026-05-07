@@ -42,6 +42,9 @@
     "signal": {
       "$ref": "ReportSignal"
     },
+    "filing_intelligence": {
+      "$ref": "FilingIntelligenceBlock"
+    },
     "sections": {
       "type": "array",
       "items": {
@@ -123,6 +126,55 @@
             "$ref": "EvidenceItem"
           }
         }
+      }
+    },
+    "FilingIntelligenceBlock": {
+      "$id": "FilingIntelligenceBlock",
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "prompt_version",
+        "generation_mode",
+        "metric_deltas",
+        "memo",
+        "omissions",
+        "evidence"
+      ],
+      "properties": {
+        "prompt_version": { "type": "string" },
+        "generation_mode": {
+          "type": "string",
+          "enum": ["deterministic_fixture", "live_prompt", "fallback"]
+        },
+        "metric_deltas": { "type": "array" },
+        "memo": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": [
+            "the_filing_read",
+            "what_changed",
+            "the_good",
+            "the_bad",
+            "the_interesting",
+            "management_tone",
+            "risk_watch",
+            "plain_english_takeaway",
+            "what_to_watch_next"
+          ],
+          "properties": {
+            "the_filing_read": { "type": "string" },
+            "what_changed": { "type": "string" },
+            "the_good": { "type": "string" },
+            "the_bad": { "type": "string" },
+            "the_interesting": { "type": "string" },
+            "management_tone": { "type": "string" },
+            "risk_watch": { "type": "string" },
+            "plain_english_takeaway": { "type": "string" },
+            "what_to_watch_next": { "type": "string" }
+          }
+        },
+        "omissions": { "type": "array" },
+        "evidence": { "type": "array" }
       }
     }
   }
