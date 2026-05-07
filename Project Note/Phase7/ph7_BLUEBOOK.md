@@ -209,6 +209,16 @@ The renderer should favor:
 - no visible internal status labels
 - no orphaned headings in PDF
 - optional modules hidden when empty
+
+## M12 Deep Dive Value Lens Doctrine
+
+Deep Dive should not stop at "revenue improved." It should explain whether the company is good, improving, expensive, cheap, cheap for a reason, cash-generative, over-levered, or diluting owners.
+
+M12 adds this layer through deterministic financial indicators and an explanatory value classification. The system computes ratios from approved financial snapshots and uses spot/reference price only when that price is already available through an approved Deep Dive path.
+
+The LLM can make the value lens readable for a smart non-expert, but it cannot compute or alter the ratios. If P/E, P/S, P/B, EV/EBITDA, enterprise value, market cap, or FCF yield cannot be calculated cleanly, the report says so by omission and continues with non-price-dependent quality indicators.
+
+The intended reader experience is simple: the memo should say whether the company looks like classic value, quality value, quality growth, expensive growth, turnaround, distressed, or value-trap risk, and then explain why in plain English with charts and evidence.
 - sources and method once at the end
 
 The LLM is a copy editor only. It writes short sentences from a fact pack. It never becomes the analyst of record.

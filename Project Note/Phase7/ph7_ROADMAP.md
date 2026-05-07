@@ -19,7 +19,8 @@
 | M8 | Pulse Morning Brief Reset | Validated |
 | M9 | Dexter Evidence Quality Skills | Validated |
 | M10 | Pulse A+ Morning Brief Engagement Overhaul | Validated |
-| M11 | Deep Dive Filing Intelligence Memo Revamp | Active |
+| M11 | Deep Dive Filing Intelligence Memo Revamp | Validated |
+| M12 | Deep Dive Financial Indicators & Value Lens | Active |
 
 ## Status Semantics
 
@@ -259,3 +260,25 @@
 - raw SEC filing dumps in customer output
 - buy/sell/hold language, price targets, allocation, broker workflow, or quant-lab behavior
 - LLM mutation of numbers, facts, tickers, sources, or provenance
+
+---
+
+## M12 Execution Order
+
+1. add additive `financial_indicators` contract on `AnalysisReport`
+2. build deterministic Dexter financial-indicator calculator
+3. compute valuation ratios only when approved spot/reference price exists
+4. compute profitability, growth, balance-sheet, cash-quality, and capital-allocation ratios from SEC/XBRL snapshots
+5. create five-year trend rows with current, 1Y, 3Y, and 5Y values when annual history exists
+6. classify the company through an explanatory value lens
+7. render Financial Indicators & Value Lens plus 5-Year Trend Board pages in Deep Dive export
+8. run contracts, Dexter, Product API export, typecheck, lint, and dependency guard proof
+9. record proof under `Project Note/Phase7/Milestones/M12/evidence/`
+
+## Non-Goals For M12
+
+- Pulse changes
+- new price provider integration
+- scraped quote pages
+- LLM-computed ratios
+- trading advice, price targets, allocation, broker flow, or terminal behavior

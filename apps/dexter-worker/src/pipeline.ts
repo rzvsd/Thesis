@@ -39,6 +39,7 @@ import {
   type FixtureScenario
 } from "./fixtures";
 import { buildFilingIntelligence } from "./filing-intelligence";
+import { buildFinancialIndicators } from "./financial-indicators";
 import { buildFinancialAnalysis } from "./financial-analysis";
 import { buildValueDisciplineScorecard } from "./value-discipline";
 import {
@@ -3487,6 +3488,17 @@ export async function runAnalysisPipeline(
     },
     config
   );
+  const financialIndicators = await buildFinancialIndicators(
+    {
+      ticker,
+      generatedAt,
+      latest: m2Context.latest,
+      financials: m2Context.financials,
+      spotPrice: m2Context.spotPrice,
+      fixtureMode: config.fixtureMode
+    },
+    config
+  );
 
   const report: AnalysisReport = {
     report_id: randomUUID(),
@@ -3512,6 +3524,7 @@ export async function runAnalysisPipeline(
     investment_memo: investmentMemo,
     due_diligence: dueDiligence,
     filing_intelligence: filingIntelligence,
+    financial_indicators: financialIndicators,
     financial_analysis: financialAnalysis,
     value_discipline: valueDiscipline,
     sections: orderedSections,

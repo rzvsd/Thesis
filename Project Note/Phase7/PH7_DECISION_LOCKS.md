@@ -285,3 +285,18 @@ M1 implementation thresholds:
 - User-name cards may show price/context rows only when typed portfolio radar rows exist.
 - Community/social signal rendering remains hidden until approved data and source policy exist; empty slots must not render.
 - No article-body scraping, article-body summarization, Yahoo/AlphaVantage market-tape runtime, trading advice, price targets, execution language, or unsupported causality is introduced.
+
+---
+
+## 20. M12 Deep Dive Financial Indicators & Value Lens Locks
+
+- M12 is Deep Dive-only and does not change Pulse.
+- `AnalysisReport.financial_indicators` is additive and optional; legacy Deep Dive reports remain compatible.
+- Dexter owns deterministic ratio calculation. The LLM may explain ratios and classification, but cannot compute, mutate, infer, or invent financial values.
+- Price-dependent valuation ratios require an approved spot/reference price already present in Deep Dive context.
+- If price is unavailable, P/E, P/S, P/B, EV/EBITDA, market cap, enterprise value, and FCF yield are omitted with explicit omission truth.
+- SEC/XBRL snapshots remain the source of truth for fundamentals such as revenue, earnings, cash flow, debt, equity, assets, shares, margins, and annual history.
+- Missing denominators, missing history, missing snapshots, or zero denominators must not become fake zero values.
+- Value classification is explanatory, not a rating. Allowed labels are `classic_value`, `quality_value`, `quality_growth`, `expensive_growth`, `turnaround`, `distressed`, `value_trap_risk`, and `insufficient_data`.
+- Charts and visual boards may display computed indicators and trends only; they cannot introduce unreviewed data or unsupported benchmarks.
+- No buy/sell/hold language, price targets, allocation, position sizing, broker workflow, public quant lab, or terminal-style behavior is introduced.

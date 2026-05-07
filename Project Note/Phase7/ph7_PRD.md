@@ -152,6 +152,26 @@ The M8 six-field/180-word LLM copy limit is superseded by a guarded 1500-word M1
 
 Quiet days are intentionally short. A brief that says "nothing moved the needle" is a valid output when the reviewed data supports it.
 
+## 12. M12 Deep Dive Financial Indicators & Value Lens
+
+M12 extends the M11 filing memo with a true investor-quality value lens.
+
+The Deep Dive export should answer:
+
+- Is the company expensive?
+- Is it cheap for a reason?
+- Is it profitable?
+- Is it improving?
+- Is debt dangerous?
+- Is cash flow real?
+- Is share count diluting owners?
+
+The product requirement is not merely to list ratios. The report must explain what the ratios mean in plain English. A low P/E can signal value, but it can also signal a value trap if earnings, margins, cash flow, or debt quality are deteriorating. A high P/E can still be reasonable for a quality-growth business if revenue, margins, and free cash flow are compounding strongly.
+
+Dexter computes ratios deterministically. The LLM may explain the computed facts, but it cannot calculate ratios, invent price data, add unsupported benchmarks, mutate numbers, or create advice.
+
+Price-dependent valuation metrics are only shown when an approved spot/reference price already exists in Deep Dive context. If price is missing, the report omits P/E, P/S, P/B, EV/EBITDA, market cap, enterprise value, and FCF yield while still rendering business-quality indicators that can be calculated from SEC/XBRL snapshots.
+
 ## 7. M2 Editorial Freshness
 
 M2 adds an editorial issue layer to Pulse:

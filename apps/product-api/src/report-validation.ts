@@ -545,6 +545,97 @@ function validateFilingIntelligence(value: unknown, path: string, errors: string
   }
 }
 
+function validateFinancialIndicators(value: unknown, path: string, errors: string[]): void {
+  if (!isObject(value)) {
+    errors.push(`${path} must be an object`);
+    return;
+  }
+
+  for (const field of ["prompt_version", "period", "basis"] as const) {
+    if (typeof value[field] !== "string" || value[field].trim().length === 0) {
+      errors.push(`${path}.${field} must be a non-empty string`);
+    }
+  }
+  if (!["ttm", "annual", "mixed"].includes(String(value.basis))) {
+    errors.push(`${path}.basis must be valid`);
+  }
+
+  for (const field of ["valuation", "profitability", "growth", "balance_sheet", "cash_flow_quality", "capital_allocation", "five_year_trends", "omissions", "evidence"] as const) {
+    if (!Array.isArray(value[field])) {
+      errors.push(`${path}.${field} must be an array`);
+    }
+  }
+
+  for (const group of ["valuation", "profitability", "growth", "balance_sheet", "cash_flow_quality", "capital_allocation"] as const) {
+    const entries = value[group];
+    if (!Array.isArray(entries)) {
+      continue;
+    }
+    entries.forEach((entry, index) => {
+      if (!isObject(entry)) {
+        errors.push(`${path}.${group}[${index}] must be an object`);
+        return;
+      }
+      for (const field of ["indicator_id", "label", "unit", "period", "state", "interpretation"] as const) {
+        if (typeof entry[field] !== "string" || entry[field].trim().length === 0) {
+          errors.push(`${path}.${group}[${index}].${field} must be a non-empty string`);
+        }
+      }
+      if (!["currency", "pct", "ratio", "multiple", "count"].includes(String(entry.unit))) {
+        errors.push(`${path}.${group}[${index}].unit must be valid`);
+      }
+      if (!["available", "missing", "invalid"].includes(String(entry.state))) {
+        errors.push(`${path}.${group}[${index}].state must be valid`);
+      }
+      if (!Array.isArray(entry.evidence_refs)) {
+        errors.push(`${path}.${group}[${index}].evidence_refs must be an array`);
+      }
+    });
+  }
+
+  if (!isObject(value.value_classification)) {
+    errors.push(`${path}.value_classification must be an object`);
+  } else {
+    if (
+      ![
+        "classic_value",
+        "quality_value",
+        "quality_growth",
+        "expensive_growth",
+        "turnaround",
+        "distressed",
+        "value_trap_risk",
+        "insufficient_data"
+      ].includes(String(value.value_classification.classification))
+    ) {
+      errors.push(`${path}.value_classification.classification must be valid`);
+    }
+    if (!["high", "medium", "low"].includes(String(value.value_classification.confidence))) {
+      errors.push(`${path}.value_classification.confidence must be valid`);
+    }
+    if (!Array.isArray(value.value_classification.reasons)) {
+      errors.push(`${path}.value_classification.reasons must be an array`);
+    }
+    if (!Array.isArray(value.value_classification.trap_warnings)) {
+      errors.push(`${path}.value_classification.trap_warnings must be an array`);
+    }
+  }
+
+  if (!isObject(value.plain_english)) {
+    errors.push(`${path}.plain_english must be an object`);
+  } else {
+    for (const field of ["value_lens", "business_quality", "balance_sheet_read", "cash_flow_read", "five_year_read", "plain_english_takeaway", "what_to_watch_next"] as const) {
+      if (typeof value.plain_english[field] !== "string" || value.plain_english[field].trim().length === 0) {
+        errors.push(`${path}.plain_english.${field} must be a non-empty string`);
+      }
+    }
+  }
+
+  if (Array.isArray(value.evidence)) {
+    value.evidence.forEach((entry, index) => validateEvidenceItem(entry, `${path}.evidence[${index}]`, errors));
+  }
+}
+
 function validateInvestmentMemo(value: unknown, path: string, errors: string[]): void {
   if (!isObject(value)) {
     errors.push(`${path} must be an object`);
@@ -1310,6 +1401,9 @@ export function validateIncomingAnalysisReport(report: unknown): string[] {
   }
   if (report.filing_intelligence !== undefined) {
     validateFilingIntelligence(report.filing_intelligence, "filing_intelligence", errors);
+  }
+  if (report.financial_indicators !== undefined) {
+    validateFinancialIndicators(report.financial_indicators, "financial_indicators", errors);
   }
   if (report.structural_context !== undefined) {
     validateStructuralContext(report.structural_context, "structural_context", errors);

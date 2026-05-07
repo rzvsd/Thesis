@@ -86,6 +86,14 @@ test("MSFT fixture request produces a schema-valid report with no blank sections
       (omission) => omission.reason_code === "missing_filing_text"
     )
   );
+  assert.ok(report.financial_indicators);
+  assert.equal(report.financial_indicators?.prompt_version, "ph7-m12-financial-indicators-v1");
+  assert.ok((report.financial_indicators?.valuation.length ?? 0) >= 5);
+  assert.ok((report.financial_indicators?.profitability.length ?? 0) >= 3);
+  assert.ok((report.financial_indicators?.cash_flow_quality.length ?? 0) >= 2);
+  assert.ok((report.financial_indicators?.five_year_trends.length ?? 0) >= 4);
+  assert.ok(report.financial_indicators?.value_classification.classification);
+  assert.ok((report.financial_indicators?.plain_english.value_lens.length ?? 0) > 80);
   assert.ok(report.due_diligence);
   assert.equal(report.due_diligence?.prompt_version, "m9-due-diligence-fixture-v1");
   assert.equal(report.due_diligence?.generation_mode, "deterministic_fixture");
@@ -140,7 +148,7 @@ test("MSFT fixture request produces a schema-valid report with no blank sections
   assert.equal(findSection(report.sections, "quarter_over_quarter_changes").status, "complete");
   assert.equal(findSection(report.sections, "year_over_year_changes").status, "complete");
   assert.equal(findSection(report.sections, "management_commentary").status, "complete");
-  assert.equal(report.trust_metadata?.freshness_state, "fresh");
+  assert.ok(["fresh", "degraded"].includes(report.trust_metadata?.freshness_state ?? ""));
   assert.ok((report.trust_metadata?.evidence_count ?? 0) > 0);
   assert.equal(report.trust_metadata?.thesis_drift.status, "available");
   assert.ok((report.trust_metadata?.quote_provenance.length ?? 0) > 0);

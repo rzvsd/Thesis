@@ -6,6 +6,8 @@ import { join } from "node:path";
 import type {
   AnalysisReport,
   FilingIntelligenceMetricDelta,
+  FinancialIndicator,
+  FinancialIndicatorTrend,
   FinancialHistoryRow
 } from "../../../packages/contracts/src";
 
@@ -138,12 +140,16 @@ export function buildEditorialReportPages(report: AnalysisReport): EditorialPage
   const filingPages = report.filing_intelligence
     ? buildFilingIntelligencePages(report)
     : [];
+  const indicatorPages = report.financial_indicators
+    ? buildFinancialIndicatorPages(report)
+    : [];
   if (sparse) {
-    return [...filingPages, ...buildSparseEditorialPages(report)];
+    return [...filingPages, ...indicatorPages, ...buildSparseEditorialPages(report)];
   }
 
   return [
     ...filingPages,
+    ...indicatorPages,
     {
       title: "Executive Summary",
       html: renderExecutiveSummaryPage(report)
@@ -199,6 +205,19 @@ export function buildEditorialReportPages(report: AnalysisReport): EditorialPage
     {
       title: "Appendix",
       html: renderAppendixPage(report)
+    }
+  ];
+}
+
+function buildFinancialIndicatorPages(report: AnalysisReport): EditorialPage[] {
+  return [
+    {
+      title: "Financial Indicators",
+      html: renderFinancialIndicatorsPage(report)
+    },
+    {
+      title: "Five-Year Trend Board",
+      html: renderFinancialTrendBoardPage(report)
     }
   ];
 }
@@ -385,6 +404,126 @@ function renderFilingGoodBadInterestingPage(report: AnalysisReport): string {
           `<li>${escapeHtml("reason" in omission ? omission.reason : String(omission))}</li>`
         ).join("\n")}
       </ul>
+    </div>
+  `;
+}
+
+function renderFinancialIndicatorsPage(report: AnalysisReport): string {
+  const block = report.financial_indicators;
+  if (!block) {
+    return "";
+  }
+  const classification = block.value_classification.classification.replaceAll("_", " ");
+  const valuationRows = block.valuation.slice(0, 7);
+  const qualityRows = [
+    ...block.profitability.slice(0, 4),
+    ...block.cash_flow_quality.slice(0, 3),
+    ...block.balance_sheet.slice(0, 3)
+  ];
+  return `
+    <div class="eyebrow">Financial Indicators & Value Lens</div>
+    <div class="value-hero">
+      <div>
+        <h1>${escapeHtml(titleCase(classification))}</h1>
+        <p class="value-hero__meta">${escapeHtml(block.period)} | ${escapeHtml(block.basis.toUpperCase())} basis</p>
+      </div>
+      <div class="value-hero__badge">${escapeHtml(block.value_classification.confidence)} confidence</div>
+    </div>
+    <div class="filing-story">
+      ${renderMemoParagraphs(block.plain_english.value_lens)}
+      ${renderMemoParagraphs(block.plain_english.business_quality)}
+    </div>
+    <div class="section-panel">
+      <div class="section-panel__header">
+        <div>
+          <div class="section-panel__kicker">Valuation</div>
+          <h2>Cheap, expensive, or expensive for a reason?</h2>
+        </div>
+        <div class="section-panel__note">Price-dependent ratios render only when approved price exists.</div>
+      </div>
+      <div class="indicator-grid">
+        ${valuationRows.map(renderIndicatorCard).join("\n")}
+      </div>
+    </div>
+    <div class="section-panel">
+      <div class="section-panel__header">
+        <div>
+          <div class="section-panel__kicker">Business quality</div>
+          <h2>Profit, cash, and balance-sheet reality</h2>
+        </div>
+      </div>
+      <div class="indicator-table">
+        ${qualityRows.map(renderIndicatorRow).join("\n")}
+      </div>
+    </div>
+    <div class="filing-callout">
+      <div class="filing-callout__label">Plain English</div>
+      <p>${escapeHtml(block.plain_english.plain_english_takeaway)}</p>
+    </div>
+  `;
+}
+
+function renderFinancialTrendBoardPage(report: AnalysisReport): string {
+  const block = report.financial_indicators;
+  if (!block) {
+    return "";
+  }
+  const trends = block.five_year_trends.slice(0, 6);
+  const omissions = block.omissions.slice(0, 5);
+  return `
+    <div class="eyebrow">Five-Year Trend Board</div>
+    <div class="narrative-header">
+      <h1>Did the business improve, or did the multiple just expand?</h1>
+      <div class="summary-pill gold">${escapeHtml(summarizeText(block.plain_english.five_year_read, 160))}</div>
+    </div>
+    <div class="section-panel">
+      <div class="section-panel__header">
+        <div>
+          <div class="section-panel__kicker">Trend board</div>
+          <h2>Current, 1Y, 3Y, and 5Y context</h2>
+        </div>
+      </div>
+      ${buildFinancialTrendSvg(trends)}
+      <div class="trend-table">
+        ${trends.map(renderTrendRow).join("\n")}
+      </div>
+    </div>
+    <div class="two-up">
+      <div class="section-panel">
+        <div class="section-panel__header">
+          <div>
+            <div class="section-panel__kicker">Cash-flow read</div>
+            <h2>Are profits real?</h2>
+          </div>
+        </div>
+        ${renderMemoParagraphs(block.plain_english.cash_flow_read)}
+      </div>
+      <div class="section-panel">
+        <div class="section-panel__header">
+          <div>
+            <div class="section-panel__kicker">Balance sheet</div>
+            <h2>Can it absorb stress?</h2>
+          </div>
+        </div>
+        ${renderMemoParagraphs(block.plain_english.balance_sheet_read)}
+      </div>
+    </div>
+    <div class="section-panel">
+      <div class="section-panel__header">
+        <div>
+          <div class="section-panel__kicker">Omission truth</div>
+          <h2>What the value lens refused to fake</h2>
+        </div>
+      </div>
+      <div class="omission-list">
+        ${(omissions.length > 0 ? omissions : [{ family: "none", reason: "No material financial-indicator omissions were recorded." }]).map((omission) => `
+          <div class="omission-row">
+            <strong>${escapeHtml(String(omission.family))}</strong>
+            <span>${escapeHtml(omission.reason)}</span>
+          </div>
+        `).join("\n")}
+      </div>
+      <div class="coverage-note">${escapeHtml(block.plain_english.what_to_watch_next)}</div>
     </div>
   `;
 }
@@ -1126,6 +1265,80 @@ function buildFilingDeltaSvg(deltas: FilingIntelligenceMetricDelta[]): string {
   `;
 }
 
+function renderIndicatorCard(entry: FinancialIndicator): string {
+  const tone = entry.state === "available" ? "positive" : "neutral";
+  return `
+    <div class="indicator-card ${tone}">
+      <div class="indicator-card__label">${escapeHtml(entry.label)}</div>
+      <div class="indicator-card__value">${escapeHtml(formatIndicatorValue(entry))}</div>
+      <p>${escapeHtml(entry.interpretation)}</p>
+    </div>
+  `;
+}
+
+function renderIndicatorRow(entry: FinancialIndicator): string {
+  return `
+    <div class="indicator-row ${entry.state === "available" ? "available" : "missing"}">
+      <span>${escapeHtml(entry.label)}</span>
+      <strong>${escapeHtml(formatIndicatorValue(entry))}</strong>
+      <em>${escapeHtml(summarizeText(entry.interpretation, 110))}</em>
+    </div>
+  `;
+}
+
+function renderTrendRow(entry: FinancialIndicatorTrend): string {
+  return `
+    <div class="trend-row ${escapeHtml(entry.direction)}">
+      <span>${escapeHtml(entry.label)}</span>
+      <strong>${escapeHtml(formatIndicatorNumber(entry.current, entry.unit))}</strong>
+      <span>${escapeHtml(formatIndicatorNumber(entry.one_year_ago, entry.unit))}</span>
+      <span>${escapeHtml(formatIndicatorNumber(entry.three_years_ago, entry.unit))}</span>
+      <span>${escapeHtml(formatIndicatorNumber(entry.five_years_ago, entry.unit))}</span>
+      <em>${escapeHtml(entry.plain_english)}</em>
+    </div>
+  `;
+}
+
+function buildFinancialTrendSvg(trends: FinancialIndicatorTrend[]): string {
+  const width = 560;
+  const height = 220;
+  const rows = trends.map((trend, index) => {
+    const y = 30 + index * 30;
+    const values = [trend.five_years_ago, trend.three_years_ago, trend.one_year_ago, trend.current]
+      .filter((value): value is number => typeof value === "number" && Number.isFinite(value));
+    const min = Math.min(...values, 0);
+    const max = Math.max(...values, 1);
+    const points = [trend.five_years_ago, trend.three_years_ago, trend.one_year_ago, trend.current].map((value, pointIndex) => {
+      const x = 235 + pointIndex * 82;
+      const normalized = value === undefined || max === min ? 0.5 : (value - min) / (max - min);
+      const py = y + 20 - normalized * 22;
+      return { x, y: py, value };
+    });
+    const path = points
+      .filter((point) => point.value !== undefined)
+      .map((point, pointIndex) => `${pointIndex === 0 ? "M" : "L"} ${point.x} ${point.y}`)
+      .join(" ");
+    const stroke = trend.direction === "improving" ? "#2f5f4b" : trend.direction === "weakening" ? "#8b3f37" : "#9b8a62";
+    return `
+      <g>
+        <text x="22" y="${y + 8}" class="chart-label">${escapeHtml(trend.label)}</text>
+        <path d="${path}" fill="none" stroke="${stroke}" stroke-width="2.4" stroke-linecap="round" />
+        ${points.filter((point) => point.value !== undefined).map((point) => `<circle cx="${point.x}" cy="${point.y}" r="3.2" fill="${stroke}" />`).join("\n")}
+      </g>
+    `;
+  }).join("\n");
+  return `
+    <svg class="chart-svg trend-board-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="Financial indicator trends">
+      <rect x="0" y="0" width="${width}" height="${height}" rx="18" fill="#fbf8f1" />
+      <text x="235" y="18" class="chart-axis">5Y</text>
+      <text x="317" y="18" class="chart-axis">3Y</text>
+      <text x="399" y="18" class="chart-axis">1Y</text>
+      <text x="481" y="18" class="chart-axis">Now</text>
+      ${rows}
+    </svg>
+  `;
+}
+
 function renderMiniCard(body: string): string {
   return `<div class="mini-card">${escapeHtml(body)}</div>`;
 }
@@ -1205,7 +1418,12 @@ function collectSourceNotes(report: AnalysisReport): string[] {
     const excerpt = evidence.excerpt || "";
     return `${source}: ${summarizeText(excerpt, 150)}`;
   });
-  return uniqueList([...filingNotes, ...sectionNotes]);
+  const indicatorNotes = (report.financial_indicators?.evidence ?? []).map((evidence) => {
+    const source = evidence.source_name || "Source";
+    const excerpt = evidence.excerpt || "";
+    return `${source}: ${summarizeText(excerpt, 150)}`;
+  });
+  return uniqueList([...indicatorNotes, ...filingNotes, ...sectionNotes]);
 }
 
 function humanizeCoverageNote(value: string | undefined): string {
@@ -1270,6 +1488,36 @@ function formatFilingDelta(delta: FilingIntelligenceMetricDelta): string {
     return "n/a";
   }
   return `${value >= 0 ? "+" : ""}${value.toFixed(1)}${delta.delta_pct !== undefined ? "%" : ""}`;
+}
+
+function formatIndicatorValue(entry: FinancialIndicator): string {
+  return formatIndicatorNumber(entry.value, entry.unit);
+}
+
+function formatIndicatorNumber(value: number | undefined, unit: FinancialIndicator["unit"]): string {
+  if (value === undefined || Number.isNaN(value)) {
+    return "omitted";
+  }
+  if (unit === "currency") {
+    return formatMoneyCompact(value);
+  }
+  if (unit === "pct") {
+    return `${value.toFixed(1)}%`;
+  }
+  if (unit === "count") {
+    return new Intl.NumberFormat("en-US", {
+      notation: "compact",
+      maximumFractionDigits: 1
+    }).format(value);
+  }
+  if (unit === "multiple") {
+    return `${value.toFixed(1)}x`;
+  }
+  return value.toFixed(2);
+}
+
+function titleCase(value: string): string {
+  return value.replace(/\b\w/g, (match) => match.toUpperCase());
 }
 
 function formatMoveLabel(spot: number | undefined, fairValue: number | undefined): string {
@@ -1754,7 +2002,8 @@ const editorialCss = `
     font-size: 9px;
   }
 
-  .filing-hero {
+  .filing-hero,
+  .value-hero {
     display: flex;
     justify-content: space-between;
     gap: 18px;
@@ -1769,12 +2018,22 @@ const editorialCss = `
     color: #f8f1e4;
   }
 
-  .filing-hero__meta {
+  .value-hero {
+    background: linear-gradient(135deg, #1d2935 0%, #263d43 100%);
+  }
+
+  .value-hero h1 {
+    color: #f8f1e4;
+  }
+
+  .filing-hero__meta,
+  .value-hero__meta {
     margin-top: 8px;
     color: #d8d0bf;
   }
 
-  .filing-hero__badge {
+  .filing-hero__badge,
+  .value-hero__badge {
     padding: 8px 11px;
     border-radius: 999px;
     background: rgba(192, 160, 96, 0.18);
@@ -1820,7 +2079,8 @@ const editorialCss = `
 
   .filing-callout__label,
   .filing-metric-card__label,
-  .filing-metric-card__basis {
+  .filing-metric-card__basis,
+  .indicator-card__label {
     font-size: 10px;
     letter-spacing: 0.08em;
     text-transform: uppercase;
@@ -1829,7 +2089,8 @@ const editorialCss = `
   }
 
   .filing-change-grid,
-  .filing-metric-grid {
+  .filing-metric-grid,
+  .indicator-grid {
     display: grid;
     gap: 10px;
   }
@@ -1857,11 +2118,13 @@ const editorialCss = `
     margin-top: 5px;
   }
 
-  .filing-metric-grid {
+  .filing-metric-grid,
+  .indicator-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .filing-metric-card {
+  .filing-metric-card,
+  .indicator-card {
     border-radius: 16px;
     padding: 12px;
     border: 1px solid #ded5c6;
@@ -1877,6 +2140,92 @@ const editorialCss = `
 
   .filing-metric-card.warning {
     border-color: rgba(139, 63, 55, 0.25);
+  }
+
+  .indicator-card.positive {
+    border-color: rgba(47, 95, 75, 0.25);
+  }
+
+  .indicator-card__value {
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 20px;
+    color: #1d2935;
+  }
+
+  .indicator-card p {
+    font-size: 10.5px;
+    line-height: 1.42;
+    color: #4d5860;
+  }
+
+  .indicator-table,
+  .trend-table,
+  .omission-list {
+    display: grid;
+    gap: 8px;
+  }
+
+  .indicator-row,
+  .trend-row,
+  .omission-row {
+    display: grid;
+    gap: 8px;
+    align-items: center;
+    padding: 9px 10px;
+    border: 1px solid #e0d7c8;
+    border-radius: 12px;
+    background: #fffdf8;
+    break-inside: avoid;
+  }
+
+  .indicator-row {
+    grid-template-columns: 1.1fr 0.7fr 2fr;
+  }
+
+  .trend-row {
+    grid-template-columns: 1.1fr 0.75fr 0.75fr 0.75fr 0.75fr 2fr;
+  }
+
+  .omission-row {
+    grid-template-columns: 1fr 3fr;
+  }
+
+  .indicator-row span,
+  .trend-row span,
+  .omission-row strong {
+    font-size: 10.4px;
+    font-weight: 700;
+    color: #1d2935;
+  }
+
+  .indicator-row strong,
+  .trend-row strong {
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 13px;
+    color: #1d2935;
+  }
+
+  .indicator-row em,
+  .trend-row em,
+  .omission-row span {
+    font-size: 9.8px;
+    font-style: normal;
+    line-height: 1.35;
+    color: #5f686d;
+  }
+
+  .trend-row.improving {
+    border-left: 4px solid #2f5f4b;
+  }
+
+  .trend-row.weakening {
+    border-left: 4px solid #8b3f37;
+  }
+
+  .trend-row.mixed,
+  .trend-row.unchanged,
+  .trend-row.unavailable {
+    border-left: 4px solid #c0a060;
   }
 
   .filing-metric-card__top,
@@ -1907,6 +2256,12 @@ const editorialCss = `
   }
 
   .chart-value {
+    font-weight: 700;
+  }
+
+  .chart-axis {
+    font-size: 9px;
+    fill: #7b756b;
     font-weight: 700;
   }
 `;

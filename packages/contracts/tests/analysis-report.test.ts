@@ -452,6 +452,89 @@ function fullReportFixture(): AnalysisReport {
         }
       ]
     },
+    financial_indicators: {
+      prompt_version: "ph7-m12-financial-indicators-v1",
+      period: "FY-2025",
+      basis: "mixed",
+      valuation: [
+        {
+          indicator_id: "pe_ratio",
+          label: "P/E",
+          value: 34.2,
+          unit: "multiple",
+          period: "FY-2025",
+          state: "available",
+          interpretation: "P/E is above a classic value range, so the stock needs durable earnings quality.",
+          evidence_refs: ["financial-indicators-aapl-fy-2025"]
+        }
+      ],
+      profitability: [
+        {
+          indicator_id: "gross_margin",
+          label: "Gross margin",
+          value: 45,
+          unit: "pct",
+          period: "FY-2025",
+          state: "available",
+          interpretation: "Gross margin shows how much sales value survives direct costs.",
+          evidence_refs: ["financial-indicators-aapl-fy-2025"]
+        }
+      ],
+      growth: [],
+      balance_sheet: [],
+      cash_flow_quality: [
+        {
+          indicator_id: "cash_conversion",
+          label: "Cash conversion",
+          value: 0.94,
+          unit: "ratio",
+          period: "FY-2025",
+          state: "available",
+          interpretation: "Cash conversion is healthy; reported profit is backed by cash.",
+          evidence_refs: ["financial-indicators-aapl-fy-2025"]
+        }
+      ],
+      capital_allocation: [],
+      five_year_trends: [
+        {
+          indicator_id: "revenue",
+          label: "Revenue",
+          unit: "currency",
+          current: 390000000000,
+          one_year_ago: 381000000000,
+          three_years_ago: 365000000000,
+          five_years_ago: 274000000000,
+          direction: "improving",
+          plain_english: "Revenue improved over the reviewed history.",
+          evidence_refs: ["financial-indicators-aapl-fy-2025"]
+        }
+      ],
+      value_classification: {
+        classification: "quality_growth",
+        confidence: "medium",
+        reasons: ["Margins and cash conversion support a quality-growth read."],
+        trap_warnings: []
+      },
+      plain_english: {
+        value_lens: "Apple is not a classic value stock; the read is closer to quality growth at a premium valuation.",
+        business_quality: "Profitability and cash conversion support business quality rather than a weak growth story.",
+        balance_sheet_read: "The balance sheet does not appear to be the main risk in this fixture.",
+        cash_flow_read: "Cash conversion is healthy and supports the quality read.",
+        five_year_read: "The five-year board shows business improvement rather than only one-period movement.",
+        plain_english_takeaway: "Plain English: the value lens asks whether quality and cash flow justify the multiple.",
+        what_to_watch_next: "Watch margins, cash conversion, debt, share count, and valuation multiple changes."
+      },
+      omissions: [],
+      evidence: [
+        {
+          evidence_id: "financial-indicators-aapl-fy-2025",
+          source_type: "financial_data",
+          source_name: "SEC companyfacts/XBRL annual snapshot",
+          excerpt: "AAPL FY-2025 financial snapshot used for value-lens ratios.",
+          retrieved_at: "2026-04-22T10:00:00.000Z"
+        }
+      ]
+    },
     structural_context: {
       subject_type: "issuer",
       subject_id: "AAPL",

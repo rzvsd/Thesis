@@ -361,6 +361,198 @@ function sampleInstitutionalReport(jobId: string, reportId: string): JsonObject 
         }
       ]
     },
+    financial_indicators: {
+      prompt_version: "ph7-m12-financial-indicators-v1",
+      period: "FY-2025",
+      basis: "mixed",
+      valuation: [
+        {
+          indicator_id: "pe_ratio",
+          label: "P/E",
+          value: 34.2,
+          unit: "multiple",
+          period: "FY-2025",
+          state: "available",
+          interpretation: "P/E is above a classic value range, so the stock needs durable earnings quality to justify the multiple.",
+          evidence_refs: ["financial-indicators-aapl-fy-2025", "financial-indicators-aapl-spot-price"]
+        },
+        {
+          indicator_id: "ps_ratio",
+          label: "P/S",
+          value: 8.8,
+          unit: "multiple",
+          period: "FY-2025",
+          state: "available",
+          interpretation: "P/S is high, which means the market is paying a premium for each dollar of sales.",
+          evidence_refs: ["financial-indicators-aapl-fy-2025", "financial-indicators-aapl-spot-price"]
+        },
+        {
+          indicator_id: "fcf_yield",
+          label: "FCF yield",
+          value: 2.8,
+          unit: "pct",
+          period: "FY-2025",
+          state: "available",
+          interpretation: "FCF yield is low for classic value, which means the stock is priced for quality or growth.",
+          evidence_refs: ["financial-indicators-aapl-fy-2025", "financial-indicators-aapl-spot-price"]
+        }
+      ],
+      profitability: [
+        {
+          indicator_id: "gross_margin",
+          label: "Gross margin",
+          value: 45,
+          unit: "pct",
+          period: "FY-2025",
+          state: "available",
+          interpretation: "Gross margin shows how much sales value survives direct costs.",
+          evidence_refs: ["financial-indicators-aapl-fy-2025"]
+        },
+        {
+          indicator_id: "operating_margin",
+          label: "Operating margin",
+          value: 31,
+          unit: "pct",
+          period: "FY-2025",
+          state: "available",
+          interpretation: "Operating margin is strong; the business keeps a lot of profit after operating costs.",
+          evidence_refs: ["financial-indicators-aapl-fy-2025"]
+        },
+        {
+          indicator_id: "roe",
+          label: "ROE",
+          value: 35,
+          unit: "pct",
+          period: "FY-2025",
+          state: "available",
+          interpretation: "ROE is strong, suggesting the company earns a high return on shareholder capital.",
+          evidence_refs: ["financial-indicators-aapl-fy-2025"]
+        }
+      ],
+      growth: [
+        {
+          indicator_id: "revenue_cagr_5y",
+          label: "Revenue CAGR",
+          value: 8,
+          unit: "pct",
+          period: "FY-2025",
+          state: "available",
+          interpretation: "Revenue CAGR shows whether the company has actually been getting larger.",
+          evidence_refs: ["financial-indicators-aapl-fy-2025"]
+        }
+      ],
+      balance_sheet: [
+        {
+          indicator_id: "debt_to_equity",
+          label: "Debt / equity",
+          value: 0.4,
+          unit: "ratio",
+          period: "FY-2025",
+          state: "available",
+          interpretation: "Debt/equity is manageable; leverage is not the main story.",
+          evidence_refs: ["financial-indicators-aapl-fy-2025"]
+        }
+      ],
+      cash_flow_quality: [
+        {
+          indicator_id: "fcf_margin",
+          label: "FCF margin",
+          value: 28,
+          unit: "pct",
+          period: "FY-2025",
+          state: "available",
+          interpretation: "FCF margin is strong; revenue is converting into real cash.",
+          evidence_refs: ["financial-indicators-aapl-fy-2025"]
+        },
+        {
+          indicator_id: "cash_conversion",
+          label: "Cash conversion",
+          value: 0.94,
+          unit: "ratio",
+          period: "FY-2025",
+          state: "available",
+          interpretation: "Cash conversion is healthy; reported profit is backed by cash.",
+          evidence_refs: ["financial-indicators-aapl-fy-2025"]
+        }
+      ],
+      capital_allocation: [
+        {
+          indicator_id: "share_count_change_5y",
+          label: "Share count change",
+          value: -6.4,
+          unit: "pct",
+          period: "FY-2025",
+          state: "available",
+          interpretation: "Share count declined, which means buybacks or retirements helped owners.",
+          evidence_refs: ["financial-indicators-aapl-fy-2025"]
+        }
+      ],
+      five_year_trends: [
+        {
+          indicator_id: "revenue",
+          label: "Revenue",
+          unit: "currency",
+          current: 390000,
+          one_year_ago: 381500,
+          three_years_ago: 365800,
+          five_years_ago: 274500,
+          direction: "improving",
+          plain_english: "Revenue improved over the reviewed history.",
+          evidence_refs: ["financial-indicators-aapl-fy-2025"]
+        },
+        {
+          indicator_id: "free_cash_flow",
+          label: "Free cash flow",
+          unit: "currency",
+          current: 110000,
+          one_year_ago: 107300,
+          three_years_ago: 99500,
+          five_years_ago: 73300,
+          direction: "improving",
+          plain_english: "Free cash flow improved over the reviewed history.",
+          evidence_refs: ["financial-indicators-aapl-fy-2025"]
+        }
+      ],
+      value_classification: {
+        classification: "quality_growth",
+        confidence: "medium",
+        reasons: ["Margins, cash conversion, and long-term cash generation support a quality-growth read."],
+        trap_warnings: []
+      },
+      plain_english: {
+        value_lens:
+          "Apple is not a classic value stock. The company screens closer to quality growth: margins are high, cash conversion is strong, and debt is manageable, but the valuation multiple is above what a traditional value investor would usually call cheap.",
+        business_quality:
+          "Business quality is the cleaner part of the read. Profitability and cash conversion show that the company is not merely selling more; it is keeping a meaningful portion of sales as profit and cash.",
+        balance_sheet_read:
+          "The balance sheet does not look like the main risk in this read. Debt is manageable relative to equity, so the bigger question is valuation versus business quality.",
+        cash_flow_read:
+          "Cash conversion is healthy, which means reported earnings are backed by cash rather than just accounting profit.",
+        five_year_read:
+          "Over five years, margins stayed strong and free cash flow improved, but valuation also expanded. That means the business quality improved, but the stock did not become cheaper.",
+        plain_english_takeaway:
+          "Plain English: this is a quality-growth read at a premium valuation. The key question is whether earnings and free cash flow can keep growing fast enough to justify the current multiple.",
+        what_to_watch_next:
+          "Watch margin durability, free cash flow, share count, and whether valuation changes because earnings improve or because the market pays more for each dollar of earnings."
+      },
+      omissions: [],
+      evidence: [
+        {
+          evidence_id: "financial-indicators-aapl-fy-2025",
+          source_type: "financial_data",
+          source_name: "SEC companyfacts/XBRL annual snapshot",
+          excerpt: "AAPL FY-2025 financial snapshot used for value-lens ratios.",
+          retrieved_at: "2026-04-20T08:00:00.000Z"
+        },
+        {
+          evidence_id: "financial-indicators-aapl-spot-price",
+          source_type: "financial_data",
+          source_name: "Approved Deep Dive spot/reference price",
+          excerpt: "AAPL spot/reference price available to Deep Dive context.",
+          retrieved_at: "2026-04-20T08:00:00.000Z"
+        }
+      ]
+    },
     financial_analysis: {
       annual_history: [
         {
@@ -931,13 +1123,15 @@ test("M5.2 PDF export route returns institutional multi-page artifact with visua
     const editorialPages = buildEditorialReportPages(reportFixture);
     const editorialHtml = buildEditorialReportHtml(reportFixture, editorialPages);
 
-    assert.equal(editorialPages.length, 13);
+    assert.equal(editorialPages.length, 15);
     assert.deepEqual(
       editorialPages.map((page) => page.title),
       [
         "Filing Read",
         "What Changed In The Filing",
         "Good Bad Interesting",
+        "Financial Indicators",
+        "Five-Year Trend Board",
         "Executive Summary",
         "Financial Analysis",
         "Financial Exhibits",
@@ -956,6 +1150,10 @@ test("M5.2 PDF export route returns institutional multi-page artifact with visua
     assert.match(editorialHtml, /What this means in plain English/);
     assert.match(editorialHtml, /Numbers first, explanation beside them/);
     assert.match(editorialHtml, /Good \/ Bad \/ Interesting/);
+    assert.match(editorialHtml, /Financial Indicators & Value Lens/);
+    assert.match(editorialHtml, /Cheap, expensive, or expensive for a reason/);
+    assert.match(editorialHtml, /Five-Year Trend Board/);
+    assert.match(editorialHtml, /Did the business improve, or did the multiple just expand/);
     assert.match(editorialHtml, /Decision question/);
     assert.match(editorialHtml, /Competitive Positioning/);
     assert.match(editorialHtml, /Financial statement follow-through/);
@@ -965,7 +1163,7 @@ test("M5.2 PDF export route returns institutional multi-page artifact with visua
     assert.match(editorialHtml, /Evidence, omissions, and source discipline/);
     assert.match(editorialHtml, /Appendix And Source Notes/);
     assert.match(editorialHtml, /Installed-base loyalty/);
-    assert.match(editorialHtml, /Page 13 of 13/);
+    assert.match(editorialHtml, /Page 15 of 15/);
     assertNoDebugLeakage(editorialHtml);
 
     const complete = await requestJson(baseUrl, `/internal/jobs/${jobId as string}/complete`, {

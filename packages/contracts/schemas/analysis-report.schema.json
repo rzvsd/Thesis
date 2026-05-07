@@ -45,6 +45,9 @@
     "filing_intelligence": {
       "$ref": "FilingIntelligenceBlock"
     },
+    "financial_indicators": {
+      "$ref": "FinancialIndicatorsBlock"
+    },
     "sections": {
       "type": "array",
       "items": {
@@ -169,6 +172,86 @@
             "the_interesting": { "type": "string" },
             "management_tone": { "type": "string" },
             "risk_watch": { "type": "string" },
+            "plain_english_takeaway": { "type": "string" },
+            "what_to_watch_next": { "type": "string" }
+          }
+        },
+        "omissions": { "type": "array" },
+        "evidence": { "type": "array" }
+      }
+    },
+    "FinancialIndicatorsBlock": {
+      "$id": "FinancialIndicatorsBlock",
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "prompt_version",
+        "period",
+        "basis",
+        "valuation",
+        "profitability",
+        "growth",
+        "balance_sheet",
+        "cash_flow_quality",
+        "capital_allocation",
+        "five_year_trends",
+        "value_classification",
+        "plain_english",
+        "omissions",
+        "evidence"
+      ],
+      "properties": {
+        "prompt_version": { "type": "string" },
+        "period": { "type": "string" },
+        "basis": { "type": "string", "enum": ["ttm", "annual", "mixed"] },
+        "valuation": { "type": "array" },
+        "profitability": { "type": "array" },
+        "growth": { "type": "array" },
+        "balance_sheet": { "type": "array" },
+        "cash_flow_quality": { "type": "array" },
+        "capital_allocation": { "type": "array" },
+        "five_year_trends": { "type": "array" },
+        "value_classification": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": ["classification", "confidence", "reasons", "trap_warnings"],
+          "properties": {
+            "classification": {
+              "type": "string",
+              "enum": [
+                "classic_value",
+                "quality_value",
+                "quality_growth",
+                "expensive_growth",
+                "turnaround",
+                "distressed",
+                "value_trap_risk",
+                "insufficient_data"
+              ]
+            },
+            "confidence": { "type": "string", "enum": ["high", "medium", "low"] },
+            "reasons": { "type": "array", "items": { "type": "string" } },
+            "trap_warnings": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "plain_english": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": [
+            "value_lens",
+            "business_quality",
+            "balance_sheet_read",
+            "cash_flow_read",
+            "five_year_read",
+            "plain_english_takeaway",
+            "what_to_watch_next"
+          ],
+          "properties": {
+            "value_lens": { "type": "string" },
+            "business_quality": { "type": "string" },
+            "balance_sheet_read": { "type": "string" },
+            "cash_flow_read": { "type": "string" },
+            "five_year_read": { "type": "string" },
             "plain_english_takeaway": { "type": "string" },
             "what_to_watch_next": { "type": "string" }
           }

@@ -1,11 +1,13 @@
 import type { EvidenceItem } from "./evidence-item";
 import type { FilingIntelligenceBlock } from "./filing-intelligence";
+import type { FinancialIndicatorsBlock } from "./financial-indicators";
 import type { KillSwitchConditionDraft } from "./kill-switch-rule";
 import type { NameRelationshipDraft } from "./name-relationship";
 import type { ReportSection } from "./report-section";
 import type { StructuralContextPack } from "./structural-context";
 import { evidenceItemSchema } from "./evidence-item";
 import { filingIntelligenceBlockSchema } from "./filing-intelligence";
+import { financialIndicatorsBlockSchema } from "./financial-indicators";
 import { killSwitchConditionDraftSchema } from "./kill-switch-rule";
 import { nameRelationshipDraftSchema } from "./name-relationship";
 import { reportSectionSchema } from "./report-section";
@@ -432,6 +434,7 @@ export interface AnalysisReport {
   investment_memo?: InvestmentMemoBlock;
   due_diligence?: DueDiligenceBlock;
   filing_intelligence?: FilingIntelligenceBlock;
+  financial_indicators?: FinancialIndicatorsBlock;
   structural_context?: StructuralContextPack;
   financial_analysis?: FinancialAnalysisBlock;
   value_discipline?: ValueDisciplineBlock;
@@ -1005,6 +1008,7 @@ export const analysisReportSchema = {
     },
     due_diligence: dueDiligenceBlockSchema,
     filing_intelligence: filingIntelligenceBlockSchema,
+    financial_indicators: financialIndicatorsBlockSchema,
     structural_context: structuralContextPackSchema,
     financial_analysis: {
       type: "object",
