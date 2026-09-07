@@ -1123,7 +1123,7 @@ test("M5.2 PDF export route returns institutional multi-page artifact with visua
     const editorialPages = buildEditorialReportPages(reportFixture);
     const editorialHtml = buildEditorialReportHtml(reportFixture, editorialPages);
 
-    assert.equal(editorialPages.length, 15);
+    assert.equal(editorialPages.length, 17);
     assert.deepEqual(
       editorialPages.map((page) => page.title),
       [
@@ -1131,7 +1131,9 @@ test("M5.2 PDF export route returns institutional multi-page artifact with visua
         "What Changed In The Filing",
         "Good Bad Interesting",
         "Financial Indicators",
+        "Benchmarks and Quality",
         "Five-Year Trend Board",
+        "Investor Education",
         "Executive Summary",
         "Financial Analysis",
         "Financial Exhibits",
@@ -1163,7 +1165,7 @@ test("M5.2 PDF export route returns institutional multi-page artifact with visua
     assert.match(editorialHtml, /Evidence, omissions, and source discipline/);
     assert.match(editorialHtml, /Appendix And Source Notes/);
     assert.match(editorialHtml, /Installed-base loyalty/);
-    assert.match(editorialHtml, /Page 15 of 15/);
+    assert.match(editorialHtml, /Page 17 of 17/);
     assertNoDebugLeakage(editorialHtml);
 
     const complete = await requestJson(baseUrl, `/internal/jobs/${jobId as string}/complete`, {

@@ -1,0 +1,1705 @@
+{
+  "report_id": "ed01536f-9e3c-4e0d-a0fe-1d600a3287b8",
+  "ticker": "MSFT",
+  "page_count": 17,
+  "page_titles": [
+    "Filing Read",
+    "What Changed In The Filing",
+    "Good Bad Interesting",
+    "Financial Indicators",
+    "Benchmarks and Quality",
+    "Five-Year Trend Board",
+    "Investor Education",
+    "Executive Summary",
+    "Financial Analysis",
+    "Financial Exhibits",
+    "Competitive Positioning",
+    "Management and Governance",
+    "Risks and Challenges",
+    "Growth Outlook",
+    "Valuation and Stance",
+    "Evidence and Omissions",
+    "Appendix"
+  ],
+  "filing_intelligence": {
+    "prompt_version": "ph7-m11-filing-intelligence-v1",
+    "generation_mode": "deterministic_fixture",
+    "latest_filing": {
+      "form": "10-Q",
+      "period": "2025-Q4",
+      "fiscal_year": 2025,
+      "fiscal_quarter": 4
+    },
+    "comparison_filings": [
+      {
+        "form": "10-Q",
+        "period": "2025-Q3",
+        "fiscal_year": 2025,
+        "fiscal_quarter": 3
+      },
+      {
+        "form": "10-Q",
+        "period": "2024-Q4",
+        "fiscal_year": 2024,
+        "fiscal_quarter": 4
+      },
+      {
+        "form": "10-K",
+        "period": "2025-FY",
+        "fiscal_year": 2025
+      },
+      {
+        "form": "10-K",
+        "period": "2024-FY",
+        "fiscal_year": 2024
+      }
+    ],
+    "metric_deltas": [
+      {
+        "metric": "revenue",
+        "label": "Revenue",
+        "basis": "qoq",
+        "current_period": "2025-Q4",
+        "reference_period": "2025-Q3",
+        "current_value": 69632000000,
+        "reference_value": 64700000000,
+        "delta": 4932000000,
+        "delta_pct": 7.622874806800619,
+        "unit": "currency",
+        "direction": "improved",
+        "plain_english": "Revenue increased versus the prior quarter. In plain English, this is the sales line moving, not a market-price opinion.",
+        "why_it_matters": "Revenue tells us whether the company is expanding the top of the income statement before margins do any work.",
+        "evidence_refs": [
+          "sec-xbrl-msft-latest-2025-q4",
+          "sec-xbrl-msft-prior-quarter-2025-q3"
+        ]
+      },
+      {
+        "metric": "revenue",
+        "label": "Revenue",
+        "basis": "yoy",
+        "current_period": "2025-Q4",
+        "reference_period": "2024-Q4",
+        "current_value": 69632000000,
+        "reference_value": 62000000000,
+        "delta": 7632000000,
+        "delta_pct": 12.30967741935484,
+        "unit": "currency",
+        "direction": "improved",
+        "plain_english": "Revenue increased versus the same quarter last year. In plain English, this is the sales line moving, not a market-price opinion.",
+        "why_it_matters": "Revenue tells us whether the company is expanding the top of the income statement before margins do any work.",
+        "evidence_refs": [
+          "sec-xbrl-msft-latest-2025-q4",
+          "sec-xbrl-msft-year-ago-2024-q4"
+        ]
+      },
+      {
+        "metric": "gross_margin",
+        "label": "Gross margin",
+        "basis": "qoq",
+        "current_period": "2025-Q4",
+        "reference_period": "2025-Q3",
+        "current_value": 70,
+        "reference_value": 69.5,
+        "delta": 0.5,
+        "delta_pct": 0.5,
+        "unit": "pct",
+        "direction": "improved",
+        "plain_english": "Gross margin increased versus the prior quarter. In plain English, this is the gross profit retained from each dollar of sales line moving, not a market-price opinion.",
+        "why_it_matters": "Gross margin matters because it helps separate headline growth from the economics underneath it.",
+        "evidence_refs": [
+          "sec-xbrl-msft-latest-2025-q4",
+          "sec-xbrl-msft-prior-quarter-2025-q3"
+        ]
+      },
+      {
+        "metric": "gross_margin",
+        "label": "Gross margin",
+        "basis": "yoy",
+        "current_period": "2025-Q4",
+        "reference_period": "2024-Q4",
+        "current_value": 70,
+        "reference_value": 68,
+        "delta": 2,
+        "delta_pct": 2,
+        "unit": "pct",
+        "direction": "improved",
+        "plain_english": "Gross margin increased versus the same quarter last year. In plain English, this is the gross profit retained from each dollar of sales line moving, not a market-price opinion.",
+        "why_it_matters": "Gross margin matters because it helps separate headline growth from the economics underneath it.",
+        "evidence_refs": [
+          "sec-xbrl-msft-latest-2025-q4",
+          "sec-xbrl-msft-year-ago-2024-q4"
+        ]
+      },
+      {
+        "metric": "operating_margin",
+        "label": "Operating margin",
+        "basis": "qoq",
+        "current_period": "2025-Q4",
+        "reference_period": "2025-Q3",
+        "current_value": 44.1,
+        "reference_value": 42.2,
+        "delta": 1.8999999999999986,
+        "delta_pct": 1.8999999999999986,
+        "unit": "pct",
+        "direction": "improved",
+        "plain_english": "Operating margin increased versus the prior quarter. In plain English, this is the operating profit retained after running the business line moving, not a market-price opinion.",
+        "why_it_matters": "Operating margin matters because it helps separate headline growth from the economics underneath it.",
+        "evidence_refs": [
+          "sec-xbrl-msft-latest-2025-q4",
+          "sec-xbrl-msft-prior-quarter-2025-q3"
+        ]
+      },
+      {
+        "metric": "operating_margin",
+        "label": "Operating margin",
+        "basis": "yoy",
+        "current_period": "2025-Q4",
+        "reference_period": "2024-Q4",
+        "current_value": 44.1,
+        "reference_value": 40.5,
+        "delta": 3.6000000000000014,
+        "delta_pct": 3.6000000000000014,
+        "unit": "pct",
+        "direction": "improved",
+        "plain_english": "Operating margin increased versus the same quarter last year. In plain English, this is the operating profit retained after running the business line moving, not a market-price opinion.",
+        "why_it_matters": "Operating margin matters because it helps separate headline growth from the economics underneath it.",
+        "evidence_refs": [
+          "sec-xbrl-msft-latest-2025-q4",
+          "sec-xbrl-msft-year-ago-2024-q4"
+        ]
+      },
+      {
+        "metric": "free_cash_flow",
+        "label": "Free cash flow",
+        "basis": "qoq",
+        "current_period": "2025-Q4",
+        "reference_period": "2025-Q3",
+        "current_value": 22400000000,
+        "reference_value": 20900000000,
+        "delta": 1500000000,
+        "delta_pct": 7.177033492822966,
+        "unit": "currency",
+        "direction": "improved",
+        "plain_english": "Free cash flow increased versus the prior quarter. In plain English, this is the cash left after operating needs and capital spending line moving, not a market-price opinion.",
+        "why_it_matters": "Free cash flow shows whether reported profit is turning into money the business can actually use.",
+        "evidence_refs": [
+          "sec-xbrl-msft-latest-2025-q4",
+          "sec-xbrl-msft-prior-quarter-2025-q3"
+        ]
+      },
+      {
+        "metric": "free_cash_flow",
+        "label": "Free cash flow",
+        "basis": "yoy",
+        "current_period": "2025-Q4",
+        "reference_period": "2024-Q4",
+        "current_value": 22400000000,
+        "reference_value": 19400000000,
+        "delta": 3000000000,
+        "delta_pct": 15.463917525773196,
+        "unit": "currency",
+        "direction": "improved",
+        "plain_english": "Free cash flow increased versus the same quarter last year. In plain English, this is the cash left after operating needs and capital spending line moving, not a market-price opinion.",
+        "why_it_matters": "Free cash flow shows whether reported profit is turning into money the business can actually use.",
+        "evidence_refs": [
+          "sec-xbrl-msft-latest-2025-q4",
+          "sec-xbrl-msft-year-ago-2024-q4"
+        ]
+      },
+      {
+        "metric": "capital_expenditure",
+        "label": "Capital expenditure",
+        "basis": "qoq",
+        "current_period": "2025-Q4",
+        "reference_period": "2025-Q3",
+        "current_value": -3000000000,
+        "reference_value": -2900000000,
+        "delta": -100000000,
+        "delta_pct": -3.4482758620689653,
+        "unit": "currency",
+        "direction": "mixed",
+        "plain_english": "Capital expenditure declined versus the prior quarter. In plain English, this is the investment spending line moving, not a market-price opinion.",
+        "why_it_matters": "Capital expenditure matters because it helps separate headline growth from the economics underneath it.",
+        "evidence_refs": [
+          "sec-xbrl-msft-latest-2025-q4",
+          "sec-xbrl-msft-prior-quarter-2025-q3"
+        ]
+      },
+      {
+        "metric": "capital_expenditure",
+        "label": "Capital expenditure",
+        "basis": "yoy",
+        "current_period": "2025-Q4",
+        "reference_period": "2024-Q4",
+        "current_value": -3000000000,
+        "reference_value": -2700000000,
+        "delta": -300000000,
+        "delta_pct": -11.11111111111111,
+        "unit": "currency",
+        "direction": "mixed",
+        "plain_english": "Capital expenditure declined versus the same quarter last year. In plain English, this is the investment spending line moving, not a market-price opinion.",
+        "why_it_matters": "Capital expenditure matters because it helps separate headline growth from the economics underneath it.",
+        "evidence_refs": [
+          "sec-xbrl-msft-latest-2025-q4",
+          "sec-xbrl-msft-year-ago-2024-q4"
+        ]
+      },
+      {
+        "metric": "cash_and_equivalents",
+        "label": "Cash and equivalents",
+        "basis": "qoq",
+        "current_period": "2025-Q4",
+        "reference_period": "2025-Q3",
+        "current_value": 92000000000,
+        "reference_value": 90000000000,
+        "delta": 2000000000,
+        "delta_pct": 2.2222222222222223,
+        "unit": "currency",
+        "direction": "improved",
+        "plain_english": "Cash and equivalents increased versus the prior quarter. In plain English, this is the liquidity cushion line moving, not a market-price opinion.",
+        "why_it_matters": "Cash and equivalents matters because it helps separate headline growth from the economics underneath it.",
+        "evidence_refs": [
+          "sec-xbrl-msft-latest-2025-q4",
+          "sec-xbrl-msft-prior-quarter-2025-q3"
+        ]
+      },
+      {
+        "metric": "cash_and_equivalents",
+        "label": "Cash and equivalents",
+        "basis": "yoy",
+        "current_period": "2025-Q4",
+        "reference_period": "2024-Q4",
+        "current_value": 92000000000,
+        "reference_value": 84000000000,
+        "delta": 8000000000,
+        "delta_pct": 9.523809523809524,
+        "unit": "currency",
+        "direction": "improved",
+        "plain_english": "Cash and equivalents increased versus the same quarter last year. In plain English, this is the liquidity cushion line moving, not a market-price opinion.",
+        "why_it_matters": "Cash and equivalents matters because it helps separate headline growth from the economics underneath it.",
+        "evidence_refs": [
+          "sec-xbrl-msft-latest-2025-q4",
+          "sec-xbrl-msft-year-ago-2024-q4"
+        ]
+      },
+      {
+        "metric": "debt_total",
+        "label": "Total debt",
+        "basis": "qoq",
+        "current_period": "2025-Q4",
+        "reference_period": "2025-Q3",
+        "current_value": 58000000000,
+        "reference_value": 59000000000,
+        "delta": -1000000000,
+        "delta_pct": -1.694915254237288,
+        "unit": "currency",
+        "direction": "improved",
+        "plain_english": "Total debt declined versus the prior quarter. In plain English, this is the balance-sheet leverage line moving, not a market-price opinion.",
+        "why_it_matters": "Debt changes tell us whether growth is being supported by a stronger or heavier balance sheet.",
+        "evidence_refs": [
+          "sec-xbrl-msft-latest-2025-q4",
+          "sec-xbrl-msft-prior-quarter-2025-q3"
+        ]
+      },
+      {
+        "metric": "debt_total",
+        "label": "Total debt",
+        "basis": "yoy",
+        "current_period": "2025-Q4",
+        "reference_period": "2024-Q4",
+        "current_value": 58000000000,
+        "reference_value": 61000000000,
+        "delta": -3000000000,
+        "delta_pct": -4.918032786885246,
+        "unit": "currency",
+        "direction": "improved",
+        "plain_english": "Total debt declined versus the same quarter last year. In plain English, this is the balance-sheet leverage line moving, not a market-price opinion.",
+        "why_it_matters": "Debt changes tell us whether growth is being supported by a stronger or heavier balance sheet.",
+        "evidence_refs": [
+          "sec-xbrl-msft-latest-2025-q4",
+          "sec-xbrl-msft-year-ago-2024-q4"
+        ]
+      },
+      {
+        "metric": "shares_outstanding",
+        "label": "Shares outstanding",
+        "basis": "qoq",
+        "current_period": "2025-Q4",
+        "reference_period": "2025-Q3",
+        "current_value": 7420000000,
+        "reference_value": 7425000000,
+        "delta": -5000000,
+        "delta_pct": -0.06734006734006734,
+        "unit": "count",
+        "direction": "improved",
+        "plain_english": "Shares outstanding declined versus the prior quarter. In plain English, this is the share count and dilution line moving, not a market-price opinion.",
+        "why_it_matters": "Share count matters because dilution or buybacks change how much of the business each share represents.",
+        "evidence_refs": [
+          "sec-xbrl-msft-latest-2025-q4",
+          "sec-xbrl-msft-prior-quarter-2025-q3"
+        ]
+      },
+      {
+        "metric": "shares_outstanding",
+        "label": "Shares outstanding",
+        "basis": "yoy",
+        "current_period": "2025-Q4",
+        "reference_period": "2024-Q4",
+        "current_value": 7420000000,
+        "reference_value": 7450000000,
+        "delta": -30000000,
+        "delta_pct": -0.4026845637583893,
+        "unit": "count",
+        "direction": "improved",
+        "plain_english": "Shares outstanding declined versus the same quarter last year. In plain English, this is the share count and dilution line moving, not a market-price opinion.",
+        "why_it_matters": "Share count matters because dilution or buybacks change how much of the business each share represents.",
+        "evidence_refs": [
+          "sec-xbrl-msft-latest-2025-q4",
+          "sec-xbrl-msft-year-ago-2024-q4"
+        ]
+      },
+      {
+        "metric": "revenue",
+        "label": "Revenue",
+        "basis": "annual",
+        "current_period": "2025-FY",
+        "reference_period": "2024-FY",
+        "current_value": 265000000000,
+        "reference_value": 245000000000,
+        "delta": 20000000000,
+        "delta_pct": 8.16326530612245,
+        "unit": "currency",
+        "direction": "improved",
+        "plain_english": "Revenue increased versus the prior annual filing. In plain English, this is the sales line moving, not a market-price opinion.",
+        "why_it_matters": "Revenue tells us whether the company is expanding the top of the income statement before margins do any work.",
+        "evidence_refs": [
+          "sec-xbrl-msft-latest-annual-2025-fy",
+          "sec-xbrl-msft-prior-annual-2024-fy"
+        ]
+      },
+      {
+        "metric": "gross_margin",
+        "label": "Gross margin",
+        "basis": "annual",
+        "current_period": "2025-FY",
+        "reference_period": "2024-FY",
+        "current_value": 70,
+        "reference_value": 68,
+        "delta": 2,
+        "delta_pct": 2,
+        "unit": "pct",
+        "direction": "improved",
+        "plain_english": "Gross margin increased versus the prior annual filing. In plain English, this is the gross profit retained from each dollar of sales line moving, not a market-price opinion.",
+        "why_it_matters": "Gross margin matters because it helps separate headline growth from the economics underneath it.",
+        "evidence_refs": [
+          "sec-xbrl-msft-latest-annual-2025-fy",
+          "sec-xbrl-msft-prior-annual-2024-fy"
+        ]
+      },
+      {
+        "metric": "operating_margin",
+        "label": "Operating margin",
+        "basis": "annual",
+        "current_period": "2025-FY",
+        "reference_period": "2024-FY",
+        "current_value": 44,
+        "reference_value": 41,
+        "delta": 3,
+        "delta_pct": 3,
+        "unit": "pct",
+        "direction": "improved",
+        "plain_english": "Operating margin increased versus the prior annual filing. In plain English, this is the operating profit retained after running the business line moving, not a market-price opinion.",
+        "why_it_matters": "Operating margin matters because it helps separate headline growth from the economics underneath it.",
+        "evidence_refs": [
+          "sec-xbrl-msft-latest-annual-2025-fy",
+          "sec-xbrl-msft-prior-annual-2024-fy"
+        ]
+      },
+      {
+        "metric": "free_cash_flow",
+        "label": "Free cash flow",
+        "basis": "annual",
+        "current_period": "2025-FY",
+        "reference_period": "2024-FY",
+        "current_value": 84100000000,
+        "reference_value": 78800000000,
+        "delta": 5300000000,
+        "delta_pct": 6.725888324873096,
+        "unit": "currency",
+        "direction": "improved",
+        "plain_english": "Free cash flow increased versus the prior annual filing. In plain English, this is the cash left after operating needs and capital spending line moving, not a market-price opinion.",
+        "why_it_matters": "Free cash flow shows whether reported profit is turning into money the business can actually use.",
+        "evidence_refs": [
+          "sec-xbrl-msft-latest-annual-2025-fy",
+          "sec-xbrl-msft-prior-annual-2024-fy"
+        ]
+      },
+      {
+        "metric": "capital_expenditure",
+        "label": "Capital expenditure",
+        "basis": "annual",
+        "current_period": "2025-FY",
+        "reference_period": "2024-FY",
+        "current_value": -11900000000,
+        "reference_value": -10200000000,
+        "delta": -1700000000,
+        "delta_pct": -16.666666666666664,
+        "unit": "currency",
+        "direction": "mixed",
+        "plain_english": "Capital expenditure declined versus the prior annual filing. In plain English, this is the investment spending line moving, not a market-price opinion.",
+        "why_it_matters": "Capital expenditure matters because it helps separate headline growth from the economics underneath it.",
+        "evidence_refs": [
+          "sec-xbrl-msft-latest-annual-2025-fy",
+          "sec-xbrl-msft-prior-annual-2024-fy"
+        ]
+      },
+      {
+        "metric": "cash_and_equivalents",
+        "label": "Cash and equivalents",
+        "basis": "annual",
+        "current_period": "2025-FY",
+        "reference_period": "2024-FY",
+        "current_value": 92000000000,
+        "reference_value": 84000000000,
+        "delta": 8000000000,
+        "delta_pct": 9.523809523809524,
+        "unit": "currency",
+        "direction": "improved",
+        "plain_english": "Cash and equivalents increased versus the prior annual filing. In plain English, this is the liquidity cushion line moving, not a market-price opinion.",
+        "why_it_matters": "Cash and equivalents matters because it helps separate headline growth from the economics underneath it.",
+        "evidence_refs": [
+          "sec-xbrl-msft-latest-annual-2025-fy",
+          "sec-xbrl-msft-prior-annual-2024-fy"
+        ]
+      },
+      {
+        "metric": "debt_total",
+        "label": "Total debt",
+        "basis": "annual",
+        "current_period": "2025-FY",
+        "reference_period": "2024-FY",
+        "current_value": 58000000000,
+        "reference_value": 61000000000,
+        "delta": -3000000000,
+        "delta_pct": -4.918032786885246,
+        "unit": "currency",
+        "direction": "improved",
+        "plain_english": "Total debt declined versus the prior annual filing. In plain English, this is the balance-sheet leverage line moving, not a market-price opinion.",
+        "why_it_matters": "Debt changes tell us whether growth is being supported by a stronger or heavier balance sheet.",
+        "evidence_refs": [
+          "sec-xbrl-msft-latest-annual-2025-fy",
+          "sec-xbrl-msft-prior-annual-2024-fy"
+        ]
+      },
+      {
+        "metric": "shares_outstanding",
+        "label": "Shares outstanding",
+        "basis": "annual",
+        "current_period": "2025-FY",
+        "reference_period": "2024-FY",
+        "current_value": 7420000000,
+        "reference_value": 7450000000,
+        "delta": -30000000,
+        "delta_pct": -0.4026845637583893,
+        "unit": "count",
+        "direction": "improved",
+        "plain_english": "Shares outstanding declined versus the prior annual filing. In plain English, this is the share count and dilution line moving, not a market-price opinion.",
+        "why_it_matters": "Share count matters because dilution or buybacks change how much of the business each share represents.",
+        "evidence_refs": [
+          "sec-xbrl-msft-latest-annual-2025-fy",
+          "sec-xbrl-msft-prior-annual-2024-fy"
+        ]
+      }
+    ],
+    "language_deltas": [
+      {
+        "section": "management_commentary",
+        "current_excerpt": "Management highlighted durable cloud demand and disciplined AI infrastructure spend while maintaining margin focus.",
+        "change_type": "new",
+        "plain_english": "Management commentary is available as context, but M11 treats it as something to test against filing numbers rather than as standalone proof.",
+        "evidence_refs": [
+          "management-commentary-msft-2025-q4"
+        ]
+      }
+    ],
+    "segment_deltas": [
+      {
+        "metric": "segment_revenue:Cloud",
+        "label": "Cloud revenue",
+        "basis": "qoq",
+        "current_period": "2025-Q4",
+        "reference_period": "2025-Q3",
+        "current_value": 29100000000,
+        "unit": "currency",
+        "direction": "unavailable",
+        "plain_english": "Cloud is separated because a company can look stable overall while the mix underneath changes.",
+        "why_it_matters": "Segment mix tells the reader which parts of the company are carrying the filing, instead of treating one revenue total as the whole story.",
+        "evidence_refs": [
+          "sec-xbrl-msft-latest-2025-q4",
+          "sec-xbrl-msft-prior-quarter-2025-q3"
+        ]
+      },
+      {
+        "metric": "segment_revenue:Productivity",
+        "label": "Productivity revenue",
+        "basis": "qoq",
+        "current_period": "2025-Q4",
+        "reference_period": "2025-Q3",
+        "current_value": 19700000000,
+        "unit": "currency",
+        "direction": "unavailable",
+        "plain_english": "Productivity is separated because a company can look stable overall while the mix underneath changes.",
+        "why_it_matters": "Segment mix tells the reader which parts of the company are carrying the filing, instead of treating one revenue total as the whole story.",
+        "evidence_refs": [
+          "sec-xbrl-msft-latest-2025-q4",
+          "sec-xbrl-msft-prior-quarter-2025-q3"
+        ]
+      }
+    ],
+    "memo": {
+      "the_filing_read": "MSFT is being read through its latest SEC-backed financial snapshot, with the memo focused on what changed rather than on generic company description. Revenue improved on a QOQ basis. Revenue improved on a YOY basis. Gross margin improved on a QOQ basis. The segment layer is useful because Cloud revenue gives a cleaner clue about business mix than the company total alone. Full filing-language extraction is still marked as an omission, so tone is treated cautiously rather than dressed up as certainty.",
+      "what_changed": "The cleanest changes are the metrics that moved across both the quarter and year-ago comparisons. Revenue improved on a QOQ basis. Revenue improved on a YOY basis. Gross margin improved on a QOQ basis. The memo keeps those changes separate from market-price movement, because a better filing and a better stock day are not the same thing.",
+      "the_good": "Revenue increased versus the prior quarter. In plain English, this is the sales line moving, not a market-price opinion. Revenue increased versus the same quarter last year. In plain English, this is the sales line moving, not a market-price opinion. Gross margin increased versus the prior quarter. In plain English, this is the gross profit retained from each dollar of sales line moving, not a market-price opinion. That is the constructive side: the filing has at least one measurable line moving in the right direction.",
+      "the_bad": "The bad side is less about an obvious deterioration and more about missing confirmation. Without complete filing text and all comparison periods, the memo cannot overstate quality.",
+      "the_interesting": "The segment layer is useful because Cloud revenue gives a cleaner clue about business mix than the company total alone. The interesting filing question is whether the same story appears in more than one place: revenue, margins, cash flow, balance sheet, and management language. When those agree, the memo can speak more firmly; when they do not, the right answer is curiosity, not theater.",
+      "management_tone": "Management commentary is available as context, but M11 treats it as something to test against filing numbers rather than as standalone proof. This is treated as management context, not proof by itself. The numbers still own the memo.",
+      "risk_watch": "Watch for confirmation in the next filing: repeated margin strength, cash conversion, segment mix, and any risk-factor language that becomes more specific.",
+      "plain_english_takeaway": "Plain English: this memo reads the filing like a business update, not like a quote screen. The first question is what changed inside the company; the second is whether that change is large enough and well-supported enough to matter.",
+      "what_to_watch_next": "Next filing, the useful checks are simple: did revenue keep converting into profit, did cash flow follow earnings, did debt or share count move the wrong way, and did management language become more cautious or more specific?"
+    },
+    "top_changes": [
+      "Revenue improved on a QOQ basis.",
+      "Revenue improved on a YOY basis.",
+      "Gross margin improved on a QOQ basis.",
+      "Gross margin improved on a YOY basis.",
+      "Operating margin improved on a QOQ basis.",
+      "Operating margin improved on a YOY basis."
+    ],
+    "good": [
+      "Revenue improved on a QOQ basis.",
+      "Revenue improved on a YOY basis.",
+      "Gross margin improved on a QOQ basis."
+    ],
+    "bad": [],
+    "interesting": [
+      "Cloud is separated because a company can look stable overall while the mix underneath changes.",
+      "Management commentary is available as context, but M11 treats it as something to test against filing numbers rather than as standalone proof.",
+      "The memo checks whether numbers, segment mix, and management language agree before increasing conviction."
+    ],
+    "omissions": [
+      {
+        "family": "filing_language",
+        "reason_code": "missing_filing_text",
+        "reason": "Full SEC filing-section text extraction is not yet available in this run; management language is bounded to reviewed commentary when present.",
+        "blocking": false
+      }
+    ],
+    "evidence": [
+      {
+        "evidence_id": "sec-xbrl-msft-latest-2025-q4",
+        "source_type": "filing",
+        "source_name": "SEC companyfacts/XBRL quarterly snapshot",
+        "excerpt": "MSFT 2025-Q4 quarterly SEC-backed financial snapshot; available metrics include revenue, gross_profit, gross_margin, operating_income, net_income, eps, eps_diluted, ebitda.",
+        "retrieved_at": "2026-03-20T08:00:00.000Z"
+      },
+      {
+        "evidence_id": "sec-xbrl-msft-prior-quarter-2025-q3",
+        "source_type": "filing",
+        "source_name": "SEC companyfacts/XBRL quarterly snapshot",
+        "excerpt": "MSFT 2025-Q3 quarterly SEC-backed financial snapshot; available metrics include revenue, gross_profit, gross_margin, operating_income, net_income, eps, eps_diluted, ebitda.",
+        "retrieved_at": "2026-03-20T08:00:00.000Z"
+      },
+      {
+        "evidence_id": "sec-xbrl-msft-year-ago-2024-q4",
+        "source_type": "filing",
+        "source_name": "SEC companyfacts/XBRL quarterly snapshot",
+        "excerpt": "MSFT 2024-Q4 quarterly SEC-backed financial snapshot; available metrics include revenue, gross_profit, gross_margin, operating_income, net_income, eps, eps_diluted, ebitda.",
+        "retrieved_at": "2026-03-20T08:00:00.000Z"
+      },
+      {
+        "evidence_id": "sec-xbrl-msft-latest-annual-2025-fy",
+        "source_type": "filing",
+        "source_name": "SEC companyfacts/XBRL annual snapshot",
+        "excerpt": "MSFT 2025-FY annual SEC-backed financial snapshot; available metrics include revenue, gross_profit, gross_margin, operating_income, operating_margin, net_income, eps, eps_diluted.",
+        "retrieved_at": "2026-03-20T08:00:00.000Z"
+      },
+      {
+        "evidence_id": "sec-xbrl-msft-prior-annual-2024-fy",
+        "source_type": "filing",
+        "source_name": "SEC companyfacts/XBRL annual snapshot",
+        "excerpt": "MSFT 2024-FY annual SEC-backed financial snapshot; available metrics include revenue, gross_profit, gross_margin, operating_income, operating_margin, net_income, eps, eps_diluted.",
+        "retrieved_at": "2026-03-20T08:00:00.000Z"
+      },
+      {
+        "evidence_id": "management-commentary-msft-2025-q4",
+        "source_type": "article",
+        "source_name": "Reviewed management commentary",
+        "excerpt": "Management highlighted durable cloud demand and disciplined AI infrastructure spend while maintaining margin focus.",
+        "retrieved_at": "2026-03-20T08:00:00.000Z"
+      }
+    ]
+  },
+  "financial_indicators": {
+    "prompt_version": "ph7-m13-financial-indicators-v2",
+    "period": "2025-FY",
+    "basis": "mixed",
+    "calculation_basis": {
+      "ttm_periods": [
+        "2025-Q4",
+        "2025-Q3",
+        "2024-Q4"
+      ],
+      "latest_balance_sheet_period": "2025-Q4",
+      "annual_fallback_period": "2025-FY",
+      "note": "Fewer than four quarterly snapshots were available, so the value lens uses the latest annual snapshot for flow metrics."
+    },
+    "price_reference": {
+      "source_name": "Approved Deep Dive spot/reference price",
+      "retrieved_at": "2026-05-08T05:49:58.372Z",
+      "price_date": "2026-05-08",
+      "currency": "USD",
+      "price_kind": "fixture",
+      "value": 428.52,
+      "provenance_note": "Fixture price used for deterministic Deep Dive proof; live reports should attach provider-specific price provenance upstream."
+    },
+    "valuation": [
+      {
+        "indicator_id": "market_cap",
+        "label": "Market cap",
+        "value": 3179618400000,
+        "unit": "currency",
+        "period": "2025-FY",
+        "state": "available",
+        "interpretation": "Market cap shows what the market currently says the equity is worth.",
+        "evidence_refs": [
+          "financial-indicators-msft-2025-fy",
+          "financial-indicators-msft-2024-fy",
+          "financial-indicators-msft-2023-fy",
+          "financial-indicators-msft-2022-fy",
+          "financial-indicators-msft-2020-fy",
+          "financial-indicators-msft-2025-q4",
+          "financial-indicators-msft-2025-q3",
+          "financial-indicators-msft-2024-q4",
+          "financial-indicators-msft-spot-price"
+        ]
+      },
+      {
+        "indicator_id": "enterprise_value",
+        "label": "Enterprise value",
+        "value": 3145618400000,
+        "unit": "currency",
+        "period": "2025-FY",
+        "state": "available",
+        "interpretation": "Enterprise value adds debt and subtracts cash so the reader sees the full business price.",
+        "evidence_refs": [
+          "financial-indicators-msft-2025-fy",
+          "financial-indicators-msft-2024-fy",
+          "financial-indicators-msft-2023-fy",
+          "financial-indicators-msft-2022-fy",
+          "financial-indicators-msft-2020-fy",
+          "financial-indicators-msft-2025-q4",
+          "financial-indicators-msft-2025-q3",
+          "financial-indicators-msft-2024-q4",
+          "financial-indicators-msft-spot-price"
+        ]
+      },
+      {
+        "indicator_id": "pe_ratio",
+        "label": "P/E",
+        "value": 33.48,
+        "unit": "multiple",
+        "period": "2025-FY",
+        "state": "available",
+        "interpretation": "P/E is not obviously cheap or extreme by itself; quality and growth decide the read.",
+        "evidence_refs": [
+          "financial-indicators-msft-2025-fy",
+          "financial-indicators-msft-2024-fy",
+          "financial-indicators-msft-2023-fy",
+          "financial-indicators-msft-2022-fy",
+          "financial-indicators-msft-2020-fy",
+          "financial-indicators-msft-2025-q4",
+          "financial-indicators-msft-2025-q3",
+          "financial-indicators-msft-2024-q4",
+          "financial-indicators-msft-spot-price"
+        ]
+      },
+      {
+        "indicator_id": "ps_ratio",
+        "label": "P/S",
+        "value": 12,
+        "unit": "multiple",
+        "period": "2025-FY",
+        "state": "available",
+        "interpretation": "P/S is high, which means the market is paying a premium for each dollar of sales.",
+        "evidence_refs": [
+          "financial-indicators-msft-2025-fy",
+          "financial-indicators-msft-2024-fy",
+          "financial-indicators-msft-2023-fy",
+          "financial-indicators-msft-2022-fy",
+          "financial-indicators-msft-2020-fy",
+          "financial-indicators-msft-2025-q4",
+          "financial-indicators-msft-2025-q3",
+          "financial-indicators-msft-2024-q4",
+          "financial-indicators-msft-spot-price"
+        ]
+      },
+      {
+        "indicator_id": "pb_ratio",
+        "label": "P/B",
+        "value": 11.52,
+        "unit": "multiple",
+        "period": "2025-FY",
+        "state": "available",
+        "interpretation": "P/B is high, so the market is valuing the company far above book equity.",
+        "evidence_refs": [
+          "financial-indicators-msft-2025-fy",
+          "financial-indicators-msft-2024-fy",
+          "financial-indicators-msft-2023-fy",
+          "financial-indicators-msft-2022-fy",
+          "financial-indicators-msft-2020-fy",
+          "financial-indicators-msft-2025-q4",
+          "financial-indicators-msft-2025-q3",
+          "financial-indicators-msft-2024-q4",
+          "financial-indicators-msft-spot-price"
+        ]
+      },
+      {
+        "indicator_id": "ev_ebitda",
+        "label": "EV/EBITDA",
+        "value": 24.58,
+        "unit": "multiple",
+        "period": "2025-FY",
+        "state": "available",
+        "interpretation": "EV/EBITDA is premium, so operating cash economics need to stay strong.",
+        "evidence_refs": [
+          "financial-indicators-msft-2025-fy",
+          "financial-indicators-msft-2024-fy",
+          "financial-indicators-msft-2023-fy",
+          "financial-indicators-msft-2022-fy",
+          "financial-indicators-msft-2020-fy",
+          "financial-indicators-msft-2025-q4",
+          "financial-indicators-msft-2025-q3",
+          "financial-indicators-msft-2024-q4",
+          "financial-indicators-msft-spot-price"
+        ]
+      },
+      {
+        "indicator_id": "fcf_yield",
+        "label": "FCF yield",
+        "value": 2.64,
+        "unit": "pct",
+        "period": "2025-FY",
+        "state": "available",
+        "interpretation": "FCF yield is low for classic value, which means the stock is priced for quality or growth.",
+        "evidence_refs": [
+          "financial-indicators-msft-2025-fy",
+          "financial-indicators-msft-2024-fy",
+          "financial-indicators-msft-2023-fy",
+          "financial-indicators-msft-2022-fy",
+          "financial-indicators-msft-2020-fy",
+          "financial-indicators-msft-2025-q4",
+          "financial-indicators-msft-2025-q3",
+          "financial-indicators-msft-2024-q4",
+          "financial-indicators-msft-spot-price"
+        ]
+      }
+    ],
+    "profitability": [
+      {
+        "indicator_id": "gross_margin",
+        "label": "Gross margin",
+        "value": 70,
+        "unit": "pct",
+        "period": "2025-FY",
+        "state": "available",
+        "interpretation": "Gross margin is excellent and points to strong product economics.",
+        "evidence_refs": [
+          "financial-indicators-msft-2025-fy",
+          "financial-indicators-msft-2024-fy",
+          "financial-indicators-msft-2023-fy",
+          "financial-indicators-msft-2022-fy",
+          "financial-indicators-msft-2020-fy",
+          "financial-indicators-msft-2025-q4",
+          "financial-indicators-msft-2025-q3",
+          "financial-indicators-msft-2024-q4",
+          "financial-indicators-msft-spot-price"
+        ]
+      },
+      {
+        "indicator_id": "operating_margin",
+        "label": "Operating margin",
+        "value": 44,
+        "unit": "pct",
+        "period": "2025-FY",
+        "state": "available",
+        "interpretation": "Operating margin is strong; the business keeps a lot of profit after operating costs.",
+        "evidence_refs": [
+          "financial-indicators-msft-2025-fy",
+          "financial-indicators-msft-2024-fy",
+          "financial-indicators-msft-2023-fy",
+          "financial-indicators-msft-2022-fy",
+          "financial-indicators-msft-2020-fy",
+          "financial-indicators-msft-2025-q4",
+          "financial-indicators-msft-2025-q3",
+          "financial-indicators-msft-2024-q4",
+          "financial-indicators-msft-spot-price"
+        ]
+      },
+      {
+        "indicator_id": "net_margin",
+        "label": "Net margin",
+        "value": 36,
+        "unit": "pct",
+        "period": "2025-FY",
+        "state": "available",
+        "interpretation": "Net margin is strong; a meaningful share of revenue reaches the bottom line.",
+        "evidence_refs": [
+          "financial-indicators-msft-2025-fy",
+          "financial-indicators-msft-2024-fy",
+          "financial-indicators-msft-2023-fy",
+          "financial-indicators-msft-2022-fy",
+          "financial-indicators-msft-2020-fy",
+          "financial-indicators-msft-2025-q4",
+          "financial-indicators-msft-2025-q3",
+          "financial-indicators-msft-2024-q4",
+          "financial-indicators-msft-spot-price"
+        ]
+      },
+      {
+        "indicator_id": "roe",
+        "label": "ROE",
+        "value": 34.57,
+        "unit": "pct",
+        "period": "2025-FY",
+        "state": "available",
+        "interpretation": "ROE is strong, suggesting the company earns a high return on shareholder capital.",
+        "evidence_refs": [
+          "financial-indicators-msft-2025-fy",
+          "financial-indicators-msft-2024-fy",
+          "financial-indicators-msft-2023-fy",
+          "financial-indicators-msft-2022-fy",
+          "financial-indicators-msft-2020-fy",
+          "financial-indicators-msft-2025-q4",
+          "financial-indicators-msft-2025-q3",
+          "financial-indicators-msft-2024-q4",
+          "financial-indicators-msft-spot-price"
+        ]
+      },
+      {
+        "indicator_id": "roa",
+        "label": "ROA",
+        "value": 18.63,
+        "unit": "pct",
+        "period": "2025-FY",
+        "state": "available",
+        "interpretation": "ROA is strong, which means the asset base is producing meaningful earnings.",
+        "evidence_refs": [
+          "financial-indicators-msft-2025-fy",
+          "financial-indicators-msft-2024-fy",
+          "financial-indicators-msft-2023-fy",
+          "financial-indicators-msft-2022-fy",
+          "financial-indicators-msft-2020-fy",
+          "financial-indicators-msft-2025-q4",
+          "financial-indicators-msft-2025-q3",
+          "financial-indicators-msft-2024-q4",
+          "financial-indicators-msft-spot-price"
+        ]
+      },
+      {
+        "indicator_id": "roic",
+        "label": "ROIC",
+        "value": 39.51,
+        "unit": "pct",
+        "period": "2025-FY",
+        "state": "available",
+        "interpretation": "ROIC is strong; the company is producing high returns on the capital tied up in the business.",
+        "evidence_refs": [
+          "financial-indicators-msft-2025-fy",
+          "financial-indicators-msft-2024-fy",
+          "financial-indicators-msft-2023-fy",
+          "financial-indicators-msft-2022-fy",
+          "financial-indicators-msft-2020-fy",
+          "financial-indicators-msft-2025-q4",
+          "financial-indicators-msft-2025-q3",
+          "financial-indicators-msft-2024-q4",
+          "financial-indicators-msft-spot-price"
+        ]
+      },
+      {
+        "indicator_id": "asset_turnover",
+        "label": "Asset turnover",
+        "value": 0.52,
+        "unit": "ratio",
+        "period": "2025-FY",
+        "state": "available",
+        "interpretation": "Asset turnover shows how much revenue the company produces from each dollar of assets.",
+        "evidence_refs": [
+          "financial-indicators-msft-2025-fy",
+          "financial-indicators-msft-2024-fy",
+          "financial-indicators-msft-2023-fy",
+          "financial-indicators-msft-2022-fy",
+          "financial-indicators-msft-2020-fy",
+          "financial-indicators-msft-2025-q4",
+          "financial-indicators-msft-2025-q3",
+          "financial-indicators-msft-2024-q4",
+          "financial-indicators-msft-spot-price"
+        ]
+      },
+      {
+        "indicator_id": "gross_profit_assets",
+        "label": "Gross profit / assets",
+        "value": 36.23,
+        "unit": "pct",
+        "period": "2025-FY",
+        "state": "available",
+        "interpretation": "Gross profit/assets is strong and points to valuable assets or a capital-light model.",
+        "evidence_refs": [
+          "financial-indicators-msft-2025-fy",
+          "financial-indicators-msft-2024-fy",
+          "financial-indicators-msft-2023-fy",
+          "financial-indicators-msft-2022-fy",
+          "financial-indicators-msft-2020-fy",
+          "financial-indicators-msft-2025-q4",
+          "financial-indicators-msft-2025-q3",
+          "financial-indicators-msft-2024-q4",
+          "financial-indicators-msft-spot-price"
+        ]
+      }
+    ],
+    "growth": [
+      {
+        "indicator_id": "revenue_cagr_5y",
+        "label": "Revenue CAGR",
+        "value": 13.13,
+        "unit": "pct",
+        "period": "2025-FY",
+        "state": "available",
+        "interpretation": "Revenue compounded at a strong pace over the reviewed period.",
+        "evidence_refs": [
+          "financial-indicators-msft-2025-fy",
+          "financial-indicators-msft-2024-fy",
+          "financial-indicators-msft-2023-fy",
+          "financial-indicators-msft-2022-fy",
+          "financial-indicators-msft-2020-fy",
+          "financial-indicators-msft-2025-q4",
+          "financial-indicators-msft-2025-q3",
+          "financial-indicators-msft-2024-q4",
+          "financial-indicators-msft-spot-price"
+        ]
+      },
+      {
+        "indicator_id": "eps_cagr_5y",
+        "label": "EPS CAGR",
+        "value": 17.32,
+        "unit": "pct",
+        "period": "2025-FY",
+        "state": "available",
+        "interpretation": "EPS has compounded strongly, which helps explain premium valuation.",
+        "evidence_refs": [
+          "financial-indicators-msft-2025-fy",
+          "financial-indicators-msft-2024-fy",
+          "financial-indicators-msft-2023-fy",
+          "financial-indicators-msft-2022-fy",
+          "financial-indicators-msft-2020-fy",
+          "financial-indicators-msft-2025-q4",
+          "financial-indicators-msft-2025-q3",
+          "financial-indicators-msft-2024-q4",
+          "financial-indicators-msft-spot-price"
+        ]
+      },
+      {
+        "indicator_id": "fcf_cagr_5y",
+        "label": "FCF CAGR",
+        "value": 13.22,
+        "unit": "pct",
+        "period": "2025-FY",
+        "state": "available",
+        "interpretation": "Free cash flow compounded strongly, which supports business quality.",
+        "evidence_refs": [
+          "financial-indicators-msft-2025-fy",
+          "financial-indicators-msft-2024-fy",
+          "financial-indicators-msft-2023-fy",
+          "financial-indicators-msft-2022-fy",
+          "financial-indicators-msft-2020-fy",
+          "financial-indicators-msft-2025-q4",
+          "financial-indicators-msft-2025-q3",
+          "financial-indicators-msft-2024-q4",
+          "financial-indicators-msft-spot-price"
+        ]
+      }
+    ],
+    "balance_sheet": [
+      {
+        "indicator_id": "debt_to_equity",
+        "label": "Debt / equity",
+        "value": 0.21,
+        "unit": "ratio",
+        "period": "2025-FY",
+        "state": "available",
+        "interpretation": "Debt/equity is manageable; leverage is not the main story.",
+        "evidence_refs": [
+          "financial-indicators-msft-2025-fy",
+          "financial-indicators-msft-2024-fy",
+          "financial-indicators-msft-2023-fy",
+          "financial-indicators-msft-2022-fy",
+          "financial-indicators-msft-2020-fy",
+          "financial-indicators-msft-2025-q4",
+          "financial-indicators-msft-2025-q3",
+          "financial-indicators-msft-2024-q4",
+          "financial-indicators-msft-spot-price"
+        ]
+      },
+      {
+        "indicator_id": "net_debt_ebitda",
+        "label": "Net debt / EBITDA",
+        "value": -0.27,
+        "unit": "ratio",
+        "period": "2025-FY",
+        "state": "available",
+        "interpretation": "Net cash position reduces balance-sheet stress.",
+        "evidence_refs": [
+          "financial-indicators-msft-2025-fy",
+          "financial-indicators-msft-2024-fy",
+          "financial-indicators-msft-2023-fy",
+          "financial-indicators-msft-2022-fy",
+          "financial-indicators-msft-2020-fy",
+          "financial-indicators-msft-2025-q4",
+          "financial-indicators-msft-2025-q3",
+          "financial-indicators-msft-2024-q4",
+          "financial-indicators-msft-spot-price"
+        ]
+      },
+      {
+        "indicator_id": "cash_debt",
+        "label": "Cash / debt",
+        "value": 1.59,
+        "unit": "ratio",
+        "period": "2025-FY",
+        "state": "available",
+        "interpretation": "Cash covers total debt, which gives the company room to absorb stress.",
+        "evidence_refs": [
+          "financial-indicators-msft-2025-fy",
+          "financial-indicators-msft-2024-fy",
+          "financial-indicators-msft-2023-fy",
+          "financial-indicators-msft-2022-fy",
+          "financial-indicators-msft-2020-fy",
+          "financial-indicators-msft-2025-q4",
+          "financial-indicators-msft-2025-q3",
+          "financial-indicators-msft-2024-q4",
+          "financial-indicators-msft-spot-price"
+        ]
+      },
+      {
+        "indicator_id": "interest_coverage",
+        "label": "Interest coverage",
+        "unit": "ratio",
+        "period": "2025-FY",
+        "state": "missing",
+        "interpretation": "Interest coverage is missing.",
+        "evidence_refs": [
+          "financial-indicators-msft-2025-fy",
+          "financial-indicators-msft-2024-fy",
+          "financial-indicators-msft-2023-fy",
+          "financial-indicators-msft-2022-fy",
+          "financial-indicators-msft-2020-fy",
+          "financial-indicators-msft-2025-q4",
+          "financial-indicators-msft-2025-q3",
+          "financial-indicators-msft-2024-q4",
+          "financial-indicators-msft-spot-price"
+        ]
+      },
+      {
+        "indicator_id": "current_ratio",
+        "label": "Current ratio",
+        "unit": "ratio",
+        "period": "2025-FY",
+        "state": "missing",
+        "interpretation": "Current ratio is omitted because current asset/liability fields are missing.",
+        "evidence_refs": [
+          "financial-indicators-msft-2025-fy",
+          "financial-indicators-msft-2024-fy",
+          "financial-indicators-msft-2023-fy",
+          "financial-indicators-msft-2022-fy",
+          "financial-indicators-msft-2020-fy",
+          "financial-indicators-msft-2025-q4",
+          "financial-indicators-msft-2025-q3",
+          "financial-indicators-msft-2024-q4",
+          "financial-indicators-msft-spot-price"
+        ]
+      },
+      {
+        "indicator_id": "quick_ratio",
+        "label": "Quick ratio",
+        "unit": "ratio",
+        "period": "2025-FY",
+        "state": "missing",
+        "interpretation": "Quick ratio is omitted because short-term liquidity inputs are missing.",
+        "evidence_refs": [
+          "financial-indicators-msft-2025-fy",
+          "financial-indicators-msft-2024-fy",
+          "financial-indicators-msft-2023-fy",
+          "financial-indicators-msft-2022-fy",
+          "financial-indicators-msft-2020-fy",
+          "financial-indicators-msft-2025-q4",
+          "financial-indicators-msft-2025-q3",
+          "financial-indicators-msft-2024-q4",
+          "financial-indicators-msft-spot-price"
+        ]
+      }
+    ],
+    "cash_flow_quality": [
+      {
+        "indicator_id": "fcf_margin",
+        "label": "FCF margin",
+        "value": 31.74,
+        "unit": "pct",
+        "period": "2025-FY",
+        "state": "available",
+        "interpretation": "FCF margin is strong; revenue is converting into real cash.",
+        "evidence_refs": [
+          "financial-indicators-msft-2025-fy",
+          "financial-indicators-msft-2024-fy",
+          "financial-indicators-msft-2023-fy",
+          "financial-indicators-msft-2022-fy",
+          "financial-indicators-msft-2020-fy",
+          "financial-indicators-msft-2025-q4",
+          "financial-indicators-msft-2025-q3",
+          "financial-indicators-msft-2024-q4",
+          "financial-indicators-msft-spot-price"
+        ]
+      },
+      {
+        "indicator_id": "cash_conversion",
+        "label": "Cash conversion",
+        "value": 0.88,
+        "unit": "ratio",
+        "period": "2025-FY",
+        "state": "available",
+        "interpretation": "Cash conversion is healthy; reported profit is backed by cash.",
+        "evidence_refs": [
+          "financial-indicators-msft-2025-fy",
+          "financial-indicators-msft-2024-fy",
+          "financial-indicators-msft-2023-fy",
+          "financial-indicators-msft-2022-fy",
+          "financial-indicators-msft-2020-fy",
+          "financial-indicators-msft-2025-q4",
+          "financial-indicators-msft-2025-q3",
+          "financial-indicators-msft-2024-q4",
+          "financial-indicators-msft-spot-price"
+        ]
+      },
+      {
+        "indicator_id": "capex_intensity",
+        "label": "Capex intensity",
+        "value": 4.49,
+        "unit": "pct",
+        "period": "2025-FY",
+        "state": "available",
+        "interpretation": "Capex intensity is not consuming an unusually large share of revenue.",
+        "evidence_refs": [
+          "financial-indicators-msft-2025-fy",
+          "financial-indicators-msft-2024-fy",
+          "financial-indicators-msft-2023-fy",
+          "financial-indicators-msft-2022-fy",
+          "financial-indicators-msft-2020-fy",
+          "financial-indicators-msft-2025-q4",
+          "financial-indicators-msft-2025-q3",
+          "financial-indicators-msft-2024-q4",
+          "financial-indicators-msft-spot-price"
+        ]
+      }
+    ],
+    "capital_allocation": [
+      {
+        "indicator_id": "share_count_change_5y",
+        "label": "Share count change",
+        "value": -2.5,
+        "unit": "pct",
+        "period": "2025-FY",
+        "state": "available",
+        "interpretation": "Share count declined, which means buybacks or retirements helped owners.",
+        "evidence_refs": [
+          "financial-indicators-msft-2025-fy",
+          "financial-indicators-msft-2024-fy",
+          "financial-indicators-msft-2023-fy",
+          "financial-indicators-msft-2022-fy",
+          "financial-indicators-msft-2020-fy",
+          "financial-indicators-msft-2025-q4",
+          "financial-indicators-msft-2025-q3",
+          "financial-indicators-msft-2024-q4",
+          "financial-indicators-msft-spot-price"
+        ]
+      },
+      {
+        "indicator_id": "buyback_yield",
+        "label": "Buyback yield",
+        "unit": "pct",
+        "period": "2025-FY",
+        "state": "missing",
+        "interpretation": "Buyback yield is omitted because repurchase or market-cap data is missing.",
+        "evidence_refs": [
+          "financial-indicators-msft-2025-fy",
+          "financial-indicators-msft-2024-fy",
+          "financial-indicators-msft-2023-fy",
+          "financial-indicators-msft-2022-fy",
+          "financial-indicators-msft-2020-fy",
+          "financial-indicators-msft-2025-q4",
+          "financial-indicators-msft-2025-q3",
+          "financial-indicators-msft-2024-q4",
+          "financial-indicators-msft-spot-price"
+        ]
+      },
+      {
+        "indicator_id": "dividend_yield",
+        "label": "Dividend yield",
+        "unit": "pct",
+        "period": "2025-FY",
+        "state": "missing",
+        "interpretation": "Dividend yield is omitted because dividend or market-cap data is missing.",
+        "evidence_refs": [
+          "financial-indicators-msft-2025-fy",
+          "financial-indicators-msft-2024-fy",
+          "financial-indicators-msft-2023-fy",
+          "financial-indicators-msft-2022-fy",
+          "financial-indicators-msft-2020-fy",
+          "financial-indicators-msft-2025-q4",
+          "financial-indicators-msft-2025-q3",
+          "financial-indicators-msft-2024-q4",
+          "financial-indicators-msft-spot-price"
+        ]
+      },
+      {
+        "indicator_id": "payout_ratio",
+        "label": "Payout ratio",
+        "unit": "pct",
+        "period": "2025-FY",
+        "state": "missing",
+        "interpretation": "Payout ratio is omitted because dividend or net-income data is missing.",
+        "evidence_refs": [
+          "financial-indicators-msft-2025-fy",
+          "financial-indicators-msft-2024-fy",
+          "financial-indicators-msft-2023-fy",
+          "financial-indicators-msft-2022-fy",
+          "financial-indicators-msft-2020-fy",
+          "financial-indicators-msft-2025-q4",
+          "financial-indicators-msft-2025-q3",
+          "financial-indicators-msft-2024-q4",
+          "financial-indicators-msft-spot-price"
+        ]
+      }
+    ],
+    "five_year_trends": [
+      {
+        "indicator_id": "revenue",
+        "label": "Revenue",
+        "unit": "currency",
+        "current": 265000000000,
+        "one_year_ago": 245000000000,
+        "three_years_ago": 198000000000,
+        "five_years_ago": 143000000000,
+        "direction": "improving",
+        "plain_english": "Revenue improved over the reviewed history.",
+        "evidence_refs": [
+          "financial-indicators-msft-2025-fy",
+          "financial-indicators-msft-2024-fy",
+          "financial-indicators-msft-2023-fy",
+          "financial-indicators-msft-2022-fy",
+          "financial-indicators-msft-2020-fy"
+        ]
+      },
+      {
+        "indicator_id": "gross_margin",
+        "label": "Gross margin",
+        "unit": "pct",
+        "current": 70,
+        "one_year_ago": 68,
+        "three_years_ago": 64,
+        "five_years_ago": 66,
+        "direction": "improving",
+        "plain_english": "Gross margin improved over the reviewed history.",
+        "evidence_refs": [
+          "financial-indicators-msft-2025-fy",
+          "financial-indicators-msft-2024-fy",
+          "financial-indicators-msft-2023-fy",
+          "financial-indicators-msft-2022-fy",
+          "financial-indicators-msft-2020-fy"
+        ]
+      },
+      {
+        "indicator_id": "operating_margin",
+        "label": "Operating margin",
+        "unit": "pct",
+        "current": 44,
+        "one_year_ago": 41,
+        "three_years_ago": 36,
+        "five_years_ago": 37.1,
+        "direction": "improving",
+        "plain_english": "Operating margin improved over the reviewed history.",
+        "evidence_refs": [
+          "financial-indicators-msft-2025-fy",
+          "financial-indicators-msft-2024-fy",
+          "financial-indicators-msft-2023-fy",
+          "financial-indicators-msft-2022-fy",
+          "financial-indicators-msft-2020-fy"
+        ]
+      },
+      {
+        "indicator_id": "free_cash_flow",
+        "label": "Free cash flow",
+        "unit": "currency",
+        "current": 84100000000,
+        "one_year_ago": 78800000000,
+        "three_years_ago": 65000000000,
+        "five_years_ago": 45200000000,
+        "direction": "improving",
+        "plain_english": "Free cash flow improved over the reviewed history.",
+        "evidence_refs": [
+          "financial-indicators-msft-2025-fy",
+          "financial-indicators-msft-2024-fy",
+          "financial-indicators-msft-2023-fy",
+          "financial-indicators-msft-2022-fy",
+          "financial-indicators-msft-2020-fy"
+        ]
+      },
+      {
+        "indicator_id": "debt_total",
+        "label": "Total debt",
+        "unit": "currency",
+        "current": 58000000000,
+        "one_year_ago": 61000000000,
+        "three_years_ago": 66000000000,
+        "five_years_ago": 70000000000,
+        "direction": "improving",
+        "plain_english": "Total debt improved over the reviewed history.",
+        "evidence_refs": [
+          "financial-indicators-msft-2025-fy",
+          "financial-indicators-msft-2024-fy",
+          "financial-indicators-msft-2023-fy",
+          "financial-indicators-msft-2022-fy",
+          "financial-indicators-msft-2020-fy"
+        ]
+      },
+      {
+        "indicator_id": "shares_outstanding",
+        "label": "Shares outstanding",
+        "unit": "count",
+        "current": 7420000000,
+        "one_year_ago": 7450000000,
+        "three_years_ago": 7510000000,
+        "five_years_ago": 7610000000,
+        "direction": "improving",
+        "plain_english": "Shares outstanding improved over the reviewed history.",
+        "evidence_refs": [
+          "financial-indicators-msft-2025-fy",
+          "financial-indicators-msft-2024-fy",
+          "financial-indicators-msft-2023-fy",
+          "financial-indicators-msft-2022-fy",
+          "financial-indicators-msft-2020-fy"
+        ]
+      }
+    ],
+    "benchmarks": [
+      {
+        "indicator_id": "pe_ratio",
+        "label": "P/E",
+        "cohort": "reviewed broad-market quality/value band",
+        "median": 25,
+        "low": 15,
+        "high": 35,
+        "unit": "multiple",
+        "comparison": "near",
+        "plain_english": "P/E sits inside the reviewed broad-market band, so it is not the oddest part of the read."
+      },
+      {
+        "indicator_id": "ps_ratio",
+        "label": "P/S",
+        "cohort": "reviewed broad-market quality/value band",
+        "median": 6,
+        "low": 3,
+        "high": 10,
+        "unit": "multiple",
+        "comparison": "above",
+        "plain_english": "P/S is above the reviewed band; for this metric, higher usually means the company must justify more valuation or leverage pressure."
+      },
+      {
+        "indicator_id": "ev_ebitda",
+        "label": "EV/EBITDA",
+        "cohort": "reviewed broad-market quality/value band",
+        "median": 16,
+        "low": 10,
+        "high": 24,
+        "unit": "multiple",
+        "comparison": "above",
+        "plain_english": "EV/EBITDA is above the reviewed band; for this metric, higher usually means the company must justify more valuation or leverage pressure."
+      },
+      {
+        "indicator_id": "fcf_yield",
+        "label": "FCF yield",
+        "cohort": "reviewed broad-market quality/value band",
+        "median": 5,
+        "low": 2.5,
+        "high": 8,
+        "unit": "pct",
+        "comparison": "near",
+        "plain_english": "FCF yield sits inside the reviewed broad-market band, so it is not the oddest part of the read."
+      },
+      {
+        "indicator_id": "operating_margin",
+        "label": "Operating margin",
+        "cohort": "reviewed broad-market quality/value band",
+        "median": 25,
+        "low": 15,
+        "high": 35,
+        "unit": "pct",
+        "comparison": "above",
+        "plain_english": "Operating margin is above the reviewed band; for this metric, higher usually points to stronger quality or cash return."
+      },
+      {
+        "indicator_id": "roic",
+        "label": "ROIC",
+        "cohort": "reviewed broad-market quality/value band",
+        "median": 15,
+        "low": 8,
+        "high": 25,
+        "unit": "pct",
+        "comparison": "above",
+        "plain_english": "ROIC is above the reviewed band; for this metric, higher usually points to stronger quality or cash return."
+      },
+      {
+        "indicator_id": "debt_to_equity",
+        "label": "Debt / equity",
+        "cohort": "reviewed broad-market quality/value band",
+        "median": 0.8,
+        "low": 0.3,
+        "high": 1.5,
+        "unit": "ratio",
+        "comparison": "below",
+        "plain_english": "Debt / equity is below the reviewed band; for this metric, higher usually means the company must justify more valuation or leverage pressure."
+      },
+      {
+        "indicator_id": "cash_conversion",
+        "label": "Cash conversion",
+        "cohort": "reviewed broad-market quality/value band",
+        "median": 0.85,
+        "low": 0.6,
+        "high": 1.1,
+        "unit": "ratio",
+        "comparison": "near",
+        "plain_english": "Cash conversion sits inside the reviewed broad-market band, so it is not the oddest part of the read."
+      }
+    ],
+    "education": [
+      {
+        "topic": "classification",
+        "title": "What does \"expensive growth\" mean?",
+        "body": "Quality growth means the market is paying for durable growth, margins, and cash conversion. It is not classic cheapness; it is a bet that business quality keeps justifying the premium.",
+        "example": "A low P/E can be a bargain when cash flow is stable, or a trap when earnings are falling.",
+        "evidence_refs": [
+          "financial-indicators-msft-2025-fy",
+          "financial-indicators-msft-2024-fy",
+          "financial-indicators-msft-2023-fy",
+          "financial-indicators-msft-2022-fy",
+          "financial-indicators-msft-2020-fy",
+          "financial-indicators-msft-2025-q4",
+          "financial-indicators-msft-2025-q3",
+          "financial-indicators-msft-2024-q4",
+          "financial-indicators-msft-spot-price"
+        ]
+      },
+      {
+        "topic": "value_trap",
+        "title": "What would make it a value trap?",
+        "body": "A value trap is cheap for a reason. Falling revenue, shrinking margins, weak cash conversion, high debt, or dilution can make a low multiple look attractive while the business is actually getting worse.",
+        "example": "Cheap plus improving cash flow is different from cheap plus collapsing earnings.",
+        "evidence_refs": [
+          "financial-indicators-msft-2025-fy",
+          "financial-indicators-msft-2024-fy",
+          "financial-indicators-msft-2023-fy",
+          "financial-indicators-msft-2022-fy",
+          "financial-indicators-msft-2020-fy",
+          "financial-indicators-msft-2025-q4",
+          "financial-indicators-msft-2025-q3",
+          "financial-indicators-msft-2024-q4",
+          "financial-indicators-msft-spot-price"
+        ]
+      },
+      {
+        "topic": "valuation_multiple",
+        "title": "Why valuation multiples matter",
+        "body": "Price-based ratios show how much the market is paying for sales, earnings, book value, and cash flow. They are useful only when read beside growth and quality.",
+        "example": "A P/E of 45 can be rational for a compounding business, while a P/E of 12 can still be dangerous if earnings are deteriorating.",
+        "evidence_refs": [
+          "financial-indicators-msft-2025-fy",
+          "financial-indicators-msft-2024-fy",
+          "financial-indicators-msft-2023-fy",
+          "financial-indicators-msft-2022-fy",
+          "financial-indicators-msft-2020-fy",
+          "financial-indicators-msft-2025-q4",
+          "financial-indicators-msft-2025-q3",
+          "financial-indicators-msft-2024-q4",
+          "financial-indicators-msft-spot-price"
+        ]
+      },
+      {
+        "topic": "cash_flow_quality",
+        "title": "Why cash-flow quality matters",
+        "body": "Accounting earnings are not enough. Cash conversion and free-cash-flow margin test whether reported profit turns into cash the company can reinvest, return, or use to reduce risk.",
+        "evidence_refs": [
+          "financial-indicators-msft-2025-fy",
+          "financial-indicators-msft-2024-fy",
+          "financial-indicators-msft-2023-fy",
+          "financial-indicators-msft-2022-fy",
+          "financial-indicators-msft-2020-fy",
+          "financial-indicators-msft-2025-q4",
+          "financial-indicators-msft-2025-q3",
+          "financial-indicators-msft-2024-q4",
+          "financial-indicators-msft-spot-price"
+        ]
+      },
+      {
+        "topic": "roic",
+        "title": "Why ROIC matters",
+        "body": "ROIC asks whether the company earns attractive returns on the capital tied up in the business. It is one of the cleanest tests of business quality.",
+        "evidence_refs": [
+          "financial-indicators-msft-2025-fy",
+          "financial-indicators-msft-2024-fy",
+          "financial-indicators-msft-2023-fy",
+          "financial-indicators-msft-2022-fy",
+          "financial-indicators-msft-2020-fy",
+          "financial-indicators-msft-2025-q4",
+          "financial-indicators-msft-2025-q3",
+          "financial-indicators-msft-2024-q4",
+          "financial-indicators-msft-spot-price"
+        ]
+      }
+    ],
+    "value_classification": {
+      "classification": "expensive_growth",
+      "confidence": "medium",
+      "reasons": [
+        "Growth, margins, and cash conversion support a quality-growth classification.",
+        "The valuation is premium, so future growth has to keep doing real work."
+      ],
+      "trap_warnings": []
+    },
+    "omissions": [
+      {
+        "family": "quarterly_history",
+        "reason_code": "insufficient_ttm_quarters",
+        "reason": "Fewer than four quarterly snapshots were available, so true TTM ratios could not be built.",
+        "blocking": false
+      },
+      {
+        "family": "balance_sheet",
+        "reason_code": "missing_denominator",
+        "reason": "Interest coverage requires operating income and interest expense.",
+        "blocking": false
+      },
+      {
+        "family": "balance_sheet",
+        "reason_code": "missing_denominator",
+        "reason": "Current ratio requires current assets and current liabilities.",
+        "blocking": false
+      },
+      {
+        "family": "balance_sheet",
+        "reason_code": "missing_denominator",
+        "reason": "Quick ratio requires current assets, current liabilities, and inventory when available.",
+        "blocking": false
+      },
+      {
+        "family": "capital_allocation",
+        "reason_code": "missing_denominator",
+        "reason": "Buyback yield requires repurchase dollars and market cap.",
+        "blocking": false
+      },
+      {
+        "family": "capital_allocation",
+        "reason_code": "missing_denominator",
+        "reason": "Dividend yield requires dividend cash paid and market cap.",
+        "blocking": false
+      },
+      {
+        "family": "capital_allocation",
+        "reason_code": "missing_denominator",
+        "reason": "Payout ratio requires dividend cash paid and net income.",
+        "blocking": false
+      }
+    ],
+    "evidence": [
+      {
+        "evidence_id": "financial-indicators-msft-2025-fy",
+        "source_type": "financial_data",
+        "source_name": "SEC companyfacts/XBRL annual snapshot",
+        "excerpt": "MSFT 2025-FY SEC-backed financial snapshot used for financial indicators; available fields include revenue, gross_profit, gross_margin, operating_income, operating_margin, net_income, eps, eps_diluted, ebitda, debt_total.",
+        "retrieved_at": "2026-03-20T08:00:00.000Z"
+      },
+      {
+        "evidence_id": "financial-indicators-msft-2024-fy",
+        "source_type": "financial_data",
+        "source_name": "SEC companyfacts/XBRL annual snapshot",
+        "excerpt": "MSFT 2024-FY SEC-backed financial snapshot used for financial indicators; available fields include revenue, gross_profit, gross_margin, operating_income, operating_margin, net_income, eps, eps_diluted, ebitda, debt_total.",
+        "retrieved_at": "2026-03-20T08:00:00.000Z"
+      },
+      {
+        "evidence_id": "financial-indicators-msft-2023-fy",
+        "source_type": "financial_data",
+        "source_name": "SEC companyfacts/XBRL annual snapshot",
+        "excerpt": "MSFT 2023-FY SEC-backed financial snapshot used for financial indicators; available fields include revenue, gross_profit, gross_margin, operating_income, operating_margin, net_income, eps, eps_diluted, ebitda, debt_total.",
+        "retrieved_at": "2026-03-20T08:00:00.000Z"
+      },
+      {
+        "evidence_id": "financial-indicators-msft-2022-fy",
+        "source_type": "financial_data",
+        "source_name": "SEC companyfacts/XBRL annual snapshot",
+        "excerpt": "MSFT 2022-FY SEC-backed financial snapshot used for financial indicators; available fields include revenue, gross_profit, gross_margin, operating_income, operating_margin, net_income, eps, eps_diluted, ebitda, debt_total.",
+        "retrieved_at": "2026-03-20T08:00:00.000Z"
+      },
+      {
+        "evidence_id": "financial-indicators-msft-2020-fy",
+        "source_type": "financial_data",
+        "source_name": "SEC companyfacts/XBRL annual snapshot",
+        "excerpt": "MSFT 2020-FY SEC-backed financial snapshot used for financial indicators; available fields include revenue, gross_profit, gross_margin, operating_income, operating_margin, net_income, eps, eps_diluted, ebitda, debt_total.",
+        "retrieved_at": "2026-03-20T08:00:00.000Z"
+      },
+      {
+        "evidence_id": "financial-indicators-msft-2025-q4",
+        "source_type": "financial_data",
+        "source_name": "SEC companyfacts/XBRL quarterly snapshot",
+        "excerpt": "MSFT 2025-Q4 SEC-backed financial snapshot used for financial indicators; available fields include revenue, gross_profit, gross_margin, operating_income, net_income, eps, eps_diluted, ebitda, operating_margin, debt_total.",
+        "retrieved_at": "2026-03-20T08:00:00.000Z"
+      },
+      {
+        "evidence_id": "financial-indicators-msft-2025-q3",
+        "source_type": "financial_data",
+        "source_name": "SEC companyfacts/XBRL quarterly snapshot",
+        "excerpt": "MSFT 2025-Q3 SEC-backed financial snapshot used for financial indicators; available fields include revenue, gross_profit, gross_margin, operating_income, net_income, eps, eps_diluted, ebitda, operating_margin, debt_total.",
+        "retrieved_at": "2026-03-20T08:00:00.000Z"
+      },
+      {
+        "evidence_id": "financial-indicators-msft-2024-q4",
+        "source_type": "financial_data",
+        "source_name": "SEC companyfacts/XBRL quarterly snapshot",
+        "excerpt": "MSFT 2024-Q4 SEC-backed financial snapshot used for financial indicators; available fields include revenue, gross_profit, gross_margin, operating_income, net_income, eps, eps_diluted, ebitda, operating_margin, debt_total.",
+        "retrieved_at": "2026-03-20T08:00:00.000Z"
+      },
+      {
+        "evidence_id": "financial-indicators-msft-spot-price",
+        "source_type": "financial_data",
+        "source_name": "Approved Deep Dive spot/reference price",
+        "excerpt": "MSFT spot/reference price available to Deep Dive context: 428.52. M13 records kind/date/source in price_reference when upstream provenance is available.",
+        "retrieved_at": "2026-05-08T05:49:58.372Z"
+      }
+    ],
+    "plain_english": {
+      "value_lens": "The value lens classifies this company as expensive growth. That does not mean the stock is good or bad by itself; it means the current fundamentals and available valuation ratios look more like that category than classic low-multiple value.",
+      "business_quality": "Profitability is the cleaner part of the read. Several margin or return indicators are strong, which means the business is not merely growing revenue; it is keeping a meaningful amount of that revenue as profit.",
+      "balance_sheet_read": "The balance sheet does not look like the main risk in this read. Debt/equity is manageable, so the bigger question is valuation versus quality.",
+      "cash_flow_read": "Cash conversion is healthy, which means reported earnings are backed by cash rather than just accounting profit.",
+      "five_year_read": "The five-year board separates business improvement from multiple expansion. If quality improved while valuation also expanded, the stock did not necessarily become cheaper.",
+      "plain_english_takeaway": "Plain English: this is a expensive growth read based on the available indicators. The important question is whether business quality and cash flow justify the valuation, not whether one ratio looks attractive in isolation.",
+      "what_to_watch_next": "Watch revenue growth, margin durability, cash conversion, leverage, share count, and whether valuation ratios move because earnings improve or because the market pays more for the same dollar of earnings."
+    }
+  }
+}

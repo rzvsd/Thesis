@@ -300,3 +300,18 @@ M1 implementation thresholds:
 - Value classification is explanatory, not a rating. Allowed labels are `classic_value`, `quality_value`, `quality_growth`, `expensive_growth`, `turnaround`, `distressed`, `value_trap_risk`, and `insufficient_data`.
 - Charts and visual boards may display computed indicators and trends only; they cannot introduce unreviewed data or unsupported benchmarks.
 - No buy/sell/hold language, price targets, allocation, position sizing, broker workflow, public quant lab, or terminal-style behavior is introduced.
+
+---
+
+## 21. M13 Deep Dive Benchmarks & Investor Education Locks
+
+- M13 is Deep Dive-only and does not change Pulse.
+- M13 extends the M12 `financial_indicators` block additively; old reports without M13 fields remain valid.
+- Price-dependent ratios must carry typed price provenance when available: source name, optional source URL, retrieval time, price date, currency, price kind, value, and provenance note.
+- If a price arrives as a bare number without upstream provider metadata, the report may use it only as an approved Deep Dive reference and must record `price_provenance_incomplete`.
+- TTM flow metrics are built only from the latest four quarterly snapshots; fewer quarters produce omission truth and annual fallback.
+- Balance-sheet ratios use the latest balance-sheet snapshot, not summed annualized values.
+- Benchmark rows are reviewed context bands, not exact peer medians, and must say so in customer copy.
+- Investor education boxes explain labels such as quality growth, classic value, value trap risk, cash-flow quality, debt risk, and ROIC in plain English.
+- ROIC, interest coverage, current ratio, quick ratio, dividend yield, payout ratio, buyback yield, and similar advanced indicators are omitted when their inputs are missing rather than guessed.
+- No paid provider, quote scraping, buy/sell/hold language, price targets, allocation, broker flow, public quant lab, or terminal-style behavior is introduced.

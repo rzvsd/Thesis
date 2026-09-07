@@ -10,12 +10,21 @@ export type FinancialIndicatorGroup =
 
 export type FinancialIndicatorUnit = "currency" | "pct" | "ratio" | "multiple" | "count";
 export type FinancialIndicatorState = "available" | "missing" | "invalid";
+export type FinancialIndicatorPriceKind = "live" | "delayed" | "close" | "fixture" | "manual";
 export type FinancialIndicatorTrendDirection =
   | "improving"
   | "weakening"
   | "mixed"
   | "unchanged"
   | "unavailable";
+export type FinancialIndicatorBenchmarkComparison = "below" | "near" | "above" | "unavailable";
+export type InvestorEducationTopic =
+  | "classification"
+  | "value_trap"
+  | "valuation_multiple"
+  | "cash_flow_quality"
+  | "debt_risk"
+  | "roic";
 
 export type ValueClassification =
   | "classic_value"
@@ -51,6 +60,44 @@ export interface FinancialIndicatorTrend {
   evidence_refs: string[];
 }
 
+export interface FinancialIndicatorPriceReference {
+  source_name: string;
+  source_url?: string;
+  retrieved_at: string;
+  price_date: string;
+  currency: string;
+  price_kind: FinancialIndicatorPriceKind;
+  value: number;
+  provenance_note: string;
+}
+
+export interface FinancialIndicatorCalculationBasis {
+  ttm_periods: string[];
+  latest_balance_sheet_period?: string;
+  annual_fallback_period?: string;
+  note: string;
+}
+
+export interface FinancialIndicatorBenchmark {
+  indicator_id: string;
+  label: string;
+  cohort: string;
+  median?: number;
+  low?: number;
+  high?: number;
+  unit: FinancialIndicatorUnit;
+  comparison: FinancialIndicatorBenchmarkComparison;
+  plain_english: string;
+}
+
+export interface InvestorEducationBox {
+  topic: InvestorEducationTopic;
+  title: string;
+  body: string;
+  example?: string;
+  evidence_refs: string[];
+}
+
 export interface ValueClassificationBlock {
   classification: ValueClassification;
   confidence: "high" | "medium" | "low";
@@ -69,7 +116,7 @@ export interface FinancialIndicatorsMemo {
 }
 
 export interface IndicatorOmission {
-  family: FinancialIndicatorGroup | "price_source" | "annual_history" | "quarterly_history";
+  family: FinancialIndicatorGroup | "price_source" | "annual_history" | "quarterly_history" | "benchmark";
   reason_code:
     | "missing_price"
     | "missing_market_cap_inputs"
@@ -77,6 +124,9 @@ export interface IndicatorOmission {
     | "missing_history"
     | "missing_denominator"
     | "insufficient_periods"
+    | "insufficient_ttm_quarters"
+    | "benchmark_unavailable"
+    | "price_provenance_incomplete"
     | "provider_unavailable"
     | "llm_unavailable";
   reason: string;
@@ -87,6 +137,8 @@ export interface FinancialIndicatorsBlock {
   prompt_version: string;
   period: string;
   basis: "ttm" | "annual" | "mixed";
+  calculation_basis?: FinancialIndicatorCalculationBasis;
+  price_reference?: FinancialIndicatorPriceReference;
   valuation: FinancialIndicator[];
   profitability: FinancialIndicator[];
   growth: FinancialIndicator[];
@@ -94,6 +146,8 @@ export interface FinancialIndicatorsBlock {
   cash_flow_quality: FinancialIndicator[];
   capital_allocation: FinancialIndicator[];
   five_year_trends: FinancialIndicatorTrend[];
+  benchmarks?: FinancialIndicatorBenchmark[];
+  education?: InvestorEducationBox[];
   value_classification: ValueClassificationBlock;
   plain_english: FinancialIndicatorsMemo;
   omissions: IndicatorOmission[];
@@ -133,6 +187,75 @@ export const financialIndicatorTrendSchema = {
       enum: ["improving", "weakening", "mixed", "unchanged", "unavailable"]
     },
     plain_english: { type: "string" },
+    evidence_refs: { type: "array", items: { type: "string" } }
+  }
+} as const;
+
+export const financialIndicatorPriceReferenceSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: [
+    "source_name",
+    "retrieved_at",
+    "price_date",
+    "currency",
+    "price_kind",
+    "value",
+    "provenance_note"
+  ],
+  properties: {
+    source_name: { type: "string" },
+    source_url: { type: "string" },
+    retrieved_at: { type: "string" },
+    price_date: { type: "string" },
+    currency: { type: "string" },
+    price_kind: { type: "string", enum: ["live", "delayed", "close", "fixture", "manual"] },
+    value: { type: "number" },
+    provenance_note: { type: "string" }
+  }
+} as const;
+
+export const financialIndicatorCalculationBasisSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["ttm_periods", "note"],
+  properties: {
+    ttm_periods: { type: "array", items: { type: "string" } },
+    latest_balance_sheet_period: { type: "string" },
+    annual_fallback_period: { type: "string" },
+    note: { type: "string" }
+  }
+} as const;
+
+export const financialIndicatorBenchmarkSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["indicator_id", "label", "cohort", "unit", "comparison", "plain_english"],
+  properties: {
+    indicator_id: { type: "string" },
+    label: { type: "string" },
+    cohort: { type: "string" },
+    median: { type: "number" },
+    low: { type: "number" },
+    high: { type: "number" },
+    unit: { type: "string", enum: ["currency", "pct", "ratio", "multiple", "count"] },
+    comparison: { type: "string", enum: ["below", "near", "above", "unavailable"] },
+    plain_english: { type: "string" }
+  }
+} as const;
+
+export const investorEducationBoxSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["topic", "title", "body", "evidence_refs"],
+  properties: {
+    topic: {
+      type: "string",
+      enum: ["classification", "value_trap", "valuation_multiple", "cash_flow_quality", "debt_risk", "roic"]
+    },
+    title: { type: "string" },
+    body: { type: "string" },
+    example: { type: "string" },
     evidence_refs: { type: "array", items: { type: "string" } }
   }
 } as const;
@@ -200,7 +323,8 @@ export const indicatorOmissionSchema = {
         "capital_allocation",
         "price_source",
         "annual_history",
-        "quarterly_history"
+        "quarterly_history",
+        "benchmark"
       ]
     },
     reason_code: {
@@ -212,6 +336,9 @@ export const indicatorOmissionSchema = {
         "missing_history",
         "missing_denominator",
         "insufficient_periods",
+        "insufficient_ttm_quarters",
+        "benchmark_unavailable",
+        "price_provenance_incomplete",
         "provider_unavailable",
         "llm_unavailable"
       ]
@@ -244,6 +371,8 @@ export const financialIndicatorsBlockSchema = {
     prompt_version: { type: "string" },
     period: { type: "string" },
     basis: { type: "string", enum: ["ttm", "annual", "mixed"] },
+    calculation_basis: financialIndicatorCalculationBasisSchema,
+    price_reference: financialIndicatorPriceReferenceSchema,
     valuation: { type: "array", items: financialIndicatorSchema },
     profitability: { type: "array", items: financialIndicatorSchema },
     growth: { type: "array", items: financialIndicatorSchema },
@@ -251,6 +380,8 @@ export const financialIndicatorsBlockSchema = {
     cash_flow_quality: { type: "array", items: financialIndicatorSchema },
     capital_allocation: { type: "array", items: financialIndicatorSchema },
     five_year_trends: { type: "array", items: financialIndicatorTrendSchema },
+    benchmarks: { type: "array", items: financialIndicatorBenchmarkSchema },
+    education: { type: "array", items: investorEducationBoxSchema },
     value_classification: valueClassificationBlockSchema,
     plain_english: financialIndicatorsMemoSchema,
     omissions: { type: "array", items: indicatorOmissionSchema },

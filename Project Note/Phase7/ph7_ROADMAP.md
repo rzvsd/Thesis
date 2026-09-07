@@ -20,7 +20,8 @@
 | M9 | Dexter Evidence Quality Skills | Validated |
 | M10 | Pulse A+ Morning Brief Engagement Overhaul | Validated |
 | M11 | Deep Dive Filing Intelligence Memo Revamp | Validated |
-| M12 | Deep Dive Financial Indicators & Value Lens | Active |
+| M12 | Deep Dive Financial Indicators & Value Lens | Validated |
+| M13 | Deep Dive Benchmarks & Investor Education | Active |
 
 ## Status Semantics
 
@@ -282,3 +283,23 @@
 - scraped quote pages
 - LLM-computed ratios
 - trading advice, price targets, allocation, broker flow, or terminal behavior
+
+---
+
+## M13 Execution Order
+
+1. extend `financial_indicators` with typed price provenance, TTM basis notes, benchmark rows, and investor education boxes
+2. build true TTM flow metrics from the latest four quarterly snapshots while keeping latest balance-sheet fields for cash, debt, equity, assets, and shares
+3. add ROIC, interest coverage, current/quick ratio, asset-turnover, gross-profit/assets, buyback/dividend/payout indicators when inputs exist
+4. add reviewed benchmark context bands without claiming full peer-perfect comparability
+5. update Deep Dive PDF/HTML pages to show price provenance, benchmark interpretation, and plain-English finance education
+6. add proof cases for missing price and ugly-company value-trap behavior
+7. record proof under `Project Note/Phase7/Milestones/M13/evidence/`
+
+## Non-Goals For M13
+
+- adopting a paid market-data provider
+- scraping quote pages
+- pretending reviewed benchmark bands are exact peer comps
+- adding buy/sell/hold, target-price, allocation, broker, public lab, or terminal workflow language
+- changing Pulse

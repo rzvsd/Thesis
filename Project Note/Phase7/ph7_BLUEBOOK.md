@@ -218,6 +218,18 @@ M12 adds this layer through deterministic financial indicators and an explanator
 
 The LLM can make the value lens readable for a smart non-expert, but it cannot compute or alter the ratios. If P/E, P/S, P/B, EV/EBITDA, enterprise value, market cap, or FCF yield cannot be calculated cleanly, the report says so by omission and continues with non-price-dependent quality indicators.
 
+## M13 Benchmarks And Investor Education Doctrine
+
+M13 keeps the same doctrine and adds reader context. Ratios are not enough on their own. A P/E of 12 can be a bargain or a trap; a P/E of 45 can be unreasonable or justified by unusually durable growth, margins, ROIC, and free cash flow.
+
+The value lens therefore explains ratios against three layers:
+
+1. calculation basis: TTM flow metrics when four quarters exist, latest balance sheet for balance-sheet ratios, and annual fallback only when quarterly data is incomplete
+2. provenance: price-dependent valuation ratios show typed price source details or record omission/provenance limits
+3. interpretation: reviewed benchmark bands and education boxes teach the reader what "quality growth", "classic value", "value trap risk", cash conversion, debt risk, and ROIC mean
+
+Benchmark bands are context, not exact peer truth. The report must not pretend it has sector-perfect medians unless a later milestone adds a reviewed peer data source.
+
 The intended reader experience is simple: the memo should say whether the company looks like classic value, quality value, quality growth, expensive growth, turnaround, distressed, or value-trap risk, and then explain why in plain English with charts and evidence.
 - sources and method once at the end
 

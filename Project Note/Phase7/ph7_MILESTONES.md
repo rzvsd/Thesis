@@ -1,7 +1,7 @@
 # Thesis - Phase 7 Milestone Briefs
 
 **Version:** 1.0  
-**Status:** Active (M12 Deep Dive financial indicators value lens active; M1-M11 validated)
+**Status:** Active (M13 Deep Dive benchmarks and investor education active; M1-M12 validated)
 **Owner:** Engineering Lead + Product Lead  
 **Last Revised:** 2026-05-04
 **Related Documents:** `ph7_BLUEBOOK.md`, `ph7_PRD.md`, `ph7_ROADMAP.md`, `PH7_DECISION_LOCKS.md`
@@ -12,7 +12,7 @@
 
 Phase 7 begins after the Phase 6 substrate closeout. The Phase 7 pack is the current planning and doctrine layer for Pulse work. Earlier phase docs remain historical unless this pack explicitly points back to them.
 
-Current milestone state is tracked in `ph7_ROADMAP.md`. As of 2026-05-04, M1-M11 have implementation evidence recorded and M12 is the active Deep Dive financial indicators and value lens milestone.
+Current milestone state is tracked in `ph7_ROADMAP.md`. As of 2026-05-08, M1-M12 have implementation evidence recorded and M13 is the active Deep Dive benchmarks and investor education milestone.
 
 Proof for each milestone lives under:
 
@@ -38,6 +38,7 @@ Project Note/Phase7/Milestones/M#/evidence/
 | M10 | Pulse A+ Morning Brief Engagement Overhaul | Expands Pulse into a richer 5-10 minute adaptive morning read with narrative facts, one-thing callout, expanded LLM copy, sector/tape visuals, and richer user-name context while preserving deterministic evidence |
 | M11 | Deep Dive Filing Intelligence Memo Revamp | Adds a SEC 10-Q/10-K centered filing intelligence memo for Deep Dive PDF/HTML export, with deterministic filing comparisons, guarded LLM explanation, plain-English charting, and omission-forward evidence |
 | M12 | Deep Dive Financial Indicators & Value Lens | Adds valuation, profitability, growth, balance-sheet, cash-flow quality, capital-allocation, five-year trend, and value-classification analysis to Deep Dive export |
+| M13 | Deep Dive Benchmarks & Investor Education | Upgrades the value lens with typed price provenance, true TTM flow metrics, benchmark context bands, ROIC/liquidity/shareholder-return indicators, education boxes, and ugly-company proof cases |
 
 ---
 

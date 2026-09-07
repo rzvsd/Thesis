@@ -87,11 +87,19 @@ test("MSFT fixture request produces a schema-valid report with no blank sections
     )
   );
   assert.ok(report.financial_indicators);
-  assert.equal(report.financial_indicators?.prompt_version, "ph7-m12-financial-indicators-v1");
+  assert.equal(report.financial_indicators?.prompt_version, "ph7-m13-financial-indicators-v2");
   assert.ok((report.financial_indicators?.valuation.length ?? 0) >= 5);
-  assert.ok((report.financial_indicators?.profitability.length ?? 0) >= 3);
+  assert.ok((report.financial_indicators?.profitability.length ?? 0) >= 5);
   assert.ok((report.financial_indicators?.cash_flow_quality.length ?? 0) >= 2);
   assert.ok((report.financial_indicators?.five_year_trends.length ?? 0) >= 4);
+  assert.ok((report.financial_indicators?.benchmarks?.length ?? 0) >= 4);
+  assert.ok((report.financial_indicators?.education?.length ?? 0) >= 3);
+  assert.ok(report.financial_indicators?.price_reference);
+  assert.ok(report.financial_indicators?.calculation_basis);
+  assert.ok(
+    (report.financial_indicators?.calculation_basis?.ttm_periods.length ?? 0) >= 1 ||
+    report.financial_indicators?.omissions.some((omission) => omission.reason_code === "insufficient_ttm_quarters")
+  );
   assert.ok(report.financial_indicators?.value_classification.classification);
   assert.ok((report.financial_indicators?.plain_english.value_lens.length ?? 0) > 80);
   assert.ok(report.due_diligence);

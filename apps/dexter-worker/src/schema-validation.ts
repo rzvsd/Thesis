@@ -433,6 +433,35 @@ function validateFinancialIndicators(value: unknown, path: string, errors: strin
   if (!["ttm", "annual", "mixed"].includes(String(value.basis))) {
     errors.push(`${path}.basis must be valid`);
   }
+  if (value.price_reference !== undefined) {
+    if (!isObject(value.price_reference)) {
+      errors.push(`${path}.price_reference must be an object`);
+    } else {
+      for (const field of ["source_name", "retrieved_at", "price_date", "currency", "price_kind", "provenance_note"] as const) {
+        if (typeof value.price_reference[field] !== "string" || value.price_reference[field].trim().length === 0) {
+          errors.push(`${path}.price_reference.${field} must be a non-empty string`);
+        }
+      }
+      if (!["live", "delayed", "close", "fixture", "manual"].includes(String(value.price_reference.price_kind))) {
+        errors.push(`${path}.price_reference.price_kind must be valid`);
+      }
+      if (typeof value.price_reference.value !== "number" || !Number.isFinite(value.price_reference.value)) {
+        errors.push(`${path}.price_reference.value must be a finite number`);
+      }
+    }
+  }
+  if (value.calculation_basis !== undefined) {
+    if (!isObject(value.calculation_basis)) {
+      errors.push(`${path}.calculation_basis must be an object`);
+    } else {
+      if (!Array.isArray(value.calculation_basis.ttm_periods)) {
+        errors.push(`${path}.calculation_basis.ttm_periods must be an array`);
+      }
+      if (typeof value.calculation_basis.note !== "string" || value.calculation_basis.note.trim().length === 0) {
+        errors.push(`${path}.calculation_basis.note must be a non-empty string`);
+      }
+    }
+  }
 
   for (const field of ["valuation", "profitability", "growth", "balance_sheet", "cash_flow_quality", "capital_allocation", "five_year_trends", "omissions", "evidence"] as const) {
     if (!Array.isArray(value[field])) {
@@ -465,6 +494,51 @@ function validateFinancialIndicators(value: unknown, path: string, errors: strin
         errors.push(`${path}.${group}[${index}].evidence_refs must be an array`);
       }
     });
+  }
+
+  if (value.benchmarks !== undefined) {
+    if (!Array.isArray(value.benchmarks)) {
+      errors.push(`${path}.benchmarks must be an array`);
+    } else {
+      value.benchmarks.forEach((entry, index) => {
+        if (!isObject(entry)) {
+          errors.push(`${path}.benchmarks[${index}] must be an object`);
+          return;
+        }
+        for (const field of ["indicator_id", "label", "cohort", "unit", "comparison", "plain_english"] as const) {
+          if (typeof entry[field] !== "string" || entry[field].trim().length === 0) {
+            errors.push(`${path}.benchmarks[${index}].${field} must be a non-empty string`);
+          }
+        }
+        if (!["below", "near", "above", "unavailable"].includes(String(entry.comparison))) {
+          errors.push(`${path}.benchmarks[${index}].comparison must be valid`);
+        }
+      });
+    }
+  }
+
+  if (value.education !== undefined) {
+    if (!Array.isArray(value.education)) {
+      errors.push(`${path}.education must be an array`);
+    } else {
+      value.education.forEach((entry, index) => {
+        if (!isObject(entry)) {
+          errors.push(`${path}.education[${index}] must be an object`);
+          return;
+        }
+        for (const field of ["topic", "title", "body"] as const) {
+          if (typeof entry[field] !== "string" || entry[field].trim().length === 0) {
+            errors.push(`${path}.education[${index}].${field} must be a non-empty string`);
+          }
+        }
+        if (!["classification", "value_trap", "valuation_multiple", "cash_flow_quality", "debt_risk", "roic"].includes(String(entry.topic))) {
+          errors.push(`${path}.education[${index}].topic must be valid`);
+        }
+        if (!Array.isArray(entry.evidence_refs)) {
+          errors.push(`${path}.education[${index}].evidence_refs must be an array`);
+        }
+      });
+    }
   }
 
   if (!isObject(value.value_classification)) {

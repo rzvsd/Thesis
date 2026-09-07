@@ -7,8 +7,10 @@ import type {
   AnalysisReport,
   FilingIntelligenceMetricDelta,
   FinancialIndicator,
+  FinancialIndicatorBenchmark,
   FinancialIndicatorTrend,
-  FinancialHistoryRow
+  FinancialHistoryRow,
+  InvestorEducationBox
 } from "../../../packages/contracts/src";
 
 import { reportLabelMap, reportSentenceMap } from "./report-label-map";
@@ -216,8 +218,16 @@ function buildFinancialIndicatorPages(report: AnalysisReport): EditorialPage[] {
       html: renderFinancialIndicatorsPage(report)
     },
     {
+      title: "Benchmarks and Quality",
+      html: renderFinancialBenchmarksQualityPage(report)
+    },
+    {
       title: "Five-Year Trend Board",
       html: renderFinancialTrendBoardPage(report)
+    },
+    {
+      title: "Investor Education",
+      html: renderFinancialEducationPage(report)
     }
   ];
 }
@@ -414,12 +424,8 @@ function renderFinancialIndicatorsPage(report: AnalysisReport): string {
     return "";
   }
   const classification = block.value_classification.classification.replaceAll("_", " ");
-  const valuationRows = block.valuation.slice(0, 7);
-  const qualityRows = [
-    ...block.profitability.slice(0, 4),
-    ...block.cash_flow_quality.slice(0, 3),
-    ...block.balance_sheet.slice(0, 3)
-  ];
+  const valuationRows = block.valuation.slice(0, 6);
+  const priceReference = block.price_reference;
   return `
     <div class="eyebrow">Financial Indicators & Value Lens</div>
     <div class="value-hero">
@@ -433,6 +439,15 @@ function renderFinancialIndicatorsPage(report: AnalysisReport): string {
       ${renderMemoParagraphs(block.plain_english.value_lens)}
       ${renderMemoParagraphs(block.plain_english.business_quality)}
     </div>
+    <div class="price-provenance">
+      <div>
+        <div class="price-provenance__label">Price provenance</div>
+        <strong>${escapeHtml(priceReference ? formatIndicatorNumber(priceReference.value, "currency") : "Price unavailable")}</strong>
+      </div>
+      <p>${escapeHtml(priceReference
+        ? `${priceReference.source_name} | ${priceReference.price_kind} | ${priceReference.currency} | price date ${priceReference.price_date} | retrieved ${priceReference.retrieved_at}. ${priceReference.provenance_note}`
+        : "Price-dependent ratios are omitted because the report does not have approved price provenance.")}</p>
+    </div>
     <div class="section-panel">
       <div class="section-panel__header">
         <div>
@@ -443,6 +458,39 @@ function renderFinancialIndicatorsPage(report: AnalysisReport): string {
       </div>
       <div class="indicator-grid">
         ${valuationRows.map(renderIndicatorCard).join("\n")}
+      </div>
+    </div>
+  `;
+}
+
+function renderFinancialBenchmarksQualityPage(report: AnalysisReport): string {
+  const block = report.financial_indicators;
+  if (!block) {
+    return "";
+  }
+  const benchmarkRows = (block.benchmarks ?? []).slice(0, 6);
+  const qualityRows = [
+    ...block.profitability.slice(0, 3),
+    ...block.cash_flow_quality.slice(0, 2),
+    ...block.balance_sheet.slice(0, 2),
+    ...block.capital_allocation.slice(0, 1)
+  ].slice(0, 4);
+  return `
+    <div class="eyebrow">Benchmarks & Quality</div>
+    <div class="narrative-header">
+      <h1>Is the multiple supported by business quality?</h1>
+      <div class="summary-pill gold">${escapeHtml(summarizeText(block.plain_english.business_quality, 150))}</div>
+    </div>
+    <div class="section-panel">
+      <div class="section-panel__header">
+        <div>
+          <div class="section-panel__kicker">Benchmarks</div>
+          <h2>High or low compared with a reviewed band?</h2>
+        </div>
+        <div class="section-panel__note">Benchmarks are context bands, not peer-perfect truth.</div>
+      </div>
+      <div class="benchmark-table">
+        ${benchmarkRows.map(renderBenchmarkRow).join("\n")}
       </div>
     </div>
     <div class="section-panel">
@@ -456,10 +504,6 @@ function renderFinancialIndicatorsPage(report: AnalysisReport): string {
         ${qualityRows.map(renderIndicatorRow).join("\n")}
       </div>
     </div>
-    <div class="filing-callout">
-      <div class="filing-callout__label">Plain English</div>
-      <p>${escapeHtml(block.plain_english.plain_english_takeaway)}</p>
-    </div>
   `;
 }
 
@@ -469,7 +513,6 @@ function renderFinancialTrendBoardPage(report: AnalysisReport): string {
     return "";
   }
   const trends = block.five_year_trends.slice(0, 6);
-  const omissions = block.omissions.slice(0, 5);
   return `
     <div class="eyebrow">Five-Year Trend Board</div>
     <div class="narrative-header">
@@ -488,25 +531,23 @@ function renderFinancialTrendBoardPage(report: AnalysisReport): string {
         ${trends.map(renderTrendRow).join("\n")}
       </div>
     </div>
-    <div class="two-up">
-      <div class="section-panel">
-        <div class="section-panel__header">
-          <div>
-            <div class="section-panel__kicker">Cash-flow read</div>
-            <h2>Are profits real?</h2>
-          </div>
-        </div>
-        ${renderMemoParagraphs(block.plain_english.cash_flow_read)}
-      </div>
-      <div class="section-panel">
-        <div class="section-panel__header">
-          <div>
-            <div class="section-panel__kicker">Balance sheet</div>
-            <h2>Can it absorb stress?</h2>
-          </div>
-        </div>
-        ${renderMemoParagraphs(block.plain_english.balance_sheet_read)}
-      </div>
+  `;
+}
+
+function renderFinancialEducationPage(report: AnalysisReport): string {
+  const block = report.financial_indicators;
+  if (!block) {
+    return "";
+  }
+  const education = (block.education ?? []).slice(0, 4);
+  return `
+    <div class="eyebrow">Investor Education</div>
+    <div class="narrative-header">
+      <h1>What these labels mean in human language</h1>
+      <div class="summary-pill gold">${escapeHtml(summarizeText(block.plain_english.what_to_watch_next, 150))}</div>
+    </div>
+    <div class="education-grid education-grid--large">
+      ${education.map(renderEducationBox).join("\n")}
     </div>
     <div class="section-panel">
       <div class="section-panel__header">
@@ -516,14 +557,13 @@ function renderFinancialTrendBoardPage(report: AnalysisReport): string {
         </div>
       </div>
       <div class="omission-list">
-        ${(omissions.length > 0 ? omissions : [{ family: "none", reason: "No material financial-indicator omissions were recorded." }]).map((omission) => `
+        ${(block.omissions.length > 0 ? block.omissions.slice(0, 4) : [{ family: "none", reason: "No material financial-indicator omissions were recorded." }]).map((omission) => `
           <div class="omission-row">
             <strong>${escapeHtml(String(omission.family))}</strong>
             <span>${escapeHtml(omission.reason)}</span>
           </div>
         `).join("\n")}
       </div>
-      <div class="coverage-note">${escapeHtml(block.plain_english.what_to_watch_next)}</div>
     </div>
   `;
 }
@@ -1295,6 +1335,28 @@ function renderTrendRow(entry: FinancialIndicatorTrend): string {
       <span>${escapeHtml(formatIndicatorNumber(entry.three_years_ago, entry.unit))}</span>
       <span>${escapeHtml(formatIndicatorNumber(entry.five_years_ago, entry.unit))}</span>
       <em>${escapeHtml(entry.plain_english)}</em>
+    </div>
+  `;
+}
+
+function renderBenchmarkRow(entry: FinancialIndicatorBenchmark): string {
+  return `
+    <div class="benchmark-row ${escapeHtml(entry.comparison)}">
+      <span>${escapeHtml(entry.label)}</span>
+      <strong>${escapeHtml(entry.comparison)}</strong>
+      <small>${escapeHtml(`${formatIndicatorNumber(entry.low, entry.unit)} - ${formatIndicatorNumber(entry.high, entry.unit)} band`)}</small>
+      <em>${escapeHtml(entry.plain_english)}</em>
+    </div>
+  `;
+}
+
+function renderEducationBox(entry: InvestorEducationBox): string {
+  return `
+    <div class="education-card">
+      <div class="education-card__topic">${escapeHtml(entry.topic.replaceAll("_", " "))}</div>
+      <h3>${escapeHtml(entry.title)}</h3>
+      <p>${escapeHtml(entry.body)}</p>
+      ${entry.example ? `<small>${escapeHtml(entry.example)}</small>` : ""}
     </div>
   `;
 }
@@ -2080,7 +2142,9 @@ const editorialCss = `
   .filing-callout__label,
   .filing-metric-card__label,
   .filing-metric-card__basis,
-  .indicator-card__label {
+  .indicator-card__label,
+  .price-provenance__label,
+  .education-card__topic {
     font-size: 10px;
     letter-spacing: 0.08em;
     text-transform: uppercase;
@@ -2090,7 +2154,8 @@ const editorialCss = `
 
   .filing-change-grid,
   .filing-metric-grid,
-  .indicator-grid {
+  .indicator-grid,
+  .education-grid {
     display: grid;
     gap: 10px;
   }
@@ -2119,8 +2184,34 @@ const editorialCss = `
   }
 
   .filing-metric-grid,
-  .indicator-grid {
+  .indicator-grid,
+  .education-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .price-provenance {
+    border: 1px solid #d7c7a8;
+    background: #f6efe0;
+    border-radius: 16px;
+    padding: 13px 15px;
+    display: grid;
+    grid-template-columns: 1fr 2.2fr;
+    gap: 14px;
+    align-items: start;
+    break-inside: avoid;
+  }
+
+  .price-provenance strong {
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 20px;
+    color: #1d2935;
+  }
+
+  .price-provenance p {
+    margin: 0;
+    font-size: 10px;
+    line-height: 1.45;
+    color: #56616a;
   }
 
   .filing-metric-card,
@@ -2160,14 +2251,16 @@ const editorialCss = `
 
   .indicator-table,
   .trend-table,
-  .omission-list {
+  .omission-list,
+  .benchmark-table {
     display: grid;
     gap: 8px;
   }
 
   .indicator-row,
   .trend-row,
-  .omission-row {
+  .omission-row,
+  .benchmark-row {
     display: grid;
     gap: 8px;
     align-items: center;
@@ -2186,12 +2279,17 @@ const editorialCss = `
     grid-template-columns: 1.1fr 0.75fr 0.75fr 0.75fr 0.75fr 2fr;
   }
 
+  .benchmark-row {
+    grid-template-columns: 0.8fr 0.6fr 0.9fr 2.1fr;
+  }
+
   .omission-row {
     grid-template-columns: 1fr 3fr;
   }
 
   .indicator-row span,
   .trend-row span,
+  .benchmark-row span,
   .omission-row strong {
     font-size: 10.4px;
     font-weight: 700;
@@ -2199,7 +2297,8 @@ const editorialCss = `
   }
 
   .indicator-row strong,
-  .trend-row strong {
+  .trend-row strong,
+  .benchmark-row strong {
     font-family: Georgia, "Times New Roman", serif;
     font-size: 13px;
     color: #1d2935;
@@ -2207,11 +2306,60 @@ const editorialCss = `
 
   .indicator-row em,
   .trend-row em,
+  .benchmark-row em,
   .omission-row span {
     font-size: 9.8px;
     font-style: normal;
     line-height: 1.35;
     color: #5f686d;
+  }
+
+  .benchmark-row small {
+    font-size: 9.4px;
+    color: #6f766f;
+  }
+
+  .benchmark-row.above {
+    border-left: 4px solid #8b3f37;
+  }
+
+  .benchmark-row.below {
+    border-left: 4px solid #2f5f4b;
+  }
+
+  .benchmark-row.near,
+  .benchmark-row.unavailable {
+    border-left: 4px solid #c0a060;
+  }
+
+  .education-card {
+    border: 1px solid #e0d7c8;
+    background: #fffdf8;
+    border-radius: 16px;
+    padding: 12px;
+    display: grid;
+    gap: 7px;
+    break-inside: avoid;
+  }
+
+  .education-card h3 {
+    margin: 0;
+    font-size: 15px;
+    font-family: Georgia, "Times New Roman", serif;
+    color: #1d2935;
+  }
+
+  .education-card p,
+  .education-card small {
+    margin: 0;
+    font-size: 10.4px;
+    line-height: 1.42;
+    color: #4d5860;
+  }
+
+  .education-card small {
+    color: #7e6337;
+    font-style: italic;
   }
 
   .trend-row.improving {

@@ -156,6 +156,26 @@ Quiet days are intentionally short. A brief that says "nothing moved the needle"
 
 M12 extends the M11 filing memo with a true investor-quality value lens.
 
+---
+
+## 13. M13 Deep Dive Benchmarks & Investor Education
+
+M13 closes the gap between "the report can calculate ratios" and "the report can teach a smart reader what those ratios mean."
+
+The user should understand whether the company looks like classic value, quality value, quality growth, expensive growth, a turnaround, a distressed case, or a possible value trap. The report must explain that a low P/E is not automatically good, a high P/E is not automatically bad, and cash-flow quality, leverage, dilution, ROIC, and trend direction decide whether the valuation signal deserves trust.
+
+M13 adds:
+
+- typed price provenance for valuation ratios
+- true TTM flow metrics from four quarterly snapshots
+- latest-balance-sheet treatment for cash, debt, equity, assets, and shares
+- reviewed benchmark context bands
+- ROIC, interest coverage, liquidity, asset efficiency, dividend, buyback, and payout indicators where inputs exist
+- plain-English education boxes for classification, value-trap risk, valuation multiples, cash-flow quality, debt risk, and ROIC
+- proof cases for supported-price, missing-price, and weak/cheap company behavior
+
+M13 does not add a paid quote provider, scrape quote pages, create exact peer-comparison claims, change Pulse, or introduce trading language.
+
 The Deep Dive export should answer:
 
 - Is the company expensive?
