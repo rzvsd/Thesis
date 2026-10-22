@@ -109,7 +109,7 @@ jobs:
         run: echo "ref=${{ github.event.inputs.ref }}" >> "$GITHUB_OUTPUT"
 
       - name: Deploy to production host over CI
-        uses: appleboy/ssh-action@v1.0.3
+        uses: appleboy/ssh-action@029f5b4aeeeb58fdfe1410a5d17f967dacf36262 # v1.0.3
         with:
           host: ${{ secrets.PROD_SSH_HOST }}
           username: ${{ secrets.PROD_SSH_USER }}
@@ -185,7 +185,7 @@ jobs:
         run: echo "ref=${{ github.event.inputs.ref }}" >> "$GITHUB_OUTPUT"
 
       - name: Checkout deployment ref
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ steps.resolve_ref.outputs.ref }}
 
