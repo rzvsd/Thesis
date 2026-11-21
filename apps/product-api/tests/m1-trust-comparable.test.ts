@@ -115,7 +115,9 @@ function buildReport(jobId: string, reportId: string, schemaVersion: string, gen
   };
 }
 
-test("internal comparable endpoint returns latest report by ticker + schema major within lookback", async () => {
+test("internal comparable endpoint returns latest report by ticker + schema major within lookback", async (t) => {
+  // The lookback window is measured from "now"; pin the clock near the report dates so the result does not depend on the run date.
+  t.mock.timers.enable({ apis: ["Date"], now: Date.parse("2026-03-25T12:00:00.000Z") });
   const previous = {
     STORE_BACKEND: process.env.STORE_BACKEND,
     QUEUE_BACKEND: process.env.QUEUE_BACKEND,
