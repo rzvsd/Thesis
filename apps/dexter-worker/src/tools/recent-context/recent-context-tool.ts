@@ -1,5 +1,5 @@
 import type { DexterToolResult, DexterToolRuntimeConfig, DexterToolVisibility } from "../tool-contract";
-import { buildToolOmission } from "../tool-errors";
+import { buildToolFailure, buildToolOmission } from "../tool-errors";
 import { evidenceFromToolFinding } from "../tool-evidence";
 import { runDexterTool } from "../tool-runner";
 import type { RecentContextProvider } from "./recent-context-adapter";
@@ -47,16 +47,25 @@ export interface RecentContextToolData {
 
 export async function runRecentContextTool(
   input: RecentContextToolInput,
-  config: DexterToolRuntimeConfig,
-  provider: RecentContextProvider = new FixtureRecentContextProvider()
+  config: DexterToolRuntimeConfig & { fixtureMode: boolean },
+  provider?: RecentContextProvider
 ): Promise<DexterToolResult<RecentContextToolData>> {
+  // Fixture context is only a stand-in for fixture runs. Live runs without a real provider get an omission.
+  const resolvedProvider = provider ?? (config.fixtureMode ? new FixtureRecentContextProvider() : undefined);
   return runDexterTool(
     "recent_context",
     {
       enabled: config.toolsEnabled && config.recentContextToolEnabled,
       timeoutMs: config.toolTimeoutMs
     },
-    async () => buildRecentContextToolResult(input, config, provider)
+    async () => resolvedProvider
+      ? buildRecentContextToolResult(input, config, resolvedProvider)
+      : buildToolFailure<RecentContextToolData>({
+          toolName: "recent_context",
+          generatedAt: new Date().toISOString(),
+          reason_code: "source_unavailable",
+          reason_text: "No live recent-context provider is configured; fixture context is not used outside fixture mode."
+        })
   );
 }
 
