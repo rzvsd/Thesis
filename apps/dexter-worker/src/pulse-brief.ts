@@ -291,7 +291,7 @@ async function buildPortfolioRows(input: {
     ...(input.state?.holdings.map((holding) => holding.ticker) ?? []),
     ...(input.state?.names.map((name) => name.ticker) ?? [])
   ]).slice(0, 12);
-  if (tickers.length === 0) {
+  if (tickers.length === 0 || !input.config.pulsePriceBaseUrl) {
     return input.report.morning_edition?.portfolio_radar ?? [];
   }
 

@@ -183,3 +183,40 @@ test("Dexter Pulse brief adds price-backed portfolio rows and bounded copy", asy
     await closeServer(priceMock.server);
   }
 });
+
+test("Dexter Pulse brief does not fetch prices from Yahoo by default", async () => {
+  const config = loadConfig({
+    DEXTER_FIXTURE_MODE: "true",
+    SENTIMENT_YAHOO_BASE_URL: "https://query1.finance.yahoo.com"
+  });
+  assert.equal(config.pulsePriceBaseUrl, undefined);
+
+  const originalFetch = globalThis.fetch;
+  const fetched: string[] = [];
+  globalThis.fetch = (async (url: string | URL | Request) => {
+    fetched.push(String(url));
+    throw new Error("unexpected network call");
+  }) as typeof fetch;
+  try {
+    const report = reportFixture();
+    const result = await buildDexterPulseBrief(
+      {
+        report,
+        user_id: "user-1",
+        as_of: "2026-03-21",
+        user_research_state: userStateFixture(),
+        tickers: ["AAPL"]
+      },
+      config,
+      "2026-03-21T08:15:00.000Z"
+    );
+
+    assert.deepEqual(fetched, []);
+    assert.deepEqual(
+      result.report.morning_edition?.portfolio_radar ?? [],
+      report.morning_edition?.portfolio_radar ?? []
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
