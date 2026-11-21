@@ -43,7 +43,9 @@ function dueDiligenceWordCount(report: Awaited<ReturnType<typeof runAnalysisPipe
     .length ?? 0;
 }
 
-test("MSFT fixture request produces a schema-valid report with no blank sections", async () => {
+test("MSFT fixture request produces a schema-valid report with no blank sections", async (t) => {
+  // Freshness is measured against "now"; pin the clock to the fixture date so the result does not depend on the run date.
+  t.mock.timers.enable({ apis: ["Date"], now: Date.parse("2026-03-15T12:00:00.000Z") });
   const report = await runAnalysisPipeline(buildRequest("MSFT"), buildFixtureConfig());
 
   assert.equal(validateAnalysisReport(report).length, 0);
