@@ -1144,6 +1144,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     "purchase_completed",
                     mapOf(
                         "tier" to profile.tier,
+                        "package_type" to selected.packageType.name,
+                        "period_type" to customerInfo.entitlements.active.values.firstOrNull()?.periodType?.name,
                         "billing_period_end" to profile.billingPeriodEnd
                     )
                 )
@@ -1750,7 +1752,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             publish(state.copy(watchlist = items, message = "$normalized added to watchlist."))
             trackEvent(
                 "watchlist_ticker_added",
-                mapOf("ticker" to normalized)
+                mapOf("ticker" to normalized, "watchlist_size" to items.size)
             )
             refreshMonitorSnapshots()
         }
@@ -1769,6 +1771,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 normalized
             )
             publish(state.copy(watchlist = items, message = "$normalized removed from watchlist."))
+            trackEvent(
+                "watchlist_ticker_removed",
+                mapOf("ticker" to normalized, "watchlist_size" to items.size)
+            )
             refreshMonitorSnapshots()
         }
     }
@@ -2059,6 +2065,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private fun refreshUserProfile() {
         withAuthorizedCall {
             val profile = client.getUserProfile(state.apiBaseUrl, requireTokens().accessToken)
+            // Links pre-login events (installation id) to the signed-in user for retention.
+            trackEvent("\$identify", mapOf("\$anon_distinct_id" to installationDistinctId))
             val isPro = profile.tier.equals("PRO", ignoreCase = true)
             publish(
                 state.copy(
