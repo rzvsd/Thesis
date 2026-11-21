@@ -471,7 +471,119 @@ function allowedTickers(report: MarketPulseReport): Set<string> {
   return values;
 }
 
+// LLM copy may only restate facts already in the deterministic report: numbers, dates, and source names.
+interface PulseFactPack {
+  numbers: number[];
+  months: Set<number>;
+  sourceNames: string[];
+}
+
+const monthNames = [
+  "january", "february", "march", "april", "may", "june",
+  "july", "august", "september", "october", "november", "december"
+];
+
+const knownPublisherNames = [
+  "Reuters", "Bloomberg", "Wall Street Journal", "WSJ", "CNBC", "Financial Times", "MarketWatch",
+  "Barron's", "Yahoo", "Associated Press", "Dow Jones Newswires", "Morningstar", "Seeking Alpha", "Polymarket"
+];
+
+const unsupportedCausalityPattern =
+  /\b(because|due to|driven by|as a result of|thanks to|owing to|in response to|on the back of|fueled by|fuelled by|caused|triggered|sparked|led to)\b/i;
+
+function buildPulseFactPack(report: MarketPulseReport): PulseFactPack {
+  const numbers: number[] = [];
+  const months = new Set<number>();
+  const sourceNames: string[] = [];
+  const addNumbersFromText = (text: string) => {
+    for (const match of text.matchAll(/\d{4}-(\d{2})-\d{2}/g)) {
+      months.add(Number(match[1]));
+    }
+    for (const match of text.matchAll(/\d[\d,]*(?:\.\d+)?/g)) {
+      numbers.push(Number(match[0].replace(/,/g, "")));
+    }
+  };
+  const visit = (value: unknown, key: string | undefined) => {
+    if (key && (key === "brief_editorial" || key === "editorial_generation" || key.endsWith("_id"))) {
+      return;
+    }
+    if (typeof value === "number" && Number.isFinite(value)) {
+      numbers.push(Math.abs(value));
+    } else if (typeof value === "string") {
+      if (key === "source_name" && value.trim()) {
+        sourceNames.push(value.trim().toLowerCase());
+      }
+      addNumbersFromText(value);
+    } else if (Array.isArray(value)) {
+      value.forEach((entry) => visit(entry, undefined));
+    } else if (value && typeof value === "object") {
+      for (const [childKey, child] of Object.entries(value)) {
+        visit(child, childKey);
+      }
+    }
+  };
+  visit(report, undefined);
+  const variants = new Set<number>();
+  for (const value of numbers) {
+    variants.add(value);
+    for (const digits of [0, 1, 2]) {
+      variants.add(Number(value.toFixed(digits)));
+    }
+  }
+  return { numbers: [...variants], months, sourceNames };
+}
+
+function containsPhrase(text: string, phrase: string): boolean {
+  const escaped = phrase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`\\b${escaped}\\b`).test(text);
+}
+
+function assertGroundedCopy(key: string, text: string, facts: PulseFactPack): void {
+  if (unsupportedCausalityPattern.test(text)) {
+    throw new Error(`${key} contains unsupported causality`);
+  }
+  for (const match of text.matchAll(/\d[\d,]*(?:\.\d+)?/g)) {
+    const value = Number(match[0].replace(/,/g, ""));
+    if (!facts.numbers.some((fact) => Math.abs(fact - value) < 1e-9)) {
+      throw new Error(`${key} contains a number not in the fact pack: ${match[0]}`);
+    }
+  }
+  const lower = text.toLowerCase();
+  monthNames.forEach((month, index) => {
+    if (containsPhrase(lower, month) && !facts.months.has(index + 1)) {
+      throw new Error(`${key} contains a date not in the fact pack: ${month}`);
+    }
+  });
+  for (const publisher of knownPublisherNames) {
+    const name = publisher.toLowerCase();
+    if (containsPhrase(lower, name)
+      && !facts.sourceNames.some((source) => source.includes(name))) {
+      throw new Error(`${key} cites a source not in the fact pack: ${publisher}`);
+    }
+  }
+}
+
+export function assertPulseCopyGrounded(
+  draft: Partial<MarketPulseBriefEditorial>,
+  report: MarketPulseReport
+): void {
+  const facts = buildPulseFactPack(report);
+  for (const [key, value] of Object.entries(draft)) {
+    if (key !== "mood" && typeof value === "string") {
+      assertGroundedCopy(key, value.replace(/\s+/g, " ").trim(), facts);
+    }
+  }
+}
+
 function validateCopy(
+  draft: Partial<MarketPulseBriefEditorial>,
+  report: MarketPulseReport
+): MarketPulseBriefEditorial {
+  assertPulseCopyGrounded(draft, report);
+  return validateCopyShape(draft, report);
+}
+
+function validateCopyShape(
   draft: Partial<MarketPulseBriefEditorial>,
   report: MarketPulseReport
 ): MarketPulseBriefEditorial {
