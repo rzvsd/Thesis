@@ -229,7 +229,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): DexterConfig {
     productApiInternalBaseUrl:
       env.PRODUCT_API_INTERNAL_BASE_URL ?? "http://product-api:3001",
     internalWorkerToken: env.INTERNAL_WORKER_TOKEN ?? devInternalWorkerToken,
-    // No default: the Phase 7 source policy excludes Yahoo Finance from Pulse production.
+    // No default: the Phase 7 source policy lock forbids an unapproved default price source.
     // Portfolio prices are fetched only when an approved provider URL is configured.
     pulsePriceBaseUrl: env.DEXTER_PULSE_PRICE_BASE_URL?.trim() || undefined,
     pulseLlmEditorialEnabled: parseBoolean(env.PULSE_LLM_EDITORIAL_ENABLED, false),
