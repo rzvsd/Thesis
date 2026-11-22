@@ -37,6 +37,7 @@ const migrationFilenames = [
   "ph7m5_031_user_research_state.up.sql",
   "audit_032_report_llm_usage.up.sql",
   "ph8m1_032_filing_change_alerts.up.sql",
+  "acct_032_account_action_tokens.up.sql",
   "ph8m1_034_pulse_email_report_shares.up.sql"
 ];
 

@@ -8,6 +8,7 @@ import type {
   AuthTokensResponse
 } from "../../../../packages/contracts/src";
 import type { ProductApiConfig } from "../config";
+import type { EmailNotifier } from "../email";
 import {
   GoogleOidcVerificationError,
   type VerifiedGoogleIdToken
@@ -17,6 +18,7 @@ import type { ProductStore } from "../store";
 interface AuthRuntime {
   config: ProductApiConfig;
   store: ProductStore;
+  emailNotifier: EmailNotifier;
 }
 
 interface RequestMeta {
@@ -148,10 +150,25 @@ export async function handleAuthRoutes<TRuntime extends AuthRuntime>(
       user.id
     );
 
-    deps.logInfo("Verification email sent", {
+    const emailResult = await runtime.emailNotifier.sendNotification(
+      [{ userId: user.id, email: user.email }],
+      {
+        subject: "Verify your Thesis account",
+        text:
+          `Your Thesis verification code is:
+
+${rawVerificationToken}
+
+` +
+          "Enter it in the Thesis app to verify your account. " +
+          "If you did not create an account, ignore this email."
+      }
+    );
+    deps.logInfo("Verification email dispatched", {
       request_id: meta.requestId,
       user_id: user.id,
-      provider: runtime.config.emailProviderMode
+      provider: emailResult.provider,
+      delivered: emailResult.delivered
     });
 
     deps.sendJson(response, 201, {
