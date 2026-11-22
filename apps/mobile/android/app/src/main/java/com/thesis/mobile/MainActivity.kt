@@ -181,11 +181,10 @@ class MainActivity : FragmentActivity() {
         if (intent == null) {
             return null
         }
-        val ticker = intent.getStringExtra("ticker")?.trim()
-        if (!ticker.isNullOrBlank()) {
-            return ticker.uppercase()
-        }
-        return intent.data?.getQueryParameter("ticker")?.trim()?.uppercase()?.ifBlank { null }
+        return LaunchDestinationResolver.resolveTicker(
+            intent.getStringExtra("ticker"),
+            intent.data?.toString()
+        )
     }
 
     private fun extractAlertId(intent: Intent?): String? {
@@ -203,11 +202,10 @@ class MainActivity : FragmentActivity() {
         if (intent == null) {
             return null
         }
-        val reportId = intent.getStringExtra("report_id")?.trim()
-        if (!reportId.isNullOrBlank()) {
-            return reportId
-        }
-        return intent.data?.getQueryParameter("report_id")?.trim()?.ifBlank { null }
+        return LaunchDestinationResolver.resolveReportId(
+            intent.getStringExtra("report_id"),
+            intent.data?.toString()
+        )
     }
 
     private fun extractDigestDate(intent: Intent?): String? {

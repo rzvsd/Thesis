@@ -22,9 +22,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
-import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Newspaper
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Visibility
@@ -88,6 +86,9 @@ import com.thesis.mobile.model.WarRoomView
 import com.thesis.mobile.ui.copy.Phase4Copy
 import com.thesis.mobile.ui.navigation.ThesisBottomBar
 import com.thesis.mobile.ui.navigation.ThesisNavItem
+import com.thesis.mobile.ui.navigation.SubScreenBackRow
+import com.thesis.mobile.ui.navigation.ThesisTopBar
+import com.thesis.mobile.ui.navigation.warRoomsInEarningsWindow
 import com.thesis.mobile.ui.screens.DeepDiveScreen
 import com.thesis.mobile.ui.screens.HistoryScreen
 import com.thesis.mobile.ui.screens.HomeScreen
@@ -98,6 +99,7 @@ import com.thesis.mobile.ui.screens.OnboardingScreen
 import com.thesis.mobile.ui.screens.PulseScreen
 import com.thesis.mobile.ui.screens.ScenarioStressScreen
 import com.thesis.mobile.ui.screens.MacroStressDashboardScreen
+import com.thesis.mobile.ui.screens.SampleDeepDiveScreen
 import com.thesis.mobile.ui.screens.WarRoomScreen
 import com.thesis.mobile.ui.screens.WelcomeScreen
 import com.thesis.mobile.ui.screens.WeeklyDigestScreen
@@ -146,6 +148,7 @@ fun ThesisApp(
     var weeklyDigestDate by rememberSaveable { mutableStateOf<String?>(null) }
     var researchMode by rememberSaveable { mutableStateOf(ResearchMode.DEEP_DIVE) }
     var namesFocusedTicker by rememberSaveable { mutableStateOf<String?>(null) }
+    var sampleDismissed by rememberSaveable { mutableStateOf(false) }
 
     DisposableEffect(mainViewModel) {
         mainViewModel.observe { state -> uiState = state }
@@ -293,11 +296,9 @@ fun ThesisApp(
         }
 
         val visibleTabs = remember {
-            listOf(TabItem.Today, TabItem.Names, TabItem.Research, TabItem.Inbox, TabItem.You)
+            listOf(TabItem.Today, TabItem.Names, TabItem.Research)
         }
         val preferredResearchRoot = when {
-            uiState.warRoom != null -> ResearchMode.WAR_ROOM
-            uiState.scenarioStressRun != null -> ResearchMode.SCENARIO
             uiState.deepDiveReport != null -> ResearchMode.DEEP_DIVE
             !uiState.selectedTicker.isNullOrBlank() -> ResearchMode.DEEP_DIVE
             uiState.reportHistory.isNotEmpty() -> ResearchMode.HISTORY
@@ -353,7 +354,10 @@ fun ThesisApp(
                 "research" -> {
                     namesFocusedTicker = null
                     researchMode = ResearchMode.DEEP_DIVE
-                    if (!targetReportId.isNullOrBlank()) {
+                    if (!alert.warRoomId.isNullOrBlank()) {
+                        researchMode = ResearchMode.WAR_ROOM
+                        mainViewModel.openWarRoom(alert.warRoomId)
+                    } else if (!targetReportId.isNullOrBlank()) {
                         mainViewModel.openHistoryReport(targetReportId)
                     } else if (!normalizedTicker.isNullOrBlank()) {
                         mainViewModel.selectTicker(normalizedTicker)
@@ -374,6 +378,20 @@ fun ThesisApp(
 
         Scaffold(
             snackbarHost = { SnackbarHost(snackbarHostState) },
+            topBar = {
+                ThesisTopBar(
+                    inboxSelected = uiState.currentTab == AppTab.INBOX,
+                    profileSelected = uiState.currentTab == AppTab.YOU,
+                    onOpenInbox = {
+                        namesFocusedTicker = null
+                        mainViewModel.setTab(AppTab.INBOX)
+                    },
+                    onOpenProfile = {
+                        namesFocusedTicker = null
+                        mainViewModel.setTab(AppTab.YOU)
+                    }
+                )
+            },
             bottomBar = {
                 ThesisBottomBar(
                     items = visibleTabs.map { tab ->
@@ -422,8 +440,20 @@ fun ThesisApp(
                     }
                 }
             } else {
+                val showSample = !sampleDismissed &&
+                    uiState.watchlistLoaded && uiState.watchlist.isEmpty() &&
+                    uiState.reportHistoryLoaded && uiState.reportHistory.isEmpty()
                 when (uiState.currentTab) {
-                    AppTab.TODAY -> when (todayMode) {
+                    AppTab.TODAY -> if (showSample && todayMode == TodayMode.HOME) {
+                        SampleDeepDiveScreen(
+                            padding = padding,
+                            onFollowName = {
+                                sampleDismissed = true
+                                mainViewModel.setTab(AppTab.NAMES)
+                            },
+                            onDismiss = { sampleDismissed = true }
+                        )
+                    } else when (todayMode) {
                         TodayMode.HOME -> HomeScreen(
                             pulse = uiState.pulseReport,
                             pulseLoadedFromCache = uiState.pulseLoadedFromCache,
@@ -585,6 +615,12 @@ fun ThesisApp(
                         },
                         onAddTicker = mainViewModel::addWatchlistTicker,
                         onRemoveTicker = mainViewModel::removeWatchlistTicker,
+                        warRoomByTicker = warRoomsInEarningsWindow(uiState.alertLedger),
+                        onOpenWarRoom = { warRoomId ->
+                            researchMode = ResearchMode.WAR_ROOM
+                            mainViewModel.openWarRoom(warRoomId)
+                            mainViewModel.setTab(AppTab.RESEARCH)
+                        },
                         onRunDeepDive = { ticker ->
                             mainViewModel.selectTicker(ticker)
                             researchMode = ResearchMode.DEEP_DIVE
@@ -665,9 +701,7 @@ private enum class TabItem(
 ) {
     Today(AppTab.TODAY, Phase4Copy.todayTab, Icons.Filled.Newspaper),
     Names(AppTab.NAMES, Phase4Copy.namesTab, Icons.AutoMirrored.Filled.List),
-    Research(AppTab.RESEARCH, Phase4Copy.researchTab, Icons.Filled.Search),
-    Inbox(AppTab.INBOX, Phase4Copy.inboxTab, Icons.Filled.Notifications),
-    You(AppTab.YOU, Phase4Copy.youTab, Icons.Filled.Settings)
+    Research(AppTab.RESEARCH, Phase4Copy.researchTab, Icons.Filled.Search)
 }
 
 
@@ -726,35 +760,12 @@ private fun ResearchTab(
             .padding(padding)
             .background(ThesisColors.Background)
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(
-                    horizontal = ThesisDimens.ScreenPaddingHorizontal,
-                    vertical = ThesisDimens.SpacingMd
-                ),
-            horizontalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)
-        ) {
-            SegmentButton(
-                label = "Deep Dive",
-                isSelected = mode == ResearchMode.DEEP_DIVE,
-                onClick = { onSetMode(ResearchMode.DEEP_DIVE) }
-            )
-            SegmentButton(
-                label = Phase4Copy.researchWarRoomLabel,
-                isSelected = mode == ResearchMode.WAR_ROOM,
-                onClick = { onSetMode(ResearchMode.WAR_ROOM) }
-            )
-            SegmentButton(
-                label = Phase4Copy.researchStressLabel,
-                isSelected = mode == ResearchMode.SCENARIO,
-                onClick = { onSetMode(ResearchMode.SCENARIO) }
-            )
-            SegmentButton(
-                label = "History",
-                isSelected = mode == ResearchMode.HISTORY,
-                onClick = { onSetMode(ResearchMode.HISTORY) }
-            )
+        // Deep Dive is the Research root. War Room, Scenario Stress and History open from a
+        // name, an open Deep Dive or an alert, so they get a back row instead of a mode switch.
+        when (mode) {
+            ResearchMode.WAR_ROOM -> SubScreenBackRow(Phase4Copy.researchWarRoomLabel) { onSetMode(ResearchMode.DEEP_DIVE) }
+            ResearchMode.SCENARIO -> SubScreenBackRow("Scenario Stress") { onSetMode(ResearchMode.DEEP_DIVE) }
+            else -> Unit
         }
 
         when (mode) {
@@ -788,6 +799,7 @@ private fun ResearchTab(
                 onNotify = onNotify,
                 onOpenHistoryReport = onOpenHistoryReport,
                 onOpenPulseHistory = onOpenPulseHistory,
+                onOpenScenarioStress = { onSetMode(ResearchMode.SCENARIO) },
                 onBack = {
                     onSetMode(
                         if (reportHistory.isNotEmpty()) {

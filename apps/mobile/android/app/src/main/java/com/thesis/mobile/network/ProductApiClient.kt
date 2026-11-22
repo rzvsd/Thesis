@@ -819,7 +819,9 @@ class ProductApiClient {
                 }
             },
             createdAt = row.optString("created_at").ifBlank { "" },
-            updatedAt = row.optString("updated_at").ifBlank { "" }
+            updatedAt = row.optString("updated_at").ifBlank { "" },
+            warRoomId = context?.optNullableString("war_room_id"),
+            eventDate = context?.optNullableString("event_date")
         )
     }
 

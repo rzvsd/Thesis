@@ -47,7 +47,9 @@ object ReportViewMapper {
             historical = mapHistorical(payload.optJSONObject("historical_context")),
             trustMetadata = mapTrustMetadata(payload.optJSONObject("trust_metadata")),
             killSwitchConditions = mapKillSwitchConditions(payload.optJSONArray("kill_switch_conditions")),
-            sections = sections
+            sections = sections,
+            filingRead = mapFilingRead(payload.optJSONObject("filing_intelligence")),
+            indicatorsRead = mapIndicatorsRead(payload.optJSONObject("financial_indicators"))
         )
     }
 
