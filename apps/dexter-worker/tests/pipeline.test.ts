@@ -83,10 +83,19 @@ test("MSFT fixture request produces a schema-valid report with no blank sections
   assert.ok((report.filing_intelligence?.metric_deltas.length ?? 0) >= 8);
   assert.ok((report.filing_intelligence?.top_changes.length ?? 0) >= 1);
   assert.ok((report.filing_intelligence?.memo.the_filing_read.length ?? 0) > 100);
+  // M11: reviewed filing sections reach the Filing Read, so filing text is no longer reported missing.
   assert.ok(
-    report.filing_intelligence?.omissions.some(
+    !report.filing_intelligence?.omissions.some(
       (omission) => omission.reason_code === "missing_filing_text"
     )
+  );
+  const riskDelta = report.filing_intelligence?.language_deltas.find((delta) => delta.section === "risk_factors");
+  assert.equal(riskDelta?.change_type, "revised");
+  assert.match(riskDelta?.current_excerpt ?? "", /capacity constraints/);
+  assert.match(riskDelta?.prior_excerpt ?? "", /competition and regulatory review/);
+  assert.equal(
+    report.filing_intelligence?.language_deltas.find((delta) => delta.section === "mda")?.change_type,
+    "unchanged"
   );
   assert.ok(report.financial_indicators);
   assert.equal(report.financial_indicators?.prompt_version, "ph7-m13-financial-indicators-v2");
@@ -201,6 +210,9 @@ test("tools-enabled fixture request stays schema-valid and does not leak interna
 
 test("LIMITED fixture request degrades affected sections honestly", async () => {
   const report = await runAnalysisPipeline(buildRequest("LIMITED"), buildFixtureConfig());
+  assert.ok(
+    report.filing_intelligence?.omissions.some((omission) => omission.reason_code === "missing_filing_text")
+  );
 
   assert.equal(report.signal?.value, "no_signal");
   assert.equal(findSection(report.sections, "what_changed").status, "data_incomplete");

@@ -652,3 +652,57 @@ class DataOpenbbLiveModeTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class DataOpenbbFilingSectionTests(unittest.TestCase):
+    def test_fixture_filing_sections_endpoint_returns_reviewed_excerpts(self) -> None:
+        settings = Settings(fixture_mode=True)
+        service = DataOpenBBService(settings=settings, rate_limiter=NoopRateLimiter())
+        server = start_server(0, data_service=service)
+        try:
+            with urlopen(f"http://127.0.0.1:{server.server_address[1]}/v1/official/filing-sections?ticker=msft") as response:
+                payload = json.loads(response.read().decode("utf-8"))
+        finally:
+            stop_server(server)
+
+        self.assertTrue(payload["ok"])
+        filings = payload["data"]["filings"]
+        self.assertEqual(len(filings), 2)
+        latest_sections = {section["family"]: section for section in filings[0]["sections"]}
+        self.assertFalse(latest_sections["mda"]["omitted"])
+        self.assertIn("Management's Discussion", latest_sections["mda"]["excerpt"])
+        self.assertTrue(latest_sections["segments"]["omitted"])
+
+    def test_live_filing_sections_fetch_latest_two_periodic_filings(self) -> None:
+        from src.service import OpenBBLiveClient
+
+        submissions = {
+            "filings": {
+                "recent": {
+                    "form": ["8-K", "10-Q", "10-K", "10-Q"],
+                    "accessionNumber": ["0001-26-000001", "0001-26-000002", "0001-25-000003", "0001-25-000004"],
+                    "primaryDocument": ["a.htm", "q.htm", "k.htm", "q0.htm"],
+                    "filingDate": ["2026-02-01", "2026-01-28", "2025-07-30", "2025-04-30"],
+                    "reportDate": ["", "2025-12-31", "2025-06-30", "2025-03-31"],
+                }
+            }
+        }
+        fetched_urls: list[str] = []
+
+        def fake_fetch_text(url: str, *, headers: object) -> str:  # noqa: ARG001
+            fetched_urls.append(url)
+            return "<h2>Item 1A. Risk Factors</h2><p>Supply chain risk.</p>"
+
+        client = OpenBBLiveClient()
+        with patch.object(client, "_fetch_json", return_value=submissions), patch.object(
+            client, "_fetch_text", side_effect=fake_fetch_text
+        ):
+            payload = client.fetch_filing_sections("MSFT")
+
+        self.assertEqual([filing["form"] for filing in payload["filings"]], ["10-Q", "10-K"])
+        self.assertEqual(
+            fetched_urls[0],
+            "https://www.sec.gov/Archives/edgar/data/789019/000126000002/q.htm",
+        )
+        risk = {section["family"]: section for section in payload["filings"][0]["sections"]}["risk_factors"]
+        self.assertFalse(risk["omitted"])

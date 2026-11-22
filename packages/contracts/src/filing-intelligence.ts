@@ -36,7 +36,7 @@ export interface FilingIntelligenceLanguageDelta {
   section: "mda" | "risk_factors" | "liquidity" | "segments" | "management_commentary";
   current_excerpt?: string;
   prior_excerpt?: string;
-  change_type: "new" | "removed" | "intensified" | "softened" | "unchanged" | "unavailable";
+  change_type: "new" | "removed" | "intensified" | "softened" | "revised" | "unchanged" | "unavailable";
   plain_english: string;
   evidence_refs: string[];
 }
@@ -145,7 +145,7 @@ export const filingIntelligenceLanguageDeltaSchema = {
     prior_excerpt: { type: "string" },
     change_type: {
       type: "string",
-      enum: ["new", "removed", "intensified", "softened", "unchanged", "unavailable"]
+      enum: ["new", "removed", "intensified", "softened", "revised", "unchanged", "unavailable"]
     },
     plain_english: { type: "string" },
     evidence_refs: { type: "array", items: { type: "string" } }
