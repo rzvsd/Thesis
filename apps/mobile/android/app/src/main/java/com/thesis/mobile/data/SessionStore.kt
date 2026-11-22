@@ -70,7 +70,13 @@ class SessionStore(context: Context) {
         prefs.edit().putString(KEY_API_BASE_URL, url).apply()
     }
 
-    fun loadApiBaseUrl(): String = prefs.getString(KEY_API_BASE_URL, BuildConfig.API_BASE_URL).orEmpty()
+    // Release builds always use the build-time URL; the override is a debug-only tool.
+    fun loadApiBaseUrl(): String =
+        if (BuildConfig.DEBUG) {
+            prefs.getString(KEY_API_BASE_URL, BuildConfig.API_BASE_URL).orEmpty()
+        } else {
+            BuildConfig.API_BASE_URL
+        }
 
     fun saveNotificationsEnabled(enabled: Boolean) {
         prefs.edit().putBoolean(KEY_NOTIFICATIONS_ENABLED, enabled).apply()
