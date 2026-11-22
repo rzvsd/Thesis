@@ -134,6 +134,7 @@ investors.
 | #80 | Billing tiers (Free 3 / Pro 50), Pro-only alert detail, one paywall screen | New tier limits and paywall; store setup still open. |
 | #81 | Pulse by email and a public web reader for shared Deep Dives (stacks on #78) | Email channel and web reader. |
 | #82 | Account lifecycle: password reset, account deletion (app + web), send verification email | Ticks "Account lifecycle" once merged. |
+| #83 | mobile: three-tab navigation, native Deep Dive memo, first-run sample, name/report deep links | Three tabs, native memo, sample report on first run, deep links. |
 
 ## Where to look next
 
