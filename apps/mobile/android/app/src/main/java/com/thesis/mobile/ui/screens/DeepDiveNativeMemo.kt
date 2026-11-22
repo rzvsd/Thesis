@@ -117,7 +117,13 @@ private fun MetricDeltaRow(delta: FilingMetricDeltaView) {
             )
             delta.deltaPct?.let { pct ->
                 Text(
-                    text = String.format(Locale.US, "%+.1f%%", pct),
+                    // For pct metrics (margins) the worker sends the arithmetic
+                    // difference, so it is a percentage-point change.
+                    text = if (delta.unit == "pct") {
+                        String.format(Locale.US, "%+.1f pp", pct)
+                    } else {
+                        String.format(Locale.US, "%+.1f%%", pct)
+                    },
                     style = ThesisTypography.labelLarge,
                     color = tint
                 )
