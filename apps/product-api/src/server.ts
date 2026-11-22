@@ -144,6 +144,7 @@ import {
   handleInternalResearchStateRoutes,
   handleResearchStateRoutes
 } from "./routes/research-state-routes";
+import { handleHoldingsImportRoutes } from "./routes/holdings-import-routes";
 import { startTickerSyncScheduler } from "./ticker-sync-scheduler";
 import { startJobRecoveryScheduler } from "./job-recovery-scheduler";
 import type {
@@ -9882,6 +9883,15 @@ export function startServer(port: number = loadConfig().port): Server {
             readJsonBody,
             sendJson
           }
+        )
+      ) {
+        return;
+      }
+
+      if (
+        await handleHoldingsImportRoutes(
+          { method, pathname, request, response, runtime, meta, auth },
+          { appendAudit, createId, readJsonBody, sendJson, watchlistLimitForTier }
         )
       ) {
         return;
