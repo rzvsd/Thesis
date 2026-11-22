@@ -52,6 +52,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.thesis.mobile.ui.components.PlasmaOrb
+import com.thesis.mobile.ui.copy.ProductCopy
 import com.thesis.mobile.ui.theme.HeadingFont
 import com.thesis.mobile.ui.theme.ThesisColors
 import com.thesis.mobile.ui.theme.ThesisDimens
@@ -80,7 +81,7 @@ private val pages = listOf(
     OnboardingPage(
         overline = "DEEP DIVE",
         headline = "Evidence-backed\ncompany research",
-        body = "Thesis, signal, confidence, risks, valuation — synthesized from filings, news, and alternative data in ~90 seconds.",
+        body = "Thesis, signal, confidence, risks, valuation — synthesized from filings and news for ${ProductCopy.coverage}.",
         icon = Icons.Default.Search,
         sampleLabel = "AAPL Signal",
         sampleValue = "Positive  7/10"
@@ -88,7 +89,7 @@ private val pages = listOf(
     OnboardingPage(
         overline = "YOUR NAMES",
         headline = "Follow what\nmatters most",
-        body = "Follow 3 companies free, up to 50 with Pro. They appear in your pulse, research, and alerts across Thesis.",
+        body = "Follow ${ProductCopy.freeWatchlistLimit} companies free, up to ${ProductCopy.proWatchlistLimit} with Pro. They appear in your pulse, research, and alerts across Thesis.",
         icon = Icons.Default.Newspaper,
         sampleLabel = "Names Tracked",
         sampleValue = "AAPL  NVDA  MSFT"

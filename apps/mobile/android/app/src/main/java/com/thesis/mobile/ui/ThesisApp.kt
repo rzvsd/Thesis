@@ -84,8 +84,10 @@ import com.thesis.mobile.model.ScenarioStressTemplateView
 import com.thesis.mobile.model.SectionView
 import com.thesis.mobile.model.UserProfileView
 import com.thesis.mobile.model.WarRoomView
+import com.thesis.mobile.BuildConfig
 import com.thesis.mobile.ui.components.LegalLinks
 import com.thesis.mobile.ui.copy.Phase4Copy
+import com.thesis.mobile.ui.copy.ProductCopy
 import com.thesis.mobile.ui.navigation.ThesisBottomBar
 import com.thesis.mobile.ui.navigation.ThesisNavItem
 import com.thesis.mobile.ui.screens.DeepDiveScreen
@@ -1017,6 +1019,7 @@ private fun PortfolioTab(
             WatchlistTab(
                 padding = PaddingValues(),
                 items = watchlist,
+                watchlistLimit = profile?.watchlistLimit ?: ProductCopy.freeWatchlistLimit,
                 onRefresh = onRefreshWatchlist,
                 onAdd = onAddWatchlistTicker,
                 onRemove = onRemoveWatchlistTicker
@@ -1194,7 +1197,7 @@ private fun AuthScreen(
                 AuthValueCard()
             }
 
-            item {
+            if (BuildConfig.DEBUG) item {
                 Column {
                     Text(
                         text = "CONFIGURE API",
@@ -1474,7 +1477,7 @@ private fun AuthValueCard() {
         AuthBenefitRow(
             icon = Icons.Default.Search,
             title = "Deep Dive",
-            description = "Evidence-backed research on any US company."
+            description = "${ProductCopy.deepDiveTagline}."
         )
         HorizontalDivider(color = ThesisColors.Border)
         AuthBenefitRow(
@@ -1677,6 +1680,7 @@ private fun DeepDiveTab(
 private fun WatchlistTab(
     padding: PaddingValues,
     items: List<String>,
+    watchlistLimit: Int,
     onRefresh: () -> Unit,
     onAdd: (String) -> Unit,
     onRemove: (String) -> Unit
@@ -1716,7 +1720,7 @@ private fun WatchlistTab(
             )
             Spacer(modifier = Modifier.height(ThesisDimens.SpacingSm))
             Text(
-                text = "Follow 3 companies free, up to 50 with Pro.",
+                text = "Follow ${ProductCopy.freeWatchlistLimit} companies free, up to ${ProductCopy.proWatchlistLimit} with Pro.",
                 style = ThesisTypography.bodyMedium,
                 color = ThesisColors.TextMuted
             )
@@ -2075,7 +2079,7 @@ private fun SettingsTab(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text("Names limit", style = ThesisTypography.bodyMedium, color = ThesisColors.TextPrimary)
-                    Text("${profile?.watchlistLimit ?: 3}", style = ThesisTypography.bodySmall, color = ThesisColors.TextMuted)
+                    Text("${profile?.watchlistLimit ?: ProductCopy.freeWatchlistLimit}", style = ThesisTypography.bodySmall, color = ThesisColors.TextMuted)
                 }
                 if (!profile?.billingPeriodEnd.isNullOrBlank()) {
                     Row(
@@ -2278,7 +2282,7 @@ private fun SettingsTab(
                 }
             }
         }
-        item {
+        if (BuildConfig.DEBUG) item {
             val shape = RoundedCornerShape(ThesisDimens.CardCornerRadius)
             Column(
                 modifier = Modifier

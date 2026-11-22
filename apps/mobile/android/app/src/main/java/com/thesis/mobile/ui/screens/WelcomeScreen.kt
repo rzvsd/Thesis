@@ -36,6 +36,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.thesis.mobile.ui.copy.ProductCopy
 import com.thesis.mobile.ui.theme.ThesisColors
 import com.thesis.mobile.ui.theme.ThesisDimens
 import com.thesis.mobile.ui.theme.ThesisTypography
@@ -124,7 +125,7 @@ fun WelcomeScreen(
                 BenefitCard(
                     icon = Icons.Default.Search,
                     title = "Deep Dive",
-                    description = "Evidence-backed research on any US company in 90 seconds"
+                    description = ProductCopy.deepDiveTagline
                 )
                 BenefitCard(
                     icon = Icons.Default.AutoAwesome,
