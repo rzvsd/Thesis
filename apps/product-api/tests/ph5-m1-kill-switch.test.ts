@@ -14,47 +14,34 @@ function sendJson(response: ServerResponse, status: number, payload: unknown): v
   response.end(JSON.stringify(payload));
 }
 
-async function startYahooPriceMock(
+async function startEodPriceMock(
   pricesBySymbol: Record<string, number[]>
 ): Promise<{ server: Server; baseUrl: string }> {
   const callCount = new Map<string, number>();
   const server = createServer((request, response) => {
     const url = new URL(request.url ?? "/", "http://127.0.0.1");
-    const match = url.pathname.match(/^\/v8\/finance\/chart\/([^/]+)$/);
-    if (!match) {
-      sendJson(response, 404, { chart: { result: [] } });
+    if (url.pathname !== "/v1/market/eod-prices") {
+      sendJson(response, 404, { ok: false, data: null, error_flag: true });
       return;
     }
-    const symbol = decodeURIComponent(match[1] ?? "").trim().toUpperCase();
-    const configured = pricesBySymbol[symbol];
-    if (!configured || configured.length === 0) {
-      sendJson(response, 200, {
-        chart: {
-          result: [
-            {
-              indicators: {
-                quote: [{ close: [] }]
-              }
-            }
-          ]
-        }
-      });
-      return;
-    }
-    const currentCall = callCount.get(symbol) ?? 0;
-    const index = Math.min(currentCall, configured.length - 1);
-    const price = configured[index] as number;
-    callCount.set(symbol, currentCall + 1);
-    sendJson(response, 200, {
-      chart: {
-        result: [
-          {
-            indicators: {
-              quote: [{ close: [price] }]
-            }
-          }
-        ]
+    const symbols = (url.searchParams.get("tickers") ?? "")
+      .split(",")
+      .map((symbol) => symbol.trim().toUpperCase())
+      .filter((symbol) => symbol.length > 0);
+    const prices = symbols.map((symbol) => {
+      const configured = pricesBySymbol[symbol];
+      if (!configured || configured.length === 0) {
+        return { ticker: symbol, available: false, reason: "price_not_found" };
       }
+      const currentCall = callCount.get(symbol) ?? 0;
+      const index = Math.min(currentCall, configured.length - 1);
+      callCount.set(symbol, currentCall + 1);
+      return { ticker: symbol, available: true, close: configured[index] as number, as_of: "2026-03-20" };
+    });
+    sendJson(response, 200, {
+      ok: true,
+      data: { provider: "test", price_type: "end_of_day", prices },
+      error_flag: false
     });
   });
 
@@ -195,7 +182,7 @@ function sampleDeepDiveReport(jobId: string): JsonObject {
 }
 
 test("PH5 M1 kill-switch rules persist, evaluate idempotently, and write alert-ledger records", async () => {
-  const yahooMock = await startYahooPriceMock({
+  const priceMock = await startEodPriceMock({
     AAPL: [100, 100, 90]
   });
 
@@ -211,7 +198,7 @@ test("PH5 M1 kill-switch rules persist, evaluate idempotently, and write alert-l
     MARKET_PULSE_TICKERS: process.env.MARKET_PULSE_TICKERS,
     MARKET_PULSE_SCHEMA_VERSION: process.env.MARKET_PULSE_SCHEMA_VERSION,
     PUSH_PROVIDER_MODE: process.env.PUSH_PROVIDER_MODE,
-    SENTIMENT_YAHOO_BASE_URL: process.env.SENTIMENT_YAHOO_BASE_URL,
+    PRICE_SERVICE_BASE_URL: process.env.PRICE_SERVICE_BASE_URL,
     TICKER_AUTO_SYNC_ENABLED: process.env.TICKER_AUTO_SYNC_ENABLED,
     TICKER_AUTO_SYNC_RUN_ON_STARTUP: process.env.TICKER_AUTO_SYNC_RUN_ON_STARTUP
   };
@@ -227,7 +214,7 @@ test("PH5 M1 kill-switch rules persist, evaluate idempotently, and write alert-l
   process.env.MARKET_PULSE_TICKERS = "AAPL,MSFT";
   process.env.MARKET_PULSE_SCHEMA_VERSION = "1.0.0";
   process.env.PUSH_PROVIDER_MODE = "stub";
-  process.env.SENTIMENT_YAHOO_BASE_URL = yahooMock.baseUrl;
+  process.env.PRICE_SERVICE_BASE_URL = priceMock.baseUrl;
   process.env.TICKER_AUTO_SYNC_ENABLED = "false";
   process.env.TICKER_AUTO_SYNC_RUN_ON_STARTUP = "false";
 
@@ -356,7 +343,7 @@ test("PH5 M1 kill-switch rules persist, evaluate idempotently, and write alert-l
     assert.equal(typeof contrarian.payload.fired, "number");
   } finally {
     await closeServer(server);
-    await closeServer(yahooMock.server);
+    await closeServer(priceMock.server);
     process.env.STORE_BACKEND = previous.STORE_BACKEND;
     process.env.QUEUE_BACKEND = previous.QUEUE_BACKEND;
     process.env.AUTH_EXPOSE_VERIFICATION_TOKEN = previous.AUTH_EXPOSE_VERIFICATION_TOKEN;
@@ -368,7 +355,7 @@ test("PH5 M1 kill-switch rules persist, evaluate idempotently, and write alert-l
     process.env.MARKET_PULSE_TICKERS = previous.MARKET_PULSE_TICKERS;
     process.env.MARKET_PULSE_SCHEMA_VERSION = previous.MARKET_PULSE_SCHEMA_VERSION;
     process.env.PUSH_PROVIDER_MODE = previous.PUSH_PROVIDER_MODE;
-    process.env.SENTIMENT_YAHOO_BASE_URL = previous.SENTIMENT_YAHOO_BASE_URL;
+    process.env.PRICE_SERVICE_BASE_URL = previous.PRICE_SERVICE_BASE_URL;
     process.env.TICKER_AUTO_SYNC_ENABLED = previous.TICKER_AUTO_SYNC_ENABLED;
     process.env.TICKER_AUTO_SYNC_RUN_ON_STARTUP = previous.TICKER_AUTO_SYNC_RUN_ON_STARTUP;
   }

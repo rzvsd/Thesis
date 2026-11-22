@@ -10,6 +10,6 @@ object ProductCopy {
     const val deepDiveTagline = "Evidence-backed research on $coverage"
 
     /** Watchlist limits per tier. The server profile value wins once it is loaded. */
-    const val freeWatchlistLimit = 5
-    const val proWatchlistLimit = 20
+    const val freeWatchlistLimit = 3
+    const val proWatchlistLimit = 50
 }

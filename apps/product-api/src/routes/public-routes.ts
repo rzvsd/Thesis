@@ -53,6 +53,7 @@ export async function handlePublicRoutes<TRuntime extends PublicRuntime>(
     method === "GET" &&
     (pathname === "/v1/historical/financials" ||
       pathname === "/v1/historical/transcripts" ||
+      pathname === "/v1/historical/filing-sections" ||
       pathname === "/v1/historical/coverage")
   ) {
     const internalRequest = deps.hasInternalToken(request, runtime.config.internalWorkerToken);
@@ -93,6 +94,44 @@ export async function handlePublicRoutes<TRuntime extends PublicRuntime>(
       deps.sendJson(response, 200, {
         data: snapshots,
         missing: snapshots.length === 0
+      });
+      return true;
+    }
+
+    if (pathname === "/v1/historical/filing-sections") {
+      // Reviewed 10-Q/10-K section excerpts (M11), read through data-openbb from SEC EDGAR.
+      let filings: unknown[] = [];
+      let unavailableReason: string | undefined;
+      try {
+        const upstream = await fetch(
+          `${runtime.config.marketPulseDataOpenbbBaseUrl}/v1/official/filing-sections?ticker=${encodeURIComponent(ticker)}`,
+          { headers: { "x-request-id": meta.requestId } }
+        );
+        const payload = (await upstream.json()) as { ok?: boolean; data?: { filings?: unknown }; error_message?: string };
+        if (upstream.ok && payload.ok === true && Array.isArray(payload.data?.filings)) {
+          filings = payload.data.filings;
+        } else {
+          unavailableReason = payload.error_message ?? `HTTP ${upstream.status}`;
+        }
+      } catch (error) {
+        unavailableReason = error instanceof Error ? error.message : "network error";
+      }
+      await deps.appendAudit(
+        runtime,
+        "historical.filing_sections_retrieved",
+        {
+          request_id: meta.requestId,
+          route: pathname,
+          ticker,
+          internal_request: internalRequest,
+          row_count: filings.length,
+          ...(unavailableReason ? { unavailable_reason: unavailableReason } : {})
+        },
+        historicalAuth?.userId
+      );
+      deps.sendJson(response, 200, {
+        data: filings,
+        missing: filings.length === 0
       });
       return true;
     }

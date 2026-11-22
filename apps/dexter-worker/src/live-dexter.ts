@@ -3,11 +3,13 @@ import { resolve } from "node:path";
 
 import { resolveLiveProviderAttempts, type DexterConfig } from "./config";
 import { appRoot } from "./fs-roots";
+import { assertLlmBudgetAvailable, recordLlmCall, type LlmTokenUsage } from "./llm-usage";
 
 export interface LiveDexterResult {
   answer: string;
   iterations: number;
   tokenCount: number;
+  usage?: LlmTokenUsage;
   provider?: string;
   model?: string;
   toolCalls: Array<{
@@ -78,6 +80,7 @@ function runLiveDexterAttempt(
           answer: string;
           iterations: number;
           token_count: number;
+          usage?: LlmTokenUsage;
           tool_calls?: Array<{
             tool: string;
             args: Record<string, unknown>;
@@ -90,6 +93,7 @@ function runLiveDexterAttempt(
           answer: parsed.answer,
           iterations: parsed.iterations,
           tokenCount: parsed.token_count,
+          usage: parsed.usage,
           provider: modelProvider,
           model,
           toolCalls: parsed.tool_calls ?? []
@@ -125,13 +129,14 @@ export function runLiveDexterQuery(
   }
 
   return (async () => {
+    assertLlmBudgetAvailable();
     const attemptedProviders: string[] = [];
     let lastError: unknown;
 
     for (const attempt of attempts) {
       attemptedProviders.push(`${attempt.provider}:${attempt.model}`);
       try {
-        return await runLiveDexterAttempt(
+        const result = await runLiveDexterAttempt(
           query,
           config,
           attempt.model,
@@ -139,6 +144,8 @@ export function runLiveDexterQuery(
           timeoutMs,
           maxIterations
         );
+        recordLlmCall(attempt.provider, attempt.model, result.usage);
+        return result;
       } catch (error) {
         lastError = error;
       }

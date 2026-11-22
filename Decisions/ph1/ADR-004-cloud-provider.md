@@ -1,7 +1,7 @@
 # ADR-004: Cloud Provider and Deployment Target
 
 **Date:** 2026-03  
-**Status:** Accepted  
+**Status:** Not implemented. Superseded in part by [ADR-009](./ADR-009-hosting-as-built.md): production runs on one Docker Compose host, deployed over SSH. The hosting target is open.  
 **Needed before:** M4  
 **Deciders:** Engineering Lead, Founder
 

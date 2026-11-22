@@ -198,7 +198,7 @@ fun NoNamesEmptyState(
         iconTint = ThesisColors.AccentBlue,
         iconBackground = ThesisColors.AccentBlue.copy(alpha = 0.1f),
         title = "No Names Yet",
-        message = "Names you follow appear across Thesis in your morning pulse and company research.",
+        message = "Names you follow appear across Thesis in your morning pulse and company research. Follow ${ProductCopy.freeWatchlistLimit} free, up to ${ProductCopy.proWatchlistLimit} with Pro.",
         modifier = modifier
     ) {
         EmptyStateActionButton(text = "Add your first name", onClick = onAddName)

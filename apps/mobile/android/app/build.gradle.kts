@@ -140,6 +140,11 @@ if (releaseTaskRequested) {
 }
 val revenueCatPublicAndroidKey =
     project.findProperty("REVENUECAT_PUBLIC_ANDROID_KEY")?.toString() ?: ""
+// Play subscription product IDs (optional). Empty = use the RevenueCat offering's MONTHLY / ANNUAL package.
+val revenueCatMonthlyProductId =
+    project.findProperty("REVENUECAT_MONTHLY_PRODUCT_ID")?.toString() ?: ""
+val revenueCatYearlyProductId =
+    project.findProperty("REVENUECAT_YEARLY_PRODUCT_ID")?.toString() ?: ""
 val googleServicesFile = file("google-services.json")
 val googleServicesJsonExists = googleServicesFile.exists()
 val googleServicesMatchesApplicationId =
@@ -170,6 +175,16 @@ android {
             "String",
             "REVENUECAT_PUBLIC_ANDROID_KEY",
             "\"${escapeBuildString(revenueCatPublicAndroidKey)}\""
+        )
+        buildConfigField(
+            "String",
+            "REVENUECAT_MONTHLY_PRODUCT_ID",
+            "\"${escapeBuildString(revenueCatMonthlyProductId)}\""
+        )
+        buildConfigField(
+            "String",
+            "REVENUECAT_YEARLY_PRODUCT_ID",
+            "\"${escapeBuildString(revenueCatYearlyProductId)}\""
         )
     }
 

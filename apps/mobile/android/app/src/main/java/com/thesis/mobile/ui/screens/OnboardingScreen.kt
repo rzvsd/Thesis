@@ -89,7 +89,7 @@ private val pages = listOf(
     OnboardingPage(
         overline = "YOUR NAMES",
         headline = "Follow what\nmatters most",
-        body = "Track up to ${ProductCopy.freeWatchlistLimit} companies free, or ${ProductCopy.proWatchlistLimit} with Pro. They appear in your pulse, research, and alerts across Thesis.",
+        body = "Follow ${ProductCopy.freeWatchlistLimit} companies free, up to ${ProductCopy.proWatchlistLimit} with Pro. They appear in your pulse, research, and alerts across Thesis.",
         icon = Icons.Default.Newspaper,
         sampleLabel = "Names Tracked",
         sampleValue = "AAPL  NVDA  MSFT"

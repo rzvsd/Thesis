@@ -674,14 +674,29 @@ function sumDefined(snapshots: CanonicalFinancialSnapshot[], key: DataKey): numb
   return count === snapshots.length ? total : undefined;
 }
 
+function quarterIndex(snapshot: CanonicalFinancialSnapshot): number | undefined {
+  const fiscalQuarter = snapshot.fiscal_quarter;
+  if (fiscalQuarter === undefined || !Number.isInteger(fiscalQuarter) || fiscalQuarter < 1 || fiscalQuarter > 4) {
+    return undefined;
+  }
+  return snapshot.fiscal_year * 4 + (fiscalQuarter - 1);
+}
+
+// True TTM needs four unique fiscal quarters with no gap; duplicates or a missing quarter span more than twelve months.
+function areConsecutiveQuartersDesc(quartersDesc: CanonicalFinancialSnapshot[]): boolean {
+  const indexes = quartersDesc.map(quarterIndex);
+  return indexes.every((index, position) =>
+    index !== undefined && (position === 0 || index === (indexes[position - 1] as number) - 1));
+}
+
 function buildTtmMetricSnapshot(
   ticker: string,
   quartersDesc: CanonicalFinancialSnapshot[],
   retrievedAt: string
 ): { snapshot?: CanonicalFinancialSnapshot; periods: string[] } {
   const lastFour = quartersDesc.slice(0, 4);
-  if (lastFour.length < 4) {
-    return { periods: lastFour.map((snapshot) => snapshot.period) };
+  if (lastFour.length < 4 || !areConsecutiveQuartersDesc(lastFour)) {
+    return { periods: [] };
   }
   const metricDataMap: CanonicalFinancialSnapshot["data"] = {};
   for (const key of ttmFlowKeys) {
@@ -1056,7 +1071,7 @@ export async function buildFinancialIndicators(
     note:
       ttm.snapshot
         ? "Flow metrics use the latest four quarterly snapshots on a TTM basis; balance-sheet ratios use the latest balance-sheet snapshot."
-        : "Fewer than four quarterly snapshots were available, so the value lens uses the latest annual snapshot for flow metrics."
+        : "Four consecutive quarterly snapshots were not available, so the value lens uses the latest annual snapshot for flow metrics."
   };
   const omissions: IndicatorOmission[] = [];
   const evidence = [
@@ -1097,7 +1112,7 @@ export async function buildFinancialIndicators(
     addOmission(omissions, "annual_history", "insufficient_periods", "Less than two annual snapshots were available.");
   }
   if (!ttm.snapshot) {
-    addOmission(omissions, "quarterly_history", "insufficient_ttm_quarters", "Fewer than four quarterly snapshots were available, so true TTM ratios could not be built.");
+    addOmission(omissions, "quarterly_history", "insufficient_ttm_quarters", "Four unique consecutive quarterly snapshots were not available, so true TTM ratios could not be built.");
   }
   if (!ctx.spotPrice) {
     addOmission(omissions, "price_source", "missing_price", "Approved spot/reference price was unavailable, so price-dependent valuation ratios are omitted.");

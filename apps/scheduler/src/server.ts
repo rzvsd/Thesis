@@ -280,6 +280,20 @@ async function dispatchHistoricalSync(config: SchedulerConfig): Promise<void> {
   });
 }
 
+// Runs after the historical sync so new SEC filings (new latest_period) are already visible.
+async function dispatchDeepDivePrecompute(config: SchedulerConfig): Promise<void> {
+  const payload = await dispatchProductApiJob(
+    config,
+    "/internal/deep-dive/precompute",
+    {},
+    "Deep Dive precompute"
+  );
+  log("INFO", "Deep Dive precompute accepted", {
+    queued: payload.queued,
+    in_flight: payload.in_flight
+  });
+}
+
 async function dispatchProductApiJob(
   config: SchedulerConfig,
   route: string,
@@ -770,6 +784,20 @@ export function startServer(port: number = defaultPort): Server {
           service: serviceName,
           scheduled_for: runAt.toISOString(),
           target: "data-openbb"
+        });
+      }
+
+      try {
+        await dispatchDeepDivePrecompute(config);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Deep Dive precompute dispatch failed";
+        log("ERROR", "Deep Dive precompute dispatch failed", {
+          error_message: message
+        });
+        captureException(new Error(message), {
+          service: serviceName,
+          target: "product-api",
+          route: "/internal/deep-dive/precompute"
         });
       }
 
