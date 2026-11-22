@@ -1,6 +1,6 @@
 import { resolve } from "node:path";
 
-import { goldenRoot } from "./fs-roots";
+import { appRoot, goldenRoot } from "./fs-roots";
 
 const defaultPort = 3002;
 const defaultSectionTimeoutMs = 70_000;
@@ -46,6 +46,11 @@ function parseInteger(value: string | undefined, fallback: number): number {
 
   const parsed = Number.parseInt(value, 10);
   return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function parseOptionalPositiveNumber(value: string | undefined): number | undefined {
+  const parsed = Number.parseFloat(value ?? "");
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
 }
 
 function parseTickerSet(value: string | undefined): Set<string> {
@@ -127,6 +132,8 @@ export interface DexterConfig {
   recentContextBaseUrl?: string;
   recentContextApiKeyPresent: boolean;
   forcedFailureTickers: Set<string>;
+  llmPricesPath: string;
+  maxDeepDiveCostUsd?: number;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): DexterConfig {
@@ -250,7 +257,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): DexterConfig {
     toolMaxResults: parseInteger(env.DEXTER_TOOL_MAX_RESULTS, 12),
     recentContextBaseUrl: env.LAST30DAYS_BASE_URL?.trim() || undefined,
     recentContextApiKeyPresent: Boolean(env.LAST30DAYS_API_KEY),
-    forcedFailureTickers: parseTickerSet(env.DEXTER_FORCE_FAIL_TICKERS)
+    forcedFailureTickers: parseTickerSet(env.DEXTER_FORCE_FAIL_TICKERS),
+    llmPricesPath: env.DEXTER_LLM_PRICES_PATH?.trim() || resolve(appRoot, "llm-prices.json"),
+    // Unset = no limit; usage is still measured and logged.
+    maxDeepDiveCostUsd: parseOptionalPositiveNumber(env.DEXTER_MAX_DEEP_DIVE_COST_USD)
   };
 }
 

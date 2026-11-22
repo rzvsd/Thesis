@@ -8423,7 +8423,10 @@ export function startServer(port: number = loadConfig().port): Server {
           }
 
           if (method === "POST" && action === "complete") {
-            const body = await readJsonBody<{ report?: AnalysisReport }>(request);
+            const body = await readJsonBody<{
+              report?: AnalysisReport;
+              llm_usage?: Record<string, unknown>;
+            }>(request);
             if (!body.report) {
               sendJson(response, 422, {
                 error: "validation_failed",
@@ -8481,7 +8484,9 @@ export function startServer(port: number = loadConfig().port): Server {
                 fingerprint: reportFingerprint,
                 freshnessExpiresAt,
                 createdAt: report.generated_at,
-                isCurrent: true
+                isCurrent: true,
+                llmUsage:
+                  body.llm_usage && typeof body.llm_usage === "object" ? body.llm_usage : undefined
               });
               const completed = await runtime.store.markJobComplete(
                 jobId,
