@@ -107,6 +107,8 @@ import type { ProductStore } from "./store";
 import { assertIncomingAnalysisReport } from "./report-validation";
 import { assertIncomingMarketPulseReport } from "./market-pulse-validation";
 import { buildMarketPulseReport } from "./market-pulse";
+import { fetchEnvelope } from "./pulse/fetchers";
+import { headlineItemsFromApprovedNews } from "./pulse/macro-news";
 import { buildMarketPulsePdfExport } from "./market-pulse-render";
 import { buildInstitutionalPdfExport } from "./report-pdf";
 import {
@@ -158,7 +160,10 @@ import type {
   UserRecord
 } from "./types";
 
-type HealthPayload = { status: "ok" };
+type HealthPayload = {
+  status: "ok";
+  modes: { push: "stub" | "fcm"; email: "stub" | "resend"; artifact_store: "filesystem" | "s3" };
+};
 
 const defaultMaxJsonBodyBytes = 1024 * 1024;
 const requestJsonBodyLimitKey = Symbol("requestJsonBodyLimitKey");
@@ -5377,6 +5382,22 @@ async function processMarketPulseJob(
       });
     }
 
+    // M4: approved-source headlines feed the headline digest and macro/geopolitical news pack.
+    const approvedNews = await fetchEnvelope<unknown>(
+      `${runtime.config.marketPulseNewsIngestBaseUrl}/v1/news?date=${encodeURIComponent(asOfDate)}`,
+      { headers: { "x-request-id": running.id } }
+    );
+    const headlineItems = approvedNews.ok ? headlineItemsFromApprovedNews(approvedNews.data) : [];
+    const macroNewsUnavailableReason = approvedNews.ok
+      ? undefined
+      : `Approved headline access was unavailable: ${approvedNews.errorMessage}`;
+    if (macroNewsUnavailableReason) {
+      logWarn("Market Pulse approved headlines unavailable", {
+        job_id: running.id,
+        error: macroNewsUnavailableReason
+      });
+    }
+
     const pulseReport = await buildMarketPulseReport({
       cycleStart,
       cycleEnd,
@@ -5387,7 +5408,10 @@ async function processMarketPulseJob(
       previousReport,
       calendarEvents,
       calendarFetchState,
-      calendarUnavailableReason
+      calendarUnavailableReason,
+      headlineItems,
+      macroNewsFetchState: approvedNews.ok ? "complete" : "data_unavailable",
+      macroNewsUnavailableReason
     });
     const report = assertIncomingMarketPulseReport(pulseReport);
 
@@ -5868,7 +5892,14 @@ export function startServer(port: number = loadConfig().port): Server {
     }
 
     if (method === "GET" && pathname === "/health") {
-      const payload: HealthPayload = { status: "ok" };
+      const payload: HealthPayload = {
+        status: "ok",
+        modes: {
+          push: config.pushProviderMode,
+          email: config.emailProviderMode,
+          artifact_store: config.artifactStoreMode
+        }
+      };
       sendJson(response, 200, payload);
       return;
     }

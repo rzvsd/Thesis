@@ -6,6 +6,7 @@ import type {
 } from "../../../packages/contracts/src";
 
 import type { DexterConfig } from "./config";
+import type { ReviewedFilingSections } from "./filing-intelligence";
 import { logWarn } from "./logging";
 
 interface HistoricalEnvelope<T> {
@@ -33,16 +34,18 @@ export interface HistoricalContextResult {
   latestTranscript?: CanonicalTranscript;
   financials: CanonicalFinancialSnapshot[];
   transcripts: CanonicalTranscript[];
+  filingSections: ReviewedFilingSections[];
   comparableReport?: ComparableDeepDiveSummary;
 }
 
 async function fetchHistoricalEnvelope<T>(
   config: DexterConfig,
   endpoint: string,
-  ticker: string
+  ticker: string,
+  timeoutMs = 1_500
 ): Promise<HistoricalEnvelope<T> | undefined> {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 1_500);
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const response = await fetch(
       `${config.productApiInternalBaseUrl}${endpoint}?ticker=${encodeURIComponent(ticker)}`,
@@ -174,11 +177,12 @@ export async function loadHistoricalContext(
       latestTranscript: undefined,
       financials: [],
       transcripts: [],
+      filingSections: [],
       comparableReport: undefined
     };
   }
 
-  const [financialEnvelope, transcriptEnvelope, comparableReport] = await Promise.all([
+  const [financialEnvelope, transcriptEnvelope, comparableReport, filingSectionsEnvelope] = await Promise.all([
     fetchHistoricalEnvelope<CanonicalFinancialSnapshot>(
       config,
       "/v1/historical/financials",
@@ -189,7 +193,14 @@ export async function loadHistoricalContext(
       "/v1/historical/transcripts",
       ticker
     ),
-    fetchComparableSummary(config, ticker)
+    fetchComparableSummary(config, ticker),
+    // Reviewed SEC filing sections are fetched live from EDGAR, so they get a longer budget.
+    fetchHistoricalEnvelope<ReviewedFilingSections>(
+      config,
+      "/v1/historical/filing-sections",
+      ticker,
+      20_000
+    )
   ]);
 
   const financials = Array.isArray(financialEnvelope?.data)
@@ -249,6 +260,7 @@ export async function loadHistoricalContext(
     latestTranscript: transcript,
     financials,
     transcripts,
+    filingSections: Array.isArray(filingSectionsEnvelope?.data) ? filingSectionsEnvelope.data : [],
     comparableReport
   };
 }

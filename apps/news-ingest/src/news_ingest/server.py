@@ -8,7 +8,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
-from news_ingest.service import SERVICE_NAME, build_first_party_context_response, build_news_response, log
+from news_ingest.service import SERVICE_NAME, Settings, build_first_party_context_response, build_news_response, log
 
 
 DEFAULT_HOST = os.environ.get("HOST", "0.0.0.0")
@@ -31,7 +31,11 @@ def build_http_server(port: int = DEFAULT_PORT, host: str = DEFAULT_HOST) -> Thr
                 self.send_response(HTTPStatus.OK)
                 self.send_header("content-type", "application/json")
                 self.end_headers()
-                self.wfile.write(compact_json({"status": "ok"}))
+                self.wfile.write(
+                    compact_json(
+                        {"status": "ok", "fixture_mode": Settings.from_env(dict(os.environ)).fixture_mode}
+                    )
+                )
                 return
 
             if parsed.path == "/v1/news":

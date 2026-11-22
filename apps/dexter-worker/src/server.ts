@@ -8,7 +8,7 @@ import { buildDexterPulseBrief, type DexterPulseBriefRequest } from "./pulse-bri
 import { startQueueConsumer } from "./queue-consumer";
 import { assertAnalysisRequest, validateAnalysisRequest } from "./schema-validation";
 
-type HealthPayload = { status: "ok" };
+type HealthPayload = { status: "ok"; fixture_mode: boolean };
 
 async function readJsonBody<T = unknown>(request: IncomingMessage): Promise<T> {
   return new Promise((resolve, reject) => {
@@ -65,7 +65,7 @@ export function startServer(port: number = loadConfig().port): Server {
 
   const server = createServer(async (request, response) => {
     if (request.method === "GET" && request.url === "/health") {
-      const payload: HealthPayload = { status: "ok" };
+      const payload: HealthPayload = { status: "ok", fixture_mode: config.fixtureMode };
 
       logInfo("Health check OK");
       sendJson(response, 200, payload);

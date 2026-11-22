@@ -479,6 +479,8 @@ function validateMorningEdition(value: unknown, errors: string[]): void {
       }
       if (item.source_url !== undefined && typeof item.source_url !== "string") {
         errors.push(`morning_edition.headline_digest[${index}].source_url must be a string when provided`);
+      } else if (typeof item.source_url === "string" && !/^https?:\/\//i.test(item.source_url.trim())) {
+        errors.push(`morning_edition.headline_digest[${index}].source_url must be an http(s) URL when provided`);
       }
       if (!Array.isArray(item.evidence)) {
         errors.push(`morning_edition.headline_digest[${index}].evidence must be an array`);

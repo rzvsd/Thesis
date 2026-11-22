@@ -185,6 +185,30 @@ test("financial indicators use true TTM flow metrics when four quarters exist", 
   assert.equal(block.balance_sheet.find((entry) => entry.indicator_id === "interest_coverage")?.value, 21.25);
 });
 
+for (const scenario of [
+  { name: "a missing middle quarter", periods: [[2026, 1], [2025, 4], [2025, 2], [2025, 1]] },
+  { name: "a duplicate quarter", periods: [[2026, 1], [2025, 4], [2025, 4], [2025, 3]] }
+] as const) {
+  test(`financial indicators fall back to annual flow metrics when TTM quarters have ${scenario.name}`, async () => {
+    const quarters = scenario.periods.map(([year, fiscalQuarter]) =>
+      quarter(year, fiscalQuarter, { revenue: 60, gross_profit: 42, operating_income: 25, net_income: 15, eps_diluted: 1.5, ebitda: 28, free_cash_flow: 12, operating_cash_flow: 15 }));
+    const block = await buildFinancialIndicators({
+      ticker: "TEST",
+      generatedAt: "2026-05-01T00:00:00.000Z",
+      latest: quarters[0],
+      financials: [...quarters, ...baseFinancials],
+      spotPrice: 100,
+      fixtureMode: true
+    }, loadConfig({ ...process.env, DEXTER_FIXTURE_MODE: "true" }));
+
+    assert.deepEqual(block.calculation_basis?.ttm_periods, []);
+    assert.equal(block.calculation_basis?.annual_fallback_period, "2025-FY");
+    assert.ok(block.omissions.some((omission) => omission.reason_code === "insufficient_ttm_quarters"));
+    // P/E falls back to annual EPS (5), not the sum of four non-consecutive quarters (6).
+    assert.equal(block.valuation.find((entry) => entry.indicator_id === "pe_ratio")?.value, 20);
+  });
+}
+
 test("financial indicators classify weak cheap companies as value trap risk", async () => {
   const weakFinancials = [
     annual(2025, {

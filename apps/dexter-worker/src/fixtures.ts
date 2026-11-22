@@ -1,3 +1,4 @@
+import type { ReviewedFilingSections } from "./filing-intelligence";
 import type {
   CanonicalFinancialSnapshot,
   CanonicalTranscript,
@@ -633,4 +634,47 @@ export function getFixtureScenario(ticker: string): FixtureScenario {
 
 export function getFixtureHistoricalContext(ticker: string): FixtureHistoricalContext {
   return buildFixtureHistoricalContext(ticker);
+}
+
+// Mirrors data-openbb's fixture /v1/official/filing-sections payload (already extracted excerpts).
+export function fixtureFilingSections(ticker: string): ReviewedFilingSections[] {
+  const sections = (riskLanguage: string): ReviewedFilingSections["sections"] => [
+    {
+      family: "mda",
+      heading: "Item 2. Management's Discussion and Analysis",
+      excerpt: `Item 2. Management's Discussion and Analysis ${ticker} revenue grew in the quarter, led by cloud and services.`,
+      omitted: false
+    },
+    {
+      family: "risk_factors",
+      heading: "Item 1A. Risk Factors",
+      excerpt: `Item 1A. Risk Factors ${riskLanguage}`,
+      omitted: false
+    },
+    {
+      family: "liquidity",
+      heading: "Liquidity and Capital Resources",
+      excerpt: "Liquidity and Capital Resources Cash, cash equivalents and short-term investments remained sufficient for operating needs.",
+      omitted: false
+    },
+    { family: "segments", heading: "segments", excerpt: "", omitted: true, reason: "section_not_found" }
+  ];
+  return [
+    {
+      form: "10-Q",
+      filing_date: "2026-01-28",
+      period: "2025-12-31",
+      accession_number: "fixture-latest",
+      source_url: `fixture://sec-edgar/${ticker}/10-Q/latest`,
+      sections: sections("Risk language now highlights capacity constraints and supply chain pressure.")
+    },
+    {
+      form: "10-Q",
+      filing_date: "2025-10-29",
+      period: "2025-09-30",
+      accession_number: "fixture-prior",
+      source_url: `fixture://sec-edgar/${ticker}/10-Q/prior`,
+      sections: sections("Risk language focused on competition and regulatory review.")
+    }
+  ];
 }

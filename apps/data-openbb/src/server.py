@@ -14,6 +14,7 @@ try:
         DataOpenBBService,
         SERVICE_NAME,
         build_company_response,
+        build_filing_sections_response,
         build_macro_response,
         build_market_tape_response,
         build_official_company_response,
@@ -38,6 +39,7 @@ except ImportError:  # pragma: no cover - supports direct src imports in sibling
         DataOpenBBService,
         SERVICE_NAME,
         build_company_response,
+        build_filing_sections_response,
         build_macro_response,
         build_market_tape_response,
         build_official_company_response,
@@ -81,7 +83,10 @@ class DataOpenbbRequestHandler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
 
         if parsed.path == "/health":
-            payload = health_payload()
+            payload: dict[str, Any] = dict(health_payload())
+            settings = getattr(getattr(self.server, "data_service", None), "settings", None)
+            if settings is not None:
+                payload["fixture_mode"] = settings.fixture_mode
             log("INFO", "Health check OK")
             self._write_json(HTTPStatus.OK, payload)
             return
@@ -109,6 +114,11 @@ class DataOpenbbRequestHandler(BaseHTTPRequestHandler):
                 if parsed.path == "/v1/official/company":
                     ticker = parse_qs(parsed.query).get("ticker", [""])[0]
                     status_code, body = service.get_official_company_truth(ticker, request_id=request_id)
+                    self._write_json(status_code, body, request_id=request_id)
+                    return
+                if parsed.path == "/v1/official/filing-sections":
+                    ticker = parse_qs(parsed.query).get("ticker", [""])[0]
+                    status_code, body = service.get_filing_sections(ticker, request_id=request_id)
                     self._write_json(status_code, body, request_id=request_id)
                     return
                 if parsed.path == "/v1/official/macro":
@@ -155,6 +165,11 @@ class DataOpenbbRequestHandler(BaseHTTPRequestHandler):
                 )
             elif parsed.path == "/v1/official/company":
                 response = build_official_company_response(
+                    ticker=parse_qs(parsed.query).get("ticker", [""])[0],
+                    request_id=request_id,
+                )
+            elif parsed.path == "/v1/official/filing-sections":
+                response = build_filing_sections_response(
                     ticker=parse_qs(parsed.query).get("ticker", [""])[0],
                     request_id=request_id,
                 )
