@@ -8,26 +8,10 @@ import type {
   UserResearchState
 } from "../../../packages/contracts/src";
 import type { DexterConfig } from "./config";
+import { type ClosePricePair, fetchEodPricePairs } from "./eod-prices";
 import { logWarn } from "./logging";
 import { runLiveDexterQuery } from "./live-dexter";
 import { buildPulseEditorialPrompt } from "./pulse-editorial-prompt";
-
-interface YahooChartResponse {
-  chart?: {
-    result?: Array<{
-      indicators?: {
-        quote?: Array<{
-          close?: Array<number | null>;
-        }>;
-      };
-    }>;
-  };
-}
-
-interface ClosePricePair {
-  previousClose?: number;
-  latestClose: number;
-}
 
 export interface DexterPulseBriefRequest {
   report?: MarketPulseReport;
@@ -96,83 +80,6 @@ function uniqueTickers(values: Array<string | undefined>): string[] {
         .filter((value) => /^[A-Z][A-Z0-9.-]{0,9}$/.test(value))
     )
   ];
-}
-
-function latestClosePair(values: Array<number | null> | undefined): ClosePricePair | undefined {
-  if (!values || values.length === 0) {
-    return undefined;
-  }
-  const finite: number[] = [];
-  for (let index = values.length - 1; index >= 0; index -= 1) {
-    const value = values[index];
-    if (typeof value === "number" && Number.isFinite(value)) {
-      finite.push(value);
-      if (finite.length === 2) {
-        break;
-      }
-    }
-  }
-  const [latestClose, previousClose] = finite;
-  if (latestClose === undefined) {
-    return undefined;
-  }
-  return {
-    latestClose,
-    ...(previousClose !== undefined ? { previousClose } : {})
-  };
-}
-
-async function fetchLatestClosePricePair(
-  baseUrl: string,
-  symbol: string
-): Promise<ClosePricePair | undefined> {
-  const url = new URL(
-    `${baseUrl.replace(/\/$/, "")}/v8/finance/chart/${encodeURIComponent(symbol)}`
-  );
-  url.searchParams.set("range", "1mo");
-  url.searchParams.set("interval", "1d");
-  url.searchParams.set("events", "history");
-  url.searchParams.set("includeAdjustedClose", "true");
-
-  const response = await fetch(url.toString());
-  if (!response.ok) {
-    throw new Error(`price request failed for ${symbol}: HTTP ${response.status}`);
-  }
-  const payload = (await response.json()) as YahooChartResponse;
-  return latestClosePair(payload.chart?.result?.[0]?.indicators?.quote?.[0]?.close);
-}
-
-async function fetchLatestClosePricePairs(
-  baseUrl: string,
-  symbols: string[],
-  concurrency = 6
-): Promise<Map<string, ClosePricePair>> {
-  const uniqueSymbols = uniqueTickers(symbols);
-  const maxWorkers = Math.max(1, Math.min(concurrency, uniqueSymbols.length));
-  const results = new Map<string, ClosePricePair>();
-  let cursor = 0;
-
-  async function worker(): Promise<void> {
-    while (cursor < uniqueSymbols.length) {
-      const index = cursor;
-      cursor += 1;
-      const symbol = uniqueSymbols[index];
-      if (!symbol) {
-        continue;
-      }
-      try {
-        const pair = await fetchLatestClosePricePair(baseUrl, symbol);
-        if (pair) {
-          results.set(symbol, pair);
-        }
-      } catch {
-        continue;
-      }
-    }
-  }
-
-  await Promise.all(Array.from({ length: maxWorkers }, () => worker()));
-  return results;
 }
 
 function marketBreadth(report: MarketPulseReport): "higher" | "lower" | "mixed" | "thin" {
@@ -295,7 +202,7 @@ async function buildPortfolioRows(input: {
     return input.report.morning_edition?.portfolio_radar ?? [];
   }
 
-  const prices = await fetchLatestClosePricePairs(input.config.pulsePriceBaseUrl, tickers, 6);
+  const prices = await fetchEodPricePairs(input.config.priceServiceBaseUrl, tickers);
   const rows = tickers
     .map((ticker) => {
       const pair = prices.get(ticker);
@@ -471,7 +378,119 @@ function allowedTickers(report: MarketPulseReport): Set<string> {
   return values;
 }
 
+// LLM copy may only restate facts already in the deterministic report: numbers, dates, and source names.
+interface PulseFactPack {
+  numbers: number[];
+  months: Set<number>;
+  sourceNames: string[];
+}
+
+const monthNames = [
+  "january", "february", "march", "april", "may", "june",
+  "july", "august", "september", "october", "november", "december"
+];
+
+const knownPublisherNames = [
+  "Reuters", "Bloomberg", "Wall Street Journal", "WSJ", "CNBC", "Financial Times", "MarketWatch",
+  "Barron's", "Yahoo", "Associated Press", "Dow Jones Newswires", "Morningstar", "Seeking Alpha", "Polymarket"
+];
+
+const unsupportedCausalityPattern =
+  /\b(because|due to|driven by|as a result of|thanks to|owing to|in response to|on the back of|fueled by|fuelled by|caused|triggered|sparked|led to)\b/i;
+
+function buildPulseFactPack(report: MarketPulseReport): PulseFactPack {
+  const numbers: number[] = [];
+  const months = new Set<number>();
+  const sourceNames: string[] = [];
+  const addNumbersFromText = (text: string) => {
+    for (const match of text.matchAll(/\d{4}-(\d{2})-\d{2}/g)) {
+      months.add(Number(match[1]));
+    }
+    for (const match of text.matchAll(/\d[\d,]*(?:\.\d+)?/g)) {
+      numbers.push(Number(match[0].replace(/,/g, "")));
+    }
+  };
+  const visit = (value: unknown, key: string | undefined) => {
+    if (key && (key === "brief_editorial" || key === "editorial_generation" || key.endsWith("_id"))) {
+      return;
+    }
+    if (typeof value === "number" && Number.isFinite(value)) {
+      numbers.push(Math.abs(value));
+    } else if (typeof value === "string") {
+      if (key === "source_name" && value.trim()) {
+        sourceNames.push(value.trim().toLowerCase());
+      }
+      addNumbersFromText(value);
+    } else if (Array.isArray(value)) {
+      value.forEach((entry) => visit(entry, undefined));
+    } else if (value && typeof value === "object") {
+      for (const [childKey, child] of Object.entries(value)) {
+        visit(child, childKey);
+      }
+    }
+  };
+  visit(report, undefined);
+  const variants = new Set<number>();
+  for (const value of numbers) {
+    variants.add(value);
+    for (const digits of [0, 1, 2]) {
+      variants.add(Number(value.toFixed(digits)));
+    }
+  }
+  return { numbers: [...variants], months, sourceNames };
+}
+
+function containsPhrase(text: string, phrase: string): boolean {
+  const escaped = phrase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`\\b${escaped}\\b`).test(text);
+}
+
+function assertGroundedCopy(key: string, text: string, facts: PulseFactPack): void {
+  if (unsupportedCausalityPattern.test(text)) {
+    throw new Error(`${key} contains unsupported causality`);
+  }
+  for (const match of text.matchAll(/\d[\d,]*(?:\.\d+)?/g)) {
+    const value = Number(match[0].replace(/,/g, ""));
+    if (!facts.numbers.some((fact) => Math.abs(fact - value) < 1e-9)) {
+      throw new Error(`${key} contains a number not in the fact pack: ${match[0]}`);
+    }
+  }
+  const lower = text.toLowerCase();
+  monthNames.forEach((month, index) => {
+    if (containsPhrase(lower, month) && !facts.months.has(index + 1)) {
+      throw new Error(`${key} contains a date not in the fact pack: ${month}`);
+    }
+  });
+  for (const publisher of knownPublisherNames) {
+    const name = publisher.toLowerCase();
+    if (containsPhrase(lower, name)
+      && !facts.sourceNames.some((source) => source.includes(name))) {
+      throw new Error(`${key} cites a source not in the fact pack: ${publisher}`);
+    }
+  }
+}
+
+export function assertPulseCopyGrounded(
+  draft: Partial<MarketPulseBriefEditorial>,
+  report: MarketPulseReport
+): void {
+  const facts = buildPulseFactPack(report);
+  for (const [key, value] of Object.entries(draft)) {
+    if (key !== "mood" && typeof value === "string") {
+      assertGroundedCopy(key, value.replace(/\s+/g, " ").trim(), facts);
+    }
+  }
+}
+
 function validateCopy(
+  draft: Partial<MarketPulseBriefEditorial>,
+  report: MarketPulseReport
+): MarketPulseBriefEditorial {
+  assertPulseCopyGrounded(draft, report);
+  return validateCopyShape(draft, report);
+}
+
+function validateCopyShape(
   draft: Partial<MarketPulseBriefEditorial>,
   report: MarketPulseReport
 ): MarketPulseBriefEditorial {

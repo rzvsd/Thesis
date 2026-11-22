@@ -2,13 +2,14 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { timingSafeEqual } from "node:crypto";
 
 import { loadConfig, validateLiveModeConfig } from "./config";
+import { trackDeepDiveLlmUsage } from "./llm-usage";
 import { logError, logInfo } from "./logging";
 import { runAnalysisPipeline } from "./pipeline";
 import { buildDexterPulseBrief, type DexterPulseBriefRequest } from "./pulse-brief";
 import { startQueueConsumer } from "./queue-consumer";
 import { assertAnalysisRequest, validateAnalysisRequest } from "./schema-validation";
 
-type HealthPayload = { status: "ok" };
+type HealthPayload = { status: "ok"; fixture_mode: boolean };
 
 async function readJsonBody<T = unknown>(request: IncomingMessage): Promise<T> {
   return new Promise((resolve, reject) => {
@@ -65,7 +66,7 @@ export function startServer(port: number = loadConfig().port): Server {
 
   const server = createServer(async (request, response) => {
     if (request.method === "GET" && request.url === "/health") {
-      const payload: HealthPayload = { status: "ok" };
+      const payload: HealthPayload = { status: "ok", fixture_mode: config.fixtureMode };
 
       logInfo("Health check OK");
       sendJson(response, 200, payload);
@@ -86,7 +87,11 @@ export function startServer(port: number = loadConfig().port): Server {
         }
 
         const analysisRequest = assertAnalysisRequest(body);
-        const report = await runAnalysisPipeline(analysisRequest, config);
+        const { result: report } = await trackDeepDiveLlmUsage(
+          config,
+          { job_id: analysisRequest.job_id, ticker: analysisRequest.ticker },
+          () => runAnalysisPipeline(analysisRequest, config)
+        );
         sendJson(response, 200, report);
         return;
       } catch (error) {

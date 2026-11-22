@@ -181,7 +181,7 @@ export interface ProductApiConfig {
   pulseDexterWorkerBaseUrl: string;
   pulseDexterTimeoutMs: number;
   sentimentSchemaVersion: string;
-  sentimentYahooBaseUrl: string;
+  priceServiceBaseUrl: string;
   sentimentFredBaseUrl: string;
   sentimentFredApiKey?: string;
   sentimentBreadthUniverseLimit: number;
@@ -363,8 +363,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ProductApiConf
       "http://dexter-worker:3002",
     pulseDexterTimeoutMs: parseInteger(env.PULSE_DEXTER_TIMEOUT_MS, 6000),
     sentimentSchemaVersion: env.SENTIMENT_SCHEMA_VERSION?.trim() || "1.0.0",
-    sentimentYahooBaseUrl:
-      env.SENTIMENT_YAHOO_BASE_URL?.trim() || "https://query1.finance.yahoo.com",
+    // End-of-day prices are read only through the data service (/v1/market/eod-prices).
+    priceServiceBaseUrl:
+      env.PRICE_SERVICE_BASE_URL?.trim() ||
+      env.MARKET_PULSE_DATA_OPENBB_BASE_URL?.trim() ||
+      "http://data-openbb:3003",
     sentimentFredBaseUrl:
       env.SENTIMENT_FRED_BASE_URL?.trim() || "https://api.stlouisfed.org/fred",
     sentimentFredApiKey: env.SENTIMENT_FRED_API_KEY?.trim() || undefined,

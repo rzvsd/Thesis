@@ -13,22 +13,21 @@ function sendJson(response: ServerResponse, status: number, payload: unknown): v
   response.end(JSON.stringify(payload));
 }
 
-async function startYahooPriceMock(): Promise<{ server: Server; baseUrl: string }> {
+async function startEodPriceMock(): Promise<{ server: Server; baseUrl: string }> {
   const server = createServer((request, response) => {
-    if (!request.url?.startsWith("/v8/finance/chart/")) {
-      sendJson(response, 404, { chart: { result: [] } });
+    const url = new URL(request.url ?? "/", "http://127.0.0.1");
+    if (url.pathname !== "/v1/market/eod-prices") {
+      sendJson(response, 404, { ok: false, data: null, error_flag: true });
       return;
     }
+    const prices = (url.searchParams.get("tickers") ?? "")
+      .split(",")
+      .filter((symbol) => symbol.length > 0)
+      .map((symbol) => ({ ticker: symbol, available: true, close: 100, as_of: "2026-03-20" }));
     sendJson(response, 200, {
-      chart: {
-        result: [
-          {
-            indicators: {
-              quote: [{ close: [100] }]
-            }
-          }
-        ]
-      }
+      ok: true,
+      data: { provider: "test", price_type: "end_of_day", prices },
+      error_flag: false
     });
   });
 
@@ -114,7 +113,7 @@ async function createVerifiedSession(baseUrl: string): Promise<{
 }
 
 test("M2 monitor snapshots persist on deep-dive completion and recompute unresolved followed names", async () => {
-  const yahooMock = await startYahooPriceMock();
+  const priceMock = await startEodPriceMock();
   const previous = {
     STORE_BACKEND: process.env.STORE_BACKEND,
     QUEUE_BACKEND: process.env.QUEUE_BACKEND,
@@ -122,7 +121,7 @@ test("M2 monitor snapshots persist on deep-dive completion and recompute unresol
     JWT_SECRET: process.env.JWT_SECRET,
     INTERNAL_WORKER_TOKEN: process.env.INTERNAL_WORKER_TOKEN,
     SENTRY_DSN: process.env.SENTRY_DSN,
-    SENTIMENT_YAHOO_BASE_URL: process.env.SENTIMENT_YAHOO_BASE_URL,
+    PRICE_SERVICE_BASE_URL: process.env.PRICE_SERVICE_BASE_URL,
     MARKET_PULSE_DATA_OPENBB_BASE_URL: process.env.MARKET_PULSE_DATA_OPENBB_BASE_URL,
     MARKET_PULSE_NEWS_INGEST_BASE_URL: process.env.MARKET_PULSE_NEWS_INGEST_BASE_URL,
     MARKET_PULSE_TICKERS: process.env.MARKET_PULSE_TICKERS,
@@ -138,7 +137,7 @@ test("M2 monitor snapshots persist on deep-dive completion and recompute unresol
   process.env.JWT_SECRET = "dev-jwt-secret-change-me";
   process.env.INTERNAL_WORKER_TOKEN = "dev-internal-worker-token";
   process.env.SENTRY_DSN = "https://public@example.com/1";
-  process.env.SENTIMENT_YAHOO_BASE_URL = yahooMock.baseUrl;
+  process.env.PRICE_SERVICE_BASE_URL = priceMock.baseUrl;
   process.env.MARKET_PULSE_DATA_OPENBB_BASE_URL = "http://127.0.0.1:0";
   process.env.MARKET_PULSE_NEWS_INGEST_BASE_URL = "http://127.0.0.1:0";
   process.env.MARKET_PULSE_TICKERS = "AAPL,MSFT";
@@ -275,14 +274,14 @@ test("M2 monitor snapshots persist on deep-dive completion and recompute unresol
     assert.equal(typeof byTicker.get("MSFT")?.reason, "string");
   } finally {
     await closeServer(server);
-    await closeServer(yahooMock.server);
+    await closeServer(priceMock.server);
     process.env.STORE_BACKEND = previous.STORE_BACKEND;
     process.env.QUEUE_BACKEND = previous.QUEUE_BACKEND;
     process.env.AUTH_EXPOSE_VERIFICATION_TOKEN = previous.AUTH_EXPOSE_VERIFICATION_TOKEN;
     process.env.JWT_SECRET = previous.JWT_SECRET;
     process.env.INTERNAL_WORKER_TOKEN = previous.INTERNAL_WORKER_TOKEN;
     process.env.SENTRY_DSN = previous.SENTRY_DSN;
-    process.env.SENTIMENT_YAHOO_BASE_URL = previous.SENTIMENT_YAHOO_BASE_URL;
+    process.env.PRICE_SERVICE_BASE_URL = previous.PRICE_SERVICE_BASE_URL;
     process.env.MARKET_PULSE_DATA_OPENBB_BASE_URL = previous.MARKET_PULSE_DATA_OPENBB_BASE_URL;
     process.env.MARKET_PULSE_NEWS_INGEST_BASE_URL = previous.MARKET_PULSE_NEWS_INGEST_BASE_URL;
     process.env.MARKET_PULSE_TICKERS = previous.MARKET_PULSE_TICKERS;

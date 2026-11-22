@@ -147,6 +147,8 @@ export interface ReportRecord {
   freshnessExpiresAt?: string;
   createdAt: string;
   isCurrent: boolean;
+  // LLM token usage and estimated cost reported by dexter-worker for this run.
+  llmUsage?: Record<string, unknown>;
 }
 
 export interface AuditEventRecord {

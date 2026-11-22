@@ -7,6 +7,7 @@ import test from "node:test";
 
 import type { MarketPulseReport } from "../../../packages/contracts/src";
 import { supportsMarketPulsePdfExport } from "../src/market-pulse-render";
+import { buildMacroNewsPack } from "../src/pulse/macro-news";
 import { startServer } from "../src/server";
 
 type JsonObject = Record<string, unknown>;
@@ -20,6 +21,7 @@ type OpenbbMockState = {
 
 type NewsMockState = {
   outage: boolean;
+  articles?: Array<Record<string, unknown>>;
 };
 
 type YahooMockState = {
@@ -422,6 +424,12 @@ async function startOpenbbMock(state: OpenbbMockState): Promise<{ server: Server
 async function startNewsMock(state: NewsMockState): Promise<{ server: Server; baseUrl: string }> {
   const server = createServer((request, response) => {
     const url = new URL(request.url ?? "/", "http://127.0.0.1");
+    if (url.pathname === "/v1/news" && request.method === "GET") {
+      sendJson(response, 200, state.outage
+        ? { ok: false, data: [], error_flag: true, error_message: "news outage" }
+        : { ok: true, data: state.articles ?? [], error_flag: false });
+      return;
+    }
     if (url.pathname !== "/v1/first-party/context" || request.method !== "POST") {
       sendJson(response, 404, { status: "not_found" });
       return;
@@ -1014,6 +1022,49 @@ test("market pulse dispatch stores reports, personalizes through research state,
     assert.equal(latestAfterFailure.headers.get("vary"), "Authorization");
     const latestPayload = latestAfterFailure.payload as unknown as MarketPulseReport;
     assert.equal(latestPayload.cycle_end.slice(0, 10), "2026-03-22");
+
+    // M4: approved headlines from news-ingest reach the normal dispatch path and can promote a shock.
+    newsState.articles = [
+      {
+        article_id: "reuters-1",
+        source: "Reuters",
+        url: "https://example.com/reuters/missile-attack",
+        title: "Missile attack near Taiwan Strait rattles markets",
+        published_at: "2026-03-24T06:00:00.000Z",
+        retrieved_at: "2026-03-24T06:05:00.000Z",
+        body_text: "Full article body that must not reach the report.",
+        tickers_mentioned: [],
+        is_approved_source: true
+      },
+      {
+        article_id: "unapproved-1",
+        source: "Random Blog",
+        url: "https://example.com/blog/war",
+        title: "War rumours spread online",
+        published_at: "2026-03-24T05:00:00.000Z",
+        retrieved_at: "2026-03-24T06:05:00.000Z",
+        body_text: "",
+        tickers_mentioned: [],
+        is_approved_source: false
+      }
+    ];
+    const dispatchShock = await requestJson(baseUrl, "/internal/pulse/dispatch", {
+      method: "POST",
+      headers: internalHeaders,
+      body: {
+        cycle_start: "2026-03-24T00:00:00.000Z",
+        cycle_end: "2026-03-24T23:59:00.000Z"
+      }
+    });
+    assert.equal(dispatchShock.status, 202);
+    const shockReport = await waitForPulseReport(baseUrl, session.accessToken, "/pulse/2026-03-24");
+    assert.equal(shockReport.macro_news?.state, "shock");
+    assert.deepEqual(
+      shockReport.macro_news?.items.map((item) => item.source_name),
+      ["Reuters"]
+    );
+    assert.equal(shockReport.macro_news?.items[0]?.confirmation_state, "reported");
+    assert.doesNotMatch(JSON.stringify(shockReport), /must not reach the report/);
   } finally {
     console.error = originalConsoleError;
     if (server) {
@@ -1040,4 +1091,25 @@ test("market pulse dispatch stores reports, personalizes through research state,
   process.env.PULSE_DEXTER_TIMEOUT_MS = previous.PULSE_DEXTER_TIMEOUT_MS;
   process.env.SENTIMENT_YAHOO_BASE_URL = previous.SENTIMENT_YAHOO_BASE_URL;
   process.env.PUSH_PROVIDER_MODE = previous.PUSH_PROVIDER_MODE;
+});
+
+test("macro news does not promote ordinary sector headlines", () => {
+  const pack = buildMacroNewsPack({
+    asOf: "2026-03-24",
+    generatedAt: "2026-03-24T07:00:00.000Z",
+    headlineItems: [
+      {
+        headline: "Technology shares gain after strong chip demand",
+        source_name: "Reuters",
+        topic: "sector",
+        evidence: []
+      }
+    ],
+    macroNewsItems: undefined,
+    macroNewsFetchState: "complete",
+    macroNewsUnavailableReason: undefined
+  });
+
+  assert.equal(pack.items.length, 0);
+  assert.equal(pack.state, "calm");
 });

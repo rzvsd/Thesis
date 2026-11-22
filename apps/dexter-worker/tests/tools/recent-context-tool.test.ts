@@ -59,3 +59,35 @@ test("recent context disabled mode returns omission", async () => {
   assert.equal(result.ok, false);
   assert.equal(result.omissions[0]?.reason_code, "disabled");
 });
+
+test("recent context never uses fixture findings in live mode without a provider", async () => {
+  const result = await runRecentContextTool(
+    input,
+    loadConfig({
+      ...process.env,
+      DEXTER_FIXTURE_MODE: "false",
+      DEXTER_TOOLS_ENABLED: "true",
+      DEXTER_RECENT_CONTEXT_TOOL_ENABLED: "true"
+    })
+  );
+
+  assert.equal(result.ok, false);
+  assert.equal(result.data, undefined);
+  assert.equal(result.evidence.length, 0);
+  assert.equal(result.omissions[0]?.reason_code, "source_unavailable");
+});
+
+test("recent context still uses fixture findings in fixture mode", async () => {
+  const result = await runRecentContextTool(
+    input,
+    loadConfig({
+      ...process.env,
+      DEXTER_FIXTURE_MODE: "true",
+      DEXTER_TOOLS_ENABLED: "true",
+      DEXTER_RECENT_CONTEXT_TOOL_ENABLED: "true"
+    })
+  );
+
+  assert.equal(result.ok, true);
+  assert.ok((result.data?.findings.length ?? 0) > 0);
+});

@@ -58,6 +58,26 @@ function tokenCountFromPayload(provider, payload) {
   return Number(payload?.usage?.total_tokens ?? 0);
 }
 
+// Normalized usage: input_tokens excludes cached reads, so each bucket is priced once.
+function usageFromPayload(provider, payload) {
+  const usage = payload?.usage ?? {};
+  if (provider === "anthropic") {
+    return {
+      input_tokens:
+        Number(usage.input_tokens ?? 0) + Number(usage.cache_creation_input_tokens ?? 0),
+      cached_input_tokens: Number(usage.cache_read_input_tokens ?? 0),
+      output_tokens: Number(usage.output_tokens ?? 0)
+    };
+  }
+
+  const cached = Number(usage.prompt_tokens_details?.cached_tokens ?? 0);
+  return {
+    input_tokens: Math.max(0, Number(usage.prompt_tokens ?? 0) - cached),
+    cached_input_tokens: cached,
+    output_tokens: Number(usage.completion_tokens ?? 0)
+  };
+}
+
 async function postJson(url, headers, body) {
   const response = await fetch(url, {
     method: "POST",
@@ -124,7 +144,8 @@ async function callOpenAiCompatibleProvider(input, provider) {
 
   return {
     answer: extractOpenAiText(payload),
-    token_count: tokenCountFromPayload(provider, payload)
+    token_count: tokenCountFromPayload(provider, payload),
+    usage: usageFromPayload(provider, payload)
   };
 }
 
@@ -152,7 +173,8 @@ async function callAnthropicProvider(input) {
 
   return {
     answer: extractAnthropicText(payload),
-    token_count: tokenCountFromPayload("anthropic", payload)
+    token_count: tokenCountFromPayload("anthropic", payload),
+    usage: usageFromPayload("anthropic", payload)
   };
 }
 
@@ -180,6 +202,7 @@ async function main() {
       answer: result.answer,
       iterations: 1,
       token_count: result.token_count,
+      usage: result.usage,
       tool_calls: []
     })
   );
