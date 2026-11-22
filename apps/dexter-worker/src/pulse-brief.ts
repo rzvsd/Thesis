@@ -8,26 +8,10 @@ import type {
   UserResearchState
 } from "../../../packages/contracts/src";
 import type { DexterConfig } from "./config";
+import { type ClosePricePair, fetchEodPricePairs } from "./eod-prices";
 import { logWarn } from "./logging";
 import { runLiveDexterQuery } from "./live-dexter";
 import { buildPulseEditorialPrompt } from "./pulse-editorial-prompt";
-
-interface YahooChartResponse {
-  chart?: {
-    result?: Array<{
-      indicators?: {
-        quote?: Array<{
-          close?: Array<number | null>;
-        }>;
-      };
-    }>;
-  };
-}
-
-interface ClosePricePair {
-  previousClose?: number;
-  latestClose: number;
-}
 
 export interface DexterPulseBriefRequest {
   report?: MarketPulseReport;
@@ -96,83 +80,6 @@ function uniqueTickers(values: Array<string | undefined>): string[] {
         .filter((value) => /^[A-Z][A-Z0-9.-]{0,9}$/.test(value))
     )
   ];
-}
-
-function latestClosePair(values: Array<number | null> | undefined): ClosePricePair | undefined {
-  if (!values || values.length === 0) {
-    return undefined;
-  }
-  const finite: number[] = [];
-  for (let index = values.length - 1; index >= 0; index -= 1) {
-    const value = values[index];
-    if (typeof value === "number" && Number.isFinite(value)) {
-      finite.push(value);
-      if (finite.length === 2) {
-        break;
-      }
-    }
-  }
-  const [latestClose, previousClose] = finite;
-  if (latestClose === undefined) {
-    return undefined;
-  }
-  return {
-    latestClose,
-    ...(previousClose !== undefined ? { previousClose } : {})
-  };
-}
-
-async function fetchLatestClosePricePair(
-  baseUrl: string,
-  symbol: string
-): Promise<ClosePricePair | undefined> {
-  const url = new URL(
-    `${baseUrl.replace(/\/$/, "")}/v8/finance/chart/${encodeURIComponent(symbol)}`
-  );
-  url.searchParams.set("range", "1mo");
-  url.searchParams.set("interval", "1d");
-  url.searchParams.set("events", "history");
-  url.searchParams.set("includeAdjustedClose", "true");
-
-  const response = await fetch(url.toString());
-  if (!response.ok) {
-    throw new Error(`price request failed for ${symbol}: HTTP ${response.status}`);
-  }
-  const payload = (await response.json()) as YahooChartResponse;
-  return latestClosePair(payload.chart?.result?.[0]?.indicators?.quote?.[0]?.close);
-}
-
-async function fetchLatestClosePricePairs(
-  baseUrl: string,
-  symbols: string[],
-  concurrency = 6
-): Promise<Map<string, ClosePricePair>> {
-  const uniqueSymbols = uniqueTickers(symbols);
-  const maxWorkers = Math.max(1, Math.min(concurrency, uniqueSymbols.length));
-  const results = new Map<string, ClosePricePair>();
-  let cursor = 0;
-
-  async function worker(): Promise<void> {
-    while (cursor < uniqueSymbols.length) {
-      const index = cursor;
-      cursor += 1;
-      const symbol = uniqueSymbols[index];
-      if (!symbol) {
-        continue;
-      }
-      try {
-        const pair = await fetchLatestClosePricePair(baseUrl, symbol);
-        if (pair) {
-          results.set(symbol, pair);
-        }
-      } catch {
-        continue;
-      }
-    }
-  }
-
-  await Promise.all(Array.from({ length: maxWorkers }, () => worker()));
-  return results;
 }
 
 function marketBreadth(report: MarketPulseReport): "higher" | "lower" | "mixed" | "thin" {
@@ -295,7 +202,7 @@ async function buildPortfolioRows(input: {
     return input.report.morning_edition?.portfolio_radar ?? [];
   }
 
-  const prices = await fetchLatestClosePricePairs(input.config.pulsePriceBaseUrl, tickers, 6);
+  const prices = await fetchEodPricePairs(input.config.priceServiceBaseUrl, tickers);
   const rows = tickers
     .map((ticker) => {
       const pair = prices.get(ticker);

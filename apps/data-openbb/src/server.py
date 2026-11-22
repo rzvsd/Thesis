@@ -27,7 +27,10 @@ try:
         not_found_response,
         error_response,
         schema_error_response,
+        success_response,
+        iso_timestamp,
     )
+    from .prices import build_eod_prices_payload, parse_tickers, resolve_price_adapter
     from .validation import SchemaValidationError
 except ImportError:  # pragma: no cover - supports direct src imports in sibling tests
     from service import (
@@ -48,7 +51,10 @@ except ImportError:  # pragma: no cover - supports direct src imports in sibling
         not_found_response,
         error_response,
         schema_error_response,
+        success_response,
+        iso_timestamp,
     )
+    from prices import build_eod_prices_payload, parse_tickers, resolve_price_adapter
     from validation import SchemaValidationError
 
 
@@ -81,6 +87,10 @@ class DataOpenbbRequestHandler(BaseHTTPRequestHandler):
             return
 
         request_id = get_request_id(self.headers.get("x-request-id"))
+
+        if parsed.path == "/v1/market/eod-prices":
+            self._write_eod_prices(parse_qs(parsed.query).get("tickers", [""])[0], request_id)
+            return
 
         try:
             service = getattr(self.server, "data_service", None)
@@ -302,6 +312,36 @@ class DataOpenbbRequestHandler(BaseHTTPRequestHandler):
 
     def do_DELETE(self) -> None:  # noqa: N802
         self.do_POST()
+
+    def _write_eod_prices(self, raw_tickers: str, request_id: str) -> None:
+        try:
+            tickers = parse_tickers(raw_tickers)
+        except ValueError as error:
+            response = error_response(status_code=422, request_id=request_id, message=str(error))
+            self._write_json(response.status_code, response.body, request_id=request_id)
+            return
+        try:
+            adapter = resolve_price_adapter()
+            payload, provider_error = build_eod_prices_payload(tickers, adapter)
+        except Exception as error:
+            response = internal_error_response(request_id, error)
+            self._write_json(response.status_code, response.body, request_id=request_id)
+            return
+        if provider_error is not None:
+            log(
+                "WARN",
+                "EOD price provider failed; prices reported unavailable",
+                request_id=request_id,
+                provider=adapter.name,
+                error_message=provider_error,
+            )
+        body = success_response(
+            request_id=request_id,
+            data=payload,
+            provider=adapter.name,
+            retrieved_at=iso_timestamp(),
+        )
+        self._write_json(HTTPStatus.OK, body, request_id=request_id)
 
     def log_message(self, format: str, *args: Any) -> None:  # noqa: A003
         return

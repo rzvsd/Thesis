@@ -33,6 +33,7 @@ import {
 import { type DexterConfig, validateLiveModeConfig } from "./config";
 import { buildComparisons } from "./comparisons";
 import { computeDeterministicDcf } from "./dcf";
+import { fetchEodPricePairs } from "./eod-prices";
 import {
   getFixtureHistoricalContext,
   getFixtureScenario,
@@ -1584,6 +1585,10 @@ async function resolveM2SectionContext(
   }
 
   const loaded = await loadHistoricalContext(request, config);
+  const ticker = request.ticker?.trim().toUpperCase();
+  const spotPrice = ticker
+    ? (await fetchEodPricePairs(config.priceServiceBaseUrl, [ticker])).get(ticker)?.latestClose
+    : undefined;
   return {
     latest: loaded.latest,
     priorQuarter: loaded.priorQuarter,
@@ -1592,6 +1597,7 @@ async function resolveM2SectionContext(
     financials: loaded.financials,
     transcripts: loaded.transcripts,
     comparableReport: loaded.comparableReport,
+    spotPrice,
     context: loaded.context
   };
 }
