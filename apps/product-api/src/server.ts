@@ -124,6 +124,7 @@ import { isUsTradingDay, isValidMarketDate } from "./sentiment";
 import { fetchLatestClosePrice, fetchLatestClosePrices } from "./market-prices";
 import { verifyGoogleIdToken } from "./google-oidc";
 import { handleAuthRoutes } from "./routes/auth-routes";
+import { handleCoverageRoutes } from "./routes/coverage-routes";
 import { handleNotificationRoutes } from "./routes/notification-routes";
 import { handlePulseRoutes } from "./routes/pulse-routes";
 import { handlePublicRoutes } from "./routes/public-routes";
@@ -5957,6 +5958,20 @@ export function startServer(port: number = loadConfig().port): Server {
         return;
       }
 
+      if (
+        await handleCoverageRoutes(
+          { method, pathname, request, response, runtime, url },
+          {
+            hasInternalToken,
+            sendJson,
+            deepDiveFingerprint: (ticker, latestPeriod) =>
+              deepDiveFingerprint({ ticker, schemaVersion: "2.0", latestPeriod })
+          }
+        )
+      ) {
+        return;
+      }
+
       if (pathname.startsWith("/internal/")) {
         if (!hasInternalToken(request, runtime.config.internalWorkerToken)) {
           sendJson(response, 401, {
@@ -8437,8 +8452,12 @@ export function startServer(port: number = loadConfig().port): Server {
                     latestPeriod: report.historical_context?.latest_period
                   })
                   : undefined;
+              // Jobs without a user are scheduled pre-computes: they stay reusable until the next filing.
+              const freshnessHours = (await runtime.store.getJob(jobId))?.userId
+                ? runtime.config.deepDiveReuseFreshnessHours
+                : runtime.config.deepDivePrecomputeFreshnessHours;
               const freshnessExpiresAt = reportFingerprint
-                ? addHours(new Date().toISOString(), runtime.config.deepDiveReuseFreshnessHours)
+                ? addHours(new Date().toISOString(), freshnessHours)
                 : undefined;
 
               artifactKey = await runtime.artifactStore.writeReport(report);

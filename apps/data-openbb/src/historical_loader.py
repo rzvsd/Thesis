@@ -12,7 +12,7 @@ import zipfile
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Iterable, Mapping
 
 
 def _fintech_repo_root() -> Path:
@@ -100,7 +100,7 @@ class HistoricalLoadConfig:
             hf_revision=values.get("M0_HF_REVISION", "f3ded372da8d18dc6ad98955c4558e34b5fe6d45").strip(),
             transcript_min_year=int(values.get("M0_TRANSCRIPT_MIN_YEAR", "2019")),
             expected_hf_rows=int(values.get("M0_EXPECTED_HF_ROWS", "33362")),
-            universe_csv_path=repo_root / "data" / "sp500_universe.csv",
+            universe_csv_path=coverage_universe_path(values),
             xbrl_mapping_path=repo_root / "data" / "xbrl_concept_map.json",
             validation_output_path=repo_root / "data" / "artifacts" / "m0_validation_report.json",
         )
@@ -150,6 +150,21 @@ def load_universe(path: Path) -> list[UniverseTicker]:
             tickers.append(UniverseTicker(ticker=ticker, cik=cik, company_name=company_name, tier=tier))
 
     return tickers
+
+
+def coverage_universe_path(env: Mapping[str, str] | None = None) -> Path:
+    """Universe CSV for covered companies. Defaults to the S&P 500 file."""
+    values = os.environ if env is None else env
+    override = str(values.get("COVERAGE_UNIVERSE_CSV", "")).strip()
+    return Path(override) if override else _fintech_repo_root() / "data" / "sp500_universe.csv"
+
+
+def load_coverage_universe(env: Mapping[str, str] | None = None) -> list[UniverseTicker]:
+    """Covered companies: the universe CSV, narrowed by COVERAGE_TICKERS (comma list) for dev and tests."""
+    values = os.environ if env is None else env
+    universe = load_universe(coverage_universe_path(values))
+    only = {normalize_ticker(item) for item in str(values.get("COVERAGE_TICKERS", "")).split(",") if item.strip()}
+    return [row for row in universe if row.ticker in only] if only else universe
 
 
 def load_xbrl_concept_map(path: Path) -> dict[str, Any]:

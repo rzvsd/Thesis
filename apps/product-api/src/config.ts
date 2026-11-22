@@ -186,6 +186,9 @@ export interface ProductApiConfig {
   sentimentBreadthConcurrency: number;
   sentimentMinimumAvailableInputs: number;
   deepDiveReuseFreshnessHours: number;
+  deepDivePrecomputeFreshnessHours: number;
+  deepDivePrecomputeBatchSize: number;
+  deepDivePrecomputeMaxInFlight: number;
   subscriptionTimezone: string;
   revenuecatApiBaseUrl: string;
   revenuecatPublicAndroidKey?: string;
@@ -366,6 +369,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ProductApiConf
     sentimentBreadthConcurrency: parseInteger(env.SENTIMENT_BREADTH_CONCURRENCY, 8),
     sentimentMinimumAvailableInputs: parseInteger(env.SENTIMENT_MIN_AVAILABLE_INPUTS, 3),
     deepDiveReuseFreshnessHours: parseInteger(env.DEEP_DIVE_REUSE_FRESHNESS_HOURS, 24),
+    // Pre-computed Deep Dives stay valid until the next filing changes the fingerprint (cap: ~1 quarter).
+    deepDivePrecomputeFreshnessHours: parseInteger(env.DEEP_DIVE_PRECOMPUTE_FRESHNESS_HOURS, 2160),
+    // LLM budget is not decided yet: generate few reports per run; 0 disables pre-compute.
+    deepDivePrecomputeBatchSize: parseInteger(env.DEEP_DIVE_PRECOMPUTE_BATCH_SIZE, 10),
+    deepDivePrecomputeMaxInFlight: parseInteger(env.DEEP_DIVE_PRECOMPUTE_MAX_IN_FLIGHT, 2),
     subscriptionTimezone: env.SUBSCRIPTION_TIMEZONE?.trim() || "America/New_York",
     revenuecatApiBaseUrl: env.REVENUECAT_API_BASE_URL?.trim() || "https://api.revenuecat.com/v1",
     revenuecatPublicAndroidKey: env.REVENUECAT_PUBLIC_ANDROID_KEY?.trim() || undefined,
@@ -595,6 +603,14 @@ export function validateConfig(config: ProductApiConfig): string[] {
 
   if (config.deepDiveReuseFreshnessHours <= 0) {
     errors.push("DEEP_DIVE_REUSE_FRESHNESS_HOURS must be greater than 0");
+  }
+
+  if (config.deepDivePrecomputeFreshnessHours <= 0) {
+    errors.push("DEEP_DIVE_PRECOMPUTE_FRESHNESS_HOURS must be greater than 0");
+  }
+
+  if (config.deepDivePrecomputeBatchSize < 0 || config.deepDivePrecomputeMaxInFlight < 0) {
+    errors.push("DEEP_DIVE_PRECOMPUTE_BATCH_SIZE and DEEP_DIVE_PRECOMPUTE_MAX_IN_FLIGHT must be 0 or greater");
   }
 
   if (config.subscriptionTimezone.trim().length === 0) {
