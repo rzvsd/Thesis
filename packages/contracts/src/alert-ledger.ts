@@ -91,6 +91,8 @@ export interface AlertLedgerItem {
   body: string;
   // Full "what changed" text. title + body are the headline-only version (safe for every tier).
   detail_body?: string;
+  // Free tier: detail_body exists but is withheld; the app shows the Pro upgrade hint.
+  detail_locked?: boolean;
   reason_code: string;
   reason_text: string;
   delivery_state: "sent" | "partial_failure";
@@ -223,6 +225,7 @@ export const alertLedgerItemSchema = {
     title: { type: "string", minLength: 1 },
     body: { type: "string", minLength: 1 },
     detail_body: { type: "string", minLength: 1 },
+    detail_locked: { type: "boolean" },
     reason_code: { type: "string", minLength: 1 },
     reason_text: { type: "string", minLength: 1 },
     delivery_state: { type: "string", enum: ["sent", "partial_failure"] },

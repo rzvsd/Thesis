@@ -30,7 +30,6 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AssistChip
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
@@ -95,6 +94,7 @@ import com.thesis.mobile.ui.screens.InboxScreen
 import com.thesis.mobile.ui.screens.MonthlyCoherenceSection
 import com.thesis.mobile.ui.screens.NamesScreen
 import com.thesis.mobile.ui.screens.OnboardingScreen
+import com.thesis.mobile.ui.screens.PaywallScreen
 import com.thesis.mobile.ui.screens.PulseScreen
 import com.thesis.mobile.ui.screens.ScenarioStressScreen
 import com.thesis.mobile.ui.screens.MacroStressDashboardScreen
@@ -603,6 +603,7 @@ fun ThesisApp(
                         inboxError = uiState.inboxError,
                         onRefresh = mainViewModel::refreshAlertLedger,
                         onOpenAlert = openAlertTarget,
+                        onUnlockDetail = { mainViewModel.requestFeatureUpgrade("filing_change_detail") },
                         onSubmitFeedback = mainViewModel::submitAlertFeedback,
                         onQuietAlertType = mainViewModel::muteAlert,
                         onDisableAlertType = { type ->
@@ -640,19 +641,19 @@ fun ThesisApp(
 
         if (!uiState.paywallFeature.isNullOrBlank()) {
             val activity = (LocalContext.current as? Activity)
-            UpgradeRequiredDialog(
-                feature = uiState.paywallFeature,
-                onDismiss = mainViewModel::dismissPaywall,
-                subscriptionOffers = uiState.subscriptionOffers,
-                subscriptionActionInFlight = uiState.subscriptionActionInFlight,
-                onSyncTier = { mainViewModel.syncTierFromServer() },
-                onStartPurchase = { preferredType ->
+            PaywallScreen(
+                alerts = uiState.alertLedger,
+                watchlist = uiState.watchlist,
+                offers = uiState.subscriptionOffers,
+                actionInFlight = uiState.subscriptionActionInFlight,
+                onPurchase = { preferredType ->
                     if (activity != null) {
                         mainViewModel.startPurchase(activity, preferredType)
                     }
                 },
-                onRestorePurchases = mainViewModel::restorePurchases,
-                onRefreshOffers = mainViewModel::refreshSubscriptionOffers
+                onRestore = mainViewModel::restorePurchases,
+                onRefreshOffers = mainViewModel::refreshSubscriptionOffers,
+                onDismiss = mainViewModel::dismissPaywall
             )
         }
     }
@@ -1495,86 +1496,6 @@ private fun AuthBenefitRow(
 }
 
 @Composable
-private fun UpgradeRequiredDialog(
-    feature: String?,
-    subscriptionOffers: List<com.thesis.mobile.model.SubscriptionOfferView>,
-    subscriptionActionInFlight: Boolean,
-    onDismiss: () -> Unit,
-    onSyncTier: () -> Unit,
-    onStartPurchase: (String?) -> Unit,
-    onRestorePurchases: () -> Unit,
-    onRefreshOffers: () -> Unit
-) {
-    val normalizedFeature = feature?.replace("_", " ") ?: "premium feature"
-    AlertDialog(
-        containerColor = ThesisColors.Surface,
-        titleContentColor = ThesisColors.TextPrimary,
-        textContentColor = ThesisColors.TextSecondary,
-        onDismissRequest = onDismiss,
-        title = {
-            Text(
-                text = "Upgrade to Pro",
-                style = ThesisTypography.headlineLarge.copy(
-                    fontFamily = HeadingFont,
-                    fontWeight = FontWeight.Normal
-                )
-            )
-        },
-        text = {
-            Text(
-                "$normalizedFeature requires Pro. If you already upgraded, tap refresh below.",
-                style = ThesisTypography.bodyMedium
-            )
-        },
-        confirmButton = {
-            Column(verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingXs)) {
-                Button(
-                    onClick = { onStartPurchase("MONTHLY") },
-                    enabled = subscriptionOffers.any { it.packageType == "MONTHLY" } && !subscriptionActionInFlight,
-                    shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
-                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(
-                        containerColor = ThesisColors.Primary,
-                        contentColor = ThesisColors.TextInverse
-                    )
-                ) {
-                    Text("Monthly")
-                }
-                Button(
-                    onClick = { onStartPurchase("YEARLY") },
-                    enabled = subscriptionOffers.any { it.packageType == "ANNUAL" } && !subscriptionActionInFlight,
-                    shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
-                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(
-                        containerColor = ThesisColors.Primary,
-                        contentColor = ThesisColors.TextInverse
-                    )
-                ) {
-                    Text("Yearly")
-                }
-                TextButton(
-                    onClick = onRestorePurchases,
-                    enabled = !subscriptionActionInFlight
-                ) {
-                    Text("Restore", color = ThesisColors.Primary)
-                }
-            }
-        },
-        dismissButton = {
-            Column(verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingXs)) {
-                TextButton(onClick = onRefreshOffers) {
-                    Text("Refresh offers", color = ThesisColors.TextMuted)
-                }
-                TextButton(onClick = onSyncTier) {
-                    Text("I upgraded", color = ThesisColors.Primary)
-                }
-                TextButton(onClick = onDismiss) {
-                    Text("Not now", color = ThesisColors.TextMuted)
-                }
-            }
-        }
-    )
-}
-
-@Composable
 private fun PulseTab(
     padding: PaddingValues,
     pulse: PulseReportView?,
@@ -1770,7 +1691,7 @@ private fun WatchlistTab(
             )
             Spacer(modifier = Modifier.height(ThesisDimens.SpacingSm))
             Text(
-                text = "Track up to 20 companies across Thesis.",
+                text = "Follow 3 companies free, up to 50 with Pro.",
                 style = ThesisTypography.bodyMedium,
                 color = ThesisColors.TextMuted
             )
@@ -2129,7 +2050,7 @@ private fun SettingsTab(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text("Names limit", style = ThesisTypography.bodyMedium, color = ThesisColors.TextPrimary)
-                    Text("${profile?.watchlistLimit ?: 5}", style = ThesisTypography.bodySmall, color = ThesisColors.TextMuted)
+                    Text("${profile?.watchlistLimit ?: 3}", style = ThesisTypography.bodySmall, color = ThesisColors.TextMuted)
                 }
                 if (!profile?.billingPeriodEnd.isNullOrBlank()) {
                     Row(

@@ -668,7 +668,10 @@ function alertLedgerContextFromData(data: Record<string, string> | undefined): R
   };
 }
 
-function toAlertLedgerView(record: AlertLedgerRecord) {
+// The full "what changed" text (detail_body) is a Pro feature; Free gets the headline and
+// detail_locked = true so the app can show the upgrade hint.
+function toAlertLedgerView(record: AlertLedgerRecord, tier: SubscriptionTier) {
+  const detailLocked = Boolean(record.detailBody) && tier !== "PRO";
   return {
     id: record.id,
     user_id: record.userId,
@@ -677,7 +680,8 @@ function toAlertLedgerView(record: AlertLedgerRecord) {
     route: record.route,
     title: record.title,
     body: record.body,
-    detail_body: record.detailBody,
+    detail_body: detailLocked ? undefined : record.detailBody,
+    ...(detailLocked ? { detail_locked: true } : {}),
     reason_code: record.reasonCode,
     reason_text: record.reasonText,
     delivery_state: record.deliveryState,
@@ -1548,10 +1552,13 @@ function addHours(iso: string, hours: number): string {
   return new Date(Date.parse(iso) + hours * 60 * 60 * 1000).toISOString();
 }
 
+// Sell monitoring, give away reading: followed names are the paid lever.
 function watchlistLimitForTier(tier: SubscriptionTier): number {
-  return tier === "PRO" ? 20 : 5;
+  return tier === "PRO" ? 50 : 3;
 }
 
+// Limit for on-demand Deep Dive generation only. Reading a pre-computed (reusable) report,
+// such as a covered S&P 500 name, never counts. -1 = no limit.
 function dailyDeepDiveLimitForTier(tier: SubscriptionTier): number {
   return tier === "PRO" ? -1 : 1;
 }
@@ -8971,8 +8978,9 @@ export function startServer(port: number = loadConfig().port): Server {
           limit: filter.limit ?? 50
         }, auth.userId);
 
+        const alertTier = (await runtime.store.getUserSubscription(auth.userId)).tier;
         sendJson(response, 200, {
-          data: rows.map((row) => toAlertLedgerView(row))
+          data: rows.map((row) => toAlertLedgerView(row, alertTier))
         });
         return;
       }
@@ -8988,6 +8996,7 @@ export function startServer(port: number = loadConfig().port): Server {
           sendJson(response, 404, { status: "not_found" });
           return;
         }
+        const alertTier = (await runtime.store.getUserSubscription(auth.userId)).tier;
 
         if (method === "GET" && userAlertParts.length === 4) {
           const record = await runtime.store.getAlertLedgerItem({
@@ -9010,7 +9019,7 @@ export function startServer(port: number = loadConfig().port): Server {
           }, auth.userId);
 
           sendJson(response, 200, {
-            data: toAlertLedgerView(record)
+            data: toAlertLedgerView(record, alertTier)
           });
           return;
         }
@@ -9050,7 +9059,7 @@ export function startServer(port: number = loadConfig().port): Server {
           await recordConvictionJournalEntryFromAlertFeedback(runtime, updated, feedback);
 
           sendJson(response, 200, {
-            data: toAlertLedgerView(updated)
+            data: toAlertLedgerView(updated, alertTier)
           });
           return;
         }
@@ -9102,7 +9111,7 @@ export function startServer(port: number = loadConfig().port): Server {
           }, auth.userId);
 
           sendJson(response, 200, {
-            data: toAlertLedgerView(updated)
+            data: toAlertLedgerView(updated, alertTier)
           });
           return;
         }
@@ -9676,6 +9685,14 @@ export function startServer(port: number = loadConfig().port): Server {
           });
           return;
         }
+        if ((await runtime.store.getUserSubscription(auth.userId)).tier !== "PRO") {
+          sendJson(
+            response,
+            403,
+            buildUpgradeRequiredPayload("earnings_war_room", "Earnings War Room is available on the Pro tier.")
+          );
+          return;
+        }
 
         const warRoom = await getWarRoomById(runtime, {
           warRoomId,
@@ -9981,25 +9998,6 @@ export function startServer(port: number = loadConfig().port): Server {
         const deepDiveLimit = dailyDeepDiveLimitForTier(subscription.tier);
         const usageDate = dateInTimeZone(new Date(), runtime.config.subscriptionTimezone);
         let usageReserved = false;
-        if (deepDiveLimit > 0) {
-          const reservation = await runtime.store.reserveDailyDeepDiveUsage(
-            auth.userId,
-            usageDate,
-            deepDiveLimit
-          );
-          if (!reservation.allowed) {
-            sendJson(
-              response,
-              403,
-              buildUpgradeRequiredPayload(
-                "deep_dive_daily_limit",
-                `Daily Deep Dive limit reached for ${subscription.tier} tier (${deepDiveLimit}/day).`
-              )
-            );
-            return;
-          }
-          usageReserved = true;
-        }
 
         const nowIso = new Date().toISOString();
         const coverage = await runtime.store.getTickerCoverageByTicker(ticker);
@@ -10164,6 +10162,27 @@ export function startServer(port: number = loadConfig().port): Server {
             });
             return;
           }
+        }
+
+        // Only on-demand generation counts against the daily limit; a reused report is free to read.
+        if (deepDiveLimit > 0) {
+          const reservation = await runtime.store.reserveDailyDeepDiveUsage(
+            auth.userId,
+            usageDate,
+            deepDiveLimit
+          );
+          if (!reservation.allowed) {
+            sendJson(
+              response,
+              403,
+              buildUpgradeRequiredPayload(
+                "deep_dive_daily_limit",
+                `Daily Deep Dive limit reached for ${subscription.tier} tier (${deepDiveLimit}/day).`
+              )
+            );
+            return;
+          }
+          usageReserved = true;
         }
 
         const createdAt = nowIso;
@@ -10352,6 +10371,15 @@ export function startServer(port: number = loadConfig().port): Server {
               error: "report_not_found",
               error_message: "Report not found."
             });
+            return;
+          }
+
+          if ((await runtime.store.getUserSubscription(auth.userId)).tier !== "PRO") {
+            sendJson(
+              response,
+              403,
+              buildUpgradeRequiredPayload("report_export", "PDF export is available on the Pro tier.")
+            );
             return;
           }
 
