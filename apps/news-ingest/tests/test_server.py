@@ -24,8 +24,7 @@ class ServerEndpointTests(unittest.TestCase):
             server.server_close()
             thread.join(timeout=5)
 
-        self.assertEqual(payload, '{"status":"ok"}')
-        self.assertEqual(json.loads(payload), {"status": "ok"})
+        self.assertEqual(json.loads(payload), {"status": "ok", "fixture_mode": True})
 
     def test_first_party_context_endpoint_rejects_unknown_domain(self) -> None:
         server = build_http_server(port=0, host="127.0.0.1")

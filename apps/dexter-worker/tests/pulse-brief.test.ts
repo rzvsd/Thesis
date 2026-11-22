@@ -6,7 +6,7 @@ import test from "node:test";
 
 import type { MarketPulseReport, UserResearchState } from "../../../packages/contracts/src";
 import { loadConfig } from "../src/config";
-import { buildDexterPulseBrief } from "../src/pulse-brief";
+import { assertPulseCopyGrounded, buildDexterPulseBrief } from "../src/pulse-brief";
 
 function sendJson(response: ServerResponse, status: number, payload: unknown): void {
   response.writeHead(status, { "content-type": "application/json" });
@@ -15,24 +15,18 @@ function sendJson(response: ServerResponse, status: number, payload: unknown): v
 
 async function startPriceMock(): Promise<{ server: Server; baseUrl: string }> {
   const server = createServer((request, response) => {
-    if (!request.url?.startsWith("/v8/finance/chart/AAPL")) {
+    if (!request.url?.startsWith("/v1/market/eod-prices?tickers=AAPL")) {
       sendJson(response, 404, { status: "not_found" });
       return;
     }
     sendJson(response, 200, {
-      chart: {
-        result: [
-          {
-            indicators: {
-              quote: [
-                {
-                  close: [171.5, null, 174.2]
-                }
-              ]
-            }
-          }
-        ]
-      }
+      ok: true,
+      data: {
+        provider: "test",
+        price_type: "end_of_day",
+        prices: [{ ticker: "AAPL", available: true, close: 174.2, previous_close: 171.5, as_of: "2026-03-20" }]
+      },
+      error_flag: false
     });
   });
   server.listen(0);
@@ -155,7 +149,7 @@ test("Dexter Pulse brief adds price-backed portfolio rows and bounded copy", asy
   try {
     const config = loadConfig({
       DEXTER_FIXTURE_MODE: "true",
-      DEXTER_PULSE_PRICE_BASE_URL: priceMock.baseUrl
+      PRICE_SERVICE_BASE_URL: priceMock.baseUrl
     });
     const result = await buildDexterPulseBrief(
       {
@@ -181,5 +175,58 @@ test("Dexter Pulse brief adds price-backed portfolio rows and bounded copy", asy
     assert.match(result.report.brief_editorial?.smart_comment ?? "", /cleaner tape|market day/i);
   } finally {
     await closeServer(priceMock.server);
+  }
+});
+
+test("Dexter Pulse brief does not fetch prices from Yahoo by default", async () => {
+  const config = loadConfig({
+    DEXTER_FIXTURE_MODE: "true",
+    SENTIMENT_YAHOO_BASE_URL: "https://query1.finance.yahoo.com"
+  });
+  assert.doesNotMatch(config.priceServiceBaseUrl, /yahoo/i);
+
+  const originalFetch = globalThis.fetch;
+  const fetched: string[] = [];
+  globalThis.fetch = (async (url: string | URL | Request) => {
+    fetched.push(String(url));
+    throw new Error("unexpected network call");
+  }) as typeof fetch;
+  try {
+    const report = reportFixture();
+    const result = await buildDexterPulseBrief(
+      {
+        report,
+        user_id: "user-1",
+        as_of: "2026-03-21",
+        user_research_state: userStateFixture(),
+        tickers: ["AAPL"]
+      },
+      config,
+      "2026-03-21T08:15:00.000Z"
+    );
+
+    assert.deepEqual(fetched.filter((url) => /yahoo/i.test(url)), []);
+    assert.deepEqual(
+      result.report.morning_edition?.portfolio_radar ?? [],
+      report.morning_edition?.portfolio_radar ?? []
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("LLM Pulse copy is accepted only when grounded in the report facts", () => {
+  const report = reportFixture();
+  const grounded = "The S&P 500 rose 2.51% to 5,287.76 on March 21, a firmer session that still needs confirmation from the rest of the tape.";
+  assert.doesNotThrow(() => assertPulseCopyGrounded({ the_read: grounded, mood: "calm" }, report));
+
+  const rejected: Array<[string, RegExp]> = [
+    ["The S&P 500 rose 3.4% on March 21, a firmer session that still needs confirmation from the rest of the tape.", /number not in the fact pack/],
+    ["Reuters says the S&P 500 rose 2.51% on March 21, a firmer session that still needs confirmation from the tape.", /source not in the fact pack/],
+    ["The S&P 500 rose 2.51% on April 21, a firmer session that still needs confirmation from the rest of the tape.", /date not in the fact pack/],
+    ["The S&P 500 rose 2.51% on March 21, driven by cooler inflation data that still needs confirmation from the tape.", /unsupported causality/]
+  ];
+  for (const [text, error] of rejected) {
+    assert.throws(() => assertPulseCopyGrounded({ the_read: text }, report), error);
   }
 });

@@ -313,12 +313,22 @@ function renderHeadline(item: PulseBriefHeadline): string {
   const source = `${item.sourceName}${item.publishedAt ? ` - ${formatDate(item.publishedAt)}` : ""}`;
   return [
     "<div class=\"headline-row\">",
-    item.sourceUrl
+    item.sourceUrl && isHttpUrl(item.sourceUrl)
       ? `<a href="${escapeHtml(item.sourceUrl)}">${escapeHtml(item.headline)}</a>`
       : `<strong>${escapeHtml(item.headline)}</strong>`,
     `<span>${escapeHtml(source)}</span>`,
     "</div>"
   ].join("");
+}
+
+// Only http(s) URLs become links. HTML escaping does not neutralize schemes such as javascript:.
+function isHttpUrl(value: string): boolean {
+  try {
+    const { protocol } = new URL(value);
+    return protocol === "http:" || protocol === "https:";
+  } catch {
+    return false;
+  }
 }
 
 function renderSmartComment(copy: PulseBriefCopy): string {

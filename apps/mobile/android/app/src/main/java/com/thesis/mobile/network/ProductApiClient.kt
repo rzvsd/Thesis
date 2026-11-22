@@ -801,6 +801,8 @@ class ProductApiClient {
             route = row.optString("route").ifBlank { "inbox" },
             title = row.optString("title").ifBlank { notificationType },
             body = row.optString("body").ifBlank { "" },
+            detailBody = row.optNullableString("detail_body"),
+            detailLocked = row.optBoolean("detail_locked", false),
             reasonCode = row.optString("reason_code").ifBlank { "unknown" },
             reasonText = row.optString("reason_text").ifBlank { "" },
             deliveryState = row.optString("delivery_state").ifBlank { "sent" },
@@ -1227,7 +1229,7 @@ class ProductApiClient {
             email = data.optString("email"),
             tier = data.optString("tier", "FREE"),
             billingPeriodEnd = data.optNullableString("billing_period_end"),
-            watchlistLimit = data.optInt("watchlist_limit", 5),
+            watchlistLimit = data.optInt("watchlist_limit", 3),
             dailyDeepDiveLimit = data.optInt("daily_deep_dive_limit", 1),
             deepDivesRemainingToday = data.optInt("deep_dives_remaining_today", 0)
         )

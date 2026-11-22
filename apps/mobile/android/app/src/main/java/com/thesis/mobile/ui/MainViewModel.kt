@@ -1076,15 +1076,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
             val offers = runCatching {
                 val offerings = RevenueCatBilling.getOfferings()
-                val monthly = RevenueCatBilling.pickPreferredPackage(offerings, PackageType.MONTHLY)
-                val annual = RevenueCatBilling.pickPreferredPackage(offerings, PackageType.ANNUAL)
-                listOfNotNull(monthly, annual)
-                    .distinctBy { it.identifier }
-                    .map { pack ->
+                // packageType is the paywall slot (MONTHLY / ANNUAL), also when a configured product ID
+                // matched a custom package.
+                listOf(PackageType.MONTHLY, PackageType.ANNUAL)
+                    .mapNotNull { slot ->
+                        RevenueCatBilling.pickPreferredPackage(offerings, slot)?.let { slot to it }
+                    }
+                    .distinctBy { (_, pack) -> pack.identifier }
+                    .map { (slot, pack) ->
                         SubscriptionOfferView(
-                            packageType = pack.packageType.name,
+                            packageType = slot.name,
                             identifier = pack.identifier,
-                            title = pack.product.title.ifBlank { pack.identifier }
+                            title = pack.product.title.ifBlank { pack.identifier },
+                            price = pack.product.price.formatted
                         )
                     }
             }.getOrElse {
@@ -1417,6 +1421,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         message = message
                     )
                 )
+                val upgrade = (error as? ProductApiException)
+                    ?.takeIf { it.code == 403 && it.errorCode == "upgrade_required" }
+                if (upgrade != null) {
+                    requestFeatureUpgrade(upgrade.feature ?: "earnings_war_room")
+                }
                 return@launch
             }
             publish(state.copy(isLoading = false))
@@ -2214,7 +2223,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             "freshness_decay",
             "morning_exception_briefing",
             "weekly_digest",
-            "market_pulse_ready"
+            "market_pulse_ready",
+            "pulse_email"
         )
     }
 }
@@ -2236,7 +2246,8 @@ internal fun defaultNotificationPreferences(): List<NotificationPreferenceView> 
         NotificationPreferenceView(type = "freshness_decay", enabled = true, quietUntil = null),
         NotificationPreferenceView(type = "morning_exception_briefing", enabled = true, quietUntil = null),
         NotificationPreferenceView(type = "weekly_digest", enabled = true, quietUntil = null),
-        NotificationPreferenceView(type = "market_pulse_ready", enabled = true, quietUntil = null)
+        NotificationPreferenceView(type = "market_pulse_ready", enabled = true, quietUntil = null),
+        NotificationPreferenceView(type = "pulse_email", enabled = true, quietUntil = null)
     )
 
 internal fun normalizeApiBaseUrl(input: String): String? {

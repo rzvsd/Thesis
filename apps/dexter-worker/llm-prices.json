@@ -1,0 +1,15 @@
+{
+  "_comment": "Editable LLM price table for Deep Dive cost estimates. Prices are USD per 1M tokens. Keys are the model strings exactly as configured (DEXTER_OPENROUTER_MODEL, DEXTER_OPENAI_MODEL, DEXTER_ANTHROPIC_MODEL). All values are PLACEHOLDERS (null = unknown, no cost estimated): fill them in and verify against each provider's current price page before relying on the numbers. cached_input_per_mtok may stay null; cached tokens are then billed at the input price. Override the file path with DEXTER_LLM_PRICES_PATH.",
+  "models": {
+    "openrouter:openai/gpt-5.4-mini": {
+      "input_per_mtok": null,
+      "cached_input_per_mtok": null,
+      "output_per_mtok": null
+    },
+    "gpt-5.4-mini": {
+      "input_per_mtok": null,
+      "cached_input_per_mtok": null,
+      "output_per_mtok": null
+    }
+  }
+}

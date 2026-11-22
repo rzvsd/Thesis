@@ -102,7 +102,7 @@ export const marketPulseHeadlineItemSchema = {
   properties: {
     headline: { type: "string" },
     source_name: { type: "string" },
-    source_url: { type: "string" },
+    source_url: { type: "string", pattern: "^https?://" },
     published_at: { type: "string" },
     topic: { enum: marketPulseHeadlineTopics },
     evidence: {
