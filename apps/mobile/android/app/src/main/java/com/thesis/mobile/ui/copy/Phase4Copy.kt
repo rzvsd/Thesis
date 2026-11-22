@@ -92,6 +92,7 @@ object Phase4Copy {
             "earnings_war_room" -> "Earnings War Room"
             "weekly_digest" -> "Weekly Digest"
             "market_pulse_ready" -> "Market Pulse"
+            "pulse_email" -> "Morning Pulse Email"
             else -> type
                 .replace('_', ' ')
                 .split(" ")

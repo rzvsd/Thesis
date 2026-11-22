@@ -150,6 +150,8 @@ export interface ProductApiConfig {
   emailFromAddress?: string;
   // Public origin of this API, used for email unsubscribe links. Unset = emails point to in-app settings.
   publicApiBaseUrl?: string;
+  // "Get the app" link on the public report reader (/r/{token}). Unset = the Play Store listing.
+  appDownloadUrl: string;
   exposeVerificationToken: boolean;
   adminBootstrapRequested: boolean;
   adminBootstrapEnabled: boolean;
@@ -322,6 +324,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ProductApiConf
     emailResendApiKey: env.EMAIL_RESEND_API_KEY?.trim() || undefined,
     emailFromAddress: env.EMAIL_FROM_ADDRESS?.trim() || undefined,
     publicApiBaseUrl: env.PUBLIC_API_BASE_URL?.trim().replace(/\/+$/, "") || undefined,
+    appDownloadUrl:
+      env.APP_DOWNLOAD_URL?.trim() || "https://play.google.com/store/apps/details?id=com.thesis.mobile",
     exposeVerificationToken: parseBoolean(env.AUTH_EXPOSE_VERIFICATION_TOKEN, false),
     adminBootstrapRequested,
     adminBootstrapEnabled,

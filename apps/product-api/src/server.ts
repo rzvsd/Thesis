@@ -129,6 +129,8 @@ import { handleAuthRoutes } from "./routes/auth-routes";
 import { handleCoverageRoutes } from "./routes/coverage-routes";
 import { handleEmailUnsubscribeRoutes } from "./routes/email-unsubscribe-routes";
 import { dispatchFilingChangeAlerts, findPriorDeepDive } from "./filing-change-alerts";
+import { dispatchPulseEmails } from "./pulse-email";
+import { handleReportReaderRoutes, handleReportShareRoutes } from "./routes/report-share-routes";
 import { handleNotificationRoutes } from "./routes/notification-routes";
 import { handlePulseRoutes } from "./routes/pulse-routes";
 import { handlePublicRoutes } from "./routes/public-routes";
@@ -548,6 +550,8 @@ function notificationTypeLabel(type: NotificationType): string {
       return "Market Pulse";
     case "filing_change":
       return "Filing change";
+    case "pulse_email":
+      return "Morning Pulse email";
   }
 }
 
@@ -565,6 +569,7 @@ function notificationCategory(type: NotificationType): AlertLedgerCategory {
     case "morning_exception_briefing":
     case "weekly_digest":
     case "market_pulse_ready":
+    case "pulse_email":
       return "macro";
   }
 }
@@ -576,6 +581,7 @@ function notificationRoute(type: NotificationType): AlertRouteTarget {
   if (
     type === "weekly_digest" ||
     type === "market_pulse_ready" ||
+    type === "pulse_email" ||
     type === "morning_exception_briefing"
   ) {
     return "today";
@@ -5741,6 +5747,9 @@ async function processMarketPulseJob(
         },
         completed.userId
       );
+
+      // Never throws: email problems must not fail the Pulse job.
+      await dispatchPulseEmails(runtime, { report, previousReport });
     } catch (error) {
       if (artifactKey) {
         await cleanupStoredReport(runtime, report.report_id, artifactKey);
@@ -6017,6 +6026,10 @@ export function startServer(port: number = loadConfig().port): Server {
       }
 
       if (await handleEmailUnsubscribeRoutes({ method, pathname, response, runtime, url })) {
+        return;
+      }
+
+      if (await handleReportReaderRoutes({ method, pathname, response, runtime }, { enrichReport: enrichAnalysisReportIssuer })) {
         return;
       }
 
@@ -9542,6 +9555,15 @@ export function startServer(port: number = loadConfig().port): Server {
             readJsonBody,
             sendJson
           }
+        )
+      ) {
+        return;
+      }
+
+      if (
+        await handleReportShareRoutes(
+          { method, pathname, response, runtime, meta, auth },
+          { appendAudit, enrichReport: enrichAnalysisReportIssuer, sendJson }
         )
       ) {
         return;
