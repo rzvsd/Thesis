@@ -88,7 +88,7 @@ private val pages = listOf(
     OnboardingPage(
         overline = "YOUR NAMES",
         headline = "Follow what\nmatters most",
-        body = "Track up to 20 companies. They appear in your pulse, research, and alerts across Thesis.",
+        body = "Follow 3 companies free, up to 50 with Pro. They appear in your pulse, research, and alerts across Thesis.",
         icon = Icons.Default.Newspaper,
         sampleLabel = "Names Tracked",
         sampleValue = "AAPL  NVDA  MSFT"

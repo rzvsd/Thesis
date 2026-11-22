@@ -117,10 +117,13 @@ function alertIdFor(userId: string, change: FilingChange): string {
   return `filing_${digest.slice(0, 32)}`;
 }
 
-function emailText(change: FilingChange, unsubscribeUrl: string | undefined): string {
+// Pro gets the full "what changed" list; Free gets the headline (same rule as detail_body in the app).
+function emailText(change: FilingChange, unsubscribeUrl: string | undefined, isPro: boolean): string {
   const lines = [`${change.title} (${change.period}).`, ""];
-  if (change.changes.length > 0) {
+  if (change.changes.length > 0 && isPro) {
     lines.push("What changed:", ...change.changes.map((item) => `- ${item}`), "");
+  } else if (change.changes.length > 0) {
+    lines.push(change.body, "Upgrade to Thesis Pro in the app to see what changed.", "");
   }
   lines.push(
     "Open Thesis to read the full Deep Dive.",
@@ -232,7 +235,11 @@ export async function dispatchFilingChangeAlerts(
           : undefined;
         const emailResult = await runtime.emailNotifier.sendNotification([emailTarget], {
           subject: `${change.title}: ${change.body}`,
-          text: emailText(change, unsubscribeUrl),
+          text: emailText(
+            change,
+            unsubscribeUrl,
+            (await runtime.store.getUserSubscription(userId)).tier === "PRO"
+          ),
           ...(unsubscribeUrl
             ? {
               headers: {

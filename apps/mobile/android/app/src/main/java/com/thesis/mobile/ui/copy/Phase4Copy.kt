@@ -40,6 +40,7 @@ object Phase4Copy {
     const val inboxFilteredEmptyTitle = "Nothing in this filter"
     const val inboxFilteredEmptyBody = "Try another category to review the full alert history."
     const val inboxOpenLabel = "Open"
+    const val inboxUnlockDetailLabel = "See what changed with Pro"
     const val inboxUsefulLabel = "Useful"
     const val inboxNotUsefulLabel = "Not Useful"
     const val inboxQuiet24hLabel = "Quiet 24h"

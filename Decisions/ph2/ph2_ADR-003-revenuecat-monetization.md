@@ -21,10 +21,52 @@ These are tracked as Gated Pre-Conditions in `M4_MILESTONE_AGENTS_ph2.md`.
 
 | # | Decision | Status |
 |---|---|---|
-| G1 | RevenueCat project setup and API keys | **OPEN** |
-| G2 | Google Play product IDs and test track | **OPEN** |
-| G3 | Gated feature list (exact Free vs Pro boundaries) | **OPEN** |
-| G4 | Subscription schema design (new table vs. column on users) | **OPEN** |
+| G1 | RevenueCat project setup and API keys | **OPEN** (owner: configure, see below) |
+| G2 | Google Play product IDs and test track | **OPEN** (owner: configure, see below) |
+| G3 | Gated feature list (exact Free vs Pro boundaries) | **DECIDED** (audit roadmap item 7, see below) |
+| G4 | Subscription schema design (new table vs. column on users) | **DONE** (`subscriptions` table, one row per user) |
+
+## Implementation Status (audit roadmap item 7: billing live, new tiers, one paywall)
+
+Model: sell monitoring, give away reading. Price: Pro $9.99/month plus a yearly plan (yearly price: owner sets it in Play).
+
+### G3: the gated feature list (enforced in `product-api`; the app mirrors it)
+
+| Feature | Free | Pro | Where it is enforced |
+|---|---|---|---|
+| Daily Market Pulse | Yes | Yes | not gated |
+| Read Deep Dives that are pre-computed (covered S&P 500 names, any reusable report) | Yes, no daily limit | Yes | `POST /jobs`: a reused report never counts |
+| On-demand Deep Dive generation (no reusable report) | 1 per day | No limit | `POST /jobs`, `dailyDeepDiveLimitForTier` |
+| Followed names (watchlist) | 3 | 50 | `POST /watchlist`, `watchlistLimitForTier` |
+| Filing-change alert | Headline (title + body) | Headline + full "what changed" (`detail_body`), push and email | alert ledger view returns `detail_locked: true` instead of `detail_body` for Free; Free email is headline only |
+| Earnings War Room | No | Yes (followed names) | `GET /v1/research/war-room/{id}`, War Room push recipients |
+| Scenario Stress, What-If, Opposite Case, Conviction timeline/insights | No | Yes | existing Pro checks on those routes |
+| Deep Dive PDF and investment memo export | No | Yes | `GET /v1/reports/{id}/export/pdf`; the app gates its local PDF/memo/card export |
+
+Every gate answers `403 {"error":"upgrade_required","feature":...}`. The Android app opens one paywall
+screen (`ui/screens/PaywallScreen.kt`) for every such answer and from the locked alert detail in the Inbox.
+
+### What the code does now
+- Server entitlement: `REVENUECAT_ENTITLEMENT_ID` (env) names the entitlement that means Pro; `sync-tier` reads it via
+  `REVENUECAT_SERVER_API_KEY`. Webhooks are authenticated with `REVENUECAT_WEBHOOK_SECRET`.
+- Android: `REVENUECAT_PUBLIC_ANDROID_KEY` (Gradle property) turns billing on. Packages come from the RevenueCat
+  current offering: by `REVENUECAT_MONTHLY_PRODUCT_ID` / `REVENUECAT_YEARLY_PRODUCT_ID` (Gradle properties, Play
+  subscription product ID or `productId:basePlanId`) when set, else by the package type MONTHLY / ANNUAL. No store
+  IDs are hard-coded.
+- The free trial is not in code. It is a Play base-plan offer, so RevenueCat and the app pick it up as-is.
+
+### What Razvan must configure (G1, G2)
+1. RevenueCat project with the Android app (package `com.thesis.mobile`) linked to Play (service-account JSON).
+2. Keys: public Android SDK key -> Gradle property `REVENUECAT_PUBLIC_ANDROID_KEY`; secret API key ->
+   `REVENUECAT_SERVER_API_KEY`; entitlement identifier (for example `pro`) -> `REVENUECAT_ENTITLEMENT_ID`;
+   webhook (URL `https://<api-host>/v1/webhooks/revenuecat`, Authorization header value) ->
+   `REVENUECAT_WEBHOOK_SECRET`. The last three are product-api env vars.
+3. Play Console: one subscription product with a monthly base plan ($9.99) and a yearly base plan; add the free-trial
+   offer to the base plan(s) you want. Optional: put the IDs in `REVENUECAT_MONTHLY_PRODUCT_ID` /
+   `REVENUECAT_YEARLY_PRODUCT_ID`.
+4. RevenueCat: attach both products to the entitlement; create the current offering with a Monthly and an Annual package.
+5. Prove purchase, renewal and cancel on the Play internal test track with license testers: follow
+   `docs/runbooks/launch-proof.md` (added by PR #75).
 
 ## Consequences
 **Positive:**
