@@ -123,6 +123,7 @@ import { PushNotifier } from "./push";
 import { isUsTradingDay, isValidMarketDate } from "./sentiment";
 import { fetchLatestClosePrice, fetchLatestClosePrices } from "./market-prices";
 import { verifyGoogleIdToken } from "./google-oidc";
+import { handleAccountRoutes } from "./routes/account-routes";
 import { handleAuthRoutes } from "./routes/auth-routes";
 import { handleNotificationRoutes } from "./routes/notification-routes";
 import { handlePulseRoutes } from "./routes/pulse-routes";
@@ -5951,6 +5952,22 @@ export function startServer(port: number = loadConfig().port): Server {
             verifyAuthToken,
             verifyGoogleIdToken,
             verifyPassword
+          }
+        )
+      ) {
+        return;
+      }
+
+      if (
+        await handleAccountRoutes(
+          { method, pathname, request, response, runtime, meta },
+          {
+            appendAudit,
+            authenticateAccessToken,
+            isValidEmail,
+            normalizeEmail,
+            readJsonBody,
+            sendJson
           }
         )
       ) {
