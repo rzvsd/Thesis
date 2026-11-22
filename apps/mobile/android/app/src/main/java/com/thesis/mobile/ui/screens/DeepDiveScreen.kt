@@ -107,7 +107,8 @@ fun DeepDiveScreen(
     onTickerChange: (String) -> Unit,
     onRunReport: () -> Unit,
     onBack: () -> Unit,
-    padding: PaddingValues
+    padding: PaddingValues,
+    onOpenScenarioStress: (() -> Unit)? = null
 ) {
     if (report == null) {
         if (isLoading) {
@@ -151,7 +152,8 @@ fun DeepDiveScreen(
         onNotify = onNotify,
         watchlist = watchlist,
         onBack = onBack,
-        padding = padding
+        padding = padding,
+        onOpenScenarioStress = onOpenScenarioStress
     )
 }
 
@@ -332,7 +334,8 @@ private fun DeepDiveReportState(
     onNotify: (String) -> Unit,
     watchlist: List<String>,
     onBack: () -> Unit,
-    padding: PaddingValues
+    padding: PaddingValues,
+    onOpenScenarioStress: (() -> Unit)?
 ) {
     val ticker = report.ticker ?: "Ticker"
     val isWatched = report.ticker != null && watchlist.contains(report.ticker)
@@ -366,6 +369,10 @@ private fun DeepDiveReportState(
                 StaggeredEntrance(index = 1) {
                     DeepDiveReadThisFirst(report = report)
                 }
+            }
+
+            if (report.filingRead != null || report.indicatorsRead != null) {
+                item { DeepDiveNativeMemo(report = report) }
             }
 
             if (report.sections.isNotEmpty()) {
@@ -476,6 +483,10 @@ private fun DeepDiveReportState(
                     onNoteChange = onReportNoteChange,
                     onSave = onSaveReportNote
                 )
+            }
+
+            if (onOpenScenarioStress != null) {
+                item { DeepDiveStressAction(onClick = onOpenScenarioStress) }
             }
 
             item {

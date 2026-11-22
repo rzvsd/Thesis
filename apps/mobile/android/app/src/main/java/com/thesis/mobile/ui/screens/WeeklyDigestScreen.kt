@@ -116,7 +116,7 @@ fun WeeklyDigestScreen(
                         Spacer(modifier = Modifier.size(ThesisDimens.SpacingMd))
                         Column {
                             Text(
-                                text = "Fear & Greed",
+                                text = "Macro Stress",
                                 style = ThesisTypography.bodyMedium.copy(fontWeight = FontWeight.Medium),
                                 color = ThesisColors.TextPrimary
                             )

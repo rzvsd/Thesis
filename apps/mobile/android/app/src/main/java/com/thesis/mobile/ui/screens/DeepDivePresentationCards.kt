@@ -658,7 +658,7 @@ internal fun DeepDiveProofHeading() {
 }
 
 @Composable
-private fun SectionTitle(title: String) {
+internal fun SectionTitle(title: String) {
     Text(
         text = title,
         style = ThesisTypography.headlineLarge.copy(fontFamily = HeadingFont),
@@ -667,7 +667,7 @@ private fun SectionTitle(title: String) {
 }
 
 @Composable
-private fun StorySurface(
+internal fun StorySurface(
     modifier: Modifier = Modifier,
     borderColor: Color = ThesisColors.Border,
     backgroundColor: Color = ThesisColors.Surface,
@@ -696,7 +696,7 @@ private fun MetaLabel(text: String) {
 }
 
 @Composable
-private fun InlineCallout(label: String, text: String, tint: Color) {
+internal fun InlineCallout(label: String, text: String, tint: Color) {
     StorySurface(
         borderColor = tint.copy(alpha = 0.25f),
         backgroundColor = tint.copy(alpha = 0.08f)
@@ -711,7 +711,7 @@ private fun InlineCallout(label: String, text: String, tint: Color) {
 }
 
 @Composable
-private fun ComparisonLine(label: String, text: String) {
+internal fun ComparisonLine(label: String, text: String) {
     Column(verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingXs)) {
         Text(
             text = label.uppercase(),
@@ -1098,7 +1098,7 @@ private fun RowScope.LabelValuePill(label: String, value: String) {
 }
 
 @Composable
-private fun ExplainerCard(title: String, body: String) {
+internal fun ExplainerCard(title: String, body: String) {
     StorySurface {
         MetaLabel(title.uppercase())
         Text(
@@ -1110,7 +1110,7 @@ private fun ExplainerCard(title: String, body: String) {
 }
 
 @Composable
-private fun BulletText(text: String) {
+internal fun BulletText(text: String) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)

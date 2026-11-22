@@ -501,7 +501,9 @@ data class DeepDiveReportView(
     val historical: HistoricalDisplayView? = null,
     val trustMetadata: TrustMetadataView? = null,
     val killSwitchConditions: List<KillSwitchConditionView> = emptyList(),
-    val sections: List<SectionView>
+    val sections: List<SectionView>,
+    val filingRead: FilingReadView? = null,
+    val indicatorsRead: IndicatorsReadView? = null
 )
 
 data class PulseReportView(
@@ -599,7 +601,9 @@ data class AlertLedgerItemView(
     val briefingContext: BriefingContextView? = null,
     val relatedTickers: List<String> = emptyList(),
     val createdAt: String,
-    val updatedAt: String
+    val updatedAt: String,
+    val warRoomId: String? = null,
+    val eventDate: String? = null
 )
 
 data class BriefingContextView(

@@ -106,6 +106,8 @@ data class UiState(
     val warRoomError: String? = null,
     val reportHistory: List<ReportHistoryItem> = emptyList(),
     val watchlist: List<String> = emptyList(),
+    val reportHistoryLoaded: Boolean = false,
+    val watchlistLoaded: Boolean = false,
     val lastViewedReport: LastViewedReport? = null,
     val biometricSupported: Boolean = false,
     val biometricLockEnabled: Boolean = false,
@@ -1312,7 +1314,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun refreshReportHistory() {
         withAuthorizedCall {
             val reports = client.listReports(state.apiBaseUrl, requireTokens().accessToken)
-            publish(state.copy(reportHistory = reports))
+            publish(state.copy(reportHistory = reports, reportHistoryLoaded = true))
         }
     }
 
@@ -1780,7 +1782,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun refreshWatchlist() {
         withAuthorizedCall {
             val items = client.getWatchlist(state.apiBaseUrl, requireTokens().accessToken)
-            publish(state.copy(watchlist = items))
+            publish(state.copy(watchlist = items, watchlistLoaded = true))
             refreshMonitorSnapshots()
         }
     }
@@ -2049,6 +2051,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 deepDiveError = null,
                 watchlist = emptyList(),
                 reportHistory = emptyList(),
+                watchlistLoaded = false,
+                reportHistoryLoaded = false,
                 notificationPreferences = defaultNotificationPreferences(),
                 lastViewedReport = null,
                 jobStatus = null,

@@ -16,6 +16,8 @@ internal object LaunchDestinationResolver {
 
         return when {
             effectiveTab in directTabs -> effectiveTab
+            pathId(uriString, "report") != null -> "research"
+            pathId(uriString, "name") != null -> "names"
             effectiveTab == "pulse" ||
                 normalizedType == "market_pulse_ready" ||
                 normalizedType == "morning_exception_briefing" ||
@@ -54,6 +56,30 @@ internal object LaunchDestinationResolver {
     fun resolveScenarioRunId(explicitScenarioRunId: String?, uriString: String?): String? {
         explicitScenarioRunId?.trim()?.takeIf { it.isNotBlank() }?.let { return it }
         return queryParameter(uriString, "scenario_run_id")
+    }
+
+    /** thesis://report/{reportId}, or report_id from extras or the query. */
+    fun resolveReportId(explicitReportId: String?, uriString: String?): String? {
+        explicitReportId?.trim()?.takeIf { it.isNotBlank() }?.let { return it }
+        return pathId(uriString, "report") ?: queryParameter(uriString, "report_id")
+    }
+
+    /** thesis://name/{TICKER}, or ticker from extras or the query. */
+    fun resolveTicker(explicitTicker: String?, uriString: String?): String? {
+        explicitTicker?.trim()?.takeIf { it.isNotBlank() }?.let { return it.uppercase() }
+        return (pathId(uriString, "name") ?: queryParameter(uriString, "ticker"))?.uppercase()
+    }
+
+    private fun pathId(uriString: String?, host: String): String? {
+        val uri = runCatching { URI(uriString) }.getOrNull() ?: return null
+        if (uri.scheme != "thesis" || uri.host != host) {
+            return null
+        }
+        return uri.path
+            ?.trim('/')
+            ?.substringBefore('/')
+            ?.trim()
+            ?.takeIf { it.isNotBlank() }
     }
 
     private fun queryParameter(uriString: String?, key: String): String? {

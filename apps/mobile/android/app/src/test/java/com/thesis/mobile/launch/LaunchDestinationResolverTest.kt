@@ -72,4 +72,15 @@ class LaunchDestinationResolverTest {
             )
         )
     }
+
+    @Test
+    fun nameAndReportDeepLinks_routeToNamePageAndReport() {
+        assertEquals("names", LaunchDestinationResolver.resolveTab(null, null, "thesis://name/msft"))
+        assertEquals("MSFT", LaunchDestinationResolver.resolveTicker(null, "thesis://name/msft"))
+        assertEquals("research", LaunchDestinationResolver.resolveTab(null, null, "thesis://report/rep_123"))
+        assertEquals("rep_123", LaunchDestinationResolver.resolveReportId(null, "thesis://report/rep_123"))
+        assertEquals("rep_9", LaunchDestinationResolver.resolveReportId("rep_9", "thesis://report/rep_123"))
+        assertEquals("names", LaunchDestinationResolver.resolveTab(null, null, "thesis://names"))
+        assertEquals(null, LaunchDestinationResolver.resolveTicker(null, "thesis://names"))
+    }
 }

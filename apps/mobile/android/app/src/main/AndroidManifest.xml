@@ -34,6 +34,8 @@
                 <data
                     android:scheme="thesis"
                     android:host="pulse" />
+                <data android:host="name" />
+                <data android:host="report" />
             </intent-filter>
         </activity>
         <service

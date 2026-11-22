@@ -59,7 +59,9 @@ fun NamesScreen(
     onRemoveTicker: (String) -> Unit,
     onRunDeepDive: (String) -> Unit,
     onOpenResearch: (String) -> Unit,
-    onImportHoldingsCsv: suspend (String) -> Result<HoldingsImportResultView>
+    onImportHoldingsCsv: suspend (String) -> Result<HoldingsImportResultView>,
+    warRoomByTicker: Map<String, String> = emptyMap(),
+    onOpenWarRoom: (String) -> Unit = {}
 ) {
     var tickerInput by rememberSaveable { mutableStateOf("") }
     var selectedSegment by rememberSaveable { mutableStateOf(Phase4Copy.namesSegments.first()) }
@@ -230,7 +232,8 @@ fun NamesScreen(
                     row = row,
                     onRunDeepDive = { onRunDeepDive(row.ticker) },
                     onOpenResearch = { onOpenResearch(row.ticker) },
-                    onRemoveTicker = { onRemoveTicker(row.ticker) }
+                    onRemoveTicker = { onRemoveTicker(row.ticker) },
+                    onOpenWarRoom = warRoomByTicker[row.ticker.uppercase()]?.let { id -> { onOpenWarRoom(id) } }
                 )
             }
         }
@@ -242,7 +245,8 @@ private fun NamesRowCard(
     row: NamesRowModel,
     onRunDeepDive: () -> Unit,
     onOpenResearch: () -> Unit,
-    onRemoveTicker: () -> Unit
+    onRemoveTicker: () -> Unit,
+    onOpenWarRoom: (() -> Unit)? = null
 ) {
     val shape = RoundedCornerShape(ThesisDimens.CardCornerRadius)
     Column(
@@ -311,6 +315,17 @@ private fun NamesRowCard(
         )
 
         HorizontalDivider(color = ThesisColors.Border)
+
+        // Only during the name's earnings window (see warRoomsInEarningsWindow).
+        if (onOpenWarRoom != null) {
+            OutlinedButton(
+                onClick = onOpenWarRoom,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(ThesisDimens.CardCornerRadius)
+            ) {
+                Text(Phase4Copy.researchWarRoomLabel, color = ThesisColors.Primary)
+            }
+        }
 
         Row(horizontalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)) {
             Button(
