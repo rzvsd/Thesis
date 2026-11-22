@@ -21,6 +21,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -48,6 +49,7 @@ fun InboxScreen(
     inboxError: String?,
     onRefresh: () -> Unit,
     onOpenAlert: (AlertLedgerItemView) -> Unit,
+    onUnlockDetail: () -> Unit,
     onSubmitFeedback: (String, String) -> Unit,
     onQuietAlertType: (String) -> Unit,
     onDisableAlertType: (String) -> Unit
@@ -134,6 +136,7 @@ fun InboxScreen(
                 InboxRowCard(
                     alert = alert,
                     onOpen = { onOpenAlert(alert) },
+                    onUnlockDetail = onUnlockDetail,
                     onUseful = { onSubmitFeedback(alert.id, "useful") },
                     onNotUseful = { onSubmitFeedback(alert.id, "not_useful") },
                     onQuietAlertType = { onQuietAlertType(alert.id) },
@@ -148,6 +151,7 @@ fun InboxScreen(
 private fun InboxRowCard(
     alert: AlertLedgerItemView,
     onOpen: () -> Unit,
+    onUnlockDetail: () -> Unit,
     onUseful: () -> Unit,
     onNotUseful: () -> Unit,
     onQuietAlertType: () -> Unit,
@@ -197,6 +201,17 @@ private fun InboxRowCard(
             style = ThesisTypography.bodyMedium,
             color = ThesisColors.TextSecondary
         )
+        if (!alert.detailBody.isNullOrBlank()) {
+            Text(
+                text = alert.detailBody,
+                style = ThesisTypography.bodyMedium,
+                color = ThesisColors.TextPrimary
+            )
+        } else if (alert.detailLocked) {
+            TextButton(onClick = onUnlockDetail) {
+                Text(Phase4Copy.inboxUnlockDetailLabel, color = ThesisColors.Primary)
+            }
+        }
         Text(
             text = alert.reasonText,
             style = ThesisTypography.bodySmall,
