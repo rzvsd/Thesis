@@ -158,7 +158,10 @@ import type {
   UserRecord
 } from "./types";
 
-type HealthPayload = { status: "ok" };
+type HealthPayload = {
+  status: "ok";
+  modes: { push: "stub" | "fcm"; email: "stub" | "resend"; artifact_store: "filesystem" | "s3" };
+};
 
 const defaultMaxJsonBodyBytes = 1024 * 1024;
 const requestJsonBodyLimitKey = Symbol("requestJsonBodyLimitKey");
@@ -5868,7 +5871,14 @@ export function startServer(port: number = loadConfig().port): Server {
     }
 
     if (method === "GET" && pathname === "/health") {
-      const payload: HealthPayload = { status: "ok" };
+      const payload: HealthPayload = {
+        status: "ok",
+        modes: {
+          push: config.pushProviderMode,
+          email: config.emailProviderMode,
+          artifact_store: config.artifactStoreMode
+        }
+      };
       sendJson(response, 200, payload);
       return;
     }
