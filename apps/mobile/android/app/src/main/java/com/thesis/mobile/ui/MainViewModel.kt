@@ -15,6 +15,7 @@ import com.thesis.mobile.model.AlertLedgerItemView
 import com.thesis.mobile.model.ConvictionInsightCardView
 import com.thesis.mobile.model.ConvictionJournalEntryView
 import com.thesis.mobile.model.DeepDiveReportView
+import com.thesis.mobile.model.HoldingsImportResultView
 import com.thesis.mobile.model.LastViewedReport
 import com.thesis.mobile.model.NotificationPreferenceView
 import com.thesis.mobile.model.OppositeCaseReportView
@@ -1803,6 +1804,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             )
             refreshMonitorSnapshots()
         }
+    }
+
+    suspend fun importHoldingsCsv(csv: String): Result<HoldingsImportResultView> {
+        var result: HoldingsImportResultView? = null
+        val error = runAuthorizedWithRefresh {
+            result = client.importHoldingsCsv(state.apiBaseUrl, requireTokens().accessToken, csv)
+        }
+        val imported = result
+        if (error != null || imported == null) {
+            return Result.failure(IllegalStateException(toMessage(error ?: IllegalStateException("Import failed."))))
+        }
+        publish(state.copy(watchlist = imported.watchlist))
+        refreshMonitorSnapshots()
+        return Result.success(imported)
     }
 
     fun removeWatchlistTicker(ticker: String) {
