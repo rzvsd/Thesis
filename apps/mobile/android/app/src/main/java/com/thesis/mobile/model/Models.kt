@@ -584,6 +584,9 @@ data class AlertLedgerItemView(
     val route: String,
     val title: String,
     val body: String,
+    // Full "what changed" text (Pro). detailLocked = the server withheld it for a Free user.
+    val detailBody: String? = null,
+    val detailLocked: Boolean = false,
     val reasonCode: String,
     val reasonText: String,
     val deliveryState: String,
@@ -722,7 +725,8 @@ data class NotificationPreferenceView(
 data class SubscriptionOfferView(
     val packageType: String,
     val identifier: String,
-    val title: String
+    val title: String,
+    val price: String = ""
 )
 
 data class HoldingsImportRowErrorView(

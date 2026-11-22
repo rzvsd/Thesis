@@ -168,11 +168,11 @@ test("M4 subscriptions enforce Free/Pro gating and tier updates", async () => {
     assert.equal(initialProfile.status, 200);
     const initialData = initialProfile.payload.data as JsonObject;
     assert.equal(initialData.tier, "FREE");
-    assert.equal(initialData.watchlist_limit, 5);
+    assert.equal(initialData.watchlist_limit, 3);
     assert.equal(initialData.daily_deep_dive_limit, 1);
     assert.equal(initialData.deep_dives_remaining_today, 1);
 
-    const watchlistSeed = ["AAPL", "MSFT", "TSLA", "NVDA", "AMZN"];
+    const watchlistSeed = ["AAPL", "MSFT", "TSLA"];
     for (const ticker of watchlistSeed) {
       const added = await requestJson(baseUrl, "/watchlist", {
         method: "POST",
@@ -262,7 +262,7 @@ test("M4 subscriptions enforce Free/Pro gating and tier updates", async () => {
     assert.equal(proProfile.status, 200);
     const proData = proProfile.payload.data as JsonObject;
     assert.equal(proData.tier, "PRO");
-    assert.equal(proData.watchlist_limit, 20);
+    assert.equal(proData.watchlist_limit, 50);
     assert.equal(proData.daily_deep_dive_limit, -1);
 
     const watchlistAfterUpgrade = await requestJson(baseUrl, "/watchlist", {

@@ -13,7 +13,7 @@ try:
         download_sec_companyfacts_archive,
         index_companyfacts_members,
         ingest_hf_transcripts,
-        load_universe,
+        load_coverage_universe,
         load_xbrl_concept_map,
         map_companyfacts_to_snapshots,
         read_companyfacts_by_cik,
@@ -26,7 +26,7 @@ except ImportError:  # pragma: no cover - supports direct src imports in sibling
         download_sec_companyfacts_archive,
         index_companyfacts_members,
         ingest_hf_transcripts,
-        load_universe,
+        load_coverage_universe,
         load_xbrl_concept_map,
         map_companyfacts_to_snapshots,
         read_companyfacts_by_cik,
@@ -85,7 +85,7 @@ def run_historical_delta_sync(*, include_transcripts: bool | None = None) -> dic
             transcript_weekday=transcript_weekday,
         )
 
-    universe = load_universe(config.universe_csv_path)
+    universe = load_coverage_universe()
     mapping_payload = load_xbrl_concept_map(config.xbrl_mapping_path)
     archive_path = download_sec_companyfacts_archive(config)
     member_index = index_companyfacts_members(archive_path)

@@ -34,6 +34,115 @@ interface FilingMetricDefinition {
   plainName: string;
 }
 
+export interface ReviewedFilingSection {
+  family: string;
+  heading: string;
+  excerpt: string;
+  omitted: boolean;
+  reason?: string;
+}
+
+// One SEC 10-Q/10-K with reviewed section excerpts (data-openbb /v1/official/filing-sections).
+export interface ReviewedFilingSections {
+  form: string;
+  filing_date?: string;
+  period?: string;
+  accession_number?: string;
+  source_url?: string;
+  sections: ReviewedFilingSection[];
+}
+
+const reviewedSectionFamilies = ["mda", "risk_factors", "liquidity", "segments"] as const;
+const reviewedSectionLabels: Record<(typeof reviewedSectionFamilies)[number], string> = {
+  mda: "MD&A",
+  risk_factors: "Risk-factor",
+  liquidity: "Liquidity",
+  segments: "Segment"
+};
+
+function sectionExcerpt(filing: ReviewedFilingSections | undefined, family: string): string | undefined {
+  const section = filing?.sections.find((entry) => entry.family === family && !entry.omitted);
+  const excerpt = section?.excerpt.replace(/\s+/g, " ").trim();
+  return excerpt ? excerpt : undefined;
+}
+
+function evidenceForFiling(
+  ticker: string,
+  filing: ReviewedFilingSections,
+  retrievedAt: string,
+  suffix: string
+): EvidenceItem {
+  const url = filing.source_url && /^https?:\/\//i.test(filing.source_url) ? filing.source_url : undefined;
+  return {
+    evidence_id: `sec-filing-text-${ticker.toLowerCase()}-${suffix}-${(filing.accession_number || filing.period || "unknown").toLowerCase()}`,
+    source_type: "filing",
+    source_name: `SEC ${filing.form} reviewed sections`,
+    excerpt:
+      `${ticker} ${filing.form} for period ${filing.period || "unknown"}` +
+      `${filing.accession_number ? ` (accession ${filing.accession_number})` : ""}; reviewed sections: ` +
+      `${filing.sections.filter((section) => !section.omitted).map((section) => section.family).join(", ") || "none"}.`,
+    retrieved_at: retrievedAt,
+    ...(url ? { url } : {})
+  };
+}
+
+function buildFilingLanguageDeltas(
+  latestFiling: ReviewedFilingSections,
+  priorFiling: ReviewedFilingSections | undefined,
+  latestEvidenceId: string,
+  priorEvidenceId: string | undefined
+): FilingIntelligenceLanguageDelta[] {
+  const deltas: FilingIntelligenceLanguageDelta[] = [];
+  for (const family of reviewedSectionFamilies) {
+    const current = sectionExcerpt(latestFiling, family);
+    const prior = sectionExcerpt(priorFiling, family);
+    const label = reviewedSectionLabels[family];
+    const refs = [current ? latestEvidenceId : undefined, prior ? priorEvidenceId : undefined]
+      .filter((entry): entry is string => typeof entry === "string");
+    if (!current && !prior) {
+      continue;
+    }
+    if (current && !priorFiling) {
+      deltas.push({
+        section: family,
+        current_excerpt: current.slice(0, 400),
+        change_type: "unavailable",
+        plain_english: `${label} language is available from the latest ${latestFiling.form}, but no prior filing excerpt was available to compare.`,
+        evidence_refs: refs
+      });
+    } else if (current && !prior) {
+      deltas.push({
+        section: family,
+        current_excerpt: current.slice(0, 400),
+        change_type: "new",
+        plain_english: `${label} language appears in the latest ${latestFiling.form} but was not found in the prior filing excerpt.`,
+        evidence_refs: refs
+      });
+    } else if (!current && prior) {
+      deltas.push({
+        section: family,
+        prior_excerpt: prior.slice(0, 400),
+        change_type: "removed",
+        plain_english: `${label} language from the prior filing was not found in the latest ${latestFiling.form} excerpt.`,
+        evidence_refs: refs
+      });
+    } else if (current && prior) {
+      const unchanged = current.toLowerCase() === prior.toLowerCase();
+      deltas.push({
+        section: family,
+        current_excerpt: current.slice(0, 400),
+        prior_excerpt: prior.slice(0, 400),
+        change_type: unchanged ? "unchanged" : "revised",
+        plain_english: unchanged
+          ? `${label} language is unchanged between the two reviewed filings.`
+          : `${label} language was revised between the two reviewed filings; compare the excerpts before reading tone into it.`,
+        evidence_refs: refs
+      });
+    }
+  }
+  return deltas;
+}
+
 interface BuildFilingIntelligenceInput {
   ticker: string;
   generatedAt: string;
@@ -42,6 +151,7 @@ interface BuildFilingIntelligenceInput {
   yearAgo?: CanonicalFinancialSnapshot;
   financials: CanonicalFinancialSnapshot[];
   latestTranscript?: CanonicalTranscript;
+  filingSections?: ReviewedFilingSections[];
   fixtureMode: boolean;
 }
 
@@ -565,13 +675,20 @@ export async function buildFilingIntelligence(
       blocking: false
     });
   }
-  omissions.push({
-    family: "filing_language",
-    reason_code: "missing_filing_text",
-    reason:
-      "Full SEC filing-section text extraction is not yet available in this run; management language is bounded to reviewed commentary when present.",
-    blocking: false
-  });
+  const latestFiling = input.filingSections?.[0];
+  const priorFiling = input.filingSections?.[1];
+  const latestFilingHasText = Boolean(
+    latestFiling && reviewedSectionFamilies.some((family) => sectionExcerpt(latestFiling, family))
+  );
+  if (!latestFilingHasText) {
+    omissions.push({
+      family: "filing_language",
+      reason_code: "missing_filing_text",
+      reason:
+        "Reviewed SEC filing-section text was not available in this run; management language is bounded to reviewed commentary when present.",
+      blocking: false
+    });
+  }
 
   const latestEvidence = latest ? evidenceForSnapshot(latest, input.generatedAt, "latest") : undefined;
   const priorEvidence = input.priorQuarter
@@ -654,7 +771,26 @@ export async function buildFilingIntelligence(
   if (transcriptEvidence) {
     evidence.push(transcriptEvidence);
   }
-  const languageDeltas: FilingIntelligenceLanguageDelta[] = transcriptEvidence && input.latestTranscript
+  const filingLanguageDeltas: FilingIntelligenceLanguageDelta[] = [];
+  if (latestFiling && latestFilingHasText) {
+    const latestFilingEvidence = evidenceForFiling(input.ticker, latestFiling, input.generatedAt, "latest");
+    const priorFilingEvidence = priorFiling
+      ? evidenceForFiling(input.ticker, priorFiling, input.generatedAt, "prior")
+      : undefined;
+    evidence.push(latestFilingEvidence);
+    if (priorFilingEvidence) {
+      evidence.push(priorFilingEvidence);
+    }
+    filingLanguageDeltas.push(
+      ...buildFilingLanguageDeltas(
+        latestFiling,
+        priorFiling,
+        latestFilingEvidence.evidence_id,
+        priorFilingEvidence?.evidence_id
+      )
+    );
+  }
+  const commentaryDeltas: FilingIntelligenceLanguageDelta[] = transcriptEvidence && input.latestTranscript
     ? [
       {
         section: "management_commentary",
@@ -674,6 +810,11 @@ export async function buildFilingIntelligence(
         evidence_refs: []
       }
     ];
+  // Reviewed filing sections lead; the "unavailable" commentary placeholder is only kept when nothing else exists.
+  const languageDeltas: FilingIntelligenceLanguageDelta[] = [
+    ...filingLanguageDeltas,
+    ...(filingLanguageDeltas.length > 0 && !transcriptEvidence ? [] : commentaryDeltas)
+  ];
 
   const memo = buildDeterministicMemo({
     ticker: input.ticker,

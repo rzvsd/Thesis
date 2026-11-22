@@ -10,6 +10,7 @@ Start here:
 - [redis-flush-recovery.md](./redis-flush-recovery.md)
 - [deployment-rollback.md](./deployment-rollback.md)
 - [database-backup-restore.md](./database-backup-restore.md)
+- [launch-proof.md](./launch-proof.md) — one-time production live proof (health/mode script, Deep Dive, Pulse, push, Play test purchase)
 
 ## Quick Run
 
