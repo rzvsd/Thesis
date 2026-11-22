@@ -21,8 +21,17 @@ export interface EmailNotifierConfig {
 export interface NotificationEmailPayload {
   subject: string;
   text: string;
+  html?: string;
   headers?: Record<string, string>;
 }
+
+export interface EmailMessage {
+  target: EmailTarget;
+  payload: NotificationEmailPayload;
+}
+
+// Resend batch endpoint limit.
+const RESEND_BATCH_SIZE = 100;
 
 export class EmailNotifier {
   private readonly config: EmailNotifierConfig;
@@ -81,6 +90,66 @@ export class EmailNotifier {
     };
   }
 
+  /** One message per target (each may differ, e.g. its unsubscribe link), sent in Resend batches. */
+  async sendBatch(messages: EmailMessage[]): Promise<EmailDispatchResult> {
+    const result: EmailDispatchResult = {
+      attempted: messages.length,
+      delivered: 0,
+      failed: 0,
+      provider: this.config.provider
+    };
+    if (messages.length === 0) {
+      return result;
+    }
+    if (this.config.provider === "stub") {
+      return { ...result, delivered: messages.length };
+    }
+    if (!this.config.resendApiKey || !this.config.fromAddress) {
+      return { ...result, failed: messages.length };
+    }
+
+    for (let start = 0; start < messages.length; start += RESEND_BATCH_SIZE) {
+      const chunk = messages.slice(start, start + RESEND_BATCH_SIZE);
+      if (await this.sendBatchWithResend(chunk)) {
+        result.delivered += chunk.length;
+      } else {
+        result.failed += chunk.length;
+      }
+    }
+    return result;
+  }
+
+  private async sendBatchWithResend(messages: EmailMessage[]): Promise<boolean> {
+    const abortController = new AbortController();
+    const timeout = setTimeout(() => abortController.abort(), this.config.requestTimeoutMs ?? 12_000);
+    try {
+      const response = await fetch(
+        `${this.config.resendApiBaseUrl.replace(/\/+$/, "")}/emails/batch`,
+        {
+          method: "POST",
+          headers: {
+            authorization: `Bearer ${this.config.resendApiKey}`,
+            "content-type": "application/json"
+          },
+          body: JSON.stringify(messages.map(({ target, payload }) => ({
+            from: this.config.fromAddress,
+            to: [target.email],
+            subject: payload.subject,
+            text: payload.text,
+            ...(payload.html ? { html: payload.html } : {}),
+            ...(payload.headers ? { headers: payload.headers } : {})
+          }))),
+          signal: abortController.signal
+        }
+      );
+      return response.ok;
+    } catch {
+      return false;
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
   private async sendWithResend(
     target: EmailTarget,
     payload: NotificationEmailPayload
@@ -102,6 +171,7 @@ export class EmailNotifier {
             to: [target.email],
             subject: payload.subject,
             text: payload.text,
+            ...(payload.html ? { html: payload.html } : {}),
             ...(payload.headers ? { headers: payload.headers } : {})
           }),
           signal: abortController.signal

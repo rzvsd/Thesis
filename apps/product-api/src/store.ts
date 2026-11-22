@@ -94,6 +94,14 @@ export type GoogleIdentityAttachResult =
   | "subject_in_use"
   | "user_already_linked";
 
+/** Public read-only link to one report (web reader /r/{token}). */
+export interface ReportShareRecord {
+  token: string;
+  reportId: string;
+  userId: string;
+  createdAt: string;
+}
+
 export interface ProductStore {
   createUser(input: { email: string; passwordHash: string }): Promise<UserRecord | undefined>;
   findUserByEmail(email: string): Promise<UserRecord | undefined>;
@@ -240,6 +248,9 @@ export interface ProductStore {
   }): Promise<ReportRecord | undefined>;
   getReportById(id: string): Promise<ReportRecord | undefined>;
   hasReportAccessForUser(userId: string, reportId: string): Promise<boolean>;
+  getReportShareToken(input: { userId: string; reportId: string }): Promise<string | undefined>;
+  createReportShare(input: ReportShareRecord): Promise<void>;
+  getReportShareByToken(token: string): Promise<ReportShareRecord | undefined>;
   deleteReport(id: string): Promise<boolean>;
   listReportsByUser(userId: string): Promise<ReportRecord[]>;
   getLatestReportByType(type: JobRecord["type"]): Promise<ReportRecord | undefined>;
@@ -1562,6 +1573,7 @@ export class InMemoryStore implements ProductStore {
   private readonly sessions = new Map<string, SessionRecord>();
   private readonly jobs = new Map<string, JobRecord>();
   private readonly reports = new Map<string, ReportRecord>();
+  private readonly reportShares = new Map<string, ReportShareRecord>();
   private readonly tickerRegistry = new Map<string, TickerRegistryRecord>();
   private readonly watchlists = new Map<string, Set<string>>();
   private readonly auditEvents: AuditEventRecord[] = [];
@@ -2628,6 +2640,21 @@ export class InMemoryStore implements ProductStore {
       job.status === "complete" &&
       job.reportId === reportId
     );
+  }
+
+  async getReportShareToken(input: { userId: string; reportId: string }): Promise<string | undefined> {
+    return [...this.reportShares.values()].find((share) =>
+      share.userId === input.userId && share.reportId === input.reportId
+    )?.token;
+  }
+
+  async createReportShare(input: ReportShareRecord): Promise<void> {
+    this.reportShares.set(input.token, { ...input });
+  }
+
+  async getReportShareByToken(token: string): Promise<ReportShareRecord | undefined> {
+    const share = this.reportShares.get(token);
+    return share && this.reports.has(share.reportId) ? { ...share } : undefined;
   }
 
   async deleteReport(id: string): Promise<boolean> {
@@ -4984,6 +5011,38 @@ export class PostgresStore implements ProductStore {
       [userId, reportId]
     );
     return (result.rowCount ?? 0) > 0;
+  }
+
+  async getReportShareToken(input: { userId: string; reportId: string }): Promise<string | undefined> {
+    const result = await this.pool.query(
+      `select token from report_shares where created_by = $1 and report_id = $2 limit 1`,
+      [input.userId, input.reportId]
+    );
+    return result.rows[0] ? String(result.rows[0].token) : undefined;
+  }
+
+  async createReportShare(input: ReportShareRecord): Promise<void> {
+    await this.pool.query(
+      `insert into report_shares (token, report_id, created_by, created_at)
+       values ($1, $2, $3, $4::timestamptz)`,
+      [input.token, input.reportId, input.userId, input.createdAt]
+    );
+  }
+
+  async getReportShareByToken(token: string): Promise<ReportShareRecord | undefined> {
+    const result = await this.pool.query(
+      `select token, report_id, created_by, created_at from report_shares where token = $1`,
+      [token]
+    );
+    const row = result.rows[0] as Record<string, unknown> | undefined;
+    return row
+      ? {
+        token: String(row.token),
+        reportId: String(row.report_id),
+        userId: String(row.created_by),
+        createdAt: asIsoString(row.created_at) ?? ""
+      }
+      : undefined;
   }
 
   async deleteReport(id: string): Promise<boolean> {

@@ -70,6 +70,7 @@ function createConfig(overrides: Partial<ProductApiConfig> = {}): ProductApiConf
     emailResendApiBaseUrl: "https://api.resend.com",
     emailResendApiKey: undefined,
     emailFromAddress: undefined,
+    appDownloadUrl: "https://play.google.com/store/apps/details?id=com.thesis.mobile",
     exposeVerificationToken: false,
     adminBootstrapRequested: false,
     adminBootstrapEnabled: false,
