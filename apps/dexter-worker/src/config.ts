@@ -113,7 +113,7 @@ export interface DexterConfig {
   queueBlockTimeoutSeconds: number;
   productApiInternalBaseUrl: string;
   internalWorkerToken: string;
-  pulsePriceBaseUrl?: string;
+  priceServiceBaseUrl: string;
   pulseLlmEditorialEnabled: boolean;
   pulseLlmPromptVersion: string;
   pulseLlmMaxTokens: number;
@@ -229,9 +229,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): DexterConfig {
     productApiInternalBaseUrl:
       env.PRODUCT_API_INTERNAL_BASE_URL ?? "http://product-api:3001",
     internalWorkerToken: env.INTERNAL_WORKER_TOKEN ?? devInternalWorkerToken,
-    // No default: the Phase 7 source policy lock forbids an unapproved default price source.
-    // Portfolio prices are fetched only when an approved provider URL is configured.
-    pulsePriceBaseUrl: env.DEXTER_PULSE_PRICE_BASE_URL?.trim() || undefined,
+    // End-of-day prices are read only through the data service (/v1/market/eod-prices).
+    priceServiceBaseUrl: env.PRICE_SERVICE_BASE_URL?.trim() || "http://data-openbb:3003",
     pulseLlmEditorialEnabled: parseBoolean(env.PULSE_LLM_EDITORIAL_ENABLED, false),
     pulseLlmPromptVersion:
       env.PULSE_LLM_PROMPT_VERSION?.trim() || "ph7-dexter-pulse-brief-v1",
