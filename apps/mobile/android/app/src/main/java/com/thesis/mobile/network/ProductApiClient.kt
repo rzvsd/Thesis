@@ -35,6 +35,7 @@ import com.thesis.mobile.model.UserProfileView
 import com.thesis.mobile.model.WarRoomView
 import com.thesis.mobile.model.ReportViewMapper
 import com.thesis.mobile.model.WarRoomViewMapper
+import com.thesis.mobile.ui.copy.ProductCopy
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
@@ -1227,7 +1228,7 @@ class ProductApiClient {
             email = data.optString("email"),
             tier = data.optString("tier", "FREE"),
             billingPeriodEnd = data.optNullableString("billing_period_end"),
-            watchlistLimit = data.optInt("watchlist_limit", 5),
+            watchlistLimit = data.optInt("watchlist_limit", ProductCopy.freeWatchlistLimit),
             dailyDeepDiveLimit = data.optInt("daily_deep_dive_limit", 1),
             deepDivesRemainingToday = data.optInt("deep_dives_remaining_today", 0)
         )

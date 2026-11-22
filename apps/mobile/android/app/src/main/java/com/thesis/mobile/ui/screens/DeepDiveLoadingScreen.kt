@@ -62,7 +62,7 @@ private data class PipelineStepData(
 private val pipelineSteps = listOf(
     PipelineStepData("Searching filings", "SEC 10-K, 10-Q, 8-K", 4000),
     PipelineStepData("Analyzing fundamentals", "Revenue, margins, cash flow", 6000),
-    PipelineStepData("Reading recent news", "Earnings calls, analyst notes", 5000),
+    PipelineStepData("Reading recent news", "Headlines, earnings calls", 5000),
     PipelineStepData("Writing synthesis", "Building your report", 3000)
 )
 
@@ -149,7 +149,7 @@ fun DeepDiveLoadingScreen(modifier: Modifier = Modifier) {
                     )
                     Spacer(modifier = Modifier.height(ThesisDimens.SpacingSm))
                     Text(
-                        text = "Synthesizing filings, news & alternative data",
+                        text = "Synthesizing filings, fundamentals & news",
                         style = ThesisTypography.bodyMedium,
                         color = ThesisColors.TextMuted,
                         textAlign = TextAlign.Center
@@ -191,9 +191,7 @@ fun DeepDiveLoadingScreen(modifier: Modifier = Modifier) {
             ) {
                 val etaText = when {
                     currentStepIndex >= pipelineSteps.size - 1 -> "Finishing up..."
-                    currentStepIndex >= 2 -> "~30 seconds"
-                    currentStepIndex >= 1 -> "~45 seconds"
-                    else -> "~60 seconds"
+                    else -> "Usually about a minute"
                 }
                 Text(
                     text = etaText,

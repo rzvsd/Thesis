@@ -36,6 +36,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.thesis.mobile.ui.copy.ProductCopy
 import com.thesis.mobile.ui.theme.ThesisColors
 import com.thesis.mobile.ui.theme.ThesisDimens
 import com.thesis.mobile.ui.theme.ThesisTypography
@@ -180,7 +181,7 @@ fun NoDeepDivesEmptyState(
         iconTint = ThesisColors.AccentBlue,
         iconBackground = ThesisColors.AccentBlue.copy(alpha = 0.1f),
         title = "No Deep Dives Yet",
-        message = "Search any US stock ticker and get an evidence-backed report in about 90 seconds.",
+        message = "Search a ticker and open an evidence-backed report. Coverage: ${ProductCopy.coverage}.",
         modifier = modifier
     ) {
         actionContent()
@@ -197,7 +198,7 @@ fun NoNamesEmptyState(
         iconTint = ThesisColors.AccentBlue,
         iconBackground = ThesisColors.AccentBlue.copy(alpha = 0.1f),
         title = "No Names Yet",
-        message = "Names you follow appear across Thesis in your morning pulse and company research. Add up to 20.",
+        message = "Names you follow appear across Thesis in your morning pulse and company research.",
         modifier = modifier
     ) {
         EmptyStateActionButton(text = "Add your first name", onClick = onAddName)
