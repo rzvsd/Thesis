@@ -89,12 +89,14 @@ import com.thesis.mobile.ui.copy.Phase4Copy
 import com.thesis.mobile.ui.navigation.ThesisBottomBar
 import com.thesis.mobile.ui.navigation.ThesisNavItem
 import com.thesis.mobile.ui.screens.DeepDiveScreen
+import com.thesis.mobile.ui.screens.DeleteAccountSection
 import com.thesis.mobile.ui.screens.HistoryScreen
 import com.thesis.mobile.ui.screens.HomeScreen
 import com.thesis.mobile.ui.screens.InboxScreen
 import com.thesis.mobile.ui.screens.MonthlyCoherenceSection
 import com.thesis.mobile.ui.screens.NamesScreen
 import com.thesis.mobile.ui.screens.OnboardingScreen
+import com.thesis.mobile.ui.screens.PasswordResetScreen
 import com.thesis.mobile.ui.screens.PaywallScreen
 import com.thesis.mobile.ui.screens.PulseScreen
 import com.thesis.mobile.ui.screens.ScenarioStressScreen
@@ -1090,6 +1092,11 @@ private fun AuthScreen(
     onVerify: (String) -> Unit,
     onLogin: (String, String) -> Unit
 ) {
+    var showPasswordReset by rememberSaveable { mutableStateOf(false) }
+    if (showPasswordReset) {
+        PasswordResetScreen(onDone = { showPasswordReset = false })
+        return
+    }
     var apiBaseUrl by rememberSaveable(currentApiBaseUrl) { mutableStateOf(currentApiBaseUrl) }
     var email by rememberSaveable { mutableStateOf("") }
     var password by rememberSaveable { mutableStateOf("") }
@@ -1314,6 +1321,15 @@ private fun AuthScreen(
                                 modifier = Modifier.clickable { isLoginMode = false }
                             )
                         }
+                        Text(
+                            text = "Forgot password?",
+                            style = ThesisTypography.bodyMedium,
+                            color = ThesisColors.Primary,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { showPasswordReset = true }
+                        )
                     } else {
                         Button(
                             onClick = { onRegister(email, password) },
@@ -2345,6 +2361,9 @@ private fun SettingsTab(
             ) {
                 Text("Logout")
             }
+        }
+        item {
+            DeleteAccountSection()
         }
     }
 }

@@ -430,6 +430,44 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun requestPasswordReset(email: String, onResult: (error: String?, message: String?) -> Unit) {
+        viewModelScope.launch {
+            runCatching { client.requestPasswordReset(state.apiBaseUrl, email.trim()) }
+                .onSuccess { message -> onResult(null, message) }
+                .onFailure { error -> onResult(toMessage(error), null) }
+        }
+    }
+
+    fun confirmPasswordReset(token: String, newPassword: String, onResult: (error: String?) -> Unit) {
+        viewModelScope.launch {
+            runCatching { client.confirmPasswordReset(state.apiBaseUrl, token.trim(), newPassword) }
+                .onSuccess {
+                    publish(state.copy(message = "Password reset successful. Log in with your new password."))
+                    onResult(null)
+                }
+                .onFailure { error -> onResult(toMessage(error)) }
+        }
+    }
+
+    fun deleteAccount(onError: (String) -> Unit) {
+        viewModelScope.launch {
+            var storeNotice: String? = null
+            val error = runAuthorizedWithRefresh {
+                storeNotice = client.deleteAccount(state.apiBaseUrl, requireTokens().accessToken)
+            }
+            if (error != null) {
+                onError(toMessage(error))
+                return@launch
+            }
+            runCatching {
+                RevenueCatBilling.logOutSafely()
+            }
+            clearLocalSession(
+                listOfNotNull("Account deleted successfully.", storeNotice).joinToString(" ")
+            )
+        }
+    }
+
     fun dismissPaywall() {
         publish(state.copy(paywallFeature = null))
     }
