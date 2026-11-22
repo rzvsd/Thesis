@@ -84,6 +84,7 @@ import com.thesis.mobile.model.ScenarioStressTemplateView
 import com.thesis.mobile.model.SectionView
 import com.thesis.mobile.model.UserProfileView
 import com.thesis.mobile.model.WarRoomView
+import com.thesis.mobile.ui.components.LegalLinks
 import com.thesis.mobile.ui.copy.Phase4Copy
 import com.thesis.mobile.ui.navigation.ThesisBottomBar
 import com.thesis.mobile.ui.navigation.ThesisNavItem
@@ -1426,6 +1427,13 @@ private fun AuthScreen(
             }
 
             item {
+                LegalLinks(
+                    apiBaseUrl = currentApiBaseUrl,
+                    leadText = "By creating an account or logging in, you agree to the"
+                )
+            }
+
+            item {
                 Spacer(modifier = Modifier.height(32.dp))
                 Text(
                     text = "THIS IS A RESEARCH TOOL, NOT FINANCIAL ADVICE",
@@ -2338,6 +2346,7 @@ private fun SettingsTab(
                     style = ThesisTypography.bodyMedium,
                     color = ThesisColors.TextPrimary
                 )
+                LegalLinks(apiBaseUrl = currentApiBaseUrl)
             }
         }
         item {
