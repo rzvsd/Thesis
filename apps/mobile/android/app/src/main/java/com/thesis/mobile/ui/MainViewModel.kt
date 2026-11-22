@@ -154,6 +154,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             refreshAlertLedger()
             refreshMonitorSnapshots()
             refreshReportHistory()
+            refreshWatchlist()
             viewModelScope.launch {
                 syncPushToken()
             }
