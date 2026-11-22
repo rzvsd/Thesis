@@ -2261,7 +2261,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             "freshness_decay",
             "morning_exception_briefing",
             "weekly_digest",
-            "market_pulse_ready"
+            "market_pulse_ready",
+            "pulse_email"
         )
     }
 }
@@ -2283,7 +2284,8 @@ internal fun defaultNotificationPreferences(): List<NotificationPreferenceView> 
         NotificationPreferenceView(type = "freshness_decay", enabled = true, quietUntil = null),
         NotificationPreferenceView(type = "morning_exception_briefing", enabled = true, quietUntil = null),
         NotificationPreferenceView(type = "weekly_digest", enabled = true, quietUntil = null),
-        NotificationPreferenceView(type = "market_pulse_ready", enabled = true, quietUntil = null)
+        NotificationPreferenceView(type = "market_pulse_ready", enabled = true, quietUntil = null),
+        NotificationPreferenceView(type = "pulse_email", enabled = true, quietUntil = null)
     )
 
 internal fun normalizeApiBaseUrl(input: String): String? {
