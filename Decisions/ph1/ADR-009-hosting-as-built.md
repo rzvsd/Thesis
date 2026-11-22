@@ -23,7 +23,7 @@ None of that was built. The repository contains no `fly.toml`, no `flyctl` step 
 | Runtime config | A `.env` file in `PROD_REPO_DIR` on the host, read by Docker Compose. Not in git | `docker-compose.yml` |
 | Postgres | `postgres:16-alpine` container, named volume `postgres-data` on the host | `docker-compose.yml` |
 | Redis | `redis:7-alpine` container, append-only file, password required when `NODE_ENV=production` | `docker-compose.yml` |
-| Artifact store | Host directory `./data/artifacts`. Product API supports S3 (`ARTIFACT_STORE_MODE=s3`), but `docker-compose.yml` does not pass the `ARTIFACT_*` S3 variables to the container, so the S3 part of ADR-005 is not active in this deploy | `apps/product-api/src/config.ts`, `docker-compose.yml` |
+| Artifact store | Host directory `./data/artifacts`. Product API supports S3 (`ARTIFACT_STORE_MODE=s3`). Compose passes the `ARTIFACT_*` variables, but S3 is off unless the host `.env` sets them, so the S3 part of ADR-005 is not active by default | `apps/product-api/src/config.ts`, `docker-compose.yml` |
 | TLS / public HTTPS | Not in the repository. Compose publishes plain HTTP ports. The Android release build requires an `https://` API URL with two certificate pins, so a TLS proxy must exist on or in front of the host | `apps/mobile/android/app/build.gradle.kts` |
 | Second deploy mode | `mode=proof` builds the stack on the CI runner in fixture mode. It proves the images start. It does not prove production | same workflow |
 

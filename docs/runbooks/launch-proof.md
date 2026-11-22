@@ -61,16 +61,18 @@ Docker Compose reads this file. The deploy workflow itself exports `NODE_ENV=pro
 
 `SENTRY_DSN`, `SENTIMENT_FRED_API_KEY` (macro stress inputs), `PULSE_LLM_EDITORIAL_ENABLED`, `EXASEARCH_API_KEY`, `PERPLEXITY_API_KEY`, `TAVILY_API_KEY`, `LANGSMITH_*`, `MARKET_PULSE_TICKERS`, the `SCHEDULER_*_TIME_LOCAL` values listed in compose.
 
-### Known gap: variables the code reads but `docker-compose.yml` does not pass
+### Variables passed through by `docker-compose.yml`
 
-Setting these in `.env` has **no effect** today, because compose lists each container variable by name:
+Compose lists each container variable by name. It now also passes these, so setting them in `.env` takes effect. When unset, the code default applies.
 
 - product-api: `CORS_ALLOWED_ORIGINS`, `EMAIL_PROVIDER_MODE`, `EMAIL_RESEND_API_KEY`, `EMAIL_RESEND_API_BASE_URL`, `EMAIL_FROM_ADDRESS`, `OIDC_GOOGLE_*`, `ARTIFACT_STORE_MODE`, `ARTIFACT_S3_*`, `ARTIFACT_REQUIRE_DURABLE`, `AUTH_RATE_LIMIT_*`, `AUTH_LOCKOUT_*`, `BCRYPT_COST`, `MAX_JSON_BODY_BYTES`, `DEEP_DIVE_REUSE_FRESHNESS_HOURS`, `ADMIN_BOOTSTRAP_*` (disabled in production anyway).
-- dexter-worker: `DEXTER_TOOLS_ENABLED` and the other `DEXTER_*_TOOL_*` flags, `DEXTER_TOOL_*`, `DEXTER_PROMPT_MANIFEST_PATH`, `LAST30DAYS_*`, `LANGSMITH_*_PROMPT`, `OPENROUTER_APP_TITLE`, `OPENROUTER_HTTP_REFERER`, `SENTIMENT_YAHOO_BASE_URL`.
+- dexter-worker: `DEXTER_TOOLS_ENABLED` and the other tool flags, `DEXTER_TOOL_*`, `LAST30DAYS_*`, `LANGSMITH_*_PROMPT`, `OPENROUTER_APP_TITLE`, `OPENROUTER_HTTP_REFERER`, `SENTIMENT_YAHOO_BASE_URL`.
 - scheduler: `SCHEDULER_MACRO_STRESS_TIME_LOCAL`, `SCHEDULER_CALENDAR_SYNC_TIME_LOCAL`, `SCHEDULER_EARNINGS_PREVIEW_TIME_LOCAL`, `SCHEDULER_CONTRARIAN_EVAL_TIME_LOCAL`, `SCHEDULER_WEEKLY_DIGEST_TIME_LOCAL`, `SCHEDULER_OFFICIAL_SOURCE_TICKERS`, `SCHEDULER_WAR_ROOM_DISPATCH_ROUTE`.
-- data-openbb: `YFINANCE_RATE_LIMIT_PER_MINUTE`, `FMP_RATE_LIMIT_PER_MINUTE`.
+- data-openbb: `YFINANCE_RATE_LIMIT_PER_MINUTE`.
 
-`EMAIL_*` is also missing from `.env.example`. The code defaults apply (email `stub`, artifacts on host disk, Google sign-in off).
+Not passed on purpose: `DEXTER_PROMPT_MANIFEST_PATH`, a path inside the image whose default cannot be written in compose. Also `FMP_RATE_LIMIT_PER_MINUTE`, a legacy alias that compose already overrides with `FMP_FINANCE_RATE_LIMIT_PER_MINUTE`.
+
+`EMAIL_*` is still missing from `.env.example`. For the proof, set `EMAIL_PROVIDER_MODE=resend`, `EMAIL_RESEND_API_KEY` and `EMAIL_FROM_ADDRESS`. The health script then reports product-api as live.
 
 ### Known blocker: new accounts cannot verify in production
 
@@ -114,7 +116,7 @@ Record in PROOF.md that the account was verified by SQL. This is a workaround fo
    | news-ingest | `fixture_mode: false` |
    | scheduler | `mode: "scheduled"` |
 
-   Because of the compose gap above, product-api reports `email = "stub"` today. The script then reports product-api as `fixture` and the verdict as FAIL. Record this as a known gap, or fix the compose gap first. Every other service must show `live`.
+   Product API reports `email = "resend"` only when the `EMAIL_*` variables are set (section 2). Otherwise the script reports product-api as `fixture` and the verdict is FAIL. Every service must show `live`.
 
    Copy the evidence file to your machine (`scp`) and commit it.
 
@@ -233,7 +235,7 @@ API host: https://<api-host>
 | 6.3 | Renewal webhook | pass/fail | |
 | 6.4-6.5 | Cancel, then expire to FREE | pass/fail | |
 
-Known gaps accepted for this run (for example: product-api email stub, account verified by SQL):
+Known gaps accepted for this run (for example: account verified by SQL):
 
 Owner sign-off: <name, date>
 ```
