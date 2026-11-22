@@ -126,6 +126,7 @@ import { verifyGoogleIdToken } from "./google-oidc";
 import { handleAuthRoutes } from "./routes/auth-routes";
 import { handleNotificationRoutes } from "./routes/notification-routes";
 import { handlePulseRoutes } from "./routes/pulse-routes";
+import { handleLegalRoutes } from "./routes/legal-routes";
 import { handlePublicRoutes } from "./routes/public-routes";
 import {
   handleRevenueCatPublicRoutes,
@@ -5870,6 +5871,10 @@ export function startServer(port: number = loadConfig().port): Server {
     if (method === "GET" && pathname === "/health") {
       const payload: HealthPayload = { status: "ok" };
       sendJson(response, 200, payload);
+      return;
+    }
+
+    if (handleLegalRoutes(method, pathname, response)) {
       return;
     }
 
