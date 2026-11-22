@@ -77,7 +77,10 @@ class DataOpenbbRequestHandler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
 
         if parsed.path == "/health":
-            payload = health_payload()
+            payload: dict[str, Any] = dict(health_payload())
+            settings = getattr(getattr(self.server, "data_service", None), "settings", None)
+            if settings is not None:
+                payload["fixture_mode"] = settings.fixture_mode
             log("INFO", "Health check OK")
             self._write_json(HTTPStatus.OK, payload)
             return

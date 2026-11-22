@@ -180,7 +180,7 @@ class DataOpenbbEndpointTests(unittest.TestCase):
         status, payload = self.request_json("/health")
 
         self.assertEqual(status, 200)
-        self.assertEqual(payload, {"status": "ok"})
+        self.assertEqual(payload, {"status": "ok", "fixture_mode": True})
 
     def test_company_finance_returns_service_response_envelope(self) -> None:
         status, payload = self.request_json("/v1/finance/company?ticker=AAPL")
