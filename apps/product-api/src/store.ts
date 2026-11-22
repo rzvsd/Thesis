@@ -94,6 +94,23 @@ export type GoogleIdentityAttachResult =
   | "subject_in_use"
   | "user_already_linked";
 
+export type AccountActionPurpose = "password_reset" | "account_deletion";
+
+interface AccountActionTokenRecord {
+  userId: string;
+  purpose: AccountActionPurpose;
+  expiresAt: string;
+  consumedAt?: string;
+}
+
+/** Public read-only link to one report (web reader /r/{token}). */
+export interface ReportShareRecord {
+  token: string;
+  reportId: string;
+  userId: string;
+  createdAt: string;
+}
+
 export interface ProductStore {
   createUser(input: { email: string; passwordHash: string }): Promise<UserRecord | undefined>;
   findUserByEmail(email: string): Promise<UserRecord | undefined>;
@@ -108,6 +125,21 @@ export interface ProductStore {
   }): Promise<GoogleIdentityAttachResult>;
   markUserVerified(userId: string, verifiedAt: string): Promise<UserRecord | undefined>;
   updateUserPasswordHash(userId: string, passwordHash: string): Promise<UserRecord | undefined>;
+  createAccountActionToken(input: {
+    id: string;
+    userId: string;
+    purpose: AccountActionPurpose;
+    tokenHash: string;
+    createdAt: string;
+    expiresAt: string;
+  }): Promise<void>;
+  consumeAccountActionToken(
+    purpose: AccountActionPurpose,
+    tokenHash: string,
+    consumedAt: string
+  ): Promise<{ userId: string } | undefined>;
+  revokeAllUserSessions(userId: string, revokedAt: string, reason: string): Promise<number>;
+  deleteUserAccount(userId: string): Promise<boolean>;
   recordFailedLoginAttempt(input: {
     userId: string;
     attemptedAt: string;
@@ -240,6 +272,9 @@ export interface ProductStore {
   }): Promise<ReportRecord | undefined>;
   getReportById(id: string): Promise<ReportRecord | undefined>;
   hasReportAccessForUser(userId: string, reportId: string): Promise<boolean>;
+  getReportShareToken(input: { userId: string; reportId: string }): Promise<string | undefined>;
+  createReportShare(input: ReportShareRecord): Promise<void>;
+  getReportShareByToken(token: string): Promise<ReportShareRecord | undefined>;
   deleteReport(id: string): Promise<boolean>;
   listReportsByUser(userId: string): Promise<ReportRecord[]>;
   getLatestReportByType(type: JobRecord["type"]): Promise<ReportRecord | undefined>;
@@ -251,6 +286,7 @@ export interface ProductStore {
   listHistoricalTranscriptsByTicker(ticker: string): Promise<CanonicalTranscript[]>;
   getTickerCoverageByTicker(ticker: string): Promise<TickerCoverage | undefined>;
   listTickerCoverageTickers(limit: number): Promise<string[]>;
+  listPendingPrecomputeDeepDiveTickers(): Promise<string[]>;
   upsertFearGreedSnapshot(input: {
     snapshot: FearGreedSnapshot;
   }): Promise<{ snapshot: FearGreedSnapshot; created: boolean }>;
@@ -483,6 +519,8 @@ export interface ProductStore {
     tier?: SubscriptionTier;
     userIds?: string[];
   }): Promise<Array<{ userId: string; email: string }>>;
+  getEmailOptOut(userId: string): Promise<boolean>;
+  setEmailOptOut(input: { userId: string; optOut: boolean; updatedAt: string }): Promise<void>;
   listUsersWithWatchlist(): Promise<Array<{ userId: string; tickers: string[] }>>;
   listWatchlistTickersByUser(userId: string): Promise<string[]>;
   addWatchlistTicker(input: {
@@ -634,7 +672,8 @@ function mapReport(row: Record<string, unknown>): ReportRecord {
     fingerprint: row.fingerprint ? String(row.fingerprint) : undefined,
     freshnessExpiresAt: asIsoString(row.freshness_expires_at),
     createdAt: asIsoString(row.created_at) ?? new Date().toISOString(),
-    isCurrent: Boolean(row.is_current)
+    isCurrent: Boolean(row.is_current),
+    llmUsage: row.llm_usage ? (row.llm_usage as Record<string, unknown>) : undefined
   };
 }
 
@@ -1356,6 +1395,7 @@ function mapAlertLedgerRecord(row: Record<string, unknown>): AlertLedgerRecord {
     route: String(row.route) as AlertRouteTarget,
     title: String(row.title ?? ""),
     body: String(row.body ?? ""),
+    detailBody: row.detail_body ? String(row.detail_body) : undefined,
     reasonCode: String(row.reason_code ?? ""),
     reasonText: String(row.reason_text ?? ""),
     deliveryState: String(row.delivery_state) as AlertLedgerRecord["deliveryState"],
@@ -1555,9 +1595,11 @@ export class InMemoryStore implements ProductStore {
   private readonly userIdsByRevenuecatAppUserId = new Map<string, string>();
   private readonly deepDiveDailyUsage = new Map<string, Map<string, number>>();
   private readonly verificationTokensByHash = new Map<string, VerificationTokenRecord>();
+  private readonly accountActionTokensByHash = new Map<string, AccountActionTokenRecord>();
   private readonly sessions = new Map<string, SessionRecord>();
   private readonly jobs = new Map<string, JobRecord>();
   private readonly reports = new Map<string, ReportRecord>();
+  private readonly reportShares = new Map<string, ReportShareRecord>();
   private readonly tickerRegistry = new Map<string, TickerRegistryRecord>();
   private readonly watchlists = new Map<string, Set<string>>();
   private readonly auditEvents: AuditEventRecord[] = [];
@@ -1612,6 +1654,7 @@ export class InMemoryStore implements ProductStore {
     string,
     Map<string, EarningsWarRoomTimelineEventRecord>
   >();
+  private readonly emailOptOutUserIds = new Set<string>();
   private readonly notificationPreferencesByUser = new Map<
     string,
     Map<NotificationType, NotificationPreferenceRecord>
@@ -1877,6 +1920,129 @@ export class InMemoryStore implements ProductStore {
 
     user.passwordHash = passwordHash;
     return user;
+  }
+
+  async createAccountActionToken(input: {
+    id: string;
+    userId: string;
+    purpose: AccountActionPurpose;
+    tokenHash: string;
+    createdAt: string;
+    expiresAt: string;
+  }): Promise<void> {
+    for (const token of this.accountActionTokensByHash.values()) {
+      if (token.userId === input.userId && token.purpose === input.purpose) {
+        token.consumedAt = token.consumedAt ?? input.createdAt;
+      }
+    }
+    this.accountActionTokensByHash.set(input.tokenHash, {
+      userId: input.userId,
+      purpose: input.purpose,
+      expiresAt: input.expiresAt
+    });
+  }
+
+  async consumeAccountActionToken(
+    purpose: AccountActionPurpose,
+    tokenHash: string,
+    consumedAt: string
+  ): Promise<{ userId: string } | undefined> {
+    const token = this.accountActionTokensByHash.get(tokenHash);
+    if (
+      !token ||
+      token.purpose !== purpose ||
+      token.consumedAt ||
+      Date.parse(token.expiresAt) <= Date.now()
+    ) {
+      return undefined;
+    }
+    token.consumedAt = consumedAt;
+    return { userId: token.userId };
+  }
+
+  async revokeAllUserSessions(userId: string, revokedAt: string, reason: string): Promise<number> {
+    let affected = 0;
+    for (const session of this.sessions.values()) {
+      if (session.userId !== userId || session.revokedAt) {
+        continue;
+      }
+      session.revokedAt = revokedAt;
+      session.revokedReason = reason;
+      affected += 1;
+    }
+    return affected;
+  }
+
+  async deleteUserAccount(userId: string): Promise<boolean> {
+    const user = this.users.get(userId);
+    if (!user) {
+      return false;
+    }
+
+    const deleteWhere = <T>(map: Map<string, T>, match: (value: T, key: string) => boolean) => {
+      for (const [key, value] of map) {
+        if (match(value, key)) {
+          map.delete(key);
+        }
+      }
+    };
+    const byUserId = (value: { userId?: string }) => value.userId === userId;
+
+    this.users.delete(userId);
+    this.usersByEmail.delete(user.email);
+    const googleIdentity = this.googleIdentitiesByUserId.get(userId);
+    if (googleIdentity) {
+      this.googleIdentitiesBySubject.delete(googleIdentity.googleSubject);
+      this.googleIdentitiesByUserId.delete(userId);
+    }
+    deleteWhere(this.userIdsByRevenuecatAppUserId, (value) => value === userId);
+    deleteWhere(this.verificationTokensByHash, byUserId);
+    deleteWhere(this.accountActionTokensByHash, byUserId);
+    deleteWhere(this.sessions, byUserId);
+    deleteWhere(this.contrarianAnchors, byUserId);
+    deleteWhere(this.killSwitchRules, byUserId);
+    deleteWhere(this.killSwitchEvaluations, byUserId);
+    deleteWhere(this.nameRelationships, byUserId);
+    deleteWhere(this.reportNotes, byUserId);
+    deleteWhere(this.userFeedbackQueue, byUserId);
+    deleteWhere(this.thesisMonitorSnapshots, byUserId);
+    deleteWhere(this.userResearchHoldings, byUserId);
+    deleteWhere(this.userResearchStates, byUserId);
+    deleteWhere(this.reportShares, byUserId);
+    for (const runId of this.scenarioStressRunsByUser.get(userId)?.keys() ?? []) {
+      this.scenarioStressImpactsByRun.delete(runId);
+      this.scenarioStressRuleSuggestionsByRun.delete(runId);
+    }
+    for (const roomId of this.warRoomsByUser.get(userId)?.keys() ?? []) {
+      this.warRoomTimelineByRoom.delete(roomId);
+    }
+    for (const map of [
+      this.userDevicesByUser,
+      this.subscriptions,
+      this.deepDiveDailyUsage,
+      this.watchlists,
+      this.alertLedgerByUser,
+      this.convictionJournalByUser,
+      this.convictionInsightsByUser,
+      this.oppositeCasesByUser,
+      this.scenarioStressRunsByUser,
+      this.warRoomsByUser,
+      this.notificationPreferencesByUser
+    ] as Map<string, unknown>[]) {
+      map.delete(userId);
+    }
+    for (const job of this.jobs.values()) {
+      if (job.userId === userId) {
+        job.userId = undefined;
+      }
+    }
+    for (const event of this.auditEvents) {
+      if (event.userId === userId) {
+        event.userId = undefined;
+        delete event.payload.email;
+      }
+    }
+    return true;
   }
 
   async recordFailedLoginAttempt(input: {
@@ -2173,7 +2339,7 @@ export class InMemoryStore implements ProductStore {
       if (isQuietUntilActive(preference.quietUntil, new Date().toISOString())) {
         continue;
       }
-      if (!user.verifiedAt) {
+      if (!user.verifiedAt || this.emailOptOutUserIds.has(user.id)) {
         continue;
       }
       const normalizedEmail = user.email.trim().toLowerCase();
@@ -2187,6 +2353,18 @@ export class InMemoryStore implements ProductStore {
     }
 
     return emailTargets;
+  }
+
+  async getEmailOptOut(userId: string): Promise<boolean> {
+    return this.emailOptOutUserIds.has(userId);
+  }
+
+  async setEmailOptOut(input: { userId: string; optOut: boolean; updatedAt: string }): Promise<void> {
+    if (input.optOut) {
+      this.emailOptOutUserIds.add(input.userId);
+    } else {
+      this.emailOptOutUserIds.delete(input.userId);
+    }
   }
 
   private ensureDefaultNotificationPreferences(userId: string): Map<NotificationType, NotificationPreferenceRecord> {
@@ -2613,6 +2791,21 @@ export class InMemoryStore implements ProductStore {
     );
   }
 
+  async getReportShareToken(input: { userId: string; reportId: string }): Promise<string | undefined> {
+    return [...this.reportShares.values()].find((share) =>
+      share.userId === input.userId && share.reportId === input.reportId
+    )?.token;
+  }
+
+  async createReportShare(input: ReportShareRecord): Promise<void> {
+    this.reportShares.set(input.token, { ...input });
+  }
+
+  async getReportShareByToken(token: string): Promise<ReportShareRecord | undefined> {
+    const share = this.reportShares.get(token);
+    return share && this.reports.has(share.reportId) ? { ...share } : undefined;
+  }
+
   async deleteReport(id: string): Promise<boolean> {
     const report = this.reports.get(id);
     if (!report) {
@@ -2680,6 +2873,17 @@ export class InMemoryStore implements ProductStore {
       .filter((ticker) => ticker.length > 0)
       .sort((left, right) => left.localeCompare(right))
       .slice(0, Math.max(1, limit));
+  }
+
+  async listPendingPrecomputeDeepDiveTickers(): Promise<string[]> {
+    const tickers = [...this.jobs.values()]
+      .filter((job) =>
+        job.type === "deep_dive" &&
+        job.userId === undefined &&
+        (job.status === "queued" || job.status === "running") &&
+        job.ticker !== undefined)
+      .map((job) => job.ticker as string);
+    return [...new Set(tickers)];
   }
 
   async upsertFearGreedSnapshot(input: {
@@ -4299,6 +4503,80 @@ export class PostgresStore implements ProductStore {
     return row ? mapUser(row) : undefined;
   }
 
+  async createAccountActionToken(input: {
+    id: string;
+    userId: string;
+    purpose: AccountActionPurpose;
+    tokenHash: string;
+    createdAt: string;
+    expiresAt: string;
+  }): Promise<void> {
+    await this.pool.query(
+      `with superseded as (
+         update account_action_tokens
+            set consumed_at = $5
+          where user_id = $2
+            and purpose = $3
+            and consumed_at is null
+       )
+       insert into account_action_tokens (id, user_id, purpose, token_hash, created_at, expires_at)
+       values ($1, $2, $3, $4, $5, $6)`,
+      [input.id, input.userId, input.purpose, input.tokenHash, input.createdAt, input.expiresAt]
+    );
+  }
+
+  async consumeAccountActionToken(
+    purpose: AccountActionPurpose,
+    tokenHash: string,
+    consumedAt: string
+  ): Promise<{ userId: string } | undefined> {
+    const result = await this.pool.query(
+      `update account_action_tokens
+          set consumed_at = $3
+        where token_hash = $2
+          and purpose = $1
+          and consumed_at is null
+          and expires_at > now()
+        returning user_id`,
+      [purpose, tokenHash, consumedAt]
+    );
+    const row = result.rows[0] as Record<string, unknown> | undefined;
+    return row ? { userId: String(row.user_id) } : undefined;
+  }
+
+  async revokeAllUserSessions(userId: string, revokedAt: string, reason: string): Promise<number> {
+    const result = await this.pool.query(
+      `update sessions
+          set revoked_at = $2,
+              revoked_reason = $3
+        where user_id = $1
+          and revoked_at is null`,
+      [userId, revokedAt, reason]
+    );
+    return result.rowCount ?? 0;
+  }
+
+  async deleteUserAccount(userId: string): Promise<boolean> {
+    const client = await this.pool.connect();
+    try {
+      await client.query("begin");
+      // Audit rows are kept for security history but detached (FK sets user_id null).
+      await client.query(
+        "update audit_events set payload = payload - 'email' where user_id = $1",
+        [userId]
+      );
+      // Every other user-linked table cascades on delete; jobs keep their row with user_id null.
+      const result = await client.query("delete from users where id = $1", [userId]);
+      await client.query("commit");
+      return (result.rowCount ?? 0) > 0;
+    } catch (error) {
+      await client.query("rollback");
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
   async updateUserDeviceToken(
     userId: string,
     deviceToken: string | undefined
@@ -4867,9 +5145,9 @@ export class PostgresStore implements ProductStore {
   async createReport(input: ReportRecord): Promise<ReportRecord> {
     const result = await this.pool.query(
       `insert into reports (
-         id, job_id, type, ticker, schema_version, artifact_key, fingerprint, freshness_expires_at, created_at, is_current
+         id, job_id, type, ticker, schema_version, artifact_key, fingerprint, freshness_expires_at, created_at, is_current, llm_usage
        )
-       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
        returning *`,
       [
         input.id,
@@ -4881,7 +5159,8 @@ export class PostgresStore implements ProductStore {
         input.fingerprint ?? null,
         input.freshnessExpiresAt ?? null,
         input.createdAt,
-        input.isCurrent
+        input.isCurrent,
+        input.llmUsage ? JSON.stringify(input.llmUsage) : null
       ]
     );
     return mapReport(result.rows[0] as Record<string, unknown>);
@@ -4956,6 +5235,38 @@ export class PostgresStore implements ProductStore {
       [userId, reportId]
     );
     return (result.rowCount ?? 0) > 0;
+  }
+
+  async getReportShareToken(input: { userId: string; reportId: string }): Promise<string | undefined> {
+    const result = await this.pool.query(
+      `select token from report_shares where created_by = $1 and report_id = $2 limit 1`,
+      [input.userId, input.reportId]
+    );
+    return result.rows[0] ? String(result.rows[0].token) : undefined;
+  }
+
+  async createReportShare(input: ReportShareRecord): Promise<void> {
+    await this.pool.query(
+      `insert into report_shares (token, report_id, created_by, created_at)
+       values ($1, $2, $3, $4::timestamptz)`,
+      [input.token, input.reportId, input.userId, input.createdAt]
+    );
+  }
+
+  async getReportShareByToken(token: string): Promise<ReportShareRecord | undefined> {
+    const result = await this.pool.query(
+      `select token, report_id, created_by, created_at from report_shares where token = $1`,
+      [token]
+    );
+    const row = result.rows[0] as Record<string, unknown> | undefined;
+    return row
+      ? {
+        token: String(row.token),
+        reportId: String(row.report_id),
+        userId: String(row.created_by),
+        createdAt: asIsoString(row.created_at) ?? ""
+      }
+      : undefined;
   }
 
   async deleteReport(id: string): Promise<boolean> {
@@ -5081,6 +5392,18 @@ export class PostgresStore implements ProductStore {
       [boundedLimit]
     );
     return result.rows.map((row) => String(row.ticker).trim().toUpperCase());
+  }
+
+  async listPendingPrecomputeDeepDiveTickers(): Promise<string[]> {
+    const result = await this.pool.query(
+      `select distinct ticker
+         from jobs
+        where type = 'deep_dive'
+          and user_id is null
+          and status in ('queued', 'running')
+          and ticker is not null`
+    );
+    return result.rows.map((row) => String(row.ticker));
   }
 
   async upsertFearGreedSnapshot(input: {
@@ -6161,11 +6484,12 @@ export class PostgresStore implements ProductStore {
          muted_at,
          context,
          created_at,
-         updated_at
+         updated_at,
+         detail_body
        )
        values (
          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
-         $11, $12::timestamptz, $13::jsonb, $14::timestamptz, $15::timestamptz
+         $11, $12::timestamptz, $13::jsonb, $14::timestamptz, $15::timestamptz, $16
        )
        returning *`,
       [
@@ -6183,7 +6507,8 @@ export class PostgresStore implements ProductStore {
         input.mutedAt ?? null,
         JSON.stringify(input.context ?? {}),
         input.createdAt,
-        input.updatedAt
+        input.updatedAt,
+        input.detailBody ?? null
       ]
     );
     return mapAlertLedgerRecord(result.rows[0] as Record<string, unknown>);
@@ -7243,6 +7568,10 @@ export class PostgresStore implements ProductStore {
           and (np.quiet_until is null or np.quiet_until <= now())
           and ($2::text is null or s.tier = $2::text)
           and ($3::text[] is null or u.id = any($3::text[]))
+          and not exists (
+            select 1 from user_email_preferences ep
+             where ep.user_id = u.id and ep.email_opt_out = true
+          )
         order by u.id asc`,
       [input.notificationType, input.tier ?? null, userIds.length > 0 ? userIds : null]
     );
@@ -7251,6 +7580,25 @@ export class PostgresStore implements ProductStore {
       userId: String(row.user_id),
       email: String(row.email)
     }));
+  }
+
+  async getEmailOptOut(userId: string): Promise<boolean> {
+    const result = await this.pool.query(
+      `select email_opt_out from user_email_preferences where user_id = $1`,
+      [userId]
+    );
+    return result.rows[0]?.email_opt_out === true;
+  }
+
+  async setEmailOptOut(input: { userId: string; optOut: boolean; updatedAt: string }): Promise<void> {
+    await this.pool.query(
+      `insert into user_email_preferences (user_id, email_opt_out, updated_at)
+       values ($1, $2, $3::timestamptz)
+       on conflict (user_id) do update
+         set email_opt_out = excluded.email_opt_out,
+             updated_at = excluded.updated_at`,
+      [input.userId, input.optOut, input.updatedAt]
+    );
   }
 
   async listUsersWithWatchlist(): Promise<Array<{ userId: string; tickers: string[] }>> {

@@ -12,6 +12,9 @@ import {
 
 type JsonObject = Record<string, unknown>;
 
+// Read by startServer; each test file runs in its own process.
+process.env.REVENUECAT_WEBHOOK_SECRET = "m5-export-webhook-secret";
+
 async function closeServer(server: ReturnType<typeof startServer>): Promise<void> {
   await new Promise<void>((resolve, reject) => {
     server.close((error) => {
@@ -125,6 +128,24 @@ async function createVerifiedSession(baseUrl: string, email: string): Promise<{
   assert.equal(login.status, 200);
   const accessToken = login.payload.access_token;
   assert.equal(typeof accessToken, "string");
+
+  // PDF export is a Pro feature: every session in this file exports, so promote it.
+  const profile = await requestJson(baseUrl, "/v1/user/profile", {
+    method: "GET",
+    headers: { authorization: `Bearer ${accessToken as string}` }
+  });
+  const promote = await requestJson(baseUrl, "/v1/webhooks/revenuecat", {
+    method: "POST",
+    headers: { authorization: `Bearer ${process.env.REVENUECAT_WEBHOOK_SECRET ?? ""}` },
+    body: {
+      event: {
+        type: "INITIAL_PURCHASE",
+        app_user_id: (profile.payload.data as JsonObject).user_id as string,
+        expiration_at: "2099-12-31T00:00:00.000Z"
+      }
+    }
+  });
+  assert.equal(promote.status, 200);
 
   return {
     accessToken: accessToken as string,

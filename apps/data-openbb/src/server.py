@@ -14,6 +14,7 @@ try:
         DataOpenBBService,
         SERVICE_NAME,
         build_company_response,
+        build_filing_sections_response,
         build_macro_response,
         build_market_tape_response,
         build_official_company_response,
@@ -27,7 +28,10 @@ try:
         not_found_response,
         error_response,
         schema_error_response,
+        success_response,
+        iso_timestamp,
     )
+    from .prices import build_eod_prices_payload, parse_tickers, resolve_price_adapter
     from .validation import SchemaValidationError
 except ImportError:  # pragma: no cover - supports direct src imports in sibling tests
     from service import (
@@ -35,6 +39,7 @@ except ImportError:  # pragma: no cover - supports direct src imports in sibling
         DataOpenBBService,
         SERVICE_NAME,
         build_company_response,
+        build_filing_sections_response,
         build_macro_response,
         build_market_tape_response,
         build_official_company_response,
@@ -48,7 +53,10 @@ except ImportError:  # pragma: no cover - supports direct src imports in sibling
         not_found_response,
         error_response,
         schema_error_response,
+        success_response,
+        iso_timestamp,
     )
+    from prices import build_eod_prices_payload, parse_tickers, resolve_price_adapter
     from validation import SchemaValidationError
 
 
@@ -75,12 +83,19 @@ class DataOpenbbRequestHandler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
 
         if parsed.path == "/health":
-            payload = health_payload()
+            payload: dict[str, Any] = dict(health_payload())
+            settings = getattr(getattr(self.server, "data_service", None), "settings", None)
+            if settings is not None:
+                payload["fixture_mode"] = settings.fixture_mode
             log("INFO", "Health check OK")
             self._write_json(HTTPStatus.OK, payload)
             return
 
         request_id = get_request_id(self.headers.get("x-request-id"))
+
+        if parsed.path == "/v1/market/eod-prices":
+            self._write_eod_prices(parse_qs(parsed.query).get("tickers", [""])[0], request_id)
+            return
 
         try:
             service = getattr(self.server, "data_service", None)
@@ -99,6 +114,11 @@ class DataOpenbbRequestHandler(BaseHTTPRequestHandler):
                 if parsed.path == "/v1/official/company":
                     ticker = parse_qs(parsed.query).get("ticker", [""])[0]
                     status_code, body = service.get_official_company_truth(ticker, request_id=request_id)
+                    self._write_json(status_code, body, request_id=request_id)
+                    return
+                if parsed.path == "/v1/official/filing-sections":
+                    ticker = parse_qs(parsed.query).get("ticker", [""])[0]
+                    status_code, body = service.get_filing_sections(ticker, request_id=request_id)
                     self._write_json(status_code, body, request_id=request_id)
                     return
                 if parsed.path == "/v1/official/macro":
@@ -145,6 +165,11 @@ class DataOpenbbRequestHandler(BaseHTTPRequestHandler):
                 )
             elif parsed.path == "/v1/official/company":
                 response = build_official_company_response(
+                    ticker=parse_qs(parsed.query).get("ticker", [""])[0],
+                    request_id=request_id,
+                )
+            elif parsed.path == "/v1/official/filing-sections":
+                response = build_filing_sections_response(
                     ticker=parse_qs(parsed.query).get("ticker", [""])[0],
                     request_id=request_id,
                 )
@@ -302,6 +327,36 @@ class DataOpenbbRequestHandler(BaseHTTPRequestHandler):
 
     def do_DELETE(self) -> None:  # noqa: N802
         self.do_POST()
+
+    def _write_eod_prices(self, raw_tickers: str, request_id: str) -> None:
+        try:
+            tickers = parse_tickers(raw_tickers)
+        except ValueError as error:
+            response = error_response(status_code=422, request_id=request_id, message=str(error))
+            self._write_json(response.status_code, response.body, request_id=request_id)
+            return
+        try:
+            adapter = resolve_price_adapter()
+            payload, provider_error = build_eod_prices_payload(tickers, adapter)
+        except Exception as error:
+            response = internal_error_response(request_id, error)
+            self._write_json(response.status_code, response.body, request_id=request_id)
+            return
+        if provider_error is not None:
+            log(
+                "WARN",
+                "EOD price provider failed; prices reported unavailable",
+                request_id=request_id,
+                provider=adapter.name,
+                error_message=provider_error,
+            )
+        body = success_response(
+            request_id=request_id,
+            data=payload,
+            provider=adapter.name,
+            retrieved_at=iso_timestamp(),
+        )
+        self._write_json(HTTPStatus.OK, body, request_id=request_id)
 
     def log_message(self, format: str, *args: Any) -> None:  # noqa: A003
         return

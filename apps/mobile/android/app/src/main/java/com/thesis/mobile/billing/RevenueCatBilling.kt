@@ -70,6 +70,17 @@ object RevenueCatBilling {
 
     fun pickPreferredPackage(offerings: Offerings, preference: PackageType): Package? {
         val current = offerings.current ?: return null
+        // Store product IDs come from build config; Play IDs look like "productId:basePlanId".
+        val configuredProductId = when (preference) {
+            PackageType.MONTHLY -> BuildConfig.REVENUECAT_MONTHLY_PRODUCT_ID
+            PackageType.ANNUAL -> BuildConfig.REVENUECAT_YEARLY_PRODUCT_ID
+            else -> ""
+        }.trim()
+        if (configuredProductId.isNotEmpty()) {
+            current.availablePackages.firstOrNull {
+                it.product.id == configuredProductId || it.product.id.substringBefore(':') == configuredProductId
+            }?.let { return it }
+        }
         return current.availablePackages.firstOrNull { it.packageType == preference }
             ?: current.availablePackages.firstOrNull()
     }

@@ -5,7 +5,10 @@ import test from "node:test";
 
 import { startServer } from "../src/server";
 
-type HealthPayload = { status: "ok" };
+type HealthPayload = {
+  status: "ok";
+  modes: { push: string; email: string; artifact_store: string };
+};
 
 test("GET /health returns the expected payload", async () => {
   const server = startServer(0);
@@ -16,7 +19,8 @@ test("GET /health returns the expected payload", async () => {
   const payload = (await response.json()) as HealthPayload;
 
   assert.equal(response.status, 200);
-  assert.deepEqual(payload, { status: "ok" });
+  assert.equal(payload.status, "ok");
+  assert.deepEqual(Object.keys(payload.modes).sort(), ["artifact_store", "email", "push"]);
 
   await new Promise<void>((resolve, reject) => {
     server.close((error) => {

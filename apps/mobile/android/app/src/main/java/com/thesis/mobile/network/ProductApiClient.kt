@@ -9,6 +9,8 @@ import com.thesis.mobile.model.ConvictionJournalEntryView
 import com.thesis.mobile.model.ConvictionThesisSnapshotView
 import com.thesis.mobile.model.DeepDiveReportView
 import com.thesis.mobile.model.EvidenceView
+import com.thesis.mobile.model.HoldingsImportResultView
+import com.thesis.mobile.model.HoldingsImportRowErrorView
 import com.thesis.mobile.model.JobStatus
 import com.thesis.mobile.model.NotificationPreferenceView
 import com.thesis.mobile.model.BriefingContextView
@@ -73,6 +75,28 @@ class ProductApiClient {
                 .put("email", email)
                 .put("password", password)
             parseTokens(requestJson(baseUrl, "POST", "/auth/login", body = body))
+        }
+
+    suspend fun requestPasswordReset(baseUrl: String, email: String): String =
+        withContext(Dispatchers.IO) {
+            val body = JSONObject().put("email", email)
+            requestJson(baseUrl, "POST", "/auth/password-reset/request", body = body)
+                .optString("message")
+        }
+
+    suspend fun confirmPasswordReset(baseUrl: String, token: String, newPassword: String) =
+        withContext(Dispatchers.IO) {
+            val body = JSONObject()
+                .put("token", token)
+                .put("new_password", newPassword)
+            requestJson(baseUrl, "POST", "/auth/password-reset/confirm", body = body)
+        }
+
+    /** Returns the store subscription notice when the account had a paid tier. */
+    suspend fun deleteAccount(baseUrl: String, accessToken: String): String? =
+        withContext(Dispatchers.IO) {
+            requestJson(baseUrl, "DELETE", "/v1/account", accessToken = accessToken)
+                .optNullableString("store_subscription_notice")
         }
 
     suspend fun refresh(baseUrl: String, refreshToken: String): AuthTokens =
@@ -715,6 +739,32 @@ class ProductApiClient {
             (0 until data.length()).mapNotNull { index -> data.optString(index) }
         }
 
+    suspend fun importHoldingsCsv(baseUrl: String, accessToken: String, csv: String): HoldingsImportResultView =
+        withContext(Dispatchers.IO) {
+            val body = JSONObject().put("csv", csv)
+            val json = requestJson(baseUrl, "POST", "/v1/user/holdings/import", accessToken = accessToken, body = body)
+            val data = json.optJSONObject("data") ?: JSONObject()
+            fun strings(key: String): List<String> {
+                val array = data.optJSONArray(key) ?: JSONArray()
+                return (0 until array.length()).mapNotNull { index -> array.optString(index) }
+            }
+            val errors = data.optJSONArray("errors") ?: JSONArray()
+            HoldingsImportResultView(
+                rows = data.optInt("rows"),
+                imported = strings("imported"),
+                newlyFollowed = strings("newly_followed"),
+                errors = (0 until errors.length()).mapNotNull { index ->
+                    val row = errors.optJSONObject(index) ?: return@mapNotNull null
+                    HoldingsImportRowErrorView(
+                        line = row.optInt("line"),
+                        ticker = row.optNullableString("ticker"),
+                        message = row.optString("error_message")
+                    )
+                },
+                watchlist = strings("watchlist")
+            )
+        }
+
     suspend fun getUserProfile(baseUrl: String, accessToken: String): UserProfileView =
         withContext(Dispatchers.IO) {
             val json = requestJson(baseUrl, "GET", "/v1/user/profile", accessToken = accessToken)
@@ -801,6 +851,8 @@ class ProductApiClient {
             route = row.optString("route").ifBlank { "inbox" },
             title = row.optString("title").ifBlank { notificationType },
             body = row.optString("body").ifBlank { "" },
+            detailBody = row.optNullableString("detail_body"),
+            detailLocked = row.optBoolean("detail_locked", false),
             reasonCode = row.optString("reason_code").ifBlank { "unknown" },
             reasonText = row.optString("reason_text").ifBlank { "" },
             deliveryState = row.optString("delivery_state").ifBlank { "sent" },
@@ -1229,7 +1281,7 @@ class ProductApiClient {
             email = data.optString("email"),
             tier = data.optString("tier", "FREE"),
             billingPeriodEnd = data.optNullableString("billing_period_end"),
-            watchlistLimit = data.optInt("watchlist_limit", 5),
+            watchlistLimit = data.optInt("watchlist_limit", 3),
             dailyDeepDiveLimit = data.optInt("daily_deep_dive_limit", 1),
             deepDivesRemainingToday = data.optInt("deep_dives_remaining_today", 0)
         )

@@ -153,6 +153,40 @@ function normalizeMacroNewsInputs(
   return normalized.slice(0, 8);
 }
 
+// Maps approved news-ingest articles to headline metadata only (no article body), keeping http(s) links only.
+export function headlineItemsFromApprovedNews(articles: unknown): MarketPulseHeadlineItem[] {
+  if (!Array.isArray(articles)) {
+    return [];
+  }
+  const items: MarketPulseHeadlineItem[] = [];
+  for (const article of articles) {
+    if (!article || typeof article !== "object") {
+      continue;
+    }
+    const record = article as Record<string, unknown>;
+    const headline = typeof record.title === "string" ? record.title.trim() : "";
+    const sourceName = typeof record.source === "string" ? record.source.trim() : "";
+    if (record.is_approved_source !== true || !headline || !sourceName) {
+      continue;
+    }
+    const url = typeof record.url === "string" && /^https?:\/\//i.test(record.url.trim()) ? record.url.trim() : undefined;
+    const publishedAt = typeof record.published_at === "string" && record.published_at.trim()
+      ? record.published_at.trim()
+      : undefined;
+    const retrievedAt = typeof record.retrieved_at === "string" && record.retrieved_at.trim()
+      ? record.retrieved_at.trim()
+      : publishedAt ?? new Date().toISOString();
+    items.push({
+      headline,
+      source_name: sourceName,
+      ...(url ? { source_url: url } : {}),
+      ...(publishedAt ? { published_at: publishedAt } : {}),
+      evidence: [toEvidence("article", sourceName, `Headline only: ${headline}`, retrievedAt, url)]
+    });
+  }
+  return items;
+}
+
 function macroNewsFromHeadlines(
   items: MarketPulseHeadlineItem[] | undefined,
   generatedAt: string
@@ -163,7 +197,6 @@ function macroNewsFromHeadlines(
     return (
       topic === "macro" ||
       topic === "policy" ||
-      topic === "sector" ||
       headline.includes("china") ||
       headline.includes("taiwan") ||
       headline.includes("attack") ||

@@ -1,31 +1,34 @@
 # Thesis - Phase 7 Roadmap
 
 **Status:** Active  
-**Last Revised:** 2026-05-04
+**Last Revised:** 2026-11-21 (statuses reconciled with `reviews/2026-09-06/END-TO-END-REVIEW.md` after the seven P1 fixes)
 
 ---
 
 ## Sequence
 
-| Milestone | Name | Status |
-|---|---|---|
-| M1 | Pulse Market Tape & Clear Daily Context | Validated |
-| M2 | Pulse Editorial Freshness & Daily Delta | Validated |
-| M3 | Pulse Morning Newspaper Edition & Portfolio Radar | Validated |
-| M4 | Pulse Macro News & Geopolitical Shock Layer | Validated |
-| M5 | User Research State & Analyst Refresh Agent | Validated |
-| M6 | Guarded LLM Pulse Editorial Writer | Validated |
-| M7 | Pulse Issue Plan & Professional Newspaper Polish | Validated |
-| M8 | Pulse Morning Brief Reset | Validated |
-| M9 | Dexter Evidence Quality Skills | Validated |
-| M10 | Pulse A+ Morning Brief Engagement Overhaul | Validated |
-| M11 | Deep Dive Filing Intelligence Memo Revamp | Validated |
-| M12 | Deep Dive Financial Indicators & Value Lens | Validated |
-| M13 | Deep Dive Benchmarks & Investor Education | Active |
+| Milestone | Name | Status | Open items (review 2026-09-06) |
+|---|---|---|---|
+| M1 | Pulse Market Tape & Clear Daily Context | Conditional | Malformed replay `as_of` is silently replaced by today |
+| M2 | Pulse Editorial Freshness & Daily Delta | Conditional | Replays can read future Pulse reports; coarse daily-delta detection |
+| M3 | Pulse Morning Newspaper Edition & Portfolio Radar | Conditional | Unsafe headline links fixed; row evidence validation still weak |
+| M4 | Pulse Macro News & Geopolitical Shock Layer | Conditional | Dispatch now reads approved headlines; live news-ingest proof not recorded |
+| M5 | User Research State & Analyst Refresh Agent | Conditional | Refresh can read future Deep Dives; malformed holdings can 500 |
+| M6 | Guarded LLM Pulse Editorial Writer | Conditional | Fact grounding added; Anthropic/OpenAI fallback still conflicts with OpenRouter-only lock |
+| M7 | Pulse Issue Plan & Professional Newspaper Polish | Superseded | Renderer intentionally replaced by M8/M10 |
+| M8 | Pulse Morning Brief Reset | Conditional | Unsafe links fixed; internal omission labels still reach the footer |
+| M9 | Dexter Evidence Quality Skills | Conditional | Fixture context no longer reaches live runs; `assertCustomerSafeText` has no caller |
+| M10 | Pulse A+ Morning Brief Engagement Overhaul | Conditional | Yahoo default removed and grounding added; provider fallback and compliant price source open |
+| M11 | Deep Dive Filing Intelligence Memo Revamp | Conditional | Reviewed filing text now wired; SEC/XBRL evidence still lacks source locators; no live proof |
+| M12 | Deep Dive Financial Indicators & Value Lens | Conditional | TTM continuity fixed; negative denominators and price provenance open |
+| M13 | Deep Dive Benchmarks & Investor Education | Active | TTM continuity fixed; closeout pending |
 
 ## Status Semantics
 
-- `Validated` means implementation evidence exists under the milestone evidence folder and the milestone is no longer the active planning surface.
+- `Validated` means implementation evidence exists under the milestone evidence folder, no open P1/P2 review finding remains, and the milestone is no longer the active planning surface.
+- `Conditional` means the core implementation and evidence exist and no P1 blocker remains, but listed review findings are still open; it is not a production sign-off.
+- `Blocked` means a P1 finding removes the milestone's central behavior or a production guarantee.
+- `Superseded` means later milestones intentionally replaced the deliverable; it needs no repair.
 - `Active` means this is the current closeout, polish, or production-proof surface.
 - `Deferred` should be used for accepted scope that is intentionally moved out of Phase 7.
 - `Done` should be used only when owner sign-off and production/deploy proof are both recorded.

@@ -36,6 +36,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.thesis.mobile.model.AlertLedgerItemView
+import com.thesis.mobile.model.HoldingsImportResultView
 import com.thesis.mobile.model.ThesisMonitorSnapshotView
 import com.thesis.mobile.ui.copy.Phase4Copy
 import com.thesis.mobile.ui.theme.HeadingFont
@@ -58,6 +59,7 @@ fun NamesScreen(
     onRemoveTicker: (String) -> Unit,
     onRunDeepDive: (String) -> Unit,
     onOpenResearch: (String) -> Unit,
+    onImportHoldingsCsv: suspend (String) -> Result<HoldingsImportResultView>,
     warRoomByTicker: Map<String, String> = emptyMap(),
     onOpenWarRoom: (String) -> Unit = {}
 ) {
@@ -205,6 +207,9 @@ fun NamesScreen(
             ) {
                 Text(Phase4Copy.namesRefreshLabel, color = ThesisColors.TextMuted)
             }
+        }
+        item {
+            HoldingsCsvImportAction(onImportCsv = onImportHoldingsCsv)
         }
 
         if (watchlist.isEmpty()) {
