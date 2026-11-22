@@ -637,7 +637,8 @@ function mapReport(row: Record<string, unknown>): ReportRecord {
     fingerprint: row.fingerprint ? String(row.fingerprint) : undefined,
     freshnessExpiresAt: asIsoString(row.freshness_expires_at),
     createdAt: asIsoString(row.created_at) ?? new Date().toISOString(),
-    isCurrent: Boolean(row.is_current)
+    isCurrent: Boolean(row.is_current),
+    llmUsage: row.llm_usage ? (row.llm_usage as Record<string, unknown>) : undefined
   };
 }
 
@@ -4895,9 +4896,9 @@ export class PostgresStore implements ProductStore {
   async createReport(input: ReportRecord): Promise<ReportRecord> {
     const result = await this.pool.query(
       `insert into reports (
-         id, job_id, type, ticker, schema_version, artifact_key, fingerprint, freshness_expires_at, created_at, is_current
+         id, job_id, type, ticker, schema_version, artifact_key, fingerprint, freshness_expires_at, created_at, is_current, llm_usage
        )
-       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
        returning *`,
       [
         input.id,
@@ -4909,7 +4910,8 @@ export class PostgresStore implements ProductStore {
         input.fingerprint ?? null,
         input.freshnessExpiresAt ?? null,
         input.createdAt,
-        input.isCurrent
+        input.isCurrent,
+        input.llmUsage ? JSON.stringify(input.llmUsage) : null
       ]
     );
     return mapReport(result.rows[0] as Record<string, unknown>);

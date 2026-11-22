@@ -3,6 +3,7 @@ import test from "node:test";
 
 import type { MarketPulseReport } from "../../../packages/contracts/src";
 import { buildMarketPulseReportHtml } from "../src/market-pulse-render";
+import { validateIncomingMarketPulseReport } from "../src/market-pulse-validation";
 
 function createReport(): MarketPulseReport {
   return {
@@ -617,6 +618,36 @@ test("buildMarketPulseReportHtml hides optional modules when typed data is absen
   assert.doesNotMatch(html, /portfolio radar was omitted/i);
   assert.match(html, /The Honest Read/);
   assert.match(html, /Sources and Method/);
+});
+
+test("headline links only render for http(s) source URLs", () => {
+  const report = createReport();
+  const [headline] = report.morning_edition!.headline_digest;
+  report.morning_edition!.headline_digest = [
+    { ...headline!, headline: "Unsafe scheme headline", source_url: "javascript:alert(1)" },
+    { ...headline!, headline: "Mixed case scheme headline", source_url: " JavaScript:alert(2)" },
+    { ...headline!, headline: "Safe headline", source_url: "https://example.com/safe" }
+  ];
+  const html = buildMarketPulseReportHtml(report);
+
+  assert.doesNotMatch(html, /href="\s*javascript:/i);
+  assert.match(html, /<strong>Unsafe scheme headline<\/strong>/);
+  assert.match(html, /<strong>Mixed case scheme headline<\/strong>/);
+  assert.match(html, /<a href="https:\/\/example\.com\/safe">Safe headline<\/a>/);
+});
+
+test("incoming Pulse validation rejects non-http(s) headline source URLs", () => {
+  const report = createReport();
+  const [headline] = report.morning_edition!.headline_digest;
+  report.morning_edition!.headline_digest = [{ ...headline!, source_url: "javascript:alert(1)" }];
+  const errors = validateIncomingMarketPulseReport(report);
+
+  assert.ok(
+    errors.includes("morning_edition.headline_digest[0].source_url must be an http(s) URL when provided"),
+    errors.join("\n")
+  );
+  report.morning_edition!.headline_digest = [{ ...headline!, source_url: "https://example.com/ok" }];
+  assert.ok(!validateIncomingMarketPulseReport(report).some((error) => error.includes("source_url")));
 });
 
 test("buildMarketPulseReportHtml adapts quiet days into a short issue", () => {
