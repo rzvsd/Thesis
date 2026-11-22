@@ -9,7 +9,8 @@ export const notificationTypes = [
   "morning_exception_briefing",
   "cross_name_propagation",
   "weekly_digest",
-  "market_pulse_ready"
+  "market_pulse_ready",
+  "filing_change"
 ] as const;
 
 export type NotificationType = (typeof notificationTypes)[number];

@@ -21,6 +21,7 @@ export interface EmailNotifierConfig {
 export interface NotificationEmailPayload {
   subject: string;
   text: string;
+  headers?: Record<string, string>;
 }
 
 export class EmailNotifier {
@@ -100,7 +101,8 @@ export class EmailNotifier {
             from: this.config.fromAddress,
             to: [target.email],
             subject: payload.subject,
-            text: payload.text
+            text: payload.text,
+            ...(payload.headers ? { headers: payload.headers } : {})
           }),
           signal: abortController.signal
         }
