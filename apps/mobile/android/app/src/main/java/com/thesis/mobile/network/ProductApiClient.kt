@@ -9,6 +9,8 @@ import com.thesis.mobile.model.ConvictionJournalEntryView
 import com.thesis.mobile.model.ConvictionThesisSnapshotView
 import com.thesis.mobile.model.DeepDiveReportView
 import com.thesis.mobile.model.EvidenceView
+import com.thesis.mobile.model.HoldingsImportResultView
+import com.thesis.mobile.model.HoldingsImportRowErrorView
 import com.thesis.mobile.model.JobStatus
 import com.thesis.mobile.model.NotificationPreferenceView
 import com.thesis.mobile.model.BriefingContextView
@@ -713,6 +715,32 @@ class ProductApiClient {
             )
             val data = json.optJSONArray("data") ?: JSONArray()
             (0 until data.length()).mapNotNull { index -> data.optString(index) }
+        }
+
+    suspend fun importHoldingsCsv(baseUrl: String, accessToken: String, csv: String): HoldingsImportResultView =
+        withContext(Dispatchers.IO) {
+            val body = JSONObject().put("csv", csv)
+            val json = requestJson(baseUrl, "POST", "/v1/user/holdings/import", accessToken = accessToken, body = body)
+            val data = json.optJSONObject("data") ?: JSONObject()
+            fun strings(key: String): List<String> {
+                val array = data.optJSONArray(key) ?: JSONArray()
+                return (0 until array.length()).mapNotNull { index -> array.optString(index) }
+            }
+            val errors = data.optJSONArray("errors") ?: JSONArray()
+            HoldingsImportResultView(
+                rows = data.optInt("rows"),
+                imported = strings("imported"),
+                newlyFollowed = strings("newly_followed"),
+                errors = (0 until errors.length()).mapNotNull { index ->
+                    val row = errors.optJSONObject(index) ?: return@mapNotNull null
+                    HoldingsImportRowErrorView(
+                        line = row.optInt("line"),
+                        ticker = row.optNullableString("ticker"),
+                        message = row.optString("error_message")
+                    )
+                },
+                watchlist = strings("watchlist")
+            )
         }
 
     suspend fun getUserProfile(baseUrl: String, accessToken: String): UserProfileView =

@@ -724,3 +724,17 @@ data class SubscriptionOfferView(
     val identifier: String,
     val title: String
 )
+
+data class HoldingsImportRowErrorView(
+    val line: Int,
+    val ticker: String?,
+    val message: String
+)
+
+data class HoldingsImportResultView(
+    val rows: Int,
+    val imported: List<String>,
+    val newlyFollowed: List<String>,
+    val errors: List<HoldingsImportRowErrorView>,
+    val watchlist: List<String>
+)

@@ -585,6 +585,7 @@ fun ThesisApp(
                         },
                         onAddTicker = mainViewModel::addWatchlistTicker,
                         onRemoveTicker = mainViewModel::removeWatchlistTicker,
+                        onImportHoldingsCsv = mainViewModel::importHoldingsCsv,
                         onRunDeepDive = { ticker ->
                             mainViewModel.selectTicker(ticker)
                             researchMode = ResearchMode.DEEP_DIVE
