@@ -113,7 +113,7 @@ export async function handleHoldingsImportRoutes<TRuntime extends HoldingsImport
   }
 
   const lines = body.csv
-    .replace(/^﻿/, "")
+    .replace(/^\uFEFF/, "")
     .split(/\r?\n/)
     .map((text, index) => ({ line: index + 1, cells: splitCsvLine(text) }))
     .filter((row) => row.cells.some((cell) => cell.length > 0));
