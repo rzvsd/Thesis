@@ -484,6 +484,8 @@ export interface ProductStore {
     tier?: SubscriptionTier;
     userIds?: string[];
   }): Promise<Array<{ userId: string; email: string }>>;
+  getEmailOptOut(userId: string): Promise<boolean>;
+  setEmailOptOut(input: { userId: string; optOut: boolean; updatedAt: string }): Promise<void>;
   listUsersWithWatchlist(): Promise<Array<{ userId: string; tickers: string[] }>>;
   listWatchlistTickersByUser(userId: string): Promise<string[]>;
   addWatchlistTicker(input: {
@@ -1357,6 +1359,7 @@ function mapAlertLedgerRecord(row: Record<string, unknown>): AlertLedgerRecord {
     route: String(row.route) as AlertRouteTarget,
     title: String(row.title ?? ""),
     body: String(row.body ?? ""),
+    detailBody: row.detail_body ? String(row.detail_body) : undefined,
     reasonCode: String(row.reason_code ?? ""),
     reasonText: String(row.reason_text ?? ""),
     deliveryState: String(row.delivery_state) as AlertLedgerRecord["deliveryState"],
@@ -1613,6 +1616,7 @@ export class InMemoryStore implements ProductStore {
     string,
     Map<string, EarningsWarRoomTimelineEventRecord>
   >();
+  private readonly emailOptOutUserIds = new Set<string>();
   private readonly notificationPreferencesByUser = new Map<
     string,
     Map<NotificationType, NotificationPreferenceRecord>
@@ -2174,7 +2178,7 @@ export class InMemoryStore implements ProductStore {
       if (isQuietUntilActive(preference.quietUntil, new Date().toISOString())) {
         continue;
       }
-      if (!user.verifiedAt) {
+      if (!user.verifiedAt || this.emailOptOutUserIds.has(user.id)) {
         continue;
       }
       const normalizedEmail = user.email.trim().toLowerCase();
@@ -2188,6 +2192,18 @@ export class InMemoryStore implements ProductStore {
     }
 
     return emailTargets;
+  }
+
+  async getEmailOptOut(userId: string): Promise<boolean> {
+    return this.emailOptOutUserIds.has(userId);
+  }
+
+  async setEmailOptOut(input: { userId: string; optOut: boolean; updatedAt: string }): Promise<void> {
+    if (input.optOut) {
+      this.emailOptOutUserIds.add(input.userId);
+    } else {
+      this.emailOptOutUserIds.delete(input.userId);
+    }
   }
 
   private ensureDefaultNotificationPreferences(userId: string): Map<NotificationType, NotificationPreferenceRecord> {
@@ -6185,11 +6201,12 @@ export class PostgresStore implements ProductStore {
          muted_at,
          context,
          created_at,
-         updated_at
+         updated_at,
+         detail_body
        )
        values (
          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
-         $11, $12::timestamptz, $13::jsonb, $14::timestamptz, $15::timestamptz
+         $11, $12::timestamptz, $13::jsonb, $14::timestamptz, $15::timestamptz, $16
        )
        returning *`,
       [
@@ -6207,7 +6224,8 @@ export class PostgresStore implements ProductStore {
         input.mutedAt ?? null,
         JSON.stringify(input.context ?? {}),
         input.createdAt,
-        input.updatedAt
+        input.updatedAt,
+        input.detailBody ?? null
       ]
     );
     return mapAlertLedgerRecord(result.rows[0] as Record<string, unknown>);
@@ -7267,6 +7285,10 @@ export class PostgresStore implements ProductStore {
           and (np.quiet_until is null or np.quiet_until <= now())
           and ($2::text is null or s.tier = $2::text)
           and ($3::text[] is null or u.id = any($3::text[]))
+          and not exists (
+            select 1 from user_email_preferences ep
+             where ep.user_id = u.id and ep.email_opt_out = true
+          )
         order by u.id asc`,
       [input.notificationType, input.tier ?? null, userIds.length > 0 ? userIds : null]
     );
@@ -7275,6 +7297,25 @@ export class PostgresStore implements ProductStore {
       userId: String(row.user_id),
       email: String(row.email)
     }));
+  }
+
+  async getEmailOptOut(userId: string): Promise<boolean> {
+    const result = await this.pool.query(
+      `select email_opt_out from user_email_preferences where user_id = $1`,
+      [userId]
+    );
+    return result.rows[0]?.email_opt_out === true;
+  }
+
+  async setEmailOptOut(input: { userId: string; optOut: boolean; updatedAt: string }): Promise<void> {
+    await this.pool.query(
+      `insert into user_email_preferences (user_id, email_opt_out, updated_at)
+       values ($1, $2, $3::timestamptz)
+       on conflict (user_id) do update
+         set email_opt_out = excluded.email_opt_out,
+             updated_at = excluded.updated_at`,
+      [input.userId, input.optOut, input.updatedAt]
+    );
   }
 
   async listUsersWithWatchlist(): Promise<Array<{ userId: string; tickers: string[] }>> {

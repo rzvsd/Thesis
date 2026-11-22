@@ -125,6 +125,8 @@ import { fetchLatestClosePrice, fetchLatestClosePrices } from "./market-prices";
 import { verifyGoogleIdToken } from "./google-oidc";
 import { handleAuthRoutes } from "./routes/auth-routes";
 import { handleCoverageRoutes } from "./routes/coverage-routes";
+import { handleEmailUnsubscribeRoutes } from "./routes/email-unsubscribe-routes";
+import { dispatchFilingChangeAlerts, findPriorDeepDive } from "./filing-change-alerts";
 import { handleNotificationRoutes } from "./routes/notification-routes";
 import { handlePulseRoutes } from "./routes/pulse-routes";
 import { handlePublicRoutes } from "./routes/public-routes";
@@ -539,6 +541,8 @@ function notificationTypeLabel(type: NotificationType): string {
       return "Weekly digest";
     case "market_pulse_ready":
       return "Market Pulse";
+    case "filing_change":
+      return "Filing change";
   }
 }
 
@@ -551,6 +555,7 @@ function notificationCategory(type: NotificationType): AlertLedgerCategory {
       return "thesis_drift";
     case "earnings_preview":
     case "earnings_war_room":
+    case "filing_change":
       return "earnings";
     case "morning_exception_briefing":
     case "weekly_digest":
@@ -672,6 +677,7 @@ function toAlertLedgerView(record: AlertLedgerRecord) {
     route: record.route,
     title: record.title,
     body: record.body,
+    detail_body: record.detailBody,
     reason_code: record.reasonCode,
     reason_text: record.reasonText,
     delivery_state: record.deliveryState,
@@ -5972,6 +5978,10 @@ export function startServer(port: number = loadConfig().port): Server {
         return;
       }
 
+      if (await handleEmailUnsubscribeRoutes({ method, pathname, response, runtime, url })) {
+        return;
+      }
+
       if (pathname.startsWith("/internal/")) {
         if (!hasInternalToken(request, runtime.config.internalWorkerToken)) {
           sendJson(response, 401, {
@@ -8460,6 +8470,7 @@ export function startServer(port: number = loadConfig().port): Server {
                 ? addHours(new Date().toISOString(), freshnessHours)
                 : undefined;
 
+              const priorDeepDive = await findPriorDeepDive(runtime.store, report);
               artifactKey = await runtime.artifactStore.writeReport(report);
               await runtime.store.createReport({
                 id: report.report_id,
@@ -8550,6 +8561,8 @@ export function startServer(port: number = loadConfig().port): Server {
                 status: "ok",
                 report_id: report.report_id
               });
+              // After the response so the worker is not held by delivery; never throws.
+              await dispatchFilingChangeAlerts(runtime, { report, prior: priorDeepDive });
               return;
             } catch (error) {
               if (artifactKey) {

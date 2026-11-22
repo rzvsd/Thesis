@@ -148,6 +148,8 @@ export interface ProductApiConfig {
   emailResendApiBaseUrl: string;
   emailResendApiKey?: string;
   emailFromAddress?: string;
+  // Public origin of this API, used for email unsubscribe links. Unset = emails point to in-app settings.
+  publicApiBaseUrl?: string;
   exposeVerificationToken: boolean;
   adminBootstrapRequested: boolean;
   adminBootstrapEnabled: boolean;
@@ -319,6 +321,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ProductApiConf
       env.EMAIL_RESEND_API_BASE_URL?.trim() || "https://api.resend.com",
     emailResendApiKey: env.EMAIL_RESEND_API_KEY?.trim() || undefined,
     emailFromAddress: env.EMAIL_FROM_ADDRESS?.trim() || undefined,
+    publicApiBaseUrl: env.PUBLIC_API_BASE_URL?.trim().replace(/\/+$/, "") || undefined,
     exposeVerificationToken: parseBoolean(env.AUTH_EXPOSE_VERIFICATION_TOKEN, false),
     adminBootstrapRequested,
     adminBootstrapEnabled,

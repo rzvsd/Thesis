@@ -361,6 +361,7 @@ export interface AlertLedgerRecord {
   route: AlertRouteTarget;
   title: string;
   body: string;
+  detailBody?: string;
   reasonCode: string;
   reasonText: string;
   deliveryState: "sent" | "partial_failure";
