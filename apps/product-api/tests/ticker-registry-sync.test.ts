@@ -100,7 +100,7 @@ function createConfig(overrides: Partial<ProductApiConfig> = {}): ProductApiConf
     pulseDexterWorkerBaseUrl: "http://dexter-worker:3002",
     pulseDexterTimeoutMs: 6000,
     sentimentSchemaVersion: "1.0.0",
-    sentimentYahooBaseUrl: "https://query1.finance.yahoo.com",
+    priceServiceBaseUrl: "http://data-openbb:3003",
     sentimentFredBaseUrl: "https://api.stlouisfed.org/fred",
     sentimentFredApiKey: undefined,
     sentimentBreadthUniverseLimit: 500,

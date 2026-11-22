@@ -214,7 +214,7 @@ test("PH5 M2 freshness transitions persist and freshness-decay alerts route to N
     JWT_SECRET: process.env.JWT_SECRET,
     INTERNAL_WORKER_TOKEN: process.env.INTERNAL_WORKER_TOKEN,
     SENTRY_DSN: process.env.SENTRY_DSN,
-    SENTIMENT_YAHOO_BASE_URL: process.env.SENTIMENT_YAHOO_BASE_URL,
+    PRICE_SERVICE_BASE_URL: process.env.PRICE_SERVICE_BASE_URL,
     MARKET_PULSE_DATA_OPENBB_BASE_URL: process.env.MARKET_PULSE_DATA_OPENBB_BASE_URL,
     MARKET_PULSE_NEWS_INGEST_BASE_URL: process.env.MARKET_PULSE_NEWS_INGEST_BASE_URL,
     MARKET_PULSE_TICKERS: process.env.MARKET_PULSE_TICKERS,
@@ -230,7 +230,7 @@ test("PH5 M2 freshness transitions persist and freshness-decay alerts route to N
   process.env.JWT_SECRET = "dev-jwt-secret-change-me";
   process.env.INTERNAL_WORKER_TOKEN = "dev-internal-worker-token";
   process.env.SENTRY_DSN = "https://public@example.com/1";
-  process.env.SENTIMENT_YAHOO_BASE_URL = "http://127.0.0.1:0";
+  process.env.PRICE_SERVICE_BASE_URL = "http://127.0.0.1:0";
   process.env.MARKET_PULSE_DATA_OPENBB_BASE_URL = openbbMock.baseUrl;
   process.env.MARKET_PULSE_NEWS_INGEST_BASE_URL = "http://127.0.0.1:0";
   process.env.MARKET_PULSE_TICKERS = "AAPL,MSFT";
@@ -425,7 +425,7 @@ test("PH5 M2 freshness transitions persist and freshness-decay alerts route to N
     process.env.JWT_SECRET = previous.JWT_SECRET;
     process.env.INTERNAL_WORKER_TOKEN = previous.INTERNAL_WORKER_TOKEN;
     process.env.SENTRY_DSN = previous.SENTRY_DSN;
-    process.env.SENTIMENT_YAHOO_BASE_URL = previous.SENTIMENT_YAHOO_BASE_URL;
+    process.env.PRICE_SERVICE_BASE_URL = previous.PRICE_SERVICE_BASE_URL;
     process.env.MARKET_PULSE_DATA_OPENBB_BASE_URL = previous.MARKET_PULSE_DATA_OPENBB_BASE_URL;
     process.env.MARKET_PULSE_NEWS_INGEST_BASE_URL = previous.MARKET_PULSE_NEWS_INGEST_BASE_URL;
     process.env.MARKET_PULSE_TICKERS = previous.MARKET_PULSE_TICKERS;
