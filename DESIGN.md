@@ -1,5 +1,14 @@
 # DESIGN.md
 
+> **This file is not the Thesis design system.** It is the generic DESIGN.md format
+> specification, kept here for reference. The real Thesis design is in:
+>
+> - Android app tokens: `apps/mobile/android/app/src/main/java/com/thesis/mobile/ui/theme/ThemeTokens.kt` and `ThesisTheme.kt`
+> - Pulse and Deep Dive report exports: [`docs/pulse-report/DESIGN.md`](./docs/pulse-report/DESIGN.md)
+>
+> The files under `apps/mobile/android/ui_drop/UI_files_before_wire/` are pre-build design
+> drops, not the shipped system. See [`docs/CURRENT_STATE.md`](./docs/CURRENT_STATE.md).
+
 A format specification for describing a visual identity to coding agents. DESIGN.md gives agents a persistent, structured understanding of a design system.
 
 ## The Format
