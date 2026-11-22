@@ -34,11 +34,12 @@ import { type DexterConfig, validateLiveModeConfig } from "./config";
 import { buildComparisons } from "./comparisons";
 import { computeDeterministicDcf } from "./dcf";
 import {
+  fixtureFilingSections,
   getFixtureHistoricalContext,
   getFixtureScenario,
   type FixtureScenario
 } from "./fixtures";
-import { buildFilingIntelligence } from "./filing-intelligence";
+import { buildFilingIntelligence, type ReviewedFilingSections } from "./filing-intelligence";
 import { buildFinancialIndicators } from "./financial-indicators";
 import { buildFinancialAnalysis } from "./financial-analysis";
 import { buildValueDisciplineScorecard } from "./value-discipline";
@@ -76,6 +77,7 @@ interface M2SectionContext {
   latestTranscript?: CanonicalTranscript;
   financials: CanonicalFinancialSnapshot[];
   transcripts: CanonicalTranscript[];
+  filingSections?: ReviewedFilingSections[];
   context: NonNullable<AnalysisReport["historical_context"]>;
   comparableReport?: ComparableDeepDiveSummary;
   spotPrice?: number;
@@ -1555,6 +1557,7 @@ async function resolveM2SectionContext(
       latestTranscript: transcript,
       financials: fixture.financials,
       transcripts: fixture.transcripts,
+      filingSections: fixtureTicker === "LIMITED" ? [] : fixtureFilingSections(fixtureTicker),
       comparableReport: fixtureTicker === "LIMITED"
         ? undefined
         : {
@@ -1591,6 +1594,7 @@ async function resolveM2SectionContext(
     latestTranscript: loaded.latestTranscript,
     financials: loaded.financials,
     transcripts: loaded.transcripts,
+    filingSections: loaded.filingSections,
     comparableReport: loaded.comparableReport,
     context: loaded.context
   };
@@ -3484,6 +3488,7 @@ export async function runAnalysisPipeline(
       yearAgo: m2Context.yearAgo,
       financials: m2Context.financials,
       latestTranscript: m2Context.latestTranscript,
+      filingSections: m2Context.filingSections,
       fixtureMode: config.fixtureMode
     },
     config
