@@ -222,6 +222,35 @@ export async function handleNotificationRoutes<TRuntime extends NotificationRunt
     return true;
   }
 
+  // Per-user switch for all notification emails; push stays controlled per notification type.
+  if (pathname === "/v1/user/email-preferences" && (method === "GET" || method === "PUT")) {
+    if (method === "PUT") {
+      const body = await deps.readJsonBody<{ email_opt_out?: unknown }>(request);
+      if (typeof body.email_opt_out !== "boolean") {
+        deps.sendJson(response, 422, {
+          error: "validation_failed",
+          error_message: "email_opt_out must be boolean."
+        });
+        return true;
+      }
+      await runtime.store.setEmailOptOut({
+        userId: auth.userId,
+        optOut: body.email_opt_out,
+        updatedAt: new Date().toISOString()
+      });
+      await deps.appendAudit(
+        runtime,
+        "notification.email_preferences_updated",
+        { request_id: meta.requestId, route: pathname, email_opt_out: body.email_opt_out },
+        auth.userId
+      );
+    }
+    deps.sendJson(response, 200, {
+      data: { email_opt_out: await runtime.store.getEmailOptOut(auth.userId) }
+    });
+    return true;
+  }
+
   if (method === "GET" && pathname === "/v1/user/notification-preferences") {
     const subscription = await runtime.store.getUserSubscription(auth.userId);
     const preferences = await runtime.store.getNotificationPreferences(auth.userId);

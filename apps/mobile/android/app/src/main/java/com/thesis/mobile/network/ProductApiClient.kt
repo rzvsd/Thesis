@@ -75,6 +75,28 @@ class ProductApiClient {
             parseTokens(requestJson(baseUrl, "POST", "/auth/login", body = body))
         }
 
+    suspend fun requestPasswordReset(baseUrl: String, email: String): String =
+        withContext(Dispatchers.IO) {
+            val body = JSONObject().put("email", email)
+            requestJson(baseUrl, "POST", "/auth/password-reset/request", body = body)
+                .optString("message")
+        }
+
+    suspend fun confirmPasswordReset(baseUrl: String, token: String, newPassword: String) =
+        withContext(Dispatchers.IO) {
+            val body = JSONObject()
+                .put("token", token)
+                .put("new_password", newPassword)
+            requestJson(baseUrl, "POST", "/auth/password-reset/confirm", body = body)
+        }
+
+    /** Returns the store subscription notice when the account had a paid tier. */
+    suspend fun deleteAccount(baseUrl: String, accessToken: String): String? =
+        withContext(Dispatchers.IO) {
+            requestJson(baseUrl, "DELETE", "/v1/account", accessToken = accessToken)
+                .optNullableString("store_subscription_notice")
+        }
+
     suspend fun refresh(baseUrl: String, refreshToken: String): AuthTokens =
         withContext(Dispatchers.IO) {
             val body = JSONObject().put("refresh_token", refreshToken)
@@ -801,6 +823,8 @@ class ProductApiClient {
             route = row.optString("route").ifBlank { "inbox" },
             title = row.optString("title").ifBlank { notificationType },
             body = row.optString("body").ifBlank { "" },
+            detailBody = row.optNullableString("detail_body"),
+            detailLocked = row.optBoolean("detail_locked", false),
             reasonCode = row.optString("reason_code").ifBlank { "unknown" },
             reasonText = row.optString("reason_text").ifBlank { "" },
             deliveryState = row.optString("delivery_state").ifBlank { "sent" },
@@ -1227,7 +1251,7 @@ class ProductApiClient {
             email = data.optString("email"),
             tier = data.optString("tier", "FREE"),
             billingPeriodEnd = data.optNullableString("billing_period_end"),
-            watchlistLimit = data.optInt("watchlist_limit", 5),
+            watchlistLimit = data.optInt("watchlist_limit", 3),
             dailyDeepDiveLimit = data.optInt("daily_deep_dive_limit", 1),
             deepDivesRemainingToday = data.optInt("deep_dives_remaining_today", 0)
         )
