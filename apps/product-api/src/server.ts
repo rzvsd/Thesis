@@ -107,6 +107,8 @@ import type { ProductStore } from "./store";
 import { assertIncomingAnalysisReport } from "./report-validation";
 import { assertIncomingMarketPulseReport } from "./market-pulse-validation";
 import { buildMarketPulseReport } from "./market-pulse";
+import { fetchEnvelope } from "./pulse/fetchers";
+import { headlineItemsFromApprovedNews } from "./pulse/macro-news";
 import { buildMarketPulsePdfExport } from "./market-pulse-render";
 import { buildInstitutionalPdfExport } from "./report-pdf";
 import {
@@ -158,7 +160,10 @@ import type {
   UserRecord
 } from "./types";
 
-type HealthPayload = { status: "ok" };
+type HealthPayload = {
+  status: "ok";
+  modes: { push: "stub" | "fcm"; email: "stub" | "resend"; artifact_store: "filesystem" | "s3" };
+};
 
 const defaultMaxJsonBodyBytes = 1024 * 1024;
 const requestJsonBodyLimitKey = Symbol("requestJsonBodyLimitKey");
@@ -1701,7 +1706,7 @@ async function createContrarianAnchorFromReport(
   const ticker = report.ticker.trim().toUpperCase();
   let anchorPrice: number | undefined;
   try {
-    anchorPrice = await fetchLatestClosePrice(runtime.config.sentimentYahooBaseUrl, ticker);
+    anchorPrice = await fetchLatestClosePrice(runtime.config.priceServiceBaseUrl, ticker);
   } catch (error) {
     const message = error instanceof Error ? error.message : "anchor price lookup failed";
     logWarn("Contrarian anchor skipped due to missing anchor price", {
@@ -1894,7 +1899,7 @@ async function createKillSwitchRulesFromReport(
   let anchorPrice: number | undefined;
   if (hasPriceMoveRule) {
     try {
-      anchorPrice = await fetchLatestClosePrice(runtime.config.sentimentYahooBaseUrl, ticker);
+      anchorPrice = await fetchLatestClosePrice(runtime.config.priceServiceBaseUrl, ticker);
     } catch (error) {
       const message = error instanceof Error ? error.message : "anchor price lookup failed";
       logWarn("Kill-switch rules falling back without anchor price", {
@@ -5377,6 +5382,22 @@ async function processMarketPulseJob(
       });
     }
 
+    // M4: approved-source headlines feed the headline digest and macro/geopolitical news pack.
+    const approvedNews = await fetchEnvelope<unknown>(
+      `${runtime.config.marketPulseNewsIngestBaseUrl}/v1/news?date=${encodeURIComponent(asOfDate)}`,
+      { headers: { "x-request-id": running.id } }
+    );
+    const headlineItems = approvedNews.ok ? headlineItemsFromApprovedNews(approvedNews.data) : [];
+    const macroNewsUnavailableReason = approvedNews.ok
+      ? undefined
+      : `Approved headline access was unavailable: ${approvedNews.errorMessage}`;
+    if (macroNewsUnavailableReason) {
+      logWarn("Market Pulse approved headlines unavailable", {
+        job_id: running.id,
+        error: macroNewsUnavailableReason
+      });
+    }
+
     const pulseReport = await buildMarketPulseReport({
       cycleStart,
       cycleEnd,
@@ -5387,7 +5408,10 @@ async function processMarketPulseJob(
       previousReport,
       calendarEvents,
       calendarFetchState,
-      calendarUnavailableReason
+      calendarUnavailableReason,
+      headlineItems,
+      macroNewsFetchState: approvedNews.ok ? "complete" : "data_unavailable",
+      macroNewsUnavailableReason
     });
     const report = assertIncomingMarketPulseReport(pulseReport);
 
@@ -5868,7 +5892,14 @@ export function startServer(port: number = loadConfig().port): Server {
     }
 
     if (method === "GET" && pathname === "/health") {
-      const payload: HealthPayload = { status: "ok" };
+      const payload: HealthPayload = {
+        status: "ok",
+        modes: {
+          push: config.pushProviderMode,
+          email: config.emailProviderMode,
+          artifact_store: config.artifactStoreMode
+        }
+      };
       sendJson(response, 200, payload);
       return;
     }
@@ -7559,9 +7590,8 @@ export function startServer(port: number = loadConfig().port): Server {
           if (tickerSet.size > 0) {
             try {
               prices = await fetchLatestClosePrices(
-                runtime.config.sentimentYahooBaseUrl,
-                [...tickerSet],
-                6
+                runtime.config.priceServiceBaseUrl,
+                [...tickerSet]
               );
             } catch (error) {
               const message = error instanceof Error ? error.message : "price lookup failed";
@@ -7854,9 +7884,8 @@ export function startServer(port: number = loadConfig().port): Server {
             asOfEndIso
           )).filter((anchor) => recipientIds.has(anchor.userId));
           const prices = await fetchLatestClosePrices(
-            runtime.config.sentimentYahooBaseUrl,
-            anchors.map((anchor) => anchor.ticker),
-            6
+            runtime.config.priceServiceBaseUrl,
+            anchors.map((anchor) => anchor.ticker)
           );
 
           let attempted = 0;

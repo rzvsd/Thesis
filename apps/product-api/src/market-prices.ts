@@ -1,147 +1,84 @@
-interface YahooChartResponse {
-  chart?: {
-    result?: Array<{
-      indicators?: {
-        quote?: Array<{
-          close?: Array<number | null>;
-        }>;
-      };
-    }>;
+// End-of-day prices come only from the data service (GET /v1/market/eod-prices),
+// which hides the licensed provider behind PRICE_PROVIDER. Missing prices are normal:
+// with the default provider "none" every ticker is unavailable.
+
+interface EodPriceEntry {
+  ticker: string;
+  available: boolean;
+  close?: number;
+  reason?: string;
+}
+
+interface EodPricesEnvelope {
+  data?: {
+    prices?: EodPriceEntry[];
   };
 }
 
-export interface ClosePricePair {
-  previousClose?: number;
-  latestClose: number;
-}
+const PRICE_REQUEST_TIMEOUT_MS = 5_000;
+// Matches the data service's per-request limit and ticker format.
+const MAX_TICKERS_PER_REQUEST = 50;
+const TICKER_PATTERN = /^[A-Z][A-Z0-9.-]{0,9}$/;
 
-function latestClosePair(values: Array<number | null> | undefined): ClosePricePair | undefined {
-  if (!values || values.length === 0) {
-    return undefined;
-  }
-  const finite: number[] = [];
-  for (let index = values.length - 1; index >= 0; index -= 1) {
-    const value = values[index];
-    if (typeof value === "number" && Number.isFinite(value)) {
-      finite.push(value);
-      if (finite.length === 2) {
-        break;
-      }
+async function fetchEodPriceEntries(
+  priceServiceBaseUrl: string,
+  symbols: string[]
+): Promise<EodPriceEntry[]> {
+  const uniqueSymbols = [
+    ...new Set(symbols.map((symbol) => symbol.trim().toUpperCase()).filter((symbol) => TICKER_PATTERN.test(symbol)))
+  ];
+  const entries: EodPriceEntry[] = [];
+  for (let start = 0; start < uniqueSymbols.length; start += MAX_TICKERS_PER_REQUEST) {
+    const url = new URL(`${priceServiceBaseUrl.replace(/\/$/, "")}/v1/market/eod-prices`);
+    url.searchParams.set("tickers", uniqueSymbols.slice(start, start + MAX_TICKERS_PER_REQUEST).join(","));
+
+    const response = await fetch(url.toString(), {
+      signal: AbortSignal.timeout(PRICE_REQUEST_TIMEOUT_MS)
+    });
+    if (!response.ok) {
+      throw new Error(`EOD price request failed: HTTP ${response.status}`);
     }
+    const payload = (await response.json()) as EodPricesEnvelope;
+    entries.push(...(payload.data?.prices ?? []));
   }
-  const [latestClose, previousClose] = finite;
-  if (latestClose === undefined) {
-    return undefined;
-  }
-  return {
-    latestClose,
-    ...(previousClose !== undefined ? { previousClose } : {})
-  };
+  return entries;
+}
+
+function availableClose(entry: EodPriceEntry | undefined): number | undefined {
+  return entry?.available && typeof entry.close === "number" && Number.isFinite(entry.close)
+    ? entry.close
+    : undefined;
 }
 
 export async function fetchLatestClosePrice(
-  yahooBaseUrl: string,
+  priceServiceBaseUrl: string,
   symbol: string
 ): Promise<number | undefined> {
-  const pair = await fetchLatestClosePricePair(yahooBaseUrl, symbol);
-  return pair?.latestClose;
+  const [entry] = await fetchEodPriceEntries(priceServiceBaseUrl, [symbol]);
+  const close = availableClose(entry);
+  if (close === undefined) {
+    throw new Error(`EOD price unavailable for ${symbol}: ${entry?.reason ?? "missing"}`);
+  }
+  return close;
 }
 
-export async function fetchLatestClosePricePair(
-  yahooBaseUrl: string,
-  symbol: string
-): Promise<ClosePricePair | undefined> {
-  const url = new URL(
-    `${yahooBaseUrl.replace(/\/$/, "")}/v8/finance/chart/${encodeURIComponent(symbol)}`
-  );
-  url.searchParams.set("range", "1mo");
-  url.searchParams.set("interval", "1d");
-  url.searchParams.set("events", "history");
-  url.searchParams.set("includeAdjustedClose", "true");
-
-  const response = await fetch(url.toString());
-  if (!response.ok) {
-    throw new Error(`Yahoo chart request failed for ${symbol}: HTTP ${response.status}`);
-  }
-
-  const payload = (await response.json()) as YahooChartResponse;
-  const close = payload.chart?.result?.[0]?.indicators?.quote?.[0]?.close;
-  const pair = latestClosePair(close);
-  if (!pair) {
-    throw new Error(`Yahoo close series missing for ${symbol}`);
-  }
-  return pair;
-}
-
+// Never throws: an unreachable data service means "no prices", like the default provider.
 export async function fetchLatestClosePrices(
-  yahooBaseUrl: string,
-  symbols: string[],
-  concurrency = 8
+  priceServiceBaseUrl: string,
+  symbols: string[]
 ): Promise<Map<string, number>> {
-  const normalizedSymbols = symbols
-    .map((symbol) => symbol.trim().toUpperCase())
-    .filter((symbol) => symbol.length > 0);
-  const uniqueSymbols = [...new Set(normalizedSymbols)];
-  const maxWorkers = Math.max(1, Math.min(concurrency, uniqueSymbols.length));
   const results = new Map<string, number>();
-  let cursor = 0;
-
-  async function worker(): Promise<void> {
-    while (cursor < uniqueSymbols.length) {
-      const index = cursor;
-      cursor += 1;
-      const symbol = uniqueSymbols[index];
-      if (!symbol) {
-        continue;
-      }
-      try {
-        const latest = await fetchLatestClosePrice(yahooBaseUrl, symbol);
-        if (latest !== undefined) {
-          results.set(symbol, latest);
-        }
-      } catch {
-        continue;
-      }
+  let entries: EodPriceEntry[];
+  try {
+    entries = await fetchEodPriceEntries(priceServiceBaseUrl, symbols);
+  } catch {
+    return results;
+  }
+  for (const entry of entries) {
+    const close = availableClose(entry);
+    if (close !== undefined) {
+      results.set(entry.ticker.toUpperCase(), close);
     }
   }
-
-  await Promise.all(Array.from({ length: maxWorkers }, () => worker()));
   return results;
 }
-
-export async function fetchLatestClosePricePairs(
-  yahooBaseUrl: string,
-  symbols: string[],
-  concurrency = 8
-): Promise<Map<string, ClosePricePair>> {
-  const normalizedSymbols = symbols
-    .map((symbol) => symbol.trim().toUpperCase())
-    .filter((symbol) => symbol.length > 0);
-  const uniqueSymbols = [...new Set(normalizedSymbols)];
-  const maxWorkers = Math.max(1, Math.min(concurrency, uniqueSymbols.length));
-  const results = new Map<string, ClosePricePair>();
-  let cursor = 0;
-
-  async function worker(): Promise<void> {
-    while (cursor < uniqueSymbols.length) {
-      const index = cursor;
-      cursor += 1;
-      const symbol = uniqueSymbols[index];
-      if (!symbol) {
-        continue;
-      }
-      try {
-        const pair = await fetchLatestClosePricePair(yahooBaseUrl, symbol);
-        if (pair) {
-          results.set(symbol, pair);
-        }
-      } catch {
-        continue;
-      }
-    }
-  }
-
-  await Promise.all(Array.from({ length: maxWorkers }, () => worker()));
-  return results;
-}
-
