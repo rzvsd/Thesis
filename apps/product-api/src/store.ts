@@ -251,6 +251,7 @@ export interface ProductStore {
   listHistoricalTranscriptsByTicker(ticker: string): Promise<CanonicalTranscript[]>;
   getTickerCoverageByTicker(ticker: string): Promise<TickerCoverage | undefined>;
   listTickerCoverageTickers(limit: number): Promise<string[]>;
+  listPendingPrecomputeDeepDiveTickers(): Promise<string[]>;
   upsertFearGreedSnapshot(input: {
     snapshot: FearGreedSnapshot;
   }): Promise<{ snapshot: FearGreedSnapshot; created: boolean }>;
@@ -2683,6 +2684,17 @@ export class InMemoryStore implements ProductStore {
       .slice(0, Math.max(1, limit));
   }
 
+  async listPendingPrecomputeDeepDiveTickers(): Promise<string[]> {
+    const tickers = [...this.jobs.values()]
+      .filter((job) =>
+        job.type === "deep_dive" &&
+        job.userId === undefined &&
+        (job.status === "queued" || job.status === "running") &&
+        job.ticker !== undefined)
+      .map((job) => job.ticker as string);
+    return [...new Set(tickers)];
+  }
+
   async upsertFearGreedSnapshot(input: {
     snapshot: FearGreedSnapshot;
   }): Promise<{ snapshot: FearGreedSnapshot; created: boolean }> {
@@ -5083,6 +5095,18 @@ export class PostgresStore implements ProductStore {
       [boundedLimit]
     );
     return result.rows.map((row) => String(row.ticker).trim().toUpperCase());
+  }
+
+  async listPendingPrecomputeDeepDiveTickers(): Promise<string[]> {
+    const result = await this.pool.query(
+      `select distinct ticker
+         from jobs
+        where type = 'deep_dive'
+          and user_id is null
+          and status in ('queued', 'running')
+          and ticker is not null`
+    );
+    return result.rows.map((row) => String(row.ticker));
   }
 
   async upsertFearGreedSnapshot(input: {

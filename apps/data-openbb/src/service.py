@@ -4,6 +4,7 @@ import json
 import os
 import re
 import sys
+import threading
 import time
 import uuid
 from dataclasses import dataclass
@@ -23,10 +24,12 @@ from client import RedisClient  # noqa: E402
 try:
     from .validation import SchemaValidationError, validate_schema
     from .historical_sync import run_historical_delta_sync
+    from .historical_loader import load_coverage_universe
     from .filing_text import extract_reviewed_filing_sections
 except ImportError:  # pragma: no cover - supports direct src imports in sibling tests
     from validation import SchemaValidationError, validate_schema
     from historical_sync import run_historical_delta_sync
+    from historical_loader import load_coverage_universe
     from filing_text import extract_reviewed_filing_sections
 
 
@@ -70,11 +73,25 @@ OFFICIAL_STRUCTURAL_FIXTURE_ROOT = OFFICIAL_FIXTURE_ROOT / "structural"
 MARKET_TAPE_FIXTURE_ROOT = FIXTURE_ROOT / "market-tape"
 FILING_SECTION_FORMS = ("10-Q", "10-K")
 FILING_DOCUMENT_MAX_BYTES = 8_000_000
-OFFICIAL_COMPANY_TICKERS = {
-    "AAPL": "0000320193",
-    "MSFT": "0000789019",
-    "TSLA": "0001318605",
-}
+# Live SEC coverage: ticker -> CIK from the coverage universe (S&P 500 by default).
+OFFICIAL_COMPANY_TICKERS = {row.ticker: row.cik for row in load_coverage_universe()}
+# SEC fair access allows at most 10 requests/second; pace below that by default.
+SEC_MIN_REQUEST_INTERVAL_SECONDS = float(os.environ.get("SEC_MIN_REQUEST_INTERVAL_SECONDS", "0.15"))
+_sec_request_lock = threading.Lock()
+_sec_last_request_at = 0.0
+
+
+def _pace_sec_request(url: str) -> None:
+    global _sec_last_request_at
+    if "sec.gov/" not in url:
+        return
+    with _sec_request_lock:
+        wait_seconds = _sec_last_request_at + SEC_MIN_REQUEST_INTERVAL_SECONDS - time.monotonic()
+        if wait_seconds > 0:
+            time.sleep(wait_seconds)
+        _sec_last_request_at = time.monotonic()
+
+
 STRUCTURAL_CONTEXT_TICKER_METADATA = {
     "AAPL": {
         "name": "Apple Inc.",
@@ -432,6 +449,10 @@ class Settings:
             if fixture_mode and not allow_production_fixtures:
                 production_errors.append(
                     "DATA_OPENBB_FIXTURE_MODE must be false when NODE_ENV=production unless THESIS_ALLOW_PRODUCTION_FIXTURES=true"
+                )
+            if not fixture_mode and not str(values.get("SEC_USER_AGENT", "")).strip():
+                production_errors.append(
+                    "SEC_USER_AGENT (name and contact email) is required for live SEC requests when NODE_ENV=production"
                 )
             if f":{DEV_POSTGRES_PASSWORD}@" in database_url:
                 production_errors.append(
@@ -2544,11 +2565,13 @@ class OpenBBLiveClient:
         return {"ticker": ticker, "retrieved_at": retrieved_at, "filings": filings}
 
     def _fetch_text(self, url: str, *, headers: Mapping[str, str]) -> str:
+        _pace_sec_request(url)
         request = Request(url, headers=dict(headers))
         with urlopen(request, timeout=20) as response:
             return response.read(FILING_DOCUMENT_MAX_BYTES).decode("utf-8", errors="replace")
 
     def _fetch_json(self, url: str, *, headers: Mapping[str, str]) -> dict[str, Any]:
+        _pace_sec_request(url)
         request = Request(url, headers=dict(headers))
         with urlopen(request, timeout=15) as response:
             payload = json.loads(response.read().decode("utf-8"))
@@ -2557,6 +2580,7 @@ class OpenBBLiveClient:
             return payload
 
     def _fetch_json_list(self, url: str, *, headers: Mapping[str, str]) -> list[Any]:
+        _pace_sec_request(url)
         request = Request(url, headers=dict(headers))
         with urlopen(request, timeout=15) as response:
             payload = json.loads(response.read().decode("utf-8"))
