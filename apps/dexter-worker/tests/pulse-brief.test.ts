@@ -15,24 +15,18 @@ function sendJson(response: ServerResponse, status: number, payload: unknown): v
 
 async function startPriceMock(): Promise<{ server: Server; baseUrl: string }> {
   const server = createServer((request, response) => {
-    if (!request.url?.startsWith("/v8/finance/chart/AAPL")) {
+    if (!request.url?.startsWith("/v1/market/eod-prices?tickers=AAPL")) {
       sendJson(response, 404, { status: "not_found" });
       return;
     }
     sendJson(response, 200, {
-      chart: {
-        result: [
-          {
-            indicators: {
-              quote: [
-                {
-                  close: [171.5, null, 174.2]
-                }
-              ]
-            }
-          }
-        ]
-      }
+      ok: true,
+      data: {
+        provider: "test",
+        price_type: "end_of_day",
+        prices: [{ ticker: "AAPL", available: true, close: 174.2, previous_close: 171.5, as_of: "2026-03-20" }]
+      },
+      error_flag: false
     });
   });
   server.listen(0);
@@ -155,7 +149,7 @@ test("Dexter Pulse brief adds price-backed portfolio rows and bounded copy", asy
   try {
     const config = loadConfig({
       DEXTER_FIXTURE_MODE: "true",
-      DEXTER_PULSE_PRICE_BASE_URL: priceMock.baseUrl
+      PRICE_SERVICE_BASE_URL: priceMock.baseUrl
     });
     const result = await buildDexterPulseBrief(
       {
@@ -189,7 +183,7 @@ test("Dexter Pulse brief does not fetch prices from Yahoo by default", async () 
     DEXTER_FIXTURE_MODE: "true",
     SENTIMENT_YAHOO_BASE_URL: "https://query1.finance.yahoo.com"
   });
-  assert.equal(config.pulsePriceBaseUrl, undefined);
+  assert.doesNotMatch(config.priceServiceBaseUrl, /yahoo/i);
 
   const originalFetch = globalThis.fetch;
   const fetched: string[] = [];
@@ -211,7 +205,7 @@ test("Dexter Pulse brief does not fetch prices from Yahoo by default", async () 
       "2026-03-21T08:15:00.000Z"
     );
 
-    assert.deepEqual(fetched, []);
+    assert.deepEqual(fetched.filter((url) => /yahoo/i.test(url)), []);
     assert.deepEqual(
       result.report.morning_edition?.portfolio_radar ?? [],
       report.morning_edition?.portfolio_radar ?? []

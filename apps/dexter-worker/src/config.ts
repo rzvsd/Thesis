@@ -1,6 +1,6 @@
 import { resolve } from "node:path";
 
-import { goldenRoot } from "./fs-roots";
+import { appRoot, goldenRoot } from "./fs-roots";
 
 const defaultPort = 3002;
 const defaultSectionTimeoutMs = 70_000;
@@ -46,6 +46,11 @@ function parseInteger(value: string | undefined, fallback: number): number {
 
   const parsed = Number.parseInt(value, 10);
   return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function parseOptionalPositiveNumber(value: string | undefined): number | undefined {
+  const parsed = Number.parseFloat(value ?? "");
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
 }
 
 function parseTickerSet(value: string | undefined): Set<string> {
@@ -113,7 +118,7 @@ export interface DexterConfig {
   queueBlockTimeoutSeconds: number;
   productApiInternalBaseUrl: string;
   internalWorkerToken: string;
-  pulsePriceBaseUrl?: string;
+  priceServiceBaseUrl: string;
   pulseLlmEditorialEnabled: boolean;
   pulseLlmPromptVersion: string;
   pulseLlmMaxTokens: number;
@@ -127,6 +132,8 @@ export interface DexterConfig {
   recentContextBaseUrl?: string;
   recentContextApiKeyPresent: boolean;
   forcedFailureTickers: Set<string>;
+  llmPricesPath: string;
+  maxDeepDiveCostUsd?: number;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): DexterConfig {
@@ -229,9 +236,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): DexterConfig {
     productApiInternalBaseUrl:
       env.PRODUCT_API_INTERNAL_BASE_URL ?? "http://product-api:3001",
     internalWorkerToken: env.INTERNAL_WORKER_TOKEN ?? devInternalWorkerToken,
-    // No default: the Phase 7 source policy lock forbids an unapproved default price source.
-    // Portfolio prices are fetched only when an approved provider URL is configured.
-    pulsePriceBaseUrl: env.DEXTER_PULSE_PRICE_BASE_URL?.trim() || undefined,
+    // End-of-day prices are read only through the data service (/v1/market/eod-prices).
+    priceServiceBaseUrl: env.PRICE_SERVICE_BASE_URL?.trim() || "http://data-openbb:3003",
     pulseLlmEditorialEnabled: parseBoolean(env.PULSE_LLM_EDITORIAL_ENABLED, false),
     pulseLlmPromptVersion:
       env.PULSE_LLM_PROMPT_VERSION?.trim() || "ph7-dexter-pulse-brief-v1",
@@ -251,7 +257,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): DexterConfig {
     toolMaxResults: parseInteger(env.DEXTER_TOOL_MAX_RESULTS, 12),
     recentContextBaseUrl: env.LAST30DAYS_BASE_URL?.trim() || undefined,
     recentContextApiKeyPresent: Boolean(env.LAST30DAYS_API_KEY),
-    forcedFailureTickers: parseTickerSet(env.DEXTER_FORCE_FAIL_TICKERS)
+    forcedFailureTickers: parseTickerSet(env.DEXTER_FORCE_FAIL_TICKERS),
+    llmPricesPath: env.DEXTER_LLM_PRICES_PATH?.trim() || resolve(appRoot, "llm-prices.json"),
+    // Unset = no limit; usage is still measured and logged.
+    maxDeepDiveCostUsd: parseOptionalPositiveNumber(env.DEXTER_MAX_DEEP_DIVE_COST_USD)
   };
 }
 

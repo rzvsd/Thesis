@@ -1707,7 +1707,7 @@ async function createContrarianAnchorFromReport(
   const ticker = report.ticker.trim().toUpperCase();
   let anchorPrice: number | undefined;
   try {
-    anchorPrice = await fetchLatestClosePrice(runtime.config.sentimentYahooBaseUrl, ticker);
+    anchorPrice = await fetchLatestClosePrice(runtime.config.priceServiceBaseUrl, ticker);
   } catch (error) {
     const message = error instanceof Error ? error.message : "anchor price lookup failed";
     logWarn("Contrarian anchor skipped due to missing anchor price", {
@@ -1900,7 +1900,7 @@ async function createKillSwitchRulesFromReport(
   let anchorPrice: number | undefined;
   if (hasPriceMoveRule) {
     try {
-      anchorPrice = await fetchLatestClosePrice(runtime.config.sentimentYahooBaseUrl, ticker);
+      anchorPrice = await fetchLatestClosePrice(runtime.config.priceServiceBaseUrl, ticker);
     } catch (error) {
       const message = error instanceof Error ? error.message : "anchor price lookup failed";
       logWarn("Kill-switch rules falling back without anchor price", {
@@ -7605,9 +7605,8 @@ export function startServer(port: number = loadConfig().port): Server {
           if (tickerSet.size > 0) {
             try {
               prices = await fetchLatestClosePrices(
-                runtime.config.sentimentYahooBaseUrl,
-                [...tickerSet],
-                6
+                runtime.config.priceServiceBaseUrl,
+                [...tickerSet]
               );
             } catch (error) {
               const message = error instanceof Error ? error.message : "price lookup failed";
@@ -7900,9 +7899,8 @@ export function startServer(port: number = loadConfig().port): Server {
             asOfEndIso
           )).filter((anchor) => recipientIds.has(anchor.userId));
           const prices = await fetchLatestClosePrices(
-            runtime.config.sentimentYahooBaseUrl,
-            anchors.map((anchor) => anchor.ticker),
-            6
+            runtime.config.priceServiceBaseUrl,
+            anchors.map((anchor) => anchor.ticker)
           );
 
           let attempted = 0;
@@ -8440,7 +8438,10 @@ export function startServer(port: number = loadConfig().port): Server {
           }
 
           if (method === "POST" && action === "complete") {
-            const body = await readJsonBody<{ report?: AnalysisReport }>(request);
+            const body = await readJsonBody<{
+              report?: AnalysisReport;
+              llm_usage?: Record<string, unknown>;
+            }>(request);
             if (!body.report) {
               sendJson(response, 422, {
                 error: "validation_failed",
@@ -8502,7 +8503,9 @@ export function startServer(port: number = loadConfig().port): Server {
                 fingerprint: reportFingerprint,
                 freshnessExpiresAt,
                 createdAt: report.generated_at,
-                isCurrent: true
+                isCurrent: true,
+                llmUsage:
+                  body.llm_usage && typeof body.llm_usage === "object" ? body.llm_usage : undefined
               });
               const completed = await runtime.store.markJobComplete(
                 jobId,
