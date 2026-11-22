@@ -148,6 +148,8 @@ export interface ProductApiConfig {
   emailResendApiBaseUrl: string;
   emailResendApiKey?: string;
   emailFromAddress?: string;
+  // Public origin of this API, used for email unsubscribe links. Unset = emails point to in-app settings.
+  publicApiBaseUrl?: string;
   exposeVerificationToken: boolean;
   adminBootstrapRequested: boolean;
   adminBootstrapEnabled: boolean;
@@ -179,13 +181,16 @@ export interface ProductApiConfig {
   pulseDexterWorkerBaseUrl: string;
   pulseDexterTimeoutMs: number;
   sentimentSchemaVersion: string;
-  sentimentYahooBaseUrl: string;
+  priceServiceBaseUrl: string;
   sentimentFredBaseUrl: string;
   sentimentFredApiKey?: string;
   sentimentBreadthUniverseLimit: number;
   sentimentBreadthConcurrency: number;
   sentimentMinimumAvailableInputs: number;
   deepDiveReuseFreshnessHours: number;
+  deepDivePrecomputeFreshnessHours: number;
+  deepDivePrecomputeBatchSize: number;
+  deepDivePrecomputeMaxInFlight: number;
   subscriptionTimezone: string;
   revenuecatApiBaseUrl: string;
   revenuecatPublicAndroidKey?: string;
@@ -316,6 +321,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ProductApiConf
       env.EMAIL_RESEND_API_BASE_URL?.trim() || "https://api.resend.com",
     emailResendApiKey: env.EMAIL_RESEND_API_KEY?.trim() || undefined,
     emailFromAddress: env.EMAIL_FROM_ADDRESS?.trim() || undefined,
+    publicApiBaseUrl: env.PUBLIC_API_BASE_URL?.trim().replace(/\/+$/, "") || undefined,
     exposeVerificationToken: parseBoolean(env.AUTH_EXPOSE_VERIFICATION_TOKEN, false),
     adminBootstrapRequested,
     adminBootstrapEnabled,
@@ -357,8 +363,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ProductApiConf
       "http://dexter-worker:3002",
     pulseDexterTimeoutMs: parseInteger(env.PULSE_DEXTER_TIMEOUT_MS, 6000),
     sentimentSchemaVersion: env.SENTIMENT_SCHEMA_VERSION?.trim() || "1.0.0",
-    sentimentYahooBaseUrl:
-      env.SENTIMENT_YAHOO_BASE_URL?.trim() || "https://query1.finance.yahoo.com",
+    // End-of-day prices are read only through the data service (/v1/market/eod-prices).
+    priceServiceBaseUrl:
+      env.PRICE_SERVICE_BASE_URL?.trim() ||
+      env.MARKET_PULSE_DATA_OPENBB_BASE_URL?.trim() ||
+      "http://data-openbb:3003",
     sentimentFredBaseUrl:
       env.SENTIMENT_FRED_BASE_URL?.trim() || "https://api.stlouisfed.org/fred",
     sentimentFredApiKey: env.SENTIMENT_FRED_API_KEY?.trim() || undefined,
@@ -366,6 +375,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ProductApiConf
     sentimentBreadthConcurrency: parseInteger(env.SENTIMENT_BREADTH_CONCURRENCY, 8),
     sentimentMinimumAvailableInputs: parseInteger(env.SENTIMENT_MIN_AVAILABLE_INPUTS, 3),
     deepDiveReuseFreshnessHours: parseInteger(env.DEEP_DIVE_REUSE_FRESHNESS_HOURS, 24),
+    // Pre-computed Deep Dives stay valid until the next filing changes the fingerprint (cap: ~1 quarter).
+    deepDivePrecomputeFreshnessHours: parseInteger(env.DEEP_DIVE_PRECOMPUTE_FRESHNESS_HOURS, 2160),
+    // LLM budget is not decided yet: generate few reports per run; 0 disables pre-compute.
+    deepDivePrecomputeBatchSize: parseInteger(env.DEEP_DIVE_PRECOMPUTE_BATCH_SIZE, 10),
+    deepDivePrecomputeMaxInFlight: parseInteger(env.DEEP_DIVE_PRECOMPUTE_MAX_IN_FLIGHT, 2),
     subscriptionTimezone: env.SUBSCRIPTION_TIMEZONE?.trim() || "America/New_York",
     revenuecatApiBaseUrl: env.REVENUECAT_API_BASE_URL?.trim() || "https://api.revenuecat.com/v1",
     revenuecatPublicAndroidKey: env.REVENUECAT_PUBLIC_ANDROID_KEY?.trim() || undefined,
@@ -595,6 +609,14 @@ export function validateConfig(config: ProductApiConfig): string[] {
 
   if (config.deepDiveReuseFreshnessHours <= 0) {
     errors.push("DEEP_DIVE_REUSE_FRESHNESS_HOURS must be greater than 0");
+  }
+
+  if (config.deepDivePrecomputeFreshnessHours <= 0) {
+    errors.push("DEEP_DIVE_PRECOMPUTE_FRESHNESS_HOURS must be greater than 0");
+  }
+
+  if (config.deepDivePrecomputeBatchSize < 0 || config.deepDivePrecomputeMaxInFlight < 0) {
+    errors.push("DEEP_DIVE_PRECOMPUTE_BATCH_SIZE and DEEP_DIVE_PRECOMPUTE_MAX_IN_FLIGHT must be 0 or greater");
   }
 
   if (config.subscriptionTimezone.trim().length === 0) {

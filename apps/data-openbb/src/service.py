@@ -4,6 +4,7 @@ import json
 import os
 import re
 import sys
+import threading
 import time
 import uuid
 from dataclasses import dataclass
@@ -23,9 +24,13 @@ from client import RedisClient  # noqa: E402
 try:
     from .validation import SchemaValidationError, validate_schema
     from .historical_sync import run_historical_delta_sync
+    from .historical_loader import load_coverage_universe
+    from .filing_text import extract_reviewed_filing_sections
 except ImportError:  # pragma: no cover - supports direct src imports in sibling tests
     from validation import SchemaValidationError, validate_schema
     from historical_sync import run_historical_delta_sync
+    from historical_loader import load_coverage_universe
+    from filing_text import extract_reviewed_filing_sections
 
 
 SERVICE_NAME = "data-openbb"
@@ -66,11 +71,27 @@ OFFICIAL_COMPANY_FIXTURE_ROOT = OFFICIAL_FIXTURE_ROOT / "company"
 OFFICIAL_MACRO_FIXTURE_ROOT = OFFICIAL_FIXTURE_ROOT / "macro"
 OFFICIAL_STRUCTURAL_FIXTURE_ROOT = OFFICIAL_FIXTURE_ROOT / "structural"
 MARKET_TAPE_FIXTURE_ROOT = FIXTURE_ROOT / "market-tape"
-OFFICIAL_COMPANY_TICKERS = {
-    "AAPL": "0000320193",
-    "MSFT": "0000789019",
-    "TSLA": "0001318605",
-}
+FILING_SECTION_FORMS = ("10-Q", "10-K")
+FILING_DOCUMENT_MAX_BYTES = 8_000_000
+# Live SEC coverage: ticker -> CIK from the coverage universe (S&P 500 by default).
+OFFICIAL_COMPANY_TICKERS = {row.ticker: row.cik for row in load_coverage_universe()}
+# SEC fair access allows at most 10 requests/second; pace below that by default.
+SEC_MIN_REQUEST_INTERVAL_SECONDS = float(os.environ.get("SEC_MIN_REQUEST_INTERVAL_SECONDS", "0.15"))
+_sec_request_lock = threading.Lock()
+_sec_last_request_at = 0.0
+
+
+def _pace_sec_request(url: str) -> None:
+    global _sec_last_request_at
+    if "sec.gov/" not in url:
+        return
+    with _sec_request_lock:
+        wait_seconds = _sec_last_request_at + SEC_MIN_REQUEST_INTERVAL_SECONDS - time.monotonic()
+        if wait_seconds > 0:
+            time.sleep(wait_seconds)
+        _sec_last_request_at = time.monotonic()
+
+
 STRUCTURAL_CONTEXT_TICKER_METADATA = {
     "AAPL": {
         "name": "Apple Inc.",
@@ -428,6 +449,10 @@ class Settings:
             if fixture_mode and not allow_production_fixtures:
                 production_errors.append(
                     "DATA_OPENBB_FIXTURE_MODE must be false when NODE_ENV=production unless THESIS_ALLOW_PRODUCTION_FIXTURES=true"
+                )
+            if not fixture_mode and not str(values.get("SEC_USER_AGENT", "")).strip():
+                production_errors.append(
+                    "SEC_USER_AGENT (name and contact email) is required for live SEC requests when NODE_ENV=production"
                 )
             if f":{DEV_POSTGRES_PASSWORD}@" in database_url:
                 production_errors.append(
@@ -2487,7 +2512,66 @@ class OpenBBLiveClient:
         validate_schema("market-tape", payload)
         return payload
 
+    def fetch_filing_sections(self, ticker: str) -> dict[str, Any]:
+        """Fetch the two latest 10-Q/10-K primary documents and extract reviewed sections."""
+        retrieved_at = iso_timestamp()
+        cik = OFFICIAL_COMPANY_TICKERS.get(ticker)
+        if not cik:
+            return {"ticker": ticker, "retrieved_at": retrieved_at, "filings": []}
+
+        headers = {
+            "user-agent": os.environ.get(
+                "SEC_USER_AGENT",
+                "Thesis Phase6 official-source smoke contact@example.com",
+            ),
+        }
+        submissions_url = f"https://data.sec.gov/submissions/CIK{cik}.json"
+        try:
+            submissions = self._fetch_json(submissions_url, headers={**headers, "accept": "application/json"})
+            filings_root = submissions.get("filings")
+            recent = filings_root.get("recent", {}) if isinstance(filings_root, dict) else {}
+            forms = recent.get("form", []) if isinstance(recent, dict) else []
+            filings: list[dict[str, Any]] = []
+            for index, form in enumerate(forms if isinstance(forms, list) else []):
+                if form not in FILING_SECTION_FORMS:
+                    continue
+                accession = _list_value(recent, "accessionNumber", index)
+                primary_document = _list_value(recent, "primaryDocument", index)
+                if not accession or not primary_document:
+                    continue
+                source_url = (
+                    f"https://www.sec.gov/Archives/edgar/data/{int(cik)}/"
+                    f"{accession.replace('-', '')}/{primary_document}"
+                )
+                filings.append(
+                    _filing_sections_record(
+                        form=form,
+                        filing_date=_list_value(recent, "filingDate", index),
+                        period=_list_value(recent, "reportDate", index),
+                        accession_number=accession,
+                        source_url=source_url,
+                        raw_text=self._fetch_text(source_url, headers=headers),
+                    )
+                )
+                if len(filings) >= 2:
+                    break
+        except (OSError, URLError, TimeoutError) as error:
+            raise ProviderIntegrationError(
+                OFFICIAL_COMPANY_PROVIDER,
+                error_code="PROVIDER_OUTAGE",
+                message="SEC EDGAR filing documents are unavailable.",
+            ) from error
+
+        return {"ticker": ticker, "retrieved_at": retrieved_at, "filings": filings}
+
+    def _fetch_text(self, url: str, *, headers: Mapping[str, str]) -> str:
+        _pace_sec_request(url)
+        request = Request(url, headers=dict(headers))
+        with urlopen(request, timeout=20) as response:
+            return response.read(FILING_DOCUMENT_MAX_BYTES).decode("utf-8", errors="replace")
+
     def _fetch_json(self, url: str, *, headers: Mapping[str, str]) -> dict[str, Any]:
+        _pace_sec_request(url)
         request = Request(url, headers=dict(headers))
         with urlopen(request, timeout=15) as response:
             payload = json.loads(response.read().decode("utf-8"))
@@ -2496,6 +2580,7 @@ class OpenBBLiveClient:
             return payload
 
     def _fetch_json_list(self, url: str, *, headers: Mapping[str, str]) -> list[Any]:
+        _pace_sec_request(url)
         request = Request(url, headers=dict(headers))
         with urlopen(request, timeout=15) as response:
             payload = json.loads(response.read().decode("utf-8"))
@@ -2570,6 +2655,50 @@ class DataOpenBBService:
 
     def get_official_company_truth(self, ticker: str | None, request_id: str) -> tuple[int, dict[str, Any]]:
         return self._official_company_truth_response(ticker, request_id)
+
+    def get_filing_sections(self, ticker: str | None, request_id: str) -> tuple[int, dict[str, Any]]:
+        normalized_ticker = (ticker or "").strip().upper()
+        if not normalized_ticker:
+            response = error_response(
+                status_code=400,
+                request_id=request_id,
+                message="ticker query parameter is required",
+                provider=OFFICIAL_COMPANY_PROVIDER,
+            )
+            return response.status_code, response.body
+        try:
+            payload = build_filing_sections_payload(normalized_ticker, service=self)
+        except ProviderIntegrationError as error:
+            log(
+                "ERROR",
+                "Filing section retrieval failed",
+                request_id=request_id,
+                provider=error.provider,
+                ticker=normalized_ticker,
+                error_message=str(error),
+            )
+            response = error_response(
+                status_code=error.status_code,
+                request_id=request_id,
+                message=str(error),
+                error_code=error.error_code,
+                provider=error.provider,
+            )
+            return response.status_code, response.body
+        log(
+            "INFO",
+            "Filing section retrieval succeeded",
+            request_id=request_id,
+            provider=OFFICIAL_COMPANY_PROVIDER,
+            ticker=normalized_ticker,
+            filing_count=len(payload["filings"]),
+        )
+        return 200, success_response(
+            request_id=request_id,
+            data=payload,
+            provider=OFFICIAL_COMPANY_PROVIDER,
+            retrieved_at=str(payload["retrieved_at"]),
+        )
 
     def get_official_macro_truth(
         self, scope: str | None, as_of: str | None, request_id: str
@@ -3202,6 +3331,11 @@ def build_official_company_response(ticker: str | None, request_id: str) -> Resp
     return ResponsePayload(status_code=status_code, body=body)
 
 
+def build_filing_sections_response(ticker: str | None, request_id: str) -> ResponsePayload:
+    status_code, body = default_service().get_filing_sections(ticker, request_id)
+    return ResponsePayload(status_code=status_code, body=body)
+
+
 def build_official_macro_response(scope: str | None, as_of: str | None, request_id: str) -> ResponsePayload:
     status_code, body = default_service().get_official_macro_truth(scope, as_of, request_id)
     return ResponsePayload(status_code=status_code, body=body)
@@ -3350,6 +3484,84 @@ def build_macro_payload(*, service: DataOpenBBService | None = None) -> dict[str
 
     records, metadata = active_service.live_client().fetch_macro_records()
     return _normalize_macro_records(records, metadata)
+
+
+def _list_value(container: Mapping[str, Any], key: str, index: int) -> str:
+    values = container.get(key)
+    if isinstance(values, list) and index < len(values) and values[index]:
+        return str(values[index])
+    return ""
+
+
+def _filing_sections_record(
+    *,
+    form: str,
+    filing_date: str,
+    period: str,
+    accession_number: str,
+    source_url: str,
+    raw_text: str,
+) -> dict[str, Any]:
+    return {
+        "form": form,
+        "filing_date": filing_date,
+        "period": period,
+        "accession_number": accession_number,
+        "source_url": source_url,
+        "sections": [
+            {
+                "family": section.family,
+                "heading": section.heading,
+                "excerpt": section.excerpt,
+                "omitted": section.omitted,
+                **({"reason": section.reason} if section.reason else {}),
+            }
+            for section in extract_reviewed_filing_sections(raw_text)
+        ],
+    }
+
+
+def _fixture_filing_sections_payload(ticker: str) -> dict[str, Any]:
+    def fixture_text(risk_language: str) -> str:
+        return (
+            "<h2>Item 2. Management's Discussion and Analysis</h2>"
+            f"<p>{ticker} revenue grew in the quarter, led by cloud and services.</p>"
+            "<h2>Item 1A. Risk Factors</h2>"
+            f"<p>{risk_language}</p>"
+            "<h2>Liquidity and Capital Resources</h2>"
+            "<p>Cash, cash equivalents and short-term investments remained sufficient for operating needs.</p>"
+        )
+
+    return {
+        "ticker": ticker,
+        "retrieved_at": "2026-03-15T08:00:00.000Z",
+        "filings": [
+            _filing_sections_record(
+                form="10-Q",
+                filing_date="2026-01-28",
+                period="2025-12-31",
+                accession_number="fixture-latest",
+                source_url=f"fixture://sec-edgar/{ticker}/10-Q/latest",
+                raw_text=fixture_text("Risk language now highlights capacity constraints and supply chain pressure."),
+            ),
+            _filing_sections_record(
+                form="10-Q",
+                filing_date="2025-10-29",
+                period="2025-09-30",
+                accession_number="fixture-prior",
+                source_url=f"fixture://sec-edgar/{ticker}/10-Q/prior",
+                raw_text=fixture_text("Risk language focused on competition and regulatory review."),
+            ),
+        ],
+    }
+
+
+def build_filing_sections_payload(ticker: str, *, service: DataOpenBBService | None = None) -> dict[str, Any]:
+    active_service = service or default_service()
+    if active_service.settings.fixture_mode:
+        return _fixture_filing_sections_payload(ticker)
+
+    return active_service.live_client().fetch_filing_sections(ticker)
 
 
 def build_official_company_payload(ticker: str, *, service: DataOpenBBService | None = None) -> dict[str, Any]:

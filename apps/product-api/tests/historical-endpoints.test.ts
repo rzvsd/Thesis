@@ -151,3 +151,67 @@ test("historical endpoints support auth and internal-token retrieval with gracef
   process.env.JWT_SECRET = previous.JWT_SECRET;
   process.env.INTERNAL_WORKER_TOKEN = previous.INTERNAL_WORKER_TOKEN;
 });
+
+test("historical filing-sections endpoint proxies reviewed SEC excerpts from data-openbb", async () => {
+  const { createServer } = await import("node:http");
+  let upstreamOk = true;
+  const upstream = createServer((request, response) => {
+    response.writeHead(200, { "content-type": "application/json" });
+    if (!request.url?.startsWith("/v1/official/filing-sections?ticker=MSFT") || !upstreamOk) {
+      response.end(JSON.stringify({ ok: false, error_flag: true, error_message: "SEC EDGAR filing documents are unavailable." }));
+      return;
+    }
+    response.end(JSON.stringify({
+      ok: true,
+      error_flag: false,
+      data: {
+        ticker: "MSFT",
+        retrieved_at: "2026-03-15T08:00:00.000Z",
+        filings: [{ form: "10-Q", period: "2025-12-31", source_url: "https://www.sec.gov/x", sections: [] }]
+      }
+    }));
+  });
+  upstream.listen(0);
+  await once(upstream, "listening");
+
+  const previous = {
+    STORE_BACKEND: process.env.STORE_BACKEND,
+    QUEUE_BACKEND: process.env.QUEUE_BACKEND,
+    INTERNAL_WORKER_TOKEN: process.env.INTERNAL_WORKER_TOKEN,
+    JWT_SECRET: process.env.JWT_SECRET,
+    MARKET_PULSE_DATA_OPENBB_BASE_URL: process.env.MARKET_PULSE_DATA_OPENBB_BASE_URL
+  };
+  process.env.STORE_BACKEND = "memory";
+  process.env.QUEUE_BACKEND = "memory";
+  process.env.INTERNAL_WORKER_TOKEN = "dev-internal-worker-token";
+  process.env.JWT_SECRET = "dev-jwt-secret-change-me";
+  process.env.MARKET_PULSE_DATA_OPENBB_BASE_URL = `http://127.0.0.1:${(upstream.address() as AddressInfo).port}`;
+
+  const server = startServer(0);
+  await once(server, "listening");
+  const baseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  const internalHeaders = { "x-internal-token": "dev-internal-worker-token" };
+  try {
+    const found = await requestJson(baseUrl, "/v1/historical/filing-sections?ticker=MSFT", { headers: internalHeaders });
+    assert.equal(found.status, 200);
+    assert.equal(found.payload.missing, false);
+    assert.equal((found.payload.data as JsonObject[])[0]?.form, "10-Q");
+
+    upstreamOk = false;
+    const unavailable = await requestJson(baseUrl, "/v1/historical/filing-sections?ticker=MSFT", { headers: internalHeaders });
+    assert.equal(unavailable.status, 200);
+    assert.equal(unavailable.payload.missing, true);
+    assert.deepEqual(unavailable.payload.data, []);
+  } finally {
+    await closeServer(server);
+    upstream.closeAllConnections();
+    await new Promise<void>((resolve) => upstream.close(() => resolve()));
+    for (const [key, value] of Object.entries(previous)) {
+      if (value === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = value;
+      }
+    }
+  }
+});

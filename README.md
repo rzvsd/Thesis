@@ -2,41 +2,15 @@
 
 This repository is the implementation workspace for the Thesis Finance Intelligence Platform.
 
-Thesis is currently in **Phase 7**, focused on making Pulse a clearer daily financial briefing while preserving the product doctrine: research and conviction support, not a trading terminal, broker workflow, or public quant lab.
+Thesis is a research and conviction-support product (Pulse daily brief and Deep Dive filing memo), not a trading terminal, broker workflow, or public quant lab.
 
 ## Current Source Of Truth
 
-Use the Phase 7 planning pack as the current governance layer:
-
-- [Phase 7 Roadmap](./Project%20Note/Phase7/ph7_ROADMAP.md)
-- [Phase 7 Milestones](./Project%20Note/Phase7/ph7_MILESTONES.md)
-- [Phase 7 PRD](./Project%20Note/Phase7/ph7_PRD.md)
-- [Phase 7 Bluebook](./Project%20Note/Phase7/ph7_BLUEBOOK.md)
-- [Phase 7 Decision Locks](./Project%20Note/Phase7/PH7_DECISION_LOCKS.md)
-- [Phase 7 Milestone Evidence](./Project%20Note/Phase7/Milestones/)
-
-Older phase documents remain important, but they are historical unless a current Phase 7 document explicitly points back to them.
+Read [docs/CURRENT_STATE.md](./docs/CURRENT_STATE.md) first. It says what is built, what is live versus fixture, the open owner decisions, and the launch checklist. It also defines the status words (Validated versus Done).
 
 ## Historical Planning Layers
 
-- [Phase 1 MVP Build](./Project%20Note/Phase1/README.md) documents the original technical foundation, Android MVP, and early Deep Dive/Pulse architecture.
-- [Phase 2 Monetization & Evolution](./Project%20Note/Phase2/ph2_README.md) documents subscriptions, historical data, UX evolution, and earlier product expansion work.
-- Phase 3 through Phase 6 documents record shipped substrate, safety, and hardening decisions that Phase 7 builds on.
-
-When historical docs conflict with Phase 7 docs or current code, treat Phase 7 plus current contracts/tests as authoritative and update the historical note or add a supersession note.
-
-## Current Status
-
-Phase 7 is active. M1-M6 have implementation evidence recorded and are tracked as validated in the Phase 7 roadmap. M7 is the active Pulse newspaper-template closeout and polish layer.
-
-The current product emphasis is:
-
-- Pulse as a readable daily financial briefing
-- official/free-data market tape where available
-- approved headline metadata without article-body scraping
-- typed user research state for personalization
-- guarded optional LLM copy editing after deterministic data assembly
-- HTML/PDF exports suitable for review
+The phase packs (Phase 1 to Phase 7, Deep Dive, Safety) in [Project Note/](./Project%20Note/README.md) are history. They are superseded by `docs/CURRENT_STATE.md`. Decision records are in [Decisions/](./Decisions/README.md).
 
 ## Dependency Policy As Of Phase 7
 

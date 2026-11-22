@@ -3,6 +3,7 @@ import { createClient } from "redis";
 import type { AnalysisRequest, AnalysisReport } from "../../../packages/contracts/src";
 
 import { type DexterConfig, validateQueueModeConfig } from "./config";
+import { trackDeepDiveLlmUsage, type LlmRunUsage } from "./llm-usage";
 import { logError, logInfo, logWarn } from "./logging";
 import { runAnalysisPipeline } from "./pipeline";
 
@@ -50,10 +51,12 @@ async function claimJob(
 async function markJobComplete(
   config: DexterConfig,
   jobId: string,
-  report: AnalysisReport
+  report: AnalysisReport,
+  llmUsage: LlmRunUsage
 ): Promise<void> {
   const response = await callInternalApi(config, `/internal/jobs/${jobId}/complete`, {
-    report
+    report,
+    llm_usage: llmUsage
   });
   if (!response.ok) {
     const payload = await response.text();
@@ -99,8 +102,12 @@ async function runLoop(
       }
 
       try {
-        const report = await runAnalysisPipeline(claim.analysis_request, config);
-        await markJobComplete(config, jobId, report);
+        const { result: report, usage } = await trackDeepDiveLlmUsage(
+          config,
+          { job_id: jobId, ticker: claim.analysis_request.ticker },
+          () => runAnalysisPipeline(claim.analysis_request, config)
+        );
+        await markJobComplete(config, jobId, report, usage);
         logInfo("Queue job completed", {
           job_id: jobId,
           ticker: claim.analysis_request.ticker

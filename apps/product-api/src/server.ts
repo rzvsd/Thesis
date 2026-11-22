@@ -107,6 +107,8 @@ import type { ProductStore } from "./store";
 import { assertIncomingAnalysisReport } from "./report-validation";
 import { assertIncomingMarketPulseReport } from "./market-pulse-validation";
 import { buildMarketPulseReport } from "./market-pulse";
+import { fetchEnvelope } from "./pulse/fetchers";
+import { headlineItemsFromApprovedNews } from "./pulse/macro-news";
 import { buildMarketPulsePdfExport } from "./market-pulse-render";
 import { buildInstitutionalPdfExport } from "./report-pdf";
 import {
@@ -125,6 +127,9 @@ import { fetchLatestClosePrice, fetchLatestClosePrices } from "./market-prices";
 import { verifyGoogleIdToken } from "./google-oidc";
 import { handleAccountRoutes } from "./routes/account-routes";
 import { handleAuthRoutes } from "./routes/auth-routes";
+import { handleCoverageRoutes } from "./routes/coverage-routes";
+import { handleEmailUnsubscribeRoutes } from "./routes/email-unsubscribe-routes";
+import { dispatchFilingChangeAlerts, findPriorDeepDive } from "./filing-change-alerts";
 import { handleNotificationRoutes } from "./routes/notification-routes";
 import { handlePulseRoutes } from "./routes/pulse-routes";
 import { handlePublicRoutes } from "./routes/public-routes";
@@ -159,7 +164,10 @@ import type {
   UserRecord
 } from "./types";
 
-type HealthPayload = { status: "ok" };
+type HealthPayload = {
+  status: "ok";
+  modes: { push: "stub" | "fcm"; email: "stub" | "resend"; artifact_store: "filesystem" | "s3" };
+};
 
 const defaultMaxJsonBodyBytes = 1024 * 1024;
 const requestJsonBodyLimitKey = Symbol("requestJsonBodyLimitKey");
@@ -539,6 +547,8 @@ function notificationTypeLabel(type: NotificationType): string {
       return "Weekly digest";
     case "market_pulse_ready":
       return "Market Pulse";
+    case "filing_change":
+      return "Filing change";
   }
 }
 
@@ -551,6 +561,7 @@ function notificationCategory(type: NotificationType): AlertLedgerCategory {
       return "thesis_drift";
     case "earnings_preview":
     case "earnings_war_room":
+    case "filing_change":
       return "earnings";
     case "morning_exception_briefing":
     case "weekly_digest":
@@ -663,7 +674,10 @@ function alertLedgerContextFromData(data: Record<string, string> | undefined): R
   };
 }
 
-function toAlertLedgerView(record: AlertLedgerRecord) {
+// The full "what changed" text (detail_body) is a Pro feature; Free gets the headline and
+// detail_locked = true so the app can show the upgrade hint.
+function toAlertLedgerView(record: AlertLedgerRecord, tier: SubscriptionTier) {
+  const detailLocked = Boolean(record.detailBody) && tier !== "PRO";
   return {
     id: record.id,
     user_id: record.userId,
@@ -672,6 +686,8 @@ function toAlertLedgerView(record: AlertLedgerRecord) {
     route: record.route,
     title: record.title,
     body: record.body,
+    detail_body: detailLocked ? undefined : record.detailBody,
+    ...(detailLocked ? { detail_locked: true } : {}),
     reason_code: record.reasonCode,
     reason_text: record.reasonText,
     delivery_state: record.deliveryState,
@@ -1542,10 +1558,13 @@ function addHours(iso: string, hours: number): string {
   return new Date(Date.parse(iso) + hours * 60 * 60 * 1000).toISOString();
 }
 
+// Sell monitoring, give away reading: followed names are the paid lever.
 function watchlistLimitForTier(tier: SubscriptionTier): number {
-  return tier === "PRO" ? 20 : 5;
+  return tier === "PRO" ? 50 : 3;
 }
 
+// Limit for on-demand Deep Dive generation only. Reading a pre-computed (reusable) report,
+// such as a covered S&P 500 name, never counts. -1 = no limit.
 function dailyDeepDiveLimitForTier(tier: SubscriptionTier): number {
   return tier === "PRO" ? -1 : 1;
 }
@@ -1702,7 +1721,7 @@ async function createContrarianAnchorFromReport(
   const ticker = report.ticker.trim().toUpperCase();
   let anchorPrice: number | undefined;
   try {
-    anchorPrice = await fetchLatestClosePrice(runtime.config.sentimentYahooBaseUrl, ticker);
+    anchorPrice = await fetchLatestClosePrice(runtime.config.priceServiceBaseUrl, ticker);
   } catch (error) {
     const message = error instanceof Error ? error.message : "anchor price lookup failed";
     logWarn("Contrarian anchor skipped due to missing anchor price", {
@@ -1895,7 +1914,7 @@ async function createKillSwitchRulesFromReport(
   let anchorPrice: number | undefined;
   if (hasPriceMoveRule) {
     try {
-      anchorPrice = await fetchLatestClosePrice(runtime.config.sentimentYahooBaseUrl, ticker);
+      anchorPrice = await fetchLatestClosePrice(runtime.config.priceServiceBaseUrl, ticker);
     } catch (error) {
       const message = error instanceof Error ? error.message : "anchor price lookup failed";
       logWarn("Kill-switch rules falling back without anchor price", {
@@ -5378,6 +5397,22 @@ async function processMarketPulseJob(
       });
     }
 
+    // M4: approved-source headlines feed the headline digest and macro/geopolitical news pack.
+    const approvedNews = await fetchEnvelope<unknown>(
+      `${runtime.config.marketPulseNewsIngestBaseUrl}/v1/news?date=${encodeURIComponent(asOfDate)}`,
+      { headers: { "x-request-id": running.id } }
+    );
+    const headlineItems = approvedNews.ok ? headlineItemsFromApprovedNews(approvedNews.data) : [];
+    const macroNewsUnavailableReason = approvedNews.ok
+      ? undefined
+      : `Approved headline access was unavailable: ${approvedNews.errorMessage}`;
+    if (macroNewsUnavailableReason) {
+      logWarn("Market Pulse approved headlines unavailable", {
+        job_id: running.id,
+        error: macroNewsUnavailableReason
+      });
+    }
+
     const pulseReport = await buildMarketPulseReport({
       cycleStart,
       cycleEnd,
@@ -5388,7 +5423,10 @@ async function processMarketPulseJob(
       previousReport,
       calendarEvents,
       calendarFetchState,
-      calendarUnavailableReason
+      calendarUnavailableReason,
+      headlineItems,
+      macroNewsFetchState: approvedNews.ok ? "complete" : "data_unavailable",
+      macroNewsUnavailableReason
     });
     const report = assertIncomingMarketPulseReport(pulseReport);
 
@@ -5869,7 +5907,14 @@ export function startServer(port: number = loadConfig().port): Server {
     }
 
     if (method === "GET" && pathname === "/health") {
-      const payload: HealthPayload = { status: "ok" };
+      const payload: HealthPayload = {
+        status: "ok",
+        modes: {
+          push: config.pushProviderMode,
+          email: config.emailProviderMode,
+          artifact_store: config.artifactStoreMode
+        }
+      };
       sendJson(response, 200, payload);
       return;
     }
@@ -5971,6 +6016,24 @@ export function startServer(port: number = loadConfig().port): Server {
           }
         )
       ) {
+        return;
+      }
+
+      if (
+        await handleCoverageRoutes(
+          { method, pathname, request, response, runtime, url },
+          {
+            hasInternalToken,
+            sendJson,
+            deepDiveFingerprint: (ticker, latestPeriod) =>
+              deepDiveFingerprint({ ticker, schemaVersion: "2.0", latestPeriod })
+          }
+        )
+      ) {
+        return;
+      }
+
+      if (await handleEmailUnsubscribeRoutes({ method, pathname, response, runtime, url })) {
         return;
       }
 
@@ -7576,9 +7639,8 @@ export function startServer(port: number = loadConfig().port): Server {
           if (tickerSet.size > 0) {
             try {
               prices = await fetchLatestClosePrices(
-                runtime.config.sentimentYahooBaseUrl,
-                [...tickerSet],
-                6
+                runtime.config.priceServiceBaseUrl,
+                [...tickerSet]
               );
             } catch (error) {
               const message = error instanceof Error ? error.message : "price lookup failed";
@@ -7871,9 +7933,8 @@ export function startServer(port: number = loadConfig().port): Server {
             asOfEndIso
           )).filter((anchor) => recipientIds.has(anchor.userId));
           const prices = await fetchLatestClosePrices(
-            runtime.config.sentimentYahooBaseUrl,
-            anchors.map((anchor) => anchor.ticker),
-            6
+            runtime.config.priceServiceBaseUrl,
+            anchors.map((anchor) => anchor.ticker)
           );
 
           let attempted = 0;
@@ -8411,7 +8472,10 @@ export function startServer(port: number = loadConfig().port): Server {
           }
 
           if (method === "POST" && action === "complete") {
-            const body = await readJsonBody<{ report?: AnalysisReport }>(request);
+            const body = await readJsonBody<{
+              report?: AnalysisReport;
+              llm_usage?: Record<string, unknown>;
+            }>(request);
             if (!body.report) {
               sendJson(response, 422, {
                 error: "validation_failed",
@@ -8454,10 +8518,15 @@ export function startServer(port: number = loadConfig().port): Server {
                     latestPeriod: report.historical_context?.latest_period
                   })
                   : undefined;
+              // Jobs without a user are scheduled pre-computes: they stay reusable until the next filing.
+              const freshnessHours = (await runtime.store.getJob(jobId))?.userId
+                ? runtime.config.deepDiveReuseFreshnessHours
+                : runtime.config.deepDivePrecomputeFreshnessHours;
               const freshnessExpiresAt = reportFingerprint
-                ? addHours(new Date().toISOString(), runtime.config.deepDiveReuseFreshnessHours)
+                ? addHours(new Date().toISOString(), freshnessHours)
                 : undefined;
 
+              const priorDeepDive = await findPriorDeepDive(runtime.store, report);
               artifactKey = await runtime.artifactStore.writeReport(report);
               await runtime.store.createReport({
                 id: report.report_id,
@@ -8469,7 +8538,9 @@ export function startServer(port: number = loadConfig().port): Server {
                 fingerprint: reportFingerprint,
                 freshnessExpiresAt,
                 createdAt: report.generated_at,
-                isCurrent: true
+                isCurrent: true,
+                llmUsage:
+                  body.llm_usage && typeof body.llm_usage === "object" ? body.llm_usage : undefined
               });
               const completed = await runtime.store.markJobComplete(
                 jobId,
@@ -8548,6 +8619,8 @@ export function startServer(port: number = loadConfig().port): Server {
                 status: "ok",
                 report_id: report.report_id
               });
+              // After the response so the worker is not held by delivery; never throws.
+              await dispatchFilingChangeAlerts(runtime, { report, prior: priorDeepDive });
               return;
             } catch (error) {
               if (artifactKey) {
@@ -8956,8 +9029,9 @@ export function startServer(port: number = loadConfig().port): Server {
           limit: filter.limit ?? 50
         }, auth.userId);
 
+        const alertTier = (await runtime.store.getUserSubscription(auth.userId)).tier;
         sendJson(response, 200, {
-          data: rows.map((row) => toAlertLedgerView(row))
+          data: rows.map((row) => toAlertLedgerView(row, alertTier))
         });
         return;
       }
@@ -8973,6 +9047,7 @@ export function startServer(port: number = loadConfig().port): Server {
           sendJson(response, 404, { status: "not_found" });
           return;
         }
+        const alertTier = (await runtime.store.getUserSubscription(auth.userId)).tier;
 
         if (method === "GET" && userAlertParts.length === 4) {
           const record = await runtime.store.getAlertLedgerItem({
@@ -8995,7 +9070,7 @@ export function startServer(port: number = loadConfig().port): Server {
           }, auth.userId);
 
           sendJson(response, 200, {
-            data: toAlertLedgerView(record)
+            data: toAlertLedgerView(record, alertTier)
           });
           return;
         }
@@ -9035,7 +9110,7 @@ export function startServer(port: number = loadConfig().port): Server {
           await recordConvictionJournalEntryFromAlertFeedback(runtime, updated, feedback);
 
           sendJson(response, 200, {
-            data: toAlertLedgerView(updated)
+            data: toAlertLedgerView(updated, alertTier)
           });
           return;
         }
@@ -9087,7 +9162,7 @@ export function startServer(port: number = loadConfig().port): Server {
           }, auth.userId);
 
           sendJson(response, 200, {
-            data: toAlertLedgerView(updated)
+            data: toAlertLedgerView(updated, alertTier)
           });
           return;
         }
@@ -9661,6 +9736,14 @@ export function startServer(port: number = loadConfig().port): Server {
           });
           return;
         }
+        if ((await runtime.store.getUserSubscription(auth.userId)).tier !== "PRO") {
+          sendJson(
+            response,
+            403,
+            buildUpgradeRequiredPayload("earnings_war_room", "Earnings War Room is available on the Pro tier.")
+          );
+          return;
+        }
 
         const warRoom = await getWarRoomById(runtime, {
           warRoomId,
@@ -9966,25 +10049,6 @@ export function startServer(port: number = loadConfig().port): Server {
         const deepDiveLimit = dailyDeepDiveLimitForTier(subscription.tier);
         const usageDate = dateInTimeZone(new Date(), runtime.config.subscriptionTimezone);
         let usageReserved = false;
-        if (deepDiveLimit > 0) {
-          const reservation = await runtime.store.reserveDailyDeepDiveUsage(
-            auth.userId,
-            usageDate,
-            deepDiveLimit
-          );
-          if (!reservation.allowed) {
-            sendJson(
-              response,
-              403,
-              buildUpgradeRequiredPayload(
-                "deep_dive_daily_limit",
-                `Daily Deep Dive limit reached for ${subscription.tier} tier (${deepDiveLimit}/day).`
-              )
-            );
-            return;
-          }
-          usageReserved = true;
-        }
 
         const nowIso = new Date().toISOString();
         const coverage = await runtime.store.getTickerCoverageByTicker(ticker);
@@ -10149,6 +10213,27 @@ export function startServer(port: number = loadConfig().port): Server {
             });
             return;
           }
+        }
+
+        // Only on-demand generation counts against the daily limit; a reused report is free to read.
+        if (deepDiveLimit > 0) {
+          const reservation = await runtime.store.reserveDailyDeepDiveUsage(
+            auth.userId,
+            usageDate,
+            deepDiveLimit
+          );
+          if (!reservation.allowed) {
+            sendJson(
+              response,
+              403,
+              buildUpgradeRequiredPayload(
+                "deep_dive_daily_limit",
+                `Daily Deep Dive limit reached for ${subscription.tier} tier (${deepDiveLimit}/day).`
+              )
+            );
+            return;
+          }
+          usageReserved = true;
         }
 
         const createdAt = nowIso;
@@ -10337,6 +10422,15 @@ export function startServer(port: number = loadConfig().port): Server {
               error: "report_not_found",
               error_message: "Report not found."
             });
+            return;
+          }
+
+          if ((await runtime.store.getUserSubscription(auth.userId)).tier !== "PRO") {
+            sendJson(
+              response,
+              403,
+              buildUpgradeRequiredPayload("report_export", "PDF export is available on the Pro tier.")
+            );
             return;
           }
 
