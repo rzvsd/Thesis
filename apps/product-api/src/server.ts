@@ -134,6 +134,7 @@ import { dispatchPulseEmails } from "./pulse-email";
 import { handleReportReaderRoutes, handleReportShareRoutes } from "./routes/report-share-routes";
 import { handleNotificationRoutes } from "./routes/notification-routes";
 import { handlePulseRoutes } from "./routes/pulse-routes";
+import { handleLegalRoutes } from "./routes/legal-routes";
 import { handlePublicRoutes } from "./routes/public-routes";
 import {
   handleRevenueCatPublicRoutes,
@@ -5926,6 +5927,10 @@ export function startServer(port: number = loadConfig().port): Server {
         }
       };
       sendJson(response, 200, payload);
+      return;
+    }
+
+    if (handleLegalRoutes(method, pathname, response)) {
       return;
     }
 
