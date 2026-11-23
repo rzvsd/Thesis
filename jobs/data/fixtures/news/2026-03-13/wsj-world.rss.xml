@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Made-up test items in the shape of the real feed. Not real headlines. -->
+<rss version="2.0">
+  <channel>
+    <title>WSJ.com: World News</title>
+    <item>
+      <title>Example World Headline for the Test Fixture</title>
+      <link>https://www.wsj.com/world/example-world-headline-0000002?mod=rss_worldnews</link>
+      <pubDate>Fri, 13 Mar 2026 07:45:00 GMT</pubDate>
+      <description><![CDATA[Publisher summary text that must never be kept.]]></description>
+    </item>
+  </channel>
+</rss>

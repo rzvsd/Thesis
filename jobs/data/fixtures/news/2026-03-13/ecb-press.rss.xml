@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Made-up test items in the shape of the real feed. Not real headlines. -->
+<rss version="2.0">
+  <channel>
+    <title>ECB - European Central Bank</title>
+    <item>
+      <title> Monetary policy decisions</title>
+      <link>https://www.ecb.europa.eu//press/pr/date/2026/html/ecb.mp260313~0000000000.en.html</link>
+      <pubDate>Fri, 13 Mar 2026 14:15:00 +0100</pubDate>
+    </item>
+  </channel>
+</rss>

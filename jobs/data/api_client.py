@@ -97,9 +97,14 @@ class ApiClient:
     def __repr__(self) -> str:  # never show the token or the base URL
         return "ApiClient(<configured>)"
 
-    def start_step(self) -> None:
-        """Start the time budget for one step. Retries stop when it runs out."""
-        self._deadline = self.clock() + self.step_timeout
+    def start_step(self, budget: float | None = None) -> None:
+        """Start the time budget for one step. Retries stop when it runs out.
+
+        `budget` gives a part of the step a shorter budget of its own (never longer than the step's), so an
+        optional call cannot use up the time a required one needs. Call start_step() again afterwards.
+        """
+        seconds = self.step_timeout if budget is None else max(0.0, min(budget, self.step_timeout))
+        self._deadline = self.clock() + seconds
 
     def get(self, route: str) -> ApiResponse:
         return self._send("GET", route, None)

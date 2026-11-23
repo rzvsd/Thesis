@@ -33,6 +33,7 @@ import {
 } from "../../../_lib/evaluators/pulse/dispatch.ts";
 import { PostgresPulseJobStore, storageArtifacts } from "../../../_lib/evaluators/pulse/store.ts";
 import { recomputeMonitor } from "../../../_lib/evaluators/monitor.ts";
+import { ingestNews, listNews, listNewsSources } from "../../../_lib/evaluators/news.ts";
 import {
   postgresPrecomputeStore,
   type PrecomputeDeps,
@@ -167,6 +168,10 @@ export const feature: FeatureModule = {
     post("/internal/calendar/sync", syncCalendar),
     get("/internal/data/price-tickers", (d) => listPriceTickers(d)),
     post("/internal/data/prices/ingest", ingestPrices),
+    // Headlines the news job read; the Pulse job reads its window back (audit NG8).
+    post("/internal/news/ingest", ingestNews),
+    get("/internal/news", listNews),
+    get("/internal/news/sources", (d) => listNewsSources(d)),
     // Evaluators.
     post("/internal/notifications/earnings-war-room", dispatchEarningsWarRoom),
     post("/internal/notifications/earnings-preview", dispatchEarningsPreview),

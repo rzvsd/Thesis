@@ -20,6 +20,9 @@ import type {
   MarketPriceRow,
   NameRelationshipRecord,
   NameRelationshipType,
+  NewsItemRow,
+  NewsSourceCheck,
+  NewsSourceStatusRecord,
   NotificationType,
   ReportMeta,
   SubscriptionTier,
@@ -173,6 +176,14 @@ export interface EvaluatorStore {
     Map<string, number>
   >;
   listPriceTickers(limit: number): Promise<string[]>;
+
+  // ---- News ----
+  // Insert, or refresh title, tickers and last_seen_at of a link already stored. Returns the rows written.
+  upsertNewsItems(rows: NewsItemRow[]): Promise<number>;
+  // Items published in [since, until], newest first.
+  listNewsItems(input: { since: string; until: string; limit: number }): Promise<NewsItemRow[]>;
+  recordNewsSourceChecks(rows: NewsSourceCheck[]): Promise<void>;
+  listNewsSourceStatus(): Promise<NewsSourceStatusRecord[]>;
 
   // ---- Audit ----
   appendAuditEvent(input: AuditEventRecord): Promise<void>;

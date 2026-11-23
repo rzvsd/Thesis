@@ -9,6 +9,8 @@ import {
   mapKillSwitchEvaluation,
   mapKillSwitchRule,
   mapMonitorSnapshot,
+  mapNewsItem,
+  mapNewsSourceStatus,
   mapReportMeta,
   mapResearchState,
   mapWarRoom,
@@ -20,6 +22,9 @@ import type {
   KillSwitchRuleRecord,
   KillSwitchSignalSource,
   MarketPriceRow,
+  NewsItemRow,
+  NewsSourceCheck,
+  NewsSourceStatusRecord,
   ReportMeta,
   SubscriptionTier,
   ThesisMonitorSnapshotRecord,
@@ -404,6 +409,87 @@ export class PostgresEvaluatorStore extends PgStoreBase implements EvaluatorStor
       [limit],
     );
     return rows.map((r) => String(r.ticker));
+  }
+
+  // ---- News ----
+
+  async upsertNewsItems(rows: NewsItemRow[]): Promise<number> {
+    if (rows.length === 0) return 0;
+    return await this.run(
+      `insert into news_items
+         (article_id, source_key, source_name, url, title, published_at, rights, tickers, first_seen_at, last_seen_at)
+       select x.article_id, x.source_key, x.source_name, x.url, x.title, x.published_at::timestamptz, x.rights,
+              coalesce((select array_agg(t) from jsonb_array_elements_text(x.tickers) as t), '{}'),
+              x.seen_at::timestamptz, x.seen_at::timestamptz
+         from jsonb_to_recordset($1::jsonb)
+           as x(article_id text, source_key text, source_name text, url text, title text, published_at text,
+                rights text, tickers jsonb, seen_at text)
+       on conflict (article_id) do update set
+         title = excluded.title, published_at = excluded.published_at, tickers = excluded.tickers,
+         last_seen_at = excluded.last_seen_at`,
+      [
+        JSON.stringify(rows.map((r) => ({
+          article_id: r.articleId,
+          source_key: r.sourceKey,
+          source_name: r.sourceName,
+          url: r.url,
+          title: r.title,
+          published_at: r.publishedAt,
+          rights: r.rights,
+          tickers: r.tickers,
+          seen_at: r.seenAt,
+        }))),
+      ],
+    );
+  }
+
+  async listNewsItems(input: { since: string; until: string; limit: number }): Promise<NewsItemRow[]> {
+    const rows = await this.q(
+      `select article_id, source_key, source_name, url, title, published_at, rights, tickers, last_seen_at
+         from news_items
+        where published_at >= $1::timestamptz and published_at <= $2::timestamptz
+        order by published_at desc, article_id asc
+        limit $3`,
+      [input.since, input.until, Math.max(1, input.limit)],
+    );
+    return rows.map(mapNewsItem);
+  }
+
+  async recordNewsSourceChecks(rows: NewsSourceCheck[]): Promise<void> {
+    if (rows.length === 0) return;
+    await this.run(
+      `insert into news_source_status
+         (source_key, last_checked_at, last_ok_at, last_error_code, last_article_count, newest_item_at,
+          consecutive_failures)
+       select x.source_key, x.checked_at::timestamptz, case when x.ok then x.checked_at::timestamptz end,
+              x.error_code, x.article_count, x.newest_item_at::timestamptz, case when x.ok then 0 else 1 end
+         from jsonb_to_recordset($1::jsonb)
+           as x(source_key text, checked_at text, ok boolean, error_code text, article_count int,
+                newest_item_at text)
+       on conflict (source_key) do update set
+         last_checked_at = excluded.last_checked_at,
+         last_ok_at = coalesce(excluded.last_ok_at, news_source_status.last_ok_at),
+         last_error_code = excluded.last_error_code,
+         last_article_count = excluded.last_article_count,
+         newest_item_at = coalesce(excluded.newest_item_at, news_source_status.newest_item_at),
+         consecutive_failures = case when excluded.consecutive_failures = 0 then 0
+                                     else news_source_status.consecutive_failures + 1 end`,
+      [
+        JSON.stringify(rows.map((r) => ({
+          source_key: r.sourceKey,
+          checked_at: r.checkedAt,
+          ok: r.ok,
+          error_code: r.errorCode ?? null,
+          article_count: r.articleCount,
+          newest_item_at: r.newestItemAt ?? null,
+        }))),
+      ],
+    );
+  }
+
+  async listNewsSourceStatus(): Promise<NewsSourceStatusRecord[]> {
+    const rows = await this.q(`select * from news_source_status order by source_key asc`);
+    return rows.map(mapNewsSourceStatus);
   }
 
   // ---- Audit ----

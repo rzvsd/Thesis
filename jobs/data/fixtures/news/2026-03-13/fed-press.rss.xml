@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Made-up test items in the shape of the real feed. Not real headlines. -->
+<rss version="2.0">
+  <channel>
+    <title>FRB: Press Release - All Releases</title>
+    <item>
+      <title><![CDATA[Federal Reserve issues FOMC statement]]></title>
+      <link>https://www.federalreserve.gov/newsevents/pressreleases/monetary20260313a.htm</link>
+      <pubDate><![CDATA[Fri, 13 Mar 2026 08:30:00 GMT]]></pubDate>
+      <description><![CDATA[Federal Reserve issues FOMC statement]]></description>
+    </item>
+    <item>
+      <title><![CDATA[Federal Reserve Board announces approval of an application]]></title>
+      <link>https://www.federalreserve.gov/newsevents/pressreleases/orders20260312a.htm</link>
+      <pubDate><![CDATA[Thu, 12 Mar 2026 20:00:00 GMT]]></pubDate>
+      <description><![CDATA[Prior day item]]></description>
+    </item>
+  </channel>
+</rss>

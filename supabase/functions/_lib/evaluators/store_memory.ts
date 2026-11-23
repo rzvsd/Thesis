@@ -20,6 +20,9 @@ import type {
   MarketPriceRow,
   NameRelationshipRecord,
   NameRelationshipType,
+  NewsItemRow,
+  NewsSourceCheck,
+  NewsSourceStatusRecord,
   NotificationType,
   ReportMeta,
   SubscriptionTier,
@@ -89,6 +92,8 @@ export class MemoryEvaluatorStore implements EvaluatorStore {
   researchStates: UserResearchStateRecord[] = [];
   feedback: UserFeedbackQueueRecord[] = [];
   prices: MarketPriceRow[] = [];
+  news: NewsItemRow[] = [];
+  newsStatus: NewsSourceStatusRecord[] = [];
   audit: AuditEventRecord[] = [];
 
   // ---- Ingest ----
@@ -557,6 +562,62 @@ export class MemoryEvaluatorStore implements EvaluatorStore {
       ...this.watchlists.map((w) => w.ticker),
     ].map((t) => t.toUpperCase()));
     return Promise.resolve([...set].sort().slice(0, limit));
+  }
+
+  // ---- News ----
+
+  upsertNewsItems(rows: NewsItemRow[]) {
+    for (const r of rows) {
+      const idx = this.news.findIndex((n) => n.articleId === r.articleId);
+      if (idx >= 0) {
+        // Like the SQL: the source and rights of a stored link stay; title, date, tickers and seenAt refresh.
+        const kept = this.news[idx];
+        this.news[idx] = {
+          ...clone(r),
+          sourceKey: kept.sourceKey,
+          sourceName: kept.sourceName,
+          rights: kept.rights,
+        };
+      } else this.news.push(clone(r));
+    }
+    return Promise.resolve(rows.length);
+  }
+
+  listNewsItems(input: { since: string; until: string; limit: number }) {
+    const since = Date.parse(input.since);
+    const until = Date.parse(input.until);
+    return Promise.resolve(clone(
+      this.news
+        .filter((n) => Date.parse(n.publishedAt) >= since && Date.parse(n.publishedAt) <= until)
+        .sort((a, b) =>
+          Date.parse(b.publishedAt) - Date.parse(a.publishedAt) || a.articleId.localeCompare(b.articleId)
+        )
+        .slice(0, Math.max(1, input.limit)),
+    ));
+  }
+
+  recordNewsSourceChecks(rows: NewsSourceCheck[]) {
+    for (const r of rows) {
+      const old = this.newsStatus.find((s) => s.sourceKey === r.sourceKey);
+      const next: NewsSourceStatusRecord = {
+        sourceKey: r.sourceKey,
+        lastCheckedAt: r.checkedAt,
+        lastOkAt: r.ok ? r.checkedAt : old?.lastOkAt,
+        lastErrorCode: r.errorCode,
+        lastArticleCount: r.articleCount,
+        newestItemAt: r.newestItemAt ?? old?.newestItemAt,
+        consecutiveFailures: r.ok ? 0 : (old?.consecutiveFailures ?? 0) + 1,
+      };
+      if (old) Object.assign(old, next);
+      else this.newsStatus.push(next);
+    }
+    return Promise.resolve();
+  }
+
+  listNewsSourceStatus() {
+    return Promise.resolve(
+      clone([...this.newsStatus].sort((a, b) => a.sourceKey.localeCompare(b.sourceKey))),
+    );
   }
 
   // ---- Audit ----

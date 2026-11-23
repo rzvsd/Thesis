@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<!-- Made-up test items in the shape of the real feed. Not real headlines. -->
+<rss version="2.0">
+  <channel>
+    <title>Today in Energy</title>
+    <item>
+      <title>U.S. crude oil production set a monthly record</title>
+      <link>https://www.eia.gov/todayinenergy/detail.php?id=99999</link>
+      <pubDate>Fri, 13 Mar 2026 08:00:00 EST</pubDate>
+      <description><![CDATA[Feed description text that must never be kept.]]></description>
+    </item>
+  </channel>
+</rss>

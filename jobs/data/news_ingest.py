@@ -1,28 +1,32 @@
-"""Approved headlines and first-party context: the bodies of the old news-ingest routes
-GET /v1/news?date=... and POST /v1/first-party/context {ticker, url}.
+"""Headlines for the Pulse and the news store, and the old first-party context route body.
 
-Copied from apps/news-ingest/src/news_ingest/service.py (keep tested logic). Changes:
+Started as a copy of apps/news-ingest/src/news_ingest/service.py (GET /v1/news?date=...). Changed since:
 - The Redis rate limiter is replaced by the in-process RateLimiter (retry.py).
-- Fixture mode follows DATA_OPENBB_FIXTURE_MODE like the other job scripts (the old switch was
-  NEWS_INGEST_FIXTURE_MODE). Fixtures are copied into jobs/data/fixtures/news and fixtures/first-party.
-- BeautifulSoup and news-please are imported only when an HTML source is parsed
-  (pip install -r jobs/data/requirements-news.txt). Without them only the HTML source fails.
+- Fixture mode follows DATA_OPENBB_FIXTURE_MODE like the other job scripts. Fixtures are in fixtures/news.
 - Each source is read on its own (rebuild branch audit NG1). The answer is ok when at least one source could be
   read, and "sources" says how each one did. Only when every source fails is the answer an outage.
 - Headlines can be kept by a time window (window_start, window_end) and not only by UTC date (NG5). The Pulse
   passes the window from news_window(), which also reaches back over a weekend.
+- Sources (NG2, NG3). The Reuters and Bloomberg feeds and the scraped WSJ page are gone. The main sources are
+  official feeds whose text is free to reuse (Federal Reserve, SEC, ECB, EIA, BEA). Publisher feeds are
+  "headline_link_only": the headline is cut to 120 characters, the feed's description is never read, and the app
+  shows headline, source name and link. That is the "very short extract" limit of Romanian Law 8/1996 art. 94^1
+  (EU Directive 2019/790 art. 15). Set NEWS_PUBLISHER_HEADLINES=false to leave publisher feeds out.
+- No article text is sent to the api. body_text is the headline (the schema still needs the field).
+- Fetching (NG9): 10 second timeout, one retry, a size cap, feeds with an entity declaration are refused, and the
+  user agent comes from NEWS_USER_AGENT or SEC_USER_AGENT. No HTML parsing, so no extra packages.
 """
 
 from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 import urllib.error
 import urllib.parse
 import urllib.request
 import uuid
-import warnings
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
@@ -30,16 +34,23 @@ from email.utils import parsedate_to_datetime
 from html import unescape
 from typing import Any, Callable, Literal, Mapping
 
+from company_match import tickers_in_headline
 from joblog import log
 from market_time import NEW_YORK
-from retry import RateLimiter
+from retry import RETRYABLE_STATUS, RateLimiter, RetryableError, RetryPolicy, call_with_retry
 from schema_check import SCHEMA_ROOT
 from source_common import FIXTURE_ROOT, fixture_mode
 
 DEFAULT_PROVIDER = "approved-sources"
 FIRST_PARTY_PROVIDER = "first-party-context"
-REQUEST_TIMEOUT_SECONDS = 5.0
+REQUEST_TIMEOUT_SECONDS = 10.0
+MAX_FEED_BYTES = 2_000_000
+DEFAULT_USER_AGENT = "ThesisNewsIngest/0.2"
 DEFAULT_SOURCE_RATE_LIMIT_PER_MINUTE = 5
+# Longest publisher headline kept: the "very short extract" limit of Law 8/1996 art. 94^1 (Romania).
+HEADLINE_LINK_MAX_CHARS = 120
+RIGHTS_OFFICIAL = "official_public"
+RIGHTS_HEADLINE_LINK = "headline_link_only"
 PH6_SOURCE_REVIEWED_AT = "2026-04-17T00:00:00Z"
 NEWS_FIXTURE_ROOT = FIXTURE_ROOT / "news"
 FIRST_PARTY_FIXTURE_ROOT = FIXTURE_ROOT / "first-party"
@@ -57,17 +68,17 @@ class SourceFetchError(RuntimeError):
     pass
 
 
-class HtmlFallbackDependencyError(RuntimeError):
-    pass
-
-
 @dataclass(frozen=True)
 class ApprovedSource:
     key: str
     name: str
-    method: Literal["rss", "html"]
     url: str
     fixture_name: str
+    # official_public: a public body's own release, free to reuse. headline_link_only: a publisher's feed.
+    rights: Literal["official_public", "headline_link_only"]
+    # Items whose headline starts with one of these are left out (opinion pieces are not news).
+    skip_prefixes: tuple[str, ...] = ()
+    method: Literal["rss"] = "rss"
 
 
 @dataclass(frozen=True)
@@ -87,11 +98,37 @@ class FirstPartySource:
         return build_first_party_rights(display_mode=self.default_display_mode, policy_reason=self.policy_reason)
 
 
+# Feed addresses were read from each body's own feed page on 2026-11-23. Fed, SEC, ECB and WSJ answered with
+# RSS 2.0 that day. The EIA and BEA addresses are the ones their sites link to; they could not be fetched from the
+# build machine, so the first live run shows whether they parse (each source fails on its own).
 APPROVED_SOURCES: tuple[ApprovedSource, ...] = (
-    ApprovedSource("reuters-business", "Reuters", "rss", "https://feeds.reuters.com/reuters/businessNews", "reuters.rss.xml"),
-    ApprovedSource("bloomberg-markets", "Bloomberg", "rss", "https://feeds.bloomberg.com/markets/news.rss", "bloomberg.rss.xml"),
-    ApprovedSource("wsj-markets", "WSJ Markets", "html", "https://www.wsj.com/news/markets", "wsj.html"),
+    ApprovedSource("fed-press", "Federal Reserve", "https://www.federalreserve.gov/feeds/press_all.xml",
+                   "fed-press.rss.xml", RIGHTS_OFFICIAL),
+    ApprovedSource("sec-press", "SEC", "https://www.sec.gov/news/pressreleases.rss", "sec-press.rss.xml",
+                   RIGHTS_OFFICIAL),
+    ApprovedSource("ecb-press", "ECB", "https://www.ecb.europa.eu/rss/press.html", "ecb-press.rss.xml",
+                   RIGHTS_OFFICIAL),
+    ApprovedSource("eia-today", "EIA", "https://www.eia.gov/rss/todayinenergy.xml", "eia-today.rss.xml",
+                   RIGHTS_OFFICIAL),
+    ApprovedSource("bea-news", "BEA", "https://apps.bea.gov/rss/rss.xml", "bea-news.rss.xml", RIGHTS_OFFICIAL),
+    ApprovedSource("wsj-markets", "WSJ", "https://feeds.content.dowjones.io/public/rss/RSSMarketsMain",
+                   "wsj-markets.rss.xml", RIGHTS_HEADLINE_LINK, ("Opinion |",)),
+    ApprovedSource("wsj-world", "WSJ", "https://feeds.content.dowjones.io/public/rss/RSSWorldNews",
+                   "wsj-world.rss.xml", RIGHTS_HEADLINE_LINK, ("Opinion |",)),
 )
+
+
+def publisher_headlines_enabled(env: Mapping[str, str] | None = None) -> bool:
+    values = os.environ if env is None else env
+    return str(values.get("NEWS_PUBLISHER_HEADLINES", "true")).strip().lower() not in {"false", "0", "no", "off"}
+
+
+def active_sources(env: Mapping[str, str] | None = None) -> tuple[ApprovedSource, ...]:
+    """Official feeds always. Publisher feeds unless NEWS_PUBLISHER_HEADLINES is false."""
+    if publisher_headlines_enabled(env):
+        return APPROVED_SOURCES
+    return tuple(source for source in APPROVED_SOURCES if source.rights == RIGHTS_OFFICIAL)
+
 
 _INVESTOR = "Approved seed first-party investor path; store bounded excerpts and links only."
 _ASSET = "Approved seed asset host; store metadata and links, not full asset text."
@@ -261,15 +298,6 @@ def article_id_for(url: str) -> str:
     return hashlib.sha256(url.encode("utf8")).hexdigest()
 
 
-def extract_tickers(*parts: str) -> list[str]:
-    found: list[str] = []
-    for part in parts:
-        for ticker in re.findall(r"\$([A-Z]{1,5})\b", part):
-            if ticker not in found:
-                found.append(ticker)
-    return found
-
-
 def filter_by_requested_date(published_at: str, requested_date: str) -> bool:
     return published_at.startswith(requested_date)
 
@@ -312,130 +340,113 @@ def news_window(cycle_start: str, cycle_end: str) -> tuple[str, str]:
 Keep = Callable[[str], bool]
 
 
-def normalize_published_at(value: datetime | str | None, fallback_value: str) -> str:
-    if value is None:
-        return normalize_datetime(fallback_value)
-    if isinstance(value, str):
-        return normalize_datetime(value)
-    if value.tzinfo is None:
-        value = value.replace(tzinfo=timezone.utc)
-    return value.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+# ---------------------------------------------------------------- headlines
 
 
-# ---------------------------------------------------------------- approved headlines (GET /v1/news)
+def clip_headline(title: str, limit: int = HEADLINE_LINK_MAX_CHARS) -> str:
+    """A headline of at most `limit` characters, cut at a word and ended with an ellipsis."""
+    if len(title) <= limit:
+        return title
+    cut = title[: limit - 1]
+    if " " in cut:
+        cut = cut.rsplit(" ", 1)[0]
+    return cut.rstrip(" ,;:-–—") + "…"
 
 
-def ingestion_method_for(source: ApprovedSource) -> str:
-    return "rss" if source.method == "rss" else "html_fallback"
+def clean_link(raw: str) -> str:
+    """An http(s) link, or "" for anything else. Doubled slashes in the path go (the ECB feed writes host//press)."""
+    parts = urllib.parse.urlsplit(raw.strip())
+    if parts.scheme not in {"http", "https"} or not parts.netloc:
+        return ""
+    path = re.sub(r"/{2,}", "/", parts.path)
+    return urllib.parse.urlunsplit((parts.scheme, parts.netloc, path, parts.query, ""))
 
 
-def load_newsplease() -> Any:
-    warnings.filterwarnings("ignore", message=r"nltk is not installed.*", category=UserWarning)
-    warnings.filterwarnings(
-        "ignore", category=DeprecationWarning, module=r"newsplease\.pipeline\.extractor\.extractors\.date_extractor"
-    )
-    try:
-        from newsplease import NewsPlease  # type: ignore[import-not-found]
-    except ImportError as error:
-        raise HtmlFallbackDependencyError("news-please is required for approved HTML fallback sources.") from error
-    return NewsPlease
-
-
-def load_beautifulsoup() -> Any:
-    try:
-        from bs4 import BeautifulSoup  # type: ignore[import-not-found]
-    except ImportError as error:
-        raise HtmlFallbackDependencyError("beautifulsoup4 is required for approved HTML fallback sources.") from error
-    return BeautifulSoup
-
-
-def _article(source: ApprovedSource, url: str, title: str, published_at: str, retrieved_at: str, body_text: str) -> dict[str, Any]:
+def build_article(
+    *,
+    source_key: str,
+    source_name: str,
+    rights: str,
+    url: str,
+    title: str,
+    published_at: str,
+    retrieved_at: str,
+    tickers: list[str] | None = None,
+) -> dict[str, Any]:
+    """One headline in the CanonicalNewsArticle shape. A publisher headline is cut to the legal length here."""
+    if rights == RIGHTS_HEADLINE_LINK:
+        title = clip_headline(title)
     article = {
         "article_id": article_id_for(url),
-        "source": source.name,
+        "source": source_name,
+        "source_key": source_key,
+        "rights": rights,
         "url": url,
         "title": title,
         "published_at": published_at,
         "retrieved_at": retrieved_at,
-        "body_text": body_text,
-        "tickers_mentioned": extract_tickers(title, body_text),
+        # No article text is kept. The schema needs the field, so it repeats the headline.
+        "body_text": title,
+        "tickers_mentioned": tickers if tickers is not None else tickers_in_headline(title),
         "is_approved_source": True,
     }
     validate_named(article, "canonical-news-article.schema.json", "CanonicalNewsArticle")
     return article
 
 
-def extract_html_article_with_newsplease(
-    source: ApprovedSource,
-    article_html: str,
-    url: str,
-    fallback_title: str,
-    fallback_published_at: str,
-    fallback_body_text: str,
-    retrieved_at: str,
-) -> dict[str, Any]:
-    news_please = load_newsplease()
-    extracted = news_please.from_html(article_html, url=url)
-    title = normalize_text(getattr(extracted, "title", "") or fallback_title)
-    published_at = normalize_published_at(getattr(extracted, "date_publish", None), fallback_published_at)
-    body_text = normalize_text(
-        getattr(extracted, "maintext", "") or getattr(extracted, "description", "") or fallback_body_text or fallback_title
-    )
-    return _article(source, url, title, published_at, retrieved_at, body_text)
+def _has_entity_declaration(raw: str | bytes) -> bool:
+    return (b"<!ENTITY" in raw) if isinstance(raw, bytes) else ("<!ENTITY" in raw)
+
+
+_DC_DATE = "{http://purl.org/dc/elements/1.1/}date"
+
+
+def parse_rss_feed(
+    raw: str | bytes, source: ApprovedSource, requested_date: str, retrieved_at: str, keep: Keep | None = None
+) -> tuple[list[dict[str, Any]], str | None]:
+    """Headlines of one RSS 2.0 feed that `keep` accepts, and the date of the newest item in the whole feed.
+
+    Only title, link and date are read. The description is never read, so no publisher text beyond the headline
+    can reach the api. An item with an unreadable date is skipped; a feed where no item has one is refused.
+    """
+    keep = keep or (lambda published_at: filter_by_requested_date(published_at, requested_date))
+    if _has_entity_declaration(raw):
+        raise ValueError("Feed declares XML entities.")
+    root = ET.fromstring(raw)  # noqa: S314 - fixed feed addresses, entity declarations refused above
+    items = root.findall(".//item")
+    articles: list[dict[str, Any]] = []
+    newest: datetime | None = None
+    undated = 0
+    for item in items:
+        title = normalize_text(item.findtext("title") or "")
+        url = clean_link(item.findtext("link") or "") or clean_link(item.findtext("guid") or "")
+        published_raw = (item.findtext("pubDate") or item.findtext(_DC_DATE) or "").strip()
+        if not title or not url:
+            continue
+        try:
+            published_at = normalize_datetime(published_raw)
+        except (ValueError, TypeError):
+            undated += 1
+            continue
+        published = parse_utc(published_at)
+        if newest is None or published > newest:
+            newest = published
+        if any(title.startswith(prefix) for prefix in source.skip_prefixes):
+            continue
+        if not keep(published_at):
+            continue
+        articles.append(build_article(source_key=source.key, source_name=source.name, rights=source.rights, url=url,
+                                      title=title, published_at=published_at, retrieved_at=retrieved_at))
+    if items and undated == len(items):
+        raise ValueError("No item in the feed has a readable date.")
+    newest_at = newest.isoformat().replace("+00:00", "Z") if newest else None
+    return articles, newest_at
 
 
 def parse_rss_articles(
-    raw_text: str, source: ApprovedSource, requested_date: str, retrieved_at: str, keep: Keep | None = None
+    raw_text: str | bytes, source: ApprovedSource, requested_date: str, retrieved_at: str, keep: Keep | None = None
 ) -> list[dict[str, Any]]:
-    keep = keep or (lambda published_at: filter_by_requested_date(published_at, requested_date))
-    root = ET.fromstring(raw_text)  # noqa: S314 - approved feeds or local fixtures
-    articles: list[dict[str, Any]] = []
-    for item in root.findall(".//item"):
-        title = (item.findtext("title") or "").strip()
-        url = (item.findtext("link") or "").strip()
-        published_at_raw = (item.findtext("pubDate") or "").strip()
-        description = item.findtext("description") or ""
-        if not title or not url or not published_at_raw:
-            continue
-        published_at = normalize_datetime(published_at_raw)
-        if not keep(published_at):
-            continue
-        articles.append(_article(source, url, title, published_at, retrieved_at, normalize_text(description or title)))
-    return articles
-
-
-def parse_html_articles(
-    raw_text: str, source: ApprovedSource, requested_date: str, retrieved_at: str, keep: Keep | None = None
-) -> list[dict[str, Any]]:
-    keep = keep or (lambda published_at: filter_by_requested_date(published_at, requested_date))
-    soup = load_beautifulsoup()(raw_text, "html.parser")
-    articles: list[dict[str, Any]] = []
-    for article_tag in soup.find_all("article"):
-        anchor = article_tag.find("a", href=True)
-        time_tag = article_tag.find("time")
-        if anchor is None or time_tag is None:
-            continue
-        url = anchor["href"].strip()
-        title = normalize_text(anchor.get_text(" ", strip=True))
-        published_at_raw = str(time_tag.get("datetime") or "").strip()
-        if not url or not title or not published_at_raw:
-            continue
-        published_at = normalize_datetime(published_at_raw)
-        if not keep(published_at):
-            continue
-        article = extract_html_article_with_newsplease(
-            source=source,
-            article_html=str(article_tag),
-            url=url,
-            fallback_title=title,
-            fallback_published_at=published_at_raw,
-            fallback_body_text=normalize_text(article_tag.get_text(" ", strip=True)),
-            retrieved_at=retrieved_at,
-        )
-        if not keep(article["published_at"]):
-            continue
-        articles.append(article)
-    return articles
+    return parse_rss_feed(raw_text, source, requested_date, retrieved_at, keep)[0]
 
 
 def fetch_fixture_text(source: ApprovedSource, requested_date: str) -> str:
@@ -445,16 +456,59 @@ def fetch_fixture_text(source: ApprovedSource, requested_date: str) -> str:
     return fixture_path.read_text(encoding="utf8")
 
 
-def fetch_remote_text(source: ApprovedSource) -> str:
-    request = urllib.request.Request(source.url, headers={"User-Agent": "ThesisNewsIngest/0.1"}, method="GET")
+def user_agent(env: Mapping[str, str] | None = None) -> str:
+    """NEWS_USER_AGENT, else SEC_USER_AGENT (the SEC asks for a named agent with a contact), else a plain name."""
+    values = os.environ if env is None else env
+    for name in ("NEWS_USER_AGENT", "SEC_USER_AGENT"):
+        value = str(values.get(name, "")).strip()
+        if value:
+            return value
+    return DEFAULT_USER_AGENT
+
+
+FETCH_RETRY = RetryPolicy(max_attempts=2, base_delay_seconds=1.0, max_delay_seconds=5.0)
+
+
+def fetch_remote_text(
+    source: ApprovedSource,
+    env: Mapping[str, str] | None = None,
+    *,
+    opener: Callable[..., Any] = urllib.request.urlopen,
+    sleep: Callable[[float], None] | None = None,
+) -> bytes:
+    """The feed's bytes (the XML parser reads the encoding from the feed). One retry on a timeout, 429 or 5xx."""
+    request = urllib.request.Request(
+        source.url,
+        headers={"User-Agent": user_agent(env), "Accept": "application/rss+xml, application/xml;q=0.9, */*;q=0.5"},
+        method="GET",
+    )
+
+    def once() -> bytes:
+        try:
+            with opener(request, timeout=REQUEST_TIMEOUT_SECONDS) as response:  # noqa: S310 - fixed feed address
+                raw = response.read(MAX_FEED_BYTES + 1)
+        except urllib.error.HTTPError as error:
+            if error.code in RETRYABLE_STATUS:
+                raise RetryableError(f"HTTP {error.code} from {source.key}.", status=error.code) from error
+            raise SourceFetchError(f"HTTP {error.code} from {source.key}.") from error
+        except (urllib.error.URLError, TimeoutError, OSError) as error:
+            raise RetryableError(f"Failed to fetch {source.key}.") from error
+        if len(raw) > MAX_FEED_BYTES:
+            raise SourceFetchError(f"Feed {source.key} is larger than {MAX_FEED_BYTES} bytes.")
+        return raw
+
     try:
-        with urllib.request.urlopen(request, timeout=REQUEST_TIMEOUT_SECONDS) as response:  # noqa: S310 - approved URL
-            return response.read().decode("utf8", errors="replace")
-    except (urllib.error.URLError, TimeoutError) as error:
-        raise SourceFetchError(f"Failed to fetch {source.url}.") from error
+        if sleep is None:
+            return call_with_retry(once, policy=FETCH_RETRY)
+        return call_with_retry(once, policy=FETCH_RETRY, sleep=sleep)
+    except RetryableError as error:
+        raise SourceFetchError(str(error)) from error
 
 
-SourceLoader = Callable[[ApprovedSource, str], str]
+SourceLoader = Callable[[ApprovedSource, str], "str | bytes"]
+# An extra source that is not an RSS feed (company filings). Gets the keep test and retrieved_at, returns
+# (articles, status) and never raises.
+ExtraReader = Callable[[Keep, str], "tuple[list[dict[str, Any]], dict[str, Any]]"]
 
 
 def outage_response(request_id: str, retrieved_at: str, error_code: str, error_message: str, *, provider: str = DEFAULT_PROVIDER) -> dict[str, Any]:
@@ -472,32 +526,37 @@ def outage_response(request_id: str, retrieved_at: str, error_code: str, error_m
     return response
 
 
+def failed_status(source_key: str, error_code: str) -> dict[str, Any]:
+    return {"source": source_key, "ok": False, "article_count": 0, "error_code": error_code}
+
+
 def read_source(
-    source: ApprovedSource, load: Callable[[ApprovedSource], str], requested_date: str, retrieved_at: str, keep: Keep
+    source: ApprovedSource,
+    load: Callable[[ApprovedSource], "str | bytes"],
+    requested_date: str,
+    retrieved_at: str,
+    keep: Keep,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """Reads one source. A failure is returned as that source's status, never raised (audit NG1)."""
     try:
         _acquire(source.key)
-        raw_text = load(source)
-        if source.method == "rss":
-            parsed = parse_rss_articles(raw_text, source, requested_date, retrieved_at, keep)
-        else:
-            parsed = parse_html_articles(raw_text, source, requested_date, retrieved_at, keep)
+        parsed, newest_at = parse_rss_feed(load(source), source, requested_date, retrieved_at, keep)
     except SourceFetchError:
-        log("WARN", "Source unreachable / parser failed", provider=source.key)
-        return [], {"source": source.key, "ok": False, "article_count": 0, "error_code": "PROVIDER_OUTAGE"}
-    except HtmlFallbackDependencyError:
-        log("WARN", "HTML fallback dependency missing", provider=source.key)
-        return [], {"source": source.key, "ok": False, "article_count": 0, "error_code": "INTERNAL_ERROR"}
+        log("WARN", "Source unreachable", provider=source.key)
+        return [], failed_status(source.key, "PROVIDER_OUTAGE")
     except (ET.ParseError, ValueError):
-        log("WARN", "Schema validation failed", provider=source.key)
-        return [], {"source": source.key, "ok": False, "article_count": 0, "error_code": "SCHEMA_MISMATCH"}
+        log("WARN", "Feed could not be read safely", provider=source.key)
+        return [], failed_status(source.key, "SCHEMA_MISMATCH")
     except Exception as error:  # one bad source must not cost the others
         log("WARN", "News source failed", provider=source.key, error_type=type(error).__name__)
-        return [], {"source": source.key, "ok": False, "article_count": 0, "error_code": "INTERNAL_ERROR"}
-    log("INFO", "News source read", provider=source.key, ingestion_method=ingestion_method_for(source),
-        record_count=len(parsed))
-    return parsed, {"source": source.key, "ok": True, "article_count": len(parsed)}
+        return [], failed_status(source.key, "INTERNAL_ERROR")
+    log("INFO", "News source read", provider=source.key, rights=source.rights, record_count=len(parsed),
+        newest_item_at=newest_at or "")
+    status: dict[str, Any] = {"source": source.key, "ok": True, "article_count": len(parsed)}
+    if newest_at:
+        # The newest item in the feed, kept or not. An old date here means the feed went stale, not a quiet day.
+        status["newest_item_at"] = newest_at
+    return parsed, status
 
 
 _OUTAGE_MESSAGES = {
@@ -515,11 +574,14 @@ def news_response(
     env: Mapping[str, str] | None = None,
     source_loader: SourceLoader | None = None,
     now: datetime | None = None,
+    extra_readers: tuple[ExtraReader, ...] = (),
 ) -> tuple[int, dict[str, Any]]:
     """Port of build_news_response. Returns (status, body) like the old route.
 
     With window_start and window_end (ISO date-times) headlines are kept by that span. Without them they are kept
     by requested_date in UTC, as the old route did. requested_date still picks the fixture folder in fixture mode.
+    extra_readers add sources that are not feeds; they are listed in "sources" like any other. When every feed
+    is down the answer is still ok if an extra reader brought headlines, and an outage if it brought none.
     """
     retrieved_at = (now or datetime.now(timezone.utc)).astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
     request_id = uuid.uuid4().hex
@@ -541,23 +603,29 @@ def news_response(
                                         "window_start must not be after window_end.")
         keep = lambda published_at: within_window(published_at, start, end)  # noqa: E731
 
-    def load(source: ApprovedSource) -> str:
+    def load(source: ApprovedSource) -> str | bytes:
         if source_loader is not None:
             return source_loader(source, requested_date)
         if fixture_mode(env):
             return fetch_fixture_text(source, requested_date)
-        return fetch_remote_text(source)
+        return fetch_remote_text(source, env)
 
     articles: list[dict[str, Any]] = []
     statuses: list[dict[str, Any]] = []
-    for source in APPROVED_SOURCES:
+    for source in active_sources(env):
         parsed, status = read_source(source, load, requested_date, retrieved_at, keep)
+        articles.extend(parsed)
+        statuses.append(status)
+    feeds_down = all(not status["ok"] for status in statuses)
+    for reader in extra_readers:
+        parsed, status = reader(keep, retrieved_at)
         articles.extend(parsed)
         statuses.append(status)
 
     failed = [status for status in statuses if not status["ok"]]
-    if len(failed) == len(statuses):
-        # Nothing could be read, so this is an outage and not a quiet day. The first failure names it.
+    if len(failed) == len(statuses) or (feeds_down and not articles):
+        # No feed could be read and nothing else brought a headline, so this is an outage and not a quiet day.
+        # The first failure names it.
         first = failed[0]
         response = outage_response(request_id, retrieved_at, first["error_code"],
                                    _OUTAGE_MESSAGES[first["error_code"]], provider=first["source"])

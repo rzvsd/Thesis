@@ -10,6 +10,8 @@ import type {
   KillSwitchEvaluationRecord,
   KillSwitchRuleRecord,
   NameRelationshipRecord,
+  NewsItemRow,
+  NewsSourceStatusRecord,
   ReportMeta,
   ThesisMonitorSnapshotRecord,
   UserFeedbackQueueRecord,
@@ -366,4 +368,30 @@ export function mapFeedback(row: Row): UserFeedbackQueueRecord {
 
 export function stringArray(value: unknown): string[] {
   return array(value).map((v) => String(v));
+}
+
+export function mapNewsItem(r: Row): NewsItemRow {
+  return {
+    articleId: String(r.article_id),
+    sourceKey: String(r.source_key),
+    sourceName: String(r.source_name),
+    url: String(r.url),
+    title: String(r.title),
+    publishedAt: isoNow(r.published_at),
+    rights: r.rights === "headline_link_only" ? "headline_link_only" : "official_public",
+    tickers: Array.isArray(r.tickers) ? r.tickers.map((t) => String(t)) : [],
+    seenAt: isoNow(r.last_seen_at),
+  };
+}
+
+export function mapNewsSourceStatus(r: Row): NewsSourceStatusRecord {
+  return {
+    sourceKey: String(r.source_key),
+    lastCheckedAt: isoNow(r.last_checked_at),
+    lastOkAt: iso(r.last_ok_at),
+    lastErrorCode: typeof r.last_error_code === "string" && r.last_error_code ? r.last_error_code : undefined,
+    lastArticleCount: Number(r.last_article_count ?? 0),
+    newestItemAt: iso(r.newest_item_at),
+    consecutiveFailures: Number(r.consecutive_failures ?? 0),
+  };
 }

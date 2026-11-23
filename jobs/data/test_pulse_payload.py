@@ -117,15 +117,10 @@ def test_structural_fixture_and_live() -> None:
     assert "world-bank-population-missing" in {entry["omission_id"] for entry in live["omissions"]}
 
 
-def test_news_reads_rss_and_html_sources() -> None:
-    def loader(source: news_ingest.ApprovedSource, requested_date: str) -> str:
-        if source.method == "html":
-            return "<html><body>No articles today.</body></html>"
-        return news_ingest.fetch_fixture_text(source, "2026-03-13")
-
-    status, body = news_ingest.news_response("2026-03-13", source_loader=loader)
+def test_news_reads_the_fixture_day_and_refuses_a_bad_date() -> None:
+    status, body = news_ingest.news_response("2026-03-13")
     assert status == 200 and body["ok"] is True
-    assert [article["source"] for article in body["data"]] == ["Bloomberg", "Reuters"]
+    assert sorted({article["source"] for article in body["data"]}) == ["ECB", "EIA", "Federal Reserve", "SEC", "WSJ"]
     assert all(article["published_at"].startswith("2026-03-13") for article in body["data"])
 
     status, body = news_ingest.news_response("2026-13-40")

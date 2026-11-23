@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Made-up test items in the shape of the real feed. Not real headlines. -->
+<rss version="2.0">
+  <channel>
+    <title>WSJ.com: Markets</title>
+    <item>
+      <title>Example Markets Headline: Apple&apos;s Shares Climb as Investors Weigh a Made-Up Forecast for the Test Fixture That Runs Well Past the Limit of One Hundred and Twenty Characters</title>
+      <link>https://www.wsj.com/finance/stocks/example-markets-headline-0000000?mod=rss_markets_main</link>
+      <pubDate>Fri, 13 Mar 2026 10:02:00 GMT</pubDate>
+      <description><![CDATA[Publisher summary text that must never be kept.]]></description>
+    </item>
+    <item>
+      <title>Opinion | An Example Opinion Piece</title>
+      <link>https://www.wsj.com/opinion/example-opinion-0000001?mod=rss_markets_main</link>
+      <pubDate>Fri, 13 Mar 2026 09:00:00 GMT</pubDate>
+      <description><![CDATA[Publisher summary text that must never be kept.]]></description>
+    </item>
+  </channel>
+</rss>

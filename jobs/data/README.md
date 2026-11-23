@@ -24,6 +24,26 @@ They never hold the database password. They only know `THESIS_API_URL` and `THES
   `jobs/daily/daily_steps.py` (`pulse_cycle_window`). The api builds and stores the issue inside the request.
   A failed source is sent as an error envelope, so the issue shows it as unavailable. A failed job exits 1.
   Sources: `market_tape.py`, `structural.py`, `news_ingest.py`, `first_party.py` (copies of the old services).
+  In live mode the news input is first stored and then read back from the news store for the whole window.
+- `run_news.py` (three times on weekdays, `rebuild-news.yml`) reads every news source and the SEC filings of the
+  tickers people follow, and posts `{items, sources}` to `/internal/news/ingest`. It stores nothing in fixture mode.
+
+## News sources and what may be shown
+
+`news_ingest.py` reads two kinds of feed, and the kind decides what is kept:
+
+| Kind | Sources | What is kept |
+| --- | --- | --- |
+| `official_public` | Federal Reserve, SEC, ECB, EIA and BEA press feeds; SEC EDGAR filings per company (`company_filings.py`) | Headline, link, time. Filing headlines are written by us ("Apple Inc. filed an 8-K: results of operations"). |
+| `headline_link_only` | WSJ Markets and WSJ World News public feeds | Headline cut to 120 characters, source name, link, time. Nothing else is read from the feed. |
+
+Publisher text is never copied: no summary, no first paragraph, no article page. The 120-character cut is the
+"very short extract" limit of Romanian Law 8/1996 art. 94^1 (EU Directive 2019/790 art. 15); AP v. Meltwater (2013)
+is the US case against showing a headline with the opening sentence in a paid product. Do not add a publisher
+source by reading its web pages, and do not raise the limit. `NEWS_PUBLISHER_HEADLINES=false` (repository
+variable) leaves publisher feeds out. A new publisher feed needs the owner's yes; a paid news licence does too.
+
+`company_match.py` finds the companies a headline names (names from `fixtures/sp500_universe.csv`).
 
 The evaluator steps (war room, kill switch, digest and so on) are in `jobs/daily/run_step.py`.
 It calls one route by name and follows `next_cursor` pages: when an answer has a `next_cursor`,
