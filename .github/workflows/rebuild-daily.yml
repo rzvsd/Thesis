@@ -47,6 +47,7 @@ jobs:
         id: guard
         env:
           FORCE: ${{ inputs.force }}
+          SCHEDULE: ${{ github.event.schedule }}
         run: python3 jobs/daily/guard.py
 
       - name: Check secrets

@@ -201,6 +201,28 @@ def test_guard_scheduled_runs(now: datetime, expected: bool) -> None:
     assert guard.decide({"GITHUB_EVENT_NAME": "schedule"}, now)[0] is expected
 
 
+SUMMER = "30 10 * * 1-5"
+WINTER = "30 11 * * 1-5"
+
+
+@pytest.mark.parametrize(
+    "now,schedule,expected",
+    [
+        (utc(2026, 7, 15, 10, 30), SUMMER, True),
+        (utc(2026, 7, 15, 11, 30), WINTER, False),  # 07:30 EDT, but the summer cron owns the day
+        (utc(2026, 7, 15, 11, 50), SUMMER, True),  # summer cron delayed by 80 minutes
+        (utc(2026, 1, 14, 10, 30), SUMMER, False),
+        (utc(2026, 1, 14, 11, 30), WINTER, True),
+        (utc(2026, 11, 2, 11, 30), WINTER, True),
+        (utc(2026, 3, 9, 10, 30), SUMMER, True),
+        (utc(2026, 3, 9, 11, 30), WINTER, False),
+    ],
+)
+def test_guard_runs_only_the_season_cron(now: datetime, schedule: str, expected: bool) -> None:
+    env = {"GITHUB_EVENT_NAME": "schedule", "SCHEDULE": schedule}
+    assert guard.decide(env, now)[0] is expected
+
+
 def test_guard_manual_force_skips_check() -> None:
     night = utc(2026, 1, 14, 3, 0)
     assert guard.decide({"GITHUB_EVENT_NAME": "workflow_dispatch", "FORCE": "true"}, night)[0] is True

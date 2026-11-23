@@ -249,6 +249,7 @@ export async function dispatchEarningsWarRoom(
   let prepared = 0;
   let liveUpdated = 0;
   let postClosed = 0;
+  let postDeferred = 0;
   const tally = emptyTally();
   const fallbackUserIds = new Set<string>();
   const route = notificationRoute("earnings_war_room");
@@ -482,6 +483,12 @@ export async function dispatchEarningsWarRoom(
 
   if (includePost) {
     for (const room of (await openRooms()).filter((r) => r.eventDate <= asOf)) {
+      // Closing a room queues its Deep Dive refresh. Until M2's queue is wired, leave the room open so a
+      // later run can still close it and queue the refresh, instead of claiming a refresh that never happened.
+      if (!deps.deepDiveQueue.enabled) {
+        postDeferred += 1;
+        continue;
+      }
       const now = deps.now().toISOString();
       const e = await roomEarnings(deps, room, asOf);
       const queued = await deps.deepDiveQueue.queueRefresh({
@@ -577,7 +584,13 @@ export async function dispatchEarningsWarRoom(
     }
   }
 
-  const counts = { prepared, live_updated: liveUpdated, post_closed: postClosed, ...tally };
+  const counts = {
+    prepared,
+    live_updated: liveUpdated,
+    post_closed: postClosed,
+    post_deferred: postDeferred,
+    ...tally,
+  };
   await appendAudit(deps.store, "earnings_war_room.dispatched", {
     request_id: meta.requestId,
     route: meta.route,

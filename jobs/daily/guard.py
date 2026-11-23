@@ -17,15 +17,29 @@ import _paths  # noqa: F401
 from market_time import in_daily_window, new_york_now, now_utc
 
 
+SUMMER_CRON = "30 10 * * 1-5"
+WINTER_CRON = "30 11 * * 1-5"
+
+
+def is_daylight_time(local: datetime) -> bool:
+    offset = local.utcoffset()
+    return offset is not None and offset.total_seconds() == -4 * 3600
+
+
 def decide(env: Mapping[str, str], now: datetime | None = None) -> tuple[bool, str]:
     current = now or now_utc()
     manual = env.get("GITHUB_EVENT_NAME", "") == "workflow_dispatch"
     force = env.get("FORCE", "").strip().lower() == "true"
     if manual and force:
         return True, "manual run with force"
-    if in_daily_window(current):
-        return True, "inside 06:00-08:59 New York"
-    return False, f"outside 06:00-08:59 New York (local hour {new_york_now(current).hour:02d})"
+    local = new_york_now(current)
+    if not in_daily_window(current):
+        return False, f"outside 06:00-08:59 New York (local hour {local.hour:02d})"
+    schedule = env.get("SCHEDULE", "").strip()
+    expected = SUMMER_CRON if is_daylight_time(local) else WINTER_CRON
+    if schedule and schedule != expected:
+        return False, "the other season's cron does today's run"
+    return True, "inside 06:00-08:59 New York"
 
 
 def main(env: Mapping[str, str] | None = None, now: datetime | None = None) -> int:

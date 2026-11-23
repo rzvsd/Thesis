@@ -52,8 +52,9 @@ primary key (ticker, market_date))`, RLS on, no grants to `anon` or `authenticat
 ## Schedules (daylight saving, N6)
 
 The daily workflow has two UTC crons: `30 10 * * 1-5` and `30 11 * * 1-5` (06:30 New York in summer and in winter).
-A first step checks the New York local time and exits early unless it is between 06:00 and 08:59, so only one
-of the two runs does work. The manual run button skips that check. The macro step uses the previous US trading day
+A first step lets a scheduled run go ahead only when its own cron (`github.event.schedule`) matches the current
+New York season (10:30 UTC in daylight time, 11:30 UTC in standard time) and it starts between 06:00 and 08:59
+New York. So exactly one of the two runs does work. The manual run button skips that check. The macro step uses the previous US trading day
 as `market_date` (the old schedule ran it at 18:00 New York the day before).
 
 Weekly: Sunday `0 23 * * 0` UTC (Sunday evening New York in both seasons).

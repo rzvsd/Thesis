@@ -47,8 +47,25 @@ Deno.test("war room pre: prepares once, writes the inbox row, rerun adds nothing
   assertEquals(store.alerts.length, 1);
 });
 
-Deno.test("war room auto on event day: live cycle then post closure, rerun does nothing", async () => {
+const enabledQueue = {
+  enabled: true,
+  queueRefresh: () => Promise.resolve({ id: "job-1", reportId: "rep-1" }),
+};
+
+Deno.test("war room post stays open while the Deep Dive queue is disabled", async () => {
   const { store } = setup();
+  addUser(store, "pro", { tier: "PRO", tickers: ["AAPL"] });
+  store.calendar.push(earnings("e1", "AAPL", "2026-11-20"));
+  store.rules.push(rule("r1", "pro", "AAPL"));
+  const res = await post(WR, { as_of: "2026-11-20" });
+  assertEquals([res.body.post_closed, res.body.post_deferred], [0, 1]);
+  assertEquals(store.warRooms[0].state === "closed", false);
+  assertEquals(store.evaluations.length, 0);
+  assertEquals(store.alerts.some((a) => a.context.war_room_phase === "post"), false);
+});
+
+Deno.test("war room auto on event day: live cycle then post closure, rerun does nothing", async () => {
+  const { store } = setup({ deepDiveQueue: enabledQueue });
   addUser(store, "pro", { tier: "PRO", tickers: ["AAPL"] });
   store.calendar.push(earnings("e1", "AAPL", "2026-11-20"));
   store.rules.push(rule("r1", "pro", "AAPL"));
