@@ -1,0 +1,70 @@
+name: rebuild-news
+
+# News fetch for the serverless rebuild (rebuild branch audit NG8). Reads the official feeds, the publisher
+# headline feeds and the SEC filings of followed tickers, and stores headlines through /internal/news/ingest.
+# The daily Pulse step reads its window back from that store, so an issue is not hostage to one fetch at 06:30.
+# Three runs on weekdays, in UTC: about 11:15, 15:45 and 20:15 New York in winter (one hour later in summer).
+# Each run is about one minute and needs no packages. A run is safe to repeat: rows are keyed by the link.
+# Schedules run from the default branch only, so this starts when the rebuild workflows reach main.
+# Secrets reach only the step that calls the api, through env. Nothing here prints them.
+on:
+  schedule:
+    - cron: "15 16 * * 1-5"
+    - cron: "45 20 * * 1-5"
+    - cron: "15 1 * * 2-6"
+  workflow_dispatch:
+
+# A fetch must not be killed half way, so a new run waits for the running one.
+concurrency:
+  group: rebuild-news
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  news:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      # Fixture data unless the owner sets the repository variable THESIS_DATA_LIVE to "true".
+      # In fixture mode the step fetches and stores nothing.
+      DATA_OPENBB_FIXTURE_MODE: ${{ vars.THESIS_DATA_LIVE == 'true' && 'false' || 'true' }}
+      SEC_USER_AGENT: ${{ vars.SEC_USER_AGENT }}
+      # "false" leaves the publisher headline feeds out and keeps the official sources.
+      NEWS_PUBLISHER_HEADLINES: ${{ vars.NEWS_PUBLISHER_HEADLINES || 'true' }}
+      MARKET_PULSE_TICKERS: ${{ vars.MARKET_PULSE_TICKERS }}
+      STEP_TIMEOUT_SECONDS: "240"
+      PYTHONUNBUFFERED: "1"
+      PYTHONDONTWRITEBYTECODE: "1"
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Check secrets
+        env:
+          THESIS_API_URL: ${{ secrets.THESIS_API_URL }}
+          THESIS_INTERNAL_TOKEN: ${{ secrets.THESIS_INTERNAL_TOKEN }}
+        run: |
+          missing=""
+          [ -n "${THESIS_API_URL}" ] || missing="${missing} THESIS_API_URL"
+          [ -n "${THESIS_INTERNAL_TOKEN}" ] || missing="${missing} THESIS_INTERNAL_TOKEN"
+          if [ -n "${missing}" ]; then
+            echo "::error::Missing repository secret(s):${missing}. Add them under Settings > Secrets and variables > Actions."
+            exit 1
+          fi
+          echo "Secrets are set."
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.11"
+
+      - name: Fetch and store news
+        timeout-minutes: 5
+        env:
+          THESIS_API_URL: ${{ secrets.THESIS_API_URL }}
+          THESIS_INTERNAL_TOKEN: ${{ secrets.THESIS_INTERNAL_TOKEN }}
+        run: python jobs/data/run_news.py

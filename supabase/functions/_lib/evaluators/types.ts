@@ -681,3 +681,43 @@ export interface MarketPriceRow {
   provider: string;
   retrievedAt: string;
 }
+
+// ---- News ----
+
+// official_public: a public body's own release. headline_link_only: a publisher's headline, at most 120
+// characters, shown with the source name and a link and nothing more.
+export type NewsRights = "official_public" | "headline_link_only";
+
+export interface NewsItemRow {
+  // sha256 of the link (lower-case hex), set by the job.
+  articleId: string;
+  sourceKey: string;
+  sourceName: string;
+  url: string;
+  title: string;
+  publishedAt: string;
+  rights: NewsRights;
+  tickers: string[];
+  // When this fetch saw the item.
+  seenAt: string;
+}
+
+// How one source did in one fetch.
+export interface NewsSourceCheck {
+  sourceKey: string;
+  checkedAt: string;
+  ok: boolean;
+  errorCode?: string;
+  articleCount: number;
+  newestItemAt?: string;
+}
+
+export interface NewsSourceStatusRecord {
+  sourceKey: string;
+  lastCheckedAt: string;
+  lastOkAt?: string;
+  lastErrorCode?: string;
+  lastArticleCount: number;
+  newestItemAt?: string;
+  consecutiveFailures: number;
+}

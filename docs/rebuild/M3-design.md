@@ -31,6 +31,9 @@ one market date (upserts keyed by date or ticker). Error shape is `{ error, erro
 | `POST /internal/calendar/sync` | `{ start_date?, end_date?, events }`. `events` is the `data.events` array the old `POST /internal/calendar/earnings` returned. Missing `events` is 422. | `calendar_events` |
 | `GET /internal/data/price-tickers` | none | returns `{ tickers: string[] }`: tickers with kill-switch price rules, active contrarian anchors and watchlist names, sorted, max 500 |
 | `POST /internal/data/prices/ingest` | `{ market_date, prices }`. `prices` is the `data.prices` array of the old `GET /v1/market/eod-prices` (`{ ticker, available, close?, reason? }`). Unavailable entries are counted, not stored. | `market_prices_daily` (new, M3) |
+| `POST /internal/news/ingest` | `{ items, sources? }`. `items` are the articles `jobs/data/news_ingest.py` builds (headline, link, time, source, rights, tickers; never article text). `sources` is its per-source result list. An item that cannot be stored is counted as `invalid`. A publisher headline is cut to 120 characters. Max 2000 items. | `news_items`, `news_source_status` (new, news fixes after the rebuild audit) |
+| `GET /internal/news?since=&until=&limit=` | none | returns `{ since, until, items }`: stored headlines published in the span, newest first, max 500. The Pulse step reads its window here. |
+| `GET /internal/news/sources` | none | returns `{ sources }`: last check, last error, failures in a row and `stale` (answers, but nothing new for 10 days) per source |
 | `POST /internal/canonical-events/ingest` | `{ events }`, as in `contract.md`. The weekly official-source refresh builds them in Python from the official company payload, like the old scheduler did. | `canonical_events` |
 
 Evaluator routes (`/internal/notifications/*`, `/internal/conviction/coherence/evaluate`, `/internal/monitor/recompute`,

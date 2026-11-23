@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Made-up test items in the shape of the real feed. Not real headlines. -->
+<rss version="2.0">
+  <channel>
+    <title>Press Releases</title>
+    <item>
+      <title>
+ SEC Charges Example Fund Adviser With Misleading Investors 
+</title>
+      <link>https://www.sec.gov/newsroom/press-releases/2026-041-sec-charges-example-fund-adviser</link>
+      <pubDate>Fri, 13 Mar 2026 09:05:00 -0400</pubDate>
+      <description><![CDATA[Feed description text that must never be kept.]]></description>
+    </item>
+  </channel>
+</rss>

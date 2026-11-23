@@ -10,8 +10,12 @@ report builder):
 - structural: GET /v1/official/structural?country=US&subject_type=market_pulse&as_of=...  (structural.py)
 - companies[T]: GET /v1/official/company?ticker=T                  (official.py)
 - first_party[T]: POST news-ingest /v1/first-party/context          (first_party.py)
-- news: GET news-ingest /v1/news?date=..., kept by the cycle window   (news_ingest.py, news_window)
+- news: GET news-ingest /v1/news?date=..., kept by the cycle window   (news_ingest.py, news_window), plus the
+  SEC filing headlines of the Pulse tickers (company_filings.py)
 - calendar_events: data.events of POST /internal/calendar/earnings {as_of, as_of + 7 days}  (earnings_calendar.py)
+
+In live mode the news input is then stored and read back from the news store (news_store.py), so the issue
+also has the headlines the earlier fetches of the day saw.
 
 A source that fails becomes an error envelope ({ok: false, error_message: "HTTP <status>"}), which is what the
 old fetchEnvelope saw for a failed call, so the api takes the same "data_unavailable" path. A failed calendar is
@@ -30,12 +34,14 @@ from typing import Any, Callable, Mapping
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "daily"))
 
 from api_client import ApiClient  # noqa: E402
+from company_filings import filings_reader  # noqa: E402
 from daily_steps import pulse_cycle_window  # noqa: E402
 from earnings_calendar import calendar_earnings_response  # noqa: E402
 from first_party import FIRST_PARTY_CONTEXT_SOURCE_BY_TICKER, first_party_context_response  # noqa: E402
 from joblog import log  # noqa: E402
 from market_tape import market_tape_response  # noqa: E402
 from news_ingest import news_response, news_window  # noqa: E402
+from news_store import with_stored_news  # noqa: E402
 from official import official_company_response, official_macro_response  # noqa: E402
 from script_main import EXIT_FAILED, EXIT_OK, run  # noqa: E402
 from source_common import ProviderIntegrationError, add_days_to_iso_date, fixture_mode  # noqa: E402
@@ -109,7 +115,9 @@ def build_inputs(
         "news": guarded(
             "news",
             lambda: http_envelope(
-                "news", news_response(as_of, window_start=news_start, window_end=news_end, env=env)
+                "news",
+                news_response(as_of, window_start=news_start, window_end=news_end, env=env,
+                              extra_readers=(filings_reader(tickers, env),)),
             ),
         ),
     }
@@ -133,6 +141,11 @@ def main(client: ApiClient | None = None, now: datetime | None = None, env: Mapp
     api = client or ApiClient.from_env(env)
     body = build_body(now, env)
     inputs = body["inputs"]
+    if not fixture_mode(env):
+        # Store what was just read and take the whole window back from the news store (audit NG8), so the
+        # issue also has the headlines the earlier fetches of the day saw. Fixtures never reach the store.
+        news_start, news_end = news_window(body["cycle_start"], body["cycle_end"])
+        inputs["news"] = with_stored_news(api, inputs["news"], news_start, news_end)
     failed_inputs = sorted(
         name for name, value in inputs.items() if isinstance(value, dict) and value.get("ok") is False
     )

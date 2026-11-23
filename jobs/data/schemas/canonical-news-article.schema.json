@@ -14,17 +14,47 @@
     "is_approved_source"
   ],
   "properties": {
-    "article_id": { "type": "string" },
-    "source": { "type": "string" },
-    "url": { "type": "string" },
-    "title": { "type": "string" },
-    "published_at": { "type": "string", "format": "date-time" },
-    "retrieved_at": { "type": "string", "format": "date-time" },
-    "body_text": { "type": "string" },
+    "article_id": {
+      "type": "string"
+    },
+    "source": {
+      "type": "string"
+    },
+    "url": {
+      "type": "string"
+    },
+    "title": {
+      "type": "string"
+    },
+    "published_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "retrieved_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "body_text": {
+      "type": "string"
+    },
     "tickers_mentioned": {
       "type": "array",
-      "items": { "type": "string" }
+      "items": {
+        "type": "string"
+      }
     },
-    "is_approved_source": { "type": "boolean" }
+    "is_approved_source": {
+      "type": "boolean"
+    },
+    "source_key": {
+      "type": "string"
+    },
+    "rights": {
+      "type": "string",
+      "enum": [
+        "official_public",
+        "headline_link_only"
+      ]
+    }
   }
 }

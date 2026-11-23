@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Made-up test items in the shape of the real feed. Not real headlines. -->
+<rss version="2.0">
+  <channel>
+    <title>BEA News Releases</title>
+    <item>
+      <title>Gross Domestic Product, 4th Quarter 2025 (Second Estimate)</title>
+      <link>https://www.bea.gov/news/2026/gross-domestic-product-4th-quarter-2025-second-estimate</link>
+      <pubDate>Thu, 12 Mar 2026 08:30:00 -0400</pubDate>
+    </item>
+  </channel>
+</rss>
