@@ -17,6 +17,14 @@ They never hold the database password. They only know `THESIS_API_URL` and `THES
   `SCHEDULER_OFFICIAL_SOURCE_TICKERS` and the official daily macro, and posts their canonical events
   to `/internal/canonical-events/ingest`. It is a port of the old scheduler's `/internal/official/refresh`.
 
+- `run_pulse.py` builds the inputs of one Market Pulse issue, exactly what the old product-api fetched from
+  data-openbb (market tape, official macro, structural context, official company truth per ticker, the earnings
+  calendar for the next 7 days) and news-ingest (approved headlines, first-party context). It posts
+  `{cycle_start, cycle_end, inputs}` to `/internal/pulse/dispatch`, with the window from
+  `jobs/daily/daily_steps.py` (`pulse_cycle_window`). The api builds and stores the issue inside the request.
+  A failed source is sent as an error envelope, so the issue shows it as unavailable. A failed job exits 1.
+  Sources: `market_tape.py`, `structural.py`, `news_ingest.py`, `first_party.py` (copies of the old services).
+
 The evaluator steps (war room, kill switch, digest and so on) are in `jobs/daily/run_step.py`.
 It calls one route by name and follows `next_cursor` pages: when an answer has a `next_cursor`,
 it sends the same body again with `cursor` set, up to 50 pages.
@@ -38,6 +46,7 @@ that replaces Redis. `market_time.py` has New York time and US trading days. `of
 | `PRICE_PROVIDER` | no | Price adapter. Default `none`. |
 | `SEC_USER_AGENT` | live only | Name and contact email for SEC requests. |
 | `SCHEDULER_OFFICIAL_SOURCE_TICKERS` | no | Comma list for the weekly refresh. Default `AAPL,MSFT,TSLA`. |
+| `MARKET_PULSE_TICKERS` | no | Comma list of Pulse tickers. Default `AAPL,MSFT,TSLA`. Must match the api's setting of the same name. |
 | `STEP_TIMEOUT_SECONDS` | no | Time budget for one step, retries included. Default 600. |
 | `FINBASE_READ_TOKEN` | no | Read token for the private OpenBB fork. The workflows install the fork only in live mode when it is set. No script needs it today. |
 

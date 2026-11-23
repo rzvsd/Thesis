@@ -58,3 +58,12 @@ New York. So exactly one of the two runs does work. The manual run button skips 
 as `market_date` (the old schedule ran it at 18:00 New York the day before).
 
 Weekly: Sunday `0 23 * * 0` UTC (Sunday evening New York in both seasons).
+
+## Deep Dive precompute (N7)
+
+`POST /internal/deep-dive/precompute` with `{ limit }` only creates system jobs (no user) for covered tickers whose
+Deep Dive is missing, expired or behind a new filing. The daily workflow's `precompute` job then claims and runs
+them one by one with the M2 runner (`jobs/deep-dive/claim.mts`, `main.mts`). One job per run by default
+(repo variable `DEEP_DIVE_PRECOMPUTE_PER_RUN`, max 5). It never dispatches a runner per ticker and never uses the
+user dispatch cap. The war-room post phase queues its refresh through M2's `dispatchJob` (inside the cap) and
+stays open when no refresh could start.

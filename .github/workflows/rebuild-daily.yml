@@ -29,6 +29,8 @@ jobs:
   daily:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    outputs:
+      run: ${{ steps.guard.outputs.run }}
     env:
       # Fixture data unless the owner sets the repository variable THESIS_DATA_LIVE to "true".
       DATA_OPENBB_FIXTURE_MODE: ${{ vars.THESIS_DATA_LIVE == 'true' && 'false' || 'true' }}
@@ -198,23 +200,23 @@ jobs:
           THESIS_INTERNAL_TOKEN: ${{ secrets.THESIS_INTERNAL_TOKEN }}
         run: python jobs/daily/run_step.py research-state-refresh
 
-      # ---- TODO(M3 phase B): enable when M1 and M2 have merged. Disabled on purpose.
+      # ---- Pulse issue (M3 phase B). Fetches the old data-openbb and news-ingest inputs and sends them to
+      # /internal/pulse/dispatch; the api builds and stores the issue and writes the market_pulse_ready inbox rows.
+      # MARKET_PULSE_TICKERS must match the api's setting of the same name (default AAPL,MSFT,TSLA).
 
-      - name: "TODO phase B: Pulse dispatch and per-user briefs (disabled)"
+      - name: Pulse issue
         id: pulse
-        if: ${{ false }}
+        if: ${{ !cancelled() && steps.guard.outputs.run == 'true' && steps.secrets.outcome == 'success' }}
+        timeout-minutes: 6
         env:
           THESIS_API_URL: ${{ secrets.THESIS_API_URL }}
           THESIS_INTERNAL_TOKEN: ${{ secrets.THESIS_INTERNAL_TOKEN }}
-        run: python jobs/daily/run_step.py pulse-dispatch
-
-      - name: "TODO phase B: Deep Dive precompute (disabled)"
-        id: precompute
-        if: ${{ false }}
-        env:
-          THESIS_API_URL: ${{ secrets.THESIS_API_URL }}
-          THESIS_INTERNAL_TOKEN: ${{ secrets.THESIS_INTERNAL_TOKEN }}
-        run: python jobs/daily/run_step.py deep-dive-precompute
+          MARKET_PULSE_TICKERS: ${{ vars.MARKET_PULSE_TICKERS }}
+        run: |
+          if [ "${DATA_OPENBB_FIXTURE_MODE}" = "false" ]; then
+            python -m pip install --quiet --disable-pip-version-check -r jobs/data/requirements-news.txt
+          fi
+          python jobs/data/run_pulse.py
 
       - name: Result
         if: ${{ !cancelled() && steps.guard.outputs.run == 'true' }}
@@ -233,6 +235,7 @@ jobs:
             earnings_preview=${{ steps.earnings_preview.outcome }}
             contrarian=${{ steps.contrarian.outcome }}
             research_state=${{ steps.research_state.outcome }}
+            pulse=${{ steps.pulse.outcome }}
         run: |
           failed=0
           for item in ${OUTCOMES}; do
@@ -244,3 +247,64 @@ jobs:
             exit 1
           fi
           echo "All daily steps passed."
+
+  # Deep Dive precompute (audit N7). The api creates at most PER_RUN system jobs; this job claims and runs them
+  # one after another with the M2 runner, in process. It never starts one Actions run per ticker and never uses
+  # the user dispatch cap. Fixture mode until the owner sets an LLM budget (AGENTS rule 11).
+  # Budget: about 5 minutes on a day with one job, 1 minute when nothing is stale (DECISIONS D7).
+  precompute:
+    needs: daily
+    if: ${{ !cancelled() && needs.daily.outputs.run == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      THESIS_API_URL: ${{ secrets.THESIS_API_URL }}
+      THESIS_INTERNAL_TOKEN: ${{ secrets.THESIS_INTERNAL_TOKEN }}
+      PER_RUN: ${{ vars.DEEP_DIVE_PRECOMPUTE_PER_RUN || '1' }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      PYTHONUNBUFFERED: "1"
+      PYTHONDONTWRITEBYTECODE: "1"
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Create precompute jobs
+        id: plan
+        run: python3 jobs/daily/precompute_plan.py "$RUNNER_TEMP/precompute-jobs.txt"
+
+      - name: Set up Node.js
+        if: steps.plan.outputs.count != '0'
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+
+      - name: Install runner dependencies
+        if: steps.plan.outputs.count != '0'
+        run: |
+          corepack enable
+          corepack prepare pnpm@10.6.1 --activate
+          corepack pnpm install --frozen-lockfile --filter "@thesis/dexter-worker..." --filter thesis-fintech
+
+      - name: Build pipeline
+        if: steps.plan.outputs.count != '0'
+        working-directory: apps/dexter-worker
+        run: corepack pnpm exec tsc -p tsconfig.json
+
+      - name: Run Deep Dives
+        if: steps.plan.outputs.count != '0'
+        env:
+          NODE_ENV: development
+          DEXTER_FIXTURE_MODE: "true"
+        run: |
+          failed=0
+          while read -r JOB_ID; do
+            [ -n "${JOB_ID}" ] || continue
+            export JOB_ID
+            claim="$RUNNER_TEMP/claim-${JOB_ID}.json"
+            if ! node jobs/deep-dive/claim.mts "${claim}"; then failed=1; continue; fi
+            [ -f "${claim}" ] || continue
+            node jobs/deep-dive/main.mts "${claim}" || failed=1
+          done < "$RUNNER_TEMP/precompute-jobs.txt"
+          exit "${failed}"

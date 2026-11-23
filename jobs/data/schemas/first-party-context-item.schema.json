@@ -1,0 +1,107 @@
+{
+  "$id": "FirstPartyContextItem",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "context_id",
+    "ticker",
+    "registry_entry_id",
+    "source_url",
+    "source_domain",
+    "page_type",
+    "title",
+    "summary",
+    "retrieved_at",
+    "content_hash",
+    "fetch_state",
+    "rights",
+    "artifact_ids",
+    "metadata"
+  ],
+  "properties": {
+    "context_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "ticker": {
+      "type": "string",
+      "minLength": 1
+    },
+    "event_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "registry_entry_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "source_url": {
+      "type": "string",
+      "minLength": 1
+    },
+    "source_domain": {
+      "type": "string",
+      "minLength": 1
+    },
+    "page_type": {
+      "type": "string",
+      "enum": [
+        "investor_relations",
+        "earnings_release",
+        "press_release",
+        "presentation",
+        "webcast",
+        "sec_filing_reference",
+        "supplemental_material",
+        "newsroom"
+      ]
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1
+    },
+    "summary": {
+      "type": "string",
+      "minLength": 1
+    },
+    "excerpt": {
+      "type": "string"
+    },
+    "retrieved_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "published_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "content_hash": {
+      "type": "string",
+      "minLength": 1
+    },
+    "fetch_state": {
+      "type": "string",
+      "enum": [
+        "fetched",
+        "rejected_unapproved_domain",
+        "rejected_undefined_rights",
+        "source_unavailable",
+        "parser_unsupported",
+        "skipped_outside_policy"
+      ]
+    },
+    "rights": {
+      "$ref": "EvidenceRightsMetadata"
+    },
+    "artifact_ids": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "metadata": {
+      "type": "object"
+    }
+  }
+}

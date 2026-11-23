@@ -64,6 +64,17 @@ Deno.test("war room post stays open while the Deep Dive queue is disabled", asyn
   assertEquals(store.alerts.some((a) => a.context.war_room_phase === "post"), false);
 });
 
+Deno.test("war room post stays open when the refresh could not start", async () => {
+  const { store } = setup({
+    deepDiveQueue: { enabled: true, queueRefresh: () => Promise.resolve(undefined) },
+  });
+  addUser(store, "pro", { tier: "PRO", tickers: ["AAPL"] });
+  store.calendar.push(earnings("e1", "AAPL", "2026-11-20"));
+  const res = await post(WR, { as_of: "2026-11-20" });
+  assertEquals([res.body.post_closed, res.body.post_deferred], [0, 1]);
+  assertEquals(store.warRooms[0].state === "closed", false);
+});
+
 Deno.test("war room auto on event day: live cycle then post closure, rerun does nothing", async () => {
   const { store } = setup({ deepDiveQueue: enabledQueue });
   addUser(store, "pro", { tier: "PRO", tickers: ["AAPL"] });
