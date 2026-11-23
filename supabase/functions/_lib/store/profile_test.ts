@@ -75,8 +75,8 @@ dbTest("profile reads app.users, subscriptions and deep_dive_daily_usage", async
     ], [
       "PRO",
       50,
-      -1,
-      -1,
+      5,
+      4,
     ]);
     assertEquals(await buildUserProfile("m1-test-missing-user"), undefined);
   } finally {

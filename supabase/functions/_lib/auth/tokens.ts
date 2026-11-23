@@ -58,6 +58,12 @@ export function parseCode(code: string): { tag: CodeTag | null; hash: string } |
   return { tag, hash };
 }
 
+// Audit V3: the short code Supabase prints with {{ .Token }} (6 digits by default, up to 10). It needs the email
+// to verify, so the app sends the email with it. The long tagged codes above keep working.
+export function isOtpCode(code: string): boolean {
+  return /^\d{6,10}$/.test(code.trim());
+}
+
 export function looksLikeJwt(token: string): boolean {
   return token.split(".").length === 3;
 }

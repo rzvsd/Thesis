@@ -4,8 +4,10 @@
 import { apiError, json } from "../../../_shared/http.ts";
 import { logInfo } from "../../../_shared/log.ts";
 import { maybeBootstrapAdmin } from "../../../_lib/auth/bootstrap.ts";
+import { mayRegister, MIN_NEW_PASSWORD_LENGTH } from "../../../_lib/auth/config.ts";
 import { isEmailExists, isWeakPassword } from "../../../_lib/auth/gotrue.ts";
 import {
+  isOtpCode,
   isValidEmail,
   looksLikeJwt,
   mapSession,
@@ -42,8 +44,16 @@ export function register(get: () => AuthDeps): Handler {
     const body = await readBody(req);
     const email = normalizeEmail(body.email);
     const password = str(body.password) ?? "";
-    if (!isValidEmail(email) || password.length < 8) {
-      return apiError(422, "validation_failed", "A valid email and password (min 8 chars) are required.");
+    const weak = () =>
+      apiError(
+        422,
+        "validation_failed",
+        `A valid email and password (min ${MIN_NEW_PASSWORD_LENGTH} chars) are required.`,
+      );
+    if (!isValidEmail(email) || password.length < MIN_NEW_PASSWORD_LENGTH) return weak();
+    // Closed test (audit S2): only invited emails. Checked before any lookup, so it reveals nothing.
+    if (!mayRegister(d.config(), email)) {
+      return apiError(403, "registration_closed", "Thesis is invite-only for now.");
     }
     const exists = () => apiError(409, "email_exists", "An account with this email already exists.");
     if (await d.store.findUserByEmail(email)) return exists();
@@ -51,9 +61,7 @@ export function register(get: () => AuthDeps): Handler {
     const created = await d.gotrue.adminCreateUser({ email, password, email_confirm: false });
     if (!created.ok) {
       if (isEmailExists(created)) return exists();
-      if (isWeakPassword(created)) {
-        return apiError(422, "validation_failed", "A valid email and password (min 8 chars) are required.");
-      }
+      if (isWeakPassword(created)) return weak();
       return unavailable();
     }
     const authId = created.data.id;
@@ -98,10 +106,20 @@ export function verify(get: () => AuthDeps): Handler {
 
     const invalid = () =>
       apiError(400, "invalid_verification_token", "The verification token is invalid or expired.");
-    const code = parseCode(token);
-    // Untagged codes are tried as signup confirmations only.
-    if (!code || (code.tag !== null && code.tag !== "v1s" && code.tag !== "v1m")) return invalid();
-    const res = await d.gotrue.verify(code.tag ? TAG_TYPES[code.tag] : "signup", code.hash);
+    let res;
+    if (isOtpCode(token)) {
+      // The short code from the email (audit V3; the project sends 8 digits) needs the address it went to.
+      const email = normalizeEmail(body.email);
+      if (!isValidEmail(email)) {
+        return apiError(422, "validation_failed", "Enter the email address the code was sent to.");
+      }
+      res = await d.gotrue.verifyOtp("signup", email, token);
+    } else {
+      const code = parseCode(token);
+      // Untagged codes are tried as signup confirmations only.
+      if (!code || (code.tag !== null && code.tag !== "v1s" && code.tag !== "v1m")) return invalid();
+      res = await d.gotrue.verify(code.tag ? TAG_TYPES[code.tag] : "signup", code.hash);
+    }
     if (!res.ok || !res.data?.user?.id) return invalid();
     // Verifying signs the user in on Supabase's side; we do not hand out that session.
     if (res.data.access_token) d.defer(d.gotrue.logout(res.data.access_token, "local"));

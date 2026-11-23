@@ -2,7 +2,7 @@
 // One upsert per request. Fixed windows: key = bucket + ip + method, window = start of the current window.
 import { apiError } from "../../_shared/http.ts";
 import { env } from "../../_shared/env.ts";
-import { timingSafeEqual } from "../../_shared/auth.ts";
+import { fromFrontDoor } from "../../_shared/auth.ts";
 import { db } from "./common.ts";
 
 export interface LimitRule {
@@ -21,14 +21,15 @@ export const pgCounter: Counter = async (key, windowStart) => {
   return Number(rows[0]?.count ?? 1);
 };
 
-// The Worker sends the caller's IP in x-thesis-client-ip (from cf-connecting-ip). Anyone can call the function URL
-// directly and forge that header, so it is trusted only with the Worker's x-thesis-edge-token (secret EDGE_TOKEN,
-// set to the same value on the Worker and in Supabase). Without EDGE_TOKEN set, x-forwarded-for is used.
+// The Worker sends the caller's IP in x-thesis-client-ip (from cf-connecting-ip), next to its x-thesis-edge-token
+// (secret EDGE_TOKEN, the same value on the Worker and in Supabase). Once EDGE_TOKEN is set, that header is the
+// only source (audit S1): app.ts already refuses callers without the edge or internal token, and internal callers
+// share one bucket. x-forwarded-for is read only when EDGE_TOKEN is unset (local runs).
 export function clientIp(req: Request): string {
-  const expected = env("EDGE_TOKEN");
-  const given = req.headers.get("x-thesis-edge-token") ?? "";
-  const fromEdge = req.headers.get("x-thesis-client-ip");
-  if (fromEdge && expected && given && timingSafeEqual(given, expected)) return fromEdge.trim();
+  if (env("EDGE_TOKEN")) {
+    const fromEdge = req.headers.get("x-thesis-client-ip")?.trim();
+    return fromFrontDoor(req) && fromEdge ? fromEdge : "direct";
+  }
   const fwd = req.headers.get("x-forwarded-for");
   if (fwd) return fwd.split(",")[0].trim();
   return "unknown";
@@ -88,3 +89,24 @@ export async function checkRateLimit(
     retry_after_seconds: retry,
   });
 }
+
+// A limit on one key across all callers (no IP in the key), e.g. emails sent to one address (audit S2).
+// Returns true while under the limit. Fails open like checkRateLimit.
+export async function underKeyedLimit(
+  rule: LimitRule,
+  key: string,
+  counter: Counter = pgCounter,
+  nowMs = Date.now(),
+): Promise<boolean> {
+  if (env("RATE_LIMIT_DISABLED") === "1") return true;
+  const windowMs = rule.windowSeconds * 1000;
+  const start = Math.floor(nowMs / windowMs) * windowMs;
+  try {
+    return (await counter(`${rule.bucket}:${key}`, new Date(start).toISOString())) <= rule.max;
+  } catch {
+    return true;
+  }
+}
+
+// At most 3 auth emails (reset codes) per address per hour.
+export const EMAIL_SEND_RULE: LimitRule = { bucket: "email_send", max: 3, windowSeconds: 3600 };

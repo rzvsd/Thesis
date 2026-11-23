@@ -100,6 +100,11 @@ export class GoTrueClient {
     return this.call("POST", "/verify", "anon", { type, token_hash: tokenHash });
   }
 
+  // The short email code ({{ .Token }}) with the address it went to (audit V3).
+  verifyOtp(type: VerifyType, email: string, token: string): Promise<GoTrueResult<GoTrueSession>> {
+    return this.call("POST", "/verify", "anon", { type, email, token: token.trim() });
+  }
+
   // Sends Supabase's "Reset Password" email.
   recover(email: string): Promise<GoTrueResult<null>> {
     return this.call("POST", "/recover", "anon", { email });

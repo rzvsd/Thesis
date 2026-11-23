@@ -65,8 +65,10 @@ class ProductApiClient {
             )
         }
 
-    suspend fun verify(baseUrl: String, token: String) = withContext(Dispatchers.IO) {
+    /** The email goes with the code: the short code from the email only works with its address. */
+    suspend fun verify(baseUrl: String, email: String, token: String) = withContext(Dispatchers.IO) {
         val body = JSONObject().put("token", token)
+        if (email.isNotBlank()) body.put("email", email)
         requestJson(baseUrl, "POST", "/auth/verify", body = body)
     }
 
@@ -85,11 +87,12 @@ class ProductApiClient {
                 .optString("message")
         }
 
-    suspend fun confirmPasswordReset(baseUrl: String, token: String, newPassword: String) =
+    suspend fun confirmPasswordReset(baseUrl: String, email: String, token: String, newPassword: String) =
         withContext(Dispatchers.IO) {
             val body = JSONObject()
                 .put("token", token)
                 .put("new_password", newPassword)
+            if (email.isNotBlank()) body.put("email", email)
             requestJson(baseUrl, "POST", "/auth/password-reset/confirm", body = body)
         }
 

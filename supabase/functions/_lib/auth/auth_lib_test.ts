@@ -1,6 +1,6 @@
 import { assertEquals } from "jsr:@std/assert@1.0.13";
 import { GoTrueClient, isEmailExists } from "./gotrue.ts";
-import { hashOpaqueToken, mapSession, parseCode } from "./tokens.ts";
+import { hashOpaqueToken, isOtpCode, mapSession, parseCode } from "./tokens.ts";
 
 function recorder(status: number, body: unknown) {
   const seen: { url: string; headers: Headers; body?: string; method?: string }[] = [];
@@ -144,4 +144,15 @@ Deno.test("sb-forwarded-for is sent only with the secret key and a client ip", a
     throw new Error("secret key must forward the ip");
   }
   if (seen[2].has("sb-forwarded-for")) throw new Error("no ip outside a request");
+});
+
+Deno.test("isOtpCode takes the short email code at the lengths Supabase allows (6 to 10 digits)", () => {
+  assertEquals(["123456", "12345678", "1234567890"].map(isOtpCode), [true, true, true]);
+  assertEquals(["12345", "12345678901", "1234 5678", "v1s.abc", ""].map(isOtpCode), [
+    false,
+    false,
+    false,
+    false,
+    false,
+  ]);
 });

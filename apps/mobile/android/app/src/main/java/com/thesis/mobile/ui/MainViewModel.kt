@@ -364,11 +364,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun verify(token: String) {
+    fun verify(email: String, token: String) {
         viewModelScope.launch {
             publish(state.copy(isLoading = true, message = null))
             runCatching {
-                client.verify(state.apiBaseUrl, token)
+                client.verify(state.apiBaseUrl, email.trim(), token.trim())
             }.onSuccess {
                 publish(state.copy(isLoading = false, message = "Account verified. You can login now."))
             }.onFailure { error ->
@@ -452,9 +452,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun confirmPasswordReset(token: String, newPassword: String, onResult: (error: String?) -> Unit) {
+    fun confirmPasswordReset(
+        email: String,
+        token: String,
+        newPassword: String,
+        onResult: (error: String?) -> Unit
+    ) {
         viewModelScope.launch {
-            runCatching { client.confirmPasswordReset(state.apiBaseUrl, token.trim(), newPassword) }
+            runCatching {
+                client.confirmPasswordReset(state.apiBaseUrl, email.trim(), token.trim(), newPassword)
+            }
                 .onSuccess {
                     publish(state.copy(message = "Password reset successful. Log in with your new password."))
                     onResult(null)

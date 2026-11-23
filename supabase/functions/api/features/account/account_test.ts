@@ -83,7 +83,11 @@ Deno.test("POST /auth/delete-account: 422 HTML for a bad email, same page for kn
   });
   assertEquals(unknown.status, 200);
   assertEquals(known.status, 200);
-  assertEquals(unknown.text, known.text);
+  // The page carries the typed email (normalized) for the 6-digit code, and is otherwise the same.
+  assertEquals(
+    unknown.text.replace("ghost@example.com", "E"),
+    known.text.replace("web@example.com", "E"),
+  );
   assertStringIncludes(known.text, `<form method="post" action="/auth/delete-account/confirm">`);
   assertEquals(t.mail.length, sentBefore + 1);
   assertEquals(t.mail.at(-1)?.subject, "Confirm deletion of your Thesis account");
@@ -122,7 +126,9 @@ Deno.test("[supabase] web deletion uses a Supabase magic link OTP tagged v1d", a
   await t.call("POST", "/auth/delete-account", undefined, { form: { email: "sb@example.com" } });
   const code = t.lastCode("sb@example.com");
   assert(code.startsWith("v1d."));
-  assertEquals(t.store.tokens.length, 0);
+  // Only the open deletion request is stored; the code itself stays with Supabase.
+  assertEquals(t.store.tokens.length, 1);
+  assertEquals(t.store.tokens[0].purpose, "account_deletion");
   assert(t.fake.calls.some((c) => c.startsWith("POST /otp")));
   const r = await t.call("POST", "/auth/delete-account/confirm", undefined, { form: { token: code } });
   assertEquals(r.status, 200);
@@ -139,4 +145,56 @@ Deno.test("delete confirm rejects a password reset code and empty input", async 
   const empty = await t.call("POST", "/auth/delete-account/confirm", undefined, { form: {} });
   assertEquals(empty.status, 400);
   assert(t.fake.users.has(id));
+});
+
+Deno.test("[supabase] web deletion with the 6-digit code and the email from the form (V3)", async () => {
+  const t = setup();
+  const id = await registeredVerifiedUser(t, "six@example.com");
+  const page = await t.call("POST", "/auth/delete-account", undefined, {
+    form: { email: "six@example.com" },
+  });
+  assertStringIncludes(page.text, `<input type="hidden" name="email" value="six@example.com">`);
+  const otp =
+    [...t.fake.outbox].reverse().find((e) => e.email === "six@example.com" && e.kind === "magiclink")!.otp;
+  const wrong = await t.call("POST", "/auth/delete-account/confirm", undefined, {
+    form: { token: otp, email: "other@example.com" },
+  });
+  assertEquals(wrong.status, 400);
+  const r = await t.call("POST", "/auth/delete-account/confirm", undefined, {
+    form: { token: otp, email: "six@example.com" },
+  });
+  assertEquals(r.status, 200);
+  assertEquals(t.fake.users.has(id), false);
+});
+
+Deno.test("[supabase] a sign-up or reset code cannot delete the account (V3 review)", async () => {
+  const t = setup();
+  const id = await registeredVerifiedUser(t, "guard@example.com");
+  // A reset code, with no deletion request: refused.
+  await t.call("POST", "/auth/password-reset/request", { email: "guard@example.com" });
+  const resetOtp = [...t.fake.outbox].reverse().find((e) => e.email === "guard@example.com")!.otp;
+  const noRequest = await t.call("POST", "/auth/delete-account/confirm", undefined, {
+    form: { token: resetOtp, email: "guard@example.com" },
+  });
+  assertEquals(noRequest.status, 400);
+  assertEquals(t.fake.users.has(id), true);
+  // A deletion request opens the challenge once; its code then works.
+  await t.call("POST", "/auth/delete-account", undefined, { form: { email: "guard@example.com" } });
+  const deleteOtp = [...t.fake.outbox].reverse().find((e) => e.email === "guard@example.com")!.otp;
+  const ok = await t.call("POST", "/auth/delete-account/confirm", undefined, {
+    form: { token: deleteOtp, email: "guard@example.com" },
+  });
+  assertEquals(ok.status, 200);
+  assertEquals(t.fake.users.has(id), false);
+});
+
+Deno.test("[supabase] typed untagged codes never reach the hashed-token lookup", async () => {
+  const t = setup();
+  const id = await registeredVerifiedUser(t, "untagged@example.com");
+  await t.call("POST", "/auth/delete-account", undefined, { form: { email: "untagged@example.com" } });
+  const forged = await t.call("POST", "/auth/delete-account/confirm", undefined, {
+    form: { token: `supabase-deletion-challenge:${id}` },
+  });
+  assertEquals(forged.status, 400);
+  assertEquals(t.fake.users.has(id), true);
 });

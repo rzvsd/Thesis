@@ -48,6 +48,25 @@ export function timingSafeEqual(a: string, b: string): boolean {
   return diff === 0;
 }
 
+function tokenMatches(req: Request, header: string, envName: string): boolean {
+  const expected = env(envName);
+  const given = req.headers.get(header) ?? "";
+  return !!expected && !!given && timingSafeEqual(given, expected);
+}
+
+// True when the request carries the Cloudflare Worker's x-thesis-edge-token (secret EDGE_TOKEN).
+export function fromFrontDoor(req: Request): boolean {
+  return tokenMatches(req, "x-thesis-edge-token", "EDGE_TOKEN");
+}
+
+// Audit S1: once EDGE_TOKEN is set, the function URL answers only the Worker (edge token) and the scheduled
+// jobs and Deep Dive runner (internal token). Everyone else gets a plain 404, so the direct address cannot be
+// used to dodge the Worker or its client IP header. Without EDGE_TOKEN (local runs, tests) everything passes.
+export function directCallAllowed(req: Request): boolean {
+  if (!env("EDGE_TOKEN")) return true;
+  return fromFrontDoor(req) || tokenMatches(req, "x-internal-token", "INTERNAL_API_TOKEN");
+}
+
 function bearer(req: Request): string | null {
   const h = req.headers.get("authorization") ?? "";
   const m = /^Bearer\s+(.+)$/i.exec(h.trim());

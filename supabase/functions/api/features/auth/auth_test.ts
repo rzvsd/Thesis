@@ -300,3 +300,66 @@ Deno.test("google routes answer 404 not_found while OIDC is off", async () => {
     assertEquals(r.json, { status: "not_found" });
   }
 });
+
+Deno.test("closed test: only invited emails can register (S2)", async () => {
+  const t = setup({ config: { registrationOpen: false, inviteEmails: ["invited@example.com"] } });
+  const password = "VeryStrongPass1!";
+  const stranger = await t.call("POST", "/auth/register", { email: "stranger@example.com", password });
+  assertEquals(stranger.status, 403);
+  assertEquals(stranger.json.error, "registration_closed");
+  assertEquals(t.fake.outbox.length, 0);
+  const invited = await t.call("POST", "/auth/register", { email: " Invited@Example.com ", password });
+  assertEquals(invited.status, 201);
+});
+
+Deno.test("invite list parsing and the open switch (S2)", () => {
+  Deno.env.set("AUTH_INVITE_EMAILS", "A@x.com, b@y.com\nnot-an-email;c@z.com");
+  try {
+    const cfg = authConfig();
+    assertEquals(cfg.inviteEmails, ["a@x.com", "b@y.com", "c@z.com"]);
+    assertEquals(cfg.registrationOpen, false);
+  } finally {
+    Deno.env.delete("AUTH_INVITE_EMAILS");
+  }
+  assertEquals(authConfig().inviteEmails, []);
+});
+
+Deno.test("new passwords need 10 characters; login still takes 8 (S10)", async () => {
+  const t = setup();
+  const short = await t.call("POST", "/auth/register", { email: "short@example.com", password: "Abcdef12!" });
+  assertEquals(short.status, 422);
+  assertMatch(String(short.json.error_message), /min 10/);
+});
+
+Deno.test("reset emails stop at the per-address cap, with the same answer (S2)", async () => {
+  let allowed = true;
+  const t = setup({ emailAllowed: () => Promise.resolve(allowed) });
+  const email = "capped@example.com";
+  await registeredVerifiedUser(t, email);
+  const before = t.fake.outbox.length;
+  const first = await t.call("POST", "/auth/password-reset/request", { email });
+  assertEquals(first.status, 202);
+  assertEquals(t.fake.outbox.length, before + 1);
+  allowed = false;
+  const second = await t.call("POST", "/auth/password-reset/request", { email });
+  assertEquals(second.status, 202);
+  assertEquals(second.json.message, first.json.message);
+  assertEquals(t.fake.outbox.length, before + 1);
+});
+
+Deno.test("the 6-digit email code verifies with the email (V3)", async () => {
+  const t = setup();
+  const email = "otp@example.com";
+  const password = "VeryStrongPass1!";
+  assertEquals((await t.call("POST", "/auth/register", { email, password })).status, 201);
+  const otp = [...t.fake.outbox].reverse().find((e) => e.email === email)!.otp;
+  const noEmail = await t.call("POST", "/auth/verify", { token: otp });
+  assertEquals(noEmail.status, 422);
+  const wrongEmail = await t.call("POST", "/auth/verify", { token: otp, email: "other@example.com" });
+  assertEquals(wrongEmail.status, 400);
+  const ok = await t.call("POST", "/auth/verify", { token: otp, email: "OTP@example.com " });
+  assertEquals(ok.status, 200);
+  assertEquals((await t.call("POST", "/auth/login", { email, password })).status, 200);
+  const again = await t.call("POST", "/auth/verify", { token: otp, email });
+  assertEquals(again.status, 400);
+});

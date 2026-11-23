@@ -51,10 +51,16 @@ function origin(env: Env): string {
   return (env.API_ORIGIN || DEFAULT_ORIGIN).replace(/\/+$/, "");
 }
 
-// Only `api` or a preview `api-mN`, so a bad var cannot send traffic to another function.
-function functionName(env: Env): string {
-  const name = env.API_FUNCTION || DEFAULT_FUNCTION;
-  return /^api(-m\d)?$/.test(name) ? name : DEFAULT_FUNCTION;
+// Only `api` (the preview functions api-m1..api-m4 were removed, audit S6), so a bad var cannot send traffic
+// to another function.
+function functionName(_env: Env): string {
+  return DEFAULT_FUNCTION;
+}
+
+// Audit S9: the internal routes (scheduled jobs, Deep Dive runner, push and Pulse dispatch) are never served
+// through the front door. Their callers use the function URL with the internal token.
+export function isInternalPath(path: string): boolean {
+  return /^\/functions\/v1\/[^/]+\/internal(\/|$)/.test(path);
 }
 
 function jsonError(status: number, error: string, message: string): Response {
@@ -126,7 +132,7 @@ export async function forward(
 ): Promise<Response> {
   const url = new URL(req.url);
   const path = upstreamPath(url.pathname, functionName(env));
-  if (path === null) return jsonError(404, "not_found", "Not found.");
+  if (path === null || isInternalPath(path)) return jsonError(404, "not_found", "Not found.");
   const target = `${origin(env)}${path}${url.search}`;
   const hasBody = req.method !== "GET" && req.method !== "HEAD";
   const init: RequestInit & { duplex?: "half" } = {
@@ -157,10 +163,13 @@ export async function forward(
 }
 
 // Daily keep-alive (H11): one request that touches the database. Logs the status only.
+// It carries the edge token, because the api answers 404 to direct calls without it (audit S1).
 export async function keepAlive(env: Env, fetchFn: FetchFn): Promise<number> {
   const url = `${origin(env)}/functions/v1/${functionName(env)}/health?db=1`;
+  const headers = new Headers();
+  if (env.EDGE_TOKEN) headers.set(H_EDGE_TOKEN, env.EDGE_TOKEN);
   try {
-    const res = await fetchFn(new Request(url, { method: "GET" }));
+    const res = await fetchFn(new Request(url, { method: "GET", headers }));
     await res.body?.cancel();
     console.log(JSON.stringify({ event: "keep_alive", status: res.status }));
     return res.status;
