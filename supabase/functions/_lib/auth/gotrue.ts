@@ -1,0 +1,217 @@
+// Small fetch-based client for Supabase Auth (GoTrue REST at ${SUPABASE_URL}/auth/v1). Owner: M1 (DECISIONS D6).
+// Public calls use the anon key. /admin calls use the service role key. fetch is injectable for tests.
+// Never log request bodies, emails or tokens from here (N10).
+import { env } from "../../_shared/env.ts";
+
+export type FetchFn = (input: string, init?: RequestInit) => Promise<Response>;
+
+export interface GoTrueUser {
+  id: string;
+  email?: string;
+  email_confirmed_at?: string | null;
+}
+
+export interface GoTrueSession {
+  access_token: string;
+  refresh_token: string;
+  token_type?: string;
+  expires_in?: number;
+  expires_at?: number; // unix seconds
+  user?: GoTrueUser;
+}
+
+export interface GoTrueLink {
+  user: GoTrueUser;
+  hashedToken: string;
+  verificationType?: string;
+}
+
+export type GoTrueError = { ok: false; status: number; code: string; message: string };
+export type GoTrueResult<T> = { ok: true; data: T } | GoTrueError;
+
+// Email OTP types accepted by POST /verify with a token_hash.
+export type VerifyType = "signup" | "magiclink" | "recovery" | "invite" | "email";
+export type LinkType = "signup" | "magiclink" | "recovery";
+
+export interface GoTrueOptions {
+  url?: string;
+  anonKey?: string;
+  serviceKey?: string;
+  fetch?: FetchFn;
+  timeoutMs?: number;
+}
+
+type KeyKind = "anon" | "service";
+
+export class GoTrueClient {
+  private readonly base: string | undefined;
+  private readonly anonKey: string | undefined;
+  private readonly serviceKey: string | undefined;
+  private readonly fetchFn: FetchFn;
+  private readonly timeoutMs: number;
+
+  constructor(opts: GoTrueOptions = {}) {
+    const url = opts.url ?? env("SUPABASE_URL");
+    this.base = url ? `${url.replace(/\/+$/, "")}/auth/v1` : undefined;
+    this.anonKey = opts.anonKey ?? env("SUPABASE_ANON_KEY");
+    this.serviceKey = opts.serviceKey ?? env("SUPABASE_SERVICE_ROLE_KEY");
+    this.fetchFn = opts.fetch ?? ((input, init) => fetch(input, init));
+    this.timeoutMs = opts.timeoutMs ?? 10_000;
+  }
+
+  // ---- public (anon key) ----
+
+  passwordGrant(email: string, password: string): Promise<GoTrueResult<GoTrueSession>> {
+    return this.call("POST", "/token?grant_type=password", "anon", { email, password });
+  }
+
+  refreshGrant(refreshToken: string): Promise<GoTrueResult<GoTrueSession>> {
+    return this.call("POST", "/token?grant_type=refresh_token", "anon", { refresh_token: refreshToken });
+  }
+
+  logout(accessToken: string, scope: "local" | "global" | "others" = "local"): Promise<GoTrueResult<null>> {
+    return this.call("POST", `/logout?scope=${scope}`, "anon", undefined, accessToken);
+  }
+
+  getUser(accessToken: string): Promise<GoTrueResult<GoTrueUser>> {
+    return this.call("GET", "/user", "anon", undefined, accessToken);
+  }
+
+  updateUser(accessToken: string, attrs: { password?: string }): Promise<GoTrueResult<GoTrueUser>> {
+    return this.call("PUT", "/user", "anon", attrs, accessToken);
+  }
+
+  verify(type: VerifyType, tokenHash: string): Promise<GoTrueResult<GoTrueSession>> {
+    return this.call("POST", "/verify", "anon", { type, token_hash: tokenHash });
+  }
+
+  // Sends Supabase's "Reset Password" email.
+  recover(email: string): Promise<GoTrueResult<null>> {
+    return this.call("POST", "/recover", "anon", { email });
+  }
+
+  // Sends Supabase's "Confirm signup" email again (new confirmation token).
+  resend(type: "signup", email: string): Promise<GoTrueResult<null>> {
+    return this.call("POST", "/resend", "anon", { type, email });
+  }
+
+  // Sends Supabase's "Magic Link" email. create_user false: never creates an account.
+  otp(email: string): Promise<GoTrueResult<null>> {
+    return this.call("POST", "/otp", "anon", { email, create_user: false });
+  }
+
+  // ---- admin (service role key) ----
+
+  adminCreateUser(attrs: {
+    email: string;
+    password: string;
+    email_confirm?: boolean;
+    app_metadata?: Record<string, unknown>;
+  }): Promise<GoTrueResult<GoTrueUser>> {
+    return this.call("POST", "/admin/users", "service", attrs);
+  }
+
+  adminUpdateUser(
+    id: string,
+    attrs: { password?: string; email_confirm?: boolean; app_metadata?: Record<string, unknown> },
+  ): Promise<GoTrueResult<GoTrueUser>> {
+    return this.call("PUT", `/admin/users/${encodeURIComponent(id)}`, "service", attrs);
+  }
+
+  adminDeleteUser(id: string): Promise<GoTrueResult<null>> {
+    return this.call("DELETE", `/admin/users/${encodeURIComponent(id)}`, "service");
+  }
+
+  // Creates a token without sending an email. Returns the token hash for our own email text.
+  async adminGenerateLink(type: LinkType, email: string): Promise<GoTrueResult<GoTrueLink>> {
+    const res = await this.call<Record<string, unknown>>("POST", "/admin/generate_link", "service", {
+      type,
+      email,
+    });
+    if (!res.ok) return res;
+    const body = res.data ?? {};
+    const props = (body.properties ?? {}) as Record<string, unknown>;
+    const hashed = body.hashed_token ?? props.hashed_token;
+    const userObj = (body.user ?? body) as Record<string, unknown>;
+    if (typeof hashed !== "string" || typeof userObj.id !== "string") {
+      return { ok: false, status: 502, code: "bad_response", message: "generate_link returned no token" };
+    }
+    const vt = body.verification_type ?? props.verification_type;
+    return {
+      ok: true,
+      data: {
+        user: { id: userObj.id, email: typeof userObj.email === "string" ? userObj.email : undefined },
+        hashedToken: hashed,
+        verificationType: typeof vt === "string" ? vt : undefined,
+      },
+    };
+  }
+
+  // ---- plumbing ----
+
+  private async call<T>(
+    method: string,
+    path: string,
+    key: KeyKind,
+    body?: unknown,
+    userToken?: string,
+  ): Promise<GoTrueResult<T>> {
+    const apiKey = key === "service" ? this.serviceKey : this.anonKey;
+    if (!this.base || !apiKey) {
+      return { ok: false, status: 503, code: "not_configured", message: "Supabase Auth is not configured." };
+    }
+    const headers: Record<string, string> = {
+      apikey: apiKey,
+      authorization: `Bearer ${userToken ?? apiKey}`,
+    };
+    if (body !== undefined) headers["content-type"] = "application/json";
+    let res: Response;
+    try {
+      res = await this.fetchFn(`${this.base}${path}`, {
+        method,
+        headers,
+        body: body === undefined ? undefined : JSON.stringify(body),
+        signal: AbortSignal.timeout(this.timeoutMs),
+      });
+    } catch {
+      return { ok: false, status: 503, code: "network_error", message: "Supabase Auth is unreachable." };
+    }
+    const text = await res.text().catch(() => "");
+    let parsed: unknown = null;
+    if (text) {
+      try {
+        parsed = JSON.parse(text);
+      } catch {
+        parsed = null;
+      }
+    }
+    if (res.ok) return { ok: true, data: parsed as T };
+    return { ok: false, status: res.status, ...errorParts(parsed) };
+  }
+}
+
+// GoTrue error bodies come in two shapes: { code, error_code, msg } and { error, error_description }.
+function errorParts(body: unknown): { code: string; message: string } {
+  const b = (body ?? {}) as Record<string, unknown>;
+  const code = [b.error_code, b.error, b.code].find((v) => typeof v === "string") as string | undefined;
+  const message = [b.msg, b.message, b.error_description].find((v) => typeof v === "string") as
+    | string
+    | undefined;
+  return { code: code ?? "unknown", message: message ?? "" };
+}
+
+export function isEmailExists(err: GoTrueError): boolean {
+  return err.code === "email_exists" || err.code === "user_already_exists" ||
+    /already (been )?registered/i.test(err.message);
+}
+
+export function isWeakPassword(err: GoTrueError): boolean {
+  return err.code === "weak_password" || /password should be/i.test(err.message);
+}
+
+let shared: GoTrueClient | null = null;
+
+export function gotrueFromEnv(): GoTrueClient {
+  if (!shared) shared = new GoTrueClient();
+  return shared;
+}
