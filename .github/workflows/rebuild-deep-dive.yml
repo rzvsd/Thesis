@@ -1,0 +1,83 @@
+name: rebuild-deep-dive
+
+# Deep Dive runner for the closed test (DECISIONS.md D1). Owner: M2 (docs/rebuild/OWNERSHIP.md).
+# The api function starts one run per job with workflow_dispatch; the job id is the only input.
+# The runner talks to the API's internal routes only. It never holds a database password (D5).
+# Minutes budget: about 600 a month (D7). The API caps dispatches per day (DEEP_DIVE_DAILY_CAP).
+on:
+  workflow_dispatch:
+    inputs:
+      job_id:
+        description: "Deep Dive job id (UUID)"
+        required: true
+        type: string
+  # Only so GitHub registers this workflow from a non-default branch. The job below is skipped for it,
+  # so a pull request costs no runner minutes.
+  pull_request:
+    paths:
+      - ".github/workflows/rebuild-deep-dive.yml"
+
+# One run per job at a time. Not cancel-in-progress: a re-dispatch must not kill a run that already claimed
+# the job. The second run waits, then its claim gets 409 and it stops in seconds.
+concurrency:
+  group: rebuild-deep-dive-${{ github.event.inputs.job_id || github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  run:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      # Inputs reach the shell only through env, never pasted into a command line.
+      JOB_ID: ${{ github.event.inputs.job_id }}
+      THESIS_API_URL: ${{ secrets.THESIS_API_URL }}
+      THESIS_INTERNAL_TOKEN: ${{ secrets.THESIS_INTERNAL_TOKEN }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    steps:
+      - name: Validate job id
+        run: |
+          if [[ ! "$JOB_ID" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]]; then
+            echo "job_id must be a lowercase UUID"
+            exit 1
+          fi
+
+      - name: Check out repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+
+      # Claim first: a duplicate or stale dispatch stops here after a few seconds.
+      - name: Claim job
+        id: claim
+        run: node jobs/deep-dive/claim.mts "$RUNNER_TEMP/claim.json"
+
+      - name: Install runner dependencies
+        if: steps.claim.outputs.claimed == 'true'
+        run: |
+          corepack enable
+          corepack prepare pnpm@10.6.1 --activate
+          corepack pnpm install --frozen-lockfile --filter "@thesis/dexter-worker..." --filter thesis-fintech
+
+      - name: Build pipeline
+        if: steps.claim.outputs.claimed == 'true'
+        working-directory: apps/dexter-worker
+        run: corepack pnpm exec tsc -p tsconfig.json
+
+      - name: Run Deep Dive
+        if: steps.claim.outputs.claimed == 'true'
+        env:
+          NODE_ENV: development
+          # Fixture mode stays on until the owner sets an LLM budget (AGENTS rule 11).
+          DEXTER_FIXTURE_MODE: "true"
+          # Tickers that always fail, for the failure-path check.
+          DEXTER_FORCE_FAIL_TICKERS: ${{ vars.DEXTER_FORCE_FAIL_TICKERS }}
+        run: node jobs/deep-dive/main.mts "$RUNNER_TEMP/claim.json"

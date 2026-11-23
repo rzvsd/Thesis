@@ -1,6 +1,7 @@
 package com.thesis.mobile.ui
 
 import android.app.Application
+import android.content.Context
 import android.app.Activity
 import android.util.Base64
 import androidx.biometric.BiometricManager
@@ -37,6 +38,8 @@ import com.thesis.mobile.network.ProductApiException
 import com.thesis.mobile.observability.MobileTelemetry
 import com.thesis.mobile.offline.OfflineCacheStore
 import com.thesis.mobile.offline.PrefetchScheduler
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
@@ -141,6 +144,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private var observer: ((UiState) -> Unit)? = null
 
+    // Deep Dive resume (rebuild M2, DECISIONS.md D3): the in-flight job id survives the screen closing,
+    // so polling picks up again when the app reopens. Kept in this file's own small preferences file.
+    private val deepDiveResumePrefs = application.applicationContext
+        .getSharedPreferences(DEEP_DIVE_RESUME_PREFS, Context.MODE_PRIVATE)
+    private var deepDivePoll: Job? = null
+
     init {
         if (state.tokens != null) {
             PrefetchScheduler.schedule(getApplication<Application>().applicationContext)
@@ -158,6 +167,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             viewModelScope.launch {
                 syncPushToken()
             }
+            resumeDeepDiveIfRunning()
         }
     }
 
@@ -1308,8 +1318,48 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     "job_id" to job.jobId
                 )
             )
+            saveDeepDiveInFlight(job.jobId, ticker)
             pollDeepDiveJob(job.jobId)
         }
+    }
+
+    // Picks up polling a Deep Dive that was still running when the screen or app closed.
+    private fun resumeDeepDiveIfRunning() {
+        val jobId = deepDiveResumePrefs.getString(KEY_RESUME_JOB_ID, null) ?: return
+        val startedAt = deepDiveResumePrefs.getLong(KEY_RESUME_STARTED_AT, 0L)
+        if (System.currentTimeMillis() - startedAt > DEEP_DIVE_MAX_WAIT_MS) {
+            clearDeepDiveInFlight()
+            return
+        }
+        if (deepDivePoll?.isActive == true) return
+        val ticker = deepDiveResumePrefs.getString(KEY_RESUME_TICKER, null)
+        publish(
+            state.copy(
+                selectedTicker = state.selectedTicker ?: ticker,
+                isLoading = true,
+                jobStatus = "running",
+                deepDiveError = null
+            )
+        )
+        viewModelScope.launch {
+            val error = runAuthorizedWithRefresh { pollDeepDiveJob(jobId) }
+            if (error != null) {
+                clearDeepDiveInFlight()
+                publish(state.copy(isLoading = false, message = toMessage(error)))
+            }
+        }
+    }
+
+    private fun saveDeepDiveInFlight(jobId: String, ticker: String) {
+        deepDiveResumePrefs.edit()
+            .putString(KEY_RESUME_JOB_ID, jobId)
+            .putString(KEY_RESUME_TICKER, ticker)
+            .putLong(KEY_RESUME_STARTED_AT, System.currentTimeMillis())
+            .apply()
+    }
+
+    private fun clearDeepDiveInFlight() {
+        deepDiveResumePrefs.edit().clear().apply()
     }
 
     fun refreshReportHistory() {
@@ -1882,13 +1932,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private suspend fun pollDeepDiveJob(jobId: String) {
-        repeat(50) { // ~100 seconds at 2s interval
+        deepDivePoll = currentCoroutineContext()[Job]
+        // Up to 6 minutes at a 2 s interval: a cloud runner needs a few minutes to start and finish.
+        repeat(DEEP_DIVE_MAX_POLLS) {
             val status = client.getJobStatus(state.apiBaseUrl, requireTokens().accessToken, jobId)
             publish(state.copy(jobStatus = status.status))
             when (status.status) {
                 "complete" -> {
                     val reportId = status.reportId
                     if (!reportId.isNullOrBlank()) {
+                        clearDeepDiveInFlight()
                         val report = client.getDeepDiveReport(
                             state.apiBaseUrl,
                             requireTokens().accessToken,
@@ -1940,6 +1993,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     }
                 }
                 "failed" -> {
+                    clearDeepDiveInFlight()
                     val failureMessage = status.errorMessage ?: "Deep Dive failed."
                     publish(
                         state.copy(
@@ -1951,8 +2005,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     return
                 }
             }
-            delay(2000)
+            delay(DEEP_DIVE_POLL_INTERVAL_MS)
         }
+        clearDeepDiveInFlight()
         publish(
             state.copy(
                 isLoading = false,
@@ -2008,6 +2063,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         cacheStore.clearAll()
         sessionStore.clearLastViewedReport()
         sessionStore.clearTokens()
+        deepDivePoll?.cancel()
+        clearDeepDiveInFlight()
         val hasSeenWelcome = sessionStore.hasSeenWelcome()
         publish(
             state.copy(
@@ -2281,6 +2338,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     companion object {
+        private const val DEEP_DIVE_RESUME_PREFS = "thesis_deep_dive_resume"
+        private const val KEY_RESUME_JOB_ID = "job_id"
+        private const val KEY_RESUME_TICKER = "ticker"
+        private const val KEY_RESUME_STARTED_AT = "started_at_ms"
+        private const val DEEP_DIVE_POLL_INTERVAL_MS = 2_000L
+        private const val DEEP_DIVE_MAX_POLLS = 180 // 6 minutes at 2 s
+        private const val DEEP_DIVE_MAX_WAIT_MS = 6 * 60 * 1000L
         private val notificationPreferenceTypes = listOf(
             "earnings_preview",
             "earnings_war_room",
