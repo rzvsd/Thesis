@@ -1,5 +1,5 @@
 // Builds the real dependencies for the Deep Dive routes. Tests build their own fakes instead.
-import { db } from "../../_shared/db.ts";
+import { db, type Sql } from "../../_shared/db.ts";
 import { env } from "../../_shared/env.ts";
 import { logError } from "../../_shared/log.ts";
 import { supabaseStorageArtifacts } from "./artifacts.ts";
@@ -37,11 +37,30 @@ export function background(work: Promise<unknown>): void {
   if (runtime && typeof runtime.waitUntil === "function") runtime.waitUntil(guarded);
 }
 
-// Latest close for contrarian anchors and price-move kill switches. The price data arrives with M3 (its
-// research tables and daily job). Until it is wired here, a missing price skips the anchor, exactly as the
-// old server did when its price service was down.
-function latestClose(_ticker: string): Promise<number | undefined> {
-  return Promise.resolve(undefined);
+// Latest close for contrarian anchors and price-move kill switches, from M3's app.market_prices_daily (filled by
+// its daily price job). Same rule as M3's evaluator price query: the newest close no older than 5 days. No price,
+// or a failed query, skips the anchor, exactly as the old server did when its price service was down.
+export const LATEST_CLOSE_MAX_AGE_DAYS = 5;
+
+export function postgresLatestClose(
+  sql: Sql,
+  now: () => Date = () => new Date(),
+): (ticker: string) => Promise<number | undefined> {
+  return async (ticker) => {
+    const asOf = now().toISOString().slice(0, 10);
+    try {
+      const rows = await sql`select close from market_prices_daily
+          where ticker = ${ticker.trim().toUpperCase()}
+            and market_date <= ${asOf}::date
+            and market_date >= ${asOf}::date - ${LATEST_CLOSE_MAX_AGE_DAYS}::int
+          order by market_date desc limit 1`;
+      const close = Number(rows[0]?.close);
+      return Number.isFinite(close) && close > 0 ? close : undefined;
+    } catch {
+      logError("Latest close lookup failed", { ticker });
+      return undefined;
+    }
+  };
 }
 
 export function completionEffects(deps: EffectsDeps): CompletionEffects {
@@ -62,7 +81,7 @@ export function jobsDeps(): JobsDeps {
   const artifacts = supabaseStorageArtifacts();
   const effectsDeps: EffectsDeps = {
     store: postgresEffectsStore(sql),
-    latestClose,
+    latestClose: postgresLatestClose(sql),
     // Push goes through M4's sender (PUSH_PROVIDER_MODE, disabled by default). Email stays a no-op for now.
     notifier: { ...noopNotifier, sendPush: (targets, payload) => pushSenderFromEnv().send(targets, payload) },
     readReport: (key) => artifacts.readReport(key),
