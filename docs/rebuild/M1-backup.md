@@ -38,6 +38,22 @@ docker run --rm -e PGURL="$BACKUP_DB_URL" postgres:17-alpine sh -c '
   | gpg --batch --yes --symmetric --cipher-algo AES256 --passphrase-fd 3 -o "$out" 3<<<"$BACKUP_PASSPHRASE"
 ```
 
+## Automatic restore check (every weekly run)
+
+After storing the file, `rebuild-backup.yml` runs `jobs/ops/restore_check.sh`. It decrypts the new file inside the
+run, starts a throwaway Postgres 17 container, creates stand-ins for `auth.users` and `auth.identities` from the
+`COPY` column lists (`id` as a uuid key, the rest as text), loads the auth rows, then the app part, with
+`ON_ERROR_STOP`. The run fails if any statement fails or the restored `app` schema has fewer tables than the dump.
+The log shows counts and SQLSTATE codes only, never rows or error details, because the repository is public.
+The container and the decrypted copy are removed when the step ends.
+
+What it proves: the file opens with the passphrase, the dump is complete, the auth rows load, and every app table,
+row and foreign key (including `app.users.auth_user_id`) restores. What it does not prove: that Supabase's real
+`auth` schema accepts the rows and that a user can sign in. The manual drill below covers that, once.
+
+Tested locally on 2026-11-23 against a dump of the repo migrations with Postgres 16: a good file passes; a wrong
+passphrase, a missing auth part and an auth row missing for an app user (SQLSTATE 23503) each fail.
+
 ## Restore drill (do it once before real users sign up)
 
 1. Download the newest `thesis-db-*.sql.gz.gpg` file from the Supabase dashboard: Storage > `db-backups`
