@@ -1,4 +1,9 @@
-// Copied from apps/product-api/src/pulse/macro-news.ts (keep tested logic). Only imports changed.
+// Copied from apps/product-api/src/pulse/macro-news.ts. Changed since (rebuild branch audit NG4 and NG6):
+// - Keywords match whole words. The old code matched pieces of words, so "Warner", "award", "warns" and "software"
+//   were war, "FedEx" was the Fed and "turmoil" was oil.
+// - A shock headline is "corroborated" only when another source reports the same event, not when any two shock
+//   headlines exist.
+// - The macro filter reads every headline before any cap, so a Fed decision is not lost behind six newer items.
 import type {
   MarketPulseHeadlineItem,
   MarketPulseMacroNewsConfirmationState,
@@ -9,7 +14,8 @@ import type {
   ReportSection,
 } from "./contracts.ts";
 import { section, toEvidence } from "./common.ts";
-export function uniqueHeadlineItems(items: MarketPulseHeadlineItem[] | undefined): MarketPulseHeadlineItem[] {
+// Trimmed and de-duplicated by source and headline, in the order given. No cap.
+export function dedupeHeadlineItems(items: MarketPulseHeadlineItem[] | undefined): MarketPulseHeadlineItem[] {
   const seen = new Set<string>();
   const unique: MarketPulseHeadlineItem[] = [];
   for (const item of items ?? []) {
@@ -30,87 +36,217 @@ export function uniqueHeadlineItems(items: MarketPulseHeadlineItem[] | undefined
       evidence: item.evidence.slice(0, 3),
     });
   }
-  return unique.slice(0, 6);
+  return unique;
 }
-function classifyMacroNewsTopic(headline: string): MarketPulseMacroNewsTopic {
-  const normalized = headline.toLowerCase();
-  if (normalized.includes("attack") || normalized.includes("invasion") || normalized.includes("war")) {
+
+// The first six, for the headline digest.
+export function uniqueHeadlineItems(items: MarketPulseHeadlineItem[] | undefined): MarketPulseHeadlineItem[] {
+  return dedupeHeadlineItems(items).slice(0, 6);
+}
+
+// ---- Keyword matching. Every pattern matches whole words only. ----
+
+// Armed conflict. "war" alone is not enough: business headlines use it for price wars, trade wars, bidding wars,
+// a war chest or a war of words, and "War Room" is a feature of this app.
+const WAR_RE =
+  /(?<!\b(?:price|trade|tariff|bidding|turf|culture|talent|chip|streaming|currency|console|browser|format)\s)\b(?:wars?|warfare|wartime)\b(?!\s+(?:chest|room|of\s+words|on\s+(?:inflation|drugs|poverty|cancer|talent|cash)))/i;
+// "attack" as violence, not a heart attack, panic attack or attack ad.
+const ATTACK_RE = /(?<!\b(?:heart|panic|asthma|shark)\s)\b(?:attacks?|attacked)\b(?!\s+ads?\b)/i;
+const INVASION_RE = /\b(?:invasions?|invades?|invaded|invading)\b/i;
+const MISSILE_RE = /\b(?:missiles?|air\s?strikes?)\b/i;
+// "emergency" as a state or policy step, not an emergency landing, room, fund or a drug's emergency use.
+const EMERGENCY_RE =
+  /\b(?:state\s+of\s+emergency|national\s+emergency|emergency\s+(?:rate|meeting|session|powers|measures|decree|law))\b/i;
+const SANCTION_RE = /\b(?:sanctions?|sanctioned)\b/i;
+const TARIFF_RE = /\btariffs?\b/i;
+// "trade" as policy. Alone it is usually the verb ("stocks trade higher") or "traders".
+const TRADE_POLICY_RE =
+  /\b(?:trade\s+(?:war|wars|deal|deals|talks|policy|deficit|surplus|tensions?|pact|agreement|restrictions?|barriers?|truce|dispute)|export\s+(?:controls?|bans?|curbs?)|import\s+(?:duty|duties|bans?))\b/i;
+const SHUTDOWN_RE = /\bshutdowns?\b/i;
+const CRISIS_RE = /\bcris[ie]s\b/i;
+const TAIWAN_RE = /\b(?:taiwan|taiwanese|taipei)\b/i;
+const CHINA_RE = /\b(?:china|chinese|beijing)\b/i;
+// Case-sensitive: "US" and "U.S.", not the word "us".
+const US_RE = /\bUS\b|\bU\.S\.|\bUnited\s+States\b|\bAmerican?\b|\bWashington\b/;
+const EUROPE_RE = /\b(?:europe|european|eurozone|euro\s+zone|ecb|brussels)\b/i;
+const OIL_ENERGY_RE = /\b(?:oil|crude|opec|energy|natural\s+gas|lng)\b/i;
+const SUPPLY_CHAIN_RE = /\b(?:supply\s+chains?|semiconductors?|shortages?)\b/i;
+const CHIP_RE = /\b(?:semiconductors?|chips?|chipmakers?)\b/i;
+// Case-sensitive "Fed" so "fed up" and "FedEx" do not count.
+const FED_RE = /\bFed\b|\bFED\b|\bFOMC\b/;
+const CENTRAL_BANK_RE =
+  /\b(?:federal\s+reserve|ecb|european\s+central\s+bank|central\s+banks?|bank\s+of\s+(?:japan|england|canada)|boj|boe|rate\s+(?:cut|cuts|hike|hikes|decision))\b/i;
+const RATES_RE = /\b(?:rates?|inflation|yields?|treasur(?:y|ies))\b/i;
+const INFLATION_RE = /\b(?:inflation|cpi|pce)\b/i;
+
+function isConflict(headline: string): boolean {
+  return WAR_RE.test(headline) || ATTACK_RE.test(headline) || INVASION_RE.test(headline) ||
+    MISSILE_RE.test(headline);
+}
+
+function isCentralBank(headline: string): boolean {
+  return FED_RE.test(headline) || CENTRAL_BANK_RE.test(headline);
+}
+
+export function classifyMacroNewsTopic(headline: string): MarketPulseMacroNewsTopic {
+  if (isConflict(headline)) {
     return "war_conflict";
   }
-  if (normalized.includes("tariff") || normalized.includes("trade")) {
+  if (TARIFF_RE.test(headline) || TRADE_POLICY_RE.test(headline)) {
     return "trade";
   }
-  if (normalized.includes("oil") || normalized.includes("energy")) {
+  if (OIL_ENERGY_RE.test(headline)) {
     return "energy";
   }
-  if (normalized.includes("supply") || normalized.includes("semiconductor")) {
+  if (SUPPLY_CHAIN_RE.test(headline)) {
     return "supply_chain";
   }
-  if (normalized.includes("fed") || normalized.includes("ecb") || normalized.includes("central bank")) {
+  if (isCentralBank(headline)) {
     return "central_bank";
   }
   return "geopolitical";
 }
 
-function classifyMacroNewsSeverity(headline: string): MarketPulseMacroNewsSeverity {
-  const normalized = headline.toLowerCase();
-  if (
-    normalized.includes("attack") ||
-    normalized.includes("invasion") ||
-    normalized.includes("missile") ||
-    normalized.includes("war") ||
-    normalized.includes("emergency")
-  ) {
+export function classifyMacroNewsSeverity(headline: string): MarketPulseMacroNewsSeverity {
+  if (isConflict(headline) || EMERGENCY_RE.test(headline)) {
     return "shock";
   }
   if (
-    normalized.includes("sanction") ||
-    normalized.includes("tariff") ||
-    normalized.includes("shutdown") ||
-    normalized.includes("crisis") ||
-    normalized.includes("taiwan")
+    SANCTION_RE.test(headline) ||
+    TARIFF_RE.test(headline) ||
+    SHUTDOWN_RE.test(headline) ||
+    CRISIS_RE.test(headline) ||
+    TAIWAN_RE.test(headline)
   ) {
     return "notable";
   }
   return "normal";
 }
 
+// A headline is macro news when it carries one of these subjects. Topic tags from the source also count.
+export function isMacroHeadline(headline: string): boolean {
+  return CHINA_RE.test(headline) || TAIWAN_RE.test(headline) || isConflict(headline) ||
+    EMERGENCY_RE.test(headline) || isCentralBank(headline) || TARIFF_RE.test(headline) ||
+    TRADE_POLICY_RE.test(headline) || SANCTION_RE.test(headline) || OIL_ENERGY_RE.test(headline) ||
+    INFLATION_RE.test(headline);
+}
+
 function macroNewsAffectedRegions(headline: string): string[] {
-  const normalized = headline.toLowerCase();
   const regions: string[] = [];
-  if (normalized.includes("taiwan")) {
+  if (TAIWAN_RE.test(headline)) {
     regions.push("Taiwan");
   }
-  if (normalized.includes("china")) {
+  if (CHINA_RE.test(headline)) {
     regions.push("China");
   }
-  if (normalized.includes("us ") || normalized.includes("u.s.") || normalized.includes("united states")) {
+  if (US_RE.test(headline)) {
     regions.push("United States");
   }
-  if (normalized.includes("europe") || normalized.includes("ecb")) {
+  if (EUROPE_RE.test(headline)) {
     regions.push("Europe");
   }
   return regions.length > 0 ? regions : ["Global"];
 }
 
 function macroNewsAffectedAssets(headline: string, topic: MarketPulseMacroNewsTopic): string[] {
-  const normalized = headline.toLowerCase();
   const assets = new Set<string>();
   if (topic === "war_conflict" || topic === "geopolitical") {
     assets.add("volatility");
     assets.add("risk appetite");
   }
-  if (normalized.includes("taiwan") || normalized.includes("semiconductor") || normalized.includes("chip")) {
+  if (TAIWAN_RE.test(headline) || CHIP_RE.test(headline)) {
     assets.add("semiconductors");
     assets.add("supply chains");
   }
-  if (normalized.includes("oil") || normalized.includes("energy")) {
+  if (OIL_ENERGY_RE.test(headline)) {
     assets.add("energy");
   }
-  if (normalized.includes("fed") || normalized.includes("rates") || normalized.includes("inflation")) {
+  if (isCentralBank(headline) || RATES_RE.test(headline)) {
     assets.add("rates");
   }
   return [...assets].slice(0, 5);
+}
+
+// ---- Same-event check for corroboration ----
+
+const EVENT_STOPWORDS = new Set([
+  "about",
+  "after",
+  "again",
+  "against",
+  "amid",
+  "among",
+  "analysts",
+  "before",
+  "being",
+  "between",
+  "could",
+  "from",
+  "have",
+  "into",
+  "more",
+  "most",
+  "near",
+  "over",
+  "report",
+  "reports",
+  "reported",
+  "said",
+  "says",
+  "source",
+  "sources",
+  "than",
+  "that",
+  "their",
+  "there",
+  "these",
+  "this",
+  "those",
+  "under",
+  "what",
+  "when",
+  "which",
+  "while",
+  "will",
+  "with",
+  "would",
+  "stocks",
+  "shares",
+  "market",
+  "markets",
+  "investors",
+  "today",
+]);
+
+// The words that name what happened: four letters or more, lower case, without filler.
+export function eventTokens(headline: string): Set<string> {
+  const tokens = new Set<string>();
+  for (const raw of headline.toLowerCase().split(/[^a-z0-9]+/)) {
+    if (raw.length < 4 || EVENT_STOPWORDS.has(raw)) continue;
+    // Fold simple plurals and past tense so "attacks" and "attacked" meet "attack".
+    const folded = raw.replace(/(?:ed|s)$/, "");
+    tokens.add(folded.length >= 4 ? folded : raw);
+  }
+  return tokens;
+}
+
+function sharedCount(a: Set<string>, b: Set<string>): number {
+  let count = 0;
+  for (const token of a) if (b.has(token)) count += 1;
+  return count;
+}
+
+// How many different sources report the same event as `item`, itself included. Two headlines are the same event
+// when they share at least three event words; sharing only "attack" or "war" is not enough.
+export function corroboratingSources(item: MarketPulseHeadlineItem, all: MarketPulseHeadlineItem[]): number {
+  const mine = eventTokens(item.headline);
+  const sources = new Set<string>([item.source_name.trim().toLowerCase()]);
+  for (const other of all) {
+    const source = other.source_name.trim().toLowerCase();
+    if (sources.has(source)) continue;
+    if (sharedCount(mine, eventTokens(other.headline)) >= 3) sources.add(source);
+  }
+  return sources.size;
 }
 
 function defaultMacroNewsWhyItMatters(
@@ -194,31 +330,26 @@ function macroNewsFromHeadlines(
   items: MarketPulseHeadlineItem[] | undefined,
   generatedAt: string,
 ): MarketPulseMacroNewsItem[] {
-  const candidates = uniqueHeadlineItems(items).filter((item) => {
+  // Filter first, cap after: every headline is read, so an older macro item is not lost behind newer ones.
+  const all = dedupeHeadlineItems(items);
+  const candidates = all.filter((item) => {
     const topic = item.topic ?? "market";
-    const headline = item.headline.toLowerCase();
-    return (
-      topic === "macro" ||
-      topic === "policy" ||
-      headline.includes("china") ||
-      headline.includes("taiwan") ||
-      headline.includes("attack") ||
-      headline.includes("war") ||
-      headline.includes("fed") ||
-      headline.includes("tariff") ||
-      headline.includes("oil") ||
-      headline.includes("inflation")
-    );
+    return topic === "macro" || topic === "policy" || isMacroHeadline(item.headline);
   });
+  // Shock items lead, so the cap below can never drop one. Order is otherwise as given (newest first).
+  const ordered = [
+    ...candidates.filter((item) => classifyMacroNewsSeverity(item.headline) === "shock"),
+    ...candidates.filter((item) => classifyMacroNewsSeverity(item.headline) !== "shock"),
+  ];
 
-  const shockCandidateCount =
-    candidates.filter((item) => classifyMacroNewsSeverity(item.headline) === "shock").length;
-
-  return candidates.slice(0, 8).map((item) => {
+  return ordered.slice(0, 8).map((item) => {
     const topic = classifyMacroNewsTopic(item.headline);
     const severity = classifyMacroNewsSeverity(item.headline);
-    const confirmationState: MarketPulseMacroNewsConfirmationState =
-      severity === "shock" && shockCandidateCount >= 2 ? "corroborated" : "reported";
+    // Corroborated means a second source reports this same event, not that another shock headline exists.
+    const sourceCount = severity === "shock" ? corroboratingSources(item, all) : 1;
+    const confirmationState: MarketPulseMacroNewsConfirmationState = sourceCount >= 2
+      ? "corroborated"
+      : "reported";
     const affectedAssets = macroNewsAffectedAssets(item.headline, topic);
     return {
       headline: item.headline,
@@ -228,7 +359,7 @@ function macroNewsFromHeadlines(
       topic,
       severity,
       confirmation_state: confirmationState,
-      corroboration_count: severity === "shock" ? Math.max(1, shockCandidateCount) : 1,
+      corroboration_count: sourceCount,
       affected_regions: macroNewsAffectedRegions(item.headline),
       affected_assets: affectedAssets.length > 0 ? affectedAssets : ["market context"],
       why_it_matters: defaultMacroNewsWhyItMatters(item.headline, severity, topic),

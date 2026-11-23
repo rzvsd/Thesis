@@ -10,7 +10,7 @@ report builder):
 - structural: GET /v1/official/structural?country=US&subject_type=market_pulse&as_of=...  (structural.py)
 - companies[T]: GET /v1/official/company?ticker=T                  (official.py)
 - first_party[T]: POST news-ingest /v1/first-party/context          (first_party.py)
-- news: GET news-ingest /v1/news?date=...                           (news_ingest.py)
+- news: GET news-ingest /v1/news?date=..., kept by the cycle window   (news_ingest.py, news_window)
 - calendar_events: data.events of POST /internal/calendar/earnings {as_of, as_of + 7 days}  (earnings_calendar.py)
 
 A source that fails becomes an error envelope ({ok: false, error_message: "HTTP <status>"}), which is what the
@@ -35,7 +35,7 @@ from earnings_calendar import calendar_earnings_response  # noqa: E402
 from first_party import FIRST_PARTY_CONTEXT_SOURCE_BY_TICKER, first_party_context_response  # noqa: E402
 from joblog import log  # noqa: E402
 from market_tape import market_tape_response  # noqa: E402
-from news_ingest import news_response  # noqa: E402
+from news_ingest import news_response, news_window  # noqa: E402
 from official import official_company_response, official_macro_response  # noqa: E402
 from script_main import EXIT_FAILED, EXIT_OK, run  # noqa: E402
 from source_common import ProviderIntegrationError, add_days_to_iso_date, fixture_mode  # noqa: E402
@@ -78,7 +78,15 @@ def http_envelope(name: str, answer: tuple[int, dict[str, Any]]) -> dict[str, An
     return body
 
 
-def build_inputs(as_of: str, tickers: list[str], env: Mapping[str, str] | None = None) -> dict[str, Any]:
+def build_inputs(
+    as_of: str,
+    tickers: list[str],
+    env: Mapping[str, str] | None = None,
+    window: Mapping[str, str] | None = None,
+) -> dict[str, Any]:
+    # Headlines follow the cycle window (and reach back over a weekend), not the UTC date, so the previous
+    # session and the after-close hours are in the issue (rebuild branch audit NG5).
+    news_start, news_end = news_window(window["cycle_start"], window["cycle_end"]) if window else (None, None)
     inputs: dict[str, Any] = {
         "market_tape": guarded("market_tape", lambda: market_tape_response(as_of=as_of, env=env)),
         "macro": guarded("macro", lambda: official_macro_response(as_of=as_of, env=env)),
@@ -98,7 +106,12 @@ def build_inputs(as_of: str, tickers: list[str], env: Mapping[str, str] | None =
             for ticker in tickers
             if ticker in FIRST_PARTY_CONTEXT_SOURCE_BY_TICKER
         },
-        "news": guarded("news", lambda: http_envelope("news", news_response(as_of, env=env))),
+        "news": guarded(
+            "news",
+            lambda: http_envelope(
+                "news", news_response(as_of, window_start=news_start, window_end=news_end, env=env)
+            ),
+        ),
     }
     try:
         calendar = calendar_earnings_response(
@@ -113,7 +126,7 @@ def build_inputs(as_of: str, tickers: list[str], env: Mapping[str, str] | None =
 def build_body(now: datetime | None = None, env: Mapping[str, str] | None = None) -> dict[str, Any]:
     window = pulse_cycle_window(now or datetime.now(timezone.utc))
     as_of = window["cycle_end"][:10]
-    return {**window, "inputs": build_inputs(as_of, pulse_tickers(env), env)}
+    return {**window, "inputs": build_inputs(as_of, pulse_tickers(env), env, window)}
 
 
 def main(client: ApiClient | None = None, now: datetime | None = None, env: Mapping[str, str] | None = None) -> int:

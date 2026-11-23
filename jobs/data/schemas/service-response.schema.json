@@ -31,6 +31,23 @@
     "error_message": { "type": "string" },
     "request_id": { "type": "string" },
     "provider": { "type": "string" },
-    "retrieved_at": { "type": "string", "format": "date-time" }
+    "retrieved_at": { "type": "string", "format": "date-time" },
+    "sources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["source", "ok", "article_count"],
+        "properties": {
+          "source": { "type": "string" },
+          "ok": { "type": "boolean" },
+          "article_count": { "type": "integer" },
+          "error_code": {
+            "type": "string",
+            "enum": ["PROVIDER_OUTAGE", "SCHEMA_MISMATCH", "INTERNAL_ERROR"]
+          }
+        }
+      }
+    }
   }
 }
