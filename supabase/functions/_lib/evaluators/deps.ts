@@ -1,5 +1,6 @@
 // What every evaluator gets injected. Tests pass a memory store and fixed clock.
-import { disabledEmailSender, disabledPushSender, type EmailSender, type PushSender } from "./push_port.ts";
+import { pushSenderFromEnv } from "../push/index.ts";
+import { disabledEmailSender, type EmailSender, type PushSender } from "./push_port.ts";
 import {
   type DeepDiveQueue,
   disabledDeepDiveQueue,
@@ -23,7 +24,8 @@ export interface EvaluatorDeps {
 export function makeDeps(store: EvaluatorStore, overrides: Partial<EvaluatorDeps> = {}): EvaluatorDeps {
   return {
     store,
-    push: disabledPushSender,
+    // M4's sender, picked by PUSH_PROVIDER_MODE (disabled when unset).
+    push: pushSenderFromEnv(),
     email: disabledEmailSender,
     reports: disabledReportReader,
     deepDiveQueue: disabledDeepDiveQueue,
