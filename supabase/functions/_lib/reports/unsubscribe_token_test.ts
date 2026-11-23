@@ -2,7 +2,7 @@ import { assertEquals } from "jsr:@std/assert@1.0.13";
 import { signUnsubscribeToken, unsubscribeUrl, verifyUnsubscribeToken } from "./unsubscribe_token.ts";
 
 // Made by the old server's emailUnsubscribeToken("dev-jwt-secret-change-me", "user-123") in Node.
-const OLD_TOKEN = "dXNlci0xMjM.bvLsnj-t0v_wce5QgzCNgiL4CxUoHzdtfbiuaWlnVk4";
+const OLD_TOKEN = "dXNlci0xMjM.bvLsnj-t0v_wce5QgzCNgiL4CxUoHzdtfbiuaWlnVk4"; // gitleaks:allow (test fixture, not a secret)
 const SECRET = "dev-jwt-secret-change-me";
 
 Deno.test("signUnsubscribeToken matches the old server's tokens byte for byte", async () => {

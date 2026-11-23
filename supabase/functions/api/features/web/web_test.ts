@@ -12,7 +12,7 @@ import { type WebDeps, webRoutes } from "./index.ts";
 
 const READER_CSP =
   "default-src 'none'; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'";
-const TOKEN = "AbCdEfGhIjKlMnOpQrStUvWxYz012345";
+const TOKEN = "AbCdEfGhIjKlMnOpQrStUvWxYz012345"; // gitleaks:allow (test share token)
 
 function deps(overrides: Partial<WebDeps> = {}) {
   const state = seededState();
