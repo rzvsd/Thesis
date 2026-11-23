@@ -1,0 +1,36 @@
+{
+  "$id": "ServiceResponse",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "ok",
+    "data",
+    "error_flag"
+  ],
+  "properties": {
+    "ok": { "type": "boolean" },
+    "data": {
+      "oneOf": [
+        { "type": "object" },
+        { "type": "array" },
+        { "type": "null" }
+      ]
+    },
+    "error_flag": { "type": "boolean" },
+    "error_code": {
+      "type": "string",
+      "enum": [
+        "AUTH_ERROR",
+        "RATE_LIMIT",
+        "TIMEOUT",
+        "PROVIDER_OUTAGE",
+        "SCHEMA_MISMATCH",
+        "INTERNAL_ERROR"
+      ]
+    },
+    "error_message": { "type": "string" },
+    "request_id": { "type": "string" },
+    "provider": { "type": "string" },
+    "retrieved_at": { "type": "string", "format": "date-time" }
+  }
+}

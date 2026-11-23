@@ -1,0 +1,31 @@
+{
+  "$id": "OfficialRetrievalMetadata",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["source", "retrieved_at", "retrieval_status"],
+  "properties": {
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_id", "source_family", "source_name", "source_url", "agency"],
+      "properties": {
+        "source_id": { "type": "string" },
+        "source_family": {
+          "type": "string",
+          "enum": ["sec_edgar", "treasury", "bls", "bea", "eia", "fred", "world_bank", "imf"]
+        },
+        "source_name": { "type": "string" },
+        "source_url": { "type": "string" },
+        "agency": { "type": "string" },
+        "agency_series_id": { "type": "string" }
+      }
+    },
+    "retrieved_at": { "type": "string", "format": "date-time" },
+    "retrieval_status": {
+      "type": "string",
+      "enum": ["fresh", "partial", "stale", "unavailable"]
+    },
+    "source_period": { "type": "string" },
+    "source_revision": { "type": "string" }
+  }
+}

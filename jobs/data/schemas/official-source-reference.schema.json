@@ -1,0 +1,17 @@
+{
+  "$id": "OfficialSourceReference",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["source_id", "source_family", "source_name", "source_url", "agency"],
+  "properties": {
+    "source_id": { "type": "string" },
+    "source_family": {
+      "type": "string",
+      "enum": ["sec_edgar", "treasury", "bls", "bea", "eia", "fred", "world_bank", "imf"]
+    },
+    "source_name": { "type": "string" },
+    "source_url": { "type": "string" },
+    "agency": { "type": "string" },
+    "agency_series_id": { "type": "string" }
+  }
+}
