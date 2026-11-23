@@ -1,0 +1,46 @@
+name: rebuild-edge-deploy
+
+# Deploys the Cloudflare Worker front door (edge/worker) on the free workers.dev address. Owner: M1.
+# Needs the owner's review (AGENTS rule 7). Runs when edge/worker changes on `rebuild`, or when this file changes.
+# Secrets: CLOUDFLARE_API_TOKEN (template "Edit Cloudflare Workers"), CLOUDFLARE_ACCOUNT_ID.
+# Optional: EDGE_TOKEN (same value as the api function secret EDGE_TOKEN), so the api trusts the client IP the
+# Worker sends. Secrets go to the tools as env vars and are never echoed. Without the token the job skips.
+on:
+  push:
+    branches: [rebuild]
+    paths:
+      - "edge/worker/**"
+      - ".github/workflows/rebuild-edge-deploy.yml"
+
+concurrency:
+  group: rebuild-edge-deploy
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    defaults:
+      run:
+        working-directory: edge/worker
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      EDGE_TOKEN: ${{ secrets.EDGE_TOKEN }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Deploy Worker
+        run: |
+          if [ -z "${CLOUDFLARE_API_TOKEN:-}" ] || [ -z "${CLOUDFLARE_ACCOUNT_ID:-}" ]; then
+            echo "Cloudflare secrets are not set yet. Skipping."
+            exit 0
+          fi
+          npx --yes wrangler@4.155.0 deploy
+          if [ -n "${EDGE_TOKEN:-}" ]; then
+            printf '%s' "$EDGE_TOKEN" | npx --yes wrangler@4.155.0 secret put EDGE_TOKEN
+          fi
