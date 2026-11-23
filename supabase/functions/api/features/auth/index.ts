@@ -1,5 +1,7 @@
 // Feature "auth". Owner: M1 (docs/rebuild/OWNERSHIP.md). Routes: contract.md "Auth".
 // Mapping to Supabase Auth: docs/rebuild/M1-auth-mapping.md.
+import { withClientIp } from "../../../_lib/auth/gotrue.ts";
+import { clientIp } from "../../../_lib/store/rate_limit.ts";
 import type { FeatureModule, Route } from "../../router.ts";
 import { type AuthDeps, lazyDeps } from "./deps.ts";
 import { googleOff, login, logout, refresh, register, verify } from "./handlers.ts";
@@ -22,8 +24,16 @@ export function authRoutes(deps?: AuthDeps): Route[] {
   ];
 }
 
+// Every Supabase Auth call made while handling a request carries the caller's IP (see gotrue.ts).
+function forwardIp(routes: Route[]): Route[] {
+  return routes.map((r) => ({
+    ...r,
+    handler: (ctx) => withClientIp(clientIp(ctx.req), () => r.handler(ctx)),
+  }));
+}
+
 export const feature: FeatureModule = {
   name: "auth",
   owner: "M1",
-  routes: authRoutes(),
+  routes: forwardIp(authRoutes()),
 };

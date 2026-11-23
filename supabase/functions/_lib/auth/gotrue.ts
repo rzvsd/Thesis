@@ -1,7 +1,18 @@
 // Small fetch-based client for Supabase Auth (GoTrue REST at ${SUPABASE_URL}/auth/v1). Owner: M1 (DECISIONS D6).
 // Public calls use the anon key. /admin calls use the service role key. fetch is injectable for tests.
 // Never log request bodies, emails or tokens from here (N10).
+import { AsyncLocalStorage } from "node:async_hooks";
 import { env } from "../../_shared/env.ts";
+
+// Supabase Auth rate-limits /token and /verify per caller IP. Every call comes from this function, so without
+// forwarding, all users would share one bucket. With a secret API key (SUPABASE_AUTH_SECRET_KEY, "sb_secret_...")
+// and "IP address forwarding" on in Authentication > Rate Limits, we send the end user's IP as sb-forwarded-for.
+// Legacy anon/service_role keys do not support forwarding, so without the secret key nothing changes.
+const clientIpStore = new AsyncLocalStorage<string>();
+
+export function withClientIp<T>(ip: string, fn: () => T): T {
+  return clientIpStore.run(ip, fn);
+}
 
 export type FetchFn = (input: string, init?: RequestInit) => Promise<Response>;
 
@@ -37,6 +48,7 @@ export interface GoTrueOptions {
   url?: string;
   anonKey?: string;
   serviceKey?: string;
+  secretKey?: string;
   fetch?: FetchFn;
   timeoutMs?: number;
 }
@@ -46,6 +58,7 @@ type KeyKind = "anon" | "service";
 export class GoTrueClient {
   private readonly base: string | undefined;
   private readonly anonKey: string | undefined;
+  private readonly secretKey: string | undefined;
   private readonly serviceKey: string | undefined;
   private readonly fetchFn: FetchFn;
   private readonly timeoutMs: number;
@@ -53,7 +66,8 @@ export class GoTrueClient {
   constructor(opts: GoTrueOptions = {}) {
     const url = opts.url ?? env("SUPABASE_URL");
     this.base = url ? `${url.replace(/\/+$/, "")}/auth/v1` : undefined;
-    this.anonKey = opts.anonKey ?? env("SUPABASE_ANON_KEY");
+    this.secretKey = opts.secretKey ?? env("SUPABASE_AUTH_SECRET_KEY");
+    this.anonKey = opts.anonKey ?? this.secretKey ?? env("SUPABASE_ANON_KEY");
     this.serviceKey = opts.serviceKey ?? env("SUPABASE_SERVICE_ROLE_KEY");
     this.fetchFn = opts.fetch ?? ((input, init) => fetch(input, init));
     this.timeoutMs = opts.timeoutMs ?? 10_000;
@@ -165,6 +179,10 @@ export class GoTrueClient {
       authorization: `Bearer ${userToken ?? apiKey}`,
     };
     if (body !== undefined) headers["content-type"] = "application/json";
+    const ip = clientIpStore.getStore();
+    if (this.secretKey && apiKey === this.secretKey && ip && ip !== "unknown") {
+      headers["sb-forwarded-for"] = ip;
+    }
     let res: Response;
     try {
       res = await this.fetchFn(`${this.base}${path}`, {

@@ -163,6 +163,16 @@ Resend in Authentication > SMTP Settings (custom SMTP); then Supabase's own emai
 in Supabase Auth, and gives PRO with `ADMIN_SEED_PRO=1`. The password comes only from `ADMIN_SEED_PASSWORD`.
 It refuses to run without `--yes`. Usage is in the file header. Prefer it to the login hook.
 
+### Per-user rate limits in Supabase Auth (needed before many users)
+
+Supabase Auth limits `/token` (login, refresh) and `/verify` per caller IP. Every call comes from the `api`
+function, so without this step all users share one bucket (about 1,800 logins and refreshes an hour, bursts of 30).
+1. Authentication > Rate Limits: turn on **IP address forwarding**.
+2. Settings > API Keys: create a **secret key** (`sb_secret_...`) and store it as the function secret
+   `SUPABASE_AUTH_SECRET_KEY`. The api then sends the caller's IP as `sb-forwarded-for` (`_lib/auth/gotrue.ts`).
+3. Set the same random value as the Worker secret `EDGE_TOKEN` (`npx wrangler secret put EDGE_TOKEN`) and the
+   function secret `EDGE_TOKEN`, so the api trusts the IP the Worker sends and nobody can fake it.
+
 ## Differences from the old server (no shape changes)
 
 - Invalid JSON bodies on these routes get the route's 422 (old: 500 `internal_error`).

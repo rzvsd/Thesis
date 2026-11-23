@@ -121,3 +121,27 @@ Deno.test("hashOpaqueToken matches the old sha256 hex", async () => {
     "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
   );
 });
+
+Deno.test("sb-forwarded-for is sent only with the secret key and a client ip", async () => {
+  const { GoTrueClient, withClientIp } = await import("./gotrue.ts");
+  const seen: Headers[] = [];
+  const fetchFn = (_u: string, init?: RequestInit) => {
+    seen.push(new Headers(init?.headers));
+    return Promise.resolve(new Response("{}", { status: 200 }));
+  };
+  const legacy = new GoTrueClient({ url: "http://a", anonKey: "anon", serviceKey: "svc", fetch: fetchFn });
+  await withClientIp("1.2.3.4", () => legacy.recover("x@example.com"));
+  const secret = new GoTrueClient({
+    url: "http://a",
+    secretKey: "sb_secret_x",
+    serviceKey: "svc",
+    fetch: fetchFn,
+  });
+  await withClientIp("1.2.3.4", () => secret.recover("x@example.com"));
+  await secret.recover("x@example.com");
+  if (seen[0].has("sb-forwarded-for")) throw new Error("legacy key must not forward");
+  if (seen[1].get("sb-forwarded-for") !== "1.2.3.4" || seen[1].get("apikey") !== "sb_secret_x") {
+    throw new Error("secret key must forward the ip");
+  }
+  if (seen[2].has("sb-forwarded-for")) throw new Error("no ip outside a request");
+});
