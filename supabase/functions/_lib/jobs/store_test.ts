@@ -25,14 +25,25 @@ Deno.test({
         userId + "@example.test"
       }, now())`;
       const now = new Date().toISOString();
-      const job = await store.createJob({
+      const job = (await store.createJob({
         id: crypto.randomUUID(),
         type: "deep_dive",
         userId,
         ticker: "AAPL",
         createdAt: now,
-      });
+      }))!;
       assertEquals([job.status, job.attempts], ["queued", 0]);
+      // A second open Deep Dive for the same user and ticker is refused by the unique index.
+      assertEquals(
+        await store.createJob({
+          id: crypto.randomUUID(),
+          type: "deep_dive",
+          userId,
+          ticker: "AAPL",
+          createdAt: now,
+        }),
+        undefined,
+      );
       assertEquals(
         (await store.findOpenJob(userId, "AAPL", new Date(Date.now() - 60_000).toISOString()))?.id,
         job.id,
@@ -79,13 +90,13 @@ Deno.test({
       assertEquals(swept?.status, "failed");
 
       // Report round trip and comparable lookup.
-      const done = await store.createJob({
+      const done = (await store.createJob({
         id: crypto.randomUUID(),
         type: "deep_dive",
         userId,
         ticker: "AAPL",
         createdAt: now,
-      });
+      }))!;
       const reportId = crypto.randomUUID();
       await store.createReport({
         id: reportId,

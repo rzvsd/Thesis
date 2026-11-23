@@ -18,7 +18,7 @@ export class FakeStore implements JobsStore {
     const j = this.jobs.get(id);
     return Promise.resolve(j ? { ...j } : undefined);
   }
-  findOpenJob(userId: string, ticker: string, sinceIso: string) {
+  findOpenJob(userId: string, ticker: string, sinceIso = "") {
     const open = [...this.jobs.values()]
       .filter((j) =>
         j.userId === userId && j.ticker === ticker && (j.status === "queued" || j.status === "running") &&
@@ -36,6 +36,12 @@ export class FakeStore implements JobsStore {
       createdAt: string;
     },
   ) {
+    const clash = input.type === "deep_dive" && input.userId &&
+      [...this.jobs.values()].some((j) =>
+        j.type === "deep_dive" && j.userId === input.userId && j.ticker === input.ticker &&
+        (j.status === "queued" || j.status === "running")
+      );
+    if (clash) return Promise.resolve(undefined);
     const job: JobRecord = { ...input, status: "queued", attempts: 0 };
     this.jobs.set(job.id, job);
     return Promise.resolve({ ...job });

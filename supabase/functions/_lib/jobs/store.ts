@@ -5,12 +5,13 @@ import type { JobRecord, JobType, ReportRecord } from "./types.ts";
 
 export interface JobsStore {
   getJob(id: string): Promise<JobRecord | undefined>;
-  findOpenJob(userId: string, ticker: string, sinceIso: string): Promise<JobRecord | undefined>;
+  // sinceIso undefined = any age.
+  findOpenJob(userId: string, ticker: string, sinceIso?: string): Promise<JobRecord | undefined>;
+  // Returns undefined when the user already has an open Deep Dive for the ticker (unique index
+  // jobs_one_open_deep_dive), so two overlapping requests cannot both create a job.
   createJob(
     input: { id: string; type: JobType; userId?: string; ticker?: string; createdAt: string },
-  ): Promise<
-    JobRecord
-  >;
+  ): Promise<JobRecord | undefined>;
   // Counts one more runner start for a still-queued job. When previousDispatchedAt is given, the update only
   // happens if nobody else re-dispatched in the meantime (two polls cannot both start a runner).
   markDispatched(
@@ -52,6 +53,8 @@ export interface JobsStore {
 }
 
 type Row = Record<string, unknown>;
+
+export const OPEN_JOB_CONSTRAINT = "jobs_one_open_deep_dive";
 
 function iso(value: unknown): string | undefined {
   if (value === null || value === undefined) return undefined;
@@ -110,20 +113,27 @@ export function postgresJobsStore(sql: Sql): JobsStore {
       const row = one(
         await sql`select * from jobs
           where user_id = ${userId} and ticker = ${ticker} and type = 'deep_dive'
-            and status in ('queued', 'running') and created_at >= ${sinceIso}
+            and status in ('queued', 'running')
+            and created_at >= ${sinceIso ?? "1970-01-01T00:00:00Z"}
           order by created_at desc limit 1`,
       );
       return row ? mapJob(row) : undefined;
     },
 
     async createJob(input) {
-      const row = one(
-        await sql`insert into jobs (id, type, status, user_id, ticker, created_at)
-          values (${input.id}, ${input.type}, 'queued', ${input.userId ?? null}, ${input.ticker ?? null},
-                  ${input.createdAt})
-          returning *`,
-      );
-      return mapJob(row);
+      try {
+        const row = one(
+          await sql`insert into jobs (id, type, status, user_id, ticker, created_at)
+            values (${input.id}, ${input.type}, 'queued', ${input.userId ?? null}, ${input.ticker ?? null},
+                    ${input.createdAt})
+            returning *`,
+        );
+        return mapJob(row);
+      } catch (err) {
+        const e = err as { code?: string; constraint_name?: string };
+        if (e.code === "23505" && e.constraint_name === OPEN_JOB_CONSTRAINT) return undefined;
+        throw err;
+      }
     },
 
     async markDispatched(id, atIso, previousDispatchedAt) {

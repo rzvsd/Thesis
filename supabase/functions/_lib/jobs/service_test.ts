@@ -219,3 +219,66 @@ Deno.test("poll-time sweeper: a running job past the timeout fails even without 
   const out = await body(await getDeepDiveJob(deps, { userId: "u1", jobId: job.job_id }));
   assertEquals(out.status, "failed");
 });
+
+Deno.test("complete is idempotent: a retried complete keeps the stored report", async () => {
+  const { deps, store, artifacts, effects } = fakeDeps();
+  const job = await body(await createDeepDiveJob(deps, { userId: "u1", ticker: "AAPL", requestId: "r" }));
+  await claimJob(deps, { jobId: job.job_id, requestId: "r" });
+  const report = reportFor(job.job_id);
+  assertEquals(
+    (await completeJob(deps, { jobId: job.job_id, body: { report }, requestId: "r" })).status,
+    200,
+  );
+  const again = await completeJob(deps, { jobId: job.job_id, body: { report }, requestId: "r" });
+  assertEquals(again.status, 200);
+  assertEquals(await body(again), { status: "ok", report_id: report.report_id });
+  assertEquals((await store.getJob(job.job_id))?.status, "complete");
+  assert(store.reports.has(report.report_id));
+  assertEquals(artifacts.objects.size, 1);
+  assertEquals(effects.applied.length, 1);
+});
+
+Deno.test("complete after the sweeper failed the job stores nothing", async () => {
+  const { deps, store, artifacts } = fakeDeps();
+  const job = await body(await createDeepDiveJob(deps, { userId: "u1", ticker: "AAPL", requestId: "r" }));
+  await claimJob(deps, { jobId: job.job_id, requestId: "r" });
+  await store.failIfStatus(job.job_id, "running", "2026-11-25T12:20:00Z", "timeout");
+  const res = await completeJob(deps, {
+    jobId: job.job_id,
+    body: { report: reportFor(job.job_id) },
+    requestId: "r",
+  });
+  assertEquals(res.status, 404);
+  assertEquals([store.reports.size, artifacts.objects.size], [0, 0]);
+});
+
+Deno.test("a side-effect error after completion does not undo the report", async () => {
+  const { deps, store, effects } = fakeDeps();
+  effects.apply = () => Promise.reject(new Error("boom"));
+  const job = await body(await createDeepDiveJob(deps, { userId: "u1", ticker: "AAPL", requestId: "r" }));
+  await claimJob(deps, { jobId: job.job_id, requestId: "r" });
+  const report = reportFor(job.job_id);
+  assertEquals(
+    (await completeJob(deps, { jobId: job.job_id, body: { report }, requestId: "r" })).status,
+    200,
+  );
+  assertEquals((await store.getJob(job.job_id))?.status, "complete");
+  assert(store.reports.has(report.report_id));
+});
+
+Deno.test("overlapping POST /jobs for one user and ticker create one job", async () => {
+  const { deps, runner, store } = fakeDeps();
+  store.tiers.set("u1", "PRO");
+  // Both requests miss the first open-job check, then race on create.
+  const realFind = store.findOpenJob.bind(store);
+  let calls = 0;
+  store.findOpenJob = (u, t, s) => (calls++ < 2 ? Promise.resolve(undefined) : realFind(u, t, s));
+  const [a, b] = await Promise.all([
+    createDeepDiveJob(deps, { userId: "u1", ticker: "AAPL", requestId: "r" }),
+    createDeepDiveJob(deps, { userId: "u1", ticker: "AAPL", requestId: "r" }),
+  ]);
+  const [ja, jb] = [await body(a), await body(b)];
+  assertEquals([a.status, b.status], [202, 202]);
+  assertEquals(ja.job_id, jb.job_id);
+  assertEquals(runner.dispatched.length, 1);
+});

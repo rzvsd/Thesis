@@ -41,8 +41,6 @@ export interface JobsDeps extends SweepDeps {
 }
 
 export const TICKER_RE = /^[A-Z.-]{1,12}$/;
-// An open job younger than this is returned again instead of starting a new one (H1).
-export const OPEN_JOB_WINDOW_MS = 11 * 60_000;
 export const MSG_CAP = "Deep Dives are busy today. Please try again tomorrow.";
 
 export function buildJobStatusResponse(job: JobRecord): JobStatusResponse {
@@ -113,18 +111,8 @@ export async function createDeepDiveJob(
   const nowIso = now.toISOString();
 
   // Same user, same ticker, still open: hand back that job (H1). The app resumes polling it.
-  const open = await deps.store.findOpenJob(
-    userId,
-    ticker,
-    new Date(now.getTime() - OPEN_JOB_WINDOW_MS).toISOString(),
-  );
-  if (open) {
-    const swept = await sweepOnPoll(deps, open);
-    if (swept.status === "queued" || swept.status === "running") {
-      logInfo("Open job returned", { user_id: userId, job_id: swept.id });
-      return json(buildJobStatusResponse(swept), 202);
-    }
-  }
+  const open = await openJobResponse(deps, userId, ticker);
+  if (open) return open;
 
   const tier = await deps.store.getSubscriptionTier(userId);
   const limit = dailyDeepDiveLimitForTier(tier);
@@ -155,7 +143,7 @@ export async function createDeepDiveJob(
     if (usageReserved) await deps.store.releaseDailyUsage(userId, usageDate);
   };
 
-  let job: JobRecord;
+  let job: JobRecord | undefined;
   try {
     job = await deps.store.createJob({
       id: crypto.randomUUID(),
@@ -167,6 +155,11 @@ export async function createDeepDiveJob(
   } catch (err) {
     await release();
     throw err;
+  }
+  if (!job) {
+    // An overlapping request created the job first: give back that one.
+    await release();
+    return (await openJobResponse(deps, userId, ticker)) ?? queueUnavailable();
   }
 
   const result = await dispatchJob(deps, job, null);
@@ -200,6 +193,24 @@ export async function createDeepDiveJob(
   return json(buildJobStatusResponse(fresh), 202);
 }
 
+// The user's open Deep Dive for the ticker, after the poll-time check, as a 202; undefined when none is open.
+async function openJobResponse(
+  deps: JobsDeps,
+  userId: string,
+  ticker: string,
+): Promise<Response | undefined> {
+  const open = await deps.store.findOpenJob(userId, ticker);
+  if (!open) return undefined;
+  const swept = await sweepOnPoll(deps, open);
+  if (swept.status !== "queued" && swept.status !== "running") return undefined;
+  logInfo("Open job returned", { user_id: userId, job_id: swept.id });
+  return json(buildJobStatusResponse(swept), 202);
+}
+
+function queueUnavailable(): Response {
+  return json({ error: "queue_unavailable", error_message: "Job could not be queued." }, 503);
+}
+
 async function reuseReport(
   deps: JobsDeps,
   input: {
@@ -219,6 +230,7 @@ async function reuseReport(
     ticker,
     createdAt: nowIso,
   });
+  if (!reuseJob) return (await openJobResponse(deps, userId, ticker)) ?? queueUnavailable();
   const artifact = await deps.artifacts.readReport(reusable.artifactKey);
   if (!artifact || !("job_id" in artifact)) {
     await deps.store.markJobFailed(reuseJob.id, stamp(deps), "Reusable report artifact missing.");
@@ -341,46 +353,82 @@ export async function completeJob(
     return apiError(422, "validation_failed", "A valid report payload with matching job_id is required.");
   }
 
-  let artifactKey: string | undefined;
+  // Retries are safe: a runner whose first complete call succeeded but lost the answer sends the same report
+  // again. That gets the same 200, and nothing already stored is rewritten or deleted.
+  const job = await deps.store.getJob(jobId);
+  if (!job) return apiError(404, "job_not_found", "Job was not found for completion.");
+  if (job.status === "complete") {
+    return job.reportId === report.report_id
+      ? json({ status: "ok", report_id: report.report_id }, 200)
+      : apiError(404, "job_not_found", "Job was not found for completion.");
+  }
+  if (job.status !== "queued" && job.status !== "running") {
+    return apiError(404, "job_not_found", "Job was not found for completion.");
+  }
+  const existingReport = await deps.store.getReport(report.report_id);
+  if (existingReport && existingReport.jobId !== jobId) {
+    return apiError(422, "validation_failed", "report_id is already used by another job.");
+  }
+
+  // Only what this attempt created is cleaned up on error.
+  let createdArtifactKey: string | undefined;
+  let createdReport = false;
+  let prior: ReportRecord | undefined;
+  let completed: JobRecord | undefined;
   try {
-    const fingerprint = report.type === "deep_dive" && report.ticker
-      ? deepDiveFingerprint({
+    prior = await deps.effects.findPrior(report);
+    if (!existingReport) {
+      const fingerprint = report.type === "deep_dive" && report.ticker
+        ? deepDiveFingerprint({
+          ticker: report.ticker,
+          schemaVersion: report.schema_version,
+          latestPeriod: report.historical_context?.latest_period,
+        })
+        : undefined;
+      // Jobs without a user are scheduled pre-computes: they stay reusable until the next filing.
+      const hours = job.userId ? deps.config.reuseFreshnessHours : deps.config.precomputeFreshnessHours;
+      const freshnessExpiresAt = fingerprint ? addHours(stamp(deps), hours) : undefined;
+      const llmUsage = input.body.llm_usage && typeof input.body.llm_usage === "object"
+        ? input.body.llm_usage as Record<string, unknown>
+        : undefined;
+      createdArtifactKey = await deps.artifacts.writeReport(report);
+      await deps.store.createReport({
+        id: report.report_id,
+        jobId: report.job_id,
+        type: report.type,
         ticker: report.ticker,
         schemaVersion: report.schema_version,
-        latestPeriod: report.historical_context?.latest_period,
-      })
-      : undefined;
-    // Jobs without a user are scheduled pre-computes: they stay reusable until the next filing.
-    const hours = (await deps.store.getJob(jobId))?.userId
-      ? deps.config.reuseFreshnessHours
-      : deps.config.precomputeFreshnessHours;
-    const freshnessExpiresAt = fingerprint ? addHours(stamp(deps), hours) : undefined;
-
-    const prior = await deps.effects.findPrior(report);
-    artifactKey = await deps.artifacts.writeReport(report);
-    const llmUsage = input.body.llm_usage && typeof input.body.llm_usage === "object"
-      ? input.body.llm_usage as Record<string, unknown>
-      : undefined;
-    await deps.store.createReport({
-      id: report.report_id,
-      jobId: report.job_id,
-      type: report.type,
-      ticker: report.ticker,
-      schemaVersion: report.schema_version,
-      artifactKey,
-      fingerprint,
-      freshnessExpiresAt,
-      createdAt: report.generated_at,
-      isCurrent: true,
-      llmUsage,
-    });
-    const completed = await deps.store.markJobComplete(jobId, stamp(deps), report.report_id);
+        artifactKey: createdArtifactKey,
+        fingerprint,
+        freshnessExpiresAt,
+        createdAt: report.generated_at,
+        isCurrent: true,
+        llmUsage,
+      });
+      createdReport = true;
+    }
+    completed = await deps.store.markJobComplete(jobId, stamp(deps), report.report_id);
     if (!completed) {
-      await cleanupStoredReport(deps, report.report_id, artifactKey);
-      await deps.store.markJobFailed(jobId, stamp(deps), "Job was not found for completion.");
+      // The sweeper failed the job in the meantime. Keep its state; drop what this attempt stored.
+      if (createdReport) await cleanupStoredReport(deps, report.report_id, createdArtifactKey);
+      else if (createdArtifactKey) await deps.artifacts.deleteReport(createdArtifactKey).catch(() => {});
       return apiError(404, "job_not_found", "Job was not found for completion.");
     }
+  } catch (err) {
+    if (createdReport) await cleanupStoredReport(deps, report.report_id, createdArtifactKey);
+    else if (createdArtifactKey) await deps.artifacts.deleteReport(createdArtifactKey).catch(() => {});
+    const message = err instanceof Error ? err.message : "Report completion failed";
+    const at = stamp(deps);
+    const failed = (await deps.store.failIfStatus(jobId, "running", at, message)) ??
+      (await deps.store.failIfStatus(jobId, "queued", at, message));
+    logError("Job completion failed", { job_id: jobId });
+    return failed
+      ? apiError(500, "internal_error", "Product API failed to finalize the report.")
+      : apiError(404, "job_not_found", "Job was not found for completion.");
+  }
 
+  // The report is stored and the job is complete. A side-effect error is logged; it must not undo that.
+  try {
     await deps.effects.audit("job.complete", {
       request_id: input.requestId,
       route,
@@ -395,20 +443,14 @@ export async function completeJob(
       route,
       includeMonitorSnapshot: true,
     });
-
-    // After the response so the runner is not held by delivery; never throws.
-    deps.background(deps.effects.filingAlerts(report, prior));
-    logInfo("Job complete", { job_id: jobId, report_id: report.report_id });
-    return json({ status: "ok", report_id: report.report_id }, 200);
-  } catch (err) {
-    if (artifactKey) await cleanupStoredReport(deps, report.report_id, artifactKey);
-    const message = err instanceof Error ? err.message : "Report completion failed";
-    const failed = await deps.store.markJobFailed(jobId, stamp(deps), message);
-    logError("Job completion failed", { job_id: jobId });
-    return failed
-      ? apiError(500, "internal_error", "Product API failed to finalize the report.")
-      : apiError(404, "job_not_found", "Job was not found for completion.");
+  } catch {
+    logError("Completion side effects failed", { job_id: jobId, report_id: report.report_id });
   }
+
+  // After the response so the runner is not held by delivery; never throws.
+  deps.background(deps.effects.filingAlerts(report, prior));
+  logInfo("Job complete", { job_id: jobId, report_id: report.report_id });
+  return json({ status: "ok", report_id: report.report_id }, 200);
 }
 
 // POST /internal/jobs/:id/fail
