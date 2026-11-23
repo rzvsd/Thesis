@@ -6,8 +6,11 @@ Copied from apps/news-ingest/src/news_ingest/service.py (keep tested logic). Cha
 - Fixture mode follows DATA_OPENBB_FIXTURE_MODE like the other job scripts (the old switch was
   NEWS_INGEST_FIXTURE_MODE). Fixtures are copied into jobs/data/fixtures/news and fixtures/first-party.
 - BeautifulSoup and news-please are imported only when an HTML source is parsed
-  (pip install -r jobs/data/requirements-news.txt). Without them the HTML source fails the way the old
-  service did when news-please was missing.
+  (pip install -r jobs/data/requirements-news.txt). Without them only the HTML source fails.
+- Each source is read on its own (rebuild branch audit NG1). The answer is ok when at least one source could be
+  read, and "sources" says how each one did. Only when every source fails is the answer an outage.
+- Headlines can be kept by a time window (window_start, window_end) and not only by UTC date (NG5). The Pulse
+  passes the window from news_window(), which also reaches back over a weekend.
 """
 
 from __future__ import annotations
@@ -22,12 +25,13 @@ import uuid
 import warnings
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 from html import unescape
 from typing import Any, Callable, Literal, Mapping
 
 from joblog import log
+from market_time import NEW_YORK
 from retry import RateLimiter
 from schema_check import SCHEMA_ROOT
 from source_common import FIXTURE_ROOT, fixture_mode
@@ -193,6 +197,10 @@ def validate_against_schema(value: Any, schema: dict[str, Any], field_name: str)
         if not isinstance(value, bool):
             raise ValueError(f"{field_name} must be a boolean.")
         return
+    if schema_type == "integer":
+        if isinstance(value, bool) or not isinstance(value, int):
+            raise ValueError(f"{field_name} must be an integer.")
+        return
     if schema_type == "null":
         if value is not None:
             raise ValueError(f"{field_name} must be null.")
@@ -264,6 +272,44 @@ def extract_tickers(*parts: str) -> list[str]:
 
 def filter_by_requested_date(published_at: str, requested_date: str) -> bool:
     return published_at.startswith(requested_date)
+
+
+def parse_utc(value: str) -> datetime:
+    parsed = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def within_window(published_at: str, window_start: datetime, window_end: datetime) -> bool:
+    try:
+        published = parse_utc(published_at)
+    except ValueError:
+        return False
+    return window_start <= published <= window_end
+
+
+def news_window(cycle_start: str, cycle_end: str) -> tuple[str, str]:
+    """The span of headlines one Pulse issue should see.
+
+    It is the Pulse cycle, except that a start on a Saturday or Sunday (New York time) moves back to Friday at
+    the same wall-clock time. No issue runs on the weekend, so Monday's issue must also cover Friday's session,
+    the after-close hours and the weekend. Market holidays are not handled: the issue after one starts a day late.
+    """
+    start_local = parse_utc(cycle_start).astimezone(NEW_YORK)
+    while start_local.weekday() >= 5:
+        # Subtract on the wall clock so a clock change over the weekend keeps the same local time.
+        start_local = (start_local.replace(tzinfo=None) - timedelta(days=1)).replace(tzinfo=NEW_YORK)
+    start = start_local.astimezone(timezone.utc)
+    end = parse_utc(cycle_end)
+    return (
+        start.isoformat(timespec="milliseconds").replace("+00:00", "Z"),
+        end.isoformat(timespec="milliseconds").replace("+00:00", "Z"),
+    )
+
+
+# Says whether a published_at value belongs in the answer.
+Keep = Callable[[str], bool]
 
 
 def normalize_published_at(value: datetime | str | None, fallback_value: str) -> str:
@@ -338,7 +384,10 @@ def extract_html_article_with_newsplease(
     return _article(source, url, title, published_at, retrieved_at, body_text)
 
 
-def parse_rss_articles(raw_text: str, source: ApprovedSource, requested_date: str, retrieved_at: str) -> list[dict[str, Any]]:
+def parse_rss_articles(
+    raw_text: str, source: ApprovedSource, requested_date: str, retrieved_at: str, keep: Keep | None = None
+) -> list[dict[str, Any]]:
+    keep = keep or (lambda published_at: filter_by_requested_date(published_at, requested_date))
     root = ET.fromstring(raw_text)  # noqa: S314 - approved feeds or local fixtures
     articles: list[dict[str, Any]] = []
     for item in root.findall(".//item"):
@@ -349,13 +398,16 @@ def parse_rss_articles(raw_text: str, source: ApprovedSource, requested_date: st
         if not title or not url or not published_at_raw:
             continue
         published_at = normalize_datetime(published_at_raw)
-        if not filter_by_requested_date(published_at, requested_date):
+        if not keep(published_at):
             continue
         articles.append(_article(source, url, title, published_at, retrieved_at, normalize_text(description or title)))
     return articles
 
 
-def parse_html_articles(raw_text: str, source: ApprovedSource, requested_date: str, retrieved_at: str) -> list[dict[str, Any]]:
+def parse_html_articles(
+    raw_text: str, source: ApprovedSource, requested_date: str, retrieved_at: str, keep: Keep | None = None
+) -> list[dict[str, Any]]:
+    keep = keep or (lambda published_at: filter_by_requested_date(published_at, requested_date))
     soup = load_beautifulsoup()(raw_text, "html.parser")
     articles: list[dict[str, Any]] = []
     for article_tag in soup.find_all("article"):
@@ -369,7 +421,7 @@ def parse_html_articles(raw_text: str, source: ApprovedSource, requested_date: s
         if not url or not title or not published_at_raw:
             continue
         published_at = normalize_datetime(published_at_raw)
-        if not filter_by_requested_date(published_at, requested_date):
+        if not keep(published_at):
             continue
         article = extract_html_article_with_newsplease(
             source=source,
@@ -380,7 +432,7 @@ def parse_html_articles(raw_text: str, source: ApprovedSource, requested_date: s
             fallback_body_text=normalize_text(article_tag.get_text(" ", strip=True)),
             retrieved_at=retrieved_at,
         )
-        if not filter_by_requested_date(article["published_at"], requested_date):
+        if not keep(article["published_at"]):
             continue
         articles.append(article)
     return articles
@@ -420,14 +472,55 @@ def outage_response(request_id: str, retrieved_at: str, error_code: str, error_m
     return response
 
 
+def read_source(
+    source: ApprovedSource, load: Callable[[ApprovedSource], str], requested_date: str, retrieved_at: str, keep: Keep
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Reads one source. A failure is returned as that source's status, never raised (audit NG1)."""
+    try:
+        _acquire(source.key)
+        raw_text = load(source)
+        if source.method == "rss":
+            parsed = parse_rss_articles(raw_text, source, requested_date, retrieved_at, keep)
+        else:
+            parsed = parse_html_articles(raw_text, source, requested_date, retrieved_at, keep)
+    except SourceFetchError:
+        log("WARN", "Source unreachable / parser failed", provider=source.key)
+        return [], {"source": source.key, "ok": False, "article_count": 0, "error_code": "PROVIDER_OUTAGE"}
+    except HtmlFallbackDependencyError:
+        log("WARN", "HTML fallback dependency missing", provider=source.key)
+        return [], {"source": source.key, "ok": False, "article_count": 0, "error_code": "INTERNAL_ERROR"}
+    except (ET.ParseError, ValueError):
+        log("WARN", "Schema validation failed", provider=source.key)
+        return [], {"source": source.key, "ok": False, "article_count": 0, "error_code": "SCHEMA_MISMATCH"}
+    except Exception as error:  # one bad source must not cost the others
+        log("WARN", "News source failed", provider=source.key, error_type=type(error).__name__)
+        return [], {"source": source.key, "ok": False, "article_count": 0, "error_code": "INTERNAL_ERROR"}
+    log("INFO", "News source read", provider=source.key, ingestion_method=ingestion_method_for(source),
+        record_count=len(parsed))
+    return parsed, {"source": source.key, "ok": True, "article_count": len(parsed)}
+
+
+_OUTAGE_MESSAGES = {
+    "PROVIDER_OUTAGE": "Approved source unavailable; returning empty list.",
+    "SCHEMA_MISMATCH": "Approved source payload could not be normalized safely.",
+    "INTERNAL_ERROR": "Approved sources could not be read.",
+}
+
+
 def news_response(
     requested_date: str,
     *,
+    window_start: str | None = None,
+    window_end: str | None = None,
     env: Mapping[str, str] | None = None,
     source_loader: SourceLoader | None = None,
     now: datetime | None = None,
 ) -> tuple[int, dict[str, Any]]:
-    """Port of build_news_response. Returns (status, body) like the old route."""
+    """Port of build_news_response. Returns (status, body) like the old route.
+
+    With window_start and window_end (ISO date-times) headlines are kept by that span. Without them they are kept
+    by requested_date in UTC, as the old route did. requested_date still picks the fixture folder in fixture mode.
+    """
     retrieved_at = (now or datetime.now(timezone.utc)).astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
     request_id = uuid.uuid4().hex
     try:
@@ -435,6 +528,18 @@ def news_response(
     except ValueError:
         return 400, outage_response(request_id, retrieved_at, "INTERNAL_ERROR",
                                     "date query parameter is required in YYYY-MM-DD format.")
+
+    keep: Keep = lambda published_at: filter_by_requested_date(published_at, requested_date)  # noqa: E731
+    if window_start is not None or window_end is not None:
+        try:
+            start, end = parse_utc(window_start or ""), parse_utc(window_end or "")
+        except ValueError:
+            return 400, outage_response(request_id, retrieved_at, "INTERNAL_ERROR",
+                                        "window_start and window_end must both be ISO 8601 date-times.")
+        if start > end:
+            return 400, outage_response(request_id, retrieved_at, "INTERNAL_ERROR",
+                                        "window_start must not be after window_end.")
+        keep = lambda published_at: within_window(published_at, start, end)  # noqa: E731
 
     def load(source: ApprovedSource) -> str:
         if source_loader is not None:
@@ -444,39 +549,38 @@ def news_response(
         return fetch_remote_text(source)
 
     articles: list[dict[str, Any]] = []
-    source = APPROVED_SOURCES[0]
-    try:
-        for source in APPROVED_SOURCES:
-            _acquire(source.key)
-            raw_text = load(source)
-            if source.method == "rss":
-                parsed = parse_rss_articles(raw_text, source, requested_date, retrieved_at)
-            else:
-                parsed = parse_html_articles(raw_text, source, requested_date, retrieved_at)
-            articles.extend(parsed)
-            log("INFO", "News source read", provider=source.key, ingestion_method=ingestion_method_for(source),
-                record_count=len(parsed))
-    except SourceFetchError:
-        log("WARN", "Source unreachable / parser failed", provider=source.key)
-        return 200, outage_response(request_id, retrieved_at, "PROVIDER_OUTAGE",
-                                    "Approved source unavailable; returning empty list.", provider=source.key)
-    except (ET.ParseError, ValueError):
-        log("WARN", "Schema validation failed", provider=source.key)
-        return 200, outage_response(request_id, retrieved_at, "SCHEMA_MISMATCH",
-                                    "Approved source payload could not be normalized safely.", provider=source.key)
-    except HtmlFallbackDependencyError:
-        log("WARN", "HTML fallback dependency missing", provider=source.key)
-        return 500, outage_response(request_id, retrieved_at, "INTERNAL_ERROR",
-                                    "HTML fallback dependency is missing for an approved source.", provider=source.key)
+    statuses: list[dict[str, Any]] = []
+    for source in APPROVED_SOURCES:
+        parsed, status = read_source(source, load, requested_date, retrieved_at, keep)
+        articles.extend(parsed)
+        statuses.append(status)
 
-    articles.sort(key=lambda article: article["published_at"], reverse=True)
+    failed = [status for status in statuses if not status["ok"]]
+    if len(failed) == len(statuses):
+        # Nothing could be read, so this is an outage and not a quiet day. The first failure names it.
+        first = failed[0]
+        response = outage_response(request_id, retrieved_at, first["error_code"],
+                                   _OUTAGE_MESSAGES[first["error_code"]], provider=first["source"])
+        response["sources"] = statuses
+        validate_response(response)
+        return 200, response
+
+    # The same story can sit in two feeds or twice in one; keep the first copy of each link.
+    seen: set[str] = set()
+    unique: list[dict[str, Any]] = []
+    for article in sorted(articles, key=lambda article: article["published_at"], reverse=True):
+        if article["article_id"] in seen:
+            continue
+        seen.add(article["article_id"])
+        unique.append(article)
     response = {
         "ok": True,
-        "data": articles,
+        "data": unique,
         "error_flag": False,
         "request_id": request_id,
         "provider": DEFAULT_PROVIDER,
         "retrieved_at": retrieved_at,
+        "sources": statuses,
     }
     validate_response(response)
     return 200, response
