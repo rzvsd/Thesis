@@ -107,7 +107,7 @@ export function requestCode(get: () => AuthDeps) {
         });
         send = d.email.accountDeletionCode(email, raw);
       } else {
-        // Supabase driver: a magic link OTP (the template prints the 6-digit code, or "v1d.{{ .TokenHash }}").
+        // Supabase driver: a magic link OTP (the template prints the short code, or "v1d.{{ .TokenHash }}").
         // Supabase's verify also accepts a sign-up or reset code for the same address, so a deletion is only
         // honoured while this request's challenge is open (1 hour, a new request supersedes it).
         const now = d.now();
@@ -149,7 +149,7 @@ function deletionChallengeHash(userId: string): Promise<string> {
 }
 
 // Resolves a deletion code to a user id.
-// Supabase driver: a 6-digit code (with the email from the form) or a "v1d." code, and only while a deletion
+// Supabase driver: a short code (with the email from the form) or a "v1d." code, and only while a deletion
 // request for that user is open. App driver (Resend): our own untagged code, stored hashed.
 async function consumeDeletionCode(d: AuthDeps, token: string, email: string): Promise<string | undefined> {
   if (d.email.deletionCodeSource === "supabase") {

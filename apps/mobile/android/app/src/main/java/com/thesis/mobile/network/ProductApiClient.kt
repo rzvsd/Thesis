@@ -65,7 +65,7 @@ class ProductApiClient {
             )
         }
 
-    /** The email goes with the code: the 6-digit code from the email only works with its address. */
+    /** The email goes with the code: the short code from the email only works with its address. */
     suspend fun verify(baseUrl: String, email: String, token: String) = withContext(Dispatchers.IO) {
         val body = JSONObject().put("token", token)
         if (email.isNotBlank()) body.put("email", email)
