@@ -5,7 +5,8 @@ name: rebuild-backup
 # The dump is encrypted, then stored in the private Supabase Storage bucket "db-backups". The newest 5 files are
 # kept. It is not a run artifact: this repository is public, and anyone signed in to GitHub can download artifacts.
 # Storing needs the secret BACKUP_STORAGE_KEY (a Supabase secret key). If the dump exists and that secret is
-# missing, the run fails so the gap is seen. About 2 minutes a week.
+# missing, the run fails so the gap is seen. Then jobs/ops/restore_check.sh loads the new file into a throwaway
+# database inside the run and fails if it does not restore (log shows counts only). About 3 minutes a week.
 on:
   schedule:
     - cron: "17 3 * * 0"
@@ -21,7 +22,7 @@ permissions:
 jobs:
   dump:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - name: Check out repository
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
@@ -51,3 +52,10 @@ jobs:
           BACKUP_STORAGE_KEY: ${{ secrets.BACKUP_STORAGE_KEY }}
           BACKUP_FILE: ${{ steps.dump.outputs.file }}
         run: node jobs/ops/backup_store.mts "$BACKUP_FILE"
+
+      - name: Check the backup restores
+        if: steps.dump.outputs.file != ''
+        env:
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+          BACKUP_FILE: ${{ steps.dump.outputs.file }}
+        run: bash jobs/ops/restore_check.sh "$BACKUP_FILE"
