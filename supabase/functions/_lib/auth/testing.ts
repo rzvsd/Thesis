@@ -333,7 +333,7 @@ export class MemoryAuthStore implements AuthStore {
   consumeAccountActionToken(purpose: AccountActionPurpose, tokenHash: string, consumedAt: string) {
     const t = this.tokens.find((x) =>
       x.purpose === purpose && x.tokenHash === tokenHash && !x.consumedAt &&
-      Date.parse(x.expiresAt) > Date.now()
+      Date.parse(x.expiresAt) > Date.parse(consumedAt)
     );
     if (!t) return Promise.resolve(undefined);
     t.consumedAt = consumedAt;
