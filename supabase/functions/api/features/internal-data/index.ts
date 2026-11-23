@@ -8,6 +8,7 @@ import { evaluateCoherence } from "../../../_lib/evaluators/coherence.ts";
 import { evaluateContrarian } from "../../../_lib/evaluators/contrarian.ts";
 import { evaluateCrossName } from "../../../_lib/evaluators/cross_name.ts";
 import { type EvaluatorDeps, makeDeps } from "../../../_lib/evaluators/deps.ts";
+import { storageReportReader } from "../../../_lib/evaluators/report_port.ts";
 import { dispatchWeeklyDigest } from "../../../_lib/evaluators/digest.ts";
 import { dispatchEarningsPreview } from "../../../_lib/evaluators/earnings_preview.ts";
 import { listFeedbackQueue } from "../../../_lib/evaluators/feedback.ts";
@@ -33,7 +34,7 @@ import type { FeatureModule, Route, RouteContext } from "../../router.ts";
 let current: EvaluatorDeps | undefined;
 
 function deps(): EvaluatorDeps {
-  current ??= makeDeps(new PostgresEvaluatorStore(db));
+  current ??= makeDeps(new PostgresEvaluatorStore(db), { reports: storageReportReader });
   return current;
 }
 

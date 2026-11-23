@@ -1,3 +1,4 @@
+import { readArtifact } from "../reports/artifacts.ts";
 // Ports to M2's parts: report bodies in Storage and the Deep Dive queue.
 // Report metadata comes from app.reports (EvaluatorStore). The JSON body lives in Supabase Storage,
 // whose layout M2 owns, so the default reader is "disabled" until M2 plugs in its reader.
@@ -35,4 +36,14 @@ export interface DeepDiveQueue {
 export const disabledDeepDiveQueue: DeepDiveQueue = {
   enabled: false,
   queueRefresh: () => Promise.resolve(undefined),
+};
+
+// Reads report bodies from Supabase Storage (shared M1 convention). A missing object counts as unavailable.
+export const storageReportReader: ReportBodyReader = {
+  enabled: true,
+  read: async (artifactKey) => {
+    const body = await readArtifact(artifactKey);
+    if (body === undefined) throw new ReportUnavailableError("Report artifact missing.");
+    return body;
+  },
 };

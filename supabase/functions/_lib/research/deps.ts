@@ -1,7 +1,7 @@
 // What the research and alerts handlers need. Tests pass a MemoryResearchStore; the api function uses
 // the Postgres store, which opens its connection on the first query, never at import time.
 import { db } from "../../_shared/db.ts";
-import { missingReportBodyReader, type ReportBodyReader } from "./ports.ts";
+import { type ReportBodyReader, storageReportBodyReader } from "./ports.ts";
 import { PostgresResearchStore, type ResearchStore } from "./store.ts";
 
 export interface ResearchDeps {
@@ -10,7 +10,7 @@ export interface ResearchDeps {
 }
 
 export function defaultResearchDeps(): ResearchDeps {
-  return { store: new PostgresResearchStore(db), readReportBody: missingReportBodyReader };
+  return { store: new PostgresResearchStore(db), readReportBody: storageReportBodyReader };
 }
 
 // Old readJsonBody: an empty body is {}, invalid JSON throws (the old server answered 500).
