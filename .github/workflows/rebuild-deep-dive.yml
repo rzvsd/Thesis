@@ -34,8 +34,8 @@ jobs:
     env:
       # Inputs reach the shell only through env, never pasted into a command line.
       JOB_ID: ${{ github.event.inputs.job_id }}
-      THESIS_API_URL: ${{ secrets.THESIS_API_URL }}
-      THESIS_INTERNAL_TOKEN: ${{ secrets.THESIS_INTERNAL_TOKEN }}
+      # Audit S9: the api URL and internal token are set only on the two steps that call the api (claim and
+      # run), so the install step, which runs package code, never sees them.
       RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
     steps:
       - name: Validate job id
@@ -58,6 +58,9 @@ jobs:
       # Claim first: a duplicate or stale dispatch stops here after a few seconds.
       - name: Claim job
         id: claim
+        env:
+          THESIS_API_URL: ${{ secrets.THESIS_API_URL }}
+          THESIS_INTERNAL_TOKEN: ${{ secrets.THESIS_INTERNAL_TOKEN }}
         run: node jobs/deep-dive/claim.mts "$RUNNER_TEMP/claim.json"
 
       - name: Install runner dependencies
@@ -65,7 +68,7 @@ jobs:
         run: |
           corepack enable
           corepack prepare pnpm@10.6.1 --activate
-          corepack pnpm install --frozen-lockfile --filter "@thesis/dexter-worker..." --filter thesis-fintech
+          corepack pnpm install --frozen-lockfile --ignore-scripts --filter "@thesis/dexter-worker..." --filter thesis-fintech
 
       - name: Build pipeline
         if: steps.claim.outputs.claimed == 'true'
@@ -75,6 +78,8 @@ jobs:
       - name: Run Deep Dive
         if: steps.claim.outputs.claimed == 'true'
         env:
+          THESIS_API_URL: ${{ secrets.THESIS_API_URL }}
+          THESIS_INTERNAL_TOKEN: ${{ secrets.THESIS_INTERNAL_TOKEN }}
           NODE_ENV: development
           # Fixture mode stays on until the owner sets an LLM budget (AGENTS rule 11).
           DEXTER_FIXTURE_MODE: "true"

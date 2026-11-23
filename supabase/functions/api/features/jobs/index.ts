@@ -1,8 +1,12 @@
 // Feature "jobs". Owner: M2 (docs/rebuild/OWNERSHIP.md). POST /jobs and GET /jobs/:id (contract.md, Jobs).
 import { readJson } from "../../../_shared/http.ts";
+import { checkRateLimit, type LimitRule } from "../../../_lib/store/rate_limit.ts";
 import { createDeepDiveJob, getDeepDiveJob } from "../../../_lib/jobs/service.ts";
 import { jobsDeps, requestIdOf } from "../../../_lib/jobs/wiring.ts";
 import type { FeatureModule, RouteContext } from "../../router.ts";
+
+// Audit S8: starting a Deep Dive costs runner minutes, so POST /jobs has its own per-IP limit.
+const CREATE_JOB_RULE: LimitRule = { bucket: "jobs_create", max: 10, windowSeconds: 60 };
 
 export const feature: FeatureModule = {
   name: "jobs",
@@ -13,6 +17,8 @@ export const feature: FeatureModule = {
       path: "/jobs",
       auth: "user",
       handler: async ({ req, auth }: RouteContext) => {
+        const limited = await checkRateLimit(req, CREATE_JOB_RULE, "/jobs");
+        if (limited) return limited;
         const body = await readJson<{ ticker?: unknown }>(req);
         return createDeepDiveJob(jobsDeps(), {
           userId: auth.userId!,

@@ -10,23 +10,9 @@ schemas = ["public", "graphql_public"]
 major_version = 17
 
 # One function serves the whole API (H3). The guard in _shared/auth.ts checks auth per route, so the
-# platform JWT check is off. Preview functions api-m1..api-m4 run the same code from a milestone branch.
+# platform JWT check is off. The preview functions api-m1..api-m4 were removed after the milestones merged
+# (audit S6): they would have shared the production database and secrets.
 [functions.api]
 verify_jwt = false
 entrypoint = "./functions/api/index.ts"
 
-[functions.api-m1]
-verify_jwt = false
-entrypoint = "./functions/api/index.ts"
-
-[functions.api-m2]
-verify_jwt = false
-entrypoint = "./functions/api/index.ts"
-
-[functions.api-m3]
-verify_jwt = false
-entrypoint = "./functions/api/index.ts"
-
-[functions.api-m4]
-verify_jwt = false
-entrypoint = "./functions/api/index.ts"

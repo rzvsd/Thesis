@@ -9,9 +9,15 @@ export function watchlistLimitForTier(tier: Tier): number {
   return tier === "PRO" ? 50 : 3;
 }
 
-// Limit for on-demand Deep Dive generation only. -1 = no limit.
+// Limit for on-demand Deep Dive generation only. -1 = no limit (no tier uses it now).
+// Audit S8: Pro had no limit, so one account could use up the shared daily cap. Pro gets 5 a day by default,
+// DEEP_DIVE_PRO_DAILY_LIMIT changes it. A reused report never counts.
+export const DEFAULT_PRO_DAILY_DEEP_DIVES = 5;
+
 export function dailyDeepDiveLimitForTier(tier: Tier): number {
-  return tier === "PRO" ? -1 : 1;
+  if (tier !== "PRO") return 1;
+  const n = Number(env("DEEP_DIVE_PRO_DAILY_LIMIT"));
+  return Number.isInteger(n) && n > 0 ? n : DEFAULT_PRO_DAILY_DEEP_DIVES;
 }
 
 export function remainingDeepDives(limit: number, usedToday: number): number {

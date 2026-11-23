@@ -22,12 +22,15 @@ export const DEFAULT_CONFIG: AuthConfig = {
   emailOtpExpirySeconds: 3600,
   exposeCodes: false,
   bootstrap: null,
+  registrationOpen: true,
+  inviteEmails: [],
 };
 
 export function setup(opts: {
   mode?: "supabase" | "resend";
   config?: Partial<AuthConfig>;
   rateLimit?: AuthDeps["rateLimit"];
+  emailAllowed?: AuthDeps["emailAllowed"];
 } = {}) {
   const fake = new FakeGoTrue();
   const gotrue = fake.client();
@@ -54,6 +57,7 @@ export function setup(opts: {
     store,
     config: () => ({ ...DEFAULT_CONFIG, ...opts.config }),
     rateLimit: opts.rateLimit ?? (() => Promise.resolve(null)),
+    emailAllowed: opts.emailAllowed ?? (() => Promise.resolve(true)),
     defer: (p) => void deferred.push(p),
     now: () => new Date(nowMs),
     deleteUserFiles: (id) => {

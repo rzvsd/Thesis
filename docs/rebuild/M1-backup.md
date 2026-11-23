@@ -16,10 +16,10 @@ Migration `supabase/migrations/20261124080000_m1_auth_backup_views.sql`:
 - Why views: Supabase does not let us grant `usage` on schema `auth` to our own role, but `postgres` may read
   the two tables and can share that read through a view it owns.
 
-## Script change (needs the owner's review: it runs in a workflow, AGENTS rule 7)
+## Script change (approved by the owner on 2026-11-23, applied in `jobs/ops/backup.sh`)
 
-Replace the `docker run ...` pipeline in `jobs/ops/backup.sh` with the one below. It appends the auth rows to the
-same encrypted file as `COPY` blocks. Nothing else in the script changes.
+The `docker run ...` pipeline in `jobs/ops/backup.sh` is the one below. It appends the auth rows to the
+same encrypted file as `COPY` blocks.
 
 ```bash
 # shellcheck disable=SC2016  # $PGURL expands inside the container
@@ -28,7 +28,7 @@ docker run --rm -e PGURL="$BACKUP_DB_URL" postgres:17-alpine sh -c '
   pg_dump "$PGURL" --schema=app --no-owner --no-privileges
   echo "-- Supabase Auth rows."
   for t in users identities; do
-    cols=$(psql "$PGURL" -Atq -c "select string_agg(quote_ident(attname), '"', '"' order by attnum) from pg_attribute where attrelid = '"'ops_backup.auth_$t'"'::regclass and attnum > 0 and not attisdropped")
+    cols=$(psql "$PGURL" -Atq -c "select string_agg(quote_ident(attname), '"', '"' order by attnum) from pg_attribute where attrelid = '"'"'ops_backup.auth_$t'"'"'::regclass and attnum > 0 and not attisdropped")
     echo "COPY auth.$t ($cols) FROM stdin;"
     psql "$PGURL" -Atq -c "copy (select * from ops_backup.auth_$t) to stdout"
     echo "\\."
@@ -40,7 +40,9 @@ docker run --rm -e PGURL="$BACKUP_DB_URL" postgres:17-alpine sh -c '
 
 ## Restore drill (do it once before real users sign up)
 
-1. Download the newest `thesis-db-*` artifact from the `rebuild-backup` run.
+1. Download the newest `thesis-db-*.sql.gz.gpg` file from the Supabase dashboard: Storage > `db-backups`
+   (the private bucket the workflow writes to; it keeps the newest 5). Run artifacts are no longer used, because
+   the repository is public.
 2. `gpg --decrypt thesis-db-YYYYMMDD.sql.gz.gpg | gunzip > thesis-db.sql`
 3. Split it: everything above the line `-- Supabase Auth rows.` is the app dump, the rest is the auth rows.
 4. On the target project (a new free project, or a local `supabase start`), load the auth rows **first**, as

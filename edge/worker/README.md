@@ -34,21 +34,14 @@ no dependencies. Every command below runs from this folder (`edge/worker`).
    ```
    You should see the api's health JSON.
 
-## Point a test copy at a preview function
+## What the Worker refuses
 
-Use a different Worker name so production is not touched:
-
-```
-npx wrangler@4.155.0 deploy --name thesis-front-door-m1 --var API_FUNCTION:api-m1
-```
-
-This gives a second address,
-`https://thesis-front-door-m1.<your-subdomain>.workers.dev`, that talks to
-`api-m1`. Delete it when done:
-`npx wrangler@4.155.0 delete --name thesis-front-door-m1`.
-
-Do not run `deploy --var API_FUNCTION:api-m1` without `--name`: that would point
-production at the preview.
+- `/internal/*` answers 404 here (audit S9). The scheduled jobs and the Deep Dive runner call the function
+  address directly with the internal token.
+- Every forwarded request carries `x-thesis-edge-token`. With `EDGE_TOKEN` set in Supabase, the api answers 404
+  to any direct call that has neither that token nor the internal token (audit S1), and reads the client IP only
+  from `x-thesis-client-ip`. The daily keep-alive sends the token too.
+- The preview functions `api-m1` .. `api-m4` were removed (audit S6). `API_FUNCTION` is always `api`.
 
 ## Roll back
 

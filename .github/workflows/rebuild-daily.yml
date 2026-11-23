@@ -43,6 +43,9 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
+          # GitHub runs schedules from the default branch (main), but the jobs' code is on rebuild until the
+          # cutover (audit W1). M5 changes this to main at the cutover.
+          ref: rebuild
           persist-credentials: false
 
       - name: Time-window guard
@@ -257,9 +260,9 @@ jobs:
     if: ${{ !cancelled() && needs.daily.outputs.run == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 12
+    # Audit S9: the api URL and internal token are set only on the steps that call the api, never on the
+    # install step, which runs package code.
     env:
-      THESIS_API_URL: ${{ secrets.THESIS_API_URL }}
-      THESIS_INTERNAL_TOKEN: ${{ secrets.THESIS_INTERNAL_TOKEN }}
       PER_RUN: ${{ vars.DEEP_DIVE_PRECOMPUTE_PER_RUN || '1' }}
       RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
       PYTHONUNBUFFERED: "1"
@@ -268,10 +271,16 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
+          # GitHub runs schedules from the default branch (main), but the jobs' code is on rebuild until the
+          # cutover (audit W1). M5 changes this to main at the cutover.
+          ref: rebuild
           persist-credentials: false
 
       - name: Create precompute jobs
         id: plan
+        env:
+          THESIS_API_URL: ${{ secrets.THESIS_API_URL }}
+          THESIS_INTERNAL_TOKEN: ${{ secrets.THESIS_INTERNAL_TOKEN }}
         run: python3 jobs/daily/precompute_plan.py "$RUNNER_TEMP/precompute-jobs.txt"
 
       - name: Set up Node.js
@@ -285,7 +294,7 @@ jobs:
         run: |
           corepack enable
           corepack prepare pnpm@10.6.1 --activate
-          corepack pnpm install --frozen-lockfile --filter "@thesis/dexter-worker..." --filter thesis-fintech
+          corepack pnpm install --frozen-lockfile --ignore-scripts --filter "@thesis/dexter-worker..." --filter thesis-fintech
 
       - name: Build pipeline
         if: steps.plan.outputs.count != '0'
@@ -295,6 +304,8 @@ jobs:
       - name: Run Deep Dives
         if: steps.plan.outputs.count != '0'
         env:
+          THESIS_API_URL: ${{ secrets.THESIS_API_URL }}
+          THESIS_INTERNAL_TOKEN: ${{ secrets.THESIS_INTERNAL_TOKEN }}
           NODE_ENV: development
           DEXTER_FIXTURE_MODE: "true"
         run: |

@@ -5,6 +5,7 @@ name: rebuild-edge-deploy
 # Secrets: CLOUDFLARE_API_TOKEN (template "Edit Cloudflare Workers"), CLOUDFLARE_ACCOUNT_ID.
 # Optional: EDGE_TOKEN (same value as the api function secret EDGE_TOKEN), so the api trusts the client IP the
 # Worker sends. Secrets go to the tools as env vars and are never echoed. Without the token the job skips.
+# Audit S4: the Worker's tests run first, and a failure stops the deploy.
 on:
   push:
     branches: [rebuild]
@@ -26,15 +27,25 @@ jobs:
     defaults:
       run:
         working-directory: edge/worker
-    env:
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-      EDGE_TOKEN: ${{ secrets.EDGE_TOKEN }}
     steps:
       - name: Check out repository
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Set up Deno
+        uses: denoland/setup-deno@e95548e56dfa95d4e1a28d6f422fafe75c4c26fb # v2.0.3
+        with:
+          deno-version: v2.1.x
+
+      - name: Test
+        run: deno test --allow-env src
 
       - name: Deploy Worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          EDGE_TOKEN: ${{ secrets.EDGE_TOKEN }}
         run: |
           if [ -z "${CLOUDFLARE_API_TOKEN:-}" ] || [ -z "${CLOUDFLARE_ACCOUNT_ID:-}" ]; then
             echo "Cloudflare secrets are not set yet. Skipping."

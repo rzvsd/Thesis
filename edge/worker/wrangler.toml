@@ -7,7 +7,7 @@ workers_dev = true
 
 [vars]
 API_ORIGIN = "https://oizahjzcowflmrffoxjg.supabase.co"
-# "api" is production. A preview can use: npx wrangler@4.155.0 deploy --var API_FUNCTION:api-m1
+# Always "api". The Worker ignores any other value (the preview functions were removed, audit S6).
 API_FUNCTION = "api"
 
 [triggers]
