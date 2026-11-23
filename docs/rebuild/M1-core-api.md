@@ -23,6 +23,9 @@ The app logs in, edits the watchlist and reads Pulse and reports through the fro
 - **Store**: copy the Postgres queries these routes need from `apps/product-api/src/store.ts` into `_lib/store/`.
   They run unchanged because the database role's search path is `app`.
 - **Tests** (H8): port the product-api tests for these routes so they drive the new handlers (Request in, Response out).
+- **Backup of auth users** (H11): the weekly dump covers schema `app` only. Add an export of `auth.users` and
+  `auth.identities` to the recovery plan (ask the coordinator to change `jobs/ops/backup.sh`, which M0 owns), and a
+  restore drill note. Needed before anyone but the owner signs up.
 - Admin seed script (N11): reads the password from an env var, marks the account as a test account, never runs on its own.
 - Debug APK: `./gradlew assembleDebug -PAPI_BASE_URL=<worker url>`.
 

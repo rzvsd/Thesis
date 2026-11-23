@@ -56,6 +56,13 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Security | Secret Scan (gitleaks)
+        run: |
+          docker run --rm \
+            -v "$GITHUB_WORKSPACE:/repo" \
+            zricethezav/gitleaks:v8.24.2 \
+            detect --source /repo --config /repo/.gitleaks.toml --no-banner --redact
+
   validate:
     needs: changes
     if: needs.changes.outputs.legacy == 'true'

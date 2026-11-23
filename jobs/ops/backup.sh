@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Dumps schemas app and auth with pg_dump 17 and encrypts the file with a passphrase.
+# Dumps schema app with pg_dump 17 (auth.users is not included yet; see docs/rebuild/DECISIONS.md ADR 16) and encrypts the file with a passphrase.
 # Reads BACKUP_DB_URL and BACKUP_PASSPHRASE from the environment. Never prints either.
 # Restore: gpg --decrypt thesis-db.sql.gz.gpg | gunzip | psql "<target url>"
 set -euo pipefail

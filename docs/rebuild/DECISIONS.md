@@ -114,7 +114,7 @@ The plan's ADRs 1-10 stay, with these changes. M5 writes them as real ADR files.
 | 13 Secrets | new | D5 |
 | 14 Tests | new | Request-in Response-out handlers; tests next to new code; old tests stay until M5 (H8) |
 | 15 PDF and Pulse | new | D4 |
-| 16 Backup and keep-alive | new | Weekly encrypted dump workflow; Worker cron keep-alive; size alert (H11) |
+| 16 Backup and keep-alive | new | Weekly encrypted dump workflow; Worker cron keep-alive; size alert (H11). The M0 dump covers schema `app` only. `auth.users` rows are not in it yet, and `app.users.auth_user_id` points at them, so M1 (owner of auth) adds an auth export to the recovery plan before real users sign up |
 | 17 Rate limits and spend caps | new | `app.rate_limits` counter table, daily dispatch cap, LLM spend caps (N3, C2) |
 
 ## Free-tier limits checked on 2026-11-23
