@@ -10,6 +10,8 @@ import { evaluateContrarian } from "../../../_lib/evaluators/contrarian.ts";
 import { evaluateCrossName } from "../../../_lib/evaluators/cross_name.ts";
 import { type EvaluatorDeps, makeDeps } from "../../../_lib/evaluators/deps.ts";
 import { storageReportReader } from "../../../_lib/evaluators/report_port.ts";
+import { jobsDeepDiveQueue } from "../../../_lib/evaluators/deep_dive_queue.ts";
+import { jobsDeps } from "../../../_lib/jobs/wiring.ts";
 import { dispatchWeeklyDigest } from "../../../_lib/evaluators/digest.ts";
 import { dispatchEarningsPreview } from "../../../_lib/evaluators/earnings_preview.ts";
 import { listFeedbackQueue } from "../../../_lib/evaluators/feedback.ts";
@@ -31,6 +33,14 @@ import {
 } from "../../../_lib/evaluators/pulse/dispatch.ts";
 import { PostgresPulseJobStore, storageArtifacts } from "../../../_lib/evaluators/pulse/store.ts";
 import { recomputeMonitor } from "../../../_lib/evaluators/monitor.ts";
+import {
+  postgresPrecomputeStore,
+  type PrecomputeDeps,
+  precomputeLimitsFromEnv,
+  runDeepDivePrecompute,
+} from "../../../_lib/evaluators/precompute.ts";
+import { postgresJobsStore } from "../../../_lib/jobs/store.ts";
+import { appendAuditEvent } from "../../../_lib/store/reports.ts";
 import { ingestPrices, listPriceTickers } from "../../../_lib/evaluators/prices.ts";
 import { refreshResearchState } from "../../../_lib/evaluators/research_state.ts";
 import type { EvalMeta, EvalResult } from "../../../_lib/evaluators/result.ts";
@@ -42,7 +52,10 @@ import type { FeatureModule, Route, RouteContext } from "../../router.ts";
 let current: EvaluatorDeps | undefined;
 
 function deps(): EvaluatorDeps {
-  current ??= makeDeps(new PostgresEvaluatorStore(db), { reports: storageReportReader });
+  current ??= makeDeps(new PostgresEvaluatorStore(db), {
+    reports: storageReportReader,
+    deepDiveQueue: jobsDeepDiveQueue(jobsDeps),
+  });
   return current;
 }
 
@@ -63,6 +76,23 @@ function pulseDeps(): PulseDeps {
     schemaVersion: env("MARKET_PULSE_SCHEMA_VERSION")?.trim() || defaultPulseSchemaVersion,
   };
   return currentPulse;
+}
+
+let currentPrecompute: PrecomputeDeps | undefined;
+
+function precomputeDeps(): PrecomputeDeps {
+  currentPrecompute ??= {
+    store: postgresPrecomputeStore(db(), postgresJobsStore(db())),
+    now: () => new Date(),
+    ...precomputeLimitsFromEnv(),
+    audit: (eventType, payload) => appendAuditEvent(eventType, payload),
+  };
+  return currentPrecompute;
+}
+
+// Tests swap in a fake store. Pass undefined to go back to the real one.
+export function setPrecomputeDeps(next: PrecomputeDeps | undefined): void {
+  currentPrecompute = next;
 }
 
 // Tests swap in memory stores. Pass undefined to go back to the real ones.
@@ -158,6 +188,17 @@ export const feature: FeatureModule = {
         const parsed = await readBody(ctx.req);
         if (!parsed.ok) return parsed.res;
         return respond(await dispatchMarketPulse(pulseDeps(), parsed.body, meta(ctx)));
+      },
+    },
+    // Creates system Deep Dive jobs; the daily workflow runs them in process (N7). No runner per ticker.
+    {
+      method: "POST",
+      path: "/internal/deep-dive/precompute",
+      auth: "internal",
+      handler: async (ctx) => {
+        const parsed = await readBody(ctx.req);
+        if (!parsed.ok) return parsed.res;
+        return respond(await runDeepDivePrecompute(precomputeDeps(), parsed.body, meta(ctx)));
       },
     },
   ],

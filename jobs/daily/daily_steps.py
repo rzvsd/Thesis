@@ -87,12 +87,6 @@ DAILY_STEPS: dict[str, Step] = {
         ),
         Step(name="contrarian", route="/internal/notifications/contrarian/evaluate"),
         Step(name="research-state-refresh", route="/internal/research-state/refresh"),
-        # TODO(M3 phase B): enable after M2's queue merges. One call; the api loops tickers with a cap (N7).
-        Step(
-            name="deep-dive-precompute",
-            route="/internal/deep-dive/precompute",
-            enabled=False,
-            disabled_reason="phase B: needs the M2 job queue",
-        ),
+        # Deep Dive precompute runs as jobs/daily/precompute_plan.py plus the M2 runner (precompute job).
     )
 }

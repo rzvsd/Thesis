@@ -11,7 +11,7 @@ import guard
 import run_step
 from daily_steps import DAILY_STEPS, pulse_cycle_window
 from fake_api import make_client
-from runner import PaginationError, StepContext, post_paginated, run_step as run_one, summarize
+from runner import PaginationError, Step, StepContext, post_paginated, run_step as run_one, summarize
 from weekly_steps import WEEKLY_STEPS
 
 
@@ -86,7 +86,7 @@ def test_daily_order_and_bodies_match_old_scheduler() -> None:
     ]
     # Pulse runs as jobs/data/run_pulse.py (it sends fetched inputs), not as a route step.
     assert "pulse-dispatch" not in DAILY_STEPS
-    assert not DAILY_STEPS["deep-dive-precompute"].enabled
+    assert "deep-dive-precompute" not in DAILY_STEPS
 
 
 def test_war_room_fallback_users_feed_earnings_preview(tmp_path: Path) -> None:
@@ -116,7 +116,8 @@ def test_signal_source_bodies(tmp_path: Path) -> None:
 
 def test_disabled_step_makes_no_call(tmp_path: Path) -> None:
     client, transport = make_client(lambda method, path, body: (200, {}))
-    assert run_one(DAILY_STEPS["deep-dive-precompute"], client, ctx_for(tmp_path)) == {"skipped": True}
+    step = Step(name="off", route="/internal/x", enabled=False, disabled_reason="test")
+    assert run_one(step, client, ctx_for(tmp_path)) == {"skipped": True}
     assert transport.calls == []
 
 

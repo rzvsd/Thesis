@@ -496,6 +496,11 @@ export async function dispatchEarningsWarRoom(
         ticker: room.ticker,
         createdAt: now,
       });
+      // No refresh started (cap reached or runner down): keep the room open and try again next run.
+      if (!queued) {
+        postDeferred += 1;
+        continue;
+      }
       const triggerKey = `war_room_post:${room.id}:${asOf}`;
 
       const rules = await deps.store.listActiveKillSwitchRules({ asOfIso: now, userIds: [room.userId] });
