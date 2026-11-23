@@ -5,14 +5,16 @@ import { env } from "../../../_shared/env.ts";
 import { json } from "../../../_shared/http.ts";
 import type { FeatureModule, RouteContext } from "../../router.ts";
 
-export type DbProbe = () => Promise<{ app_tables: number; users_visible: boolean }>;
+// db_role shows which role the api connects as (audit S5): thesis_api once THESIS_DB_URL is set, else postgres.
+export type DbProbe = () => Promise<{ app_tables: number; users_visible: boolean; db_role?: string }>;
 
 export const probeDb: DbProbe = async () => {
   const sql = db();
-  const [row] = await sql<{ app_tables: number; users_visible: boolean }[]>`
+  const [row] = await sql<{ app_tables: number; users_visible: boolean; db_role: string }[]>`
     select
       (select count(*)::int from information_schema.tables where table_schema = 'app') as app_tables,
-      (to_regclass('users') is not null) as users_visible`;
+      (to_regclass('users') is not null) as users_visible,
+      current_user::text as db_role`;
   return row;
 };
 
