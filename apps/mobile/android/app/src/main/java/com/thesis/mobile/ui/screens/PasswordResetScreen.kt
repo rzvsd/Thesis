@@ -60,7 +60,7 @@ fun PasswordResetScreen(
         Text("Reset password", style = ThesisTypography.headlineMedium, color = ThesisColors.TextPrimary)
         Text(
             text = if (codeSent) {
-                "Enter the code from the email and choose a new password (min 8 characters)."
+                "Enter the code from the email and choose a new password (min 10 characters)."
             } else {
                 "Enter your account email. We will send you a reset code."
             },
@@ -109,7 +109,7 @@ fun PasswordResetScreen(
                         if (error == null) codeSent = true
                     }
                 } else {
-                    mainViewModel.confirmPasswordReset(code, newPassword) { error ->
+                    mainViewModel.confirmPasswordReset(email, code, newPassword) { error ->
                         busy = false
                         if (error == null) {
                             onDone()
@@ -121,7 +121,7 @@ fun PasswordResetScreen(
                 }
             },
             enabled = !busy && if (codeSent) {
-                code.isNotBlank() && newPassword.length >= 8
+                code.isNotBlank() && newPassword.length >= 10
             } else {
                 email.isNotBlank()
             },

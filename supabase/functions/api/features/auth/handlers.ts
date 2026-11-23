@@ -7,6 +7,7 @@ import { maybeBootstrapAdmin } from "../../../_lib/auth/bootstrap.ts";
 import { mayRegister, MIN_NEW_PASSWORD_LENGTH } from "../../../_lib/auth/config.ts";
 import { isEmailExists, isWeakPassword } from "../../../_lib/auth/gotrue.ts";
 import {
+  isOtpCode,
   isValidEmail,
   looksLikeJwt,
   mapSession,
@@ -105,10 +106,20 @@ export function verify(get: () => AuthDeps): Handler {
 
     const invalid = () =>
       apiError(400, "invalid_verification_token", "The verification token is invalid or expired.");
-    const code = parseCode(token);
-    // Untagged codes are tried as signup confirmations only.
-    if (!code || (code.tag !== null && code.tag !== "v1s" && code.tag !== "v1m")) return invalid();
-    const res = await d.gotrue.verify(code.tag ? TAG_TYPES[code.tag] : "signup", code.hash);
+    let res;
+    if (isOtpCode(token)) {
+      // The 6-digit code from the email (audit V3) needs the address it went to.
+      const email = normalizeEmail(body.email);
+      if (!isValidEmail(email)) {
+        return apiError(422, "validation_failed", "email is required with a 6-digit code");
+      }
+      res = await d.gotrue.verifyOtp("signup", email, token);
+    } else {
+      const code = parseCode(token);
+      // Untagged codes are tried as signup confirmations only.
+      if (!code || (code.tag !== null && code.tag !== "v1s" && code.tag !== "v1m")) return invalid();
+      res = await d.gotrue.verify(code.tag ? TAG_TYPES[code.tag] : "signup", code.hash);
+    }
     if (!res.ok || !res.data?.user?.id) return invalid();
     // Verifying signs the user in on Supabase's side; we do not hand out that session.
     if (res.data.access_token) d.defer(d.gotrue.logout(res.data.access_token, "local"));

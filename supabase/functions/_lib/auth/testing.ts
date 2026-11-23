@@ -14,6 +14,8 @@ interface FakeUser {
   confirmed: boolean;
   confirmationToken?: string;
   recoveryToken?: string;
+  confirmationOtp?: string;
+  recoveryOtp?: string;
   appMetadata: Record<string, unknown>;
 }
 
@@ -27,6 +29,12 @@ export interface OutboxEntry {
   kind: "signup" | "recovery" | "magiclink";
   email: string;
   tokenHash: string;
+  // The short code ({{ .Token }}) the same email carries.
+  otp: string;
+}
+
+function sixDigits(): string {
+  return String(crypto.getRandomValues(new Uint32Array(1))[0] % 1_000_000).padStart(6, "0");
 }
 
 function hex(n: number): string {
@@ -163,7 +171,13 @@ export class FakeGoTrue {
       const u = this.byEmail(body.email);
       if (u && !u.confirmed) {
         u.confirmationToken = hex(28);
-        this.outbox.push({ kind: "signup", email: u.email, tokenHash: u.confirmationToken });
+        u.confirmationOtp = sixDigits();
+        this.outbox.push({
+          kind: "signup",
+          email: u.email,
+          tokenHash: u.confirmationToken,
+          otp: u.confirmationOtp,
+        });
       }
       return ok({});
     }
@@ -171,18 +185,35 @@ export class FakeGoTrue {
       const u = this.byEmail(body.email);
       if (!u) return path === "/otp" ? err(422, "otp_disabled", "Signups not allowed for otp") : ok({});
       u.recoveryToken = hex(28);
+      u.recoveryOtp = sixDigits();
       this.outbox.push({
         kind: path === "/recover" ? "recovery" : "magiclink",
         email: u.email,
         tokenHash: u.recoveryToken,
+        otp: u.recoveryOtp,
       });
       return ok({});
     }
     if (method === "POST" && path === "/verify") {
-      const field = body.type === "signup" ? "confirmationToken" : "recoveryToken";
+      const signup = body.type === "signup";
+      const field = signup ? "confirmationToken" : "recoveryToken";
+      if (body.email !== undefined || body.token !== undefined) {
+        // Short code: email + token. Using it also uses up the long code of the same email.
+        const u = this.byEmail(body.email);
+        const otpField = signup ? "confirmationOtp" : "recoveryOtp";
+        if (u && u[otpField] && u[otpField] === body.token) {
+          u[otpField] = undefined;
+          u[field] = undefined;
+          u.confirmed = true;
+          return ok(this.session(u.id));
+        }
+        return err(403, "otp_expired", "Token has expired or is invalid");
+      }
       for (const u of this.users.values()) {
         if (u[field] && u[field] === body.token_hash) {
           u[field] = undefined;
+          if (signup) u.confirmationOtp = undefined;
+          else u.recoveryOtp = undefined;
           u.confirmed = true;
           return ok(this.session(u.id));
         }

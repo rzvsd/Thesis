@@ -1105,7 +1105,7 @@ private fun AuthScreen(
     message: String?,
     onSaveApiBaseUrl: (String) -> Unit,
     onRegister: (String, String) -> Unit,
-    onVerify: (String) -> Unit,
+    onVerify: (email: String, code: String) -> Unit,
     onLogin: (String, String) -> Unit
 ) {
     var showPasswordReset by rememberSaveable { mutableStateOf(false) }
@@ -1419,13 +1419,13 @@ private fun AuthScreen(
                             value = verifyToken,
                             onValueChange = { verifyToken = it },
                             modifier = Modifier.fillMaxWidth(),
-                            label = { Text("Verification token") },
+                            label = { Text("Code from the email") },
                             singleLine = true,
                             shape = tfShape,
                             colors = tfColors
                         )
                         Button(
-                            onClick = { onVerify(verifyToken) },
+                            onClick = { onVerify(email, verifyToken) },
                             enabled = !isLoading,
                             modifier = Modifier
                                 .fillMaxWidth()
