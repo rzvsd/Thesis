@@ -1,0 +1,321 @@
+name: rebuild-daily
+
+# Daily data and evaluator pass for the serverless rebuild. Owner: M3 (docs/rebuild/OWNERSHIP.md).
+# One job, many steps (rebuild audit H6). Budget: 450 minutes a month (DECISIONS.md D7).
+# Two UTC crons cover 06:30 New York in summer (10:30 UTC) and winter (11:30 UTC). The first step
+# checks New York local time and skips the rest unless it is 06:00-08:59 (audit N6).
+# Every step is safe to run twice for one market date. Path filters do not apply to schedules.
+# Secrets reach only the steps that call the api, through env. Nothing here prints them.
+on:
+  schedule:
+    - cron: "30 10 * * 1-5"
+    - cron: "30 11 * * 1-5"
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Skip the 06:00-08:59 New York time check"
+        type: boolean
+        default: true
+
+# Data steps must not be killed half way, so a new run waits for the running one.
+concurrency:
+  group: rebuild-daily
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  daily:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      run: ${{ steps.guard.outputs.run }}
+    env:
+      # Fixture data unless the owner sets the repository variable THESIS_DATA_LIVE to "true".
+      DATA_OPENBB_FIXTURE_MODE: ${{ vars.THESIS_DATA_LIVE == 'true' && 'false' || 'true' }}
+      PRICE_PROVIDER: ${{ vars.PRICE_PROVIDER || 'none' }}
+      SEC_USER_AGENT: ${{ vars.SEC_USER_AGENT }}
+      STEP_TIMEOUT_SECONDS: "240"
+      PYTHONUNBUFFERED: "1"
+      PYTHONDONTWRITEBYTECODE: "1"
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          # GitHub runs schedules from the default branch (main), but the jobs' code is on rebuild until the
+          # cutover (audit W1). M5 changes this to main at the cutover.
+          ref: rebuild
+          persist-credentials: false
+
+      - name: Time-window guard
+        id: guard
+        env:
+          FORCE: ${{ inputs.force }}
+          SCHEDULE: ${{ github.event.schedule }}
+        run: python3 jobs/daily/guard.py
+
+      - name: Check secrets
+        id: secrets
+        if: steps.guard.outputs.run == 'true'
+        env:
+          THESIS_API_URL: ${{ secrets.THESIS_API_URL }}
+          THESIS_INTERNAL_TOKEN: ${{ secrets.THESIS_INTERNAL_TOKEN }}
+        run: |
+          missing=""
+          [ -n "${THESIS_API_URL}" ] || missing="${missing} THESIS_API_URL"
+          [ -n "${THESIS_INTERNAL_TOKEN}" ] || missing="${missing} THESIS_INTERNAL_TOKEN"
+          if [ -n "${missing}" ]; then
+            echo "::error::Missing repository secret(s):${missing}. Add them under Settings > Secrets and variables > Actions."
+            exit 1
+          fi
+          echo "Secrets are set."
+
+      - name: Set up Python
+        if: steps.guard.outputs.run == 'true' && steps.secrets.outcome == 'success'
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: jobs/data/requirements.txt
+
+      - name: Install dependencies
+        id: deps
+        if: steps.guard.outputs.run == 'true' && steps.secrets.outcome == 'success'
+        timeout-minutes: 4
+        run: python -m pip install --quiet --disable-pip-version-check -r jobs/data/requirements.txt
+
+      - name: Install private OpenBB fork (live mode with FINBASE_READ_TOKEN only)
+        if: steps.guard.outputs.run == 'true' && steps.secrets.outcome == 'success' && env.DATA_OPENBB_FIXTURE_MODE == 'false'
+        timeout-minutes: 6
+        env:
+          FINBASE_READ_TOKEN: ${{ secrets.FINBASE_READ_TOKEN }}
+        run: |
+          if [ -z "${FINBASE_READ_TOKEN}" ]; then
+            echo "FINBASE_READ_TOKEN is not set; skipping the private OpenBB fork."
+            exit 0
+          fi
+          export GIT_CONFIG_COUNT=1
+          export GIT_CONFIG_KEY_0="url.https://x-access-token:${FINBASE_READ_TOKEN}@github.com/rzvsd/finBase.git.insteadOf"
+          export GIT_CONFIG_VALUE_0="https://github.com/rzvsd/finBase.git"
+          python -m pip install --quiet --disable-pip-version-check -r jobs/data/requirements-live.txt
+
+      # ---- Data scripts (jobs/data). Each step runs even if an earlier one failed.
+
+      - name: Macro stress
+        id: macro
+        if: ${{ !cancelled() && steps.guard.outputs.run == 'true' && steps.secrets.outcome == 'success' }}
+        timeout-minutes: 5
+        env:
+          THESIS_API_URL: ${{ secrets.THESIS_API_URL }}
+          THESIS_INTERNAL_TOKEN: ${{ secrets.THESIS_INTERNAL_TOKEN }}
+        run: python jobs/data/run_macro.py
+
+      - name: Calendar sync
+        id: calendar
+        if: ${{ !cancelled() && steps.guard.outputs.run == 'true' && steps.secrets.outcome == 'success' }}
+        timeout-minutes: 5
+        env:
+          THESIS_API_URL: ${{ secrets.THESIS_API_URL }}
+          THESIS_INTERNAL_TOKEN: ${{ secrets.THESIS_INTERNAL_TOKEN }}
+        run: python jobs/data/run_calendar.py
+
+      - name: Prices
+        id: prices
+        if: ${{ !cancelled() && steps.guard.outputs.run == 'true' && steps.secrets.outcome == 'success' }}
+        timeout-minutes: 5
+        env:
+          THESIS_API_URL: ${{ secrets.THESIS_API_URL }}
+          THESIS_INTERNAL_TOKEN: ${{ secrets.THESIS_INTERNAL_TOKEN }}
+        run: python jobs/data/run_prices.py
+
+      # ---- Evaluators, in the old scheduler order (jobs/daily/daily_steps.py).
+
+      - name: Earnings war room
+        id: war_room
+        if: ${{ !cancelled() && steps.guard.outputs.run == 'true' && steps.secrets.outcome == 'success' }}
+        timeout-minutes: 5
+        env:
+          THESIS_API_URL: ${{ secrets.THESIS_API_URL }}
+          THESIS_INTERNAL_TOKEN: ${{ secrets.THESIS_INTERNAL_TOKEN }}
+        run: python jobs/daily/run_step.py earnings-war-room
+
+      - name: Kill switch
+        id: kill_switch
+        if: ${{ !cancelled() && steps.guard.outputs.run == 'true' && steps.secrets.outcome == 'success' }}
+        timeout-minutes: 5
+        env:
+          THESIS_API_URL: ${{ secrets.THESIS_API_URL }}
+          THESIS_INTERNAL_TOKEN: ${{ secrets.THESIS_INTERNAL_TOKEN }}
+        run: python jobs/daily/run_step.py kill-switch
+
+      - name: Cross-name
+        id: cross_name
+        if: ${{ !cancelled() && steps.guard.outputs.run == 'true' && steps.secrets.outcome == 'success' }}
+        timeout-minutes: 5
+        env:
+          THESIS_API_URL: ${{ secrets.THESIS_API_URL }}
+          THESIS_INTERNAL_TOKEN: ${{ secrets.THESIS_INTERNAL_TOKEN }}
+        run: python jobs/daily/run_step.py cross-name
+
+      - name: Monitor recompute
+        id: monitor
+        if: ${{ !cancelled() && steps.guard.outputs.run == 'true' && steps.secrets.outcome == 'success' }}
+        timeout-minutes: 5
+        env:
+          THESIS_API_URL: ${{ secrets.THESIS_API_URL }}
+          THESIS_INTERNAL_TOKEN: ${{ secrets.THESIS_INTERNAL_TOKEN }}
+        run: python jobs/daily/run_step.py monitor-recompute
+
+      - name: Freshness decay
+        id: freshness
+        if: ${{ !cancelled() && steps.guard.outputs.run == 'true' && steps.secrets.outcome == 'success' }}
+        timeout-minutes: 5
+        env:
+          THESIS_API_URL: ${{ secrets.THESIS_API_URL }}
+          THESIS_INTERNAL_TOKEN: ${{ secrets.THESIS_INTERNAL_TOKEN }}
+        run: python jobs/daily/run_step.py freshness-decay
+
+      - name: Earnings preview
+        id: earnings_preview
+        if: ${{ !cancelled() && steps.guard.outputs.run == 'true' && steps.secrets.outcome == 'success' }}
+        timeout-minutes: 5
+        env:
+          THESIS_API_URL: ${{ secrets.THESIS_API_URL }}
+          THESIS_INTERNAL_TOKEN: ${{ secrets.THESIS_INTERNAL_TOKEN }}
+        run: python jobs/daily/run_step.py earnings-preview
+
+      - name: Contrarian
+        id: contrarian
+        if: ${{ !cancelled() && steps.guard.outputs.run == 'true' && steps.secrets.outcome == 'success' }}
+        timeout-minutes: 5
+        env:
+          THESIS_API_URL: ${{ secrets.THESIS_API_URL }}
+          THESIS_INTERNAL_TOKEN: ${{ secrets.THESIS_INTERNAL_TOKEN }}
+        run: python jobs/daily/run_step.py contrarian
+
+      - name: Research state refresh
+        id: research_state
+        if: ${{ !cancelled() && steps.guard.outputs.run == 'true' && steps.secrets.outcome == 'success' }}
+        timeout-minutes: 5
+        env:
+          THESIS_API_URL: ${{ secrets.THESIS_API_URL }}
+          THESIS_INTERNAL_TOKEN: ${{ secrets.THESIS_INTERNAL_TOKEN }}
+        run: python jobs/daily/run_step.py research-state-refresh
+
+      # ---- Pulse issue (M3 phase B). Fetches the old data-openbb and news-ingest inputs and sends them to
+      # /internal/pulse/dispatch; the api builds and stores the issue and writes the market_pulse_ready inbox rows.
+      # MARKET_PULSE_TICKERS must match the api's setting of the same name (default AAPL,MSFT,TSLA).
+
+      - name: Pulse issue
+        id: pulse
+        if: ${{ !cancelled() && steps.guard.outputs.run == 'true' && steps.secrets.outcome == 'success' }}
+        timeout-minutes: 6
+        env:
+          THESIS_API_URL: ${{ secrets.THESIS_API_URL }}
+          THESIS_INTERNAL_TOKEN: ${{ secrets.THESIS_INTERNAL_TOKEN }}
+          MARKET_PULSE_TICKERS: ${{ vars.MARKET_PULSE_TICKERS }}
+        run: |
+          if [ "${DATA_OPENBB_FIXTURE_MODE}" = "false" ]; then
+            python -m pip install --quiet --disable-pip-version-check -r jobs/data/requirements-news.txt
+          fi
+          python jobs/data/run_pulse.py
+
+      - name: Result
+        if: ${{ !cancelled() && steps.guard.outputs.run == 'true' }}
+        env:
+          OUTCOMES: >-
+            secrets=${{ steps.secrets.outcome }}
+            deps=${{ steps.deps.outcome }}
+            macro=${{ steps.macro.outcome }}
+            calendar=${{ steps.calendar.outcome }}
+            prices=${{ steps.prices.outcome }}
+            war_room=${{ steps.war_room.outcome }}
+            kill_switch=${{ steps.kill_switch.outcome }}
+            cross_name=${{ steps.cross_name.outcome }}
+            monitor=${{ steps.monitor.outcome }}
+            freshness=${{ steps.freshness.outcome }}
+            earnings_preview=${{ steps.earnings_preview.outcome }}
+            contrarian=${{ steps.contrarian.outcome }}
+            research_state=${{ steps.research_state.outcome }}
+            pulse=${{ steps.pulse.outcome }}
+        run: |
+          failed=0
+          for item in ${OUTCOMES}; do
+            echo "${item}"
+            case "${item}" in *=failure) failed=1 ;; esac
+          done
+          if [ "${failed}" = "1" ]; then
+            echo "::error::One or more daily steps failed. See the step logs above."
+            exit 1
+          fi
+          echo "All daily steps passed."
+
+  # Deep Dive precompute (audit N7). The api creates at most PER_RUN system jobs; this job claims and runs them
+  # one after another with the M2 runner, in process. It never starts one Actions run per ticker and never uses
+  # the user dispatch cap. Fixture mode until the owner sets an LLM budget (AGENTS rule 11).
+  # Budget: about 5 minutes on a day with one job, 1 minute when nothing is stale (DECISIONS D7).
+  precompute:
+    needs: daily
+    if: ${{ !cancelled() && needs.daily.outputs.run == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    # Audit S9: the api URL and internal token are set only on the steps that call the api, never on the
+    # install step, which runs package code.
+    env:
+      PER_RUN: ${{ vars.DEEP_DIVE_PRECOMPUTE_PER_RUN || '1' }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      PYTHONUNBUFFERED: "1"
+      PYTHONDONTWRITEBYTECODE: "1"
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          # GitHub runs schedules from the default branch (main), but the jobs' code is on rebuild until the
+          # cutover (audit W1). M5 changes this to main at the cutover.
+          ref: rebuild
+          persist-credentials: false
+
+      - name: Create precompute jobs
+        id: plan
+        env:
+          THESIS_API_URL: ${{ secrets.THESIS_API_URL }}
+          THESIS_INTERNAL_TOKEN: ${{ secrets.THESIS_INTERNAL_TOKEN }}
+        run: python3 jobs/daily/precompute_plan.py "$RUNNER_TEMP/precompute-jobs.txt"
+
+      - name: Set up Node.js
+        if: steps.plan.outputs.count != '0'
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+
+      - name: Install runner dependencies
+        if: steps.plan.outputs.count != '0'
+        run: |
+          corepack enable
+          corepack prepare pnpm@10.6.1 --activate
+          corepack pnpm install --frozen-lockfile --ignore-scripts --filter "@thesis/dexter-worker..." --filter thesis-fintech
+
+      - name: Build pipeline
+        if: steps.plan.outputs.count != '0'
+        working-directory: apps/dexter-worker
+        run: corepack pnpm exec tsc -p tsconfig.json
+
+      - name: Run Deep Dives
+        if: steps.plan.outputs.count != '0'
+        env:
+          THESIS_API_URL: ${{ secrets.THESIS_API_URL }}
+          THESIS_INTERNAL_TOKEN: ${{ secrets.THESIS_INTERNAL_TOKEN }}
+          NODE_ENV: development
+          DEXTER_FIXTURE_MODE: "true"
+        run: |
+          failed=0
+          while read -r JOB_ID; do
+            [ -n "${JOB_ID}" ] || continue
+            export JOB_ID
+            claim="$RUNNER_TEMP/claim-${JOB_ID}.json"
+            if ! node jobs/deep-dive/claim.mts "${claim}"; then failed=1; continue; fi
+            [ -f "${claim}" ] || continue
+            node jobs/deep-dive/main.mts "${claim}" || failed=1
+          done < "$RUNNER_TEMP/precompute-jobs.txt"
+          exit "${failed}"
