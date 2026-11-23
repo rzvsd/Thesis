@@ -5,7 +5,8 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { env } from "../../_shared/env.ts";
 
 // Supabase Auth rate-limits /token and /verify per caller IP. Every call comes from this function, so without
-// forwarding, all users would share one bucket. With a secret API key (SUPABASE_AUTH_SECRET_KEY, "sb_secret_...")
+// forwarding, all users would share one bucket. With a secret API key (AUTH_SUPABASE_SECRET_KEY, "sb_secret_...";
+// Supabase refuses custom secret names that start with SUPABASE_)
 // and "IP address forwarding" on in Authentication > Rate Limits, we send the end user's IP as sb-forwarded-for.
 // Legacy anon/service_role keys do not support forwarding, so without the secret key nothing changes.
 const clientIpStore = new AsyncLocalStorage<string>();
@@ -66,7 +67,7 @@ export class GoTrueClient {
   constructor(opts: GoTrueOptions = {}) {
     const url = opts.url ?? env("SUPABASE_URL");
     this.base = url ? `${url.replace(/\/+$/, "")}/auth/v1` : undefined;
-    this.secretKey = opts.secretKey ?? env("SUPABASE_AUTH_SECRET_KEY");
+    this.secretKey = opts.secretKey ?? env("AUTH_SUPABASE_SECRET_KEY");
     this.anonKey = opts.anonKey ?? this.secretKey ?? env("SUPABASE_ANON_KEY");
     this.serviceKey = opts.serviceKey ?? env("SUPABASE_SERVICE_ROLE_KEY");
     this.fetchFn = opts.fetch ?? ((input, init) => fetch(input, init));
