@@ -44,9 +44,10 @@ jobs:
       - name: Test
         run: deno test --allow-env --allow-net=127.0.0.1
 
-      # Deno-tested code outside supabase/functions: the Deep Dive runner (M2) and the Cloudflare front door (M1).
+      # Deno-tested code outside supabase/functions: the Deep Dive runner (M2), the Cloudflare front door (M1)
+      # and the backup store script (jobs/ops).
       - name: Test runner and front door
-        run: deno test --allow-env ../../jobs/deep-dive ../../edge/worker
+        run: deno test --allow-env ../../jobs/deep-dive ../../edge/worker ../../jobs/ops
 
   jobs-python:
     runs-on: ubuntu-latest

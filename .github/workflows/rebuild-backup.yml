@@ -2,7 +2,10 @@ name: rebuild-backup
 
 # Weekly encrypted dump of the Supabase database (rebuild audit H11). Owner: M0.
 # Dormant until the owner sets BACKUP_DB_URL (pooler URL of the read-only role thesis_backup) and BACKUP_PASSPHRASE.
-# The dump is encrypted before upload and kept as a run artifact for 35 days. About 2 minutes a week.
+# The dump is encrypted, then stored in the private Supabase Storage bucket "db-backups". The newest 5 files are
+# kept. It is not a run artifact: this repository is public, and anyone signed in to GitHub can download artifacts.
+# Storing needs the secret BACKUP_STORAGE_KEY (a Supabase secret key). If the dump exists and that secret is
+# missing, the run fails so the gap is seen. About 2 minutes a week.
 on:
   schedule:
     - cron: "17 3 * * 0"
@@ -30,11 +33,16 @@ jobs:
           BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
         run: bash jobs/ops/backup.sh
 
-      - name: Upload encrypted dump
+      - name: Set up Node.js
         if: steps.dump.outputs.file != ''
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          name: thesis-db-${{ github.run_id }}
-          path: ${{ steps.dump.outputs.file }}
-          retention-days: 35
-          if-no-files-found: error
+          node-version: 22
+
+      - name: Store in the private bucket
+        if: steps.dump.outputs.file != ''
+        env:
+          SUPABASE_URL: https://oizahjzcowflmrffoxjg.supabase.co
+          BACKUP_STORAGE_KEY: ${{ secrets.BACKUP_STORAGE_KEY }}
+          BACKUP_FILE: ${{ steps.dump.outputs.file }}
+        run: node jobs/ops/backup_store.mts "$BACKUP_FILE"
