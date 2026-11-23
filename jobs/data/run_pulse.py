@@ -132,8 +132,9 @@ def main(client: ApiClient | None = None, now: datetime | None = None, env: Mapp
     log("INFO", "Pulse dispatch answered", http_status=response.status,
         deduplicated=response.body.get("deduplicated"), job_id=job.get("job_id"), job_status=job.get("status"),
         report_id=job.get("report_id"))
-    if job.get("status") == "failed":
-        log("ERROR", "Pulse job failed", job_id=job.get("job_id"))
+    if job.get("status") != "complete":
+        # failed, or a build still open from another call: either way today's issue is not stored yet.
+        log("ERROR", "Pulse job not complete", job_id=job.get("job_id"), job_status=job.get("status"))
         return EXIT_FAILED
     return EXIT_OK
 

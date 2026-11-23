@@ -8,7 +8,7 @@ import type { EvaluatorDeps } from "../../../_lib/evaluators/deps.ts";
 import { MemoryPulseArtifacts, MemoryPulseJobStore } from "../../../_lib/evaluators/pulse/store_memory.ts";
 import inputs from "../../../_lib/evaluators/pulse/testdata/inputs.json" with { type: "json" };
 import { setPulseDeps } from "./index.ts";
-import { addUser, call, post, recordingPush, setup, snapshot } from "./test_support.ts";
+import { addUser, call, NOW, post, recordingPush, setup, snapshot } from "./test_support.ts";
 
 const ROUTE = "/internal/pulse/dispatch";
 const CYCLE = { cycle_start: "2026-03-26T10:30:00.000Z", cycle_end: "2026-03-27T10:30:00.000Z" };
@@ -79,6 +79,27 @@ Deno.test("pulse: the same cycle_start is deduplicated with 200 and no second bu
   assertEquals(jobs.jobs.length, 1);
   assertEquals(jobs.reports.length, 1);
   assertEquals(store.alerts.length, 1);
+});
+
+Deno.test("pulse: a build cut off mid-way is failed and rebuilt; a fresh open one is deduplicated", async () => {
+  const { store, jobs } = pulseSetup();
+  addUser(store, "free1");
+  const base = { type: "market_pulse" as const, cycleStart: CYCLE.cycle_start, cycleEnd: CYCLE.cycle_end };
+  const now = NOW.getTime();
+  jobs.jobs.push({
+    ...base,
+    id: "fresh",
+    status: "running",
+    createdAt: new Date(now - 60_000).toISOString(),
+  });
+  const open = await post(ROUTE, { ...CYCLE, inputs });
+  assertEquals([open.status, open.body.deduplicated], [200, true]);
+
+  jobs.jobs[0].createdAt = new Date(now - 10 * 60_000).toISOString();
+  const rebuilt = await post(ROUTE, { ...CYCLE, inputs });
+  assertEquals([rebuilt.status, rebuilt.body.deduplicated], [202, false]);
+  assertEquals((rebuilt.body.job as Job).status, "complete");
+  assertEquals(jobs.jobs.find((j) => j.id === "fresh")?.status, "failed");
 });
 
 Deno.test("pulse: force_fail fails the job; a failed cycle can run again", async () => {

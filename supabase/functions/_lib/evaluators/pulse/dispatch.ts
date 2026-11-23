@@ -71,6 +71,15 @@ function optionalText(value: unknown): string | undefined | false {
   return value.trim() || undefined;
 }
 
+// Edge Functions stop a request after 150 s, so an open build older than this can never finish.
+export const STALE_PULSE_JOB_MS = 5 * 60_000;
+
+export function isStalePulseJob(job: PulseJobRecord, now: Date): boolean {
+  if (job.status !== "queued" && job.status !== "running") return false;
+  const since = Date.parse(job.startedAt ?? job.createdAt);
+  return Number.isFinite(since) && now.getTime() - since > STALE_PULSE_JOB_MS;
+}
+
 export async function dispatchMarketPulse(
   deps: PulseDeps,
   body: Record<string, unknown>,
@@ -95,7 +104,13 @@ export async function dispatchMarketPulse(
 
   const existing = await deps.jobs.findJobByCycleStart(cycleStart);
   if (existing && existing.status !== "failed") {
-    return ok({ deduplicated: true, job: jobStatusResponse(existing) });
+    // A queued or running build older than the function's wall clock was cut off (no sweeper covers Pulse
+    // jobs). Fail it and build again, so a retry of the daily step recovers the cycle.
+    if (!isStalePulseJob(existing, now)) {
+      return ok({ deduplicated: true, job: jobStatusResponse(existing) });
+    }
+    await deps.jobs.markJobFailed(existing.id, now.toISOString(), "Pulse build stopped before finishing.");
+    logInfo("Stale Pulse job failed before rebuild", { job_id: existing.id });
   }
 
   const job = await deps.jobs.createJob({
