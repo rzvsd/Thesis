@@ -1,0 +1,3 @@
+# Private OpenBB fork. Installed only when the FINBASE_READ_TOKEN secret is set and live mode is on.
+# No ported fetch imports openbb today (calendar uses yfinance, official data uses SEC and stdlib).
+git+https://github.com/rzvsd/finBase.git@dddc3b328284bb953b6e5468b167b39c78490001#subdirectory=openbb_platform

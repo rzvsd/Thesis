@@ -1,0 +1,21 @@
+{
+  "$id": "OfficialMissingFieldState",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["field", "reason", "message"],
+  "properties": {
+    "field": { "type": "string" },
+    "reason": {
+      "type": "string",
+      "enum": [
+        "not_reported",
+        "not_applicable",
+        "source_unavailable",
+        "parser_unsupported",
+        "outside_seed_scope"
+      ]
+    },
+    "source_id": { "type": "string" },
+    "message": { "type": "string" }
+  }
+}

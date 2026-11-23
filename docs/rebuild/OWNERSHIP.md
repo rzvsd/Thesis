@@ -72,11 +72,11 @@ grants). Any milestone's code may read or write rows through the `api` function 
 
 | Owner | Tables |
 | --- | --- |
-| M0 | `audit_events`, `rate_limits` |
+| M0 | `audit_events`, `rate_limits` (M3 owns the 90-day `pg_cron` trim of `audit_events`, migration `20261126083000_m3_audit_trim.sql`) |
 | M1 | `users`, `sessions`, `verification_tokens`, `account_action_tokens`, `user_google_identities`, `user_devices`, `user_email_preferences`, `notification_preferences`, `watchlists`, `user_research_holdings`, `report_notes`, `report_shares` |
-| M2 | `jobs`, `deep_dive_daily_usage`, `reports` |
+| M2 | `jobs`, `deep_dive_daily_usage`, `reports`, `deep_dive_dispatch_daily`, the Storage bucket `report-artifacts` (coordinator, 2026-11-23) |
 | M3 | `ticker_registry`, `ticker_coverage`, `financial_snapshots`, `transcripts`, `calendar_events`, `canonical_events`, `call_artifacts`, `first_party_context_items`, `name_relationships`, `conviction_insight_cards`, `conviction_journal_entries`, `scenario_stress_templates`, `scenario_stress_runs`, `scenario_stress_impacts`, `scenario_stress_rule_suggestions`, `fear_greed_daily`, `alert_ledger`, `contrarian_alert_anchors`, `kill_switch_rules`, `kill_switch_evaluations`, `thesis_monitor_snapshots`, `war_rooms`, `war_room_timeline_events`, `opposite_case_reports`, `user_research_states`, `user_feedback_queue` |
-| M4 | `subscriptions`, Storage buckets and their policies |
+| M4 | `subscriptions`, Storage buckets and their policies (except `report-artifacts`, M2) |
 
 New tables: the milestone that creates one owns it. Name new tables so the owner is clear from the feature.
 
