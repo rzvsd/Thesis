@@ -1,0 +1,2 @@
+# Local test tools only. CI compiles jobs/ and does not run these tests.
+pytest==8.3.4

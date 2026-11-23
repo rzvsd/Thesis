@@ -1,9 +1,126 @@
-// Feature "internal-data". Owner: M3 (docs/rebuild/OWNERSHIP.md). Empty until M3 adds its routes.
-// See docs/rebuild/contract.md for the routes this feature serves.
-import type { FeatureModule } from "../../router.ts";
+// Feature "internal-data". Owner: M3 (docs/rebuild/OWNERSHIP.md, docs/rebuild/M3-design.md).
+// Internal routes the daily and weekly jobs call: data ingest, macro, calendar, prices and the evaluators.
+// All routes need the internal token. The logic lives in _lib/evaluators; this file only parses the request
+// and turns an EvalResult into a Response.
+import { db } from "../../../_shared/db.ts";
+import { apiError, json } from "../../../_shared/http.ts";
+import { evaluateCoherence } from "../../../_lib/evaluators/coherence.ts";
+import { evaluateContrarian } from "../../../_lib/evaluators/contrarian.ts";
+import { evaluateCrossName } from "../../../_lib/evaluators/cross_name.ts";
+import { type EvaluatorDeps, makeDeps } from "../../../_lib/evaluators/deps.ts";
+import { storageReportReader } from "../../../_lib/evaluators/report_port.ts";
+import { dispatchWeeklyDigest } from "../../../_lib/evaluators/digest.ts";
+import { dispatchEarningsPreview } from "../../../_lib/evaluators/earnings_preview.ts";
+import { listFeedbackQueue } from "../../../_lib/evaluators/feedback.ts";
+import { dispatchFreshnessDecay } from "../../../_lib/evaluators/freshness.ts";
+import {
+  ingestCanonicalEvents,
+  ingestFirstPartyContext,
+  ingestNameRelationships,
+  listCanonicalEvents,
+  listFirstPartyContext,
+} from "../../../_lib/evaluators/ingest.ts";
+import { evaluateKillSwitch } from "../../../_lib/evaluators/kill_switch.ts";
+import { dispatchMacroStress, syncCalendar } from "../../../_lib/evaluators/macro.ts";
+import { recomputeMonitor } from "../../../_lib/evaluators/monitor.ts";
+import { ingestPrices, listPriceTickers } from "../../../_lib/evaluators/prices.ts";
+import { refreshResearchState } from "../../../_lib/evaluators/research_state.ts";
+import type { EvalMeta, EvalResult } from "../../../_lib/evaluators/result.ts";
+import { PostgresEvaluatorStore } from "../../../_lib/evaluators/store_pg.ts";
+import { dispatchEarningsWarRoom } from "../../../_lib/evaluators/war_room.ts";
+import type { FeatureModule, Route, RouteContext } from "../../router.ts";
+
+// Built on first use so importing this module never opens a database connection.
+let current: EvaluatorDeps | undefined;
+
+function deps(): EvaluatorDeps {
+  current ??= makeDeps(new PostgresEvaluatorStore(db), { reports: storageReportReader });
+  return current;
+}
+
+// Tests swap in a memory store and a fixed clock. Pass undefined to go back to Postgres.
+export function setInternalDataDeps(next: EvaluatorDeps | undefined): void {
+  current = next;
+}
+
+type BodyResult = { ok: true; body: Record<string, unknown> } | { ok: false; res: Response };
+
+// An empty body is {}. Bad JSON is 400; JSON that is not an object is 422.
+async function readBody(req: Request): Promise<BodyResult> {
+  const text = await req.text();
+  if (!text.trim()) return { ok: true, body: {} };
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    return { ok: false, res: apiError(400, "invalid_json", "Request body must be valid JSON.") };
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return { ok: false, res: apiError(422, "validation_failed", "Request body must be a JSON object.") };
+  }
+  return { ok: true, body: parsed as Record<string, unknown> };
+}
+
+function respond(result: EvalResult): Response {
+  return json(result.body, result.status);
+}
+
+function meta(ctx: RouteContext): EvalMeta {
+  return { requestId: ctx.req.headers.get("x-request-id") ?? crypto.randomUUID(), route: ctx.path };
+}
+
+type PostHandler = (d: EvaluatorDeps, body: Record<string, unknown>, m: EvalMeta) => Promise<EvalResult>;
+type GetHandler = (d: EvaluatorDeps, query: URLSearchParams) => Promise<EvalResult>;
+
+function post(path: string, run: PostHandler): Route {
+  return {
+    method: "POST",
+    path,
+    auth: "internal",
+    handler: async (ctx) => {
+      const parsed = await readBody(ctx.req);
+      if (!parsed.ok) return parsed.res;
+      return respond(await run(deps(), parsed.body, meta(ctx)));
+    },
+  };
+}
+
+function get(path: string, run: GetHandler): Route {
+  return {
+    method: "GET",
+    path,
+    auth: "internal",
+    handler: async (ctx) => respond(await run(deps(), ctx.url.searchParams)),
+  };
+}
 
 export const feature: FeatureModule = {
   name: "internal-data",
   owner: "M3",
-  routes: [],
+  routes: [
+    // Ingest and reads.
+    post("/internal/canonical-events/ingest", (d, b) => ingestCanonicalEvents(d, b)),
+    get("/internal/canonical-events", listCanonicalEvents),
+    post("/internal/first-party/context/ingest", (d, b) => ingestFirstPartyContext(d, b)),
+    get("/internal/first-party/context", listFirstPartyContext),
+    post("/internal/name-relationships/ingest", ingestNameRelationships),
+    // Market data sent by the job scripts.
+    post("/internal/macro-stress/dispatch", dispatchMacroStress),
+    post("/internal/sentiment/dispatch", dispatchMacroStress),
+    post("/internal/calendar/sync", syncCalendar),
+    get("/internal/data/price-tickers", (d) => listPriceTickers(d)),
+    post("/internal/data/prices/ingest", ingestPrices),
+    // Evaluators.
+    post("/internal/notifications/earnings-war-room", dispatchEarningsWarRoom),
+    post("/internal/notifications/earnings-preview", dispatchEarningsPreview),
+    post("/internal/notifications/cross-name/evaluate", evaluateCrossName),
+    post("/internal/notifications/kill-switch/evaluate", evaluateKillSwitch),
+    post("/internal/notifications/freshness-decay", dispatchFreshnessDecay),
+    post("/internal/notifications/contrarian/evaluate", evaluateContrarian),
+    post("/internal/notifications/weekly-digest", dispatchWeeklyDigest),
+    post("/internal/conviction/coherence/evaluate", evaluateCoherence),
+    post("/internal/monitor/recompute", recomputeMonitor),
+    post("/internal/research-state/refresh", refreshResearchState),
+    get("/internal/feedback/queue", listFeedbackQueue),
+  ],
 };

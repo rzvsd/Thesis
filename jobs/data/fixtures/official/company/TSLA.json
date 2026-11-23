@@ -1,0 +1,63 @@
+{
+  "ticker": "TSLA",
+  "cik": "0001318605",
+  "company_name": "Tesla, Inc.",
+  "retrieved_at": "2026-04-17T00:00:00.000Z",
+  "retrieval": {
+    "source": {
+      "source_id": "SEC_COMPANY_TSLA",
+      "source_family": "sec_edgar",
+      "source_name": "SEC EDGAR company truth for TSLA",
+      "source_url": "https://data.sec.gov/submissions/CIK0001318605.json",
+      "agency": "SEC",
+      "agency_series_id": "CIK0001318605"
+    },
+    "retrieved_at": "2026-04-17T00:00:00.000Z",
+    "retrieval_status": "fresh",
+    "source_period": "2026-04-17"
+  },
+  "missing_fields": [],
+  "filings": [
+    {
+      "form": "10-K",
+      "filing_date": "2026-01-31",
+      "accession_number": "0001318605-26-000011"
+    }
+  ],
+  "facts": {
+    "entity_name": "Tesla, Inc.",
+    "taxonomy_count": 1
+  },
+  "canonical_events": [
+    {
+      "id": "official-company-tsla-0001318605-26-000011",
+      "family": "filing_posted",
+      "subject_type": "ticker",
+      "subject_id": "TSLA",
+      "title": "TSLA 10-K filed with SEC",
+      "occurred_at": "2026-01-31T00:00:00.000Z",
+      "source_state": "official",
+      "source": {
+        "source": {
+          "source_id": "SEC_COMPANY_TSLA",
+          "source_family": "sec_edgar",
+          "source_name": "SEC EDGAR company truth for TSLA",
+          "source_url": "https://data.sec.gov/submissions/CIK0001318605.json",
+          "agency": "SEC",
+          "agency_series_id": "CIK0001318605"
+        },
+        "retrieved_at": "2026-04-17T00:00:00.000Z",
+        "retrieval_status": "fresh",
+        "source_period": "2026-01-31"
+      },
+      "retrieved_at": "2026-04-17T00:00:00.000Z",
+      "missing_fields": [],
+      "metadata": {
+        "ticker": "TSLA",
+        "cik": "0001318605",
+        "form": "10-K",
+        "accession_number": "0001318605-26-000011"
+      }
+    }
+  ]
+}

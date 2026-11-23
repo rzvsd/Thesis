@@ -1,0 +1,63 @@
+{
+  "ticker": "AAPL",
+  "cik": "0000320193",
+  "company_name": "Apple Inc.",
+  "retrieved_at": "2026-04-17T00:00:00.000Z",
+  "retrieval": {
+    "source": {
+      "source_id": "SEC_COMPANY_AAPL",
+      "source_family": "sec_edgar",
+      "source_name": "SEC EDGAR company truth for AAPL",
+      "source_url": "https://data.sec.gov/submissions/CIK0000320193.json",
+      "agency": "SEC",
+      "agency_series_id": "CIK0000320193"
+    },
+    "retrieved_at": "2026-04-17T00:00:00.000Z",
+    "retrieval_status": "fresh",
+    "source_period": "2026-04-17"
+  },
+  "missing_fields": [],
+  "filings": [
+    {
+      "form": "10-Q",
+      "filing_date": "2026-01-30",
+      "accession_number": "0000320193-26-000012"
+    }
+  ],
+  "facts": {
+    "entity_name": "Apple Inc.",
+    "taxonomy_count": 1
+  },
+  "canonical_events": [
+    {
+      "id": "official-company-aapl-0000320193-26-000012",
+      "family": "filing_posted",
+      "subject_type": "ticker",
+      "subject_id": "AAPL",
+      "title": "AAPL 10-Q filed with SEC",
+      "occurred_at": "2026-01-30T00:00:00.000Z",
+      "source_state": "official",
+      "source": {
+        "source": {
+          "source_id": "SEC_COMPANY_AAPL",
+          "source_family": "sec_edgar",
+          "source_name": "SEC EDGAR company truth for AAPL",
+          "source_url": "https://data.sec.gov/submissions/CIK0000320193.json",
+          "agency": "SEC",
+          "agency_series_id": "CIK0000320193"
+        },
+        "retrieved_at": "2026-04-17T00:00:00.000Z",
+        "retrieval_status": "fresh",
+        "source_period": "2026-01-30"
+      },
+      "retrieved_at": "2026-04-17T00:00:00.000Z",
+      "missing_fields": [],
+      "metadata": {
+        "ticker": "AAPL",
+        "cik": "0000320193",
+        "form": "10-Q",
+        "accession_number": "0000320193-26-000012"
+      }
+    }
+  ]
+}

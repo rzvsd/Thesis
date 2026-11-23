@@ -1,0 +1,63 @@
+{
+  "ticker": "MSFT",
+  "cik": "0000789019",
+  "company_name": "Microsoft Corporation",
+  "retrieved_at": "2026-04-17T00:00:00.000Z",
+  "retrieval": {
+    "source": {
+      "source_id": "SEC_COMPANY_MSFT",
+      "source_family": "sec_edgar",
+      "source_name": "SEC EDGAR company truth for MSFT",
+      "source_url": "https://data.sec.gov/submissions/CIK0000789019.json",
+      "agency": "SEC",
+      "agency_series_id": "CIK0000789019"
+    },
+    "retrieved_at": "2026-04-17T00:00:00.000Z",
+    "retrieval_status": "fresh",
+    "source_period": "2026-04-17"
+  },
+  "missing_fields": [],
+  "filings": [
+    {
+      "form": "10-Q",
+      "filing_date": "2026-01-29",
+      "accession_number": "0000789019-26-000010"
+    }
+  ],
+  "facts": {
+    "entity_name": "Microsoft Corporation",
+    "taxonomy_count": 1
+  },
+  "canonical_events": [
+    {
+      "id": "official-company-msft-0000789019-26-000010",
+      "family": "filing_posted",
+      "subject_type": "ticker",
+      "subject_id": "MSFT",
+      "title": "MSFT 10-Q filed with SEC",
+      "occurred_at": "2026-01-29T00:00:00.000Z",
+      "source_state": "official",
+      "source": {
+        "source": {
+          "source_id": "SEC_COMPANY_MSFT",
+          "source_family": "sec_edgar",
+          "source_name": "SEC EDGAR company truth for MSFT",
+          "source_url": "https://data.sec.gov/submissions/CIK0000789019.json",
+          "agency": "SEC",
+          "agency_series_id": "CIK0000789019"
+        },
+        "retrieved_at": "2026-04-17T00:00:00.000Z",
+        "retrieval_status": "fresh",
+        "source_period": "2026-01-29"
+      },
+      "retrieved_at": "2026-04-17T00:00:00.000Z",
+      "missing_fields": [],
+      "metadata": {
+        "ticker": "MSFT",
+        "cik": "0000789019",
+        "form": "10-Q",
+        "accession_number": "0000789019-26-000010"
+      }
+    }
+  ]
+}

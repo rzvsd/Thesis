@@ -1,0 +1,94 @@
+{
+  "$id": "CanonicalEvent",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "family",
+    "subject_type",
+    "subject_id",
+    "title",
+    "occurred_at",
+    "source_state",
+    "source",
+    "retrieved_at",
+    "missing_fields",
+    "metadata"
+  ],
+  "properties": {
+    "id": { "type": "string" },
+    "family": {
+      "type": "string",
+      "enum": ["filing_posted", "macro_release_published"]
+    },
+    "subject_type": {
+      "type": "string",
+      "enum": ["ticker", "macro_series"]
+    },
+    "subject_id": { "type": "string" },
+    "title": { "type": "string" },
+    "occurred_at": { "type": "string", "format": "date-time" },
+    "source_state": {
+      "type": "string",
+      "enum": ["official", "partial", "missing"]
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "retrieved_at", "retrieval_status"],
+      "properties": {
+        "source": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["source_id", "source_family", "source_name", "source_url", "agency"],
+          "properties": {
+            "source_id": { "type": "string" },
+            "source_family": {
+              "type": "string",
+              "enum": ["sec_edgar", "treasury", "bls", "bea", "eia"]
+            },
+            "source_name": { "type": "string" },
+            "source_url": { "type": "string" },
+            "agency": { "type": "string" },
+            "agency_series_id": { "type": "string" }
+          }
+        },
+        "retrieved_at": { "type": "string", "format": "date-time" },
+        "retrieval_status": {
+          "type": "string",
+          "enum": ["fresh", "partial", "stale", "unavailable"]
+        },
+        "source_period": { "type": "string" },
+        "source_revision": { "type": "string" }
+      }
+    },
+    "retrieved_at": { "type": "string", "format": "date-time" },
+    "missing_fields": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["field", "reason", "message"],
+        "properties": {
+          "field": { "type": "string" },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "not_reported",
+              "not_applicable",
+              "source_unavailable",
+              "parser_unsupported",
+              "outside_seed_scope"
+            ]
+          },
+          "source_id": { "type": "string" },
+          "message": { "type": "string" }
+        }
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  }
+}
