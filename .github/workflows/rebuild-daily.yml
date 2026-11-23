@@ -198,15 +198,25 @@ jobs:
           THESIS_INTERNAL_TOKEN: ${{ secrets.THESIS_INTERNAL_TOKEN }}
         run: python jobs/daily/run_step.py research-state-refresh
 
-      # ---- TODO(M3 phase B): enable when M1 and M2 have merged. Disabled on purpose.
+      # ---- Pulse issue (M3 phase B). Fetches the old data-openbb and news-ingest inputs and sends them to
+      # /internal/pulse/dispatch; the api builds and stores the issue and writes the market_pulse_ready inbox rows.
+      # MARKET_PULSE_TICKERS must match the api's setting of the same name (default AAPL,MSFT,TSLA).
 
-      - name: "TODO phase B: Pulse dispatch and per-user briefs (disabled)"
+      - name: Pulse issue
         id: pulse
-        if: ${{ false }}
+        if: ${{ !cancelled() && steps.guard.outputs.run == 'true' && steps.secrets.outcome == 'success' }}
+        timeout-minutes: 6
         env:
           THESIS_API_URL: ${{ secrets.THESIS_API_URL }}
           THESIS_INTERNAL_TOKEN: ${{ secrets.THESIS_INTERNAL_TOKEN }}
-        run: python jobs/daily/run_step.py pulse-dispatch
+          MARKET_PULSE_TICKERS: ${{ vars.MARKET_PULSE_TICKERS }}
+        run: |
+          if [ "${DATA_OPENBB_FIXTURE_MODE}" = "false" ]; then
+            python -m pip install --quiet --disable-pip-version-check -r jobs/data/requirements-news.txt
+          fi
+          python jobs/data/run_pulse.py
+
+      # ---- TODO(M3 phase B): enable when M2's queue has merged. Disabled on purpose.
 
       - name: "TODO phase B: Deep Dive precompute (disabled)"
         id: precompute
@@ -233,6 +243,7 @@ jobs:
             earnings_preview=${{ steps.earnings_preview.outcome }}
             contrarian=${{ steps.contrarian.outcome }}
             research_state=${{ steps.research_state.outcome }}
+            pulse=${{ steps.pulse.outcome }}
         run: |
           failed=0
           for item in ${OUTCOMES}; do

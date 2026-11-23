@@ -1,0 +1,5 @@
+# HTML parsing for the approved WSJ headline page (jobs/data/news_ingest.py), as in apps/news-ingest.
+# Installed by the daily Pulse step in live mode only. Fixture mode and the RSS sources need none of it.
+beautifulsoup4==4.12.3
+chardet==4.0.0
+news-please==1.6.16

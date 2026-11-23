@@ -1,0 +1,212 @@
+{
+  "$id": "MarketTapePack",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "as_of",
+    "coverage_state",
+    "summary",
+    "indices",
+    "cross_asset",
+    "retrievals",
+    "omissions"
+  ],
+  "properties": {
+    "as_of": { "type": "string" },
+    "coverage_state": {
+      "type": "string",
+      "enum": ["full", "partial", "limited"]
+    },
+    "summary": { "type": "string" },
+    "indices": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "instrument_id",
+          "label",
+          "family",
+          "period",
+          "direction",
+          "retrieval",
+          "missing_fields"
+        ],
+        "properties": {
+          "instrument_id": { "type": "string" },
+          "label": { "type": "string" },
+          "family": {
+            "type": "string",
+            "enum": ["core_index", "volatility", "rates", "commodity", "currency", "credit", "sector"]
+          },
+          "period": { "type": "string" },
+          "value": { "type": "number" },
+          "previous_value": { "type": "number" },
+          "daily_change": { "type": "number" },
+          "daily_change_pct": { "type": "number" },
+          "unit": { "type": "string" },
+          "direction": {
+            "type": "string",
+            "enum": ["up", "down", "flat"]
+          },
+          "retrieval": { "$ref": "official-retrieval-metadata.schema.json" },
+          "missing_fields": {
+            "type": "array",
+            "items": { "$ref": "official-missing-field-state.schema.json" }
+          }
+        }
+      }
+    },
+    "sector_leadership": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["basket_id", "leaders", "laggards", "notable"],
+      "properties": {
+        "basket_id": { "type": "string" },
+        "leaders": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "instrument_id",
+              "label",
+              "family",
+              "period",
+              "direction",
+              "retrieval",
+              "missing_fields"
+            ],
+            "properties": {
+              "instrument_id": { "type": "string" },
+              "label": { "type": "string" },
+              "family": {
+                "type": "string",
+                "enum": ["core_index", "volatility", "rates", "commodity", "currency", "credit", "sector"]
+              },
+              "period": { "type": "string" },
+              "value": { "type": "number" },
+              "previous_value": { "type": "number" },
+              "daily_change": { "type": "number" },
+              "daily_change_pct": { "type": "number" },
+              "unit": { "type": "string" },
+              "direction": {
+                "type": "string",
+                "enum": ["up", "down", "flat"]
+              },
+              "retrieval": { "$ref": "official-retrieval-metadata.schema.json" },
+              "missing_fields": {
+                "type": "array",
+                "items": { "$ref": "official-missing-field-state.schema.json" }
+              }
+            }
+          }
+        },
+        "laggards": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "instrument_id",
+              "label",
+              "family",
+              "period",
+              "direction",
+              "retrieval",
+              "missing_fields"
+            ],
+            "properties": {
+              "instrument_id": { "type": "string" },
+              "label": { "type": "string" },
+              "family": {
+                "type": "string",
+                "enum": ["core_index", "volatility", "rates", "commodity", "currency", "credit", "sector"]
+              },
+              "period": { "type": "string" },
+              "value": { "type": "number" },
+              "previous_value": { "type": "number" },
+              "daily_change": { "type": "number" },
+              "daily_change_pct": { "type": "number" },
+              "unit": { "type": "string" },
+              "direction": {
+                "type": "string",
+                "enum": ["up", "down", "flat"]
+              },
+              "retrieval": { "$ref": "official-retrieval-metadata.schema.json" },
+              "missing_fields": {
+                "type": "array",
+                "items": { "$ref": "official-missing-field-state.schema.json" }
+              }
+            }
+          }
+        },
+        "spread_pct": { "type": "number" },
+        "notable": { "type": "boolean" },
+        "note": { "type": "string" }
+      }
+    },
+    "cross_asset": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "instrument_id",
+          "label",
+          "family",
+          "period",
+          "direction",
+          "retrieval",
+          "missing_fields"
+        ],
+        "properties": {
+          "instrument_id": { "type": "string" },
+          "label": { "type": "string" },
+          "family": {
+            "type": "string",
+            "enum": ["core_index", "volatility", "rates", "commodity", "currency", "credit", "sector"]
+          },
+          "period": { "type": "string" },
+          "value": { "type": "number" },
+          "previous_value": { "type": "number" },
+          "daily_change": { "type": "number" },
+          "daily_change_pct": { "type": "number" },
+          "unit": { "type": "string" },
+          "direction": {
+            "type": "string",
+            "enum": ["up", "down", "flat"]
+          },
+          "retrieval": { "$ref": "official-retrieval-metadata.schema.json" },
+          "missing_fields": {
+            "type": "array",
+            "items": { "$ref": "official-missing-field-state.schema.json" }
+          }
+        }
+      }
+    },
+    "retrievals": {
+      "type": "array",
+      "items": { "$ref": "official-retrieval-metadata.schema.json" }
+    },
+    "omissions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["omission_id", "family", "reason_code", "reason_text", "blocking"],
+        "properties": {
+          "omission_id": { "type": "string" },
+          "family": {
+            "type": "string",
+            "enum": ["core_index", "volatility", "rates", "commodity", "currency", "credit", "sector", "registry"]
+          },
+          "instrument_id": { "type": "string" },
+          "reason_code": { "type": "string" },
+          "reason_text": { "type": "string" },
+          "blocking": { "type": "boolean" }
+        }
+      }
+    }
+  }
+}

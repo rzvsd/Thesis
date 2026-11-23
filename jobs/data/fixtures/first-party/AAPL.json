@@ -1,0 +1,24 @@
+{
+  "ticker": "AAPL",
+  "contexts": [
+    {
+      "context_id": "ph6m2-aapl-ir-context",
+      "source_url": "https://investor.apple.com/investor-relations/",
+      "page_type": "investor_relations",
+      "title": "Apple Investor Relations",
+      "summary": "Apple investor relations publishes investor updates, newsroom links, financial data, quarterly earnings reports, and SEC filing paths.",
+      "excerpt": "Investor Updates, Newsroom, Financial Data, Quarterly Earnings Reports.",
+      "published_at": "2026-04-17T00:00:00Z",
+      "artifacts": [
+        {
+          "artifact_id": "ph6m2-aapl-quarterly-reports",
+          "artifact_type": "earnings_release",
+          "title": "Apple quarterly earnings reports entry point",
+          "source_url": "https://investor.apple.com/investor-relations/",
+          "published_at": "2026-04-17T00:00:00Z",
+          "completeness_state": "metadata_only"
+        }
+      ]
+    }
+  ]
+}
