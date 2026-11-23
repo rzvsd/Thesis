@@ -4,7 +4,10 @@ apps/scheduler/src/server.ts (dispatchEarningsPreview) ran, at 06:30 New York:
 earnings war room, kill switch, cross-name, monitor recompute, freshness decay, then the
 earnings preview with the war room's `fallback_user_ids`. Contrarian ran at 18:00 and
 now runs in the same morning pass. Research-state refresh had no schedule; Pulse reads
-the latest state, so it runs last. The monthly coherence moved to the weekly workflow.
+the latest state, so it runs before it. The monthly coherence moved to the weekly workflow.
+
+The Pulse issue is not a plain route call: jobs/data/run_pulse.py fetches its inputs and posts them
+to /internal/pulse/dispatch with the window from pulse_cycle_window below. It runs after this list.
 """
 
 from __future__ import annotations
@@ -84,14 +87,6 @@ DAILY_STEPS: dict[str, Step] = {
         ),
         Step(name="contrarian", route="/internal/notifications/contrarian/evaluate"),
         Step(name="research-state-refresh", route="/internal/research-state/refresh"),
-        # TODO(M3 phase B): enable after M1 (_lib/pulse) and M2 (report storage) merge.
-        Step(
-            name="pulse-dispatch",
-            route="/internal/pulse/dispatch",
-            body=lambda ctx: pulse_cycle_window(ctx.now),
-            enabled=False,
-            disabled_reason="phase B: needs M1 pulse and M2 report storage",
-        ),
         # TODO(M3 phase B): enable after M2's queue merges. One call; the api loops tickers with a cap (N7).
         Step(
             name="deep-dive-precompute",

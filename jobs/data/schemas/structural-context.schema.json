@@ -1,0 +1,151 @@
+{
+  "$id": "StructuralContextPack",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "subject_type",
+    "subject_id",
+    "as_of",
+    "coverage_state",
+    "summary",
+    "observations",
+    "omissions",
+    "retrievals"
+  ],
+  "properties": {
+    "subject_type": {
+      "type": "string",
+      "enum": ["issuer", "market_pulse"]
+    },
+    "subject_id": { "type": "string" },
+    "as_of": { "type": "string" },
+    "coverage_state": {
+      "type": "string",
+      "enum": ["full", "partial", "limited"]
+    },
+    "summary": { "type": "string" },
+    "issuer_metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string" },
+        "exchange": { "type": "string" },
+        "currency": { "type": "string" },
+        "domicile_country": { "type": "string" },
+        "region": { "type": "string" },
+        "sector": { "type": "string" },
+        "industry": { "type": "string" }
+      }
+    },
+    "observations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "observation_id",
+          "family",
+          "label",
+          "summary",
+          "geography",
+          "period",
+          "source_family",
+          "retrieval",
+          "missing_fields"
+        ],
+        "properties": {
+          "observation_id": { "type": "string" },
+          "family": {
+            "type": "string",
+            "enum": [
+              "gdp_level",
+              "gdp_per_capita",
+              "population",
+              "trade_openness",
+              "debt_context",
+              "inequality",
+              "logistics",
+              "infrastructure",
+              "education",
+              "energy_access",
+              "sector_mix",
+              "gdp_growth_outlook",
+              "inflation_regime",
+              "fiscal_balance",
+              "public_debt",
+              "fx_reserves",
+              "current_account"
+            ]
+          },
+          "label": { "type": "string" },
+          "summary": { "type": "string" },
+          "geography": { "type": "string" },
+          "period": { "type": "string" },
+          "source_family": {
+            "type": "string",
+            "enum": ["sec_edgar", "treasury", "bls", "bea", "eia", "world_bank", "imf"]
+          },
+          "retrieval": { "$ref": "official-retrieval-metadata.schema.json" },
+          "missing_fields": {
+            "type": "array",
+            "items": { "$ref": "official-missing-field-state.schema.json" }
+          },
+          "value": { "type": "number" },
+          "unit": { "type": "string" }
+        }
+      }
+    },
+    "omissions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "omission_id",
+          "family",
+          "source_family",
+          "reason_code",
+          "reason_text",
+          "blocking"
+        ],
+        "properties": {
+          "omission_id": { "type": "string" },
+          "family": {
+            "type": "string",
+            "enum": [
+              "gdp_level",
+              "gdp_per_capita",
+              "population",
+              "trade_openness",
+              "debt_context",
+              "inequality",
+              "logistics",
+              "infrastructure",
+              "education",
+              "energy_access",
+              "sector_mix",
+              "gdp_growth_outlook",
+              "inflation_regime",
+              "fiscal_balance",
+              "public_debt",
+              "fx_reserves",
+              "current_account",
+              "registry"
+            ]
+          },
+          "source_family": {
+            "type": "string",
+            "enum": ["sec_edgar", "treasury", "bls", "bea", "eia", "world_bank", "imf"]
+          },
+          "reason_code": { "type": "string" },
+          "reason_text": { "type": "string" },
+          "blocking": { "type": "boolean" }
+        }
+      }
+    },
+    "retrievals": {
+      "type": "array",
+      "items": { "$ref": "official-retrieval-metadata.schema.json" }
+    }
+  }
+}

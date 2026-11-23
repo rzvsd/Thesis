@@ -1,0 +1,74 @@
+{
+  "$id": "EvidenceRightsMetadata",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "rights_class",
+    "display_mode",
+    "source_rank",
+    "source_type",
+    "can_store_full_text",
+    "can_display_excerpt",
+    "can_display_link",
+    "policy_reason",
+    "reviewed_at"
+  ],
+  "properties": {
+    "rights_class": {
+      "type": "string",
+      "enum": [
+        "official_public",
+        "first_party_public",
+        "licensed",
+        "user_provided",
+        "unknown",
+        "prohibited"
+      ]
+    },
+    "display_mode": {
+      "type": "string",
+      "enum": [
+        "full_text_allowed",
+        "excerpt_only",
+        "headline_only",
+        "link_only",
+        "internal_only_not_user_visible"
+      ]
+    },
+    "source_rank": {
+      "type": "string",
+      "enum": [
+        "official",
+        "first_party",
+        "allowlisted_context",
+        "third_party",
+        "unknown"
+      ]
+    },
+    "source_type": {
+      "type": "string",
+      "minLength": 1
+    },
+    "can_store_full_text": {
+      "type": "boolean"
+    },
+    "can_display_excerpt": {
+      "type": "boolean"
+    },
+    "can_display_link": {
+      "type": "boolean"
+    },
+    "policy_reason": {
+      "type": "string",
+      "minLength": 1
+    },
+    "reviewed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "review_expires_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  }
+}

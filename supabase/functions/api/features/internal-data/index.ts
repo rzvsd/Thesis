@@ -3,6 +3,7 @@
 // All routes need the internal token. The logic lives in _lib/evaluators; this file only parses the request
 // and turns an EvalResult into a Response.
 import { db } from "../../../_shared/db.ts";
+import { env } from "../../../_shared/env.ts";
 import { apiError, json } from "../../../_shared/http.ts";
 import { evaluateCoherence } from "../../../_lib/evaluators/coherence.ts";
 import { evaluateContrarian } from "../../../_lib/evaluators/contrarian.ts";
@@ -22,6 +23,13 @@ import {
 } from "../../../_lib/evaluators/ingest.ts";
 import { evaluateKillSwitch } from "../../../_lib/evaluators/kill_switch.ts";
 import { dispatchMacroStress, syncCalendar } from "../../../_lib/evaluators/macro.ts";
+import {
+  defaultPulseSchemaVersion,
+  dispatchMarketPulse,
+  parseTickerList,
+  type PulseDeps,
+} from "../../../_lib/evaluators/pulse/dispatch.ts";
+import { PostgresPulseJobStore, storageArtifacts } from "../../../_lib/evaluators/pulse/store.ts";
 import { recomputeMonitor } from "../../../_lib/evaluators/monitor.ts";
 import { ingestPrices, listPriceTickers } from "../../../_lib/evaluators/prices.ts";
 import { refreshResearchState } from "../../../_lib/evaluators/research_state.ts";
@@ -41,6 +49,25 @@ function deps(): EvaluatorDeps {
 // Tests swap in a memory store and a fixed clock. Pass undefined to go back to Postgres.
 export function setInternalDataDeps(next: EvaluatorDeps | undefined): void {
   current = next;
+}
+
+// Pulse build: jobs and reports rows plus Storage for the issue body. Built on first use too.
+let currentPulse: PulseDeps | undefined;
+
+function pulseDeps(): PulseDeps {
+  currentPulse ??= {
+    evaluator: deps(),
+    jobs: new PostgresPulseJobStore(db),
+    artifacts: storageArtifacts,
+    tickers: parseTickerList(env("MARKET_PULSE_TICKERS")),
+    schemaVersion: env("MARKET_PULSE_SCHEMA_VERSION")?.trim() || defaultPulseSchemaVersion,
+  };
+  return currentPulse;
+}
+
+// Tests swap in memory stores. Pass undefined to go back to the real ones.
+export function setPulseDeps(next: PulseDeps | undefined): void {
+  currentPulse = next;
 }
 
 type BodyResult = { ok: true; body: Record<string, unknown> } | { ok: false; res: Response };
@@ -122,5 +149,16 @@ export const feature: FeatureModule = {
     post("/internal/monitor/recompute", recomputeMonitor),
     post("/internal/research-state/refresh", refreshResearchState),
     get("/internal/feedback/queue", listFeedbackQueue),
+    // Pulse issue build. The daily job sends the fetched inputs; the response comes after the build.
+    {
+      method: "POST",
+      path: "/internal/pulse/dispatch",
+      auth: "internal",
+      handler: async (ctx) => {
+        const parsed = await readBody(ctx.req);
+        if (!parsed.ok) return parsed.res;
+        return respond(await dispatchMarketPulse(pulseDeps(), parsed.body, meta(ctx)));
+      },
+    },
   ],
 };

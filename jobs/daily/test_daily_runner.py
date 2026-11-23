@@ -84,7 +84,8 @@ def test_daily_order_and_bodies_match_old_scheduler() -> None:
         "contrarian",
         "research-state-refresh",
     ]
-    assert not DAILY_STEPS["pulse-dispatch"].enabled
+    # Pulse runs as jobs/data/run_pulse.py (it sends fetched inputs), not as a route step.
+    assert "pulse-dispatch" not in DAILY_STEPS
     assert not DAILY_STEPS["deep-dive-precompute"].enabled
 
 
@@ -115,7 +116,7 @@ def test_signal_source_bodies(tmp_path: Path) -> None:
 
 def test_disabled_step_makes_no_call(tmp_path: Path) -> None:
     client, transport = make_client(lambda method, path, body: (200, {}))
-    assert run_one(DAILY_STEPS["pulse-dispatch"], client, ctx_for(tmp_path)) == {"skipped": True}
+    assert run_one(DAILY_STEPS["deep-dive-precompute"], client, ctx_for(tmp_path)) == {"skipped": True}
     assert transport.calls == []
 
 

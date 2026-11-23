@@ -1,0 +1,32 @@
+{
+  "ticker": "TSLA",
+  "contexts": [
+    {
+      "context_id": "ph6m2-tsla-ir-context",
+      "source_url": "https://ir.tesla.com/",
+      "page_type": "investor_relations",
+      "title": "Tesla Investor Relations",
+      "summary": "Tesla investor relations publishes quarterly disclosures, press releases, shareholder decks, webcast links, Q&A links, SEC filing links, and other investor events.",
+      "excerpt": "Quarterly Disclosure, Press Release, Shareholder Deck, Webcast with Q&A, SEC Filing.",
+      "published_at": "2026-04-17T00:00:00Z",
+      "artifacts": [
+        {
+          "artifact_id": "ph6m2-tsla-shareholder-deck",
+          "artifact_type": "presentation",
+          "title": "Tesla shareholder deck entry point",
+          "source_url": "https://ir.tesla.com/",
+          "published_at": "2026-04-17T00:00:00Z",
+          "completeness_state": "metadata_only"
+        },
+        {
+          "artifact_id": "ph6m2-tsla-webcast",
+          "artifact_type": "webcast",
+          "title": "Tesla webcast entry point",
+          "source_url": "https://ir.tesla.com/",
+          "published_at": "2026-04-17T00:00:00Z",
+          "completeness_state": "metadata_only"
+        }
+      ]
+    }
+  ]
+}
