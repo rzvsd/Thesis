@@ -203,7 +203,11 @@ export async function syncCalendar(
     supported_rows: filtered.length,
     events_upserted: upserted.upserted,
   };
-  await appendAudit(deps.store, "calendar.sync_completed", { request_id: meta.requestId, route: meta.route, ...counts });
+  await appendAudit(deps.store, "calendar.sync_completed", {
+    request_id: meta.requestId,
+    route: meta.route,
+    ...counts,
+  });
   logInfo("Calendar sync complete", counts);
   return ok({ status: "ok", ...counts });
 }

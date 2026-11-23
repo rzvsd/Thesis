@@ -149,7 +149,9 @@ export async function dispatchFreshnessDecay(
     addTally(tally, result.push);
   }
 
-  if (tally.failed > 0) logError("Freshness-decay notification delivery partially failed", { ...tally, fired });
+  if (tally.failed > 0) {
+    logError("Freshness-decay notification delivery partially failed", { ...tally, fired });
+  }
   await appendAudit(deps.store, "freshness_decay.dispatched", {
     request_id: meta.requestId,
     route: meta.route,

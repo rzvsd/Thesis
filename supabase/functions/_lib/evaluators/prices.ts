@@ -59,7 +59,11 @@ export async function ingestPrices(
   }
   const stored = await deps.store.upsertMarketPrices([...rows.values()]);
   const counts = { market_date: marketDate, stored, unavailable, invalid };
-  await appendAudit(deps.store, "market_prices.ingested", { request_id: meta.requestId, route: meta.route, ...counts });
+  await appendAudit(deps.store, "market_prices.ingested", {
+    request_id: meta.requestId,
+    route: meta.route,
+    ...counts,
+  });
   logInfo("Market prices ingested", counts);
   return ok({ status: "ok", ...counts });
 }

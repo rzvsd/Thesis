@@ -44,9 +44,13 @@ function asFixture(value: unknown): Fixture | undefined {
   if (!ticker) return undefined;
   return {
     ticker,
-    signal_type: normalizeKillSwitchSignalType(typeof value.signal_type === "string" ? value.signal_type : undefined),
+    signal_type: normalizeKillSwitchSignalType(
+      typeof value.signal_type === "string" ? value.signal_type : undefined,
+    ),
     value: typeof value.value === "number" && Number.isFinite(value.value) ? value.value : undefined,
-    reason_text: typeof value.reason_text === "string" && value.reason_text.trim() ? value.reason_text.trim() : undefined,
+    reason_text: typeof value.reason_text === "string" && value.reason_text.trim()
+      ? value.reason_text.trim()
+      : undefined,
   };
 }
 
@@ -87,7 +91,9 @@ export function evaluatePriceMoveRule(rule: KillSwitchRuleRecord, currentPrice: 
   return {
     outcome: "not_matched",
     reasonCode: "kill_switch_no_match",
-    reasonText: `Price move ${Math.abs(movePct).toFixed(1)}% did not cross threshold ${threshold.toFixed(1)}%.`,
+    reasonText: `Price move ${Math.abs(movePct).toFixed(1)}% did not cross threshold ${
+      threshold.toFixed(1)
+    }%.`,
     observedValue: Number(movePct.toFixed(4)),
   };
 }
@@ -121,7 +127,9 @@ export async function evaluateKillSwitch(
     ? await deps.store.listActiveKillSwitchRules({ asOfIso: asOfEndIso, userIds })
     : [];
 
-  const priceTickers = [...new Set(rules.filter((r) => r.signalType === "price_move_pct").map((r) => r.ticker))];
+  const priceTickers = [
+    ...new Set(rules.filter((r) => r.signalType === "price_move_pct").map((r) => r.ticker)),
+  ];
   const prices = await latestPrices(deps, priceTickers, asOf);
 
   const snapshots = new Map<string, ThesisMonitorSnapshotRecord>();
@@ -148,7 +156,10 @@ export async function evaluateKillSwitch(
     let observedValue: number | undefined;
 
     if (rule.signalType === "price_move_pct") {
-      ({ outcome, reasonCode, reasonText, observedValue } = evaluatePriceMoveRule(rule, prices.get(rule.ticker)));
+      ({ outcome, reasonCode, reasonText, observedValue } = evaluatePriceMoveRule(
+        rule,
+        prices.get(rule.ticker),
+      ));
     } else if (rule.signalType === "thesis_state") {
       const snapshot = snapshots.get(`${rule.userId}:${rule.ticker}`);
       if (!snapshot) {
@@ -167,7 +178,8 @@ export async function evaluateKillSwitch(
     } else if (fixture) {
       outcome = "matched";
       reasonCode = "kill_switch_fixture_match";
-      reasonText = fixture.reason_text ?? `Matched fixture signal for ${fixture.ticker} (${fixture.signal_type}).`;
+      reasonText = fixture.reason_text ??
+        `Matched fixture signal for ${fixture.ticker} (${fixture.signal_type}).`;
       observedValue = fixture.value;
     }
 

@@ -71,11 +71,17 @@ export async function dispatchEarningsPreview(
       windowPastDays: 3,
       windowAheadDays: 3,
     });
-    const estimated = stateList.states.filter((s) => s.event_date === nextBiz && s.timing_state === "estimated")
+    const estimated = stateList.states.filter((s) =>
+      s.event_date === nextBiz && s.timing_state === "estimated"
+    )
       .map((s) => s.ticker);
     const stated = stateList.states.filter((s) => s.event_date === nextBiz).map((s) => s.ticker);
     const tickers = uniqueUppercaseTickers(
-      estimated.length > 0 ? estimated : stated.length > 0 ? stated : events.map((e) => e.ticker.trim().toUpperCase()),
+      estimated.length > 0
+        ? estimated
+        : stated.length > 0
+        ? stated
+        : events.map((e) => e.ticker.trim().toUpperCase()),
     );
     const lead = tickers[0];
     if (!lead) continue;
@@ -106,7 +112,12 @@ export async function dispatchEarningsPreview(
       body: `${reasonText} Tap to run a Deep Dive.`,
       reasonCode: "earnings_preview_due",
       reasonText,
-      pushData: { ...shared, reason_code: "earnings_preview_due", reason_text: reasonText, deep_link_target: route },
+      pushData: {
+        ...shared,
+        reason_code: "earnings_preview_due",
+        reason_text: reasonText,
+        deep_link_target: route,
+      },
       ledgerData: { ...shared, deep_link_target: route },
     });
     if (result.duplicate) continue;

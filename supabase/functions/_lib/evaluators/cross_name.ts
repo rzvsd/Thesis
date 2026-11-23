@@ -37,7 +37,9 @@ function asFixture(value: unknown): Fixture | undefined {
   if (!isPlainRecord(value)) return undefined;
   const source = normalizeTickerSymbol(value.source_ticker);
   if (!source) return undefined;
-  const signalType = normalizeKillSwitchSignalType(typeof value.signal_type === "string" ? value.signal_type : undefined);
+  const signalType = normalizeKillSwitchSignalType(
+    typeof value.signal_type === "string" ? value.signal_type : undefined,
+  );
   const text = (v: unknown) => (typeof v === "string" && v.trim().length > 0 ? v.trim() : undefined);
   return {
     source_ticker: source,
@@ -88,7 +90,9 @@ export async function evaluateCrossName(
       evaluated += 1;
       let watchlist = watchlists.get(rel.userId);
       if (!watchlist) {
-        watchlist = new Set((await deps.store.listWatchlistTickers(rel.userId)).map((t) => t.trim().toUpperCase()));
+        watchlist = new Set(
+          (await deps.store.listWatchlistTickers(rel.userId)).map((t) => t.trim().toUpperCase()),
+        );
         watchlists.set(rel.userId, watchlist);
       }
       if (!watchlist.has(rel.targetTicker)) {
@@ -98,7 +102,8 @@ export async function evaluateCrossName(
       const recent = await deps.store.listAlertLedgerItemsByUser({ userId: rel.userId, limit: 100 });
       if (
         recent.some((a) =>
-          a.notificationType === "cross_name_propagation" && a.context.relationship_id === rel.relationshipId &&
+          a.notificationType === "cross_name_propagation" &&
+          a.context.relationship_id === rel.relationshipId &&
           a.context.propagation_trigger_key === triggerKey
         )
       ) {
@@ -166,7 +171,9 @@ export async function evaluateCrossName(
     }
   }
 
-  if (tally.failed > 0) logError("Cross-name propagation notification delivery partially failed", { ...tally });
+  if (tally.failed > 0) {
+    logError("Cross-name propagation notification delivery partially failed", { ...tally });
+  }
   const counts = { evaluated, matched, suppressed, ...tally };
   await appendAudit(deps.store, "cross_name.propagation_evaluated", {
     request_id: meta.requestId,

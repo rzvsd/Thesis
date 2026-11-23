@@ -12,8 +12,8 @@ import {
   evidenceDisplayModes,
   evidenceRightsClasses,
   evidenceSourceRanks,
-  firstPartyFetchStates,
   type FirstPartyContextItem,
+  firstPartyFetchStates,
   firstPartyPageTypes,
   type NameRelationshipDraft,
   type NameRelationshipRecord,
@@ -33,7 +33,8 @@ export function isCanonicalEvent(value: unknown): value is CanonicalEvent {
     typeof value.subject_id === "string" &&
     typeof value.title === "string" &&
     typeof value.occurred_at === "string" &&
-    (value.source_state === "official" || value.source_state === "partial" || value.source_state === "missing") &&
+    (value.source_state === "official" || value.source_state === "partial" ||
+      value.source_state === "missing") &&
     typeof value.retrieved_at === "string" &&
     Array.isArray(value.missing_fields) &&
     isPlainRecord(value.metadata);
@@ -90,7 +91,10 @@ export function isCallArtifact(value: unknown): value is CallArtifact {
 
 // ---- Canonical events ----
 
-export async function ingestCanonicalEvents(deps: EvaluatorDeps, body: Record<string, unknown>): Promise<EvalResult> {
+export async function ingestCanonicalEvents(
+  deps: EvaluatorDeps,
+  body: Record<string, unknown>,
+): Promise<EvalResult> {
   const raw = Array.isArray(body.events) ? body.events : [];
   if (raw.length === 0) return validation("events must include at least one canonical event.");
   const invalid = raw.findIndex((e) => !isCanonicalEvent(e));
@@ -102,10 +106,14 @@ export async function ingestCanonicalEvents(deps: EvaluatorDeps, body: Record<st
 
 export async function listCanonicalEvents(deps: EvaluatorDeps, query: URLSearchParams): Promise<EvalResult> {
   const subjectTypeRaw = query.get("subject_type")?.trim();
-  const subjectType = subjectTypeRaw === "ticker" || subjectTypeRaw === "macro_series" ? subjectTypeRaw : undefined;
+  const subjectType = subjectTypeRaw === "ticker" || subjectTypeRaw === "macro_series"
+    ? subjectTypeRaw
+    : undefined;
   if (subjectTypeRaw && !subjectType) return validation("subject_type must be ticker or macro_series.");
   const familyRaw = query.get("family")?.trim();
-  const family = familyRaw === "filing_posted" || familyRaw === "macro_release_published" ? familyRaw : undefined;
+  const family = familyRaw === "filing_posted" || familyRaw === "macro_release_published"
+    ? familyRaw
+    : undefined;
   if (familyRaw && !family) return validation("family must be filing_posted or macro_release_published.");
   const limit = parsePositiveInteger(query.get("limit")?.trim(), 50, 1, 250);
   if (limit === undefined) return validation("limit must be an integer between 1 and 250.");
@@ -142,7 +150,10 @@ export async function ingestFirstPartyContext(
   });
 }
 
-export async function listFirstPartyContext(deps: EvaluatorDeps, query: URLSearchParams): Promise<EvalResult> {
+export async function listFirstPartyContext(
+  deps: EvaluatorDeps,
+  query: URLSearchParams,
+): Promise<EvalResult> {
   const limit = parsePositiveInteger(query.get("limit")?.trim(), 50, 1, 250);
   if (limit === undefined) return validation("limit must be an integer between 1 and 250.");
   const input = {
@@ -194,9 +205,10 @@ export async function sanitizeNameRelationshipDrafts(input: {
     const evidenceText = typeof candidate.evidence_text === "string" ? candidate.evidence_text.trim() : "";
     const rationale = typeof candidate.rationale === "string" ? candidate.rationale.trim() : "";
     if (confidence === undefined || evidenceText.length === 0 || rationale.length === 0) continue;
-    const relationshipId = typeof candidate.relationship_id === "string" && candidate.relationship_id.trim().length > 0
-      ? candidate.relationship_id.trim()
-      : await stableRelationshipId(input.userId, sourceTicker, targetTicker, candidate.relationship_type);
+    const relationshipId =
+      typeof candidate.relationship_id === "string" && candidate.relationship_id.trim().length > 0
+        ? candidate.relationship_id.trim()
+        : await stableRelationshipId(input.userId, sourceTicker, targetTicker, candidate.relationship_type);
     if (seen.has(relationshipId)) continue;
     seen.add(relationshipId);
     parsed.push({
@@ -208,9 +220,10 @@ export async function sanitizeNameRelationshipDrafts(input: {
       confidence,
       state: "active",
       sourceReportId: input.reportId,
-      promptVersion: typeof candidate.prompt_version === "string" && candidate.prompt_version.trim().length > 0
-        ? candidate.prompt_version.trim()
-        : "unknown",
+      promptVersion:
+        typeof candidate.prompt_version === "string" && candidate.prompt_version.trim().length > 0
+          ? candidate.prompt_version.trim()
+          : "unknown",
       evidenceText,
       rationale,
       createdAt: input.nowIso,
@@ -244,7 +257,11 @@ export async function ingestNameRelationships(
   });
   for (const r of sanitized) await deps.store.upsertNameRelationship(r);
   if (sanitized.length > 0) {
-    logInfo("Name relationships upserted", { route: meta.route, report_id: reportId, count: sanitized.length });
+    logInfo("Name relationships upserted", {
+      route: meta.route,
+      report_id: reportId,
+      count: sanitized.length,
+    });
     await appendAudit(deps.store, "name_relationships.upserted", {
       request_id: meta.requestId,
       route: meta.route,
