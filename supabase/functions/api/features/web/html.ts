@@ -3,8 +3,14 @@
 // Worker (edge/worker) puts that value back into content-type before the browser sees it.
 export const HTML_TYPE = "text/html; charset=utf-8";
 
-export function html(body: string, status = 200, headers: HeadersInit = {}): Response {
+// The Worker drops content-security-policy on HTML (it cannot tell Supabase's sandbox policy from ours), so a page's
+// own CSP must also travel as x-thesis-csp; the Worker turns it back into content-security-policy.
+export function html(body: string, status = 200, headers: HeadersInit = {}, csp?: string): Response {
   const h = new Headers(headers);
+  if (csp) {
+    h.set("content-security-policy", csp);
+    h.set("x-thesis-csp", csp);
+  }
   h.set("content-type", HTML_TYPE);
   h.set("x-thesis-content-type", HTML_TYPE);
   if (!h.has("x-content-type-options")) h.set("x-content-type-options", "nosniff");

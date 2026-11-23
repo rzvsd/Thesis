@@ -2,6 +2,7 @@
 // One upsert per request. Fixed windows: key = bucket + ip + method, window = start of the current window.
 import { apiError } from "../../_shared/http.ts";
 import { env } from "../../_shared/env.ts";
+import { timingSafeEqual } from "../../_shared/auth.ts";
 import { db } from "./common.ts";
 
 export interface LimitRule {
@@ -20,10 +21,14 @@ export const pgCounter: Counter = async (key, windowStart) => {
   return Number(rows[0]?.count ?? 1);
 };
 
-// The Worker sends the caller's IP in x-thesis-client-ip (from cf-connecting-ip).
+// The Worker sends the caller's IP in x-thesis-client-ip (from cf-connecting-ip). Anyone can call the function URL
+// directly and forge that header, so it is trusted only with the Worker's x-thesis-edge-token (secret EDGE_TOKEN,
+// set to the same value on the Worker and in Supabase). Without EDGE_TOKEN set, x-forwarded-for is used.
 export function clientIp(req: Request): string {
+  const expected = env("EDGE_TOKEN");
+  const given = req.headers.get("x-thesis-edge-token") ?? "";
   const fromEdge = req.headers.get("x-thesis-client-ip");
-  if (fromEdge) return fromEdge.trim();
+  if (fromEdge && expected && given && timingSafeEqual(given, expected)) return fromEdge.trim();
   const fwd = req.headers.get("x-forwarded-for");
   if (fwd) return fwd.split(",")[0].trim();
   return "unknown";

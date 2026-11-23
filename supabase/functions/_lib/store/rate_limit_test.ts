@@ -1,11 +1,13 @@
 import { assertEquals } from "jsr:@std/assert@1.0.13";
 import { checkRateLimit, clientIp } from "./rate_limit.ts";
 
-Deno.test("clientIp prefers the Worker header", () => {
-  const req = new Request("http://x", {
-    headers: { "x-thesis-client-ip": "1.2.3.4", "x-forwarded-for": "9.9.9.9, 8.8.8.8" },
-  });
-  assertEquals(clientIp(req), "1.2.3.4");
+Deno.test("clientIp trusts the Worker header only with the edge token", () => {
+  Deno.env.set("EDGE_TOKEN", "edge-test-value");
+  const headers = { "x-thesis-client-ip": "1.2.3.4", "x-forwarded-for": "9.9.9.9, 8.8.8.8" };
+  assertEquals(clientIp(new Request("http://x", { headers })), "9.9.9.9");
+  const good = new Request("http://x", { headers: { ...headers, "x-thesis-edge-token": "edge-test-value" } });
+  assertEquals(clientIp(good), "1.2.3.4");
+  Deno.env.delete("EDGE_TOKEN");
   assertEquals(
     clientIp(new Request("http://x", { headers: { "x-forwarded-for": "9.9.9.9, 8.8.8.8" } })),
     "9.9.9.9",
