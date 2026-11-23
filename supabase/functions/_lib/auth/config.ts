@@ -18,6 +18,26 @@ export interface AuthConfig {
   // AUTH_EXPOSE_VERIFICATION_TOKEN: return codes in responses. Only outside production (see nonProduction()).
   exposeCodes: boolean;
   bootstrap: BootstrapConfig | null;
+  // Audit S2: who may register. AUTH_REGISTRATION_OPEN=true lets anyone in (public launch). Otherwise only the
+  // emails in AUTH_INVITE_EMAILS (comma or newline separated) may register; unset means nobody can.
+  registrationOpen: boolean;
+  inviteEmails: string[];
+}
+
+// Audit S10: new passwords need at least this many characters (register and password reset).
+// Login still accepts 8, so accounts made before the change keep working.
+export const MIN_NEW_PASSWORD_LENGTH = 10;
+
+export function parseInviteList(raw: string | undefined): string[] {
+  if (!raw) return [];
+  return raw.split(/[\s,;]+/).map((e) => e.trim().toLowerCase()).filter((e) => e.includes("@"));
+}
+
+export function mayRegister(
+  cfg: Pick<AuthConfig, "registrationOpen" | "inviteEmails">,
+  email: string,
+): boolean {
+  return cfg.registrationOpen || cfg.inviteEmails.includes(email);
 }
 
 function intEnv(name: string, fallback: number): number {
@@ -51,5 +71,7 @@ export function authConfig(): AuthConfig {
     bootstrap: bootstrapOn && bEmail && bPassword
       ? { email: bEmail, password: bPassword, forcePro: boolEnv("ADMIN_BOOTSTRAP_FORCE_PRO", true) }
       : null,
+    registrationOpen: boolEnv("AUTH_REGISTRATION_OPEN", false),
+    inviteEmails: parseInviteList(env("AUTH_INVITE_EMAILS")),
   };
 }

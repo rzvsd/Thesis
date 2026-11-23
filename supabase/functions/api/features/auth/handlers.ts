@@ -4,6 +4,7 @@
 import { apiError, json } from "../../../_shared/http.ts";
 import { logInfo } from "../../../_shared/log.ts";
 import { maybeBootstrapAdmin } from "../../../_lib/auth/bootstrap.ts";
+import { mayRegister, MIN_NEW_PASSWORD_LENGTH } from "../../../_lib/auth/config.ts";
 import { isEmailExists, isWeakPassword } from "../../../_lib/auth/gotrue.ts";
 import {
   isValidEmail,
@@ -42,8 +43,16 @@ export function register(get: () => AuthDeps): Handler {
     const body = await readBody(req);
     const email = normalizeEmail(body.email);
     const password = str(body.password) ?? "";
-    if (!isValidEmail(email) || password.length < 8) {
-      return apiError(422, "validation_failed", "A valid email and password (min 8 chars) are required.");
+    const weak = () =>
+      apiError(
+        422,
+        "validation_failed",
+        `A valid email and password (min ${MIN_NEW_PASSWORD_LENGTH} chars) are required.`,
+      );
+    if (!isValidEmail(email) || password.length < MIN_NEW_PASSWORD_LENGTH) return weak();
+    // Closed test (audit S2): only invited emails. Checked before any lookup, so it reveals nothing.
+    if (!mayRegister(d.config(), email)) {
+      return apiError(403, "registration_closed", "Thesis is invite-only for now.");
     }
     const exists = () => apiError(409, "email_exists", "An account with this email already exists.");
     if (await d.store.findUserByEmail(email)) return exists();
@@ -51,9 +60,7 @@ export function register(get: () => AuthDeps): Handler {
     const created = await d.gotrue.adminCreateUser({ email, password, email_confirm: false });
     if (!created.ok) {
       if (isEmailExists(created)) return exists();
-      if (isWeakPassword(created)) {
-        return apiError(422, "validation_failed", "A valid email and password (min 8 chars) are required.");
-      }
+      if (isWeakPassword(created)) return weak();
       return unavailable();
     }
     const authId = created.data.id;

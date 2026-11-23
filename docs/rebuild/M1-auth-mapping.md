@@ -191,3 +191,25 @@ function, so without this step all users share one bucket (about 1,800 logins an
   Authentication > Rate Limits if needed.
 - Backup (DECISIONS ADR 16): the weekly dump covers schema `app` only. `auth.users` and `auth.identities` need an
   export before anyone but the owner signs up (change to `jobs/ops/backup.sh`, owned by M0).
+
+## Audit fixes (2026-11-23)
+
+From the audit of the rebuild branch (S1, S2, S7, S8, S10-S13). Function secrets, set in the Supabase dashboard
+(Edge Functions > Secrets):
+
+| Secret | Meaning |
+| --- | --- |
+| `AUTH_INVITE_EMAILS` | Emails that may register during the closed test, separated by commas. Unset means nobody can register. |
+| `AUTH_REGISTRATION_OPEN` | `true` lets anyone register (public launch). Leave unset for the closed test. |
+| `DEEP_DIVE_PRO_DAILY_LIMIT` | Optional. Deep Dives a Pro user may start per day. Default 5. |
+
+- Register answers 403 `registration_closed` for an email that is not invited. The check runs before any lookup.
+- New passwords (register, password reset) need 10 characters. Login still takes 8 for older accounts.
+- Password-reset emails: at most 3 per address per hour (table `app.rate_limits`, key hashed). Over the cap the
+  answer is the same and no email goes out.
+- With `EDGE_TOKEN` set, the function URL answers 404 to anything without the Worker's edge token or the
+  internal token. The client IP comes only from the Worker's `x-thesis-client-ip`.
+- Account delete removes the user's report files from the `report-artifacts` bucket and their report rows,
+  unless another user's report points at the same file.
+- Request bodies: 1 MiB on public and user routes (`MAX_JSON_BODY_BYTES`), 16 MiB on internal routes.
+- No CORS answer. Nightly pg_cron job `m1-trim-rate-limits` deletes rate-limit rows older than a day.

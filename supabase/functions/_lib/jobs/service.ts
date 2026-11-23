@@ -1,5 +1,6 @@
 // Deep Dive job logic behind POST /jobs, GET /jobs/:id and the runner's internal routes.
 // Copied from the old handlers in apps/product-api/src/server.ts; queue plumbing replaced by dispatch.ts.
+import { dailyDeepDiveLimitForTier } from "../store/profile_limits.ts";
 import { apiError, json } from "../../_shared/http.ts";
 import { logError, logInfo } from "../../_shared/log.ts";
 import type { ArtifactStore } from "./artifacts.ts";
@@ -62,10 +63,8 @@ export function deepDiveFingerprint(input: { ticker: string; schemaVersion: stri
   return `${input.ticker.trim().toUpperCase()}|${input.schemaVersion.trim()}|${latestPeriod}`;
 }
 
-// Limit for on-demand generation only. -1 = no limit. Same as the old server.
-export function dailyDeepDiveLimitForTier(tier: "FREE" | "PRO"): number {
-  return tier === "PRO" ? -1 : 1;
-}
+// Limit for on-demand generation only. One rule for the profile and POST /jobs (audit S8: Pro is capped too).
+export { dailyDeepDiveLimitForTier };
 
 export function dateInTimeZone(date: Date, timeZone: string): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" })

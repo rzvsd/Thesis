@@ -1,10 +1,5 @@
 import { assertEquals } from "jsr:@std/assert@1.0.13";
-import {
-  createWorker,
-  type Env,
-  type ExecutionContext,
-  upstreamPath,
-} from "./index.ts";
+import { createWorker, type Env, type ExecutionContext, upstreamPath } from "./index.ts";
 
 const env: Env = { API_ORIGIN: "https://up.example", API_FUNCTION: "api" };
 
@@ -19,9 +14,7 @@ function fakeUpstream(answer: (req: Request) => Response | Promise<Response>) {
 }
 
 Deno.test("path mapping keeps the query string", async () => {
-  const up = fakeUpstream(() =>
-    new Response("{}", { headers: { "content-type": "application/json" } })
-  );
+  const up = fakeUpstream(() => new Response("{}", { headers: { "content-type": "application/json" } }));
   const w = createWorker(up.fn);
   const res = await w.fetch(
     new Request("https://door.example/auth/login?x=1&y=two"),
@@ -49,13 +42,9 @@ Deno.test("path mapping: root, prefixed paths, preview function, other functions
   assertEquals(upstreamPath("/functions/v1/api-m1/health", "api"), null);
   assertEquals(upstreamPath("/functions/v1/other", "api"), null);
   assertEquals(upstreamPath("/apix", "api"), "/functions/v1/api/apix");
-  assertEquals(
-    upstreamPath("/watchlist", "api-m1"),
-    "/functions/v1/api-m1/watchlist",
-  );
 });
 
-Deno.test("preview var points at api-m1; a bad function name falls back to api", async () => {
+Deno.test("API_FUNCTION cannot point the Worker at another function (S6)", async () => {
   const up = fakeUpstream(() => new Response("ok"));
   const w = createWorker(up.fn);
   await w.fetch(new Request("https://door.example/health"), {
@@ -67,12 +56,26 @@ Deno.test("preview var points at api-m1; a bad function name falls back to api",
     API_FUNCTION: "evil/../x",
   });
   await w.fetch(new Request("https://door.example/health"), {});
-  assertEquals(up.seen[0].url, "https://up.example/functions/v1/api-m1/health");
+  assertEquals(up.seen[0].url, "https://up.example/functions/v1/api/health");
   assertEquals(up.seen[1].url, "https://up.example/functions/v1/api/health");
   assertEquals(
     up.seen[2].url,
     "https://oizahjzcowflmrffoxjg.supabase.co/functions/v1/api/health",
   );
+});
+
+Deno.test("internal routes are 404 at the front door and never reach the api (S9)", async () => {
+  const up = fakeUpstream(() => new Response("ok"));
+  const w = createWorker(up.fn);
+  for (const path of ["/internal/push/send", "/internal", "/functions/v1/api/internal/pulse/dispatch"]) {
+    const res = await w.fetch(new Request(`https://door.example${path}`, { method: "POST" }), env);
+    assertEquals(res.status, 404);
+    await res.body?.cancel();
+  }
+  const ok = await w.fetch(new Request("https://door.example/internalx"), env);
+  assertEquals(ok.status, 200);
+  await ok.body?.cancel();
+  assertEquals(up.seen.length, 1);
 });
 
 Deno.test("other /functions/v1 paths are 404 and never reach the api", async () => {
@@ -227,9 +230,7 @@ Deno.test("redirects pass through unfollowed", async () => {
 });
 
 Deno.test("upstream network failure is a 502 JSON error", async () => {
-  const w = createWorker(() =>
-    Promise.reject(new TypeError("connection refused"))
-  );
+  const w = createWorker(() => Promise.reject(new TypeError("connection refused")));
   const res = await w.fetch(new Request("https://door.example/watchlist"), env);
   assertEquals(res.status, 502);
   assertEquals(await res.json(), {
@@ -254,6 +255,18 @@ Deno.test("scheduled keep-alive calls GET /health?db=1 on the api", async () => 
     up.seen[0].url,
     "https://up.example/functions/v1/api/health?db=1",
   );
+  assertEquals(up.seen[0].headers.get("x-thesis-edge-token"), null);
+});
+
+Deno.test("scheduled keep-alive sends the edge token so the api answers it (S1)", async () => {
+  const up = fakeUpstream(() => new Response('{"status":"ok"}'));
+  const ctx: ExecutionContext = { waitUntil: () => {} };
+  await createWorker(up.fn).scheduled(
+    { cron: "17 4 * * *", scheduledTime: 0 },
+    { ...env, EDGE_TOKEN: "edge-test-value" },
+    ctx,
+  );
+  assertEquals(up.seen[0].headers.get("x-thesis-edge-token"), "edge-test-value");
 });
 
 Deno.test("scheduled keep-alive survives an upstream failure", async () => {

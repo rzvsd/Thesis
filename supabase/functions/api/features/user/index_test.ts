@@ -37,8 +37,8 @@ Deno.test("profile returns FREE limits, then PRO limits with billing_period_end"
     tier: "PRO",
     billing_period_end: "2099-12-31T00:00:00.000Z",
     watchlist_limit: 50,
-    daily_deep_dive_limit: -1,
-    deep_dives_remaining_today: -1,
+    daily_deep_dive_limit: 5,
+    deep_dives_remaining_today: 4,
   });
 });
 
