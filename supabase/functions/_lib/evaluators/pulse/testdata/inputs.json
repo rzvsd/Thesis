@@ -1,0 +1,2576 @@
+{
+  "market_tape": {
+    "ok": true,
+    "data": {
+      "as_of": "2026-03-27",
+      "coverage_state": "full",
+      "summary": "US risk assets were broadly higher on the day. Sector leaders were XLE, XLK, XLY; laggards were XLU, XLP, XLV. Cross-asset context: VIX down by 0.78; Treasury 10Y down by 0.11; Treasury 2Y down by 0.09; WTI down by 1.70.",
+      "indices": [
+        {
+          "instrument_id": "SP500",
+          "label": "S&P 500",
+          "family": "core_index",
+          "period": "2026-03-27",
+          "value": 5484.77,
+          "previous_value": 5375.86,
+          "daily_change": 108.91,
+          "daily_change_pct": 2.0259,
+          "unit": "index",
+          "direction": "up",
+          "retrieval": {
+            "source": {
+              "source_id": "FRED_SP500",
+              "source_family": "fred",
+              "source_name": "FRED S&P 500",
+              "source_url": "https://fred.stlouisfed.org/series/SP500",
+              "agency": "Federal Reserve Bank of St. Louis",
+              "agency_series_id": "SP500"
+            },
+            "retrieved_at": "2026-11-23T08:49:24.345696Z",
+            "retrieval_status": "fresh",
+            "source_period": "2026-03-27"
+          },
+          "missing_fields": []
+        },
+        {
+          "instrument_id": "DJIA",
+          "label": "Dow Jones Industrial Average",
+          "family": "core_index",
+          "period": "2026-03-27",
+          "value": 40143.89,
+          "previous_value": 39606.57,
+          "daily_change": 537.32,
+          "daily_change_pct": 1.3566,
+          "unit": "index",
+          "direction": "up",
+          "retrieval": {
+            "source": {
+              "source_id": "FRED_DJIA",
+              "source_family": "fred",
+              "source_name": "FRED Dow Jones Industrial Average",
+              "source_url": "https://fred.stlouisfed.org/series/DJIA",
+              "agency": "Federal Reserve Bank of St. Louis",
+              "agency_series_id": "DJIA"
+            },
+            "retrieved_at": "2026-11-23T08:49:24.345696Z",
+            "retrieval_status": "fresh",
+            "source_period": "2026-03-27"
+          },
+          "missing_fields": []
+        },
+        {
+          "instrument_id": "NASDAQCOM",
+          "label": "Nasdaq Composite",
+          "family": "core_index",
+          "period": "2026-03-27",
+          "value": 17122.44,
+          "previous_value": 16708.05,
+          "daily_change": 414.39,
+          "daily_change_pct": 2.4802,
+          "unit": "index",
+          "direction": "up",
+          "retrieval": {
+            "source": {
+              "source_id": "FRED_NASDAQCOM",
+              "source_family": "fred",
+              "source_name": "FRED Nasdaq Composite",
+              "source_url": "https://fred.stlouisfed.org/series/NASDAQCOM",
+              "agency": "Federal Reserve Bank of St. Louis",
+              "agency_series_id": "NASDAQCOM"
+            },
+            "retrieved_at": "2026-11-23T08:49:24.345696Z",
+            "retrieval_status": "fresh",
+            "source_period": "2026-03-27"
+          },
+          "missing_fields": []
+        },
+        {
+          "instrument_id": "RUSSELL2000",
+          "label": "Russell 2000",
+          "family": "core_index",
+          "period": "2026-03-27",
+          "value": 2024.15,
+          "previous_value": 1987.66,
+          "daily_change": 36.49,
+          "daily_change_pct": 1.8358,
+          "unit": "index",
+          "direction": "up",
+          "retrieval": {
+            "source": {
+              "source_id": "FRED_RUSSELL2000",
+              "source_family": "fred",
+              "source_name": "FRED Russell 2000",
+              "source_url": "https://fred.stlouisfed.org/series/RUSSELL2000",
+              "agency": "Federal Reserve Bank of St. Louis",
+              "agency_series_id": "RUSSELL2000"
+            },
+            "retrieved_at": "2026-11-23T08:49:24.345696Z",
+            "retrieval_status": "fresh",
+            "source_period": "2026-03-27"
+          },
+          "missing_fields": []
+        }
+      ],
+      "sector_leadership": {
+        "basket_id": "spdr_sector_etfs",
+        "leaders": [
+          {
+            "instrument_id": "XLE",
+            "label": "XLE",
+            "family": "sector",
+            "period": "2026-03-27",
+            "value": 91.37,
+            "previous_value": 88.63,
+            "daily_change": 2.74,
+            "daily_change_pct": 3.0915,
+            "unit": "usd",
+            "direction": "up",
+            "retrieval": {
+              "source": {
+                "source_id": "FRED_XLE",
+                "source_family": "fred",
+                "source_name": "FRED XLE",
+                "source_url": "https://fred.stlouisfed.org/series/XLE",
+                "agency": "Federal Reserve Bank of St. Louis",
+                "agency_series_id": "XLE"
+              },
+              "retrieved_at": "2026-11-23T08:49:24.345696Z",
+              "retrieval_status": "fresh",
+              "source_period": "2026-03-27"
+            },
+            "missing_fields": []
+          },
+          {
+            "instrument_id": "XLK",
+            "label": "XLK",
+            "family": "sector",
+            "period": "2026-03-27",
+            "value": 214.55,
+            "previous_value": 209.94,
+            "daily_change": 4.61,
+            "daily_change_pct": 2.1959,
+            "unit": "usd",
+            "direction": "up",
+            "retrieval": {
+              "source": {
+                "source_id": "FRED_XLK",
+                "source_family": "fred",
+                "source_name": "FRED XLK",
+                "source_url": "https://fred.stlouisfed.org/series/XLK",
+                "agency": "Federal Reserve Bank of St. Louis",
+                "agency_series_id": "XLK"
+              },
+              "retrieved_at": "2026-11-23T08:49:24.345696Z",
+              "retrieval_status": "fresh",
+              "source_period": "2026-03-27"
+            },
+            "missing_fields": []
+          },
+          {
+            "instrument_id": "XLY",
+            "label": "XLY",
+            "family": "sector",
+            "period": "2026-03-27",
+            "value": 183.41,
+            "previous_value": 180.82,
+            "daily_change": 2.59,
+            "daily_change_pct": 1.4324,
+            "unit": "usd",
+            "direction": "up",
+            "retrieval": {
+              "source": {
+                "source_id": "FRED_XLY",
+                "source_family": "fred",
+                "source_name": "FRED XLY",
+                "source_url": "https://fred.stlouisfed.org/series/XLY",
+                "agency": "Federal Reserve Bank of St. Louis",
+                "agency_series_id": "XLY"
+              },
+              "retrieved_at": "2026-11-23T08:49:24.345696Z",
+              "retrieval_status": "fresh",
+              "source_period": "2026-03-27"
+            },
+            "missing_fields": []
+          }
+        ],
+        "laggards": [
+          {
+            "instrument_id": "XLU",
+            "label": "XLU",
+            "family": "sector",
+            "period": "2026-03-27",
+            "value": 66.12,
+            "previous_value": 66.55,
+            "daily_change": -0.43,
+            "daily_change_pct": -0.6461,
+            "unit": "usd",
+            "direction": "down",
+            "retrieval": {
+              "source": {
+                "source_id": "FRED_XLU",
+                "source_family": "fred",
+                "source_name": "FRED XLU",
+                "source_url": "https://fred.stlouisfed.org/series/XLU",
+                "agency": "Federal Reserve Bank of St. Louis",
+                "agency_series_id": "XLU"
+              },
+              "retrieved_at": "2026-11-23T08:49:24.345696Z",
+              "retrieval_status": "fresh",
+              "source_period": "2026-03-27"
+            },
+            "missing_fields": []
+          },
+          {
+            "instrument_id": "XLP",
+            "label": "XLP",
+            "family": "sector",
+            "period": "2026-03-27",
+            "value": 79.02,
+            "previous_value": 79.44,
+            "daily_change": -0.42,
+            "daily_change_pct": -0.5287,
+            "unit": "usd",
+            "direction": "down",
+            "retrieval": {
+              "source": {
+                "source_id": "FRED_XLP",
+                "source_family": "fred",
+                "source_name": "FRED XLP",
+                "source_url": "https://fred.stlouisfed.org/series/XLP",
+                "agency": "Federal Reserve Bank of St. Louis",
+                "agency_series_id": "XLP"
+              },
+              "retrieved_at": "2026-11-23T08:49:24.345696Z",
+              "retrieval_status": "fresh",
+              "source_period": "2026-03-27"
+            },
+            "missing_fields": []
+          },
+          {
+            "instrument_id": "XLV",
+            "label": "XLV",
+            "family": "sector",
+            "period": "2026-03-27",
+            "value": 145.73,
+            "previous_value": 146.52,
+            "daily_change": -0.79,
+            "daily_change_pct": -0.5392,
+            "unit": "usd",
+            "direction": "down",
+            "retrieval": {
+              "source": {
+                "source_id": "FRED_XLV",
+                "source_family": "fred",
+                "source_name": "FRED XLV",
+                "source_url": "https://fred.stlouisfed.org/series/XLV",
+                "agency": "Federal Reserve Bank of St. Louis",
+                "agency_series_id": "XLV"
+              },
+              "retrieved_at": "2026-11-23T08:49:24.345696Z",
+              "retrieval_status": "fresh",
+              "source_period": "2026-03-27"
+            },
+            "missing_fields": []
+          }
+        ],
+        "spread_pct": 3.6307,
+        "notable": true,
+        "note": "Leadership derived from the reviewed sector ETF basket."
+      },
+      "cross_asset": [
+        {
+          "instrument_id": "VIXCLS",
+          "label": "VIX",
+          "family": "volatility",
+          "period": "2026-03-27",
+          "value": 17.43,
+          "previous_value": 18.21,
+          "daily_change": -0.78,
+          "daily_change_pct": -4.2834,
+          "unit": "index",
+          "direction": "down",
+          "retrieval": {
+            "source": {
+              "source_id": "FRED_VIXCLS",
+              "source_family": "fred",
+              "source_name": "FRED VIX",
+              "source_url": "https://fred.stlouisfed.org/series/VIXCLS",
+              "agency": "Federal Reserve Bank of St. Louis",
+              "agency_series_id": "VIXCLS"
+            },
+            "retrieved_at": "2026-11-23T08:49:24.345696Z",
+            "retrieval_status": "fresh",
+            "source_period": "2026-03-27"
+          },
+          "missing_fields": []
+        },
+        {
+          "instrument_id": "DGS10",
+          "label": "Treasury 10Y",
+          "family": "rates",
+          "period": "2026-03-27",
+          "value": 4.29,
+          "previous_value": 4.4,
+          "daily_change": -0.11,
+          "daily_change_pct": -2.5,
+          "unit": "percent",
+          "direction": "down",
+          "retrieval": {
+            "source": {
+              "source_id": "FRED_DGS10",
+              "source_family": "fred",
+              "source_name": "FRED Treasury 10Y",
+              "source_url": "https://fred.stlouisfed.org/series/DGS10",
+              "agency": "Federal Reserve Bank of St. Louis",
+              "agency_series_id": "DGS10"
+            },
+            "retrieved_at": "2026-11-23T08:49:24.345696Z",
+            "retrieval_status": "fresh",
+            "source_period": "2026-03-27"
+          },
+          "missing_fields": []
+        },
+        {
+          "instrument_id": "DGS2",
+          "label": "Treasury 2Y",
+          "family": "rates",
+          "period": "2026-03-27",
+          "value": 4.74,
+          "previous_value": 4.83,
+          "daily_change": -0.09,
+          "daily_change_pct": -1.8634,
+          "unit": "percent",
+          "direction": "down",
+          "retrieval": {
+            "source": {
+              "source_id": "FRED_DGS2",
+              "source_family": "fred",
+              "source_name": "FRED Treasury 2Y",
+              "source_url": "https://fred.stlouisfed.org/series/DGS2",
+              "agency": "Federal Reserve Bank of St. Louis",
+              "agency_series_id": "DGS2"
+            },
+            "retrieved_at": "2026-11-23T08:49:24.345696Z",
+            "retrieval_status": "fresh",
+            "source_period": "2026-03-27"
+          },
+          "missing_fields": []
+        },
+        {
+          "instrument_id": "DCOILWTICO",
+          "label": "WTI",
+          "family": "commodity",
+          "period": "2026-03-27",
+          "value": 79.42,
+          "previous_value": 81.12,
+          "daily_change": -1.7,
+          "daily_change_pct": -2.0957,
+          "unit": "usd_per_barrel",
+          "direction": "down",
+          "retrieval": {
+            "source": {
+              "source_id": "FRED_DCOILWTICO",
+              "source_family": "fred",
+              "source_name": "FRED WTI",
+              "source_url": "https://fred.stlouisfed.org/series/DCOILWTICO",
+              "agency": "Federal Reserve Bank of St. Louis",
+              "agency_series_id": "DCOILWTICO"
+            },
+            "retrieved_at": "2026-11-23T08:49:24.345696Z",
+            "retrieval_status": "fresh",
+            "source_period": "2026-03-27"
+          },
+          "missing_fields": []
+        },
+        {
+          "instrument_id": "DTWEXBGS",
+          "label": "Nominal Broad Dollar Index",
+          "family": "currency",
+          "period": "2026-03-27",
+          "value": 124.28,
+          "previous_value": 123.74,
+          "daily_change": 0.54,
+          "daily_change_pct": 0.4364,
+          "unit": "index",
+          "direction": "up",
+          "retrieval": {
+            "source": {
+              "source_id": "FRED_DTWEXBGS",
+              "source_family": "fred",
+              "source_name": "FRED Nominal Broad Dollar Index",
+              "source_url": "https://fred.stlouisfed.org/series/DTWEXBGS",
+              "agency": "Federal Reserve Bank of St. Louis",
+              "agency_series_id": "DTWEXBGS"
+            },
+            "retrieved_at": "2026-11-23T08:49:24.345696Z",
+            "retrieval_status": "fresh",
+            "source_period": "2026-03-27"
+          },
+          "missing_fields": []
+        },
+        {
+          "instrument_id": "BAMLH0A0HYM2",
+          "label": "US High Yield OAS",
+          "family": "credit",
+          "period": "2026-03-27",
+          "value": 3.64,
+          "previous_value": 3.57,
+          "daily_change": 0.07,
+          "daily_change_pct": 1.9608,
+          "unit": "percent",
+          "direction": "up",
+          "retrieval": {
+            "source": {
+              "source_id": "FRED_BAMLH0A0HYM2",
+              "source_family": "fred",
+              "source_name": "FRED US High Yield OAS",
+              "source_url": "https://fred.stlouisfed.org/series/BAMLH0A0HYM2",
+              "agency": "Federal Reserve Bank of St. Louis",
+              "agency_series_id": "BAMLH0A0HYM2"
+            },
+            "retrieved_at": "2026-11-23T08:49:24.345696Z",
+            "retrieval_status": "fresh",
+            "source_period": "2026-03-27"
+          },
+          "missing_fields": []
+        }
+      ],
+      "retrievals": [
+        {
+          "source": {
+            "source_id": "FRED_SP500",
+            "source_family": "fred",
+            "source_name": "FRED S&P 500",
+            "source_url": "https://fred.stlouisfed.org/series/SP500",
+            "agency": "Federal Reserve Bank of St. Louis",
+            "agency_series_id": "SP500"
+          },
+          "retrieved_at": "2026-11-23T08:49:24.345696Z",
+          "retrieval_status": "fresh",
+          "source_period": "2026-03-27"
+        },
+        {
+          "source": {
+            "source_id": "FRED_DJIA",
+            "source_family": "fred",
+            "source_name": "FRED Dow Jones Industrial Average",
+            "source_url": "https://fred.stlouisfed.org/series/DJIA",
+            "agency": "Federal Reserve Bank of St. Louis",
+            "agency_series_id": "DJIA"
+          },
+          "retrieved_at": "2026-11-23T08:49:24.345696Z",
+          "retrieval_status": "fresh",
+          "source_period": "2026-03-27"
+        },
+        {
+          "source": {
+            "source_id": "FRED_NASDAQCOM",
+            "source_family": "fred",
+            "source_name": "FRED Nasdaq Composite",
+            "source_url": "https://fred.stlouisfed.org/series/NASDAQCOM",
+            "agency": "Federal Reserve Bank of St. Louis",
+            "agency_series_id": "NASDAQCOM"
+          },
+          "retrieved_at": "2026-11-23T08:49:24.345696Z",
+          "retrieval_status": "fresh",
+          "source_period": "2026-03-27"
+        },
+        {
+          "source": {
+            "source_id": "FRED_RUSSELL2000",
+            "source_family": "fred",
+            "source_name": "FRED Russell 2000",
+            "source_url": "https://fred.stlouisfed.org/series/RUSSELL2000",
+            "agency": "Federal Reserve Bank of St. Louis",
+            "agency_series_id": "RUSSELL2000"
+          },
+          "retrieved_at": "2026-11-23T08:49:24.345696Z",
+          "retrieval_status": "fresh",
+          "source_period": "2026-03-27"
+        },
+        {
+          "source": {
+            "source_id": "FRED_VIXCLS",
+            "source_family": "fred",
+            "source_name": "FRED VIX",
+            "source_url": "https://fred.stlouisfed.org/series/VIXCLS",
+            "agency": "Federal Reserve Bank of St. Louis",
+            "agency_series_id": "VIXCLS"
+          },
+          "retrieved_at": "2026-11-23T08:49:24.345696Z",
+          "retrieval_status": "fresh",
+          "source_period": "2026-03-27"
+        },
+        {
+          "source": {
+            "source_id": "FRED_DGS10",
+            "source_family": "fred",
+            "source_name": "FRED Treasury 10Y",
+            "source_url": "https://fred.stlouisfed.org/series/DGS10",
+            "agency": "Federal Reserve Bank of St. Louis",
+            "agency_series_id": "DGS10"
+          },
+          "retrieved_at": "2026-11-23T08:49:24.345696Z",
+          "retrieval_status": "fresh",
+          "source_period": "2026-03-27"
+        },
+        {
+          "source": {
+            "source_id": "FRED_DGS2",
+            "source_family": "fred",
+            "source_name": "FRED Treasury 2Y",
+            "source_url": "https://fred.stlouisfed.org/series/DGS2",
+            "agency": "Federal Reserve Bank of St. Louis",
+            "agency_series_id": "DGS2"
+          },
+          "retrieved_at": "2026-11-23T08:49:24.345696Z",
+          "retrieval_status": "fresh",
+          "source_period": "2026-03-27"
+        },
+        {
+          "source": {
+            "source_id": "FRED_DCOILWTICO",
+            "source_family": "fred",
+            "source_name": "FRED WTI",
+            "source_url": "https://fred.stlouisfed.org/series/DCOILWTICO",
+            "agency": "Federal Reserve Bank of St. Louis",
+            "agency_series_id": "DCOILWTICO"
+          },
+          "retrieved_at": "2026-11-23T08:49:24.345696Z",
+          "retrieval_status": "fresh",
+          "source_period": "2026-03-27"
+        },
+        {
+          "source": {
+            "source_id": "FRED_DTWEXBGS",
+            "source_family": "fred",
+            "source_name": "FRED Nominal Broad Dollar Index",
+            "source_url": "https://fred.stlouisfed.org/series/DTWEXBGS",
+            "agency": "Federal Reserve Bank of St. Louis",
+            "agency_series_id": "DTWEXBGS"
+          },
+          "retrieved_at": "2026-11-23T08:49:24.345696Z",
+          "retrieval_status": "fresh",
+          "source_period": "2026-03-27"
+        },
+        {
+          "source": {
+            "source_id": "FRED_BAMLH0A0HYM2",
+            "source_family": "fred",
+            "source_name": "FRED US High Yield OAS",
+            "source_url": "https://fred.stlouisfed.org/series/BAMLH0A0HYM2",
+            "agency": "Federal Reserve Bank of St. Louis",
+            "agency_series_id": "BAMLH0A0HYM2"
+          },
+          "retrieved_at": "2026-11-23T08:49:24.345696Z",
+          "retrieval_status": "fresh",
+          "source_period": "2026-03-27"
+        },
+        {
+          "source": {
+            "source_id": "FRED_XLE",
+            "source_family": "fred",
+            "source_name": "FRED XLE",
+            "source_url": "https://fred.stlouisfed.org/series/XLE",
+            "agency": "Federal Reserve Bank of St. Louis",
+            "agency_series_id": "XLE"
+          },
+          "retrieved_at": "2026-11-23T08:49:24.345696Z",
+          "retrieval_status": "fresh",
+          "source_period": "2026-03-27"
+        },
+        {
+          "source": {
+            "source_id": "FRED_XLK",
+            "source_family": "fred",
+            "source_name": "FRED XLK",
+            "source_url": "https://fred.stlouisfed.org/series/XLK",
+            "agency": "Federal Reserve Bank of St. Louis",
+            "agency_series_id": "XLK"
+          },
+          "retrieved_at": "2026-11-23T08:49:24.345696Z",
+          "retrieval_status": "fresh",
+          "source_period": "2026-03-27"
+        },
+        {
+          "source": {
+            "source_id": "FRED_XLY",
+            "source_family": "fred",
+            "source_name": "FRED XLY",
+            "source_url": "https://fred.stlouisfed.org/series/XLY",
+            "agency": "Federal Reserve Bank of St. Louis",
+            "agency_series_id": "XLY"
+          },
+          "retrieved_at": "2026-11-23T08:49:24.345696Z",
+          "retrieval_status": "fresh",
+          "source_period": "2026-03-27"
+        },
+        {
+          "source": {
+            "source_id": "FRED_XLU",
+            "source_family": "fred",
+            "source_name": "FRED XLU",
+            "source_url": "https://fred.stlouisfed.org/series/XLU",
+            "agency": "Federal Reserve Bank of St. Louis",
+            "agency_series_id": "XLU"
+          },
+          "retrieved_at": "2026-11-23T08:49:24.345696Z",
+          "retrieval_status": "fresh",
+          "source_period": "2026-03-27"
+        },
+        {
+          "source": {
+            "source_id": "FRED_XLP",
+            "source_family": "fred",
+            "source_name": "FRED XLP",
+            "source_url": "https://fred.stlouisfed.org/series/XLP",
+            "agency": "Federal Reserve Bank of St. Louis",
+            "agency_series_id": "XLP"
+          },
+          "retrieved_at": "2026-11-23T08:49:24.345696Z",
+          "retrieval_status": "fresh",
+          "source_period": "2026-03-27"
+        },
+        {
+          "source": {
+            "source_id": "FRED_XLV",
+            "source_family": "fred",
+            "source_name": "FRED XLV",
+            "source_url": "https://fred.stlouisfed.org/series/XLV",
+            "agency": "Federal Reserve Bank of St. Louis",
+            "agency_series_id": "XLV"
+          },
+          "retrieved_at": "2026-11-23T08:49:24.345696Z",
+          "retrieval_status": "fresh",
+          "source_period": "2026-03-27"
+        }
+      ],
+      "omissions": []
+    },
+    "error_flag": false,
+    "request_id": "079302c7-3a27-4295-8ed2-89b3121fbcda",
+    "provider": "market_tape",
+    "retrieved_at": "2026-11-23T08:49:24.346811Z"
+  },
+  "macro": {
+    "ok": true,
+    "data": {
+      "scope": "daily",
+      "retrieved_at": "2026-04-17T00:00:00.000Z",
+      "missing_fields": [],
+      "observations": [
+        {
+          "registry_id": "TREASURY_DAILY_10Y",
+          "value": 4.18,
+          "unit": "percent",
+          "period": "2026-03-27",
+          "category": "rates",
+          "retrieval": {
+            "source": {
+              "source_id": "TREASURY_DAILY_10Y",
+              "source_family": "treasury",
+              "source_name": "Daily Treasury Rates - 10 Yr",
+              "source_url": "https://home.treasury.gov/resource-center/data-chart-center/interest-rates/pages/xml?data=daily_treasury_rates",
+              "agency": "U.S. Treasury",
+              "agency_series_id": "daily_treasury_rates:10 Yr"
+            },
+            "retrieved_at": "2026-04-17T00:00:00.000Z",
+            "retrieval_status": "fresh",
+            "source_period": "2026-03-27"
+          },
+          "missing_fields": []
+        },
+        {
+          "registry_id": "TREASURY_DAILY_2Y",
+          "value": 4.83,
+          "unit": "percent",
+          "period": "2026-03-27",
+          "category": "rates",
+          "retrieval": {
+            "source": {
+              "source_id": "TREASURY_DAILY_2Y",
+              "source_family": "treasury",
+              "source_name": "Daily Treasury Rates - 2 Yr",
+              "source_url": "https://home.treasury.gov/resource-center/data-chart-center/interest-rates/pages/xml?data=daily_treasury_rates",
+              "agency": "U.S. Treasury",
+              "agency_series_id": "daily_treasury_rates:2 Yr"
+            },
+            "retrieved_at": "2026-04-17T00:00:00.000Z",
+            "retrieval_status": "fresh",
+            "source_period": "2026-03-27"
+          },
+          "missing_fields": []
+        },
+        {
+          "registry_id": "BLS_CPI_U_ALL_ITEMS",
+          "value": 312.23,
+          "unit": "index",
+          "period": "2026-03-27",
+          "category": "inflation",
+          "retrieval": {
+            "source": {
+              "source_id": "BLS_CPI_U_ALL_ITEMS",
+              "source_family": "bls",
+              "source_name": "CPI-U All Items",
+              "source_url": "https://api.bls.gov/publicAPI/v2/timeseries/data/CUUR0000SA0",
+              "agency": "BLS",
+              "agency_series_id": "CUUR0000SA0"
+            },
+            "retrieved_at": "2026-04-17T00:00:00.000Z",
+            "retrieval_status": "fresh",
+            "source_period": "2026-03-27"
+          },
+          "missing_fields": []
+        },
+        {
+          "registry_id": "BLS_UNEMPLOYMENT_RATE",
+          "value": 4.0,
+          "unit": "percent",
+          "period": "2026-03-27",
+          "category": "labor",
+          "retrieval": {
+            "source": {
+              "source_id": "BLS_UNEMPLOYMENT_RATE",
+              "source_family": "bls",
+              "source_name": "Unemployment Rate",
+              "source_url": "https://api.bls.gov/publicAPI/v2/timeseries/data/LNS14000000",
+              "agency": "BLS",
+              "agency_series_id": "LNS14000000"
+            },
+            "retrieved_at": "2026-04-17T00:00:00.000Z",
+            "retrieval_status": "fresh",
+            "source_period": "2026-03-27"
+          },
+          "missing_fields": []
+        },
+        {
+          "registry_id": "BEA_REAL_GDP",
+          "value": 2.1,
+          "unit": "annualized_percent",
+          "period": "2026-Q1",
+          "category": "growth",
+          "retrieval": {
+            "source": {
+              "source_id": "BEA_REAL_GDP",
+              "source_family": "bea",
+              "source_name": "Real Gross Domestic Product",
+              "source_url": "https://apps.bea.gov/api/data/",
+              "agency": "BEA",
+              "agency_series_id": "NIPA:REAL_GDP"
+            },
+            "retrieved_at": "2026-04-17T00:00:00.000Z",
+            "retrieval_status": "fresh",
+            "source_period": "2026-Q1"
+          },
+          "missing_fields": []
+        },
+        {
+          "registry_id": "EIA_WTI_SPOT",
+          "value": 79.42,
+          "unit": "usd_per_barrel",
+          "period": "2026-03-27",
+          "category": "energy",
+          "retrieval": {
+            "source": {
+              "source_id": "EIA_WTI_SPOT",
+              "source_family": "eia",
+              "source_name": "WTI Spot Price",
+              "source_url": "https://api.eia.gov/v2/seriesid/PET.RWTC.D",
+              "agency": "EIA",
+              "agency_series_id": "PET.RWTC.D"
+            },
+            "retrieved_at": "2026-04-17T00:00:00.000Z",
+            "retrieval_status": "fresh",
+            "source_period": "2026-03-27"
+          },
+          "missing_fields": []
+        }
+      ],
+      "canonical_events": [
+        {
+          "id": "official-macro-treasury_daily_10y-2026-04-17",
+          "family": "macro_release_published",
+          "subject_type": "macro_series",
+          "subject_id": "TREASURY_DAILY_10Y",
+          "title": "Daily Treasury Rates - 10 Yr official observation published",
+          "occurred_at": "2026-03-27T00:00:00.000Z",
+          "source_state": "official",
+          "source": {
+            "source": {
+              "source_id": "TREASURY_DAILY_10Y",
+              "source_family": "treasury",
+              "source_name": "Daily Treasury Rates - 10 Yr",
+              "source_url": "https://home.treasury.gov/resource-center/data-chart-center/interest-rates/pages/xml?data=daily_treasury_rates",
+              "agency": "U.S. Treasury",
+              "agency_series_id": "daily_treasury_rates:10 Yr"
+            },
+            "retrieved_at": "2026-04-17T00:00:00.000Z",
+            "retrieval_status": "fresh",
+            "source_period": "2026-04-17"
+          },
+          "retrieved_at": "2026-04-17T00:00:00.000Z",
+          "missing_fields": [],
+          "metadata": {
+            "registry_id": "TREASURY_DAILY_10Y",
+            "category": "rates",
+            "unit": "percent",
+            "period": "2026-03-27"
+          }
+        },
+        {
+          "id": "official-macro-bls_unemployment_rate-2026-03",
+          "family": "macro_release_published",
+          "subject_type": "macro_series",
+          "subject_id": "BLS_UNEMPLOYMENT_RATE",
+          "title": "Unemployment Rate official observation published",
+          "occurred_at": "2026-03-27T00:00:00.000Z",
+          "source_state": "official",
+          "source": {
+            "source": {
+              "source_id": "BLS_UNEMPLOYMENT_RATE",
+              "source_family": "bls",
+              "source_name": "Unemployment Rate",
+              "source_url": "https://api.bls.gov/publicAPI/v2/timeseries/data/LNS14000000",
+              "agency": "BLS",
+              "agency_series_id": "LNS14000000"
+            },
+            "retrieved_at": "2026-04-17T00:00:00.000Z",
+            "retrieval_status": "fresh",
+            "source_period": "2026-03"
+          },
+          "retrieved_at": "2026-04-17T00:00:00.000Z",
+          "missing_fields": [],
+          "metadata": {
+            "registry_id": "BLS_UNEMPLOYMENT_RATE",
+            "category": "labor",
+            "unit": "percent",
+            "period": "2026-03-27"
+          }
+        }
+      ]
+    },
+    "error_flag": false,
+    "request_id": "95ae5e8b-4833-4fb8-95bb-aff3660b2bac",
+    "provider": "official_public_macro",
+    "retrieved_at": "2026-04-17T00:00:00.000Z"
+  },
+  "structural": {
+    "ok": true,
+    "data": {
+      "subject_type": "market_pulse",
+      "subject_id": "US",
+      "as_of": "2026-03-27",
+      "coverage_state": "partial",
+      "summary": "United States structural context remains broadly supportive for scaled issuers, while public-debt and inflation-related sensitivity keep the backdrop disciplined.",
+      "observations": [
+        {
+          "observation_id": "wb_ny.gdp.mktp.cd",
+          "family": "gdp_level",
+          "label": "GDP level",
+          "summary": "United States remains a very large output base, which supports demand resilience for scaled businesses.",
+          "geography": "United States",
+          "period": "2025",
+          "source_family": "world_bank",
+          "retrieval": {
+            "source": {
+              "source_id": "WB_NY.GDP.MKTP.CD",
+              "source_family": "world_bank",
+              "source_name": "World Bank GDP level",
+              "source_url": "https://api.worldbank.org/v2/country/USA/indicator/NY.GDP.MKTP.CD",
+              "agency": "World Bank",
+              "agency_series_id": "NY.GDP.MKTP.CD"
+            },
+            "retrieved_at": "2026-11-23T08:49:24.347372Z",
+            "retrieval_status": "fresh",
+            "source_period": "2025"
+          },
+          "missing_fields": [],
+          "value": 29500000000000.0,
+          "unit": "usd"
+        },
+        {
+          "observation_id": "wb_ny.gdp.pcap.cd",
+          "family": "gdp_per_capita",
+          "label": "GDP per capita",
+          "summary": "United States remains a high-income market, which supports premium pricing and services monetization.",
+          "geography": "United States",
+          "period": "2025",
+          "source_family": "world_bank",
+          "retrieval": {
+            "source": {
+              "source_id": "WB_NY.GDP.PCAP.CD",
+              "source_family": "world_bank",
+              "source_name": "World Bank GDP per capita",
+              "source_url": "https://api.worldbank.org/v2/country/USA/indicator/NY.GDP.PCAP.CD",
+              "agency": "World Bank",
+              "agency_series_id": "NY.GDP.PCAP.CD"
+            },
+            "retrieved_at": "2026-11-23T08:49:24.347372Z",
+            "retrieval_status": "fresh",
+            "source_period": "2025"
+          },
+          "missing_fields": [],
+          "value": 82500.0,
+          "unit": "usd"
+        },
+        {
+          "observation_id": "wb_sp.pop.totl",
+          "family": "population",
+          "label": "Population",
+          "summary": "United States still offers a large domestic demand base for scaled consumer and enterprise franchises.",
+          "geography": "United States",
+          "period": "2025",
+          "source_family": "world_bank",
+          "retrieval": {
+            "source": {
+              "source_id": "WB_SP.POP.TOTL",
+              "source_family": "world_bank",
+              "source_name": "World Bank Population",
+              "source_url": "https://api.worldbank.org/v2/country/USA/indicator/SP.POP.TOTL",
+              "agency": "World Bank",
+              "agency_series_id": "SP.POP.TOTL"
+            },
+            "retrieved_at": "2026-11-23T08:49:24.347372Z",
+            "retrieval_status": "fresh",
+            "source_period": "2025"
+          },
+          "missing_fields": [],
+          "value": 341000000.0,
+          "unit": "people"
+        },
+        {
+          "observation_id": "wb_ne.trd.gnfs.zs",
+          "family": "trade_openness",
+          "label": "Trade openness",
+          "summary": "Trade intensity stays relevant for supply-chain exposure and imported-input sensitivity.",
+          "geography": "United States",
+          "period": "2025",
+          "source_family": "world_bank",
+          "retrieval": {
+            "source": {
+              "source_id": "WB_NE.TRD.GNFS.ZS",
+              "source_family": "world_bank",
+              "source_name": "World Bank Trade openness",
+              "source_url": "https://api.worldbank.org/v2/country/USA/indicator/NE.TRD.GNFS.ZS",
+              "agency": "World Bank",
+              "agency_series_id": "NE.TRD.GNFS.ZS"
+            },
+            "retrieved_at": "2026-11-23T08:49:24.347372Z",
+            "retrieval_status": "fresh",
+            "source_period": "2025"
+          },
+          "missing_fields": [],
+          "value": 25.4,
+          "unit": "pct_gdp"
+        },
+        {
+          "observation_id": "wb_gc.dod.totl.gd.zs",
+          "family": "debt_context",
+          "label": "Government debt context",
+          "summary": "Public debt remains elevated enough to keep macro policy sensitivity in view.",
+          "geography": "United States",
+          "period": "2025",
+          "source_family": "world_bank",
+          "retrieval": {
+            "source": {
+              "source_id": "WB_GC.DOD.TOTL.GD.ZS",
+              "source_family": "world_bank",
+              "source_name": "World Bank Government debt context",
+              "source_url": "https://api.worldbank.org/v2/country/USA/indicator/GC.DOD.TOTL.GD.ZS",
+              "agency": "World Bank",
+              "agency_series_id": "GC.DOD.TOTL.GD.ZS"
+            },
+            "retrieved_at": "2026-11-23T08:49:24.347372Z",
+            "retrieval_status": "fresh",
+            "source_period": "2025"
+          },
+          "missing_fields": [],
+          "value": 121.0,
+          "unit": "pct_gdp"
+        },
+        {
+          "observation_id": "wb_si.pov.gini",
+          "family": "inequality",
+          "label": "Gini inequality",
+          "summary": "Inequality remains a structural watch item because it can change the breadth of demand recovery.",
+          "geography": "United States",
+          "period": "2024",
+          "source_family": "world_bank",
+          "retrieval": {
+            "source": {
+              "source_id": "WB_SI.POV.GINI",
+              "source_family": "world_bank",
+              "source_name": "World Bank Gini inequality",
+              "source_url": "https://api.worldbank.org/v2/country/USA/indicator/SI.POV.GINI",
+              "agency": "World Bank",
+              "agency_series_id": "SI.POV.GINI"
+            },
+            "retrieved_at": "2026-11-23T08:49:24.347372Z",
+            "retrieval_status": "fresh",
+            "source_period": "2024"
+          },
+          "missing_fields": [],
+          "value": 41.3,
+          "unit": "index"
+        },
+        {
+          "observation_id": "wb_lp.lpi.ovrl.xq",
+          "family": "logistics",
+          "label": "Logistics performance",
+          "summary": "Logistics quality remains supportive for national distribution and supply-chain reliability.",
+          "geography": "United States",
+          "period": "2023",
+          "source_family": "world_bank",
+          "retrieval": {
+            "source": {
+              "source_id": "WB_LP.LPI.OVRL.XQ",
+              "source_family": "world_bank",
+              "source_name": "World Bank Logistics performance",
+              "source_url": "https://api.worldbank.org/v2/country/USA/indicator/LP.LPI.OVRL.XQ",
+              "agency": "World Bank",
+              "agency_series_id": "LP.LPI.OVRL.XQ"
+            },
+            "retrieved_at": "2026-11-23T08:49:24.347372Z",
+            "retrieval_status": "fresh",
+            "source_period": "2023"
+          },
+          "missing_fields": [],
+          "value": 3.9,
+          "unit": "score"
+        },
+        {
+          "observation_id": "wb_it.net.secr.p6",
+          "family": "infrastructure",
+          "label": "Secure internet servers",
+          "summary": "Digital infrastructure remains supportive for platform distribution and enterprise adoption.",
+          "geography": "United States",
+          "period": "2024",
+          "source_family": "world_bank",
+          "retrieval": {
+            "source": {
+              "source_id": "WB_IT.NET.SECR.P6",
+              "source_family": "world_bank",
+              "source_name": "World Bank Secure internet servers",
+              "source_url": "https://api.worldbank.org/v2/country/USA/indicator/IT.NET.SECR.P6",
+              "agency": "World Bank",
+              "agency_series_id": "IT.NET.SECR.P6"
+            },
+            "retrieved_at": "2026-11-23T08:49:24.347372Z",
+            "retrieval_status": "fresh",
+            "source_period": "2024"
+          },
+          "missing_fields": [],
+          "value": 18000.0,
+          "unit": "per_million"
+        },
+        {
+          "observation_id": "wb_se.ter.enrr",
+          "family": "education",
+          "label": "Tertiary enrollment",
+          "summary": "Human-capital depth remains supportive for skilled-labor availability and product adoption.",
+          "geography": "United States",
+          "period": "2024",
+          "source_family": "world_bank",
+          "retrieval": {
+            "source": {
+              "source_id": "WB_SE.TER.ENRR",
+              "source_family": "world_bank",
+              "source_name": "World Bank Tertiary enrollment",
+              "source_url": "https://api.worldbank.org/v2/country/USA/indicator/SE.TER.ENRR",
+              "agency": "World Bank",
+              "agency_series_id": "SE.TER.ENRR"
+            },
+            "retrieved_at": "2026-11-23T08:49:24.347372Z",
+            "retrieval_status": "fresh",
+            "source_period": "2024"
+          },
+          "missing_fields": [],
+          "value": 88.4,
+          "unit": "pct"
+        },
+        {
+          "observation_id": "wb_eg.elc.accs.zs",
+          "family": "energy_access",
+          "label": "Energy access",
+          "summary": "Energy access is not a current bottleneck for nationwide operations.",
+          "geography": "United States",
+          "period": "2024",
+          "source_family": "world_bank",
+          "retrieval": {
+            "source": {
+              "source_id": "WB_EG.ELC.ACCS.ZS",
+              "source_family": "world_bank",
+              "source_name": "World Bank Energy access",
+              "source_url": "https://api.worldbank.org/v2/country/USA/indicator/EG.ELC.ACCS.ZS",
+              "agency": "World Bank",
+              "agency_series_id": "EG.ELC.ACCS.ZS"
+            },
+            "retrieved_at": "2026-11-23T08:49:24.347372Z",
+            "retrieval_status": "fresh",
+            "source_period": "2024"
+          },
+          "missing_fields": [],
+          "value": 100.0,
+          "unit": "pct"
+        },
+        {
+          "observation_id": "wb_nv.srv.totl.zs",
+          "family": "sector_mix",
+          "label": "Services share of GDP",
+          "summary": "The services mix remains supportive for higher-margin digital and recurring-revenue models.",
+          "geography": "United States",
+          "period": "2025",
+          "source_family": "world_bank",
+          "retrieval": {
+            "source": {
+              "source_id": "WB_NV.SRV.TOTL.ZS",
+              "source_family": "world_bank",
+              "source_name": "World Bank Services share of GDP",
+              "source_url": "https://api.worldbank.org/v2/country/USA/indicator/NV.SRV.TOTL.ZS",
+              "agency": "World Bank",
+              "agency_series_id": "NV.SRV.TOTL.ZS"
+            },
+            "retrieved_at": "2026-11-23T08:49:24.347372Z",
+            "retrieval_status": "fresh",
+            "source_period": "2025"
+          },
+          "missing_fields": [],
+          "value": 77.6,
+          "unit": "pct_gdp"
+        }
+      ],
+      "omissions": [
+        {
+          "omission_id": "imf-gdp-growth-outlook-unavailable",
+          "family": "gdp_growth_outlook",
+          "source_family": "imf",
+          "reason_code": "source_unavailable",
+          "reason_text": "IMF forecast inputs are optional in M6 and were not available in this run.",
+          "blocking": false
+        },
+        {
+          "omission_id": "imf-inflation-regime-unavailable",
+          "family": "inflation_regime",
+          "source_family": "imf",
+          "reason_code": "source_unavailable",
+          "reason_text": "IMF inflation-regime inputs were not available in this run.",
+          "blocking": false
+        },
+        {
+          "omission_id": "imf-fiscal-balance-unavailable",
+          "family": "fiscal_balance",
+          "source_family": "imf",
+          "reason_code": "source_unavailable",
+          "reason_text": "IMF fiscal-balance inputs were not available in this run.",
+          "blocking": false
+        },
+        {
+          "omission_id": "imf-public-debt-unavailable",
+          "family": "public_debt",
+          "source_family": "imf",
+          "reason_code": "source_unavailable",
+          "reason_text": "IMF public-debt inputs were not available in this run.",
+          "blocking": false
+        },
+        {
+          "omission_id": "imf-fx-reserves-unavailable",
+          "family": "fx_reserves",
+          "source_family": "imf",
+          "reason_code": "source_unavailable",
+          "reason_text": "IMF reserves inputs were not available in this run.",
+          "blocking": false
+        },
+        {
+          "omission_id": "imf-current-account-unavailable",
+          "family": "current_account",
+          "source_family": "imf",
+          "reason_code": "source_unavailable",
+          "reason_text": "IMF current-account inputs were not available in this run.",
+          "blocking": false
+        }
+      ],
+      "retrievals": [
+        {
+          "source": {
+            "source_id": "WB_NY.GDP.MKTP.CD",
+            "source_family": "world_bank",
+            "source_name": "World Bank GDP level",
+            "source_url": "https://api.worldbank.org/v2/country/USA/indicator/NY.GDP.MKTP.CD",
+            "agency": "World Bank",
+            "agency_series_id": "NY.GDP.MKTP.CD"
+          },
+          "retrieved_at": "2026-11-23T08:49:24.347372Z",
+          "retrieval_status": "fresh",
+          "source_period": "2025"
+        },
+        {
+          "source": {
+            "source_id": "WB_NY.GDP.PCAP.CD",
+            "source_family": "world_bank",
+            "source_name": "World Bank GDP per capita",
+            "source_url": "https://api.worldbank.org/v2/country/USA/indicator/NY.GDP.PCAP.CD",
+            "agency": "World Bank",
+            "agency_series_id": "NY.GDP.PCAP.CD"
+          },
+          "retrieved_at": "2026-11-23T08:49:24.347372Z",
+          "retrieval_status": "fresh",
+          "source_period": "2025"
+        },
+        {
+          "source": {
+            "source_id": "WB_SP.POP.TOTL",
+            "source_family": "world_bank",
+            "source_name": "World Bank Population",
+            "source_url": "https://api.worldbank.org/v2/country/USA/indicator/SP.POP.TOTL",
+            "agency": "World Bank",
+            "agency_series_id": "SP.POP.TOTL"
+          },
+          "retrieved_at": "2026-11-23T08:49:24.347372Z",
+          "retrieval_status": "fresh",
+          "source_period": "2025"
+        },
+        {
+          "source": {
+            "source_id": "WB_NE.TRD.GNFS.ZS",
+            "source_family": "world_bank",
+            "source_name": "World Bank Trade openness",
+            "source_url": "https://api.worldbank.org/v2/country/USA/indicator/NE.TRD.GNFS.ZS",
+            "agency": "World Bank",
+            "agency_series_id": "NE.TRD.GNFS.ZS"
+          },
+          "retrieved_at": "2026-11-23T08:49:24.347372Z",
+          "retrieval_status": "fresh",
+          "source_period": "2025"
+        },
+        {
+          "source": {
+            "source_id": "WB_GC.DOD.TOTL.GD.ZS",
+            "source_family": "world_bank",
+            "source_name": "World Bank Government debt context",
+            "source_url": "https://api.worldbank.org/v2/country/USA/indicator/GC.DOD.TOTL.GD.ZS",
+            "agency": "World Bank",
+            "agency_series_id": "GC.DOD.TOTL.GD.ZS"
+          },
+          "retrieved_at": "2026-11-23T08:49:24.347372Z",
+          "retrieval_status": "fresh",
+          "source_period": "2025"
+        },
+        {
+          "source": {
+            "source_id": "WB_SI.POV.GINI",
+            "source_family": "world_bank",
+            "source_name": "World Bank Gini inequality",
+            "source_url": "https://api.worldbank.org/v2/country/USA/indicator/SI.POV.GINI",
+            "agency": "World Bank",
+            "agency_series_id": "SI.POV.GINI"
+          },
+          "retrieved_at": "2026-11-23T08:49:24.347372Z",
+          "retrieval_status": "fresh",
+          "source_period": "2024"
+        },
+        {
+          "source": {
+            "source_id": "WB_LP.LPI.OVRL.XQ",
+            "source_family": "world_bank",
+            "source_name": "World Bank Logistics performance",
+            "source_url": "https://api.worldbank.org/v2/country/USA/indicator/LP.LPI.OVRL.XQ",
+            "agency": "World Bank",
+            "agency_series_id": "LP.LPI.OVRL.XQ"
+          },
+          "retrieved_at": "2026-11-23T08:49:24.347372Z",
+          "retrieval_status": "fresh",
+          "source_period": "2023"
+        },
+        {
+          "source": {
+            "source_id": "WB_IT.NET.SECR.P6",
+            "source_family": "world_bank",
+            "source_name": "World Bank Secure internet servers",
+            "source_url": "https://api.worldbank.org/v2/country/USA/indicator/IT.NET.SECR.P6",
+            "agency": "World Bank",
+            "agency_series_id": "IT.NET.SECR.P6"
+          },
+          "retrieved_at": "2026-11-23T08:49:24.347372Z",
+          "retrieval_status": "fresh",
+          "source_period": "2024"
+        },
+        {
+          "source": {
+            "source_id": "WB_SE.TER.ENRR",
+            "source_family": "world_bank",
+            "source_name": "World Bank Tertiary enrollment",
+            "source_url": "https://api.worldbank.org/v2/country/USA/indicator/SE.TER.ENRR",
+            "agency": "World Bank",
+            "agency_series_id": "SE.TER.ENRR"
+          },
+          "retrieved_at": "2026-11-23T08:49:24.347372Z",
+          "retrieval_status": "fresh",
+          "source_period": "2024"
+        },
+        {
+          "source": {
+            "source_id": "WB_EG.ELC.ACCS.ZS",
+            "source_family": "world_bank",
+            "source_name": "World Bank Energy access",
+            "source_url": "https://api.worldbank.org/v2/country/USA/indicator/EG.ELC.ACCS.ZS",
+            "agency": "World Bank",
+            "agency_series_id": "EG.ELC.ACCS.ZS"
+          },
+          "retrieved_at": "2026-11-23T08:49:24.347372Z",
+          "retrieval_status": "fresh",
+          "source_period": "2024"
+        },
+        {
+          "source": {
+            "source_id": "WB_NV.SRV.TOTL.ZS",
+            "source_family": "world_bank",
+            "source_name": "World Bank Services share of GDP",
+            "source_url": "https://api.worldbank.org/v2/country/USA/indicator/NV.SRV.TOTL.ZS",
+            "agency": "World Bank",
+            "agency_series_id": "NV.SRV.TOTL.ZS"
+          },
+          "retrieved_at": "2026-11-23T08:49:24.347372Z",
+          "retrieval_status": "fresh",
+          "source_period": "2025"
+        }
+      ]
+    },
+    "error_flag": false,
+    "request_id": "1f1b31a4-3f03-4091-86f4-9840acf232d5",
+    "provider": "official_structural_context",
+    "retrieved_at": "2026-11-23T08:49:24.347955Z"
+  },
+  "companies": {
+    "AAPL": {
+      "ok": true,
+      "data": {
+        "ticker": "AAPL",
+        "cik": "0000320193",
+        "company_name": "Apple Inc.",
+        "retrieved_at": "2026-04-17T00:00:00.000Z",
+        "retrieval": {
+          "source": {
+            "source_id": "SEC_COMPANY_AAPL",
+            "source_family": "sec_edgar",
+            "source_name": "SEC EDGAR company truth for AAPL",
+            "source_url": "https://data.sec.gov/submissions/CIK0000320193.json",
+            "agency": "SEC",
+            "agency_series_id": "CIK0000320193"
+          },
+          "retrieved_at": "2026-04-17T00:00:00.000Z",
+          "retrieval_status": "fresh",
+          "source_period": "2026-04-17"
+        },
+        "missing_fields": [],
+        "filings": [
+          {
+            "form": "10-Q",
+            "filing_date": "2026-01-30",
+            "accession_number": "0000320193-26-000012"
+          }
+        ],
+        "facts": {
+          "entity_name": "Apple Inc.",
+          "taxonomy_count": 1
+        },
+        "canonical_events": [
+          {
+            "id": "official-company-aapl-0000320193-26-000012",
+            "family": "filing_posted",
+            "subject_type": "ticker",
+            "subject_id": "AAPL",
+            "title": "AAPL 10-Q filed with SEC",
+            "occurred_at": "2026-01-30T00:00:00.000Z",
+            "source_state": "official",
+            "source": {
+              "source": {
+                "source_id": "SEC_COMPANY_AAPL",
+                "source_family": "sec_edgar",
+                "source_name": "SEC EDGAR company truth for AAPL",
+                "source_url": "https://data.sec.gov/submissions/CIK0000320193.json",
+                "agency": "SEC",
+                "agency_series_id": "CIK0000320193"
+              },
+              "retrieved_at": "2026-04-17T00:00:00.000Z",
+              "retrieval_status": "fresh",
+              "source_period": "2026-01-30"
+            },
+            "retrieved_at": "2026-04-17T00:00:00.000Z",
+            "missing_fields": [],
+            "metadata": {
+              "ticker": "AAPL",
+              "cik": "0000320193",
+              "form": "10-Q",
+              "accession_number": "0000320193-26-000012"
+            }
+          }
+        ]
+      },
+      "error_flag": false,
+      "request_id": "2bdaa9a5-6133-4008-8e95-a8dc2e218fb4",
+      "provider": "sec_edgar",
+      "retrieved_at": "2026-04-17T00:00:00.000Z"
+    },
+    "MSFT": {
+      "ok": true,
+      "data": {
+        "ticker": "MSFT",
+        "cik": "0000789019",
+        "company_name": "Microsoft Corporation",
+        "retrieved_at": "2026-04-17T00:00:00.000Z",
+        "retrieval": {
+          "source": {
+            "source_id": "SEC_COMPANY_MSFT",
+            "source_family": "sec_edgar",
+            "source_name": "SEC EDGAR company truth for MSFT",
+            "source_url": "https://data.sec.gov/submissions/CIK0000789019.json",
+            "agency": "SEC",
+            "agency_series_id": "CIK0000789019"
+          },
+          "retrieved_at": "2026-04-17T00:00:00.000Z",
+          "retrieval_status": "fresh",
+          "source_period": "2026-04-17"
+        },
+        "missing_fields": [],
+        "filings": [
+          {
+            "form": "10-Q",
+            "filing_date": "2026-01-29",
+            "accession_number": "0000789019-26-000010"
+          }
+        ],
+        "facts": {
+          "entity_name": "Microsoft Corporation",
+          "taxonomy_count": 1
+        },
+        "canonical_events": [
+          {
+            "id": "official-company-msft-0000789019-26-000010",
+            "family": "filing_posted",
+            "subject_type": "ticker",
+            "subject_id": "MSFT",
+            "title": "MSFT 10-Q filed with SEC",
+            "occurred_at": "2026-01-29T00:00:00.000Z",
+            "source_state": "official",
+            "source": {
+              "source": {
+                "source_id": "SEC_COMPANY_MSFT",
+                "source_family": "sec_edgar",
+                "source_name": "SEC EDGAR company truth for MSFT",
+                "source_url": "https://data.sec.gov/submissions/CIK0000789019.json",
+                "agency": "SEC",
+                "agency_series_id": "CIK0000789019"
+              },
+              "retrieved_at": "2026-04-17T00:00:00.000Z",
+              "retrieval_status": "fresh",
+              "source_period": "2026-01-29"
+            },
+            "retrieved_at": "2026-04-17T00:00:00.000Z",
+            "missing_fields": [],
+            "metadata": {
+              "ticker": "MSFT",
+              "cik": "0000789019",
+              "form": "10-Q",
+              "accession_number": "0000789019-26-000010"
+            }
+          }
+        ]
+      },
+      "error_flag": false,
+      "request_id": "6aad0b7d-b3fc-41f1-b61e-83bcf6d9d57e",
+      "provider": "sec_edgar",
+      "retrieved_at": "2026-04-17T00:00:00.000Z"
+    },
+    "TSLA": {
+      "ok": true,
+      "data": {
+        "ticker": "TSLA",
+        "cik": "0001318605",
+        "company_name": "Tesla, Inc.",
+        "retrieved_at": "2026-04-17T00:00:00.000Z",
+        "retrieval": {
+          "source": {
+            "source_id": "SEC_COMPANY_TSLA",
+            "source_family": "sec_edgar",
+            "source_name": "SEC EDGAR company truth for TSLA",
+            "source_url": "https://data.sec.gov/submissions/CIK0001318605.json",
+            "agency": "SEC",
+            "agency_series_id": "CIK0001318605"
+          },
+          "retrieved_at": "2026-04-17T00:00:00.000Z",
+          "retrieval_status": "fresh",
+          "source_period": "2026-04-17"
+        },
+        "missing_fields": [],
+        "filings": [
+          {
+            "form": "10-K",
+            "filing_date": "2026-01-31",
+            "accession_number": "0001318605-26-000011"
+          }
+        ],
+        "facts": {
+          "entity_name": "Tesla, Inc.",
+          "taxonomy_count": 1
+        },
+        "canonical_events": [
+          {
+            "id": "official-company-tsla-0001318605-26-000011",
+            "family": "filing_posted",
+            "subject_type": "ticker",
+            "subject_id": "TSLA",
+            "title": "TSLA 10-K filed with SEC",
+            "occurred_at": "2026-01-31T00:00:00.000Z",
+            "source_state": "official",
+            "source": {
+              "source": {
+                "source_id": "SEC_COMPANY_TSLA",
+                "source_family": "sec_edgar",
+                "source_name": "SEC EDGAR company truth for TSLA",
+                "source_url": "https://data.sec.gov/submissions/CIK0001318605.json",
+                "agency": "SEC",
+                "agency_series_id": "CIK0001318605"
+              },
+              "retrieved_at": "2026-04-17T00:00:00.000Z",
+              "retrieval_status": "fresh",
+              "source_period": "2026-01-31"
+            },
+            "retrieved_at": "2026-04-17T00:00:00.000Z",
+            "missing_fields": [],
+            "metadata": {
+              "ticker": "TSLA",
+              "cik": "0001318605",
+              "form": "10-K",
+              "accession_number": "0001318605-26-000011"
+            }
+          }
+        ]
+      },
+      "error_flag": false,
+      "request_id": "7140900a-9c8e-4fa0-b1f6-a2dffe2db7c3",
+      "provider": "sec_edgar",
+      "retrieved_at": "2026-04-17T00:00:00.000Z"
+    }
+  },
+  "first_party": {
+    "AAPL": {
+      "ok": true,
+      "data": {
+        "context_items": [
+          {
+            "context_id": "ph6m2-aapl-ir-context",
+            "ticker": "AAPL",
+            "registry_entry_id": "ph6m2-aapl-investor",
+            "source_url": "https://investor.apple.com/investor-relations/",
+            "source_domain": "investor.apple.com",
+            "page_type": "investor_relations",
+            "title": "Apple Investor Relations",
+            "summary": "Apple investor relations publishes investor updates, newsroom links, financial data, quarterly earnings reports, and SEC filing paths.",
+            "excerpt": "Investor Updates, Newsroom, Financial Data, Quarterly Earnings Reports.",
+            "retrieved_at": "2026-11-23T08:49:24.351730Z",
+            "published_at": "2026-04-17T00:00:00Z",
+            "content_hash": "892f145e4ffbc80fb96acd0853f49916f1e1afc1522f0fb038c30a939da6a0ae",
+            "fetch_state": "fetched",
+            "rights": {
+              "rights_class": "first_party_public",
+              "display_mode": "excerpt_only",
+              "source_rank": "first_party",
+              "source_type": "first_party_corporate",
+              "can_store_full_text": false,
+              "can_display_excerpt": true,
+              "can_display_link": true,
+              "policy_reason": "Approved seed first-party investor page; store bounded excerpts and links only.",
+              "reviewed_at": "2026-04-17T00:00:00Z"
+            },
+            "artifact_ids": [
+              "ph6m2-aapl-quarterly-reports"
+            ],
+            "metadata": {
+              "seed_registry_entry_id": "ph6m2-aapl-investor",
+              "fixture": true,
+              "full_text_stored": false
+            }
+          }
+        ],
+        "call_artifacts": [
+          {
+            "artifact_id": "ph6m2-aapl-quarterly-reports",
+            "ticker": "AAPL",
+            "context_id": "ph6m2-aapl-ir-context",
+            "artifact_type": "earnings_release",
+            "title": "Apple quarterly earnings reports entry point",
+            "source_url": "https://investor.apple.com/investor-relations/",
+            "source_domain": "investor.apple.com",
+            "published_at": "2026-04-17T00:00:00Z",
+            "retrieved_at": "2026-11-23T08:49:24.351730Z",
+            "completeness_state": "metadata_only",
+            "rights": {
+              "rights_class": "first_party_public",
+              "display_mode": "excerpt_only",
+              "source_rank": "first_party",
+              "source_type": "first_party_corporate",
+              "can_store_full_text": false,
+              "can_display_excerpt": true,
+              "can_display_link": true,
+              "policy_reason": "Approved seed first-party investor page; store bounded excerpts and links only.",
+              "reviewed_at": "2026-04-17T00:00:00Z"
+            },
+            "content_hash": "87d8686833cc286af5c0a87ce64964e6162eb8c6781ed49405c1e1da8f39af9c",
+            "metadata": {
+              "seed_registry_entry_id": "ph6m2-aapl-investor",
+              "storage_note": "metadata-and-link-first artifact capture"
+            }
+          }
+        ],
+        "registry": [
+          {
+            "registry_entry_id": "ph6m2-aapl-investor",
+            "ticker": "AAPL",
+            "issuer_name": "Apple Inc.",
+            "domain": "investor.apple.com",
+            "allowed_paths": [
+              "/investor-relations/",
+              "/"
+            ],
+            "page_types": [
+              "investor_relations",
+              "earnings_release",
+              "sec_filing_reference"
+            ],
+            "default_rights": {
+              "rights_class": "first_party_public",
+              "display_mode": "excerpt_only",
+              "source_rank": "first_party",
+              "source_type": "first_party_corporate",
+              "can_store_full_text": false,
+              "can_display_excerpt": true,
+              "can_display_link": true,
+              "policy_reason": "Approved seed first-party investor page; store bounded excerpts and links only.",
+              "reviewed_at": "2026-04-17T00:00:00Z"
+            },
+            "owner": "Phase 6 Product/Legal seed approval",
+            "reviewed_at": "2026-04-17T00:00:00Z",
+            "active": true
+          },
+          {
+            "registry_entry_id": "ph6m2-aapl-newsroom",
+            "ticker": "AAPL",
+            "issuer_name": "Apple Inc.",
+            "domain": "www.apple.com",
+            "allowed_paths": [
+              "/newsroom/"
+            ],
+            "page_types": [
+              "newsroom",
+              "press_release"
+            ],
+            "default_rights": {
+              "rights_class": "first_party_public",
+              "display_mode": "excerpt_only",
+              "source_rank": "first_party",
+              "source_type": "first_party_corporate",
+              "can_store_full_text": false,
+              "can_display_excerpt": true,
+              "can_display_link": true,
+              "policy_reason": "Approved seed first-party newsroom path; store bounded excerpts and links only.",
+              "reviewed_at": "2026-04-17T00:00:00Z"
+            },
+            "owner": "Phase 6 Product/Legal seed approval",
+            "reviewed_at": "2026-04-17T00:00:00Z",
+            "active": true
+          },
+          {
+            "registry_entry_id": "ph6m2-msft-investor",
+            "ticker": "MSFT",
+            "issuer_name": "Microsoft Corporation",
+            "domain": "www.microsoft.com",
+            "allowed_paths": [
+              "/en-us/investor/",
+              "/en-us/Investor/"
+            ],
+            "page_types": [
+              "investor_relations",
+              "earnings_release",
+              "webcast"
+            ],
+            "default_rights": {
+              "rights_class": "first_party_public",
+              "display_mode": "excerpt_only",
+              "source_rank": "first_party",
+              "source_type": "first_party_corporate",
+              "can_store_full_text": false,
+              "can_display_excerpt": true,
+              "can_display_link": true,
+              "policy_reason": "Approved seed first-party investor path; store bounded excerpts and links only.",
+              "reviewed_at": "2026-04-17T00:00:00Z"
+            },
+            "owner": "Phase 6 Product/Legal seed approval",
+            "reviewed_at": "2026-04-17T00:00:00Z",
+            "active": true
+          },
+          {
+            "registry_entry_id": "ph6m2-msft-news",
+            "ticker": "MSFT",
+            "issuer_name": "Microsoft Corporation",
+            "domain": "news.microsoft.com",
+            "allowed_paths": [
+              "/"
+            ],
+            "page_types": [
+              "press_release",
+              "newsroom"
+            ],
+            "default_rights": {
+              "rights_class": "first_party_public",
+              "display_mode": "excerpt_only",
+              "source_rank": "first_party",
+              "source_type": "first_party_corporate",
+              "can_store_full_text": false,
+              "can_display_excerpt": true,
+              "can_display_link": true,
+              "policy_reason": "Approved seed first-party news path; store bounded excerpts and links only.",
+              "reviewed_at": "2026-04-17T00:00:00Z"
+            },
+            "owner": "Phase 6 Product/Legal seed approval",
+            "reviewed_at": "2026-04-17T00:00:00Z",
+            "active": true
+          },
+          {
+            "registry_entry_id": "ph6m2-tsla-ir",
+            "ticker": "TSLA",
+            "issuer_name": "Tesla, Inc.",
+            "domain": "ir.tesla.com",
+            "allowed_paths": [
+              "/",
+              "/press-release/"
+            ],
+            "page_types": [
+              "investor_relations",
+              "earnings_release",
+              "webcast"
+            ],
+            "default_rights": {
+              "rights_class": "first_party_public",
+              "display_mode": "excerpt_only",
+              "source_rank": "first_party",
+              "source_type": "first_party_corporate",
+              "can_store_full_text": false,
+              "can_display_excerpt": true,
+              "can_display_link": true,
+              "policy_reason": "Approved seed first-party investor path; store bounded excerpts and links only.",
+              "reviewed_at": "2026-04-17T00:00:00Z"
+            },
+            "owner": "Phase 6 Product/Legal seed approval",
+            "reviewed_at": "2026-04-17T00:00:00Z",
+            "active": true
+          },
+          {
+            "registry_entry_id": "ph6m2-tsla-assets",
+            "ticker": "TSLA",
+            "issuer_name": "Tesla, Inc.",
+            "domain": "assets-ir.tesla.com",
+            "allowed_paths": [
+              "/"
+            ],
+            "page_types": [
+              "presentation",
+              "supplemental_material"
+            ],
+            "default_rights": {
+              "rights_class": "first_party_public",
+              "display_mode": "link_only",
+              "source_rank": "first_party",
+              "source_type": "first_party_corporate",
+              "can_store_full_text": false,
+              "can_display_excerpt": false,
+              "can_display_link": true,
+              "policy_reason": "Approved seed asset host; store metadata and links, not full asset text.",
+              "reviewed_at": "2026-04-17T00:00:00Z"
+            },
+            "owner": "Phase 6 Product/Legal seed approval",
+            "reviewed_at": "2026-04-17T00:00:00Z",
+            "active": true
+          },
+          {
+            "registry_entry_id": "ph6m2-tsla-digitalassets",
+            "ticker": "TSLA",
+            "issuer_name": "Tesla, Inc.",
+            "domain": "digitalassets.tesla.com",
+            "allowed_paths": [
+              "/"
+            ],
+            "page_types": [
+              "presentation",
+              "supplemental_material"
+            ],
+            "default_rights": {
+              "rights_class": "first_party_public",
+              "display_mode": "link_only",
+              "source_rank": "first_party",
+              "source_type": "first_party_corporate",
+              "can_store_full_text": false,
+              "can_display_excerpt": false,
+              "can_display_link": true,
+              "policy_reason": "Approved seed asset host; store metadata and links, not full asset text.",
+              "reviewed_at": "2026-04-17T00:00:00Z"
+            },
+            "owner": "Phase 6 Product/Legal seed approval",
+            "reviewed_at": "2026-04-17T00:00:00Z",
+            "active": true
+          },
+          {
+            "registry_entry_id": "ph6m2-tsla-main",
+            "ticker": "TSLA",
+            "issuer_name": "Tesla, Inc.",
+            "domain": "www.tesla.com",
+            "allowed_paths": [
+              "/"
+            ],
+            "page_types": [
+              "investor_relations",
+              "presentation",
+              "webcast"
+            ],
+            "default_rights": {
+              "rights_class": "first_party_public",
+              "display_mode": "link_only",
+              "source_rank": "first_party",
+              "source_type": "first_party_corporate",
+              "can_store_full_text": false,
+              "can_display_excerpt": false,
+              "can_display_link": true,
+              "policy_reason": "Approved seed Tesla first-party domain; store metadata and links, not full text.",
+              "reviewed_at": "2026-04-17T00:00:00Z"
+            },
+            "owner": "Phase 6 Product/Legal seed approval",
+            "reviewed_at": "2026-04-17T00:00:00Z",
+            "active": true
+          }
+        ]
+      },
+      "error_flag": false,
+      "request_id": "c454fe103f3d4b7197141d01727561f3",
+      "provider": "first-party-context",
+      "retrieved_at": "2026-11-23T08:49:24.351730Z"
+    },
+    "MSFT": {
+      "ok": true,
+      "data": {
+        "context_items": [
+          {
+            "context_id": "ph6m2-msft-ir-context",
+            "ticker": "MSFT",
+            "registry_entry_id": "ph6m2-msft-investor",
+            "source_url": "https://www.microsoft.com/en-us/investor/default",
+            "source_domain": "www.microsoft.com",
+            "page_type": "investor_relations",
+            "title": "Microsoft Investor Relations",
+            "summary": "Microsoft investor relations publishes upcoming earnings, annual reports, announcements, press releases, and webcast links.",
+            "excerpt": "Upcoming earnings, annual report, announcements, press release, webcast.",
+            "retrieved_at": "2026-11-23T08:49:24.353186Z",
+            "published_at": "2026-04-17T00:00:00Z",
+            "content_hash": "208b9cd41cae6071e81f8b1f8146bcb73cdf43ddb3c7f38dd60ab549d585aba5",
+            "fetch_state": "fetched",
+            "rights": {
+              "rights_class": "first_party_public",
+              "display_mode": "excerpt_only",
+              "source_rank": "first_party",
+              "source_type": "first_party_corporate",
+              "can_store_full_text": false,
+              "can_display_excerpt": true,
+              "can_display_link": true,
+              "policy_reason": "Approved seed first-party investor path; store bounded excerpts and links only.",
+              "reviewed_at": "2026-04-17T00:00:00Z"
+            },
+            "artifact_ids": [
+              "ph6m2-msft-q2-press-release",
+              "ph6m2-msft-webcast"
+            ],
+            "metadata": {
+              "seed_registry_entry_id": "ph6m2-msft-investor",
+              "fixture": true,
+              "full_text_stored": false
+            }
+          }
+        ],
+        "call_artifacts": [
+          {
+            "artifact_id": "ph6m2-msft-q2-press-release",
+            "ticker": "MSFT",
+            "context_id": "ph6m2-msft-ir-context",
+            "artifact_type": "earnings_release",
+            "title": "Microsoft earnings press release entry point",
+            "source_url": "https://www.microsoft.com/en-us/investor/default",
+            "source_domain": "www.microsoft.com",
+            "published_at": "2026-04-17T00:00:00Z",
+            "retrieved_at": "2026-11-23T08:49:24.353186Z",
+            "completeness_state": "metadata_only",
+            "rights": {
+              "rights_class": "first_party_public",
+              "display_mode": "excerpt_only",
+              "source_rank": "first_party",
+              "source_type": "first_party_corporate",
+              "can_store_full_text": false,
+              "can_display_excerpt": true,
+              "can_display_link": true,
+              "policy_reason": "Approved seed first-party investor path; store bounded excerpts and links only.",
+              "reviewed_at": "2026-04-17T00:00:00Z"
+            },
+            "content_hash": "86a30c3427f406e82ad24b014aac2f3fe4ec7fc5ae8ef62f47441a274e30893e",
+            "metadata": {
+              "seed_registry_entry_id": "ph6m2-msft-investor",
+              "storage_note": "metadata-and-link-first artifact capture"
+            }
+          },
+          {
+            "artifact_id": "ph6m2-msft-webcast",
+            "ticker": "MSFT",
+            "context_id": "ph6m2-msft-ir-context",
+            "artifact_type": "webcast",
+            "title": "Microsoft earnings webcast entry point",
+            "source_url": "https://www.microsoft.com/en-us/investor/default",
+            "source_domain": "www.microsoft.com",
+            "published_at": "2026-04-17T00:00:00Z",
+            "retrieved_at": "2026-11-23T08:49:24.353186Z",
+            "completeness_state": "metadata_only",
+            "rights": {
+              "rights_class": "first_party_public",
+              "display_mode": "excerpt_only",
+              "source_rank": "first_party",
+              "source_type": "first_party_corporate",
+              "can_store_full_text": false,
+              "can_display_excerpt": true,
+              "can_display_link": true,
+              "policy_reason": "Approved seed first-party investor path; store bounded excerpts and links only.",
+              "reviewed_at": "2026-04-17T00:00:00Z"
+            },
+            "content_hash": "86a30c3427f406e82ad24b014aac2f3fe4ec7fc5ae8ef62f47441a274e30893e",
+            "metadata": {
+              "seed_registry_entry_id": "ph6m2-msft-investor",
+              "storage_note": "metadata-and-link-first artifact capture"
+            }
+          }
+        ],
+        "registry": [
+          {
+            "registry_entry_id": "ph6m2-aapl-investor",
+            "ticker": "AAPL",
+            "issuer_name": "Apple Inc.",
+            "domain": "investor.apple.com",
+            "allowed_paths": [
+              "/investor-relations/",
+              "/"
+            ],
+            "page_types": [
+              "investor_relations",
+              "earnings_release",
+              "sec_filing_reference"
+            ],
+            "default_rights": {
+              "rights_class": "first_party_public",
+              "display_mode": "excerpt_only",
+              "source_rank": "first_party",
+              "source_type": "first_party_corporate",
+              "can_store_full_text": false,
+              "can_display_excerpt": true,
+              "can_display_link": true,
+              "policy_reason": "Approved seed first-party investor page; store bounded excerpts and links only.",
+              "reviewed_at": "2026-04-17T00:00:00Z"
+            },
+            "owner": "Phase 6 Product/Legal seed approval",
+            "reviewed_at": "2026-04-17T00:00:00Z",
+            "active": true
+          },
+          {
+            "registry_entry_id": "ph6m2-aapl-newsroom",
+            "ticker": "AAPL",
+            "issuer_name": "Apple Inc.",
+            "domain": "www.apple.com",
+            "allowed_paths": [
+              "/newsroom/"
+            ],
+            "page_types": [
+              "newsroom",
+              "press_release"
+            ],
+            "default_rights": {
+              "rights_class": "first_party_public",
+              "display_mode": "excerpt_only",
+              "source_rank": "first_party",
+              "source_type": "first_party_corporate",
+              "can_store_full_text": false,
+              "can_display_excerpt": true,
+              "can_display_link": true,
+              "policy_reason": "Approved seed first-party newsroom path; store bounded excerpts and links only.",
+              "reviewed_at": "2026-04-17T00:00:00Z"
+            },
+            "owner": "Phase 6 Product/Legal seed approval",
+            "reviewed_at": "2026-04-17T00:00:00Z",
+            "active": true
+          },
+          {
+            "registry_entry_id": "ph6m2-msft-investor",
+            "ticker": "MSFT",
+            "issuer_name": "Microsoft Corporation",
+            "domain": "www.microsoft.com",
+            "allowed_paths": [
+              "/en-us/investor/",
+              "/en-us/Investor/"
+            ],
+            "page_types": [
+              "investor_relations",
+              "earnings_release",
+              "webcast"
+            ],
+            "default_rights": {
+              "rights_class": "first_party_public",
+              "display_mode": "excerpt_only",
+              "source_rank": "first_party",
+              "source_type": "first_party_corporate",
+              "can_store_full_text": false,
+              "can_display_excerpt": true,
+              "can_display_link": true,
+              "policy_reason": "Approved seed first-party investor path; store bounded excerpts and links only.",
+              "reviewed_at": "2026-04-17T00:00:00Z"
+            },
+            "owner": "Phase 6 Product/Legal seed approval",
+            "reviewed_at": "2026-04-17T00:00:00Z",
+            "active": true
+          },
+          {
+            "registry_entry_id": "ph6m2-msft-news",
+            "ticker": "MSFT",
+            "issuer_name": "Microsoft Corporation",
+            "domain": "news.microsoft.com",
+            "allowed_paths": [
+              "/"
+            ],
+            "page_types": [
+              "press_release",
+              "newsroom"
+            ],
+            "default_rights": {
+              "rights_class": "first_party_public",
+              "display_mode": "excerpt_only",
+              "source_rank": "first_party",
+              "source_type": "first_party_corporate",
+              "can_store_full_text": false,
+              "can_display_excerpt": true,
+              "can_display_link": true,
+              "policy_reason": "Approved seed first-party news path; store bounded excerpts and links only.",
+              "reviewed_at": "2026-04-17T00:00:00Z"
+            },
+            "owner": "Phase 6 Product/Legal seed approval",
+            "reviewed_at": "2026-04-17T00:00:00Z",
+            "active": true
+          },
+          {
+            "registry_entry_id": "ph6m2-tsla-ir",
+            "ticker": "TSLA",
+            "issuer_name": "Tesla, Inc.",
+            "domain": "ir.tesla.com",
+            "allowed_paths": [
+              "/",
+              "/press-release/"
+            ],
+            "page_types": [
+              "investor_relations",
+              "earnings_release",
+              "webcast"
+            ],
+            "default_rights": {
+              "rights_class": "first_party_public",
+              "display_mode": "excerpt_only",
+              "source_rank": "first_party",
+              "source_type": "first_party_corporate",
+              "can_store_full_text": false,
+              "can_display_excerpt": true,
+              "can_display_link": true,
+              "policy_reason": "Approved seed first-party investor path; store bounded excerpts and links only.",
+              "reviewed_at": "2026-04-17T00:00:00Z"
+            },
+            "owner": "Phase 6 Product/Legal seed approval",
+            "reviewed_at": "2026-04-17T00:00:00Z",
+            "active": true
+          },
+          {
+            "registry_entry_id": "ph6m2-tsla-assets",
+            "ticker": "TSLA",
+            "issuer_name": "Tesla, Inc.",
+            "domain": "assets-ir.tesla.com",
+            "allowed_paths": [
+              "/"
+            ],
+            "page_types": [
+              "presentation",
+              "supplemental_material"
+            ],
+            "default_rights": {
+              "rights_class": "first_party_public",
+              "display_mode": "link_only",
+              "source_rank": "first_party",
+              "source_type": "first_party_corporate",
+              "can_store_full_text": false,
+              "can_display_excerpt": false,
+              "can_display_link": true,
+              "policy_reason": "Approved seed asset host; store metadata and links, not full asset text.",
+              "reviewed_at": "2026-04-17T00:00:00Z"
+            },
+            "owner": "Phase 6 Product/Legal seed approval",
+            "reviewed_at": "2026-04-17T00:00:00Z",
+            "active": true
+          },
+          {
+            "registry_entry_id": "ph6m2-tsla-digitalassets",
+            "ticker": "TSLA",
+            "issuer_name": "Tesla, Inc.",
+            "domain": "digitalassets.tesla.com",
+            "allowed_paths": [
+              "/"
+            ],
+            "page_types": [
+              "presentation",
+              "supplemental_material"
+            ],
+            "default_rights": {
+              "rights_class": "first_party_public",
+              "display_mode": "link_only",
+              "source_rank": "first_party",
+              "source_type": "first_party_corporate",
+              "can_store_full_text": false,
+              "can_display_excerpt": false,
+              "can_display_link": true,
+              "policy_reason": "Approved seed asset host; store metadata and links, not full asset text.",
+              "reviewed_at": "2026-04-17T00:00:00Z"
+            },
+            "owner": "Phase 6 Product/Legal seed approval",
+            "reviewed_at": "2026-04-17T00:00:00Z",
+            "active": true
+          },
+          {
+            "registry_entry_id": "ph6m2-tsla-main",
+            "ticker": "TSLA",
+            "issuer_name": "Tesla, Inc.",
+            "domain": "www.tesla.com",
+            "allowed_paths": [
+              "/"
+            ],
+            "page_types": [
+              "investor_relations",
+              "presentation",
+              "webcast"
+            ],
+            "default_rights": {
+              "rights_class": "first_party_public",
+              "display_mode": "link_only",
+              "source_rank": "first_party",
+              "source_type": "first_party_corporate",
+              "can_store_full_text": false,
+              "can_display_excerpt": false,
+              "can_display_link": true,
+              "policy_reason": "Approved seed Tesla first-party domain; store metadata and links, not full text.",
+              "reviewed_at": "2026-04-17T00:00:00Z"
+            },
+            "owner": "Phase 6 Product/Legal seed approval",
+            "reviewed_at": "2026-04-17T00:00:00Z",
+            "active": true
+          }
+        ]
+      },
+      "error_flag": false,
+      "request_id": "30a5542ab5054dea810cab78424122fd",
+      "provider": "first-party-context",
+      "retrieved_at": "2026-11-23T08:49:24.353186Z"
+    },
+    "TSLA": {
+      "ok": true,
+      "data": {
+        "context_items": [
+          {
+            "context_id": "ph6m2-tsla-ir-context",
+            "ticker": "TSLA",
+            "registry_entry_id": "ph6m2-tsla-ir",
+            "source_url": "https://ir.tesla.com/",
+            "source_domain": "ir.tesla.com",
+            "page_type": "investor_relations",
+            "title": "Tesla Investor Relations",
+            "summary": "Tesla investor relations publishes quarterly disclosures, press releases, shareholder decks, webcast links, Q&A links, SEC filing links, and other investor events.",
+            "excerpt": "Quarterly Disclosure, Press Release, Shareholder Deck, Webcast with Q&A, SEC Filing.",
+            "retrieved_at": "2026-11-23T08:49:24.354422Z",
+            "published_at": "2026-04-17T00:00:00Z",
+            "content_hash": "645ca589bff8ca91a648f19cab56923ece236b9738f9181e428a95c752ed0dcd",
+            "fetch_state": "fetched",
+            "rights": {
+              "rights_class": "first_party_public",
+              "display_mode": "excerpt_only",
+              "source_rank": "first_party",
+              "source_type": "first_party_corporate",
+              "can_store_full_text": false,
+              "can_display_excerpt": true,
+              "can_display_link": true,
+              "policy_reason": "Approved seed first-party investor path; store bounded excerpts and links only.",
+              "reviewed_at": "2026-04-17T00:00:00Z"
+            },
+            "artifact_ids": [
+              "ph6m2-tsla-shareholder-deck",
+              "ph6m2-tsla-webcast"
+            ],
+            "metadata": {
+              "seed_registry_entry_id": "ph6m2-tsla-ir",
+              "fixture": true,
+              "full_text_stored": false
+            }
+          }
+        ],
+        "call_artifacts": [
+          {
+            "artifact_id": "ph6m2-tsla-shareholder-deck",
+            "ticker": "TSLA",
+            "context_id": "ph6m2-tsla-ir-context",
+            "artifact_type": "presentation",
+            "title": "Tesla shareholder deck entry point",
+            "source_url": "https://ir.tesla.com/",
+            "source_domain": "ir.tesla.com",
+            "published_at": "2026-04-17T00:00:00Z",
+            "retrieved_at": "2026-11-23T08:49:24.354422Z",
+            "completeness_state": "metadata_only",
+            "rights": {
+              "rights_class": "first_party_public",
+              "display_mode": "excerpt_only",
+              "source_rank": "first_party",
+              "source_type": "first_party_corporate",
+              "can_store_full_text": false,
+              "can_display_excerpt": true,
+              "can_display_link": true,
+              "policy_reason": "Approved seed first-party investor path; store bounded excerpts and links only.",
+              "reviewed_at": "2026-04-17T00:00:00Z"
+            },
+            "content_hash": "a2b36df5710a0f16260b00d916f239dbe8249f7f694f0b0d2fce584176089e8d",
+            "metadata": {
+              "seed_registry_entry_id": "ph6m2-tsla-ir",
+              "storage_note": "metadata-and-link-first artifact capture"
+            }
+          },
+          {
+            "artifact_id": "ph6m2-tsla-webcast",
+            "ticker": "TSLA",
+            "context_id": "ph6m2-tsla-ir-context",
+            "artifact_type": "webcast",
+            "title": "Tesla webcast entry point",
+            "source_url": "https://ir.tesla.com/",
+            "source_domain": "ir.tesla.com",
+            "published_at": "2026-04-17T00:00:00Z",
+            "retrieved_at": "2026-11-23T08:49:24.354422Z",
+            "completeness_state": "metadata_only",
+            "rights": {
+              "rights_class": "first_party_public",
+              "display_mode": "excerpt_only",
+              "source_rank": "first_party",
+              "source_type": "first_party_corporate",
+              "can_store_full_text": false,
+              "can_display_excerpt": true,
+              "can_display_link": true,
+              "policy_reason": "Approved seed first-party investor path; store bounded excerpts and links only.",
+              "reviewed_at": "2026-04-17T00:00:00Z"
+            },
+            "content_hash": "a2b36df5710a0f16260b00d916f239dbe8249f7f694f0b0d2fce584176089e8d",
+            "metadata": {
+              "seed_registry_entry_id": "ph6m2-tsla-ir",
+              "storage_note": "metadata-and-link-first artifact capture"
+            }
+          }
+        ],
+        "registry": [
+          {
+            "registry_entry_id": "ph6m2-aapl-investor",
+            "ticker": "AAPL",
+            "issuer_name": "Apple Inc.",
+            "domain": "investor.apple.com",
+            "allowed_paths": [
+              "/investor-relations/",
+              "/"
+            ],
+            "page_types": [
+              "investor_relations",
+              "earnings_release",
+              "sec_filing_reference"
+            ],
+            "default_rights": {
+              "rights_class": "first_party_public",
+              "display_mode": "excerpt_only",
+              "source_rank": "first_party",
+              "source_type": "first_party_corporate",
+              "can_store_full_text": false,
+              "can_display_excerpt": true,
+              "can_display_link": true,
+              "policy_reason": "Approved seed first-party investor page; store bounded excerpts and links only.",
+              "reviewed_at": "2026-04-17T00:00:00Z"
+            },
+            "owner": "Phase 6 Product/Legal seed approval",
+            "reviewed_at": "2026-04-17T00:00:00Z",
+            "active": true
+          },
+          {
+            "registry_entry_id": "ph6m2-aapl-newsroom",
+            "ticker": "AAPL",
+            "issuer_name": "Apple Inc.",
+            "domain": "www.apple.com",
+            "allowed_paths": [
+              "/newsroom/"
+            ],
+            "page_types": [
+              "newsroom",
+              "press_release"
+            ],
+            "default_rights": {
+              "rights_class": "first_party_public",
+              "display_mode": "excerpt_only",
+              "source_rank": "first_party",
+              "source_type": "first_party_corporate",
+              "can_store_full_text": false,
+              "can_display_excerpt": true,
+              "can_display_link": true,
+              "policy_reason": "Approved seed first-party newsroom path; store bounded excerpts and links only.",
+              "reviewed_at": "2026-04-17T00:00:00Z"
+            },
+            "owner": "Phase 6 Product/Legal seed approval",
+            "reviewed_at": "2026-04-17T00:00:00Z",
+            "active": true
+          },
+          {
+            "registry_entry_id": "ph6m2-msft-investor",
+            "ticker": "MSFT",
+            "issuer_name": "Microsoft Corporation",
+            "domain": "www.microsoft.com",
+            "allowed_paths": [
+              "/en-us/investor/",
+              "/en-us/Investor/"
+            ],
+            "page_types": [
+              "investor_relations",
+              "earnings_release",
+              "webcast"
+            ],
+            "default_rights": {
+              "rights_class": "first_party_public",
+              "display_mode": "excerpt_only",
+              "source_rank": "first_party",
+              "source_type": "first_party_corporate",
+              "can_store_full_text": false,
+              "can_display_excerpt": true,
+              "can_display_link": true,
+              "policy_reason": "Approved seed first-party investor path; store bounded excerpts and links only.",
+              "reviewed_at": "2026-04-17T00:00:00Z"
+            },
+            "owner": "Phase 6 Product/Legal seed approval",
+            "reviewed_at": "2026-04-17T00:00:00Z",
+            "active": true
+          },
+          {
+            "registry_entry_id": "ph6m2-msft-news",
+            "ticker": "MSFT",
+            "issuer_name": "Microsoft Corporation",
+            "domain": "news.microsoft.com",
+            "allowed_paths": [
+              "/"
+            ],
+            "page_types": [
+              "press_release",
+              "newsroom"
+            ],
+            "default_rights": {
+              "rights_class": "first_party_public",
+              "display_mode": "excerpt_only",
+              "source_rank": "first_party",
+              "source_type": "first_party_corporate",
+              "can_store_full_text": false,
+              "can_display_excerpt": true,
+              "can_display_link": true,
+              "policy_reason": "Approved seed first-party news path; store bounded excerpts and links only.",
+              "reviewed_at": "2026-04-17T00:00:00Z"
+            },
+            "owner": "Phase 6 Product/Legal seed approval",
+            "reviewed_at": "2026-04-17T00:00:00Z",
+            "active": true
+          },
+          {
+            "registry_entry_id": "ph6m2-tsla-ir",
+            "ticker": "TSLA",
+            "issuer_name": "Tesla, Inc.",
+            "domain": "ir.tesla.com",
+            "allowed_paths": [
+              "/",
+              "/press-release/"
+            ],
+            "page_types": [
+              "investor_relations",
+              "earnings_release",
+              "webcast"
+            ],
+            "default_rights": {
+              "rights_class": "first_party_public",
+              "display_mode": "excerpt_only",
+              "source_rank": "first_party",
+              "source_type": "first_party_corporate",
+              "can_store_full_text": false,
+              "can_display_excerpt": true,
+              "can_display_link": true,
+              "policy_reason": "Approved seed first-party investor path; store bounded excerpts and links only.",
+              "reviewed_at": "2026-04-17T00:00:00Z"
+            },
+            "owner": "Phase 6 Product/Legal seed approval",
+            "reviewed_at": "2026-04-17T00:00:00Z",
+            "active": true
+          },
+          {
+            "registry_entry_id": "ph6m2-tsla-assets",
+            "ticker": "TSLA",
+            "issuer_name": "Tesla, Inc.",
+            "domain": "assets-ir.tesla.com",
+            "allowed_paths": [
+              "/"
+            ],
+            "page_types": [
+              "presentation",
+              "supplemental_material"
+            ],
+            "default_rights": {
+              "rights_class": "first_party_public",
+              "display_mode": "link_only",
+              "source_rank": "first_party",
+              "source_type": "first_party_corporate",
+              "can_store_full_text": false,
+              "can_display_excerpt": false,
+              "can_display_link": true,
+              "policy_reason": "Approved seed asset host; store metadata and links, not full asset text.",
+              "reviewed_at": "2026-04-17T00:00:00Z"
+            },
+            "owner": "Phase 6 Product/Legal seed approval",
+            "reviewed_at": "2026-04-17T00:00:00Z",
+            "active": true
+          },
+          {
+            "registry_entry_id": "ph6m2-tsla-digitalassets",
+            "ticker": "TSLA",
+            "issuer_name": "Tesla, Inc.",
+            "domain": "digitalassets.tesla.com",
+            "allowed_paths": [
+              "/"
+            ],
+            "page_types": [
+              "presentation",
+              "supplemental_material"
+            ],
+            "default_rights": {
+              "rights_class": "first_party_public",
+              "display_mode": "link_only",
+              "source_rank": "first_party",
+              "source_type": "first_party_corporate",
+              "can_store_full_text": false,
+              "can_display_excerpt": false,
+              "can_display_link": true,
+              "policy_reason": "Approved seed asset host; store metadata and links, not full asset text.",
+              "reviewed_at": "2026-04-17T00:00:00Z"
+            },
+            "owner": "Phase 6 Product/Legal seed approval",
+            "reviewed_at": "2026-04-17T00:00:00Z",
+            "active": true
+          },
+          {
+            "registry_entry_id": "ph6m2-tsla-main",
+            "ticker": "TSLA",
+            "issuer_name": "Tesla, Inc.",
+            "domain": "www.tesla.com",
+            "allowed_paths": [
+              "/"
+            ],
+            "page_types": [
+              "investor_relations",
+              "presentation",
+              "webcast"
+            ],
+            "default_rights": {
+              "rights_class": "first_party_public",
+              "display_mode": "link_only",
+              "source_rank": "first_party",
+              "source_type": "first_party_corporate",
+              "can_store_full_text": false,
+              "can_display_excerpt": false,
+              "can_display_link": true,
+              "policy_reason": "Approved seed Tesla first-party domain; store metadata and links, not full text.",
+              "reviewed_at": "2026-04-17T00:00:00Z"
+            },
+            "owner": "Phase 6 Product/Legal seed approval",
+            "reviewed_at": "2026-04-17T00:00:00Z",
+            "active": true
+          }
+        ]
+      },
+      "error_flag": false,
+      "request_id": "1ecec023d96c495bbd12b18aa149ba21",
+      "provider": "first-party-context",
+      "retrieved_at": "2026-11-23T08:49:24.354422Z"
+    }
+  },
+  "news": {
+    "ok": true,
+    "data": [
+      {
+        "article_id": "56669b6b4c2c0de6481552716f89beabb4addcf8156c4258920c80fcee3627fb",
+        "source": "Bloomberg",
+        "url": "https://www.bloomberg.com/news/articles/2026-03-13/tesla-shares-rise-after-delivery-update",
+        "title": "Bloomberg: $TSLA shares rise after delivery update",
+        "published_at": "2026-03-13T09:45:00Z",
+        "retrieved_at": "2026-03-27T10:00:00Z",
+        "body_text": "$TSLA gained after the company outlined better factory throughput and steady demand in China.",
+        "tickers_mentioned": [
+          "TSLA"
+        ],
+        "is_approved_source": true
+      },
+      {
+        "article_id": "6adc480a7446a0d961912e70232ff100e460bcb133bd4d186c7d5e03eeb280af",
+        "source": "Reuters",
+        "url": "https://www.reuters.com/markets/us/apple-suppliers-demand-held-up-2026-03-13/",
+        "title": "Reuters: $AAPL suppliers say demand held up into March",
+        "published_at": "2026-03-13T08:15:00Z",
+        "retrieved_at": "2026-03-27T10:00:00Z",
+        "body_text": "$AAPL suppliers said demand held up while margins improved ahead of the spring launch cycle.",
+        "tickers_mentioned": [
+          "AAPL"
+        ],
+        "is_approved_source": true
+      },
+      {
+        "article_id": "bbd7865128d72ec850226cc5f5f29dad895bc3ad0ab3dd9fa59a65508cad3941",
+        "source": "Reuters",
+        "url": "https://www.reuters.com/markets/us/prior-day-story-2026-03-12/",
+        "title": "Reuters: prior day article should be filtered out",
+        "published_at": "2026-03-12T21:15:00Z",
+        "retrieved_at": "2026-03-27T10:00:00Z",
+        "body_text": "This item belongs to the previous cycle and should not be returned for 2026-03-13.",
+        "tickers_mentioned": [],
+        "is_approved_source": true
+      }
+    ],
+    "error_flag": false,
+    "provider": "approved-sources",
+    "retrieved_at": "2026-03-27T10:00:00Z"
+  },
+  "calendar_events": [
+    {
+      "ticker": "AAPL",
+      "event_type": "earnings",
+      "event_date": "2026-03-31",
+      "provider": "yfinance",
+      "retrieved_at": "2026-11-23T08:49:24.357489Z"
+    },
+    {
+      "ticker": "MSFT",
+      "event_type": "earnings",
+      "event_date": "2026-04-02",
+      "provider": "yfinance",
+      "retrieved_at": "2026-11-23T08:49:24.357542Z"
+    }
+  ]
+}
