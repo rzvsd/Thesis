@@ -1,0 +1,69 @@
+name: rebuild-test-apk
+
+# Builds a debug APK of the Android app pointed at the Cloudflare front door, for the owner's phone test.
+# Owner: M1. Needs the owner's review (AGENTS rule 7). Runs when this file or apps/mobile changes on `rebuild`.
+# Secret: GOOGLE_SERVICES_JSON (the google-services.json file from Firebase project thesis-1d5d5). It is written to
+# the app folder for the build only and never echoed. Without it the APK builds without push.
+# The APK is kept 7 days as the run's artifact "thesis-test-apk".
+on:
+  push:
+    branches: [rebuild]
+    paths:
+      - "apps/mobile/**"
+      - ".github/workflows/rebuild-test-apk.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: rebuild-test-apk
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      API_BASE_URL: https://thesis-front-door.razvan-sodoleanu.workers.dev
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Set up Java
+        uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4.9.1
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3.2.2
+        with:
+          packages: "platform-tools platforms;android-35"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a # v4.4.3
+
+      - name: Write Firebase config
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          if [ -z "${GOOGLE_SERVICES_JSON:-}" ]; then
+            echo "GOOGLE_SERVICES_JSON is not set. Building without push."
+            exit 0
+          fi
+          printf '%s' "$GOOGLE_SERVICES_JSON" > apps/mobile/android/app/google-services.json
+
+      - name: Build debug APK
+        working-directory: apps/mobile/android
+        run: |
+          chmod +x ./gradlew
+          ./gradlew assembleDebug -PAPI_BASE_URL="$API_BASE_URL" --no-daemon --stacktrace
+
+      - name: Keep the APK
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: thesis-test-apk
+          path: apps/mobile/android/app/build/outputs/apk/debug/*.apk
+          retention-days: 7
+          if-no-files-found: error
