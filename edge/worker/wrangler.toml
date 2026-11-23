@@ -1,0 +1,15 @@
+# Thesis front door (DECISIONS D2). Deploy from this folder: npx wrangler@4.155.0 deploy
+# No secrets and no account_id here: wrangler asks for the account on first deploy.
+name = "thesis-front-door"
+main = "src/index.ts"
+compatibility_date = "2026-10-15"
+workers_dev = true
+
+[vars]
+API_ORIGIN = "https://oizahjzcowflmrffoxjg.supabase.co"
+# "api" is production. A preview can use: npx wrangler@4.155.0 deploy --var API_FUNCTION:api-m1
+API_FUNCTION = "api"
+
+[triggers]
+# Daily keep-alive (H11): GET /health?db=1 at 04:17 UTC.
+crons = ["17 4 * * *"]
