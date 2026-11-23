@@ -346,3 +346,20 @@ Deno.test("reset emails stop at the per-address cap, with the same answer (S2)",
   assertEquals(second.json.message, first.json.message);
   assertEquals(t.fake.outbox.length, before + 1);
 });
+
+Deno.test("the 6-digit email code verifies with the email (V3)", async () => {
+  const t = setup();
+  const email = "otp@example.com";
+  const password = "VeryStrongPass1!";
+  assertEquals((await t.call("POST", "/auth/register", { email, password })).status, 201);
+  const otp = [...t.fake.outbox].reverse().find((e) => e.email === email)!.otp;
+  const noEmail = await t.call("POST", "/auth/verify", { token: otp });
+  assertEquals(noEmail.status, 422);
+  const wrongEmail = await t.call("POST", "/auth/verify", { token: otp, email: "other@example.com" });
+  assertEquals(wrongEmail.status, 400);
+  const ok = await t.call("POST", "/auth/verify", { token: otp, email: "OTP@example.com " });
+  assertEquals(ok.status, 200);
+  assertEquals((await t.call("POST", "/auth/login", { email, password })).status, 200);
+  const again = await t.call("POST", "/auth/verify", { token: otp, email });
+  assertEquals(again.status, 400);
+});

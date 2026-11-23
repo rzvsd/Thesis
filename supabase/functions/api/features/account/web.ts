@@ -4,13 +4,14 @@ import { rules } from "../../../_lib/store/rate_limit.ts";
 import {
   createOpaqueToken,
   hashOpaqueToken,
+  isOtpCode,
   isValidEmail,
   normalizeEmail,
   parseCode,
 } from "../../../_lib/auth/tokens.ts";
 import { logInfo } from "../../../_shared/log.ts";
 import type { RouteContext } from "../../router.ts";
-import { html } from "../web/html.ts";
+import { escapeHtml, html } from "../web/html.ts";
 import type { AuthDeps } from "../auth/deps.ts";
 import { deleteAccount, STORE_SUBSCRIPTION_NOTICE } from "./delete.ts";
 
@@ -123,6 +124,7 @@ export function requestCode(get: () => AuthDeps) {
       "Confirm account deletion",
       `<p>If an account exists for this email, we sent a confirmation code. It expires in 1 hour.</p>
 <form method="post" action="/auth/delete-account/confirm">
+<input type="hidden" name="email" value="${escapeHtml(email)}">
 <label>Confirmation code <input type="text" name="token" required autocomplete="one-time-code"></label>
 <button type="submit">Permanently delete my account</button>
 </form>`,
@@ -130,8 +132,14 @@ export function requestCode(get: () => AuthDeps) {
   };
 }
 
-// Resolves a deletion code to a user id: "v1d." codes are Supabase OTPs, untagged codes are ours.
-async function consumeDeletionCode(d: AuthDeps, token: string): Promise<string | undefined> {
+// Resolves a deletion code to a user id: a 6-digit code (with the email from the form) or a "v1d." code is a
+// Supabase OTP, an untagged long code is ours.
+async function consumeDeletionCode(d: AuthDeps, token: string, email: string): Promise<string | undefined> {
+  if (isOtpCode(token)) {
+    if (!isValidEmail(email)) return undefined;
+    const res = await d.gotrue.verifyOtp("email", email, token);
+    return res.ok ? res.data?.user?.id : undefined;
+  }
   const code = parseCode(token);
   if (code?.tag === "v1d") {
     const res = await d.gotrue.verify("magiclink", code.hash);
@@ -153,7 +161,8 @@ export function confirmDelete(get: () => AuthDeps) {
     if (limited) return limited;
     const form = await readForm(req);
     const token = form.get("token")?.trim();
-    const userId = token ? await consumeDeletionCode(d, token) : undefined;
+    const email = normalizeEmail(form.get("email") ?? "");
+    const userId = token ? await consumeDeletionCode(d, token, email) : undefined;
     if (!userId) {
       return page(
         400,

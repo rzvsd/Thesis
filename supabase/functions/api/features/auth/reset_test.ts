@@ -102,3 +102,19 @@ Deno.test("password reset confirm: 422 rules, 400 for bad or wrong-kind codes", 
   });
   assertEquals(wrongTag.status, 400);
 });
+
+Deno.test("password reset takes the 6-digit code with the email (V3)", async () => {
+  const t = setup();
+  const email = "reset-otp@example.com";
+  await registeredVerifiedUser(t, email);
+  assertEquals((await t.call("POST", "/auth/password-reset/request", { email })).status, 202);
+  const otp = [...t.fake.outbox].reverse().find((e) => e.email === email && e.kind === "recovery")!.otp;
+  const res = await t.call("POST", "/auth/password-reset/confirm", {
+    token: otp,
+    email,
+    new_password: "AnotherStrongPass2!",
+  });
+  assertEquals(res.status, 200);
+  const login = await t.call("POST", "/auth/login", { email, password: "AnotherStrongPass2!" });
+  assertEquals(login.status, 200);
+});
