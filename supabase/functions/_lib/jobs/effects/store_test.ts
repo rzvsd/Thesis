@@ -3,7 +3,7 @@ import { assert, assertEquals } from "jsr:@std/assert@1.0.13";
 import postgres from "npm:postgres@3.4.5";
 import { applyCompletionEffects } from "./apply.ts";
 import { dispatchFilingChangeAlerts, findPriorDeepDive, noopNotifier } from "./filing-alerts.ts";
-import { enrichAnalysisReportIssuer } from "./issuer.ts";
+import { enrichAnalysisReportIssuer } from "../../reports/issuer.ts";
 import { postgresEffectsStore } from "./store.ts";
 import { deepDiveFixture } from "./testing/report_fixture.ts";
 
@@ -60,7 +60,13 @@ Deno.test({
           rationale: "r",
         }],
       });
-      report = await enrichAnalysisReportIssuer(store, report);
+      report = await enrichAnalysisReportIssuer(
+        {
+          getSupportedTicker: (s) => store.getSupportedTicker(s),
+          fetchStructuralContext: () => Promise.resolve(undefined),
+        },
+        report,
+      );
       assertEquals(report.issuer?.name, "Zeta Test Corp");
 
       const prior = await findPriorDeepDive(store, report);

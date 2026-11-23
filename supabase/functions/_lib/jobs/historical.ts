@@ -6,7 +6,7 @@ import type { Sql } from "../../_shared/db.ts";
 import { env } from "../../_shared/env.ts";
 import { apiError, json } from "../../_shared/http.ts";
 import type { ArtifactStore } from "./artifacts.ts";
-import { assertIncomingAnalysisReport } from "./report-validation.ts";
+import { assertIncomingAnalysisReport } from "../reports/validation.ts";
 import type { JobsStore } from "./store.ts";
 import { TICKER_RE } from "./service.ts";
 import type { AnalysisReport } from "./types.ts";

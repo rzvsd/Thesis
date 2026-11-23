@@ -3,7 +3,7 @@
 import { apiError, json } from "../../_shared/http.ts";
 import { logError, logInfo } from "../../_shared/log.ts";
 import type { ArtifactStore } from "./artifacts.ts";
-import { assertIncomingAnalysisReport } from "./report-validation.ts";
+import { assertIncomingAnalysisReport } from "../reports/validation.ts";
 import type { JobsStore } from "./store.ts";
 import { dispatchJob, type SweepDeps, sweepOnPoll } from "./sweeper.ts";
 import type { AnalysisReport, AnalysisRequest, JobRecord, JobStatusResponse, ReportRecord } from "./types.ts";

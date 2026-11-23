@@ -4,12 +4,12 @@ import { env } from "../../_shared/env.ts";
 import { logError } from "../../_shared/log.ts";
 import { supabaseStorageArtifacts } from "./artifacts.ts";
 import { githubActionsRunner } from "./dispatch.ts";
+import { enrichAnalysisReportIssuer, fetchStructuralContext } from "../reports/issuer.ts";
+import { appendAuditEvent, getSupportedTicker } from "../store/reports.ts";
 import {
-  appendAudit,
   applyCompletionEffects,
   dispatchFilingChangeAlerts,
   type EffectsDeps,
-  enrichAnalysisReportIssuer,
   findPriorDeepDive,
   noopNotifier,
   postgresEffectsStore,
@@ -45,8 +45,11 @@ function latestClose(_ticker: string): Promise<number | undefined> {
 
 export function completionEffects(deps: EffectsDeps): CompletionEffects {
   return {
-    enrichIssuer: (report) => enrichAnalysisReportIssuer(deps.store, report),
-    audit: (eventType, payload, userId) => appendAudit(deps.store, eventType, payload, userId),
+    // A failed enrichment never blocks completion (the old server degraded the same way).
+    enrichIssuer: (report) =>
+      enrichAnalysisReportIssuer({ getSupportedTicker, fetchStructuralContext }, report)
+        .catch(() => report),
+    audit: appendAuditEvent,
     apply: (input) => applyCompletionEffects(deps, input),
     findPrior: (report) => findPriorDeepDive(deps.store, report),
     filingAlerts: (report, prior) => dispatchFilingChangeAlerts(deps, { report, prior }),
@@ -82,10 +85,8 @@ export function historicalDeps(): {
   source: HistoricalSource;
   audit: (eventType: string, payload: Record<string, unknown>, userId?: string) => Promise<void>;
 } {
-  const sql = db();
-  const store = postgresEffectsStore(sql);
   return {
-    source: postgresHistoricalSource(sql),
-    audit: (eventType, payload, userId) => appendAudit(store, eventType, payload, userId),
+    source: postgresHistoricalSource(db()),
+    audit: appendAuditEvent,
   };
 }

@@ -16,27 +16,24 @@ Deno.test("artifact key keeps the old format", () => {
 });
 
 Deno.test("writes, reads and deletes through the Storage API with the service key", async () => {
+  Deno.env.set("SUPABASE_URL", "https://p.supabase.co");
+  Deno.env.set("SUPABASE_SERVICE_ROLE_KEY", "svc");
+  Deno.env.delete("REPORT_ARTIFACT_BUCKET");
   const calls: Array<{ url: string; method: string; auth: string | null }> = [];
   const objects = new Map<string, string>();
-  const fetchFn = ((input: string | URL | Request, init?: RequestInit) => {
-    const url = String(input);
+  const fetchFn = (url: string, init?: RequestInit) => {
     const method = init?.method ?? "GET";
     calls.push({ url, method, auth: new Headers(init?.headers).get("authorization") });
     if (method === "POST") objects.set(url, String(init?.body));
     if (method === "GET") {
       const body = objects.get(url);
-      return Promise.resolve(
-        body ? new Response(body, { status: 200 }) : new Response("{}", { status: 400 }),
-      );
+      if (body) return Promise.resolve(new Response(body, { status: 200 }));
+      if (url.includes("broken")) return Promise.resolve(new Response("boom", { status: 500 }));
+      return Promise.resolve(new Response("not found", { status: 404 }));
     }
     return Promise.resolve(new Response("{}", { status: 200 }));
-  }) as typeof fetch;
-  const store = supabaseStorageArtifacts({
-    url: "https://p.supabase.co",
-    key: "svc",
-    bucket: "report-artifacts",
-    fetchFn,
-  });
+  };
+  const store = supabaseStorageArtifacts(fetchFn);
   const key = await store.writeReport(report);
   assertEquals(
     calls[0].url,
@@ -45,6 +42,7 @@ Deno.test("writes, reads and deletes through the Storage API with the service ke
   assertEquals(calls[0].auth, "Bearer svc");
   assertEquals((await store.readReport(key))?.report_id, "r1");
   assertEquals(await store.readReport("deep_dive/x/missing.json"), undefined);
+  assertEquals(await store.readReport("deep_dive/x/broken.json"), undefined);
   await store.deleteReport(key);
   assertEquals(calls.at(-1)?.method, "DELETE");
 });
