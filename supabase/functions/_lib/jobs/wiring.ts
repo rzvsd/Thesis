@@ -4,6 +4,7 @@ import { env } from "../../_shared/env.ts";
 import { logError } from "../../_shared/log.ts";
 import { supabaseStorageArtifacts } from "./artifacts.ts";
 import { githubActionsRunner } from "./dispatch.ts";
+import { pushSenderFromEnv } from "../push/index.ts";
 import { enrichAnalysisReportIssuer, fetchStructuralContext } from "../reports/issuer.ts";
 import { appendAuditEvent, getSupportedTicker } from "../store/reports.ts";
 import {
@@ -62,7 +63,8 @@ export function jobsDeps(): JobsDeps {
   const effectsDeps: EffectsDeps = {
     store: postgresEffectsStore(sql),
     latestClose,
-    notifier: noopNotifier,
+    // Push goes through M4's sender (PUSH_PROVIDER_MODE, disabled by default). Email stays a no-op for now.
+    notifier: { ...noopNotifier, sendPush: (targets, payload) => pushSenderFromEnv().send(targets, payload) },
     readReport: (key) => artifacts.readReport(key),
   };
   return {
