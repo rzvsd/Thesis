@@ -4,7 +4,7 @@ Code that runs on GitHub Actions for the serverless rebuild. Owners are in `docs
 
 | Folder | Owner | What runs |
 | --- | --- | --- |
-| `ops/` | M0 | Weekly encrypted database dump (`rebuild-backup.yml`) |
+| `ops/` | M0 | Weekly encrypted database dump (`rebuild-backup.yml`), stored in the private Storage bucket `db-backups` by `backup_store.mts` (newest 5 kept) |
 | `deep-dive/` | M2 | Deep Dive runner, started by `workflow_dispatch` with a job id |
 | `data/` | M3 | Python fetch scripts (prices, filings, headlines, macro, sentiment) |
 | `daily/`, `weekly/` | M3 | Steps of the daily and weekly workflows |
