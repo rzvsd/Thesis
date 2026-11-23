@@ -17,6 +17,9 @@ INGEST_ROUTE = "/internal/news/ingest"
 LIST_ROUTE = "/internal/news"
 CHUNK_SIZE = 500
 LIST_LIMIT = 500
+# The store is optional for a Pulse issue. Its two calls together get this much time and no more, so a store
+# that hangs cannot use up the time the Pulse dispatch needs.
+STORE_BUDGET_SECONDS = 45.0
 
 
 def post_news(api: ApiClient, items: list[dict[str, Any]], sources: list[dict[str, Any]]) -> int:
@@ -47,11 +50,15 @@ def with_stored_news(
     A feed shows only its newest items, and the fetch at Pulse time can fail. So the fresh headlines are stored
     first, then the whole window is read back. If the store cannot be reached the fresh envelope is used as is.
     If the fresh read was an outage but the store holds headlines for the window, those are used.
+
+    The store calls run on their own short time budget (STORE_BUDGET_SECONDS). The caller's step budget starts
+    again afterwards, whatever happened here.
     """
     envelope = dict(fresh)
     fresh_ok = envelope.get("ok") is True and isinstance(envelope.get("data"), list)
     fresh_items: list[dict[str, Any]] = list(envelope["data"]) if fresh_ok else []
     sources = envelope.get("sources") if isinstance(envelope.get("sources"), list) else []
+    api.start_step(STORE_BUDGET_SECONDS)
     try:
         if fresh_ok or sources:
             post_news(api, fresh_items, sources)
@@ -59,6 +66,8 @@ def with_stored_news(
     except (ApiError, RetryableError, DeadlineExceeded) as error:
         log("WARN", "News store unavailable; using the fresh headlines only", error_type=type(error).__name__)
         return envelope
+    finally:
+        api.start_step()
 
     merged: dict[str, dict[str, Any]] = {}
     for item in [*fresh_items, *stored_items]:

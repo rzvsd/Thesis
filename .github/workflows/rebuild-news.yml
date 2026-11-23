@@ -41,6 +41,9 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
+          # GitHub runs schedules from the default branch (main), but the jobs' code is on rebuild until the
+          # cutover (audit W1). M5 changes this to main at the cutover.
+          ref: rebuild
           persist-credentials: false
 
       - name: Check secrets

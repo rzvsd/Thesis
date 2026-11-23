@@ -5,13 +5,18 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
+import json
+from urllib.request import Request
+
 import pytest
 
 import news_ingest
 import news_store
 import run_news
 import run_pulse
+from api_client import ApiClient
 from fake_api import make_client
+from retry import RetryPolicy
 
 LIVE_ENV = {"DATA_OPENBB_FIXTURE_MODE": "false", "MARKET_PULSE_TICKERS": "AAPL"}
 NOW = datetime(2026, 3, 13, 12, 0, tzinfo=timezone.utc)
@@ -188,3 +193,79 @@ def test_pulse_main_goes_through_the_store_in_live_mode_only(monkeypatch: pytest
     client, transport = make_client(handler)
     assert run_pulse.main(client, None, {}) == 0  # fixture mode
     assert [call["path"] for call in transport.calls] == ["/internal/pulse/dispatch"]
+
+
+class StallingStore:
+    """A transport on a fake clock: the news store never answers, the Pulse dispatch does."""
+
+    def __init__(self) -> None:
+        self.now = 0.0
+        self.calls: list[tuple[str, float]] = []
+        self.bodies: list[Any] = []
+
+    def clock(self) -> float:
+        return self.now
+
+    def sleep(self, seconds: float) -> None:
+        self.now += seconds
+
+    def __call__(self, request: Request, timeout: float) -> tuple[int, dict[str, str], bytes]:
+        path = request.full_url.split("/api", 1)[1].split("?")[0]
+        self.calls.append((path, timeout))
+        if path.startswith("/internal/news"):
+            self.now += timeout
+            raise TimeoutError("stalled")
+        self.bodies.append(json.loads(request.data.decode("utf-8")))
+        return 202, {}, json.dumps({"job": {"job_id": "j1", "status": "complete"}}).encode("utf-8")
+
+    def client(self) -> ApiClient:
+        return ApiClient(
+            base_url="https://example.invalid/functions/v1/api", token="test-token-value", transport=self,
+            clock=self.clock, sleep=self.sleep, step_timeout=240.0,
+            policy=RetryPolicy(max_attempts=4, base_delay_seconds=1.0, jitter=0),
+        )
+
+
+def test_a_stalled_news_store_leaves_the_pulse_dispatch_its_full_time(monkeypatch: pytest.MonkeyPatch) -> None:
+    fresh_item = article("https://example.test/a", "Fed holds rates", "2026-03-13T08:15:00Z")
+
+    def fake_build_body(now: Any = None, env: Any = None) -> dict[str, Any]:
+        return {"cycle_start": "2026-03-12T10:30:00.000Z", "cycle_end": "2026-03-13T10:31:00.000Z",
+                "inputs": {"companies": {}, "first_party": {},
+                           "news": {"ok": True, "data": [fresh_item], "error_flag": False, "sources": []}}}
+
+    monkeypatch.setattr(run_pulse, "build_body", fake_build_body)
+    store = StallingStore()
+    assert run_pulse.main(store.client(), None, LIVE_ENV) == 0
+    # The store got its own short budget and no more.
+    store_time = sum(timeout for path, timeout in store.calls if path.startswith("/internal/news"))
+    assert store_time <= news_store.STORE_BUDGET_SECONDS + 1
+    assert store.now <= news_store.STORE_BUDGET_SECONDS + 5
+    # The dispatch still went out, with the fresh headlines and a full request timeout.
+    path, timeout = store.calls[-1]
+    assert path == "/internal/pulse/dispatch" and timeout == 160.0
+    assert [item["title"] for item in store.bodies[0]["inputs"]["news"]["data"]] == ["Fed holds rates"]
+
+
+def test_run_news_stores_what_it_read_even_when_reading_used_up_the_step_time(monkeypatch: pytest.MonkeyPatch) -> None:
+    clock = {"now": 0.0}
+
+    def handler(method: str, path: str, body: Any) -> tuple[int, Any]:
+        if path == "/internal/data/price-tickers":
+            return 200, {"tickers": ["AAPL"]}
+        return 200, {"stored": len(body["items"])}
+
+    def slow_feeds(source: news_ingest.ApprovedSource, requested_date: str) -> str:
+        clock["now"] += 100.0  # seven feeds: far past the 240 second step budget
+        return feed_loader(source, requested_date)
+
+    client, transport = make_client(handler, clock=lambda: clock["now"], step_timeout=240.0)
+    monkeypatch.setattr(run_news, "filings_reader", lambda tickers, env=None: news_ingest_reader_none)
+    assert run_news.main(client, NOW, LIVE_ENV, source_loader=slow_feeds) == 0
+    assert clock["now"] > 240.0
+    ingest = [call for call in transport.calls if call["path"] == "/internal/news/ingest"]
+    assert len(ingest) == 1 and [item["title"] for item in ingest[0]["body"]["items"]] == ["Fed holds rates"]
+
+
+def news_ingest_reader_none(keep: Any, retrieved_at: str) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    return [], {"source": "sec-edgar-filings", "ok": True, "article_count": 0}

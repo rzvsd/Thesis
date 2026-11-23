@@ -137,6 +137,26 @@ def test_live_filings_one_company_failing_does_not_cost_the_others() -> None:
     assert company_filings.company_filing_articles([], KEEP_ALL, NOW, env=env, ciks=CIKS, fetch_json=down)[1]["ok"] is True
 
 
+def test_slow_filings_stop_at_the_time_budget_and_keep_what_was_read() -> None:
+    clock = {"now": 0.0}
+    asked: list[str] = []
+
+    def slow(url: str, *, headers: dict[str, str]) -> dict[str, Any]:
+        asked.append(url)
+        clock["now"] += 40.0
+        return submissions("Some Company", [("8-K", "2.02", "2026-03-13T10:00:00.000Z", f"0000000000-26-00000{len(asked)}")])
+
+    ciks = {"AAPL": "0000320193", "MSFT": "0000789019", "NVDA": "0001045810", "AMZN": "0001018724"}
+    env = {"DATA_OPENBB_FIXTURE_MODE": "false"}
+    articles, status = company_filings.company_filing_articles(
+        list(ciks), KEEP_ALL, NOW, env=env, ciks=ciks, fetch_json=slow, budget_seconds=60.0, clock=lambda: clock["now"],
+    )
+    # 0 s and 40 s are inside the budget; at 80 s the last two companies are skipped.
+    assert len(asked) == 2
+    assert status == {"source": "sec-edgar-filings", "ok": True, "article_count": 2}
+    assert len(articles) == 2
+
+
 def test_filing_url_without_a_primary_document_points_at_the_index() -> None:
     assert company_filings.filing_url("0000320193", "0000320193-26-000031", "") == (
         "https://www.sec.gov/Archives/edgar/data/320193/000032019326000031/0000320193-26-000031-index.htm"

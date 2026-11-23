@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from typing import Any, Callable, Mapping
 from urllib.error import URLError
 
@@ -29,6 +30,9 @@ SOURCE_NAME = "SEC EDGAR"
 FILINGS_FIXTURE_ROOT = FIXTURE_ROOT / "filings"
 # Newest filings read per company. A busy issuer files a few dozen forms a week, most of them Form 4.
 MAX_ROWS_PER_COMPANY = 200
+# All companies together get this long. When the SEC is slow, the companies not reached are skipped and counted,
+# so the feeds that were read can still be stored and the Pulse still goes out.
+FILINGS_BUDGET_SECONDS = 60.0
 
 # What each 8-K item number means, in plain words (SEC Form 8-K, sections 1 to 9).
 ITEM_LABELS: Mapping[str, str] = {
@@ -139,11 +143,13 @@ def company_filing_articles(
     env: Mapping[str, str] | None = None,
     ciks: Mapping[str, str] | None = None,
     fetch_json: FetchJson = _sec_fetch_json,
+    budget_seconds: float = FILINGS_BUDGET_SECONDS,
+    clock: Callable[[], float] = time.monotonic,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """Filing headlines for `tickers` and this source's status. Never raises.
 
     One company failing does not cost the others. The source counts as failed only when companies were asked
-    for and none could be read.
+    for and none could be read. Companies not reached within `budget_seconds` are skipped and counted.
     """
     known = dict(ciks) if ciks is not None else load_coverage_ciks(_cik_env(env))
     wanted = []
@@ -158,7 +164,13 @@ def company_filing_articles(
     articles: list[dict[str, Any]] = []
     read = 0
     failed = 0
-    for ticker in with_cik:
+    skipped = 0
+    started = clock()
+    for position, ticker in enumerate(with_cik):
+        if clock() - started >= budget_seconds:
+            skipped = len(with_cik) - position
+            log("WARN", "Company filings stopped: time budget used up", skipped=skipped)
+            break
         cik = known[ticker]
         try:
             if use_fixtures:
@@ -175,7 +187,7 @@ def company_filing_articles(
         except Exception as error:  # one bad company must not cost the others
             failed += 1
             log("WARN", "Company filings failed", ticker=ticker, error_type=type(error).__name__)
-    log("INFO", "Company filings read", companies=len(with_cik), read=read, failed=failed,
+    log("INFO", "Company filings read", companies=len(with_cik), read=read, failed=failed, skipped=skipped,
         without_cik=len(wanted) - len(with_cik), record_count=len(articles))
     if failed and not read:
         return [], failed_status(SOURCE_KEY, "PROVIDER_OUTAGE")

@@ -80,6 +80,9 @@ def main(client: ApiClient | None = None, now: datetime | None = None, env: Mapp
     failed = sorted(str(status.get("source")) for status in sources if status.get("ok") is not True)
     stale = stale_sources(sources, moment)
     items = body["data"] if body.get("ok") is True else []
+    # Reading the sources took its own time. Storing gets a full budget, so a slow source cannot cost the
+    # headlines that were read.
+    api.start_step()
     stored = post_news(api, items, sources)
     log("INFO" if not failed and not stale else "WARN", "News stored", items=len(items), stored=stored,
         tickers=len(tickers), sources=len(sources), failed_sources=",".join(failed), stale_sources=",".join(stale))
