@@ -62,10 +62,10 @@ export function resetConfirm(get: () => AuthDeps) {
     const invalid = () => apiError(400, "invalid_reset_token", "The reset code is invalid or expired.");
     let verified;
     if (isOtpCode(token)) {
-      // The 6-digit code from the email (audit V3) needs the address it went to.
+      // The short code from the email (audit V3; the project sends 8 digits) needs the address it went to.
       const email = normalizeEmail(body.email);
       if (!isValidEmail(email)) {
-        return apiError(422, "validation_failed", "email is required with a 6-digit code");
+        return apiError(422, "validation_failed", "Enter the email address the code was sent to.");
       }
       verified = await d.gotrue.verifyOtp("recovery", email, token);
     } else {
