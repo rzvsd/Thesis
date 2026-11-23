@@ -1,0 +1,61 @@
+name: rebuild-deploy
+
+# Deploys the "api" Edge Function to the Supabase project "thesis" (rebuild). Owner: M1. Needs the owner's review
+# (AGENTS rule 7). Chosen by the owner on 2026-11-23 so deploys never need a PC.
+# - A push to `rebuild` that changes supabase/functions deploys `api` (AGENTS rule 9: only rebuild deploys api).
+# - Run it by hand on a milestone branch to deploy that branch as its preview function (api-m1 .. api-m4).
+#   GitHub only offers "Run workflow" for files on the default branch, so this works after the M5 cutover.
+# Secret: SUPABASE_ACCESS_TOKEN (a personal access token from supabase.com/dashboard/account/tokens).
+# It is passed to the CLI as an env var only, never echoed. Inputs are checked against a fixed list,
+# never pasted into a shell line. About 1 minute per deploy.
+on:
+  push:
+    branches: [rebuild]
+    paths:
+      - "supabase/functions/**"
+      - ".github/workflows/rebuild-deploy.yml"
+  workflow_dispatch:
+    inputs:
+      function:
+        description: "Function to deploy from the selected branch"
+        type: choice
+        options: [api-m1, api-m2, api-m3, api-m4, api]
+        default: api-m1
+
+concurrency:
+  group: rebuild-deploy-${{ github.event.inputs.function || 'api' }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    env:
+      PROJECT_REF: oizahjzcowflmrffoxjg
+      FUNCTION_NAME: ${{ github.event.inputs.function || 'api' }}
+      REF_NAME: ${{ github.ref_name }}
+    steps:
+      - name: Check the target
+        run: |
+          case "$FUNCTION_NAME" in
+            api) [ "$REF_NAME" = "rebuild" ] || { echo "Only the rebuild branch may deploy api."; exit 1; } ;;
+            api-m1|api-m2|api-m3|api-m4) ;;
+            *) echo "Unknown function."; exit 1 ;;
+          esac
+
+      - name: Check out repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Deploy
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          if [ -z "${SUPABASE_ACCESS_TOKEN:-}" ]; then
+            echo "SUPABASE_ACCESS_TOKEN is not set yet. Skipping."
+            exit 0
+          fi
+          npx --yes supabase@2.122.1 functions deploy "$FUNCTION_NAME" \
+            --project-ref "$PROJECT_REF" --use-api --no-verify-jwt
