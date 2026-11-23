@@ -70,6 +70,9 @@ Deno.test("a release artifact promotes the state to actual and feeds the war roo
   assertEquals(state.conflict.has_conflict, true);
   const pack = buildWarRoomEvidencePack({ state, timeline: [] });
   assertEquals((pack.release_artifact as { artifact_id: string }).artifact_id, "art-1");
-  assertEquals((pack.baseline as { omission: { reason_code: string } }).omission.reason_code, "baseline_missing");
+  assertEquals(
+    (pack.baseline as { omission: { reason_code: string } }).omission.reason_code,
+    "baseline_missing",
+  );
   assertEquals(pack.transcript.available, false);
 });

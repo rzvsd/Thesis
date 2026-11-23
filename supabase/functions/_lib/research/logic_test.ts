@@ -36,7 +36,11 @@ Deno.test("what-if keeps the base, drops beta and rescales the fair value", () =
 });
 
 Deno.test("what-if without a base mid is degraded", () => {
-  const res = computeScenarioResponse("r1", { ...valuation, fair_value_mid: undefined, spot_price: undefined }, {});
+  const res = computeScenarioResponse("r1", {
+    ...valuation,
+    fair_value_mid: undefined,
+    spot_price: undefined,
+  }, {});
   assertEquals(res.scenario.fair_value_mid, undefined);
   assert(res.scenario.degraded_reason);
   assert(res.omissions.some((o) => o.omission_code === "spot_reference_unavailable"));
@@ -118,7 +122,11 @@ Deno.test("row mappers turn postgres.js Dates and numeric strings into the old v
     event_date: new Date("2026-08-01T00:00:00.000Z"),
     state: "preparing",
     current_cadence_min: 30,
-    cadence_state: { latest_cycle_status: "timeout", latest_runtime_min: 3, updated_at: "2026-08-01T10:00:00.000Z" },
+    cadence_state: {
+      latest_cycle_status: "timeout",
+      latest_runtime_min: 3,
+      updated_at: "2026-08-01T10:00:00.000Z",
+    },
     prepared_at: new Date("2026-07-30T00:00:00.000Z"),
     updated_at: new Date("2026-08-01T10:00:00.000Z"),
   });
