@@ -1,0 +1,9 @@
+{
+  "compilerOptions": { "strict": true },
+  "fmt": { "lineWidth": 110, "indentWidth": 2, "singleQuote": false },
+  "lint": { "rules": { "tags": ["recommended"] } },
+  "tasks": {
+    "check": "deno check api/index.ts",
+    "test": "deno test --allow-env --allow-net=127.0.0.1"
+  }
+}

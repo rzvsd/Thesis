@@ -1,0 +1,61 @@
+name: rebuild-ci
+
+# Checks for the serverless rebuild code. Owner: M0 (docs/rebuild/OWNERSHIP.md).
+on:
+  pull_request:
+    paths:
+      - "supabase/**"
+      - "jobs/**"
+      - "edge/**"
+      - ".github/workflows/rebuild-ci.yml"
+
+concurrency:
+  group: rebuild-ci-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  functions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    defaults:
+      run:
+        working-directory: supabase/functions
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Set up Deno
+        uses: denoland/setup-deno@e95548e56dfa95d4e1a28d6f422fafe75c4c26fb # v2.0.3
+        with:
+          deno-version: v2.1.x
+
+      - name: Format
+        run: deno fmt --check
+
+      - name: Lint
+        run: deno lint
+
+      - name: Type check
+        run: deno check api/index.ts
+
+      - name: Test
+        run: deno test --allow-env --allow-net=127.0.0.1
+
+  jobs-python:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.11"
+
+      - name: Compile Python job scripts
+        run: |
+          if find jobs -name '*.py' | grep -q .; then python -m compileall -q jobs; else echo "No Python jobs yet."; fi

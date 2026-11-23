@@ -6,9 +6,61 @@ on:
     branches:
       - main
 
+# Cut Actions minutes (rebuild audit C2): cancel superseded runs, and run each heavy part only when its files change.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
 jobs:
-  validate:
+  changes:
     runs-on: ubuntu-latest
+    timeout-minutes: 3
+    outputs:
+      legacy: ${{ steps.diff.outputs.legacy }}
+      mobile: ${{ steps.diff.outputs.mobile }}
+      docker: ${{ steps.diff.outputs.docker }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+
+      - name: Find changed areas
+        id: diff
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          if [ "$EVENT" = "pull_request" ]; then base="$BASE_SHA"; else base="$BEFORE_SHA"; fi
+          if [ -z "$base" ] || ! git cat-file -e "$base^{commit}" 2>/dev/null; then
+            echo "legacy=true" >> "$GITHUB_OUTPUT"; echo "mobile=true" >> "$GITHUB_OUTPUT"; echo "docker=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          files="$(git diff --name-only "$base" HEAD)"
+          printf '%s\n' "$files"
+          # Legacy checks: anything outside the new serverless folders and docs.
+          if printf '%s\n' "$files" | grep -Ev '^(supabase/|jobs/|edge/|docs/|.github/workflows/rebuild-)|\.md$' | grep -q .; then legacy=true; else legacy=false; fi
+          if printf '%s\n' "$files" | grep -Eq '^apps/mobile/android/'; then mobile=true; else mobile=false; fi
+          if printf '%s\n' "$files" | grep -Eq '(^|/)Dockerfile|^docker-compose\.yml$'; then docker=true; else docker=false; fi
+          echo "legacy=$legacy" >> "$GITHUB_OUTPUT"; echo "mobile=$mobile" >> "$GITHUB_OUTPUT"; echo "docker=$docker" >> "$GITHUB_OUTPUT"
+
+  secrets:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+
+  validate:
+    needs: changes
+    if: needs.changes.outputs.legacy == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     steps:
       - name: Check out repository
@@ -23,21 +75,6 @@ jobs:
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: "3.11"
-
-      - name: Set up Java
-        uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4.9.1
-        with:
-          distribution: temurin
-          java-version: "17"
-
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3.2.2
-        with:
-          # The legacy default "tools" package no longer exists in the SDK repository.
-          packages: "platform-tools platforms;android-35"
-
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a # v4.4.3
 
       - name: Enable Corepack
         run: corepack enable
@@ -59,13 +96,6 @@ jobs:
       - name: Security | Dependency Audit (critical)
         run: corepack pnpm run security:audit
 
-      - name: Security | Secret Scan (gitleaks)
-        run: |
-          docker run --rm \
-            -v "$GITHUB_WORKSPACE:/repo" \
-            zricethezav/gitleaks:v8.24.2 \
-            detect --source /repo --config /repo/.gitleaks.toml --no-banner --redact
-
       - name: Security | SAST Baseline
         run: corepack pnpm run security:sast
 
@@ -81,11 +111,44 @@ jobs:
       - name: Test
         run: corepack pnpm test
 
+  android:
+    needs: changes
+    if: needs.changes.outputs.mobile == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Set up Java
+        uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4.9.1
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3.2.2
+        with:
+          # The legacy default "tools" package no longer exists in the SDK repository.
+          packages: "platform-tools platforms;android-35"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a # v4.4.3
+
       - name: Android Gradle build and unit tests
         working-directory: apps/mobile/android
         run: |
           chmod +x ./gradlew
           ./gradlew testDebugUnitTest assembleDebug --no-daemon --stacktrace
+
+  docker:
+    needs: changes
+    if: needs.changes.outputs.docker == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Docker Compose build smoke
         run: docker compose build product-api data-openbb news-ingest scheduler

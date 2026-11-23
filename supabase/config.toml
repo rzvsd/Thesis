@@ -1,0 +1,32 @@
+# Supabase CLI config for the Thesis rebuild. Owner: M0 (see docs/rebuild/OWNERSHIP.md).
+# Project ref: oizahjzcowflmrffoxjg (eu-central-1). Link with: supabase link --project-ref oizahjzcowflmrffoxjg
+project_id = "thesis"
+
+[api]
+# Only these schemas are exposed by the auto-generated REST API. App tables live in "app", which is NOT listed (C3).
+schemas = ["public", "graphql_public"]
+
+[db]
+major_version = 17
+
+# One function serves the whole API (H3). The guard in _shared/auth.ts checks auth per route, so the
+# platform JWT check is off. Preview functions api-m1..api-m4 run the same code from a milestone branch.
+[functions.api]
+verify_jwt = false
+entrypoint = "./functions/api/index.ts"
+
+[functions.api-m1]
+verify_jwt = false
+entrypoint = "./functions/api/index.ts"
+
+[functions.api-m2]
+verify_jwt = false
+entrypoint = "./functions/api/index.ts"
+
+[functions.api-m3]
+verify_jwt = false
+entrypoint = "./functions/api/index.ts"
+
+[functions.api-m4]
+verify_jwt = false
+entrypoint = "./functions/api/index.ts"
