@@ -164,7 +164,10 @@ export class FakeStore implements JobsStore {
             (r.freshnessExpiresAt ?? "") > input.anyPeriod.freshAfterIso)) &&
         (r.freshnessExpiresAt ?? "") > input.nowIso &&
         [...this.jobs.values()].some((j) => j.reportId === r.id && j.status === "complete")
-      ).sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
+      ).sort((a, b) =>
+        (b.freshnessExpiresAt ?? "").localeCompare(a.freshnessExpiresAt ?? "") ||
+        b.createdAt.localeCompare(a.createdAt)
+      )[0];
     return Promise.resolve(found);
   }
   findLatestComparableDeepDiveReport(input: { ticker: string; schemaMajor: number; sinceIso: string }) {

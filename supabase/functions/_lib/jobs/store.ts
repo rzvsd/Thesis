@@ -64,7 +64,8 @@ export interface JobsStore {
 
 // A fresh report with this fingerprint. With anyPeriod (filing period unknown), also any fingerprint with that
 // prefix whose freshness runs past freshAfterIso. Freshness, not created_at, because copies keep the source's
-// freshness but get a new created_at.
+// freshness but get a new created_at. Matches rank by freshness for the same reason: a new copy of an older
+// analysis must not outrank a newer report.
 export interface ReusableQuery {
   ticker: string;
   fingerprint: string;
@@ -322,7 +323,7 @@ export function postgresJobsStore(sql: Sql): JobsStore {
           where r.type = 'deep_dive' and r.ticker = ${ticker} and ${match}
             and r.freshness_expires_at > ${nowIso}::timestamptz
             and exists (select 1 from jobs j where j.report_id = r.id and j.status = 'complete')
-          order by r.created_at desc limit 1`,
+          order by r.freshness_expires_at desc, r.created_at desc limit 1`,
       );
       return row ? mapReport(row) : undefined;
     },
