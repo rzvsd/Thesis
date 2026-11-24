@@ -6,18 +6,19 @@
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&display=swap">
 <style>
 /* Layout: one reading column of report sections (max 900px); a sticky chip nav; charts sit in cards, two-up on wide screens.
    Light = Thesis paper (report export tokens). Dark = Thesis app (Android tokens). Chart series validated for CVD in both. */
 :root{
   --bg:#F5F1E8; --surface:#FFFDF8; --surface-2:#F8F4EB; --ink:#1A2128; --ink-2:#47525E; --muted:#68717C;
   --line:#E6DFD1; --line-2:#D3C9B6; --accent:#7E6337; --chip:#EFE9DD; --focus:#256bb1;
-  --hero-bg:#1A2128; --hero-ink:#F6F2EA; --hero-ink-2:#B7BFC8; --hero-accent:#D7B985; --hero-line:rgba(246,242,234,.16); --hero-chip:rgba(246,242,234,.08);
+  --hero-bg:#121A22; --hero-ink:#F6F2EA; --hero-ink-2:#B7BFC8; --hero-accent:#D7B985; --hero-line:rgba(246,242,234,.16); --hero-chip:rgba(246,242,234,.08);
   --pos:#2F6A4F; --neg:#9B4A4A; --warn:#8C5E12;
   --s1:#b48226; --s2:#82498b; --s3:#6b8d38; --s4:#256bb1; --s5:#be5737; --s6:#008e7f;
   --deemph:#B9B1A4; --grid:#EEE8DC; --axis:#CDC3B1;
   --div-pos:#256bb1; --div-neg:#be5737; --div-mid:#ECE6DB;
+  --hero-bg-2:#22303D; --band:#EDE5D5; --hl:rgba(180,130,38,.20); --callout:#F3EADB; --card-shadow:0 1px 2px rgba(26,33,40,.04),0 10px 28px -20px rgba(26,33,40,.35);
   --f-display:"Newsreader", Georgia, "Times New Roman", serif;
   --f-body:"Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
@@ -30,6 +31,7 @@
     --s1:#ba882e; --s2:#a166aa; --s3:#779a45; --s4:#4c89cc; --s5:#cb6443; --s6:#1aa291;
     --deemph:#5B5B58; --grid:#222222; --axis:#3A3A3A;
     --div-pos:#4c89cc; --div-neg:#cb6443; --div-mid:#2A2A2A;
+    --hero-bg-2:#1A1A1A; --band:#111111; --hl:rgba(197,160,89,.22); --callout:#1C1913; --card-shadow:none;
     color-scheme:dark;
   }
 }
@@ -41,6 +43,7 @@
   --s1:#ba882e; --s2:#a166aa; --s3:#779a45; --s4:#4c89cc; --s5:#cb6443; --s6:#1aa291;
   --deemph:#5B5B58; --grid:#222222; --axis:#3A3A3A;
   --div-pos:#4c89cc; --div-neg:#cb6443; --div-mid:#2A2A2A;
+  --hero-bg-2:#1A1A1A; --band:#111111; --hl:rgba(197,160,89,.22); --callout:#1C1913; --card-shadow:none;
   color-scheme:dark;
 }
 *{box-sizing:border-box}
@@ -277,6 +280,49 @@ body.charts-only .story,body.charts-only .upshot,body.charts-only .bigq{display:
 #tip .tl2{opacity:.8}
 footer .wrap{padding-block:24px 48px;border-top:1px solid var(--line);color:var(--muted);font-size:12.5px;display:grid;gap:6px}
 @media (prefers-reduced-motion:no-preference){.fadein{animation:fi .4s ease both}@keyframes fi{from{opacity:.4;transform:translateY(4px)}to{opacity:1;transform:none}}}
+
+/* ---------- Editorial polish (point 0): deeper hero, banded chapters, display titles, highlighted story ---------- */
+.hero{position:relative;isolation:isolate;background:
+  radial-gradient(70% 120% at 100% 0%,color-mix(in oklab,var(--hero-accent) 24%,transparent) 0,transparent 60%),
+  radial-gradient(60% 90% at 0% 100%,color-mix(in oklab,var(--s4) 22%,transparent) 0,transparent 65%),
+  linear-gradient(165deg,var(--hero-bg) 0%,var(--hero-bg-2) 100%)}
+.hero::after{content:"";position:absolute;left:0;right:0;bottom:0;height:1px;background:linear-gradient(90deg,transparent,var(--hero-accent) 30%,var(--hero-accent) 70%,transparent);opacity:.55}
+.hero .wrap{padding-block:40px 34px}
+.hero .eyebrow{display:flex;align-items:center;gap:10px}
+.hero .eyebrow::before{content:"";width:28px;height:1px;background:var(--hero-accent)}
+.hero h1{font:400 clamp(40px,7.4vw,64px)/.98 var(--f-display);font-variation-settings:"opsz" 72;letter-spacing:-.022em;margin:10px 0 10px}
+.thesis{font:italic 400 clamp(19px,2.6vw,23px)/1.42 var(--f-display);font-variation-settings:"opsz" 36;color:var(--hero-ink)}
+.kpi .v{font:500 24px/1.15 var(--f-display);font-variation-settings:"opsz" 36;letter-spacing:-.01em}
+
+main .wrap{gap:0;padding-block:0}
+main section{padding-block:56px 60px}
+main section:nth-of-type(even){background:var(--band);box-shadow:0 0 0 100vmax var(--band);clip-path:inset(0 -100vmax)}
+main section + section{border-top:1px solid color-mix(in oklab,var(--line-2) 60%,transparent)}
+
+.sec-head{gap:12px}
+.chap{display:inline-flex;align-items:center;gap:10px;font-size:11.5px;letter-spacing:.18em;margin-right:10px}
+.chap em{font:italic 400 40px/.7 var(--f-display);font-variation-settings:"opsz" 72;letter-spacing:-.02em;color:var(--accent);text-transform:none}
+h2{font:400 clamp(30px,5vw,44px)/1.04 var(--f-display);font-variation-settings:"opsz" 72;letter-spacing:-.018em}
+.verdict{font:400 clamp(18px,2.4vw,20.5px)/1.5 var(--f-display);font-variation-settings:"opsz" 24;color:var(--ink-2);max-width:64ch}
+.verdict b{font-weight:600;color:var(--ink)}
+
+.story>p:first-child::first-letter{float:left;font:500 3.6em/.8 var(--f-display);font-variation-settings:"opsz" 72;margin:.07em .09em 0 -.02em;color:var(--accent)}
+.story .o{background:linear-gradient(180deg,transparent 54%,var(--hl) 54%,var(--hl) 96%,transparent 96%);-webkit-box-decoration-break:clone;box-decoration-break:clone;padding-inline:.06em}
+
+.story>p:first-child .o{background:none;padding-inline:0}
+.upshot{padding:16px 20px 17px 22px;border:0;border-radius:12px;background:var(--callout);box-shadow:inset 3px 0 0 var(--accent);font:400 17px/1.55 var(--f-display);color:var(--ink)}
+.upshot b{display:block;font:700 11px/1.2 var(--f-body);letter-spacing:.18em;text-transform:uppercase;color:var(--accent);margin-bottom:7px}
+
+.card{box-shadow:var(--card-shadow)}
+.card h3{font:500 18px/1.28 var(--f-display);font-variation-settings:"opsz" 24;letter-spacing:-.005em}
+.fignum{letter-spacing:.14em;color:var(--accent);opacity:.9}
+
+/* the closing chapter reads as a dark band, like the cover */
+#bottom{--ink:var(--hero-ink);--ink-2:var(--hero-ink-2);--muted:var(--hero-ink-2);--accent:var(--hero-accent);--line:var(--hero-line);--line-2:var(--hero-line);
+  --surface:color-mix(in oklab,var(--hero-ink) 5%,var(--hero-bg));--chip:var(--hero-chip);--neg:#F2A0A0;--callout:color-mix(in oklab,var(--hero-accent) 12%,var(--hero-bg));--hl:color-mix(in oklab,var(--hero-accent) 30%,transparent);--card-shadow:none;
+  color:var(--hero-ink);background:var(--hero-bg);box-shadow:0 0 0 100vmax var(--hero-bg);clip-path:inset(0 -100vmax);border-top:0}
+#bottom + section{border-top:0}
+@media print{main section:nth-of-type(even),#bottom{box-shadow:none;clip-path:none}}
 </style>
 
 <div class="appbar"><div class="wrap">
@@ -342,7 +388,7 @@ footer .wrap{padding-block:24px 48px;border-top:1px solid var(--line);color:var(
       </div>
     </div>
   </div>
-  <p class="upshot"><b>The upshot:</b> the report’s base case assumes sales growth of about 6% a year, to $557B by 2030. Two of the four kill switches guard this story: services growth staying above 8% and the share count falling at least 2% a year. Both pass today, at 13.5% and 2.7%.</p>
+  <p class="upshot"><b>The upshot</b>the report’s base case assumes sales growth of about 6% a year, to $557B by 2030. Two of the four kill switches guard this story: services growth staying above 8% and the share count falling at least 2% a year. Both pass today, at 13.5% and 2.7%.</p>
 </section>
 
 <section id="business">
@@ -357,7 +403,7 @@ footer .wrap{padding-block:24px 48px;border-top:1px solid var(--line);color:var(
     <div class="card"><h3>Services keeps taking share</h3><div class="sub">Sales by product, $B</div><div class="chart" id="segStack"></div><div class="legend" id="segStackLeg"></div><div class="foot"><span class="src">Five fiscal years</span><button class="tbtn" data-table="segStack" type="button">Show table</button></div></div>
     <div class="card span2"><h3>Hardware earns 37 cents of gross profit per dollar, services 75</h3><div class="sub">Gross margin by type, %</div><div class="chart" id="gmSplit"></div><div class="legend" id="gmSplitLeg"></div><div class="foot"><span class="src">10-K: products and services gross margin</span><button class="tbtn" data-table="gmSplit" type="button">Show table</button></div></div>
   </div>
-  <p class="upshot"><b>The upshot:</b> the margin story depends on services growing much faster than hardware. The services kill switch trips if services growth falls below 8% for two quarters; it is 13.5% now.</p>
+  <p class="upshot"><b>The upshot</b>the margin story depends on services growing much faster than hardware. The services kill switch trips if services growth falls below 8% for two quarters; it is 13.5% now.</p>
 </section>
 
 <section id="countries">
@@ -374,7 +420,7 @@ footer .wrap{padding-block:24px 48px;border-top:1px solid var(--line);color:var(
     <div class="card"><h3>Where it is made</h3><div class="sub">Named in the 10-K, no split given</div><div class="chips"><span class="chip"><b>China mainland</b></span><span class="chip"><b>India</b></span><span class="chip"><b>Vietnam</b></span><span class="chip">Taiwan</span><span class="chip">Japan</span><span class="chip">South Korea</span></div><p class="note">“Substantially all” hardware is built by outsourcing partners in these places. The report flags any country that also faces new US tariffs.</p></div>
     <div class="card"><h3>Legal entities by country</h3><div class="sub">Exhibit 21 and the GLEIF company register (sample)</div><div class="hbars" id="entityBars"></div><p class="note">Ireland matters for tax: the EU state-aid ruling cost a one-time $10.2B in fiscal 2024.</p></div>
   </div>
-  <p class="upshot"><b>The upshot:</b> China is the region to watch on both sides of the ledger. The report’s kill switch trips if Greater China sales fall more than 10% in a year; today they are down 4%, and any new US tariff on goods made there could hit costs at the same time.</p>
+  <p class="upshot"><b>The upshot</b>China is the region to watch on both sides of the ledger. The report’s kill switch trips if Greater China sales fall more than 10% in a year; today they are down 4%, and any new US tariff on goods made there could hit costs at the same time.</p>
 </section>
 
 <section id="links">
@@ -389,7 +435,7 @@ footer .wrap{padding-block:24px 48px;border-top:1px solid var(--line);color:var(
     <div class="card"><h3>Who depends on Apple</h3><div class="sub">Share of each supplier's revenue from Apple (sample)</div><div class="hbars" id="depBars"></div><div class="foot"><span class="src">Suppliers' 10-K major customer notes</span><button class="tbtn" data-table="depBars" type="button">Show table</button></div></div>
     <div class="card"><h3>How Apple sells</h3><div class="sub">Share of net sales, fiscal 2025 (sample)</div><div class="segbar" id="channelBar"></div><div class="legend" id="channelLeg"></div><p class="note">Carriers hold a large share of money owed to Apple, so their health matters even though no single customer passes 10% of sales.</p></div>
   </div>
-  <p class="upshot"><b>The upshot:</b> the suppliers’ own results, above all Cirrus Logic’s with 89% of its revenue from Apple, are the first place a change in iPhone orders is likely to show. On the selling side, the condition to watch is carrier health, because carriers hold a large share of the money owed to Apple and 62% of sales passes through other companies’ hands.</p>
+  <p class="upshot"><b>The upshot</b>the suppliers’ own results, above all Cirrus Logic’s with 89% of its revenue from Apple, are the first place a change in iPhone orders is likely to show. On the selling side, the condition to watch is carrier health, because carriers hold a large share of the money owed to Apple and 62% of sales passes through other companies’ hands.</p>
 </section>
 
 <section id="owners">
@@ -407,7 +453,7 @@ footer .wrap{padding-block:24px 48px;border-top:1px solid var(--line);color:var(
       <span class="chip">CEO <b>Tim Cook</b>, since 2011</span><span class="chip">Board <b>8</b>, <b>7</b> independent</span><span class="chip">CEO pay fiscal 2024 <b>$74.6M</b></span><span class="chip">Auditor <b>Ernst &amp; Young</b>, since 2009</span><span class="chip">Employees <b>~166,000</b></span><span class="chip">US lobbying 2025 <b>~$10M</b></span>
     </div><p class="note">Pay versus performance and the pay ratio come from the proxy statement's tagged tables; lobbying from the US Senate disclosure database. Sample values.</p></div>
   </div>
-  <p class="upshot"><b>The upshot:</b> the owner base is steady, and planned insider sales say little about the outlook. What would be news is a break in the pattern: an insider buying on the open market, sales made outside a 10b5-1 plan, or active holders cutting again after this quarter’s 0.3-point trim by Berkshire.</p>
+  <p class="upshot"><b>The upshot</b>the owner base is steady, and planned insider sales say little about the outlook. What would be news is a break in the pattern: an insider buying on the open market, sales made outside a 10b5-1 plan, or active holders cutting again after this quarter’s 0.3-point trim by Berkshire.</p>
 </section>
 
 <section id="financials">
@@ -426,7 +472,7 @@ footer .wrap{padding-block:24px 48px;border-top:1px solid var(--line);color:var(
     <div class="card"><h3>Share count down 35% since 2015</h3><div class="sub">Diluted shares, billions</div><div class="chart" id="shares"></div><div class="foot"><span class="src">Split-adjusted</span><button class="tbtn" data-table="shares" type="button">Show table</button></div></div>
     <div class="card span2"><h3>Net cash is shrinking on purpose</h3><div class="sub">Cash and securities against total debt, $B</div><div class="chart" id="cashDebt"></div><div class="legend" id="cashDebtLeg"></div><div class="foot"><span class="src">Balance sheet. Apple aims for net cash near zero over time.</span><button class="tbtn" data-table="cashDebt" type="button">Show table</button></div></div>
   </div>
-  <p class="upshot"><b>The upshot:</b> net cash fell from $50B to $34B last year, and at that pace it would be close to zero in about two years, after which buybacks have to come from free cash flow alone. The number to watch is the share count: your kill switch trips if it falls less than 2% in a year, against 2.7% in fiscal 2025.</p>
+  <p class="upshot"><b>The upshot</b>net cash fell from $50B to $34B last year, and at that pace it would be close to zero in about two years, after which buybacks have to come from free cash flow alone. The number to watch is the share count: your kill switch trips if it falls less than 2% in a year, against 2.7% in fiscal 2025.</p>
 </section>
 
 <section id="value">
@@ -442,7 +488,7 @@ footer .wrap{padding-block:24px 48px;border-top:1px solid var(--line);color:var(
     <div class="card"><h3>Price-to-earnings over time</h3><div class="sub">Yearly average, x (sample)</div><div class="chart" id="pe"></div><div class="foot"><span class="src">Needs a licensed price history</span><span class="lockb">Phase 3</span></div></div>
     <div class="card span2"><h3>Growth and margin against peers</h3><div class="sub">5-year sales growth per year (across) and operating margin (up), latest fiscal year (sample)</div><div class="chart" id="peers"></div><div class="foot"><span class="src">Peers' figures from the same SEC data, no price needed</span><button class="tbtn" data-table="peers" type="button">Show table</button></div></div>
   </div>
-  <p class="upshot"><b>The upshot:</b> at the $191 example price, free cash flow needs to grow about 5.8% a year for a decade, close to the 6% of the last five years. If free cash flow growth instead slows to the bear case’s 3% and then 2% a year, with a higher discount rate, this report’s model puts value near $115.</p>
+  <p class="upshot"><b>The upshot</b>at the $191 example price, free cash flow needs to grow about 5.8% a year for a decade, close to the 6% of the last five years. If free cash flow growth instead slows to the bear case’s 3% and then 2% a year, with a higher discount rate, this report’s model puts value near $115.</p>
 </section>
 
 <section id="action">
@@ -471,7 +517,7 @@ footer .wrap{padding-block:24px 48px;border-top:1px solid var(--line);color:var(
       <div><b>Twice</b><span>is how often markets tend to try something. Most tops and bottoms are a form of double top or double bottom.</span></div>
     </div></div>
   </div>
-  <p class="upshot"><b>The upshot:</b> the trend is up and the breakout held. $186 is now the line that matters, because a daily close back below it would turn this month’s breakout into a failed one. Above, $195 is the next test. This describes the chart; it is not a trading signal.</p>
+  <p class="upshot"><b>The upshot</b>the trend is up and the breakout held. $186 is now the line that matters, because a daily close back below it would turn this month’s breakout into a failed one. Above, $195 is the next test. This describes the chart; it is not a trading signal.</p>
 </section>
 
 <section id="forecasts">
@@ -487,7 +533,7 @@ footer .wrap{padding-block:24px 48px;border-top:1px solid var(--line);color:var(
     <div class="card"><h3>Fair value if the inputs move</h3><div class="sub">$ per share, base growth. Blue above your price, clay below.</div><div id="heat"></div><div class="small-note" style="color:var(--muted)">Across: long-run growth. Down: discount rate.</div></div>
     <div class="card span2"><h3>What management said</h3><div class="callout"><b>Next quarter:</b> sales growth of 10% to 12%, gross margin 47% to 48% (said on the 30 July call, sample). Thesis keeps a record of each promise and checks it against the next filing.</div></div>
   </div>
-  <p class="upshot"><b>The upshot:</b> the base value of $204 rests on free cash flow growing 8% a year for five years and 5% after (sales about 6% a year), and on a 7.5% discount rate. If free cash flow growth slows to the bear case’s 3% and then 2%, or the discount rate rises to 8%, the model’s value falls below the $191 example price.</p>
+  <p class="upshot"><b>The upshot</b>the base value of $204 rests on free cash flow growing 8% a year for five years and 5% after (sales about 6% a year), and on a 7.5% discount rate. If free cash flow growth slows to the bear case’s 3% and then 2%, or the discount rate rises to 8%, the model’s value falls below the $191 example price.</p>
 </section>
 
 <section id="risks">
@@ -512,7 +558,7 @@ footer .wrap{padding-block:24px 48px;border-top:1px solid var(--line);color:var(
       <span class="chip"><b>Same</b> · Supply concentration in a few countries</span>
     </div><p class="note">Read by comparing this year's risk section with last year's, paragraph by paragraph. Sample wording.</p></div>
   </div>
-  <p class="upshot"><b>The upshot:</b> debt will not break this story; concentration could. The tightest line is the share count, 0.7 points from its switch. Greater China, down 4% against a 10% line, is the one flagged to watch.</p>
+  <p class="upshot"><b>The upshot</b>debt will not break this story; concentration could. The tightest line is the share count, 0.7 points from its switch. Greater China, down 4% against a 10% line, is the one flagged to watch.</p>
 </section>
 
 <section id="events">
@@ -530,7 +576,7 @@ footer .wrap{padding-block:24px 48px;border-top:1px solid var(--line);color:var(
     <div class="e"><div class="d">29 Jan 2026</div><div class="t">First-quarter results <span class="tag">8-K 2.02</span></div><div class="x">Record December quarter.</div></div>
     <div class="e"><div class="d">30 Oct 2025</div><div class="t">Fiscal 2025 results <span class="tag">8-K 2.02</span></div><div class="x">The filing this report reads.</div></div>
   </div></div>
-  <p class="upshot"><b>The upshot:</b> the year’s filings confirmed the story rather than changing it. The next results filing is the one that matters, because it tests management’s next-quarter guidance of 10% to 12% sales growth and a 47% to 48% gross margin, and the kill switch on services growth below 8% for two quarters.</p>
+  <p class="upshot"><b>The upshot</b>the year’s filings confirmed the story rather than changing it. The next results filing is the one that matters, because it tests management’s next-quarter guidance of 10% to 12% sales growth and a 47% to 48% gross margin, and the kill switch on services growth below 8% for two quarters.</p>
 </section>
 
 <section id="bottom">
@@ -543,7 +589,7 @@ footer .wrap{padding-block:24px 48px;border-top:1px solid var(--line);color:var(
   <div class="grid2">
     <div class="card span2"><h3>What would prove this story wrong</h3><div class="sub">Each one is also a kill switch you can turn on</div><div class="wrong" id="wrong"><div><i>1</i><span><b>Services growth slips below 8%.</b> If that lasts two quarters, the engine that earns more than 40% of gross profit is fading. Last year it grew 13.5%, from $96B to $109B.</span></div><div><i>2</i><span><b>Gross margin falls below 44%.</b> It is 46.9%, a record. A drop of about 3 points would suggest that tariffs or App Store rules are biting.</span></div><div><i>3</i><span><b>Greater China falls more than 10% in a year.</b> Sales fell 4% to about $64B, the third weak year in four. China is also a major assembly base, so trade rules there hit Apple twice.</span></div><div><i>4</i><span><b>The share count falls less than 2% in a year.</b> It fell 2.7% last year and 35% since 2015. With net cash down to $34B, a slower pace would weaken one of the two supports for earnings per share.</span></div></div></div>
   </div>
-  <p class="upshot"><b>The upshot:</b> the answer stays yes while services grow faster than 8% and the share count falls by at least 2% a year. Today those read 13.5% and 2.7%. The first check is management’s guide for next quarter: sales growth of 10% to 12% and a gross margin of 47% to 48%.</p>
+  <p class="upshot"><b>The upshot</b>the answer stays yes while services grow faster than 8% and the share count falls by at least 2% a year. Today those read 13.5% and 2.7%. The first check is management’s guide for next quarter: sales growth of 10% to 12% and a gross margin of 47% to 48%.</p>
 </section>
 
 <section id="sources">
@@ -997,7 +1043,7 @@ heroRange();kpis();ratios();scores();
 
 // ---------- story layer: chapter numbers, chart numbers, cross-references, reading mode ----------
 const SECS=[...document.querySelectorAll("main section")];
-SECS.forEach((sec,i)=>{const a=document.querySelector(`#chipnav a[href="#${sec.id}"]`);const k=sec.querySelector(".sec-kicker");if(a&&k)k.insertAdjacentHTML("afterbegin",`<span class="chap">${String(i+1).padStart(2,"0")} · ${esc(a.textContent)}</span>`);});
+SECS.forEach((sec,i)=>{const a=document.querySelector(`#chipnav a[href="#${sec.id}"]`);const k=sec.querySelector(".sec-kicker");if(a&&k)k.insertAdjacentHTML("afterbegin",`<span class="chap"><em>${String(i+1).padStart(2,"0")}</em>${esc(a.textContent)}</span>`);});
 const FIG=new Map();let fn=0;
 document.querySelectorAll("main .card").forEach(c=>{const h=c.querySelector("h3");if(!h)return;fn++;FIG.set(c,fn);h.insertAdjacentHTML("beforebegin",`<div class="fignum">Chart ${fn}</div>`);});
 document.querySelectorAll(".figref").forEach(a=>{const t=document.getElementById(a.dataset.ref);const c=t&&t.closest(".card");if(c&&FIG.has(c)){a.textContent="Chart "+FIG.get(c);a.href="#"+a.dataset.ref;}else{a.textContent="the chart";console.warn("figref missing",a.dataset.ref);}});

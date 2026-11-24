@@ -1,0 +1,265 @@
+import { assert, assertEquals, assertMatch, assertStringIncludes } from "jsr:@std/assert@1.0.13";
+import { buildContext, buildDeepDiveV2Html, filingEyebrow, renderDeepDiveV2 } from "./render.ts";
+import { CLIENT_JS } from "./client.ts";
+import { sampleApplePack, sampleBankPack, sampleLossmakerPack, sampleReport } from "./testdata_pack.ts";
+import { sampleInstitutionalReport } from "../testdata/editorial_institutional.ts";
+import { sampleSparseReport } from "../testdata/editorial_sparse.ts";
+
+const OPTS = { downloadUrl: "https://example.com/app?a=1&b=2" };
+const IDS = [
+  "summary",
+  "business",
+  "countries",
+  "links",
+  "owners",
+  "financials",
+  "value",
+  "action",
+  "forecasts",
+  "risks",
+  "events",
+  "bottom",
+  "sources",
+];
+
+function reports(): Array<[string, unknown]> {
+  return [
+    ["aapl", sampleReport(sampleApplePack())],
+    ["lossmaker", sampleReport(sampleLossmakerPack())],
+    ["bank", sampleReport(sampleBankPack())],
+    ["legacy", sampleInstitutionalReport("job-1", "report-1")],
+    ["sparse", sampleSparseReport("job-2", "report-2")],
+    ["empty", {}],
+  ];
+}
+
+/** The text a reader sees: no style, script, tags or attribute values. */
+function visibleText(html: string): string {
+  return html.replace(/<style>[\s\S]*?<\/style>/g, " ").replace(/<script[\s\S]*?<\/script>/g, " ")
+    .replace(/<[^>]+>/g, " ").replace(/&amp;/g, "&").replace(/&#39;/g, "'").replace(/&lt;/g, "<").replace(
+      /&gt;/g,
+      ">",
+    );
+}
+
+const BANNED =
+  /\b((buy|sell|hold|stop|target|exit)(s|ing|ers?)?|entr(y|ies)|accumulate|overweight|underweight|outperform|undervalued|overvalued|cheap|expensive|upside|downside|opportunity|attractive|bullish|bearish|recommend\w*|should)\b/i;
+
+Deno.test("every sample renders 13 chapters in SPEC order with resolved chart references", () => {
+  for (const [name, report] of reports()) {
+    const r = renderDeepDiveV2(report, OPTS);
+    assertEquals(r.problems, [], name);
+    assertEquals([...r.html.matchAll(/<section id="([a-z]+)">/g)].map((m) => m[1]), IDS, name);
+    assertEquals([...r.html.matchAll(/<nav class="chipnav"[\s\S]*?<\/nav>/g)].length, 1);
+    // chapters 01 to 11 have a verdict, a story and an upshot; Bottom line has an upshot
+    for (const ch of r.chapters.slice(0, 11)) {
+      assert(ch.verdict.lead && ch.story.length && ch.upshot, `${name} ${ch.id}`);
+      assert(ch.cards.length >= 1, `${name} ${ch.id} cards`);
+    }
+    assert(r.chapters[11].upshot);
+    // chart numbers run 1..N in page order
+    const nums = [...r.html.matchAll(/<div class="fignum">Chart (\d+)<\/div>/g)].map((m) => Number(m[1]));
+    assertEquals(nums, nums.map((_, i) => i + 1), name);
+  }
+});
+
+Deno.test("page text: no advice words, no em dashes, no exclamation marks", () => {
+  for (const [name, report] of reports()) {
+    const text = visibleText(buildDeepDiveV2Html(report, OPTS));
+    const hit = BANNED.exec(text);
+    assertEquals(
+      hit
+        ? `${hit[0]}: ${text.slice(Math.max(0, hit.index - 50), hit.index + 20).replace(/\s+/g, " ")}`
+        : null,
+      null,
+      name,
+    );
+    assertEquals(text.includes("—"), false, `${name} em dash`);
+    assertEquals(text.includes("!"), false, `${name} exclamation`);
+    // SPEC rule 2: the page is frozen at the filing date, so nothing reads as current.
+    const today = /\btoday\b/i.exec(text);
+    assertEquals(
+      today ? text.slice(Math.max(0, today.index - 50), today.index + 20) : null,
+      null,
+      `${name} today`,
+    );
+  }
+});
+
+Deno.test("chapter shape: 1 to 7 cards, 2 to 4 story paragraphs in chapters 01 to 11", () => {
+  for (const [name, report] of reports()) {
+    const r = renderDeepDiveV2(report, OPTS);
+    for (const ch of r.chapters) {
+      assert(ch.cards.length >= 1 && ch.cards.length <= 7, `${name} ${ch.id}: ${ch.cards.length} cards`);
+    }
+    for (const ch of r.chapters.slice(0, 11)) {
+      assert(ch.story.length >= 2 && ch.story.length <= 4, `${name} ${ch.id}: ${ch.story.length} paragraphs`);
+    }
+  }
+});
+
+Deno.test("CSP contract: one constant script, one JSON block, no handlers or external loads", () => {
+  for (const [name, report] of reports()) {
+    const html = buildDeepDiveV2Html(report, OPTS);
+    const scripts = [...html.matchAll(/<script([^>]*)>([\s\S]*?)<\/script>/g)];
+    assertEquals(scripts.length, 2, name);
+    assertEquals(scripts[0][1], ' type="application/json" id="dd-data"');
+    assertEquals(scripts[1][2], CLIENT_JS);
+    const data = JSON.parse(scripts[0][2]);
+    assertEquals(Object.keys(data).sort(), ["currency", "dcf", "eps", "price", "scenarios"]);
+    assertEquals(/\son[a-z]+=/i.test(html), false, `${name} inline handler`);
+    assertEquals(/javascript:/i.test(html), false);
+    assertEquals(/<(img|link|iframe|object|embed)\b/i.test(html), false);
+    assertEquals(/\ssrc=/i.test(html.replace(/<script>[\s\S]*?<\/script>/, "")), false);
+    assertMatch(html, /^<!doctype html><html lang="en"><head><meta charset="utf-8" \/>/);
+    assertStringIncludes(html, '<meta name="robots" content="noindex, nofollow" />');
+  }
+});
+
+Deno.test("head, footer and escaping", () => {
+  const pack = sampleLossmakerPack();
+  const html = buildDeepDiveV2Html(sampleReport(pack, { issuer: { name: "A&B <script>x</script>" } }), OPTS);
+  assertStringIncludes(html, "<title>A&amp;B &lt;script&gt;x&lt;/script&gt; Deep Dive</title>");
+  assertEquals(html.includes("<script>x</script>"), false);
+  assertStringIncludes(html, 'href="https://example.com/app?a=1&amp;b=2"');
+  assertStringIncludes(html, "Thesis is research, not financial advice.");
+  assertStringIncludes(html, "Sample report");
+  const json = /<script type="application\/json" id="dd-data">([\s\S]*?)<\/script>/.exec(
+    buildDeepDiveV2Html(sampleReport(sampleApplePack()), OPTS),
+  )?.[1] ?? "";
+  assertEquals(json.includes("<"), false);
+});
+
+Deno.test("no stored price: the box opens empty and price-only parts are hidden", () => {
+  const html = buildDeepDiveV2Html(sampleReport(sampleApplePack()), OPTS);
+  assertStringIncludes(html, 'data-dd="price" type="text"');
+  assertStringIncludes(html, 'value=""');
+  assertMatch(html, /data-dd="gap" data-dd-when="price" hidden>/);
+  assertMatch(html, /<span class="noprice" data-dd-when="noprice">/);
+  assertStringIncludes(html, '<span data-dd="pe">Type a price</span>');
+  assertStringIncludes(html, "Deep Dive · From the 10-K for fiscal 2025");
+  assertStringIncludes(html, "Fiscal year ends in September");
+});
+
+Deno.test("stored price: the box opens at the filing-date close", () => {
+  const c = buildContext(sampleReport(sampleBankPack()));
+  const html = buildDeepDiveV2Html(sampleReport(sampleBankPack()), OPTS);
+  assertStringIncludes(html, 'value="61.50"');
+  assertStringIncludes(html, `<span data-dd="pe">${c.pt.pe}</span>`);
+  assertMatch(html, /<span class="noprice" data-dd-when="noprice" hidden>/);
+  assertStringIncludes(html, "Opens at the $61.50 close on 27 Feb 2026");
+});
+
+Deno.test("filingEyebrow names the form and period", () => {
+  const c = buildContext(sampleReport(sampleApplePack()));
+  assertEquals(filingEyebrow(c.f, c), "From the 10-K for fiscal 2025");
+  const q = buildContext({
+    filing_intelligence: { latest_filing: { form: "10-Q", fiscal_year: 2026, fiscal_quarter: 2 } },
+  });
+  assertEquals(filingEyebrow(q.f, q), "From the 10-Q for Q2 fiscal 2026");
+  const none = buildContext({});
+  assertEquals(filingEyebrow(none.f, none), "From SEC filings");
+});
+
+Deno.test("legacy reports render the same page with more Not seen cards and the older-format pill", () => {
+  const html = buildDeepDiveV2Html(sampleInstitutionalReport("job-1", "report-1"), OPTS);
+  assertStringIncludes(html, "Older report format");
+  assertStringIncludes(html, "Only the latest filing is on record");
+  assert((html.match(/Not seen yet/g) ?? []).length > 10);
+  // legacy LLM prose is never shown
+  assertEquals(html.includes("Cash resilience is outpacing market skepticism"), false);
+});
+
+// ---------------------------------------------------------------- hostile input
+
+const EVIL = `</script><img src=x onerror=alert(1)>"'\`<!--<svg onload=alert(2)>[[ref:scores]]  `;
+
+/** Replaces every string leaf with EVIL (and every number, when asked); dates keep a valid prefix. */
+function poison(v: unknown, key = "", numbersToo = false): unknown {
+  if (Array.isArray(v)) return v.map((x) => poison(x, key, numbersToo));
+  if (v && typeof v === "object") {
+    const o: Record<string, unknown> = {};
+    for (const [k, x] of Object.entries(v as Record<string, unknown>)) {
+      o[k] = k === "version" || k === "fiscal_year" ? x : poison(x, k, numbersToo);
+    }
+    if (key === "concepts") o[EVIL] = EVIL;
+    return o;
+  }
+  if (typeof v === "string") return /^\d{4}-\d{2}-\d{2}/.test(v) ? v.slice(0, 10) + EVIL : EVIL;
+  if (typeof v === "number" && numbersToo) return EVIL;
+  return v;
+}
+
+function hostileReport(numbersToo: boolean): Record<string, unknown> {
+  const base = sampleBankPack() as unknown as Record<string, unknown>;
+  const pack = poison(base, "", numbersToo) as Record<string, unknown>;
+  if (!numbersToo) pack.price_at_filing = { value: 61.5, date: "2026-02-27" + EVIL, source: EVIL };
+  (pack.missing as unknown[]).push(EVIL, "segments");
+  (pack.filings as unknown[]).push({
+    form: "8-K" + EVIL,
+    filing_date: "2025-01-01" + EVIL,
+    accession: EVIL,
+    items: "2.02," + EVIL,
+    url: "javascript:alert(1)",
+    period_end: EVIL,
+  });
+  (pack.sources as unknown[]).push({ name: EVIL, url: "javascript:alert(1)" });
+  return {
+    ...sampleReport(sampleApplePack()),
+    ticker: EVIL,
+    issuer: { name: EVIL, exchange: EVIL, industry: EVIL, sector: EVIL, currency: EVIL },
+    generated_at: "2025-11-01" + EVIL,
+    name_relationships: [{ target_ticker: EVIL, relationship_type: EVIL }],
+    fact_pack: pack,
+    sample: false,
+  };
+}
+
+function hostileLegacy(): Record<string, unknown> {
+  const r = poison(sampleInstitutionalReport("job-1", "report-1")) as Record<string, unknown>;
+  r.issuer = { name: EVIL, exchange: EVIL, industry: EVIL, currency: EVIL };
+  r.ticker = EVIL;
+  r.filing_intelligence = {
+    latest_filing: {
+      form: "10-Q" + EVIL,
+      fiscal_year: 2025,
+      fiscal_quarter: 2,
+      filing_date: "2025-05-01" + EVIL,
+    },
+  };
+  r.name_relationships = [{ target_ticker: EVIL, relationship_type: EVIL }];
+  return r;
+}
+
+for (
+  const [name, mk] of [
+    ["hostile strings", () => hostileReport(false)],
+    ["hostile strings and numbers", () => hostileReport(true)],
+    ["hostile legacy", hostileLegacy],
+  ] as Array<[string, () => Record<string, unknown>]>
+) {
+  Deno.test(`escaping: ${name} never reach the page as markup`, () => {
+    const r = renderDeepDiveV2(mk(), OPTS);
+    const html = r.html;
+    const scripts = [...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)];
+    assertEquals(scripts.length, 2, name);
+    assertEquals(scripts[0][1], ' type="application/json" id="dd-data"');
+    assertEquals(scripts[1][1], "");
+    assertEquals(scripts[1][2], CLIENT_JS);
+    assertEquals((html.match(/<script/gi) ?? []).length, 2, `${name}: raw <script`);
+    assertEquals(/<img\b/i.test(html), false, `${name}: <img`);
+    assertEquals(/<svg onload/i.test(html), false, `${name}: svg onload`);
+    assertEquals(/<!--/.test(html), false, `${name}: comment opener`);
+    const outside = html.replace(/<script>[\s\S]*?<\/script>/, "").replace(/&lt;[\s\S]*?&gt;/g, "");
+    assertEquals(/\son[a-z]+\s*=/i.test(outside), false, `${name}: handler attribute`);
+    assertEquals(/javascript:/i.test(html), false, `${name}: javascript: URL`);
+    for (const m of html.matchAll(/href="([^"]*)"/g)) {
+      assert(m[1].startsWith("#") || m[1] === "https://example.com/app?a=1&amp;b=2", `${name}: href ${m[1]}`);
+    }
+    assertEquals(/\s(src|action|formaction|xlink:href|srcset|poster)=/i.test(outside), false, `${name}: src`);
+    JSON.parse(scripts[0][2]);
+    assertEquals(scripts[0][2].includes("<"), false);
+    // Report text cannot form chart links: every [[ref:]] in the page comes from the renderer.
+    assertEquals(r.problems, [], name);
+  });
+}
