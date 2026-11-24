@@ -1593,8 +1593,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             publish(state.copy(isLoading = true, message = null, pulseError = null))
             val fetchLatest: suspend () -> Unit = {
                 val pulse = client.getLatestPulse(state.apiBaseUrl, requireTokens().accessToken)
-                val remember = pulseRememberRequested
-                pulseRememberRequested = false
                 cacheStore.cachePulse(pulse)
                 publish(
                     state.copy(
@@ -1604,7 +1602,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         pulseError = null
                     )
                 )
-                if (remember) {
+                // Consumed only here, with no suspension point before rememberPulse, so a refresh
+                // cancelled mid-way leaves the request for the next one.
+                if (pulseRememberRequested) {
+                    pulseRememberRequested = false
                     rememberPulse(pulse)
                 }
                 trackEvent(
@@ -1628,8 +1629,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             if (error != null) {
                 val failureKind = RefreshFailure.classify(error, isDeviceOnline())
                 Log.w(LOG_TAG, RefreshFailure.logLine("pulse", error, failureKind))
-                val remember = pulseRememberRequested
-                pulseRememberRequested = false
                 val cachedPulse = cacheStore.getCachedPulse()
                 if (cachedPulse != null) {
                     publish(
@@ -1642,7 +1641,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                             message = RefreshFailure.cachedPulseMessage(failureKind)
                         )
                     )
-                    if (remember) {
+                    if (pulseRememberRequested) {
+                        pulseRememberRequested = false
                         rememberPulse(cachedPulse)
                     }
                     trackEvent(
