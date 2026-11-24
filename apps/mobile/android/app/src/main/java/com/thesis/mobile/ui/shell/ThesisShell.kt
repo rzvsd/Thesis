@@ -3,6 +3,7 @@ package com.thesis.mobile.ui.shell
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.ContentTransform
+import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.core.FastOutLinearInEasing
 import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.tween
@@ -102,7 +103,7 @@ fun ThesisShell(
             containerColor = ThesisColors.Background,
             snackbarHost = { SnackbarHost(snackbarHostState) },
             topBar = {
-                when (topBarFor(tabTop.destination)) {
+                when (topBarFor(tabTop.destination, state)) {
                     ShellTopBar.Root -> ThesisTopBar(
                         profileSelected = modalTop?.destination is Destination.You ||
                             modalTop?.destination is Destination.YouPage,
@@ -159,6 +160,8 @@ fun ThesisShell(
 
         AnimatedContent(
             targetState = modalTop,
+            // Full size in both states, so opening or closing never animates the container from 0 x 0.
+            modifier = Modifier.fillMaxSize(),
             transitionSpec = { modalTransition(reducedMotion, modalRisePx) },
             contentKey = { it?.entryId },
             label = "modal-layer"
@@ -175,7 +178,8 @@ fun ThesisShell(
                     }
                 }
             } else {
-                Box(Modifier)
+                // Empty, transparent and without pointer input: touches reach the tab layer underneath.
+                Box(Modifier.fillMaxSize())
             }
         }
 
@@ -204,18 +208,27 @@ private fun OpaqueEntry(holder: SaveableStateHolder, entry: NavEntry, content: @
 
 internal enum class ShellTopBar { Root, Back, None }
 
-/** Tab roots get brand + search + avatar; screens with their own header get none; the rest a back bar. */
-internal fun topBarFor(destination: Destination): ShellTopBar = when (destination) {
+/**
+ * Tab roots get brand + search + avatar; screens with their own header get none; the rest a back bar.
+ * A report draws its own bar only once it is loaded: while it loads, fails to open, or while a build runs
+ * (`DeepDiveRunning`, 5.14 "under the top bar, back allowed"), the shell gives it a back bar, because the
+ * bottom bar is hidden there and the loading and error states have no back control of their own.
+ */
+internal fun topBarFor(destination: Destination, state: UiState): ShellTopBar = when (destination) {
     Destination.Today, Destination.Names, Destination.Research, Destination.Inbox -> ShellTopBar.Root
-    is Destination.Pulse, is Destination.WeeklyDigest, Destination.MacroStress, is Destination.History,
-    is Destination.Report, is Destination.ReportClassic, is Destination.DeepDiveRunning -> ShellTopBar.None
+    is Destination.Pulse, is Destination.WeeklyDigest, Destination.MacroStress, is Destination.History -> ShellTopBar.None
+    is Destination.Report ->
+        if (state.deepDiveReport?.reportId == destination.reportId) ShellTopBar.None else ShellTopBar.Back
+    is Destination.ReportClassic ->
+        if (state.deepDiveReport?.reportId == destination.reportId) ShellTopBar.None else ShellTopBar.Back
     else -> ShellTopBar.Back
 }
 
 internal fun titleOf(destination: Destination, state: UiState): String = when (destination) {
     is Destination.WarRoom -> state.warRoom?.ticker?.let { "$it War Room" } ?: "War Room"
     is Destination.ScenarioStress -> "Scenario Stress"
-    is Destination.Name -> destination.ticker
+    // The placeholder body carries the ticker as its headline; the bar only goes back (rubric V3).
+    is Destination.Name -> ""
     is Destination.CompareReports -> "Compare reports"
     is Destination.CompareNames -> "Compare names"
     // You's page carries its own "You" headline; the bar only closes it (no repeated words, rubric V3).
@@ -262,18 +275,20 @@ private fun AnimatedContentTransitionScope<NavEntry>.tabTransition(
     }
 }
 
-/** Modal rise: 32 dp + fade, 300 ms in, 240 ms out. */
+/** Modal rise: 32 dp + fade, 300 ms in, 240 ms out. No size animation (the layer is always full size). */
 private fun AnimatedContentTransitionScope<NavEntry?>.modalTransition(
     reducedMotion: Boolean,
     risePx: Int
 ): ContentTransform {
-    if (reducedMotion) return fadeIn(tween(REDUCED_MS)) togetherWith fadeOut(tween(REDUCED_MS))
+    if (reducedMotion) {
+        return (fadeIn(tween(REDUCED_MS)) togetherWith fadeOut(tween(REDUCED_MS))) using SizeTransform(clip = false)
+    }
     return (slideInVertically(tween(300, easing = LinearOutSlowInEasing)) { risePx } +
         fadeIn(tween(300, easing = LinearOutSlowInEasing)))
         .togetherWith(
             slideOutVertically(tween(240, easing = FastOutLinearInEasing)) { risePx } +
                 fadeOut(tween(240, easing = FastOutLinearInEasing))
-        )
+        ) using SizeTransform(clip = false)
 }
 
 /** Shared by every destination's content; see [ShellContentScope.Content] in ShellDestinations.kt. */

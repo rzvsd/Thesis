@@ -9,7 +9,10 @@ import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -93,28 +96,46 @@ fun ThesisApp(
             // Onboarding → Auth → App: 300 ms crossfade, no slide (4.5).
             Crossfade(targetState = surface, animationSpec = tween(300), label = "surface") { current ->
                 when (current) {
-                    AppSurface.Onboarding -> OnboardingScreen(onComplete = mainViewModel::completeWelcome)
-                    AppSurface.PasswordReset -> {
+                    AppSurface.Onboarding -> PreLoginInsets {
+                        OnboardingScreen(onComplete = mainViewModel::completeWelcome)
+                    }
+                    AppSurface.PasswordReset -> PreLoginInsets {
                         BackHandler { showPasswordReset = false }
                         PasswordResetScreen(onDone = { showPasswordReset = false }, mainViewModel = mainViewModel)
                     }
-                    AppSurface.Auth -> AuthScreen(
-                        isLoading = uiState.authBusy,
-                        currentApiBaseUrl = uiState.apiBaseUrl,
-                        verificationToken = uiState.verificationToken,
-                        registerStatus = uiState.registerStatus,
-                        message = uiState.message,
-                        onSaveApiBaseUrl = mainViewModel::updateApiBaseUrl,
-                        onRegister = mainViewModel::register,
-                        onVerify = mainViewModel::verify,
-                        onLogin = mainViewModel::login,
-                        onForgotPassword = { showPasswordReset = true },
-                        showDeveloperOptions = BuildConfig.DEBUG
-                    )
+                    AppSurface.Auth -> PreLoginInsets {
+                        AuthScreen(
+                            isLoading = uiState.authBusy,
+                            currentApiBaseUrl = uiState.apiBaseUrl,
+                            verificationToken = uiState.verificationToken,
+                            registerStatus = uiState.registerStatus,
+                            message = uiState.message,
+                            onSaveApiBaseUrl = mainViewModel::updateApiBaseUrl,
+                            onRegister = mainViewModel::register,
+                            onVerify = mainViewModel::verify,
+                            onLogin = mainViewModel::login,
+                            onForgotPassword = { showPasswordReset = true },
+                            showDeveloperOptions = BuildConfig.DEBUG
+                        )
+                    }
+                    // The shell applies its own insets (Scaffold padding, consumeWindowInsets, imePadding).
                     AppSurface.Shell -> LoggedInApp(uiState, mainViewModel, snackbarHostState, context)
                 }
             }
         }
+    }
+}
+
+/**
+ * Onboarding, Auth and Password reset draw outside the shell. Under `enableEdgeToEdge()` the window no longer
+ * resizes for the keyboard (API 30+), so these surfaces keep clear of the status bar, the navigation bar, the
+ * display cutout and the IME themselves (`safeDrawing` includes the IME): the Log in button and the lower fields
+ * rise above the keyboard, and Onboarding's bottom CTA clears a 48 dp 3-button navigation bar.
+ */
+@Composable
+private fun PreLoginInsets(content: @Composable () -> Unit) {
+    Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
+        content()
     }
 }
 

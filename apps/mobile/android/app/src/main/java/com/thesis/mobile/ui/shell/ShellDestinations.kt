@@ -206,17 +206,16 @@ internal fun ShellContentScope.Content(entry: NavEntry, padding: PaddingValues) 
             onDismiss = { actions.onBack() }
         )
         // Name, Compare reports and Compare names are drawn by WP-B and WP-E in PR-3. Until then the entry
-        // exists (links and the codec work) and says what it will show.
+        // exists (links and the codec work) and shows the title plus the last verdict sentence when one is
+        // known. No raw state enums or ad-hoc number formats, even here (WP-B formats them through Fmt).
         is Destination.Name -> PendingScreen(
             padding,
             destination.ticker,
-            state.nameDetail?.takeIf { it.ticker.equals(destination.ticker, ignoreCase = true) }?.let { detail ->
-                listOfNotNull(
-                    detail.snapshot?.let { "${it.state} · score ${"%.0f".format(it.score)}" },
-                    detail.summary?.verdict,
-                    "${detail.notesTrail.count { it.text.isNotBlank() }} notes · ${detail.reports.size} reports"
-                )
-            }.orEmpty()
+            listOfNotNull(
+                state.nameDetail
+                    ?.takeIf { it.ticker.equals(destination.ticker, ignoreCase = true) }
+                    ?.summary?.verdict?.takeIf { it.isNotBlank() }
+            )
         )
         is Destination.CompareReports -> PendingScreen(padding, "Compare reports", emptyList())
         is Destination.CompareNames -> PendingScreen(padding, destination.tickers.joinToString(" · "), emptyList())

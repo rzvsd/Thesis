@@ -20,7 +20,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.dp
 import com.thesis.mobile.model.AlertLedgerItemView
 import com.thesis.mobile.ui.theme.ThesisColors
@@ -48,10 +47,11 @@ fun ThesisTopBar(
             .padding(start = ThesisDimens.ScreenPaddingHorizontal, end = ThesisDimens.SpacingSm),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        // Brand as the accent eyebrow (component #3). labelSmall is the M3 slot F1 remaps to `eyebrow` (2.3).
         Text(
             text = "THESIS",
-            style = ThesisTypography.labelLarge.copy(fontWeight = FontWeight.SemiBold, letterSpacing = 2.sp),
-            color = ThesisColors.TextPrimary,
+            style = ThesisTypography.labelSmall,
+            color = ThesisColors.Primary,
             modifier = Modifier
                 .weight(1f)
                 .semantics { heading() }
