@@ -1,0 +1,1021 @@
+<title>Thesis Deep Dive 2.0</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&display=swap">
+<style>
+/* Layout: one reading column of report sections (max 900px); a sticky chip nav; charts sit in cards, two-up on wide screens.
+   Light = Thesis paper (report export tokens). Dark = Thesis app (Android tokens). Chart series validated for CVD in both. */
+:root{
+  --bg:#F5F1E8; --surface:#FFFDF8; --surface-2:#F8F4EB; --ink:#1A2128; --ink-2:#47525E; --muted:#68717C;
+  --line:#E6DFD1; --line-2:#D3C9B6; --accent:#7E6337; --chip:#EFE9DD; --focus:#256bb1;
+  --hero-bg:#1A2128; --hero-ink:#F6F2EA; --hero-ink-2:#B7BFC8; --hero-accent:#D7B985; --hero-line:rgba(246,242,234,.16); --hero-chip:rgba(246,242,234,.08);
+  --pos:#2F6A4F; --neg:#9B4A4A; --warn:#8C5E12;
+  --s1:#b48226; --s2:#82498b; --s3:#6b8d38; --s4:#256bb1; --s5:#be5737; --s6:#008e7f;
+  --deemph:#B9B1A4; --grid:#EEE8DC; --axis:#CDC3B1;
+  --div-pos:#256bb1; --div-neg:#be5737; --div-mid:#ECE6DB;
+  --f-display:"Newsreader", Georgia, "Times New Roman", serif;
+  --f-body:"Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0A0A0A; --surface:#161616; --surface-2:#1C1C1C; --ink:#F2F2F0; --ink-2:#BDBDB8; --muted:#8E8E89;
+    --line:#262626; --line-2:#363636; --accent:#C5A059; --chip:#1F1F1F; --focus:#C5A059;
+    --hero-bg:#121212; --hero-ink:#F2F2F0; --hero-ink-2:#A9A9A4; --hero-accent:#C5A059; --hero-line:rgba(255,255,255,.10); --hero-chip:rgba(255,255,255,.06);
+    --pos:#4ADE80; --neg:#F87171; --warn:#FBBF24;
+    --s1:#ba882e; --s2:#a166aa; --s3:#779a45; --s4:#4c89cc; --s5:#cb6443; --s6:#1aa291;
+    --deemph:#5B5B58; --grid:#222222; --axis:#3A3A3A;
+    --div-pos:#4c89cc; --div-neg:#cb6443; --div-mid:#2A2A2A;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0A0A0A; --surface:#161616; --surface-2:#1C1C1C; --ink:#F2F2F0; --ink-2:#BDBDB8; --muted:#8E8E89;
+  --line:#262626; --line-2:#363636; --accent:#C5A059; --chip:#1F1F1F; --focus:#C5A059;
+  --hero-bg:#121212; --hero-ink:#F2F2F0; --hero-ink-2:#A9A9A4; --hero-accent:#C5A059; --hero-line:rgba(255,255,255,.10); --hero-chip:rgba(255,255,255,.06);
+  --pos:#4ADE80; --neg:#F87171; --warn:#FBBF24;
+  --s1:#ba882e; --s2:#a166aa; --s3:#779a45; --s4:#4c89cc; --s5:#cb6443; --s6:#1aa291;
+  --deemph:#5B5B58; --grid:#222222; --axis:#3A3A3A;
+  --div-pos:#4c89cc; --div-neg:#cb6443; --div-mid:#2A2A2A;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{background:var(--bg);color:var(--ink);font:15px/1.55 var(--f-body);margin:0}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:30;background:var(--surface)}
+a{color:inherit}
+button,input{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radius:4px}
+.wrap{max-width:900px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+
+/* app bar */
+.appbar{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--surface);border-bottom:1px solid var(--line)}
+.appbar .wrap{display:flex;align-items:center;gap:12px;height:52px}
+.brand{font:600 13px/1 var(--f-body);letter-spacing:.14em;text-transform:uppercase;color:var(--accent)}
+.appbar .tk{font:600 17px/1 var(--f-body)}
+.sample-pill{font-size:11px;font-weight:600;letter-spacing:.04em;padding:4px 8px;border-radius:999px;background:var(--chip);color:var(--ink-2);white-space:nowrap}
+.spacer{flex:1}
+.iconbtn{border:1px solid var(--line-2);background:transparent;border-radius:999px;height:32px;padding:0 12px;font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap}
+.iconbtn:hover{background:var(--chip)}
+.sample-pill .s,.iconbtn .s{display:none}
+@media (max-width:560px){.sample-pill .l,.iconbtn .l{display:none}.sample-pill .s{display:inline}.appbar .wrap{gap:10px}}
+
+/* chip nav */
+.chipnav{position:sticky;top:calc(env(safe-area-inset-top,0px) + 52px);z-index:19;background:color-mix(in oklab,var(--bg) 92%,transparent);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+.chipnav .wrap{display:flex;gap:6px;overflow-x:auto;padding-block:10px;scrollbar-width:none}
+.chipnav .wrap::-webkit-scrollbar{display:none}
+.chipnav a{flex:none;text-decoration:none;font-size:13px;font-weight:500;color:var(--ink-2);padding:6px 12px;border-radius:999px;border:1px solid var(--line-2);background:var(--surface)}
+.chipnav a.on{background:var(--ink);color:var(--surface);border-color:var(--ink)}
+
+/* hero */
+.hero{background:var(--hero-bg);color:var(--hero-ink)}
+.hero .wrap{padding-block:28px 26px;display:grid;gap:22px}
+.hero .eyebrow{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--hero-accent);font-weight:600}
+.hero h1{font:500 clamp(32px,6vw,46px)/1.02 var(--f-display);margin:6px 0 8px;letter-spacing:-.01em;text-wrap:balance}
+.hero .meta{color:var(--hero-ink-2);font-size:13.5px}
+.hero .meta b{color:var(--hero-ink);font-weight:600}
+.stance{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;padding:5px 10px;border-radius:999px;background:var(--hero-chip);border:1px solid var(--hero-line);color:var(--hero-ink)}
+.pill .dot{width:8px;height:8px;border-radius:50%;background:var(--hero-accent)}
+.thesis{font:400 19px/1.45 var(--f-display);color:var(--hero-ink);max-width:62ch;margin:0}
+.pricebox{display:grid;gap:14px;border:1px solid var(--hero-line);border-radius:12px;padding:16px;background:var(--hero-chip)}
+.pricebox .row{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px}
+.pricebox label{font-size:13px;color:var(--hero-ink-2)}
+.priceinput{display:inline-flex;align-items:center;border:1px solid var(--hero-line);border-radius:8px;background:var(--hero-bg);padding:0 10px;height:38px}
+.priceinput span{color:var(--hero-ink-2)}
+.priceinput input{width:84px;border:0;background:transparent;color:var(--hero-ink);font-size:17px;font-weight:600;padding:0 4px;outline:none;font-variant-numeric:tabular-nums}
+.updown{font-size:15px;font-weight:600}
+.small-note{font-size:12px;color:var(--hero-ink-2)}
+.rangewrap{position:relative}
+.rangewrap svg{display:block;width:100%;overflow:visible}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(132px,1fr));gap:1px;background:var(--hero-line);border:1px solid var(--hero-line);border-radius:12px;overflow:hidden}
+.kpi{background:var(--hero-bg);padding:12px 14px;min-width:0}
+.kpi .l{font-size:12px;color:var(--hero-ink-2)}
+.kpi .v{font:600 22px/1.2 var(--f-body);margin-top:2px}
+.kpi .d{font-size:12px;margin-top:2px;color:var(--hero-ink-2)}
+.kpi .d.up{color:#7FD3A2}
+.kpi .d.dn{color:#F2A0A0}
+
+/* sections */
+main .wrap{display:grid;gap:56px;padding-block:32px 48px}
+section{scroll-margin-top:calc(env(safe-area-inset-top,0px) + 112px);display:grid;gap:18px}
+.sec-head{display:grid;gap:8px}
+.sec-kicker{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.phase{font-size:11px;font-weight:600;letter-spacing:.03em;padding:3px 8px;border-radius:6px;border:1px solid var(--line-2);color:var(--ink-2);background:var(--surface)}
+.phase.p1{border-color:color-mix(in oklab,var(--s3) 55%,var(--line-2))}
+.phase.p2{border-color:color-mix(in oklab,var(--s4) 55%,var(--line-2))}
+.phase.p3{border-color:color-mix(in oklab,var(--s5) 55%,var(--line-2))}
+.phase.p4{border-color:color-mix(in oklab,var(--s2) 55%,var(--line-2))}
+.phase i{display:inline-block;width:7px;height:7px;border-radius:2px;margin-right:6px;vertical-align:1px}
+.phase.p1 i{background:var(--s3)} .phase.p2 i{background:var(--s4)} .phase.p3 i{background:var(--s5)} .phase.p4 i{background:var(--s2)}
+.src{font-size:11.5px;color:var(--muted)}
+h2{font:500 clamp(26px,4.2vw,32px)/1.1 var(--f-display);margin:0;letter-spacing:-.005em;text-wrap:balance}
+.verdict{font-size:16.5px;line-height:1.5;color:var(--ink-2);max-width:66ch;margin:0}
+.verdict b{color:var(--ink);font-weight:600}
+.grid2{display:grid;grid-template-columns:1fr;gap:16px;align-items:start}
+@media (min-width:760px){.grid2{grid-template-columns:1fr 1fr}.span2{grid-column:1/-1}}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px 16px 14px;min-width:0;display:grid;gap:10px;align-content:start}
+.card h3{font:600 15px/1.35 var(--f-body);margin:0;text-wrap:balance}
+.card .sub{font-size:12.5px;color:var(--muted);margin-top:-6px}
+.card .foot{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:8px;margin-top:2px}
+.tbtn{border:0;background:transparent;font-size:12px;font-weight:600;color:var(--accent);cursor:pointer;padding:4px 0}
+.chart{position:relative;min-width:0}
+.chart svg{display:block;width:100%;height:auto;overflow:visible}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12.5px;color:var(--ink-2)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.sw{width:10px;height:10px;border-radius:3px;display:inline-block;flex:none}
+.lk{width:14px;height:2px;border-radius:2px;display:inline-block;flex:none}
+.tbl{overflow-x:auto}
+.tbl table{border-collapse:collapse;width:100%;font-size:12.5px;font-variant-numeric:tabular-nums}
+.tbl th,.tbl td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+.tbl th:first-child,.tbl td:first-child{text-align:left}
+.tbl th{font-weight:600;color:var(--muted);font-size:11.5px}
+.note{font-size:13px;color:var(--ink-2);margin:0}
+.callout{border-radius:12px;padding:12px 14px;background:var(--surface-2);border:1px solid var(--line);font-size:14px;color:var(--ink-2)}
+.callout b{color:var(--ink)}
+
+/* svg classes */
+.f1{fill:var(--s1)} .f2{fill:var(--s2)} .f3{fill:var(--s3)} .f4{fill:var(--s4)} .f5{fill:var(--s5)} .f6{fill:var(--s6)} .fd{fill:var(--deemph)}
+.k1{stroke:var(--s1)} .k2{stroke:var(--s2)} .k3{stroke:var(--s3)} .k4{stroke:var(--s4)} .k5{stroke:var(--s5)} .k6{stroke:var(--s6)} .kd{stroke:var(--deemph)}
+.b1{background:var(--s1)} .b2{background:var(--s2)} .b3{background:var(--s3)} .b4{background:var(--s4)} .b5{background:var(--s5)} .b6{background:var(--s6)} .bd{background:var(--deemph)}
+.gridl{stroke:var(--grid);stroke-width:1}
+.axisl{stroke:var(--axis);stroke-width:1}
+.tx{fill:var(--muted);font:11px var(--f-body);font-variant-numeric:tabular-nums}
+.tx2{fill:var(--ink-2);font:500 11.5px var(--f-body)}
+.tx3{fill:var(--ink);font:600 12px var(--f-body)}
+.ln{fill:none;stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
+.surfring{stroke:var(--surface);stroke-width:2}
+.halo{paint-order:stroke;stroke:var(--surface);stroke-width:4px;stroke-linejoin:round}
+.hov:hover{opacity:.82}
+
+/* list charts */
+.hbars{display:grid;gap:10px}
+.hb{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 10px;align-items:center}
+.hb .n{font-size:13px;min-width:0;overflow-wrap:anywhere}
+.hb .n small{color:var(--muted);font-size:11.5px;margin-left:4px}
+.hb .v{font-size:13px;font-weight:600;font-variant-numeric:tabular-nums;text-align:right}
+.hb .track{grid-column:1/-1;height:8px;border-radius:4px;background:var(--grid);overflow:hidden}
+.hb .fill{height:100%;border-radius:4px}
+.segbar{display:flex;gap:2px;height:14px}
+.segbar div{border-radius:4px;min-width:0}
+.legend b{color:var(--ink);font-weight:600;font-variant-numeric:tabular-nums}
+.lh{display:inline-flex;align-items:center;gap:6px}
+.believe{display:grid;gap:6px;font-size:13px;color:var(--ink-2)}
+.believe div{display:grid;grid-template-columns:14px 1fr;gap:8px;align-items:baseline}
+.believe b{color:var(--ink);font-weight:600}
+.believe .lk{transform:translateY(-3px)}
+@media (max-width:560px){
+  .tbl.stack table,.tbl.stack tbody,.tbl.stack tr,.tbl.stack td{display:block}
+  .tbl.stack thead{display:none}
+  .tbl.stack tr{display:grid;grid-template-columns:1fr 1fr;gap:8px 14px;padding:10px 0;border-bottom:1px solid var(--line)}
+  .tbl.stack tr:last-child{border-bottom:0}
+  .tbl.stack td,.tbl.stack td:nth-child(n){border:0;padding:0;text-align:left;white-space:normal;min-width:0;font-size:13px}
+  .tbl.stack td:first-child{grid-column:1/-1;font-weight:600;font-size:13.5px}
+  .tbl.stack td[data-l]::before{content:attr(data-l);display:block;font-size:11px;color:var(--muted);font-weight:500}
+  .tbl.stack.srcs tr{grid-template-columns:1fr}
+}
+.meters{display:grid;gap:12px}
+.meter{display:grid;grid-template-columns:150px 1fr 44px;gap:10px;align-items:center}
+.meter .n{font-size:13.5px;font-weight:500}
+.meter .t{height:8px;border-radius:4px;background:var(--grid);overflow:hidden}
+.meter .t div{height:100%;border-radius:4px;background:var(--s1)}
+.meter .v{font-size:13px;font-weight:600;text-align:right;font-variant-numeric:tabular-nums}
+.meter .r{grid-column:1/-1;font-size:12.5px;color:var(--muted);margin-top:-6px}
+@media (max-width:460px){.meter{grid-template-columns:1fr 44px}.meter .t{grid-column:1/-1;grid-row:2}.meter .r{grid-row:3}}
+.changes{display:grid;gap:10px}
+.chg{display:grid;grid-template-columns:28px 1fr;gap:10px;align-items:start}
+.chg .ic{width:28px;height:28px;border-radius:8px;display:grid;place-items:center;font-weight:700;font-size:14px;background:var(--chip)}
+.chg .ic.up{color:var(--pos)} .chg .ic.dn{color:var(--neg)} .chg .ic.w{color:var(--warn)}
+.chg b{font-weight:600}
+.chg p{margin:2px 0 0;font-size:13.5px;color:var(--ink-2)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font-size:12.5px;padding:5px 10px;border-radius:999px;background:var(--chip);color:var(--ink-2);border:1px solid var(--line)}
+.chip b{color:var(--ink);font-weight:600}
+.tl{display:grid;gap:0;border-left:2px solid var(--line-2);margin-left:6px}
+.tl .e{position:relative;padding:0 0 16px 18px}
+.tl .e::before{content:"";position:absolute;left:-7px;top:5px;width:12px;height:12px;border-radius:50%;background:var(--surface);border:2px solid var(--s1)}
+.tl .d{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.tl .t{font-size:14px;font-weight:600}
+.tl .x{font-size:13px;color:var(--ink-2)}
+.tag{display:inline-block;font-size:10.5px;font-weight:600;letter-spacing:.03em;padding:2px 6px;border-radius:5px;background:var(--chip);color:var(--ink-2);margin-left:6px;vertical-align:1px}
+.heat{display:grid;gap:2px;font-variant-numeric:tabular-nums}
+.heat .c{padding:8px 4px;text-align:center;font-size:12.5px;font-weight:600;border-radius:4px}
+.heat .h{font-size:11px;color:var(--muted);text-align:center;padding:4px 2px;align-self:center}
+.status{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600}
+.status.ok{color:var(--pos)} .status.watch{color:var(--warn)} .status.bad{color:var(--neg)}
+.kill{display:grid;gap:10px}
+.kill .k{display:grid;grid-template-columns:1fr auto;gap:2px 10px;padding-bottom:10px;border-bottom:1px solid var(--line)}
+.kill .k:last-child{border-bottom:0;padding-bottom:0}
+.kill .k span{font-size:13.5px}
+.kill .k small{grid-column:1/-1;color:var(--muted);font-size:12px}
+.srcs td:nth-child(3),.srcs th:nth-child(3){text-align:left;white-space:normal;min-width:180px}
+.srcs td:nth-child(2),.srcs th:nth-child(2){text-align:left;white-space:normal;min-width:170px}
+.srcs td:nth-child(4),.srcs th:nth-child(4){text-align:left}
+.lockb{font-size:11px;font-weight:600;padding:3px 8px;border-radius:6px;background:var(--surface-2);border:1px solid color-mix(in oklab,var(--s5) 55%,var(--line-2));color:var(--ink-2);white-space:nowrap}
+.tbl th{white-space:normal;vertical-align:bottom}
+#geoTable td:nth-child(4),#geoTable th:nth-child(4){white-space:normal;text-align:left;min-width:118px}
+#paLevels td:nth-child(3),#paLevels th:nth-child(3){white-space:normal;text-align:left}
+#scen td{white-space:normal}
+#scen td:first-child{min-width:96px}
+#scen th:not(:first-child),#scen td:not(:first-child){text-align:center}
+#scen tr:last-child td{font-weight:600;color:var(--ink)}
+/* story layer: lede, narrative paragraphs, upshot. Hidden in "Charts only" mode. */
+.chap{font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);margin-right:4px}
+.story{display:grid;gap:14px;max-width:68ch;font:400 17px/1.62 var(--f-display);color:var(--ink)}
+.story p{margin:0}
+.story .o{font-weight:600}
+.figref{color:var(--accent);text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:2px;white-space:nowrap}
+.upshot{margin:0;max-width:68ch;padding:10px 0 10px 16px;border-left:3px solid var(--accent);font-size:15.5px;line-height:1.55;color:var(--ink-2)}
+.upshot b{color:var(--ink)}
+.fignum{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:-6px}
+body.charts-only .story,body.charts-only .upshot,body.charts-only .bigq{display:none}
+.readmode{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:13px;color:var(--hero-ink-2)}
+.readmode span{margin-right:4px}
+.readmode button{border:1px solid var(--hero-line);background:transparent;color:var(--hero-ink);border-radius:999px;height:32px;padding:0 14px;font-size:13px;font-weight:500;cursor:pointer}
+.readmode button[aria-pressed="true"]{background:var(--hero-ink);color:var(--hero-bg);border-color:var(--hero-ink)}
+.bigq{border-radius:14px;padding:16px 18px;background:var(--surface);border:1px solid var(--line);display:grid;gap:6px}
+.bigq .k{font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--accent)}
+.bigq p{margin:0;font:500 20px/1.35 var(--f-display);color:var(--ink);text-wrap:balance}
+.chapters{margin:0;padding:0;list-style:none;display:grid;gap:10px;counter-reset:ch}
+.chapters li{display:grid;grid-template-columns:30px 1fr;gap:10px;align-items:baseline;font-size:14px;color:var(--ink-2)}
+.chapters li::before{counter-increment:ch;content:counter(ch,decimal-leading-zero);font-size:12px;font-weight:700;color:var(--accent);font-variant-numeric:tabular-nums}
+.chapters a{color:var(--ink);font-weight:600;text-decoration:none}
+.chapters a:hover{text-decoration:underline}
+/* price action */
+.marks{display:grid;gap:8px;margin-top:2px}
+.marks div{display:grid;grid-template-columns:22px 1fr;gap:10px;align-items:start;font-size:13px;color:var(--ink-2)}
+.marks i{font-style:normal;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-size:11.5px;font-weight:700;border:1.5px solid var(--ink);color:var(--ink);background:var(--surface)}
+.marks b{color:var(--ink);font-weight:600}
+.mk circle{fill:var(--surface);stroke:var(--ink);stroke-width:1.5}
+.mk text{fill:var(--ink);font:700 10.5px var(--f-body)}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.stats div{background:var(--surface);padding:10px 12px;min-width:0}
+.stats .l{font-size:12px;color:var(--muted)}
+.stats .v{font:600 18px/1.25 var(--f-body);font-variant-numeric:tabular-nums}
+.stats .d{font-size:12px;color:var(--ink-2)}
+.scan{display:grid;gap:0}
+.scan .r{display:grid;grid-template-columns:minmax(0,190px) minmax(0,1fr) auto;gap:4px 14px;align-items:baseline;padding:10px 0;border-bottom:1px solid var(--line)}
+.scan .r:last-child{border-bottom:0}
+.scan .n{font-size:13.5px;font-weight:600}
+.scan .n small{display:block;font-weight:400;color:var(--muted);font-size:12px}
+.scan .x{font-size:13px;color:var(--ink-2)}
+.status.none{color:var(--muted)}
+@media (max-width:560px){.scan .r{grid-template-columns:1fr auto}.scan .x{grid-column:1/-1}}
+.odds{display:grid;gap:12px}
+.odds div{display:grid;gap:2px;font-size:13px;color:var(--ink-2)}
+.odds b{font:600 17px/1.2 var(--f-display);color:var(--ink)}
+.wrong{display:grid;gap:10px}
+.wrong div{display:grid;grid-template-columns:28px 1fr;gap:10px;align-items:start;font-size:14px;color:var(--ink-2)}
+.wrong i{font-style:normal;width:28px;height:28px;border-radius:8px;display:grid;place-items:center;font-weight:700;background:var(--chip);color:var(--neg)}
+.wrong b{color:var(--ink);font-weight:600}
+#tip{position:fixed;z-index:50;pointer-events:none;background:var(--ink);color:var(--surface);border-radius:8px;padding:8px 10px;font-size:12.5px;line-height:1.35;max-width:240px;box-shadow:0 6px 18px rgba(0,0,0,.18)}
+#tip .tv{font-weight:700;font-size:13.5px}
+#tip .tl2{opacity:.8}
+footer .wrap{padding-block:24px 48px;border-top:1px solid var(--line);color:var(--muted);font-size:12.5px;display:grid;gap:6px}
+@media (prefers-reduced-motion:no-preference){.fadein{animation:fi .4s ease both}@keyframes fi{from{opacity:.4;transform:translateY(4px)}to{opacity:1;transform:none}}}
+</style>
+
+<div class="appbar"><div class="wrap">
+  <span class="brand">Thesis</span>
+  <span class="tk">AAPL</span>
+  <span class="sample-pill"><span class="l">Sample report · approximate figures</span><span class="s">Sample data</span></span>
+  <span class="spacer"></span>
+  <button class="iconbtn" id="themeBtn" type="button" aria-label="Switch light or dark">Theme: auto</button>
+</div></div>
+
+<header class="hero"><div class="wrap">
+  <div>
+    <div class="eyebrow">Deep Dive · from the 10-K for fiscal 2025</div>
+    <h1>Apple Inc.</h1>
+    <div class="meta"><b>AAPL</b> · NASDAQ · Consumer electronics and services · Cupertino, United States · Fiscal year ends in September</div>
+  </div>
+  <div class="stance">
+    <span class="pill"><span class="dot"></span>Stance: Neutral, watch margins</span>
+    <span class="pill">Confidence: medium (0.74)</span>
+    <span class="pill">Evidence: 64 facts from 9 filings</span>
+  </div>
+  <p class="thesis">A cash machine that now earns more from services than ever. Growth is slow but steady, buybacks cut the share count 2.7% last year, and the price already assumes about ten years of steady cash-flow growth.</p>
+  <div class="pricebox">
+    <div class="row">
+      <label for="price">Your price</label>
+      <span class="priceinput"><span>$</span><input id="price" type="number" inputmode="decimal" min="1" max="2000" step="0.01" value="191"></span>
+      <span class="updown" id="updown"></span>
+    </div>
+    <div class="rangewrap" id="heroRange" aria-label="Fair value range and your price"></div>
+    <div class="small-note">Example price. Type the price you see at your broker and every ratio below updates. Live prices arrive when a licensed price feed is chosen (phase 3).</div>
+  </div>
+  <div class="kpis" id="kpis"></div>
+  <div class="readmode" role="group" aria-label="Reading mode"><span>Read as</span><button type="button" data-mode="story" aria-pressed="true">Full story</button><button type="button" data-mode="charts" aria-pressed="false">Charts only</button></div>
+</div></header>
+
+<nav class="chipnav" aria-label="Report sections"><div class="wrap" id="chipnav">
+  <a href="#summary">Summary</a><a href="#business">Business</a><a href="#countries">Countries</a><a href="#links">Customers &amp; suppliers</a><a href="#owners">Owners &amp; people</a><a href="#financials">Financials</a><a href="#value">Price &amp; value</a><a href="#action">Price action</a><a href="#forecasts">Forecasts</a><a href="#risks">Risks</a><a href="#events">Events</a><a href="#bottom">Bottom line</a><a href="#sources">Sources</a>
+</div></nav>
+
+<main><div class="wrap">
+
+<section id="summary">
+  <div class="sec-head">
+    <div class="sec-kicker"><span class="phase p1"><i></i>Phase 1</span><span class="src">Thesis model on SEC filings</span></div>
+    <h2>The story in one minute</h2>
+    <p class="verdict" id="sumVerdict"><b>Quality is excellent.</b> Margins hit a record, services keep compounding, and cash returns are huge. The risks are China, App Store rules and a slower iPhone cycle.</p>
+  </div>
+  <div class="story"><p><b class="o">Apple is an excellent business growing at an ordinary pace.</b> The scorecard shows this at a glance (<a class="figref" data-ref="scores"></a>). Ranked against every company in the S&amp;P 500, Apple scores 9.4 out of 10 for profitability, 9.0 for shareholder returns and 8.1 for financial health. Growth is the weakest of the four at 5.2, close to the middle of the pack. Sales reached $416B in fiscal 2025, 6.4% more than the year before and 78% more than in 2015. Profit grew faster: $112B against $53B in 2015, more than twice as much. The fifth score, value, moves with the price typed in the box at the top.</p><p><b class="o">Services led the year’s good news.</b> The card next to the scorecard, “What changed since the last report”, leads with it. Services sales passed $109B, up 13.5%, about twice the pace of total sales. Services are now 26% of sales but more than 40% of gross profit. They keep about 75 cents of every dollar as gross profit, against about 37 cents for hardware. Helped by that mix, gross margin reached a record 46.9%, 0.7 points above last year. But the same card shows the other side. Greater China sales fell 4% to about $64B, the third weak year in four, and the risk factors now say more about US tariffs.</p><p><b class="o">That sets up the question the rest of the report keeps asking.</b> Earnings per share rose from $6.08 to $7.47, a gain of $1.39. Nearly half of it, $0.66, came from a one-time 2024 tax charge that did not repeat. The lower share count added another $0.21: Apple paid out $106B in buybacks and dividends, and the share count fell 2.7%. Meanwhile iPhone, still half of sales, grew only about 2% a year over four years, against about 12% a year for services. So the big question is simple. Can services and buybacks keep earnings per share growing while iPhone barely grows and China shrinks?</p></div>
+  <div class="grid2">
+    <div class="card">
+      <h3>Scorecard</h3>
+      <div class="sub">0 to 10. The first four rank Apple against all S&amp;P 500 companies.</div>
+      <div class="meters" id="scores"></div>
+    </div>
+    <div class="card">
+      <h3>What changed since the last report</h3>
+      <div class="sub">10-K fiscal 2025 compared with 10-K fiscal 2024</div>
+      <div class="changes">
+        <div class="chg"><div class="ic up" aria-label="up">↑</div><div><b>Services passed $109B, up 13.5%</b><p>Now 26% of sales and more than 40% of gross profit.</p></div></div>
+        <div class="chg"><div class="ic up" aria-label="up">↑</div><div><b>Gross margin 46.9%, a record</b><p>Up 0.7 points. Services carry a margin near 75%.</p></div></div>
+        <div class="chg"><div class="ic dn" aria-label="down">↓</div><div><b>Greater China sales fell again</b><p>Down 4% to about $64B, the third weak year in four.</p></div></div>
+        <div class="chg"><div class="ic w" aria-label="watch">!</div><div><b>Tariff language grew in the risk factors</b><p>New wording on US trade measures and product costs.</p></div></div>
+      </div>
+    </div>
+  </div>
+  <p class="upshot"><b>The upshot:</b> the report’s base case assumes sales growth of about 6% a year, to $557B by 2030. Two of the four kill switches guard this story: services growth staying above 8% and the share count falling at least 2% a year. Both pass today, at 13.5% and 2.7%.</p>
+</section>
+
+<section id="business">
+  <div class="sec-head">
+    <div class="sec-kicker"><span class="phase p2"><i></i>Phase 2</span><span class="src">SEC XBRL segment tables (free)</span></div>
+    <h2>How Apple makes money</h2>
+    <p class="verdict"><b>iPhone is half of sales, services is the growth engine.</b> Services grew from 19% to 26% of sales in four years, and it carries about twice the gross margin of hardware (75% against 37%).</p>
+  </div>
+  <div class="story"><p><b class="o">The first thing to know is that iPhone is still half the business.</b> In fiscal 2025 it brought in $209.6B of Apple’s $416B in sales, or 50.4% (<a class="figref" data-ref="segDonut"></a>). That was 4.2% more than the year before, a solid year for a product this big. But its slice is slowly thinning: it was 52.5% in fiscal 2021. The other devices matter less each year. Mac, iPad and Wearables and home together brought in $97.4B, about 23% of sales. Wearables and home has shrunk three years in a row, from $41.2B in fiscal 2022 to $35.7B.</p><p><b class="o">Second, services did almost all of the growing.</b> Services is the money Apple earns from things like the App Store rather than from selling devices. It rose from $68.4B in fiscal 2021 to $109.2B, up 60% in four years, or about 12% a year (<a class="figref" data-ref="segStack"></a>). Over the same years total sales grew by $50.3B, and services supplied $40.8B of that, about four dollars in every five. All the hardware lines together grew just 3% in four years. That is how services went from 19% to 26% of sales.</p><p><b class="o">But sales understate how much services matters.</b> Each dollar of services leaves about 75 cents of gross profit, the money left after the direct cost of providing it. Each dollar of hardware leaves about 37 cents (<a class="figref" data-ref="gmSplit"></a>). The gap has widened: the services margin rose 5.7 points since fiscal 2021, products only 1.5 points. Put together, services made about $82B of gross profit in fiscal 2025, against about $113B from all devices. So a quarter of sales now brings in more than 40% of gross profit, up from about 31% four years earlier. That mix shift helped lift the company’s gross margin to a record 46.9%.</p></div>
+  <div class="grid2">
+    <div class="card"><h3>Sales by product, fiscal 2025</h3><div class="sub">Total $416B</div><div class="chart" id="segDonut"></div><div class="foot"><span class="src">10-K note: net sales by category</span><button class="tbtn" data-table="segDonut" type="button">Show table</button></div></div>
+    <div class="card"><h3>Services keeps taking share</h3><div class="sub">Sales by product, $B</div><div class="chart" id="segStack"></div><div class="legend" id="segStackLeg"></div><div class="foot"><span class="src">Five fiscal years</span><button class="tbtn" data-table="segStack" type="button">Show table</button></div></div>
+    <div class="card span2"><h3>Hardware earns 37 cents of gross profit per dollar, services 75</h3><div class="sub">Gross margin by type, %</div><div class="chart" id="gmSplit"></div><div class="legend" id="gmSplitLeg"></div><div class="foot"><span class="src">10-K: products and services gross margin</span><button class="tbtn" data-table="gmSplit" type="button">Show table</button></div></div>
+  </div>
+  <p class="upshot"><b>The upshot:</b> the margin story depends on services growing much faster than hardware. The services kill switch trips if services growth falls below 8% for two quarters; it is 13.5% now.</p>
+</section>
+
+<section id="countries">
+  <div class="sec-head">
+    <div class="sec-kicker"><span class="phase p2"><i></i>Phase 2</span><span class="src">SEC XBRL geography, World Bank and OECD outlooks, 10-K text, GLEIF</span></div>
+    <h2>Where the money comes from, and where things are made</h2>
+    <p class="verdict"><b>Sold everywhere, made mostly in Asia.</b> The Americas give 43% of sales. China is 15% of sales and a major assembly base, so trade rules and tariffs hit twice.</p>
+  </div>
+  <div class="story"><p><b class="o">Sales are spread wide, and most of the growth is outside China.</b> The Americas brought in $178.4B in fiscal 2025, 43% of the $416.2B total, and grew 3.9% a year over four years (<a class="figref" data-ref="geoBars"></a>). Europe is the quiet winner. Its sales rose from $89.3B to $111.0B, or 5.6% a year, and its slice of the total grew from 24% to 27%. Rest of Asia Pacific grew fastest, 6.3% a year, though it is still small, at $33.7B. Japan barely moved over four years, but its latest year was strong, up 14% to $28.7B.</p><p><b class="o">Greater China is the exception, and it matters twice.</b> Its sales peaked at $74.2B in fiscal 2022 and have fallen every year since, to $64.4B, 13% below the peak (<a class="figref" data-ref="geoLines"></a>). Its share of the total slipped from 19% to 15%. Without China, the rest of the company grew 4.3% a year over four years, against 3.3% with it. But this understates the exposure. China is also a major assembly base. The 10-K names China mainland, India and Vietnam among the places where outsourcing partners build “substantially all” of the hardware. Tariffs on goods made there can raise costs; weak demand there can cut sales.</p><p><b class="o">The economies point the other way.</b> Weighting each region’s growth outlook by its share of sales gives 2.2% a year (<a class="figref" data-ref="geoTable"></a>). China’s economy is forecast to grow 4.2%, more than double the US rate of 2.0%, yet Greater China is the only region where sales shrank. Europe’s currencies rose 6% against the dollar, which helps sales when they are counted in dollars. For tax, Ireland matters most. It has the most legal entities, 4 of the 13 listed (<a class="figref" data-ref="entityBars"></a>). The EU state-aid ruling there cost a one-time $10.2B in fiscal 2024. That charge dropping out added $0.66 to fiscal 2025 earnings per share, about half the $1.39 rise.</p></div>
+  <div class="grid2">
+    <div class="card"><h3>Sales by region, fiscal 2025</h3><div class="sub">$B and 4-year growth per year</div><div class="hbars" id="geoBars"></div><div class="foot"><span class="src">10-K segment note</span><button class="tbtn" data-table="geoBars" type="button">Show table</button></div></div>
+    <div class="card"><h3>Greater China shrank while the rest grew</h3><div class="sub">Sales by region, $B</div><div class="chart" id="geoLines"></div><div class="legend" id="geoLinesLeg"></div><div class="foot"><span class="src">Five fiscal years</span><button class="tbtn" data-table="geoLines" type="button">Show table</button></div></div>
+    <div class="card span2"><h3>Country exposure</h3><div class="sub">Sales share next to each region's economy. Sales-weighted growth outlook: <b id="wgdp"></b> a year</div><div class="tbl" id="geoTable"></div><div class="foot"><span class="src">Outlook: World Bank and OECD forecasts (open licences). Currency: change against the dollar over 12 months.</span></div></div>
+    <div class="card"><h3>Where it is made</h3><div class="sub">Named in the 10-K, no split given</div><div class="chips"><span class="chip"><b>China mainland</b></span><span class="chip"><b>India</b></span><span class="chip"><b>Vietnam</b></span><span class="chip">Taiwan</span><span class="chip">Japan</span><span class="chip">South Korea</span></div><p class="note">“Substantially all” hardware is built by outsourcing partners in these places. The report flags any country that also faces new US tariffs.</p></div>
+    <div class="card"><h3>Legal entities by country</h3><div class="sub">Exhibit 21 and the GLEIF company register (sample)</div><div class="hbars" id="entityBars"></div><p class="note">Ireland matters for tax: the EU state-aid ruling cost a one-time $10.2B in fiscal 2024.</p></div>
+  </div>
+  <p class="upshot"><b>The upshot:</b> China is the region to watch on both sides of the ledger. The report’s kill switch trips if Greater China sales fall more than 10% in a year; today they are down 4%, and any new US tariff on goods made there could hit costs at the same time.</p>
+</section>
+
+<section id="links">
+  <div class="sec-head">
+    <div class="sec-kicker"><span class="phase p2"><i></i>Phase 2</span><span class="phase p4"><i></i>Phase 4</span><span class="src">Its own filings, and other companies' filings that name Apple</span></div>
+    <h2>Customers, suppliers and rivals</h2>
+    <p class="verdict"><b>No customer is above 10% of sales, but many suppliers live on Apple.</b> Two chip makers get most of their revenue from Apple, and a third close to half. When their numbers move, it often says something about iPhone orders first.</p>
+  </div>
+  <div class="story"><p><b class="o">The first thing to see is who leans on whom.</b> Apple names no customer that buys more than 10% of its sales, so its $416.2B of fiscal 2025 sales are spread across many buyers. Its suppliers look the other way round (<a class="figref" data-ref="depBars"></a>). Cirrus Logic gets 89% of its revenue from Apple, almost nine dollars in every ten. Skyworks gets 63% and Qorvo 47%. Broadcom and Qualcomm each get 20% from Apple, one dollar in five. Across these five sample suppliers the simple average is 47.8%, so the typical one relies on Apple for close to half its business.</p><p><b class="o">Second, that dependence makes suppliers an early signal.</b> The iPhone brought in $209.6B in fiscal 2025, about half of Apple’s sales. When chip makers such as Cirrus Logic or Skyworks report, their numbers often say something about iPhone orders before Apple does. The dependence also runs the other way. Two companies that build for Apple, Foxconn and TSMC, sit on thin lines in <a class="figref" data-ref="network"></a> only because no share is disclosed, not because the tie is weak. The 10-K says “substantially all” hardware is made by outsourcing partners.</p><p><b class="o">Then there are the companies that sell for Apple.</b> About 62% of net sales goes through others: carriers such as Verizon, AT&amp;T and T-Mobile, retailers such as Best Buy, and resellers (<a class="figref" data-ref="channelBar"></a>). Apple’s own stores and website take the other 38%. In dollars that is roughly $258B sold indirectly against $158B sold directly. No single carrier passes 10% of sales, yet carriers hold a large share of the money owed to Apple, so their financial health matters. On the dashed lines sit the rivals: Samsung, Alphabet and Xiaomi.</p></div>
+  <div class="grid2">
+    <div class="card span2"><h3>Apple's network</h3><div class="sub">Line thickness = how much of the partner's sales come from Apple, where the partner discloses it</div><div class="chart" id="network"></div><div class="legend"><span><i class="lk b4"></i>Sells parts to Apple</span><span><i class="lk b6"></i>Builds for Apple</span><span><i class="lk b3"></i>Sells Apple products</span><span><i class="lk bd"></i>Competes</span></div><div class="foot"><span class="src">Sample. Built from the partners' own 10-K customer notes.</span><button class="tbtn" data-table="network" type="button">Show table</button></div></div>
+    <div class="card"><h3>Who depends on Apple</h3><div class="sub">Share of each supplier's revenue from Apple (sample)</div><div class="hbars" id="depBars"></div><div class="foot"><span class="src">Suppliers' 10-K major customer notes</span><button class="tbtn" data-table="depBars" type="button">Show table</button></div></div>
+    <div class="card"><h3>How Apple sells</h3><div class="sub">Share of net sales, fiscal 2025 (sample)</div><div class="segbar" id="channelBar"></div><div class="legend" id="channelLeg"></div><p class="note">Carriers hold a large share of money owed to Apple, so their health matters even though no single customer passes 10% of sales.</p></div>
+  </div>
+  <p class="upshot"><b>The upshot:</b> the suppliers’ own results, above all Cirrus Logic’s with 89% of its revenue from Apple, are the first place a change in iPhone orders is likely to show. On the selling side, the condition to watch is carrier health, because carriers hold a large share of the money owed to Apple and 62% of sales passes through other companies’ hands.</p>
+</section>
+
+<section id="owners">
+  <div class="sec-head">
+    <div class="sec-kicker"><span class="phase p2"><i></i>Phase 2</span><span class="src">SEC 13F, Forms 3/4/5, 13D/13G, proxy statement</span></div>
+    <h2>Owners and people</h2>
+    <p class="verdict"><b>Owned mostly by index funds; insiders only sell.</b> The three biggest holders are passive managers. Insider sales are planned sales of vested stock; nobody bought on the open market in 12 months.</p>
+  </div>
+  <div class="story"><p><b class="o">The biggest group of Apple owners is funds that do not trade on a view.</b> Index and passive funds hold 31% of the shares, almost twice the 17% held by active funds that pick stocks (<a class="figref" data-ref="ownBar"></a>). Add other institutions and professional money owns 63%, which leaves 37% with individuals and everyone else. Vanguard, BlackRock and State Street together own 21.1% of the company (<a class="figref" data-ref="holders"></a>). Index funds hold Apple because it is a large part of the indexes they track, not because of a view on the next iPhone. That tends to make the owner base steady: such funds sell mostly when savers pull money out.</p><p><b class="o">The biggest cuts this quarter came from active managers.</b> The three index giants each moved by 0.2 points or less, and two of them added. The biggest cut in the top eight came from Berkshire Hathaway, a stock picker rather than an index fund, down 0.3 points to 1.6%. Fidelity was down 0.2 points to 2.0%. But the quarterly changes understate a quieter shift. Apple's share count fell 2.7% last year, so a holder that keeps every share still ends up with a bigger slice. For Vanguard, that alone would lift 9.5% to about 9.8% in a year without buying a single share.</p><p><b class="o">Insiders sold, but on autopilot.</b> Executives and directors sold $92M of stock in 12 months, in 11 sales, all under 10b5-1 plans. These are schedules set in advance, so the timing of each sale is not picked trade by trade (<a class="figref" data-ref="insiders"></a>). Nobody bought on the open market. October alone was $41M, 45% of the total. Set against the company, the sums are small: Apple spent $90.7B on buybacks in fiscal 2025, nearly 1,000 times as much. Oversight looks conventional too. Seven of eight directors are independent, and Tim Cook’s $74.6M of pay in fiscal 2024 was less than 0.1% of that year’s $93.7B profit.</p></div>
+  <div class="grid2">
+    <div class="card span2"><h3>Who owns the shares</h3><div class="sub">Share of shares outstanding, latest 13F quarter (sample)</div><div class="segbar" id="ownBar"></div><div class="legend" id="ownLeg"></div></div>
+    <div class="card"><h3>Top holders</h3><div class="sub">% of shares, change on the quarter (sample)</div><div class="hbars" id="holders"></div><div class="foot"><span class="src">13F data sets, quarterly</span><button class="tbtn" data-table="holders" type="button">Show table</button></div></div>
+    <div class="card"><h3>Insider trades, last 12 months</h3><div class="sub">Value sold per month, $M (sample)</div><div class="chart" id="insiders"></div><p class="note">0 open-market buys. 11 sales, all under 10b5-1 plans.</p><div class="foot"><span class="src">Form 4 filings</span><button class="tbtn" data-table="insiders" type="button">Show table</button></div></div>
+    <div class="card span2"><h3>Board, pay and gatekeepers</h3><div class="chips">
+      <span class="chip">CEO <b>Tim Cook</b>, since 2011</span><span class="chip">Board <b>8</b>, <b>7</b> independent</span><span class="chip">CEO pay fiscal 2024 <b>$74.6M</b></span><span class="chip">Auditor <b>Ernst &amp; Young</b>, since 2009</span><span class="chip">Employees <b>~166,000</b></span><span class="chip">US lobbying 2025 <b>~$10M</b></span>
+    </div><p class="note">Pay versus performance and the pay ratio come from the proxy statement's tagged tables; lobbying from the US Senate disclosure database. Sample values.</p></div>
+  </div>
+  <p class="upshot"><b>The upshot:</b> the owner base is steady, and planned insider sales say little about the outlook. What would be news is a break in the pattern: an insider buying on the open market, sales made outside a 10b5-1 plan, or active holders cutting again after this quarter’s 0.3-point trim by Berkshire.</p>
+</section>
+
+<section id="financials">
+  <div class="sec-head">
+    <div class="sec-kicker"><span class="phase p1"><i></i>Phase 1</span><span class="src">SEC XBRL company facts, 11 fiscal years</span></div>
+    <h2>Eleven years of the numbers</h2>
+    <p class="verdict"><b>Sales up 78% since 2015, profit more than doubled.</b> Margins widened as services grew, and the share count fell by 35%, so each share now owns much more of the profit.</p>
+  </div>
+  <div class="story"><p><b class="o">First, profit grew faster than sales.</b> Sales rose from $233.7B in fiscal 2015 to $416.2B in fiscal 2025, a gain of 78%. Net profit went from $53.4B to $112.0B, so it more than doubled (<a class="figref" data-ref="revNi"></a>). The road was not smooth. Sales fell in 2016, 2019 and 2023, and gross margin sank to a low of 37.8% in 2019. Since then it has risen every year to a record 46.9%, as services, which now carry margins near 75%, became a bigger part of sales (<a class="figref" data-ref="margins"></a>). Out of each dollar of sales, Apple now keeps 26.9 cents as profit, against 22.8 cents in 2015.</p><p><b class="o">Second, each share now owns a bigger slice.</b> Buybacks cut the share count from 23.17 billion in 2015 to 15.00 billion, a fall of 35% (<a class="figref" data-ref="shares"></a>). So while profit doubled, earnings per share more than tripled, from $2.30 to $7.47. But last year’s rise, from $6.08 to $7.47, flatters the business. Almost half of the $1.39 gain, $0.66, came from a one-time $10.2B EU tax charge in fiscal 2024 dropping out (<a class="figref" data-ref="epsBridge"></a>). Higher sales and a wider margin added $0.52 together, and fewer shares $0.21. Without that charge, the rise is 73 cents, about 12%, not 23%.</p><p><b class="o">Third, the profit is backed by cash, and nearly all of it goes back to owners.</b> Over eleven years, free cash flow, the cash left after running and investing in the business, added up to $882B, against $817B of reported profit (<a class="figref" data-ref="fcf"></a>). Fiscal 2025 was softer: free cash flow fell 9% to $98.8B. Over the last five years buybacks and dividends came to $513B, about the same as the $511.5B of free cash flow (<a class="figref" data-ref="returns"></a>). Last year’s $106B payout topped free cash flow. Net cash, cash minus debt, fell from $66B in 2021 to $34B (<a class="figref" data-ref="cashDebt"></a>). That is by design, but it cannot run forever.</p></div>
+  <div class="grid2">
+    <div class="card span2"><h3>Sales and net profit</h3><div class="sub">$B, fiscal years</div><div class="chart" id="revNi"></div><div class="legend" id="revNiLeg"></div><div class="foot"><span class="src">Income statement</span><button class="tbtn" data-table="revNi" type="button">Show table</button></div></div>
+    <div class="card span2"><h3>From $6.08 to $7.47: a tax charge dropping out did half the work</h3><div class="sub">Earnings per share, fiscal 2024 to fiscal 2025, $ (sample split)</div><div class="chart" id="epsBridge"></div><div class="foot"><span class="src">Income statement and share count</span><button class="tbtn" data-table="epsBridge" type="button">Show table</button></div></div>
+    <div class="card"><h3>Margins at records</h3><div class="sub">% of sales</div><div class="chart" id="margins"></div><div class="legend" id="marginsLeg"></div><div class="foot"><span class="src">Income statement</span><button class="tbtn" data-table="margins" type="button">Show table</button></div></div>
+    <div class="card"><h3>Cash profit tracks reported profit</h3><div class="sub">Free cash flow and net profit, $B</div><div class="chart" id="fcf"></div><div class="legend" id="fcfLeg"></div><div class="foot"><span class="src">Cash flow statement</span><button class="tbtn" data-table="fcf" type="button">Show table</button></div></div>
+    <div class="card"><h3>$106B a year back to owners</h3><div class="sub">Buybacks and dividends, $B</div><div class="chart" id="returns"></div><div class="legend" id="returnsLeg"></div><div class="foot"><span class="src">Cash flow statement</span><button class="tbtn" data-table="returns" type="button">Show table</button></div></div>
+    <div class="card"><h3>Share count down 35% since 2015</h3><div class="sub">Diluted shares, billions</div><div class="chart" id="shares"></div><div class="foot"><span class="src">Split-adjusted</span><button class="tbtn" data-table="shares" type="button">Show table</button></div></div>
+    <div class="card span2"><h3>Net cash is shrinking on purpose</h3><div class="sub">Cash and securities against total debt, $B</div><div class="chart" id="cashDebt"></div><div class="legend" id="cashDebtLeg"></div><div class="foot"><span class="src">Balance sheet. Apple aims for net cash near zero over time.</span><button class="tbtn" data-table="cashDebt" type="button">Show table</button></div></div>
+  </div>
+  <p class="upshot"><b>The upshot:</b> net cash fell from $50B to $34B last year, and at that pace it would be close to zero in about two years, after which buybacks have to come from free cash flow alone. The number to watch is the share count: your kill switch trips if it falls less than 2% in a year, against 2.7% in fiscal 2025.</p>
+</section>
+
+<section id="value">
+  <div class="sec-head">
+    <div class="sec-kicker"><span class="phase p1"><i></i>Phase 1</span><span class="phase p3"><i></i>Phase 3</span><span class="src">Thesis valuation model; price history needs a licensed feed</span></div>
+    <h2>Is the price right?</h2>
+    <p class="verdict" id="valueVerdict"></p>
+  </div>
+  <div class="story"><p><b class="o">The first test is what the price has to believe.</b> At the $191 example price, Apple is valued at about $2.87 trillion, or 25.6 times fiscal 2025 earnings per share of $7.47 (<a class="figref" data-ref="ratios"></a>). Put another way, the business made $98.8B of free cash flow, so each dollar paid for the shares buys about 3.4 cents of cash a year. To justify $191, that cash has to grow about 5.8% a year for ten years. Over the last five years it grew about 6% a year, from $73.4B in 2020. The price asks the past to repeat, not to improve.</p><p><b class="o">Second, all five methods bracket the $191 example price.</b> This report’s cash-flow model puts fair value between $183 and $230, with a base case of $204, about 7% above $191 (<a class="figref" data-ref="football"></a>). The spread comes from the discount rate, the yearly return an owner demands: half a point higher cuts the value by $21, half a point lower adds $26. The bear-to-bull range is wider, $115 to $272, because it also changes growth. The three phase 3 rows give $164 to $261 on 22 to 35 times earnings, $150 to $246 on peers and $169 to $260 over 52 weeks. $191 sits inside every bar.</p><p><b class="o">But this leans on a higher multiple than Apple used to get.</b> From 2015 to 2019 the shares averaged about 15.5 times earnings in this sample history. Since 2020 the yearly average has not dropped below 25 times, and it reached 34.0 times in 2025 (<a class="figref" data-ref="pe"></a>). At 25.6 times, the $191 example price sits near the bottom of that newer band. The peer chart shows the trade-off (<a class="figref" data-ref="peers"></a>). Apple’s 32.0% operating margin matches Alphabet’s 32.1% and is nearly five times Dell’s 6.6%. Yet its sales grew 8.7% a year, about half Alphabet’s 17.7% and below Microsoft, Meta and Amazon. It outgrows Cisco, Dell and HP but trails the other four peers.</p></div>
+  <div class="grid2">
+    <div class="card span2"><h3>Value range from five methods</h3><div class="sub">$ per share. The line is your price. Faded rows need price history (phase 3).</div><div class="chart" id="football"></div><div class="foot"><span class="src">Rows marked phase 3 need price history</span><button class="tbtn" data-table="football" type="button">Show table</button></div></div>
+    <div class="card"><h3>What your price implies</h3><div class="sub">Recomputed from the price box at the top</div><div class="tbl" id="ratios"></div></div>
+    <div class="card"><h3>Price-to-earnings over time</h3><div class="sub">Yearly average, x (sample)</div><div class="chart" id="pe"></div><div class="foot"><span class="src">Needs a licensed price history</span><span class="lockb">Phase 3</span></div></div>
+    <div class="card span2"><h3>Growth and margin against peers</h3><div class="sub">5-year sales growth per year (across) and operating margin (up), latest fiscal year (sample)</div><div class="chart" id="peers"></div><div class="foot"><span class="src">Peers' figures from the same SEC data, no price needed</span><button class="tbtn" data-table="peers" type="button">Show table</button></div></div>
+  </div>
+  <p class="upshot"><b>The upshot:</b> at the $191 example price, free cash flow needs to grow about 5.8% a year for a decade, close to the 6% of the last five years. If free cash flow growth instead slows to the bear case’s 3% and then 2% a year, with a higher discount rate, this report’s model puts value near $115.</p>
+</section>
+
+<section id="action">
+  <div class="sec-head">
+    <div class="sec-kicker"><span class="phase p3"><i></i>Phase 3</span><span class="src">Licensed daily prices; pattern rules computed by Thesis</span></div>
+    <h2>A breakout that held: buyers took back the $186 ceiling</h2>
+    <p class="verdict"><b>The month ended 5.4% higher, and above a price that had turned buyers away three times.</b> For a long-term owner this says little about value. It shows where buyers and sellers now meet, and which prices the market is likely to test next.</p>
+  </div>
+  <div class="story">
+    <p><b class="o">The month began inside a box.</b> From 18 September to 2 October the shares moved between $177 and $186, and every run at the top of that box failed (marks A on <a class="figref" data-ref="candles"></a>). Three times buyers pushed to within 20 cents of $186, and three times the shares closed below it. The bottom held just as firmly. On 25 September the price dipped to $177.0, then closed at $181.5, near the top of the day’s range (mark B). Price action traders read a day like that as sellers running out of shares to sell.</p>
+    <p><b class="o">The fourth attempt worked.</b> On 5 October one wide up-day carried the price from $185.5 to $189.0 (mark C). Its body was twice the size of a normal day before it, and 88 million shares changed hands, about 1.6 times the usual volume (<a class="figref" data-ref="paVol"></a>). The price action book calls a candle like this a breakout: a big bar that closes beyond a level the market has been watching. The bigger the bar and the more important the level, the more likely the move carries on.</p>
+    <p><b class="o">What came next mattered more.</b> The breakout was tested. By 9 October the shares had slipped back to $186.3, only 30 cents above the old ceiling, and buyers stepped in again (mark D). Old resistance had become support, the textbook sign that a breakout is real. In the last 15 trading days not one close fell below the 20-day average, which is the book’s test for a strong trend (<a class="figref" data-ref="paScan"></a>).</p>
+    <p><b class="o">The move is not stretched, but it is close to a target.</b> Adding the height of the old box ($9) to the breakout level points to about $195. The shares reached $193.8 on 15 October, then closed lower that day and the next (mark E), a first sign of profit taking near the target. Five days in a row of higher lows is still far from the ten-day streak the book treats as a climax.</p>
+  </div>
+  <div class="grid2">
+    <div class="card span2"><h3>Three knocks on $186, then a breakout that held</h3><div class="sub">Daily candles, 18 Sep to 16 Oct 2026, $ (sample)</div><div class="chart" id="candles"></div><div class="legend"><span><i class="sw b4"></i>Up day</span><span><i class="sw b5"></i>Down day</span><span><i class="lk b2"></i>20-day average</span><span><i class="lk b1"></i>Old ceiling, now floor</span><span><i class="lk b6"></i>Rising trend line</span><span><i class="lk bd"></i>Box floor, target and $9 measured move</span></div>
+      <div class="marks" id="paMarks"></div>
+      <div class="foot"><span class="src">Needs a licensed end-of-day price feed</span><button class="tbtn" data-table="candles" type="button">Show table</button></div></div>
+    <div class="card"><h3>The breakout day traded 1.6 times the usual volume</h3><div class="sub">Shares traded per day, millions (sample)</div><div class="chart" id="paVol"></div><div class="foot"><span class="src">Same price feed</span><button class="tbtn" data-table="paVol" type="button">Show table</button></div></div>
+    <div class="card"><h3>The month in numbers</h3><div class="stats" id="paStats"></div></div>
+    <div class="card span2"><h3>What the pattern scan found</h3><div class="sub">Seven checks run on every report. Rules follow Al Brooks’s price action patterns.</div><div class="scan" id="paScan"></div></div>
+    <div class="card"><h3>Levels to watch</h3><div class="sub">Prices the market tends to test</div><div class="tbl" id="paLevels"></div></div>
+    <div class="card"><h3>Rules of thumb from the book</h3><div class="odds">
+      <div><b>About 4 in 10</b><span>reversal patterns that appear before a new trend is clear are followed by a real reversal. After a strong breakout the book puts follow-through at about 6 in 10.</span></div>
+      <div><b>About 3 in 4</b><span>rising channels break their lower trend line. A pullback after a strong run is normal, not a warning by itself.</span></div>
+      <div><b>Twice</b><span>is how often markets tend to try something. Most tops and bottoms are a form of double top or double bottom.</span></div>
+    </div></div>
+  </div>
+  <p class="upshot"><b>The upshot:</b> the trend is up and the breakout held. $186 is now the line that matters, because a daily close back below it would turn this month’s breakout into a failed one. Above, $195 is the next test. This describes the chart; it is not a trading signal.</p>
+</section>
+
+<section id="forecasts">
+  <div class="sec-head">
+    <div class="sec-kicker"><span class="phase p1"><i></i>Phase 1</span><span class="phase p2"><i></i>Phase 2</span><span class="phase p4"><i></i>Phase 4</span><span class="src">Thesis scenarios, company guidance, economic outlooks</span></div>
+    <h2>What could happen next</h2>
+    <p class="verdict"><b>Base case: sales grow about 6% a year to $557B by 2030.</b> Three scenarios, each with its assumptions in plain view. These are our model's numbers, not analyst consensus.</p>
+  </div>
+  <div class="story"><p><b class="o">The base case asks for nothing new.</b> It has sales growing 6% a year, from $416B in fiscal 2025 to $557B in 2030, the middle dashed line on <a class="figref" data-ref="fan"></a>. That is close to the pace of the past decade. Sales rose from $234B in 2015 to $416B, about 5.9% a year, and fiscal 2025 alone grew 6.4%. The shaded fan shows how far outcomes can spread. By 2030 the bear line ends near $460B and the bull line near $640B. That gap of about $181B equals about 43% of fiscal 2025 sales, so differences in yearly growth add up fast.</p><p><b class="o">Value per share depends on more than growth.</b> <a class="figref" data-ref="scen"></a> pairs each growth path with a margin and a buyback pace. The base case keeps the operating margin at 32%, unchanged from fiscal 2025, and shrinks the share count 3% a year, close to last year’s 2.7%. Its value is $204 a share, 7% above the $191 example price. The bear case needs iPhone sales to shrink and services growth to slow to 6%, against 13.5% now. Its margin falls to 29% and its value to $115, 40% below the example price. The bull case needs AI features to start a new upgrade cycle, and its value is $272, 42% above.</p><p><b class="o">Another big swing comes from an input Apple does not control.</b> <a class="figref" data-ref="heat"></a> holds base growth and turns two dials. One is the discount rate, the yearly return an investor asks for. The other is long-run growth, the pace assumed after the forecast years. Raise the discount rate by half a point, from 7.5% to 8.0%, and the base value drops from $204 to $183, below the example price. At 7.0% it rises to $230. Management’s guidance for next quarter, sales up 10% to 12% and gross margin of 47% to 48% against fiscal 2025’s record 46.9%, runs ahead of the base pace. But it covers three months, not five years.</p></div>
+  <div class="grid2">
+    <div class="card span2"><h3>Sales: history and three scenarios</h3><div class="sub">$B. Solid = reported, dashed = scenario</div><div class="chart" id="fan"></div><div class="legend" id="fanLeg"></div><div class="foot"><span class="src">Scenario growth: bear 2%, base 6%, bull 9% a year</span><button class="tbtn" data-table="fan" type="button">Show table</button></div></div>
+    <div class="card"><h3>The three cases</h3><div class="tbl" id="scen"></div><div class="believe" id="believe"></div></div>
+    <div class="card"><h3>Fair value if the inputs move</h3><div class="sub">$ per share, base growth. Blue above your price, clay below.</div><div id="heat"></div><div class="small-note" style="color:var(--muted)">Across: long-run growth. Down: discount rate.</div></div>
+    <div class="card span2"><h3>What management said</h3><div class="callout"><b>Next quarter:</b> sales growth of 10% to 12%, gross margin 47% to 48% (said on the 30 July call, sample). Thesis keeps a record of each promise and checks it against the next filing.</div></div>
+  </div>
+  <p class="upshot"><b>The upshot:</b> the base value of $204 rests on free cash flow growing 8% a year for five years and 5% after (sales about 6% a year), and on a 7.5% discount rate. If free cash flow growth slows to the bear case’s 3% and then 2%, or the discount rate rises to 8%, the model’s value falls below the $191 example price.</p>
+</section>
+
+<section id="risks">
+  <div class="sec-head">
+    <div class="sec-kicker"><span class="phase p1"><i></i>Phase 1</span><span class="phase p4"><i></i>Phase 4</span><span class="src">XBRL debt notes, kill switches, risk factor changes</span></div>
+    <h2>What could break the thesis</h2>
+    <p class="verdict"><b>Debt is easy to carry; concentration is the real risk.</b> Half of sales is one product and 15% is one country that is also a major factory location.</p>
+  </div>
+  <div class="story"><p><b class="o">The base story is solid, and the balance sheet is not where it would break.</b> Apple owes about $99B against $132B of cash and securities, so it still holds about $34B more cash than debt. Repayments are spread out (<a class="figref" data-ref="maturity"></a>). The heaviest year, 2028, brings $12.3B due, about an eighth of last year’s $98.8B of free cash flow. Everything due from 2026 to 2030 adds up to $45.3B, about a third of the cash pile, and more than half of the scheduled debt is not due until after 2030. Net cash has roughly halved since 2021, from about $66B, on purpose: the company aims for net cash near zero.</p><p><b class="o">The first real risk is one product.</b> iPhone brought in $209.6B of last year’s $416.2B, just over half of all sales. In 2021 that share was about 52%, so it has slipped only slowly. iPhone also sits on the lower-margin side of the business: hardware keeps about 37 cents of gross profit per dollar of sales, against 75 cents for services. Second, Greater China is both a market and a major factory location. It gave $64.4B, about 15% of sales, down 13% from $74.2B in 2022 while the other regions grew. A slump there would hit sales, and a trade fight could also raise costs.</p><p><b class="o">Third, the rules are changing, and the filing says so.</b> This year’s risk section adds new wording on US tariffs for products made in Asia. It speaks more strongly about App Store rules in the EU and US, and about AI competition. The wording on supply concentration is unchanged. But none of the kill switches has tripped yet. Services growth of 13.5% is well clear of its 8% line, and the 46.9% gross margin sits 2.9 points above 44%. The tightest switch is share count: shares fell 2.7%, only 0.7 points better than the 2% line. China, down 4%, is the one on watch.</p></div>
+  <div class="grid2">
+    <div class="card"><h3>Debt coming due</h3><div class="sub">$B by fiscal year (sample)</div><div class="chart" id="maturity"></div><div class="foot"><span class="src">XBRL debt maturity tags</span><button class="tbtn" data-table="maturity" type="button">Show table</button></div></div>
+    <div class="card"><h3>Your kill switches</h3><div class="kill">
+      <div class="k"><span>Services growth below 8% for two quarters</span><span class="status ok">● OK</span><small>Now 13.5%</small></div>
+      <div class="k"><span>Gross margin below 44%</span><span class="status ok">● OK</span><small>Now 46.9%</small></div>
+      <div class="k"><span>Greater China sales down more than 10% in a year</span><span class="status watch">▲ Watch</span><small>Now −4%</small></div>
+      <div class="k"><span>Share count falls less than 2% in a year</span><span class="status ok">● OK</span><small>Now −2.7%</small></div>
+    </div></div>
+    <div class="card span2"><h3>Risk factor changes since last year</h3><div class="chips">
+      <span class="chip"><b>New</b> · US tariffs and trade measures on products made in Asia</span>
+      <span class="chip"><b>Stronger</b> · AI features and competition</span>
+      <span class="chip"><b>Stronger</b> · App Store rules in the EU and US</span>
+      <span class="chip"><b>Same</b> · Supply concentration in a few countries</span>
+    </div><p class="note">Read by comparing this year's risk section with last year's, paragraph by paragraph. Sample wording.</p></div>
+  </div>
+  <p class="upshot"><b>The upshot:</b> debt will not break this story; concentration could. The tightest line is the share count, 0.7 points from its switch. Greater China, down 4% against a 10% line, is the one flagged to watch.</p>
+</section>
+
+<section id="events">
+  <div class="sec-head">
+    <div class="sec-kicker"><span class="phase p2"><i></i>Phase 2</span><span class="src">8-K item codes from SEC EDGAR</span></div>
+    <h2>What happened, in order</h2>
+    <p class="verdict"><b>A quiet year in filings.</b> Four results, one annual meeting vote, one bond sale. No acquisitions above the reporting line. Sample timeline.</p>
+  </div>
+  <div class="story"><p><b class="o">The year opened with the filing this report reads.</b> On 30 October 2025 Apple filed its fiscal 2025 results under 8-K item 2.02, the code for earnings releases. Sales came in at $416B, up 6.4% on the $391B of fiscal 2024. Gross margin reached 46.9%, a record and 0.7 points above the year before. Three months later, on 29 January 2026, the first-quarter results reported a record December quarter. So the year started from a high base, and every later filing would be judged against it.</p><p><b class="o">Late winter and spring were about owners and money.</b> On 24 February shareholders re-elected all eight directors, seven of them independent, and rejected the shareholder proposals (item 5.07, the code for vote results). On 1 May the second-quarter results came with a larger buyback programme. That builds on a habit: in fiscal 2025 Apple spent $90.7B on buybacks and $15.4B on dividends, about $106B in all, and the share count fell 2.7% in the year. Four days later came a bond sale to refinance notes coming due. The debt schedule shows $11.0B maturing in fiscal 2026.</p><p><b class="o">Borrowing while sitting on cash looks odd, but it fits the plan.</b> Apple ended fiscal 2025 with $132.4B of cash and securities against $98.7B of debt, so it could have paid those notes from cash. It chose to refinance them instead. That matches its stated aim of bringing net cash, $33.7B at the end of fiscal 2025, close to zero over time. The last filing on the timeline, on 30 July, showed services up double digits and iPhone flat. Services also led in fiscal 2025, growing 13.5% against 4.2% for iPhone. No deal was big enough to need its own filing.</p></div>
+  <div class="card"><h3>Filings this year, newest first</h3><div class="sub">8-K filings by item code (sample)</div><div class="tl">
+    <div class="e"><div class="d">30 Jul 2026</div><div class="t">Third-quarter results <span class="tag">8-K 2.02</span></div><div class="x">Services up double digits, iPhone flat.</div></div>
+    <div class="e"><div class="d">5 May 2026</div><div class="t">Bond sale <span class="tag">8-K 2.03</span></div><div class="x">New term debt to refinance notes coming due.</div></div>
+    <div class="e"><div class="d">1 May 2026</div><div class="t">Second-quarter results <span class="tag">8-K 2.02</span></div><div class="x">Buyback programme raised.</div></div>
+    <div class="e"><div class="d">24 Feb 2026</div><div class="t">Annual meeting votes <span class="tag">8-K 5.07</span></div><div class="x">All directors re-elected. Shareholder proposals rejected.</div></div>
+    <div class="e"><div class="d">29 Jan 2026</div><div class="t">First-quarter results <span class="tag">8-K 2.02</span></div><div class="x">Record December quarter.</div></div>
+    <div class="e"><div class="d">30 Oct 2025</div><div class="t">Fiscal 2025 results <span class="tag">8-K 2.02</span></div><div class="x">The filing this report reads.</div></div>
+  </div></div>
+  <p class="upshot"><b>The upshot:</b> the year’s filings confirmed the story rather than changing it. The next results filing is the one that matters, because it tests management’s next-quarter guidance of 10% to 12% sales growth and a 47% to 48% gross margin, and the kill switch on services growth below 8% for two quarters.</p>
+</section>
+
+<section id="bottom">
+  <div class="sec-head">
+    <div class="sec-kicker"><span class="phase p1"><i></i>Phase 1</span><span class="src">Draws on every chapter above</span></div>
+    <h2>The bottom line</h2>
+    <p class="verdict" id="bottomLede"><b>Yes, for now: services and buybacks are carrying earnings per share while iPhone barely grows and China shrinks.</b> The catch is that the cash pile paying for the buybacks is shrinking. The price also already assumes about 6% a year growth in free cash flow for ten years.</p>
+  </div>
+  <div class="story" id="bottomStory"><p><b class="o">The first answer is yes, and fiscal 2025 shows how.</b> Earnings per share rose from $6.08 to $7.47, a 23% gain. But that overstates the engine. Almost half of the rise, 66 cents, came from a one-time 2024 tax charge dropping out. Strip it away and the gain was 73 cents, about 12%. Services and buybacks carried most of it. Services sales grew 13.5% to $109B and earn more than 40% of gross profit on 26% of sales. Fewer shares added 21 cents. Meanwhile iPhone grew about 4%, Greater China fell 4%, and this year’s third-quarter results repeated the pattern: services up double digits, iPhone flat.</p><p><b class="o">Second, the cost of keeping it going is rising.</b> Apple paid owners $106B last year, $7B more than the $99B of free cash flow it made, and that cash flow fell 9%. The gap came out of savings: net cash dropped from $50B to $34B. Apple aims for net cash near zero, so this is by design, but in time buybacks will have to come from each year’s cash alone. Hardware also matters more than the services story suggests. iPhone is still half of sales, several chip suppliers live on Apple’s orders, and China is a 15% market and a major factory location, now facing new tariff wording in the risk factors.</p><p><b class="o">The price already gives credit for all this.</b> At the $191 example price the shares trade at about 26 times earnings, and that price sits inside this report’s model range of $183 to $230. It assumes free cash flow grows about 6% a year for ten years, the same pace as the last five. The base case has sales growing about 6% a year to $557B by 2030. The shares also rose 5.4% in the month, though the price chapter notes that says little about value. If the story fails, it should show first in the four tests in <a class="figref" data-ref="wrong"></a>.</p></div>
+  <div class="grid2">
+    <div class="card span2"><h3>What would prove this story wrong</h3><div class="sub">Each one is also a kill switch you can turn on</div><div class="wrong" id="wrong"><div><i>1</i><span><b>Services growth slips below 8%.</b> If that lasts two quarters, the engine that earns more than 40% of gross profit is fading. Last year it grew 13.5%, from $96B to $109B.</span></div><div><i>2</i><span><b>Gross margin falls below 44%.</b> It is 46.9%, a record. A drop of about 3 points would suggest that tariffs or App Store rules are biting.</span></div><div><i>3</i><span><b>Greater China falls more than 10% in a year.</b> Sales fell 4% to about $64B, the third weak year in four. China is also a major assembly base, so trade rules there hit Apple twice.</span></div><div><i>4</i><span><b>The share count falls less than 2% in a year.</b> It fell 2.7% last year and 35% since 2015. With net cash down to $34B, a slower pace would weaken one of the two supports for earnings per share.</span></div></div></div>
+  </div>
+  <p class="upshot"><b>The upshot:</b> the answer stays yes while services grow faster than 8% and the share count falls by at least 2% a year. Today those read 13.5% and 2.7%. The first check is management’s guide for next quarter: sales growth of 10% to 12% and a gross margin of 47% to 48%.</p>
+</section>
+
+<section id="sources">
+  <div class="sec-head">
+    <div class="sec-kicker"><span class="phase p1"><i></i>Phase 1</span><span class="src">Every number keeps its source and date</span></div>
+    <h2>Sources and coverage</h2>
+    <p class="verdict">What each part of the report reads, what it costs, and when it arrives.</p>
+  </div>
+  <div class="card"><div class="tbl srcs" id="srcTable"></div></div>
+</section>
+
+</div></main>
+
+<footer><div class="wrap">
+  <div><b>Sample report.</b> Figures are approximate and only show the layout. A research summary, not financial advice.</div>
+  <div>Thesis · Deep Dive 2.0 mockup</div>
+</div></footer>
+<div id="tip" role="tooltip" hidden></div>
+
+<script>
+(function(){
+"use strict";
+// ---------- data (sample, approximate, fiscal years ending September) ----------
+const Y = [2015,2016,2017,2018,2019,2020,2021,2022,2023,2024,2025];
+const D = {
+  revenue:[233.7,215.6,229.2,265.6,260.2,274.5,365.8,394.3,383.3,391.0,416.2],
+  netIncome:[53.4,45.7,48.4,59.5,55.3,57.4,94.7,99.8,97.0,93.7,112.0],
+  gm:[40.1,39.1,38.5,38.3,37.8,38.2,41.8,43.3,44.1,46.2,46.9],
+  om:[30.5,27.8,26.8,26.7,24.6,24.1,29.8,30.3,29.8,31.5,32.0],
+  fcf:[70.1,53.1,51.1,64.1,58.9,73.4,92.9,111.4,99.5,108.9,98.8],
+  shares:[23.17,22.00,21.01,20.00,18.60,17.53,16.86,16.33,15.81,15.41,15.00]
+};
+D.nm = D.netIncome.map((v,i)=>+(v/D.revenue[i]*100).toFixed(1));
+const Y5 = [2021,2022,2023,2024,2025];
+const SEG = [
+  {name:"iPhone", cls:1, v:[192.0,205.5,200.6,201.2,209.6]},
+  {name:"Services", cls:2, v:[68.4,78.1,85.2,96.2,109.2]},
+  {name:"Wearables and home", cls:3, v:[38.4,41.2,39.8,37.0,35.7]},
+  {name:"Mac", cls:4, v:[35.2,40.2,29.4,30.0,33.7]},
+  {name:"iPad", cls:5, v:[31.9,29.3,28.3,26.7,28.0]}
+];
+const GEO = [
+  {name:"Americas", cls:1, v:[153.3,169.7,162.6,167.0,178.4], gdp:2.0, fx:"—", econ:"United States 2.0%"},
+  {name:"Europe", cls:2, v:[89.3,95.1,94.3,101.3,111.0], gdp:1.2, fx:"+6%", econ:"Euro area 1.2%"},
+  {name:"Greater China", cls:3, v:[68.4,74.2,72.6,67.0,64.4], gdp:4.2, fx:"+2%", econ:"China 4.2%"},
+  {name:"Rest of Asia Pacific", cls:4, v:[26.4,29.4,29.6,30.7,33.7], gdp:4.4, fx:"−1%", econ:"India, Australia, Korea 4.4%"},
+  {name:"Japan", cls:5, v:[28.5,26.0,24.3,25.1,28.7], gdp:0.6, fx:"+3%", econ:"Japan 0.6%"}
+];
+const RET = {buy:[85.5,89.4,77.6,94.9,90.7], div:[14.5,14.8,15.0,15.2,15.4]};
+const CD = {cash:[190.5,169.1,162.1,156.7,132.4], debt:[124.7,120.1,111.1,106.6,98.7]};
+const GMS = {prod:[35.3,36.3,36.5,37.2,36.8], serv:[69.7,71.7,70.8,73.9,75.4]};
+const FCF0 = 98.8, SH = 15.0, NETCASH = 33.7, EPS = 7.47, DPS = 1.02;
+
+// ---------- helpers ----------
+const $ = (s,r=document)=>r.querySelector(s);
+const esc = s => String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const fB = v => "$"+(v>=100?Math.round(v):v.toFixed(1))+"B";
+const fP = v => v.toFixed(1)+"%";
+const sgn = v => (v>0?"+":v<0?"−":"")+Math.abs(v).toFixed(1);
+function niceTicks(min,max,count){count=count||4;const span=max-min||1;const raw=span/count;const mag=Math.pow(10,Math.floor(Math.log10(raw)));const n=raw/mag;const step=(n<1.5?1:n<3?2:n<7?5:10)*mag;const lo=Math.floor(min/step)*step,hi=Math.ceil(max/step)*step;const t=[];for(let v=lo;v<=hi+step/1e6;v+=step)t.push(+v.toFixed(6));return t;}
+function cagr(a,b,n){return (Math.pow(b/a,1/n)-1)*100;}
+const charts = {};   // id -> {render, table}
+function reg(id, render, table){charts[id]={render,table};render();}
+function W(el){return Math.max(260, Math.floor(el.clientWidth||320));}
+function topRound(x,y,w,h,r){r=Math.min(r,w/2,h);if(h<=0)return "";return `M${x},${y+h}V${y+r}Q${x},${y} ${x+r},${y}H${x+w-r}Q${x+w},${y} ${x+w},${y+r}V${y+h}Z`;}
+function legend(id, items, kind){const el=$("#"+id);if(!el)return;el.innerHTML=items.map(i=>`<span><i class="${kind==="line"?"lk":"sw"} b${i.cls}"></i>${esc(i.name)}</span>`).join("");}
+
+// ---------- tooltip ----------
+const tip = $("#tip");
+function showTip(e, text){const parts=String(text).split("\n");tip.replaceChildren();parts.forEach((p,i)=>{const d=document.createElement("div");d.className=i===0?"tv":"tl2";d.textContent=p;tip.appendChild(d);});tip.hidden=false;moveTip(e);}
+function moveTip(e){const pad=14;let x=e.clientX+pad,y=e.clientY+pad;const r=tip.getBoundingClientRect();if(x+r.width>innerWidth-8)x=e.clientX-r.width-pad;if(y+r.height>innerHeight-8)y=e.clientY-r.height-pad;tip.style.left=x+"px";tip.style.top=y+"px";}
+document.addEventListener("pointerover",e=>{const t=e.target.closest("[data-tip]");if(t)showTip(e,t.getAttribute("data-tip"));});
+document.addEventListener("pointermove",e=>{if(!tip.hidden&&e.target.closest("[data-tip]"))moveTip(e);});
+document.addEventListener("pointerout",e=>{const t=e.target.closest("[data-tip]");if(t&&!(e.relatedTarget&&t.contains(e.relatedTarget)))tip.hidden=true;});
+document.addEventListener("focusin",e=>{const t=e.target.closest("[data-tip]");if(t){const r=t.getBoundingClientRect();showTip({clientX:r.left+r.width/2,clientY:r.top},t.getAttribute("data-tip"));}});
+document.addEventListener("focusout",()=>{tip.hidden=true;});
+addEventListener("scroll",()=>{tip.hidden=true;},{passive:true});
+
+// ---------- chart: columns (grouped or stacked) ----------
+function columns(id, cfg){
+  const el=$("#"+id);
+  reg(id, ()=>{
+    const w=W(el), h=cfg.height||220, ml=40, mr=(cfg.labelLast&&!cfg.stacked&&cfg.series.length>1)?40:8, mt=22, mb=26;
+    const pw=w-ml-mr, ph=h-mt-mb, n=cfg.cats.length;
+    const totals=cfg.cats.map((_,i)=>cfg.stacked?cfg.series.reduce((s,se)=>s+se.v[i],0):Math.max(...cfg.series.map(se=>se.v[i])));
+    const ticks=niceTicks(0,Math.max(...totals)*1.02,4), ymax=ticks[ticks.length-1];
+    const y=v=>mt+ph-(v/ymax)*ph, band=pw/n;
+    const k=cfg.stacked?1:cfg.series.length;
+    const bw=Math.min(24,(band*0.72-(k-1)*2)/k);
+    let s=`<svg viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" role="img" aria-label="${esc(cfg.label)}">`;
+    ticks.forEach(t=>{s+=`<line class="${t===0?"axisl":"gridl"}" x1="${ml}" x2="${w-mr}" y1="${y(t)}" y2="${y(t)}"/><text class="tx" x="${ml-6}" y="${y(t)+4}" text-anchor="end">${cfg.axisFmt?cfg.axisFmt(t):t}</text>`;});
+    const every = band<30?2:1;
+    cfg.cats.forEach((c,i)=>{
+      const cx=ml+band*i+band/2;
+      if((n-1-i)%every===0) s+=`<text class="tx" x="${cx}" y="${h-8}" text-anchor="middle">${esc(cfg.catFmt?cfg.catFmt(c):c)}</text>`;
+      if(cfg.stacked){
+        let acc=0; const x=cx-bw/2;
+        cfg.series.forEach((se,j)=>{const v=se.v[i];const y0=y(acc),y1=y(acc+v);acc+=v;const top=j===cfg.series.length-1;const hh=Math.max(0,y0-y1-(j>0?2:0));
+          const yy=y1; const d= top?topRound(x,yy,bw,hh,4):`M${x},${yy}h${bw}v${hh}h${-bw}Z`;
+          s+=`<path class="f${se.cls} hov" d="${d}" data-tip="${esc(cfg.fmt(v))}\n${esc(se.name)} · ${esc(String(c))}"/>`;});
+        if(cfg.labelTotals&&i===n-1) s+=`<text class="tx3" x="${cx}" y="${y(acc)-6}" text-anchor="middle">${cfg.fmt(acc)}</text>`;
+      } else {
+        const gw=k*bw+(k-1)*2; let x=cx-gw/2;
+        cfg.series.forEach((se,j)=>{const v=se.v[i];const yy=y(v);s+=`<path class="f${se.cls} hov" d="${topRound(x,yy,bw,mt+ph-yy,4)}" data-tip="${esc(cfg.fmt(v))}\n${esc(se.name)} · ${esc(String(c))}"/>`;
+          if(i===n-1&&cfg.labelLast){const kk=cfg.series.length,anc=kk>1?(j===0?"end":j===kk-1?"start":"middle"):"middle",lx=anc==="end"?x+bw:anc==="start"?x:x+bw/2;s+=`<text class="tx3 halo" x="${lx}" y="${yy-6}" text-anchor="${anc}">${cfg.fmt(v)}</text>`;} x+=bw+2;});
+      }
+    });
+    s+="</svg>"; el.innerHTML=s;
+  }, ()=>({head:["",...cfg.series.map(se=>se.name)].concat(cfg.stacked?["Total"]:[]), rows:cfg.cats.map((c,i)=>[String(c),...cfg.series.map(se=>cfg.fmt(se.v[i]))].concat(cfg.stacked?[cfg.fmt(cfg.series.reduce((a,se)=>a+se.v[i],0))]:[]))}));
+  if(cfg.legend) legend(cfg.legend, cfg.series, "box");
+}
+
+// ---------- chart: lines with crosshair ----------
+function lines(id, cfg){
+  const el=$("#"+id);
+  reg(id, ()=>{
+    const w=W(el), h=cfg.height||210, ml=40, mr=cfg.endLabelW||64, mt=14, mb=26;
+    const pw=w-ml-mr, ph=h-mt-mb, n=cfg.cats.length;
+    const all=cfg.series.flatMap(se=>se.v.filter(v=>v!=null));
+    const lo=cfg.yMin!=null?cfg.yMin:Math.min(0,...all), hi=Math.max(...all);
+    const ticks=niceTicks(lo,hi,4), y0=ticks[0], y1=ticks[ticks.length-1];
+    const x=i=>ml+(n===1?pw/2:i*pw/(n-1)), y=v=>mt+ph-((v-y0)/(y1-y0))*ph;
+    let s=`<svg viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" role="img" aria-label="${esc(cfg.label)}">`;
+    ticks.forEach(t=>{s+=`<line class="${t===y0?"axisl":"gridl"}" x1="${ml}" x2="${ml+pw}" y1="${y(t)}" y2="${y(t)}"/><text class="tx" x="${ml-6}" y="${y(t)+4}" text-anchor="end">${cfg.axisFmt?cfg.axisFmt(t):t}</text>`;});
+    const every=Math.ceil(n/Math.max(2,Math.floor(pw/44)));
+    cfg.cats.forEach((c,i)=>{if((n-1-i)%every===0)s+=`<text class="tx" x="${x(i)}" y="${h-8}" text-anchor="middle">${esc(cfg.catFmt?cfg.catFmt(c):c)}</text>`;});
+    if(cfg.band){const b=cfg.band;let d="";b.hi.forEach((v,i)=>{if(v==null)return;d+=(d?"L":"M")+x(i)+","+y(v);});for(let i=b.lo.length-1;i>=0;i--){if(b.lo[i]==null)continue;d+="L"+x(i)+","+y(b.lo[i]);}s+=`<path d="${d}Z" class="f${b.cls}" opacity=".12"/>`;}
+    const ends=[], above=[];
+    cfg.series.forEach(se=>{let d="";se.v.forEach((v,i)=>{if(v==null)return;d+=(d?"L":"M")+x(i).toFixed(1)+","+y(v).toFixed(1);});
+      s+=`<path d="${d}" class="ln k${se.cls}" ${se.dash?'stroke-dasharray="5 5"':""}/>`;
+      let li=se.v.length-1; while(li>0&&se.v[li]==null)li--; (se.labelAbove?above:ends).push({se,i:li,v:se.v[li],py:y(se.v[li])});
+      s+=`<circle cx="${x(li)}" cy="${y(se.v[li])}" r="4" class="f${se.cls} surfring"/>`;});
+    above.forEach(a=>{s+=`<text class="tx3" x="${x(a.i)-6}" y="${a.py-10}" text-anchor="end">${esc(cfg.fmt(a.v))}</text>`;});
+    // end labels with simple collision push
+    ends.sort((a,b)=>a.py-b.py); for(let i=1;i<ends.length;i++){if(ends[i].py-ends[i-1].py<14)ends[i].py=ends[i-1].py+14;}
+    if(cfg.endLabels!==false) ends.forEach(e=>{s+=`<text class="tx3" x="${x(e.i)+8}" y="${e.py+4}">${esc(cfg.fmt(e.v))}</text>`; if(cfg.endNames) s+=`<text class="tx" x="${x(e.i)+8}" y="${e.py+16}">${esc(e.se.short||e.se.name)}</text>`;});
+    s+=`<line id="${id}-xh" class="axisl" x1="0" x2="0" y1="${mt}" y2="${mt+ph}" visibility="hidden"/><rect x="${ml}" y="${mt}" width="${pw}" height="${ph}" fill="transparent" id="${id}-hit"/>`;
+    s+="</svg>"; el.innerHTML=s;
+    const hit=$("#"+id+"-hit"), xh=$("#"+id+"-xh");
+    const handler=e=>{const r=el.querySelector("svg").getBoundingClientRect();const px=(e.clientX-r.left)*(w/r.width);let i=Math.round((px-ml)/(pw/(n-1)));i=Math.max(0,Math.min(n-1,i));
+      xh.setAttribute("x1",x(i));xh.setAttribute("x2",x(i));xh.setAttribute("visibility","visible");
+      const rows=cfg.series.filter(se=>se.v[i]!=null).map(se=>`${se.name}: ${cfg.fmt(se.v[i])}`);showTip(e,`${cfg.catFmt?cfg.catFmt(cfg.cats[i]):cfg.cats[i]}\n${rows.join("\n")}`);};
+    hit.addEventListener("pointermove",handler);hit.addEventListener("pointerdown",handler);
+    hit.addEventListener("pointerleave",()=>{xh.setAttribute("visibility","hidden");tip.hidden=true;});
+  }, ()=>({head:["",...cfg.series.map(se=>se.name)], rows:cfg.cats.map((c,i)=>[String(c),...cfg.series.map(se=>se.v[i]==null?"":cfg.fmt(se.v[i]))])}));
+  if(cfg.legend) legend(cfg.legend, cfg.series, "line");
+}
+
+// ---------- chart: donut + legend list ----------
+function donut(id, cfg){
+  const el=$("#"+id);
+  reg(id, ()=>{
+    const total=cfg.parts.reduce((a,p)=>a+p.value,0), size=176, r=80, t=24, cx=size/2, cy=size/2;
+    let a0=-Math.PI/2, s=`<div style="display:flex;flex-wrap:wrap;gap:16px;align-items:center"><svg viewBox="0 0 ${size} ${size}" width="${size}" height="${size}" style="width:${size}px;flex:none" role="img" aria-label="${esc(cfg.label)}">`;
+    const gap=0.022;
+    cfg.parts.forEach(p=>{const ang=p.value/total*Math.PI*2;const s0=a0+gap/2,s1=a0+ang-gap/2;const ro=r,ri=r-t;
+      const P=(rad,a)=>[cx+rad*Math.cos(a),cy+rad*Math.sin(a)];const large=(s1-s0)>Math.PI?1:0;
+      const [x0,y0]=P(ro,s0),[x1,y1]=P(ro,s1),[x2,y2]=P(ri,s1),[x3,y3]=P(ri,s0);
+      s+=`<path class="f${p.cls} hov" d="M${x0},${y0}A${ro},${ro} 0 ${large} 1 ${x1},${y1}L${x2},${y2}A${ri},${ri} 0 ${large} 0 ${x3},${y3}Z" data-tip="${esc(cfg.fmt(p.value))} · ${(p.value/total*100).toFixed(0)}%\n${esc(p.name)}"/>`;a0+=ang;});
+    s+=`<text x="${cx}" y="${cy-2}" text-anchor="middle" style="fill:var(--ink);font:600 20px var(--f-body)">${esc(cfg.center)}</text><text x="${cx}" y="${cy+16}" text-anchor="middle" class="tx">${esc(cfg.centerSub)}</text></svg>`;
+    s+=`<div style="flex:1;min-width:170px;display:grid;gap:8px">`+cfg.parts.map(p=>`<div style="display:grid;grid-template-columns:12px 1fr auto auto;gap:8px;align-items:center;font-size:13px"><i class="sw b${p.cls}"></i><span>${esc(p.name)}</span><b style="font-variant-numeric:tabular-nums">${cfg.fmt(p.value)}</b><span style="color:var(--muted);width:36px;text-align:right;font-variant-numeric:tabular-nums">${(p.value/total*100).toFixed(0)}%</span></div>`).join("")+`</div></div>`;
+    el.innerHTML=s;
+  }, ()=>({head:["Part","Value","Share"], rows:cfg.parts.map(p=>[p.name,cfg.fmt(p.value),(p.value/cfg.parts.reduce((a,q)=>a+q.value,0)*100).toFixed(1)+"%"])}));
+}
+
+// ---------- chart: ranked bars (HTML) ----------
+function hbars(id, cfg){
+  const el=$("#"+id);
+  reg(id, ()=>{const max=cfg.max||Math.max(...cfg.items.map(i=>i.value));
+    el.innerHTML=cfg.items.map(i=>`<div class="hb" data-tip="${esc(cfg.fmt(i.value))}\n${esc(i.name)}${i.sub?" · "+esc(i.sub):""}"><div class="n">${esc(i.name)}${i.sub?`<small>${esc(i.sub)}</small>`:""}</div><div class="v">${esc(cfg.fmt(i.value))}${i.tag?` <span style="font-weight:500;color:${i.tagColor||"var(--muted)"};font-size:12px">${esc(i.tag)}</span>`:""}</div><div class="track"><div class="fill b${i.cls||1}" style="width:${Math.max(1,i.value/max*100)}%"></div></div></div>`).join("");
+  }, ()=>({head:["Name","Value"].concat(cfg.items.some(i=>i.sub)?["Note"]:[]), rows:cfg.items.map(i=>[i.name,cfg.fmt(i.value)].concat(cfg.items.some(j=>j.sub)?[i.sub||""]:[]))}));
+}
+function segbar(id, parts, fmt, legId){const el=$("#"+id);const tot=parts.reduce((a,p)=>a+p.value,0);
+  if(legId) $("#"+legId).innerHTML=parts.map(p=>`<span><i class="sw b${p.cls}"></i>${esc(p.name)} <b>${esc(fmt(p.value))}</b></span>`).join("");
+  el.innerHTML=parts.map(p=>`<div class="b${p.cls}" style="flex:${p.value} 1 0" data-tip="${esc(fmt(p.value))} of ${esc(fmt(tot))}\n${esc(p.name)}" tabindex="0" aria-label="${esc(p.name)} ${esc(fmt(p.value))}"></div>`).join("");}
+
+// ---------- table toggles ----------
+document.addEventListener("click",e=>{const b=e.target.closest("[data-table]");if(!b)return;const id=b.getAttribute("data-table");const card=b.closest(".card");let t=card.querySelector(".tbl.gen");
+  if(t){t.remove();b.textContent="Show table";return;}
+  const T=charts[id].table();t=document.createElement("div");t.className="tbl gen";const tb=document.createElement("table");const trh=document.createElement("tr");
+  T.head.forEach(h=>{const th=document.createElement("th");th.textContent=h;trh.appendChild(th);});const th=document.createElement("thead");th.appendChild(trh);tb.appendChild(th);
+  const tbody=document.createElement("tbody");T.rows.forEach(r=>{const tr=document.createElement("tr");r.forEach(c=>{const td=document.createElement("td");td.textContent=c;tr.appendChild(td);});tbody.appendChild(tr);});tb.appendChild(tbody);t.appendChild(tb);
+  card.insertBefore(t,b.closest(".foot"));b.textContent="Hide table";});
+// stack=true: on phones each row becomes a small labelled block instead of a wide table
+function htmlTable(el, head, rows, stack){if(stack)el.classList.add("stack");el.innerHTML=`<table><thead><tr>${head.map(h=>`<th>${esc(h)}</th>`).join("")}</tr></thead><tbody>${rows.map(r=>`<tr>${r.map((c,j)=>`<td${stack&&j?` data-l="${esc(head[j])}"`:""}>${c}</td>`).join("")}</tr>`).join("")}</tbody></table>`;}
+
+// ---------- valuation model ----------
+function dcf(g1,g2,w,tg){let f=FCF0,pv=0;for(let t=1;t<=10;t++){f*=1+(t<=5?g1:g2);pv+=f/Math.pow(1+w,t);}const tv=f*(1+tg)/(w-tg)/Math.pow(1+w,10);return (pv+tv+NETCASH)/SH;}
+const BASE=[0.08,0.05,0.075,0.03];
+const V = {bear:dcf(0.03,0.02,0.085,0.025), low:dcf(0.08,0.05,0.08,0.03), base:dcf(...BASE), high:dcf(0.08,0.05,0.07,0.03), bull:dcf(0.11,0.07,0.075,0.035)};
+function impliedGrowth(p){let lo=-0.2,hi=0.5;for(let i=0;i<80;i++){const m=(lo+hi)/2;if(dcf(m,m,0.075,0.03)>p)hi=m;else lo=m;}return (lo+hi)/2*100;}
+let PRICE = 191;
+
+// ---------- hero ----------
+function heroRange(){const el=$("#heroRange");const w=W(el),h=78,ml=12,mr=12;const lo=Math.min(V.bear,PRICE)*0.85,hi=Math.max(V.bull,PRICE)*1.08;const x=v=>ml+(Math.min(hi,Math.max(lo,v))-lo)/(hi-lo)*(w-ml-mr);
+  let s=`<svg viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" role="img" aria-label="Fair value range">`;
+  s+=`<rect x="${x(V.bear)}" y="30" width="${x(V.bull)-x(V.bear)}" height="10" rx="5" fill="var(--hero-line)"/>`;
+  s+=`<rect x="${x(V.low)}" y="30" width="${x(V.high)-x(V.low)}" height="10" rx="5" fill="var(--hero-accent)" opacity=".85" data-tip="$${V.low.toFixed(0)} to $${V.high.toFixed(0)}\nModel range (discount rate 7% to 8%)"/>`;
+  s+=`<line x1="${x(V.base)}" x2="${x(V.base)}" y1="24" y2="46" stroke="var(--hero-ink)" stroke-width="2"/>`;
+  const lab=(v,t,yy,anchor)=>`<text x="${x(v)}" y="${yy}" text-anchor="${anchor||"middle"}" style="fill:var(--hero-ink-2);font:11px var(--f-body)">${t}</text>`;
+  s+=lab(V.bear,"Bear $"+V.bear.toFixed(0),62,"start")+lab(V.base,"Base $"+V.base.toFixed(0),62)+lab(V.bull,"Bull $"+V.bull.toFixed(0),62,"end");
+  s+=`<g data-tip="$${PRICE.toFixed(2)}\nYour price"><circle cx="${x(PRICE)}" cy="35" r="8" fill="var(--hero-ink)" stroke="var(--hero-bg)" stroke-width="2"/></g>`;
+  s+=`<text x="${x(PRICE)}" y="14" text-anchor="middle" style="fill:var(--hero-ink);font:600 12px var(--f-body)">You $${PRICE.toFixed(0)}</text></svg>`;el.innerHTML=s;
+  const up=(V.base/PRICE-1)*100;const u=$("#updown");u.textContent=`${up>=0?"+":"−"}${Math.abs(up).toFixed(0)}% to the base value ($${V.base.toFixed(0)})`;u.style.color=up>=0?"#7FD3A2":"#F2A0A0";}
+function kpis(){const k=[
+  ["Sales, fiscal 2025","$416B","+6.4% on the year","up"],
+  ["Operating margin","32.0%","+0.5 points","up"],
+  ["Free cash flow","$99B","−9% on the year","dn"],
+  ["Net cash","$34B","down from $50B","n"],
+  ["Shares, per year","−2.7%","bought back","up"],
+  ["Price to earnings",(PRICE/EPS).toFixed(1)+"x","at your price","n"]];
+  $("#kpis").innerHTML=k.map(([l,v,d,c])=>`<div class="kpi"><div class="l">${l}</div><div class="v">${v}</div><div class="d ${c}">${d}</div></div>`).join("");}
+
+// ---------- summary (the value score and verdict follow your price) ----------
+function scores(){
+  const val=Math.max(0,Math.min(10,(V.bull-PRICE)/(V.bull-V.bear)*10));
+  $("#scores").innerHTML=[
+   ["Profitability",9.4,"Operating margin 32%, return on capital above 50%"],
+   ["Financial health",8.1,"Net cash, $99B of debt spread over 30 years"],
+   ["Shareholder returns",9.0,"$106B a year in buybacks and dividends"],
+   ["Growth",5.2,"Sales +8.7% a year over 5 years, +6.4% last year"],
+   ["Value at your price",val,`$${PRICE.toFixed(0)} against bear $${V.bear.toFixed(0)}, base $${V.base.toFixed(0)}, bull $${V.bull.toFixed(0)}`]
+  ].map(([n,v,r])=>`<div class="meter"><span class="n">${n}</span><div class="t" data-tip="${v.toFixed(1)} of 10\n${n}"><div style="width:${v*10}%"></div></div><span class="v">${v.toFixed(1)}</span><span class="r">${r}</span></div>`).join("");
+  const word=PRICE>V.high?"the price is full":PRICE<V.low?"the price looks low":"the price is about fair";
+  $("#sumVerdict").innerHTML=`<b>Quality is excellent; at $${PRICE.toFixed(0)} ${word}.</b> Margins hit a record, services keep compounding, and cash returns are huge. The risks are China, App Store rules and a slower iPhone cycle.`;
+}
+
+// ---------- business ----------
+donut("segDonut",{label:"Sales by product fiscal 2025",parts:SEG.map(s=>({name:s.name,cls:s.cls,value:s.v[4]})),fmt:fB,center:"$416B",centerSub:"fiscal 2025"});
+columns("segStack",{label:"Sales by product",cats:Y5,series:SEG.map(s=>({name:s.name,cls:s.cls,v:s.v})),stacked:true,fmt:fB,axisFmt:v=>"$"+v,legend:"segStackLeg",labelTotals:true,height:230,catFmt:c=>"FY"+String(c).slice(2)});
+lines("gmSplit",{label:"Gross margin products and services",cats:Y5,series:[{name:"Services",short:"Services",cls:2,v:GMS.serv},{name:"Products",short:"Products",cls:1,v:GMS.prod}],fmt:fP,axisFmt:v=>v+"%",yMin:0,legend:"gmSplitLeg",endNames:true,endLabelW:72,catFmt:c=>"FY"+String(c).slice(2),height:200});
+
+// ---------- countries ----------
+hbars("geoBars",{items:GEO.map(g=>({name:g.name,value:g.v[4],cls:1,tag:(cagr(g.v[0],g.v[4],4)>=0?"+":"−")+Math.abs(cagr(g.v[0],g.v[4],4)).toFixed(1)+"%/yr",tagColor:cagr(g.v[0],g.v[4],4)>=0?"var(--pos)":"var(--neg)"})),fmt:fB});
+lines("geoLines",{label:"Sales by region",cats:Y5,series:GEO.map(g=>({name:g.name,cls:g.cls,v:g.v})),fmt:fB,axisFmt:v=>"$"+v,legend:"geoLinesLeg",endLabelW:52,catFmt:c=>"FY"+String(c).slice(2),height:220});
+const tot25=GEO.reduce((a,g)=>a+g.v[4],0); const wg=GEO.reduce((a,g)=>a+g.v[4]*g.gdp,0)/tot25; $("#wgdp").textContent=wg.toFixed(1)+"%";
+htmlTable($("#geoTable"),["Region","Share of sales","Sales growth, 4 yrs","Economy outlook 2026","Currency vs $"],GEO.map(g=>[`<span style="display:inline-flex;gap:8px;align-items:center"><i class="sw b${g.cls}"></i>${esc(g.name)}</span>`,(g.v[4]/tot25*100).toFixed(0)+"%",(cagr(g.v[0],g.v[4],4)>=0?"+":"−")+Math.abs(cagr(g.v[0],g.v[4],4)).toFixed(1)+"%/yr",esc(g.econ),g.fx]),true);
+hbars("entityBars",{items:[{name:"Ireland",value:4},{name:"United States",value:3},{name:"China and Hong Kong",value:2},{name:"Singapore",value:1},{name:"India",value:1},{name:"Japan",value:1},{name:"Luxembourg",value:1}],fmt:v=>String(v)});
+
+// ---------- network ----------
+// Wide screens: a radial map. Phones: a left-to-right flow (suppliers, Apple, sellers; builders above, rivals below) so no label leaves the card.
+function network(){const el=$("#network");
+  const groups=[
+    {cls:4,label:"Sells parts to Apple",a0:150,a1:230,nodes:[["Cirrus Logic",89],["Skyworks",63],["Qorvo",47],["Broadcom",20],["Qualcomm",20]]},
+    {cls:6,label:"Builds for Apple",a0:250,a1:290,nodes:[["Foxconn",null],["TSMC",null]]},
+    {cls:3,label:"Sells Apple products",a0:-35,a1:35,nodes:[["Verizon",null],["AT&T",null],["T-Mobile",null],["Best Buy",null]]},
+    {cls:"d",label:"Competes",a0:70,a1:110,nodes:[["Samsung",null],["Alphabet",null],["Xiaomi",null]]}];
+  reg("network",()=>{
+  const w=W(el), narrow=w<560, h=narrow?440:380, cx=w/2, cy=narrow?220:h/2-6;
+  let s=`<svg viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" role="img" aria-label="Apple's suppliers, sales channels and rivals">`;
+  const nodes=[];   // {x,y,name,pct,cls,group,lx,ly,anchor,path}
+  const edge=(x,y,vertical)=>vertical?`M${cx},${cy}C${cx},${(cy+y)/2} ${x},${(cy+y)/2} ${x},${y}`:`M${cx},${cy}C${(cx+x)/2},${cy} ${(cx+x)/2},${y} ${x},${y}`;
+  if(narrow){
+    const lx=Math.min(110,w*0.3), rx=w-Math.min(84,w*0.25);
+    groups[0].nodes.forEach((nd,i)=>{const y=cy-120+i*60;nodes.push({x:lx,y,nd,g:groups[0],lx:lx-12,ly:y+4,anchor:"end",path:edge(lx,y)});});
+    groups[2].nodes.forEach((nd,i)=>{const y=cy-90+i*60;nodes.push({x:rx,y,nd,g:groups[2],lx:rx+12,ly:y+4,anchor:"start",path:edge(rx,y)});});
+    groups[1].nodes.forEach((nd,i)=>{const x=cx+(i?44:-44),y=40;nodes.push({x,y,nd,g:groups[1],lx:x,ly:y-14,anchor:"middle",path:edge(x,y,true)});});
+    groups[3].nodes.forEach((nd,i)=>{const x=cx+(i-1)*Math.min(90,w*0.28),y=h-44;nodes.push({x,y,nd,g:groups[3],lx:x,ly:y+24,anchor:"middle",path:edge(x,y,true)});});
+  } else {
+    const rx=Math.min(w*0.36,300), ry=h*0.38;
+    groups.forEach(g=>{g.nodes.forEach((nd,i)=>{const t=g.nodes.length===1?0.5:i/(g.nodes.length-1);const a=(g.a0+(g.a1-g.a0)*t)*Math.PI/180;const x=cx+rx*Math.cos(a),y=cy+ry*Math.sin(a);
+      const c=Math.cos(a),sn=Math.sin(a);const mx=(cx+x)/2+(y-cy)*0.12,my=(cy+y)/2-(x-cx)*0.12;
+      nodes.push({x,y,nd,g,lx:x+(c>0.3?10:c<-0.3?-10:0),ly:y+(Math.abs(c)<=0.3?(sn>0?20:-12):4),anchor:c>0.3?"start":c<-0.3?"end":"middle",path:`M${cx},${cy}Q${mx},${my} ${x},${y}`});});});
+  }
+  nodes.forEach(n=>{const pct=n.nd[1];s+=`<path d="${n.path}" fill="none" class="k${n.g.cls}" stroke-width="${pct?1.5+pct/100*6:1.5}" ${n.g.cls==="d"?'stroke-dasharray="4 4"':""} opacity=".75"/>`;});
+  nodes.forEach(n=>{const [name,pct]=n.nd;
+    s+=`<g data-tip="${esc(pct?pct+"% of its sales from Apple":n.g.label)}\n${esc(name)}" tabindex="0"><circle cx="${n.x}" cy="${n.y}" r="${pct?6+pct/100*5:6}" class="f${n.g.cls} surfring"/><circle cx="${n.x}" cy="${n.y}" r="14" fill="transparent"/></g>`;
+    if(narrow){s+=`<text class="tx2" x="${n.lx}" y="${n.ly}" text-anchor="${n.anchor}">${esc(name)}</text>`;if(pct)s+=`<text class="tx" x="${n.lx}" y="${n.ly+14}" text-anchor="${n.anchor}">${pct}%</text>`;}
+    else s+=`<text class="tx2" x="${n.lx}" y="${n.ly}" text-anchor="${n.anchor}">${esc(name)}${pct?` · ${pct}%`:""}</text>`;});
+  s+=`<circle cx="${cx}" cy="${cy}" r="30" style="fill:var(--ink)"/><text x="${cx}" y="${cy+5}" text-anchor="middle" style="fill:var(--surface);font:600 14px var(--f-body)">Apple</text></svg>`;
+  el.innerHTML=s;},()=>({head:["Company","Link to Apple","Share of its sales from Apple"],rows:groups.flatMap(g=>g.nodes.map(nd=>[nd[0],g.label,nd[1]?nd[1]+"%":"not disclosed"]))}));}
+network();
+hbars("depBars",{items:[{name:"Cirrus Logic",value:89,cls:4},{name:"Skyworks",value:63,cls:4},{name:"Qorvo",value:47,cls:4},{name:"Broadcom",value:20,cls:4},{name:"Qualcomm",value:20,cls:4}],fmt:v=>v+"%",max:100});
+segbar("channelBar",[{name:"Indirect: carriers, retailers, resellers",value:62,cls:1},{name:"Direct: Apple Stores and online",value:38,cls:2}],v=>v+"%","channelLeg");
+
+// ---------- owners ----------
+segbar("ownBar",[{name:"Index and passive funds",value:31,cls:1},{name:"Active funds",value:17,cls:2},{name:"Other institutions",value:15,cls:3},{name:"Retail and other",value:37,cls:"d"}],v=>v+"%","ownLeg");
+hbars("holders",{items:[["Vanguard",9.5,"+0.1"],["BlackRock",7.6,"+0.2"],["State Street",4.0,"−0.1"],["Geode",2.3,"+0.1"],["Fidelity (FMR)",2.0,"−0.2"],["Berkshire Hathaway",1.6,"−0.3"],["Morgan Stanley",1.6,"+0.1"],["Norges Bank",1.2,"0.0"]].map(([n,v,c])=>({name:n,value:v,cls:1,tag:c+" pts",tagColor:c.startsWith("−")?"var(--neg)":c.startsWith("+")?"var(--pos)":"var(--muted)"})),fmt:v=>v.toFixed(1)+"%"});
+columns("insiders",{label:"Insider sales by month",cats:["Nov","Dec","Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct"],series:[{name:"Sold",cls:5,v:[0,0,12,0,24,0,0,9,0,0,41,6]}],fmt:v=>"$"+v+"M",axisFmt:v=>"$"+v+"M",height:170});
+
+// ---------- financials ----------
+const yl=c=>"’"+String(c).slice(2);
+columns("revNi",{label:"Sales and net profit",cats:Y,series:[{name:"Sales",cls:1,v:D.revenue},{name:"Net profit",cls:4,v:D.netIncome}],fmt:fB,axisFmt:v=>"$"+v,labelLast:true,legend:"revNiLeg",catFmt:c=>"FY"+yl(c),height:240});
+lines("margins",{label:"Margins",cats:Y,series:[{name:"Gross",cls:1,v:D.gm},{name:"Operating",cls:4,v:D.om},{name:"Net",cls:2,v:D.nm}],fmt:fP,axisFmt:v=>v+"%",yMin:0,legend:"marginsLeg",endLabelW:48,catFmt:yl});
+lines("fcf",{label:"Free cash flow and net profit",cats:Y,series:[{name:"Free cash flow",cls:6,v:D.fcf},{name:"Net profit",cls:4,v:D.netIncome}],fmt:fB,axisFmt:v=>"$"+v,yMin:0,legend:"fcfLeg",endLabelW:52,catFmt:yl});
+columns("returns",{label:"Buybacks and dividends",cats:Y5,series:[{name:"Buybacks",cls:1,v:RET.buy},{name:"Dividends",cls:2,v:RET.div}],stacked:true,fmt:fB,axisFmt:v=>"$"+v,legend:"returnsLeg",labelTotals:true,catFmt:c=>"FY"+String(c).slice(2),height:210});
+lines("shares",{label:"Diluted shares",cats:Y,series:[{name:"Shares",cls:1,v:D.shares}],fmt:v=>v.toFixed(1)+"B",axisFmt:v=>v+"B",yMin:0,endLabelW:44,catFmt:yl,height:200});
+columns("cashDebt",{label:"Cash and debt",cats:Y5,series:[{name:"Cash and securities",cls:6,v:CD.cash},{name:"Total debt",cls:5,v:CD.debt}],fmt:fB,axisFmt:v=>"$"+v,labelLast:true,legend:"cashDebtLeg",catFmt:c=>"FY"+String(c).slice(2),height:210});
+
+// ---------- EPS bridge (waterfall) ----------
+function waterfall(id,cfg){const el=$("#"+id);reg(id,()=>{
+  const w=W(el),narrow=w<560,h=240,ml=40,mr=8,mt=28,mb=30,pw=w-ml-mr,ph=h-mt-mb;
+  const items=[{...cfg.start,tot:true},...cfg.steps,{...cfg.end,tot:true}],n=items.length;
+  const ticks=niceTicks(0,cfg.end.v*1.08,4),ymax=ticks[ticks.length-1],y=v=>mt+ph-v/ymax*ph,band=pw/n,bw=Math.min(56,band*0.62);
+  let s=`<svg viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" role="img" aria-label="${esc(cfg.label)}">`;
+  ticks.forEach(t=>{s+=`<line class="${t?"gridl":"axisl"}" x1="${ml}" x2="${w-mr}" y1="${y(t)}" y2="${y(t)}"/><text class="tx" x="${ml-6}" y="${y(t)+4}" text-anchor="end">$${t}</text>`;});
+  const sg=v=>(v>=0?"+":"−")+Math.abs(v).toFixed(2);
+  let acc=0;items.forEach((it,i)=>{const x=ml+band*i+band/2-bw/2;let y0,y1,cls;
+    if(it.tot){y0=y(0);y1=y(it.v);cls="f1";acc=it.v;}else{const a=acc,b=acc+it.v;y0=y(Math.min(a,b));y1=y(Math.max(a,b));cls=it.v>=0?"f4":"f5";acc=b;}
+    const hh=Math.max(2,y0-y1);
+    const d=it.tot?topRound(x,y1,bw,hh,4):`M${x},${y1}h${bw}v${hh}h${-bw}Z`;
+    s+=`<path class="${cls} hov" d="${d}" data-tip="${it.tot?"$"+it.v.toFixed(2):sg(it.v)}\n${esc(it.n)}"/>`;
+    s+=`<text class="tx3" x="${x+bw/2}" y="${y1-6}" text-anchor="middle">${it.tot?"$"+it.v.toFixed(2):sg(it.v)}</text>`;
+    if(i<n-1&&!items[i+1].tot) s+=`<line x1="${x+bw}" x2="${x+band}" y1="${y(acc)}" y2="${y(acc)}" class="axisl" stroke-dasharray="2 3"/>`;
+    const lab=(narrow||band<120)?(it.s||it.n):it.n;const words=lab.split(" ");const two=false;const cut=Math.ceil(words.length/2);
+    const l1=two?words.slice(0,cut).join(" "):lab,l2=two?words.slice(cut).join(" "):"";
+    s+=`<text class="tx" x="${x+bw/2}" y="${h-(l2?20:8)}" text-anchor="middle">${esc(l1)}</text>`+(l2?`<text class="tx" x="${x+bw/2}" y="${h-7}" text-anchor="middle">${esc(l2)}</text>`:"");});
+  s+="</svg>";el.innerHTML=s;},()=>({head:["Step","$ per share"],rows:[[cfg.start.n,"$"+cfg.start.v.toFixed(2)],...cfg.steps.map(st=>[st.n,(st.v>=0?"+":"−")+"$"+Math.abs(st.v).toFixed(2)]),[cfg.end.n,"$"+cfg.end.v.toFixed(2)]]}));}
+waterfall("epsBridge",{label:"Earnings per share bridge",start:{n:"FY2024",s:"FY24",v:6.08},steps:[{n:"Higher sales",s:"Sales",v:0.40},{n:"Wider margin",s:"Margin",v:0.12},{n:"2024 tax charge drops out",s:"Tax",v:0.66},{n:"Fewer shares",s:"Shares",v:0.21}],end:{n:"FY2025",s:"FY25",v:7.47}});
+
+// ---------- value ----------
+function football(){const el=$("#football");reg("football",()=>{
+  const rows=[
+    {n:"Thesis cash-flow model",lo:V.low,hi:V.high,mid:V.base,cls:1,ph:1},
+    {n:"Bear to bull scenarios",lo:V.bear,hi:V.bull,mid:V.base,cls:2,ph:1},
+    {n:"Own P/E history",lo:22*EPS,hi:35*EPS,cls:5,ph:3},
+    {n:"Peer multiples",lo:150,hi:246,cls:5,ph:3},
+    {n:"52-week range",lo:169,hi:260,cls:5,ph:3}];
+  const w=W(el), narrow=w<560, rowH=narrow?52:38, ml=narrow?12:190, mr=16, mt=30, h=mt+rows.length*rowH+24;
+  const lo=80, hi=320, x=v=>ml+(v-lo)/(hi-lo)*(w-ml-mr);
+  let s=`<svg viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" role="img" aria-label="Valuation ranges">`;
+  niceTicks(lo,hi,5).forEach(t=>{if(t<lo||t>hi)return;s+=`<line class="gridl" x1="${x(t)}" x2="${x(t)}" y1="${mt-6}" y2="${h-22}"/><text class="tx" x="${x(t)}" y="${h-6}" text-anchor="middle">$${t}</text>`;});
+  let L="";rows.forEach((r,i)=>{const yy=mt+i*rowH+(narrow?24:12);
+    L+=`<text class="tx2 halo" x="${narrow?ml:ml-12}" y="${narrow?yy-8:yy+9}" text-anchor="${narrow?"start":"end"}">${esc(r.n)}${r.ph===3&&!narrow?" (phase 3)":""}</text>`;
+    s+=`<rect x="${x(r.lo)}" y="${yy}" width="${x(r.hi)-x(r.lo)}" height="12" rx="6" class="f${r.cls} hov" ${r.ph===3?'opacity=".55"':""} data-tip="$${r.lo.toFixed(0)} to $${r.hi.toFixed(0)}\n${esc(r.n)}"/>`;
+    if(r.mid) s+=`<line x1="${x(r.mid)}" x2="${x(r.mid)}" y1="${yy-3}" y2="${yy+15}" style="stroke:var(--ink)" stroke-width="2"/>`;});
+  s+=`<line x1="${x(PRICE)}" x2="${x(PRICE)}" y1="${mt-12}" y2="${h-22}" style="stroke:var(--ink)" stroke-width="2"/><text class="tx3" x="${x(PRICE)}" y="${mt-16}" text-anchor="middle">Your price $${PRICE.toFixed(0)}</text>`;s+=L;
+  s+="</svg>";el.innerHTML=s;},()=>({head:["Method","Low","High"],rows:[["Thesis cash-flow model","$"+V.low.toFixed(0),"$"+V.high.toFixed(0)],["Bear to bull scenarios","$"+V.bear.toFixed(0),"$"+V.bull.toFixed(0)],["Own P/E history, 22x to 35x","$"+(22*EPS).toFixed(0),"$"+(35*EPS).toFixed(0)],["Peer multiples","$150","$246"],["52-week range","$169","$260"]]}));}
+function ratios(){const mcap=PRICE*SH;htmlTable($("#ratios"),["Measure","Value"],[
+  ["Market value",`$${(mcap/1000).toFixed(2)}T`],["Price to earnings",(PRICE/EPS).toFixed(1)+"x"],["Price to free cash flow",(mcap/FCF0).toFixed(1)+"x"],["Free cash flow yield",(FCF0/mcap*100).toFixed(1)+"%"],
+  ["Dividend yield",(DPS/PRICE*100).toFixed(2)+"%"],["Buyback and dividend yield",((RET.buy[4]+RET.div[4])/mcap*100).toFixed(1)+"%"],["Growth the price assumes, 10 years",impliedGrowth(PRICE).toFixed(1)+"% a year"]]);
+  const ig=impliedGrowth(PRICE);$("#valueVerdict").innerHTML=`<b>At $${PRICE.toFixed(0)}, the price assumes free cash flow grows about ${ig.toFixed(0)}% a year for ten years.</b> It grew ${cagr(D.fcf[5],D.fcf[10],5).toFixed(0)}% a year over the last five. ${PRICE>V.high?"That is above our whole model range.":PRICE<V.low?"That is below our model range.":"That sits inside our model range."}`;}
+lines("pe",{label:"Price to earnings history",cats:Y,series:[{name:"P/E",cls:1,v:[13.1,13.4,16.2,16.4,18.5,29.2,28.3,25.1,29.0,33.4,34.0]}],fmt:v=>v.toFixed(1)+"x",axisFmt:v=>v+"x",yMin:0,endLabelW:44,catFmt:yl,height:190});
+function peers(){const el=$("#peers");const P=[["Apple",8.7,32.0,1,"t"],["Microsoft",14.5,45.6,0,"l"],["Alphabet",17.7,32.1,0,"l"],["Meta",17.6,42.2,0,"l"],["Amazon",13.4,10.8,0,"l"],["Cisco",2.8,22.6,0,"r"],["Dell",0.4,6.6,0,"r"],["HP Inc.",-0.5,7.2,0,"t"]];
+  const lp=(pos,x,y)=>pos==="t"?[x,y-12,"middle"]:pos==="l"?[x-10,y+4,"end"]:[x+10,y+4,"start"];
+  reg("peers",()=>{const w=W(el),h=260,ml=40,mr=16,mt=14,mb=34;const x=v=>ml+(v+2)/(20+2)*(w-ml-mr),y=v=>mt+(h-mt-mb)-(v/50)*(h-mt-mb);
+    let s=`<svg viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" role="img" aria-label="Growth against margin for peers">`;
+    [0,10,20,30,40,50].forEach(t=>{s+=`<line class="${t===0?"axisl":"gridl"}" x1="${ml}" x2="${w-mr}" y1="${y(t)}" y2="${y(t)}"/><text class="tx" x="${ml-6}" y="${y(t)+4}" text-anchor="end">${t}%</text>`;});
+    [0,5,10,15,20].forEach(t=>{s+=`<text class="tx" x="${x(t)}" y="${h-16}" text-anchor="middle">${t}%</text>`;});
+    s+=`<text class="tx" x="${w-mr}" y="${h-2}" text-anchor="end">sales growth a year →</text>`;
+    P.forEach(([n,gx,gy,hl,pos])=>{const [tx,ty,ta]=lp(pos,x(gx),y(gy));s+=`<g data-tip="${gx}% growth, ${gy}% margin\n${esc(n)}" tabindex="0"><circle cx="${x(gx)}" cy="${y(gy)}" r="${hl?7:5}" class="${hl?"f1":"fd"} surfring"/><circle cx="${x(gx)}" cy="${y(gy)}" r="13" fill="transparent"/></g><text class="${hl?"tx3":"tx2"}" x="${tx}" y="${ty}" text-anchor="${ta}">${esc(n)}</text>`;});
+    s+="</svg>";el.innerHTML=s;},()=>({head:["Company","Sales growth, 5 yrs","Operating margin"],rows:P.map(p=>[p[0],p[1]+"%",p[2]+"%"])}));}
+football(); peers();
+
+// ---------- price action (sample daily bars; real ones need a licensed feed) ----------
+const PA_PREV=181.4;
+const PA=[["18 Sep",181.0,182.6,179.8,182.1,48],["21 Sep",182.3,184.9,181.7,184.4,52],["22 Sep",184.6,185.9,182.9,183.2,50],["23 Sep",183.0,183.4,179.6,180.1,58],["24 Sep",180.0,180.8,177.2,178.6,63],["25 Sep",178.4,181.9,177.0,181.5,61],
+["28 Sep",181.7,184.2,181.0,183.6,49],["29 Sep",183.8,185.8,183.1,184.0,47],["30 Sep",183.9,184.5,181.8,182.4,45],["1 Oct",182.6,184.9,182.2,184.6,50],["2 Oct",184.8,186.0,184.1,185.3,54],
+["5 Oct",185.5,189.4,185.2,189.0,88],["6 Oct",189.1,190.8,188.4,190.3,66],["7 Oct",190.2,190.9,188.6,189.1,52],["8 Oct",188.9,189.2,186.9,187.4,57],["9 Oct",187.3,188.2,186.3,187.9,55],
+["12 Oct",188.1,190.2,187.8,189.9,51],["13 Oct",190.0,191.6,189.6,191.2,54],["14 Oct",191.3,193.1,190.9,192.7,60],["15 Oct",192.9,193.8,191.5,192.0,58],["16 Oct",191.8,192.4,190.4,191.2,53]].map(([d,o,h,l,c,v])=>({d,o,h,l,c,v}));
+const PA_EMA=[182.01,182.24,182.33,182.12,181.78,181.76,181.93,182.13,182.16,182.39,182.67,183.27,183.94,184.43,184.71,185.02,185.48,186.03,186.66,187.17,187.55]; // 20-day EMA incl. 20 prior days
+const LV={ceil:186,floor:177,target:195};
+const MARKS=[{k:"A",i:[2,7,10],pos:"h",t:"Three tests of $186 fail",x:"22 Sep, 29 Sep and 2 Oct each reach $185.8 to $186.0 and close lower."},
+  {k:"B",i:[5],pos:"l",t:"The floor holds",x:"25 Sep dips to $177.0 and closes at $181.5, near the day’s high."},
+  {k:"C",i:[11],pos:"h",t:"Breakout",x:"5 Oct closes at $189.0, above $186, on a body twice the average of the days before."},
+  {k:"D",i:[15],pos:"l",t:"Breakout test holds",x:"9 Oct dips to $186.3, 30 cents above the old ceiling, and closes higher."},
+  {k:"E",i:[18],pos:"h",t:"Stall below the target",x:"15 Oct reaches $193.8 and closes below its open; 16 Oct closes lower again."}];
+$("#paMarks").innerHTML=MARKS.map(m=>`<div><i>${m.k}</i><span><b>${m.t}.</b> ${m.x}</span></div>`).join("");
+function candles(){const el=$("#candles");reg("candles",()=>{
+  const w=W(el),narrow=w<560,h=narrow?270:320,ml=40,mr=narrow?44:92,mt=22,mb=26,pw=w-ml-mr,ph=h-mt-mb,n=PA.length;
+  const lo=175,hi=197,y=v=>mt+ph-(v-lo)/(hi-lo)*ph,band=pw/n,cx=i=>ml+band*i+band/2,bw=Math.max(3,Math.min(11,band*0.6));
+  let s=`<svg viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" role="img" aria-label="Daily candles for one month with the 20-day average and key levels">`;
+  niceTicks(lo,hi,5).forEach(t=>{if(t<lo||t>hi)return;s+=`<line class="gridl" x1="${ml}" x2="${ml+pw}" y1="${y(t)}" y2="${y(t)}"/><text class="tx" x="${ml-6}" y="${y(t)+4}" text-anchor="end">$${t}</text>`;});
+  // levels
+  const lvl=(v,cls,dash,lab,short)=>{s+=`<line x1="${ml}" x2="${ml+pw}" y1="${y(v)}" y2="${y(v)}" class="${cls}" stroke-width="${cls==="k1"?2:1.5}" ${dash?'stroke-dasharray="4 4"':""}/><text class="tx2" x="${ml+pw+6}" y="${y(v)+4}">${narrow?short:lab}</text>`;};
+  // pattern drawings: the box (trading range), rising trend line through higher lows, measured-move bracket
+  s+=`<rect x="${cx(0)-band/2}" y="${y(LV.ceil)}" width="${cx(10)-cx(0)+band}" height="${y(LV.floor)-y(LV.ceil)}" class="f1" opacity=".09"/>`;
+  s+=`<text class="tx2" x="${cx(0)-band/2+6}" y="${y(LV.floor)-6}">${narrow?"Box, $9":"Box: $177 to $186, $9 tall"}</text>`;
+  {const i0=5,i1=15,v0=PA[i0].l,v1=PA[i1].l,sl=(v1-v0)/(i1-i0),iE=n-1+0.4;s+=`<line x1="${cx(i0)}" y1="${y(v0)}" x2="${cx(n-1)+band*0.4}" y2="${y(v0+sl*(iE-i0))}" class="k6" stroke-width="1.5" stroke-dasharray="6 4"/>`;
+    if(!narrow)s+=`<text class="tx2" x="${cx(8)}" y="${y(v0+sl*3)+16}" text-anchor="middle" transform="rotate(${(-Math.atan2(y(v0)-y(v1),cx(i1)-cx(i0))*180/Math.PI).toFixed(1)} ${cx(8)} ${y(v0+sl*3)+16})">higher lows</text>`;}
+  {const bx=Math.min(cx(n-1)+band*0.8,ml+pw-3);s+=`<line x1="${bx}" x2="${bx}" y1="${y(LV.ceil)-3}" y2="${y(LV.target)+3}" class="kd" stroke-width="1.5" marker-end="url(#arr)"/>`;
+    s+=`<text class="tx2" x="${ml+pw+6}" y="${(y(LV.ceil)+y(LV.target))/2+4}">+$9</text>`;}
+  s=s.replace('role="img"','role="img"')+`<defs><marker id="arr" viewBox="0 0 8 8" refX="6" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L8,4L0,8Z" style="fill:var(--deemph)"/></marker></defs>`;
+  lvl(LV.target,"kd",true,"$195 target","$195");lvl(LV.ceil,"k1",false,"$186 floor","$186");lvl(LV.floor,"kd",true,"$177 box floor","$177");
+  // EMA
+  s+=`<path class="ln k2" d="${PA_EMA.map((v,i)=>(i?"L":"M")+cx(i).toFixed(1)+","+y(v).toFixed(1)).join("")}"/>`;
+  // candles
+  PA.forEach((b,i)=>{const up=b.c>=b.o,cls=up?4:5,top=y(Math.max(b.o,b.c)),bh=Math.max(1.5,Math.abs(y(b.o)-y(b.c)));
+    s+=`<line x1="${cx(i)}" x2="${cx(i)}" y1="${y(b.h)}" y2="${y(b.l)}" class="k${cls}" stroke-width="1.5"/><rect x="${cx(i)-bw/2}" y="${top}" width="${bw}" height="${bh}" rx="1.5" class="f${cls}"/>`;});
+  // marks
+  MARKS.forEach(m=>m.i.forEach(i=>{const b=PA[i],yy=m.pos==="h"?y(b.h)-13:y(b.l)+13;s+=`<g class="mk"><circle cx="${cx(i)}" cy="${yy}" r="8"/><text x="${cx(i)}" y="${yy+3.6}" text-anchor="middle">${m.k}</text></g>`;}));
+  // x labels
+  const every=narrow?5:3;PA.forEach((b,i)=>{if(i%every===0||i===n-1)s+=`<text class="tx" x="${cx(i)}" y="${h-8}" text-anchor="middle">${b.d}</text>`;});
+  // hit bands
+  PA.forEach((b,i)=>{s+=`<rect x="${ml+band*i}" y="${mt}" width="${band}" height="${ph}" fill="transparent" data-tip="${b.d} · close $${b.c.toFixed(1)}\nOpen ${b.o.toFixed(1)} · High ${b.h.toFixed(1)}\nLow ${b.l.toFixed(1)} · 20-day avg ${PA_EMA[i].toFixed(1)}\nVolume ${b.v}M"/>`;});
+  s+="</svg>";el.innerHTML=s;},()=>({head:["Day","Open","High","Low","Close","20-day avg","Volume, M"],rows:PA.map((b,i)=>[b.d,b.o.toFixed(1),b.h.toFixed(1),b.l.toFixed(1),b.c.toFixed(1),PA_EMA[i].toFixed(1),b.v])}));}
+candles();
+const PA_AVGV=Math.round(PA.filter((_,i)=>i!==11).reduce((a,b)=>a+b.v,0)/(PA.length-1));
+function paVol(){const el=$("#paVol");reg("paVol",()=>{
+  const w=W(el),h=170,ml=40,mr=8,mt=22,mb=26,pw=w-ml-mr,ph=h-mt-mb,n=PA.length,ymax=100,y=v=>mt+ph-v/ymax*ph,band=pw/n,bw=Math.max(3,Math.min(11,band*0.6));
+  let s=`<svg viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" role="img" aria-label="Daily volume">`;
+  [0,50,100].forEach(t=>{s+=`<line class="${t?"gridl":"axisl"}" x1="${ml}" x2="${w-mr}" y1="${y(t)}" y2="${y(t)}"/><text class="tx" x="${ml-6}" y="${y(t)+4}" text-anchor="end">${t}M</text>`;});
+  s+=`<line x1="${ml}" x2="${w-mr}" y1="${y(PA_AVGV)}" y2="${y(PA_AVGV)}" class="k2" stroke-width="1.5" stroke-dasharray="4 4"/>`;
+  PA.forEach((b,i)=>{const x=ml+band*i+band/2-bw/2,yy=y(b.v);s+=`<path class="${i===11?"f4":"fd"} hov" d="${topRound(x,yy,bw,mt+ph-yy,3)}" data-tip="${b.v}M shares\n${b.d}"/>`;});
+  const bx=ml+band*11+band/2;s+=`<text class="tx3" x="${bx}" y="${y(88)-6}" text-anchor="${bx>w-80?"end":"middle"}">88M, 5 Oct</text>`;
+  s+=`<text class="tx2 halo" x="${ml+4}" y="${mt-8}">Dashed line: average ${PA_AVGV}M a day</text>`;
+  [0,10,20].forEach(i=>{s+=`<text class="tx" x="${ml+band*i+band/2}" y="${h-8}" text-anchor="${i===20?"end":i===0?"start":"middle"}">${PA[i].d}</text>`;});
+  s+="</svg>";el.innerHTML=s;},()=>({head:["Day","Volume, M"],rows:PA.map(b=>[b.d,b.v])}));}
+paVol();
+(function(){const last=PA[PA.length-1],hiB=PA.reduce((a,b)=>b.h>a.h?b:a),loB=PA.reduce((a,b)=>b.l<a.l?b:a);
+  const ups=PA.filter(b=>b.c>b.o).length,avgMove=PA.reduce((a,b,i)=>a+Math.abs(b.c/(i?PA[i-1].c:PA_PREV)-1),0)/PA.length*100;
+  const st=[["One-month change",sgn((last.c/PA_PREV-1)*100)+"%",`$${PA_PREV} to $${last.c}`],["Month range",`$${loB.l.toFixed(1)} to $${hiB.h.toFixed(1)}`,`low ${loB.d}, high ${hiB.d}`],["Up days",`${ups} of ${PA.length}`,"close above open"],["Average daily move",avgMove.toFixed(1)+"%","close to close"],["vs 20-day average",sgn((last.c/PA_EMA[PA_EMA.length-1]-1)*100)+"%","at the last close"],["Breakout volume",(88/PA_AVGV).toFixed(1)+"×","of a normal day"]];
+  $("#paStats").innerHTML=st.map(([l,v,d])=>`<div><div class="l">${l}</div><div class="v">${v}</div><div class="d">${d}</div></div>`).join("");})();
+const SCAN=[["Trend","20-day average filter","Higher highs and higher lows since 25 Sep. 0 of the last 15 closes fell below the 20-day average; the book allows 1 for a strong trend.","ok","● Strong up"],
+ ["Breakout","Big bar beyond a level","5 Oct closed at $189.0, above $186. Body 2.1× the average of the 11 days before, close in the top 10% of the day, volume 1.6×.","ok","● Found"],
+ ["Breakout test","Old ceiling becomes floor","9 Oct low $186.3, 30 cents above $186, then closed higher.","ok","● Held"],
+ ["Measured move","Height of the box, projected","$186 plus the $9 box height gives about $195. High so far $193.8.","watch","▲ Near target"],
+ ["Climax run","10+ bars without a pullback","5 days in a row of higher lows (9 to 15 Oct). Far from the 10 the book calls a climax.","none","○ Not stretched"],
+ ["Wedge, three pushes","Exhaustion after a third push","Two pushes up so far (7 and 15 Oct). A third that fails would form a wedge top.","watch","▲ Watch"],
+ ["Failed breakout","Final flag","Would show as a daily close back below $186. None so far.","none","○ Not seen"]];
+$("#paScan").innerHTML=SCAN.map(([n,s2,x,c,l])=>`<div class="r"><div class="n">${n}<small>${s2}</small></div><div class="x">${x}</div><span class="status ${c}">${l}</span></div>`).join("");
+htmlTable($("#paLevels"),["Level","Price","Why it matters"],[["Measured-move target","$195","Box height added to the breakout"],["Month high","$193.8","Where the rally stalled, 15 Oct"],["20-day average","$187.6","Trend line traders watch"],["Old ceiling, now floor","$186","A close below would undo the breakout"],["Box floor","$177","The month’s low, 25 Sep"]],true);
+
+// ---------- forecasts ----------
+const FY=[...Y,2026,2027,2028,2029,2030];
+const proj=g=>{const a=Array(Y.length-1).fill(null);let v=D.revenue[10];a.push(v);for(let i=0;i<5;i++){v*=1+g;a.push(+v.toFixed(1));}return a;};
+const act=[...D.revenue,null,null,null,null,null];
+lines("fan",{label:"Sales history and scenarios",cats:FY,series:[{name:"Reported",cls:1,v:act,labelAbove:true},{name:"Bull, 9%",short:"Bull",cls:4,v:proj(0.09),dash:true},{name:"Base, 6%",short:"Base",cls:2,v:proj(0.06),dash:true},{name:"Bear, 2%",short:"Bear",cls:5,v:proj(0.02),dash:true}],band:{lo:proj(0.02),hi:proj(0.09),cls:2},fmt:fB,axisFmt:v=>"$"+v,yMin:0,legend:"fanLeg",endLabelW:56,catFmt:yl,height:250});
+const SC=[{k:"Bear",cls:5,g:"2%",m:"29%",b:"2%",v:V.bear,need:"iPhone sales shrink and services slow to 6% a year."},{k:"Base",cls:2,g:"6%",m:"32%",b:"3%",v:V.base,need:"Today's mix keeps going."},{k:"Bull",cls:4,g:"9%",m:"34%",b:"3%",v:V.bull,need:"AI features start a new upgrade cycle."}];
+$("#scen").innerHTML=`<table><thead><tr><th></th>${SC.map(c=>`<th><span class="lh"><i class="lk b${c.cls}"></i>${c.k}</span></th>`).join("")}</tr></thead><tbody>`
+  +[["Sales growth a year","g"],["Operating margin 2030","m"],["Shares bought back a year","b"]].map(([l,f])=>`<tr><td>${l}</td>${SC.map(c=>`<td>${c[f]}</td>`).join("")}</tr>`).join("")
+  +`<tr><td>Value per share</td>${SC.map(c=>`<td>$${c.v.toFixed(0)}</td>`).join("")}</tr></tbody></table>`;
+$("#believe").innerHTML=SC.map(c=>`<div><i class="lk b${c.cls}"></i><span><b>${c.k} needs:</b> ${c.need}</span></div>`).join("");
+function heat(){const el=$("#heat");const ws=[0.065,0.07,0.075,0.08,0.085],ts=[0.02,0.025,0.03,0.035,0.04];
+  let s=`<div class="heat" style="grid-template-columns:52px repeat(${ts.length},1fr)"><div class="h"></div>`+ts.map(t=>`<div class="h">${(t*100).toFixed(1)}%</div>`).join("");
+  ws.forEach(w=>{s+=`<div class="h" style="text-align:right;padding-right:6px">${(w*100).toFixed(1)}%</div>`;ts.forEach(t=>{const v=dcf(BASE[0],BASE[1],w,t);const d=Math.max(-1,Math.min(1,(v-PRICE)/(PRICE*0.5)));const pct=Math.round(Math.abs(d)*85);
+    const bg=`color-mix(in oklab, ${d>=0?"var(--div-pos)":"var(--div-neg)"} ${pct}%, var(--div-mid))`;s+=`<div class="c" style="background:${bg};color:${pct>45?"#fff":"var(--ink)"}" data-tip="$${v.toFixed(0)} per share\nDiscount ${(w*100).toFixed(1)}%, growth ${(t*100).toFixed(1)}%">$${v.toFixed(0)}</div>`;});});
+  el.innerHTML=s+"</div>";}
+heat();
+columns("maturity",{label:"Debt maturities",cats:["2026","2027","2028","2029","2030","Later"],series:[{name:"Due",cls:5,v:[11.0,9.9,12.3,6.8,5.3,52.0]}],fmt:fB,axisFmt:v=>"$"+v,labelLast:true,height:190});
+
+// ---------- sources table ----------
+htmlTable($("#srcTable"),["Part","Source","Licence and cost","Phase"],[
+ ["Eleven years of numbers","SEC company facts (XBRL)","US government data, free. 10 requests a second.","1"],
+ ["Scorecard, scenarios, value range","Thesis model on the numbers above","Ours","1"],
+ ["Segments, regions, customers above 10%","SEC XBRL tables with dimensions (Financial Statement and Notes data sets, or each filing's XBRL)","Free","2"],
+ ["Who depends on Apple","Other companies' filings that tag Apple as a major customer","Free","2"],
+ ["Owners, insiders, 5% holders","SEC 13F, Forms 3/4/5 and 13D/13G data","Free","2"],
+ ["Board and pay","Proxy statement tagged tables","Free","2"],
+ ["Events","8-K item codes","Free","2"],
+ ["Economy outlooks","World Bank and OECD forecasts","Open licence (CC BY 4.0). IMF needs written permission for paid apps.","2"],
+ ["Legal entities by country","Exhibit 21 and GLEIF","Free; GLEIF is CC0","2"],
+ ["Price, price history, multiples","A licensed end-of-day price feed","Paid. Free tiers forbid showing prices in an app.","3"],
+ ["Named suppliers, risk changes, guidance","Filing text read by the language model, once per filing","LLM budget, shared by all users","4"]
+],true);
+
+// ---------- price input ----------
+function setPrice(p){if(!(p>0))return;PRICE=p;heroRange();kpis();ratios();scores();charts.football.render();heat();}
+$("#price").addEventListener("input",e=>setPrice(parseFloat(e.target.value)));
+heroRange();kpis();ratios();scores();
+
+// ---------- story layer: chapter numbers, chart numbers, cross-references, reading mode ----------
+const SECS=[...document.querySelectorAll("main section")];
+SECS.forEach((sec,i)=>{const a=document.querySelector(`#chipnav a[href="#${sec.id}"]`);const k=sec.querySelector(".sec-kicker");if(a&&k)k.insertAdjacentHTML("afterbegin",`<span class="chap">${String(i+1).padStart(2,"0")} · ${esc(a.textContent)}</span>`);});
+const FIG=new Map();let fn=0;
+document.querySelectorAll("main .card").forEach(c=>{const h=c.querySelector("h3");if(!h)return;fn++;FIG.set(c,fn);h.insertAdjacentHTML("beforebegin",`<div class="fignum">Chart ${fn}</div>`);});
+document.querySelectorAll(".figref").forEach(a=>{const t=document.getElementById(a.dataset.ref);const c=t&&t.closest(".card");if(c&&FIG.has(c)){a.textContent="Chart "+FIG.get(c);a.href="#"+a.dataset.ref;}else{a.textContent="the chart";console.warn("figref missing",a.dataset.ref);}});
+const rmb=[...document.querySelectorAll(".readmode button")];
+function setMode(m){document.body.classList.toggle("charts-only",m==="charts");rmb.forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.mode===m)));try{localStorage.setItem("dd-mode",m);}catch(e){}}
+rmb.forEach(b=>b.addEventListener("click",()=>setMode(b.dataset.mode)));
+try{const m=localStorage.getItem("dd-mode");if(m==="story"||m==="charts")setMode(m);}catch(e){}
+
+// ---------- theme toggle ----------
+const tb=$("#themeBtn");const modes=["auto","light","dark"];let mi=0;
+try{const saved=localStorage.getItem("dd-theme");if(saved&&modes.includes(saved))mi=modes.indexOf(saved);}catch(e){}
+function applyTheme(){const m=modes[mi];if(m==="auto")document.documentElement.removeAttribute("data-theme");else document.documentElement.setAttribute("data-theme",m);tb.innerHTML=`<span class="l">Theme: </span>${m[0].toUpperCase()+m.slice(1)}`;tb.setAttribute("aria-label","Theme: "+m+". Switch light or dark");}
+tb.addEventListener("click",()=>{mi=(mi+1)%3;applyTheme();try{localStorage.setItem("dd-theme",modes[mi]);}catch(e){}});
+applyTheme();
+
+// ---------- chip nav highlight ----------
+const links=[...document.querySelectorAll("#chipnav a")];
+const io=new IntersectionObserver(ents=>{ents.forEach(en=>{if(en.isIntersecting){links.forEach(a=>a.classList.toggle("on",a.getAttribute("href")==="#"+en.target.id));const on=links.find(a=>a.classList.contains("on"));if(on){const nav=$("#chipnav");nav.scrollTo({left:on.offsetLeft-nav.clientWidth/2+on.clientWidth/2,behavior:"smooth"});}}});},{rootMargin:"-45% 0px -50% 0px"});
+document.querySelectorAll("main section").forEach(s=>io.observe(s));
+
+// ---------- responsive re-render ----------
+let rt;const ro=new ResizeObserver(()=>{clearTimeout(rt);rt=setTimeout(()=>{Object.values(charts).forEach(c=>c.render());heroRange();},120);});
+ro.observe(document.querySelector("main"));
+})();
+</script>
