@@ -22,6 +22,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -487,6 +488,8 @@ private fun InfoCard(
     }
 }
 
+@Composable
+@ReadOnlyComposable
 private fun impactColor(level: String): Color =
     when (level.lowercase()) {
         "critical", "high" -> ThesisColors.SignalNegative

@@ -31,6 +31,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -1028,6 +1029,8 @@ private fun formatMacroStressLabel(label: String?): String = when (label?.lowerc
     else -> "Unavailable"
 }
 
+@Composable
+@ReadOnlyComposable
 private fun macroStressColor(label: String?): Color = when (label?.lowercase()) {
     "extreme_fear", "fear", "high_stress", "elevated", "elevated_pressure" -> ThesisColors.SignalNegative
     "greed", "extreme_greed", "low_stress", "risk_on", "low_pressure" -> ThesisColors.SignalPositive

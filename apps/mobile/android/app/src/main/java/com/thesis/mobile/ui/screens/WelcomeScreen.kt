@@ -92,7 +92,7 @@ fun WelcomeScreen(
                 ) {
                     Text(
                         text = "T",
-                        style = ThesisTypography.displayLarge.copy(fontSize = 48.sp, fontWeight = FontWeight.Black),
+                        style = ThesisTypography.displayLarge.copy(fontSize = 48.sp),
                         color = Color.White
                     )
                 }
@@ -102,7 +102,7 @@ fun WelcomeScreen(
                 // Title
                 Text(
                     text = "Thesis",
-                    style = ThesisTypography.displayLarge.copy(fontSize = 52.sp, fontWeight = FontWeight.Black),
+                    style = ThesisTypography.displayLarge.copy(fontSize = 52.sp),
                     color = ThesisColors.TextPrimaryDark,
                     letterSpacing = (-1).sp
                 )

@@ -31,6 +31,7 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -788,6 +789,8 @@ private fun TrustBadge(
     }
 }
 
+@Composable
+@ReadOnlyComposable
 private fun trustStateColor(state: String?): Color {
     return when {
         state.equals("fresh", ignoreCase = true) -> ThesisColors.SignalPositive
@@ -1379,6 +1382,8 @@ private data class HighlightCard(
     val isCaution: Boolean = false
 )
 
+@Composable
+@ReadOnlyComposable
 private fun deriveHighlights(report: DeepDiveReportView): List<HighlightCard> {
     val sections = report.sections.filter { it.body.isNotBlank() }
     val lead = sections.getOrNull(0)?.body?.let(::summarize)
@@ -1471,18 +1476,24 @@ private fun deepDiveFieldColors() = OutlinedTextFieldDefaults.colors(
     unfocusedLabelColor = ThesisColors.TextMuted
 )
 
+@Composable
+@ReadOnlyComposable
 private fun signalContainerColor(signal: String?): Color = when (signal?.uppercase()) {
     "POSITIVE" -> ThesisColors.SignalPositive.copy(alpha = 0.08f)
     "NEGATIVE" -> ThesisColors.SignalNegative.copy(alpha = 0.08f)
     else -> ThesisColors.Surface
 }
 
+@Composable
+@ReadOnlyComposable
 private fun signalBorderColor(signal: String?): Color = when (signal?.uppercase()) {
     "POSITIVE" -> ThesisColors.SignalPositive.copy(alpha = 0.2f)
     "NEGATIVE" -> ThesisColors.SignalNegative.copy(alpha = 0.2f)
     else -> ThesisColors.Border
 }
 
+@Composable
+@ReadOnlyComposable
 private fun signalTextColor(signal: String?): Color = when (signal?.uppercase()) {
     "POSITIVE" -> ThesisColors.SignalPositive
     "NEGATIVE" -> ThesisColors.SignalNegative

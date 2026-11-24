@@ -54,10 +54,12 @@ fun ConfidenceRing(
         modifier = modifier.size(ThesisDimens.ConfidenceRingSize),
         contentAlignment = Alignment.Center
     ) {
+        val trackColor = ThesisColors.Border
+        val arcColor = ThesisColors.Primary
         Canvas(modifier = Modifier.size(ThesisDimens.ConfidenceRingSize)) {
             // Background track
             drawArc(
-                color = ThesisColors.Border,
+                color = trackColor,
                 startAngle = 0f,
                 sweepAngle = 360f,
                 useCenter = false,
@@ -69,7 +71,7 @@ fun ConfidenceRing(
             // Animated gold arc
             if (sweepAnim.value > 0) {
                 drawArc(
-                    color = ThesisColors.Primary,
+                    color = arcColor,
                     startAngle = -90f,
                     sweepAngle = sweepAnim.value,
                     useCenter = false,

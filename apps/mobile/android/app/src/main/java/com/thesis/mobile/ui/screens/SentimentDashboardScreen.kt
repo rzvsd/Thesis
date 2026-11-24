@@ -30,6 +30,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.Composable
@@ -520,6 +521,8 @@ private fun formatDashboardLabel(label: String?): String = when (label?.lowercas
     else -> "Unavailable"
 }
 
+@Composable
+@ReadOnlyComposable
 private fun dashboardLabelColor(label: String?): Color = when (label?.lowercase()) {
     "extreme_fear", "fear", "high_stress", "elevated", "elevated_pressure" -> ThesisColors.SignalNegative
     "greed", "extreme_greed", "low_stress", "risk_on", "low_pressure" -> ThesisColors.SignalPositive
@@ -571,12 +574,13 @@ private fun SentimentGaugeCard(
                     .size(220.dp, 140.dp),
                 contentAlignment = Alignment.Center
             ) {
+                val trackColor = ThesisColors.ConfidenceRingBg
                 Canvas(modifier = Modifier.fillMaxSize()) {
                     val stroke = Stroke(width = 18.dp.toPx(), cap = StrokeCap.Round)
                     val arcSize = Size(size.width, size.width)
                     val topLeft = androidx.compose.ui.geometry.Offset(0f, size.height - arcSize.height)
                     drawArc(
-                        color = ThesisColors.ConfidenceRingBg,
+                        color = trackColor,
                         startAngle = 180f,
                         sweepAngle = 180f,
                         useCenter = false,
