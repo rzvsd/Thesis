@@ -35,7 +35,7 @@ jobs:
       # Fixture data unless the owner sets the repository variable THESIS_DATA_LIVE to "true".
       DATA_OPENBB_FIXTURE_MODE: ${{ vars.THESIS_DATA_LIVE == 'true' && 'false' || 'true' }}
       PRICE_PROVIDER: ${{ vars.PRICE_PROVIDER || 'none' }}
-      SEC_USER_AGENT: ${{ vars.SEC_USER_AGENT }}
+      SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT || vars.SEC_USER_AGENT }}
       STEP_TIMEOUT_SECONDS: "240"
       PYTHONUNBUFFERED: "1"
       PYTHONDONTWRITEBYTECODE: "1"
