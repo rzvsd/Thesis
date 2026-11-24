@@ -22,19 +22,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
-data class LaunchTarget(
-    val tab: String,
-    val alertId: String? = null,
-    val reportId: String? = null,
-    val warRoomId: String? = null,
-    val scenarioId: String? = null,
-    val scenarioRunId: String? = null,
-    val pulseDate: String? = null,
-    val digestDate: String? = null,
-    val notificationType: String? = null,
-    val ticker: String? = null,
-    val requestId: Long = System.nanoTime()
-)
+/** Kept under its old name for existing callers; the class lives in `ui/navigation` so routing is testable. */
+typealias LaunchTarget = com.thesis.mobile.ui.navigation.LaunchTarget
 
 class MainActivity : FragmentActivity() {
     private var launchTarget by mutableStateOf<LaunchTarget?>(null)
