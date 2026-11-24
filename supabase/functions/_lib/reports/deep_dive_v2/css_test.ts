@@ -96,6 +96,13 @@ Deno.test("PAGE_CSS: print rules", () => {
   assertStringIncludes(PRINT_RULES, "@bottom-right{content:counter(page)");
   assertStringIncludes(PRINT_RULES, ".card,.kpis,.upshot");
   assertStringIncludes(PRINT_RULES, "break-inside:avoid");
+  // "Charts only" is a screen mode: the PDF always keeps the story, upshots and the big question
+  assertStringIncludes(
+    PAGE_CSS,
+    "@media screen{body.charts-only .story,body.charts-only .upshot,body.charts-only .bigq{display:none}}",
+  );
+  // short app bar labels up to 600px, so a sample page's bar (pill + Save PDF + theme) never scrolls sideways
+  assertStringIncludes(PAGE_CSS, "@media (max-width:600px){.sample-pill .l,.iconbtn .l{display:none}");
   // the "Show table" tables stay closed in the PDF, as on screen
   assertStringIncludes(PRINT_RULES, "details.tbl{display:none!important}");
   assert(!PRINT_RULES.includes("details-content"));

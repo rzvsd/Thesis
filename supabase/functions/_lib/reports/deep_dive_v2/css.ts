@@ -73,7 +73,7 @@ button,input{font:inherit;color:inherit}
 .iconbtn:hover{background:var(--chip)}
 .iconbtn .l{margin-right:.3em}
 .sample-pill .s,.iconbtn .s{display:none}
-@media (max-width:560px){.sample-pill .l,.iconbtn .l{display:none}.sample-pill .s{display:inline}.appbar .wrap{gap:10px}}
+@media (max-width:600px){.sample-pill .l,.iconbtn .l{display:none}.sample-pill .s{display:inline}.appbar .wrap{gap:10px}}
 @media (max-width:380px){.appbar .wrap{gap:8px}.appbar .iconbtn{padding:0 10px}.appbar .sample-pill~.spacer~.iconbtn{padding:0 8px}.appbar .brand:has(~.sample-pill){display:none}}
 
 /* chip nav */
@@ -234,7 +234,7 @@ h2{font:500 clamp(26px,4.2vw,32px)/1.1 var(--f-display);margin:0;letter-spacing:
 .upshot{margin:0;max-width:68ch;padding:10px 0 10px 16px;border-left:3px solid var(--accent);font-size:15.5px;line-height:1.55;color:var(--ink-2)}
 .upshot b{color:var(--ink)}
 .fignum{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:-6px}
-body.charts-only .story,body.charts-only .upshot,body.charts-only .bigq{display:none}
+@media screen{body.charts-only .story,body.charts-only .upshot,body.charts-only .bigq{display:none}}
 .readmode{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:13px;color:var(--hero-ink-2)}
 .readmode span{margin-right:4px}
 .readmode button{border:1px solid var(--hero-line);background:transparent;color:var(--hero-ink);border-radius:999px;height:32px;padding:0 14px;font-size:13px;font-weight:500;cursor:pointer}

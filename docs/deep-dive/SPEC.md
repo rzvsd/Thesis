@@ -396,12 +396,13 @@ Where the build differs from the sections above, this section records what the c
   adds the theme switch, the reading switch, the chip highlight and the price box. The share page `GET /r/:token`
   uses it and falls back to the v1 layout if it throws (log `deep_dive_v2_render_failed`).
 - **PDF (2026-11-24):** the PDF is the page printed, so it always matches the page. The share page has a "Save
-  PDF" button (`window.print()`). In the app, Export PDF prints the loaded in-app page with Android's print
-  framework (`DeepDivePagePrinter`, system dialog, "Save as PDF"); the classic view and an offline copy keep the
-  app's own PDF. Print CSS: A4, light colours, no app chrome, the cover on page 1, chapters flowing with a thin rule
+  PDF" button (`window.print()`). In the app, Export PDF used to draw its own one-page PDF (`createPdfExport` in
+  `ReportExport.kt`); it now prints the loaded in-app page with Android's print framework (`DeepDivePagePrinter`,
+  system dialog, "Save as PDF"). The classic view and an offline copy keep `createPdfExport`. The print always
+  holds the full story: "Charts only" applies on screen only. Print CSS: A4, light colours, no app chrome, the cover on page 1, chapters flowing with a thin rule
   between them, the "Show table" tables closed as on screen, page numbers bottom right. A typed price is printed.
-  The M4 route `GET /v1/reports/:id/export/pdf` (old institutional layout, no browser) is no longer called by the
-  app for Deep Dives; it stays for API clients until cleanup.
+  The M4 route `GET /v1/reports/:id/export/pdf` (old institutional layout, no browser) is not called by the app
+  (contract.md lists it under routes Kotlin does not call) and is unchanged.
 - **In the app (D3, 2026-11-24):** `GET /v1/reports/:id/page` (user bearer token) serves the same page, with the
   same access rules as `GET /reports/:id`, the same CSP and the same editorial fallback as the share page, and
   `cache-control: private, no-store`. Loading and the fallback are shared code (`_lib/reports/deep_dive_page.ts`).
