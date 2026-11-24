@@ -64,7 +64,6 @@ fun WeeklyDigestScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(ThesisColors.Background)
     ) {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),

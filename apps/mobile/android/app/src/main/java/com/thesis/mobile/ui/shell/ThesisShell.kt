@@ -218,7 +218,8 @@ internal fun titleOf(destination: Destination, state: UiState): String = when (d
     is Destination.Name -> destination.ticker
     is Destination.CompareReports -> "Compare reports"
     is Destination.CompareNames -> "Compare names"
-    Destination.You, is Destination.YouPage -> "You"
+    // You's page carries its own "You" headline; the bar only closes it (no repeated words, rubric V3).
+    Destination.You, is Destination.YouPage -> ""
     Destination.Search -> "Search"
     is Destination.Paywall -> "Thesis Pro"
     else -> ""

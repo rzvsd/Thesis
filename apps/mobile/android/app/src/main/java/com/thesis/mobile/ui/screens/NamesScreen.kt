@@ -130,8 +130,7 @@ fun NamesScreen(
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .padding(padding)
-            .background(ThesisColors.Background),
+            .padding(padding),
         contentPadding = PaddingValues(
             horizontal = ThesisDimens.ScreenPaddingHorizontal,
             vertical = ThesisDimens.SpacingLg

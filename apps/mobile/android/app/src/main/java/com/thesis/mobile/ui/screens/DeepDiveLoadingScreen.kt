@@ -100,7 +100,6 @@ fun DeepDiveLoadingScreen(modifier: Modifier = Modifier) {
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(ThesisColors.Background)
     ) {
         Column(
             modifier = Modifier
