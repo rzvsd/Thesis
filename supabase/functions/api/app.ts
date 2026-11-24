@@ -6,6 +6,7 @@ import {
   supabaseUserVerifier,
   type UserVerifier,
 } from "../_shared/auth.ts";
+import { resetDb } from "../_shared/db.ts";
 import { env } from "../_shared/env.ts";
 import { apiError, json } from "../_shared/http.ts";
 import { logError } from "../_shared/log.ts";
@@ -64,6 +65,34 @@ export async function capBody(req: Request, limit: number): Promise<Request | Re
   return new Request(req.url, { method: req.method, headers: req.headers, body: bytes });
 }
 
+// A request that has not answered by its deadline gets a 503 instead of hanging until the platform kills the
+// worker (an alerts read hung 87 s and ended as 546 on 2026-11-24). Internal routes run jobs and keep the
+// platform's own limit. REQUEST_TIMEOUT_MS overrides the user-route deadline.
+const DEFAULT_REQUEST_TIMEOUT_MS = 25_000;
+
+export function requestDeadlineMs(mode: AuthMode): number | null {
+  if (mode === "internal") return null;
+  const n = Number(env("REQUEST_TIMEOUT_MS"));
+  return Number.isInteger(n) && n > 0 ? n : DEFAULT_REQUEST_TIMEOUT_MS;
+}
+
+export class DeadlineExceeded extends Error {
+  override name = "DeadlineExceeded";
+}
+
+export async function withDeadline<T>(work: Promise<T>, ms: number | null): Promise<T> {
+  if (ms === null) return await work;
+  let timer: number | undefined;
+  const late = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new DeadlineExceeded(`No answer after ${ms} ms`)), ms);
+  });
+  try {
+    return await Promise.race([work, late]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export async function handle(
   req: Request,
   verifyUser: UserVerifier = supabaseUserVerifier,
@@ -86,9 +115,19 @@ export async function handle(
   const capped = await capBody(req, bodyLimit(found.route.auth));
   if (capped instanceof Response) return capped;
 
+  const started = Date.now();
   try {
-    return await found.route.handler({ req: capped, url, path, params: found.params, auth: auth.ctx });
+    const work = Promise.resolve(
+      found.route.handler({ req: capped, url, path, params: found.params, auth: auth.ctx }),
+    );
+    return await withDeadline(work, requestDeadlineMs(found.route.auth));
   } catch (err) {
+    if (err instanceof DeadlineExceeded) {
+      // The usual cause is a database connection that stopped answering. Start the next query on a fresh one.
+      resetDb();
+      logError("Request deadline exceeded", { path: found.route.path, ms: Date.now() - started });
+      return apiError(503, "timeout", "The server took too long to answer. Please try again.");
+    }
     logError("Unhandled error", {
       path: found.route.path,
       error: err instanceof Error ? err.name : "unknown",

@@ -1,5 +1,6 @@
 import { assert, assertEquals, assertThrows } from "jsr:@std/assert@1.0.13";
-import { appPath, capBody, handle } from "./app.ts";
+import { appPath, capBody, DeadlineExceeded, handle, requestDeadlineMs, withDeadline } from "./app.ts";
+import { DB_OPTIONS } from "../_shared/db.ts";
 import { Router } from "./router.ts";
 import { features } from "./features/index.ts";
 import { healthHandler } from "./features/health/index.ts";
@@ -135,4 +136,30 @@ Deno.test("capBody refuses a body over the limit, streamed or declared (S12)", a
   const ok = await capBody(new Request("http://x", { method: "POST", body: '{"a":1}' }), 1024);
   assert(ok instanceof Request);
   assertEquals(await ok.json(), { a: 1 });
+});
+
+Deno.test("withDeadline answers in time or throws DeadlineExceeded", async () => {
+  assertEquals(await withDeadline(Promise.resolve(7), 50), 7);
+  assertEquals(await withDeadline(Promise.resolve(8), null), 8);
+  let caught: unknown;
+  let release: () => void = () => {};
+  const stuck = new Promise<void>((r) => (release = r));
+  try {
+    await withDeadline(stuck, 10);
+  } catch (err) {
+    caught = err;
+  }
+  release();
+  assert(caught instanceof DeadlineExceeded);
+});
+
+Deno.test("user routes get a request deadline, internal routes do not", () => {
+  assertEquals(requestDeadlineMs("user"), 25_000);
+  assertEquals(requestDeadlineMs("none"), 25_000);
+  assertEquals(requestDeadlineMs("internal"), null);
+});
+
+Deno.test("db client is set up for the transaction pooler", () => {
+  assertEquals(DB_OPTIONS.prepare, false);
+  assert(DB_OPTIONS.connect_timeout > 0 && DB_OPTIONS.connect_timeout <= 15);
 });
