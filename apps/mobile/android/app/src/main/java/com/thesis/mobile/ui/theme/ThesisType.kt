@@ -3,12 +3,14 @@ package com.thesis.mobile.ui.theme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.LineBreak
 import androidx.compose.ui.text.style.LineHeightStyle
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
@@ -17,16 +19,13 @@ import androidx.compose.ui.unit.sp
 /*
  * Design system v2 type scale (docs/app-redesign/DESIGN-DIRECTION.md, section 2.3).
  *
- * Day-0 API stub: style names, sizes, weights and tracking follow the spec so that parallel work can
- * compile against them. Nothing reads them yet; ThesisTypography still holds the shipped styles.
- * F1 owns this file: it swaps the serif placeholders for the bundled Newsreader families
- * (ThesisFonts.kt), rebuilds ThesisTypography from these styles and adds ThesisTypeCapTest.
+ * Serif (Newsreader) for meaning, sans (Roboto) for apparatus. ThesisTypography (the M3 Typography in
+ * ThemeTokens.kt) is built from these styles. Screens use these styles as they are: no .copy(fontWeight = ...).
  */
 
-// Placeholders until ThesisFonts.kt (Android-only, R.font) lands; the harness shims those families.
-private val SerifDisplay: FontFamily = FontFamily.Serif // F1: NewsreaderDisplay
-private val SerifText: FontFamily = FontFamily.Serif // F1: Newsreader
-private val Sans: FontFamily = FontFamily.Default // Roboto on Android, as in the Deep Dive WebView
+private val SerifDisplay: FontFamily get() = ThesisFonts.NewsreaderDisplay
+private val SerifText: FontFamily get() = ThesisFonts.Newsreader
+private val Sans: FontFamily get() = ThesisFonts.Sans
 
 private val CenteredLines = LineHeightStyle(
     alignment = LineHeightStyle.Alignment.Center,
@@ -54,10 +53,17 @@ private fun style(
     lineBreak = if (heading) LineBreak.Heading else LineBreak.Unspecified,
 )
 
-/** Tabular figures: anything that changes value or sits in a column. */
-fun TextStyle.tnum(): TextStyle = copy(fontFeatureSettings = "tnum")
+/**
+ * Tabular figures: anything that changes value or sits in a column. On the serif figure styles (which set
+ * "pnum" while static) this restores Newsreader's default tabular digits.
+ */
+fun TextStyle.tnum(): TextStyle =
+    copy(fontFeatureSettings = if (fontFamily == SerifText || fontFamily == SerifDisplay) null else "tnum")
 
 object ThesisType {
+    // Newsreader has no lnum and its default digits are already tabular lining, so serif styles set no "tnum";
+    // static serif figures set "pnum" (proportional digits look less gappy at 24-40 sp).
+
     // Serif: meaning (titles, claims, story text, headline numbers)
     val display = style(SerifDisplay, FontWeight.Normal, 40.sp, 44.sp, (-0.015).em, heading = true)
     val title = style(SerifDisplay, FontWeight.Normal, 30.sp, 32.sp, (-0.018).em, heading = true)
@@ -70,6 +76,12 @@ object ThesisType {
     val story = style(SerifText, FontWeight.Normal, 17.sp, 27.5.sp)
     val figure = style(SerifText, FontWeight.Medium, 40.sp, 44.sp, (-0.02).em, features = "pnum")
     val kpiValue = style(SerifText, FontWeight.Medium, 24.sp, 28.sp, (-0.01).em, features = "pnum")
+
+    /** [display] for an all-caps ticker ("AAPL"): capitals need positive tracking. */
+    val displayTicker = display.copy(letterSpacing = 0.01.em)
+
+    /** The lead clause of a lede and the lead phrase of a story paragraph: Newsreader 600 (colour set by the caller, ink). */
+    val lead = SpanStyle(fontWeight = FontWeight.SemiBold)
 
     // Sans: apparatus (labels, navigation, tables, axes, buttons)
     val body = style(Sans, FontWeight.Normal, 15.sp, 23.sp)
@@ -93,18 +105,23 @@ object ThesisType {
     /** Largest growth allowed for display, title, figure and numeral under the user's font scale. */
     const val MAX_DISPLAY_SCALE = 1.3f
 
+    /** The smallest size any style uses (only uppercase tracked labels and ticks go below 12 sp). */
+    val MinSize: TextUnit = 11.sp
+
     /**
      * Caps [style]'s size at [MAX_DISPLAY_SCALE] x its base size, measured in dp (not by ratio: Compose 1.6
-     * applies Android 14's non-linear font scaling). Use for display, title, figure and numeral only.
+     * applies Android 14's non-linear font scaling, so `size / fontScale x min(fontScale, 1.3)` can make a
+     * 40 sp title smaller at 2.0x than at 1.0x). Use for display, title, figure and numeral only.
      */
     @Composable
     @ReadOnlyComposable
-    fun capped(style: TextStyle): TextStyle {
+    fun capped(style: TextStyle): TextStyle = cappedFor(style, LocalDensity.current)
+
+    /** [capped] for an explicit [density] (tests, measuring outside composition). */
+    fun cappedFor(style: TextStyle, density: Density): TextStyle {
         if (!style.fontSize.isSp) return style
         val base = style.fontSize.value
-        val size = with(LocalDensity.current) {
-            minOf(style.fontSize.toDp(), (base * MAX_DISPLAY_SCALE).dp).toSp()
-        }
+        val size = with(density) { minOf(style.fontSize.toDp(), (base * MAX_DISPLAY_SCALE).dp).toSp() }
         // Keep the line-height ratio by expressing it in em of the capped size.
         val lineHeight = if (style.lineHeight.isSp) (style.lineHeight.value / base).em else style.lineHeight
         return style.copy(fontSize = size, lineHeight = lineHeight)
