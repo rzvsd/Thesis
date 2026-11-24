@@ -1,0 +1,2 @@
+# Self-test allowlist (substring form).
+ui/shell/ShellFixture.kt:/delay(1000)/ delay  # polling, not animation

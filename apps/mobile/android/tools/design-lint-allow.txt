@@ -1,0 +1,7 @@
+# design-lint allowlist: reviewed exceptions to the token/motion patterns (section 7.2).
+# Format: <path suffix>:<line> [pattern-id]   or   <path suffix>:/<substring of the line>/ [pattern-id]
+# Prefer the substring form: it survives edits above the line. Give the reason after " # ".
+
+# The two polling waits in MainViewModel are timing of network retries, not animation (section 4.2).
+ui/MainViewModel.kt:/delay(PULSE_RETRY_DELAY_MS)/ delay  # Pulse retry back-off
+ui/MainViewModel.kt:/delay(DEEP_DIVE_POLL_INTERVAL_MS)/ delay  # Deep Dive job polling

@@ -1,0 +1,2 @@
+# Self-test copy allowlist (substring form, any copy pattern).
+FixtureCopy.kt:/This one hold is allowlisted/
