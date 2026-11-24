@@ -97,8 +97,9 @@ my @PATTERNS = (
   ['font-family',        qr/FontFamily\./],
   ['font-size',          qr/fontSize\s*=/],
   ['copy-alpha',         qr/\.copy\(alpha/],
-  ['tween',              qr/tween\(/],
-  ['spring',             qr/spring\(/],
+  # \b added to the 7.2 regexes so Duration.between( / ChronoUnit...between( are not counted as tween(.
+  ['tween',              qr/\btween\(/],
+  ['spring',             qr/\bspring\(/],
   ['delay',              qr/\bdelay\(/],
   ['circular-progress',  qr/CircularProgressIndicator\(/],
   ['alert-dialog',       qr/AlertDialog\(/],

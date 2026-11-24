@@ -17,6 +17,8 @@ val l = FontFamily.Serif // LINT: font-family
 val m = TextStyle(fontSize = size) // LINT: font-size
 val n = tween(300) // LINT: tween
 val o = spring(1f, 700f) // LINT: spring
+val o2 = Duration.between(a, b) // between( is not tween(
+val o3 = offspring(1)
 suspend fun p() { delay(10) } // LINT: delay
 fun q() { postDelay(10) }
 val r = @Composable { CircularProgressIndicator() } // LINT: circular-progress
