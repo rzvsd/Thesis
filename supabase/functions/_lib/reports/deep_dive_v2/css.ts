@@ -18,9 +18,10 @@ const LIGHT_TOKENS = `
   --s1:#b48226; --s2:#82498b; --s3:#6b8d38; --s4:#256bb1; --s5:#be5737; --s6:#008e7f;
   --deemph:#B9B1A4; --grid:#EEE8DC; --axis:#CDC3B1;
   --div-pos:#256bb1; --div-neg:#be5737; --div-mid:#ECE6DB;
-  --hero-bg-2:#22303D; --band:#EDE5D5; --hl:rgba(180,130,38,.20); --callout:#F3EADB;
+  --hero-bg-2:#22303D; --hl:rgba(180,130,38,.20); --callout:#F3EADB;
   --card-shadow:0 1px 2px rgba(26,33,40,.04),0 10px 28px -20px rgba(26,33,40,.35);
   --hero-pos:#7FD3A2; --hero-neg:#F2A0A0;
+  --sec-bg-2:#EEE7D8; --glow-a:rgba(180,130,38,.16); --glow-b:rgba(37,107,177,.10);
   color-scheme:light;`;
 
 /** Dark tokens (Thesis app). */
@@ -33,8 +34,9 @@ const DARK_TOKENS = `
   --s1:#ba882e; --s2:#a166aa; --s3:#779a45; --s4:#4c89cc; --s5:#cb6443; --s6:#1aa291;
   --deemph:#5B5B58; --grid:#222222; --axis:#3A3A3A;
   --div-pos:#4c89cc; --div-neg:#cb6443; --div-mid:#2A2A2A;
-  --hero-bg-2:#1A1A1A; --band:#111111; --hl:rgba(197,160,89,.22); --callout:#1C1913; --card-shadow:none;
+  --hero-bg-2:#1A1A1A; --hl:rgba(197,160,89,.22); --callout:#1C1913; --card-shadow:none;
   --hero-pos:#7FD3A2; --hero-neg:#F2A0A0;
+  --sec-bg-2:#161616; --glow-a:rgba(197,160,89,.16); --glow-b:rgba(76,137,204,.14);
   color-scheme:dark;`;
 
 const TOKENS_CSS = `
@@ -290,7 +292,13 @@ const POLISH_CSS = `
 
 main .wrap{gap:0;padding-block:0}
 main section{padding-block:56px 60px}
-main section:nth-of-type(even){background:var(--band);box-shadow:0 0 0 100vmax var(--band);clip-path:inset(0 -100vmax)}
+html{overflow-x:clip}
+/* every chapter carries the cover's background: soft gold glow top right, blue bottom left */
+main section{position:relative;isolation:isolate}
+main section::before{content:"";position:absolute;z-index:-1;top:0;bottom:0;left:calc(50% - 50vw);width:100vw;pointer-events:none;background:
+  radial-gradient(min(70vw,900px) 560px at 100% 0,var(--glow-a) 0,transparent 70%),
+  radial-gradient(min(60vw,760px) 480px at 0 100%,var(--glow-b) 0,transparent 70%),
+  linear-gradient(165deg,var(--bg) 0%,var(--sec-bg-2) 100%)}
 main section + section{border-top:1px solid color-mix(in oklab,var(--line-2) 60%,transparent)}
 
 .sec-head{gap:12px}
@@ -315,7 +323,8 @@ h2{font:400 clamp(30px,5vw,44px)/1.04 var(--f-display);font-variation-settings:"
   --surface:color-mix(in oklab,var(--hero-ink) 5%,var(--hero-bg));--chip:var(--hero-chip);--neg:var(--hero-neg);--pos:var(--hero-pos);
   --callout:color-mix(in oklab,var(--hero-accent) 12%,var(--hero-bg));--hl:color-mix(in oklab,var(--hero-accent) 30%,transparent);--card-shadow:none;
   --grid:var(--hero-line);--axis:var(--hero-line);
-  color:var(--hero-ink);background:var(--hero-bg);box-shadow:0 0 0 100vmax var(--hero-bg);clip-path:inset(0 -100vmax);border-top:0}
+  --glow-a:color-mix(in oklab,var(--hero-accent) 24%,transparent);--glow-b:color-mix(in oklab,var(--s4) 22%,transparent);
+  --bg:var(--hero-bg);--sec-bg-2:var(--hero-bg-2);color:var(--hero-ink);border-top:0}
 #bottom + section{border-top:0}`;
 
 /** States this renderer adds: empty charts, chapters whose data comes in a later phase, the price box. */
@@ -353,8 +362,7 @@ const PRINT_CSS = `
   main section{break-before:page;padding-block:14px 12px;scroll-margin-top:0;display:block}
   main section>*+*{margin-top:18px}
   main section:first-of-type{break-before:auto}
-  main section:nth-of-type(even),#bottom{box-shadow:none;clip-path:none}
-  main section:nth-of-type(even){background:transparent}
+  main section::before{display:none}
   main section + section{border-top:0}
   .card,.kpis,.upshot,.bigq,.pricebox,.stats,.tl .e,.kill .k,.chg,.wrong div{break-inside:avoid}
   h2,h3,.sec-head,.fignum{break-after:avoid}
