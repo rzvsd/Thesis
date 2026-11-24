@@ -30,7 +30,7 @@ jobs:
       # Fixture data unless the owner sets the repository variable THESIS_DATA_LIVE to "true".
       # In fixture mode the step fetches and stores nothing.
       DATA_OPENBB_FIXTURE_MODE: ${{ vars.THESIS_DATA_LIVE == 'true' && 'false' || 'true' }}
-      SEC_USER_AGENT: ${{ vars.SEC_USER_AGENT }}
+      SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT || vars.SEC_USER_AGENT }}
       # "false" leaves the publisher headline feeds out and keeps the official sources.
       NEWS_PUBLISHER_HEADLINES: ${{ vars.NEWS_PUBLISHER_HEADLINES || 'true' }}
       MARKET_PULSE_TICKERS: ${{ vars.MARKET_PULSE_TICKERS }}
