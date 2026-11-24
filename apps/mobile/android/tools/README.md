@@ -1,0 +1,13 @@
+# Android redesign tools
+
+Guards and generators for the redesign (`docs/app-redesign/DESIGN-DIRECTION.md`). Run from `apps/mobile/android`.
+
+| Tool | What it does | Typical use |
+|---|---|---|
+| `design-lint.sh` | Token, motion and copy guard (section 7.2) with a per-file baseline (`design-lint-baseline.txt`) and allowlists (`design-lint-allow.txt`, `design-lint-copy-allow.txt`) | `tools/design-lint.sh` before every commit; `--strict <files>` for a PR-3 WP's owned files; `--update-baseline` when counts go down; `--self-test` after editing the lint |
+| `gold-share.py` | Gold pixel share per render (rubric T3, under 8%) | `python3 tools/gold-share.py design-preview/build/screens` |
+| `fonts/make_newsreader.py` | The five static Newsreader instances in `app/src/main/res/font` (section 2.3) | one-off; `--roman`/`--italic` point at the variable fonts from google/fonts `ofl/newsreader` |
+| `icons/make_icons.py` | `ui/icons/ThesisIcons.kt` from Material Symbols (section 2.8) | add a glyph to `ICONS`, rerun; `--check` in review |
+
+Requirements: bash and perl 5 (lint), Python 3.9+ (Pillow and numpy speed up `gold-share.py` but are optional),
+fontTools for `make_newsreader.py`. Renders come from `design-preview/` (see its README).
