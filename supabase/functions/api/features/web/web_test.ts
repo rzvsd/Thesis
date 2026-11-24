@@ -9,6 +9,8 @@ import { sampleInstitutionalReport } from "../../../_lib/reports/testdata/editor
 import { LEGAL_CSP } from "./legal.ts";
 import { defaultVerify } from "./unsubscribe.ts";
 import { type WebDeps, webRoutes } from "./index.ts";
+import { READER_V2_CSP } from "../../../_lib/reports/share_reader.ts";
+import { CLIENT_JS } from "../../../_lib/reports/deep_dive_v2/client.ts";
 
 const READER_CSP =
   "default-src 'none'; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'";
@@ -71,17 +73,117 @@ Deno.test("/r/:token renders the shared Deep Dive with reader headers", async ()
   assertEquals(res.headers.get("cache-control"), "private, max-age=300");
   assertEquals(res.headers.get("x-robots-tag"), "noindex, nofollow");
   assertEquals(res.headers.get("referrer-policy"), "no-referrer");
-  assertEquals(res.headers.get("content-security-policy"), READER_CSP);
-  assertEquals(res.headers.get("x-thesis-csp"), READER_CSP);
+  assertEquals(res.headers.get("content-security-policy"), READER_V2_CSP);
+  assertEquals(res.headers.get("x-thesis-csp"), READER_V2_CSP);
   assertEquals(res.headers.get("x-thesis-content-type"), "text/html; charset=utf-8");
   const body = await res.text();
   assertStringIncludes(body, '<meta name="robots" content="noindex, nofollow" />');
   assertStringIncludes(body, "Thesis is research, not financial advice.");
   assertStringIncludes(body, "Get the Thesis app");
   assertStringIncludes(body, "Apple Inc.");
-  assertStringIncludes(body, "Page 17 of 17");
+  assertStringIncludes(body, "<title>Apple Inc. Deep Dive</title>");
   // The sharer's identity is never rendered.
   assertEquals(body.includes(OWNER), false);
+});
+
+Deno.test("/r/:token serves the Deep Dive 2.0 page: 13 chapters, one hashed script, strict CSP", async () => {
+  const { state, routes } = deps();
+  state.artifacts[state.reports[0].artifactKey] = sampleInstitutionalReport("job-1", REPORT_ID);
+  state.shares.push({
+    token: TOKEN,
+    reportId: REPORT_ID,
+    userId: OWNER,
+    createdAt: "2026-03-30T10:00:00.000Z",
+  });
+  const res = await route(routes, "GET", "/r/:token").handler(
+    ctx(jsonRequest("GET", `/r/${TOKEN}`), { params: { token: TOKEN } }),
+  );
+  assertEquals(res.status, 200);
+  const csp = res.headers.get("content-security-policy") ?? "";
+  assertEquals(csp, READER_V2_CSP);
+  assertMatch(csp, /^default-src 'none'; script-src 'sha256-[A-Za-z0-9+/]{43}='; /);
+  assertStringIncludes(csp, "font-src data:");
+  assertStringIncludes(csp, "frame-ancestors 'none'");
+  const body = await res.text();
+  assertMatch(body, /^<!doctype html><html lang="en">/);
+  // The script the CSP hash allows is the only executable script, byte for byte.
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(CLIENT_JS));
+  const hash = btoa(String.fromCharCode(...new Uint8Array(digest)));
+  assertStringIncludes(csp, `'sha256-${hash}'`);
+  const scripts = [...body.matchAll(/<script([^>]*)>([\s\S]*?)<\/script>/g)];
+  assertEquals(scripts.map((m) => m[1]), [' type="application/json" id="dd-data"', ""]);
+  assertEquals(scripts[1][2], CLIENT_JS);
+  const data = JSON.parse(scripts[0][2]);
+  assertEquals(data.currency, "USD");
+  assertEquals(data.price, null);
+  assertEquals(body.includes(" onclick="), false);
+  const ids = [...body.matchAll(/<section id="([a-z]+)">/g)].map((m) => m[1]);
+  assertEquals(ids, [
+    "summary",
+    "business",
+    "countries",
+    "links",
+    "owners",
+    "financials",
+    "value",
+    "action",
+    "forecasts",
+    "risks",
+    "events",
+    "bottom",
+    "sources",
+  ]);
+  assertStringIncludes(body, "Type a price");
+  assertStringIncludes(body, "Not seen yet");
+  assertEquals(body.includes(OWNER), false);
+});
+
+Deno.test("/r/:token falls back to the editorial page under READER_CSP when Deep Dive 2.0 throws", async () => {
+  const state = seededState();
+  state.artifacts[state.reports[0].artifactKey] = sampleInstitutionalReport("job-1", REPORT_ID);
+  state.shares.push({
+    token: TOKEN,
+    reportId: REPORT_ID,
+    userId: OWNER,
+    createdAt: "2026-03-30T10:00:00.000Z",
+  });
+  const routes = webRoutes({
+    share: {
+      ...fakeReportsDeps(state),
+      renderV2: () => {
+        throw new Error("boom");
+      },
+    },
+    unsubscribe: {
+      verify: () => Promise.resolve(undefined),
+      setEmailOptOut: () => Promise.resolve(),
+    },
+    rateLimit: () => Promise.resolve(null),
+  });
+  const errors: string[] = [];
+  const orig = console.error;
+  console.error = (...a: unknown[]) => void errors.push(a.map(String).join(" "));
+  let res: Response;
+  try {
+    res = await route(routes, "GET", "/r/:token").handler(
+      ctx(jsonRequest("GET", `/r/${TOKEN}`), { params: { token: TOKEN } }),
+    );
+  } finally {
+    console.error = orig;
+  }
+  assertEquals(res.status, 200);
+  assertEquals(res.headers.get("content-security-policy"), READER_CSP);
+  assertEquals(res.headers.get("x-frame-options"), "DENY");
+  const body = await res.text();
+  assertEquals(body.includes("<script"), false);
+  assertStringIncludes(body, "Apple Inc.");
+  assertStringIncludes(body, "Thesis is research, not financial advice.");
+  assertStringIncludes(body, "Get the Thesis app");
+  // The failure is logged with the report id, never the share token.
+  assertEquals(errors.length, 1);
+  assertStringIncludes(errors[0], "deep_dive_v2_render_failed");
+  assertStringIncludes(errors[0], REPORT_ID);
+  assertEquals(errors[0].includes(TOKEN), false);
 });
 
 Deno.test("/r/:token is 404 HTML for a bad token, unknown token, or non Deep Dive", async () => {

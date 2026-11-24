@@ -1,17 +1,24 @@
 // Web reader around a shared Deep Dive (/r/:token). Copied from apps/product-api/src/routes/report-share-routes.ts.
 // The report artifact is about the company only; the sharer's identity is never rendered.
 import { env } from "../../_shared/env.ts";
+import { SHARE_PAGE_CSP } from "./deep_dive_v2/client.ts";
 
 export const SHARE_TOKEN_PATTERN = /^[A-Za-z0-9_-]{20,64}$/;
 
 export const READER_CSP =
   "default-src 'none'; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'";
 
+// Deep Dive 2.0 page (deep_dive_v2/render.ts): its one inline script is allowed by hash, fonts are data: URIs.
+// One definition, in deep_dive_v2/client.ts next to the script it hashes.
+export const READER_V2_CSP: string = SHARE_PAGE_CSP;
+
 export const READER_HEADERS: Record<string, string> = {
   "cache-control": "private, max-age=300",
   "x-robots-tag": "noindex, nofollow",
   // The token is in the URL: do not pass it to other sites through the Referer header.
   "referrer-policy": "no-referrer",
+  // The v2 page also sends frame-ancestors 'none'; this covers the editorial fallback and the 404 page too.
+  "x-frame-options": "DENY",
 };
 
 export function appDownloadUrl(): string {
