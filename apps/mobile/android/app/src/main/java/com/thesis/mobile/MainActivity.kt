@@ -5,11 +5,14 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.fragment.app.FragmentActivity
 import androidx.compose.ui.platform.ComposeView
 import com.thesis.mobile.data.SessionStore
@@ -35,7 +38,22 @@ class MainActivity : FragmentActivity() {
     private val notificationPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* no-op */ }
 
+    /** The splash stays until the first Compose frame (session restored, first screen chosen). */
+    private var firstFrameDrawn = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
+        // Before super.onCreate (5.1): the launch theme hands over to Theme.ThesisMobile.
+        val splash = installSplashScreen()
+        splash.setKeepOnScreenCondition { !firstFrameDrawn }
+        splash.setOnExitAnimationListener { provider ->
+            provider.view.animate()
+                .alpha(0f)
+                .setDuration(SPLASH_EXIT_MS)
+                .withEndAction { provider.remove() }
+                .start()
+        }
+        // Edge to edge on every API level; Compose pads with WindowInsets (bars are drawn by the theme).
+        enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         applyLaunchIntent(intent)
         requestNotificationPermissionIfNeeded()
@@ -59,6 +77,7 @@ class MainActivity : FragmentActivity() {
                         launchTarget = launchTarget,
                         onLaunchHandled = { launchTarget = null }
                     )
+                    SideEffect { firstFrameDrawn = true }
                 }
             }
         )
@@ -206,6 +225,10 @@ class MainActivity : FragmentActivity() {
             return digestDate
         }
         return intent.data?.getQueryParameter("digest_date")?.trim()?.ifBlank { null }
+    }
+
+    private companion object {
+        const val SPLASH_EXIT_MS = 240L
     }
 
     private fun requestNotificationPermissionIfNeeded() {

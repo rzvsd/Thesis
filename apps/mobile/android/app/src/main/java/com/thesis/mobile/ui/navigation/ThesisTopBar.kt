@@ -10,14 +10,17 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AccountCircle
-import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.dp
 import com.thesis.mobile.model.AlertLedgerItemView
 import com.thesis.mobile.ui.theme.ThesisColors
@@ -27,14 +30,13 @@ import java.time.LocalDate
 import java.time.OffsetDateTime
 
 /**
- * Top bar shared by the three tabs. Inbox is the bell, You is the profile icon.
- * No unread badge: the alert ledger has no read state yet.
+ * Root top bar of the four tabs (DESIGN-DIRECTION 5.5): brand on the left, Search and the You avatar on the
+ * right. The bell is gone (Inbox is a tab). [profileSelected] is true while You is open on the modal stack.
  */
 @Composable
 fun ThesisTopBar(
-    inboxSelected: Boolean,
     profileSelected: Boolean,
-    onOpenInbox: () -> Unit,
+    onOpenSearch: () -> Unit,
     onOpenProfile: () -> Unit
 ) {
     Row(
@@ -42,25 +44,61 @@ fun ThesisTopBar(
             .fillMaxWidth()
             .background(ThesisColors.Background)
             .statusBarsPadding()
-            .height(48.dp)
-            .padding(horizontal = ThesisDimens.SpacingSm),
-        horizontalArrangement = Arrangement.End,
+            .height(56.dp)
+            .padding(start = ThesisDimens.ScreenPaddingHorizontal, end = ThesisDimens.SpacingSm),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        IconButton(onClick = onOpenInbox) {
+        Text(
+            text = "THESIS",
+            style = ThesisTypography.labelLarge.copy(fontWeight = FontWeight.SemiBold, letterSpacing = 2.sp),
+            color = ThesisColors.TextPrimary,
+            modifier = Modifier
+                .weight(1f)
+                .semantics { heading() }
+        )
+        IconButton(onClick = onOpenSearch) {
             Icon(
-                imageVector = Icons.Filled.Notifications,
-                contentDescription = "Inbox",
-                tint = if (inboxSelected) ThesisColors.Primary else ThesisColors.TextMuted
+                imageVector = Icons.Filled.Search,
+                contentDescription = "Search",
+                tint = ThesisColors.TextSecondary
             )
         }
         IconButton(onClick = onOpenProfile) {
             Icon(
                 imageVector = Icons.Filled.AccountCircle,
                 contentDescription = "You",
-                tint = if (profileSelected) ThesisColors.Primary else ThesisColors.TextMuted
+                tint = if (profileSelected) ThesisColors.Primary else ThesisColors.TextSecondary
             )
         }
+    }
+}
+
+/** Top bar of a pushed screen that has no header of its own: back arrow and title. */
+@Composable
+fun ThesisBackTopBar(title: String, onBack: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(ThesisColors.Background)
+            .statusBarsPadding()
+            .height(56.dp)
+            .padding(horizontal = ThesisDimens.SpacingXs),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        IconButton(onClick = onBack) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                contentDescription = "Back",
+                tint = ThesisColors.TextPrimary
+            )
+        }
+        Text(
+            text = title,
+            style = ThesisTypography.titleMedium.copy(fontWeight = FontWeight.Medium),
+            color = ThesisColors.TextPrimary,
+            maxLines = 1,
+            modifier = Modifier.semantics { heading() }
+        )
     }
 }
 

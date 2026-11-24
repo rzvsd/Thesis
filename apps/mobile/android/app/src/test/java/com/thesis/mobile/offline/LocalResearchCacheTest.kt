@@ -7,7 +7,12 @@ import com.thesis.mobile.model.DeepDiveTopChangeView
 import com.thesis.mobile.model.FinancialAnalysisView
 import com.thesis.mobile.model.FinancialHistoryRowView
 import com.thesis.mobile.model.IssuerView
+import com.thesis.mobile.model.NoteTrailEntry
+import com.thesis.mobile.model.ReportHistoryItem
 import com.thesis.mobile.model.SnapshotPoint
+import com.thesis.mobile.model.TAB_DATA_MAX_AGE_MS
+import com.thesis.mobile.model.isFresh
+import com.thesis.mobile.model.searchLocal
 import com.thesis.mobile.model.snapshotDeltaSince
 import com.thesis.mobile.model.toReportSummary
 import org.junit.Assert.assertEquals
@@ -84,5 +89,37 @@ class LocalResearchCacheTest {
         assertNull(noHistory.previous)
         assertNull(noHistory.scoreChange)
         assertFalse(noHistory.stateChanged)
+    }
+
+    @Test
+    fun localSearchFindsNamesReportsAndNoteText() {
+        val history = listOf(
+            ReportHistoryItem("r1", "j1", "deep_dive", "AAPL", "2026-10-01T10:00:00Z"),
+            ReportHistoryItem("r2", "j2", "deep_dive", "AAPL", "2026-11-01T10:00:00Z"),
+            ReportHistoryItem("r3", "j3", "pulse", null, "2026-11-02T10:00:00Z"),
+        )
+        val summaries = mapOf("r2" to report.copy(reportId = "r2").toReportSummary())
+        val notes = listOf(
+            NoteTrailEntry("r1", "AAPL", "Services margin is the whole case", null, "FY2025", null),
+            NoteTrailEntry("r9", "MSFT", "", null, null, null),
+        )
+        val byTicker = searchLocal("aapl", listOf("AAPL", "MSFT"), history, summaries, notes)
+        assertEquals(listOf("AAPL"), byTicker.names)
+        assertEquals("newest report first", listOf("r2", "r1"), byTicker.reports.map { it.reportId })
+        assertEquals(listOf("r1"), byTicker.notes.map { it.reportId })
+
+        val byNote = searchLocal("margin", listOf("AAPL"), history, summaries, notes)
+        assertEquals(listOf("r1"), byNote.notes.map { it.reportId })
+        assertTrue(byNote.names.isEmpty() && byNote.reports.isEmpty())
+        assertTrue(searchLocal("  ", listOf("AAPL"), history, summaries, notes).isEmpty)
+    }
+
+    @Test
+    fun tabDataYoungerThanFiveMinutesIsFresh() {
+        val now = 1_000_000_000L
+        assertTrue(isFresh(now - 60_000, now))
+        assertFalse(isFresh(now - TAB_DATA_MAX_AGE_MS, now))
+        assertFalse("never fetched", isFresh(null, now))
+        assertFalse("a clock that went back refetches", isFresh(now + 5_000, now))
     }
 }

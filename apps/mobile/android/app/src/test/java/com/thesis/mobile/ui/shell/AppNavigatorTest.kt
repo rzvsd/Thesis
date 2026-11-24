@@ -309,4 +309,55 @@ class AppNavigatorTest {
         assertTrue(nav.modalStack.isEmpty())
         ShellTab.entries.forEach { assertEquals(listOf(it.root), destinations(nav, it)) }
     }
+
+    @Test
+    fun finishedBuildReplacesTheRunningEntryWhereverItIs() {
+        val nav = AppNavigator()
+        nav.selectTab(ShellTab.Research)
+        nav.push(Destination.DeepDiveRunning("AAPL"))
+        nav.push(Destination.ScenarioStress())
+        val before = nav.stack(ShellTab.Research)[1].entryId
+        val replaced = nav.replaceWhere(Destination.Report("r1", "AAPL")) {
+            it is Destination.DeepDiveRunning && it.ticker == "AAPL"
+        }
+        assertEquals(1, replaced)
+        assertEquals(
+            listOf(Destination.Research, Destination.Report("r1", "AAPL"), Destination.ScenarioStress()),
+            destinations(nav, ShellTab.Research)
+        )
+        assertTrue("a replaced entry gets a new id", nav.stack(ShellTab.Research)[1].entryId != before)
+        assertEquals(NavMove.Replace, nav.lastMove)
+        assertEquals("roots are never replaced", 0, nav.replaceWhere(Destination.Report("x")) { it == Destination.Research })
+    }
+
+    @Test
+    fun lastMoveTellsTheShellWhichTransitionToPlay() {
+        val nav = AppNavigator()
+        nav.push(Destination.Pulse())
+        assertEquals(NavMove.Push, nav.lastMove)
+        nav.back()
+        assertEquals(NavMove.Pop, nav.lastMove)
+        nav.selectTab(ShellTab.Names)
+        assertEquals(NavMove.Tab, nav.lastMove)
+        nav.openModal(Destination.You)
+        assertEquals(NavMove.Modal, nav.lastMove)
+        nav.back()
+        assertEquals(NavMove.Modal, nav.lastMove)
+        // A deep link to another tab that pushes there still reads as a tab change.
+        nav.apply(DeepLinkRouter.route(LaunchTarget(tab = "research", reportId = "r9"))!!)
+        assertEquals(NavMove.Tab, nav.lastMove)
+    }
+
+    @Test
+    fun liveEntryIdsCoverEveryStackAndForgetPoppedEntries() {
+        val nav = AppNavigator()
+        val pushed = nav.push(Destination.Pulse())
+        val modal = nav.openModal(Destination.Search)
+        val live = nav.liveEntryIds()
+        assertTrue(pushed.entryId in live && modal.entryId in live)
+        assertEquals(ShellTab.entries.size + 2, live.size)
+        nav.back()
+        nav.back()
+        assertFalse(pushed.entryId in nav.liveEntryIds())
+    }
 }

@@ -93,15 +93,23 @@ class OfflineCacheStore private constructor(
 
     /**
      * Stores [note] for [reportId]. [report] (when it is the report the note belongs to) adds the ticker,
-     * filing period and verdict; without it, those are kept from the previous row.
+     * filing period and verdict; without it, those are kept from the previous row ([ticker] fills the ticker
+     * when only a history row is known).
      */
-    suspend fun cacheReportNote(reportId: String, note: ReportNoteView, report: DeepDiveReportView? = null) {
+    suspend fun cacheReportNote(
+        reportId: String,
+        note: ReportNoteView,
+        report: DeepDiveReportView? = null,
+        ticker: String? = null
+    ) {
         val previous = dao.getReportNote(reportId)
         val owner = report?.takeIf { it.reportId == reportId }
         dao.upsertReportNote(
             ReportNoteEntity(
                 reportId = reportId,
-                ticker = owner?.ticker?.trim()?.uppercase()?.ifBlank { null } ?: previous?.ticker,
+                ticker = owner?.ticker?.trim()?.uppercase()?.ifBlank { null }
+                    ?: ticker?.trim()?.uppercase()?.ifBlank { null }
+                    ?: previous?.ticker,
                 text = note.content,
                 updatedAt = note.updatedAt.ifBlank { null } ?: previous?.updatedAt,
                 filingPeriod = owner?.latestFilingPeriod() ?: previous?.filingPeriod,

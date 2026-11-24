@@ -1,15 +1,10 @@
 package com.thesis.mobile.ui.navigation
 
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -19,64 +14,67 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.filled.Inbox
+import androidx.compose.material.icons.filled.Newspaper
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import com.thesis.mobile.ui.copy.Phase4Copy
 import com.thesis.mobile.ui.theme.ThesisColors
 import com.thesis.mobile.ui.theme.ThesisDimens
 import com.thesis.mobile.ui.theme.ThesisTypography
-import kotlin.math.roundToInt
 
 data class ThesisNavItem(
     val label: String,
     val icon: ImageVector,
-    val tag: String
+    val tag: String,
+    /** A small "new" dot on the icon (Inbox: alerts since the last visit). */
+    val showDot: Boolean = false
 )
 
+/** The four tabs (DESIGN-DIRECTION 5.5): Today, Names, Research, Inbox. You opens from the top bar avatar. */
+fun shellNavItems(inboxHasNew: Boolean): List<ThesisNavItem> = listOf(
+    ThesisNavItem(Phase4Copy.todayTab, Icons.Filled.Newspaper, ShellTab.Today.name),
+    ThesisNavItem(Phase4Copy.namesTab, Icons.AutoMirrored.Filled.List, ShellTab.Names.name),
+    ThesisNavItem(Phase4Copy.researchTab, Icons.Filled.Search, ShellTab.Research.name),
+    ThesisNavItem(Phase4Copy.inboxTab, Icons.Filled.Inbox, ShellTab.Inbox.name, showDot = inboxHasNew),
+)
+
+/**
+ * Bottom tab bar. [selectedTag] is null while a modal (You, Search, Paywall) is open: no tab is selected.
+ * Selection is shown by ink and weight only (no gold indicator bar); PR-2's kit restyles it.
+ */
 @Composable
 fun ThesisBottomBar(
     items: List<ThesisNavItem>,
-    selectedTag: String,
+    selectedTag: String?,
     onSelect: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val selectedIndex = items.indexOfFirst { it.tag == selectedTag }.coerceAtLeast(0)
-    val indicatorOffset = remember { Animatable(selectedIndex.toFloat()) }
-
-    LaunchedEffect(selectedIndex) {
-        indicatorOffset.animateTo(
-            selectedIndex.toFloat(),
-            animationSpec = spring(
-                dampingRatio = Spring.DampingRatioNoBouncy,
-                stiffness = Spring.StiffnessMediumLow
-            )
-        )
-    }
-
     Column(
         modifier = modifier
             .fillMaxWidth()
             .background(ThesisColors.Background)
-            .border(ThesisDimens.BorderWidth, ThesisColors.Border)
             .navigationBarsPadding()
     ) {
-        if (items.isNotEmpty()) {
-            GoldIndicator(items = items, indicatorOffset = indicatorOffset.value)
-        }
-
+        HorizontalDivider(thickness = ThesisDimens.BorderWidth, color = ThesisColors.Border)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -85,10 +83,9 @@ fun ThesisBottomBar(
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            items.forEachIndexed { index, item ->
-                val isSelected = index == selectedIndex
-                val itemColor = if (isSelected) ThesisColors.Primary else ThesisColors.TextMuted
-
+            items.forEach { item ->
+                val isSelected = item.tag == selectedTag
+                val itemColor = if (isSelected) ThesisColors.TextPrimary else ThesisColors.TextMuted
                 Column(
                     modifier = Modifier
                         .weight(1f)
@@ -99,47 +96,41 @@ fun ThesisBottomBar(
                             onClick = { onSelect(item.tag) }
                         )
                         .semantics {
-                            contentDescription = "${item.label} tab${if (isSelected) ", selected" else ""}"
+                            contentDescription = item.label + if (item.showDot) ", new" else ""
                             role = Role.Tab
+                            selected = isSelected
                         },
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center
                 ) {
-                    Icon(
-                        imageVector = item.icon,
-                        contentDescription = null,
-                        tint = itemColor,
-                        modifier = Modifier.size(22.dp)
-                    )
+                    Box {
+                        Icon(
+                            imageVector = item.icon,
+                            contentDescription = null,
+                            tint = itemColor,
+                            modifier = Modifier.size(22.dp)
+                        )
+                        if (item.showDot) {
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.TopEnd)
+                                    .offset(x = 3.dp, y = (-1).dp)
+                                    .size(7.dp)
+                                    .clip(CircleShape)
+                                    .background(ThesisColors.Primary)
+                            )
+                        }
+                    }
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = item.label,
                         style = ThesisTypography.labelSmall.copy(
-                            fontWeight = if (isSelected) FontWeight.Medium else FontWeight.Normal
+                            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal
                         ),
                         color = itemColor
                     )
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun GoldIndicator(items: List<ThesisNavItem>, indicatorOffset: Float) {
-    val density = LocalDensity.current
-    BoxWithConstraints(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(2.dp)
-    ) {
-        val itemWidth = maxWidth / items.size
-        val offsetPx = with(density) { (itemWidth * indicatorOffset).toPx() }
-        Box(
-            modifier = Modifier
-                .offset { IntOffset(offsetPx.roundToInt(), 0) }
-                .size(width = itemWidth, height = 2.dp)
-                .background(ThesisColors.Primary)
-        )
     }
 }

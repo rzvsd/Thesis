@@ -13,6 +13,9 @@ import com.thesis.mobile.ui.navigation.ShellTab
 /** One entry on a stack. [entryId] is unique for the navigator's lifetime and keys the entry's saved UI state. */
 data class NavEntry(val destination: Destination, val entryId: String)
 
+/** The last change to the stacks, read by the shell to pick the transition (4.5). */
+enum class NavMove { None, Push, Pop, Tab, Replace, Modal }
+
 /**
  * Where the navigator keeps its state across Activity recreation. `MainViewModel` backs it with
  * `SavedStateHandle`; tests use [MapNavigatorStateStore]. Values are plain strings (no parcelize).
@@ -57,6 +60,10 @@ class AppNavigator(private val store: NavigatorStateStore? = null) {
 
     private var nextId = 0L
 
+    /** What the last mutation did (not persisted; [NavMove.None] after a restore). */
+    var lastMove: NavMove = NavMove.None
+        private set
+
     init {
         if (!restore()) {
             ShellTab.entries.forEach { tab -> stacks.getValue(tab).add(newEntry(tab.root)) }
@@ -82,7 +89,10 @@ class AppNavigator(private val store: NavigatorStateStore? = null) {
 
     /** Programmatic tab change: keeps the tab's sub-stack (state kept, 4.5 fade-through). */
     fun switchTab(tab: ShellTab) {
-        if (currentTab != tab) currentTab = tab
+        if (currentTab != tab) {
+            currentTab = tab
+            lastMove = NavMove.Tab
+        }
         persist()
     }
 
@@ -97,6 +107,7 @@ class AppNavigator(private val store: NavigatorStateStore? = null) {
         if (!changed && !wasModalOpen) popToRoot(tab)
         if (tab == ShellTab.Names) namesFocusTicker = null
         currentTab = tab
+        lastMove = if (changed) NavMove.Tab else if (wasModalOpen) NavMove.Modal else NavMove.Pop
         persist()
         return changed
     }
@@ -106,9 +117,11 @@ class AppNavigator(private val store: NavigatorStateStore? = null) {
         val entry = newEntry(destination)
         if (destination.isModal) {
             modalStack.add(entry)
+            lastMove = NavMove.Modal
         } else {
             require(ShellTab.entries.none { it.root == destination }) { "Tab roots are not pushed: $destination" }
             stacks.getValue(currentTab).add(entry)
+            lastMove = NavMove.Push
         }
         persist()
         return entry
@@ -122,7 +135,10 @@ class AppNavigator(private val store: NavigatorStateStore? = null) {
 
     /** Closes every modal entry whose destination matches [predicate] (all modals by default). */
     fun closeModals(predicate: (Destination) -> Boolean = { true }) {
-        if (modalStack.removeAll { predicate(it.destination) }) persist()
+        if (modalStack.removeAll { predicate(it.destination) }) {
+            lastMove = NavMove.Modal
+            persist()
+        }
     }
 
     /**
@@ -136,9 +152,38 @@ class AppNavigator(private val store: NavigatorStateStore? = null) {
         if (destination.isModal != (stack === modalStack)) return null
         val entry = newEntry(destination)
         stack[stack.lastIndex] = entry
+        lastMove = NavMove.Replace
         persist()
         return entry
     }
+
+    /**
+     * Replaces, in every stack, each entry (never a tab root) whose destination matches [predicate] with
+     * [destination], keeping its position. For example the finished build replaces `DeepDiveRunning(AAPL)`
+     * with `Report(id)` even when the user pushed something above it meanwhile. Returns the number replaced.
+     */
+    fun replaceWhere(destination: Destination, predicate: (Destination) -> Boolean): Int {
+        var replaced = 0
+        val all = stacks.values + listOf(modalStack)
+        all.forEach { stack ->
+            for (index in stack.indices) {
+                val isRoot = stack !== modalStack && index == 0
+                if (isRoot || !predicate(stack[index].destination)) continue
+                if (destination.isModal != (stack === modalStack)) continue
+                stack[index] = newEntry(destination)
+                replaced++
+            }
+        }
+        if (replaced > 0) {
+            lastMove = NavMove.Replace
+            persist()
+        }
+        return replaced
+    }
+
+    /** Every entry id on any stack (the shell drops saved UI state of the others). */
+    fun liveEntryIds(): Set<String> =
+        (stacks.values.flatMap { it.toList() } + modalStack.toList()).mapTo(HashSet()) { it.entryId }
 
     /** Pops the top entry (modal first). Returns the popped entry, or null at a tab root. */
     fun pop(): NavEntry? {
@@ -147,7 +192,10 @@ class AppNavigator(private val store: NavigatorStateStore? = null) {
             stacks.getValue(currentTab).size > 1 -> stacks.getValue(currentTab).let { it.removeAt(it.lastIndex) }
             else -> null
         }
-        if (popped != null) persist()
+        if (popped != null) {
+            lastMove = if (popped.destination.isModal) NavMove.Modal else NavMove.Pop
+            persist()
+        }
         return popped
     }
 
@@ -169,6 +217,7 @@ class AppNavigator(private val store: NavigatorStateStore? = null) {
         if (stack.size > 1) {
             // removeAt(lastIndex), not removeLast(): on compileSdk 35 that resolves to the Java 21 member.
             while (stack.size > 1) stack.removeAt(stack.lastIndex)
+            lastMove = NavMove.Pop
             persist()
         }
     }
@@ -186,9 +235,12 @@ class AppNavigator(private val store: NavigatorStateStore? = null) {
         val tab = route.tab ?: return
         modalStack.clear()
         popToRoot(tab)
+        val changedTab = currentTab != tab
         currentTab = tab
         if (tab == ShellTab.Names) namesFocusTicker = route.namesFocusTicker
         route.push?.let { push(it) }
+        // A link that lands on another tab reads as a tab change even when it pushes an entry there.
+        lastMove = if (changedTab) NavMove.Tab else if (route.push != null) NavMove.Push else NavMove.Pop
         persist()
     }
 
