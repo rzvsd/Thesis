@@ -19,6 +19,7 @@ import com.thesis.mobile.model.InvestmentMemoView
 import com.thesis.mobile.model.IssuerView
 import com.thesis.mobile.model.KillSwitchConditionView
 import com.thesis.mobile.model.MetricDeltaPanelView
+import com.thesis.mobile.model.MarketTapeParser
 import com.thesis.mobile.model.PulseReportView
 import com.thesis.mobile.model.RangeBandPanelView
 import com.thesis.mobile.model.ReportViewMapper
@@ -53,6 +54,7 @@ object OfflineJsonCodec {
                     pulse.sections.forEach { put(sectionToJson(it)) }
                 }
             )
+            .putOpt("market_tape", pulse.tape?.let(MarketTapeParser::toJson))
         return payload.toString()
     }
 
@@ -65,7 +67,8 @@ object OfflineJsonCodec {
             reportId = reportId,
             generatedAt = generatedAt,
             cycleEnd = root.optString("cycle_end").ifBlank { null },
-            sections = sections
+            sections = sections,
+            tape = MarketTapeParser.parse(root.optJSONObject("market_tape"))
         )
     }.getOrNull()
 

@@ -510,7 +510,9 @@ data class PulseReportView(
     val reportId: String,
     val generatedAt: String,
     val sections: List<SectionView>,
-    val cycleEnd: String? = null
+    val cycleEnd: String? = null,
+    /** Structured `market_tape` (levels, changes, family); null when the issue has none. */
+    val tape: MarketTapeView? = null
 )
 
 data class WarRoomPhaseView(
