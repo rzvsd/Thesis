@@ -196,6 +196,72 @@ Deno.test("unknown filing period keeps the short reuse window, so a stale report
   assertEquals(runner.dispatched.length, 2);
 });
 
+Deno.test("no coverage yet: the runner's period stands in, so reuse works for about a quarter", async () => {
+  // Live case 2026-11-24: ticker_coverage was empty, the report said 2025-Q4, and a FREE user's second request
+  // hit the daily limit instead of reusing the report.
+  const { deps, store, runner, clock } = fakeDeps();
+  for (const u of ["u2", "u3"]) store.tiers.set(u, "PRO");
+  const start = clock.now.getTime();
+  const reportId = await runToComplete(deps, "u1", "2025-Q4");
+  assertEquals(store.reports.get(reportId)!.fingerprint, "AAPL|2.1|2025-Q4");
+
+  // The same FREE user asks again: the report is reused, no daily limit, no new run.
+  const again = await createDeepDiveJob(deps, { userId: "u1", ticker: "AAPL", requestId: "r" });
+  assertEquals(again.status, 200);
+  // Another customer 89 days later still gets it, and that copy does not restart the window.
+  clock.now = new Date(start + 89 * 24 * HOUR);
+  assertEquals((await createDeepDiveJob(deps, { userId: "u2", ticker: "AAPL", requestId: "r" })).status, 200);
+  assertEquals(runner.dispatched.length, 1);
+
+  // Past 90 days with still no coverage, a new run starts, in case a filing came in unseen.
+  clock.now = new Date(start + 91 * 24 * HOUR);
+  assertEquals((await createDeepDiveJob(deps, { userId: "u3", ticker: "AAPL", requestId: "r" })).status, 202);
+  assertEquals(runner.dispatched.length, 2);
+});
+
+Deno.test("no coverage: a new copy of an older analysis does not outrank a newer report", async () => {
+  const { deps, store, clock } = fakeDeps();
+  store.tiers.set("u4", "PRO");
+  const start = clock.now.getTime();
+  const older = store.reports.get(await runToComplete(deps, "u1", "2025-Q3"))!;
+  // Stored without the service: a newer analysis from day 10, and a copy of the older one made on day 11
+  // (new created_at, the older report's freshness).
+  const add = async (id: string, fingerprint: string, createdDay: number, freshness: string) => {
+    const job = (await store.createJob({
+      id: `job-${id}`,
+      type: "deep_dive",
+      userId: `user-${id}`,
+      ticker: "AAPL",
+      createdAt: new Date(start + createdDay * 24 * HOUR).toISOString(),
+    }))!;
+    await store.createReport({
+      ...older,
+      id,
+      jobId: job.id,
+      fingerprint,
+      freshnessExpiresAt: freshness,
+      createdAt: new Date(start + createdDay * 24 * HOUR).toISOString(),
+    });
+    await store.markJobComplete(job.id, new Date(start + createdDay * 24 * HOUR).toISOString(), id);
+  };
+  await add("newer", "AAPL|2.1|2025-Q4", 10, new Date(start + (10 * 24 + 4380) * HOUR).toISOString());
+  await add("copy-of-older", older.fingerprint!, 11, older.freshnessExpiresAt!);
+
+  clock.now = new Date(start + 12 * 24 * HOUR);
+  const res = await body(await createDeepDiveJob(deps, { userId: "u4", ticker: "AAPL", requestId: "r" }));
+  assertEquals(res.status, "complete");
+  assertEquals(store.reports.get(res.report_id)!.fingerprint, "AAPL|2.1|2025-Q4");
+});
+
+Deno.test("with coverage known, a report for another period is not reused", async () => {
+  const { deps, store, runner } = fakeDeps();
+  store.tiers.set("u2", "PRO");
+  await runToComplete(deps, "u1", "2025-Q4");
+  store.coverage.set("AAPL", "2026-Q1");
+  assertEquals((await createDeepDiveJob(deps, { userId: "u2", ticker: "AAPL", requestId: "r" })).status, 202);
+  assertEquals(runner.dispatched.length, 2);
+});
+
 Deno.test("fingerprint period: the analysed period wins; coverage fills in only when the report has none", async () => {
   const { deps, store, runner } = fakeDeps();
   for (const u of ["u1", "u2", "u3"]) store.tiers.set(u, "PRO");

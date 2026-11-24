@@ -32,6 +32,9 @@ export interface JobsConfig {
   reuseFreshnessHours: number;
   // Upper bound for reuse when the period is known; a new filing ends reuse earlier by changing the fingerprint.
   precomputeFreshnessHours: number;
+  // When the filing period is not known yet (no ticker_coverage row), the newest fresh report for the ticker
+  // is reused if it is younger than this, whatever period it analysed. About one quarter.
+  unknownCoverageReuseHours: number;
   subscriptionTimezone: string;
 }
 
@@ -85,6 +88,30 @@ export function analysedPeriod(report: AnalysisReport): string | undefined {
 export function deepDiveFingerprint(input: { ticker: string; schemaVersion: string; latestPeriod?: string }) {
   const latestPeriod = input.latestPeriod?.trim().toUpperCase() || UNKNOWN_PERIOD;
   return `${input.ticker.trim().toUpperCase()}|${input.schemaVersion.trim()}|${latestPeriod}`;
+}
+
+// The report a new request can reuse. With a known filing period it is the fresh report for that period. With
+// no period known (coverage not filled yet), the runner's own period stands in: the newest fresh report for the
+// ticker and schema at any period, if it was generated within unknownCoverageReuseHours.
+async function findReusable(deps: JobsDeps, ticker: string, now: Date) {
+  const schemaVersion = DEEP_DIVE_SCHEMA_VERSION;
+  const nowIso = now.toISOString();
+  const latestPeriod = (await deps.store.getCoverageLatestPeriod(ticker))?.trim();
+  const fingerprint = deepDiveFingerprint({ ticker, schemaVersion, latestPeriod });
+  if (latestPeriod) return await deps.store.findReusableDeepDiveReport({ ticker, fingerprint, nowIso });
+  // A known-period report is fresh for precomputeFreshnessHours from generation, so "generated within N hours"
+  // is "still fresh for at least precompute - N hours". Freshness, not created_at: copies get a new created_at.
+  const { precomputeFreshnessHours, unknownCoverageReuseHours } = deps.config;
+  const minLeftHours = Math.max(0, precomputeFreshnessHours - unknownCoverageReuseHours);
+  return await deps.store.findReusableDeepDiveReport({
+    ticker,
+    fingerprint,
+    nowIso,
+    anyPeriod: {
+      prefix: `${ticker.trim().toUpperCase()}|${schemaVersion}|`,
+      freshAfterIso: new Date(now.getTime() + minLeftHours * 3_600_000).toISOString(),
+    },
+  });
 }
 
 // Limit for on-demand generation only. One rule for the profile and POST /jobs (audit S8: Pro is capped too).
@@ -141,12 +168,7 @@ export async function createDeepDiveJob(
   const limit = dailyDeepDiveLimitForTier(tier);
   const usageDate = dateInTimeZone(now, deps.config.subscriptionTimezone);
 
-  const fingerprint = deepDiveFingerprint({
-    ticker,
-    schemaVersion: DEEP_DIVE_SCHEMA_VERSION,
-    latestPeriod: await deps.store.getCoverageLatestPeriod(ticker),
-  });
-  const reusable = await deps.store.findReusableDeepDiveReport({ ticker, fingerprint, nowIso });
+  const reusable = await findReusable(deps, ticker, now);
   if (reusable) {
     return await reuseReport(deps, { userId, ticker, reusable, nowIso, requestId: input.requestId, route });
   }

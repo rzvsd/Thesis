@@ -98,6 +98,8 @@ export function jobsDeps(): JobsDeps {
       // Safety cap only: a new filing ends reuse earlier by changing the fingerprint. 182.5 days covers the
       // longest gap between two filings (Q3 10-Q to a late 10-K), so the cap does not end reuse before it.
       precomputeFreshnessHours: intEnv("DEEP_DIVE_PRECOMPUTE_FRESHNESS_HOURS", 4380),
+      // No filing period known yet: reuse the newest fresh report for the ticker if younger than this (a quarter).
+      unknownCoverageReuseHours: intEnv("DEEP_DIVE_UNKNOWN_COVERAGE_REUSE_HOURS", 2160),
       subscriptionTimezone: env("SUBSCRIPTION_TIMEZONE") ?? "America/New_York",
     },
     background,
