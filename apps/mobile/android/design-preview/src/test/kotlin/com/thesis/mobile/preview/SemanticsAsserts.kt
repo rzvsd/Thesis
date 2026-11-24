@@ -27,7 +27,8 @@ import org.junit.Assert.assertTrue
 val MinTouchTarget: Dp = 48.dp
 
 /**
- * Asserts this node's laid-out bounds are >= [min] in both directions. Layout bounds, not
+ * Asserts this node's laid-out size is >= [min] in both directions (unclipped, so off-screen targets in a
+ * scrolling column are measured at their real size). Layout size, not
  * SemanticsNode.touchBoundsInRoot: Compose expands the hit area of any small pointer target to the 48 dp
  * ViewConfiguration minimum, so touch bounds always pass. A target meets A1 when its layout is 48 dp, which is
  * what Modifier.minimumInteractiveComponentSize() (40 dp visual inside a 48 dp area) produces.
@@ -70,13 +71,19 @@ fun SemanticsNodeInteraction.assertIsLiveRegion(): SemanticsNodeInteraction {
     return this
 }
 
+/*
+ * Measures the node's own laid-out size (SemanticsNode.size), not boundsInRoot: boundsInRoot is clipped to the
+ * visible area, so a correct 48 dp target scrolled partly or fully out of a verticalScroll would read as
+ * 48 x 8 or 0 x 0. Nodes that are not placed (not composed into the layout yet) are skipped.
+ */
 private fun touchTargetFailure(node: SemanticsNode, min: Dp): String? {
+    if (!node.layoutInfo.isPlaced) return null
     val density = node.layoutInfo.density
-    val bounds = node.boundsInRoot
+    val size = node.size
     val minPx = with(density) { min.toPx() } - 0.5f // rounding slack
-    if (bounds.width >= minPx && bounds.height >= minPx) return null
-    val w = with(density) { bounds.width.toDp() }
-    val h = with(density) { bounds.height.toDp() }
+    if (size.width >= minPx && size.height >= minPx) return null
+    val w = with(density) { size.width.toDp() }
+    val h = with(density) { size.height.toDp() }
     return "  ${describe(node)}: ${w.value.toInt()} x ${h.value.toInt()} dp"
 }
 

@@ -34,25 +34,34 @@ import org.junit.After
 import org.junit.Before
 import org.junit.Test
 import java.io.File
+import java.nio.file.Files
 import javax.imageio.ImageIO
 
 /** The renderScreen knobs (section 6.1 F4): size, fontScale, reducedMotion, glow, themes. */
 class RenderKnobsTest {
 
     // These tests render tiny fixtures and check them, so the -Pscreens.only / -Pscreens.theme filters of a
-    // render run must not apply to them.
-    private val filters = listOf("screens.only", "screens.theme")
+    // render run must not apply to them, and their PNGs go to a temp folder, never into screens.out (a
+    // reviewer's render.sh folder would otherwise list harness-*.png as new renders and gold-share would
+    // measure them).
+    private val filters = listOf("screens.only", "screens.theme", "screens.out")
     private var saved: List<String?> = emptyList()
+    private lateinit var tmpOut: File
 
     @Before
-    fun clearRenderFilters() {
+    fun isolateFromRenderRun() {
         saved = filters.map { System.getProperty(it) }
         filters.forEach { System.clearProperty(it) }
+        tmpOut = Files.createTempDirectory("render-knobs").toFile()
+        System.setProperty("screens.out", tmpOut.absolutePath)
     }
 
     @After
-    fun restoreRenderFilters() {
-        filters.zip(saved).forEach { (key, value) -> if (value != null) System.setProperty(key, value) }
+    fun restoreRenderRun() {
+        filters.zip(saved).forEach { (key, value) ->
+            if (value != null) System.setProperty(key, value) else System.clearProperty(key)
+        }
+        tmpOut.deleteRecursively()
     }
 
     private fun size(file: File): Pair<Int, Int> = ImageIO.read(file).let { it.width to it.height }

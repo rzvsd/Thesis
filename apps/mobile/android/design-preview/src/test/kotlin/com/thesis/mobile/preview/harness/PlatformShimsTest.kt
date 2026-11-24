@@ -4,6 +4,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -151,6 +153,21 @@ class PlatformShimsTest {
         rule.onNodeWithText("Your names").assertIsHeading()
         rule.onNodeWithTag("ok").assertRole(Role.Button).assertTouchTargetAtLeast()
         rule.assertAllTouchTargetsAtLeast()
+    }
+
+    @Test
+    fun offScreenTargetsInAScrollingColumnAreMeasuredUnclipped() {
+        // A 200 dp viewport over ten 48 dp targets: b4 is half visible, b5..b9 are scrolled out of view.
+        rule.setContent {
+            Box(Modifier.size(200.dp)) {
+                Column(Modifier.verticalScroll(rememberScrollState())) {
+                    repeat(10) { i -> Box(Modifier.size(48.dp).testTag("b$i").clickable {}) }
+                }
+            }
+        }
+        rule.assertAllTouchTargetsAtLeast()
+        rule.onNodeWithTag("b9").assertTouchTargetAtLeast()
+        rule.onNodeWithTag("b4").assertTouchTargetAtLeast()
     }
 
     @Test

@@ -1,5 +1,5 @@
 // Preview implementation of app/.../ui/platform/Back.kt (Android: BackHandler / PredictiveBackHandler from
-// activity-compose 1.9.1, BackEventCompat mapped to ThesisBackEvent). Same public API; see HANDOFF-F4.md.
+// activity-compose 1.9.1, BackEventCompat mapped to ThesisBackEvent). Same public API; see F4 HANDOFF.
 //
 // There is no system back in a render, so nothing fires on its own. Tests can simulate one with
 // PreviewBack.press() (the innermost enabled handler wins, as with OnBackPressedDispatcher).

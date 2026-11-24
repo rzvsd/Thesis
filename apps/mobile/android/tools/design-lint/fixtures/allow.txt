@@ -1,2 +1,3 @@
 # Self-test allowlist (substring form).
 ui/shell/ShellFixture.kt:/delay(1000)/ delay  # polling, not animation
+screens/TokenFixture.kt:/val ag = Ink.copy(alpha/ copy-alpha  # routing: copy-alpha uses this list

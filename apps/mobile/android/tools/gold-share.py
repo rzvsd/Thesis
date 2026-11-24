@@ -121,6 +121,10 @@ def gold_share(path: Path, min_value: float) -> float:
     return count * 100.0 / total
 
 
+class UsageError(Exception):
+    """A bad invocation or an unreadable input: exit 2, never confused with 'over budget' (exit 1)."""
+
+
 def collect(paths: list[str], pattern: str, include_kit: bool) -> list[Path]:
     files: list[Path] = []
     for p in map(Path, paths):
@@ -129,7 +133,7 @@ def collect(paths: list[str], pattern: str, include_kit: bool) -> list[Path]:
         elif p.is_file():
             files.append(p)
         else:
-            raise SystemExit(f"gold-share: no such file or folder: {p}")
+            raise UsageError(f"gold-share: no such file or folder: {p}")
     if not include_kit:
         files = [f for f in files if not f.name.startswith("kit-")]
     return files
@@ -145,11 +149,21 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--json", action="store_true", help="print JSON instead of a table")
     args = ap.parse_args(argv)
 
-    files = collect(args.paths, args.glob, args.include_kit)
+    try:
+        files = collect(args.paths, args.glob, args.include_kit)
+    except UsageError as e:
+        print(e, file=sys.stderr)
+        return 2
     if not files:
         print("gold-share: no PNGs to measure", file=sys.stderr)
         return 2
-    results = [(f, gold_share(f, args.min_value)) for f in files]
+    results = []
+    for f in files:
+        try:
+            results.append((f, gold_share(f, args.min_value)))
+        except Exception as e:  # noqa: BLE001 - OSError, ValueError, PIL.UnidentifiedImageError, zlib.error...
+            print(f"gold-share: cannot read {f}: {type(e).__name__}: {e}", file=sys.stderr)
+            return 2
     over = [(f, s) for f, s in results if s >= args.max]
     if args.json:
         print(json.dumps({"max": args.max, "minValue": args.min_value,

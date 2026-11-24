@@ -1,6 +1,9 @@
 package com.thesis.mobile.preview
 
 import androidx.compose.foundation.layout.PaddingValues
+import com.thesis.mobile.model.DeepDiveReportView
+import com.thesis.mobile.model.IssuerView
+import com.thesis.mobile.model.SectionView
 import com.thesis.mobile.ui.screens.DeepDiveLoadingScreen
 import com.thesis.mobile.ui.screens.DeepDiveScreen
 import com.thesis.mobile.ui.screens.HistoryScreen
@@ -80,6 +83,34 @@ class ScreenSmokeRenders {
                 onSubmitReportFeedback = { _, _ -> }, onNotify = {}, onOpenHistoryReport = {},
                 onOpenPulseHistory = {}, tickerState = "", watchlist = names, onTickerChange = {}, onRunReport = {},
                 onBack = {}, padding = PaddingValues(),
+            )
+        }
+    }
+
+    /** The open-report path (DeepDiveReportHost, section 5.13) with no web page: the native classic report. */
+    @Test
+    fun researchReport() {
+        val report = DeepDiveReportView(
+            reportId = "smoke-report", ticker = "AAPL", generatedAt = "2026-11-20T14:00:00Z",
+            issuer = IssuerView(name = "Apple Inc.", exchange = "NASDAQ"),
+            thesisStatement = "Services keep growing faster than hardware, so margins hold up through the cycle.",
+            signalValue = "positive", confidenceLabel = "medium", confidenceScore = 0.7,
+            sections = listOf(
+                SectionView(sectionId = "summary", title = "Summary", body = "Revenue grew 6% on Services."),
+                SectionView(sectionId = "risks", title = "Risks", body = "China demand and App Store rules."),
+            ),
+        )
+        renderScreen("smoke-research-report") {
+            DeepDiveScreen(
+                report = report, isLoading = false, errorMessage = null, recentHistory = emptyList(),
+                userTier = "free", reportNoteDraft = "", noteUpdatedAt = null, isSavingNote = false,
+                convictionTimeline = emptyList(), convictionTimelineError = null, oppositeCase = null,
+                oppositeCaseError = null, isGeneratingOppositeCase = false, onReportNoteChange = {},
+                onSaveReportNote = {}, onGenerateOppositeCase = {}, onRefreshConvictionTimeline = {},
+                scenarioResult = null, isRunningScenario = false, onRunScenario = { _, _, _ -> },
+                onRequireUpgrade = {}, onSubmitReportFeedback = { _, _ -> }, onNotify = {},
+                onOpenHistoryReport = {}, onOpenPulseHistory = {}, tickerState = "AAPL", watchlist = names,
+                onTickerChange = {}, onRunReport = {}, onBack = {}, padding = PaddingValues(), webPage = null,
             )
         }
     }

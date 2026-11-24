@@ -105,6 +105,7 @@ shim files' KDoc; keep both in sync.
 `gradle -p design-preview test -PharnessOnly` runs the harness's own tests (`preview/harness/`): render size,
 font scale, reduced motion, glow, `fitHeight`, card shadow, the back/haptics/font shims and the semantics helpers.
 They are part of the renders half (`-PrendersOnly`), not of the app's 34 unit tests (`-PappTestsOnly`).
+Their PNGs go to a temp folder, never into `screens.out`, so a `render.sh` run lists only real renders.
 
 ## Not compiled here
 

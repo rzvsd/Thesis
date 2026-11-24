@@ -4,9 +4,9 @@ Guards and generators for the redesign (`docs/app-redesign/DESIGN-DIRECTION.md`)
 
 | Tool | What it does | Typical use |
 |---|---|---|
-| `design-lint.sh` | Token, motion and copy guard (section 7.2) with a per-file baseline (`design-lint-baseline.txt`) and allowlists (`design-lint-allow.txt`, `design-lint-copy-allow.txt`) | `tools/design-lint.sh` before every commit; `--strict <files>` for a PR-3 WP's owned files; `--update-baseline` when counts go down; `--self-test` after editing the lint |
-| `gold-share.py` | Gold pixel share per render (rubric T3, under 8%) | `python3 tools/gold-share.py design-preview/build/screens` |
-| `fonts/make_newsreader.py` | The five static Newsreader instances in `app/src/main/res/font` (section 2.3) | one-off; `--roman`/`--italic` point at the variable fonts from google/fonts `ofl/newsreader` |
+| `design-lint.sh` | Token, motion and copy guard (section 7.2) with a per-file baseline (`design-lint-baseline.txt`) and allowlists (`design-lint-allow.txt`, `design-lint-copy-allow.txt`) | `tools/design-lint.sh` before every commit; `--strict <files>` for a PR-3 WP's owned files; `--update-baseline [files]` when counts go down (with files, only their rows change); `--allow-raise` to move findings between files (the total still may not rise without `--allow-total-raise`); `--self-test` after editing the lint |
+| `gold-share.py` | Gold pixel share per render (rubric T3, under 8%) | `python3 tools/gold-share.py design-preview/build/screens`; exit 1 = an image at or over 8%, 2 = bad path or unreadable PNG |
+| `fonts/make_newsreader.py` | The five static Newsreader instances in `app/src/main/res/font` (section 2.3) | one-off; `--roman`/`--italic` point at the variable fonts from google/fonts `ofl/newsreader`; with fontTools 4.68.0 it reproduces the committed files byte for byte (compare the printed sha256 with `sha256sum`) |
 | `icons/make_icons.py` | `ui/icons/ThesisIcons.kt` from Material Symbols (section 2.8) | add a glyph to `ICONS`, rerun; `--check` in review |
 
 Requirements: bash and perl 5 (lint), Python 3.9+ (Pillow and numpy speed up `gold-share.py` but are optional),

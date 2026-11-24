@@ -1,5 +1,5 @@
 // Preview implementation of app/.../ui/platform/AnimatorScale.kt (Android: Settings.Global
-// ANIMATOR_DURATION_SCALE observed with a ContentObserver, playbook 3.2). Same public API; see HANDOFF-F4.md.
+// ANIMATOR_DURATION_SCALE observed with a ContentObserver, playbook 3.2). Same public API; see F4 HANDOFF.
 // Not @ReadOnlyComposable: the Android version remembers an observer.
 // The preview has no system setting: the scale is 0 when -Dpreview.reducedMotion=true, else 1.
 package com.thesis.mobile.ui.platform

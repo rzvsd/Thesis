@@ -1,5 +1,5 @@
 // Preview implementation of app/.../ui/platform/CardShadow.kt (Android: drawBehind + framework
-// Paint.setShadowLayer on API 28+, nothing on 26-27; section 2.7). Same public API; see HANDOFF-F4.md.
+// Paint.setShadowLayer on API 28+, nothing on 26-27; section 2.7). Same public API; see F4 HANDOFF.
 // Here Skia draws the equivalent: a rounded rect with a Gaussian mask filter (sigma = blur / 2, as CSS does).
 package com.thesis.mobile.ui.platform
 

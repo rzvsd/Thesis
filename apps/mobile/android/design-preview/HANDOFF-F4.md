@@ -3,6 +3,10 @@
 Changes F4 needs in files it does not own, plus the API contract its shims define. Section numbers refer to
 `docs/app-redesign/DESIGN-DIRECTION.md` (v2.1). Each item: file, change, reason.
 
+This file is the source for the HANDOFF section of the PR-1 description (rule 6.0.1). It lives here, inside
+F4's own `design-preview/`, only so it travels with the branch; copy it into the PR description and delete it
+before or at merge (WP-INT), so it does not land in `rebuild`.
+
 ## 1. For F2: `ui/platform/*` must match the shims exactly
 
 design-preview excludes the whole `ui/platform/` folder (`androidOnlyDirs` in `design-preview/build.gradle.kts`)
@@ -257,9 +261,12 @@ object RenderFlags {
   `KitButtonsRenders.kt`, `KitCardsRenders.kt`; 6.0 rule 6 names files `<Area>Renders.kt`) or, after F4 merges,
   edits `KitGalleryRenders.kt` below the "F2" marker. Reason: exclusive ownership while both WPs are open.
 - Semantics: `SemanticsAsserts.kt` gives `rule.assertAllTouchTargetsAtLeast()` (A1), `assertRole`,
-  `assertIsHeading`, `assertIsLiveRegion` for the kit `SemanticsTest`. The touch check uses layout bounds:
-  Compose expands every small pointer target's hit area to 48 dp, so touch bounds always pass; a target meets A1
-  when `minimumInteractiveComponentSize()` (or an explicit 48 dp) gives it a 48 dp layout.
+  `assertIsHeading`, `assertIsLiveRegion` for the kit `SemanticsTest`. The touch check uses the node's own
+  layout size (`SemanticsNode.size`, unclipped; unplaced nodes are skipped): Compose expands every small pointer
+  target's hit area to 48 dp, so touch bounds always pass, and `boundsInRoot` is clipped to the viewport, so
+  targets scrolled out of a `verticalScroll` would read as 0 x 0. A target meets A1 when
+  `minimumInteractiveComponentSize()` (or an explicit 48 dp) gives it a 48 dp layout. Whole scrolling screens
+  can be checked in one call (`PlatformShimsTest.offScreenTargetsInAScrollingColumnAreMeasuredUnclipped`).
 
 ## 3. For F1
 
@@ -272,9 +279,13 @@ object RenderFlags {
 - `ThesisFonts.kt`: F1's version (object `ThesisFonts` with `Newsreader`, `NewsreaderDisplay`, `Sans` and the five
   `R.font.newsreader_*` faces) matches the shim's API and file/weight table exactly. Verified by a trial merge of
   `wp/pr1-F1` (cc0481e) into this branch: design-preview compiles, 106 tests pass, renders show Newsreader.
-- Font size note for 2.3: `tools/fonts/make_newsreader.py` with the specified subset (Latin Extended-A included)
-  produces 374 KB for the five files (GPOS kerning is most of it), not "about 290 KB". The budget check in the
-  script is set to 400 KB.
+- `tools/fonts/make_newsreader.py` is the one generator for `res/font`: it follows F1's generation choices
+  (STAT kept, source `head.modified`, F1's name table) and reproduces F1's committed files (964d11f) byte for
+  byte with fontTools 4.68.0. Check after any font change: the script prints a sha256 prefix per file; it must
+  match `sha256sum app/src/main/res/font/newsreader_*.ttf`. Today: display d6b3ccb9023f, display_italic
+  2612d5517c40, text c66aa4fdda2a, text_semibold f37c013e2b03, medium a246799f1151.
+- Font size note for 2.3: with the specified subset (Latin Extended-A included) the five files are 375 KB
+  (GPOS kerning is most of it), not "about 290 KB". The budget check in the script is set to 400 KB.
 
 ## 4. For F3 / WP-INT
 
@@ -282,11 +293,14 @@ object RenderFlags {
   merges (6.0 rule 2). New `renderScreen` parameters: `fontScale`, `reducedMotion`, `glow`, `upDown`, `fitHeight`
   (after the old ones, so positional callers still compile).
 - `tools/design-lint-baseline.txt` is per file. Extracting `AuthScreen.kt`, `SettingsScreen.kt` and
-  `ResearchScreen.kt` moves findings to new files (baseline 0), so the extraction commit must run
-  `tools/design-lint.sh --update-baseline --allow-raise` and the total must not rise. `ui/shell/**` and
-  `ui/navigation/**` are in scope from the first line.
-- `ScreenSmokeRenders.research` renders `DeepDiveScreen`'s search state; once `ResearchScreen.kt` exists the
-  smoke render should call it instead (F4 or WP-INT, whoever owns design-preview tests then).
+  `ResearchScreen.kt` moves findings to new files (baseline 0), so the extraction commit runs
+  `tools/design-lint.sh --update-baseline --allow-raise`; the tool itself refuses a higher total unless
+  `--allow-total-raise` is given. `--update-baseline FILE...` rewrites only those files' rows and keeps the rest
+  (PR-3 WPs lowering their own files' counts). `ui/shell/**` and `ui/navigation/**` are in scope from the first
+  line.
+- `ScreenSmokeRenders.research` renders `DeepDiveScreen`'s search state and `researchReport` an open report
+  through `DeepDiveReportHost` (section 5.13, `webPage = null`: the native classic path); once `ResearchScreen.kt`
+  exists the smoke renders should call it instead (F4 or WP-INT, whoever owns design-preview tests then).
 - `PreviewBack.press()` can drive `ThesisShell` renders/tests for "back never exits from a sub-screen".
 
 ## 5. For the owner (Razvan): skipped, needs your OK (`.github/workflows/**`)
@@ -302,10 +316,22 @@ Not done by F4, because workflow files need the owner's approval:
 2. `.github/workflows/rebuild-test-apk.yml`: add `redesign/**` to its branch triggers (6.0), so each phase
    produces a phone APK.
 
+Also for the owner, as doc owner: please amend 7.1 T3 and 7.2 (or add an Appendix A row) so the rubric text
+matches the tools: the `\b` before `tween(` / `spring(` and gold-share's `--min-value 0.20` default (both in
+section 6 below). Until then reviewers should know the tools differ from the letter of 7.1/7.2 there. The
+literal T3 rule is one flag away (`--min-value 0`): it gave a max of 7.93% (Welcome) against 6.52% with the
+default on the round-1 renders, both under 8%.
+
 ## 6. Deviations from the doc, for the record
 
 - design-lint: `\b` added before `tween(` and `spring(` (7.2 lists `tween\(`, which also matches
   `Duration.between(` in F1's `Fmt.kt`).
 - gold-share: a pixel also needs HSV value >= 0.20 (default; `--min-value 0` is the literal T3 rule), so the dark
   page glow does not count as gold. The 18 Deep Dive renderer shots measure 0.2-6.4% with it.
-- Semantics touch-target check uses layout bounds, not `touchBoundsInRoot` (reason in section 2 above).
+- Semantics touch-target check uses the unclipped layout size, not `touchBoundsInRoot` (reason in section 2
+  above).
+- CardShadow geometry (section 2.7 says "a rect inset 20 dp horizontally with setShadowLayer(28.dp, 0, 10.dp,
+  ink@35%)"): the shim and the reference `ui/platform/CardShadow.kt` above instead apply the CSS spread of
+  -20 dp on all four sides and convert the CSS blur of 28 dp (Gaussian sigma 14 dp) to an Android shadow radius
+  of (14 dp - 0.5) / 0.57735. This follows DD's `0 10px 28px -20px` more closely than the 2.7 text. F2's
+  `CardShadow.kt` and the renderer-sync item (Q5) should use this geometry, not the 2.7 wording.

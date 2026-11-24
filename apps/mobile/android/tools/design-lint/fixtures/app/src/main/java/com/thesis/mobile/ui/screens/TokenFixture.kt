@@ -39,3 +39,5 @@ val ac = "https://example.com/a" // a URL's // inside a string does not start a 
 val ad = '"' // a char literal quote does not open a string
 val ae = 24.dp // LINT: dp-literal
 val af = "price ${value} in 16.dp" // LINT: dp-literal
+val ag = Ink.copy(alpha = 0.4f) // the token allowlist clears copy-alpha (it is a token id, not a copy id)
+val ah = Ink.copy(alpha = 0.3f) // LINT: copy-alpha (a copy-allowlist entry does not clear token patterns)

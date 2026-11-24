@@ -1,5 +1,5 @@
 // Preview implementation of app/.../ui/platform/PlatformHaptics.kt (Android: View.performHapticFeedback with
-// SDK-guarded HapticFeedbackConstants, section 4.7). Same public API; see HANDOFF-F4.md.
+// SDK-guarded HapticFeedbackConstants, section 4.7). Same public API; see F4 HANDOFF.
 // Renders have no vibrator: calls are recorded in PreviewHaptics.log so tests can assert the 4.7 map.
 package com.thesis.mobile.ui.platform
 

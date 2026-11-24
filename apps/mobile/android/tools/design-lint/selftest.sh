@@ -4,7 +4,9 @@
 #     parentheses), and every marker must
 #     be found (must-fail and must-pass in one pass; ui/theme and ui/components fixtures must stay silent).
 #  2. Baseline mechanics on a scratch copy: at baseline exit 0; a new Color(0x fails; the baseline refuses to
-#     rise without --allow-raise; an allowlist entry clears it; a removed finding is reported as "below".
+#     rise without --allow-raise; an allowlist entry clears it; a removed finding is reported as "below";
+#     --update-baseline FILE... keeps every other file's rows and still refuses to raise; --allow-raise moves
+#     findings between files but the total needs --allow-total-raise.
 #  3. --strict: any finding fails; out-of-scope files are skipped.
 #  4. The real tree: exit 0 at its baseline, and exit 1 once a Color(0x... is added to a screen.
 set -uo pipefail
@@ -68,6 +70,34 @@ expect_exit 0 "new screens file with no findings passes" bash -c "echo 'val ok =
 echo 'val bad = 4.dp' >"$W/app/src/main/java/com/thesis/mobile/ui/screens/New.kt"
 expect_exit 1 "a new file starts at baseline 0" "$LINT" "${ARGS[@]}"
 rm "$W/app/src/main/java/com/thesis/mobile/ui/screens/New.kt"
+
+# ---- 2b. --update-baseline FILE... merges: only the named files' rows change, the rest are kept
+cp "$W/baseline.txt" "$TMP/before.txt"
+rows_other() { grep -v '^#' "$1" | grep -v '^ui/screens/TokenFixture.kt' | sort; }
+expect_exit 0 "update-baseline with a FILE argument" "$LINT" "${ARGS[@]}" --update-baseline "$SCREEN"
+if [ "$(rows_other "$TMP/before.txt")" = "$(rows_other "$W/baseline.txt")" ] && [ -n "$(rows_other "$W/baseline.txt")" ]; then
+  pass "other files' baseline rows are kept"
+else
+  fail "update-baseline FILE dropped or changed other files' rows"
+  diff "$TMP/before.txt" "$W/baseline.txt" | sed 's/^/       /'
+fi
+expect_exit 0 "and the full check still passes" "$LINT" "${ARGS[@]}"
+echo 'val probe2 = 3.dp' >>"$SCREEN"
+expect_exit 1 "update-baseline FILE still refuses to raise" "$LINT" "${ARGS[@]}" --update-baseline "$SCREEN"
+sed -i.bak '$d' "$SCREEN"
+
+# ---- 2c. --allow-raise moves findings between files; the total may only rise with --allow-total-raise
+MOVED="$W/app/src/main/java/com/thesis/mobile/ui/screens/Moved.kt"
+echo 'val moved = 24.dp' >"$MOVED"
+sed -i.bak '/val ae = 24.dp/d' "$SCREEN"
+expect_exit 1 "a finding moved to a new file needs --allow-raise" "$LINT" "${ARGS[@]}" --update-baseline
+expect_exit 0 "--allow-raise accepts the move (total unchanged)" "$LINT" "${ARGS[@]}" --update-baseline --allow-raise
+echo 'val extra = 9.dp' >>"$MOVED"
+expect_exit 1 "--allow-raise still refuses a higher total" "$LINT" "${ARGS[@]}" --update-baseline --allow-raise
+expect_exit 0 "--allow-total-raise accepts it" "$LINT" "${ARGS[@]}" --update-baseline --allow-total-raise
+rm "$MOVED"
+expect_exit 0 "a deleted file's rows leave the baseline on a full update" "$LINT" "${ARGS[@]}" --update-baseline
+grep -q 'Moved.kt' "$W/baseline.txt" && fail "Moved.kt rows kept after the file was deleted" || pass "and are gone"
 
 # ---- 3. strict
 expect_exit 1 "--strict fails on any finding" "$LINT" "${ARGS[@]}" --strict \
