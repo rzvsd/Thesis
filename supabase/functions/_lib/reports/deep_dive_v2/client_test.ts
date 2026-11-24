@@ -22,8 +22,22 @@ interface Core {
   ): { pe: string; gap: string; cls: string; implied: string; price: string };
 }
 
+// The page script runs in these tests as a module loaded from a data: URL (no Function constructor, which the
+// SAST baseline forbids). Modules are strict, so this also checks the script is strict-safe.
+function dataUrl(src: string): string {
+  const bytes = new TextEncoder().encode(src);
+  let bin = "";
+  for (const b of bytes) bin += String.fromCharCode(b);
+  return `data:text/javascript;base64,${btoa(bin)}`;
+}
+
+const CORE = (await import(dataUrl(`${CLIENT_CORE_JS}\nexport default {vps:vps,ig:ig,texts:texts};`)))
+  .default as Core;
+const runClient = (await import(dataUrl(`export default function (document, window) {\n${CLIENT_JS}\n}`)))
+  .default as (document: unknown, window: unknown) => void;
+
 function loadCore(): Core {
-  return new Function(`"use strict";${CLIENT_CORE_JS}return {vps:vps,ig:ig,texts:texts};`)() as Core;
+  return CORE;
 }
 
 const INPUTS: DcfInputs = {
@@ -204,7 +218,7 @@ function makePage(
       }
     },
   };
-  new Function("document", "window", CLIENT_JS)(doc, win);
+  runClient(doc, win);
   return {
     html,
     body,
@@ -248,8 +262,8 @@ Deno.test("CLIENT_JS is safe to inline and self-contained", () => {
   );
   assert(!/=>|`|\?\?|\?\.|\blet\b|\bconst\b|\bclass\b/.test(CLIENT_JS), "plain ES5-style syntax");
   assert(CLIENT_JS.split("\n").length < 140);
-  // parses
-  new Function("document", "window", CLIENT_JS);
+  // parses (compiled once above)
+  assertEquals(typeof runClient, "function");
 });
 
 Deno.test("client math is identical to dcf.ts", () => {
@@ -445,5 +459,5 @@ Deno.test("fake DOM: storage that throws is ignored", () => {
       throw new Error("blocked");
     },
   };
-  new Function("document", "window", CLIENT_JS)(doc, win);
+  runClient(doc, win);
 });
