@@ -3,7 +3,10 @@ package com.thesis.mobile.ui
 import android.app.Application
 import android.content.Context
 import android.app.Activity
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.util.Base64
+import android.util.Log
 import androidx.biometric.BiometricManager
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -38,11 +41,14 @@ import com.thesis.mobile.network.ProductApiException
 import com.thesis.mobile.observability.MobileTelemetry
 import com.thesis.mobile.offline.OfflineCacheStore
 import com.thesis.mobile.offline.PrefetchScheduler
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.io.IOException
 import java.net.URI
@@ -149,6 +155,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val deepDiveResumePrefs = application.applicationContext
         .getSharedPreferences(DEEP_DIVE_RESUME_PREFS, Context.MODE_PRIVATE)
     private var deepDivePoll: Job? = null
+
+    // Only one Pulse / macro stress refresh runs at a time: a newer refresh cancels the older one, so a
+    // slow or stuck older request can no longer finish late and replace fresh data with the saved copy.
+    private var pulseRefreshJob: Job? = null
+    private var pulseRememberRequested = false
+    private var macroStressRefreshJob: Job? = null
 
     init {
         if (state.tokens != null) {
@@ -1575,10 +1587,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun refreshPulse(rememberAsLastViewed: Boolean = false) {
-        viewModelScope.launch {
+        pulseRememberRequested = pulseRememberRequested || rememberAsLastViewed
+        pulseRefreshJob?.cancel()
+        pulseRefreshJob = viewModelScope.launch {
             publish(state.copy(isLoading = true, message = null, pulseError = null))
-            val error = runAuthorizedWithRefresh {
+            val fetchLatest: suspend () -> Unit = {
                 val pulse = client.getLatestPulse(state.apiBaseUrl, requireTokens().accessToken)
+                val remember = pulseRememberRequested
+                pulseRememberRequested = false
                 cacheStore.cachePulse(pulse)
                 publish(
                     state.copy(
@@ -1588,7 +1604,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         pulseError = null
                     )
                 )
-                if (rememberAsLastViewed) {
+                if (remember) {
                     rememberPulse(pulse)
                 }
                 trackEvent(
@@ -1603,7 +1619,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     )
                 )
             }
+            var error = runAuthorizedWithRefresh(fetchLatest)
+            if (error is IOException) {
+                // One quiet retry: a single dropped or stale connection should not send the user to the saved copy.
+                delay(PULSE_RETRY_DELAY_MS)
+                error = runAuthorizedWithRefresh(fetchLatest)
+            }
             if (error != null) {
+                val failureKind = RefreshFailure.classify(error, isDeviceOnline())
+                Log.w(LOG_TAG, RefreshFailure.logLine("pulse", error, failureKind))
+                val remember = pulseRememberRequested
+                pulseRememberRequested = false
                 val cachedPulse = cacheStore.getCachedPulse()
                 if (cachedPulse != null) {
                     publish(
@@ -1613,17 +1639,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                             pulseLoadedFromCache = true,
                             pulseFreshnessText = formatPulseFreshness(cachedPulse.generatedAt, fromCache = true),
                             pulseError = null,
-                            message = "Showing cached pulse while network is unavailable."
+                            message = RefreshFailure.cachedPulseMessage(failureKind)
                         )
                     )
-                    if (rememberAsLastViewed) {
+                    if (remember) {
                         rememberPulse(cachedPulse)
                     }
                     trackEvent(
                         "cache_hit",
                         mapOf(
                             "artifact" to "pulse_latest",
-                            "report_id" to cachedPulse.reportId
+                            "report_id" to cachedPulse.reportId,
+                            "failure_kind" to failureKind.name
                         )
                     )
                     trackEvent(
@@ -1636,9 +1663,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 } else {
                     trackEvent(
                         "cache_miss",
-                        mapOf("artifact" to "pulse_latest")
+                        mapOf("artifact" to "pulse_latest", "failure_kind" to failureKind.name)
                     )
-                    val message = toMessage(error)
+                    val message = toMessage(error).let { generic ->
+                        RefreshFailure.noCacheMessage(failureKind) ?: generic
+                    }
                     publish(state.copy(isLoading = false, message = message, pulseError = message))
                 }
             } else {
@@ -1648,6 +1677,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun loadPulseByDate(date: String, rememberAsLastViewed: Boolean = false) {
+        // A specific day was asked for: a still-running "latest" refresh must not replace it.
+        pulseRefreshJob?.cancel()
+        pulseRememberRequested = false
         val trimmed = date.trim()
         if (!Regex("^\\d{4}-\\d{2}-\\d{2}$").matches(trimmed)) {
             publish(state.copy(message = "Enter date as YYYY-MM-DD."))
@@ -1745,7 +1777,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         if (state.sentimentRangeDays != normalizedDays) {
             publish(state.copy(sentimentRangeDays = normalizedDays))
         }
-        viewModelScope.launch {
+        macroStressRefreshJob?.cancel()
+        macroStressRefreshJob = viewModelScope.launch {
             val error = runAuthorizedWithRefresh {
                 val current = client.getCurrentMacroStress(
                     state.apiBaseUrl,
@@ -1767,6 +1800,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 )
             }
             if (error != null) {
+                val failureKind = RefreshFailure.classify(error, isDeviceOnline())
+                Log.w(LOG_TAG, RefreshFailure.logLine("macro_stress", error, failureKind))
                 val cachedCurrent = cacheStore.getCachedSentimentCurrent()
                 val cachedHistory = cacheStore.getCachedSentimentHistory(normalizedDays)
                 if (cachedCurrent != null || cachedHistory.isNotEmpty()) {
@@ -1775,7 +1810,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                             sentimentCurrent = cachedCurrent,
                             sentimentHistory = cachedHistory,
                             sentimentRangeDays = normalizedDays,
-                            sentimentError = "Showing cached macro stress while network is unavailable."
+                            sentimentError = RefreshFailure.cachedMacroStressMessage(failureKind)
                         )
                     )
                     trackEvent(
@@ -2052,6 +2087,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         return runCatching {
             block()
         }.recoverCatching { error ->
+            if (error is CancellationException) {
+                throw error
+            }
             if (error is ProductApiException && error.code == 401) {
                 if (tryRefreshToken()) {
                     block()
@@ -2062,8 +2100,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             } else {
                 throw error
             }
-        }.exceptionOrNull()
+        }.exceptionOrNull().also { error ->
+            // A cancelled coroutine (screen closed, newer refresh started) is not an error to show.
+            if (error is CancellationException) {
+                throw error
+            }
+        }
     }
+
+    private fun isDeviceOnline(): Boolean = runCatching {
+        val connectivity = getApplication<Application>()
+            .getSystemService(ConnectivityManager::class.java) ?: return@runCatching true
+        val capabilities = connectivity.getNetworkCapabilities(connectivity.activeNetwork)
+            ?: return@runCatching false
+        capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+    }.getOrDefault(true)
 
     private suspend fun clearLocalSession(message: String) {
         PrefetchScheduler.cancel(getApplication<Application>().applicationContext)
@@ -2132,9 +2183,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         )
     }
 
-    private suspend fun tryRefreshToken(): Boolean {
-        val current = state.tokens ?: return false
-        return runCatching {
+    // NonCancellable: refresh tokens rotate, so a token refresh that started must finish and save the new
+    // tokens even if the refresh that asked for it is cancelled (for example by a newer Pulse refresh).
+    // Otherwise a cancelled refresh would look like a failed one and log the user out.
+    private suspend fun tryRefreshToken(): Boolean = withContext(NonCancellable) {
+        val current = state.tokens ?: return@withContext false
+        runCatching {
             client.refresh(state.apiBaseUrl, current.refreshToken)
         }.onSuccess { newTokens ->
             sessionStore.saveTokens(newTokens)
@@ -2345,6 +2399,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     companion object {
+        private const val LOG_TAG = "ThesisRefresh"
+        private const val PULSE_RETRY_DELAY_MS = 600L
         private const val DEEP_DIVE_RESUME_PREFS = "thesis_deep_dive_resume"
         private const val KEY_RESUME_JOB_ID = "job_id"
         private const val KEY_RESUME_TICKER = "ticker"
