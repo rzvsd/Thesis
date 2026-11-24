@@ -19,6 +19,8 @@ export interface JobRecord {
   dispatchedAt?: string;
   runUrl?: string;
   checkedAt?: string;
+  // Set when this job waits on another customer's open run for the same ticker instead of starting its own.
+  followsJobId?: string;
 }
 
 // The bare body of POST /jobs and GET /jobs/:id.

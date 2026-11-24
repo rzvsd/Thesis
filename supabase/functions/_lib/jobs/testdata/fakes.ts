@@ -13,6 +13,7 @@ export class FakeStore implements JobsStore {
   usage = new Map<string, number>();
   tiers = new Map<string, "FREE" | "PRO">();
   tickers = new Set(["AAPL", "MSFT", "FAIL"]);
+  coverage = new Map<string, string>();
 
   getJob(id: string) {
     const j = this.jobs.get(id);
@@ -34,6 +35,7 @@ export class FakeStore implements JobsStore {
       userId?: string;
       ticker?: string;
       createdAt: string;
+      followsJobId?: string;
     },
   ) {
     const clash = input.type === "deep_dive" && input.userId &&
@@ -45,6 +47,22 @@ export class FakeStore implements JobsStore {
     const job: JobRecord = { ...input, status: "queued", attempts: 0 };
     this.jobs.set(job.id, job);
     return Promise.resolve({ ...job });
+  }
+  findOpenRunForTicker(ticker: string, excludeUserId: string) {
+    const open = [...this.jobs.values()]
+      .filter((j) =>
+        j.type === "deep_dive" && j.ticker === ticker && (j.status === "queued" || j.status === "running") &&
+        !j.followsJobId && j.userId !== excludeUserId
+      )
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    return Promise.resolve(open[0] ? { ...open[0] } : undefined);
+  }
+  listOpenFollowers(jobId: string) {
+    return Promise.resolve(
+      [...this.jobs.values()].filter((j) => j.followsJobId === jobId && j.status === "queued").map((j) => ({
+        ...j,
+      })),
+    );
   }
   private update(id: string, ok: (j: JobRecord) => boolean, patch: (j: JobRecord) => Partial<JobRecord>) {
     const j = this.jobs.get(id);
@@ -123,8 +141,8 @@ export class FakeStore implements JobsStore {
   isSupportedTicker(symbol: string) {
     return Promise.resolve(this.tickers.has(symbol));
   }
-  getCoverageLatestPeriod(_ticker: string) {
-    return Promise.resolve(undefined);
+  getCoverageLatestPeriod(ticker: string) {
+    return Promise.resolve(this.coverage.get(ticker));
   }
   createReport(input: ReportRecord) {
     this.reports.set(input.id, { ...input });
@@ -231,7 +249,7 @@ export function fakeDeps(overrides: Partial<JobsDeps> = {}) {
     config: {
       dailyCap: 15,
       reuseFreshnessHours: 24,
-      precomputeFreshnessHours: 2160,
+      precomputeFreshnessHours: 4380,
       subscriptionTimezone: "America/New_York",
     },
     background: (p) => pending.push(p),
