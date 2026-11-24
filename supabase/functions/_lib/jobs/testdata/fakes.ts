@@ -3,7 +3,7 @@ import type { ArtifactStore } from "../artifacts.ts";
 import { toArtifactKey } from "../artifacts.ts";
 import type { Runner, RunState } from "../dispatch.ts";
 import type { CompletionEffects, JobsDeps } from "../service.ts";
-import type { JobsStore } from "../store.ts";
+import type { JobsStore, ReusableQuery } from "../store.ts";
 import type { AnalysisReport, JobRecord, ReportRecord } from "../types.ts";
 
 export class FakeStore implements JobsStore {
@@ -155,12 +155,16 @@ export class FakeStore implements JobsStore {
   getReport(id: string) {
     return Promise.resolve(this.reports.get(id));
   }
-  findReusableDeepDiveReport(input: { ticker: string; fingerprint: string; nowIso: string }) {
-    const found = [...this.reports.values()].find((r) =>
-      r.type === "deep_dive" && r.ticker === input.ticker && r.fingerprint === input.fingerprint &&
-      (r.freshnessExpiresAt ?? "") > input.nowIso &&
-      [...this.jobs.values()].some((j) => j.reportId === r.id && j.status === "complete")
-    );
+  findReusableDeepDiveReport(input: ReusableQuery) {
+    const found =
+      [...this.reports.values()].filter((r) =>
+        r.type === "deep_dive" && r.ticker === input.ticker &&
+        (r.fingerprint === input.fingerprint ||
+          (!!input.anyPeriod && (r.fingerprint ?? "").startsWith(input.anyPeriod.prefix) &&
+            (r.freshnessExpiresAt ?? "") > input.anyPeriod.freshAfterIso)) &&
+        (r.freshnessExpiresAt ?? "") > input.nowIso &&
+        [...this.jobs.values()].some((j) => j.reportId === r.id && j.status === "complete")
+      ).sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
     return Promise.resolve(found);
   }
   findLatestComparableDeepDiveReport(input: { ticker: string; schemaMajor: number; sinceIso: string }) {
@@ -250,6 +254,7 @@ export function fakeDeps(overrides: Partial<JobsDeps> = {}) {
       dailyCap: 15,
       reuseFreshnessHours: 24,
       precomputeFreshnessHours: 4380,
+      unknownCoverageReuseHours: 2160,
       subscriptionTimezone: "America/New_York",
     },
     background: (p) => pending.push(p),
