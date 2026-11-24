@@ -2,7 +2,7 @@
 // Internal routes the daily and weekly jobs call: data ingest, macro, calendar, prices and the evaluators.
 // All routes need the internal token. The logic lives in _lib/evaluators; this file only parses the request
 // and turns an EvalResult into a Response.
-import { db } from "../../../_shared/db.ts";
+import { db, type Sql } from "../../../_shared/db.ts";
 import { env } from "../../../_shared/env.ts";
 import { apiError, json } from "../../../_shared/http.ts";
 import { evaluateCoherence } from "../../../_lib/evaluators/coherence.ts";
@@ -80,10 +80,16 @@ function pulseDeps(): PulseDeps {
 }
 
 let currentPrecompute: PrecomputeDeps | undefined;
+// The client the real deps were built with. resetDb() (request deadline) swaps the client, so the deps are
+// rebuilt when db() hands out a new one. Unset for test deps.
+let precomputeBuiltFor: Sql | undefined;
 
 function precomputeDeps(): PrecomputeDeps {
-  currentPrecompute ??= {
-    store: postgresPrecomputeStore(db(), postgresJobsStore(db())),
+  if (currentPrecompute && (!precomputeBuiltFor || precomputeBuiltFor === db())) return currentPrecompute;
+  const sql = db();
+  precomputeBuiltFor = sql;
+  currentPrecompute = {
+    store: postgresPrecomputeStore(sql, postgresJobsStore(sql)),
     now: () => new Date(),
     ...precomputeLimitsFromEnv(),
     audit: (eventType, payload) => appendAuditEvent(eventType, payload),
@@ -94,6 +100,7 @@ function precomputeDeps(): PrecomputeDeps {
 // Tests swap in a fake store. Pass undefined to go back to the real one.
 export function setPrecomputeDeps(next: PrecomputeDeps | undefined): void {
   currentPrecompute = next;
+  precomputeBuiltFor = undefined;
 }
 
 // Tests swap in memory stores. Pass undefined to go back to the real ones.
