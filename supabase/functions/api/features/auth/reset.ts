@@ -29,6 +29,8 @@ export function resetRequest(get: () => AuthDeps) {
           user_id: user.id,
           provider: r.provider,
           delivered: r.delivered,
+          reason: r.delivered ? undefined : r.reason,
+          status: r.delivered ? undefined : r.status,
         });
         return r;
       });

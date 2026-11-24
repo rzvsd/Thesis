@@ -31,10 +31,10 @@ export class SupabaseEmailSender implements EmailSender {
     return Promise.resolve({ delivered: false, provider: "supabase", reason: "unsupported" });
   }
 
-  private result(r: { ok: boolean; code?: string }): EmailResult {
+  private result(r: { ok: boolean; code?: string; status?: number }): EmailResult {
     return r.ok
       ? { delivered: true, provider: "supabase" }
-      : { delivered: false, provider: "supabase", reason: r.code ?? "failed" };
+      : { delivered: false, provider: "supabase", reason: r.code ?? "failed", status: r.status };
   }
 }
 

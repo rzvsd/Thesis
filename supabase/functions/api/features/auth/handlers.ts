@@ -56,7 +56,14 @@ export function register(get: () => AuthDeps): Handler {
       return apiError(403, "registration_closed", "Thesis is invite-only for now.");
     }
     const exists = () => apiError(409, "email_exists", "An account with this email already exists.");
-    if (await d.store.findUserByEmail(email)) return exists();
+    const known = await d.store.findUserByEmail(email);
+    if (known) {
+      if (known.verifiedAt) return exists();
+      // Not verified yet: send a fresh code instead of leaving the account stuck. The password is not changed.
+      // The per-address hourly cap (S2) applies; over it the answer is the same and nothing is sent.
+      if (!(await d.emailAllowed(email))) return verificationSent(d, email);
+      return await sendVerification(d, known.id, email, "auth.verification_resent", path);
+    }
 
     const created = await d.gotrue.adminCreateUser({ email, password, email_confirm: false });
     if (!created.ok) {
@@ -76,23 +83,41 @@ export function register(get: () => AuthDeps): Handler {
       await d.gotrue.adminDeleteUser(authId);
       return exists();
     }
-    await audit(d, "auth.registered", { route: path }, user.id);
-
-    const cfg = d.config();
-    const expiresAt = new Date(d.now().getTime() + cfg.emailOtpExpirySeconds * 1000).toISOString();
-    const sent = await d.email.verifyEmail(email);
-    logInfo("Verification email dispatched", {
-      user_id: user.id,
-      provider: sent.provider,
-      delivered: sent.delivered,
-    });
-    return json({
-      status: "verification_sent",
-      email: user.email,
-      verification_token: cfg.exposeCodes ? sent.code : undefined,
-      verification_expires_at: expiresAt,
-    }, 201);
+    return await sendVerification(d, user.id, user.email, "auth.registered", path);
   };
+}
+
+async function sendVerification(
+  d: AuthDeps,
+  userId: string,
+  email: string,
+  event: "auth.registered" | "auth.verification_resent",
+  path: string,
+): Promise<Response> {
+  await audit(d, event, { route: path }, userId);
+  const cfg = d.config();
+  const expiresAt = new Date(d.now().getTime() + cfg.emailOtpExpirySeconds * 1000).toISOString();
+  const sent = await d.email.verifyEmail(email);
+  logInfo("Verification email dispatched", {
+    user_id: userId,
+    provider: sent.provider,
+    delivered: sent.delivered,
+    reason: sent.delivered ? undefined : sent.reason,
+    status: sent.delivered ? undefined : sent.status,
+    resend: event === "auth.verification_resent",
+  });
+  return verificationSent(d, email, cfg.exposeCodes ? sent.code : undefined, expiresAt);
+}
+
+function verificationSent(d: AuthDeps, email: string, code?: string, expiresAt?: string): Response {
+  const at = expiresAt ??
+    new Date(d.now().getTime() + d.config().emailOtpExpirySeconds * 1000).toISOString();
+  return json({
+    status: "verification_sent",
+    email,
+    verification_token: code,
+    verification_expires_at: at,
+  }, 201);
 }
 
 export function verify(get: () => AuthDeps): Handler {

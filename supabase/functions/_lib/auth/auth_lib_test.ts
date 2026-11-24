@@ -11,12 +11,15 @@ function recorder(status: number, body: unknown) {
   return { seen, fetch };
 }
 
+// Legacy keys are JWTs; the client copies only those to the Authorization header.
+const LEGACY_SVC = "eyJhbGciOiJIUzI1NiJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIn0.sig";
+
 Deno.test("GoTrue client: anon key for public calls, service key for admin calls", async () => {
   const r = recorder(200, { access_token: "a", refresh_token: "r" });
   const c = new GoTrueClient({
     url: "https://p.supabase.co/",
     anonKey: "anon",
-    serviceKey: "svc",
+    serviceKey: LEGACY_SVC,
     fetch: r.fetch,
   });
   await c.passwordGrant("a@b.co", "pw");
@@ -26,8 +29,8 @@ Deno.test("GoTrue client: anon key for public calls, service key for admin calls
   assertEquals(r.seen[0].headers.get("apikey"), "anon");
   assertEquals(r.seen[1].url, "https://p.supabase.co/auth/v1/admin/users/u-1");
   assertEquals(r.seen[1].method, "DELETE");
-  assertEquals(r.seen[1].headers.get("apikey"), "svc");
-  assertEquals(r.seen[1].headers.get("authorization"), "Bearer svc");
+  assertEquals(r.seen[1].headers.get("apikey"), LEGACY_SVC);
+  assertEquals(r.seen[1].headers.get("authorization"), `Bearer ${LEGACY_SVC}`);
   assertEquals(r.seen[2].url, "https://p.supabase.co/auth/v1/logout?scope=global");
   assertEquals(r.seen[2].headers.get("authorization"), "Bearer user-jwt");
 });
@@ -144,6 +147,33 @@ Deno.test("sb-forwarded-for is sent only with the secret key and a client ip", a
     throw new Error("secret key must forward the ip");
   }
   if (seen[2].has("sb-forwarded-for")) throw new Error("no ip outside a request");
+});
+
+Deno.test("new API keys go on apikey only, never as a bearer; user tokens still do", async () => {
+  const r = recorder(200, {});
+  const c = new GoTrueClient({
+    url: "http://a",
+    secretKey: "sb_secret_x",
+    serviceKey: LEGACY_SVC,
+    fetch: r.fetch,
+  });
+  await c.resend("signup", "x@example.com");
+  await c.getUser("user-jwt");
+  await c.adminDeleteUser("u-1");
+  assertEquals(r.seen[0].headers.get("apikey"), "sb_secret_x");
+  assertEquals(r.seen[0].headers.has("authorization"), false);
+  assertEquals(r.seen[1].headers.get("authorization"), "Bearer user-jwt");
+  assertEquals(r.seen[2].headers.get("authorization"), `Bearer ${LEGACY_SVC}`);
+  const plain = new GoTrueClient({
+    url: "http://a",
+    anonKey: "anon",
+    serviceKey: "sb_secret_y",
+    fetch: r.fetch,
+  });
+  await plain.recover("x@example.com");
+  await plain.adminDeleteUser("u-2");
+  assertEquals(r.seen[3].headers.has("authorization"), false);
+  assertEquals(r.seen[4].headers.has("authorization"), false);
 });
 
 Deno.test("isOtpCode takes the short email code at the lengths Supabase allows (6 to 10 digits)", () => {

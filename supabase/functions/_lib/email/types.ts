@@ -7,6 +7,8 @@ export interface EmailResult {
   delivered: boolean;
   provider: EmailProvider;
   reason?: string;
+  // HTTP status of the failed call, when there was one. Logged with reason to tell a bad key from an outage.
+  status?: number;
   // The code the user must type, when this server knows it (resend driver). Never logged.
   code?: string;
 }
