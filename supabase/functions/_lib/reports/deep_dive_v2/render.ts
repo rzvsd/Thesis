@@ -6,10 +6,10 @@
 import type { AnalysisReport } from "../types.ts";
 import { asOfDate, readReportFacts, type ReportFacts } from "./adapter.ts";
 import { derive } from "./derive.ts";
-import { CLIENT_JS, type ClientData, priceTexts } from "./client.ts";
+import { CLIENT_JS, type ClientData, NA_TEXT, priceTexts } from "./client.ts";
 import { PAGE_CSS } from "./css.ts";
 import { FONT_CSS } from "./fonts.ts";
-import { esc, fmt } from "./format.ts";
+import { currencyCode, esc, fmt, withCurrency } from "./format.ts";
 import { modelRange } from "./chapters_b.ts";
 import { business, netCashSentence, owners, summary } from "./chapters_a.ts";
 import { action, countries, links } from "./chapters_later.ts";
@@ -31,6 +31,8 @@ import {
   pair,
   phaseTag,
   prev,
+  priceOffNote,
+  shareText,
   shortName,
   tightest,
   usd,
@@ -45,18 +47,24 @@ export const NOT_ADVICE_TEXT =
   "public filings. It is general information, not a personal opinion on any security. Do your own research before " +
   "you invest.";
 
-/** Builds the render context: facts, derived values, the stored price and the client data. */
+/**
+ * Builds the render context: facts, derived values, the stored price and the client data. A report whose figures
+ * are not in dollars gets no price at all (priceOff): its EPS and model values are in the reporting currency per
+ * reported share, and comparing them with a price needs the exchange rate and the ADR ratio (SPEC section 3).
+ */
 export function buildContext(report: unknown): Ctx {
   const f = readReportFacts(report);
-  const d = derive(f.annual);
-  const price = f.price ? f.price.value : null;
+  const d = derive(f.annual, f.splits);
+  const currency = currencyCode(f.currency);
+  const priceOff = currency !== "USD";
+  const price = f.price && !priceOff ? f.price.value : null;
   const sc = (k: "bear" | "base" | "bull") => d.dcf?.scenarios.find((s) => s.key === k)?.value ?? null;
-  const data: ClientData = {
+  const data: ClientData = priceOff ? { price: null, eps: null, scenarios: null, dcf: null, currency } : {
     price,
     eps: last(d.eps),
     scenarios: d.dcf ? { bear: sc("bear"), base: sc("base"), bull: sc("bull") } : null,
     dcf: d.dcf ? d.dcf.inputs : null,
-    currency: "USD",
+    currency,
   };
   return {
     f,
@@ -64,9 +72,11 @@ export function buildContext(report: unknown): Ctx {
     short: shortName(f.name),
     L: d.years.length ? fyT(d.latest.fiscal_year) : "the latest fiscal year",
     price,
-    priceDate: f.price ? dateText(f.price.date) : null,
+    priceDate: f.price && !priceOff ? dateText(f.price.date) : null,
     pt: priceTexts(data, price),
     data,
+    currency,
+    priceOff,
   };
 }
 
@@ -154,32 +164,42 @@ const dirCls = (
   v: number | null,
 ): "up" | "dn" | "n" => (!isNum(v) || Math.abs(v) < 0.05 ? "n" : v > 0 ? "up" : "dn");
 
+/**
+ * The tile note when a one-year change is missing. "No prior year" only when the row for the year before is not
+ * on record; otherwise the year-earlier figure, or a note that one of the two years is not tagged.
+ */
+function noChange(c: Ctx, series: Array<number | null>, show: (v: number) => string): string {
+  const { d } = c;
+  if (!d.prior) return "No prior year";
+  const before = prev(d, series);
+  if (isNum(before)) return `${show(before)} a year earlier`;
+  return isNum(last(series))
+    ? `Not disclosed for ${fyT(d.prior.fiscal_year)}`
+    : "Not disclosed for either year";
+}
+
 function kpis(c: Ctx): string {
   const { d, L } = c;
   const yoy = d.growth.revenueYoY, omc = d.marginChange1y.op, fy = d.growth.fcfYoY, sh = d.sharesChange1y;
-  const nc = last(d.netCash), ncp = prev(d.netCash);
+  const nc = last(d.netCash), ncp = prev(d, d.netCash);
   return `<div class="kpis">${
     [
       kpi(
         `Sales, ${L}`,
         esc(m(last(d.revenue))),
-        isNum(yoy) ? `${fmt(yoy, "pct", { sign: true })} on the year` : "No prior year",
+        isNum(yoy) ? `${fmt(yoy, "pct", { sign: true })} on the year` : noChange(c, d.revenue, m),
         dirCls(yoy),
       ),
       kpi(
         "Operating margin",
         esc(p(last(d.opMargin))),
-        isNum(omc) ? fmt(omc, "pp") : "No prior year",
+        isNum(omc) ? fmt(omc, "pp") : noChange(c, d.opMargin, (v) => p(v)),
         dirCls(omc),
       ),
       kpi(
         "Free cash flow",
         esc(m(last(d.fcf))),
-        isNum(fy)
-          ? `${fmt(fy, "pct", { sign: true, digits: 0 })} on the year`
-          : isNum(prev(d.fcf))
-          ? `${m(prev(d.fcf))} a year earlier`
-          : "No prior year",
+        isNum(fy) ? `${fmt(fy, "pct", { sign: true, digits: 0 })} on the year` : noChange(c, d.fcf, m),
         dirCls(fy),
       ),
       kpi(
@@ -187,16 +207,20 @@ function kpis(c: Ctx): string {
         esc(isNum(nc) ? m(Math.abs(nc)) : m(null)),
         isNum(ncp)
           ? `${ncp >= 0 ? "net cash" : "net debt"} ${m(Math.abs(ncp))} a year earlier`
-          : "No prior year",
+          : noChange(c, d.netCash, m),
         "n",
       ),
       kpi(
         "Shares, change in the year",
         esc(isNum(sh) ? fmt(sh, "pct", { sign: true }) : m(null)),
-        isNum(sh) ? (sh < 0 ? "fewer shares" : sh > 0 ? "more shares" : "unchanged") : "No prior year",
+        isNum(sh)
+          ? (sh < 0 ? "fewer shares" : sh > 0 ? "more shares" : "unchanged")
+          : noChange(c, d.shares, (v) => `${shareText(v)} shares`),
         isNum(sh) ? (sh < 0 ? "up" : sh > 0 ? "dn" : "n") : "n",
       ),
-      kpi("Price to earnings", `<span data-dd="pe">${esc(c.pt.pe)}</span>`, "at your price", "n"),
+      c.priceOff
+        ? kpi("Price to earnings", esc(NA_TEXT), `needs a price in ${c.currency}`, "n")
+        : kpi("Price to earnings", `<span data-dd="pe">${esc(c.pt.pe)}</span>`, "at your price", "n"),
     ].join("")
   }</div>`;
 }
@@ -239,6 +263,15 @@ function evidenceCount(f: ReportFacts): number {
   return n;
 }
 
+/** The price box for a report not in dollars: no input, the model range (no price line) and the honest note. */
+function offBox(c: Ctx): string {
+  return `<div class="pricebox noprice-state"><div class="row"><span class="noprice">Price comparisons are off for this report.</span></div>` +
+    (c.d.dcf
+      ? `<div class="rangewrap">${pair((w) => modelRange(c, w, true))}</div>`
+      : `<div class="small-note">No model range: it needs three straight years of positive free cash flow, cash, debt and a share count.</div>`) +
+    `<div class="small-note">${esc(priceOffNote(c))}</div></div>`;
+}
+
 function hero(c: Ctx): string {
   const { f } = c;
   const meta = [
@@ -267,13 +300,18 @@ function hero(c: Ctx): string {
     } close on ${c.priceDate}. Type another price and the range, the ratios and the growth the price assumes update. Nothing you type is stored.`
     : "No closing price at the filing date is stored, because that needs a licensed price feed (phase 3). Type the price you see at your broker and the range, the ratios and the growth the price assumes update. Nothing you type is stored.";
   const value = has ? (c.price as number).toFixed(2) : "";
-  return `<header class="hero"><div class="wrap"><div><div class="eyebrow">Deep Dive · ${
+  const head = `<header class="hero"><div class="wrap"><div><div class="eyebrow">Deep Dive · ${
     esc(filingEyebrow(f, c))
   }</div><h1>${
     esc(f.name)
   }</h1><div class="meta">${meta}</div></div><div class="stance">${pills}</div><p class="thesis">${
     esc(heroThesis(c))
-  }</p>` +
+  }</p>`;
+  const tail = kpis(c) +
+    `<div class="readmode" role="group" aria-label="Reading mode"><span>Read as</span><button type="button" data-dd-mode="story" aria-pressed="true">Full story</button><button type="button" data-dd-mode="charts" aria-pressed="false">Charts only</button></div>` +
+    `</div></header>`;
+  if (c.priceOff) return head + offBox(c) + tail;
+  return head +
     `<div class="pricebox${
       has ? "" : " noprice-state"
     }"><div class="row"><label for="dd-price">Price</label><span class="priceinput priceinput-edit"><span>$</span><input id="dd-price" data-dd="price" type="text" inputmode="decimal" autocomplete="off" spellcheck="false" placeholder="Price" value="${
@@ -287,11 +325,9 @@ function hero(c: Ctx): string {
     }</span></div>` +
     (c.d.dcf
       ? `<div class="rangewrap">${pair((w) => modelRange(c, w, true))}</div>`
-      : `<div class="small-note">No model range: it needs three years of positive free cash flow, cash, debt and a share count.</div>`) +
+      : `<div class="small-note">No model range: it needs three straight years of positive free cash flow, cash, debt and a share count.</div>`) +
     `<div class="small-note" id="dd-price-note">${esc(note)}</div></div>` +
-    kpis(c) +
-    `<div class="readmode" role="group" aria-label="Reading mode"><span>Read as</span><button type="button" data-dd-mode="story" aria-pressed="true">Full story</button><button type="button" data-dd-mode="charts" aria-pressed="false">Charts only</button></div>` +
-    `</div></header>`;
+    tail;
 }
 
 export interface RenderResult {
@@ -301,9 +337,13 @@ export interface RenderResult {
   problems: string[];
 }
 
-/** Full render with diagnostics (used by tests and previews). */
+/** Full render with diagnostics (used by tests and previews). Money is formatted in the report currency. */
 export function renderDeepDiveV2(report: AnalysisReport, opts: RenderOptions): RenderResult {
   const c = buildContext(report);
+  return withCurrency(c.currency, () => renderWith(c, opts));
+}
+
+function renderWith(c: Ctx, opts: RenderOptions): RenderResult {
   const { f } = c;
   const chapters = buildChapters(c);
   const nums = new Map<string, number>();

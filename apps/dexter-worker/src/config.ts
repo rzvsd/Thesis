@@ -1,5 +1,6 @@
 import { resolve } from "node:path";
 
+import { DEFAULT_SEC_USER_AGENT } from "./fact-pack/sec-client";
 import { appRoot, goldenRoot } from "./fs-roots";
 
 const defaultPort = 3002;
@@ -134,6 +135,13 @@ export interface DexterConfig {
   forcedFailureTickers: Set<string>;
   llmPricesPath: string;
   maxDeepDiveCostUsd?: number;
+  // Deep Dive 2.0 fact pack (src/fact-pack). On by default, also in fixture mode: SEC data is free.
+  // DEXTER_FACT_PACK=off turns it off (the unit tests do, so they never call SEC).
+  factPackEnabled: boolean;
+  secUserAgent: string;
+  // Where the fact pack's annual rows go (POST /internal/financials/ingest). Unset = no ingest.
+  financialsIngestUrl?: string;
+  financialsIngestToken?: string;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): DexterConfig {
@@ -260,7 +268,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): DexterConfig {
     forcedFailureTickers: parseTickerSet(env.DEXTER_FORCE_FAIL_TICKERS),
     llmPricesPath: env.DEXTER_LLM_PRICES_PATH?.trim() || resolve(appRoot, "llm-prices.json"),
     // Unset = no limit; usage is still measured and logged.
-    maxDeepDiveCostUsd: parseOptionalPositiveNumber(env.DEXTER_MAX_DEEP_DIVE_COST_USD)
+    maxDeepDiveCostUsd: parseOptionalPositiveNumber(env.DEXTER_MAX_DEEP_DIVE_COST_USD),
+    factPackEnabled: parseBoolean(env.DEXTER_FACT_PACK, true),
+    secUserAgent: env.SEC_USER_AGENT?.trim() || DEFAULT_SEC_USER_AGENT,
+    financialsIngestUrl: env.THESIS_API_URL?.trim() || undefined,
+    financialsIngestToken: env.THESIS_INTERNAL_TOKEN?.trim() || undefined
   };
 }
 

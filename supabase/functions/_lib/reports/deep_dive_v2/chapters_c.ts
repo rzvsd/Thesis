@@ -361,7 +361,8 @@ export function bottom(c: Ctx): Chapter {
   if (a.detail) bits.push(a.detail);
   const br = d.epsBridge;
   if (br) {
-    const big = [...br.steps].sort((x, y) => Math.abs(y.value) - Math.abs(x.value))[0];
+    const big = br.steps.filter((x) => Math.abs(x.value) >= 0.005)
+      .sort((x, y) => Math.abs(y.value) - Math.abs(x.value))[0];
     bits.push(
       `Earnings per share went from ${usd(br.from)} to ${usd(br.to)}${
         big
@@ -371,8 +372,8 @@ export function bottom(c: Ctx): Chapter {
           : ""
       }.`,
     );
-  } else if (isNum(last(d.eps)) && isNum(prev(d.eps))) {
-    bits.push(`Earnings per share went from ${usd(prev(d.eps))} to ${usd(last(d.eps))}.`);
+  } else if (isNum(last(d.eps)) && isNum(prev(d, d.eps))) {
+    bits.push(`Earnings per share went from ${usd(prev(d, d.eps))} to ${usd(last(d.eps))}.`);
   }
   if (isNum(d.growth.revenueYoY) && q.kind !== "eps_vs_sales" && q.kind !== "shrink" && q.kind !== "pace") {
     bits.push(`Sales ${d.growth.revenueYoY >= 0 ? "grew" : "shrank"} ${pa(d.growth.revenueYoY)} in ${L}.`);
@@ -392,7 +393,7 @@ export function bottom(c: Ctx): Chapter {
       : "The first answer cannot be given yet.",
     body: bits.join(" ") || "The filings on record are too thin to say more.",
   });
-  const cr = d.cashReturn5, nc = last(d.netCash), ncp = prev(d.netCash), fcf = last(d.fcf);
+  const cr = d.cashReturn5, nc = last(d.netCash), ncp = prev(d, d.netCash), fcf = last(d.fcf);
   const cost: string[] = [];
   if (isNum(fcf) && fcf <= 0) {
     cost.push(`Free cash flow was ${m(fcf)} in ${L}, so the business used cash rather than made it.`);
@@ -483,6 +484,8 @@ const MISSING_NAMES: Record<string, string> = {
   owners: "Owners and insider trades (phase 2)",
   filings: "Filing list with 8-K items (comes with the fact pack)",
   price_at_filing: "Closing price on the filing date (phase 3, needs a licensed feed)",
+  history_before_currency_change:
+    "Years reported only in the company's earlier currency (left out, so no series mixes two currencies)",
 };
 
 const FIELD_NAMES: Array<[string, string]> = [

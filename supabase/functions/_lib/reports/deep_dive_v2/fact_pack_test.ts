@@ -1,5 +1,5 @@
 import { assertEquals } from "jsr:@std/assert@1.0.13";
-import { readFactPack } from "./fact_pack.ts";
+import { readFactPack, readSplits } from "./fact_pack.ts";
 import { sampleApplePack } from "./testdata_pack.ts";
 
 Deno.test("readFactPack sorts the annual rows oldest first and drops bad rows", () => {
@@ -37,4 +37,39 @@ Deno.test("readFactPack returns null for junk and fills missing lists with empty
   assertEquals(out?.sources, []);
   assertEquals(out?.price_at_filing, null);
   assertEquals(out?.latest_filing, null);
+});
+
+Deno.test("readFactPack passes splits through safely: valid entries only, oldest first, absent when none", () => {
+  const out = readFactPack({
+    fact_pack: {
+      ...sampleApplePack(),
+      splits: [
+        { ratio: 4, effective_fiscal_year: 2021, evidence: "restatement", concept: "us-gaap:X" },
+        {
+          ratio: 0.1,
+          effective_fiscal_year: 2018,
+          evidence: "tag",
+          concept: "us-gaap:Y",
+          filed: "2018-11-01",
+        },
+        { ratio: 1, effective_fiscal_year: 2019 },
+        { ratio: -2, effective_fiscal_year: 2019 },
+        { ratio: 2, effective_fiscal_year: "2019" },
+        "2-for-1",
+        null,
+      ],
+    },
+  });
+  assertEquals(out?.splits, [
+    { ratio: 0.1, effective_fiscal_year: 2018, evidence: "tag", concept: "us-gaap:Y", filed: "2018-11-01" },
+    { ratio: 4, effective_fiscal_year: 2021, evidence: "restatement", concept: "us-gaap:X" },
+  ]);
+  for (const junk of [undefined, "x", {}, [], [{ ratio: 1, effective_fiscal_year: 2020 }]]) {
+    const read = readFactPack({ fact_pack: { ...sampleApplePack(), splits: junk } });
+    assertEquals(read !== null && "splits" in read, false);
+  }
+  assertEquals(
+    readSplits([{ ratio: 3, effective_fiscal_year: 2020, evidence: "odd" }])[0].evidence,
+    "restatement",
+  );
 });

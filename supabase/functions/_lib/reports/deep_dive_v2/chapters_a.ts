@@ -76,6 +76,13 @@ export function priceSentence(c: Ctx): string {
   const base = baseCase(c);
   const bear = c.d.dcf?.scenarios.find((s) => s.key === "bear");
   const bull = c.d.dcf?.scenarios.find((s) => s.key === "bull");
+  if (c.priceOff) {
+    return `${
+      base && bear && bull
+        ? `The model range is ${usd0(bear.value)} to ${usd0(bull.value)} per reported share. `
+        : ""
+    }Price comparisons are off: they need the trading-currency price and the ADR ratio, which are not in place yet.`;
+  }
   if (c.price !== null && base) {
     const gap = (base.value / c.price - 1) * 100;
     return `At the ${usd(c.price)} close on ${c.priceDate}, the model's base value of ${
@@ -87,7 +94,7 @@ export function priceSentence(c: Ctx): string {
     }.`;
   }
   if (!base || !bear || !bull) {
-    return "The model range needs three years of positive free cash flow, cash, debt and a share count, so no range is shown.";
+    return "The model range needs three straight years of positive free cash flow, cash, debt and a share count, so no range is shown.";
   }
   return c.price === null
     ? `No closing price at the filing date is stored, so type a price at the top to compare it with the model range of ${
@@ -113,7 +120,7 @@ function changes(c: Ctx): Change[] {
     out.push({
       dir: dir(yoy),
       title: `Sales ${yoy >= 0 ? "up" : "down"} ${pa(yoy)} to ${m(last(d.revenue))}`,
-      text: `From ${m(prev(d.revenue))} in ${P}.`,
+      text: `From ${m(prev(d, d.revenue))} in ${P}.`,
     });
   }
   const gmc = d.marginChange1y.gross;
@@ -126,7 +133,7 @@ function changes(c: Ctx): Change[] {
       title: `Gross margin ${p(gm)}, ${pts(gmc)} ${gmc >= 0 ? "higher" : "lower"}`,
       text: top
         ? `The highest in the ${d.years.length} years on record.`
-        : `It was ${p(prev(d.grossMargin))} in ${P}.`,
+        : `It was ${p(prev(d, d.grossMargin))} in ${P}.`,
     });
   }
   const omc = d.marginChange1y.op;
@@ -135,7 +142,7 @@ function changes(c: Ctx): Change[] {
     out.push({
       dir: dir(omc),
       title: `Operating margin ${p(om)}, ${pts(omc)} ${omc >= 0 ? "higher" : "lower"}`,
-      text: `It was ${p(prev(d.opMargin))} in ${P}.`,
+      text: `It was ${p(prev(d, d.opMargin))} in ${P}.`,
     });
   }
   const fy = d.growth.fcfYoY;
@@ -145,7 +152,7 @@ function changes(c: Ctx): Change[] {
       title: `Free cash flow ${fy >= 0 ? "up" : "down"} ${pa(fy, 0)} to ${m(last(d.fcf))}`,
       text: isNum(last(d.netIncome))
         ? `Net profit was ${m(last(d.netIncome))}.`
-        : `From ${m(prev(d.fcf))} in ${P}.`,
+        : `From ${m(prev(d, d.fcf))} in ${P}.`,
     });
   }
   const sh = d.sharesChange1y;
@@ -163,7 +170,7 @@ function changes(c: Ctx): Change[] {
         : "About the same number of shares.",
     });
   }
-  const nc = last(d.netCash), ncp = prev(d.netCash);
+  const nc = last(d.netCash), ncp = prev(d, d.netCash);
   if (isNum(nc) && isNum(ncp)) {
     const word = nc >= 0 ? "Net cash" : "Net debt";
     out.push({
@@ -278,7 +285,7 @@ export function summary(c: Ctx): Chapter {
   }
 
   const bits: string[] = [];
-  const e1 = last(d.eps), e0 = prev(d.eps);
+  const e1 = last(d.eps), e0 = prev(d, d.eps);
   if (isNum(e0) && isNum(e1)) bits.push(`Earnings per share went from ${usd(e0)} to ${usd(e1)} in ${L}.`);
   if (isNum(d.sharesChange1y)) {
     bits.push(
@@ -314,7 +321,7 @@ export function summary(c: Ctx): Chapter {
     .join("");
   const priceRow = ratioRows([[
     "Price against the model range",
-    `<span data-dd="gap">${esc(c.pt.gap)}</span>`,
+    c.priceOff ? esc(`Off: needs a price in ${c.currency}`) : `<span data-dd="gap">${esc(c.pt.gap)}</span>`,
   ]]);
   const cards: Card[] = [
     {
@@ -341,7 +348,11 @@ export function summary(c: Ctx): Chapter {
       : notSeen(
         "changes",
         "What changed since the last filing",
-        "Not seen: first filing on record. The comparison needs an earlier annual report in",
+        d.years.length > 1
+          ? `Not seen: ${
+            fyT(d.latest.fiscal_year - 1)
+          } is not on record, so there is no year to compare against. The comparison needs that annual report in`
+          : "Not seen: first filing on record. The comparison needs an earlier annual report in",
         "the SEC company facts",
         1,
       ),
@@ -372,8 +383,11 @@ export function business(c: Ctx): Chapter {
   const gm = last(d.grossMargin), om = last(d.opMargin);
   const gmx = extremes(d, d.grossMargin);
   const hasGm = d.grossMargin.some(isNum);
+  const usdText = c.currency === "USD";
   const claim = isNum(gm)
-    ? `${S} keeps about ${Math.round(gm)} cents of each sales dollar as gross profit.`
+    ? usdText
+      ? `${S} keeps about ${Math.round(gm)} cents of each sales dollar as gross profit.`
+      : `${S} keeps about ${p(gm, 0)} of its sales as gross profit.`
     : isNum(rev)
     ? `Sales were ${m(rev)} in ${L}${
       isNum(yoy) ? `, ${yoy >= 0 ? "up" : "down"} ${pa(yoy)} on the year` : ""
@@ -396,9 +410,13 @@ export function business(c: Ctx): Chapter {
     for (let k = sp.i + 1; k <= sp.j; k++) {
       if (isNum(d.revenue[k - 1]) && isNum(d.revenue[k]) && d.years[k] - d.years[k - 1] === 1) compared++;
     }
-    const fallText = falls.length === 0
+    const fallText = compared === 0
+      ? "The years on record are not back to back, so no year-on-year change can be measured."
+      : falls.length === 0
       ? compared === sp.j - sp.i
         ? "Sales rose in every year on record."
+        : compared === 1
+        ? "Sales rose in the one year-on-year change on record."
         : `Sales rose in each of the ${compared} year-on-year changes on record.`
       : `Sales fell in ${listText(falls.map(String))}${
         falls.length > 1 ? `, ${falls.length} of the ${compared} year-on-year changes on record` : ""
@@ -425,7 +443,9 @@ export function business(c: Ctx): Chapter {
   }
   if (hasGm && gmx && isNum(gm)) {
     story.push({
-      lead: `Each sales dollar leaves about ${Math.round(gm)} cents of gross profit.`,
+      lead: usdText
+        ? `Each sales dollar leaves about ${Math.round(gm)} cents of gross profit.`
+        : `About ${p(gm, 0)} of sales is left as gross profit.`,
       body:
         `Gross profit is what is left after the direct cost of the goods and services sold. The gross margin ran from a low of ${
           p(gmx.min)
@@ -471,11 +491,16 @@ export function business(c: Ctx): Chapter {
         : "Sales by year";
     })()
     : "Sales by year";
+  // "In N years" only when the rows are back to back; a gapped record says "of the N years on record".
+  const nYrs = d.years.length;
+  const inYears = d.latest.fiscal_year - d.first.fiscal_year + 1 === nYrs
+    ? `in ${nYrs} years`
+    : `of the ${nYrs} years on record`;
   const marginTitle = isNum(gm) && gmx
-    ? gmx.maxY === d.latest.fiscal_year && d.years.length > 2
-      ? `Gross margin at its highest in ${d.years.length} years`
-      : gmx.minY === d.latest.fiscal_year && d.years.length > 2
-      ? `Gross margin at its lowest in ${d.years.length} years`
+    ? gmx.maxY === d.latest.fiscal_year && nYrs > 2
+      ? `Gross margin at its highest ${inYears}`
+      : gmx.minY === d.latest.fiscal_year && nYrs > 2
+      ? `Gross margin at its lowest ${inYears}`
       : `Gross margin ${p(gm)} in ${L}`
     : isNum(om)
     ? `Operating margin ${p(om)} in ${L}`
@@ -565,7 +590,15 @@ export function owners(c: Ctx): Chapter {
   const all = d.sharesChangeAll, one = d.sharesChange1y;
   const F = sp ? fyT(d.years[sp.i]) : "";
   const anyBuybacks = d.buybacks.some(isNum);
-  const verdict: Para = isNum(all)
+  // A count level from end to end (a split, once adjusted, leaves it level) is neither buybacks nor dilution.
+  const level = isNum(all) && Math.abs(all) < 0.05;
+  const verdict: Para = level
+    ? {
+      lead: `The share count was unchanged since ${F}.`,
+      body:
+        "Each share owns the same slice of the profit as before. Owners, insider trades and the board arrive in phase 2.",
+    }
+    : isNum(all)
     ? all < 0
       ? {
         lead: anyBuybacks
@@ -586,13 +619,19 @@ export function owners(c: Ctx): Chapter {
   const story: Para[] = [];
   if (sp && sp.j > sp.i && isNum(all)) {
     story.push({
-      lead: all < 0 ? "The share count has been falling." : "The share count has been rising.",
+      lead: level
+        ? "The share count has held level."
+        : all < 0
+        ? "The share count has been falling."
+        : "The share count has been rising.",
       body: `It went from ${shareText(d.shares[sp.i])} shares in ${F} to ${shareText(d.shares[sp.j])} in ${
         fyT(d.years[sp.j])
       }, as the Financials chapter charts.${
         isNum(one) ? ` In ${L} alone it ${moved(one)}${Math.abs(one) >= 0.05 ? " " + pa(one) : ""}.` : ""
       } ${
-        all < 0
+        level
+          ? "With the count level, each owner's part of the business stayed the same."
+          : all < 0
           ? "When a company repurchases its own shares, every remaining owner owns a larger part of the business without paying more."
           : "When a company issues shares, for staff pay or to raise money, every existing owner owns a smaller part."
       }`,
@@ -698,6 +737,10 @@ export function owners(c: Ctx): Chapter {
       ? `The share count test in the Risks chapter trips if shares rise ${
         p(shareCheck.threshold, 0)
       } or more in a year. In ${L} they changed ${p(one)}.`
+      : d.years.length > 1 && !d.prior
+      ? `The share count test in the Risks chapter needs the share count for ${
+        fyT(d.latest.fiscal_year - 1)
+      }, which is not on record. Until then the change cannot be checked.`
       : "The share count test in the Risks chapter needs two years of share counts. Until then the change cannot be checked.",
   };
 }

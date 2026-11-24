@@ -36,7 +36,8 @@ export interface AnnualFacts {
   short_term_investments?: number;
   /** Current plus long-term debt, including commercial paper when tagged. */
   debt_total?: number;
-  /** Period-end shares outstanding (cover page count when the balance sheet count is missing). */
+  /** Shares outstanding: the annual report's cover page count (a 10-K dates it after the period end, a 20-F
+   *  at the period end), else the balance sheet count at the period end. */
   shares_outstanding?: number;
   /** Weighted average diluted shares for the year. */
   shares_diluted?: number;
@@ -44,6 +45,31 @@ export interface AnnualFacts {
   total_assets?: number;
   /** Field name to the XBRL concept that supplied it, e.g. { revenue: "us-gaap:Revenues" }. */
   concepts?: Record<string, string>;
+  /** Set only on rows adjusted for a stock split (see FactPack.splits): the values as that year's report gave
+   *  them. eps_diluted, shares_diluted and shares_outstanding above are then on the latest year's basis. */
+  as_reported?: AsReported;
+}
+
+export interface AsReported {
+  eps_diluted?: number;
+  shares_diluted?: number;
+  shares_outstanding?: number;
+}
+
+/** A stock split found in the filings. ratio is new shares per old share: 4 for a 4-for-1 split, 0.1 for a
+ *  1-for-10 reverse split. */
+export interface StockSplit {
+  ratio: number;
+  /** The first fiscal year whose own annual report is on the new share basis. */
+  effective_fiscal_year: number;
+  /** "restatement": a later filing restated earlier per-share values or share counts by the ratio;
+   *  "tag": us-gaap:StockholdersEquityNoteStockSplitConversionRatio1. */
+  evidence: "restatement" | "tag";
+  /** The XBRL concept that showed it. */
+  concept: string;
+  /** The filing that first showed the new basis, when known. */
+  accession?: string;
+  filed?: string;
 }
 
 export interface FilingRef {
@@ -89,17 +115,45 @@ export interface FactPack {
   latest_filing: LatestFiling | null;
   /** Oldest first, at most 11 years. */
   annual: AnnualFacts[];
+  /** Stock splits within the annual rows, oldest first. Present only when there is one: per-share values and
+   *  share counts of earlier rows are then adjusted to the latest year's basis (as_reported keeps the originals).
+   *  Absent means none was found, not that none happened. */
+  splits?: StockSplit[];
   /** Periodic and 8-K filings in the 12 months up to the latest filing, newest first. */
   filings: FilingRef[];
   /** Closing price on the filing date. Null until a licensed price source exists (SPEC rule 3). */
   price_at_filing: PriceAtFiling | null;
-  /** Data the pack could not fill, e.g. "segments", "regions", "owners", "price_at_filing". */
+  /** Data the pack could not fill, e.g. "segments", "regions", "owners", "price_at_filing".
+   *  "history_before_currency_change": older years reported only in another currency are left out. */
   missing: string[];
   sources: Array<{ name: string; url: string }>;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/** The pack's valid split entries (a positive ratio other than 1 and a whole fiscal year), oldest first. */
+export function readSplits(value: unknown): StockSplit[] {
+  if (!Array.isArray(value)) return [];
+  const out: StockSplit[] = [];
+  for (const s of value) {
+    if (!isRecord(s)) continue;
+    const ratio = s.ratio, year = s.effective_fiscal_year;
+    if (typeof ratio !== "number" || !Number.isFinite(ratio) || ratio <= 0 || Math.abs(ratio - 1) < 1e-9) {
+      continue;
+    }
+    if (typeof year !== "number" || !Number.isInteger(year)) continue;
+    out.push({
+      ratio,
+      effective_fiscal_year: year,
+      evidence: s.evidence === "tag" ? "tag" : "restatement",
+      concept: typeof s.concept === "string" ? s.concept : "",
+      ...(typeof s.accession === "string" ? { accession: s.accession } : {}),
+      ...(typeof s.filed === "string" ? { filed: s.filed } : {}),
+    });
+  }
+  return out.sort((a, b) => a.effective_fiscal_year - b.effective_fiscal_year);
 }
 
 /** The report's fact pack when it has a usable one (version 1, at least one annual row), else null. */
@@ -113,9 +167,12 @@ export function readFactPack(report: unknown): FactPack | null {
   );
   if (annual.length === 0) return null;
   annual.sort((a, b) => a.fiscal_year - b.fiscal_year);
+  const splits = readSplits(pack.splits);
+  const { splits: _drop, ...rest } = pack;
   return {
-    ...(pack as unknown as FactPack),
+    ...(rest as unknown as FactPack),
     annual,
+    ...(splits.length ? { splits } : {}),
     filings: Array.isArray(pack.filings) ? (pack.filings as FilingRef[]) : [],
     missing: Array.isArray(pack.missing) ? (pack.missing as string[]) : [],
     sources: Array.isArray(pack.sources) ? (pack.sources as FactPack["sources"]) : [],

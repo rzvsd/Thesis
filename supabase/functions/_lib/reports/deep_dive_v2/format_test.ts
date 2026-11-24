@@ -1,5 +1,18 @@
 import { assertEquals } from "jsr:@std/assert@1.0.13";
-import { esc, fmt, fmtAxis, fmtMoney, fy, MINUS, pct } from "./format.ts";
+import {
+  currencyCode,
+  currencyPrefix,
+  currentCurrency,
+  esc,
+  fmt,
+  fmtAxis,
+  fmtMoney,
+  fy,
+  MINUS,
+  moneyUnit,
+  pct,
+  withCurrency,
+} from "./format.ts";
 
 const B = 1e9;
 
@@ -79,4 +92,43 @@ Deno.test("fmtAxis shares one scale and the fewest decimals", () => {
   assertEquals(fmtAxis([14e9, 16e9], "shares_b"), ["14B", "16B"]);
   assertEquals(fmtAxis([-1, 0, 1], "pp"), [`${MINUS}1`, "0", "+1"]);
   assertEquals(fmtAxis([0, 20, 40], "x"), ["0x", "20x", "40x"]);
+});
+
+Deno.test("money follows the report currency inside withCurrency and returns to dollars after", () => {
+  assertEquals(currencyCode("eur"), "EUR");
+  assertEquals(currencyCode(" chf "), "CHF");
+  assertEquals(currencyCode("Euro"), "USD");
+  assertEquals(currencyCode(undefined), "USD");
+  assertEquals(currencyPrefix("USD"), "$");
+  assertEquals(currencyPrefix("EUR"), "€");
+  assertEquals(currencyPrefix("GBP"), "£");
+  assertEquals(currencyPrefix("JPY"), "JPY ");
+  withCurrency("EUR", () => {
+    assertEquals(currentCurrency(), "EUR");
+    assertEquals(fmtMoney(416.2e9), "€416.2B");
+    assertEquals(fmt(-2.5e9, "usd_b"), "−€2.5B");
+    assertEquals(fmt(7.47, "usd_ps"), "€7.47");
+    assertEquals(fmt(0.73, "usd_ps", { sign: true }), "+€0.73");
+    assertEquals(fmtAxis([0, 50e9, 100e9], "usd"), ["€0", "€50B", "€100B"]);
+    assertEquals(fmtAxis([0, 100, 200], "usd_ps"), ["€0", "€100", "€200"]);
+    assertEquals(moneyUnit(), "EUR");
+  });
+  withCurrency("CHF", () => {
+    assertEquals(fmtMoney(12.3e9), "CHF 12.3B");
+    assertEquals(fmtMoney(-750e6), "−CHF 750M");
+    assertEquals(fmtAxis([0, 5e9, 10e9], "usd_b"), ["CHF 0", "CHF 5B", "CHF 10B"]);
+    // Nested renders restore the outer currency.
+    withCurrency("JPY", () => assertEquals(fmtMoney(1.2e12), "JPY 1.2T"));
+    assertEquals(fmtMoney(1e9), "CHF 1.0B");
+  });
+  assertEquals(currentCurrency(), "USD");
+  assertEquals(fmtMoney(416.2e9), "$416.2B");
+  assertEquals(moneyUnit(), "$");
+  // The currency is restored even when the render throws.
+  try {
+    withCurrency("EUR", () => {
+      throw new Error("x");
+    });
+  } catch { /* expected */ }
+  assertEquals(fmt(1, "usd_ps"), "$1.00");
 });

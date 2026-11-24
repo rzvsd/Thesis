@@ -1,5 +1,7 @@
 // Deep Dive 2.0: escaping and number formatting shared by every renderer file.
 // Pure TS (no Deno APIs). Display text uses U+2212 for minus and "Not disclosed" for missing values.
+// Money units ("usd", "usd_b", "usd_ps") are in the report currency: "$" by default, and the page render sets the
+// fact pack's currency with withCurrency() ("€", "£", or the ISO code and a space, "CHF 12.3B").
 
 export const MINUS = "−";
 export const NOT_DISCLOSED = "Not disclosed";
@@ -13,6 +15,45 @@ export function esc(s: unknown): string {
 }
 
 export type Unit = "usd" | "usd_b" | "usd_ps" | "pct" | "pp" | "x" | "shares_b" | "plain";
+
+const SYMBOLS: Record<string, string> = { USD: "$", EUR: "€", GBP: "£" };
+
+/** The ISO code in upper case; "USD" for anything that is not a three-letter code (legacy reports are in dollars). */
+export function currencyCode(code: unknown): string {
+  const c = typeof code === "string" ? code.trim().toUpperCase() : "";
+  return /^[A-Z]{3}$/.test(c) ? c : "USD";
+}
+
+/** The money prefix for a currency: "$", "€", "£", else the code and a space ("CHF "). */
+export function currencyPrefix(code: string): string {
+  const c = currencyCode(code);
+  return SYMBOLS[c] ?? `${c} `;
+}
+
+let CUR = "USD";
+let PRE = "$";
+
+/** The currency money is formatted in right now. */
+export function currentCurrency(): string {
+  return CUR;
+}
+
+/** Runs `fn` with money formatted in `code`, then restores the previous currency (rendering is synchronous). */
+export function withCurrency<T>(code: string, fn: () => T): T {
+  const was = [CUR, PRE] as const;
+  CUR = currencyCode(code);
+  PRE = currencyPrefix(CUR);
+  try {
+    return fn();
+  } finally {
+    [CUR, PRE] = was;
+  }
+}
+
+/** The unit word for chart and table subtitles: "$" for dollars, else the ISO code ("EUR per share"). */
+export function moneyUnit(): string {
+  return CUR === "USD" ? "$" : CUR;
+}
 
 export interface FmtOpts {
   /** Show "+" for positive values. */
@@ -56,13 +97,13 @@ function compactMoney(v: number, plus: boolean, pick: (m: number, suffix: string
         const [s2, suf2] = SCALES[i - 1];
         m = abs / s2;
         d = pick(m, suf2);
-        return `${signOf(v, 6, plus)}$${grouped(m, d)}${suf2}`;
+        return `${signOf(v, 6, plus)}${PRE}${grouped(m, d)}${suf2}`;
       }
-      return `${signOf(v, 6, plus)}$${grouped(m, d)}${suffix}`;
+      return `${signOf(v, 6, plus)}${PRE}${grouped(m, d)}${suffix}`;
     }
   }
   const d = Number.isInteger(abs) ? 0 : 2;
-  return `${signOf(v, d, plus)}$${grouped(abs, d)}`;
+  return `${signOf(v, d, plus)}${PRE}${grouped(abs, d)}`;
 }
 
 /** Formats a value for display. Non-finite and null values give "Not disclosed". */
@@ -78,11 +119,11 @@ export function fmt(value: number | null | undefined, unit: Unit, opts: FmtOpts 
     case "usd_b": {
       const b = abs / 1e9;
       const d = dd ?? (b >= 100 ? 0 : 1);
-      return `${signOf(v < 0 ? -b : b, d, plus)}$${grouped(b, d)}B`;
+      return `${signOf(v < 0 ? -b : b, d, plus)}${PRE}${grouped(b, d)}B`;
     }
     case "usd_ps": {
       const d = dd ?? 2;
-      return `${signOf(v, d, plus)}$${grouped(abs, d)}`;
+      return `${signOf(v, d, plus)}${PRE}${grouped(abs, d)}`;
     }
     case "pct": {
       const d = dd ?? 1;
@@ -131,7 +172,7 @@ export function fy(year: number): string {
 
 /**
  * Axis tick labels: one shared scale and the fewest decimals that keep the ticks distinct.
- * Zero is shown as "$0" or "0%" without a scale letter.
+ * Zero is shown as "$0" or "0%" without a scale letter. Money ticks use the current currency prefix.
  */
 export function fmtAxis(ticks: number[], unit: Unit): string[] {
   const finite = ticks.filter(isNum);
@@ -162,14 +203,14 @@ export function fmtAxis(ticks: number[], unit: Unit): string[] {
         }
       }
       const d = decimalsFor(step / scale);
-      return ticks.map((t) => scaled(t, scale, d, "$", suf));
+      return ticks.map((t) => scaled(t, scale, d, PRE, suf));
     }
     case "usd_b": {
       const d = decimalsFor(step / 1e9);
-      return ticks.map((t) => scaled(t, 1e9, d, "$", "B"));
+      return ticks.map((t) => scaled(t, 1e9, d, PRE, "B"));
     }
     case "usd_ps":
-      return ticks.map((t) => scaled(t, 1, decimalsFor(step) ? 2 : 0, "$", "")); // cents come in pairs
+      return ticks.map((t) => scaled(t, 1, decimalsFor(step) ? 2 : 0, PRE, "")); // cents come in pairs
     case "pct":
       return ticks.map((t) => scaled(t, 1, decimalsFor(step), "", "%"));
     case "pp":

@@ -52,6 +52,8 @@ import { runLiveDexterQuery } from "./live-dexter";
 import { logError, logInfo, logWarn } from "./logging";
 import { loadRuntimePrompts, renderPrompt, type LoadedPrompts } from "./prompt-store";
 import { validateAnalysisReport } from "./schema-validation";
+import { runFactPackStep, type FactPackStepDeps } from "./fact-pack/step";
+import type { FactPack } from "./fact-pack/types";
 import {
   allSectionDefinitions,
   buildStatusBody,
@@ -67,7 +69,8 @@ import {
   type DexterEvidenceToolContext
 } from "./tools/tool-prompt-context";
 
-const schemaVersion = "2.0";
+// 2.1: Deep Dive 2.0 adds report.fact_pack (src/fact-pack). The API fingerprint and precompute use the same string.
+const schemaVersion = "2.1";
 const canonicalDisclaimer =
   "This is a research summary, not financial advice. Always do your own research.";
 
@@ -3052,9 +3055,15 @@ async function mapWithConcurrency<TInput, TOutput>(
   return results;
 }
 
+export interface AnalysisPipelineDeps {
+  /** Fakes for the SEC fact-pack step (tests). */
+  factPack?: FactPackStepDeps;
+}
+
 export async function runAnalysisPipeline(
   request: AnalysisRequest,
-  config: DexterConfig
+  config: DexterConfig,
+  deps: AnalysisPipelineDeps = {}
 ): Promise<AnalysisReport> {
   const ticker = request.ticker ?? "";
   const normalizedTicker = ticker.trim().toUpperCase();
@@ -3069,6 +3078,13 @@ export async function runAnalysisPipeline(
     });
     throw new Error(`Forced failure for ticker ${normalizedTicker}`);
   }
+
+  // SEC fact pack (Deep Dive 2.0), built while the sections run. Time-boxed; never throws; null = no pack.
+  const factPackPromise: Promise<FactPack | null> = runFactPackStep(
+    { ticker: normalizedTicker, jobId: request.job_id },
+    config,
+    deps.factPack
+  );
 
   const scenario = config.fixtureMode ? getFixtureScenario(ticker) : undefined;
   const selectedDefinitions = selectSectionDefinitions(request.options?.sections);
@@ -3511,7 +3527,8 @@ export async function runAnalysisPipeline(
     config
   );
 
-  const report: AnalysisReport = {
+  const factPack = await factPackPromise;
+  const report: AnalysisReport & { fact_pack?: FactPack } = {
     report_id: randomUUID(),
     job_id: request.job_id,
     schema_version: schemaVersion,
@@ -3540,7 +3557,8 @@ export async function runAnalysisPipeline(
     value_discipline: valueDiscipline,
     sections: orderedSections,
     flags: buildFlags(scenario, orderedSections, signal.value, traceMode),
-    data_sources: buildDataSources(scenario, orderedSections)
+    data_sources: buildDataSources(scenario, orderedSections),
+    ...(factPack ? { fact_pack: factPack } : {})
   };
 
   logInfo("Trust metadata generated", {

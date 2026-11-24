@@ -211,11 +211,13 @@ export function waterfall(o: {
  * Value ranges per method with an optional price marker. The marker is `<g data-dd="marker" data-min data-max
  * data-x0 data-x1 transform="translate(x,0)">`: the client maps a typed price from [min,max] to [x0,x1].
  * With no marker the group is still drawn, hidden with style="display:none", so the client can show it.
+ * `noMarker` leaves the group out (a page with no price box).
  */
 export function range(o: {
   title: string;
   rows: Array<{ label: string; low: number; high: number; mid?: number; tone?: Tone; faded?: boolean }>;
   marker?: { value: number; label: string } | null;
+  noMarker?: boolean;
   unit: Unit;
   width?: number;
 }): string {
@@ -223,7 +225,7 @@ export function range(o: {
   const rows = o.rows.filter((r) => isNum(r.low) && isNum(r.high));
   if (!rows.length) return NODATA;
   const narrow = W < 560;
-  const marker = o.marker && isNum(o.marker.value) ? o.marker : null;
+  const marker = o.marker && isNum(o.marker.value) && !o.noMarker ? o.marker : null;
   const vals = rows.flatMap((r) => [r.low, r.high, ...(isNum(r.mid) ? [r.mid] : [])]);
   if (marker) vals.push(marker.value);
   let lo = Math.min(...vals);
@@ -238,7 +240,7 @@ export function range(o: {
   const tickTxt = fmtAxis(ticks, o.unit);
   const tickHalf = Math.max(...tickTxt.map((t) => textW(t, FONT_TICK))) / 2 + 2;
   const mLabel = marker ? marker.label : "Your price";
-  const markHalf = textW(mLabel, FONT_LABEL, 600) / 2 + 2;
+  const markHalf = o.noMarker ? 0 : textW(mLabel, FONT_LABEL, 600) / 2 + 2;
   const labelCol = narrow
     ? 0
     : Math.min(Math.max(...rows.map((r) => textW(r.label, FONT_LABEL, 500))) + 14, W * 0.36);
@@ -302,6 +304,7 @@ export function range(o: {
       }">${titleTag(`${r.label}, middle`, fmt(r.mid, o.unit))}</line>`;
     }
   });
+  if (o.noMarker) return s + labels + "</svg>";
   const xm = marker ? x(marker.value) : ml + pw / 2;
   s += `<g data-dd="marker" data-dd-when="price" data-min="${dmin}" data-max="${dmax}" data-x0="${
     n1(ml)

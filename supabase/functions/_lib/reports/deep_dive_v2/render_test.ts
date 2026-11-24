@@ -1,7 +1,13 @@
 import { assert, assertEquals, assertMatch, assertStringIncludes } from "jsr:@std/assert@1.0.13";
 import { buildContext, buildDeepDiveV2Html, filingEyebrow, renderDeepDiveV2 } from "./render.ts";
 import { CLIENT_JS } from "./client.ts";
-import { sampleApplePack, sampleBankPack, sampleLossmakerPack, sampleReport } from "./testdata_pack.ts";
+import {
+  sampleApplePack,
+  sampleBankPack,
+  sampleLossmakerPack,
+  sampleReport,
+  sampleSharesPack,
+} from "./testdata_pack.ts";
 import { sampleInstitutionalReport } from "../testdata/editorial_institutional.ts";
 import { sampleSparseReport } from "../testdata/editorial_sparse.ts";
 
@@ -263,3 +269,250 @@ for (
     assertEquals(r.problems, [], name);
   });
 }
+
+// ---------------------------------------------------------------- review fixes: gaps, currency, missing values
+
+/** The page outside <script> and <style>: text, SVG labels and attribute values. */
+function outsideScripts(html: string): string {
+  return html.replace(/<style>[\s\S]*?<\/style>/g, " ").replace(/<script[\s\S]*?<\/script>/g, " ");
+}
+
+/** The Apple pack with only the given fiscal years. */
+function applePackYears(years: number[]): ReturnType<typeof sampleApplePack> {
+  const pack = sampleApplePack();
+  pack.annual = pack.annual.filter((r) => years.includes(r.fiscal_year));
+  return pack;
+}
+
+Deno.test("gapped history: no one-year claim and no model are built from the gap", () => {
+  const report = sampleReport(applePackYears([2020, 2022, 2025]));
+  const c = buildContext(report);
+  assertEquals(c.d.years, [2020, 2022, 2025]);
+  assertEquals(c.d.growth.revenueYoY, null);
+  assertEquals(c.d.dcf, null);
+  const r = renderDeepDiveV2(report, OPTS);
+  assertEquals(r.problems, []);
+  const text = visibleText(r.html).replace(/\s+/g, " ");
+  for (
+    const claim of [
+      /on the year/i,
+      /a year earlier/i,
+      /Last year/,
+      /the one before/i,
+      /What changed since (FY|fiscal)/,
+      /year-on-year changes? on record/,
+      /in the year\./,
+      /Earnings per share went from \$[\d.]+ to \$[\d.]+( in fiscal 2025)?\./,
+      /Base case/,
+    ]
+  ) {
+    const hit = claim.exec(text);
+    assertEquals(hit ? text.slice(Math.max(0, hit.index - 80), hit.index + 40) : null, null, String(claim));
+  }
+  assertStringIncludes(text, "fiscal 2024 is not on record");
+  assertStringIncludes(text, "The model needs three straight years of free cash flow");
+  assertStringIncludes(text, "No prior year");
+  assertStringIncludes(r.html, '"scenarios":null');
+});
+
+Deno.test("currency: a EUR pack shows euros, no dollar money and no price box", () => {
+  const pack = sampleApplePack();
+  pack.currency = "EUR";
+  // A stored price is not compared either: it would need the trading currency and the ADR ratio.
+  pack.price_at_filing = { value: 191, date: "2025-10-31", source: "test" };
+  const r = renderDeepDiveV2(sampleReport(pack), OPTS);
+  assertEquals(r.problems, []);
+  const page = outsideScripts(r.html);
+  assertEquals(
+    page.includes("$"),
+    false,
+    page.slice(Math.max(0, page.indexOf("$") - 80), page.indexOf("$") + 20),
+  );
+  assertEquals(/dollar/i.test(page), false);
+  assertStringIncludes(page, "€416.2B");
+  assertMatch(page, /<text[^>]*>€\d/); // SVG axis and value labels
+  assertStringIncludes(page, "EUR per reported share");
+  assertStringIncludes(page, "Price comparisons are off");
+  assertStringIncludes(page, "ADR ratio");
+  // No input, no price fields the script would fill, no price line in the range charts.
+  assertEquals(/<input\b/.test(page), false);
+  assertEquals(/data-dd="(price|pe|gap|implied|price-text|marker)"/.test(page), false);
+  assertEquals(/data-dd-when=/.test(page), false);
+  assertEquals(/Your price|Type a price|at your price|191\.00|close on/.test(visibleText(r.html)), false);
+  const data = JSON.parse(
+    /<script type="application\/json" id="dd-data">([\s\S]*?)<\/script>/.exec(r.html)![1],
+  );
+  assertEquals(data, { price: null, eps: null, scenarios: null, dcf: null, currency: "EUR" });
+  // The model values still show, in the reporting currency.
+  assert(buildContext(sampleReport(pack)).d.dcf);
+  assertStringIncludes(page, "The model range is €");
+  // The banned words and marks stay out in this mode too.
+  const text = visibleText(r.html);
+  assertEquals(BANNED.exec(text)?.[0] ?? null, null);
+  assertEquals(text.includes("—") || text.includes("!"), false);
+});
+
+Deno.test("currency: other codes use the ISO code; legacy and missing codes stay in dollars", () => {
+  const chf = sampleApplePack();
+  chf.currency = "chf";
+  const page = outsideScripts(buildDeepDiveV2Html(sampleReport(chf), OPTS));
+  assertStringIncludes(page, "CHF 416.2B");
+  assertStringIncludes(page, "CHF per reported share");
+  assertEquals(page.includes("$"), false);
+  assertEquals(/<input\b/.test(page), false);
+  const gbp = sampleApplePack();
+  gbp.currency = "GBP";
+  assertStringIncludes(buildDeepDiveV2Html(sampleReport(gbp), OPTS), "£416.2B");
+  // USD packs keep the price box; the formatter is back to dollars after a non-USD render.
+  const usd = buildDeepDiveV2Html(sampleReport(sampleApplePack()), OPTS);
+  assertStringIncludes(usd, 'data-dd="price" type="text"');
+  assertStringIncludes(usd, "$416.2B");
+  assertEquals(buildContext(sampleInstitutionalReport("job-1", "report-1")).currency, "USD");
+});
+
+Deno.test("missing latest net profit is not called a loss anywhere", () => {
+  const pack = sampleApplePack();
+  const last = pack.annual[pack.annual.length - 1];
+  delete last.net_income;
+  delete last.eps_diluted;
+  const c = buildContext(sampleReport(pack));
+  assertEquals(c.d.netIncome[c.d.netIncome.length - 1], null);
+  const text = visibleText(buildDeepDiveV2Html(sampleReport(pack), OPTS)).replace(/\s+/g, " ");
+  assertStringIncludes(text, "First, net profit is not tagged for fiscal 2025.");
+  for (
+    const claim of [/not yet profitable/, /net loss/i, /\blost\b/, /broke even/, /Can Apple reach a profit/]
+  ) {
+    assertEquals(claim.exec(text)?.[0] ?? null, null, String(claim));
+  }
+});
+
+Deno.test("net debt with free cash flow missing does not say the cash flow is negative", () => {
+  const pack = sampleApplePack();
+  const last = pack.annual[pack.annual.length - 1];
+  last.cash = 1e9;
+  delete last.short_term_investments;
+  delete last.free_cash_flow;
+  delete last.operating_cash_flow;
+  const ch = renderDeepDiveV2(sampleReport(pack), OPTS).chapters.find((x) => x.id === "risks")!;
+  assertStringIncludes(ch.verdict.body, "free cash flow is not tagged for fiscal 2025");
+  assertEquals(ch.verdict.body.includes("not positive"), false);
+});
+
+Deno.test("margin chart title counts rows on record, not calendar years, when the history has gaps", () => {
+  const title = (years: number[]): string => {
+    const pack = applePackYears(years);
+    const lastRow = pack.annual[pack.annual.length - 1];
+    lastRow.gross_profit = (lastRow.revenue as number) * 0.3;
+    return visibleText(buildDeepDiveV2Html(sampleReport(pack), OPTS)).replace(/\s+/g, " ");
+  };
+  const gapped = title([2015, 2020, 2025]);
+  assertStringIncludes(gapped, "Gross margin at its lowest of the 3 years on record");
+  assertEquals(/(highest|lowest) in \d+ years/.exec(gapped)?.[0] ?? null, null);
+  assertStringIncludes(title([2023, 2024, 2025]), "Gross margin at its lowest in 3 years");
+});
+
+Deno.test("KPI tiles say No prior year only when the year before is not on record", () => {
+  const pack = sampleLossmakerPack();
+  const lastRow = pack.annual[pack.annual.length - 1] as unknown as Record<string, unknown>;
+  for (const k of Object.keys(lastRow)) {
+    if (!["fiscal_year", "period_end", "filing_date", "revenue"].includes(k)) delete lastRow[k];
+  }
+  const html = renderDeepDiveV2(sampleReport(pack), OPTS).html;
+  const kpis = visibleText(html.slice(html.indexOf('<div class="kpis">'), html.indexOf("Price to earnings")))
+    .replace(/\s+/g, " ");
+  assertEquals(kpis.includes("No prior year"), false, kpis);
+  assertStringIncludes(kpis, "Operating margin Not disclosed −42.6% a year earlier");
+  assertStringIncludes(kpis, "Shares, change in the year Not disclosed 51.0 million shares a year earlier");
+  const gapped = renderDeepDiveV2(sampleReport(applePackYears([2020, 2022, 2025])), OPTS).html;
+  assertStringIncludes(gapped.slice(gapped.indexOf('<div class="kpis">')), "No prior year");
+});
+
+Deno.test("a stock split, listed by the pack or not, reads as no change in shares and no dilution", () => {
+  const notes = {
+    split_listed: "Adjusted for a 4-for-1 split in fiscal 2025.",
+    split_raw: "Adjusted for what looks like a 4-for-1 split in fiscal 2025, judged from the share count",
+  } as const;
+  for (const mode of ["split_listed", "split_raw"] as const) {
+    const report = sampleReport(sampleSharesPack(mode));
+    const c = buildContext(report);
+    const d = c.d;
+    // Never adjusted twice: every year on the FY2025 basis of 320 million shares.
+    assertEquals(d.shares, [320e6, 320e6, 320e6, 320e6, 320e6], mode);
+    assertEquals(d.eps, [0.5, 0.5, 0.5, 0.5, 0.5], mode);
+    assertEquals(d.sharesChange1y, 0, mode);
+    assertEquals(d.growth.epsYoY, 0, mode);
+    const share = d.checks.find((k) => k.key === "share_count");
+    assertEquals(share?.passes, true, mode);
+    // The EPS bridge has no share step and runs from $0.50 to $0.50.
+    assertEquals(d.epsBridge?.from, 0.5, mode);
+    assertEquals(d.epsBridge?.to, 0.5, mode);
+    assert(Math.abs(d.epsBridge?.steps.find((x) => x.key === "shares")?.value ?? 1) < 0.005, mode);
+
+    const r = renderDeepDiveV2(report, OPTS);
+    assertEquals(r.problems, [], mode);
+    const text = visibleText(r.html);
+    for (
+      const claim of ["smaller slice", "New shares mean", "rise in shares", "More shares", "Fewer shares"]
+    ) {
+      assertEquals(text.includes(claim), false, `${mode}: ${claim}`);
+    }
+    assertEquals(/Share count (up|down) [1-9]/.test(text), false, mode);
+    assertStringIncludes(text, "earnings per share held at $0.50");
+    assertEquals(/into 0 parts|came from same/.test(text), false, mode);
+    // The adjustment is said once, on the share count chart.
+    const sharesCard = r.chapters.find((ch) => ch.id === "financials")?.cards.find((cd) =>
+      cd.id === "fin-shares"
+    );
+    assertStringIncludes(sharesCard?.sub ?? "", notes[mode]);
+    assertEquals(text.split("4-for-1").length - 1, 1, mode);
+    assertEquals(BANNED.exec(text)?.[0] ?? null, null);
+    assertEquals(text.includes("—") || text.includes("!"), false);
+  }
+});
+
+Deno.test("a genuine 30% share issue is still reported as dilution", () => {
+  const report = sampleReport(sampleSharesPack("issue"));
+  const c = buildContext(report);
+  assertEquals(c.d.splits, []);
+  assert(Math.abs((c.d.sharesChange1y ?? 0) - 30) < 1e-9);
+  assertEquals(c.d.checks.find((k) => k.key === "share_count")?.passes, false);
+  const r = renderDeepDiveV2(report, OPTS);
+  const text = visibleText(r.html);
+  assertStringIncludes(text, "smaller slice");
+  assertStringIncludes(text, "Share count up 30.0%");
+  assertEquals(text.includes("split in fiscal"), false);
+  assert((c.d.epsBridge?.steps.find((x) => x.key === "shares")?.value ?? 0) < 0);
+});
+
+Deno.test("a split in a year profit grew strongly is still adjusted, not read as dilution", () => {
+  // 2-for-1 in FY2025 with net profit up 50%: EPS $2.00 to $1.50 as reported, shares 80 to 160 million.
+  const pack = sampleSharesPack("split_raw");
+  pack.annual = pack.annual.map((row) =>
+    row.fiscal_year === 2025
+      ? {
+        ...row,
+        operating_income: 0.3e9,
+        pretax_income: 0.3e9,
+        income_tax: 0.06e9,
+        net_income: 0.24e9,
+        eps_diluted: 1.5,
+        shares_diluted: 160e6,
+        shares_outstanding: 160e6,
+      }
+      : row
+  );
+  const report = sampleReport(pack);
+  const c = buildContext(report);
+  assertEquals(c.d.splits, [{ ratio: 2, fiscalYear: 2025, source: "detected" }]);
+  assertEquals(c.d.sharesChange1y, 0);
+  assertEquals(c.d.checks.find((k) => k.key === "share_count")?.passes, true);
+  assertEquals(c.d.epsBridge?.steps.find((x) => x.key === "shares")?.value, 0);
+  const r = renderDeepDiveV2(report, OPTS);
+  assertEquals(r.problems, []);
+  const text = visibleText(r.html);
+  for (const claim of ["smaller slice", "New shares mean", "More shares", "Fewer shares"]) {
+    assertEquals(text.includes(claim), false, claim);
+  }
+  assertEquals(/Share count (up|down) [1-9]/.test(text), false);
+  assertStringIncludes(text, "Adjusted for what looks like a 2-for-1 split in fiscal 2025");
+});

@@ -59,7 +59,7 @@ Deno.test("precompute creates system jobs for stale tickers, capped by in-flight
   const { store, created } = fakeStore({
     covered: ["AAPL", "MSFT", "NVDA", "TSLA"],
     reusable: ["AAPL"],
-    latest: { MSFT: "MSFT|2.0|2026Q2", NVDA: "NVDA|2.0|LATEST_UNKNOWN" },
+    latest: { MSFT: "MSFT|2.1|2026Q2", NVDA: "NVDA|2.1|LATEST_UNKNOWN" },
   });
   use(store);
   const res = await call({});
@@ -72,6 +72,20 @@ Deno.test("precompute creates system jobs for stale tickers, capped by in-flight
     ["NVDA", "expired"],
   ]);
   assertEquals(created.every((c) => c.userId === undefined), true);
+  setPrecomputeDeps(undefined);
+});
+
+Deno.test("precompute rebuilds a schema 2.0 report for the same filing (schema 2.1 adds the fact pack)", async () => {
+  const { store } = fakeStore({
+    covered: ["MSFT", "NVDA"],
+    latest: { MSFT: "MSFT|2.0|2026Q3", NVDA: "NVDA|2.1|LATEST_UNKNOWN" },
+  });
+  use(store);
+  const res = await call({});
+  assertEquals(res.body.jobs.map((j: { ticker: string; reason: string }) => [j.ticker, j.reason]), [
+    ["MSFT", "new_filing"],
+    ["NVDA", "expired"],
+  ]);
   setPrecomputeDeps(undefined);
 });
 

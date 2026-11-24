@@ -49,7 +49,7 @@ test("MSFT fixture request produces a schema-valid report with no blank sections
   const report = await runAnalysisPipeline(buildRequest("MSFT"), buildFixtureConfig());
 
   assert.equal(validateAnalysisReport(report).length, 0);
-  assert.equal(report.schema_version, "2.0");
+  assert.equal(report.schema_version, "2.1");
   assert.equal(report.type, "deep_dive");
   assert.equal(report.signal?.value, "positive");
   assert.equal(report.issuer?.name, "Microsoft Corporation");

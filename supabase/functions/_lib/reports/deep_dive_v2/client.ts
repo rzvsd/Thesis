@@ -27,7 +27,8 @@ export interface ClientData {
   eps: number | null;
   scenarios: { bear: number | null; base: number | null; bull: number | null } | null;
   dcf: DcfInputs | null;
-  currency: "USD";
+  /** The fact pack's reporting currency. Anything but "USD" ships with price, eps, scenarios and dcf all null. */
+  currency: string;
 }
 
 /** Text shown in the price fields when no price is stored and none is typed. */
