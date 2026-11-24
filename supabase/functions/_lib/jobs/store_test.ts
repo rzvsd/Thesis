@@ -167,6 +167,17 @@ Deno.test({
       });
       assertEquals(reusable?.id, reportId);
       assertEquals(reusable?.llmUsage, { usd: 0 });
+      // Filing period unknown: a report for any period of the ticker is found while its freshness runs past
+      // freshAfterIso, and not once it does not.
+      const anyPeriod = (freshAfterIso: string) =>
+        store.findReusableDeepDiveReport({
+          ticker: "AAPL",
+          fingerprint: "AAPL|2.0|2025-Q4",
+          nowIso: now,
+          anyPeriod: { prefix: "AAPL|2.0|", freshAfterIso },
+        });
+      assertEquals((await anyPeriod(now))?.id, reportId);
+      assertEquals(await anyPeriod(new Date(Date.now() + 7_200_000).toISOString()), undefined);
       const comparable = await store.findLatestComparableDeepDiveReport({
         ticker: "AAPL",
         schemaMajor: 2,

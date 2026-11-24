@@ -56,12 +56,26 @@ export interface JobsStore {
   createReport(input: ReportRecord): Promise<ReportRecord>;
   deleteReport(id: string): Promise<void>;
   getReport(id: string): Promise<ReportRecord | undefined>;
-  findReusableDeepDiveReport(
-    input: { ticker: string; fingerprint: string; nowIso: string },
-  ): Promise<ReportRecord | undefined>;
+  findReusableDeepDiveReport(input: ReusableQuery): Promise<ReportRecord | undefined>;
   findLatestComparableDeepDiveReport(
     input: { ticker: string; schemaMajor: number; sinceIso: string },
   ): Promise<ReportRecord | undefined>;
+}
+
+// A fresh report with this fingerprint. With anyPeriod (filing period unknown), also any fingerprint with that
+// prefix whose freshness runs past freshAfterIso. Freshness, not created_at, because copies keep the source's
+// freshness but get a new created_at. Matches rank by freshness for the same reason: a new copy of an older
+// analysis must not outrank a newer report.
+export interface ReusableQuery {
+  ticker: string;
+  fingerprint: string;
+  nowIso: string;
+  anyPeriod?: { prefix: string; freshAfterIso: string };
+}
+
+// Escapes LIKE wildcards so a prefix matches literally.
+export function likePrefix(prefix: string): string {
+  return prefix.replace(/[\\%_]/g, (c) => `\\${c}`) + "%";
 }
 
 type Row = Record<string, unknown>;
@@ -298,13 +312,18 @@ export function postgresJobsStore(sql: Sql): JobsStore {
       return row ? mapReport(row) : undefined;
     },
 
-    async findReusableDeepDiveReport({ ticker, fingerprint, nowIso }) {
+    async findReusableDeepDiveReport(q) {
+      const { ticker, nowIso } = q;
+      const match = q.anyPeriod
+        ? sql`(r.fingerprint = ${q.fingerprint} or (r.fingerprint like ${likePrefix(q.anyPeriod.prefix)}
+            and r.freshness_expires_at > ${q.anyPeriod.freshAfterIso}::timestamptz))`
+        : sql`r.fingerprint = ${q.fingerprint}`;
       const row = one(
         await sql`select r.* from reports r
-          where r.type = 'deep_dive' and r.ticker = ${ticker} and r.fingerprint = ${fingerprint}
+          where r.type = 'deep_dive' and r.ticker = ${ticker} and ${match}
             and r.freshness_expires_at > ${nowIso}::timestamptz
             and exists (select 1 from jobs j where j.report_id = r.id and j.status = 'complete')
-          order by r.created_at desc limit 1`,
+          order by r.freshness_expires_at desc, r.created_at desc limit 1`,
       );
       return row ? mapReport(row) : undefined;
     },
