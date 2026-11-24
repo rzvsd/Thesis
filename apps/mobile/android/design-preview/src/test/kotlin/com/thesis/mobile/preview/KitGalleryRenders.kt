@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -20,11 +21,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.thesis.mobile.ui.icons.ThesisIcons
 import com.thesis.mobile.ui.theme.LocalThesisPalette
 import com.thesis.mobile.ui.theme.ThesisFonts
 import com.thesis.mobile.ui.theme.ThesisPalette
@@ -118,7 +123,60 @@ class KitGalleryRenders {
         }
     }
 
+    @Test
+    fun icons() {
+        renderGallery("kit-icons") {
+            Section("Icons")
+            Specimen("ThesisIcons, opsz 24", "24 dp, ink2; filled variants in ink") {
+                IconGrid(iconsOf(ThesisIcons), 24)
+            }
+            Specimen("ThesisIcons.Small, opsz 20", "20 dp in rows, 16 dp in chips") {
+                IconGrid(iconsOf(ThesisIcons.Small), 20)
+                IconGrid(iconsOf(ThesisIcons.Small), 16, labels = false)
+            }
+        }
+    }
+
+    @Test
+    fun iconsMirrorInRtl() {
+        renderGallery("kit-icons-rtl", themes = listOf(PreviewTheme.LIGHT)) {
+            Specimen("Right to left", "Back, Forward, OpenExternal, Names and Sort mirror; the rest do not") {
+                CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
+                    IconGrid(iconsOf(ThesisIcons).filter { it.second.autoMirror }, 24)
+                }
+            }
+        }
+    }
+
     // ---- F2: kit components go below, one @Test per component (section 3 rows 1-52).
+}
+
+/** Every ImageVector property of an icon object, in declaration order (lazy delegates resolved by getter). */
+internal fun iconsOf(holder: Any): List<Pair<String, ImageVector>> =
+    holder::class.java.declaredMethods
+        .filter { it.name.startsWith("get") && it.returnType == ImageVector::class.java && it.parameterCount == 0 }
+        .sortedBy { m ->
+            val delegate = m.name.removePrefix("get") + "\$delegate" // `val X by lazy` backs onto field X$delegate
+            holder::class.java.declaredFields.indexOfFirst { it.name == delegate }
+        }
+        .map { m -> m.name.removePrefix("get") to (m.invoke(holder) as ImageVector) }
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun IconGrid(icons: List<Pair<String, ImageVector>>, sizeDp: Int, labels: Boolean = true) {
+    val p = LocalThesisPalette.current
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        icons.forEach { (name, icon) ->
+            Column(
+                Modifier.width(if (labels) 84.dp else (sizeDp + 12).dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Icon(icon, contentDescription = name, Modifier.size(sizeDp.dp),
+                    tint = if (name.endsWith("Filled")) p.ink else p.ink2)
+                if (labels) Text(name, style = ThesisType.caption, color = p.muted, maxLines = 1)
+            }
+        }
+    }
 }
 
 /** Styles that ThesisType.capped() limits to 1.3x (section 2.3). */
