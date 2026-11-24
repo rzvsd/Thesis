@@ -68,4 +68,55 @@ interface OfflineCacheDao {
 
     @Query("DELETE FROM cached_sentiment_history")
     suspend fun clearSentimentHistory()
+
+    // ---- report_notes
+
+    @Query("SELECT * FROM report_notes WHERE reportId = :reportId LIMIT 1")
+    suspend fun getReportNote(reportId: String): ReportNoteEntity?
+
+    @Query("SELECT * FROM report_notes WHERE ticker = :ticker ORDER BY updatedAt DESC")
+    suspend fun getReportNotesForTicker(ticker: String): List<ReportNoteEntity>
+
+    @Query("SELECT * FROM report_notes WHERE text != '' ORDER BY updatedAt DESC")
+    suspend fun getAllReportNotes(): List<ReportNoteEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertReportNote(entity: ReportNoteEntity)
+
+    @Query("DELETE FROM report_notes")
+    suspend fun clearReportNotes()
+
+    // ---- monitor_snapshot_history
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertSnapshotHistory(entities: List<MonitorSnapshotHistoryEntity>)
+
+    @Query("SELECT * FROM monitor_snapshot_history WHERE ticker = :ticker ORDER BY takenAtMs DESC LIMIT :limit")
+    suspend fun getSnapshotHistory(ticker: String, limit: Int): List<MonitorSnapshotHistoryEntity>
+
+    @Query(
+        "SELECT * FROM monitor_snapshot_history WHERE ticker = :ticker AND takenAtMs <= :atOrBeforeMs " +
+            "ORDER BY takenAtMs DESC LIMIT 1"
+    )
+    suspend fun getSnapshotAtOrBefore(ticker: String, atOrBeforeMs: Long): MonitorSnapshotHistoryEntity?
+
+    @Query("DELETE FROM monitor_snapshot_history WHERE takenAtMs < :olderThanMs")
+    suspend fun pruneSnapshotHistory(olderThanMs: Long)
+
+    @Query("DELETE FROM monitor_snapshot_history")
+    suspend fun clearSnapshotHistory()
+
+    // ---- report_summaries
+
+    @Query("SELECT * FROM report_summaries WHERE reportId = :reportId LIMIT 1")
+    suspend fun getReportSummary(reportId: String): ReportSummaryEntity?
+
+    @Query("SELECT * FROM report_summaries WHERE ticker = :ticker ORDER BY generatedAt DESC")
+    suspend fun getReportSummariesForTicker(ticker: String): List<ReportSummaryEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertReportSummary(entity: ReportSummaryEntity)
+
+    @Query("DELETE FROM report_summaries")
+    suspend fun clearReportSummaries()
 }
