@@ -54,7 +54,7 @@ export const NOT_ADVICE_TEXT =
  */
 export function buildContext(report: unknown): Ctx {
   const f = readReportFacts(report);
-  const d = derive(f.annual);
+  const d = derive(f.annual, f.splits);
   const currency = currencyCode(f.currency);
   const priceOff = currency !== "USD";
   const price = f.price && !priceOff ? f.price.value : null;

@@ -156,6 +156,36 @@ export function listText(xs: string[]): string {
   return `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}`;
 }
 
+/** "4-for-1", "3-for-2"; a reverse split reads "1-for-10". */
+export function splitRatioText(ratio: number): string {
+  const forward = ratio >= 1 ? ratio : 1 / ratio;
+  for (const base of [1, 2, 3, 4]) {
+    const top = Math.round(forward * base);
+    if (Math.abs(forward * base - top) < 1e-6) {
+      return ratio >= 1 ? `${top}-for-${base}` : `${base}-for-${top}`;
+    }
+  }
+  return ratio >= 1 ? `${round1(forward)}-for-1` : `1-for-${round1(forward)}`;
+}
+const round1 = (v: number): string => String(Math.round(v * 10) / 10);
+
+/**
+ * The one note that share counts and EPS of earlier years are on the latest basis, or null when nothing was
+ * adjusted: "Adjusted for a 4-for-1 split in fiscal 2020." A split found from the share counts alone says so.
+ */
+export function splitNote(d: Derived): string | null {
+  if (!d.splits.length) return null;
+  const parts = d.splits.map((x) => {
+    const t = splitRatioText(x.ratio);
+    return `${/^(8|11-|18-)/.test(t) ? "an" : "a"} ${t}${x.ratio < 1 ? " reverse" : ""} split in ${
+      fyT(x.fiscalYear)
+    }`;
+  });
+  return d.splits.every((x) => x.source === "pack")
+    ? `Adjusted for ${listText(parts)}.`
+    : `Adjusted for what looks like ${listText(parts)}, judged from the share count and earnings per share.`;
+}
+
 /** Percent change between two positive values, else null. */
 export function chg(from: Num, to: Num): Num {
   return isNum(from) && isNum(to) && from > 0 ? (to / from - 1) * 100 : null;

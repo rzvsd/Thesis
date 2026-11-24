@@ -1,7 +1,13 @@
 import { assert, assertEquals, assertMatch, assertStringIncludes } from "jsr:@std/assert@1.0.13";
 import { buildContext, buildDeepDiveV2Html, filingEyebrow, renderDeepDiveV2 } from "./render.ts";
 import { CLIENT_JS } from "./client.ts";
-import { sampleApplePack, sampleBankPack, sampleLossmakerPack, sampleReport } from "./testdata_pack.ts";
+import {
+  sampleApplePack,
+  sampleBankPack,
+  sampleLossmakerPack,
+  sampleReport,
+  sampleSharesPack,
+} from "./testdata_pack.ts";
 import { sampleInstitutionalReport } from "../testdata/editorial_institutional.ts";
 import { sampleSparseReport } from "../testdata/editorial_sparse.ts";
 
@@ -419,4 +425,94 @@ Deno.test("KPI tiles say No prior year only when the year before is not on recor
   assertStringIncludes(kpis, "Shares, change in the year Not disclosed 51.0 million shares a year earlier");
   const gapped = renderDeepDiveV2(sampleReport(applePackYears([2020, 2022, 2025])), OPTS).html;
   assertStringIncludes(gapped.slice(gapped.indexOf('<div class="kpis">')), "No prior year");
+});
+
+Deno.test("a stock split, listed by the pack or not, reads as no change in shares and no dilution", () => {
+  const notes = {
+    split_listed: "Adjusted for a 4-for-1 split in fiscal 2025.",
+    split_raw: "Adjusted for what looks like a 4-for-1 split in fiscal 2025, judged from the share count",
+  } as const;
+  for (const mode of ["split_listed", "split_raw"] as const) {
+    const report = sampleReport(sampleSharesPack(mode));
+    const c = buildContext(report);
+    const d = c.d;
+    // Never adjusted twice: every year on the FY2025 basis of 320 million shares.
+    assertEquals(d.shares, [320e6, 320e6, 320e6, 320e6, 320e6], mode);
+    assertEquals(d.eps, [0.5, 0.5, 0.5, 0.5, 0.5], mode);
+    assertEquals(d.sharesChange1y, 0, mode);
+    assertEquals(d.growth.epsYoY, 0, mode);
+    const share = d.checks.find((k) => k.key === "share_count");
+    assertEquals(share?.passes, true, mode);
+    // The EPS bridge has no share step and runs from $0.50 to $0.50.
+    assertEquals(d.epsBridge?.from, 0.5, mode);
+    assertEquals(d.epsBridge?.to, 0.5, mode);
+    assert(Math.abs(d.epsBridge?.steps.find((x) => x.key === "shares")?.value ?? 1) < 0.005, mode);
+
+    const r = renderDeepDiveV2(report, OPTS);
+    assertEquals(r.problems, [], mode);
+    const text = visibleText(r.html);
+    for (
+      const claim of ["smaller slice", "New shares mean", "rise in shares", "More shares", "Fewer shares"]
+    ) {
+      assertEquals(text.includes(claim), false, `${mode}: ${claim}`);
+    }
+    assertEquals(/Share count (up|down) [1-9]/.test(text), false, mode);
+    assertStringIncludes(text, "earnings per share held at $0.50");
+    assertEquals(/into 0 parts|came from same/.test(text), false, mode);
+    // The adjustment is said once, on the share count chart.
+    const sharesCard = r.chapters.find((ch) => ch.id === "financials")?.cards.find((cd) =>
+      cd.id === "fin-shares"
+    );
+    assertStringIncludes(sharesCard?.sub ?? "", notes[mode]);
+    assertEquals(text.split("4-for-1").length - 1, 1, mode);
+    assertEquals(BANNED.exec(text)?.[0] ?? null, null);
+    assertEquals(text.includes("—") || text.includes("!"), false);
+  }
+});
+
+Deno.test("a genuine 30% share issue is still reported as dilution", () => {
+  const report = sampleReport(sampleSharesPack("issue"));
+  const c = buildContext(report);
+  assertEquals(c.d.splits, []);
+  assert(Math.abs((c.d.sharesChange1y ?? 0) - 30) < 1e-9);
+  assertEquals(c.d.checks.find((k) => k.key === "share_count")?.passes, false);
+  const r = renderDeepDiveV2(report, OPTS);
+  const text = visibleText(r.html);
+  assertStringIncludes(text, "smaller slice");
+  assertStringIncludes(text, "Share count up 30.0%");
+  assertEquals(text.includes("split in fiscal"), false);
+  assert((c.d.epsBridge?.steps.find((x) => x.key === "shares")?.value ?? 0) < 0);
+});
+
+Deno.test("a split in a year profit grew strongly is still adjusted, not read as dilution", () => {
+  // 2-for-1 in FY2025 with net profit up 50%: EPS $2.00 to $1.50 as reported, shares 80 to 160 million.
+  const pack = sampleSharesPack("split_raw");
+  pack.annual = pack.annual.map((row) =>
+    row.fiscal_year === 2025
+      ? {
+        ...row,
+        operating_income: 0.3e9,
+        pretax_income: 0.3e9,
+        income_tax: 0.06e9,
+        net_income: 0.24e9,
+        eps_diluted: 1.5,
+        shares_diluted: 160e6,
+        shares_outstanding: 160e6,
+      }
+      : row
+  );
+  const report = sampleReport(pack);
+  const c = buildContext(report);
+  assertEquals(c.d.splits, [{ ratio: 2, fiscalYear: 2025, source: "detected" }]);
+  assertEquals(c.d.sharesChange1y, 0);
+  assertEquals(c.d.checks.find((k) => k.key === "share_count")?.passes, true);
+  assertEquals(c.d.epsBridge?.steps.find((x) => x.key === "shares")?.value, 0);
+  const r = renderDeepDiveV2(report, OPTS);
+  assertEquals(r.problems, []);
+  const text = visibleText(r.html);
+  for (const claim of ["smaller slice", "New shares mean", "More shares", "Fewer shares"]) {
+    assertEquals(text.includes(claim), false, claim);
+  }
+  assertEquals(/Share count (up|down) [1-9]/.test(text), false);
+  assertStringIncludes(text, "Adjusted for what looks like a 2-for-1 split in fiscal 2025");
 });

@@ -42,7 +42,27 @@ export const ANNUAL_FIELDS = [
   "total_assets"
 ] as const satisfies ReadonlyArray<keyof AnnualFacts>;
 
-const EMPTY_MAPPING: AnnualMapping = { taxonomy: null, currency: "USD", annual: [], restatements: [], unmapped: [] };
+const EMPTY_MAPPING: AnnualMapping = {
+  taxonomy: null,
+  currency: "USD",
+  annual: [],
+  restatements: [],
+  unmapped: [],
+  splits: [],
+  droppedCurrencies: []
+};
+
+/** "4-for-1", "3-for-2", "1-for-10". */
+export function splitRatioText(ratio: number): string {
+  const forward = ratio >= 1 ? ratio : 1 / ratio;
+  for (const base of [1, 2, 3, 4]) {
+    const top = forward * base;
+    if (Math.abs(top - Math.round(top)) < 1e-6) {
+      return ratio >= 1 ? `${Math.round(top)}-for-${base}` : `${base}-for-${Math.round(top)}`;
+    }
+  }
+  return `${forward}-for-1`;
+}
 
 function reason(error: unknown): string {
   if (error instanceof SecHttpError) return `sec_http_${error.status}`;
@@ -77,6 +97,7 @@ async function buildOrThrow(ticker: string, deps: BuildFactPackDeps): Promise<Fa
   else if (!mapping.taxonomy) missing.push("xbrl_mapping");
   if (mapping.taxonomy === "ifrs-full") missing.push("ifrs_mapping");
   if (mapping.annual.length === 0) missing.push("annual");
+  if (mapping.droppedCurrencies.length > 0) missing.push("history_before_currency_change");
   if (!latest) missing.push("latest_filing");
   const lastYear = mapping.annual[mapping.annual.length - 1];
   if (lastYear) {
@@ -96,6 +117,14 @@ async function buildOrThrow(ticker: string, deps: BuildFactPackDeps): Promise<Fa
       url: SEC_URLS.archive(match.cik, change.accession)
     });
   }
+  for (const split of mapping.splits) {
+    sources.push({
+      name: `${splitRatioText(split.ratio)} stock split from FY${split.effective_fiscal_year}${
+        split.filed ? `, shown in the filing of ${split.filed}` : ""
+      }; earlier per-share values and share counts adjusted`,
+      url: split.accession ? SEC_URLS.archive(match.cik, split.accession) : SEC_URLS.companyFacts(match.cik)
+    });
+  }
 
   const pack: FactPack = {
     version: 1,
@@ -111,6 +140,7 @@ async function buildOrThrow(ticker: string, deps: BuildFactPackDeps): Promise<Fa
     retrieved_at: (deps.now ?? (() => new Date()))().toISOString(),
     latest_filing: latest,
     annual: mapping.annual,
+    ...(mapping.splits.length > 0 ? { splits: mapping.splits } : {}),
     filings: filingsWindow(filings, latest),
     price_at_filing: null,
     missing,
@@ -124,6 +154,7 @@ async function buildOrThrow(ticker: string, deps: BuildFactPackDeps): Promise<Fa
     years: pack.annual.length,
     latest_period: latest?.period_label,
     restatements: mapping.restatements.length,
+    splits: mapping.splits.length,
     sec_requests: client.requestCount
   });
   return pack;

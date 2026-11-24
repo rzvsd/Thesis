@@ -248,7 +248,7 @@ test("a later 10-K that re-tags a year under another concept wins over concept p
   assert.equal(mapping.restatements.length, 2);
 });
 
-test("a 10-K/A of the same year updates EPS with net income; a later year's 10-K does not", () => {
+test("a 10-K/A of the same year updates EPS with net income; a later year's 10-K only shows the split", () => {
   const mapping = mapAnnualFacts({
     cik: 1,
     entityName: "Amend",
@@ -275,7 +275,14 @@ test("a 10-K/A of the same year updates EPS with net income; a later year's 10-K
   });
   const fy2024 = mapping.annual.find((row) => row.fiscal_year === 2024)!;
   assert.equal(fy2024.net_income, 40);
-  assert.equal(fy2024.eps_diluted, 0.4);
+  // The amendment's 0.4 is the reported value (the 0.6 to 0.4 change moved with net income, so it is no split);
+  // the FY2025 10-K's 0.2 is evidence of a 2-for-1 split, so FY2024 is shown on the FY2025 basis.
+  assert.equal(fy2024.eps_diluted, 0.2);
+  assert.deepEqual(fy2024.as_reported, { eps_diluted: 0.4 });
+  assert.deepEqual(
+    mapping.splits.map((split) => [split.ratio, split.effective_fiscal_year, split.evidence]),
+    [[2, 2025, "restatement"]]
+  );
   assert.deepEqual(
     mapping.restatements.filter((change) => change.fiscal_year === 2024).map((change) => [change.field, change.value]),
     [

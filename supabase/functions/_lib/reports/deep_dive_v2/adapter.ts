@@ -9,6 +9,7 @@ import {
   type FilingRef,
   type PriceAtFiling,
   readFactPack,
+  type StockSplit,
 } from "./fact_pack.ts";
 
 export interface LatestFilingInfo {
@@ -33,6 +34,9 @@ export interface ReportFacts {
   currency: string;
   /** Oldest first, one row per fiscal year. */
   annual: AnnualFacts[];
+  /** Stock splits the fact pack lists (its rows are already adjusted for them). Empty for legacy reports and
+   *  packs that list none; derive.ts then looks for a split in the share counts itself. */
+  splits: StockSplit[];
   latestFiling: LatestFilingInfo | null;
   /** Newest first. */
   filings: FilingRef[];
@@ -184,6 +188,7 @@ export function readReportFacts(report: unknown): ReportFacts {
       fiscalYearEnd: str(pack.fiscal_year_end),
       currency: str(pack.currency) ?? "USD",
       annual: pack.annual,
+      splits: pack.splits ?? [],
       latestFiling: lf
         ? {
           form: str(lf.form) ?? "10-K",
@@ -221,6 +226,7 @@ export function readReportFacts(report: unknown): ReportFacts {
     fiscalYearEnd: null,
     currency: issuerText(r, "currency") ?? "USD",
     annual: legacyAnnual(fa.annual_history),
+    splits: [],
     latestFiling: latest,
     filings: latest
       ? [{

@@ -29,6 +29,7 @@ import {
   shareSeries,
   shareText,
   span,
+  splitNote,
   tbl,
   usd,
 } from "./story.ts";
@@ -99,7 +100,9 @@ export function financials(c: Ctx): Chapter {
       lead: `Sales ${salesCh >= 0 ? "up" : "down"} ${pa(salesCh, 0)} since ${F}, ${profitClause(ni0, ni1)}.`,
       body: [
         isNum(om0) && isNum(om1) ? `Operating margin moved from ${p(om0)} to ${p(om1)}.` : "",
-        isNum(d.sharesChangeAll)
+        isNum(d.sharesChangeAll) && Math.abs(d.sharesChangeAll) < 0.05
+          ? "The share count was unchanged, so each share owns the same part of the profit."
+          : isNum(d.sharesChangeAll)
           ? `The share count ${d.sharesChangeAll < 0 ? "fell" : "rose"} ${
             pa(d.sharesChangeAll, 0)
           }, so each share owns ${d.sharesChangeAll < 0 ? "more" : "less"} of the profit.`
@@ -172,9 +175,11 @@ export function financials(c: Ctx): Chapter {
     const ss = span(d.shares);
     if (ss && ss.j > ss.i && isNum(shAll)) {
       bits.push(
-        `The share count went from ${shareText(d.shares[ss.i])} to ${shareText(d.shares[ss.j])}, ${
-          shAll < 0 ? "down" : "up"
-        } ${pa(shAll, 0)} (${ref("fin-shares")}).`,
+        Math.abs(shAll) < 0.05
+          ? `The share count was ${shareText(d.shares[ss.j])} at both ends (${ref("fin-shares")}).`
+          : `The share count went from ${shareText(d.shares[ss.i])} to ${shareText(d.shares[ss.j])}, ${
+            shAll < 0 ? "down" : "up"
+          } ${pa(shAll, 0)} (${ref("fin-shares")}).`,
       );
     }
     if (es && es.j > es.i && isNum(e0) && isNum(e1)) {
@@ -188,11 +193,15 @@ export function financials(c: Ctx): Chapter {
       const steps = br.steps.filter((s) => Math.abs(s.value) >= 0.005);
       const big = [...steps].sort((a, b) => Math.abs(b.value) - Math.abs(a.value))[0];
       bits.push(
-        `Last year's change, from ${usd(br.from)} to ${usd(br.to)}, splits into ${steps.length} parts (${
-          ref("fin-bridge")
-        }): ${
-          listText(steps.map((s) => `${s.label.toLowerCase()} ${fmt(s.value, "usd_ps", { sign: true })}`))
-        }.${big ? ` The largest part was ${big.label.toLowerCase()}.` : ""}`,
+        steps.length === 0
+          ? `Last year earnings per share held at ${usd(br.to)}, and no part of the bridge moved them (${
+            ref("fin-bridge")
+          }).`
+          : `Last year's change, from ${usd(br.from)} to ${usd(br.to)}, splits into ${steps.length} parts (${
+            ref("fin-bridge")
+          }): ${
+            listText(steps.map((s) => `${s.label.toLowerCase()} ${fmt(s.value, "usd_ps", { sign: true })}`))
+          }.${big ? ` The largest part was ${big.label.toLowerCase()}.` : ""}`,
       );
     } else if (isNum(ep) && isNum(e1)) {
       const pt0 = d.prior?.pretax_income;
@@ -395,12 +404,14 @@ export function financials(c: Ctx): Chapter {
     returnsCard(c),
     {
       id: "fin-shares",
-      title: isNum(d.sharesChangeAll)
+      title: isNum(d.sharesChangeAll) && Math.abs(d.sharesChangeAll) < 0.05
+        ? `Share count unchanged since ${fyT(d.years[span(d.shares)?.i ?? 0])}`
+        : isNum(d.sharesChangeAll)
         ? `Share count ${d.sharesChangeAll < 0 ? "down" : "up"} ${pa(d.sharesChangeAll, 0)} since ${
           fyT(d.years[span(d.shares)?.i ?? 0])
         }`
         : "Share count",
-      sub: `Shares outstanding, ${shareSeries(d.shares).sub}`,
+      sub: `Shares outstanding, ${shareSeries(d.shares).sub}${splitNote(d) ? `. ${splitNote(d)}` : ""}`,
       chart: true,
       html: lines({
         title: "Share count by fiscal year",

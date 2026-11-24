@@ -42,6 +42,31 @@ export interface AnnualFacts {
   total_assets?: number;
   /** Field name to the XBRL concept that supplied it, e.g. { revenue: "us-gaap:Revenues" }. */
   concepts?: Record<string, string>;
+  /** Set only on rows adjusted for a stock split (see FactPack.splits): the values as that year's report gave
+   *  them. eps_diluted, shares_diluted and shares_outstanding above are then on the latest year's basis. */
+  as_reported?: AsReported;
+}
+
+export interface AsReported {
+  eps_diluted?: number;
+  shares_diluted?: number;
+  shares_outstanding?: number;
+}
+
+/** A stock split found in the filings. ratio is new shares per old share: 4 for a 4-for-1 split, 0.1 for a
+ *  1-for-10 reverse split. */
+export interface StockSplit {
+  ratio: number;
+  /** The first fiscal year whose own annual report is on the new share basis. */
+  effective_fiscal_year: number;
+  /** "restatement": a later filing restated earlier per-share values or share counts by the ratio;
+   *  "tag": us-gaap:StockholdersEquityNoteStockSplitConversionRatio1. */
+  evidence: "restatement" | "tag";
+  /** The XBRL concept that showed it. */
+  concept: string;
+  /** The filing that first showed the new basis, when known. */
+  accession?: string;
+  filed?: string;
 }
 
 export interface FilingRef {
@@ -87,11 +112,16 @@ export interface FactPack {
   latest_filing: LatestFiling | null;
   /** Oldest first, at most 11 years. */
   annual: AnnualFacts[];
+  /** Stock splits within the annual rows, oldest first. Present only when there is one: per-share values and
+   *  share counts of earlier rows are then adjusted to the latest year's basis (as_reported keeps the originals).
+   *  Absent means none was found, not that none happened. */
+  splits?: StockSplit[];
   /** Periodic and 8-K filings in the 12 months up to the latest filing, newest first. */
   filings: FilingRef[];
   /** Closing price on the filing date. Null until a licensed price source exists (SPEC rule 3). */
   price_at_filing: PriceAtFiling | null;
-  /** Data the pack could not fill, e.g. "segments", "regions", "owners", "price_at_filing". */
+  /** Data the pack could not fill, e.g. "segments", "regions", "owners", "price_at_filing".
+   *  "history_before_currency_change": older years reported only in another currency are left out. */
   missing: string[];
   sources: Array<{ name: string; url: string }>;
 }

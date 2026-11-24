@@ -590,7 +590,15 @@ export function owners(c: Ctx): Chapter {
   const all = d.sharesChangeAll, one = d.sharesChange1y;
   const F = sp ? fyT(d.years[sp.i]) : "";
   const anyBuybacks = d.buybacks.some(isNum);
-  const verdict: Para = isNum(all)
+  // A count level from end to end (a split, once adjusted, leaves it level) is neither buybacks nor dilution.
+  const level = isNum(all) && Math.abs(all) < 0.05;
+  const verdict: Para = level
+    ? {
+      lead: `The share count was unchanged since ${F}.`,
+      body:
+        "Each share owns the same slice of the profit as before. Owners, insider trades and the board arrive in phase 2.",
+    }
+    : isNum(all)
     ? all < 0
       ? {
         lead: anyBuybacks
@@ -611,13 +619,19 @@ export function owners(c: Ctx): Chapter {
   const story: Para[] = [];
   if (sp && sp.j > sp.i && isNum(all)) {
     story.push({
-      lead: all < 0 ? "The share count has been falling." : "The share count has been rising.",
+      lead: level
+        ? "The share count has held level."
+        : all < 0
+        ? "The share count has been falling."
+        : "The share count has been rising.",
       body: `It went from ${shareText(d.shares[sp.i])} shares in ${F} to ${shareText(d.shares[sp.j])} in ${
         fyT(d.years[sp.j])
       }, as the Financials chapter charts.${
         isNum(one) ? ` In ${L} alone it ${moved(one)}${Math.abs(one) >= 0.05 ? " " + pa(one) : ""}.` : ""
       } ${
-        all < 0
+        level
+          ? "With the count level, each owner's part of the business stayed the same."
+          : all < 0
           ? "When a company repurchases its own shares, every remaining owner owns a larger part of the business without paying more."
           : "When a company issues shares, for staff pay or to raise money, every existing owner owns a smaller part."
       }`,

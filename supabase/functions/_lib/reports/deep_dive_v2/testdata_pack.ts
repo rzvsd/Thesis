@@ -212,3 +212,80 @@ export function sampleBankPack(): FactPack {
     }],
   };
 }
+
+/**
+ * SAMPLE: a made-up flat business (same sales and profit every year) whose share count moves in FY2025.
+ * "split_listed": a 4-for-1 split the pack lists, rows already on the FY2025 basis (as the runner writes them).
+ * "split_raw": the same split with rows as each year's report gave them and no splits list (a legacy pack).
+ * "issue": a real 30% share issue in FY2025, no split.
+ */
+export function sampleSharesPack(mode: "split_listed" | "split_raw" | "issue"): FactPack {
+  const annual: AnnualFacts[] = [2021, 2022, 2023, 2024, 2025].map((y) => {
+    const latest = y === 2025;
+    const reported = mode === "issue" ? (latest ? 104 * M : 80 * M) : latest ? 320 * M : 80 * M;
+    const shares = mode === "split_listed" ? 320 * M : reported;
+    const row: AnnualFacts = {
+      fiscal_year: y,
+      period_end: `${y}-12-31`,
+      filing_date: `${y + 1}-02-20`,
+      form: "10-K",
+      revenue: 1 * B,
+      gross_profit: 0.4 * B,
+      operating_income: 0.2 * B,
+      pretax_income: 0.2 * B,
+      income_tax: 0.04 * B,
+      net_income: 0.16 * B,
+      eps_diluted: Math.round((0.16 * B / shares) * 100) / 100,
+      operating_cash_flow: 0.25 * B,
+      capex: 0.05 * B,
+      free_cash_flow: 0.2 * B,
+      cash: 0.5 * B,
+      debt_total: 0.1 * B,
+      shares_outstanding: shares,
+      shares_diluted: shares,
+    };
+    if (mode === "split_listed" && !latest) {
+      row.as_reported = { eps_diluted: 2, shares_diluted: 80 * M, shares_outstanding: 80 * M };
+    }
+    return row;
+  });
+  return {
+    version: 1,
+    source: "sec_companyfacts",
+    ticker: "SPLT",
+    cik: "0000000003",
+    entity_name: "Example Split Co",
+    currency: "USD",
+    fiscal_year_end: "1231",
+    retrieved_at: "2026-02-21T06:00:00.000Z",
+    latest_filing: {
+      form: "10-K",
+      filing_date: "2026-02-20",
+      period_end: "2025-12-31",
+      accession: acc(301),
+      fiscal_year: 2025,
+      fiscal_period: "FY",
+      period_label: "2025-FY",
+    },
+    annual,
+    ...(mode === "split_listed"
+      ? {
+        splits: [{
+          ratio: 4,
+          effective_fiscal_year: 2025,
+          evidence: "restatement" as const,
+          concept: "us-gaap:WeightedAverageNumberOfDilutedSharesOutstanding",
+          accession: acc(301),
+          filed: "2026-02-20",
+        }],
+      }
+      : {}),
+    filings: [{ form: "10-K", filing_date: "2026-02-20", period_end: "2025-12-31", accession: acc(301) }],
+    price_at_filing: null,
+    missing: ["segments", "regions", "owners", "price_at_filing"],
+    sources: [{
+      name: "SEC XBRL company facts",
+      url: "https://data.sec.gov/api/xbrl/companyfacts/CIK0000000003.json",
+    }],
+  };
+}

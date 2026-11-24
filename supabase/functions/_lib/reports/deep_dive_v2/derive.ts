@@ -1,8 +1,12 @@
 // Deep Dive 2.0: everything the page calculates from the fact pack's annual rows. Pure TS (no Deno APIs).
 // Every number here comes from AnnualFacts fields; a value is null when an input is missing. Never throws.
 // Percents are percent numbers (46.9 means 46.9%); margin changes are percentage points.
+// Stock splits: per-share values and share counts are compared on one basis. A fact pack that lists splits has
+// adjusted its rows already and is trusted. Otherwise a split is looked for between adjacent fiscal years (a share
+// count step close to a clean split ratio, EPS moving with it against profit, and no new capital in equity), and
+// earlier years are rescaled to the latest year's basis, so a split never reads as dilution or an EPS collapse.
 
-import type { AnnualFacts } from "./fact_pack.ts";
+import type { AnnualFacts, StockSplit } from "./fact_pack.ts";
 import { baseGrowth, buildDcf } from "./dcf.ts";
 import type { Dcf } from "./dcf.ts";
 
@@ -36,7 +40,19 @@ export interface Check {
   why: string;
 }
 
+/** A stock split the EPS and share-count series are on the latest basis for. */
+export interface SplitAdjustment {
+  /** New shares per old share: 4 for a 4-for-1 split, 0.1 for a 1-for-10 reverse split. */
+  ratio: number;
+  /** The first fiscal year on the new share basis. */
+  fiscalYear: number;
+  /** "pack": listed by the fact pack, whose rows came adjusted; "detected": found here from the share counts. */
+  source: "pack" | "detected";
+}
+
 export interface Derived {
+  /** Stock splits the per-share values and share counts are adjusted for, oldest first (empty when none). */
+  splits: SplitAdjustment[];
   years: number[];
   labels: string[];
   latest: AnnualFacts;
@@ -130,6 +146,121 @@ function normalise(facts: AnnualFacts[]): AnnualFacts[] {
     if (row && typeof row === "object" && isNum(row.fiscal_year)) byYear.set(row.fiscal_year, row);
   }
   return [...byYear.values()].sort((a, b) => a.fiscal_year - b.fiscal_year);
+}
+
+// ---------- stock splits ----------
+
+const SPLIT_FORWARD = [1.5, 2, 2.5, 3, 4, 5, 6, 7, 8, 10, 12, 15, 20, 25, 30, 40, 50];
+const SPLIT_RATIOS = [...SPLIT_FORWARD, ...SPLIT_FORWARD.map((r) => 1 / r)];
+
+/** The clean split ratio within 3% of `ratio`, else null. */
+export function cleanSplitRatio(ratio: number): Num {
+  if (!isNum(ratio) || ratio <= 0) return null;
+  return SPLIT_RATIOS.find((r) => Math.abs(ratio / r - 1) <= 0.03) ?? null;
+}
+
+const positive = (v: unknown): v is number => isNum(v) && v > 0;
+
+/** Share count ratio from one row to the next: diluted shares when both rows have them, else outstanding. */
+function shareRatio(a: AnnualFacts, b: AnnualFacts): Num {
+  if (positive(a.shares_diluted) && positive(b.shares_diluted)) return b.shares_diluted / a.shares_diluted;
+  if (positive(a.shares_outstanding) && positive(b.shares_outstanding)) {
+    return b.shares_outstanding / a.shares_outstanding;
+  }
+  return null;
+}
+
+function epsOf(r: AnnualFacts): Num {
+  const e = val(r.eps_diluted);
+  if (e !== null) return e;
+  const ni = val(r.net_income);
+  const s = positive(r.shares_diluted)
+    ? r.shares_diluted
+    : positive(r.shares_outstanding)
+    ? r.shares_outstanding
+    : null;
+  return ni !== null && s !== null ? ni / s : null;
+}
+
+/**
+ * EPS moved the way a split of share ratio `r` moves it. With net profit in both years, EPS ratio times share ratio
+ * must be within 25% of the net profit ratio (the share count and EPS describe the same shares), whatever profit
+ * did: a company often splits after a strong year. Without it, the split must bring the EPS change closer to flat.
+ */
+function epsAgrees(a: AnnualFacts, b: AnnualFacts, r: number): boolean {
+  const e0 = epsOf(a), e1 = epsOf(b);
+  if (e0 === null || e1 === null) return true;
+  if (e0 === 0 || e1 / e0 <= 0) return false;
+  const er = e1 / e0;
+  const n0 = val(a.net_income), n1 = val(b.net_income);
+  if (n0 !== null && n1 !== null && n0 !== 0) {
+    const nr = n1 / n0;
+    return nr > 0 && Math.abs((er * r) / nr - 1) <= 0.25;
+  }
+  return Math.abs(Math.log(er * r)) < Math.abs(Math.log(er));
+}
+
+/**
+ * Shares, EPS and profit cannot tell a split from shares sold or paid for a business (EPS is profit over shares
+ * either way), so the step must also look like a split elsewhere. A split moves no money: equity changes by the
+ * year's profit, stock pay and what was paid out, and new capital beyond that (above 20% of the prior equity, or
+ * 10% of assets when equity was not positive) means the shares were issued. And a split moves the year-end and the
+ * weighted share counts alike: an issue during the year moves the year-end count more.
+ */
+function looksLikeSplit(a: AnnualFacts, b: AnnualFacts, clean: number): boolean {
+  for (const key of ["shares_diluted", "shares_outstanding"] as const) {
+    const x = a[key], y = b[key];
+    if (positive(x) && positive(y) && Math.abs(y / x / clean - 1) > 0.1) return false;
+  }
+  const q0 = val(a.equity), q1 = val(b.equity);
+  if (q0 === null || q1 === null) return true;
+  const kept = (val(b.net_income) ?? 0) + (val(b.stock_comp) ?? 0) - (val(b.dividends) ?? 0) -
+    (val(b.buybacks) ?? 0);
+  const raised = q1 - q0 - kept;
+  if (q0 > 0) return raised <= 0.2 * q0;
+  const assets = val(a.total_assets);
+  return assets === null || !(assets > 0) || raised <= 0.1 * assets;
+}
+
+/** Rows with EPS and share counts on the latest basis, and the splits that took them there. */
+function splitAdjust(rows: AnnualFacts[], listed: StockSplit[] | undefined): {
+  rows: AnnualFacts[];
+  splits: SplitAdjustment[];
+} {
+  const first = rows.length ? rows[0].fiscal_year : 0;
+  const latest = rows.length ? rows[rows.length - 1].fiscal_year : 0;
+  if (Array.isArray(listed) && listed.length) {
+    // The pack adjusted its rows: trust it and look for nothing more, so nothing is adjusted twice.
+    const splits = listed
+      .filter((x) =>
+        positive(x.ratio) && x.effective_fiscal_year > first && x.effective_fiscal_year <= latest
+      )
+      .map((x): SplitAdjustment => ({ ratio: x.ratio, fiscalYear: x.effective_fiscal_year, source: "pack" }));
+    return { rows, splits };
+  }
+  const found: Array<{ index: number; ratio: number }> = [];
+  for (let i = 1; i < rows.length; i++) {
+    const a = rows[i - 1], b = rows[i];
+    if (b.fiscal_year !== a.fiscal_year + 1) continue;
+    const r = shareRatio(a, b);
+    const clean = r === null ? null : cleanSplitRatio(r);
+    if (r === null || clean === null || !epsAgrees(a, b, r) || !looksLikeSplit(a, b, clean)) continue;
+    found.push({ index: i, ratio: clean });
+  }
+  if (!found.length) return { rows, splits: [] };
+  const adjusted = rows.map((row, k) => {
+    const f = found.filter((x) => x.index > k).reduce((t, x) => t * x.ratio, 1);
+    if (f === 1) return row;
+    const copy: AnnualFacts = { ...row };
+    if (isNum(copy.eps_diluted)) copy.eps_diluted = copy.eps_diluted / f;
+    if (isNum(copy.shares_diluted)) copy.shares_diluted = copy.shares_diluted * f;
+    if (isNum(copy.shares_outstanding)) copy.shares_outstanding = copy.shares_outstanding * f;
+    return copy;
+  });
+  return {
+    rows: adjusted,
+    splits: found.map((x) => ({ ratio: x.ratio, fiscalYear: rows[x.index].fiscal_year, source: "detected" })),
+  };
 }
 
 // ---------- pieces ----------
@@ -236,11 +367,20 @@ function epsBridge(prior: AnnualFacts | null, latest: AnnualFacts, from: Num, to
   const margin = round((r1 * (m1 - m0) * keep0) / s0, 2);
   const tax = round((pt1 * t0 - tx1) / s0, 2);
   const shares = round(ni1 / s1 - ni1 / s0, 2);
+  // A step that rounds to zero gets a level label, so a split-adjusted share count never reads "Fewer shares".
+  const label = (v: number, down: string, up: string, level: string) => (v === 0 ? level : v < 0 ? down : up);
+  // The share step is named for what the share count did: with a loss, more shares make the loss per share
+  // smaller, so the sign of the step does not say which way the count moved.
+  const sharesLabel = shares === 0 || s1 === s0
+    ? "Same share count"
+    : s1 > s0
+    ? "More shares"
+    : "Fewer shares";
   const steps: EpsBridgeStep[] = [
-    { key: "sales", label: sales < 0 ? "Lower sales" : "Higher sales", value: sales },
-    { key: "margin", label: margin < 0 ? "Narrower margin" : "Wider margin", value: margin },
-    { key: "tax", label: tax < 0 ? "Higher tax rate" : "Lower tax rate", value: tax },
-    { key: "shares", label: shares < 0 ? "More shares" : "Fewer shares", value: shares },
+    { key: "sales", label: label(sales, "Lower sales", "Higher sales", "Same sales"), value: sales },
+    { key: "margin", label: label(margin, "Narrower margin", "Wider margin", "Same margin"), value: margin },
+    { key: "tax", label: label(tax, "Higher tax rate", "Lower tax rate", "Same tax rate"), value: tax },
+    { key: "shares", label: sharesLabel, value: shares },
   ];
   // Non-operating items, items below pretax profit and rounding: whatever makes the steps sum to the change.
   const residue = round(to - from - steps.reduce((s, x) => s + x.value, 0), 2);
@@ -421,9 +561,13 @@ function checks(
 
 const EMPTY_ROW: AnnualFacts = { fiscal_year: 0, period_end: "" };
 
-/** Derived metrics for the page. `facts` should be oldest first; rows are sorted and de-duplicated anyway. */
-export function derive(facts: AnnualFacts[]): Derived {
-  const rows = normalise(facts);
+/**
+ * Derived metrics for the page. `facts` should be oldest first; rows are sorted and de-duplicated anyway.
+ * `splits` are the fact pack's listed splits (its rows are then already adjusted).
+ */
+export function derive(facts: AnnualFacts[], splits?: StockSplit[]): Derived {
+  const adjusted = splitAdjust(normalise(facts), splits);
+  const rows = adjusted.rows;
   const n = rows.length;
   const years = rows.map((r) => r.fiscal_year);
   const labels = years.map(fyLabel);
@@ -510,6 +654,7 @@ export function derive(facts: AnnualFacts[]): Derived {
   })();
 
   return {
+    splits: adjusted.splits,
     years,
     labels,
     latest,

@@ -361,7 +361,8 @@ export function bottom(c: Ctx): Chapter {
   if (a.detail) bits.push(a.detail);
   const br = d.epsBridge;
   if (br) {
-    const big = [...br.steps].sort((x, y) => Math.abs(y.value) - Math.abs(x.value))[0];
+    const big = br.steps.filter((x) => Math.abs(x.value) >= 0.005)
+      .sort((x, y) => Math.abs(y.value) - Math.abs(x.value))[0];
     bits.push(
       `Earnings per share went from ${usd(br.from)} to ${usd(br.to)}${
         big
@@ -483,6 +484,8 @@ const MISSING_NAMES: Record<string, string> = {
   owners: "Owners and insider trades (phase 2)",
   filings: "Filing list with 8-K items (comes with the fact pack)",
   price_at_filing: "Closing price on the filing date (phase 3, needs a licensed feed)",
+  history_before_currency_change:
+    "Years reported only in the company's earlier currency (left out, so no series mixes two currencies)",
 };
 
 const FIELD_NAMES: Array<[string, string]> = [

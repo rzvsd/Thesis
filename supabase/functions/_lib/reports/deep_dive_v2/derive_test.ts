@@ -1,5 +1,5 @@
 import { assert, assertAlmostEquals, assertEquals } from "jsr:@std/assert@1.0.13";
-import { cagr, derive, type Derived } from "./derive.ts";
+import { cagr, cleanSplitRatio, derive, type Derived } from "./derive.ts";
 import type { AnnualFacts } from "./fact_pack.ts";
 import { sampleAppleFacts } from "./testdata_apple.ts";
 
@@ -484,4 +484,151 @@ Deno.test("a skipped fiscal year gives no one-year change, no EPS bridge and no 
   assertEquals(e.dcf, null);
   const f = derive([row(2020, 100), row(2023, 220), row(2024, 250), row(2025, 300)]);
   assert(f.dcf, "three straight years end at the latest");
+});
+
+// ---------------------------------------------------------------- stock splits
+
+/** A flat year: sales 1000, net profit `ni`, `shares` diluted and outstanding, EPS as reported. */
+function shareRow(y: number, shares: number, ni = 160): AnnualFacts {
+  return {
+    fiscal_year: y,
+    period_end: `${y}-12-31`,
+    revenue: 1000,
+    operating_income: 200,
+    pretax_income: 200,
+    income_tax: 40,
+    net_income: ni,
+    eps_diluted: ni / shares,
+    shares_diluted: shares,
+    shares_outstanding: shares,
+  };
+}
+
+Deno.test("clean split ratios: within 3%, 3-for-2 or more either way", () => {
+  assertEquals(cleanSplitRatio(2.05), 2);
+  assertEquals(cleanSplitRatio(0.335), 1 / 3);
+  assertEquals(cleanSplitRatio(1.5), 1.5);
+  assertEquals(cleanSplitRatio(1.3), null);
+  assertEquals(cleanSplitRatio(1.1), null);
+  assertEquals(cleanSplitRatio(0), null);
+});
+
+Deno.test("a split between adjacent years is found and earlier years are rescaled to the latest basis", () => {
+  const d = derive([shareRow(2022, 80), shareRow(2023, 80), shareRow(2024, 320), shareRow(2025, 320)]);
+  assertEquals(d.splits, [{ ratio: 4, fiscalYear: 2024, source: "detected" }]);
+  assertEquals(d.shares, [320, 320, 320, 320]);
+  assertEquals(d.eps, [0.5, 0.5, 0.5, 0.5]);
+  assertEquals(d.sharesChangeAll, 0);
+  assertEquals(d.growth.epsCagrAll, 0);
+  // A reverse split the same way.
+  const r = derive([shareRow(2024, 1000), shareRow(2025, 100)]);
+  assertEquals(r.splits, [{ ratio: 0.1, fiscalYear: 2025, source: "detected" }]);
+  assertEquals(r.sharesChange1y, 0);
+  assertEquals(r.checks.find((c) => c.key === "share_count")?.passes, true);
+});
+
+Deno.test("no split: a 30% issue, a merger paid in shares, a skipped year, or a share count EPS does not follow", () => {
+  const issue = derive([shareRow(2024, 100), shareRow(2025, 130)]);
+  assertEquals(issue.splits, []);
+  assertAlmostEquals(issue.sharesChange1y as number, 30, 1e-9);
+  assertEquals(issue.checks.find((c) => c.key === "share_count")?.passes, false);
+  // Shares and profit both doubled, and equity grew by the business bought with the new shares: a real issue.
+  const merger = derive([{ ...shareRow(2024, 100, 160), equity: 1000 }, {
+    ...shareRow(2025, 200, 320),
+    equity: 4500,
+  }]);
+  assertEquals(merger.splits, []);
+  assertAlmostEquals(merger.sharesChange1y as number, 100, 1e-9);
+  // FY2023 then FY2025: not adjacent.
+  assertEquals(derive([shareRow(2023, 80), shareRow(2025, 160)]).splits, []);
+  // The share count doubled but reported EPS stayed level against flat profit: the figures disagree.
+  const odd = derive([shareRow(2024, 100), { ...shareRow(2025, 200), eps_diluted: 1.6 }]);
+  assertEquals(odd.splits, []);
+});
+
+Deno.test("splits the pack lists are trusted: rows are not rescaled again and nothing is re-detected", () => {
+  const listed = [{
+    ratio: 4,
+    effective_fiscal_year: 2024,
+    evidence: "restatement" as const,
+    concept: "us-gaap:WeightedAverageNumberOfDilutedSharesOutstanding",
+  }];
+  const rows = [shareRow(2023, 320), shareRow(2024, 320), shareRow(2025, 320)];
+  const d = derive(rows, listed);
+  assertEquals(d.splits, [{ ratio: 4, fiscalYear: 2024, source: "pack" }]);
+  assertEquals(d.shares, [320, 320, 320]);
+  // A step in rows of a pack that lists splits is left as it is.
+  const e = derive([shareRow(2023, 80), shareRow(2024, 160), shareRow(2025, 160)], listed);
+  assertEquals(e.shares, [80, 160, 160]);
+  assertEquals(e.splits.map((x) => x.source), ["pack"]);
+  // A listed split outside the rows is no note.
+  assertEquals(derive(rows, [{ ...listed[0], effective_fiscal_year: 2023 }]).splits, []);
+});
+
+Deno.test("the EPS bridge across a split shows no share step", () => {
+  const d = derive([shareRow(2024, 80), shareRow(2025, 320)]);
+  assert(d.epsBridge);
+  assertEquals(d.epsBridge.from, 0.5);
+  assertEquals(d.epsBridge.to, 0.5);
+  assertEquals(d.epsBridge.steps.find((x) => x.key === "shares")?.value, 0);
+  assertAlmostEquals(bridgeSum(d), 0, 1e-9);
+});
+
+Deno.test("a split after a strong year is still a split: profit growth does not hide it", () => {
+  // 2-for-1 with profit up 50%: EPS 2.00 to 1.50, shares 100 to 200. EPS times shares matches profit.
+  const strong = (y: number, shares: number, ni: number, equity?: number): AnnualFacts => ({
+    ...shareRow(y, shares, ni),
+    ...(equity === undefined ? {} : { equity }),
+  });
+  for (
+    const rows of [
+      [strong(2024, 100, 200), strong(2025, 200, 300)],
+      [strong(2024, 100, 200, 2000), strong(2025, 200, 300, 2300)],
+      [strong(2024, 100, 200), strong(2025, 300, 290)],
+    ]
+  ) {
+    const d = derive(rows);
+    assertEquals(d.splits.length, 1);
+    assertAlmostEquals(d.sharesChange1y as number, 0, 1e-9);
+    assertEquals(d.checks.find((c) => c.key === "share_count")?.passes, true);
+    assert(d.epsBridge);
+    assertEquals(d.epsBridge.steps.find((x) => x.key === "shares")?.value, 0);
+  }
+});
+
+Deno.test("shares sold for cash are no split even when the count lands on a clean ratio", () => {
+  // A lossmaker doubles its share count in an offering: equity rises by the cash raised, not by profit.
+  const loss = (y: number, shares: number, ni: number, equity: number): AnnualFacts => ({
+    ...shareRow(y, shares, ni),
+    equity,
+  });
+  const d = derive([loss(2024, 100, -50, 500), loss(2025, 205, -55, 970)]);
+  assertEquals(d.splits, []);
+  assertAlmostEquals(d.sharesChange1y as number, 105, 1e-9);
+  assertEquals(d.checks.find((c) => c.key === "share_count")?.passes, false);
+  // An issue during the year: the year-end count doubled, the weighted count rose by half.
+  const midYear = derive([shareRow(2024, 100), { ...shareRow(2025, 150), shares_outstanding: 200 }]);
+  assertEquals(midYear.splits, []);
+});
+
+Deno.test("the EPS bridge names the share step for what the count did, also at a loss", () => {
+  const row = (y: number, shares: number, ni: number): AnnualFacts => ({
+    fiscal_year: y,
+    period_end: `${y}-12-31`,
+    revenue: 1000,
+    operating_income: 100,
+    pretax_income: 100,
+    income_tax: 20,
+    net_income: ni,
+    shares_diluted: shares,
+  });
+  const loss = derive([row(2024, 100, -50), row(2025, 110, -55)]);
+  assert(loss.epsBridge);
+  const step = loss.epsBridge.steps.find((x) => x.key === "shares");
+  assert(step && step.value > 0);
+  assertEquals(step.label, "More shares");
+  const profit = derive([row(2024, 100, 50), row(2025, 110, 55)]);
+  assertEquals(profit.epsBridge?.steps.find((x) => x.key === "shares")?.label, "More shares");
+  const buyback = derive([row(2024, 110, -50), row(2025, 100, -55)]);
+  assertEquals(buyback.epsBridge?.steps.find((x) => x.key === "shares")?.label, "Fewer shares");
 });

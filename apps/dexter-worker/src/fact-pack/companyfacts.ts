@@ -23,13 +23,19 @@
 //   that first reported the year.
 // - Per-share values and share counts come from the annual report that first reported the year, or from an
 //   amendment of it (a /A filed before the next year's report); never from a later year's report, because that
-//   may show them split-adjusted. Nothing is split-adjusted here, so a split shows as a step in EPS and share
-//   count. The renderer must not read that step as a business change.
+//   may show them split-adjusted. Stock splits are then found from evidence in the filings (splits.ts: later
+//   filings that restate earlier EPS or share counts by a clean split ratio, or the split ratio tag), and the
+//   rows before each split are rescaled to the latest year's basis. Those rows keep the reported values in
+//   `as_reported`, and the splits are listed, so a split never reads as a business change.
+// - One currency: the currency of the latest annual period (on a tie, such as a convenience translation of the
+//   current year, the one the latest reports also use for comparatives). Older years reported only in another
+//   currency are left out (a series never mixes currencies) and listed in `droppedCurrencies`.
 // - The fiscal year of a period comes from the fy of the annual report whose current period it is, else from
 //   the nearest such report by counting years, else the calendar year of the period end. An fy whose offset
 //   from the calendar year of the period end disagrees with the offset most years use is a mis-tag and is not
 //   trusted, and fiscal years always go up.
-import type { AnnualFacts } from "./types";
+import { adjustForSplits, type SplitRow } from "./splits";
+import type { AnnualFacts, StockSplit } from "./types";
 
 export interface XbrlFact {
   start?: string;
@@ -249,6 +255,10 @@ export interface AnnualMapping {
   restatements: Restatement[];
   /** Fields the taxonomy mapping does not cover at all (IFRS). */
   unmapped: string[];
+  /** Stock splits found within the rows; earlier rows' per-share values and share counts are adjusted. */
+  splits: StockSplit[];
+  /** Other currencies of older annual periods that were left out because the filer now reports in `currency`. */
+  droppedCurrencies: string[];
 }
 
 function days(start: string, end: string): number {
@@ -334,22 +344,45 @@ function pickTaxonomy(index: FactIndex): Taxonomy | null {
   return ifrs > gaap ? "ifrs-full" : "us-gaap";
 }
 
-/** The money unit most annual income facts use; USD wins a tie. */
-function pickCurrency(index: FactIndex, concepts: string[]): string {
-  const counts = new Map<string, number>();
+/** Annual duration facts of the anchor concepts in every money unit. */
+function anchorFacts(index: FactIndex, concepts: string[]): Array<{ unit: string; fact: XbrlFact }> {
+  const out: Array<{ unit: string; fact: XbrlFact }> = [];
   for (const concept of concepts) {
     for (const unit of Object.keys(index.concept(concept)?.units ?? {})) {
       if (!/^[A-Z]{3}$/.test(unit)) continue;
-      counts.set(unit, (counts.get(unit) ?? 0) + index.annualFacts(concept, unit).length);
+      for (const fact of index.annualFacts(concept, unit)) if (isAnnualDuration(fact)) out.push({ unit, fact });
     }
   }
+  return out;
+}
+
+/** The money unit of the latest annual period: the one most anchor facts of that period use, so a filer that
+ *  switched currency is read in the one it reports in now. A tie there (a filer that also tags a convenience
+ *  translation of the current year, often in USD) goes to the unit the latest reports use for their comparative
+ *  years too, then to the unit with the most facts overall, then to USD. */
+function pickCurrency(facts: Array<{ unit: string; fact: XbrlFact }>): string {
+  let latest = "";
+  for (const { fact } of facts) if (fact.end > latest) latest = fact.end;
+  const inLatest = new Map<string, number>();
+  const latestReports = new Set<string>();
+  for (const { unit, fact } of facts) {
+    if (days(fact.end, latest) >= 20) continue;
+    inLatest.set(unit, (inLatest.get(unit) ?? 0) + 1);
+    latestReports.add(fact.accn);
+  }
+  const inReports = new Map<string, number>();
+  const overall = new Map<string, number>();
+  for (const { unit, fact } of facts) {
+    overall.set(unit, (overall.get(unit) ?? 0) + 1);
+    if (latestReports.has(fact.accn)) inReports.set(unit, (inReports.get(unit) ?? 0) + 1);
+  }
+  const score = (unit: string) => [inLatest.get(unit) ?? 0, inReports.get(unit) ?? 0, overall.get(unit) ?? 0];
   let best = "USD";
-  let bestCount = counts.get("USD") ?? 0;
-  for (const [unit, count] of counts) {
-    if (count > bestCount) {
-      best = unit;
-      bestCount = count;
-    }
+  for (const unit of inLatest.keys()) {
+    const a = score(unit);
+    const b = score(best);
+    const k = a.findIndex((value, n) => value !== b[n]);
+    if (k >= 0 && a[k]! > b[k]!) best = unit;
   }
   return best;
 }
@@ -474,6 +507,8 @@ function fiscalYears(index: FactIndex, anchors: string[], currency: string): Per
 interface Picked {
   value: number;
   concept: string;
+  /** Filing date of the fact the value comes from. */
+  filed: string;
   restatement?: Omit<Restatement, "fiscal_year" | "field">;
 }
 
@@ -517,7 +552,7 @@ function pickValue(
     chosen = sameReport[sameReport.length - 1] ?? first;
   }
   const sign = (value: number) => (spec.positive ? Math.abs(value) : value);
-  const picked: Picked = { value: sign(chosen.fact.val), concept: chosen.concept };
+  const picked: Picked = { value: sign(chosen.fact.val), concept: chosen.concept, filed: chosen.fact.filed };
   if (chosen.fact.val !== first.fact.val) {
     picked.restatement = {
       concept: chosen.concept,
@@ -582,28 +617,34 @@ function pickSharesOutstanding(index: FactIndex, period: PeriodYear) {
     .filter((fact) => fact.end >= period.end && days(period.end, fact.end) <= 200)
     .sort(byFiledAsc);
   const own = cover.find((fact) => fact.accn === period.original.accn) ?? cover[0];
-  if (own) return { value: own.val, concept: "dei:EntityCommonStockSharesOutstanding" };
+  if (own) return { value: own.val, concept: "dei:EntityCommonStockSharesOutstanding", filed: own.filed };
   const sheet = pickValue(
     index,
     { field: "shares_outstanding", kind: "instant", unit: "shares", concepts: [g("CommonStockSharesOutstanding")] },
     period,
     "USD"
   );
-  return sheet ? { value: sheet.value, concept: sheet.concept } : undefined;
+  return sheet ? { value: sheet.value, concept: sheet.concept, filed: sheet.filed } : undefined;
 }
 
 export function mapAnnualFacts(json: CompanyFactsJson): AnnualMapping {
   const index = new FactIndex(json);
   const taxonomy = pickTaxonomy(index);
-  if (!taxonomy) return { taxonomy: null, currency: "USD", annual: [], restatements: [], unmapped: [] };
+  if (!taxonomy) {
+    return { taxonomy: null, currency: "USD", annual: [], restatements: [], unmapped: [], splits: [], droppedCurrencies: [] };
+  }
 
   const specs = taxonomy === "us-gaap" ? US_GAAP_FIELDS : IFRS_FIELDS;
   const anchorFields = new Set<FieldName>(["revenue", "net_income", "operating_income", "operating_cash_flow"]);
   const anchors = specs.filter((spec) => anchorFields.has(spec.field)).flatMap((spec) => spec.concepts);
-  const currency = pickCurrency(index, anchors);
-  const periods = fiscalYears(index, anchors, currency).slice(-MAX_YEARS);
+  const money = anchorFacts(index, anchors);
+  const currency = pickCurrency(money);
+  const allPeriods = fiscalYears(index, anchors, currency);
+  const periods = allPeriods.slice(-MAX_YEARS);
+  const droppedCurrencies = otherCurrencyYears(money, currency, allPeriods, periods);
 
   const restatements: Restatement[] = [];
+  const splitRows: SplitRow[] = [];
   const annual = periods.map((period) => {
     const row: AnnualFacts = {
       fiscal_year: period.fiscalYear,
@@ -613,11 +654,13 @@ export function mapAnnualFacts(json: CompanyFactsJson): AnnualMapping {
       accession: period.original.accn
     };
     const concepts: Record<string, string> = {};
+    const filed: SplitRow["filed"] = {};
     for (const spec of specs) {
       const picked = pickValue(index, spec, period, currency);
       if (!picked) continue;
       row[spec.field] = picked.value;
       concepts[spec.field] = picked.concept;
+      if (spec.field === "eps_diluted" || spec.field === "shares_diluted") filed[spec.field] = picked.filed;
       if (picked.restatement) {
         restatements.push({ fiscal_year: period.fiscalYear, field: spec.field, ...picked.restatement });
       }
@@ -653,15 +696,36 @@ export function mapAnnualFacts(json: CompanyFactsJson): AnnualMapping {
     if (shares) {
       row.shares_outstanding = shares.value;
       concepts.shares_outstanding = shares.concept;
+      filed.shares_outstanding = shares.filed;
     }
     if (row.operating_cash_flow !== undefined && row.capex !== undefined) {
       row.free_cash_flow = row.operating_cash_flow - row.capex;
       concepts.free_cash_flow = "operating_cash_flow - capex";
     }
     row.concepts = concepts;
+    splitRows.push({ row, originalFiled: period.original.filed, filed });
     return row;
   });
+  const splits = adjustForSplits(index, splitRows, taxonomy, currency);
 
   const unmapped = taxonomy === "ifrs-full" ? ["debt_total", "short_term_investments", "buybacks", "stock_comp", "shares_diluted"] : [];
-  return { taxonomy, currency, annual, restatements, unmapped };
+  return { taxonomy, currency, annual, restatements, unmapped, splits, droppedCurrencies };
+}
+
+/** Currencies of annual periods that no row in `currency` covers, counting only periods the rows would reach
+ *  (when the history is already cut at MAX_YEARS, older periods would not show anyway). */
+function otherCurrencyYears(
+  facts: Array<{ unit: string; fact: XbrlFact }>,
+  currency: string,
+  allPeriods: PeriodYear[],
+  periods: PeriodYear[]
+): string[] {
+  const oldest = allPeriods.length > periods.length ? periods[0]?.end : undefined;
+  const out = new Set<string>();
+  for (const { unit, fact } of facts) {
+    if (unit === currency || (oldest !== undefined && fact.end < oldest)) continue;
+    if (allPeriods.some((period) => Math.abs(days(period.end, fact.end)) < 20)) continue;
+    out.add(unit);
+  }
+  return [...out].sort();
 }
