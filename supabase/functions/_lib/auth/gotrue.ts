@@ -180,10 +180,12 @@ export class GoTrueClient {
     if (!this.base || !apiKey) {
       return { ok: false, status: 503, code: "not_configured", message: "Supabase Auth is not configured." };
     }
-    const headers: Record<string, string> = {
-      apikey: apiKey,
-      authorization: `Bearer ${userToken ?? apiKey}`,
-    };
+    // The new keys (sb_secret_..., sb_publishable_...) are not JWTs: Supabase rejects them on the Authorization
+    // header ("Invalid JWT") before the call reaches Auth, so they go on apikey only. Legacy keys are JWTs and
+    // keep the bearer copy.
+    const bearer = userToken ?? (looksLikeLegacyKey(apiKey) ? apiKey : undefined);
+    const headers: Record<string, string> = { apikey: apiKey };
+    if (bearer) headers.authorization = `Bearer ${bearer}`;
     if (body !== undefined) headers["content-type"] = "application/json";
     const ip = clientIpStore.getStore();
     if (this.secretKey && apiKey === this.secretKey && ip && ip !== "unknown") {
@@ -212,6 +214,11 @@ export class GoTrueClient {
     if (res.ok) return { ok: true, data: parsed as T };
     return { ok: false, status: res.status, ...errorParts(parsed) };
   }
+}
+
+// Legacy anon/service_role keys are JWTs (three base64url parts, header starts "eyJ").
+function looksLikeLegacyKey(key: string): boolean {
+  return key.startsWith("eyJ") && key.split(".").length === 3;
 }
 
 // GoTrue error bodies come in two shapes: { code, error_code, msg } and { error, error_description }.

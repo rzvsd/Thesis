@@ -201,6 +201,18 @@ Deno.test("register: 422 rules, 409 for a known email in app.users or in Supabas
       .status,
     201,
   );
+  // Not verified yet: registering again sends a fresh code (201) and keeps the one account.
+  const sentBefore = t.fake.outbox.filter((e) => e.email === "dup@example.com").length;
+  const again = await t.call("POST", "/auth/register", {
+    email: "dup@example.com",
+    password: "VeryStrongPass1!",
+  });
+  assertEquals(again.status, 201);
+  assertEquals(again.json.status, "verification_sent");
+  assertEquals(t.fake.outbox.filter((e) => e.email === "dup@example.com").length, sentBefore + 1);
+  const known = await t.store.findUserByEmail("dup@example.com");
+  if (!known) throw new Error("user row missing");
+  await t.store.markUserVerified(known.id, new Date().toISOString());
   const dup = await t.call("POST", "/auth/register", {
     email: "dup@example.com",
     password: "VeryStrongPass1!",
