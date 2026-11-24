@@ -111,9 +111,11 @@ internal fun ShellContentScope.Content(entry: NavEntry, padding: PaddingValues) 
         }
         is Destination.Report -> ReportEntry(destination.reportId, classic = false, padding = padding)
         is Destination.ReportClassic -> ReportEntry(destination.reportId, classic = true, padding = padding)
+        // Loading only while a build runs: an entry restored after the job ended shows the search with its
+        // error (or empty) instead of spinning forever; back or Run starts over.
         is Destination.DeepDiveRunning -> DeepDiveScreenFor(
             report = null,
-            isLoading = state.isDeepDiveRunning || state.deepDiveError == null,
+            isLoading = state.isDeepDiveRunning,
             padding = padding,
             classic = false
         )
