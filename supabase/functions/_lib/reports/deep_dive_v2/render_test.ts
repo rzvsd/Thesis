@@ -263,3 +263,160 @@ for (
     assertEquals(r.problems, [], name);
   });
 }
+
+// ---------------------------------------------------------------- review fixes: gaps, currency, missing values
+
+/** The page outside <script> and <style>: text, SVG labels and attribute values. */
+function outsideScripts(html: string): string {
+  return html.replace(/<style>[\s\S]*?<\/style>/g, " ").replace(/<script[\s\S]*?<\/script>/g, " ");
+}
+
+/** The Apple pack with only the given fiscal years. */
+function applePackYears(years: number[]): ReturnType<typeof sampleApplePack> {
+  const pack = sampleApplePack();
+  pack.annual = pack.annual.filter((r) => years.includes(r.fiscal_year));
+  return pack;
+}
+
+Deno.test("gapped history: no one-year claim and no model are built from the gap", () => {
+  const report = sampleReport(applePackYears([2020, 2022, 2025]));
+  const c = buildContext(report);
+  assertEquals(c.d.years, [2020, 2022, 2025]);
+  assertEquals(c.d.growth.revenueYoY, null);
+  assertEquals(c.d.dcf, null);
+  const r = renderDeepDiveV2(report, OPTS);
+  assertEquals(r.problems, []);
+  const text = visibleText(r.html).replace(/\s+/g, " ");
+  for (
+    const claim of [
+      /on the year/i,
+      /a year earlier/i,
+      /Last year/,
+      /the one before/i,
+      /What changed since (FY|fiscal)/,
+      /year-on-year changes? on record/,
+      /in the year\./,
+      /Earnings per share went from \$[\d.]+ to \$[\d.]+( in fiscal 2025)?\./,
+      /Base case/,
+    ]
+  ) {
+    const hit = claim.exec(text);
+    assertEquals(hit ? text.slice(Math.max(0, hit.index - 80), hit.index + 40) : null, null, String(claim));
+  }
+  assertStringIncludes(text, "fiscal 2024 is not on record");
+  assertStringIncludes(text, "The model needs three straight years of free cash flow");
+  assertStringIncludes(text, "No prior year");
+  assertStringIncludes(r.html, '"scenarios":null');
+});
+
+Deno.test("currency: a EUR pack shows euros, no dollar money and no price box", () => {
+  const pack = sampleApplePack();
+  pack.currency = "EUR";
+  // A stored price is not compared either: it would need the trading currency and the ADR ratio.
+  pack.price_at_filing = { value: 191, date: "2025-10-31", source: "test" };
+  const r = renderDeepDiveV2(sampleReport(pack), OPTS);
+  assertEquals(r.problems, []);
+  const page = outsideScripts(r.html);
+  assertEquals(
+    page.includes("$"),
+    false,
+    page.slice(Math.max(0, page.indexOf("$") - 80), page.indexOf("$") + 20),
+  );
+  assertEquals(/dollar/i.test(page), false);
+  assertStringIncludes(page, "€416.2B");
+  assertMatch(page, /<text[^>]*>€\d/); // SVG axis and value labels
+  assertStringIncludes(page, "EUR per reported share");
+  assertStringIncludes(page, "Price comparisons are off");
+  assertStringIncludes(page, "ADR ratio");
+  // No input, no price fields the script would fill, no price line in the range charts.
+  assertEquals(/<input\b/.test(page), false);
+  assertEquals(/data-dd="(price|pe|gap|implied|price-text|marker)"/.test(page), false);
+  assertEquals(/data-dd-when=/.test(page), false);
+  assertEquals(/Your price|Type a price|at your price|191\.00|close on/.test(visibleText(r.html)), false);
+  const data = JSON.parse(
+    /<script type="application\/json" id="dd-data">([\s\S]*?)<\/script>/.exec(r.html)![1],
+  );
+  assertEquals(data, { price: null, eps: null, scenarios: null, dcf: null, currency: "EUR" });
+  // The model values still show, in the reporting currency.
+  assert(buildContext(sampleReport(pack)).d.dcf);
+  assertStringIncludes(page, "The model range is €");
+  // The banned words and marks stay out in this mode too.
+  const text = visibleText(r.html);
+  assertEquals(BANNED.exec(text)?.[0] ?? null, null);
+  assertEquals(text.includes("—") || text.includes("!"), false);
+});
+
+Deno.test("currency: other codes use the ISO code; legacy and missing codes stay in dollars", () => {
+  const chf = sampleApplePack();
+  chf.currency = "chf";
+  const page = outsideScripts(buildDeepDiveV2Html(sampleReport(chf), OPTS));
+  assertStringIncludes(page, "CHF 416.2B");
+  assertStringIncludes(page, "CHF per reported share");
+  assertEquals(page.includes("$"), false);
+  assertEquals(/<input\b/.test(page), false);
+  const gbp = sampleApplePack();
+  gbp.currency = "GBP";
+  assertStringIncludes(buildDeepDiveV2Html(sampleReport(gbp), OPTS), "£416.2B");
+  // USD packs keep the price box; the formatter is back to dollars after a non-USD render.
+  const usd = buildDeepDiveV2Html(sampleReport(sampleApplePack()), OPTS);
+  assertStringIncludes(usd, 'data-dd="price" type="text"');
+  assertStringIncludes(usd, "$416.2B");
+  assertEquals(buildContext(sampleInstitutionalReport("job-1", "report-1")).currency, "USD");
+});
+
+Deno.test("missing latest net profit is not called a loss anywhere", () => {
+  const pack = sampleApplePack();
+  const last = pack.annual[pack.annual.length - 1];
+  delete last.net_income;
+  delete last.eps_diluted;
+  const c = buildContext(sampleReport(pack));
+  assertEquals(c.d.netIncome[c.d.netIncome.length - 1], null);
+  const text = visibleText(buildDeepDiveV2Html(sampleReport(pack), OPTS)).replace(/\s+/g, " ");
+  assertStringIncludes(text, "First, net profit is not tagged for fiscal 2025.");
+  for (
+    const claim of [/not yet profitable/, /net loss/i, /\blost\b/, /broke even/, /Can Apple reach a profit/]
+  ) {
+    assertEquals(claim.exec(text)?.[0] ?? null, null, String(claim));
+  }
+});
+
+Deno.test("net debt with free cash flow missing does not say the cash flow is negative", () => {
+  const pack = sampleApplePack();
+  const last = pack.annual[pack.annual.length - 1];
+  last.cash = 1e9;
+  delete last.short_term_investments;
+  delete last.free_cash_flow;
+  delete last.operating_cash_flow;
+  const ch = renderDeepDiveV2(sampleReport(pack), OPTS).chapters.find((x) => x.id === "risks")!;
+  assertStringIncludes(ch.verdict.body, "free cash flow is not tagged for fiscal 2025");
+  assertEquals(ch.verdict.body.includes("not positive"), false);
+});
+
+Deno.test("margin chart title counts rows on record, not calendar years, when the history has gaps", () => {
+  const title = (years: number[]): string => {
+    const pack = applePackYears(years);
+    const lastRow = pack.annual[pack.annual.length - 1];
+    lastRow.gross_profit = (lastRow.revenue as number) * 0.3;
+    return visibleText(buildDeepDiveV2Html(sampleReport(pack), OPTS)).replace(/\s+/g, " ");
+  };
+  const gapped = title([2015, 2020, 2025]);
+  assertStringIncludes(gapped, "Gross margin at its lowest of the 3 years on record");
+  assertEquals(/(highest|lowest) in \d+ years/.exec(gapped)?.[0] ?? null, null);
+  assertStringIncludes(title([2023, 2024, 2025]), "Gross margin at its lowest in 3 years");
+});
+
+Deno.test("KPI tiles say No prior year only when the year before is not on record", () => {
+  const pack = sampleLossmakerPack();
+  const lastRow = pack.annual[pack.annual.length - 1] as unknown as Record<string, unknown>;
+  for (const k of Object.keys(lastRow)) {
+    if (!["fiscal_year", "period_end", "filing_date", "revenue"].includes(k)) delete lastRow[k];
+  }
+  const html = renderDeepDiveV2(sampleReport(pack), OPTS).html;
+  const kpis = visibleText(html.slice(html.indexOf('<div class="kpis">'), html.indexOf("Price to earnings")))
+    .replace(/\s+/g, " ");
+  assertEquals(kpis.includes("No prior year"), false, kpis);
+  assertStringIncludes(kpis, "Operating margin Not disclosed −42.6% a year earlier");
+  assertStringIncludes(kpis, "Shares, change in the year Not disclosed 51.0 million shares a year earlier");
+  const gapped = renderDeepDiveV2(sampleReport(applePackYears([2020, 2022, 2025])), OPTS).html;
+  assertStringIncludes(gapped.slice(gapped.indexOf('<div class="kpis">')), "No prior year");
+});

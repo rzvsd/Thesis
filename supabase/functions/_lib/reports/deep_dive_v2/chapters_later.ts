@@ -156,7 +156,7 @@ export function links(c: Ctx): Chapter {
 
 // ---------------------------------------------------------------- 08 Price action
 
-export function action(_c: Ctx): Chapter {
+export function action(c: Ctx): Chapter {
   const nd = "Not disclosed: no licensed price data for this date. Needs";
   const feed = "a licensed end-of-day price feed, phase 3.";
   return {
@@ -199,7 +199,8 @@ export function action(_c: Ctx): Chapter {
         3,
       ),
     ],
-    upshot:
-      "Until licensed prices arrive, this report says nothing about the share price trend. The value chapter still works with any price typed into the box at the top.",
+    upshot: c.priceOff
+      ? `Until licensed prices arrive, this report says nothing about the share price trend. Its figures are in ${c.currency}, so the value chapter shows the model values without a price.`
+      : "Until licensed prices arrive, this report says nothing about the share price trend. The value chapter still works with any price typed into the box at the top.",
   };
 }

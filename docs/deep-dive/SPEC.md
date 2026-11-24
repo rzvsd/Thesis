@@ -408,6 +408,11 @@ Where the build differs from the sections above, this section records what the c
 - **Value model:** base free cash flow is the 3-year average. Growth for years 1 to 5 is the 5-year free cash flow
   growth rate clamped to -5% to 15%, fading in a straight line to 2.5% by year 10, at a 9.5% discount rate. Bear and
   bull cases are the base growth minus and plus 4 points.
+- **Missing years:** a one-year change only compares with the fiscal year just before the latest. When that year
+  is not on record the page says so and shows no change. The value model needs the three consecutive years ending
+  at the latest one.
+- **Currency:** money is shown in the fact pack's currency ($, €, £, else the ISO code). For a non-USD pack the price
+  box and every price comparison are off, with a note, until the filing-date exchange rate and ADR ratio exist.
 - **Scorecard:** absolute bands for now; ranks against an index wait for the phase 2 peer data.
 - **Bottom line:** keeps a short story (the answer, what keeps it going, and the closest test to its line), then the
   four tests with the latest reading.

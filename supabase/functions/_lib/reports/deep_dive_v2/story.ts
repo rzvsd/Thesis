@@ -58,6 +58,13 @@ export interface Ctx {
   priceDate: string | null;
   pt: PriceTexts;
   data: ClientData;
+  /** ISO code of the fact pack's reporting currency ("USD" for legacy reports). */
+  currency: string;
+  /**
+   * True when the figures are not in dollars: the page then has no price box and makes no price comparison,
+   * because a dollar price needs the filing-date exchange rate and the ADR ratio (SPEC section 3), not in place yet.
+   */
+  priceOff: boolean;
 }
 
 type Num = number | null;
@@ -66,7 +73,8 @@ type Num = number | null;
 
 export const isNum = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
 export const last = (a: Num[]): Num => (a.length ? a[a.length - 1] : null);
-export const prev = (a: Num[]): Num => (a.length > 1 ? a[a.length - 2] : null);
+/** The value for the fiscal year right before the latest; null when that year is not on record (a gap). */
+export const prev = (d: Derived, a: Num[]): Num => (d.priorIndex === null ? null : a[d.priorIndex] ?? null);
 export const ref = (id: string): string => `[[ref:${id}]]`;
 export const fyT = (y: number): string => `fiscal ${y}`;
 export const m = (v: Num): string => fmtMoney(v);
@@ -87,6 +95,14 @@ export function cashName(c: { f: ReportFacts }): string {
 }
 /** Cents kept per sales dollar: 46.9 -> "47 cents". */
 export const cents = (marginPct: number): string => `${Math.round(marginPct)} cents`;
+
+/** The one honest note on price comparisons for a report whose figures are not in dollars. */
+export function priceOffNote(c: Pick<Ctx, "currency">): string {
+  return `The figures are in ${c.currency}, the currency of the filings, and per-share values are per reported share. ` +
+    "Price comparisons need " +
+    "the price in the trading currency, the exchange rate on the filing date and the ADR ratio, which are not in " +
+    "place yet, so this report shows no price box, price to earnings or growth the price assumes.";
+}
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const MONTHS_LONG = [

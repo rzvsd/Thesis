@@ -430,3 +430,58 @@ Deno.test("operating margin line comes from the years before the latest, so it c
   assertEquals(e.cashReturn5.dividends, 15);
   assertEquals(e.cashReturn5.ratio, null);
 });
+
+Deno.test("a skipped fiscal year gives no one-year change, no EPS bridge and no model", () => {
+  // FY2020, FY2022, FY2025: the row before FY2025 is FY2022, which is not "the year before".
+  const row = (y: number, rev: number): AnnualFacts => ({
+    fiscal_year: y,
+    period_end: `${y}-12-31`,
+    revenue: rev * B,
+    gross_profit: rev * 0.4 * B,
+    operating_income: rev * 0.2 * B,
+    pretax_income: rev * 0.2 * B,
+    income_tax: rev * 0.04 * B,
+    net_income: rev * 0.16 * B,
+    eps_diluted: rev * 0.016,
+    operating_cash_flow: rev * 0.25 * B,
+    capex: rev * 0.05 * B,
+    cash: 50 * B,
+    debt_total: 10 * B,
+    shares_outstanding: (12 - y + 2020) * B,
+    shares_diluted: (12 - y + 2020) * B,
+  });
+  const d = derive([row(2020, 100), row(2022, 200), row(2025, 300)]);
+  assertShape(d);
+  assertEquals(d.years, [2020, 2022, 2025]);
+  assertEquals(d.prior, null);
+  assertEquals(d.priorIndex, null);
+  assertEquals(d.growth.revenueYoY, null); // not 50% "on the year"
+  assertEquals(d.growth.netIncomeYoY, null);
+  assertEquals(d.growth.epsYoY, null);
+  assertEquals(d.growth.fcfYoY, null);
+  assertEquals(d.sharesChange1y, null);
+  assertEquals(d.marginChange1y, { gross: null, op: null });
+  assertEquals(d.epsBridge, null);
+  assertEquals(d.dcf, null); // three rows, but not three straight years
+  const sales = d.checks.find((c) => c.key === "revenue_growth");
+  assertEquals(sales?.current, null);
+  assertEquals(sales?.passes, null);
+  assert(sales?.why.startsWith("Not disclosed: needs sales for FY2025 and the fiscal year before it."));
+  assertEquals(d.checks.find((c) => c.key === "share_count")?.passes, null);
+  // Multi-year figures still use the real distance in years.
+  assertAlmostEquals(d.growth.revenueCagrAll as number, (Math.pow(3, 1 / 5) - 1) * 100, 1e-9);
+  // The margin line averages only years within five of the latest.
+  const op = d.checks.find((c) => c.key === "op_margin");
+  assert(op?.why.includes("FY2020 to FY2022"));
+
+  // With the year before on record, the same history gives the one-year change and the bridge again.
+  const e = derive([row(2020, 100), row(2022, 200), row(2024, 250), row(2025, 300)]);
+  assertEquals(e.prior?.fiscal_year, 2024);
+  assertEquals(e.priorIndex, 2);
+  assertAlmostEquals(e.growth.revenueYoY as number, 20, 1e-9);
+  assert(e.epsBridge);
+  // FY2022, FY2024, FY2025 are not three straight years either.
+  assertEquals(e.dcf, null);
+  const f = derive([row(2020, 100), row(2023, 220), row(2024, 250), row(2025, 300)]);
+  assert(f.dcf, "three straight years end at the latest");
+});

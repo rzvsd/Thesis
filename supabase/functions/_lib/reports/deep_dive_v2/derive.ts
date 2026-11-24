@@ -40,7 +40,10 @@ export interface Derived {
   years: number[];
   labels: string[];
   latest: AnnualFacts;
+  /** The row for the fiscal year right before the latest, or null when that year is not on record (a gap). */
   prior: AnnualFacts | null;
+  /** Index of `prior` in the series, or null. Every one-year change compares against this row only. */
+  priorIndex: number | null;
   first: AnnualFacts;
   revenue: Num[];
   netIncome: Num[];
@@ -119,7 +122,6 @@ export function cagr(from: Num, to: Num, periods: number): Num {
 }
 
 const lastOf = (a: Num[]): Num => (a.length ? a[a.length - 1] : null);
-const prevOf = (a: Num[]): Num => (a.length > 1 ? a[a.length - 2] : null);
 
 /** Normalise: keep rows with a numeric fiscal_year, one per year (the later row wins), oldest first. */
 function normalise(facts: AnnualFacts[]): AnnualFacts[] {
@@ -347,12 +349,18 @@ function checks(
       unit: "pct",
       direction: "above",
       passes: pass(revenueYoY, growthLine, "above"),
-      why: base === null
-        ? "No growth rate is on record for the base case, so the line is zero: sales that shrink break the story."
-        : hasModel
-        ? `The base case has free cash flow growing ${pctText(base)} a year. Sales growth under this line ` +
-          "would mean the business is growing too slowly to carry it."
-        : baseSourceText(growth, base),
+      why:
+        (revenueYoY === null
+          ? `Not disclosed: needs sales for ${latestLabel} and the fiscal year before it. `
+          : "") +
+        (base === null
+          ? "No growth rate is on record for the base case, so the line is zero: sales that shrink break the story."
+          : hasModel
+          ? `The base case has free cash flow growing ${
+            pctText(base)
+          } a year. Sales growth under this line ` +
+            "would mean the business is growing too slowly to carry it."
+          : baseSourceText(growth, base)),
     },
     {
       key: "op_margin",
@@ -400,7 +408,7 @@ function checks(
       direction: "below",
       passes: pass(sharesChange1y, 1, "below"),
       why: sharesChange1y === null
-        ? "Not disclosed: needs the share count for the last two years."
+        ? "Not disclosed: needs the share count for the latest year and the year before."
         : `The share count changed ${
           pctText(sharesChange1y)
         } in ${latestLabel}. A rise of 1% or more would ` +
@@ -420,11 +428,15 @@ export function derive(facts: AnnualFacts[]): Derived {
   const years = rows.map((r) => r.fiscal_year);
   const labels = years.map(fyLabel);
   const latest = n ? rows[n - 1] : EMPTY_ROW;
-  const prior = n > 1 ? rows[n - 2] : null;
   const first = n ? rows[0] : EMPTY_ROW;
   const s = series(rows);
   const latestYear = n ? years[n - 1] : 0;
-  const latestLabel = fyLabel(latestYear);
+  const latestLabel = n ? fyLabel(latestYear) : "the latest year";
+  // A one-year change needs the fiscal year right before the latest. When the history skips it (FY2022 then
+  // FY2025), the preceding row is not "the year before", so every one-year change is null.
+  const priorIndex = n > 1 && years[n - 2] === latestYear - 1 ? n - 2 : null;
+  const prior = priorIndex === null ? null : rows[priorIndex];
+  const prevOf = (a: Num[]): Num => (priorIndex === null ? null : a[priorIndex] ?? null);
 
   const growth: Derived["growth"] = {
     revenueYoY: change(prevOf(s.revenue), lastOf(s.revenue)),
@@ -471,6 +483,7 @@ export function derive(facts: AnnualFacts[]): Derived {
   const conv3 = fcf3 !== null && ni3 !== null && ni3 > 0 ? (fcf3 / ni3) * 100 : null;
 
   const partial = {
+    years,
     fcf: s.fcf,
     shares: s.shares,
     netCash: s.netCash,
@@ -481,12 +494,12 @@ export function derive(facts: AnnualFacts[]): Derived {
   const base = dcf ? dcf.scenarios.find((x) => x.key === "base")?.growth ?? null : baseGrowth(growth);
   const sharesChange1y = change(prevOf(s.shares), lastOf(s.shares));
   const opLatest = lastOf(s.opMargin);
-  // Average operating margin of up to five years before the latest.
+  // Average operating margin of the up to five fiscal years before the latest (by year, so a gap shortens it).
   const opHistory = (() => {
     const xs: Array<[number, number]> = [];
-    for (let i = Math.max(0, n - 6); i < n - 1; i++) {
+    for (let i = 0; i < n - 1; i++) {
       const v = s.opMargin[i];
-      if (v !== null) xs.push([years[i], v]);
+      if (v !== null && years[i] >= latestYear - 5) xs.push([years[i], v]);
     }
     if (!xs.length) return null;
     return {
@@ -501,6 +514,7 @@ export function derive(facts: AnnualFacts[]): Derived {
     labels,
     latest,
     prior,
+    priorIndex,
     first,
     revenue: s.revenue,
     netIncome: s.netIncome,

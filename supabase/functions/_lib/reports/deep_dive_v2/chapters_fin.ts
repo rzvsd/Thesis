@@ -2,7 +2,7 @@
 // the EPS bridge, margins, free cash flow against profit, buybacks and dividends, shares, cash against debt.
 // Built only from Derived values. Pure TS (no Deno APIs).
 
-import { fmt } from "./format.ts";
+import { fmt, moneyUnit } from "./format.ts";
 import { columns, lines, NODATA, type Series } from "./charts.ts";
 import { waterfall } from "./charts_more.ts";
 import { returnsCard } from "./chapters_a.ts";
@@ -121,12 +121,13 @@ export function financials(c: Ctx): Chapter {
     const falls = fallYears(d, d.revenue);
     const gmx = extremes(d, d.grossMargin);
     const nm = last(d.netMargin), nm0 = sp ? d.netMargin[sp.i] : null;
-    let lead = "First, the business is not yet profitable.";
+    // A loss is claimed only from a reported net profit at or below zero; a missing value is said to be missing.
+    let lead = `First, net profit is not tagged for ${L}.`;
     if (isNum(ni1) && ni1 > 0) {
       lead = isNum(nip) && isNum(niC)
         ? `First, profit grew ${nip > niC ? "faster" : "slower"} than sales.`
         : "First, the business makes a profit.";
-    }
+    } else if (isNum(ni1)) lead = "First, the business is not yet profitable.";
     const bits: string[] = [];
     if (sp && sp.j > sp.i) {
       bits.push(`Sales went from ${m(r0)} in ${F} to ${m(r1)} in ${fyT(d.years[sp.j])}.`);
@@ -142,21 +143,30 @@ export function financials(c: Ctx): Chapter {
         }).`,
       );
     } else if (isNum(om1)) bits.push(`Operating margin was ${p(om1)} in ${L} (${ref("fin-margins")}).`);
+    const usdText = c.currency === "USD";
     if (isNum(nm) && nm > 0) {
       bits.push(
-        `Out of each dollar of sales, ${S} now keeps ${nm.toFixed(1)} cents as profit${
-          isNum(nm0) && nm0 > 0 ? `, against ${nm0.toFixed(1)} cents in ${F}` : ""
-        }.`,
+        usdText
+          ? `Out of each dollar of sales, ${S} now keeps ${nm.toFixed(1)} cents as profit${
+            isNum(nm0) && nm0 > 0 ? `, against ${nm0.toFixed(1)} cents in ${F}` : ""
+          }.`
+          : `${S} now keeps ${p(nm)} of its sales as profit${
+            isNum(nm0) && nm0 > 0 ? `, against ${p(nm0)} in ${F}` : ""
+          }.`,
       );
     } else if (isNum(nm)) {
-      bits.push(`Net margin was ${p(nm)}, so each dollar of sales cost more than it brought in.`);
+      bits.push(
+        usdText
+          ? `Net margin was ${p(nm)}, so each dollar of sales cost more than it brought in.`
+          : `Net margin was ${p(nm)}, so the costs were larger than the sales.`,
+      );
     }
     story.push({ lead, body: bits.join(" ") });
   }
   // Second: per share.
   {
     const es = span(d.eps);
-    const e0 = es ? d.eps[es.i] : null, e1 = last(d.eps), ep = prev(d.eps);
+    const e0 = es ? d.eps[es.i] : null, e1 = last(d.eps), ep = prev(d, d.eps);
     const bits: string[] = [];
     const shAll = d.sharesChangeAll;
     const ss = span(d.shares);
@@ -192,6 +202,12 @@ export function financials(c: Ctx): Chapter {
             ? "The split needs a pretax profit in the earlier year to set the tax rate"
             : "The split of that change needs sales, operating and pretax profit, tax and shares for both years"
         } (${ref("fin-bridge")}).`,
+      );
+    } else if (n > 1 && !d.prior) {
+      bits.push(
+        `The split of the yearly change needs ${fyT(d.latest.fiscal_year - 1)}, which is not on record (${
+          ref("fin-bridge")
+        }).`,
       );
     } else {
       bits.push(`The split of the yearly change needs two full years of figures (${ref("fin-bridge")}).`);
@@ -276,7 +292,7 @@ export function financials(c: Ctx): Chapter {
   const br = d.epsBridge;
   const nm = last(d.netMargin);
   const fa = d.fcfToNetIncomeAll;
-  const nc = last(d.netCash), ncp = prev(d.netCash);
+  const nc = last(d.netCash), ncp = prev(d, d.netCash);
   const cards: Card[] = [
     {
       id: "fin-revni",
@@ -303,7 +319,9 @@ export function financials(c: Ctx): Chapter {
         ? `From ${usd(br.from)} to ${usd(br.to)}: what moved earnings per share`
         : "What moved earnings per share",
       sub: br
-        ? `Earnings per share, ${fyT(d.prior?.fiscal_year ?? 0)} to ${L}, $`
+        ? `Earnings per share, ${fyT(d.prior?.fiscal_year ?? 0)} to ${L}, ${moneyUnit()}`
+        : n > 1 && !d.prior
+        ? `Needs ${fyT(d.latest.fiscal_year - 1)}, which is not on record`
         : "Needs two full years of figures",
       span2: true,
       chart: true,
@@ -321,7 +339,7 @@ export function financials(c: Ctx): Chapter {
         : NODATA,
       src: "Income statement and share count. Tax and share steps use the prior year's rate and count.",
       table: br
-        ? tbl("Earnings per share bridge", ["Step", "$ per share"], [
+        ? tbl("Earnings per share bridge", ["Step", `${moneyUnit()} per share`], [
           [`EPS ${fyT(d.prior?.fiscal_year ?? 0)}`, usd(br.from)],
           ...br.steps.map((s) => [s.label, fmt(s.value, "usd_ps", { sign: true })]),
           [`EPS ${L}`, usd(br.to)],
@@ -331,7 +349,9 @@ export function financials(c: Ctx): Chapter {
     {
       id: "fin-margins",
       title: isNum(nm)
-        ? nm > 0
+        ? c.currency !== "USD"
+          ? nm > 0 ? `Keeps ${p(nm)} of sales as profit` : `Net loss of ${pa(nm)} of sales`
+          : nm > 0
           ? `Keeps ${nm.toFixed(1)} cents of each sales dollar as profit`
           : `Loses ${Math.abs(nm).toFixed(1)} cents on each sales dollar`
         : "Margins",

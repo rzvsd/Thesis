@@ -371,8 +371,8 @@ export function bottom(c: Ctx): Chapter {
           : ""
       }.`,
     );
-  } else if (isNum(last(d.eps)) && isNum(prev(d.eps))) {
-    bits.push(`Earnings per share went from ${usd(prev(d.eps))} to ${usd(last(d.eps))}.`);
+  } else if (isNum(last(d.eps)) && isNum(prev(d, d.eps))) {
+    bits.push(`Earnings per share went from ${usd(prev(d, d.eps))} to ${usd(last(d.eps))}.`);
   }
   if (isNum(d.growth.revenueYoY) && q.kind !== "eps_vs_sales" && q.kind !== "shrink" && q.kind !== "pace") {
     bits.push(`Sales ${d.growth.revenueYoY >= 0 ? "grew" : "shrank"} ${pa(d.growth.revenueYoY)} in ${L}.`);
@@ -392,7 +392,7 @@ export function bottom(c: Ctx): Chapter {
       : "The first answer cannot be given yet.",
     body: bits.join(" ") || "The filings on record are too thin to say more.",
   });
-  const cr = d.cashReturn5, nc = last(d.netCash), ncp = prev(d.netCash), fcf = last(d.fcf);
+  const cr = d.cashReturn5, nc = last(d.netCash), ncp = prev(d, d.netCash), fcf = last(d.fcf);
   const cost: string[] = [];
   if (isNum(fcf) && fcf <= 0) {
     cost.push(`Free cash flow was ${m(fcf)} in ${L}, so the business used cash rather than made it.`);

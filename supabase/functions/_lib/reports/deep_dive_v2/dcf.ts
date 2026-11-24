@@ -2,7 +2,8 @@
 // Pure TS (no Deno APIs): the same file runs in Node for previews.
 //
 // Method (state it on the page):
-// - Base FCF = average free cash flow of the last 3 fiscal years. All 3 must be positive, else no model.
+// - Base FCF = average free cash flow of the 3 consecutive fiscal years ending at the latest one. All 3 must be on
+//   record (no skipped year) and positive, else no model.
 // - Growth for years 1..fade (5) is the scenario growth. From year fade+1 it moves in a straight line to the
 //   terminal rate, which it reaches in the last explicit year (year 10).
 // - Discount rate 9.5%, terminal growth 2.5%.
@@ -155,10 +156,18 @@ const last = <T>(
   a: ReadonlyArray<T> | undefined,
 ): T | undefined => (a && a.length ? a[a.length - 1] : undefined);
 
-/** The DCF for a company, or null when base FCF, shares, net cash or a growth rate is missing. */
-export function buildDcf(d: Pick<Derived, "fcf" | "shares" | "netCash" | "growth" | "revenue">): Dcf | null {
+/**
+ * The DCF for a company, or null when base FCF, shares, net cash or a growth rate is missing. `years` are the
+ * fiscal years of the series (oldest first); the base needs the latest three to be consecutive.
+ */
+export function buildDcf(
+  d: Pick<Derived, "years" | "fcf" | "shares" | "netCash" | "growth" | "revenue">,
+): Dcf | null {
   const fcf = Array.isArray(d?.fcf) ? d.fcf : [];
-  if (fcf.length < 3) return null;
+  const years = Array.isArray(d?.years) ? d.years : [];
+  if (fcf.length < 3 || years.length !== fcf.length) return null;
+  const y = years.slice(-3);
+  if (!(y[1] === y[2] - 1 && y[0] === y[2] - 2)) return null;
   const recent = fcf.slice(-3);
   if (!recent.every((v): v is number => isNum(v) && v > 0)) return null;
   const shares = last(d.shares);

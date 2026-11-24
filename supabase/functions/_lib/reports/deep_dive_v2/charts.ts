@@ -66,7 +66,7 @@ export function textW(s: string, size = FONT_LABEL, weight = 400): number {
     else if ("frt()[]-/".includes(ch)) w += 0.38;
     else if ("%mwMW@".includes(ch)) w += 0.86;
     else if (ch >= "A" && ch <= "Z") w += 0.68;
-    else if (ch === "$" || ch === "−" || ch === "+") w += 0.6;
+    else if ("$€£−+".includes(ch)) w += 0.6;
     else w += 0.55;
   }
   return w * size * (weight >= 600 ? 1.06 : 1);

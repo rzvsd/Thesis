@@ -1,7 +1,7 @@
 // Deep Dive 2.0 chapters 07 to 10: Price & value, Price action, Forecasts, Risks. Pure TS (no Deno APIs).
 // The value model is dcf.ts; the price parts read only price_at_filing and the reader's typed price (client.ts).
 
-import { esc } from "./format.ts";
+import { esc, moneyUnit } from "./format.ts";
 import { lines, NODATA, type Series } from "./charts.ts";
 import { heat, range } from "./charts_more.ts";
 import type { Scenario } from "./dcf.ts";
@@ -25,6 +25,7 @@ import {
   p,
   pair,
   type Para,
+  priceOffNote,
   ratioRows,
   ref,
   shareText,
@@ -87,9 +88,12 @@ export function modelRange(c: Ctx, width: number, hero = false): string {
       },
     ];
   const svg = range({
-    title: hero ? "Model range and your price" : "Value range from the cash-flow model",
+    title: hero
+      ? c.priceOff ? "Model range" : "Model range and your price"
+      : "Value range from the cash-flow model",
     rows,
     marker: c.price !== null ? { value: c.price, label: "Your price" } : null,
+    noMarker: c.priceOff,
     unit: "usd_ps",
     width,
   });
@@ -98,6 +102,27 @@ export function modelRange(c: Ctx, width: number, hero = false): string {
 }
 
 // ---------------------------------------------------------------- 07 Price & value
+
+/** Why there is no model, from the data: a skipped year, a year without positive cash flow, or missing inputs. */
+function noModelLead(c: Ctx): string {
+  const { d } = c;
+  const n = d.years.length;
+  const ly = d.latest.fiscal_year;
+  if (n >= 1) {
+    const need = [ly - 2, ly - 1, ly];
+    const absent = need.filter((y) => !d.years.includes(y));
+    if (n > 1 && absent.length) {
+      return `The model needs three straight years of free cash flow, and ${listText(absent.map(fyT))} ${
+        absent.length === 1 ? "is" : "are"
+      } not on record.`;
+    }
+    const recent = need.map((y) => d.fcf[d.years.indexOf(y)] ?? null);
+    if (recent.some((v) => isNum(v) && v <= 0)) {
+      return "Without positive cash flow, a cash-flow model has nothing to grow.";
+    }
+  }
+  return "The inputs the model needs are not all on record.";
+}
 
 export function value(c: Ctx): Chapter {
   const { d, L } = c;
@@ -125,6 +150,8 @@ export function value(c: Ctx): Chapter {
           : `At the ${usd(c.price)} close on ${c.priceDate}: ${outside.charAt(0).toLowerCase()}${
             outside.slice(1)
           }`
+        : c.priceOff
+        ? `The values are in ${c.currency} per reported share. Price comparisons are off for this report: they need the trading-currency price and the ADR ratio.`
         : "No closing price at the filing date is stored yet. Type a price at the top and the range, the ratios and the growth the price assumes update.",
     };
     const nc = dcf.netCash;
@@ -165,10 +192,10 @@ export function value(c: Ctx): Chapter {
     verdict = {
       lead: "The value model cannot run on these filings yet.",
       body:
-        "It needs at least three years of positive free cash flow, plus cash, debt and a share count for the latest year.",
+        "It needs three straight years of positive free cash flow, plus cash, debt and a share count for the latest year.",
     };
     story.push({
-      lead: "Without positive cash flow, a cash-flow model has nothing to grow.",
+      lead: noModelLead(c),
       body: `The model values a company by the cash it makes. ${
         isNum(last(d.fcf))
           ? `Free cash flow was ${m(last(d.fcf))} in ${L}.`
@@ -191,6 +218,13 @@ export function value(c: Ctx): Chapter {
           : ""
       }${isNum(eps) && eps > 0 ? ` The price is ${c.pt.pe} ${L} earnings per share of ${usd(eps)}.` : ""}`,
     });
+  } else if (c.priceOff) {
+    story.push({
+      lead: "This report makes no price comparison.",
+      body: `${priceOffNote(c)}${base ? ` The model values (${ref("val-range")}) stand on their own.` : ""}${
+        isNum(eps) ? ` Earnings per share were ${usd(eps)} in ${L}.` : ""
+      }`,
+    });
   } else {
     story.push({
       lead: "There is no price in this report yet.",
@@ -201,7 +235,7 @@ export function value(c: Ctx): Chapter {
     });
   }
 
-  const ratios = ratioRows([
+  const ratios = c.priceOff ? "" : ratioRows([
     [`Price to earnings, ${L} EPS of ${usd(eps)}`, `<span data-dd="pe">${esc(c.pt.pe)}</span>`],
     ["Gap to the base value", `<span data-dd="gap" class="${c.pt.gapClass}">${esc(c.pt.gap)}</span>`],
     ["Growth the price assumes, years 1 to 5", `<span data-dd="implied">${esc(c.pt.implied)}</span>`],
@@ -212,8 +246,9 @@ export function value(c: Ctx): Chapter {
     {
       id: "val-range",
       title: base ? "Value range from the cash-flow model" : "Value range",
-      sub:
-        "$ per share. The short tick is the base value; the tall line is your price once you type one. Rows for price history and peers arrive in phase 3.",
+      sub: c.priceOff
+        ? `${c.currency} per reported share. The short tick is the base value. Rows for price history and peers arrive in phase 3.`
+        : "$ per share. The short tick is the base value; the tall line is your price once you type one. Rows for price history and peers arrive in phase 3.",
       span2: true,
       chart: true,
       html: pair((w) => modelRange(c, w)),
@@ -232,14 +267,27 @@ export function value(c: Ctx): Chapter {
         ])
         : undefined,
     },
-    {
-      id: "val-ratios",
-      title: "What the price implies",
-      sub: "Recomputed from the price box at the top",
-      html: `${ratios}<p class="note" data-dd-when="noprice"${
-        c.price !== null ? " hidden" : ""
-      }>Not seen: type a price to compare.</p>`,
-    },
+    c.priceOff
+      ? {
+        id: "val-ratios",
+        title: "What the price implies",
+        sub: "Price comparisons are off for this report",
+        html: `${
+          ratioRows([
+            [`Earnings per share, ${L}`, esc(usd(eps))],
+            ["Base value per share", esc(base ? usd(base.value) : "n/a")],
+            ["Free cash flow, 3-year average", esc(dcf ? m(dcf.baseFcf) : "n/a")],
+          ])
+        }<p class="note">${esc(priceOffNote(c))}</p>`,
+      }
+      : {
+        id: "val-ratios",
+        title: "What the price implies",
+        sub: "Recomputed from the price box at the top",
+        html: `${ratios}<p class="note" data-dd-when="noprice"${
+          c.price !== null ? " hidden" : ""
+        }>Not seen: type a price to compare.</p>`,
+      },
     notSeen(
       "val-pe",
       "Price to earnings over time",
@@ -319,10 +367,10 @@ function heatCard(c: Ctx): Card {
     id: "fc-heat",
     title: "Fair value if the inputs move",
     sub: base
-      ? `$ per share at ${p(base.growth)} growth. Blue above ${
+      ? `${moneyUnit()} per ${c.priceOff ? "reported " : ""}share at ${p(base.growth)} growth. Blue above ${
         c.price !== null ? "the filing-date price" : "the base value"
       }, clay below.`
-      : "$ per share",
+      : `${moneyUnit()} per share`,
     span2: true,
     chart: true,
     html: heatSvg,
@@ -352,7 +400,7 @@ export function forecasts(c: Ctx): Chapter {
       verdict: {
         lead: "No model cases: the filings do not support the cash-flow model yet.",
         body:
-          "The cases need three years of positive free cash flow, cash, debt and a share count. These would be this report's model numbers, not a forecast from management.",
+          "The cases need three straight years of positive free cash flow, cash, debt and a share count. These would be this report's model numbers, not a forecast from management.",
       },
       story: [{
         lead: "The history is all there is for now.",
@@ -606,7 +654,9 @@ export function risks(c: Ctx): Chapter {
     bs = `${S} has ${m(nc)} more in ${cashName(c)} than it owes.`;
   } else if (isNum(nc) && isNum(fcf) && fcf > 0) {
     bs = `Net debt of ${m(-nc)} equals ${(-nc / fcf).toFixed(1)} years of ${L} free cash flow.`;
-  } else if (isNum(nc)) bs = `Net debt is ${m(-nc)}, and free cash flow is not positive to pay it down.`;
+  } else if (isNum(nc) && isNum(fcf)) {
+    bs = `Net debt is ${m(-nc)}, and free cash flow is not positive to pay it down.`;
+  } else if (isNum(nc)) bs = `Net debt is ${m(-nc)}, and free cash flow is not tagged for ${L}.`;
   const story: Para[] = [];
   story.push({
     lead: isNum(nc) && nc >= 0

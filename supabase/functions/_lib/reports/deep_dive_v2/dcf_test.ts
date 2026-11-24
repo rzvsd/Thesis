@@ -32,8 +32,11 @@ const INPUTS: DcfInputs = {
   fade: 5,
 };
 
-function dcfInput(over: Partial<Pick<Derived, "fcf" | "shares" | "netCash" | "growth" | "revenue">> = {}) {
+function dcfInput(
+  over: Partial<Pick<Derived, "years" | "fcf" | "shares" | "netCash" | "growth" | "revenue">> = {},
+) {
   return {
+    years: [2022, 2023, 2024, 2025],
     fcf: [80, 90, 100, 110].map((x) => x * 1e9),
     shares: [16e9, 15.5e9, 15.2e9, 15e9],
     netCash: [50e9, 40e9, 35e9, 30e9],
@@ -160,6 +163,22 @@ Deno.test("buildDcf is null without three positive FCF years, shares, net cash o
   assertEquals(buildDcf(dcfInput({ growth: noGrowth })), null);
   // An early negative year outside the last three does not matter.
   assert(buildDcf(dcfInput({ fcf: [-50e9, 90e9, 100e9, 110e9] })));
+});
+
+Deno.test("buildDcf needs the three fiscal years ending at the latest to be consecutive", () => {
+  // FY2020, FY2022, FY2025: three rows, but not three straight years.
+  assertEquals(
+    buildDcf(
+      dcfInput({ years: [2020, 2022, 2025], fcf: [90e9, 100e9, 110e9], shares: [15e9], netCash: [30e9] }),
+    ),
+    null,
+  );
+  // One skipped year inside the last three is enough to stop the model.
+  assertEquals(buildDcf(dcfInput({ years: [2021, 2022, 2024, 2025] })), null);
+  // A gap before the last three does not matter.
+  assert(buildDcf(dcfInput({ years: [2019, 2023, 2024, 2025] })));
+  // Years that do not line up with the series give no model.
+  assertEquals(buildDcf(dcfInput({ years: [2024, 2025] })), null);
 });
 
 Deno.test("buildDcf keeps working with net debt (value can sit below the debt-free value)", () => {
