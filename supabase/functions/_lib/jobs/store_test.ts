@@ -89,6 +89,46 @@ Deno.test({
       const swept = await store.getJob(job.id);
       assertEquals(swept?.status, "failed");
 
+      // Followers: another customer's open run is found, the follower is listed, and the sweep leaves an
+      // old follower alone while its run is open, then fails it once that run failed.
+      const otherId = `test-m2-${crypto.randomUUID()}`;
+      await sql`insert into users (id, email, created_at) values (${otherId}, ${
+        otherId + "@example.test"
+      }, now())`;
+      try {
+        const leader = (await store.createJob({
+          id: crypto.randomUUID(),
+          type: "deep_dive",
+          userId,
+          ticker: "MSFT",
+          createdAt: now,
+        }))!;
+        assertEquals((await store.findOpenRunForTicker("MSFT", otherId))?.id, leader.id);
+        assertEquals(await store.findOpenRunForTicker("MSFT", userId), undefined);
+        const follower = (await store.createJob({
+          id: crypto.randomUUID(),
+          type: "deep_dive",
+          userId: otherId,
+          ticker: "MSFT",
+          createdAt: now,
+          followsJobId: leader.id,
+        }))!;
+        assertEquals(follower.followsJobId, leader.id);
+        assertEquals((await store.listOpenFollowers(leader.id)).map((j) => j.id), [follower.id]);
+        // A follower is never itself a run to follow.
+        assertEquals((await store.findOpenRunForTicker("MSFT", "someone-else"))?.id, leader.id);
+        await sql`update jobs set created_at = now() - interval '20 minutes' where id = ${follower.id}`;
+        await sql`update jobs set status = 'running', started_at = now() where id = ${leader.id}`;
+        await sql`select app.sweep_stale_deep_dive_jobs()`;
+        assertEquals((await store.getJob(follower.id))?.status, "queued");
+        await sql`update jobs set status = 'failed', completed_at = now() where id = ${leader.id}`;
+        await sql`select app.sweep_stale_deep_dive_jobs()`;
+        assertEquals((await store.getJob(follower.id))?.status, "failed");
+      } finally {
+        await sql`delete from jobs where user_id = ${otherId}`;
+        await sql`delete from users where id = ${otherId}`;
+      }
+
       // Report round trip and comparable lookup.
       const done = (await store.createJob({
         id: crypto.randomUUID(),

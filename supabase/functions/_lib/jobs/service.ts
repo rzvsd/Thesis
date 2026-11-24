@@ -6,7 +6,8 @@ import { logError, logInfo } from "../../_shared/log.ts";
 import type { ArtifactStore } from "./artifacts.ts";
 import { assertIncomingAnalysisReport } from "../reports/validation.ts";
 import type { JobsStore } from "./store.ts";
-import { dispatchJob, type SweepDeps, sweepOnPoll } from "./sweeper.ts";
+import { attachReportCopy, pollJob, settleFollowers } from "./follow.ts";
+import { dispatchJob, type SweepDeps } from "./sweeper.ts";
 import type { AnalysisReport, AnalysisRequest, JobRecord, JobStatusResponse, ReportRecord } from "./types.ts";
 
 // The side effects of a stored report. Implemented in effects/ (see wiring.ts); faked in tests.
@@ -132,6 +133,11 @@ export async function createDeepDiveJob(
     return await reuseReport(deps, { userId, ticker, reusable, nowIso, requestId: input.requestId, route });
   }
 
+  // Another customer's run for this ticker is already open: wait on it instead of starting a second run
+  // (one report per company per filing). Like a reused report, this is free and needs no runner.
+  const run = await deps.store.findOpenRunForTicker(ticker, userId);
+  if (run) return await followRun(deps, { userId, ticker, run, nowIso, requestId: input.requestId, route });
+
   // Only on-demand generation counts against the daily limit; a reused report is free to read.
   let usageReserved = false;
   if (limit > 0) {
@@ -205,7 +211,7 @@ async function openJobResponse(
 ): Promise<Response | undefined> {
   const open = await deps.store.findOpenJob(userId, ticker);
   if (!open) return undefined;
-  const swept = await sweepOnPoll(deps, open);
+  const swept = await pollJob(deps, open);
   if (swept.status !== "queued" && swept.status !== "running") return undefined;
   logInfo("Open job returned", { user_id: userId, job_id: swept.id });
   return json(buildJobStatusResponse(swept), 202);
@@ -235,60 +241,27 @@ async function reuseReport(
     createdAt: nowIso,
   });
   if (!reuseJob) return (await openJobResponse(deps, userId, ticker)) ?? queueUnavailable();
-  const artifact = await deps.artifacts.readReport(reusable.artifactKey);
-  if (!artifact || !("job_id" in artifact)) {
-    await deps.store.markJobFailed(reuseJob.id, stamp(deps), "Reusable report artifact missing.");
-    return apiError(404, "report_not_found", "Reusable report artifact missing.");
-  }
-
-  const reportId = crypto.randomUUID();
-  let artifactKey: string | undefined;
   try {
-    const source = await deps.effects.enrichIssuer(assertIncomingAnalysisReport(artifact));
-    const report: AnalysisReport = {
-      ...source,
-      report_id: reportId,
-      job_id: reuseJob.id,
-      generated_at: nowIso,
-    };
-    artifactKey = await deps.artifacts.writeReport(report);
-    const persisted = await deps.store.createReport({
-      id: report.report_id,
-      jobId: reuseJob.id,
-      type: report.type,
-      ticker: report.ticker,
-      schemaVersion: report.schema_version,
-      artifactKey,
-      fingerprint: reusable.fingerprint,
-      freshnessExpiresAt: reusable.freshnessExpiresAt,
-      createdAt: report.generated_at,
-      isCurrent: true,
+    const result = await attachReportCopy(deps, reuseJob, reusable, {
+      requestId: input.requestId,
+      route: input.route,
+      auditEvent: "job.reused",
     });
-    const completed = await deps.store.markJobComplete(reuseJob.id, nowIso, persisted.id);
-    if (!completed) {
-      await cleanupStoredReport(deps, persisted.id, artifactKey);
+    if (result.kind === "artifact_missing") {
+      await deps.store.markJobFailed(reuseJob.id, stamp(deps), "Reusable report artifact missing.");
+      return apiError(404, "report_not_found", "Reusable report artifact missing.");
+    }
+    if (result.kind === "lost") {
       await deps.store.markJobFailed(reuseJob.id, stamp(deps), "Failed to attach reusable report.");
       return apiError(500, "internal_error", "Failed to attach reusable report.");
     }
-    await deps.effects.audit("job.reused", {
-      request_id: input.requestId,
-      route: input.route,
-      job_id: completed.id,
-      report_id: persisted.id,
-      ticker,
-      fingerprint: reusable.fingerprint,
-    }, userId);
-    await deps.effects.apply({
-      report,
-      userId,
-      requestId: input.requestId,
-      route: input.route,
-      includeMonitorSnapshot: false,
+    logInfo("Deep dive report reused", {
+      user_id: userId,
+      job_id: result.job.id,
+      report_id: result.reportId,
     });
-    logInfo("Deep dive report reused", { user_id: userId, job_id: completed.id, report_id: persisted.id });
-    return json(buildJobStatusResponse(completed), 200);
+    return json(buildJobStatusResponse(result.job), 200);
   } catch (err) {
-    if (artifactKey) await cleanupStoredReport(deps, reportId, artifactKey);
     const message = err instanceof Error ? err.message : "Reusable report handling failed";
     await deps.store.markJobFailed(reuseJob.id, stamp(deps), message);
     logError("Reuse failed", { job_id: reuseJob.id });
@@ -296,11 +269,39 @@ async function reuseReport(
   }
 }
 
+async function followRun(
+  deps: JobsDeps,
+  input: { userId: string; ticker: string; run: JobRecord; nowIso: string; requestId: string; route: string },
+): Promise<Response> {
+  const { userId, ticker, run } = input;
+  const job = await deps.store.createJob({
+    id: crypto.randomUUID(),
+    type: "deep_dive",
+    userId,
+    ticker,
+    createdAt: input.nowIso,
+    followsJobId: run.id,
+  });
+  if (!job) return (await openJobResponse(deps, userId, ticker)) ?? queueUnavailable();
+  await deps.effects.audit("job.following", {
+    request_id: input.requestId,
+    route: input.route,
+    job_id: job.id,
+    follows_job_id: run.id,
+    ticker,
+    status: "queued",
+  }, userId);
+  logInfo("Job follows an open run", { user_id: userId, job_id: job.id, follows_job_id: run.id });
+  // The run may have finished between the lookup and the insert.
+  const current = await pollJob(deps, job);
+  return json(buildJobStatusResponse(current), current.status === "complete" ? 200 : 202);
+}
+
 // GET /jobs/:id. Someone else's job is a 404, as before.
 export async function getDeepDiveJob(deps: JobsDeps, input: { userId: string; jobId: string }) {
   const job = await deps.store.getJob(input.jobId);
   if (!job || job.userId !== input.userId) return apiError(404, "job_not_found", "Job not found.");
-  const swept = await sweepOnPoll(deps, job);
+  const swept = await pollJob(deps, job);
   return json(buildJobStatusResponse(swept), 200);
 }
 
@@ -461,6 +462,7 @@ export async function completeJob(
 
   // After the response so the runner is not held by delivery; never throws.
   deps.background(deps.effects.filingAlerts(report, prior));
+  deps.background(settleFollowers(deps, jobId, input.requestId));
   logInfo("Job complete", { job_id: jobId, report_id: report.report_id });
   return json({ status: "ok", report_id: report.report_id }, 200);
 }
@@ -488,6 +490,7 @@ export async function failJob(
     status: "failed",
     error_message: errorMessage,
   }, failed.userId);
+  deps.background(settleFollowers(deps, failed.id, input.requestId));
   logInfo("Job failed by runner", { job_id: failed.id });
   return json({ status: "ok" }, 200);
 }

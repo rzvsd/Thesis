@@ -10,8 +10,20 @@ export interface JobsStore {
   // Returns undefined when the user already has an open Deep Dive for the ticker (unique index
   // jobs_one_open_deep_dive), so two overlapping requests cannot both create a job.
   createJob(
-    input: { id: string; type: JobType; userId?: string; ticker?: string; createdAt: string },
+    input: {
+      id: string;
+      type: JobType;
+      userId?: string;
+      ticker?: string;
+      createdAt: string;
+      followsJobId?: string;
+    },
   ): Promise<JobRecord | undefined>;
+  // The oldest open Deep Dive run for the ticker that a new request can follow: not a follower itself and not
+  // the given user's own job.
+  findOpenRunForTicker(ticker: string, excludeUserId: string): Promise<JobRecord | undefined>;
+  // Followers of a job that are still waiting.
+  listOpenFollowers(jobId: string): Promise<JobRecord[]>;
   // Counts one more runner start for a still-queued job. When previousDispatchedAt is given, the update only
   // happens if nobody else re-dispatched in the meantime (two polls cannot both start a runner).
   markDispatched(
@@ -79,6 +91,7 @@ export function mapJob(row: Row): JobRecord {
     dispatchedAt: iso(row.dispatched_at),
     runUrl: row.run_url ? String(row.run_url) : undefined,
     checkedAt: iso(row.checked_at),
+    followsJobId: row.follows_job_id ? String(row.follows_job_id) : undefined,
   };
 }
 
@@ -123,9 +136,9 @@ export function postgresJobsStore(sql: Sql): JobsStore {
     async createJob(input) {
       try {
         const row = one(
-          await sql`insert into jobs (id, type, status, user_id, ticker, created_at)
+          await sql`insert into jobs (id, type, status, user_id, ticker, created_at, follows_job_id)
             values (${input.id}, ${input.type}, 'queued', ${input.userId ?? null}, ${input.ticker ?? null},
-                    ${input.createdAt})
+                    ${input.createdAt}, ${input.followsJobId ?? null})
             returning *`,
         );
         return mapJob(row);
@@ -134,6 +147,22 @@ export function postgresJobsStore(sql: Sql): JobsStore {
         if (e.code === "23505" && e.constraint_name === OPEN_JOB_CONSTRAINT) return undefined;
         throw err;
       }
+    },
+
+    async findOpenRunForTicker(ticker, excludeUserId) {
+      const row = one(
+        await sql`select * from jobs
+          where type = 'deep_dive' and ticker = ${ticker} and status in ('queued', 'running')
+            and follows_job_id is null and user_id is distinct from ${excludeUserId}
+          order by created_at asc limit 1`,
+      );
+      return row ? mapJob(row) : undefined;
+    },
+
+    async listOpenFollowers(jobId) {
+      const rows = await sql`select * from jobs where follows_job_id = ${jobId} and status = 'queued'
+          order by created_at asc limit 500`;
+      return rows.map(mapJob);
     },
 
     async markDispatched(id, atIso, previousDispatchedAt) {

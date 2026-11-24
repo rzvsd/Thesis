@@ -58,7 +58,8 @@ Deno.test("POST /jobs: global dispatch cap gives 503 queue_unavailable and frees
   const { deps, store } = fakeDeps({ dailyCap: 1 });
   store.tiers.set("u1", "PRO");
   assertEquals((await createDeepDiveJob(deps, { userId: "u1", ticker: "AAPL", requestId: "r" })).status, 202);
-  const res = await createDeepDiveJob(deps, { userId: "u2", ticker: "AAPL", requestId: "r" });
+  // A different ticker: a second customer on the same open ticker follows that run instead.
+  const res = await createDeepDiveJob(deps, { userId: "u2", ticker: "MSFT", requestId: "r" });
   assertEquals(res.status, 503);
   const b = await body(res);
   assertEquals(b.error, "queue_unavailable");
@@ -108,7 +109,8 @@ Deno.test("full run: claim, complete, side effects, then reuse within freshness"
   });
   assertEquals(done.status, 200);
   assertEquals(await body(done), { status: "ok", report_id: report.report_id });
-  assertEquals(pending.length, 1);
+  // Filing alerts plus the follower settle step.
+  assertEquals(pending.length, 2);
   assertEquals(effects.applied, [{ reportId: report.report_id, includeMonitorSnapshot: true }]);
   const stored = store.reports.get(report.report_id)!;
   assertEquals(stored.fingerprint, "AAPL|2.0|LATEST_UNKNOWN");
@@ -162,7 +164,7 @@ Deno.test("one report per filing: a user-run report is reused by everyone until 
   const reportId = await runToComplete(deps, "u1");
   const stored = store.reports.get(reportId)!;
   assertEquals(stored.fingerprint, "AAPL|2.0|2026Q3");
-  assertEquals(stored.freshnessExpiresAt, new Date(start + 2160 * HOUR).toISOString());
+  assertEquals(stored.freshnessExpiresAt, new Date(start + 4380 * HOUR).toISOString());
 
   // A month later another customer gets the same report, with no new run.
   clock.now = new Date(start + 30 * 24 * HOUR);
@@ -207,6 +209,72 @@ Deno.test("fingerprint period: the analysed period wins; coverage fills in only 
   store.jobs.clear();
   const fromCoverage = await runToComplete(deps, "u3");
   assertEquals(store.reports.get(fromCoverage)!.fingerprint, "AAPL|2.0|2026Q4");
+});
+
+Deno.test("a second customer follows the open run for the ticker and gets the same report", async () => {
+  const { deps, store, runner, artifacts, pending } = fakeDeps();
+  store.coverage.set("AAPL", "2026Q3");
+  for (const u of ["u1", "u2", "u3"]) store.tiers.set(u, "FREE");
+  const leader = await body(await createDeepDiveJob(deps, { userId: "u1", ticker: "AAPL", requestId: "r" }));
+
+  // u2 asks while u1's run is open: no second run, no daily quota used, a queued job that follows u1's run.
+  const res = await createDeepDiveJob(deps, { userId: "u2", ticker: "AAPL", requestId: "r" });
+  assertEquals(res.status, 202);
+  const follower = await body(res);
+  assertEquals(follower.status, "queued");
+  assertEquals(runner.dispatched, [leader.job_id]);
+  assertEquals(store.usage.get("u2|2026-11-25") ?? 0, 0);
+  assertEquals((await store.getJob(follower.job_id))?.followsJobId, leader.job_id);
+  // Asking again returns the same following job.
+  assertEquals(
+    (await body(await createDeepDiveJob(deps, { userId: "u2", ticker: "AAPL", requestId: "r" }))).job_id,
+    follower.job_id,
+  );
+  // Polling while the run is open keeps it queued and never dispatches a runner for it.
+  assertEquals(
+    (await body(await getDeepDiveJob(deps, { userId: "u2", jobId: follower.job_id }))).status,
+    "queued",
+  );
+  assertEquals(runner.dispatched.length, 1);
+
+  // A third customer who polls never: completion hands it its copy in the background.
+  const third = await body(await createDeepDiveJob(deps, { userId: "u3", ticker: "AAPL", requestId: "r" }));
+
+  await claimJob(deps, { jobId: leader.job_id, requestId: "r" });
+  const report = reportFor(leader.job_id);
+  assertEquals(
+    (await completeJob(deps, { jobId: leader.job_id, body: { report }, requestId: "r" })).status,
+    200,
+  );
+  await Promise.all(pending);
+
+  const thirdJob = (await store.getJob(third.job_id))!;
+  assertEquals(thirdJob.status, "complete");
+  const polled = await body(await getDeepDiveJob(deps, { userId: "u2", jobId: follower.job_id }));
+  assertEquals(polled.status, "complete");
+  const copy = store.reports.get(polled.report_id)!;
+  assertEquals(copy.fingerprint, store.reports.get(report.report_id)!.fingerprint);
+  assert(artifacts.objects.has(copy.artifactKey));
+  assertEquals(runner.dispatched.length, 1);
+});
+
+Deno.test("a follower fails with the run's message when the followed run fails", async () => {
+  const { deps, store, pending } = fakeDeps();
+  for (const u of ["u1", "u2"]) store.tiers.set(u, "PRO");
+  const leader = await body(await createDeepDiveJob(deps, { userId: "u1", ticker: "AAPL", requestId: "r" }));
+  const follower = await body(
+    await createDeepDiveJob(deps, { userId: "u2", ticker: "AAPL", requestId: "r" }),
+  );
+  await failJob(deps, {
+    jobId: leader.job_id,
+    errorMessage: "Forced failure for ticker AAPL",
+    requestId: "r",
+  });
+  await Promise.all(pending);
+  const job = (await store.getJob(follower.job_id))!;
+  assertEquals([job.status, job.errorMessage], ["failed", "Forced failure for ticker AAPL"]);
+  // The follower is no longer open, so a retry starts its own run.
+  assertEquals((await createDeepDiveJob(deps, { userId: "u2", ticker: "AAPL", requestId: "r" })).status, 202);
 });
 
 Deno.test("complete rejects a bad report or a job id mismatch", async () => {

@@ -95,7 +95,9 @@ export function jobsDeps(): JobsDeps {
     config: {
       dailyCap: intEnv("DEEP_DIVE_DAILY_CAP", 15),
       reuseFreshnessHours: intEnv("DEEP_DIVE_REUSE_FRESHNESS_HOURS", 24),
-      precomputeFreshnessHours: intEnv("DEEP_DIVE_PRECOMPUTE_FRESHNESS_HOURS", 2160),
+      // Safety cap only: a new filing ends reuse earlier by changing the fingerprint. 182.5 days covers the
+      // longest gap between two filings (Q3 10-Q to a late 10-K), so the cap does not end reuse before it.
+      precomputeFreshnessHours: intEnv("DEEP_DIVE_PRECOMPUTE_FRESHNESS_HOURS", 4380),
       subscriptionTimezone: env("SUBSCRIPTION_TIMEZONE") ?? "America/New_York",
     },
     background,
