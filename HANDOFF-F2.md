@@ -1,0 +1,29 @@
+# F2 handoff: changes needed outside F2's files
+
+F2 (component kit and page background) only touched `ui/components/**`, `ui/motion/{Motion,Press,Haptics}.kt`,
+`ui/platform/**`, its own design-preview files (`KitComponentSheets.kt`, `KitComponentRenders.kt`,
+`KitSemanticsTest.kt`) and `app/src/test/.../ui/components/KitModelTest.kt`. Everything below belongs to another WP.
+
+Branch note: wp/pr1-F2 is cut from fa8b6fc and codes against F1's token names as of wp/pr1-F1 28c27c0 and F4's
+harness/shims as of wp/pr1-F4 c5057eb. It compiles and its tests pass only once merged with F1 and F4 (verified on a
+local F1+F4 merge). `ui/icons/ThesisIcons.kt` is F4's commit; F2 uses its API unchanged.
+
+| # | Owner | File | Change | Reason |
+|---|-------|------|--------|--------|
+| 1 | F1 | `ui/theme/ThesisSpace.kt` | Adopt the kit-only dimensions in `ui/components/KitTokens.kt` (`Kit` object: badge padding, chip gap, segment inset, stage ring, ring stroke, selection control, radio dot, meter track, pager dot, live ring, readout dot, dash, table column min / cell padding, etc.) and the ratios (HIGHLIGHT_FROM/TO, DROP_CAP_SCALE, alpha constants), then F2 deletes `KitTokens.kt` | Keeps every dp literal in ui/theme (6.0 token rule); they were kept private to the kit to avoid editing F1's files |
+| 2 | F1 | `ui/theme/ThesisType.kt` | Add a `badge` style (eyebrow size, +0.03 em tracking) | StatusBadge currently derives it from `eyebrow` with `Kit.badgeTracking` |
+| 3 | F1 | `ui/theme/ThesisTheme.kt` | `LocalReducedMotion` should be `reduceMotion || rememberSystemReducedMotion()` (from `ui/platform/AnimatorScale.kt`) | Section 4.8: system animator scale 0 must also count as reduced motion |
+| 4 | WP-INT | `ui/shell/ThesisShell.kt` (or `ThesisApp.kt` root) | Wrap the app root in `ProvidePageBackground { ... }` so every `ThesisScreen` and bar slices one shared bitmap | 2.7: one cached page background, window-fixed, no double exposure in transitions. Without it each screen rasterises its own (correct, but more work) |
+| 5 | WP-INT | shell | Provide `LocalTopBarCollapsedSink` and drive status-bar icon appearance (light icons over a HeroBand at rest, theme icons once collapsed) via `WindowInsetsControllerCompat` | 2.7 HeroBand screens; ThesisScreen publishes `collapsed` |
+| 6 | WP-INT | shell | Host `ThesisSnackbarHost(hostState)` above the bottom bar; screens call `hostState.showThesisSnackbar(message, actionLabel)` (4 s, 8 s with an action) | #23: the snackbar host is the shell's |
+| 7 | WP-INT | `ui/navigation/*` | Replace the old top/bottom bars with `ThesisTopBar` / `ThesisBottomBar(defaultBottomBarItems(inboxHasNew))`; old nav bar files can then go | #3, #4 |
+| 8 | WP-INT | `AndroidManifest.xml` | `android:windowSoftInputMode="adjustResize"` on MainActivity | `ThesisScreen` uses `imePadding()`; DockPanel follows the keyboard |
+| 9 | WP-A, WP-C | `HomeScreen.kt`, `DeepDiveScreen.kt` | Move from the deprecated `NoPulseEmptyState`, `NoDeepDivesEmptyState`, `NoNamesEmptyState`, `OfflineEmptyState`, `PulseUnavailableState`, `DeepDiveUnavailableState` to `EmptyState` / `ErrorState` (or `StateCrossfade` + `Loadable`), then delete `EmptyStateView.kt` | The spec listed the family as zero-caller; it has 9 call sites, so F2 kept it as deprecated wrappers (sentence case, kit look) instead of deleting it |
+| 10 | WP-G | `AuthScreen.kt`, `PasswordResetScreen.kt` | Add autofill semantics (email, password, new password) where `ThesisTextField` / `PasswordField` are used | Compose 1.6 has no public autofill modifier; this needs the Android `AutofillNode` API at the screen level |
+| 11 | PR-2 | `ui/components/Overlays.kt` | Exit animation for `ThesisDialog` (scale .96 + fade, Quick); completion pulse for `StageProgress`; `RollingNumber`, `ContainerTransformHost`, `DismissibleItem`, chart kit | Scheduled for PR-2 in 6.1 |
+| 12 | all screen WPs | screens using `ThesisButton` | Move to `PrimaryButton` / `SecondaryButton`; `ThesisButton` is a deprecated wrapper (keeps its signature; `minHeight` and `content` are ignored) | #18 |
+| 13 | F4 | `design-preview/build.gradle.kts` (test task) | Consider `forkEvery = 1` (or a larger `maxHeapSize`) for render classes: running all of `KitComponentRenders` in one JVM was killed (exit 137) after ~55 tall PNGs; each test method alone passes | Skia native memory grows with many tall `ImageComposeScene`s |
+| 14 | F4 | harness notes | Compose Desktop 1.6 can deadlock (Recomposer lock vs BroadcastFrameClock lock, with the AWT GlobalSnapshotManager) when a frame callback forces a LazyList remeasure, e.g. `animateScrollToItem` during a render. F2's ChapterPills now jumps on first placement, which avoids it; screen WPs should do the same for initial scroll positions | Found while rendering ChapterPills at 2.0x / 360 dp |
+| 15 | F1 / reviewer | `ThesisType.capped` doc | The kit also caps the fixed-height bar labels (bottom bar `navLabel`, dock `button`, report top bar ticker) at 1.3x; without it "Research" and "Sources" clip at 2.0x on 360 dp | Rubric A4; the doc says capped is for display, title, figure and numeral only |
+
+Not touched: `.github/workflows/**` (needs the owner's OK). Nothing was pushed.
