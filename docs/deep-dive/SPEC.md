@@ -384,3 +384,35 @@ The mockup was approved for its look. Build from this file where they differ:
    - A separate reviewer checked every number against the data.
    - A final review looked for layout defects and for contradictions between chapters.
 5. Razvan then set rules 1 and 2: one shared report per filing, frozen at the filing date, including the price parts.
+
+## 13. What Phase 1 built (2026-11-24)
+
+Where the build differs from the sections above, this section records what the code does today.
+
+- **Renderer:** `supabase/functions/_lib/reports/deep_dive_v2/`. `buildDeepDiveV2Html(report)` returns the whole
+  page. Charts are server-side SVG, so the page reads without JavaScript. The one client script (hashed in the CSP)
+  adds the theme switch, the reading switch, the chip highlight and the price box. The share page `GET /r/:token`
+  uses it and falls back to the v1 layout if it throws (log `deep_dive_v2_render_failed`). The PDF export (M4)
+  still uses the old layout; the v2 print CSS is ready for it.
+- **Fact pack v1:** `report.fact_pack`, built by the worker (`apps/dexter-worker/src/fact-pack`) from SEC company
+  facts and submissions only, in fixture and live mode alike. Up to 11 fiscal years, the latest filing, the
+  filings of the last 12 months and the concept behind each field. Segments, regions, owners and prices are listed
+  in `missing` until their phases. Legacy reports without a fact pack map their `annual_history` through
+  `adapter.ts`; their model-written prose is never shown.
+- **Kill switches as built:** four fixed tests on SEC figures, the same for every company:
+  1. sales growth stays above the base-case growth minus 4 points (never below 0%);
+  2. operating margin stays above the average of the earlier years (up to five, not counting the latest) minus
+     3 points;
+  3. free cash flow stays at or above 80% of net profit, over the last 3 years;
+  4. the share count rises less than 1% a year.
+- **Value model:** base free cash flow is the 3-year average. Growth for years 1 to 5 is the 5-year free cash flow
+  growth rate clamped to -5% to 15%, fading in a straight line to 2.5% by year 10, at a 9.5% discount rate. Bear and
+  bull cases are the base growth minus and plus 4 points.
+- **Scorecard:** absolute bands for now; ranks against an index wait for the phase 2 peer data.
+- **Bottom line:** keeps a short story (the answer, what keeps it going, and the closest test to its line), then the
+  four tests with the latest reading.
+- **Type:** Newsreader (SIL Open Font License) for titles, numbers and story text, embedded as a small subset; the
+  system sans for labels and tables. The page weighs about 300 KB.
+- **Reuse:** the fingerprint prefers `fact_pack.latest_filing.period_label`, and the worker posts the same label
+  to `POST /internal/financials/ingest`, which updates `ticker_coverage`. A job that refreshes coverage when a new
+  filing lands is still to build.
