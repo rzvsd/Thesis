@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+        Launch theme (DESIGN-DIRECTION 5.1, core-splashscreen). MainActivity calls installSplashScreen() before
+        super.onCreate, which switches to postSplashScreenTheme. The background is ink in both modes while the
+        app ships dark only (ThemeMode.Dark default); values-night/splash.xml keeps the same value so the switch
+        to paper for light mode is a one-line change when the Auto default ships (F1 / PR-3).
+    -->
+    <style name="Theme.Thesis.Starting" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/thesis_splash_background</item>
+        <item name="windowSplashScreenAnimatedIcon">@mipmap/ic_launcher_foreground</item>
+        <item name="postSplashScreenTheme">@style/Theme.ThesisMobile</item>
+    </style>
+
+    <color name="thesis_splash_background">#FF0A0A0A</color>
+</resources>

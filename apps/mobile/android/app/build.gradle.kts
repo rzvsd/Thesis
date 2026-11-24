@@ -236,6 +236,10 @@ dependencies {
     implementation("androidx.appcompat:appcompat:1.7.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.3")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.3")
+    // MainViewModel(Application, SavedStateHandle): the navigator's stacks survive Activity recreation.
+    implementation("androidx.lifecycle:lifecycle-viewmodel-savedstate:2.8.3")
+    // Launch theme and installSplashScreen() (DESIGN-DIRECTION 5.1).
+    implementation("androidx.core:core-splashscreen:1.0.1")
     implementation("androidx.activity:activity-compose:1.9.1")
     implementation("com.google.android.material:material:1.12.0")
     implementation("androidx.compose.ui:ui")
