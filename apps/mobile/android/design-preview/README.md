@@ -59,15 +59,58 @@ class MyScreensTest {
 }
 ```
 
-`renderScreen(name, widthDp = 412, heightDp = 915, density = 2.625f, themes = [DARK, LIGHT], settleMs = 1500,
-frameMs = 100) { }` wraps the content in `ThesisTheme` on a `colorScheme.background` box. Time is virtual:
-`delay()` in effects and Compose animations advance together, so entrance animations have finished at `settleMs`
-(use `settleMs = 0` for the first frame, a mid value to inspect motion). Use a larger `heightDp` for a full page.
+`renderScreen(name) { }` wraps the content in `ThesisTheme(mode, upDown, reduceMotion)` on a
+`colorScheme.background` box and writes `<name>-dark.png` and `<name>-light.png`. Parameters (all optional):
+
+| Parameter | Default | Use |
+|---|---|---|
+| `widthDp`, `heightDp`, `density` | 412, 915, 2.625 | `PhoneSpec.NARROW_WIDTH_DP` (360) for the width check, `PhoneSpec.FULL_PAGE_HEIGHT_DP` (2400) for a full page |
+| `themes` | dark and light | `listOf(PreviewTheme.DARK)` for one theme |
+| `settleMs`, `frameMs` | 1500, 100 | virtual time before the capture: `0` = first frame, a mid value to inspect motion |
+| `fontScale` | 1.0 (`-Pscreens.fontScale`) | the user's font size: 1.3 and 2.0 smoke renders (rubric A4) |
+| `reducedMotion` | false (`-Ppreview.reducedMotion=true`) | `ThesisTheme(reduceMotion = true)` and the AnimatorScale shim reports scale 0 (rubric M3) |
+| `glow` | true (`-Ppreview.glow=false`) | false makes `RenderFlags.pageGlow` false, so the page glows are skipped (bulk state renders) |
+| `upDown` | `UpDownScheme.Classic` | `ColourBlind` |
+| `fitHeight` | false | crop the PNG to the content's height (galleries) |
+
+Time is virtual: `delay()` in effects and Compose animations advance together, so entrance animations have
+finished at `settleMs`.
+
+Kit gallery: `KitGallery.kt` has `renderGallery(name) { Specimen("Label") { ... } }` (a cropped, labelled column of
+specimens on the page background); `KitGalleryRenders.kt` holds the foundation sheets (palette, type scale,
+icons) and the kit components.
+
+## Semantics tests
+
+`org.jetbrains.compose.ui:ui-test-junit4-desktop` is on the test classpath (`createComposeRule()`).
+`SemanticsAsserts.kt` adds `assertAllTouchTargetsAtLeast()` (rubric A1: every clickable laid out at 48 dp or more),
+`assertTouchTargetAtLeast()`, `assertRole(Role.Tab)`, `assertIsHeading()` and `assertIsLiveRegion()`.
+
+## Android-only APIs and their shims
+
+| App file (not compiled here) | Shim in `src/shim/kotlin` | Preview behaviour |
+|---|---|---|
+| `ui/theme/ThesisFonts.kt` (R.font) | same path | loads `app/src/main/res/font/newsreader_*.ttf` (`-Ppreview.fontDir` overrides); system serif while absent |
+| `ui/platform/Back.kt` | same path | `ThesisBackHandler` / `ThesisPredictiveBackHandler` register with `PreviewBack`; tests call `PreviewBack.press()` |
+| `ui/platform/PlatformHaptics.kt` | same path | `rememberPlatformHaptics()` records into `PreviewHaptics.log` |
+| `ui/platform/AnimatorScale.kt` | same path | scale 0 when `preview.reducedMotion=true`, else 1 |
+| `ui/platform/CardShadow.kt` | same path | `Modifier.thesisCardShadow(...)` as a Skia blurred rounded rect (CSS box-shadow geometry) |
+| `ui/platform/RenderFlags.kt` | same path | `pageGlow` follows `preview.glow` |
+
+The whole `ui/platform/` folder is excluded (`androidOnlyDirs`). The API contract for the Android side is in the
+shim files' KDoc; keep both in sync.
+
+## Harness tests
+
+`gradle -p design-preview test -PharnessOnly` runs the harness's own tests (`preview/harness/`): render size,
+font scale, reduced motion, glow, `fitHeight`, card shadow, the back/haptics/font shims and the semantics helpers.
+They are part of the renders half (`-PrendersOnly`), not of the app's 34 unit tests (`-PappTestsOnly`).
 
 ## Not compiled here
 
-Files listed in `androidOnlyFiles` in `build.gradle.kts` (MainViewModel, ThesisApp, the WebView report page, PDF
-export, the CSV picker, the Vico sentiment screen, and two screens that call `viewModel()`). `src/shim/kotlin`
+Files listed in `androidOnlyFiles` and `androidOnlyDirs` in `build.gradle.kts` (MainViewModel, ThesisApp, the WebView
+report page, PDF export, the CSV picker, the Vico sentiment screen, two screens that call `viewModel()`,
+`ui/theme/ThesisFonts.kt` and `ui/platform/`). `src/shim/kotlin`
 stubs the few symbols other files need from them; the WebView is drawn as a labelled placeholder. CI compiles the
 Android-only files, so write them against the APIs on `app/build.gradle.kts`'s classpath. Keep
 `ProductApiException` in sync with `ProductApiClient.kt`.
