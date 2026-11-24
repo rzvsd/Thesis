@@ -3,6 +3,7 @@
 // Never log request bodies, emails or tokens from here (N10).
 import { AsyncLocalStorage } from "node:async_hooks";
 import { env } from "../../_shared/env.ts";
+import { logError } from "../../_shared/log.ts";
 
 // Supabase Auth rate-limits /token and /verify per caller IP. Every call comes from this function, so without
 // forwarding, all users would share one bucket. With a secret API key (AUTH_SUPABASE_SECRET_KEY, "sb_secret_...";
@@ -67,7 +68,7 @@ export class GoTrueClient {
   constructor(opts: GoTrueOptions = {}) {
     const url = opts.url ?? env("SUPABASE_URL");
     this.base = url ? `${url.replace(/\/+$/, "")}/auth/v1` : undefined;
-    this.secretKey = opts.secretKey ?? env("AUTH_SUPABASE_SECRET_KEY");
+    this.secretKey = opts.secretKey !== undefined ? usableKey(opts.secretKey) : secretKeyFromEnv();
     this.anonKey = opts.anonKey ?? this.secretKey ?? env("SUPABASE_ANON_KEY");
     this.serviceKey = opts.serviceKey ?? env("SUPABASE_SERVICE_ROLE_KEY");
     this.fetchFn = opts.fetch ?? ((input, init) => fetch(input, init));
@@ -188,7 +189,7 @@ export class GoTrueClient {
     if (bearer) headers.authorization = `Bearer ${bearer}`;
     if (body !== undefined) headers["content-type"] = "application/json";
     const ip = clientIpStore.getStore();
-    if (this.secretKey && apiKey === this.secretKey && ip && ip !== "unknown") {
+    if (this.secretKey && apiKey === this.secretKey && ip && IP_LIKE.test(ip)) {
       headers["sb-forwarded-for"] = ip;
     }
     let res: Response;
@@ -199,8 +200,12 @@ export class GoTrueClient {
         body: body === undefined ? undefined : JSON.stringify(body),
         signal: AbortSignal.timeout(this.timeoutMs),
       });
-    } catch {
-      return { ok: false, status: 503, code: "network_error", message: "Supabase Auth is unreachable." };
+    } catch (err) {
+      // Deno puts the offending header value in the message, so it is only matched here, never logged.
+      const badHeader = err instanceof TypeError && /header/i.test(err.message);
+      return badHeader
+        ? { ok: false, status: 503, code: "bad_header", message: "An Auth request header was not valid." }
+        : { ok: false, status: 503, code: "network_error", message: "Supabase Auth is unreachable." };
     }
     const text = await res.text().catch(() => "");
     let parsed: unknown = null;
@@ -214,6 +219,42 @@ export class GoTrueClient {
     if (res.ok) return { ok: true, data: parsed as T };
     return { ok: false, status: res.status, ...errorParts(parsed) };
   }
+}
+
+// A key must be one header-safe token. A pasted value with a line break or an invisible character inside makes
+// fetch throw before anything is sent (seen live 2026-11-24: every call with the secret key failed that way).
+const KEY_SHAPE = /^[\x21-\x7e]+$/;
+const IP_LIKE = /^[0-9A-Fa-f:.]{2,45}$/;
+
+function usableKey(value: string | undefined): string | undefined {
+  const v = value?.trim();
+  return v && KEY_SHAPE.test(v) ? v : undefined;
+}
+
+// AUTH_SUPABASE_SECRET_KEY when it is usable, else the platform's own secret key (SUPABASE_SECRET_KEYS, a JSON
+// object of named keys: "default" first, then any). Never logs a value.
+function secretKeyFromEnv(): string | undefined {
+  const own = env("AUTH_SUPABASE_SECRET_KEY");
+  const usable = usableKey(own);
+  if (own && !usable) {
+    logError(
+      "AUTH_SUPABASE_SECRET_KEY is not a usable API key (line break or hidden character); ignoring it",
+    );
+  }
+  if (usable) return usable;
+  const all = env("SUPABASE_SECRET_KEYS");
+  if (!all) return undefined;
+  try {
+    const keys = JSON.parse(all) as Record<string, unknown>;
+    const names = ["default", ...Object.keys(keys).filter((k) => k !== "default")];
+    for (const name of names) {
+      const key = typeof keys[name] === "string" ? usableKey(keys[name] as string) : undefined;
+      if (key) return key;
+    }
+  } catch {
+    logError("SUPABASE_SECRET_KEYS is not valid JSON; using the legacy anon key");
+  }
+  return undefined;
 }
 
 // Legacy anon/service_role keys are JWTs (three base64url parts, header starts "eyJ").
