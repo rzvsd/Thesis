@@ -379,7 +379,7 @@ function renderWith(c: Ctx, opts: RenderOptions): RenderResult {
       esc(f.ticker)
     }</span>${
       f.sample ? SAMPLE_PILL : ""
-    }<span class="spacer"></span><button class="iconbtn" type="button" data-dd-theme aria-label="Switch light or dark"><span class="l">Theme: </span>Auto</button></div></div>`;
+    }<span class="spacer"></span><button class="iconbtn" type="button" data-dd-print aria-label="Save as PDF"><span class="l">Save</span>PDF</button><button class="iconbtn" type="button" data-dd-theme aria-label="Switch light or dark"><span class="l">Theme: </span>Auto</button></div></div>`;
   const appLink = opts.embed ? "" : `<p><a href="${esc(opts.downloadUrl)}">Get the Thesis app</a></p>`;
   const html = `<!doctype html><html lang="en"${theme}><head><meta charset="utf-8" />` +
     `<meta name="viewport" content="width=device-width, initial-scale=1" />` +

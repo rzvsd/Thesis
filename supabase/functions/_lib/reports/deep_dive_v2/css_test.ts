@@ -88,11 +88,24 @@ Deno.test("PAGE_CSS: print rules", () => {
   assertStringIncludes(PRINT_RULES, "@page{size:A4;margin:14mm}");
   assertStringIncludes(PRINT_RULES, "print-color-adjust:exact");
   assertStringIncludes(PRINT_RULES, ".appbar,.chipnav,.readmode,.iconbtn,.priceinput-edit");
-  assertStringIncludes(PRINT_RULES, "main section{break-before:page");
-  assertStringIncludes(PRINT_RULES, "main section:first-of-type{break-before:auto}");
+  // chapters flow after the cover page, with a rule between them and headings kept with their text
+  assertStringIncludes(PRINT_RULES, "main section{break-before:auto");
+  assertStringIncludes(PRINT_RULES, "main section:first-of-type{break-before:page}");
+  assertStringIncludes(PRINT_RULES, "main section + section{border-top:1px solid var(--line)");
+  assertStringIncludes(PRINT_RULES, ".sec-head{break-inside:avoid;break-after:avoid}");
+  assertStringIncludes(PRINT_RULES, "@bottom-right{content:counter(page)");
   assertStringIncludes(PRINT_RULES, ".card,.kpis,.upshot");
   assertStringIncludes(PRINT_RULES, "break-inside:avoid");
-  assertStringIncludes(PRINT_RULES, "details.tbl::details-content{content-visibility:visible");
+  // "Charts only" is a screen mode: the PDF always keeps the story, upshots and the big question
+  assertStringIncludes(
+    PAGE_CSS,
+    "@media screen{body.charts-only .story,body.charts-only .upshot,body.charts-only .bigq{display:none}}",
+  );
+  // short app bar labels up to 600px, so a sample page's bar (pill + Save PDF + theme) never scrolls sideways
+  assertStringIncludes(PAGE_CSS, "@media (max-width:600px){.sample-pill .l,.iconbtn .l{display:none}");
+  // the "Show table" tables stay closed in the PDF, as on screen
+  assertStringIncludes(PRINT_RULES, "details.tbl{display:none!important}");
+  assert(!PRINT_RULES.includes("details-content"));
   // light tokens are forced in print, over both dark selectors
   const print = PRINT_RULES.slice(PRINT_RULES.indexOf("@media print"));
   assertStringIncludes(print, ':root,:root:not([data-theme="light"]),:root[data-theme="dark"]{');
