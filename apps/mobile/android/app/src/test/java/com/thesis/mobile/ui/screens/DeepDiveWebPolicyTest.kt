@@ -207,4 +207,20 @@ class DeepDiveWebPolicyTest {
         assertFalse(DeepDiveWebPolicy.hasServerReportId(".."))
         assertNull(DeepDiveWebPolicy.pageUrl(base, ".", DeepDiveWebTheme.DARK))
     }
+
+    @Test
+    fun printJobNameUsesACleanTicker() {
+        assertEquals("Thesis AAPL Deep Dive", DeepDiveWebPolicy.printJobName("aapl"))
+        assertEquals("Thesis BRK.B Deep Dive", DeepDiveWebPolicy.printJobName("BRK.B"))
+        assertEquals("Thesis ABC Deep Dive", DeepDiveWebPolicy.printJobName("A/B\nC"))
+        assertEquals("Thesis Deep Dive", DeepDiveWebPolicy.printJobName(null))
+        assertEquals("Thesis Deep Dive", DeepDiveWebPolicy.printJobName("  "))
+    }
+
+    @Test
+    fun exportPrintsThePageOnlyOnceItHasLoaded() {
+        assertTrue(DeepDiveWebPolicy.exportPrintsPage(hasPage = true, isLoading = false))
+        assertFalse(DeepDiveWebPolicy.exportPrintsPage(hasPage = true, isLoading = true))
+        assertFalse(DeepDiveWebPolicy.exportPrintsPage(hasPage = false, isLoading = false))
+    }
 }

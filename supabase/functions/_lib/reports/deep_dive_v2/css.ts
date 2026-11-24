@@ -74,6 +74,7 @@ button,input{font:inherit;color:inherit}
 .iconbtn .l{margin-right:.3em}
 .sample-pill .s,.iconbtn .s{display:none}
 @media (max-width:560px){.sample-pill .l,.iconbtn .l{display:none}.sample-pill .s{display:inline}.appbar .wrap{gap:10px}}
+@media (max-width:380px){.appbar .wrap{gap:8px}.appbar .iconbtn{padding:0 10px}.appbar .sample-pill~.spacer~.iconbtn{padding:0 8px}.appbar .brand:has(~.sample-pill){display:none}}
 
 /* chip nav */
 .chipnav{position:sticky;top:calc(env(safe-area-inset-top,0px) + 52px);z-index:19;background:color-mix(in oklab,var(--bg) 92%,transparent);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
@@ -349,9 +350,14 @@ const STATE_CSS = `
 .ratios b{font-weight:600;font-variant-numeric:tabular-nums;text-align:right}
 .notice{font-size:12.5px;color:var(--muted)}`;
 
-/** Print (A4, the PDF job prints the share page): light tokens, no app chrome, one chapter per page. */
+/**
+ * Print (A4). The PDF is this page printed: "Save as PDF" on the share page and the app's Export PDF (Android
+ * print of the in-app page). Light tokens, no app chrome, the "Show table" tables stay closed as on screen,
+ * chapters flow one after another (a thin rule between them) after the cover page, page numbers bottom right.
+ */
 const PRINT_CSS = `
 @page{size:A4;margin:14mm}
+@page{@bottom-right{content:counter(page) " / " counter(pages);font:8pt system-ui,sans-serif;color:#8a8478}}
 @media print{
   :root,:root:not([data-theme="light"]),:root[data-theme="dark"]{${LIGHT_TOKENS}
   }
@@ -359,11 +365,12 @@ const PRINT_CSS = `
   body{font-size:10.5pt;background:#fff}
   *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
   .appbar,.chipnav,.readmode,.iconbtn,.priceinput-edit,.tbtn,body::before{display:none!important}
-  main section{break-before:page;padding-block:14px 12px;scroll-margin-top:0;display:block}
+  main section{break-before:auto;padding-block:14px 12px;scroll-margin-top:0;display:block}
   main section>*+*{margin-top:18px}
-  main section:first-of-type{break-before:auto}
+  main section:first-of-type{break-before:page}
   main section::before{display:none}
-  main section + section{border-top:0}
+  main section + section{border-top:1px solid var(--line);margin-top:22px;padding-top:22px}
+  .sec-head{break-inside:avoid;break-after:avoid}
   .card,.kpis,.upshot,.bigq,.pricebox,.stats,.tl .e,.kill .k,.chg,.wrong div{break-inside:avoid}
   h2,h3,.sec-head,.fignum{break-after:avoid}
   .story p{orphans:3;widows:3}
@@ -371,7 +378,7 @@ const PRINT_CSS = `
   .span2{grid-column:1/-1}
   .card{box-shadow:none}
   .figref{text-decoration:none}
-  details.tbl>summary{display:none}
+  details.tbl{display:none!important}
   .tbl{overflow:visible}
   .hero,#bottom{--hero-bg:#fff;--hero-bg-2:#fff;--hero-ink:#1d1d1b;--hero-ink-2:#555;--hero-line:#ddd;--hero-chip:#f6f3ec;
     --hero-accent:#7E6337;--hero-pos:#2F6A4F;--hero-neg:#9B4A4A;background:#fff!important;box-shadow:none}
@@ -379,16 +386,11 @@ const PRINT_CSS = `
   .pricebox.noprice-state .row{display:none}
 }`;
 
-/** Opens the "Show table" details in print where the browser supports ::details-content (Chrome 131+). Kept as
- * its own block so older browsers that reject the selector still apply every other print rule. */
-const PRINT_DETAILS_CSS = `
-@media print{details.tbl::details-content{content-visibility:visible;display:block}}`;
-
 /** The page rules without the chart kit and print rules (tokens, layout, polish, states). */
 export const BASE_CSS: string = (TOKENS_CSS + LAYOUT_CSS + POLISH_CSS + STATE_CSS).trim();
 
 /** Print rules. Always last in the page CSS. */
-export const PRINT_RULES: string = (PRINT_CSS + PRINT_DETAILS_CSS).trim();
+export const PRINT_RULES: string = PRINT_CSS.trim();
 
 /** Full page CSS for a given chart kit CSS: page rules, then the chart kit, then print. */
 export function pageCss(chartCss: string): string {

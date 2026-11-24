@@ -165,6 +165,8 @@ Deno.test("embed: no app bar, theme switch or app link; same chapters, notice an
     assertMatch(html, /^<!doctype html><html lang="en" data-theme="dark"><head>/);
     assertEquals(html.includes('class="appbar"'), false, name);
     assertEquals(html.replace(/<script>[\s\S]*?<\/script>/, "").includes("data-dd-theme"), false, name);
+    // no Save PDF button in the app: the app's Export PDF prints this page
+    assertEquals(html.replace(/<script>[\s\S]*?<\/script>/, "").includes("data-dd-print"), false, name);
     assertEquals(html.includes("Get the Thesis app"), false, name);
     assertEquals(html.includes("example.com/app"), false, name);
     assertEquals(
@@ -564,4 +566,16 @@ Deno.test("a split in a year profit grew strongly is still adjusted, not read as
   }
   assertEquals(/Share count (up|down) [1-9]/.test(text), false);
   assertStringIncludes(text, "Adjusted for what looks like a 2-for-1 split in fiscal 2025");
+});
+
+Deno.test("share page: a Save PDF button next to the theme switch", () => {
+  for (const [name, report] of reports()) {
+    const html = buildDeepDiveV2Html(report, OPTS);
+    assertStringIncludes(
+      html,
+      '<button class="iconbtn" type="button" data-dd-print aria-label="Save as PDF"><span class="l">Save</span>PDF</button>' +
+        '<button class="iconbtn" type="button" data-dd-theme',
+      name,
+    );
+  }
 });

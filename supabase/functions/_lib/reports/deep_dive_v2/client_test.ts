@@ -147,6 +147,8 @@ function makePage(
     noThemeButton?: boolean;
     /** html[data-theme] as the server sent it. */
     serverTheme?: string;
+    /** A window without print(). */
+    noPrint?: boolean;
   } = {},
 ) {
   const reg = new Map<string, FakeEl[]>();
@@ -158,6 +160,9 @@ function makePage(
   const body = el();
   const themeBtn = el({ "data-dd-theme": "" });
   if (!opts.noThemeButton) add("button[data-dd-theme]", themeBtn);
+  const printBtn = el({ "data-dd-print": "" });
+  if (!opts.noThemeButton) add("button[data-dd-print]", printBtn);
+  const printed = { count: 0 };
   const story = add("button[data-dd-mode]", el({ "data-dd-mode": "story", "aria-pressed": "true" }));
   const charts = add("button[data-dd-mode]", el({ "data-dd-mode": "charts", "aria-pressed": "false" }));
   const navWrap = el();
@@ -213,6 +218,7 @@ function makePage(
     },
   };
   const win = {
+    ...(opts.noPrint ? {} : { print: () => void printed.count++ }),
     localStorage: {
       getItem: (k: string) => store.get(k) ?? null,
       setItem: (k: string, v: string) => void store.set(k, v),
@@ -232,6 +238,8 @@ function makePage(
     html,
     body,
     themeBtn,
+    printBtn,
+    printed,
     story,
     charts,
     markerText,
@@ -493,4 +501,14 @@ Deno.test("fake DOM: storage that throws is ignored", () => {
     },
   };
   runClient(doc, win);
+});
+
+Deno.test("client: Save PDF opens the browser's print dialog; no print() is a no-op", () => {
+  const pg = makePage({});
+  assertEquals(pg.printed.count, 0);
+  pg.printBtn.fire("click");
+  assertEquals(pg.printed.count, 1);
+  const bare = makePage({}, { noPrint: true });
+  bare.printBtn.fire("click");
+  assertEquals(bare.printed.count, 0);
 });

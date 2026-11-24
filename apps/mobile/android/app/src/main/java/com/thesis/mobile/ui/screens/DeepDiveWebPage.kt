@@ -3,6 +3,7 @@ package com.thesis.mobile.ui.screens
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Context
+import android.content.ContextWrapper
 import android.content.Intent
 import android.graphics.Bitmap
 import android.net.ConnectivityManager
@@ -11,6 +12,8 @@ import android.net.NetworkCapabilities
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
+import android.print.PrintAttributes
+import android.print.PrintManager
 import android.webkit.RenderProcessGoneDetail
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
@@ -54,7 +57,8 @@ internal fun DeepDiveWebPage(
     headers: Map<String, String>,
     backgroundColor: Color,
     onMainFrameFailed: (Int?) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    printer: DeepDivePagePrinter? = null
 ) {
     val holder = remember { WebViewHolder() }
     var isLoading by remember(pageUrl) { mutableStateOf(true) }
@@ -75,12 +79,17 @@ internal fun DeepDiveWebPage(
                         applyDeepDiveSettings(settings)
                         webViewClient = DeepDiveWebClient(
                             pageUrl = pageUrl,
-                            onLoadingChange = { isLoading = it },
+                            onLoadingChange = {
+                                isLoading = it
+                                printer?.isLoading = it
+                            },
                             onHistoryChange = { canGoBack = it },
                             onFailed = { status -> currentOnFailed(status) },
                             openExternal = { url -> openExternalLink(context, url) }
                         )
                         holder.webView = this
+                        printer?.webView = this
+                        printer?.isLoading = true
                         loadUrl(pageUrl, headers)
                     }
                 },
@@ -88,6 +97,7 @@ internal fun DeepDiveWebPage(
                     if (holder.webView === webView) {
                         holder.webView = null
                     }
+                    printer?.let { if (it.webView === webView) it.webView = null }
                     webView.stopLoading()
                     webView.destroy()
                 },
@@ -109,6 +119,40 @@ internal fun DeepDiveWebPage(
 
 private class WebViewHolder {
     var webView: WebView? = null
+}
+
+/**
+ * Export PDF for the in-app page: prints the loaded WebView with Android's print framework, so the PDF is the
+ * same page and template as the share link (its print CSS: A4, light colours, page numbers). The user picks
+ * "Save as PDF" (or a printer) in the system dialog. Main thread only.
+ */
+internal class DeepDivePagePrinter {
+    internal var webView: WebView? = null
+    internal var isLoading: Boolean = true
+
+    /** True when the system print dialog opened; false means the caller should use the app's own PDF. */
+    fun print(context: Context, ticker: String?): Boolean {
+        val view = webView ?: return false
+        if (!DeepDiveWebPolicy.exportPrintsPage(hasPage = true, isLoading = isLoading)) {
+            return false
+        }
+        val activity = context.findActivity() ?: return false
+        val manager = activity.getSystemService(Context.PRINT_SERVICE) as? PrintManager ?: return false
+        val jobName = DeepDiveWebPolicy.printJobName(ticker)
+        return runCatching {
+            val attributes = PrintAttributes.Builder()
+                .setMediaSize(PrintAttributes.MediaSize.ISO_A4)
+                .build()
+            manager.print(jobName, view.createPrintDocumentAdapter(jobName), attributes)
+            true
+        }.getOrDefault(false)
+    }
+}
+
+private tailrec fun Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext?.findActivity()
+    else -> null
 }
 
 @SuppressLint("SetJavaScriptEnabled")

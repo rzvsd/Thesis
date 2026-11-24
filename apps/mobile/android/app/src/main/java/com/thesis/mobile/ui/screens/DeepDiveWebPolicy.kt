@@ -165,6 +165,21 @@ object DeepDiveWebPolicy {
      * whether the report came from the offline copy. The native screen offers the "New view" switch
      * only when this is true.
      */
+    /**
+     * The print job (and default PDF file) name for Export PDF of the in-app page, for example
+     * "Thesis AAPL Deep Dive". Only letters, digits, dots and dashes of the ticker are kept.
+     */
+    fun printJobName(ticker: String?): String {
+        val clean = ticker.orEmpty().uppercase().filter { it.isLetterOrDigit() || it == '.' || it == '-' }.take(12)
+        return if (clean.isEmpty()) "Thesis Deep Dive" else "Thesis $clean Deep Dive"
+    }
+
+    /**
+     * Export PDF prints the in-app page (the same template as the share page) once it has loaded. While it is
+     * still loading, or when there is no page (classic view, offline), the app's own PDF is used instead.
+     */
+    fun exportPrintsPage(hasPage: Boolean, isLoading: Boolean): Boolean = hasPage && !isLoading
+
     fun canShowWebPage(reportId: String?, access: DeepDiveWebPageAccess?, isOnline: Boolean): Boolean {
         if (!isOnline || access == null || reportId == null) {
             return false

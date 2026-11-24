@@ -73,6 +73,7 @@ if(m==="auto")de.removeAttribute("data-theme");else de.setAttribute("data-theme"
 tb.forEach(function(b){var l=d.createElement("span");l.className="l";l.textContent="Theme: ";b.textContent="";
 b.appendChild(l);b.appendChild(d.createTextNode(t));b.setAttribute("aria-label","Theme: "+t+". Switch light or dark")})}
 tb.forEach(function(b){b.addEventListener("click",function(){ti=(ti+1)%3;thm();ss("dd-theme",TM[ti])})});if(tb.length)thm();
+qa("button[data-dd-print]").forEach(function(b){b.addEventListener("click",function(){if(typeof W.print==="function")W.print()})});
 var mb=qa("button[data-dd-mode]");
 function mode(m){d.body.classList.toggle("charts-only",m==="charts");
 mb.forEach(function(b){b.setAttribute("aria-pressed",String(b.getAttribute("data-dd-mode")===m))})}
@@ -110,7 +111,7 @@ if(inp){inp.addEventListener("input",upd);inp.addEventListener("change",upd)}upd
 export const CLIENT_JS: string = `(function(){"use strict";${CLIENT_CORE_JS}${CLIENT_DOM_JS}})();`;
 
 /** base64(sha256(CLIENT_JS)), for `script-src 'sha256-<this>'`. Checked by client_test.ts. */
-export const CLIENT_JS_SHA256 = "8n94pzjpTpedDl2djGiF+n2vlUhMrnUx9OujKV9KyZ0=";
+export const CLIENT_JS_SHA256 = "HKSQoit0C4ARNkCB9ElPwmoZ8KyA+TzaQLvyzRSshFM=";
 
 /** The CSP header value for the share page. */
 export const SHARE_PAGE_CSP: string = `default-src 'none'; script-src 'sha256-${CLIENT_JS_SHA256}'; ` +

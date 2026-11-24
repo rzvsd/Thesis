@@ -118,6 +118,8 @@ internal fun DeepDiveReportHost(
     var pageLoadFailed by rememberSaveable(report.reportId) { mutableStateOf(false) }
     var attempt by rememberSaveable(report.reportId) { mutableStateOf(0) }
     var openTool by rememberSaveable(report.reportId) { mutableStateOf<DeepDiveTool?>(null) }
+    // Export PDF prints the loaded page (same template as the share link).
+    val printer = remember(report.reportId) { DeepDivePagePrinter() }
     // Checked when the report opens and on each retry. The live value only decides whether to offer the switch.
     val isOnline = remember(report.reportId, attempt) { isDeviceOnline(context) }
     val isOnlineNow by rememberDeviceOnline()
@@ -239,7 +241,8 @@ internal fun DeepDiveReportHost(
                     headers = headers,
                     backgroundColor = background,
                     onMainFrameFailed = onMainFrameFailed,
-                    modifier = pageModifier
+                    modifier = pageModifier,
+                    printer = printer
                 )
             }
         }
@@ -250,6 +253,7 @@ internal fun DeepDiveReportHost(
             tool = tool,
             report = report,
             tools = tools,
+            printer = printer,
             onDismiss = { openTool = null }
         )
     }
@@ -344,6 +348,7 @@ private fun DeepDiveToolDialog(
     tool: DeepDiveTool,
     report: DeepDiveReportView,
     tools: DeepDiveNativeTools,
+    printer: DeepDivePagePrinter,
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
@@ -425,7 +430,11 @@ private fun DeepDiveToolDialog(
                     onRequireUpgrade = requireUpgrade,
                     onNotify = tools.onNotify,
                     onExportPdf = {
-                        shareExport(context, createPdfExport(context, report, ReportExportType.FULL_REPORT))
+                        // The page's own PDF (print of the new view); the app's PDF only if printing is not possible.
+                        onDismiss()
+                        if (!printer.print(context, report.ticker)) {
+                            shareExport(context, createPdfExport(context, report, ReportExportType.FULL_REPORT))
+                        }
                     },
                     onExportCard = {
                         shareExport(context, createShareCard(context, report))
