@@ -150,11 +150,11 @@ class Fmt(
             }
         }
 
-        /** Plain number with grouping: "1,204", "12.5" ([decimals] digits), U+2212 for negatives. */
-        fun number(v: Double?, decimals: Int = 0, missing: Missing = Missing.NotDisclosed): String {
+        /** Plain number with grouping: "1,204", "12.5" ([dp] decimal places), U+2212 for negatives. */
+        fun number(v: Double?, dp: Int = 0, missing: Missing = Missing.NotDisclosed): String {
             absent(v, missing)?.let { return it }
             val x = v!!
-            return signOf(x, decimals, plus = false) + digits(abs(x), decimals)
+            return signOf(x, dp, plus = false) + digits(abs(x), dp)
         }
 
         /** Whole count with grouping: "1,204". */
@@ -200,19 +200,22 @@ class Fmt(
             return CurrencyPrefix[code] ?: "$code "
         }
 
-        /** Percent of a percent number: pct(32.0) = "32.0%"; 2 decimals when |v| < 1 ("0.45%"). */
-        fun pct(v: Double?, decimals: Int? = null, missing: Missing = Missing.NotDisclosed): String {
+        /**
+         * Percent of a percent number: pct(32.0) = "32.0%"; by default 1 decimal place, 2 when |v| < 1 ("0.45%").
+         * [dp] fixes the decimal places, as in the spec's `pct(v, dp = 1)`.
+         */
+        fun pct(v: Double?, dp: Int? = null, missing: Missing = Missing.NotDisclosed): String {
             absent(v, missing)?.let { return it }
             val x = v!!
-            val d = decimals ?: if (abs(x) < 1.0) 2 else 1
+            val d = dp ?: if (abs(x) < 1.0) 2 else 1
             return signOf(x, d, plus = false) + digits(abs(x), d) + "%"
         }
 
         /** Signed percent change: "+6.4%", "−2.2%", "0.0%". */
-        fun signedPct(v: Double?, decimals: Int = 1, missing: Missing = Missing.NotDisclosed): String {
+        fun signedPct(v: Double?, dp: Int = 1, missing: Missing = Missing.NotDisclosed): String {
             absent(v, missing)?.let { return it }
             val x = v!!
-            return signOf(x, decimals, plus = true) + digits(abs(x), decimals) + "%"
+            return signOf(x, dp, plus = true) + digits(abs(x), dp) + "%"
         }
 
         /** Margin and rate changes in basis points: bps(120.0) = "+120 bps", bps(−35.0) = "−35 bps", "0 bps". */
@@ -235,10 +238,10 @@ class Fmt(
         }
 
         /** Valuation multiple: "28.4×". */
-        fun multiple(v: Double?, decimals: Int = 1, missing: Missing = Missing.NotDisclosed): String {
+        fun multiple(v: Double?, dp: Int = 1, missing: Missing = Missing.NotDisclosed): String {
             absent(v, missing)?.let { return it }
             val x = v!!
-            return signOf(x, decimals, plus = false) + digits(abs(x), decimals) + "×"
+            return signOf(x, dp, plus = false) + digits(abs(x), dp) + "×"
         }
 
         /** A 0-100 score, rounded half up (not truncated): score(61.5) = "62". */

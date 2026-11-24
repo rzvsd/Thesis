@@ -63,6 +63,8 @@ class FmtTest {
     fun percentsBasisPointsPointsMultiplesScores() {
         assertEquals("32.0%", Fmt.pct(32.0))
         assertEquals("0.45%", Fmt.pct(0.45))
+        assertEquals("0.5%", Fmt.pct(0.45, dp = 1))
+        assertEquals("28.40×", Fmt.multiple(28.4, dp = 2))
         assertEquals("+6.4%", Fmt.signedPct(6.4))
         assertEquals("+120 bps", Fmt.bps(120.0))
         assertEquals("+120 bps", Fmt.bpsFromPoints(1.2))
@@ -132,7 +134,7 @@ class FmtTest {
     fun digitsAreLocaleUsWhateverTheDeviceLocale() {
         Locale.setDefault(Locale.GERMANY)
         assertEquals("32.0%", Fmt.pct(32.0))
-        assertEquals("1,204.5", Fmt.number(1204.5, decimals = 1))
+        assertEquals("1,204.5", Fmt.number(1204.5, dp = 1))
         assertEquals("$98.8B", Fmt.money(98.76e9))
         assertEquals("As of 07:02, Tue 24 Nov", fmt.asOf(now.toInstant()))
         Locale.setDefault(Locale("ro", "RO"))
