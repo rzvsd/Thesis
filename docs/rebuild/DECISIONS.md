@@ -29,7 +29,8 @@ Buying a domain costs money, so we do not buy one now.
 
 ## D3 Small app changes (H1, H4)
 
-**Pick: yes, two small app changes are allowed. Nothing else in the app changes.**
+**Pick: yes, two small app changes are allowed. Nothing else in the app changes.** Amended 2026-11-24: Razvan
+approved a third change, the in-app Deep Dive page (last bullet below). These three are the only app changes.
 
 - **Deep Dive wait** (owner: M2): poll up to 6 minutes instead of 100 seconds, and resume polling a running job
   when the screen reopens. Server side: `POST /jobs` returns the running job when the same user asks for
@@ -37,6 +38,16 @@ Buying a domain costs money, so we do not buy one now.
 - **Certificate pinning** (owner: M5): drop pinning for the managed hosts (`*.workers.dev`, `*.supabase.co`)
   and rely on normal certificate checks. Cloudflare and Supabase rotate their certificates on their own schedule (H4).
 - Debug builds use the existing Gradle property: `./gradlew assembleDebug -PAPI_BASE_URL=<worker url>`. No file change.
+- **2026-11-24: a third app change, approved by Razvan (decision card "Show the new Deep Dive page inside the
+  app?", answer "Yes, replace the in-app screen").** The Deep Dive screen shows the Deep Dive 2.0 page in a WebView,
+  loaded from `GET /v1/reports/:id/page?theme=light|dark&embed=1` with the user's bearer token. The native screen
+  is kept, not deleted. The app shows it when there is no network, when the page does not load (after one token
+  refresh on a 401), for sample reports, and for the offline copy of a report it fell back to when the API could
+  not be reached. A "Classic view" / "New view" switch lets the user pick either screen, and the app-only tools
+  (notes, conviction and opposite case, scenario, Scenario Stress, feedback, export) stay one tap away above the
+  page. Server side (M1): the route uses the same
+  access rules as `GET /reports/:id`, the same page, CSP and editorial fallback as the share link `GET /r/:token`,
+  and `cache-control: private, no-store`. `embed=1` drops the page's app bar, theme switch and app link.
 
 ## D4 Pulse personalisation (H7)
 

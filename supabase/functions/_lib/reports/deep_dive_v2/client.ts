@@ -1,7 +1,9 @@
 // Deep Dive 2.0: the one inline script of the share page, and its CSP hash.
 // The page works without it (every chart is static SVG). It only enhances:
 //   1. Theme button `button[data-dd-theme]`: Auto -> Light -> Dark, sets or removes html[data-theme], label
-//      "Theme: Auto|Light|Dark", remembered in localStorage "dd-theme".
+//      "Theme: Auto|Light|Dark", remembered in localStorage "dd-theme". With nothing stored it starts from the
+//      server's html[data-theme] (the ?theme= of the in-app page). A page without the button (the in-app embed)
+//      never touches html[data-theme], so the theme the server set stays.
 //   2. Reading mode `button[data-dd-mode="story"|"charts"]`: toggles body.charts-only and aria-pressed,
 //      remembered in localStorage "dd-mode".
 //   3. Chip nav `nav.chipnav a[href^="#"]`: class "on" for the section in view, scrolled into view sideways.
@@ -65,12 +67,12 @@ var d=document,de=d.documentElement,W=window;
 function qa(s){return Array.prototype.slice.call(d.querySelectorAll(s))}
 function sg(k){try{return W.localStorage.getItem(k)}catch(e){return null}}
 function ss(k,v){try{W.localStorage.setItem(k,v)}catch(e){}}
-var TM=["auto","light","dark"],tb=qa("button[data-dd-theme]"),ti=Math.max(0,TM.indexOf(sg("dd-theme")));
+var TM=["auto","light","dark"],tb=qa("button[data-dd-theme]"),ti=Math.max(0,TM.indexOf(sg("dd-theme")||de.getAttribute("data-theme")));
 function thm(){var m=TM[ti],t=m.charAt(0).toUpperCase()+m.slice(1);
 if(m==="auto")de.removeAttribute("data-theme");else de.setAttribute("data-theme",m);
 tb.forEach(function(b){var l=d.createElement("span");l.className="l";l.textContent="Theme: ";b.textContent="";
 b.appendChild(l);b.appendChild(d.createTextNode(t));b.setAttribute("aria-label","Theme: "+t+". Switch light or dark")})}
-tb.forEach(function(b){b.addEventListener("click",function(){ti=(ti+1)%3;thm();ss("dd-theme",TM[ti])})});thm();
+tb.forEach(function(b){b.addEventListener("click",function(){ti=(ti+1)%3;thm();ss("dd-theme",TM[ti])})});if(tb.length)thm();
 var mb=qa("button[data-dd-mode]");
 function mode(m){d.body.classList.toggle("charts-only",m==="charts");
 mb.forEach(function(b){b.setAttribute("aria-pressed",String(b.getAttribute("data-dd-mode")===m))})}
@@ -108,7 +110,7 @@ if(inp){inp.addEventListener("input",upd);inp.addEventListener("change",upd)}upd
 export const CLIENT_JS: string = `(function(){"use strict";${CLIENT_CORE_JS}${CLIENT_DOM_JS}})();`;
 
 /** base64(sha256(CLIENT_JS)), for `script-src 'sha256-<this>'`. Checked by client_test.ts. */
-export const CLIENT_JS_SHA256 = "RCv5j2BesDcbd1fJwgq8F5JjPjbwUaFS0nEBUJkdXyg=";
+export const CLIENT_JS_SHA256 = "8n94pzjpTpedDl2djGiF+n2vlUhMrnUx9OujKV9KyZ0=";
 
 /** The CSP header value for the share page. */
 export const SHARE_PAGE_CSP: string = `default-src 'none'; script-src 'sha256-${CLIENT_JS_SHA256}'; ` +

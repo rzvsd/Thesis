@@ -9,6 +9,8 @@ import {
   type IssuerDeps,
 } from "../../../_lib/reports/issuer.ts";
 import { newShareToken, shareUrl } from "../../../_lib/reports/share_reader.ts";
+import type { buildDeepDiveV2Html } from "../../../_lib/reports/deep_dive_v2/render.ts";
+import { reportPage } from "./page.ts";
 import type { AnalysisReport, ReportRecord } from "../../../_lib/reports/types.ts";
 import { assertIncomingAnalysisReport } from "../../../_lib/reports/validation.ts";
 import * as store from "../../../_lib/store/reports.ts";
@@ -27,6 +29,8 @@ export interface ReportsDeps {
   issuer: IssuerDeps;
   audit: (eventType: string, payload: Record<string, unknown>, userId?: string) => Promise<void>;
   rateLimit: (req: Request, keyPart: string) => Promise<Response | null>;
+  /** Deep Dive 2.0 page builder; tests pass one that throws to exercise the editorial fallback. */
+  renderV2?: typeof buildDeepDiveV2Html;
 }
 
 export const pgReportsDeps: ReportsDeps = {
@@ -186,5 +190,12 @@ export function reportsHandlers(deps: ReportsDeps = pgReportsDeps) {
     );
   };
 
-  return { list, read, getNote, putNote, share };
+  // GET /v1/reports/:id/page: the Deep Dive page as HTML for the app's WebView (page.ts).
+  const page = async (ctx: RouteContext): Promise<Response> => {
+    const limited = await deps.rateLimit(ctx.req, bucket(ctx.path));
+    if (limited) return limited;
+    return await reportPage(ctx, deps, requestId);
+  };
+
+  return { list, read, getNote, putNote, share, page };
 }

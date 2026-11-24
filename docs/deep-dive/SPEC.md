@@ -58,9 +58,11 @@ file, change this file first, in its own PR.
    the exact check.
 6. **Describe, never advise.** No buy, sell or hold. No ratings, no price targets, no "you should". The footer says
    it is a research summary, not financial advice. Section 4 has the banned words.
-7. **One renderer.** The share link and the PDF show the same HTML+SVG page from one chart kit, and the PDF is
-   printed from that page. The app screen shows it only if Razvan adds that to rule D3 (`docs/rebuild/DECISIONS.md`
-   allows two app changes today).
+7. **One renderer.** The share link, the app screen and the PDF show the same HTML+SVG page from one chart kit,
+   and the PDF is printed from that page. Razvan added the app screen to rule D3 (`docs/rebuild/DECISIONS.md`) on
+   2026-11-24: the app shows the page in a WebView from `GET /v1/reports/:id/page`. It keeps its native screen as the
+   fallback (offline, a failed load, sample reports, the offline copy of a report) and as a "Classic view" the user
+   can pick; that screen is the one exception to this rule.
 
 ## 2. Page layout
 
@@ -394,6 +396,16 @@ Where the build differs from the sections above, this section records what the c
   adds the theme switch, the reading switch, the chip highlight and the price box. The share page `GET /r/:token`
   uses it and falls back to the v1 layout if it throws (log `deep_dive_v2_render_failed`). The PDF export (M4)
   still uses the old layout; the v2 print CSS is ready for it.
+- **In the app (D3, 2026-11-24):** `GET /v1/reports/:id/page` (user bearer token) serves the same page, with the
+  same access rules as `GET /reports/:id`, the same CSP and the same editorial fallback as the share page, and
+  `cache-control: private, no-store`. Loading and the fallback are shared code (`_lib/reports/deep_dive_page.ts`).
+  `?theme=light|dark` sets `html[data-theme]` on the server, so the page opens in the app's theme with no flash.
+  `?embed=1` drops the page's app bar (so the theme switch) and the "Get the Thesis app" link, and pins the chip
+  nav to the top under the app's own bar; a sample report keeps its sample label. Other values of either are
+  ignored. The client script never touches `html[data-theme]` on a page without the theme switch, and with
+  nothing stored the switch starts from the server's theme. The Deep Dive screen shows the page in a WebView
+  and keeps the native screen as the fallback (offline, a failed load after one token refresh on a 401, sample
+  reports, the offline copy of a report) and as a "Classic view" the user can pick.
 - **Fact pack v1:** `report.fact_pack`, built by the worker (`apps/dexter-worker/src/fact-pack`) from SEC company
   facts and submissions only, in fixture and live mode alike. Up to 11 fiscal years, the latest filing, the
   filings of the last 12 months and the concept behind each field. Segments, regions, owners and prices are listed

@@ -108,7 +108,8 @@ fun DeepDiveScreen(
     onRunReport: () -> Unit,
     onBack: () -> Unit,
     padding: PaddingValues,
-    onOpenScenarioStress: (() -> Unit)? = null
+    onOpenScenarioStress: (() -> Unit)? = null,
+    webPage: DeepDiveWebPageAccess? = null
 ) {
     if (report == null) {
         if (isLoading) {
@@ -129,9 +130,9 @@ fun DeepDiveScreen(
         return
     }
 
-    DeepDiveReportState(
-        report = report,
-        userTier = userTier,
+    // Deep Dive 2.0: the server-rendered page when it can load, else this native screen as before.
+    val tools = DeepDiveNativeTools(
+        isPro = userTier.equals("PRO", ignoreCase = true),
         reportNoteDraft = reportNoteDraft,
         noteUpdatedAt = noteUpdatedAt,
         isSavingNote = isSavingNote,
@@ -140,21 +141,47 @@ fun DeepDiveScreen(
         oppositeCase = oppositeCase,
         oppositeCaseError = oppositeCaseError,
         isGeneratingOppositeCase = isGeneratingOppositeCase,
+        scenarioResult = scenarioResult,
+        isRunningScenario = isRunningScenario,
         onReportNoteChange = onReportNoteChange,
         onSaveReportNote = onSaveReportNote,
         onGenerateOppositeCase = onGenerateOppositeCase,
         onRefreshConvictionTimeline = onRefreshConvictionTimeline,
-        scenarioResult = scenarioResult,
-        isRunningScenario = isRunningScenario,
         onRunScenario = onRunScenario,
         onRequireUpgrade = onRequireUpgrade,
         onSubmitReportFeedback = onSubmitReportFeedback,
         onNotify = onNotify,
-        watchlist = watchlist,
-        onBack = onBack,
-        padding = padding,
         onOpenScenarioStress = onOpenScenarioStress
     )
+    DeepDiveReportHost(report, webPage, tools, onBack, padding) { onOpenNewView ->
+        DeepDiveReportState(
+            report = report,
+            userTier = userTier,
+            reportNoteDraft = reportNoteDraft,
+            noteUpdatedAt = noteUpdatedAt,
+            isSavingNote = isSavingNote,
+            convictionTimeline = convictionTimeline,
+            convictionTimelineError = convictionTimelineError,
+            oppositeCase = oppositeCase,
+            oppositeCaseError = oppositeCaseError,
+            isGeneratingOppositeCase = isGeneratingOppositeCase,
+            onReportNoteChange = onReportNoteChange,
+            onSaveReportNote = onSaveReportNote,
+            onGenerateOppositeCase = onGenerateOppositeCase,
+            onRefreshConvictionTimeline = onRefreshConvictionTimeline,
+            scenarioResult = scenarioResult,
+            isRunningScenario = isRunningScenario,
+            onRunScenario = onRunScenario,
+            onRequireUpgrade = onRequireUpgrade,
+            onSubmitReportFeedback = onSubmitReportFeedback,
+            onNotify = onNotify,
+            watchlist = watchlist,
+            onBack = onBack,
+            padding = padding,
+            onOpenScenarioStress = onOpenScenarioStress,
+            onOpenNewView = onOpenNewView
+        )
+    }
 }
 
 @Composable
@@ -335,7 +362,8 @@ private fun DeepDiveReportState(
     watchlist: List<String>,
     onBack: () -> Unit,
     padding: PaddingValues,
-    onOpenScenarioStress: (() -> Unit)?
+    onOpenScenarioStress: (() -> Unit)?,
+    onOpenNewView: (() -> Unit)? = null
 ) {
     val ticker = report.ticker ?: "Ticker"
     val isWatched = report.ticker != null && watchlist.contains(report.ticker)
@@ -562,7 +590,13 @@ private fun DeepDiveReportState(
                 )
             }
 
-            SignalBadge(signalValue = report.signalValue)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)
+            ) {
+                onOpenNewView?.let { ViewTogglePill(label = DeepDiveWebCopy.newView, onClick = it) }
+                SignalBadge(signalValue = report.signalValue)
+            }
         }
     }
 }
@@ -981,7 +1015,7 @@ private fun EvidenceList(evidence: List<EvidenceView>) {
 }
 
 @Composable
-private fun NotesSection(
+internal fun NotesSection(
     noteDraft: String,
     noteUpdatedAt: String?,
     isSaving: Boolean,
@@ -1025,7 +1059,7 @@ private fun NotesSection(
 }
 
 @Composable
-private fun ScenarioSection(
+internal fun ScenarioSection(
     isPro: Boolean,
     valuation: ValuationDisplayView?,
     isRunning: Boolean,
@@ -1184,7 +1218,7 @@ private fun ScenarioSection(
 }
 
 @Composable
-private fun ReportFeedbackSection(
+internal fun ReportFeedbackSection(
     onSubmit: (String, String) -> Unit
 ) {
     val options = listOf(
@@ -1269,7 +1303,7 @@ private fun ReportFeedbackSection(
 }
 
 @Composable
-private fun ExportSection(
+internal fun ExportSection(
     isPro: Boolean,
     onRequireUpgrade: (String) -> Unit,
     onNotify: (String) -> Unit,

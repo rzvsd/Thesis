@@ -1,6 +1,8 @@
 // Deep Dive 2.0: page assembly. buildDeepDiveV2Html(report) returns the whole share page: head with the embedded
 // fonts and page CSS, app bar, dark header with the price box, chip nav, the 13 chapters in SPEC order, footer,
-// the JSON data block and the one constant client script (its hash is in the share page CSP).
+// the JSON data block and the one constant client script (its hash is in the share page CSP). The same page is
+// shown in the app (GET /v1/reports/:id/page): RenderOptions.theme and .embed change only the html tag, the app
+// bar, the app link and the chip nav offset.
 // Pure TS (no Deno APIs). Every string from the report is escaped; charts are static SVG.
 
 import type { AnalysisReport } from "../types.ts";
@@ -40,7 +42,23 @@ import {
 
 export interface RenderOptions {
   downloadUrl: string;
+  /** Sets html[data-theme] on the server, so the page opens in the app's theme with no flash. */
+  theme?: "light" | "dark";
+  /**
+   * The in-app page (GET /v1/reports/:id/page?embed=1): no app bar (so no theme switch), no "Get the Thesis app"
+   * link. The app draws its own top bar, so the chip nav sticks to the top. A sample report keeps its sample label,
+   * in a plain row above the header.
+   */
+  embed?: boolean;
 }
+
+/** Extra CSS for the in-app page: there is no app bar above the chip nav. */
+export const EMBED_CSS = "\n.chipnav{top:env(safe-area-inset-top,0px)}" +
+  "\nsection{scroll-margin-top:calc(env(safe-area-inset-top,0px) + 60px)}" +
+  "\n.embed-sample{padding-block:10px;background:var(--surface);border-bottom:1px solid var(--line)}";
+
+const SAMPLE_PILL =
+  `<span class="sample-pill"><span class="l">Sample report · approximate figures</span><span class="s">Sample data</span></span>`;
 
 export const NOT_ADVICE_TEXT =
   "Thesis is research, not financial advice. This report describes a company from its " +
@@ -354,17 +372,22 @@ function renderWith(c: Ctx, opts: RenderOptions): RenderResult {
   const chips = chapters.map((ch) => `<a href="#${esc(ch.id)}">${esc(ch.chip)}</a>`).join("");
   const asOf = dateText(asOfDate(f));
   const data = JSON.stringify(c.data).replace(/</g, "\\u003c");
-  const html = `<!doctype html><html lang="en"><head><meta charset="utf-8" />` +
-    `<meta name="viewport" content="width=device-width, initial-scale=1" />` +
-    `<meta name="robots" content="noindex, nofollow" /><meta name="color-scheme" content="light dark" />` +
-    `<title>${esc(f.name)} Deep Dive</title><style>${FONT_CSS}\n${PAGE_CSS}</style></head><body>` +
-    `<div class="appbar"><div class="wrap"><span class="brand">Thesis</span><span class="tk">${
+  const theme = opts.theme === "light" || opts.theme === "dark" ? ` data-theme="${opts.theme}"` : "";
+  const appbar = opts.embed
+    ? (f.sample ? `<div class="embed-sample"><div class="wrap">${SAMPLE_PILL}</div></div>` : "")
+    : `<div class="appbar"><div class="wrap"><span class="brand">Thesis</span><span class="tk">${
       esc(f.ticker)
     }</span>${
-      f.sample
-        ? `<span class="sample-pill"><span class="l">Sample report · approximate figures</span><span class="s">Sample data</span></span>`
-        : ""
-    }<span class="spacer"></span><button class="iconbtn" type="button" data-dd-theme aria-label="Switch light or dark"><span class="l">Theme: </span>Auto</button></div></div>` +
+      f.sample ? SAMPLE_PILL : ""
+    }<span class="spacer"></span><button class="iconbtn" type="button" data-dd-theme aria-label="Switch light or dark"><span class="l">Theme: </span>Auto</button></div></div>`;
+  const appLink = opts.embed ? "" : `<p><a href="${esc(opts.downloadUrl)}">Get the Thesis app</a></p>`;
+  const html = `<!doctype html><html lang="en"${theme}><head><meta charset="utf-8" />` +
+    `<meta name="viewport" content="width=device-width, initial-scale=1" />` +
+    `<meta name="robots" content="noindex, nofollow" /><meta name="color-scheme" content="light dark" />` +
+    `<title>${esc(f.name)} Deep Dive</title><style>${FONT_CSS}\n${PAGE_CSS}${
+      opts.embed ? EMBED_CSS : ""
+    }</style></head><body>` +
+    appbar +
     hero(c) +
     `<nav class="chipnav" aria-label="Report sections"><div class="wrap">${chips}</div></nav>` +
     `<main><div class="wrap">${main}</div></main>` +
@@ -372,7 +395,7 @@ function renderWith(c: Ctx, opts: RenderOptions): RenderResult {
       f.sample ? "Sample report." : `As of ${esc(asOf || "the filing date")}.`
     }</b> Figures from SEC filings, frozen at the filing date. Nothing on this page is updated later.</p><p class="notice">${
       esc(NOT_ADVICE_TEXT)
-    }</p><p><a href="${esc(opts.downloadUrl)}">Get the Thesis app</a></p></div></footer>` +
+    }</p>${appLink}</div></footer>` +
     `<script type="application/json" id="dd-data">${data}</script>` +
     `<script>${CLIENT_JS}</script></body></html>`;
   return { html, chapters, problems };

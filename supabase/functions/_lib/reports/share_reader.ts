@@ -52,13 +52,19 @@ const NOT_ADVICE =
   "Thesis is research, not financial advice. This report is general information about a company, " +
   "not a recommendation to buy or sell any security. Do your own research before you invest.";
 
-/** Web-reader additions around the existing report HTML: noindex, notice, app link, screen layout. */
-export function readerHtml(reportHtml: string, downloadUrl: string): string {
+/**
+ * Web-reader additions around the existing report HTML: noindex, notice, app link, screen layout.
+ * downloadUrl null (the in-app page) leaves the app link out.
+ */
+export function readerHtml(reportHtml: string, downloadUrl: string | null): string {
+  const link = downloadUrl === null
+    ? ""
+    : `<a href="${escapeHtml(downloadUrl)}" style="color:#d7b985;font-weight:700">Get the Thesis app</a>`;
   const banner =
     '<div style="max-width:8.5in;margin:0 auto;padding:14px 18px;background:#1a2128;color:#f8f4eb;' +
     "font:14px/1.45 'Helvetica Neue',Arial,sans-serif\">" +
     `<p style="margin:0 0 6px;color:#f8f4eb">${escapeHtml(NOT_ADVICE)}</p>` +
-    `<a href="${escapeHtml(downloadUrl)}" style="color:#d7b985;font-weight:700">Get the Thesis app</a>` +
+    link +
     "</div>";
   const screenCss =
     "<style>@media screen{.page{width:auto;max-width:8.5in;height:auto;min-height:0;margin:0 auto 12px;" +
@@ -78,6 +84,19 @@ export function notFoundHtml(downloadUrl: string): string {
     "<body style=\"font-family:'Helvetica Neue',Arial,sans-serif;padding:24px\">",
     "<p>This shared report is not available.</p>",
     `<p><a href="${escapeHtml(downloadUrl)}">Get the Thesis app</a></p>`,
+    "</body></html>",
+  ].join("");
+}
+
+/** The in-app page's 404 (GET /v1/reports/:id/page): the report_not_found message as a small page, no app link. */
+export function reportNotFoundHtml(message: string): string {
+  return [
+    '<!doctype html><html lang="en"><head><meta charset="utf-8" />',
+    '<meta name="viewport" content="width=device-width, initial-scale=1" />',
+    '<meta name="robots" content="noindex, nofollow" /><meta name="color-scheme" content="light dark" />',
+    "<title>Thesis</title></head>",
+    "<body style=\"font-family:system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;padding:24px\">",
+    `<p data-error="report_not_found">${escapeHtml(message)}</p>`,
     "</body></html>",
   ].join("");
 }

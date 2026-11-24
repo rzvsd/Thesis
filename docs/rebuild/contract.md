@@ -10,18 +10,19 @@ The appendix gives file:line for each route.
 The Kotlin client is `apps/mobile/android/app/src/main/java/com/thesis/mobile/network/ProductApiClient.kt`.
 
 The old plan counted 43 Kotlin calls. The real numbers are: **100 routes** on the server, **47** method+path calls in the Kotlin client, plus 2 legal pages the app opens in a browser.
+Since 2026-11-24 (D3) the tables also list one route that is new in the rebuild, `GET /v1/reports/:id/page`, which the app loads in a WebView. With it: **101 routes** and **48** app calls.
 
 ## Summary counts
 
 | Audience | Routes | read | write | long |
 |---|---:|---:|---:|---:|
-| app (Android, bearer JWT or pre-login auth) | 60 | 27 | 28 | 5 |
+| app (Android, bearer JWT or pre-login auth) | 61 | 28 | 28 | 5 |
 | web (HTML pages and public links, no login) | 9 | 6 | 3 | 0 |
 | webhook | 1 | 0 | 1 | 0 |
 | internal (`x-internal-token`, worker/scheduler; also `/health`) | 30 | 8 | 5 | 17 |
-| **Total** | **100** | **41** | **37** | **22** |
+| **Total** | **101** | **42** | **37** | **22** |
 
-- Called by Kotlin client: **47** (47 distinct method+path pairs, all 47 exist on the server).
+- Called by Kotlin client: **48** (48 distinct method+path pairs, all 48 exist on the server). 47 are in `ProductApiClient.kt`; `GET /v1/reports/:id/page` is loaded by the Deep Dive WebView (`ui/screens/DeepDiveWebPolicy.kt` builds the URL).
 - The app also opens `GET /legal/terms` and `GET /legal/privacy` in a browser (`ui/components/LegalLinks.kt:19`). These are counted under web.
 - 13 app-audience routes are not called by the Kotlin client (see "Diff vs Kotlin client").
 - Not counted: the CORS `OPTIONS` preflight that answers any path (`server.ts:5900`).
@@ -162,6 +163,7 @@ Column key: **Aud** = audience. **Kt** = called by the Kotlin client. **MS** = o
 | GET | /v1/reports/:id/note | app | user JWT | read | yes | M1 | 404 `note_not_found` (Kotlin treats it as "no note"). 404 `report_not_found`. |
 | PUT | /v1/reports/:id/note | app | user JWT | write | yes | M1 | 422 if content is not a string or is over 10000 chars. |
 | POST | /v1/reports/:id/share | app | user JWT | write | no | M1 | **201** on the first create, **200** after that (same token). Deep Dive only, otherwise 404. `url` is built from `PUBLIC_API_BASE_URL` and is null if that is unset. |
+| GET | /v1/reports/:id/page | app | user JWT | read | yes | M1 | **HTML** Deep Dive 2.0 page for the app's WebView (D3, 2026-11-24). Query: `theme=light\|dark` sets `html[data-theme]`; `embed=1` drops the app bar, theme switch and app link; other values are ignored. Same access rules as `GET /reports/:id` (Deep Dive only). Same CSP and editorial fallback as `/r/:token`, `cache-control: private, no-store`. 404 HTML page (`report_not_found`) when there is no row, no access, not a Deep Dive, or no artifact. |
 | GET | /r/:token | web | none (share token) | read | no | M1 | **HTML** reader (`noindex`, `no-referrer`, strict CSP, `private, max-age=300`). 404 HTML when not found. The token must match `[A-Za-z0-9_-]{20,64}`. Builds editorial HTML per request (no Chrome). |
 | GET | /v1/reports/:id/export/pdf | app | user JWT | long | no | M4 | **Pro only** (403 `report_export`). `application/pdf`. Uses headless Chrome when present (`report-pdf-editorial.ts`), otherwise the built-in PDF writer. 404 / 500. |
 
@@ -387,6 +389,10 @@ interface ReportListItem { report_id: string; job_id: string; type: "deep_dive" 
 // POST /v1/reports/:id/share   201|200
 { data: { share_token: string; path: string /* "/r/<token>" */; url: string | null } }
 
+// GET /v1/reports/:id/page?theme=light|dark&embed=1  200 text/html (Deep Dive 2.0 page; editorial page if it fails)
+//   headers: content-security-policy (also x-thesis-csp), cache-control "private, no-store", x-robots-tag "noindex, nofollow",
+//   referrer-policy "no-referrer", x-frame-options "DENY", x-content-type-options "nosniff". 404 text/html when not found.
+
 // GET /v1/reports/:id/export/pdf  200 application/pdf, filename="thesis-deep-dive-<TICKER>-<reportId>.pdf"
 ```
 
@@ -481,9 +487,11 @@ interface AlertView { id; user_id; notification_type; category; route; title; bo
 
 ## Diff vs Kotlin client
 
-**Paths the client calls that the server does not have: none.** All 47 Kotlin calls match a server route by method and path.
+**Paths the client calls that the server does not have: none.** All 48 Kotlin calls match a server route by method and path.
 
-The 47 Kotlin calls (ProductApiClient.kt line of the path):
+The 48th call is the Deep Dive WebView (D3, 2026-11-24): `GET /v1/reports/:id/page?theme=light|dark&embed=1`, URL built in `ui/screens/DeepDiveWebPolicy.kt` (`pageUrl`) and loaded by `ui/screens/DeepDiveWebPage.kt` with the bearer token.
+
+The other 47 Kotlin calls (ProductApiClient.kt line of the path):
 auth: register 60, verify 70, login 78, password-reset/request 84, password-reset/confirm 93, DELETE /v1/account 99, refresh 106, logout 115.
 user: device-token 133, notification-preferences GET 146 / PUT 170, profile 771, sync-tier 788.
 alerts: list 184, feedback 211, mute 227. War room 243.
@@ -589,6 +597,7 @@ watchlist: GET 718, POST 726, DELETE 736. Holdings import 746.
 | GET | /v1/user/notification-preferences | R/notification-routes.ts:254 |
 | PUT | /v1/user/notification-preferences | R/notification-routes.ts:276 |
 | POST | /v1/reports/:id/share | R/report-share-routes.ts:31, :67 (called S:9587) |
+| GET | /v1/reports/:id/page | new in the rebuild (D3): `supabase/functions/api/features/reports/page.ts` |
 | GET | /v1/user/monitor-snapshots | S:9595 |
 | GET | /v1/names/relationships | S:9631 |
 | GET | /v1/research/earnings/state | S:9690 |

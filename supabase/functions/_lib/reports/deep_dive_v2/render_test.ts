@@ -1,5 +1,13 @@
 import { assert, assertEquals, assertMatch, assertStringIncludes } from "jsr:@std/assert@1.0.13";
-import { buildContext, buildDeepDiveV2Html, filingEyebrow, renderDeepDiveV2 } from "./render.ts";
+import {
+  buildContext,
+  buildDeepDiveV2Html,
+  EMBED_CSS,
+  filingEyebrow,
+  NOT_ADVICE_TEXT,
+  renderDeepDiveV2,
+  type RenderOptions,
+} from "./render.ts";
 import { CLIENT_JS } from "./client.ts";
 import {
   sampleApplePack,
@@ -134,6 +142,47 @@ Deno.test("head, footer and escaping", () => {
     buildDeepDiveV2Html(sampleReport(sampleApplePack()), OPTS),
   )?.[1] ?? "";
   assertEquals(json.includes("<"), false);
+});
+
+Deno.test("in-app options: the default page is unchanged, theme only adds html[data-theme]", () => {
+  for (const [name, report] of reports()) {
+    const base = buildDeepDiveV2Html(report, OPTS);
+    assertEquals(buildDeepDiveV2Html(report, { ...OPTS, theme: undefined, embed: false }), base, name);
+    // A theme the type does not allow (a caller that skipped validation) is ignored.
+    const bad = { ...OPTS, theme: '"><script>' } as unknown as RenderOptions;
+    assertEquals(buildDeepDiveV2Html(report, bad), base, name);
+    for (const theme of ["light", "dark"] as const) {
+      const themed = buildDeepDiveV2Html(report, { ...OPTS, theme });
+      assert(themed.startsWith(`<!doctype html><html lang="en" data-theme="${theme}"><head>`), name);
+      assertEquals(themed.replace(` data-theme="${theme}"`, ""), base, name);
+    }
+  }
+});
+
+Deno.test("embed: no app bar, theme switch or app link; same chapters, notice and script", () => {
+  for (const [name, report] of reports()) {
+    const html = buildDeepDiveV2Html(report, { ...OPTS, embed: true, theme: "dark" });
+    assertMatch(html, /^<!doctype html><html lang="en" data-theme="dark"><head>/);
+    assertEquals(html.includes('class="appbar"'), false, name);
+    assertEquals(html.replace(/<script>[\s\S]*?<\/script>/, "").includes("data-dd-theme"), false, name);
+    assertEquals(html.includes("Get the Thesis app"), false, name);
+    assertEquals(html.includes("example.com/app"), false, name);
+    assertEquals(
+      html.includes('class="sample-pill"'),
+      name === "aapl" || name === "lossmaker" || name === "bank",
+    );
+    assertStringIncludes(html, `${EMBED_CSS}</style>`);
+    assertStringIncludes(html, '<nav class="chipnav"');
+    assertStringIncludes(html, 'data-dd-mode="charts"');
+    assertStringIncludes(html, NOT_ADVICE_TEXT.slice(0, 60));
+    const ids = [...html.matchAll(/<section id="([a-z]+)">/g)].map((m) => m[1]);
+    assertEquals(ids, IDS, name);
+    const scripts = [...html.matchAll(/<script([^>]*)>([\s\S]*?)<\/script>/g)];
+    assertEquals(scripts.map((m) => m[1]), [' type="application/json" id="dd-data"', ""], name);
+    assertEquals(scripts[1][2], CLIENT_JS);
+  }
+  const plain = buildDeepDiveV2Html(sampleReport(sampleApplePack()), { ...OPTS, embed: true });
+  assertMatch(plain, /^<!doctype html><html lang="en"><head>/);
 });
 
 Deno.test("no stored price: the box opens empty and price-only parts are hidden", () => {

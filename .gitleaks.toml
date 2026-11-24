@@ -28,6 +28,8 @@ regexes = [
   # Fake test values in the M1 rebuild tests (not secrets): a share token and an unsubscribe token signed with
   # dev-jwt-secret-change-me.
   '''AbCdEfGhIjKlMnOpQrStUvWxYz012345''',
-  '''dXNlci0xMjM\.bvLsnj-t0v_wce5QgzCNgiL4CxUoHzdtfbiuaWlnVk4'''
+  '''dXNlci0xMjM\.bvLsnj-t0v_wce5QgzCNgiL4CxUoHzdtfbiuaWlnVk4''',
+  # Fake bearer token in the app's DeepDiveWebPolicyTest (header {"alg":"HS256"}, body {"sub":"u"}, signature "sign").
+  '''eyJhbGciOiJIUzI1NiJ9\.eyJzdWIiOiJ1In0\.c2lnbg'''
 ]
 

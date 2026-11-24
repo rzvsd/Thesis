@@ -80,6 +80,8 @@ data class UiState(
     val selectedTicker: String? = null,
     val jobStatus: String? = null,
     val deepDiveReport: DeepDiveReportView? = null,
+    // True when deepDiveReport is the offline copy shown because the API could not be reached.
+    val deepDiveLoadedFromCache: Boolean = false,
     val deepDiveError: String? = null,
     val reportNote: ReportNoteView? = null,
     val reportNoteDraft: String = "",
@@ -498,6 +500,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             clearLocalSession(
                 listOfNotNull("Account deleted successfully.", storeNotice).joinToString(" ")
             )
+        }
+    }
+
+    /**
+     * The in-app Deep Dive page answered 401: the WebView cannot refresh the token, so the app does it
+     * here and calls back with the new access token, or null when the refresh did not work (the page
+     * then falls back to the native screen; a later API call handles an ended session as before).
+     */
+    fun refreshAccessTokenForPage(onResult: (String?) -> Unit) {
+        viewModelScope.launch {
+            val refreshed = tryRefreshToken()
+            onResult(if (refreshed) state.tokens?.accessToken else null)
         }
     }
 
@@ -1307,6 +1321,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 state.copy(
                     isLoading = true,
                     deepDiveReport = null,
+                    deepDiveLoadedFromCache = false,
                     reportNote = null,
                     reportNoteDraft = "",
                     isSavingNote = false,
@@ -1401,6 +1416,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     state.copy(
                         currentTab = AppTab.RESEARCH,
                         deepDiveReport = report,
+                        deepDiveLoadedFromCache = false,
                         reportNote = note,
                         reportNoteDraft = note?.content ?: "",
                         isSavingNote = false,
@@ -1442,6 +1458,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                             isLoading = false,
                             currentTab = AppTab.RESEARCH,
                             deepDiveReport = cached,
+                            deepDiveLoadedFromCache = true,
                             reportNote = null,
                             reportNoteDraft = "",
                             isSavingNote = false,
@@ -1997,6 +2014,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                             state.copy(
                                 isLoading = false,
                                 deepDiveReport = report,
+                                deepDiveLoadedFromCache = false,
                                 reportNote = note,
                                 reportNoteDraft = note?.content ?: "",
                                 isSavingNote = false,
@@ -2132,6 +2150,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 tickers = emptyList(),
                 selectedTicker = null,
                 deepDiveReport = null,
+                deepDiveLoadedFromCache = false,
                 reportNote = null,
                 reportNoteDraft = "",
                 isSavingNote = false,
