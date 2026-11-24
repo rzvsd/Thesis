@@ -35,6 +35,15 @@ PDFs and push sending (M4).
 
 See `OWNERSHIP.md`, row M3. Migrations use the `20261126` prefix. Preview function: `api-m3`.
 
+New route, not in `contract.md` (frozen): `POST /internal/financials/ingest` (internal token, feature
+`internal-data`, logic in `_lib/evaluators/financials.ts`). Added for Deep Dive 2.0. The Deep Dive runner posts the
+annual rows of the SEC fact pack it built (`apps/dexter-worker/src/fact-pack`). Body: `{ ticker, provider:
+"sec_companyfacts", latest_period, snapshots: [{ period: "2025-FY", period_type: "annual", fiscal_year, filing_date,
+data, missing_fields }] }`, at most 40 snapshots. It upserts `financial_snapshots` on (ticker, period, period_type),
+new rows with snapshot id `sec-<ticker>-<period>`, and `ticker_coverage` (snapshot count, earliest period, latest
+period = the filing label the report's fingerprint uses, status `success`, tier 1, transcript count kept). No
+migration: both tables exist.
+
 ## Exit checks
 
 - The daily workflow runs on schedule for 3 days with no manual step, under 15 minutes a run.

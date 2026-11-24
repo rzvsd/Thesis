@@ -64,6 +64,24 @@ export function buildJobStatusResponse(job: JobRecord): JobStatusResponse {
 // Fingerprint part used when the company's latest filing period is not known.
 export const UNKNOWN_PERIOD = "LATEST_UNKNOWN";
 
+// The schema_version the runner writes today (apps/dexter-worker/src/pipeline.ts). 2.1 adds report.fact_pack.
+// The precompute planner (_lib/evaluators/precompute.ts) uses the same string; change both together.
+export const DEEP_DIVE_SCHEMA_VERSION = "2.1";
+
+// The filing period a stored report was built from: the fact pack's latest filing label ("2025-FY",
+// "2026-Q1"; the same label the runner sends to ticker_coverage), else historical_context.latest_period.
+export function analysedPeriod(report: AnalysisReport): string | undefined {
+  const pack = (report as { fact_pack?: unknown }).fact_pack;
+  const latest = pack && typeof pack === "object"
+    ? (pack as { latest_filing?: unknown }).latest_filing
+    : undefined;
+  const label = latest && typeof latest === "object"
+    ? (latest as { period_label?: unknown }).period_label
+    : undefined;
+  if (typeof label === "string" && label.trim()) return label.trim();
+  return report.historical_context?.latest_period?.trim() || undefined;
+}
+
 export function deepDiveFingerprint(input: { ticker: string; schemaVersion: string; latestPeriod?: string }) {
   const latestPeriod = input.latestPeriod?.trim().toUpperCase() || UNKNOWN_PERIOD;
   return `${input.ticker.trim().toUpperCase()}|${input.schemaVersion.trim()}|${latestPeriod}`;
@@ -125,7 +143,7 @@ export async function createDeepDiveJob(
 
   const fingerprint = deepDiveFingerprint({
     ticker,
-    schemaVersion: "2.0",
+    schemaVersion: DEEP_DIVE_SCHEMA_VERSION,
     latestPeriod: await deps.store.getCoverageLatestPeriod(ticker),
   });
   const reusable = await deps.store.findReusableDeepDiveReport({ ticker, fingerprint, nowIso });
@@ -384,14 +402,15 @@ export async function completeJob(
     prior = await deps.effects.findPrior(report);
     if (!existingReport) {
       // One report per company per filing (Razvan, 2026-11-24): every customer gets the same report until the
-      // next filing changes the fingerprint. The period is the one the runner actually analysed
-      // (historical_context.latest_period), so a filing that lands mid-run cannot relabel an older analysis.
-      // Only when the report has none does ticker_coverage (what POST /jobs reads) fill in.
+      // next filing changes the fingerprint. The period is the one the runner actually analysed (the fact pack's
+      // latest_filing.period_label, else historical_context.latest_period), so a filing that lands mid-run
+      // cannot relabel an older analysis. Only when the report has none does ticker_coverage (what POST /jobs
+      // reads) fill in.
       const fingerprint = report.type === "deep_dive" && report.ticker
         ? deepDiveFingerprint({
           ticker: report.ticker,
           schemaVersion: report.schema_version,
-          latestPeriod: report.historical_context?.latest_period?.trim() ||
+          latestPeriod: analysedPeriod(report) ||
             await deps.store.getCoverageLatestPeriod(report.ticker.trim().toUpperCase()),
         })
         : undefined;

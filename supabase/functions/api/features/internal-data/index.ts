@@ -2,6 +2,8 @@
 // Internal routes the daily and weekly jobs call: data ingest, macro, calendar, prices and the evaluators.
 // All routes need the internal token. The logic lives in _lib/evaluators; this file only parses the request
 // and turns an EvalResult into a Response.
+// New in Deep Dive 2.0 (not in contract.md, which is frozen): POST /internal/financials/ingest. The Deep Dive
+// runner posts the annual rows of its SEC fact pack there (_lib/evaluators/financials.ts).
 import { db, type Sql } from "../../../_shared/db.ts";
 import { env } from "../../../_shared/env.ts";
 import { apiError, json } from "../../../_shared/http.ts";
@@ -16,6 +18,8 @@ import { dispatchWeeklyDigest } from "../../../_lib/evaluators/digest.ts";
 import { dispatchEarningsPreview } from "../../../_lib/evaluators/earnings_preview.ts";
 import { listFeedbackQueue } from "../../../_lib/evaluators/feedback.ts";
 import { dispatchFreshnessDecay } from "../../../_lib/evaluators/freshness.ts";
+import { type FinancialsDeps, ingestFinancials } from "../../../_lib/evaluators/financials.ts";
+import { postgresFinancialsStore } from "../../../_lib/evaluators/financials_store.ts";
 import {
   ingestCanonicalEvents,
   ingestFirstPartyContext,
@@ -101,6 +105,28 @@ function precomputeDeps(): PrecomputeDeps {
 export function setPrecomputeDeps(next: PrecomputeDeps | undefined): void {
   currentPrecompute = next;
   precomputeBuiltFor = undefined;
+}
+
+// Financials ingest: its own small store, rebuilt like the precompute deps when db() hands out a new client.
+let currentFinancials: FinancialsDeps | undefined;
+let financialsBuiltFor: Sql | undefined;
+
+function financialsDeps(): FinancialsDeps {
+  if (currentFinancials && (!financialsBuiltFor || financialsBuiltFor === db())) return currentFinancials;
+  const sql = db();
+  financialsBuiltFor = sql;
+  currentFinancials = {
+    store: postgresFinancialsStore(sql),
+    now: () => new Date(),
+    audit: (eventType, payload) => appendAuditEvent(eventType, payload),
+  };
+  return currentFinancials;
+}
+
+// Tests swap in a memory store. Pass undefined to go back to the real one.
+export function setFinancialsDeps(next: FinancialsDeps | undefined): void {
+  currentFinancials = next;
+  financialsBuiltFor = undefined;
 }
 
 // Tests swap in memory stores. Pass undefined to go back to the real ones.
@@ -200,6 +226,17 @@ export const feature: FeatureModule = {
         const parsed = await readBody(ctx.req);
         if (!parsed.ok) return parsed.res;
         return respond(await dispatchMarketPulse(pulseDeps(), parsed.body, meta(ctx)));
+      },
+    },
+    // Annual rows of a Deep Dive's SEC fact pack, sent by the runner (new in Deep Dive 2.0).
+    {
+      method: "POST",
+      path: "/internal/financials/ingest",
+      auth: "internal",
+      handler: async (ctx) => {
+        const parsed = await readBody(ctx.req);
+        if (!parsed.ok) return parsed.res;
+        return respond(await ingestFinancials(financialsDeps(), parsed.body, meta(ctx)));
       },
     },
     // Creates system Deep Dive jobs; the daily workflow runs them in process (N7). No runner per ticker.

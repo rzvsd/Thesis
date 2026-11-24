@@ -81,8 +81,18 @@ jobs:
           THESIS_API_URL: ${{ secrets.THESIS_API_URL }}
           THESIS_INTERNAL_TOKEN: ${{ secrets.THESIS_INTERNAL_TOKEN }}
           NODE_ENV: development
-          # Fixture mode stays on until the owner sets an LLM budget (AGENTS rule 11).
-          DEXTER_FIXTURE_MODE: "true"
+          # Fixture mode stays on until the owner sets an LLM budget (AGENTS rule 11). The owner turns live runs on
+          # by setting the repository variable DEXTER_FIXTURE_MODE to "false"; unset means fixture mode.
+          DEXTER_FIXTURE_MODE: ${{ vars.DEXTER_FIXTURE_MODE || 'true' }}
+          # LLM keys, on this step only. Unused in fixture mode.
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          DEXTER_ANTHROPIC_MODEL: ${{ vars.DEXTER_ANTHROPIC_MODEL }}
+          # The live runner script (apps/dexter-worker/src/live-runner.mjs) is plain Node ESM; no Bun on the runner.
+          DEXTER_BUN_BIN: node
+          # SEC asks every client to name itself (fact pack, apps/dexter-worker/src/fact-pack).
+          SEC_USER_AGENT: ${{ vars.SEC_USER_AGENT || 'Thesis research contact@example.com' }}
           # Tickers that always fail, for the failure-path check.
           DEXTER_FORCE_FAIL_TICKERS: ${{ vars.DEXTER_FORCE_FAIL_TICKERS }}
         run: node jobs/deep-dive/main.mts "$RUNNER_TEMP/claim.json"

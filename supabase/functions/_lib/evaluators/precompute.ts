@@ -15,7 +15,8 @@ import { ok, validation } from "./result.ts";
 export type DeepDiveRefreshReason = "no_report" | "new_filing" | "expired";
 
 const COVERAGE_LIST_LIMIT = 10_000;
-const SCHEMA_VERSION = "2.0";
+// Same string as DEEP_DIVE_SCHEMA_VERSION in _lib/jobs/service.ts (2.1: reports carry fact_pack).
+const SCHEMA_VERSION = "2.1";
 
 export interface PrecomputeStore {
   listCoveredTickers(limit: number): Promise<string[]>;
