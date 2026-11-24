@@ -212,9 +212,9 @@ fun Avatar(
     val source = remember { MutableInteractionSource() }
     val outer = if (onClick != null) {
         modifier
-            .minimumInteractiveComponentSize()
             .clickable(source, indication = null, role = Role.Button, onClick = onClick)
             .semantics { this.contentDescription = contentDescription }
+            .minimumInteractiveComponentSize()
     } else {
         modifier.clearAndSetSemantics { this.contentDescription = contentDescription }
     }

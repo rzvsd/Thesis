@@ -33,6 +33,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -252,21 +253,23 @@ private fun StageRing(status: StageStatus) {
     Box(
         Modifier
             .size(Kit.stageRing)
-            .drawBehind {
+            .drawWithCache {
                 val stroke = Kit.ringStroke.toPx()
                 val r = size.minDimension / 2f
-                when (status) {
-                    StageStatus.Done -> {
-                        drawCircle(p.accent, r)
-                        val check = Path().apply {
-                            moveTo(size.width * 0.27f, size.height * 0.52f)
-                            lineTo(size.width * 0.44f, size.height * 0.68f)
-                            lineTo(size.width * 0.74f, size.height * 0.34f)
+                val check = Path().apply {
+                    moveTo(size.width * 0.27f, size.height * 0.52f)
+                    lineTo(size.width * 0.44f, size.height * 0.68f)
+                    lineTo(size.width * 0.74f, size.height * 0.34f)
+                }
+                onDrawBehind {
+                    when (status) {
+                        StageStatus.Done -> {
+                            drawCircle(p.accent, r)
+                            drawPath(check, p.surface, style = Stroke(stroke, cap = StrokeCap.Round))
                         }
-                        drawPath(check, p.surface, style = Stroke(stroke, cap = StrokeCap.Round))
+                        StageStatus.Current -> drawCircle(p.accent, r - stroke / 2f, style = Stroke(stroke))
+                        StageStatus.Waiting -> drawCircle(p.line2, r - stroke / 2f, style = Stroke(stroke))
                     }
-                    StageStatus.Current -> drawCircle(p.accent, r - stroke / 2f, style = Stroke(stroke))
-                    StageStatus.Waiting -> drawCircle(p.line2, r - stroke / 2f, style = Stroke(stroke))
                 }
             },
     )
@@ -299,7 +302,8 @@ fun TapeRow(
     LazyRow(
         modifier
             .fillMaxWidth()
-            .heightIn(min = ThesisSpace.tapeRow)
+            // 44 dp tape; a tappable tape keeps the 48 dp target (A1).
+            .heightIn(min = if (onClick != null) maxOf(ThesisSpace.tapeRow, ThesisSpace.touchMin) else ThesisSpace.tapeRow)
             .then(
                 if (onClick != null) {
                     Modifier

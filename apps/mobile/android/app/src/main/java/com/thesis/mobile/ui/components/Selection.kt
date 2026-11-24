@@ -53,33 +53,49 @@ fun ThesisSwitch(
 ) {
     val p = LocalThesisPalette.current
     val haptics = rememberHaptics()
-    Switch(
-        checked = checked,
-        onCheckedChange = onCheckedChange?.let { change ->
-            { on: Boolean ->
-                haptics.toggle(on)
-                change(on)
-            }
-        },
-        modifier = modifier,
-        enabled = enabled,
-        colors = SwitchDefaults.colors(
-            checkedThumbColor = p.surface,
-            checkedTrackColor = p.ink,
-            checkedBorderColor = p.ink,
-            checkedIconColor = p.ink,
-            uncheckedThumbColor = p.control,
-            uncheckedTrackColor = p.surface2,
-            uncheckedBorderColor = p.control,
-            uncheckedIconColor = p.surface2,
-            disabledCheckedThumbColor = p.surface,
-            disabledCheckedTrackColor = p.line2,
-            disabledCheckedBorderColor = p.line2,
-            disabledUncheckedThumbColor = p.line2,
-            disabledUncheckedTrackColor = p.surface2,
-            disabledUncheckedBorderColor = p.line,
-        ),
-    )
+    val source = remember { MutableInteractionSource() }
+    // The outer box is the 48 dp toggle target (M3's Switch puts its semantics on the 32 dp track); the M3 Switch
+    // inside only draws, with no interaction source of ours so its thumb ripple never shows.
+    val target = if (onCheckedChange != null) {
+        Modifier
+            .toggleable(
+                value = checked,
+                interactionSource = source,
+                indication = null,
+                enabled = enabled,
+                role = Role.Switch,
+                onValueChange = { on ->
+                    haptics.toggle(on)
+                    onCheckedChange(on)
+                },
+            )
+            .minimumInteractiveComponentSize()
+    } else {
+        Modifier
+    }
+    Box(modifier.then(target), contentAlignment = Alignment.Center) {
+        Switch(
+            checked = checked,
+            onCheckedChange = null,
+            enabled = enabled,
+            colors = SwitchDefaults.colors(
+                checkedThumbColor = p.surface,
+                checkedTrackColor = p.ink,
+                checkedBorderColor = p.ink,
+                checkedIconColor = p.ink,
+                uncheckedThumbColor = p.control,
+                uncheckedTrackColor = p.surface2,
+                uncheckedBorderColor = p.control,
+                uncheckedIconColor = p.surface2,
+                disabledCheckedThumbColor = p.surface,
+                disabledCheckedTrackColor = p.line2,
+                disabledCheckedBorderColor = p.line2,
+                disabledUncheckedThumbColor = p.line2,
+                disabledUncheckedTrackColor = p.surface2,
+                disabledUncheckedBorderColor = p.line,
+            ),
+        )
+    }
 }
 
 /**

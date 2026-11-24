@@ -62,8 +62,14 @@ fun SkeletonBlock(modifier: Modifier = Modifier) {
  */
 @Composable
 fun SkeletonText(style: TextStyle, modifier: Modifier = Modifier, widthFraction: Float = 1f, lines: Int = 1) {
-    val lineHeight: Dp = with(LocalDensity.current) { style.lineHeight.toDp() }
-    val block = with(LocalDensity.current) { style.fontSize.toDp() }
+    val density = LocalDensity.current
+    val block = with(density) { style.fontSize.toDp() }
+    // Capped styles (ThesisType.capped) carry an em line height.
+    val lineHeight: Dp = when {
+        style.lineHeight.isSp -> with(density) { style.lineHeight.toDp() }
+        style.lineHeight.isEm -> block * style.lineHeight.value
+        else -> block * DEFAULT_LINE_HEIGHT
+    }
     Column(modifier.fillMaxWidth()) {
         repeat(lines) { i ->
             Box(Modifier.fillMaxWidth().height(lineHeight), contentAlignment = Alignment.CenterStart) {
@@ -241,3 +247,5 @@ fun LiveDot(modifier: Modifier = Modifier) {
             },
     )
 }
+
+private const val DEFAULT_LINE_HEIGHT = 1.3f

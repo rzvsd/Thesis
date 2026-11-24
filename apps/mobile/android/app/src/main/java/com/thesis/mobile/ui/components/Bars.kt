@@ -170,9 +170,12 @@ fun ReportTopBar(
     ) {
         ThesisIconButton(ThesisIcons.Back, contentDescription = "Back", onClick = onBack, tint = p.ink)
         Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
-            Text("THESIS", style = ThesisType.kicker, color = p.accent)
-            Spacer(Modifier.width(ThesisSpace.s))
-            Text(ticker, style = ThesisType.barTitle, color = p.ink, maxLines = 1)
+            // Large font scales: the ticker keeps the room; the brand kicker steps aside.
+            if (LocalDensity.current.fontScale <= ThesisType.MAX_DISPLAY_SCALE) {
+                Text("THESIS", style = ThesisType.kicker, color = p.accent)
+                Spacer(Modifier.width(ThesisSpace.s))
+            }
+            Text(ticker, style = ThesisType.capped(ThesisType.barTitle), color = p.ink, maxLines = 1)
         }
         Box(
             Modifier
@@ -287,7 +290,8 @@ fun ThesisBottomBar(
                     }
                 }
                 Spacer(Modifier.size(ThesisSpace.xxs))
-                Text(item.label, style = ThesisType.navLabel, color = color, maxLines = 1)
+                // Bar labels sit in a fixed 64 dp bar: they grow up to the display cap (1.3x), like the bar itself.
+                Text(item.label, style = ThesisType.capped(ThesisType.navLabel), color = color, maxLines = 1)
             }
         }
     }
@@ -382,12 +386,12 @@ fun ReportDock(items: List<DockItem>, modifier: Modifier = Modifier, visible: Bo
                     .weight(1f)
                     .heightIn(min = ThesisSpace.touchMin)
                     .clickable(source, indication = null, enabled = visible, role = Role.Button, onClick = item.onClick)
-                    .padding(vertical = ThesisSpace.xs)
-                    .thesisPress(source, shape = ThesisShape.pill),
+                    .thesisPress(source, shape = ThesisShape.pill)
+                    .padding(horizontal = ThesisSpace.xs, vertical = ThesisSpace.xs),
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(item.label, style = ThesisType.button, color = p.ink, maxLines = 1)
+                Text(item.label, style = ThesisType.capped(ThesisType.button), color = p.ink, maxLines = 1)
                 if (item.badge != null) {
                     Spacer(Modifier.width(ThesisSpace.xs))
                     Text(item.badge, style = ThesisType.eyebrow, color = p.accent)

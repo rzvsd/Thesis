@@ -27,7 +27,9 @@ import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
@@ -284,16 +286,19 @@ fun ChapterPills(
 ) {
     val haptics = rememberHaptics()
     val reduced = LocalReducedMotion.current
+    // The first placement jumps (a screen never opens mid-scroll); later selection changes glide.
+    var placed by remember(state) { mutableStateOf(false) }
     LaunchedEffect(selectedIndex) {
-        val info = state.layoutInfo
-        val item = info.visibleItemsInfo.firstOrNull { it.index == selectedIndex }
-        if (item == null) {
-            if (reduced) state.scrollToItem(selectedIndex) else state.animateScrollToItem(selectedIndex)
-            return@LaunchedEffect
+        val animate = placed && !reduced
+        placed = true
+        if (state.layoutInfo.visibleItemsInfo.none { it.index == selectedIndex }) {
+            if (animate) state.animateScrollToItem(selectedIndex) else state.scrollToItem(selectedIndex)
         }
+        val info = state.layoutInfo
+        val item = info.visibleItemsInfo.firstOrNull { it.index == selectedIndex } ?: return@LaunchedEffect
         val center = (info.viewportStartOffset + info.viewportEndOffset) / 2f
         val delta = item.offset + item.size / 2f - center
-        if (reduced) state.scrollBy(delta) else state.animateScrollBy(delta, ThesisMotion.spatial())
+        if (animate) state.animateScrollBy(delta, ThesisMotion.spatial()) else state.scrollBy(delta)
     }
     Box(modifier.fillMaxWidth().barBackground(BarHairline.Bottom)) {
         ChipRow(Modifier.padding(vertical = ThesisSpace.xs), state = state) {

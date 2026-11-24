@@ -491,6 +491,7 @@ fun AlertRow(
                             .then(
                                 if (onTickerClick != null) {
                                     Modifier
+                                        .widthIn(min = ThesisSpace.touchMin)
                                         .touchHeight(ThesisSpace.touchMin)
                                         .clickable(tickerSource, indication = null, role = Role.Button, onClick = onTickerClick)
                                         .thesisPress(tickerSource, shape = ThesisShape.badge)

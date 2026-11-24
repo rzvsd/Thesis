@@ -217,7 +217,10 @@ private fun SaveStatus(state: NoteSaveState, savedAgo: String?, onRetry: (() -> 
                 }
                 NoteSaveState.Failed -> {
                     Text("Not saved", style = ThesisType.caption, color = p.neg)
-                    if (onRetry != null) TextAction("Try again", onRetry, style = ThesisType.caption)
+                    if (onRetry != null) {
+                        Spacer(Modifier.width(ThesisSpace.s))
+                        TextAction("Try again", onRetry, style = ThesisType.caption)
+                    }
                 }
             }
         }
@@ -330,6 +333,7 @@ private fun OlderNote(entry: NoteEntry, carry: ((NoteEntry) -> Unit)?) {
     val p = LocalThesisPalette.current
     val reduced = LocalReducedMotion.current
     var expanded by rememberSaveable(entry.key) { mutableStateOf(false) }
+    var clipped by remember(entry.key) { mutableStateOf(false) }
     Column(
         Modifier
             .fillMaxWidth()
@@ -346,9 +350,10 @@ private fun OlderNote(entry: NoteEntry, carry: ((NoteEntry) -> Unit)?) {
                 color = p.ink2,
                 maxLines = if (expanded) Int.MAX_VALUE else Kit.TRAIL_PREVIEW_LINES,
                 overflow = TextOverflow.Ellipsis,
+                onTextLayout = { if (!expanded) clipped = it.hasVisualOverflow },
             )
             Row(horizontalArrangement = Arrangement.spacedBy(ThesisSpace.l)) {
-                TextAction(if (expanded) "Show less" else "Show all", { expanded = !expanded })
+                if (clipped || expanded) TextAction(if (expanded) "Show less" else "Show all", { expanded = !expanded })
                 if (carry != null) TextAction("Carry forward", { carry(entry) })
             }
         }

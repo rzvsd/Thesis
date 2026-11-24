@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -211,7 +212,7 @@ fun TextAction(
     Box(
         modifier
             .clickable(interactionSource, indication = null, enabled = enabled, role = Role.Button, onClick = onClick)
-            .heightIn(min = ThesisSpace.touchMin)
+            .sizeIn(minWidth = ThesisSpace.touchMin, minHeight = ThesisSpace.touchMin)
             .thesisPress(interactionSource, shape = ThesisShape.badge, enabled = enabled),
         contentAlignment = Alignment.CenterStart,
     ) {
