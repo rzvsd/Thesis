@@ -193,17 +193,20 @@ Deno.test("unknown filing period keeps the short reuse window, so a stale report
   assertEquals(runner.dispatched.length, 2);
 });
 
-Deno.test("fingerprint period: coverage wins over the report's own value; the report's value is the fallback", async () => {
-  const { deps, store } = fakeDeps();
-  for (const u of ["u1", "u2"]) store.tiers.set(u, "PRO");
-  store.coverage.set("AAPL", "2026Q3");
-  const fromCoverage = await runToComplete(deps, "u1", "2026Q2");
-  assertEquals(store.reports.get(fromCoverage)!.fingerprint, "AAPL|2.0|2026Q3");
+Deno.test("fingerprint period: the analysed period wins; coverage fills in only when the report has none", async () => {
+  const { deps, store, runner } = fakeDeps();
+  for (const u of ["u1", "u2", "u3"]) store.tiers.set(u, "PRO");
+  // Coverage moved to Q4 while a run analysed Q3: the report stays Q3 and does not block the Q4 analysis.
+  store.coverage.set("AAPL", "2026Q4");
+  const analysed = await runToComplete(deps, "u1", "2026q3");
+  assertEquals(store.reports.get(analysed)!.fingerprint, "AAPL|2.0|2026Q3");
+  assertEquals((await createDeepDiveJob(deps, { userId: "u2", ticker: "AAPL", requestId: "r" })).status, 202);
+  assertEquals(runner.dispatched.length, 2);
 
-  store.coverage.delete("AAPL");
   store.reports.clear();
-  const fromReport = await runToComplete(deps, "u2", "2026q2");
-  assertEquals(store.reports.get(fromReport)!.fingerprint, "AAPL|2.0|2026Q2");
+  store.jobs.clear();
+  const fromCoverage = await runToComplete(deps, "u3");
+  assertEquals(store.reports.get(fromCoverage)!.fingerprint, "AAPL|2.0|2026Q4");
 });
 
 Deno.test("complete rejects a bad report or a job id mismatch", async () => {

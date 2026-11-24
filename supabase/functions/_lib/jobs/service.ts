@@ -383,14 +383,15 @@ export async function completeJob(
     prior = await deps.effects.findPrior(report);
     if (!existingReport) {
       // One report per company per filing (Razvan, 2026-11-24): every customer gets the same report until the
-      // next filing changes the fingerprint. The period comes from ticker_coverage first, the same source
-      // POST /jobs and the precompute job use, so the fingerprints match; the report's own value is the fallback.
+      // next filing changes the fingerprint. The period is the one the runner actually analysed
+      // (historical_context.latest_period), so a filing that lands mid-run cannot relabel an older analysis.
+      // Only when the report has none does ticker_coverage (what POST /jobs reads) fill in.
       const fingerprint = report.type === "deep_dive" && report.ticker
         ? deepDiveFingerprint({
           ticker: report.ticker,
           schemaVersion: report.schema_version,
-          latestPeriod: (await deps.store.getCoverageLatestPeriod(report.ticker.trim().toUpperCase())) ??
-            report.historical_context?.latest_period,
+          latestPeriod: report.historical_context?.latest_period?.trim() ||
+            await deps.store.getCoverageLatestPeriod(report.ticker.trim().toUpperCase()),
         })
         : undefined;
       // Known period: reusable until the next filing (a new fingerprint), capped at precomputeFreshnessHours, for
