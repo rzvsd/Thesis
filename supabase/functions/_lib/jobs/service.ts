@@ -27,7 +27,9 @@ export interface CompletionEffects {
 
 export interface JobsConfig {
   dailyCap: number;
+  // How long a report is reused across users when the latest filing period is unknown.
   reuseFreshnessHours: number;
+  // Upper bound for reuse when the period is known; a new filing ends reuse earlier by changing the fingerprint.
   precomputeFreshnessHours: number;
   subscriptionTimezone: string;
 }
@@ -58,8 +60,11 @@ export function buildJobStatusResponse(job: JobRecord): JobStatusResponse {
   };
 }
 
+// Fingerprint part used when the company's latest filing period is not known.
+export const UNKNOWN_PERIOD = "LATEST_UNKNOWN";
+
 export function deepDiveFingerprint(input: { ticker: string; schemaVersion: string; latestPeriod?: string }) {
-  const latestPeriod = input.latestPeriod?.trim().toUpperCase() || "LATEST_UNKNOWN";
+  const latestPeriod = input.latestPeriod?.trim().toUpperCase() || UNKNOWN_PERIOD;
   return `${input.ticker.trim().toUpperCase()}|${input.schemaVersion.trim()}|${latestPeriod}`;
 }
 
@@ -377,15 +382,22 @@ export async function completeJob(
   try {
     prior = await deps.effects.findPrior(report);
     if (!existingReport) {
+      // One report per company per filing (Razvan, 2026-11-24): every customer gets the same report until the
+      // next filing changes the fingerprint. The period comes from ticker_coverage first, the same source
+      // POST /jobs and the precompute job use, so the fingerprints match; the report's own value is the fallback.
       const fingerprint = report.type === "deep_dive" && report.ticker
         ? deepDiveFingerprint({
           ticker: report.ticker,
           schemaVersion: report.schema_version,
-          latestPeriod: report.historical_context?.latest_period,
+          latestPeriod: (await deps.store.getCoverageLatestPeriod(report.ticker.trim().toUpperCase())) ??
+            report.historical_context?.latest_period,
         })
         : undefined;
-      // Jobs without a user are scheduled pre-computes: they stay reusable until the next filing.
-      const hours = job.userId ? deps.config.reuseFreshnessHours : deps.config.precomputeFreshnessHours;
+      // Known period: reusable until the next filing (a new fingerprint), capped at precomputeFreshnessHours, for
+      // user runs and precomputes alike. Unknown period: a filing could land unseen, so only the short window.
+      const hours = fingerprint?.endsWith(`|${UNKNOWN_PERIOD}`)
+        ? deps.config.reuseFreshnessHours
+        : deps.config.precomputeFreshnessHours;
       const freshnessExpiresAt = fingerprint ? addHours(stamp(deps), hours) : undefined;
       const llmUsage = input.body.llm_usage && typeof input.body.llm_usage === "object"
         ? input.body.llm_usage as Record<string, unknown>

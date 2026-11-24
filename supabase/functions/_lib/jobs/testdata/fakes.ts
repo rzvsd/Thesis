@@ -13,6 +13,7 @@ export class FakeStore implements JobsStore {
   usage = new Map<string, number>();
   tiers = new Map<string, "FREE" | "PRO">();
   tickers = new Set(["AAPL", "MSFT", "FAIL"]);
+  coverage = new Map<string, string>();
 
   getJob(id: string) {
     const j = this.jobs.get(id);
@@ -123,8 +124,8 @@ export class FakeStore implements JobsStore {
   isSupportedTicker(symbol: string) {
     return Promise.resolve(this.tickers.has(symbol));
   }
-  getCoverageLatestPeriod(_ticker: string) {
-    return Promise.resolve(undefined);
+  getCoverageLatestPeriod(ticker: string) {
+    return Promise.resolve(this.coverage.get(ticker));
   }
   createReport(input: ReportRecord) {
     this.reports.set(input.id, { ...input });
