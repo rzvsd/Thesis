@@ -7,7 +7,7 @@
 // So precompute never spends the user dispatch cap (DEEP_DIVE_DAILY_CAP) and never starts one Actions run each.
 import type { Sql } from "../../_shared/db.ts";
 import { env } from "../../_shared/env.ts";
-import { deepDiveFingerprint } from "../jobs/service.ts";
+import { DEEP_DIVE_SCHEMA_VERSION, deepDiveFingerprint } from "../jobs/service.ts";
 import type { JobsStore } from "../jobs/store.ts";
 import type { EvalMeta, EvalResult } from "./result.ts";
 import { ok, validation } from "./result.ts";
@@ -15,8 +15,6 @@ import { ok, validation } from "./result.ts";
 export type DeepDiveRefreshReason = "no_report" | "new_filing" | "expired";
 
 const COVERAGE_LIST_LIMIT = 10_000;
-// Same string as DEEP_DIVE_SCHEMA_VERSION in _lib/jobs/service.ts (2.1: reports carry fact_pack).
-const SCHEMA_VERSION = "2.1";
 
 export interface PrecomputeStore {
   listCoveredTickers(limit: number): Promise<string[]>;
@@ -128,7 +126,11 @@ export async function runDeepDivePrecompute(
       const latestPeriod = await deps.store.jobs.getCoverageLatestPeriod(ticker);
       const reason = await detectDeepDiveRefresh(deps.store, {
         ticker,
-        currentFingerprint: deepDiveFingerprint({ ticker, schemaVersion: SCHEMA_VERSION, latestPeriod }),
+        currentFingerprint: deepDiveFingerprint({
+          ticker,
+          schemaVersion: DEEP_DIVE_SCHEMA_VERSION,
+          latestPeriod,
+        }),
         nowIso,
       });
       if (!reason) continue;

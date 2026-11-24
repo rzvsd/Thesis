@@ -89,7 +89,9 @@ export class SecClient {
     if (start > now) await this.sleep(start - now);
   }
 
-  private async attempt(url: string): Promise<Response> {
+  /** One request. For an ok answer the body is read and parsed here, while the per-attempt timeout and the
+   *  time-box abort still apply: both are only removed once the body is consumed. */
+  private async attempt(url: string): Promise<{ response: Response; json?: unknown }> {
     await this.throttle();
     if (this.signal?.aborted) throw new Error("SEC request aborted");
     const controller = new AbortController();
@@ -98,11 +100,13 @@ export class SecClient {
     this.signal?.addEventListener("abort", onAbort, { once: true });
     this.requestCount += 1;
     try {
-      return await this.fetchImpl(url, {
+      const response = await this.fetchImpl(url, {
         method: "GET",
         headers: { "user-agent": this.userAgent, accept: "application/json" },
         signal: controller.signal
       });
+      if (!response.ok) return { response };
+      return { response, json: await response.json() };
     } finally {
       clearTimeout(timer);
       this.signal?.removeEventListener("abort", onAbort);
@@ -116,8 +120,8 @@ export class SecClient {
       if (this.signal?.aborted) throw new Error("SEC request aborted");
       let wait = this.backoffMs * 2 ** attempt;
       try {
-        const response = await this.attempt(url);
-        if (response.ok) return (await response.json()) as T;
+        const { response, json } = await this.attempt(url);
+        if (response.ok) return json as T;
         lastError = new SecHttpError(response.status, url);
         const retryable = response.status === 429 || response.status >= 500;
         if (!retryable) throw lastError;

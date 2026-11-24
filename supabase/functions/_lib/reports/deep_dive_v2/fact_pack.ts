@@ -36,7 +36,8 @@ export interface AnnualFacts {
   short_term_investments?: number;
   /** Current plus long-term debt, including commercial paper when tagged. */
   debt_total?: number;
-  /** Period-end shares outstanding (cover page count when the balance sheet count is missing). */
+  /** Shares outstanding: the annual report's cover page count (a 10-K dates it after the period end, a 20-F
+   *  at the period end), else the balance sheet count at the period end. */
   shares_outstanding?: number;
   /** Weighted average diluted shares for the year. */
   shares_diluted?: number;

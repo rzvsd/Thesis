@@ -72,36 +72,48 @@ function monthsBetween(from: string, to: string): number {
   return (Date.parse(to) - Date.parse(from)) / (DAY_MS * 30.44);
 }
 
-/** Fiscal year and period of a filing: its own facts first (fy/fp of any fact with its accession), else from
- *  the annual rows (the fiscal year whose end it matches, or the quarter counted from the last year end). */
+/** Fiscal year and period of a filing. An annual report takes the fiscal year of the annual row whose end it
+ *  matches (those years are already checked against mis-tagged fy values and always go up), else its own fy (fy/fp
+ *  of any fact with its accession), else a year counted from the last annual row. A quarter takes its own fy/fp
+ *  when that fy is after the last year end before it, else the quarter counted from that year end. */
 export function fiscalPeriodOf(
   filing: RecentFiling,
   index: FactIndex | null,
   annual: AnnualFacts[]
 ): { fiscal_year: number; fiscal_period: LatestFiling["fiscal_period"] } | null {
   const isAnnual = ANNUAL.has(filing.form);
-  const found = index?.fiscalInfoForAccession(filing.accession);
-  // A filing's fy is off by more than a year from its period end only when the filer tagged it wrong.
-  const endYear = filing.period_end ? Number.parseInt(filing.period_end.slice(0, 4), 10) : undefined;
-  const own = found && (endYear === undefined || Math.abs(found.fy - endYear) <= 1) ? found : null;
-  if (own) {
-    if (isAnnual) return { fiscal_year: own.fy, fiscal_period: "FY" };
-    if (own.fp === "Q1" || own.fp === "Q2" || own.fp === "Q3") return { fiscal_year: own.fy, fiscal_period: own.fp };
-  }
   const periodEnd = filing.period_end;
-  if (!periodEnd) return null;
-  if (isAnnual) {
+  if (isAnnual && periodEnd) {
     const row = annual.find((entry) => Math.abs(Date.parse(entry.period_end) - Date.parse(periodEnd)) < 20 * DAY_MS);
     if (row) return { fiscal_year: row.fiscal_year, fiscal_period: "FY" };
-    const last = [...annual].reverse().find((entry) => entry.period_end < periodEnd);
-    if (last) return { fiscal_year: last.fiscal_year + Math.round(monthsBetween(last.period_end, periodEnd) / 12), fiscal_period: "FY" };
+  }
+  const found = index?.fiscalInfoForAccession(filing.accession);
+  // A filing's fy is off by more than a year from its period end only when the filer tagged it wrong.
+  const endYear = periodEnd ? Number.parseInt(periodEnd.slice(0, 4), 10) : undefined;
+  const own = found && (endYear === undefined || Math.abs(found.fy - endYear) <= 1) ? found : null;
+  const lastYear = periodEnd ? [...annual].reverse().find((entry) => entry.period_end < periodEnd) : undefined;
+  if (own) {
+    if (isAnnual) return { fiscal_year: own.fy, fiscal_period: "FY" };
+    // A quarter after a year end belongs to a later fiscal year; an fy that says otherwise is a mis-tag.
+    const quarterFp = own.fp === "Q1" || own.fp === "Q2" || own.fp === "Q3";
+    if (quarterFp && (!lastYear || own.fy > lastYear.fiscal_year)) {
+      return { fiscal_year: own.fy, fiscal_period: own.fp as "Q1" | "Q2" | "Q3" };
+    }
+  }
+  if (!periodEnd) return null;
+  if (isAnnual) {
+    if (lastYear) {
+      return {
+        fiscal_year: lastYear.fiscal_year + Math.round(monthsBetween(lastYear.period_end, periodEnd) / 12),
+        fiscal_period: "FY"
+      };
+    }
     return { fiscal_year: Number.parseInt(periodEnd.slice(0, 4), 10), fiscal_period: "FY" };
   }
-  const last = [...annual].reverse().find((entry) => entry.period_end < periodEnd);
-  if (!last) return null;
-  const quarter = Math.round(monthsBetween(last.period_end, periodEnd) / 3);
+  if (!lastYear) return null;
+  const quarter = Math.round(monthsBetween(lastYear.period_end, periodEnd) / 3);
   if (quarter < 1 || quarter > 3) return null;
-  return { fiscal_year: last.fiscal_year + 1, fiscal_period: `Q${quarter}` as "Q1" | "Q2" | "Q3" };
+  return { fiscal_year: lastYear.fiscal_year + 1, fiscal_period: `Q${quarter}` as "Q1" | "Q2" | "Q3" };
 }
 
 export function periodLabel(fiscalYear: number, fiscalPeriod: LatestFiling["fiscal_period"]): string {

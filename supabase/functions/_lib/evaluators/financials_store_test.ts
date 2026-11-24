@@ -66,6 +66,9 @@ Deno.test("postgres store: one transaction, rows as jsonb, coverage from the sto
   assertEquals(result, { upserted: 1, snapshotCount: 5, latestPeriod: "2025-Q1", earliestPeriod: "2020-FY" });
   assertEquals(queries.length, 3);
   assertStringIncludes(queries[0]!.text, "on conflict (ticker, period, period_type) do update");
+  // The JSON text must be cast through text: $1::jsonb makes postgres.js encode the string a second time.
+  assertStringIncludes(queries[0]!.text, "jsonb_to_recordset($1::text::jsonb)");
+  assertEquals(typeof queries[0]!.params[0], "string");
   const sent = JSON.parse(String(queries[0]!.params[0]));
   assertEquals(sent[0].snapshot_id, "sec-AAPL-2024-FY");
   assertEquals(sent[0].filing_date, "2024-11-01");

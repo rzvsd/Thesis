@@ -64,6 +64,30 @@ test("SEC client spaces request starts to stay under 8 a second", async () => {
   assert.deepEqual(waits, [125, 250]);
 });
 
+test("SEC client: a body that stalls after the headers is cut by the attempt timeout and the time box", async () => {
+  // Headers and part of the body arrive, then nothing: the stream only ends when the request is aborted.
+  const stalled = (_url: string, init?: RequestInit) =>
+    Promise.resolve(
+      new Response(
+        new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(new TextEncoder().encode('{"facts":'));
+            init?.signal?.addEventListener("abort", () => controller.error(new Error("aborted")));
+          }
+        }),
+        { status: 200 }
+      )
+    );
+  const timed = new SecClient({ ...FAST, retries: 0, timeoutMs: 20, fetchImpl: stalled });
+  await assert.rejects(timed.getJson("https://data.sec.gov/slow"));
+
+  const box = new AbortController();
+  const boxed = new SecClient({ ...FAST, retries: 2, timeoutMs: 60_000, signal: box.signal, fetchImpl: stalled });
+  setTimeout(() => box.abort(), 20);
+  await assert.rejects(boxed.getJson("https://data.sec.gov/slow"));
+  assert.equal(boxed.requestCount, 1);
+});
+
 test("buildFactPack: a full pack from the three SEC files", async () => {
   const sec = fakeSec(acmeRoutes());
   const pack = await buildFactPack("acme", { clientOptions: { ...FAST, fetchImpl: sec.fetch }, now: NOW });
@@ -148,6 +172,17 @@ test("ingest body: canonical keys, margins in percent, missing fields listed", a
   assert.equal(fy2024.data.shareholders_equity, 57e9);
   assert.deepEqual(fy2024.missing_fields, []);
   assert.ok(body.snapshots.find((snapshot) => snapshot.period === "2021-FY")!.missing_fields.includes("debt_total"));
+});
+
+test("ingest body: two rows with one fiscal year send one snapshot, the later period end", async () => {
+  const pack = await buildFactPack("ACME", { clientOptions: { ...FAST, fetchImpl: fakeSec(acmeRoutes()).fetch } });
+  assert.ok(pack);
+  const last = pack.annual[pack.annual.length - 1]!;
+  pack.annual.push({ ...last, period_end: "2025-09-27", revenue: 1 });
+  const body = ingestBodyFromPack(pack);
+  const periods = body.snapshots.map((snapshot) => snapshot.period);
+  assert.equal(new Set(periods).size, periods.length);
+  assert.equal(body.snapshots[body.snapshots.length - 1]?.data.revenue, 1);
 });
 
 test("ingest post: token header, URL, failures logged and swallowed", async () => {

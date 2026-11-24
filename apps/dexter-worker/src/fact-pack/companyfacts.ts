@@ -15,14 +15,20 @@
 // Rules (they fix the legacy loader, which keyed values by the filing's fy and so mixed years):
 // - A fiscal year is found by its period: annual forms (10-K, 20-F, 40-F and their /A), duration 350-380 days,
 //   end = that year's period end. Balance sheet values are instants at the period end.
+// - Each filing gives one value per field and period: the fact of the highest-priority concept that filing
+//   tagged. Filings are compared with each other, not concepts, so a later 10-K that re-tagged a year under
+//   another concept (Revenues -> RevenueFromContractWithCustomer... after an ASC 606 restatement) still wins.
 // - Money values: the latest filed value wins, so a 10-K/A or a later 10-K that restated a year replaces the
 //   first figure. Each change is recorded in `restatements`. filing_date/form/accession stay the annual report
 //   that first reported the year.
-// - Per-share values and share counts are taken as first reported, never from a later filing, because a later
-//   filing may show them split-adjusted. Nothing is split-adjusted here, so a split shows as a step in EPS and
-//   share count. The renderer must not read that step as a business change.
+// - Per-share values and share counts come from the annual report that first reported the year, or from an
+//   amendment of it (a /A filed before the next year's report); never from a later year's report, because that
+//   may show them split-adjusted. Nothing is split-adjusted here, so a split shows as a step in EPS and share
+//   count. The renderer must not read that step as a business change.
 // - The fiscal year of a period comes from the fy of the annual report whose current period it is, else from
-//   the nearest such report by counting years, else the calendar year of the period end.
+//   the nearest such report by counting years, else the calendar year of the period end. An fy whose offset
+//   from the calendar year of the period end disagrees with the offset most years use is a mis-tag and is not
+//   trusted, and fiscal years always go up.
 import type { AnnualFacts } from "./types";
 
 export interface XbrlFact {
@@ -227,6 +233,8 @@ export interface Restatement {
   fiscal_year: number;
   field: string;
   concept: string;
+  /** Set when the first report used another concept than the one the value now comes from. */
+  first_concept?: string;
   first_value: number;
   value: number;
   accession: string;
@@ -306,16 +314,24 @@ export class FactIndex {
   }
 }
 
+/** The taxonomy whose annual revenue or profit facts reach the latest year end (a filer that moved from US GAAP
+ *  to IFRS, or back, is read in the one it uses now); us-gaap on a tie. */
 function pickTaxonomy(index: FactIndex): Taxonomy | null {
-  const has = (concepts: string[]) =>
-    concepts.some((concept) =>
-      Object.keys(index.concept(concept)?.units ?? {}).some((unit) =>
-        index.annualFacts(concept, unit).some(isAnnualDuration)
-      )
-    );
-  if (has([...US_GAAP_REVENUE, g("NetIncomeLoss"), g("ProfitLoss")])) return "us-gaap";
-  if (has([i("Revenue"), i("ProfitLoss")])) return "ifrs-full";
-  return null;
+  const latestEnd = (concepts: string[]) => {
+    let latest = "";
+    for (const concept of concepts) {
+      for (const unit of Object.keys(index.concept(concept)?.units ?? {})) {
+        for (const fact of index.annualFacts(concept, unit)) {
+          if (isAnnualDuration(fact) && fact.end > latest) latest = fact.end;
+        }
+      }
+    }
+    return latest;
+  };
+  const gaap = latestEnd([...US_GAAP_REVENUE, g("NetIncomeLoss"), g("ProfitLoss")]);
+  const ifrs = latestEnd([i("Revenue"), i("ProfitLoss")]);
+  if (!gaap && !ifrs) return null;
+  return ifrs > gaap ? "ifrs-full" : "us-gaap";
 }
 
 /** The money unit most annual income facts use; USD wins a tie. */
@@ -349,6 +365,8 @@ interface PeriodYear {
   fiscalYear: number;
   /** The annual report that first reported this period. */
   original: XbrlFact;
+  /** When the next period's annual report was filed (amendments filed before it belong to this year's report). */
+  nextFiled?: string;
 }
 
 /** Fiscal year ends from annual duration facts of the anchor concepts, with the fiscal year of each. */
@@ -395,8 +413,38 @@ function fiscalYears(index: FactIndex, anchors: string[], currency: string): Per
     merged.push(period);
   }
 
+  // A filer now and then tags DocumentFiscalYearFocus one year off (the 10-K for the year ending 2025-12-31 with
+  // fy 2024). Anchors whose offset from the calendar year of their end disagrees with the offset most anchored
+  // years use are dropped; those years then count from the nearest good anchor. On a tie nothing is dropped.
+  const yearOf = (end: string) => Number.parseInt(end.slice(0, 4), 10);
+  const offsetCounts = new Map<number, number>();
+  for (const period of merged) {
+    if (period.anchorFy === undefined) continue;
+    const offset = period.anchorFy - yearOf(period.end);
+    offsetCounts.set(offset, (offsetCounts.get(offset) ?? 0) + 1);
+  }
+  let usualOffset: number | undefined;
+  let usualCount = 0;
+  let tie = false;
+  for (const [offset, count] of offsetCounts) {
+    if (count > usualCount) {
+      usualOffset = offset;
+      usualCount = count;
+      tie = false;
+    } else if (count === usualCount) {
+      tie = true;
+    }
+  }
+  if (usualOffset !== undefined && !tie) {
+    for (const period of merged) {
+      if (period.anchorFy !== undefined && period.anchorFy - yearOf(period.end) !== usualOffset) {
+        period.anchorFy = undefined;
+      }
+    }
+  }
+
   const anchored = merged.filter((period) => period.anchorFy !== undefined);
-  return merged.map((period) => {
+  const rows: PeriodYear[] = merged.map((period) => {
     if (period.anchorFy !== undefined) {
       return { end: period.end, fiscalYear: period.anchorFy, original: period.original };
     }
@@ -410,6 +458,17 @@ function fiscalYears(index: FactIndex, anchors: string[], currency: string): Per
     if (nearest) fiscalYear = nearest.anchorFy! + Math.round(days(nearest.end, period.end) / 365.25);
     return { end: period.end, fiscalYear, original: period.original };
   });
+
+  // Fiscal years always go up: two rows with one fiscal year would make two snapshots with one period.
+  for (let k = 1; k < rows.length; k += 1) {
+    const prev = rows[k - 1]!;
+    const row = rows[k]!;
+    if (row.fiscalYear <= prev.fiscalYear) {
+      row.fiscalYear = prev.fiscalYear + Math.max(1, Math.round(days(prev.end, row.end) / 365.25));
+    }
+    prev.nextFiled = row.original.filed;
+  }
+  return rows;
 }
 
 interface Picked {
@@ -418,7 +477,9 @@ interface Picked {
   restatement?: Omit<Restatement, "fiscal_year" | "field">;
 }
 
-/** One value for one period: the first concept in priority order that has it. */
+/** One value for one period. Each filing gives the fact of the highest-priority concept it tagged for the period;
+ *  then the latest filing wins for money, and the annual report of the year (or its amendment) for per-share
+ *  values and share counts. A change from the first filed value is returned as a restatement. */
 function pickValue(
   index: FactIndex,
   spec: FieldSpec,
@@ -426,34 +487,49 @@ function pickValue(
   currency: string
 ): Picked | undefined {
   const unit = unitFor(spec.unit, currency);
-  for (const concept of spec.concepts) {
-    const candidates = index
-      .annualFacts(concept, unit)
-      .filter((fact) =>
+  const perFiling = new Map<string, { fact: XbrlFact; concept: string; rank: number }>();
+  spec.concepts.forEach((concept, rank) => {
+    for (const fact of index.annualFacts(concept, unit)) {
+      const matches =
         spec.kind === "duration"
           ? fact.end === period.end && isAnnualDuration(fact)
-          : fact.end === period.end && !fact.start
-      )
-      .sort(byFiledAsc);
-    if (candidates.length === 0) continue;
-    const first = candidates[0]!;
-    const asReported = spec.unit !== "money";
-    const chosen = asReported ? first : candidates[candidates.length - 1]!;
-    const sign = (value: number) => (spec.positive ? Math.abs(value) : value);
-    const picked: Picked = { value: sign(chosen.val), concept };
-    if (!asReported && chosen.val !== first.val) {
-      picked.restatement = {
-        concept,
-        first_value: sign(first.val),
-        value: sign(chosen.val),
-        accession: chosen.accn,
-        form: chosen.form,
-        filed: chosen.filed
-      };
+          : fact.end === period.end && !fact.start;
+      if (!matches) continue;
+      const seen = perFiling.get(fact.accn);
+      if (!seen || rank < seen.rank || (rank === seen.rank && byFiledAsc(fact, seen.fact) < 0)) {
+        perFiling.set(fact.accn, { fact, concept, rank });
+      }
     }
-    return picked;
+  });
+  const picks = [...perFiling.values()].sort((a, b) => byFiledAsc(a.fact, b.fact));
+  if (picks.length === 0) return undefined;
+  const first = picks[0]!;
+  let chosen = picks[picks.length - 1]!;
+  if (spec.unit !== "money") {
+    // The year's own report and amendments of it; a later year's report may be split-adjusted.
+    const sameReport = picks.filter(
+      (pick) =>
+        pick.fact.accn === period.original.accn ||
+        (pick.fact.form.trim().toUpperCase().endsWith("/A") &&
+          pick.fact.filed >= period.original.filed &&
+          (period.nextFiled === undefined || pick.fact.filed < period.nextFiled))
+    );
+    chosen = sameReport[sameReport.length - 1] ?? first;
   }
-  return undefined;
+  const sign = (value: number) => (spec.positive ? Math.abs(value) : value);
+  const picked: Picked = { value: sign(chosen.fact.val), concept: chosen.concept };
+  if (chosen.fact.val !== first.fact.val) {
+    picked.restatement = {
+      concept: chosen.concept,
+      ...(first.concept !== chosen.concept ? { first_concept: first.concept } : {}),
+      first_value: sign(first.fact.val),
+      value: sign(chosen.fact.val),
+      accession: chosen.fact.accn,
+      form: chosen.fact.form,
+      filed: chosen.fact.filed
+    };
+  }
+  return picked;
 }
 
 function pickInstant(index: FactIndex, concept: string, period: PeriodYear, currency: string) {
@@ -461,8 +537,9 @@ function pickInstant(index: FactIndex, concept: string, period: PeriodYear, curr
 }
 
 /** Debt: LongTermDebt (it includes the current portion), else noncurrent + current portion (LongTermDebtCurrent,
- *  else DebtCurrent). Plus CommercialPaper and ShortTermBorrowings when tagged, except next to DebtCurrent,
- *  which already includes them. */
+ *  else DebtCurrent). Plus short-term debt when tagged, except next to DebtCurrent, which already includes it:
+ *  ShortTermBorrowings, else CommercialPaper (many filers tag ShortTermBorrowings as the total that holds their
+ *  commercial paper, so the two are never added). */
 function pickDebt(index: FactIndex, period: PeriodYear, currency: string) {
   const parts: Picked[] = [];
   const total = pickInstant(index, g("LongTermDebt"), period, currency);
@@ -484,24 +561,25 @@ function pickDebt(index: FactIndex, period: PeriodYear, currency: string) {
     }
   }
   if (!currentIsDebtCurrent) {
-    for (const concept of [g("CommercialPaper"), g("ShortTermBorrowings")]) {
-      const part = pickInstant(index, concept, period, currency);
-      if (part) parts.push(part);
-    }
+    const shortTerm =
+      pickInstant(index, g("ShortTermBorrowings"), period, currency) ??
+      pickInstant(index, g("CommercialPaper"), period, currency);
+    if (shortTerm) parts.push(shortTerm);
   }
   if (parts.length === 0) return undefined;
   return {
     value: parts.reduce((sum, part) => sum + part.value, 0),
-    concept: parts.map((part) => part.concept).join(" + ")
+    concept: parts.map((part) => part.concept).join(" + "),
+    restatements: parts.flatMap((part) => (part.restatement ? [part.restatement] : []))
   };
 }
 
-/** Shares outstanding: the cover page count of the annual report (dated after the period end), else the balance
- *  sheet count at the period end. As first reported. */
+/** Shares outstanding: the cover page count of the annual report (a 10-K dates it after the period end, a 20-F
+ *  at the period end), else the balance sheet count at the period end. As first reported. */
 function pickSharesOutstanding(index: FactIndex, period: PeriodYear) {
   const cover = index
     .annualFacts("dei:EntityCommonStockSharesOutstanding", "shares")
-    .filter((fact) => fact.end > period.end && days(period.end, fact.end) <= 200)
+    .filter((fact) => fact.end >= period.end && days(period.end, fact.end) <= 200)
     .sort(byFiledAsc);
   const own = cover.find((fact) => fact.accn === period.original.accn) ?? cover[0];
   if (own) return { value: own.val, concept: "dei:EntityCommonStockSharesOutstanding" };
@@ -556,12 +634,18 @@ export function mapAnnualFacts(json: CompanyFactsJson): AnnualMapping {
         if (cost) {
           row.gross_profit = row.revenue - cost.value;
           concepts.gross_profit = `${concepts.revenue} - ${cost.concept}`;
+          if (cost.restatement) {
+            restatements.push({ fiscal_year: period.fiscalYear, field: "gross_profit", ...cost.restatement });
+          }
         }
       }
       const debt = pickDebt(index, period, currency);
       if (debt) {
         row.debt_total = debt.value;
         concepts.debt_total = debt.concept;
+        for (const change of debt.restatements) {
+          restatements.push({ fiscal_year: period.fiscalYear, field: "debt_total", ...change });
+        }
       }
     }
 

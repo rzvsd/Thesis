@@ -83,12 +83,23 @@ export function snapshotFromAnnual(row: AnnualFacts): IngestSnapshot {
   };
 }
 
+/** One row per fiscal year (the later period end wins), oldest first. The API refuses a body that lists a period
+ *  twice, so one mis-labelled year must not fail the whole ingest. */
+function onePerFiscalYear(rows: AnnualFacts[]): AnnualFacts[] {
+  const byYear = new Map<number, AnnualFacts>();
+  for (const row of rows) {
+    const seen = byYear.get(row.fiscal_year);
+    if (!seen || row.period_end > seen.period_end) byYear.set(row.fiscal_year, row);
+  }
+  return [...byYear.values()].sort((a, b) => (a.period_end < b.period_end ? -1 : a.period_end > b.period_end ? 1 : 0));
+}
+
 export function ingestBodyFromPack(pack: FactPack): IngestBody {
   return {
     ticker: pack.ticker,
     provider: "sec_companyfacts",
     latest_period: pack.latest_filing?.period_label ?? null,
-    snapshots: pack.annual.slice(-MAX_SNAPSHOTS).map(snapshotFromAnnual)
+    snapshots: onePerFiscalYear(pack.annual).slice(-MAX_SNAPSHOTS).map(snapshotFromAnnual)
   };
 }
 

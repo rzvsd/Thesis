@@ -14,13 +14,16 @@ export function postgresFinancialsStore(sql: Sql): FinancialsStore {
       return await sql.begin(async (tx) => {
         let upserted = 0;
         if (rows.length > 0) {
+          // The rows go in as one JSON text cast through text. With $1::jsonb, postgres.js learns the parameter
+          // is jsonb and JSON-encodes the string again, so Postgres gets a jsonb string scalar and
+          // jsonb_to_recordset fails ("cannot call jsonb_to_recordset on a non-array").
           const result = await tx.unsafe(
             `insert into financial_snapshots (snapshot_id, ticker, period, period_type, fiscal_year, fiscal_quarter,
                provider, filing_date, retrieved_at, data, missing_fields, created_at, updated_at)
              select x.snapshot_id, x.ticker, x.period, x.period_type, x.fiscal_year, null, x.provider, x.filing_date,
                     x.retrieved_at::timestamptz, x.data, x.missing_fields, x.retrieved_at::timestamptz,
                     x.retrieved_at::timestamptz
-               from jsonb_to_recordset($1::jsonb)
+               from jsonb_to_recordset($1::text::jsonb)
                  as x(snapshot_id text, ticker text, period text, period_type text, fiscal_year integer,
                       provider text, filing_date text, retrieved_at text, data jsonb, missing_fields jsonb)
              on conflict (ticker, period, period_type) do update set

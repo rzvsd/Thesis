@@ -192,3 +192,185 @@ test("period label: 10-K is YYYY-FY; without own facts the period is counted fro
   // With no facts and no annual rows a 10-Q has no known period.
   assert.deepEqual(fiscalPeriodOf(fresh, null, []), null);
 });
+
+// Small hand-made company facts for the edge cases below. Values are plain numbers.
+type Fact = Parameters<typeof mapAnnualFacts>[0]["facts"][string][string]["units"][string][number];
+const tenK = (fact: Partial<Fact> & Pick<Fact, "end" | "val" | "accn" | "filed">): Fact => ({
+  fp: "FY",
+  form: "10-K",
+  ...fact
+});
+const year = (y: number) => ({ start: `${y}-01-01`, end: `${y}-12-31` });
+const money = (...facts: Fact[]) => ({ units: { USD: facts } });
+
+test("a later 10-K that re-tags a year under another concept wins over concept priority (ASC 606)", () => {
+  const mapping = mapAnnualFacts({
+    cik: 1,
+    entityName: "Switch",
+    facts: {
+      "us-gaap": {
+        Revenues: money(
+          tenK({ ...year(2016), val: 1000, accn: "K16", fy: 2016, filed: "2017-02-20" }),
+          tenK({ ...year(2016), val: 1000, accn: "K17", fy: 2017, filed: "2018-02-20" }),
+          tenK({ ...year(2017), val: 1100, accn: "K17", fy: 2017, filed: "2018-02-20" })
+        ),
+        RevenueFromContractWithCustomerExcludingAssessedTax: money(
+          tenK({ ...year(2016), val: 950, accn: "K18", fy: 2018, filed: "2019-02-20" }),
+          tenK({ ...year(2017), val: 1040, accn: "K18", fy: 2018, filed: "2019-02-20" }),
+          tenK({ ...year(2018), val: 1200, accn: "K18", fy: 2018, filed: "2019-02-20" })
+        )
+      }
+    }
+  });
+  assert.deepEqual(
+    mapping.annual.map((row) => [row.fiscal_year, row.revenue, row.accession]),
+    [
+      [2016, 950, "K16"],
+      [2017, 1040, "K17"],
+      [2018, 1200, "K18"]
+    ]
+  );
+  assert.equal(
+    mapping.annual[1]?.concepts?.revenue,
+    "us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax"
+  );
+  assert.deepEqual(mapping.restatements[1], {
+    fiscal_year: 2017,
+    field: "revenue",
+    concept: "us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax",
+    first_concept: "us-gaap:Revenues",
+    first_value: 1100,
+    value: 1040,
+    accession: "K18",
+    form: "10-K",
+    filed: "2019-02-20"
+  });
+  assert.equal(mapping.restatements.length, 2);
+});
+
+test("a 10-K/A of the same year updates EPS with net income; a later year's 10-K does not", () => {
+  const mapping = mapAnnualFacts({
+    cik: 1,
+    entityName: "Amend",
+    facts: {
+      "us-gaap": {
+        NetIncomeLoss: money(
+          tenK({ ...year(2024), val: 60, accn: "K24", fy: 2024, filed: "2025-02-20" }),
+          tenK({ ...year(2024), val: 40, accn: "K24A", fy: 2024, form: "10-K/A", filed: "2025-06-01" }),
+          tenK({ ...year(2025), val: 70, accn: "K25", fy: 2025, filed: "2026-02-20" })
+        ),
+        EarningsPerShareDiluted: {
+          units: {
+            "USD/shares": [
+              tenK({ ...year(2024), val: 0.6, accn: "K24", fy: 2024, filed: "2025-02-20" }),
+              tenK({ ...year(2024), val: 0.4, accn: "K24A", fy: 2024, form: "10-K/A", filed: "2025-06-01" }),
+              // After a 2-for-1 split the FY2025 10-K shows FY2024 at half.
+              tenK({ ...year(2024), val: 0.2, accn: "K25", fy: 2025, filed: "2026-02-20" }),
+              tenK({ ...year(2025), val: 0.35, accn: "K25", fy: 2025, filed: "2026-02-20" })
+            ]
+          }
+        }
+      }
+    }
+  });
+  const fy2024 = mapping.annual.find((row) => row.fiscal_year === 2024)!;
+  assert.equal(fy2024.net_income, 40);
+  assert.equal(fy2024.eps_diluted, 0.4);
+  assert.deepEqual(
+    mapping.restatements.filter((change) => change.fiscal_year === 2024).map((change) => [change.field, change.value]),
+    [
+      ["net_income", 40],
+      ["eps_diluted", 0.4]
+    ]
+  );
+});
+
+test("a mis-tagged fy (10-K for 2025 tagged 2024) never gives two rows with one fiscal year", () => {
+  const revenue = [2021, 2022, 2023, 2024].map((y) =>
+    tenK({ ...year(y), val: y, accn: `K${y}`, fy: y, filed: `${y + 1}-02-20` })
+  );
+  revenue.push(tenK({ ...year(2025), val: 2025, accn: "K2025", fy: 2024, filed: "2026-02-20" }));
+  const facts = { cik: 1, entityName: "Mistag", facts: { "us-gaap": { Revenues: money(...revenue) } } };
+  const mapping = mapAnnualFacts(facts);
+  assert.deepEqual(
+    mapping.annual.map((row) => [row.fiscal_year, row.period_end]),
+    [2021, 2022, 2023, 2024, 2025].map((y) => [y, `${y}-12-31`])
+  );
+  // The latest filing label follows the annual row, not the mis-tagged fy.
+  const filing = { form: "10-K", filing_date: "2026-02-20", period_end: "2025-12-31", accession: "K2025" };
+  assert.deepEqual(fiscalPeriodOf(filing, new FactIndex(facts), mapping.annual), {
+    fiscal_year: 2025,
+    fiscal_period: "FY"
+  });
+
+  // Only two years, one of them mis-tagged: no majority, but fiscal years still go up.
+  const two = mapAnnualFacts({
+    cik: 1,
+    entityName: "Two",
+    facts: { "us-gaap": { Revenues: money(revenue[3]!, revenue[4]!) } }
+  });
+  assert.deepEqual(two.annual.map((row) => row.fiscal_year), [2024, 2025]);
+});
+
+test("20-F cover share count dated at the period end is used", () => {
+  const mapping = mapAnnualFacts({
+    cik: 1,
+    entityName: "Foreign",
+    facts: {
+      "ifrs-full": {
+        Revenue: { units: { EUR: [tenK({ ...year(2024), val: 5, accn: "F24", fy: 2024, form: "20-F", filed: "2025-03-20" })] } }
+      },
+      dei: {
+        EntityCommonStockSharesOutstanding: {
+          units: { shares: [tenK({ end: "2024-12-31", val: 77, accn: "F24", fy: 2024, form: "20-F", filed: "2025-03-20" })] }
+        }
+      }
+    }
+  });
+  assert.equal(mapping.annual[0]?.shares_outstanding, 77);
+});
+
+test("a filer that moved from US GAAP to IFRS is read in IFRS", () => {
+  const ifrs = [2020, 2021, 2022].map((y) =>
+    tenK({ ...year(y), val: y, accn: `F${y}`, fy: y, form: "20-F", filed: `${y + 1}-04-01` })
+  );
+  const mapping = mapAnnualFacts({
+    cik: 1,
+    entityName: "Mover",
+    facts: {
+      "us-gaap": { Revenues: money(tenK({ ...year(2019), val: 1, accn: "K19", fy: 2019, filed: "2020-03-01" })) },
+      "ifrs-full": { Revenue: { units: { EUR: ifrs } } }
+    }
+  });
+  assert.equal(mapping.taxonomy, "ifrs-full");
+  assert.deepEqual(mapping.annual.map((row) => row.fiscal_year), [2020, 2021, 2022]);
+});
+
+test("debt: short-term borrowings, else commercial paper (never both); restated debt is recorded", () => {
+  const at = (val: number, accn: string, filed: string) => tenK({ end: "2024-12-31", val, accn, fy: 2024, filed });
+  const facts = (extra: Record<string, ReturnType<typeof money>>) => ({
+    cik: 1,
+    entityName: "Debt",
+    facts: {
+      "us-gaap": {
+        Revenues: money(tenK({ ...year(2024), val: 1, accn: "K24", fy: 2024, filed: "2025-02-20" })),
+        LongTermDebtNoncurrent: money(at(700, "K24", "2025-02-20"), at(690, "K25", "2026-02-20")),
+        LongTermDebtCurrent: money(at(30, "K24", "2025-02-20")),
+        CommercialPaper: money(at(10, "K24", "2025-02-20")),
+        ...extra
+      }
+    }
+  });
+  const both = mapAnnualFacts(facts({ ShortTermBorrowings: money(at(15, "K24", "2025-02-20")) }));
+  assert.equal(both.annual[0]?.debt_total, 690 + 30 + 15);
+  assert.equal(
+    both.annual[0]?.concepts?.debt_total,
+    "us-gaap:LongTermDebtNoncurrent + us-gaap:LongTermDebtCurrent + us-gaap:ShortTermBorrowings"
+  );
+  assert.deepEqual(
+    both.restatements.map((change) => [change.field, change.concept, change.first_value, change.value]),
+    [["debt_total", "us-gaap:LongTermDebtNoncurrent", 700, 690]]
+  );
+  const paperOnly = mapAnnualFacts(facts({}));
+  assert.equal(paperOnly.annual[0]?.debt_total, 690 + 30 + 10);
+});
