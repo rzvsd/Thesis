@@ -28,16 +28,19 @@ file, change this file first, in its own PR.
    - Periodic filings are 10-K, 10-Q, 20-F and 40-F, and their /A amendments when the financial statements
      change. 8-K, 6-K and NT filings never start a new report.
    - One report covers every share class of a company. Each class's ticker leads to the same report.
-   - **Not yet true in code** (asked of M2 on 2026-11-24, agreed by Razvan):
-     - Reuse ends on a clock today: 24 h for a user-run report (`DEEP_DIVE_REUSE_FRESHNESS_HOURS`) and 2160 h for
-       a precompute (`_lib/jobs/wiring.ts`). It must last until the fingerprint changes.
-     - Open jobs are deduplicated per user and ticker. Two customers who ask before the first job finishes each
-       start a job. It must become one open job per ticker across users, and the second customer waits for it.
-     - The fingerprint is `TICKER|schema_version|latest period` (`deepDiveFingerprint` in `_lib/jobs/service.ts`).
-       The period comes from `ticker_coverage.latest_period` on lookup and from the report's
-       `historical_context.latest_period` on store. Both must name the new filing for the fingerprint to change.
-       With no period it falls back to `LATEST_UNKNOWN`, which never changes, so the report check must refuse a
-       Deep Dive without a period.
+   - **How the code does it** (M2, PR #115, merged 2026-11-24):
+     - The fingerprint is `TICKER|schema_version|period` (`deepDiveFingerprint` in `_lib/jobs/service.ts`). On
+       lookup the period comes from `ticker_coverage.latest_period`. On store it comes from the report's
+       `historical_context.latest_period`, with coverage only as a fallback, so a filing that lands mid-run cannot
+       relabel an older analysis.
+     - A report with a known period is reused for any customer until the fingerprint changes. Reuse also stops
+       at a safety cap of 4380 h, about 6 months (`DEEP_DIVE_PRECOMPUTE_FRESHNESS_HOURS`), for user runs and
+       precomputes alike.
+     - With no period the fingerprint ends in `LATEST_UNKNOWN`, and reuse stays at 24 h
+       (`DEEP_DIVE_REUSE_FRESHNESS_HOURS`). That is why the report check refuses a Deep Dive without a period.
+     - One run per ticker. When another customer's run for the same ticker is open, a new request starts no run.
+       Its job gets `jobs.follows_job_id`, answers 202, and receives a copy of the report when the run completes.
+       If the run fails, the followers fail with its message. Followers use no dispatch slot.
 2. **Frozen at the filing date.** The report's as-of date is the date of the filing it reads. Nothing in a stored
    report is recomputed or refreshed later. This includes the price parts (Razvan, 2026-11-24). The price action
    chapter shows the trading month that ends on the filing date. Events and guidance stop at that date.
@@ -339,7 +342,7 @@ adds a number.
 | Licensed prices (price box default, price action, P/E history) | Needs a quote and Razvan's OK. No free plan allows display to paying users |
 | Model budget for Phase 4 | Not set, so fixture mode stays |
 | App screen shows the web report | Not allowed by D3 today. Needs a new decision from Razvan |
-| Reuse until the next filing; one open job per ticker | Agreed by Razvan 2026-11-24. Requested from M2 |
+| Reuse until the next filing; one open job per ticker | Done: M2 PR #115, merged 2026-11-24. Live after the next rebuild deploy |
 | Header stance pill | The mockup shows "Stance: Neutral, watch margins". Under rule 6 it becomes a plain summary of what to watch, with no rating words. Confirm with Razvan when building |
 
 ## 11. Where the mockup differs from this file
