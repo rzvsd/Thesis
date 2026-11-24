@@ -92,6 +92,7 @@ import com.thesis.mobile.ui.navigation.SubScreenBackRow
 import com.thesis.mobile.ui.navigation.ThesisTopBar
 import com.thesis.mobile.ui.navigation.warRoomsInEarningsWindow
 import com.thesis.mobile.ui.screens.DeepDiveScreen
+import com.thesis.mobile.ui.screens.DeepDiveWebPageAccess
 import com.thesis.mobile.ui.screens.DeleteAccountSection
 import com.thesis.mobile.ui.screens.HistoryScreen
 import com.thesis.mobile.ui.screens.HomeScreen
@@ -605,7 +606,14 @@ fun ThesisApp(
                                 rememberAsLastViewed = true
                             )
                             mainViewModel.setTab(AppTab.TODAY)
-                        }
+                        },
+                        deepDiveWebPage = DeepDiveWebPageAccess(
+                            apiBaseUrl = uiState.apiBaseUrl,
+                            accessToken = uiState.tokens?.accessToken,
+                            reportLoadedFromCache = uiState.deepDiveLoadedFromCache,
+                            isPaywallOpen = !uiState.paywallFeature.isNullOrBlank(),
+                            refreshAccessToken = mainViewModel::refreshAccessTokenForPage
+                        )
                     )
                     AppTab.NAMES -> NamesScreen(
                         padding = padding,
@@ -759,7 +767,8 @@ private fun ResearchTab(
     onNotify: (String) -> Unit,
     onOpenHistoryReport: (String) -> Unit,
     onRefreshWarRoom: () -> Unit,
-    onOpenPulseHistory: (String) -> Unit
+    onOpenPulseHistory: (String) -> Unit,
+    deepDiveWebPage: DeepDiveWebPageAccess? = null
 ) {
     Column(
         modifier = Modifier
@@ -807,6 +816,7 @@ private fun ResearchTab(
                 onOpenHistoryReport = onOpenHistoryReport,
                 onOpenPulseHistory = onOpenPulseHistory,
                 onOpenScenarioStress = { onSetMode(ResearchMode.SCENARIO) },
+                webPage = deepDiveWebPage,
                 onBack = {
                     onSetMode(
                         if (reportHistory.isNotEmpty()) {

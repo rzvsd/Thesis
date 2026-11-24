@@ -182,6 +182,7 @@ Deno.test("reports routes register the contract paths with user auth and pass th
     "GET /v1/reports/:id/note user",
     "PUT /v1/reports/:id/note user",
     "POST /v1/reports/:id/share user",
+    "GET /v1/reports/:id/page user",
   ]);
   for (const route of routes) {
     const res = await route.handler(

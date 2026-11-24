@@ -139,16 +139,25 @@ function el(attrs: Record<string, string> = {}): FakeEl {
 
 function makePage(
   data: unknown,
-  opts: { inputValue?: string; storage?: Record<string, string>; raw?: string } = {},
+  opts: {
+    inputValue?: string;
+    storage?: Record<string, string>;
+    raw?: string;
+    /** The in-app embed has no theme button. */
+    noThemeButton?: boolean;
+    /** html[data-theme] as the server sent it. */
+    serverTheme?: string;
+  } = {},
 ) {
   const reg = new Map<string, FakeEl[]>();
   const add = (sel: string, e: FakeEl) => {
     reg.set(sel, [...(reg.get(sel) ?? []), e]);
     return e;
   };
-  const html = el();
+  const html = el(opts.serverTheme ? { "data-theme": opts.serverTheme } : {});
   const body = el();
-  const themeBtn = add("button[data-dd-theme]", el({ "data-dd-theme": "" }));
+  const themeBtn = el({ "data-dd-theme": "" });
+  if (!opts.noThemeButton) add("button[data-dd-theme]", themeBtn);
   const story = add("button[data-dd-mode]", el({ "data-dd-mode": "story", "aria-pressed": "true" }));
   const charts = add("button[data-dd-mode]", el({ "data-dd-mode": "charts", "aria-pressed": "false" }));
   const navWrap = el();
@@ -419,6 +428,30 @@ Deno.test("fake DOM: theme cycles and is remembered", () => {
   const fresh = makePage(DATA);
   assertEquals(fresh.themeBtn.textContent, "Theme: Auto");
   assertEquals(fresh.html.getAttribute("data-theme"), null);
+});
+
+Deno.test("fake DOM: a page without the theme button keeps the server theme, stored choice or not", () => {
+  const stores: Array<Record<string, string>> = [{}, { "dd-theme": "auto" }, { "dd-theme": "light" }];
+  for (const storage of stores) {
+    const pg = makePage(DATA, { noThemeButton: true, serverTheme: "dark", storage });
+    assertEquals(pg.html.getAttribute("data-theme"), "dark");
+    assertEquals(pg.store.get("dd-theme"), storage["dd-theme"]);
+  }
+  const auto = makePage(DATA, { noThemeButton: true, storage: { "dd-theme": "dark" } });
+  assertEquals(auto.html.getAttribute("data-theme"), null);
+});
+
+Deno.test("fake DOM: with nothing stored the theme button starts from the server theme", () => {
+  const pg = makePage(DATA, { serverTheme: "light" });
+  assertEquals(pg.html.getAttribute("data-theme"), "light");
+  assertEquals(pg.themeBtn.textContent, "Theme: Light");
+  pg.themeBtn.fire("click");
+  assertEquals(pg.html.getAttribute("data-theme"), "dark");
+  assertEquals(pg.store.get("dd-theme"), "dark");
+  // A stored choice still wins over the server theme on the page with the button.
+  const stored = makePage(DATA, { serverTheme: "light", storage: { "dd-theme": "auto" } });
+  assertEquals(stored.html.getAttribute("data-theme"), null);
+  assertEquals(stored.themeBtn.textContent, "Theme: Auto");
 });
 
 Deno.test("fake DOM: reading mode", () => {
