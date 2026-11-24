@@ -176,6 +176,44 @@ Deno.test("new API keys go on apikey only, never as a bearer; user tokens still 
   assertEquals(r.seen[4].headers.has("authorization"), false);
 });
 
+Deno.test("a secret key with a line break inside is ignored for the platform key; odd client ips are not sent", async () => {
+  const saved = ["AUTH_SUPABASE_SECRET_KEY", "SUPABASE_SECRET_KEYS"].map((k) =>
+    [k, Deno.env.get(k)] as const
+  );
+  try {
+    Deno.env.set("AUTH_SUPABASE_SECRET_KEY", "sb_secret_pasted\nsecond_line");
+    Deno.env.set(
+      "SUPABASE_SECRET_KEYS",
+      JSON.stringify({ backup: "sb_secret_backup", default: "sb_secret_platform" }),
+    );
+    const { GoTrueClient, withClientIp } = await import("./gotrue.ts");
+    const r = recorder(200, {});
+    const c = new GoTrueClient({ url: "http://a", serviceKey: LEGACY_SVC, fetch: r.fetch });
+    await withClientIp("direct", () => c.resend("signup", "x@example.com"));
+    await withClientIp("2001:db8::1", () => c.recover("x@example.com"));
+    assertEquals(r.seen[0].headers.get("apikey"), "sb_secret_platform");
+    assertEquals(r.seen[0].headers.has("sb-forwarded-for"), false);
+    assertEquals(r.seen[1].headers.get("sb-forwarded-for"), "2001:db8::1");
+
+    Deno.env.set("AUTH_SUPABASE_SECRET_KEY", " sb_secret_own ");
+    const own = new GoTrueClient({ url: "http://a", serviceKey: LEGACY_SVC, fetch: r.fetch });
+    await own.recover("x@example.com");
+    assertEquals(r.seen[2].headers.get("apikey"), "sb_secret_own");
+  } finally {
+    for (const [k, v] of saved) v === undefined ? Deno.env.delete(k) : Deno.env.set(k, v);
+  }
+});
+
+Deno.test("a header value fetch refuses is reported as bad_header, not as an outage", async () => {
+  const c = new GoTrueClient({
+    url: "http://a",
+    anonKey: "anon",
+    fetch: () => Promise.reject(new TypeError("Invalid header value")),
+  });
+  const res = await c.recover("x@example.com");
+  assertEquals(res.ok ? "" : res.code, "bad_header");
+});
+
 Deno.test("isOtpCode takes the short email code at the lengths Supabase allows (6 to 10 digits)", () => {
   assertEquals(["123456", "12345678", "1234567890"].map(isOtpCode), [true, true, true]);
   assertEquals(["12345", "12345678901", "1234 5678", "v1s.abc", ""].map(isOtpCode), [
