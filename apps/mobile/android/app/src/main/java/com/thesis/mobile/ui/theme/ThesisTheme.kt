@@ -1,6 +1,5 @@
 package com.thesis.mobile.ui.theme
 
-import android.app.Activity
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material.ripple.LocalRippleTheme
 import androidx.compose.material.ripple.RippleAlpha
@@ -13,13 +12,11 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
-import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalView
-import androidx.core.view.WindowCompat
 import com.thesis.mobile.ui.motion.ThesisMotion
+import com.thesis.mobile.ui.platform.SystemBarAppearance
 import com.thesis.mobile.ui.platform.rememberSystemReducedMotion
 
 /** Light or dark. [System] follows the device setting. */
@@ -121,7 +118,8 @@ fun ThesisMaterialTheme(palette: ThesisPalette, content: @Composable () -> Unit)
  * system animator scale (0 = "Remove animations"), so [LocalReducedMotion] is true for either (section 4.8).
  *
  * The activity draws edge to edge (`enableEdgeToEdge()` in MainActivity, 5.1): the bars stay transparent and
- * only their icon appearance follows the palette. Over a HeroBand at rest the shell overrides it (2.7, PR-2).
+ * only their icon appearance follows the palette ([SystemBarAppearance], ui/platform). Over a HeroBand at rest the
+ * shell overrides it (2.7, PR-2).
  */
 @Composable
 fun ThesisTheme(
@@ -136,16 +134,8 @@ fun ThesisTheme(
         ThemeMode.System -> isSystemInDarkTheme()
     }
     val palette = remember(dark, upDown) { (if (dark) InkDark else PaperLight).withUpDown(upDown) }
-    val view = LocalView.current
-
-    if (!view.isInEditMode) {
-        SideEffect {
-            val window = (view.context as Activity).window
-            val controller = WindowCompat.getInsetsController(window, view)
-            controller.isAppearanceLightStatusBars = palette.isLight
-            controller.isAppearanceLightNavigationBars = palette.isLight
-        }
-    }
+    // The Android window calls live in ui/platform (section 4 preamble: android.* only there).
+    SystemBarAppearance(light = palette.isLight)
 
     val reduced = reduceMotion || rememberSystemReducedMotion()
     CompositionLocalProvider(LocalReducedMotion provides reduced) {

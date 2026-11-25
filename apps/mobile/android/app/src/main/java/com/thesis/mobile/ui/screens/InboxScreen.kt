@@ -54,7 +54,9 @@ fun InboxScreen(
     onUnlockDetail: () -> Unit,
     onSubmitFeedback: (String, String) -> Unit,
     onQuietAlertType: (String) -> Unit,
-    onDisableAlertType: (String) -> Unit
+    onDisableAlertType: (String) -> Unit,
+    /** False for an alert whose "Open" would only land back on Inbox (`DeepLinkRouter.alertHasDestination`). */
+    canOpenAlert: (AlertLedgerItemView) -> Boolean = { true }
 ) {
     var selectedSegment by rememberSaveable { mutableStateOf(Phase4Copy.inboxSegments.first()) }
     val filteredAlerts = remember(alerts, selectedSegment) {
@@ -136,7 +138,7 @@ fun InboxScreen(
             items(filteredAlerts, key = { it.id }) { alert ->
                 InboxRowCard(
                     alert = alert,
-                    onOpen = { onOpenAlert(alert) },
+                    onOpen = if (canOpenAlert(alert)) ({ onOpenAlert(alert) }) else null,
                     onUnlockDetail = onUnlockDetail,
                     onUseful = { onSubmitFeedback(alert.id, "useful") },
                     onNotUseful = { onSubmitFeedback(alert.id, "not_useful") },
@@ -151,7 +153,8 @@ fun InboxScreen(
 @Composable
 private fun InboxRowCard(
     alert: AlertLedgerItemView,
-    onOpen: () -> Unit,
+    /** Null hides "Open" (the alert's route has nowhere to go but Inbox). */
+    onOpen: (() -> Unit)?,
     onUnlockDetail: () -> Unit,
     onUseful: () -> Unit,
     onNotUseful: () -> Unit,
@@ -238,16 +241,18 @@ private fun InboxRowCard(
         HorizontalDivider(color = ThesisColors.Border)
 
         Row(horizontalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)) {
-            Button(
-                onClick = onOpen,
-                modifier = Modifier.weight(1f),
-                shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = ThesisColors.Primary,
-                    contentColor = ThesisColors.TextInverse
-                )
-            ) {
-                Text(Phase4Copy.inboxOpenLabel)
+            if (onOpen != null) {
+                Button(
+                    onClick = onOpen,
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = ThesisColors.Primary,
+                        contentColor = ThesisColors.TextInverse
+                    )
+                ) {
+                    Text(Phase4Copy.inboxOpenLabel)
+                }
             }
             OutlinedButton(
                 onClick = onUseful,

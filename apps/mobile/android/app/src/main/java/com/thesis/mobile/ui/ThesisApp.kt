@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
@@ -97,8 +98,11 @@ fun ThesisApp(
     LaunchedEffect(uiState.message, uiState.tokens) {
         val message = uiState.message
         if (!message.isNullOrBlank() && uiState.tokens != null) {
-            snackbarHostState.showThesisSnackbar(message)
+            // An action published with this message ("Deep Dive ready." → Open) rides on the snackbar (8 s).
+            val action = uiState.activeMessageAction
+            val result = snackbarHostState.showThesisSnackbar(message, action?.label)
             mainViewModel.clearMessage()
+            if (result == SnackbarResult.ActionPerformed && action != null) mainViewModel.onMessageAction(action)
         }
     }
 

@@ -81,6 +81,17 @@ object DeepLinkRouter {
         }
     }
 
+    /**
+     * True when [routeAlert] takes [alert] somewhere other than the Inbox root. An unknown route (or "inbox") lands
+     * on the Inbox root, which is where the user already is: Inbox hides "Open" for those alerts instead of offering
+     * a tap that changes nothing (5.5 race fixes). No alert detail destination exists yet; when one does, unknown
+     * routes push it and this returns true for every alert.
+     */
+    fun alertHasDestination(alert: AlertLedgerItemView): Boolean {
+        val route = routeAlert(alert)
+        return route.tab != ShellTab.Inbox || route.push != null || route.modal != null
+    }
+
     /** An Inbox alert or the Home morning briefing card. Unknown routes land on Inbox. */
     fun routeAlert(alert: AlertLedgerItemView): NavRoute {
         val briefing = if (alert.notificationType == "morning_exception_briefing") alert.briefingContext else null

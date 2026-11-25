@@ -56,7 +56,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -79,14 +78,24 @@ import com.thesis.mobile.model.ScenarioStressTemplateView
 import com.thesis.mobile.model.SectionView
 import com.thesis.mobile.model.UserProfileView
 import com.thesis.mobile.model.WarRoomView
+import com.thesis.mobile.ui.components.Kicker
 import com.thesis.mobile.ui.components.LegalLinks
+import com.thesis.mobile.ui.components.RowGroup
+import com.thesis.mobile.ui.components.SegmentedControl
+import com.thesis.mobile.ui.components.ToggleRow
 import com.thesis.mobile.ui.copy.Phase4Copy
 import com.thesis.mobile.ui.copy.ProductCopy
+import com.thesis.mobile.ui.shell.AppearancePrefs
 import com.thesis.mobile.ui.theme.HeadingFont
+import com.thesis.mobile.ui.theme.LocalThesisPalette
+import com.thesis.mobile.ui.theme.ThemeMode
 import com.thesis.mobile.ui.theme.ThesisColors
 import com.thesis.mobile.ui.theme.ThesisDimens
+import com.thesis.mobile.ui.theme.ThesisSpace
 import com.thesis.mobile.ui.theme.ThesisTheme
+import com.thesis.mobile.ui.theme.ThesisType
 import com.thesis.mobile.ui.theme.ThesisTypography
+import com.thesis.mobile.ui.theme.UpDownScheme
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -128,7 +137,10 @@ fun SettingsScreen(
     /** `BuildConfig.DEBUG`: shows the API base URL switch. */
     showDeveloperOptions: Boolean = false,
     /** The delete-account button and dialog (`DeleteAccountSection`, Android-only). */
-    deleteAccountSection: @Composable () -> Unit = {}
+    deleteAccountSection: @Composable () -> Unit = {},
+    /** You > Appearance (spec Q2: the Auto / Light / Dark setting ships in PR-1, Dark by default). */
+    appearance: AppearancePrefs = AppearancePrefs(),
+    onSetAppearance: (AppearancePrefs) -> Unit = {}
 ) {
     var baseUrl by rememberSaveable(currentApiBaseUrl) { mutableStateOf(currentApiBaseUrl) }
     var subscriptionFeedbackFlow by rememberSaveable { mutableStateOf("cancel") }
@@ -167,6 +179,9 @@ fun SettingsScreen(
                     color = ThesisColors.TextMuted
                 )
             }
+        }
+        item {
+            AppearanceSection(appearance = appearance, onSetAppearance = onSetAppearance)
         }
         item {
             MonthlyCoherenceSection(
@@ -680,4 +695,56 @@ private fun formatNotificationQuietUntil(raw: String): String? {
     return parsed
         .atZone(ZoneId.of("America/New_York"))
         .format(DateTimeFormatter.ofPattern("MMM d, HH:mm z"))
+}
+
+/** Segment order of the Theme control (5.22: Auto · Light · Dark). Auto follows the system setting. */
+private val ThemeModeOrder = listOf(ThemeMode.System, ThemeMode.Light, ThemeMode.Dark)
+
+/**
+ * You > Appearance (5.22, spec Q2), built from the kit so WP-G keeps it when it redraws You in PR-3: Theme
+ * (Auto · Light · Dark), colour-blind up/down colours (Classic when off) and the in-app Reduce motion toggle. Each change
+ * is stored per device at once (`SessionStore.saveAppearance`) and the theme follows on the next frame.
+ */
+@Composable
+private fun AppearanceSection(appearance: AppearancePrefs, onSetAppearance: (AppearancePrefs) -> Unit) {
+    val p = LocalThesisPalette.current
+    Column(verticalArrangement = Arrangement.spacedBy(ThesisSpace.s)) {
+        Kicker("Appearance")
+        RowGroup {
+            row {
+                Column(
+                    Modifier.padding(horizontal = ThesisSpace.l, vertical = ThesisSpace.rowPaddingV),
+                    verticalArrangement = Arrangement.spacedBy(ThesisSpace.s)
+                ) {
+                    Text("Theme", style = ThesisType.body, color = p.ink)
+                    SegmentedControl(
+                        options = listOf("Auto", "Light", "Dark"),
+                        selectedIndex = ThemeModeOrder.indexOf(appearance.themeMode).coerceAtLeast(0),
+                        onSelect = { i -> onSetAppearance(appearance.copy(themeMode = ThemeModeOrder[i])) }
+                    )
+                }
+            }
+            // A switch, not a two-segment control: "Colour-blind" does not fit half a 360 dp row at 2.0x (A4).
+            row {
+                ToggleRow(
+                    title = "Colour-blind colours",
+                    checked = appearance.upDown == UpDownScheme.ColourBlind,
+                    onCheckedChange = { on ->
+                        onSetAppearance(
+                            appearance.copy(upDown = if (on) UpDownScheme.ColourBlind else UpDownScheme.Classic)
+                        )
+                    },
+                    sub = "Blue for up and clay for down, instead of green and red"
+                )
+            }
+            row {
+                ToggleRow(
+                    title = "Reduce motion",
+                    checked = appearance.reduceMotion,
+                    onCheckedChange = { on -> onSetAppearance(appearance.copy(reduceMotion = on)) },
+                    sub = "Also on when the system removes animations"
+                )
+            }
+        }
+    }
 }

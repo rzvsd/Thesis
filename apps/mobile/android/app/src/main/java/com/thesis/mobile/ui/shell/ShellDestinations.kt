@@ -14,6 +14,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import com.thesis.mobile.ui.navigation.DeepLinkRouter
 import com.thesis.mobile.ui.navigation.Destination
 import com.thesis.mobile.ui.navigation.warRoomsInEarningsWindow
 import com.thesis.mobile.ui.screens.DeepDiveScreen
@@ -72,7 +73,9 @@ internal fun ShellContentScope.Content(entry: NavEntry, padding: PaddingValues) 
             onRunReport = { actions.onRunDeepDive(state.selectedTicker.orEmpty()) },
             onOpenReport = { reportId -> actions.onOpenReport(reportId) },
             onOpenPulse = { date -> actions.onOpenPulse(date) },
-            padding = padding
+            padding = padding,
+            // History on the Research stack (5.12 "See all"); the root lists only the three latest.
+            onSeeAllHistory = actions::onOpenHistory
         )
         Destination.Inbox -> InboxScreen(
             padding = padding,
@@ -80,6 +83,8 @@ internal fun ShellContentScope.Content(entry: NavEntry, padding: PaddingValues) 
             inboxError = state.inboxError,
             onRefresh = actions::onRefreshInbox,
             onOpenAlert = actions::onOpenAlert,
+            // An alert whose route only lands back on Inbox has nothing to open (5.5 race fixes, audit A).
+            canOpenAlert = DeepLinkRouter::alertHasDestination,
             onUnlockDetail = { actions.onRequireUpgrade("filing_change_detail") },
             onSubmitFeedback = actions::onSubmitAlertFeedback,
             onQuietAlertType = actions::onMuteAlert,
@@ -225,7 +230,9 @@ internal fun ShellContentScope.Content(entry: NavEntry, padding: PaddingValues) 
             onOpenSystemNotificationSettings = platform.openSystemNotificationSettings,
             canStartPurchase = platform.startPurchase != null,
             showDeveloperOptions = platform.showDeveloperOptions,
-            deleteAccountSection = platform.deleteAccountSection
+            deleteAccountSection = platform.deleteAccountSection,
+            appearance = state.appearance,
+            onSetAppearance = actions::onSetAppearance
         )
         // Search (WP-E) is not built yet: the modal offers the ticker search of the Research root.
         Destination.Search -> ResearchScreen(

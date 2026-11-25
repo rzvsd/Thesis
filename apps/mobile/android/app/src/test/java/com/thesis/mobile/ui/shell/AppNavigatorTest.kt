@@ -246,6 +246,12 @@ class AppNavigatorTest {
 
         assertEquals(Destination.You, DeepLinkRouter.routeAlert(alert("you")).modal)
         assertEquals(ShellTab.Inbox, DeepLinkRouter.routeAlert(alert("something_new")).tab)
+        // Inbox hides "Open" where the route only lands back on the Inbox root (5.5).
+        assertFalse(DeepLinkRouter.alertHasDestination(alert("something_new")))
+        assertFalse(DeepLinkRouter.alertHasDestination(alert("inbox")))
+        assertTrue(DeepLinkRouter.alertHasDestination(alert("you")))
+        assertTrue(DeepLinkRouter.alertHasDestination(alert("names")))
+        assertTrue(DeepLinkRouter.alertHasDestination(alert("research") { it.copy(reportId = "rep_2") }))
 
         val briefing = DeepLinkRouter.routeAlert(
             alert("inbox") {

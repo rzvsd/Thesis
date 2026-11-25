@@ -8,6 +8,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
 import com.thesis.mobile.model.DeepDiveReportView
 import com.thesis.mobile.model.IssuerView
+import com.thesis.mobile.model.ReportHistoryItem
 import com.thesis.mobile.model.ScenarioStressTemplateView
 import com.thesis.mobile.model.SectionView
 import com.thesis.mobile.model.WarRoomView
@@ -17,8 +18,11 @@ import com.thesis.mobile.ui.components.showThesisSnackbar
 import com.thesis.mobile.ui.navigation.Destination
 import com.thesis.mobile.ui.navigation.ShellTab
 import com.thesis.mobile.ui.screens.AuthScreen
+import com.thesis.mobile.ui.shell.AppearancePrefs
 import com.thesis.mobile.ui.shell.ShellActions
 import com.thesis.mobile.ui.shell.ThesisShell
+import com.thesis.mobile.ui.theme.ThemeMode
+import com.thesis.mobile.ui.theme.UpDownScheme
 import kotlinx.coroutines.delay
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -40,12 +44,13 @@ class ShellRenders {
         fontScale: Float = 1f,
         widthDp: Int = PhoneSpec.WIDTH_DP,
         heightDp: Int = PhoneSpec.HEIGHT_DP,
-        snackbar: String? = null
+        snackbar: String? = null,
+        snackbarAction: String? = null
     ) {
         val files = renderScreen(name, widthDp = widthDp, heightDp = heightDp) {
             val density = LocalDensity.current
             val host = remember { SnackbarHostState() }
-            if (snackbar != null) LaunchedEffect(Unit) { host.showThesisSnackbar(snackbar) }
+            if (snackbar != null) LaunchedEffect(Unit) { host.showThesisSnackbar(snackbar, snackbarAction) }
             CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale)) {
                 ThesisShell(
                     state = state,
@@ -100,6 +105,19 @@ class ShellRenders {
 
     @Test fun youModal() = shell("shell-you", ShellTab.Names, modal = Destination.You)
 
+    /** You > Appearance with stored choices (spec Q2): Light, colour-blind colours and Reduce motion on. */
+    @Test fun youAppearanceChosen() = shell(
+        "shell-you-appearance", ShellTab.Names, modal = Destination.You,
+        state = ShellFixtures.state.copy(
+            appearance = AppearancePrefs(themeMode = ThemeMode.Light, upDown = UpDownScheme.ColourBlind, reduceMotion = true)
+        )
+    )
+
+    /** Rule 6.0.6 for the Appearance controls: segment labels and switch rows at 360 dp x 2.0. */
+    @Test fun you360Scale20() = shell(
+        "shell-you-360-scale2.0", ShellTab.Names, modal = Destination.You, fontScale = 2.0f, widthDp = 360
+    )
+
     // Rubric A4: the bottom bar at 1.3x and 2.0x font scale, and at 360 dp.
     @Test fun inboxScale13() = shell("shell-inbox-scale1.3", ShellTab.Inbox, fontScale = 1.3f)
     @Test fun inboxScale20() = shell("shell-inbox-scale2.0", ShellTab.Inbox, fontScale = 2.0f)
@@ -132,6 +150,36 @@ class ShellRenders {
 
     /** On a tab root the snackbar sits on the bottom bar, not under it. */
     @Test fun snackbarOverBar() = shell("shell-inbox-snackbar", ShellTab.Inbox, snackbar = "Deep Dive ready.")
+
+    /**
+     * "Deep Dive ready." after the user backed out of the build: the snackbar offers Open (MessageAction.OpenReport),
+     * since no running entry became the report.
+     */
+    @Test fun snackbarWithOpen() = shell(
+        "shell-research-snackbar-open", ShellTab.Research, snackbar = "Deep Dive ready.", snackbarAction = "Open"
+    )
+
+    /** More than three reports: "See all" under the three recent cards opens History (interim for 5.12). */
+    @Test fun researchSeeAll() = shell(
+        "shell-research-see-all", ShellTab.Research,
+        state = ShellFixtures.state.copy(
+            reportHistory = listOf("AAPL", "MSFT", "NVDA", "AMD", "TSM").mapIndexed { i, t ->
+                ReportHistoryItem("rep-$t", "j$i", "deep_dive", t, "2026-11-${(20 - i * 3).toString().padStart(2, '0')}T10:00:00Z")
+            }
+        )
+    )
+
+    /** An alert whose route only lands back on Inbox has no "Open" (DeepLinkRouter.alertHasDestination, 5.5). */
+    @Test fun inboxUnknownRoute() = shell(
+        "shell-inbox-unknown-route", ShellTab.Inbox,
+        state = ShellFixtures.state.copy(
+            alertLedger = listOf(
+                ShellFixtures.state.alertLedger.first().copy(
+                    id = "al9", route = "something_new", title = "A new kind of alert", createdAt = "2026-11-24T07:30:00Z"
+                )
+            ) + ShellFixtures.state.alertLedger
+        )
+    )
 
     /** A failed report open elsewhere leaves the Research root's field and recent list in place. */
     @Test fun researchRootWithReportError() = shell(

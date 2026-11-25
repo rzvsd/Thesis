@@ -45,6 +45,8 @@ data class UiState(
     val verificationToken: String? = null,
     val registerStatus: String? = null,
     val message: String? = null,
+    /** The snackbar action for [message]; see [activeMessageAction]. */
+    val messageAction: MessageAction? = null,
     /** Log in, register or verify in flight (Auth's buttons). */
     val authBusy: Boolean = false,
     val tickers: List<TickerSearchItem> = emptyList(),
@@ -133,9 +135,34 @@ data class UiState(
     /** Deep Dive screen spinner: a report is opening or building (replaces the old global `isLoading`). */
     val isReportBusy: Boolean get() = isOpeningReport || isDeepDiveRunning
 
+    /**
+     * The action to offer with [message]: [messageAction] only while it was published with this very message, so a
+     * later message without an action never inherits one.
+     */
+    val activeMessageAction: MessageAction? get() = messageAction?.takeIf { it.message == message }
+
     /** Inbox tab dot: an alert arrived after the last Inbox visit. */
     val hasNewInboxItems: Boolean
         get() = alertLedger.any { alert -> (parseInstantMs(alert.createdAt) ?: 0L) > lastInboxVisitAtMs }
+}
+
+/** A snackbar action published together with one [message] (`UiState.messageAction`). */
+sealed interface MessageAction {
+    /** The message this action belongs to. */
+    val message: String
+    /** The snackbar button label. */
+    val label: String
+
+    /**
+     * "Deep Dive ready." after the user backed out of the build (5.14 allows it), so no running entry became the
+     * report: Open pushes `Report(reportId)`.
+     */
+    data class OpenReport(
+        override val message: String,
+        val reportId: String,
+        val ticker: String?,
+        override val label: String = "Open"
+    ) : MessageAction
 }
 
 /** Epoch ms of an ISO-8601 instant or offset date-time; null when unreadable. */

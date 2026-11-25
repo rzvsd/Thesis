@@ -24,6 +24,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import com.thesis.mobile.model.ReportHistoryItem
 import com.thesis.mobile.ui.components.EmptyState
+import com.thesis.mobile.ui.components.TextAction
 import com.thesis.mobile.ui.components.ThesisButton
 import com.thesis.mobile.ui.copy.StateCopy
 import com.thesis.mobile.ui.icons.ThesisIcons
@@ -31,6 +32,9 @@ import com.thesis.mobile.ui.theme.ThesisColors
 import com.thesis.mobile.ui.theme.ThesisDimens
 import com.thesis.mobile.ui.theme.ThesisSpace
 import com.thesis.mobile.ui.theme.ThesisTypography
+
+/** How many recent reports the root lists; History ("See all") has the rest. */
+private const val RECENT_REPORTS_SHOWN = 3
 
 /**
  * The Research tab root (DESIGN-DIRECTION 5.12): ticker search, run a Deep Dive, recent reports. Also offered
@@ -50,7 +54,12 @@ fun ResearchScreen(
     onRunReport: () -> Unit,
     onOpenReport: (reportId: String) -> Unit,
     onOpenPulse: (date: String) -> Unit,
-    padding: PaddingValues
+    padding: PaddingValues,
+    /**
+     * Opens History, the full report list (5.12 "See all"). Shown under the three recent cards when there are more;
+     * null hides it (the Search modal, which cannot push History under itself).
+     */
+    onSeeAllHistory: (() -> Unit)? = null
 ) {
     Box(
         modifier = Modifier
@@ -102,7 +111,7 @@ fun ResearchScreen(
                     Spacer(modifier = Modifier.height(ThesisDimens.SpacingSm))
                     recentHistory
                         .sortedByDescending { it.createdAt }
-                        .take(3)
+                        .take(RECENT_REPORTS_SHOWN)
                         .forEach { item ->
                             RecentResearchCard(
                                 item = item,
@@ -116,6 +125,15 @@ fun ResearchScreen(
                             )
                             Spacer(modifier = Modifier.height(ThesisDimens.SpacingSm))
                         }
+                    // Interim until WP-E's recent-reports RowGroup (PR-3): the way to reports older than these three.
+                    if (onSeeAllHistory != null && recentHistory.size > RECENT_REPORTS_SHOWN) {
+                        TextAction(
+                            text = "See all",
+                            onClick = onSeeAllHistory,
+                            modifier = Modifier.align(Alignment.End),
+                            trailing = true
+                        )
+                    }
                 }
             }
         }

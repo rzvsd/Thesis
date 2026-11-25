@@ -1,4 +1,7 @@
-// Desktop stand-in for androidx.compose.ui.platform.LocalView (Android-only API).
+// Desktop stand-ins for androidx.compose.ui.platform.LocalView and LocalContext (Android-only APIs).
+// The compiled screens read LocalContext (DeepDiveScreen, DeepDiveWebReportState) and hand it to the export and
+// WebView shims; nothing calls an Android service on it. The system-bar calls that needed an Activity live in
+// ui/platform/SystemBars.kt, whose preview shim does nothing.
 package androidx.compose.ui.platform
 
 import androidx.compose.runtime.staticCompositionLocalOf

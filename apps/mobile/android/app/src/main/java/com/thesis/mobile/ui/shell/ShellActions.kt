@@ -4,6 +4,7 @@ import com.thesis.mobile.model.AlertLedgerItemView
 import com.thesis.mobile.model.HoldingsImportResultView
 import com.thesis.mobile.model.LastViewedReport
 import com.thesis.mobile.model.ReportHistoryItem
+import com.thesis.mobile.ui.MessageAction
 import com.thesis.mobile.ui.navigation.ShellTab
 
 /**
@@ -148,6 +149,9 @@ interface ShellActions {
     fun onRequireUpgrade(feature: String) {}
     fun onDismissPaywall() {}
     fun onMessageShown() {}
+
+    /** The user tapped the snackbar action published with a message (`UiState.activeMessageAction`). */
+    fun onMessageAction(action: MessageAction) {}
 }
 
 /**

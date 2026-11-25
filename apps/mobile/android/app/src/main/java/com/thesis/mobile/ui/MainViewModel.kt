@@ -152,8 +152,14 @@ class MainViewModel(
     private var pulseRequestedDate: String? = null
     private var macroStressRefreshJob: Job? = null
 
+    // You restored on the modal stack after process death (AppNavigator.restore): its Monthly Coherence card loads
+    // only for Pro, and the tier is known only once the profile arrives, so refreshUserProfile loads it then.
+    // Declared before init, which sets it.
+    private var loadYouInsightsWithProfile = false
+
     init {
         if (state.tokens != null) {
+            loadYouInsightsWithProfile = navigator.modalStack.any { it.destination.isYouEntry() }
             PrefetchScheduler.schedule(getApplication<Application>().applicationContext)
             state = state.copy(lastViewedReport = sessionStore.getLastViewedReport())
             refreshFeatureFlags()
@@ -186,7 +192,7 @@ class MainViewModel(
     }
 
     fun clearMessage() {
-        publish(state.copy(message = null))
+        publish(state.copy(message = null, messageAction = null))
     }
 
     fun notifyUser(message: String) {
@@ -2130,6 +2136,15 @@ class MainViewModel(
                         }.getOrNull()
                         cacheStore.cacheDeepDive(report, notePinned = !note?.content.isNullOrBlank())
                         cacheReportExtras(report, note)
+                        // The running entry becomes the report (4.5), wherever it is on the stacks. When the user
+                        // backed out of it (5.14), the snackbar offers Open instead.
+                        val built = report.ticker?.trim()?.uppercase()
+                        val replaced = navigator.replaceWhere(
+                            Destination.Report(report.reportId, report.ticker)
+                        ) { destination ->
+                            destination is Destination.DeepDiveRunning &&
+                                (built == null || destination.ticker.equals(built, ignoreCase = true))
+                        }
                         publish(
                             state.copy(
                                 isDeepDiveRunning = false,
@@ -2145,16 +2160,15 @@ class MainViewModel(
                                 isGeneratingOppositeCase = false,
                                 scenarioResult = null,
                                 isRunningScenario = false,
-                                message = "Deep Dive ready.",
+                                message = DEEP_DIVE_READY_MESSAGE,
+                                messageAction = if (replaced == 0) {
+                                    MessageAction.OpenReport(DEEP_DIVE_READY_MESSAGE, report.reportId, report.ticker)
+                                } else {
+                                    null
+                                },
                                 deepDiveError = null
                             )
                         )
-                        // The running entry becomes the report (4.5), wherever it is on the stacks.
-                        val built = report.ticker?.trim()?.uppercase()
-                        navigator.replaceWhere(Destination.Report(report.reportId, report.ticker)) { destination ->
-                            destination is Destination.DeepDiveRunning &&
-                                (built == null || destination.ticker.equals(built, ignoreCase = true))
-                        }
                         val tickerSafe = report.ticker ?: "unknown"
                         sessionStore.saveLastViewedReport(report.reportId, tickerSafe, "DEEP_DIVE")
                         publish(state.copy(lastViewedReport = sessionStore.getLastViewedReport()))
@@ -2436,8 +2450,14 @@ class MainViewModel(
             if (isPro) {
                 refreshScenarioStressTemplates()
             }
+            if (loadYouInsightsWithProfile) {
+                loadYouInsightsWithProfile = false
+                refreshConvictionInsights()
+            }
         }
     }
+
+    private fun Destination.isYouEntry(): Boolean = this == Destination.You || this is Destination.YouPage
 
     private fun refreshFeatureFlags() {
         viewModelScope.launch {
@@ -2890,6 +2910,12 @@ class MainViewModel(
     override fun onDismissPaywall() = dismissPaywall()
     override fun onMessageShown() = clearMessage()
 
+    override fun onMessageAction(action: MessageAction) {
+        when (action) {
+            is MessageAction.OpenReport -> onOpenReport(action.reportId, action.ticker)
+        }
+    }
+
     // =====================================================================================================
     // Client data layer for PR-3 (5.5): built from endpoints the app already calls, cached in Room.
     // =====================================================================================================
@@ -3083,6 +3109,7 @@ class MainViewModel(
         private const val KEY_RESUME_TICKER = "ticker"
         private const val KEY_RESUME_STARTED_AT = "started_at_ms"
         private const val DEEP_DIVE_POLL_INTERVAL_MS = 2_000L
+        private const val DEEP_DIVE_READY_MESSAGE = "Deep Dive ready."
         private const val DEEP_DIVE_MAX_POLLS = 180 // 6 minutes at 2 s
         private const val DEEP_DIVE_MAX_WAIT_MS = 6 * 60 * 1000L
         private val notificationPreferenceTypes = listOf(
