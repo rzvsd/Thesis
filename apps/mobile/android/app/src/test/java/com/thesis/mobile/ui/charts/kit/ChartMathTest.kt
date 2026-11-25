@@ -385,4 +385,26 @@ class ChartMathTest {
         assertEquals(10.0, mid.at(0.25), 1e-9)
         assertTrue(mid.at(0.5).isNaN())
     }
+
+    // --- draw-on visibility ----------------------------------------------------------------------------------
+
+    @Test
+    fun drawOnStartsWhenHalfOfANormalChartIsShown() {
+        assertFalse(drawOnSeen(full = 400f, shownWidth = 300f, shownHeight = 199f, window = 2000f))
+        assertTrue(drawOnSeen(full = 400f, shownWidth = 300f, shownHeight = 200f, window = 2000f))
+        // Off screen, unmeasured or zero-width: never seen.
+        assertFalse(drawOnSeen(full = 400f, shownWidth = 0f, shownHeight = 400f, window = 2000f))
+        assertFalse(drawOnSeen(full = 0f, shownWidth = 300f, shownHeight = 0f, window = 2000f))
+        assertFalse(drawOnSeen(full = 400f, shownWidth = 300f, shownHeight = 0f, window = 2000f))
+    }
+
+    @Test
+    fun drawOnStartsForAChartTallerThanTwiceTheWindow() {
+        // A 5000 px ranked list in a 2000 px window can show at most 2000 px, less than half of itself.
+        assertTrue(drawOnSeen(full = 5000f, shownWidth = 300f, shownHeight = 2000f, window = 2000f))
+        assertTrue(drawOnSeen(full = 5000f, shownWidth = 300f, shownHeight = 600f, window = 2000f))
+        assertFalse(drawOnSeen(full = 5000f, shownWidth = 300f, shownHeight = 599f, window = 2000f))
+        // No window size known: fall back to half of the chart.
+        assertTrue(drawOnSeen(full = 400f, shownWidth = 300f, shownHeight = 200f, window = 0f))
+    }
 }

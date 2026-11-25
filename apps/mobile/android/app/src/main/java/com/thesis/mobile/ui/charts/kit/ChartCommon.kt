@@ -34,6 +34,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.findRootCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -118,12 +119,27 @@ internal class DrawOn(val waiting: Boolean) {
     } else {
         Modifier.onGloballyPositioned { coords ->
             if (seen) return@onGloballyPositioned
-            val full = coords.size.height
             val shown = coords.boundsInWindow()
-            if (full > 0 && shown.width > 0f && shown.height >= full * DRAW_ON_VISIBLE) seen = true
+            val window = coords.findRootCoordinates().size.height.toFloat()
+            if (drawOnSeen(coords.size.height.toFloat(), shown.width, shown.height, window)) seen = true
         }
     }
 }
+
+/**
+ * True when a chart [full] px tall, of which [shownWidth] x [shownHeight] is inside the window, counts as seen.
+ * A chart up to twice the screen needs [DRAW_ON_VISIBLE] of itself on screen; a taller one (a long ranked list,
+ * or large font scaling) needs only [DRAW_ON_VISIBLE_TALL] of the window, since the window clips what is shown
+ * and half of it could never fit.
+ */
+internal fun drawOnSeen(full: Float, shownWidth: Float, shownHeight: Float, window: Float): Boolean {
+    if (full <= 0f || shownWidth <= 0f || shownHeight <= 0f) return false
+    val need = if (window > 0f) minOf(full * DRAW_ON_VISIBLE, window * DRAW_ON_VISIBLE_TALL) else full * DRAW_ON_VISIBLE
+    return shownHeight >= need
+}
+
+/** Share of the window a chart taller than the screen must fill before its draw-on starts. */
+internal const val DRAW_ON_VISIBLE_TALL = 0.3f
 
 /** The mark colour of series slot [index] (fixed order; wraps after six). */
 internal fun ThesisPalette.seriesColor(index: Int): Color = series[Math.floorMod(index, series.size)]
