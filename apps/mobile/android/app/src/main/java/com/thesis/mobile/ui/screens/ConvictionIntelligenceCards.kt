@@ -1,41 +1,59 @@
 package com.thesis.mobile.ui.screens
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ColumnScope
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.ReadOnlyComposable
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
 import com.thesis.mobile.model.ConvictionInsightCardView
-import com.thesis.mobile.model.ConvictionInsightFindingView
 import com.thesis.mobile.model.ConvictionJournalEntryView
-import com.thesis.mobile.model.OppositeCasePointView
 import com.thesis.mobile.model.OppositeCaseReportView
-import com.thesis.mobile.ui.components.ThesisButton
-import com.thesis.mobile.ui.copy.Phase4Copy
-import com.thesis.mobile.ui.theme.ThesisColors
-import com.thesis.mobile.ui.theme.ThesisDimens
-import com.thesis.mobile.ui.theme.ThesisTypography
+import com.thesis.mobile.ui.charts.kit.Timeline
+import com.thesis.mobile.ui.charts.kit.TimelineItem
+import com.thesis.mobile.ui.charts.kit.TimelineState
+import com.thesis.mobile.ui.components.BannerTone
+import com.thesis.mobile.ui.components.Callout
+import com.thesis.mobile.ui.components.DataRow
+import com.thesis.mobile.ui.components.InlineBanner
+import com.thesis.mobile.ui.components.Kicker
+import com.thesis.mobile.ui.components.RowGroup
+import com.thesis.mobile.ui.components.SecondaryButton
+import com.thesis.mobile.ui.components.SectionHeader
+import com.thesis.mobile.ui.components.SkeletonCard
+import com.thesis.mobile.ui.components.TextAction
+import com.thesis.mobile.ui.components.ThesisCard
+import com.thesis.mobile.ui.copy.DeepDiveCopy
+import com.thesis.mobile.ui.format.LocalFmt
+import com.thesis.mobile.ui.theme.LocalThesisPalette
+import com.thesis.mobile.ui.theme.ThesisSpace
+import com.thesis.mobile.ui.theme.ThesisType
+import java.time.Instant
+import java.time.OffsetDateTime
+
+/*
+ * Conviction journal, opposite case (the Deep Dive's "Your notes" chapter and the new view's Conviction tool) and
+ * monthly coherence (Settings). Kit components only (5.15 "Conviction cards"): the journal is a Timeline with human
+ * event labels and relative dates; the opposite case shows a skeleton while it is built; the Pro upsell is shown
+ * once, as a Callout.
+ */
+
+private const val JOURNAL_SHOWN = 5
+private const val POINTS_SHOWN = 3
+
+/** An ISO timestamp as an instant, or null. */
+internal fun parseInstant(raw: String?): Instant? {
+    val s = raw?.trim().orEmpty()
+    if (s.isEmpty()) return null
+    return runCatching { Instant.parse(s) }.getOrNull() ?: runCatching { OffsetDateTime.parse(s).toInstant() }.getOrNull()
+}
+
+/** The Pro upsell, once: what the feature is, and the way to Pro. */
+@Composable
+private fun ProUpsell(text: String, onUpgrade: () -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(ThesisSpace.s)) {
+        Callout(text)
+        TextAction(DeepDiveCopy.seePro, onClick = onUpgrade, trailing = true)
+    }
+}
 
 @Composable
 fun DeepDiveConvictionSection(
@@ -47,42 +65,90 @@ fun DeepDiveConvictionSection(
     isGeneratingOppositeCase: Boolean,
     onGenerateOppositeCase: () -> Unit,
     onRefreshTimeline: () -> Unit,
-    onRequireUpgrade: (String) -> Unit
+    onRequireUpgrade: (String) -> Unit,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingMd)) {
+    Column(verticalArrangement = Arrangement.spacedBy(ThesisSpace.l)) {
         SectionHeader(
-            title = Phase4Copy.convictionIntelligenceTitle,
-            subtitle = Phase4Copy.convictionIntelligenceSubtitle
+            kicker = DeepDiveCopy.convictionKicker,
+            headline = DeepDiveCopy.convictionTitle,
+            deck = DeepDiveCopy.convictionDeck,
         )
-
         if (!isPro) {
-            SurfaceCard {
-                Text(
-                    text = Phase4Copy.convictionProOnly,
-                    style = ThesisTypography.bodyMedium,
-                    color = ThesisColors.TextPrimary
-                )
-                Spacer(modifier = Modifier.height(ThesisDimens.SpacingSm))
-                ThesisButton(
-                    text = "Upgrade to Pro",
-                    onClick = { onRequireUpgrade("conviction_intelligence") }
-                )
-            }
+            ProUpsell(DeepDiveCopy.convictionPro) { onRequireUpgrade("conviction_intelligence") }
             return@Column
         }
+        JournalCard(timeline, timelineError, onRefreshTimeline)
+        OppositeCaseCard(oppositeCase, oppositeCaseError, isGeneratingOppositeCase, onGenerateOppositeCase)
+    }
+}
 
-        ConvictionTimelineCard(
-            timeline = timeline,
-            errorMessage = timelineError,
-            onRefresh = onRefreshTimeline
-        )
+@Composable
+private fun JournalCard(timeline: List<ConvictionJournalEntryView>, errorMessage: String?, onRefresh: () -> Unit) {
+    val p = LocalThesisPalette.current
+    val fmt = LocalFmt.current
+    Column(verticalArrangement = Arrangement.spacedBy(ThesisSpace.s)) {
+        Kicker(DeepDiveCopy.journalTitle)
+        errorMessage?.takeIf { it.isNotBlank() }?.let {
+            InlineBanner(it, tone = BannerTone.Error, actionLabel = DeepDiveCopy.refresh, onAction = onRefresh)
+        }
+        if (timeline.isEmpty()) {
+            Text(DeepDiveCopy.journalEmpty, style = ThesisType.bodySmall, color = p.muted)
+        } else {
+            Timeline(
+                timeline.take(JOURNAL_SHOWN).mapIndexed { i, item ->
+                    TimelineItem(
+                        title = item.title,
+                        meta = listOfNotNull(
+                            DeepDiveCopy.eventLabel(item.eventType),
+                            parseInstant(item.eventAt)?.let(fmt::relative),
+                        ).joinToString(" · "),
+                        body = item.summary.takeIf { it.isNotBlank() },
+                        state = if (i == 0) TimelineState.Current else TimelineState.Done,
+                    )
+                },
+            )
+        }
+        if (errorMessage.isNullOrBlank()) TextAction(DeepDiveCopy.refresh, onClick = onRefresh)
+    }
+}
 
-        OppositeCaseCard(
-            oppositeCase = oppositeCase,
-            errorMessage = oppositeCaseError,
-            isGenerating = isGeneratingOppositeCase,
-            onGenerate = onGenerateOppositeCase
-        )
+@Composable
+private fun OppositeCaseCard(
+    oppositeCase: OppositeCaseReportView?,
+    errorMessage: String?,
+    isGenerating: Boolean,
+    onGenerate: () -> Unit,
+) {
+    val p = LocalThesisPalette.current
+    Column(verticalArrangement = Arrangement.spacedBy(ThesisSpace.s)) {
+        Kicker(DeepDiveCopy.oppositeTitle)
+        when {
+            isGenerating -> SkeletonCard(bodyLines = POINTS_SHOWN)
+            oppositeCase == null -> {
+                errorMessage?.takeIf { it.isNotBlank() }?.let { InlineBanner(it, tone = BannerTone.Error) }
+                Text(DeepDiveCopy.oppositeEmpty, style = ThesisType.body, color = p.ink2)
+                SecondaryButton(DeepDiveCopy.oppositeBuild, onClick = onGenerate)
+            }
+            else -> ThesisCard(title = oppositeCase.oppositeCaseSummary) {
+                Column(verticalArrangement = Arrangement.spacedBy(ThesisSpace.m)) {
+                    oppositeCase.keyPoints.take(POINTS_SHOWN).forEach { point ->
+                        Column(verticalArrangement = Arrangement.spacedBy(ThesisSpace.xs)) {
+                            Text(point.title, style = ThesisType.rowTitle, color = p.ink)
+                            Text(point.summary, style = ThesisType.bodySmall, color = p.ink2)
+                        }
+                    }
+                    if (oppositeCase.decisiveFactors.isNotEmpty()) {
+                        Kicker(DeepDiveCopy.decisiveFactors)
+                        oppositeCase.decisiveFactors.take(POINTS_SHOWN).forEach {
+                            Text(it, style = ThesisType.bodySmall, color = p.ink2)
+                        }
+                    }
+                }
+            }
+        }
+        if (isGenerating) {
+            Text(DeepDiveCopy.oppositeBuilding, style = ThesisType.caption, color = p.muted)
+        }
     }
 }
 
@@ -92,327 +158,51 @@ fun MonthlyCoherenceSection(
     insights: List<ConvictionInsightCardView>,
     errorMessage: String?,
     onRefresh: () -> Unit,
-    onRequireUpgrade: (String) -> Unit
+    onRequireUpgrade: (String) -> Unit,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)) {
+    val p = LocalThesisPalette.current
+    Column(verticalArrangement = Arrangement.spacedBy(ThesisSpace.m)) {
         SectionHeader(
-            title = Phase4Copy.coherenceTitle,
-            subtitle = Phase4Copy.coherenceSubtitle
+            kicker = DeepDiveCopy.coherenceKicker,
+            headline = DeepDiveCopy.coherenceTitle,
+            deck = DeepDiveCopy.coherenceDeck,
         )
-        SurfaceCard {
-            if (!isPro) {
-                Text(
-                    text = Phase4Copy.convictionProOnly,
-                    style = ThesisTypography.bodyMedium,
-                    color = ThesisColors.TextPrimary
-                )
-                Spacer(modifier = Modifier.height(ThesisDimens.SpacingSm))
-                ThesisButton(
-                    text = "Upgrade to Pro",
-                    onClick = { onRequireUpgrade("conviction_intelligence") }
-                )
-                return@SurfaceCard
-            }
-
-            if (!errorMessage.isNullOrBlank()) {
-                Text(
-                    text = errorMessage,
-                    style = ThesisTypography.bodySmall,
-                    color = ThesisColors.SignalWarning
-                )
-                Spacer(modifier = Modifier.height(ThesisDimens.SpacingSm))
-            }
-
-            val latest = insights.firstOrNull()
-            if (latest == null) {
-                Text(
-                    text = Phase4Copy.coherenceEmpty,
-                    style = ThesisTypography.bodyMedium,
-                    color = ThesisColors.TextMuted
-                )
-            } else {
-                Text(
-                    text = latest.title,
-                    style = ThesisTypography.labelLarge.copy(fontWeight = FontWeight.Medium),
-                    color = ThesisColors.TextPrimary
-                )
-                Text(
-                    text = "${latest.periodStart} to ${latest.periodEnd}",
-                    style = ThesisTypography.labelSmall,
-                    color = ThesisColors.TextMuted
-                )
-                Spacer(modifier = Modifier.height(ThesisDimens.SpacingSm))
-                Text(
-                    text = latest.summary,
-                    style = ThesisTypography.bodyMedium,
-                    color = ThesisColors.TextPrimary
-                )
-                latest.findings.take(3).forEach { finding ->
-                    HorizontalDivider(color = ThesisColors.Border)
-                    InsightFindingRow(finding = finding)
-                }
-            }
-
-            Spacer(modifier = Modifier.height(ThesisDimens.SpacingSm))
-            OutlinedButton(
-                onClick = onRefresh,
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
-                border = androidx.compose.foundation.BorderStroke(
-                    ThesisDimens.BorderWidth,
-                    ThesisColors.Border
-                )
-            ) {
-                Text("Refresh coherence", color = ThesisColors.TextMuted)
-            }
+        if (!isPro) {
+            ProUpsell(DeepDiveCopy.coherencePro) { onRequireUpgrade("conviction_intelligence") }
+            return@Column
         }
-    }
-}
-
-@Composable
-private fun ConvictionTimelineCard(
-    timeline: List<ConvictionJournalEntryView>,
-    errorMessage: String?,
-    onRefresh: () -> Unit
-) {
-    SurfaceCard {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = Phase4Copy.convictionTimelineTitle,
-                style = ThesisTypography.labelLarge.copy(fontWeight = FontWeight.Medium),
-                color = ThesisColors.TextPrimary
-            )
-            OutlinedButton(
-                onClick = onRefresh,
-                shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
-                border = androidx.compose.foundation.BorderStroke(
-                    ThesisDimens.BorderWidth,
-                    ThesisColors.Border
-                )
-            ) {
-                Text("Refresh", color = ThesisColors.TextMuted)
-            }
+        errorMessage?.takeIf { it.isNotBlank() }?.let {
+            InlineBanner(it, tone = BannerTone.Error, actionLabel = DeepDiveCopy.refresh, onAction = onRefresh)
         }
-
-        if (!errorMessage.isNullOrBlank()) {
-            Text(
-                text = errorMessage,
-                style = ThesisTypography.bodySmall,
-                color = ThesisColors.SignalWarning
-            )
-        }
-
-        if (timeline.isEmpty()) {
-            Text(
-                text = Phase4Copy.convictionTimelineEmpty,
-                style = ThesisTypography.bodyMedium,
-                color = ThesisColors.TextMuted
-            )
+        val latest = insights.firstOrNull()
+        if (latest == null) {
+            Text(DeepDiveCopy.coherenceEmpty, style = ThesisType.bodySmall, color = p.muted)
         } else {
-            timeline.take(5).forEachIndexed { index, item ->
-                if (index > 0) {
-                    HorizontalDivider(color = ThesisColors.Border)
-                }
-                TimelineRow(item = item)
-            }
-        }
-    }
-}
-
-@Composable
-private fun OppositeCaseCard(
-    oppositeCase: OppositeCaseReportView?,
-    errorMessage: String?,
-    isGenerating: Boolean,
-    onGenerate: () -> Unit
-) {
-    SurfaceCard {
-        Text(
-            text = Phase4Copy.oppositeCaseTitle,
-            style = ThesisTypography.labelLarge.copy(fontWeight = FontWeight.Medium),
-            color = ThesisColors.TextPrimary
-        )
-
-        if (oppositeCase == null) {
-            Text(
-                text = errorMessage?.takeIf { it.isNotBlank() } ?: Phase4Copy.oppositeCaseEmpty,
-                style = ThesisTypography.bodyMedium,
-                color = if (errorMessage.isNullOrBlank()) ThesisColors.TextMuted else ThesisColors.SignalWarning
-            )
-            ThesisButton(
-                text = if (isGenerating) Phase4Copy.oppositeCaseGenerating else Phase4Copy.oppositeCaseGenerate,
-                onClick = onGenerate,
-                enabled = !isGenerating
-            )
-            return@SurfaceCard
-        }
-
-        Text(
-            text = oppositeCase.oppositeCaseSummary,
-            style = ThesisTypography.bodyMedium,
-            color = ThesisColors.TextPrimary
-        )
-        oppositeCase.keyPoints.take(3).forEach { point ->
-            HorizontalDivider(color = ThesisColors.Border)
-            OppositeCasePointRow(point = point)
-        }
-        if (oppositeCase.decisiveFactors.isNotEmpty()) {
-            HorizontalDivider(color = ThesisColors.Border)
-            Text(
-                text = "DECISIVE FACTORS",
-                style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Medium),
-                color = ThesisColors.TextMuted
-            )
-            Text(
-                text = oppositeCase.decisiveFactors.take(3).joinToString(separator = " | "),
-                style = ThesisTypography.bodySmall,
-                color = ThesisColors.TextPrimary
-            )
-        }
-    }
-}
-
-@Composable
-private fun TimelineRow(item: ConvictionJournalEntryView) {
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm),
-        verticalAlignment = Alignment.Top
-    ) {
-        Icon(
-            imageVector = Icons.Default.AutoAwesome,
-            contentDescription = null,
-            tint = eventColor(item.eventType),
-            modifier = Modifier.size(16.dp)
-        )
-        Column(verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingXs)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
+            ThesisCard(
+                eyebrow = DeepDiveCopy.periodRange(latest.periodStart, latest.periodEnd),
+                title = latest.title,
             ) {
-                Text(
-                    text = eventLabel(item.eventType),
-                    style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Medium),
-                    color = eventColor(item.eventType)
-                )
-                Text(
-                    text = item.eventAt.take(10),
-                    style = ThesisTypography.labelSmall,
-                    color = ThesisColors.TextMuted
-                )
+                Column(verticalArrangement = Arrangement.spacedBy(ThesisSpace.m)) {
+                    Text(latest.summary, style = ThesisType.body, color = p.ink2)
+                    if (latest.findings.isNotEmpty()) {
+                        RowGroup {
+                            latest.findings.take(POINTS_SHOWN).forEach { finding ->
+                                row {
+                                    DataRow(
+                                        label = finding.title,
+                                        value = DeepDiveCopy.findingLabel(finding.findingType),
+                                        sub = listOfNotNull(
+                                            finding.summary.takeIf { it.isNotBlank() },
+                                            finding.tickers.takeIf { it.isNotEmpty() }?.joinToString(", "),
+                                        ).joinToString(" · ").ifBlank { null },
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
             }
-            Text(
-                text = item.title,
-                style = ThesisTypography.bodyMedium.copy(fontWeight = FontWeight.Medium),
-                color = ThesisColors.TextPrimary
-            )
-            Text(
-                text = item.summary,
-                style = ThesisTypography.bodySmall,
-                color = ThesisColors.TextMuted,
-                maxLines = 3,
-                overflow = TextOverflow.Ellipsis
-            )
         }
+        TextAction(DeepDiveCopy.refreshCoherence, onClick = onRefresh)
     }
-}
-
-@Composable
-private fun OppositeCasePointRow(point: OppositeCasePointView) {
-    Column(verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingXs)) {
-        Text(
-            text = point.title,
-            style = ThesisTypography.bodyMedium.copy(fontWeight = FontWeight.Medium),
-            color = ThesisColors.TextPrimary
-        )
-        Text(
-            text = point.summary,
-            style = ThesisTypography.bodySmall,
-            color = ThesisColors.TextMuted
-        )
-    }
-}
-
-@Composable
-private fun InsightFindingRow(finding: ConvictionInsightFindingView) {
-    Column(verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingXs)) {
-        Text(
-            text = finding.findingType.replace('_', ' ').uppercase(),
-            style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Medium),
-            color = insightColor(finding.findingType)
-        )
-        Text(
-            text = finding.title,
-            style = ThesisTypography.bodyMedium.copy(fontWeight = FontWeight.Medium),
-            color = ThesisColors.TextPrimary
-        )
-        Text(
-            text = finding.summary,
-            style = ThesisTypography.bodySmall,
-            color = ThesisColors.TextMuted
-        )
-        if (finding.tickers.isNotEmpty()) {
-            Text(
-                text = finding.tickers.joinToString(separator = " | "),
-                style = ThesisTypography.labelSmall,
-                color = ThesisColors.Primary
-            )
-        }
-    }
-}
-
-@Composable
-private fun SectionHeader(title: String, subtitle: String) {
-    Column(verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingXs)) {
-        Text(
-            text = title,
-            style = ThesisTypography.headlineMedium.copy(fontWeight = FontWeight.Medium),
-            color = ThesisColors.TextPrimary
-        )
-        Text(
-            text = subtitle,
-            style = ThesisTypography.bodySmall,
-            color = ThesisColors.TextMuted
-        )
-    }
-}
-
-@Composable
-private fun SurfaceCard(content: @Composable ColumnScope.() -> Unit) {
-    val shape = RoundedCornerShape(ThesisDimens.CardCornerRadius)
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(shape)
-            .background(ThesisColors.Surface)
-            .border(ThesisDimens.BorderWidth, ThesisColors.Border, shape)
-            .padding(ThesisDimens.CardPadding),
-        verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm),
-        content = content
-    )
-}
-
-private fun eventLabel(eventType: String): String =
-    eventType.replace('_', ' ').uppercase()
-
-@Composable
-@ReadOnlyComposable
-private fun eventColor(eventType: String) = when (eventType) {
-    "kill_switch_alert_fired" -> ThesisColors.SignalNegative
-    "freshness_decay_alert_fired" -> ThesisColors.SignalWarning
-    "opposite_case_generated" -> ThesisColors.Primary
-    "cross_name_alert_fired" -> ThesisColors.SignalWarning
-    else -> ThesisColors.TextMuted
-}
-
-@Composable
-@ReadOnlyComposable
-private fun insightColor(findingType: String) = when (findingType) {
-    "contradiction" -> ThesisColors.SignalNegative
-    "overlap" -> ThesisColors.SignalWarning
-    "mismatch" -> ThesisColors.Primary
-    else -> ThesisColors.TextMuted
 }
