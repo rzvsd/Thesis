@@ -142,6 +142,9 @@ class MainViewModel(
     // slow or stuck older request can no longer finish late and replace fresh data with the saved copy.
     private var pulseRefreshJob: Job? = null
     private var pulseRememberRequested = false
+    // The day the shared Pulse was last asked for (null = the latest issue). A restored Pulse(date) entry compares
+    // its date with this (onEnsurePulse) and asks for its day again when the latest replaced it.
+    private var pulseRequestedDate: String? = null
     private var macroStressRefreshJob: Job? = null
 
     init {
@@ -206,14 +209,16 @@ class MainViewModel(
     /**
      * Loads [tab]'s data. A tab switch passes [force] = false: data younger than five minutes is kept and older
      * data refreshes in the background (the screen shows what it has; no spinner replaces it).
+     * [skipPulse]: the caller loads the Pulse itself (a route with [RouteAction.OpenPulse]), so the latest issue
+     * is not fetched here only to be cancelled.
      */
-    private fun refreshTab(tab: ShellTab, force: Boolean) {
+    private fun refreshTab(tab: ShellTab, force: Boolean, skipPulse: Boolean = false) {
         val now = System.currentTimeMillis()
         if (!force && isFresh(tabFetchedAtMs[tab], now)) return
         tabFetchedAtMs[tab] = now
         when (tab) {
             ShellTab.Today -> {
-                refreshPulse()
+                if (!skipPulse) refreshPulse()
                 refreshMacroStress()
                 refreshMonitorSnapshots()
                 refreshAlertLedger()
@@ -1640,6 +1645,7 @@ class MainViewModel(
     fun refreshPulse(rememberAsLastViewed: Boolean = false) {
         pulseRememberRequested = pulseRememberRequested || rememberAsLastViewed
         pulseRefreshJob?.cancel()
+        pulseRequestedDate = null
         val generation = ++pulseGeneration
         publish(state.copy(isPulseRefreshing = true, message = null, pulseError = null))
         pulseRefreshJob = viewModelScope.launch {
@@ -1734,6 +1740,8 @@ class MainViewModel(
         pulseRefreshJob?.cancel()
         pulseRememberRequested = false
         val trimmed = date.trim()
+        // Set before the check, so an entry with a malformed date does not ask again on every recomposition.
+        pulseRequestedDate = trimmed
         if (!Regex("^\\d{4}-\\d{2}-\\d{2}$").matches(trimmed)) {
             publish(state.copy(message = "Enter date as YYYY-MM-DD."))
             return
@@ -2525,7 +2533,9 @@ class MainViewModel(
     fun applyLaunchTarget(target: LaunchTarget) {
         if (state.tokens == null) return
         val route = DeepLinkRouter.route(target) ?: return
-        applyRoute(route) { tab ->
+        // A notification or link means the server has something new: refetch the landing tab even when its data is
+        // under five minutes old (the 5-minute rule is for tab switches; 5.5 keeps deep links as they were).
+        applyRoute(route, forceRefresh = true) { tab ->
             trackPushDeepLinkLanded(
                 targetTab = tab,
                 notificationType = target.notificationType,
@@ -2538,10 +2548,15 @@ class MainViewModel(
         }
     }
 
-    private fun applyRoute(route: NavRoute, onLanded: (String) -> Unit = {}) {
+    private fun applyRoute(route: NavRoute, forceRefresh: Boolean = false, onLanded: (String) -> Unit = {}) {
         val previousTab = navigator.currentTab
         navigator.apply(route)
         noteTabLeft(previousTab, navigator.currentTab)
+        // The tab refresh runs before the route's own loads, so a dated Pulse load below cancels a "latest" refresh
+        // (5.5 race fix) and never the other way round. A route that opens a Pulse loads it itself.
+        val opensPulse = route.actions.any { it is RouteAction.OpenPulse }
+        route.tab?.let { refreshTab(it, force = forceRefresh, skipPulse = opensPulse) }
+        if (route.modal is Destination.You) refreshYou()
         route.actions.forEach { action ->
             when (action) {
                 is RouteAction.OpenPulse -> openPulseFromNotification(action.date)
@@ -2558,8 +2573,6 @@ class MainViewModel(
                 is RouteAction.TrackLanded -> onLanded(action.tab)
             }
         }
-        if (route.modal is Destination.You) refreshYou()
-        route.tab?.let { refreshTab(it, force = false) }
     }
 
     /** Leaving Names or Inbox moves its "since your last visit" marker (client-only, SessionStore). */
@@ -2628,6 +2641,10 @@ class MainViewModel(
 
     override fun onEnsureReport(reportId: String) {
         if (state.deepDiveReport?.reportId != reportId) openHistoryReport(reportId)
+    }
+
+    override fun onEnsurePulse(date: String) {
+        if (pulseRequestedDate != date.trim()) loadPulseByDate(date)
     }
 
     override fun onRunDeepDive(ticker: String) {

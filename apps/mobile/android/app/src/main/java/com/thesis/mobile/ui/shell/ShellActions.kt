@@ -56,6 +56,12 @@ interface ShellActions {
     /** Pushes `Pulse(date)`; a past date loads that issue and the latest is restored when it is popped. */
     fun onOpenPulse(date: String?) {}
 
+    /**
+     * A `Pulse(date)` entry is on screen but the shared Pulse was last asked for another day or for the latest
+     * issue (after process death, or a Today refresh while the entry sat in another tab's stack).
+     */
+    fun onEnsurePulse(date: String) {}
+
     fun onOpenMacroStress() {}
     fun onOpenWeeklyDigest(date: String?) {}
     fun onOpenWarRoom(warRoomId: String) {}

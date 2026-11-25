@@ -172,7 +172,7 @@ fun HomeScreen(
                             Spacer(modifier = Modifier.height(ThesisDimens.SpacingSm))
                             Text(
                                 text = "Updated $pulseTimestamp",
-                                style = ThesisTypography.labelSmall,
+                                style = ThesisTypography.bodySmall,
                                 color = ThesisColors.TextMuted
                             )
                         }
@@ -180,7 +180,7 @@ fun HomeScreen(
                             Spacer(modifier = Modifier.height(ThesisDimens.SpacingXs))
                             Text(
                                 text = pulseFreshnessText,
-                                style = ThesisTypography.labelSmall,
+                                style = ThesisTypography.bodySmall,
                                 color = if (pulseLoadedFromCache) ThesisColors.SignalWarning else ThesisColors.TextMuted
                             )
                         }
@@ -472,13 +472,15 @@ private fun MacroStressSummaryCard(
                         marketDate.isNullOrBlank() -> "No macro snapshot yet"
                         else -> marketDate
                     },
-                    style = ThesisTypography.labelSmall,
-                    color = ThesisColors.TextMuted
+                    style = ThesisTypography.bodySmall,
+                    color = ThesisColors.TextMuted,
+                    // A4: the date never breaks inside the number; the fallback sentences may wrap.
+                    softWrap = !sentimentError.isNullOrBlank() || marketDate.isNullOrBlank()
                 )
                 Spacer(modifier = Modifier.height(ThesisDimens.SpacingXs))
                 Text(
                     text = Phase4Copy.todayMacroStressSourceNote,
-                    style = ThesisTypography.labelSmall,
+                    style = ThesisTypography.bodySmall,
                     color = ThesisColors.TextMuted
                 )
             }
@@ -963,7 +965,7 @@ private fun ResumeCard(title: String, onResume: () -> Unit, onDismiss: () -> Uni
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = "Pick up where you left off",
-                style = ThesisTypography.labelSmall,
+                style = ThesisTypography.bodySmall,
                 color = ThesisColors.TextMuted
             )
             Text(

@@ -116,14 +116,14 @@ same change in `css.ts` keeps principle 1 true.
 | `muted` (!) | captions, ticks, sources, timestamps | `#545E69` (DD `#68717C` is 4.39:1 on bg; ≥ 4.73 everywhere incl. glow peaks) | `#8E8E89` |
 | `line` | card borders, row dividers | `#E6DFD1` | `#262626` |
 | `line2` | chip/badge borders, timeline rule | `#D3C9B6` | `#363636` |
-| `control` (+) | text-field and toggle boundaries (3:1 non-text) | `#8F8778` | `#6B6B66` |
+| `control` (+) | text-field and toggle boundaries (3:1 non-text) | `#81796B` (F1; `#8F8778` was 2.54:1 on bg2 under the blue glow) | `#6E6E68` (F1; `#6B6B66` was 2.95:1 on bg under the gold glow) |
 | `accent` (!) | gold for text and UI | `#70572F` (DD `#7E6337` is 4.27:1 under the gold glow peak; this is ≥ 4.87) | `#C5A059` |
 | `highlight` | marker band behind lead phrase | `#B48226` @ 20% | `#C5A059` @ 22% |
 | `glowGold` | page glow, top right | `#B48226` @ 16% | `#C5A059` @ 16% |
 | `glowBlue` | page glow, bottom left | `#256BB1` @ 10% | `#4C89CC` @ 14% |
 | `focus` | focus ring | `#256BB1` | `#C5A059` |
 | `selectedFill` / `onSelected` (+) | selected chip/segment (inverted, as DD chip nav) | `#1A2128` / `#FFFDF8` | `#F2F2F0` / `#0A0A0A` |
-| `pos` / `neg` / `warn` (!) | semantic | `#2F6A4F` / `#9B4A4A` / `#8C5E12` | `#7FD3A2` / `#F2A0A0` / `#D9A441` (= heroPos / heroNeg; DD's Tailwind 400s read as neon next to the muted series) |
+| `pos` / `neg` / `warn` (!) | semantic | `#2F6A4F` / `#954747` / `#815611` (F1; `#9B4A4A` / `#8C5E12` were 4.33 / 4.03:1 on bg2 under the blue glow) | `#7FD3A2` / `#F2A0A0` / `#D9A441` (= heroPos / heroNeg; DD's Tailwind 400s read as neon next to the muted series) |
 | `series[0..5]` | gold, plum, sage, blue, clay, teal (fixed order) | `#B48226 #82498B #6B8D38 #256BB1 #BE5737 #008E7F` | `#BA882E #A166AA #779A45 #4C89CC #CB6443 #1AA291` |
 | `deemph` / `grid` / `axis` | chart | `#B9B1A4` / `#EEE8DC` / `#CDC3B1` | `#5B5B58` / `#222222` / `#3A3A3A` |
 | `scrim` | behind sheets/dialogs | `#1A2128` @ 40% | `#000000` @ 60% |
@@ -151,12 +151,15 @@ is for marks only (bars, lines, glows). Never set text in series[0] in light mod
 `callout`) **and** against the worst-case glow composite (bg/bg2 with the gold or blue glow at its peak alpha) must be
 ≥ 4.5:1; `control` ≥ 3:1 on the same set; hero pairs (`heroInk`, `heroInk2`, `heroAccent`, `heroPos`, `heroNeg` on
 `heroBg`/`heroBg2` with the hero glows) included. Known fixes already in the table: light `muted`, light `accent`,
-dark colour-blind text. Light `control` measures 2.89–2.94 on `chip`/`bg2`: F1 darkens it until the test passes
-(starting point `#857D6E`) and records the value here.
+dark colour-blind text. F1 then measured the remaining failures over the glow peaks and fixed them until the test
+passes (values recorded in the tables above and below): light `control` `#81796B` (`#8F8778` was 2.54:1 on bg2 under
+the blue glow), dark `control` `#6E6E68` (`#6B6B66` was 2.95:1 on bg under the gold glow), light `neg` `#954747` and
+`warn` `#815611` (were 4.33 / 4.03:1), light colour-blind text `#2261A1` / `#9C452B` (were 3.94 / 4.05:1).
 
 **Up/down schemes** (`UpDownScheme`, user setting in You > Appearance, default `Classic`):
 - `Classic`: up = `pos`, down = `neg`.
-- `ColourBlind`: up = blue, down = clay. Marks: series[3] / series[4]. Text: light `#256BB1` / `#A84B2E` (AA on bg),
+- `ColourBlind`: up = blue, down = clay. Marks: series[3] / series[4]. Text: light `#2261A1` / `#9C452B` (F1: the
+  first values `#256BB1` / `#A84B2E` were AA on bg but 3.94 / 4.05:1 on bg2 under the blue glow),
   dark `#5A95D6` / `#D97757` (≥ 5.26 on every dark surface; the series values `#4C89CC` / `#CB6443` fail on
   `chip`/`surface2` and stay marks only).
 - Expose as `p.up`, `p.down`, `p.upText`, `p.downText` resolved in `ThesisTheme`. Screens use only these (or `Tone`),
@@ -1325,8 +1328,22 @@ its files to **zero** lint findings, add renders and semantics tests, open its P
 Merge order inside PR-3: A, B, C, D, E, F, G in any order (no shared files) → WP-K deletions → WP-INT wiring →
 full render sweep → rubric review → PR into `rebuild`.
 
+**Carried from the PR-1 review** (pre-existing on screens PR-1 did not redraw; add to the named WP checklists):
+- WP-A, WP-B: filled gold buttons outside a HeroBand (Home "Dashboard", Names "Add" / "Deep Dive"; rubric T3, V3).
+- WP-A: "LIVE" badges on Home cards (principle 14); the remaining `labelSmall` (now `eyebrow`) uses on
+  sentence-case text and numbers (PR-1 moved only the Macro Stress date and the Home captions to `bodySmall`).
+- WP-A, WP-C, WP-E: Title Case and "news" wording ("Weekly Digest", "Run Deep Dive", "Reading recent news" on the
+  Deep Dive loading screen; rubric C1).
+- WP-G: the splash `windowSplashScreenAnimatedIcon` still points at the raster launcher foreground; swap to the
+  vector T mark (5.1).
+- WP-INT: `values/themes.xml` and `values/splash.xml` keep an ink `windowBackground` (Q2: Dark stays the default);
+  point them at `thesis_bg_paper` when the Auto default ships, or set the window background from `ThesisTheme`
+  to `palette.bg`. Unknown alert routes (see Appendix A).
+
 ### 6.4 PR-4 (after the redesign, WP-INT)
-`compose-bom:2025.04.00`, regression pass, harness to Compose Multiplatform 1.7.x (re-check the `androidx.collection`
+`compose-bom:2025.04.00` (with it, `rememberIsResumed()` and `CoveredBackScope()` in `ThesisApp.kt` move from the
+deprecated `androidx.compose.ui.platform.LocalLifecycleOwner` to `androidx.lifecycle.compose.LocalLifecycleOwner`),
+regression pass, harness to Compose Multiplatform 1.7.x (re-check the `androidx.collection`
 and lifecycle substitutions), `RippleTheme` → `RippleConfiguration`, then optional: `sharedBounds` container
 transform, `animateItem`, seekable predictive back, M3 1.3 `PullToRefreshBox` and sheet IME handling (text fields
 may then move into `ThesisSheet`). Kotlin 2 + Compose 1.8+ is a separate later migration.
@@ -1412,7 +1429,8 @@ is a `ThesisFonts.Sans` change plus the renderer's font stack.
 **Q5. Renderer sync (one change in `css.ts`, so principle 1 holds).** The app deviates from the renderer in: light
 `muted #545E69` and light `accent #70572F` (AA over the glow peaks), dark `bg2 #121212` (card separation), dark
 `pos/neg/warn #7FD3A2 / #F2A0A0 / #D9A441` (the hero values, replacing Tailwind 400s), dark colour-blind text
-`#5A95D6 / #D97757`. *Default we proceed with:* ship them in the app now and ask for the same values in the
+`#5A95D6 / #D97757`, and the F1 contrast fixes: light `neg/warn #954747 / #815611`, light colour-blind text
+`#2261A1 / #9C452B` (`control` is app-only and has no renderer counterpart). *Default we proceed with:* ship them in the app now and ask for the same values in the
 renderer.
 
 **Q6. Ticker-level notes and price stamping.** This redesign gives notes a home without backend: one note per
@@ -1467,6 +1485,7 @@ Features that need backend are listed per screen as "Later, needs Razvan" and ar
 | Report WebView | kept composed in a shell base layer while its entry is in the stack | Android critique, option (b) |
 | Container transform | §8a clip-reveal on 1.6 (300/240 ms); §8b in PR-4 | 4.1 |
 | Charts | own Canvas kit, Vico removed from Macro Stress | audit B charts; harness compilability |
+| Unknown alert routes | **Open, owner decision.** PR-1 keeps the old behaviour (an alert with an unknown route lands on the Inbox root), which deviates from 5.5 ("push the alert's detail"); PR-3 WP-INT adds an alert-detail destination if Razvan agrees | PR-1 review; PR-1 description |
 
 ---
 
