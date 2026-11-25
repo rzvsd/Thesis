@@ -84,9 +84,10 @@ private const val HERO_HEIGHT_FRACTION = 0.4f
  *
  * Pure: the password-reset screen and the debug API switch are the caller's ([onForgotPassword],
  * [showDeveloperOptions] = `BuildConfig.DEBUG`). [status] is the typed result; while the ViewModel only publishes
- * [message], the screen maps it with [AuthStatus.fromMessage]. Insets: the band runs under the status bar and the
- * form keeps clear of the navigation bar and the keyboard, through consumption-aware insets, so a caller that
- * already pads for them (ThesisApp's pre-login surfaces) gets no double padding.
+ * [message], the screen maps it with [AuthStatus.fromMessage]. [initialCreateMode] opens on Create account. Insets:
+ * the band runs under the status bar and the form keeps clear of the navigation bar and the keyboard, through
+ * consumption-aware insets, so a caller that already pads for them (ThesisApp's pre-login surfaces) gets no double
+ * padding.
  */
 @Composable
 fun AuthScreen(
@@ -102,12 +103,13 @@ fun AuthScreen(
     onForgotPassword: () -> Unit,
     showDeveloperOptions: Boolean = false,
     status: AuthStatus? = AuthStatus.fromMessage(message),
+    initialCreateMode: Boolean = false,
 ) {
     var apiBaseUrl by rememberSaveable(currentApiBaseUrl) { mutableStateOf(currentApiBaseUrl) }
     var email by rememberSaveable { mutableStateOf("") }
     var password by rememberSaveable { mutableStateOf("") }
     var code by rememberSaveable { mutableStateOf(verificationToken.orEmpty()) }
-    var createMode by rememberSaveable { mutableStateOf(false) }
+    var createMode by rememberSaveable { mutableStateOf(initialCreateMode) }
     var showApiConfig by rememberSaveable { mutableStateOf(false) }
     var verifying by rememberSaveable {
         mutableStateOf(!verificationToken.isNullOrBlank() || !registerStatus.isNullOrBlank())
@@ -251,7 +253,6 @@ fun AuthScreen(
  */
 @Composable
 private fun AuthHero(minHeight: Dp, modifier: Modifier = Modifier) {
-    val p = LocalThesisPalette.current
     val top = ThesisSpace.x4
     val bottom = ThesisSpace.x3
     HeroBand(
@@ -265,6 +266,8 @@ private fun AuthHero(minHeight: Dp, modifier: Modifier = Modifier) {
                 .heightIn(min = (minHeight - top - bottom).coerceAtLeast(0.dp)),
             verticalArrangement = Arrangement.Bottom,
         ) {
+            // Inside the band: the hero palette (heroInk), not the page's.
+            val p = LocalThesisPalette.current
             Spacer(Modifier.windowInsetsTopHeight(WindowInsets.safeDrawing))
             Text(
                 AccountCopy.BRAND,
