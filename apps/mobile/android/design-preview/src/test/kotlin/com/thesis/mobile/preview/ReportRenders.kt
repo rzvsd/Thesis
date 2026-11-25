@@ -22,6 +22,7 @@ import com.thesis.mobile.ui.screens.report.CompareStep
 import com.thesis.mobile.ui.screens.report.EarlierNote
 import com.thesis.mobile.ui.screens.report.ExportJob
 import com.thesis.mobile.ui.screens.report.ReportCompareContent
+import com.thesis.mobile.ui.screens.report.ReportConvictionContent
 import com.thesis.mobile.ui.screens.report.ReportFallbackBanner
 import com.thesis.mobile.ui.screens.report.ReportFeedbackPanel
 import com.thesis.mobile.ui.screens.report.ReportHostFrame
@@ -161,6 +162,35 @@ class ReportRenders {
     @Test fun compareNames() { renderScreen("report-compare-names") { Compare(CompareStep.Names) } }
 
     @Test fun compareReports() { renderScreen("report-compare-reports") { Compare(CompareStep.Reports) } }
+
+    @Composable
+    private fun Conviction(isPro: Boolean = true) {
+        SheetOver(behind = { Frame() }) {
+            ReportConvictionContent(
+                isPro = isPro,
+                timeline = ReportFixtures.convictionTimeline,
+                timelineError = null,
+                oppositeCase = ReportFixtures.oppositeCase,
+                oppositeCaseError = null,
+                isGeneratingOppositeCase = false,
+                onGenerateOppositeCase = {},
+                onRefreshTimeline = {},
+                onRequireUpgrade = {},
+            )
+        }
+    }
+
+    @Test fun conviction() { renderScreen("report-conviction") { Conviction() } }
+
+    @Test
+    fun convictionHugeText() {
+        renderScreen("report-conviction-2.0x", fontScale = 2.0f, themes = listOf(PreviewTheme.DARK)) { Conviction() }
+    }
+
+    @Test
+    fun convictionFree() {
+        renderScreen("report-conviction-free", themes = listOf(PreviewTheme.LIGHT)) { Conviction(isPro = false) }
+    }
 
     @Test
     fun fallbackBanner() {

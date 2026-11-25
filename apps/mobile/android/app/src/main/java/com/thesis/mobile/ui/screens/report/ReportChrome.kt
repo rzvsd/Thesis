@@ -20,6 +20,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
@@ -27,6 +28,7 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.LayoutDirection
 import com.thesis.mobile.ui.components.BannerTone
 import com.thesis.mobile.ui.components.DockItem
 import com.thesis.mobile.ui.components.HeroBand
@@ -214,7 +216,12 @@ fun PageProgressHairline(progress: Int, modifier: Modifier = Modifier) {
                 contentDescription = ReportCopy.PAGE_LOADING
                 progressBarRangeInfo = ProgressBarRangeInfo(target, 0f..1f)
             }
-            .drawBehind { drawRect(p.accent, size = Size(size.width * fraction, size.height)) },
+            .drawBehind {
+                // Grows from the start edge: the left in LTR, the right in RTL.
+                val width = size.width * fraction
+                val left = if (layoutDirection == LayoutDirection.Rtl) size.width - width else 0f
+                drawRect(p.accent, topLeft = Offset(left, 0f), size = Size(width, size.height))
+            },
     )
 }
 

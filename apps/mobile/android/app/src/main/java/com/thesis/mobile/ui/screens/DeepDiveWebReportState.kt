@@ -2,13 +2,9 @@ package com.thesis.mobile.ui.screens
 
 import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -44,12 +40,12 @@ import com.thesis.mobile.ui.motion.ThesisMotion
 import com.thesis.mobile.ui.motion.rememberHaptics
 import com.thesis.mobile.ui.parseInstantMs
 import com.thesis.mobile.ui.screens.report.CompareStep
-import com.thesis.mobile.ui.screens.report.DockScroll
+import com.thesis.mobile.ui.screens.report.DockScrollTracker
 import com.thesis.mobile.ui.screens.report.ExportJob
 import com.thesis.mobile.ui.screens.report.PAGE_PROGRESS_UNKNOWN
 import com.thesis.mobile.ui.screens.report.PageSelection
 import com.thesis.mobile.ui.screens.report.ReportCompareContent
-import com.thesis.mobile.ui.screens.report.ReportDockScroll
+import com.thesis.mobile.ui.screens.report.ReportConvictionContent
 import com.thesis.mobile.ui.screens.report.ReportFallbackBanner
 import com.thesis.mobile.ui.screens.report.ReportFeedbackPanel
 import com.thesis.mobile.ui.screens.report.ReportHostExtras
@@ -238,7 +234,9 @@ private fun ReportWebHost(
     var feedbackDetent by rememberSaveable(report.reportId) { mutableStateOf(DockDetent.Half) }
     var exporting by remember(report.reportId) { mutableStateOf(ExportJob.None) }
     var scrollNoteToEnd by remember(report.reportId) { mutableIntStateOf(0) }
-    var dockScroll by remember(report.reportId) { mutableStateOf(DockScroll()) }
+    // The dock rule's travel lives outside composition state; only the visibility is state (see DockScrollTracker).
+    val dockTracker = remember(report.reportId) { DockScrollTracker() }
+    var dockVisible by remember(report.reportId) { mutableStateOf(true) }
     // Export PDF prints the loaded page (same template as the share link).
     val printer = remember(report.reportId) { DeepDivePagePrinter() }
     // One token refresh per attempt after a 401. Kept in memory only: a token never goes into saved state.
@@ -388,7 +386,7 @@ private fun ReportWebHost(
         pageLoaded = pageLoaded && !isRefreshingToken,
         progress = progress,
         dockItems = dockItems,
-        dockVisible = dockScroll.visible && panel != ReportPanel.Notes && panel != ReportPanel.Feedback,
+        dockVisible = dockVisible && panel != ReportPanel.Notes && panel != ReportPanel.Feedback,
         overlays = {
             val fmt = LocalFmt.current
             val earlier = earlierNoteFor(report.reportId, extras.notesTrail)?.let { earlierNoteOf(it) }
@@ -440,7 +438,8 @@ private fun ReportWebHost(
                     onProgress = { progress = it },
                     onLoaded = { pageLoaded = true },
                     onScroll = { scrollY, dy ->
-                        dockScroll = ReportDockScroll.next(dockScroll, scrollY, dy, slopPx)
+                        val visible = dockTracker.onScroll(scrollY, dy, slopPx)
+                        if (visible != dockVisible) dockVisible = visible
                     },
                     onAddToNote = addToNote,
                 )
@@ -473,7 +472,7 @@ private fun ReportWebHost(
                 step = compareStep,
                 onStep = { compareStep = it },
                 otherNames = otherNamesFor(ticker, extras.watchlist),
-                earlierReports = earlierReportsFor(report.reportId, ticker, extras.reportHistory),
+                earlierReports = earlierReportsFor(report.reportId, ticker, extras.reportHistory, report.generatedAt),
                 onCompareNames = extras.onCompareNames?.let { open ->
                     { tickers: List<String> ->
                         panel = ReportPanel.None
@@ -490,22 +489,20 @@ private fun ReportWebHost(
         }
         ReportPanel.Conviction -> ThesisSheet(onDismissRequest = { panel = ReportPanel.None }) {
             // The paywall opens behind this sheet's window, so the sheet closes before asking for an upgrade.
-            Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
-                DeepDiveConvictionSection(
-                    isPro = tools.isPro,
-                    timeline = tools.convictionTimeline,
-                    timelineError = tools.convictionTimelineError,
-                    oppositeCase = tools.oppositeCase,
-                    oppositeCaseError = tools.oppositeCaseError,
-                    isGeneratingOppositeCase = tools.isGeneratingOppositeCase,
-                    onGenerateOppositeCase = tools.onGenerateOppositeCase,
-                    onRefreshTimeline = tools.onRefreshConvictionTimeline,
-                    onRequireUpgrade = { feature ->
-                        panel = ReportPanel.None
-                        tools.onRequireUpgrade(feature)
-                    }
-                )
-            }
+            ReportConvictionContent(
+                isPro = tools.isPro,
+                timeline = tools.convictionTimeline,
+                timelineError = tools.convictionTimelineError,
+                oppositeCase = tools.oppositeCase,
+                oppositeCaseError = tools.oppositeCaseError,
+                isGeneratingOppositeCase = tools.isGeneratingOppositeCase,
+                onGenerateOppositeCase = tools.onGenerateOppositeCase,
+                onRefreshTimeline = tools.onRefreshConvictionTimeline,
+                onRequireUpgrade = { feature ->
+                    panel = ReportPanel.None
+                    tools.onRequireUpgrade(feature)
+                },
+            )
         }
         else -> Unit
     }

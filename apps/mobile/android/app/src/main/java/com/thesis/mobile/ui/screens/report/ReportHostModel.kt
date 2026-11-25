@@ -3,6 +3,7 @@ package com.thesis.mobile.ui.screens.report
 import androidx.compose.runtime.Immutable
 import com.thesis.mobile.model.NoteTrailEntry
 import com.thesis.mobile.model.ReportHistoryItem
+import com.thesis.mobile.ui.parseInstantMs
 
 /*
  * State and rules of the Deep Dive report host (docs/app-redesign/DESIGN-DIRECTION.md 5.13) that do not need a
@@ -69,12 +70,31 @@ object ReportDockScroll {
     private const val TRAVEL_CAP = 4
 }
 
+/**
+ * The host's running copy of the dock rule. Deliberately not snapshot state: the WebView reports every scroll
+ * frame and `travel` changes on each, so keeping it here (and only [onScroll]'s visibility in composition state)
+ * means a reading scroll recomposes the host only when the dock actually hides or shows.
+ */
+class DockScrollTracker {
+    var state: DockScroll = DockScroll()
+        private set
+
+    /** Applies one scroll event; returns whether the dock shows afterwards. */
+    fun onScroll(scrollY: Int, dy: Int, slopPx: Int): Boolean {
+        state = ReportDockScroll.next(state, scrollY, dy, slopPx)
+        return state.visible
+    }
+}
+
 /** The earlier note shown above the field: the newest non-empty note on another report of the same ticker. */
 fun earlierNoteFor(reportId: String, trail: List<NoteTrailEntry>): NoteTrailEntry? =
     trail.firstOrNull { it.reportId != reportId && it.text.isNotBlank() }
 
 /**
- * Earlier reports "With an earlier report" can open: same ticker, same report type, not this report, newest first.
+ * Earlier reports "With an earlier report" can open: same ticker, same report type, not this report, made before
+ * this report, newest first. "Before" uses this report's own history row when history has it, else [createdAt]
+ * (the report's generated time); a report newer than the one open would turn the comparison around, so it is left
+ * out. When neither time is known, every other report of the ticker is offered.
  * The type is the kind of report (a Deep Dive), not the filing it reads: history does not carry the filing form or
  * period yet (HANDOFF-C, WP-INT 5), so a 10-Q based report can sit next to a 10-K based one and the sheet's copy
  * promises no more than "an earlier report".
@@ -83,14 +103,25 @@ fun earlierReportsFor(
     reportId: String,
     ticker: String?,
     history: List<ReportHistoryItem>,
+    createdAt: String? = null,
 ): List<ReportHistoryItem> {
     val symbol = ticker?.trim()?.uppercase()?.ifBlank { null } ?: return emptyList()
-    val type = history.firstOrNull { it.reportId == reportId }?.type
+    val current = history.firstOrNull { it.reportId == reportId }
+    val type = current?.type
+    val currentAt = current?.createdAt?.ifBlank { null } ?: createdAt?.ifBlank { null }
     return history
         .filter { it.reportId != reportId && it.ticker?.trim()?.uppercase() == symbol }
         .filter { type == null || it.type.equals(type, ignoreCase = true) }
+        .filter { currentAt == null || isEarlier(it.createdAt, currentAt) }
         .distinctBy { it.reportId }
-        .sortedByDescending { it.createdAt }
+        .sortedWith(compareByDescending<ReportHistoryItem> { parseInstantMs(it.createdAt) }.thenByDescending { it.createdAt })
+}
+
+/** [at] is before [than]: as instants when both parse, else as ISO-8601 text (which sorts in time order). */
+private fun isEarlier(at: String, than: String): Boolean {
+    val a = parseInstantMs(at)
+    val b = parseInstantMs(than)
+    return if (a != null && b != null) a < b else at.trim() < than.trim()
 }
 
 /** The other names a comparison can add to [ticker] (the subject), in the person's order. */

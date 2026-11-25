@@ -93,6 +93,37 @@ class ReportHostModelTest {
     }
 
     @Test
+    fun earlierReportsLeaveOutReportsNewerThanTheOpenOne() {
+        // FY2024 opened from History: the FY2025 report is newer, so comparing with it would turn the comparison round.
+        val history = listOf(
+            item("fy25", "AAPL", "deep_dive", "2026-11-20T14:00:00Z"),
+            item("fy24", "AAPL", "deep_dive", "2025-11-14T14:00:00Z"),
+            item("fy23", "AAPL", "deep_dive", "2024-11-08T14:00:00Z"),
+            item("fy22", "AAPL", "deep_dive", "2023-11-08T14:00:00+00:00"),
+        )
+        assertEquals(listOf("fy23", "fy22"), earlierReportsFor("fy24", "AAPL", history).map { it.reportId })
+        assertEquals(listOf("fy24", "fy23", "fy22"), earlierReportsFor("fy25", "AAPL", history).map { it.reportId })
+        // Not in history yet (just generated): the report's own time decides.
+        assertEquals(
+            listOf("fy23", "fy22"),
+            earlierReportsFor("new", "AAPL", history, createdAt = "2025-01-01T00:00:00Z").map { it.reportId },
+        )
+        // No time known at all: every other report of the ticker.
+        assertEquals(4, earlierReportsFor("new", "AAPL", history).size)
+    }
+
+    @Test
+    fun dockTrackerReportsOnlyTheVisibility() {
+        val tracker = DockScrollTracker()
+        var y = 400
+        val seen = List(10) { y += 4; tracker.onScroll(y, 4, slop) }
+        assertTrue(seen.first())
+        assertFalse(seen.last())
+        assertTrue(tracker.state.travel > slop)
+        assertTrue(tracker.onScroll(0, -y, slop))
+    }
+
+    @Test
     fun otherNamesLeaveOutTheSubjectAndDuplicates() {
         assertEquals(listOf("MSFT", "NVDA"), otherNamesFor("aapl", listOf("AAPL", " msft", "NVDA", "MSFT", "")))
         assertEquals(listOf("AAPL"), otherNamesFor(null, listOf("aapl")))

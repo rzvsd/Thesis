@@ -57,6 +57,14 @@ branch; the integrator also pastes it into the PR description (6.0 rule 1).
    `ReportQuote.format(PageSelection(quote, chapterNumber, chapterName), ReportQuote.sourceLabel(report))` and add
    it with `ReportQuote.append`, so both views write `> "quote" (Ch. 04 Margins, AAPL 10-K FY2025)` with the spec's
    straight quotes.
+6. **PR-3 blocker (rubric A4, starred).** `ConvictionIntelligenceCards.kt` (`DeepDiveConvictionSection`, which the
+   report host's Conviction sheet shows through `ReportConvictionContent`): at 2.0x font scale the timeline's
+   "Refresh" button wraps one letter group per line ("Ref / res / h") and each entry's date wraps character by
+   character next to the event label (render `report-conviction-2.0x-dark.png`). Let the header row wrap the
+   button under the title (or use a `TextAction`), and put the date on its own line under the event label when
+   the row does not fit. In the same card (5.15, 2.1): the event labels are the raw event types upper-cased
+   ("FRESHNESS DECAY ALERT FIRED") and the dates are ISO text cut to 10 characters (`eventAt.take(10)`); use
+   plain labels ("Freshness alert") and `Fmt` dates. Renders: `report-conviction-{dark,light}.png`.
 
 ## WP-K (kit: ui/components, ui/format)
 
@@ -85,13 +93,35 @@ branch; the integrator also pastes it into the PR description (6.0 rule 1).
 6. `format/Fmt.kt`: add `shortDate(instant: Instant)` (the date in Fmt's zone), or expose the zone. Reason: screens
    must not call `ZoneId.systemDefault()` (2.1). WP-C uses `fmt.relative(instant)` for the earlier-report rows
    ("Built 23 days ago", then the date) until then.
-7. `components/Overlays.kt` `DockPanel`: the surface is translucent (`ThesisSurface.DOCK_PANEL_ALPHA`), so over a
-   text-heavy page the chapter headline and story text show through behind the panel's own text (render
-   `report-notes-earlier-light.png`, behind "Earlier note"). Raise the opacity (the page stays visible above the
-   panel, which is what 5.13 asks for) or add a blur or a scrim edge.
+7. **PR-3 blocker (rubric A2, starred: legibility).** `components/Overlays.kt` `DockPanel`: the surface is
+   translucent (`ThesisSurface.DOCK_PANEL_ALPHA`), so over a text-heavy page the chapter headline and story text
+   show through behind the panel's own text ("What the filing says" and "Summary · Business" sit under "EARLIER
+   NOTE" and "Carry forward"). Renders: `report-notes-earlier-{dark,light}.png`, `report-feedback-light.png`,
+   `report-notes-1.3x-dark.png`. Make the panel surface opaque (`p.surface`), optionally with a scrim edge on its
+   top; the page stays visible above the panel, which is what 5.13 asks for. WP-C needs no change.
 8. Optional: `components/Story.kt` `StageProgress`: a `StageStatus.Stopped` (a `neg` or `line2` ring, announced as
    "stopped") for the stage a failed build reached. WP-C marks it with the caption "Stopped here" over a Waiting
    ring, which TalkBack reads as "Stopped here, waiting".
+9. `components/Story.kt` `StageProgress`: let a stage turn its `LoadingHairline` on or off (for example
+   `Stage(..., working: Boolean = status == Current)`). Reason: 5.14 puts the hairline only under "Reading the
+   filings and building the report"; today any `Current` stage draws it, so "In the queue" shows it while the job
+   waits (render `report-generation-queued-*.png`). Once it lands, `GenerationStages.stagesFor` passes
+   `working = false` for the queued stage (one line). If WP-K declines, note in 5.14 that the queued stage also
+   carries the hairline.
+
+## PR-3 merge gates (integrator)
+
+Before PR-3 merges, confirm each of these landed; otherwise the WP-C screen ships with the gap named:
+
+- WP-D 1 and WP-INT 4: a running Deep Dive reaches the 5.14 generation screen (stages, "you can leave"). Without
+  them `DeepDiveLoadingScreen`'s `building` stays false and a build shows the opening skeleton. If the wiring slips,
+  the minimum is `building = true` for `DeepDiveRunning` entries.
+- WP-K 1 and 2: the dock fits "Conviction" at 1.3x and 2.0x and can carry a badge. Then WP-C (or the integrator)
+  passes `badge = ReportCopy.PRO_BADGE.takeIf { !tools.isPro }` on the Conviction `DockItem` in
+  `DeepDiveWebReportState.kt` (5.13 item 3, "Conviction (Pro)").
+- WP-K 4 and WP-INT 1: the bookmark is either wired or hidden; then pass `extras.onFollowChange` straight through.
+- WP-K 7: the notes and feedback panels are opaque.
+- WP-D 6: the Conviction sheet's content holds up at 2.0x (no letter-by-letter wraps).
 
 ## Shared harness (design-preview)
 

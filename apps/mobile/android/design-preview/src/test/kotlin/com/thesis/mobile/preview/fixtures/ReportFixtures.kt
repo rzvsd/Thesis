@@ -22,10 +22,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.unit.dp
+import com.thesis.mobile.model.ConvictionJournalEntryView
 import com.thesis.mobile.model.DeepDiveReportView
 import com.thesis.mobile.model.FilingReadView
 import com.thesis.mobile.model.IssuerView
 import com.thesis.mobile.model.NoteTrailEntry
+import com.thesis.mobile.model.OppositeCasePointView
+import com.thesis.mobile.model.OppositeCaseReportView
 import com.thesis.mobile.model.ReportHistoryItem
 import com.thesis.mobile.model.SectionView
 import com.thesis.mobile.ui.components.DockItem
@@ -73,6 +76,37 @@ object ReportFixtures {
     )
 
     val watchlist = listOf("AAPL", "MSFT", "NVDA", "GOOGL", "AMZN")
+
+    /** The Conviction sheet's data: a short journal for the ticker and a generated opposite case. */
+    val convictionTimeline = listOf(
+        ConvictionJournalEntryView(
+            journalEntryId = "cj-3", ticker = "AAPL", eventType = "report_generated", sourceType = "report",
+            sourceId = "rep-aapl-2025", eventAt = "2026-11-20T14:00:00Z", title = "Deep Dive on the FY2025 10-K",
+            summary = "Operating margin held at 32.0%; Services grew faster than hardware.", reportId = "rep-aapl-2025",
+        ),
+        ConvictionJournalEntryView(
+            journalEntryId = "cj-2", ticker = "AAPL", eventType = "freshness_decay_alert_fired", sourceType = "alert",
+            sourceId = "al-1", eventAt = "2026-08-02T09:00:00Z", title = "The thesis is getting old",
+            summary = "Nine months since the last report; a new 10-Q is out.",
+        ),
+        ConvictionJournalEntryView(
+            journalEntryId = "cj-1", ticker = "AAPL", eventType = "report_generated", sourceType = "report",
+            sourceId = "rep-aapl-2024", eventAt = "2025-11-14T14:00:00Z", title = "Deep Dive on the FY2024 10-K",
+            summary = "Margin at 31.5%; buybacks cut the share count 2.6%.", reportId = "rep-aapl-2024",
+        ),
+    )
+
+    val oppositeCase = OppositeCaseReportView(
+        oppositeCaseId = "oc-1", sourceReportId = "rep-aapl-2025", ticker = "AAPL",
+        thesisSummary = "Services keep margins high while hardware sales slow.",
+        oppositeCaseSummary = "Services growth depends on fees regulators are already cutting; hardware is still most of the sales.",
+        keyPoints = listOf(
+            OppositeCasePointView("App Store fees", "Court rulings in the US and EU let developers steer buyers away from Apple's fee."),
+            OppositeCasePointView("Hardware mix", "iPhone is still about half of sales, and upgrade cycles are lengthening."),
+        ),
+        decisiveFactors = listOf("Services take rate", "iPhone units"),
+        generatedAt = "2026-11-21T10:00:00Z",
+    )
 
     fun dock() = listOf(
         DockItem(ReportCopy.DOCK_NOTES, {}),

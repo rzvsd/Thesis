@@ -1,5 +1,10 @@
 package com.thesis.mobile.ui.screens.report
 
+import com.thesis.mobile.ui.screens.DeepDiveConvictionSection
+import com.thesis.mobile.model.OppositeCaseReportView
+import com.thesis.mobile.model.ConvictionJournalEntryView
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -499,4 +504,36 @@ private fun Modifier.bleedHorizontally(amount: Dp): Modifier = layout { measurab
     val placeable = measurable.measure(wide)
     val width = (placeable.width - extra).coerceIn(constraints.minWidth, constraints.maxWidth)
     layout(width, placeable.height) { placeable.place(-amount.roundToPx(), 0) }
+}
+
+/**
+ * The Conviction sheet's body (5.13 dock "Conviction"): the classic conviction section (timeline and opposite
+ * case, WP-D's [DeepDiveConvictionSection]) in a scrolling column, so a long timeline scrolls inside the sheet.
+ * The host closes the sheet before [onRequireUpgrade]: the paywall opens behind the sheet's window.
+ */
+@Composable
+fun ReportConvictionContent(
+    isPro: Boolean,
+    timeline: List<ConvictionJournalEntryView>,
+    timelineError: String?,
+    oppositeCase: OppositeCaseReportView?,
+    oppositeCaseError: String?,
+    isGeneratingOppositeCase: Boolean,
+    onGenerateOppositeCase: () -> Unit,
+    onRefreshTimeline: () -> Unit,
+    onRequireUpgrade: (String) -> Unit,
+) {
+    Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
+        DeepDiveConvictionSection(
+            isPro = isPro,
+            timeline = timeline,
+            timelineError = timelineError,
+            oppositeCase = oppositeCase,
+            oppositeCaseError = oppositeCaseError,
+            isGeneratingOppositeCase = isGeneratingOppositeCase,
+            onGenerateOppositeCase = onGenerateOppositeCase,
+            onRefreshTimeline = onRefreshTimeline,
+            onRequireUpgrade = onRequireUpgrade,
+        )
+    }
 }
