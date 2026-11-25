@@ -57,6 +57,7 @@ import com.patrykandpatrick.vico.core.entry.entryOf
 import com.thesis.mobile.model.SentimentSnapshotView
 import com.thesis.mobile.model.SentimentSubScoreView
 import com.thesis.mobile.ui.copy.Phase4Copy
+import com.thesis.mobile.ui.format.Fmt
 import com.thesis.mobile.ui.theme.HeadingFont
 import com.thesis.mobile.ui.theme.ThesisColors
 import com.thesis.mobile.ui.theme.ThesisDimens
@@ -152,7 +153,7 @@ fun MacroStressDashboardScreen(
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Text(
-                            text = if (current == null) "--" else current.score.toInt().toString(),
+                            text = if (current == null) "--" else Fmt.score(current.score),
                             style = ThesisTypography.displayLarge.copy(
                                 fontFamily = HeadingFont,
                                 fontWeight = FontWeight.Normal
@@ -384,7 +385,7 @@ fun MacroStressDashboardScreen(
                                             color = ThesisColors.TextMuted
                                         )
                                         Text(
-                                            text = snap.score.toInt().toString(),
+                                            text = Fmt.score(snap.score),
                                             style = ThesisTypography.bodyMedium.copy(fontWeight = FontWeight.Medium),
                                             color = ThesisColors.TextPrimary
                                         )
@@ -599,7 +600,7 @@ private fun SentimentGaugeCard(
                 }
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
-                        text = if (current == null) "--" else clampedScore.toInt().toString(),
+                        text = if (current == null) "--" else Fmt.score(clampedScore),
                         style = ThesisTypography.displayMedium,
                         color = ThesisColors.TextPrimary
                     )

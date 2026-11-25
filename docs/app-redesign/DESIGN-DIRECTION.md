@@ -1357,6 +1357,10 @@ full render sweep → rubric review → PR into `rebuild`.
 - WP-K: the collapsed bar's 92% page slice shows saturated content under it as a muted block (Home's gold
   "Dashboard" behind THESIS, Inbox chip labels). Re-check after WP-A removes the gold button; if it still reads as
   clutter, raise the slice opacity or fade content under the bar, checked against Deep Dive's sticky chip-nav bar.
+- WP-E: History draws its own sticky bar on a flat `Background.copy(alpha = 0.97f)` (`HistoryScreen.kt`), which
+  cuts a hard seam through the page glow at the bar's bottom edge (dark: (10,10,10) above, (36,31,22) below, at
+  x=1050 in `shell-today-history-dark`; it shows in every push/pop frame). Drop the private bar for the shell's
+  `ShellTopBar.Back` (drawn on `barBackground`), or draw the sticky header on `barBackground`.
 
 ### 6.4 PR-4 (after the redesign, WP-INT)
 `compose-bom:2025.04.00` (with it, `rememberIsResumed()` and `CoveredBackScope()` in `ThesisApp.kt` move from the

@@ -74,7 +74,6 @@ import com.thesis.mobile.ui.screens.PaywallScreen
 import com.thesis.mobile.ui.theme.LocalReducedMotion
 import kotlin.math.roundToInt
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**

@@ -466,10 +466,10 @@ fun ThesisSnackbar(
  * What [showThesisSnackbar] puts on the host: shown until [ThesisSnackbarHost] times it out after [baseMillis]
  * (4 s, 8 s with an action), stretched to the user's accessibility timeout ("Time to take action").
  */
-private class ThesisSnackbarVisuals(
+internal class ThesisSnackbarVisuals(
     override val message: String,
     override val actionLabel: String?,
-    val baseMillis: Long,
+    val baseMillis: Long = if (actionLabel != null) Kit.SNACKBAR_ACTION_MS else Kit.SNACKBAR_MS,
 ) : SnackbarVisuals {
     override val withDismissAction: Boolean get() = false
     override val duration: SnackbarDuration get() = SnackbarDuration.Indefinite
@@ -544,7 +544,9 @@ fun ThesisSnackbarHost(hostState: SnackbarHostState, modifier: Modifier = Modifi
 /**
  * How long [visuals] stays up, stretched to the user's accessibility timeout ("Time to take action") as Material3's
  * own host does; null: until dismissed. [showThesisSnackbar] posts `Indefinite` messages that [ThesisSnackbarHost]
- * times out itself: 4 s, or 8 s with an action (3 #23). `Short` and `Long` keep Material3's 4 s and 10 s.
+ * times out itself: 4 s, or 8 s with an action (3 #23). `Short` and `Long` keep Material3's 4 s and 10 s, and a
+ * plain `Indefinite` message (posted with `showSnackbar`, not [showThesisSnackbar]) stays up until it is dismissed or
+ * its action is tapped, as Material3's contract says.
  */
 fun snackbarTimeoutMillis(visuals: SnackbarVisuals, accessibility: AccessibilityManager?): Long? {
     val hasAction = visuals.actionLabel != null
@@ -552,8 +554,7 @@ fun snackbarTimeoutMillis(visuals: SnackbarVisuals, accessibility: Accessibility
         visuals is ThesisSnackbarVisuals -> visuals.baseMillis
         visuals.duration == SnackbarDuration.Short -> SNACKBAR_SHORT_MS
         visuals.duration == SnackbarDuration.Long -> SNACKBAR_LONG_MS
-        hasAction -> Kit.SNACKBAR_ACTION_MS
-        else -> Kit.SNACKBAR_MS
+        else -> return null
     }
     return accessibility?.calculateRecommendedTimeoutMillis(base, containsText = true, containsControls = hasAction) ?: base
 }
@@ -567,6 +568,5 @@ private const val SNACKBAR_LONG_MS = 10_000L
  * when the user's accessibility settings ask for more time, and returns how it ended.
  */
 suspend fun SnackbarHostState.showThesisSnackbar(message: String, actionLabel: String? = null): SnackbarResult {
-    val base = if (actionLabel != null) Kit.SNACKBAR_ACTION_MS else Kit.SNACKBAR_MS
-    return showSnackbar(ThesisSnackbarVisuals(message, actionLabel, base))
+    return showSnackbar(ThesisSnackbarVisuals(message, actionLabel))
 }

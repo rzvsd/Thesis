@@ -141,6 +141,11 @@ and "reduced-motion path uses crossfades" hold for every entry except the Paywal
 stack once WP-G's full-screen Paywall (5.23) lands; it is on the WP-G and WP-INT checklists in DESIGN-DIRECTION 6.3
 ("Carried from the PR-2 review").
 
+Review round 2: the Macro Stress score uses `Fmt.score` (rounded half up) on every screen that shows it: Home's
+card, the Macro Stress dashboard (headline, gauge, history rows) and the Weekly Digest, so the card and its detail
+pages always agree (61.5 reads "62" on all three). A plain `SnackbarDuration.Indefinite` message stays up until it
+is dismissed again (Material3's contract); only `showThesisSnackbar` messages time out at 4 s / 8 s.
+
 Review round 1 polish for WP-K (no change in PR-2): the collapsed bar's 92% page slice lets saturated content show
 through as a muted block (Home's filled gold "Dashboard" behind THESIS in `shell-motion-today-scrolled-light`, chip
 labels in `shell-motion-inbox-scrolled-dark`). Removing the gold button outside a HeroBand (WP-A, carried from PR-1)

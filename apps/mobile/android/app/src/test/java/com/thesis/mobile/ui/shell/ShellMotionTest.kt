@@ -1,5 +1,6 @@
 package com.thesis.mobile.ui.shell
 
+import com.thesis.mobile.ui.components.ThesisSnackbarVisuals
 import com.thesis.mobile.ui.components.snackbarTimeoutMillis
 import com.thesis.mobile.ui.motion.ThesisMotion
 import com.thesis.mobile.ui.navigation.Destination
@@ -80,10 +81,14 @@ class ShellMotionTest {
                 override val duration = duration
             }
         val indefinite = androidx.compose.material3.SnackbarDuration.Indefinite
-        // showThesisSnackbar posts Indefinite messages: 4 s, 8 s with an action (3 #23).
-        assertEquals(4_000L, snackbarTimeoutMillis(visuals(null, indefinite), accessibility = null))
-        assertEquals(8_000L, snackbarTimeoutMillis(visuals("Open", indefinite), accessibility = null))
+        // showThesisSnackbar posts Indefinite messages the host times out: 4 s, 8 s with an action (3 #23).
+        assertEquals(4_000L, snackbarTimeoutMillis(ThesisSnackbarVisuals("Saved.", null), accessibility = null))
+        assertEquals(8_000L, snackbarTimeoutMillis(ThesisSnackbarVisuals("Saved.", "Open"), accessibility = null))
+        // Plain showSnackbar keeps Material3's contract: Short 4 s, Long 10 s, Indefinite until dismissed.
         assertEquals(4_000L, snackbarTimeoutMillis(visuals(null, androidx.compose.material3.SnackbarDuration.Short), null))
+        assertEquals(10_000L, snackbarTimeoutMillis(visuals(null, androidx.compose.material3.SnackbarDuration.Long), null))
+        assertNull(snackbarTimeoutMillis(visuals(null, indefinite), accessibility = null))
+        assertNull(snackbarTimeoutMillis(visuals("Open", indefinite), accessibility = null))
     }
 
     @Test
