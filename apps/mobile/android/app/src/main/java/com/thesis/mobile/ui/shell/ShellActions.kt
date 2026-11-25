@@ -64,10 +64,11 @@ interface ShellActions {
     fun onOpenPulse(date: String?) {}
 
     /**
-     * A `Pulse(date)` entry is on screen but the shared Pulse was last asked for another day or for the latest
-     * issue (after process death, or a Today refresh while the entry sat in another tab's stack).
+     * A `Pulse(date)` entry is on screen (null = the latest issue). Loads its issue when the shared Pulse was last
+     * asked for another day or for the latest (after process death, a Today refresh while a dated entry sat in
+     * another tab's stack, or an undated entry shown after a past day was opened from Research).
      */
-    fun onEnsurePulse(date: String) {}
+    fun onEnsurePulse(date: String?) {}
 
     /** Pull to refresh on a `Pulse(date)` entry: that day's issue again (never the latest, which is another day). */
     fun onReloadPulse(date: String) {}

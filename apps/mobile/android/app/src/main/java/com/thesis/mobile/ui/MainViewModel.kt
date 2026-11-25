@@ -46,7 +46,6 @@ import com.thesis.mobile.model.SearchResultsView
 import com.thesis.mobile.model.SnapshotDelta
 import com.thesis.mobile.model.SnapshotPoint
 import com.thesis.mobile.model.TAB_DATA_MAX_AGE_MS
-import com.thesis.mobile.model.isFresh
 import com.thesis.mobile.model.searchLocal
 import com.thesis.mobile.model.snapshotDeltaSince
 import com.thesis.mobile.model.toReportSummary
@@ -62,7 +61,9 @@ import com.thesis.mobile.ui.shell.DeepDiveStartDecision
 import com.thesis.mobile.ui.shell.NavEntry
 import com.thesis.mobile.ui.shell.NavigatorStateStore
 import com.thesis.mobile.ui.shell.ShellActions
+import com.thesis.mobile.ui.shell.TabFreshness
 import com.thesis.mobile.ui.shell.decideDeepDiveStart
+import com.thesis.mobile.ui.shell.pulseEntryNeedsLoad
 import com.thesis.mobile.network.ProductApiClient
 import com.thesis.mobile.network.ProductApiException
 import com.thesis.mobile.observability.MobileTelemetry
@@ -119,8 +120,8 @@ class MainViewModel(
     )
         private set
 
-    /** When each tab's data last loaded (epoch ms); a tab switch skips data younger than 5 minutes (5.5). */
-    private val tabFetchedAtMs = mutableMapOf<ShellTab, Long>()
+    /** When each tab's data last loaded; a tab switch skips data younger than 5 minutes (5.5), a failed load clears it. */
+    private val tabFreshness = TabFreshness()
 
     // Refresh flags: a generation number per single-flight refresh, a counter for parallel ones, so a cancelled
     // older request can never clear the flag of the newer one.
@@ -148,7 +149,8 @@ class MainViewModel(
     private var pulseRefreshJob: Job? = null
     private var pulseRememberRequested = false
     // The day the shared Pulse was last asked for (null = the latest issue). A restored Pulse(date) entry compares
-    // its date with this (onEnsurePulse) and asks for its day again when the latest replaced it.
+    // its date with this (onEnsurePulse) and asks for its day again when the latest replaced it; an undated entry (and
+    // Today, refreshTab) asks for the latest again when a past day replaced it.
     private var pulseRequestedDate: String? = null
     private var macroStressRefreshJob: Job? = null
 
@@ -162,6 +164,8 @@ class MainViewModel(
             loadYouInsightsWithProfile = navigator.modalStack.any { it.destination.isYouEntry() }
             PrefetchScheduler.schedule(getApplication<Application>().applicationContext)
             state = state.copy(lastViewedReport = sessionStore.getLastViewedReport())
+            // Marked before the loads start, so a load that fails at once still clears its tab's mark.
+            markAllTabsFetched()
             refreshFeatureFlags()
             refreshUserProfile()
             refreshNotificationPreferences()
@@ -176,15 +180,14 @@ class MainViewModel(
                 syncPushToken()
             }
             resumeDeepDiveIfRunning()
-            markAllTabsFetched()
         }
     }
 
-    /** After a full load (start, login) the first tab switches do not fetch the same data again. */
-    private fun markAllTabsFetched() {
-        val now = System.currentTimeMillis()
-        ShellTab.entries.forEach { tabFetchedAtMs[it] = now }
-    }
+    /**
+     * After a full load (start, login) the first tab switches do not fetch the same data again. A load that fails
+     * clears the marks of the tabs it feeds (TabFreshness.invalidate), so an offline start is retried on the next switch.
+     */
+    private fun markAllTabsFetched() = tabFreshness.markAll(System.currentTimeMillis())
 
     fun observe(listener: (UiState) -> Unit) {
         observer = listener
@@ -224,9 +227,17 @@ class MainViewModel(
      * is not fetched here only to be cancelled.
      */
     private fun refreshTab(tab: ShellTab, force: Boolean, skipPulse: Boolean = false) {
-        val now = System.currentTimeMillis()
-        if (!force && isFresh(tabFetchedAtMs[tab], now)) return
-        tabFetchedAtMs[tab] = now
+        if (!tabFreshness.claim(tab, System.currentTimeMillis(), force)) {
+            // Fresh, but a past Pulse opened on another tab (Research history) holds the shared Pulse: Today's brief
+            // shows the latest issue again. A dated Pulse entry on Today's top asks for its own day (onEnsurePulse).
+            val topPulseDate = (navigator.tabTop.destination as? Destination.Pulse)?.date
+            if (tab == ShellTab.Today && !skipPulse && topPulseDate == null &&
+                pulseEntryNeedsLoad(null, pulseRequestedDate)
+            ) {
+                refreshPulse()
+            }
+            return
+        }
         when (tab) {
             ShellTab.Today -> {
                 if (!skipPulse) refreshPulse()
@@ -417,6 +428,7 @@ class MainViewModel(
                         deepDiveError = null
                     )
                 )
+                markAllTabsFetched()
                 refreshFeatureFlags()
                 refreshUserProfile()
                 refreshWatchlist()
@@ -427,7 +439,6 @@ class MainViewModel(
                 refreshAlertLedger()
                 refreshMonitorSnapshots()
                 refreshReportHistory()
-                markAllTabsFetched()
                 syncPushToken()
                 PrefetchScheduler.schedule(getApplication<Application>().applicationContext)
                 trackEvent(
@@ -1459,7 +1470,7 @@ class MainViewModel(
         withAuthorizedCall(onDone = {
             historyInFlight = (historyInFlight - 1).coerceAtLeast(0)
             publish(state.copy(isHistoryLoading = historyInFlight > 0))
-        }) {
+        }, onError = { tabFreshness.invalidate(ShellTab.Research) }) {
             val reports = client.listReports(state.apiBaseUrl, requireTokens().accessToken)
             publish(state.copy(reportHistory = reports, reportHistoryLoaded = true))
         }
@@ -1728,6 +1739,7 @@ class MainViewModel(
                 error = runAuthorizedWithRefresh(fetchLatest)
             }
             if (error != null) {
+                tabFreshness.invalidate(ShellTab.Today)
                 val failureKind = RefreshFailure.classify(error, isDeviceOnline())
                 Log.w(LOG_TAG, RefreshFailure.logLine("pulse", error, failureKind))
                 val cachedPulse = cacheStore.getCachedPulse()
@@ -1910,6 +1922,7 @@ class MainViewModel(
                 )
             }
             if (error != null) {
+                tabFreshness.invalidate(ShellTab.Today)
                 val failureKind = RefreshFailure.classify(error, isDeviceOnline())
                 Log.w(LOG_TAG, RefreshFailure.logLine("macro_stress", error, failureKind))
                 val cachedCurrent = cacheStore.getCachedSentimentCurrent()
@@ -1988,7 +2001,7 @@ class MainViewModel(
     /** [thenSnapshots]: refresh the board's snapshots after the list (false when the caller refreshes them itself). */
     fun refreshWatchlist(thenSnapshots: Boolean = true) {
         boardStarted()
-        withAuthorizedCall(onDone = ::boardFinished) {
+        withAuthorizedCall(onDone = ::boardFinished, onError = { tabFreshness.invalidate(ShellTab.Names) }) {
             val items = client.getWatchlist(state.apiBaseUrl, requireTokens().accessToken)
             publish(state.copy(watchlist = items, watchlistLoaded = true))
             if (thenSnapshots) refreshMonitorSnapshots()
@@ -2071,6 +2084,8 @@ class MainViewModel(
                 )
             }
             if (error != null) {
+                // The ledger feeds Today's alerts, the Names board and Inbox.
+                tabFreshness.invalidate(ShellTab.Today, ShellTab.Names, ShellTab.Inbox)
                 publish(state.copy(inboxError = toMessage(error)))
             }
           } finally {
@@ -2085,7 +2100,7 @@ class MainViewModel(
         boardStarted()
         viewModelScope.launch {
           try {
-            runAuthorizedWithRefresh {
+            val error = runAuthorizedWithRefresh {
                 val snapshots = client.getMonitorSnapshots(
                     state.apiBaseUrl,
                     requireTokens().accessToken
@@ -2095,6 +2110,7 @@ class MainViewModel(
                 runCatchingNonCancellation { cacheStore.appendSnapshotHistory(snapshots) }
                 publish(state.copy(snapshotDeltas = computeSnapshotDeltas(snapshots, state.lastNamesVisitAtMs)))
             }
+            if (error != null) tabFreshness.invalidate(ShellTab.Today, ShellTab.Names)
           } finally {
             boardFinished()
           }
@@ -2293,7 +2309,7 @@ class MainViewModel(
         activeDeepDiveJobId = null
         clearDeepDiveInFlight()
         sessionStore.clearVisitMarkers()
-        tabFetchedAtMs.clear()
+        tabFreshness.clear()
         navigator.reset()
         val hasSeenWelcome = sessionStore.hasSeenWelcome()
         publish(
@@ -2711,8 +2727,11 @@ class MainViewModel(
         if (state.deepDiveReport?.reportId != reportId) openHistoryReport(reportId)
     }
 
-    override fun onEnsurePulse(date: String) {
-        if (pulseRequestedDate != date.trim()) loadPulseByDate(date)
+    override fun onEnsurePulse(date: String?) {
+        if (!pulseEntryNeedsLoad(date, pulseRequestedDate)) return
+        // An undated entry shows the latest issue: a past day opened elsewhere (Research history) must not stand in.
+        val day = date?.trim()?.ifBlank { null }
+        if (day == null) refreshPulse() else loadPulseByDate(day)
     }
 
     override fun onReloadPulse(date: String) = loadPulseByDate(date)
@@ -2852,7 +2871,7 @@ class MainViewModel(
     override fun onRefreshMacro() = refreshMacroStress()
 
     override fun onRefreshNames() {
-        tabFetchedAtMs[ShellTab.Names] = System.currentTimeMillis()
+        tabFreshness.mark(ShellTab.Names, System.currentTimeMillis())
         // The snapshots refresh on their own, so the board's states and scores update even when the list call fails.
         refreshWatchlist(thenSnapshots = false)
         refreshMonitorSnapshots()
