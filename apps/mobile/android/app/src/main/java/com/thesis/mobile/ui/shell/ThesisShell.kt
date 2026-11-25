@@ -30,6 +30,7 @@ import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Snackbar
@@ -52,6 +53,8 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.thesis.mobile.ui.UiState
 import com.thesis.mobile.ui.navigation.Destination
@@ -74,8 +77,11 @@ import com.thesis.mobile.ui.theme.ThesisDimens
  * under screens pushed over it, so its WebView keeps scroll and session; its back handlers are off while it is
  * covered) → the tab layer (`AnimatedContent` over the current tab's top entry, 4.5 transitions, each entry's
  * saved state keyed by its `entryId`) → the bottom bar (slides away on Report, ReportClassic, DeepDiveRunning) →
- * the modal layer (You, Search, Paywall destinations) → the paywall sheet → snackbars (one host, last child of the
- * root, so messages raised while You, Search or the paywall is open are seen: 5.5 layer order).
+ * the modal layer (You, Search, Paywall destinations) → the paywall → snackbars (one host, last child of the
+ * root, so messages raised while You or Search is open are seen: 5.5 layer order). The paywall is still a
+ * `Dialog` (its own window above the activity), so a snackbar raised while it is open (restore, purchase) is
+ * drawn under it and seen only once it closes; 5.23 (WP-G) makes the paywall a full-screen destination, which
+ * fixes that.
  *
  * Each entry draws its own top bar (5.5 "each screen supplies its top bar") and computes its own insets from its
  * own destination, so in a push or pop the bar moves with its screen and the leaving screen keeps its layout
@@ -219,13 +225,12 @@ private fun ShellContentScope.EntryFrame(entry: NavEntry, inModal: Boolean, bott
         containerColor = ThesisColors.Background,
         topBar = {
             when (bar) {
-                ShellTopBar.Root -> ThesisTopBar(
-                    profileSelected = navigator.modalStack.lastOrNull()?.destination.let {
-                        it is Destination.You || it is Destination.YouPage
-                    },
-                    onOpenSearch = actions::onOpenSearch,
-                    onOpenProfile = actions::onOpenYou
-                )
+                ShellTopBar.Root -> Box {
+                    ThesisTopBar(onOpenSearch = actions::onOpenSearch, onOpenProfile = actions::onOpenYou)
+                    if (rootRefreshing(entry.destination, state)) {
+                        InterimRefreshHairline(Modifier.align(Alignment.BottomCenter))
+                    }
+                }
                 ShellTopBar.Back -> ThesisBackTopBar(
                     title = titleOf(entry.destination, state),
                     onBack = { actions.onBack() }
@@ -250,6 +255,37 @@ private fun ShellContentScope.EntryFrame(entry: NavEntry, inModal: Boolean, bott
             Content(entry, padding)
         }
     }
+}
+
+/**
+ * Interim refresh signal (5.5) until PR-3 puts the kit's `LoadingHairline` in each root's ScreenHeader: a 1 dp
+ * line over the bottom edge of the root bar (no layout shift) while the visible tab's data refreshes in the
+ * background. Indeterminate; under reduced motion a static line (4.8).
+ */
+@Composable
+private fun InterimRefreshHairline(modifier: Modifier) {
+    val lineModifier = modifier
+        .fillMaxWidth()
+        .height(ThesisDimens.BorderWidth)
+        .semantics { contentDescription = "Refreshing" }
+    if (LocalReducedMotion.current) {
+        Box(lineModifier.background(ThesisColors.Primary.copy(alpha = 0.6f)))
+    } else {
+        LinearProgressIndicator(
+            modifier = lineModifier,
+            color = ThesisColors.Primary,
+            trackColor = ThesisColors.Border
+        )
+    }
+}
+
+/** Whether the tab root [destination] is refreshing its data in the background (the 5.5 refresh flags). */
+internal fun rootRefreshing(destination: Destination, state: UiState): Boolean = when (destination) {
+    Destination.Today -> state.isPulseRefreshing || state.isMacroRefreshing
+    Destination.Names -> state.isBoardRefreshing
+    Destination.Research -> state.isHistoryLoading
+    Destination.Inbox -> state.isInboxRefreshing
+    else -> false
 }
 
 /**
@@ -356,7 +392,8 @@ internal fun topBarFor(destination: Destination, state: UiState): ShellTopBar = 
 internal fun titleOf(destination: Destination, state: UiState): String = when (destination) {
     // The War Room screen carries its own "War Room" headline and ticker; the bar only goes back (rubric V3).
     is Destination.WarRoom -> ""
-    is Destination.ScenarioStress -> "Scenario Stress"
+    // Scenario Stress carries its own "Scenario Stress" headline; the bar only goes back (rubric V3).
+    is Destination.ScenarioStress -> ""
     // The placeholder body carries the ticker as its headline; the bar only goes back (rubric V3).
     is Destination.Name -> ""
     is Destination.CompareReports -> "Compare reports"

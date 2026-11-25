@@ -68,7 +68,7 @@ class ShellRenders {
 
     /**
      * Fallback only: MainViewModel removes a running entry restored with no job left (dropIdleRunningEntries).
-     * Should one still show, it draws the search rather than an endless spinner.
+     * Should one still show, it says the build is no longer running, with a retry, rather than an endless spinner.
      */
     @Test fun deepDiveRunningEnded() = shell(
         "shell-research-running-ended", ShellTab.Research, push = Destination.DeepDiveRunning("AAPL")
@@ -103,6 +103,14 @@ class ShellRenders {
     @Test fun snackbarOverYou() = shell(
         "shell-you-snackbar", ShellTab.Names, modal = Destination.You, snackbar = "Notification preference saved."
     )
+
+    /** Interim refresh signal: a 1 dp line on the root bar's bottom edge while the board refreshes. */
+    @Test fun namesRefreshing() = shell(
+        "shell-names-refreshing", ShellTab.Names, state = ShellFixtures.state.copy(isBoardRefreshing = true)
+    )
+
+    /** Scenario Stress: the back bar has no title over the screen's own "Scenario Stress" headline (rubric V3). */
+    @Test fun scenarioStress() = shell("shell-research-scenario", ShellTab.Research, push = Destination.ScenarioStress())
 
     /** On a tab root the snackbar sits on the bottom bar, not under it. */
     @Test fun snackbarOverBar() = shell("shell-inbox-snackbar", ShellTab.Inbox, snackbar = "Deep Dive ready.")

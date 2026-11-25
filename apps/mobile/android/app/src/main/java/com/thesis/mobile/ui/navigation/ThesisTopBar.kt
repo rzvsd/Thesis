@@ -32,11 +32,11 @@ import java.time.OffsetDateTime
 
 /**
  * Root top bar of the four tabs (DESIGN-DIRECTION 5.5): brand on the left, Search and the You avatar on the
- * right. The bell is gone (Inbox is a tab). [profileSelected] is true while You is open on the modal stack.
+ * right. The bell is gone (Inbox is a tab). The avatar has no selected tint (accent is the brand's, 2.8); the
+ * kit's initials avatar replaces the glyph in PR-2.
  */
 @Composable
 fun ThesisTopBar(
-    profileSelected: Boolean,
     onOpenSearch: () -> Unit,
     onOpenProfile: () -> Unit
 ) {
@@ -69,7 +69,7 @@ fun ThesisTopBar(
             Icon(
                 imageVector = Icons.Filled.AccountCircle,
                 contentDescription = "You",
-                tint = if (profileSelected) ThesisColors.Primary else ThesisColors.TextSecondary
+                tint = ThesisColors.TextSecondary
             )
         }
     }
@@ -105,30 +105,6 @@ fun ThesisBackTopBar(title: String, onBack: () -> Unit) {
                 modifier = Modifier.weight(1f, fill = false).semantics { heading() }
             )
         }
-    }
-}
-
-/** Back row for screens that are opened from a Deep Dive or a name, not from a tab. */
-@Composable
-fun SubScreenBackRow(title: String, onBack: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = ThesisDimens.SpacingSm),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        IconButton(onClick = onBack) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                contentDescription = "Back",
-                tint = ThesisColors.Primary
-            )
-        }
-        Text(
-            text = title,
-            style = ThesisTypography.labelLarge.copy(fontWeight = FontWeight.Medium),
-            color = ThesisColors.TextPrimary
-        )
     }
 }
 

@@ -17,10 +17,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.automirrored.filled.FormatListBulleted
 import androidx.compose.material.icons.automirrored.filled.ManageSearch
+import androidx.compose.material.icons.automirrored.outlined.FormatListBulleted
+import androidx.compose.material.icons.automirrored.outlined.ManageSearch
 import androidx.compose.material.icons.filled.Inbox
-import androidx.compose.material.icons.filled.Newspaper
+import androidx.compose.material.icons.filled.Today
+import androidx.compose.material.icons.outlined.Inbox
+import androidx.compose.material.icons.outlined.Today
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -48,24 +52,45 @@ import com.thesis.mobile.ui.theme.ThesisTypography
 
 data class ThesisNavItem(
     val label: String,
+    /** Outlined glyph, drawn while the tab is not selected (2.8, 3 #4). */
     val icon: ImageVector,
+    /** Filled glyph (FILL = 1), drawn while the tab is selected. */
+    val selectedIcon: ImageVector,
     val tag: String,
     /** A small "new" dot on the icon (Inbox: alerts since the last visit). */
     val showDot: Boolean = false
 )
 
 /** The four tabs (DESIGN-DIRECTION 5.5): Today, Names, Research, Inbox. You opens from the top bar avatar. */
+// One meaning per icon (2.8): Today `today` (the newspaper is Pulse's `article`), Names `format_list_bulleted`,
+// Research `manage_search` (the magnifier is the top bar's Search), Inbox `inbox`.
 fun shellNavItems(inboxHasNew: Boolean): List<ThesisNavItem> = listOf(
-    ThesisNavItem(Phase4Copy.todayTab, Icons.Filled.Newspaper, ShellTab.Today.name),
-    ThesisNavItem(Phase4Copy.namesTab, Icons.AutoMirrored.Filled.List, ShellTab.Names.name),
-    // manage_search, not the magnifier: the top bar's Search action owns that glyph (one meaning per icon, 2.8).
-    ThesisNavItem(Phase4Copy.researchTab, Icons.AutoMirrored.Filled.ManageSearch, ShellTab.Research.name),
-    ThesisNavItem(Phase4Copy.inboxTab, Icons.Filled.Inbox, ShellTab.Inbox.name, showDot = inboxHasNew),
+    ThesisNavItem(Phase4Copy.todayTab, Icons.Outlined.Today, Icons.Filled.Today, ShellTab.Today.name),
+    ThesisNavItem(
+        Phase4Copy.namesTab,
+        Icons.AutoMirrored.Outlined.FormatListBulleted,
+        Icons.AutoMirrored.Filled.FormatListBulleted,
+        ShellTab.Names.name
+    ),
+    ThesisNavItem(
+        Phase4Copy.researchTab,
+        Icons.AutoMirrored.Outlined.ManageSearch,
+        Icons.AutoMirrored.Filled.ManageSearch,
+        ShellTab.Research.name
+    ),
+    ThesisNavItem(
+        Phase4Copy.inboxTab,
+        Icons.Outlined.Inbox,
+        Icons.Filled.Inbox,
+        ShellTab.Inbox.name,
+        showDot = inboxHasNew
+    ),
 )
 
 /**
  * Bottom tab bar. [selectedTag] is null while a modal (You, Search, Paywall) is open: no tab is selected.
- * Selection is shown by ink and weight only (no gold indicator bar); PR-2's kit restyles it.
+ * Selection is shown by the filled glyph and ink (unselected: outlined glyph, muted); no gold indicator bar.
+ * PR-2's kit restyles it.
  *
  * Font scale (rubric A4): items have a minimum height, not a fixed one, and each label is one line whose size
  * grows with the user setting up to [NAV_LABEL_MAX_SCALE] of its base size, in dp (the 2.3 cap rule, applied
@@ -119,7 +144,7 @@ fun ThesisBottomBar(
                     val labelStyle = ThesisTypography.labelMedium.cappedForBar(LocalDensity.current)
                     Box {
                         Icon(
-                            imageVector = item.icon,
+                            imageVector = if (isSelected) item.selectedIcon else item.icon,
                             contentDescription = null,
                             tint = itemColor,
                             modifier = Modifier.size(24.dp)

@@ -14,8 +14,10 @@ Changes F3 needs in files it does not own, and the contract it leaves for PR-3. 
   of `MainViewModel.kt`), `ui/screens/AuthScreen.kt`, `SettingsScreen.kt`, `ResearchScreen.kt` all compile in the
   harness. `Phase4CopyTest` could now be staged too: `defaultNotificationPreferences()` moved to
   `ui/shell/UiState.kt` (same package `com.thesis.mobile.ui`).
-- Smoke renders that called the Research tab through `DeepDiveScreen(report = null, ...)` can call
-  `ResearchScreen(...)` (same look, fewer parameters). The whole shell renders through
+- Smoke renders that called the Research tab through `DeepDiveScreen(report = null, ...)` must call
+  `ResearchScreen(...)` (same look, fewer parameters): `DeepDiveScreen` is report-only now and no longer takes
+  `tickerState`, `recentHistory`, `onTickerChange`, `onRunReport`, `onOpenHistoryReport`, `onOpenPulseHistory`
+  (its error card's button is `onRetry`). The whole shell renders through
   `ThesisShell(state, navigator, actions = object : ShellActions {})`; fixtures in
   `design-preview/src/test/kotlin/com/thesis/mobile/preview/fixtures/ShellFixtures.kt`.
 - `tools/design-lint.sh --update-baseline --allow-raise` (F4 handoff item for the extraction commit): the tool is
@@ -35,6 +37,11 @@ Changes F3 needs in files it does not own, and the contract it leaves for PR-3. 
   the kit and tokens replace (design-lint 7.2, rubric T1/T2/M2, counts them; `ThesisSpace`, `ThesisType`,
   `ThesisMotion` are not on F3's base fa8b6fc). Swap them when F1/F2 merge, then re-run
   `design-lint --update-baseline` for the new files:
+  - `ui/shell/ThesisShell.kt` `InterimRefreshHairline` (1 dp `LinearProgressIndicator` over the root bar's
+    bottom edge while the visible tab refreshes, see section 5) → delete when PR-3 wires the kit's
+    `LoadingHairline` into each root's ScreenHeader.
+  - Every `Icons.*` glyph in `ui/shell/**` and `ui/navigation/**` (tab glyphs, `Search`, `AccountCircle`,
+    `AutoMirrored.Filled.ArrowBack`) → `ThesisIcons` (design-lint counts `Icons.` usages).
   - `ui/shell/ThesisShell.kt`: `SHARED_AXIS_SHIFT = 24.dp` → `ThesisMotion.PushOffset`, `32.dp` (modal rise) →
     `ThesisMotion.ModalOffset`; every `tween(...)` with `LinearOutSlowInEasing`/`FastOutLinearInEasing` in
     `tabTransition`, `sharedAxisX` (also used by Auth ↔ Password reset in `ThesisApp.kt`), `modalTransition` and
@@ -42,8 +49,11 @@ Changes F3 needs in files it does not own, and the contract it leaves for PR-3. 
     durations already match 4.5 and 3 #4).
   - `ui/navigation/ThesisTopBar.kt`: `.heightIn(min = 56.dp)` (root and back bars; a minimum so a 2.0x title is
     not clipped; the back-bar title is one line with an ellipsis); `titleMedium.copy(fontWeight = ...)`
-    in `ThesisBackTopBar` and `labelLarge.copy(...)` in `SubScreenBackRow` → kit `ThesisTopBar(TopBarSpec)`
-    (`barTitle`). The brand already uses `labelSmall` (= `eyebrow` after F1) in `Primary` (= `accent`).
+    in `ThesisBackTopBar` → kit `ThesisTopBar(TopBarSpec)` (`barTitle`). The brand already uses `labelSmall`
+    (= `eyebrow` after F1) in `Primary` (= `accent`). (`SubScreenBackRow` had no callers left and is deleted.)
+  - Root bar avatar → kit `Avatar` (2.8 / 3 #36: 32 dp circle, initials from `userProfile.email`, chip fill,
+    `ink2` text), no selected tint (F3 already dropped the gold tint), and `thesisPress` instead of the M3
+    `IconButton` ripple on Search, You and Back (principle 9). Today it is the generic `AccountCircle` glyph.
   - `ui/navigation/ThesisBottomBar.kt`: `BAR_HEIGHT = 64.dp` (min height), icon `24.dp` (now the spec value, still
     a literal), dot `6.dp` + `offset(2.dp)`, spacer `4.dp` → kit `ThesisBottomBar` with `navLabel`. The label
     already uses `labelMedium` (the slot F1 maps to Sans 500 12/16, i.e. `navLabel`), not `labelSmall` (which
@@ -67,8 +77,11 @@ Changes F3 needs in files it does not own, and the contract it leaves for PR-3. 
 - `ui/shell/ThesisShell.kt` `ShellBottomBar`: the wrapper that hides the bar (always composed, slides down by its
   height + fades, `Base`; reduced motion fades only; no semantics and no taps while hidden). When the kit's
   `ThesisBottomBar` lands, keep this wrapper around it.
-- Icons: the Research tab uses `Icons.AutoMirrored.Filled.ManageSearch` (2.8: Research = `manage_search`; the
-  magnifier is the top bar's Search). Swap for the `ThesisIcons` glyph when F2 lands.
+- Icons: the tabs use the 2.8 metaphors with outlined/filled pairs (outlined unselected, filled = FILL 1
+  selected; `ThesisNavItem.icon` / `selectedIcon`): Today `Icons.Outlined/Filled.Today`, Names
+  `Icons.AutoMirrored.Outlined/Filled.FormatListBulleted`, Research `Icons.AutoMirrored.Outlined/Filled.ManageSearch`
+  (the magnifier is the top bar's Search), Inbox `Icons.Outlined/Filled.Inbox`. Swap each pair for the
+  `ThesisIcons` glyphs when F2 lands.
 - `ui/navigation/ThesisTopBar.kt` / `ThesisBottomBar.kt`: F3 rewired them functionally (4 tabs with the Inbox
   "new" dot, no gold indicator; root bar = brand + Search + avatar; `ThesisBackTopBar` for pushed screens without
   a header). The kit's `ThesisTopBar(TopBarSpec)` / `ThesisBottomBar` restyle them; keep the call shapes used in
@@ -81,21 +94,24 @@ Changes F3 needs in files it does not own, and the contract it leaves for PR-3. 
   every back handler inside the report (this one, and any `PredictiveBackHandler` WP-C adds) is registered with a
   detached `OnBackPressedDispatcher`, so system back pops the visible screen instead of rewinding the hidden page.
   Do not read `LocalOnBackPressedDispatcherOwner` once and cache it outside composition.
-- Report pushed over a report (`onOpenHistoryReport` inside a report): the tab layer never draws a report, so the
+- Report pushed over a report (a report opened from a screen pushed over a report): the tab layer never draws a report, so the
   leaving report builds no second WebView; but the base layer keeps one report only, so popping back to the older
   report loads its page again (scroll starts at the top). Accepted for PR-1 (one WebView alive at a time).
 
 - `components/EmptyStateView.kt` `DeepDiveUnavailableState` / `screens/DeepDiveScreen.kt`: on a `Report(id)` entry
   whose open failed (render `shell-report-failed`), the shell now wires the error card's button to
   `onEnsureReport(id)` (open the stored report again), not to a new build. The label still reads
-  "Retry Deep Dive"; add a label parameter (for example `retryLabel`, passed through `DeepDiveScreen`) so the
-  shell can say "Open report again" (principle 11). On a failed `DeepDiveRunning` entry the button runs the build
+  "Retry Deep Dive"; add a label parameter (for example `retryLabel`, passed through `DeepDiveScreen` next to
+  its `onRetry`) so the shell can say "Open report again" (principle 11). On a failed `DeepDiveRunning` entry the button runs the build
   again through `onRetryDeepDive(ticker)`, which replaces the entry instead of stacking a second one.
 - `EmptyStateActionButton`: the pill's label is clipped vertically at 2.0x (fixed height); use a minimum height.
 
 ## 2c. For WP-E (Research root, 5.12)
 
-- `screens/DeepDiveScreen.kt` `DeepDiveSearchState` (reached through `ResearchScreen`): it shows
+- `DeepDiveScreen.kt` is report-only since PR-1: the Research root (ticker field, Run Deep Dive, recent reports)
+  is `screens/ResearchScreen.kt`, extracted from it by F3 with the look unchanged. WP-E redraws that file alone;
+  WP-D does not need to touch the root.
+- `screens/ResearchScreen.kt` `ResearchScreen`: it shows
   `NoDeepDivesEmptyState` ("No Deep Dives Yet") unconditionally, above a populated "Continue Research" list (renders
   `shell-research`, `shell-research-root-error`). Pre-existing; the copy contradicts the screen (principle 11). In
   the 5.12 redraw show the empty state only when `recentHistory` is empty.
@@ -115,6 +131,11 @@ Changes F3 needs in files it does not own, and the contract it leaves for PR-3. 
   instrument strings. `PulseReportView.tape` carries the family.
 
 ## 3b. For WP-G (account and entry)
+
+- `screens/PaywallScreen.kt` is still a `Dialog` (a separate window above the activity), so the shell's snackbar
+  host (the root's last child) is drawn under it: restore and purchase messages raised on the paywall are seen
+  only after it closes. Snackbars over the paywall depend on 5.23 making the paywall a full-screen destination
+  (no `Dialog`); keep the shell's single host when doing so.
 
 - `res/values/splash.xml`: `windowSplashScreenAnimatedIcon` points at the raster `@mipmap/ic_launcher_foreground`
   as a placeholder (soft when the Android 12+ splash scales it). Switch it to `@drawable/ic_mark_t` (5.1) when
@@ -136,6 +157,11 @@ Screen bodies that break at 360 dp x 2.0 (rule 6.0.6) under shell chrome that ho
 - `NamesScreen` filter chips (WP-B): "Catalysts Soon" breaks mid-word (render `shell-names-360-scale2.0`).
 - `InboxScreen` filter chips (WP-B): "System" breaks letter by letter even at 412 dp x 1.0 (render `shell-inbox`);
   see also 3b. A scrolling `ChipRow` fixes all three chip rows.
+- `HomeScreen` footer link row (WP-A, `HomeScreen.kt` around the "HISTORY" link): at 412 dp x 1.0 "HISTORY" wraps
+  one letter per line next to MORNING BRIEF / SHOW SECTIONS (render `shell-today-fullpage`). Use a `FlowRow` or
+  one-line links that never break mid-word.
+- `HomeScreen` "My Names" rows (WP-A): the raw state enum shows as "At_risk:" (render `shell-today-fullpage`).
+  Map state labels through the copy mapper (no raw enums, principle 11).
 
 - `PulseScreen.kt:691`: replace the regex over section prose with `pulse.tape` (`MarketTapeView`:
   indices + cross-asset, value, daily change, %, unit, family, direction, as-of; includes the dollar index).
@@ -150,8 +176,14 @@ Screen bodies that break at 360 dp x 2.0 (rule 6.0.6) under shell chrome that ho
 | Compare | `loadCompare(a, b)` → `UiState.compareReports`; `loadCompareNames(tickers)` → `UiState.compareNames` |
 | Search | `search(query)` → `UiState.searchResults` (names, reports, note text at once; server tickers after) |
 | Since last visit | `UiState.snapshotDeltas` / `snapshotDelta(ticker)`, `lastNamesVisitAtMs`, `lastInboxVisitAtMs`, `hasNewInboxItems`, `onMarkInboxSeen()` |
-| Refresh hairlines | `isPulseRefreshing`, `isMacroRefreshing`, `isBoardRefreshing`, `isInboxRefreshing`, `isHistoryLoading`, `isOpeningReport`, `isDeepDiveRunning`, `isWarRoomLoading`, `authBusy` |
+| Refresh hairlines (WP-A/WP-B/WP-F: wire `LoadingHairline` to the flag in each ScreenHeader in PR-3) | `isPulseRefreshing`, `isMacroRefreshing`, `isBoardRefreshing`, `isInboxRefreshing`, `isHistoryLoading`, `isOpeningReport`, `isDeepDiveRunning`, `isWarRoomLoading`, `authBusy` |
 | Appearance | `UiState.appearance` (`AppearancePrefs`: theme, up/down, reduce motion, names density), `onSetAppearance(...)` |
+
+Until PR-3 wires those hairlines, the shell shows an interim 1 dp line on the root top bar's bottom edge while the
+visible root refreshes (`rootRefreshing`: Today = pulse or macro, Names = board, Research = history, Inbox =
+inbox; render `shell-names-refreshing`). Pushed screens (Pulse, Macro, History, War Room) show no refresh signal
+of their own until their screens wire the hairline; refreshes that publish nothing on success (for example
+`refreshAlertLedger`) rely on it. Remove `InterimRefreshHairline` when the kit's hairline is in place.
 
 Destinations `Name`, `CompareReports`, `CompareNames` and `Search` exist (codec, navigator, shell) but draw a
 placeholder until WP-B/WP-E add their screens to `ui/shell/ShellDestinations.kt`.
@@ -178,6 +210,15 @@ placeholder until WP-B/WP-E add their screens to `ui/shell/ShellDestinations.kt`
   `src/testDebug` Room migration test runs under the existing `testDebugUnitTest`.
 - Deviation, documented: the paywall stays state-driven (`UiState.paywallFeature`, drawn above the shell, closed
   by back) rather than a `Paywall` entry on the modal stack; the `Paywall` destination exists for later use.
-- Deviation, documented: an alert whose route the app does not know lands on the Inbox tab root (there is no alert
-  detail screen to push yet). Logged in `docs/app-redesign/DESIGN-DIRECTION.md` Appendix A; when an alert detail is
-  designed, add a destination and push it from `DeepLinkRouter`.
+- **Deviation, for your decision** (not logged in the design doc; F3 does not own it): 5.5's race fix says unknown
+  alert routes push the alert's detail instead of re-selecting Inbox. There is no alert detail destination or
+  screen yet, so `DeepLinkRouter` (`else -> NavRoute(tab = ShellTab.Inbox)`) lands on the Inbox tab root. Options:
+  accept this for PR-1 and log it in Appendix A, or have WP-B design an alert detail destination in PR-3, which
+  `DeepLinkRouter` then pushes. Put this in the PR-1 description.
+
+## 7. For PR-2 (M3 shell motion)
+
+- `ui/shell/ThesisShell.kt`: on a tab switch away from a tab whose top is a `Report`, the report base layer is
+  removed at once (`reportBase` comes from the current tab's stack), while the incoming tab fades in only after
+  `TAB_OUT_MS` (90 ms), so the root `bg` shows briefly instead of a fade-through. Keep the leaving report composed
+  (or fade it out) for the `TAB_OUT_MS` window, with its back handlers detached (`backScope(covered = true)`).

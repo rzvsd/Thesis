@@ -1467,7 +1467,6 @@ Features that need backend are listed per screen as "Later, needs Razvan" and ar
 | Report WebView | kept composed in a shell base layer while its entry is in the stack | Android critique, option (b) |
 | Container transform | §8a clip-reveal on 1.6 (300/240 ms); §8b in PR-4 | 4.1 |
 | Charts | own Canvas kit, Vico removed from Macro Stress | audit B charts; harness compilability |
-| Unknown alert route (PR-1 deviation from 5.5) | lands on the Inbox tab root until an alert detail destination is designed; then `DeepLinkRouter` pushes it | F3 review round 3; no alert detail screen exists |
 
 ---
 

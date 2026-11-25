@@ -63,13 +63,11 @@ internal fun ShellContentScope.Content(entry: NavEntry, padding: PaddingValues) 
             onRunDeepDive = actions::onRunDeepDive,
             onOpenResearch = actions::onOpenResearchFor
         )
+        // A build or an open always pushes its own entry (DeepDiveRunning, Report), which shows its error; the
+        // root keeps its field and recent list whatever the shared deepDiveError says (same as Search).
         Destination.Research -> ResearchScreen(
             ticker = state.selectedTicker.orEmpty(),
             recentHistory = state.reportHistory,
-            watchlist = state.watchlist,
-            // A build or an open always pushes its own entry (DeepDiveRunning, Report), which shows its error;
-            // the shared deepDiveError must not replace this root's field and recent list (same as Search).
-            errorMessage = null,
             onTickerChange = actions::onTickerChange,
             onRunReport = { actions.onRunDeepDive(state.selectedTicker.orEmpty()) },
             onOpenReport = { reportId -> actions.onOpenReport(reportId) },
@@ -121,8 +119,8 @@ internal fun ShellContentScope.Content(entry: NavEntry, padding: PaddingValues) 
         is Destination.Report -> ReportEntry(entry, destination.reportId, classic = false, padding = padding)
         is Destination.ReportClassic -> ReportEntry(entry, destination.reportId, classic = true, padding = padding)
         // Loading only while a build runs. MainViewModel drops a running entry restored after its job ended
-        // (dropIdleRunningEntries); should one still show with no job, it falls back to the search with the
-        // build's error (or empty) instead of spinning forever.
+        // (dropIdleRunningEntries); should one still show with no job, it shows the build's error (or that the
+        // build is no longer running) with a retry, instead of spinning forever.
         is Destination.DeepDiveRunning -> DeepDiveScreenFor(
             report = null,
             isLoading = state.isDeepDiveRunning,
@@ -208,8 +206,6 @@ internal fun ShellContentScope.Content(entry: NavEntry, padding: PaddingValues) 
         Destination.Search -> ResearchScreen(
             ticker = state.selectedTicker.orEmpty(),
             recentHistory = state.reportHistory,
-            watchlist = state.watchlist,
-            errorMessage = null,
             onTickerChange = actions::onTickerChange,
             onRunReport = { actions.onRunDeepDive(state.selectedTicker.orEmpty()) },
             onOpenReport = { reportId -> actions.onOpenReport(reportId) },
@@ -333,11 +329,8 @@ private fun ShellContentScope.DeepDiveScreenFor(
         report = report,
         isLoading = isLoading,
         errorMessage = state.deepDiveError,
-        tickerState = state.selectedTicker.orEmpty(),
-        recentHistory = state.reportHistory,
         watchlist = state.watchlist,
-        onTickerChange = actions::onTickerChange,
-        onRunReport = onRetry,
+        onRetry = onRetry,
         userTier = state.userProfile?.tier,
         reportNoteDraft = state.reportNoteDraft,
         noteUpdatedAt = state.reportNote?.updatedAt,
@@ -357,8 +350,6 @@ private fun ShellContentScope.DeepDiveScreenFor(
         onRequireUpgrade = actions::onRequireUpgrade,
         onSubmitReportFeedback = actions::onSubmitReportFeedback,
         onNotify = actions::onNotify,
-        onOpenHistoryReport = { reportId -> actions.onOpenReport(reportId) },
-        onOpenPulseHistory = { date -> actions.onOpenPulse(date) },
         onOpenScenarioStress = actions::onOpenScenarioStress,
         webPage = if (classic) null else DeepDiveWebPageAccess(
             apiBaseUrl = state.apiBaseUrl,
