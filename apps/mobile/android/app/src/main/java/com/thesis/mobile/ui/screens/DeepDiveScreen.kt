@@ -2,7 +2,6 @@ package com.thesis.mobile.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,7 +21,6 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.HelpOutline
 import androidx.compose.material.icons.filled.PushPin
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
@@ -31,6 +29,7 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -50,16 +49,13 @@ import com.thesis.mobile.model.ConvictionJournalEntryView
 import com.thesis.mobile.model.DeepDiveReportView
 import com.thesis.mobile.model.EvidenceView
 import com.thesis.mobile.model.OppositeCaseReportView
-import com.thesis.mobile.model.ReportHistoryItem
 import com.thesis.mobile.model.ScenarioResultView
 import com.thesis.mobile.model.TrustMetadataView
 import com.thesis.mobile.model.ValuationDisplayView
 import com.thesis.mobile.model.toReaderOutline
 import com.thesis.mobile.ui.components.ConfidenceRing
-import com.thesis.mobile.ui.components.DeepDiveUnavailableState
 import com.thesis.mobile.ui.components.EvidenceDots
-import com.thesis.mobile.ui.components.NoDeepDivesEmptyState
-import com.thesis.mobile.ui.components.OfflineEmptyState
+import com.thesis.mobile.ui.components.ErrorState
 import com.thesis.mobile.ui.components.SectionAccordion
 import com.thesis.mobile.ui.components.SignalBadge
 import com.thesis.mobile.ui.components.ThesisButton
@@ -74,13 +70,19 @@ import com.thesis.mobile.ui.theme.HeadingFont
 import com.thesis.mobile.ui.theme.ThesisColors
 import com.thesis.mobile.ui.theme.ThesisDimens
 import com.thesis.mobile.ui.theme.ThesisTypography
+import com.thesis.mobile.ui.copy.KitCopy
+import com.thesis.mobile.ui.copy.StateCopy
 
+/**
+ * One report (a `Report(id)`, `ReportClassic(id)` or `DeepDiveRunning(ticker)` entry): the report itself, the
+ * build or open in progress, or why it failed. The ticker search and recent reports are the Research root's
+ * ([ResearchScreen], 5.12), extracted from here in PR-1.
+ */
 @Composable
 fun DeepDiveScreen(
     report: DeepDiveReportView?,
     isLoading: Boolean,
     errorMessage: String?,
-    recentHistory: List<ReportHistoryItem>,
     userTier: String?,
     reportNoteDraft: String,
     noteUpdatedAt: String?,
@@ -100,32 +102,21 @@ fun DeepDiveScreen(
     onRequireUpgrade: (String) -> Unit,
     onSubmitReportFeedback: (String, String) -> Unit,
     onNotify: (String) -> Unit,
-    onOpenHistoryReport: (String) -> Unit,
-    onOpenPulseHistory: (String) -> Unit,
-    tickerState: String,
     watchlist: List<String>,
-    onTickerChange: (String) -> Unit,
-    onRunReport: () -> Unit,
+    /** The error card's button: opens the stored report again, or runs the build again (principle 11). */
+    onRetry: () -> Unit,
     onBack: () -> Unit,
     padding: PaddingValues,
     onOpenScenarioStress: (() -> Unit)? = null,
-    webPage: DeepDiveWebPageAccess? = null
+    webPage: DeepDiveWebPageAccess? = null,
+    /** Label of the error card's button: what [onRetry] does ("Open report again"); null keeps "Try again". */
+    retryLabel: String? = null
 ) {
     if (report == null) {
         if (isLoading) {
             DeepDiveLoadingScreen(modifier = Modifier.padding(padding))
         } else {
-            DeepDiveSearchState(
-                tickerState = tickerState,
-                isLoading = isLoading,
-                errorMessage = errorMessage,
-                recentHistory = recentHistory,
-                onTickerChange = onTickerChange,
-                onRunReport = onRunReport,
-                onOpenHistoryReport = onOpenHistoryReport,
-                onOpenPulseHistory = onOpenPulseHistory,
-                padding = padding
-            )
+            DeepDiveFailedState(errorMessage = errorMessage, onRetry = onRetry, retryLabel = retryLabel, padding = padding)
         }
         return
     }
@@ -184,16 +175,15 @@ fun DeepDiveScreen(
     }
 }
 
+/**
+ * A report entry with nothing to show: its open or build failed ([errorMessage]), or a build entry outlived its
+ * job (MainViewModel normally drops those). The button retries this entry; it never shows the ticker search.
+ */
 @Composable
-private fun DeepDiveSearchState(
-    tickerState: String,
-    isLoading: Boolean,
+private fun DeepDiveFailedState(
     errorMessage: String?,
-    recentHistory: List<ReportHistoryItem>,
-    onTickerChange: (String) -> Unit,
-    onRunReport: () -> Unit,
-    onOpenHistoryReport: (String) -> Unit,
-    onOpenPulseHistory: (String) -> Unit,
+    onRetry: () -> Unit,
+    retryLabel: String?,
     padding: PaddingValues
 ) {
     Box(
@@ -203,137 +193,17 @@ private fun DeepDiveSearchState(
             .padding(ThesisDimens.ScreenPaddingHorizontal),
         contentAlignment = Alignment.Center
     ) {
-        if (!errorMessage.isNullOrBlank()) {
-            if (errorMessage.contains("No internet connection", ignoreCase = true)) {
-                OfflineEmptyState(onRetry = onRunReport)
-            } else {
-                DeepDiveUnavailableState(
-                    message = errorMessage,
-                    onRetry = onRunReport
-                )
-            }
-            return
-        }
-
-        NoDeepDivesEmptyState {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                Text(
-                    text = "Start new research or reopen something you already explored.",
-                    style = ThesisTypography.bodyMedium,
-                    color = ThesisColors.TextMuted
-                )
-                Spacer(modifier = Modifier.height(ThesisDimens.SpacingLg))
-                OutlinedTextField(
-                    value = tickerState,
-                    onValueChange = onTickerChange,
-                    label = { Text("Ticker Symbol (e.g. AAPL)") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
-                    colors = deepDiveFieldColors()
-                )
-                Spacer(modifier = Modifier.height(ThesisDimens.SpacingLg))
-                ThesisButton(
-                    text = if (isLoading) "Running..." else "Run Deep Dive",
-                    onClick = onRunReport,
-                    enabled = !isLoading && tickerState.isNotBlank()
-                ) {
-                    if (isLoading) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(20.dp),
-                            color = ThesisColors.TextInverse,
-                            strokeWidth = 2.dp
-                        )
-                    } else {
-                        Text(
-                            text = "Run Deep Dive",
-                            style = ThesisTypography.labelLarge.copy(fontWeight = FontWeight.Medium),
-                            color = ThesisColors.TextInverse
-                        )
-                    }
-                }
-                if (recentHistory.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(ThesisDimens.SpacingXl))
-                    Text(
-                        text = "Continue Research",
-                        style = ThesisTypography.labelLarge.copy(fontWeight = FontWeight.Medium),
-                        color = ThesisColors.TextPrimary
-                    )
-                    Spacer(modifier = Modifier.height(ThesisDimens.SpacingSm))
-                    recentHistory
-                        .sortedByDescending { it.createdAt }
-                        .take(3)
-                        .forEach { item ->
-                            RecentResearchCard(
-                                item = item,
-                                onClick = {
-                                    if (item.type == "deep_dive") {
-                                        onOpenHistoryReport(item.reportId)
-                                    } else {
-                                        onOpenPulseHistory(item.createdAt.take(10))
-                                    }
-                                }
-                            )
-                            Spacer(modifier = Modifier.height(ThesisDimens.SpacingSm))
-                        }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun RecentResearchCard(
-    item: ReportHistoryItem,
-    onClick: () -> Unit
-) {
-    val title = if (item.type == "deep_dive") {
-        item.ticker?.let { "$it Deep Dive" } ?: "Deep Dive"
-    } else {
-        "Market Pulse"
-    }
-    val subtitle = if (item.type == "deep_dive") {
-        "Open your last report"
-    } else {
-        "Open the saved pulse for ${item.createdAt.take(10)}"
-    }
-    val dateLabel = item.createdAt.take(10)
-
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(ThesisDimens.CardCornerRadius))
-            .background(ThesisColors.Surface)
-            .border(
-                width = ThesisDimens.BorderWidth,
-                color = ThesisColors.Border,
-                shape = RoundedCornerShape(ThesisDimens.CardCornerRadius)
-            )
-            .clickable(onClick = onClick)
-            .padding(ThesisDimens.SpacingMd),
-        verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingXs)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = title,
-                style = ThesisTypography.labelLarge.copy(fontWeight = FontWeight.Medium),
-                color = ThesisColors.TextPrimary
-            )
-            Text(
-                text = dateLabel,
-                style = ThesisTypography.labelSmall,
-                color = ThesisColors.TextMuted
+        if (errorMessage?.contains("No internet connection", ignoreCase = true) == true) {
+            ErrorState(title = StateCopy.OFFLINE_TITLE, cause = StateCopy.OFFLINE_CAUSE, onRetry = onRetry)
+        } else {
+            val message = errorMessage?.ifBlank { null } ?: "This Deep Dive is no longer running."
+            ErrorState(
+                title = StateCopy.deepDiveUnavailable,
+                cause = message,
+                retryLabel = retryLabel ?: KitCopy.TRY_AGAIN,
+                onRetry = onRetry
             )
         }
-        Text(
-            text = subtitle,
-            style = ThesisTypography.bodySmall,
-            color = ThesisColors.TextMuted
-        )
     }
 }
 
@@ -788,6 +658,8 @@ private fun TrustBadge(
     }
 }
 
+@Composable
+@ReadOnlyComposable
 private fun trustStateColor(state: String?): Color {
     return when {
         state.equals("fresh", ignoreCase = true) -> ThesisColors.SignalPositive
@@ -1379,6 +1251,8 @@ private data class HighlightCard(
     val isCaution: Boolean = false
 )
 
+@Composable
+@ReadOnlyComposable
 private fun deriveHighlights(report: DeepDiveReportView): List<HighlightCard> {
     val sections = report.sections.filter { it.body.isNotBlank() }
     val lead = sections.getOrNull(0)?.body?.let(::summarize)
@@ -1471,18 +1345,24 @@ private fun deepDiveFieldColors() = OutlinedTextFieldDefaults.colors(
     unfocusedLabelColor = ThesisColors.TextMuted
 )
 
+@Composable
+@ReadOnlyComposable
 private fun signalContainerColor(signal: String?): Color = when (signal?.uppercase()) {
     "POSITIVE" -> ThesisColors.SignalPositive.copy(alpha = 0.08f)
     "NEGATIVE" -> ThesisColors.SignalNegative.copy(alpha = 0.08f)
     else -> ThesisColors.Surface
 }
 
+@Composable
+@ReadOnlyComposable
 private fun signalBorderColor(signal: String?): Color = when (signal?.uppercase()) {
     "POSITIVE" -> ThesisColors.SignalPositive.copy(alpha = 0.2f)
     "NEGATIVE" -> ThesisColors.SignalNegative.copy(alpha = 0.2f)
     else -> ThesisColors.Border
 }
 
+@Composable
+@ReadOnlyComposable
 private fun signalTextColor(signal: String?): Color = when (signal?.uppercase()) {
     "POSITIVE" -> ThesisColors.SignalPositive
     "NEGATIVE" -> ThesisColors.SignalNegative

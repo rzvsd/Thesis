@@ -24,6 +24,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -46,6 +47,8 @@ import com.thesis.mobile.ui.theme.ThesisTypography
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
 
 @Composable
 fun NamesScreen(
@@ -129,8 +132,7 @@ fun NamesScreen(
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .padding(padding)
-            .background(ThesisColors.Background),
+            .padding(padding),
         contentPadding = PaddingValues(
             horizontal = ThesisDimens.ScreenPaddingHorizontal,
             vertical = ThesisDimens.SpacingLg
@@ -384,11 +386,17 @@ private fun EmptyBoardCard(title: String, body: String) {
 
 @Composable
 private fun SegmentRow(options: List<String>, selected: String, onSelect: (String) -> Unit) {
-    Row(horizontalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)) {
+    // Scrolls sideways instead of breaking a label letter by letter at large font scales or narrow widths (A4).
+    Row(
+        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)
+    ) {
         options.forEach { option ->
             val shape = RoundedCornerShape(ThesisDimens.CardCornerRadius)
             Text(
                 text = option,
+                maxLines = 1,
+                softWrap = false,
                 style = ThesisTypography.labelLarge.copy(
                     fontWeight = if (selected == option) FontWeight.Medium else FontWeight.Normal
                 ),
@@ -478,6 +486,8 @@ private fun formatFreshnessState(state: String): String =
         else -> state.trim().lowercase().replaceFirstChar { it.uppercase() }
     }
 
+@Composable
+@ReadOnlyComposable
 private fun freshnessStateColor(state: String): Color =
     when (state.trim().lowercase()) {
         "current" -> ThesisColors.SignalPositive

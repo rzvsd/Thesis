@@ -1,0 +1,3 @@
+# Self-test copy allowlist (substring form, any copy pattern).
+FixtureCopy.kt:/This one hold is allowlisted/
+TokenFixture.kt:/val ah = Ink.copy(alpha/  # routing: must NOT clear the copy-alpha token finding

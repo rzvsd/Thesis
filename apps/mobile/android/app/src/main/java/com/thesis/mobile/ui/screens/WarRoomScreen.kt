@@ -21,6 +21,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -48,7 +49,6 @@ fun WarRoomScreen(
         modifier = Modifier
             .fillMaxSize()
             .padding(padding)
-            .background(ThesisColors.Background)
     ) {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
@@ -283,6 +283,8 @@ private fun MessageCard(title: String, body: String) {
     }
 }
 
+@Composable
+@ReadOnlyComposable
 private fun phaseAccentColor(phase: String) = when (phase.lowercase()) {
     "pre" -> ThesisColors.SignalNeutral
     "live" -> ThesisColors.Primary

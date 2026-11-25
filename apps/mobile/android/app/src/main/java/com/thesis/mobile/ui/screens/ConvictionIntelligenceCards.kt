@@ -19,6 +19,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -397,6 +398,8 @@ private fun SurfaceCard(content: @Composable ColumnScope.() -> Unit) {
 private fun eventLabel(eventType: String): String =
     eventType.replace('_', ' ').uppercase()
 
+@Composable
+@ReadOnlyComposable
 private fun eventColor(eventType: String) = when (eventType) {
     "kill_switch_alert_fired" -> ThesisColors.SignalNegative
     "freshness_decay_alert_fired" -> ThesisColors.SignalWarning
@@ -405,6 +408,8 @@ private fun eventColor(eventType: String) = when (eventType) {
     else -> ThesisColors.TextMuted
 }
 
+@Composable
+@ReadOnlyComposable
 private fun insightColor(findingType: String) = when (findingType) {
     "contradiction" -> ThesisColors.SignalNegative
     "overlap" -> ThesisColors.SignalWarning

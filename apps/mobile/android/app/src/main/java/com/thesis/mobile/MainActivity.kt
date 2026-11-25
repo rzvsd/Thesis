@@ -3,13 +3,18 @@ package com.thesis.mobile
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
+import androidx.activity.SystemBarStyle
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.fragment.app.FragmentActivity
 import androidx.compose.ui.platform.ComposeView
 import com.thesis.mobile.data.SessionStore
@@ -22,19 +27,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
-data class LaunchTarget(
-    val tab: String,
-    val alertId: String? = null,
-    val reportId: String? = null,
-    val warRoomId: String? = null,
-    val scenarioId: String? = null,
-    val scenarioRunId: String? = null,
-    val pulseDate: String? = null,
-    val digestDate: String? = null,
-    val notificationType: String? = null,
-    val ticker: String? = null,
-    val requestId: Long = System.nanoTime()
-)
+/** Kept under its old name for existing callers; the class lives in `ui/navigation` so routing is testable. */
+typealias LaunchTarget = com.thesis.mobile.ui.navigation.LaunchTarget
 
 class MainActivity : FragmentActivity() {
     private var launchTarget by mutableStateOf<LaunchTarget?>(null)
@@ -46,9 +40,34 @@ class MainActivity : FragmentActivity() {
     private val notificationPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* no-op */ }
 
+    /** The splash stays until the first Compose frame (session restored, first screen chosen). */
+    private var firstFrameDrawn = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
+        // Before super.onCreate (5.1): the launch theme hands over to Theme.ThesisMobile.
+        val splash = installSplashScreen()
+        splash.setKeepOnScreenCondition { !firstFrameDrawn }
+        splash.setOnExitAnimationListener { provider ->
+            provider.view.animate()
+                .alpha(0f)
+                .setDuration(SPLASH_EXIT_MS)
+                .withEndAction { provider.remove() }
+                .start()
+        }
+        // Edge to edge on every API level; Compose pads with WindowInsets, and ThesisTheme sets the icon colours.
+        // Both bars transparent: the default auto style paints a 90 % white navigation bar on API 26-28 when the
+        // system is in light mode, under the (dark by default) app and its light icons. Revisit when
+        // ThemeMode.System becomes the default.
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
+            navigationBarStyle = SystemBarStyle.dark(Color.TRANSPARENT)
+        )
         super.onCreate(savedInstanceState)
-        applyLaunchIntent(intent)
+        // A recreate (rotation, the night-mode switch, process death) gets the same intent again. Once it has been
+        // routed, routing it again would reset the restored stack to the link's destination and start a second
+        // build for a research link, so it is applied only on a fresh start or while it is still waiting (a link
+        // opened before log-in). New intents arrive in onNewIntent.
+        if (savedInstanceState?.getBoolean(STATE_LAUNCH_ROUTED, false) != true) applyLaunchIntent(intent)
         requestNotificationPermissionIfNeeded()
         if (sessionStore.loadTokens() != null) {
             PrefetchScheduler.schedule(applicationContext)
@@ -70,9 +89,16 @@ class MainActivity : FragmentActivity() {
                         launchTarget = launchTarget,
                         onLaunchHandled = { launchTarget = null }
                     )
+                    SideEffect { firstFrameDrawn = true }
                 }
             }
         )
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        // ThesisApp clears launchTarget (onLaunchHandled) once it has routed it.
+        outState.putBoolean(STATE_LAUNCH_ROUTED, launchTarget == null)
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -217,6 +243,12 @@ class MainActivity : FragmentActivity() {
             return digestDate
         }
         return intent.data?.getQueryParameter("digest_date")?.trim()?.ifBlank { null }
+    }
+
+    private companion object {
+        const val SPLASH_EXIT_MS = 240L
+        /** Saved state: the launch intent has been routed (nothing pending), so a recreate does not route it again. */
+        const val STATE_LAUNCH_ROUTED = "thesis.launch_routed"
     }
 
     private fun requestNotificationPermissionIfNeeded() {

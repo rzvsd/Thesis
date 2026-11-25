@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -31,6 +32,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -41,6 +43,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
@@ -54,10 +57,8 @@ import com.thesis.mobile.model.PulseReportView
 import com.thesis.mobile.model.SectionView
 import com.thesis.mobile.model.SentimentSnapshotView
 import com.thesis.mobile.model.ThesisMonitorSnapshotView
-import com.thesis.mobile.ui.components.NoNamesEmptyState
-import com.thesis.mobile.ui.components.NoPulseEmptyState
-import com.thesis.mobile.ui.components.OfflineEmptyState
-import com.thesis.mobile.ui.components.PulseUnavailableState
+import com.thesis.mobile.ui.components.EmptyState
+import com.thesis.mobile.ui.components.ErrorState
 import com.thesis.mobile.ui.animations.AnimatedCounter
 import com.thesis.mobile.ui.animations.RevealAnimation
 import com.thesis.mobile.ui.animations.StaggeredEntrance
@@ -65,6 +66,8 @@ import com.thesis.mobile.ui.copy.Phase4Copy
 import com.thesis.mobile.ui.theme.HeadingFont
 import com.thesis.mobile.ui.theme.ThesisColors
 import com.thesis.mobile.ui.theme.ThesisDimens
+import com.thesis.mobile.ui.theme.ThesisSpace
+import com.thesis.mobile.ui.theme.ThesisType
 import com.thesis.mobile.ui.theme.ThesisTypography
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -74,6 +77,10 @@ import java.time.LocalTime
 import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
+import com.thesis.mobile.ui.icons.ThesisIcons
+import com.thesis.mobile.ui.copy.StateCopy
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 
 @OptIn(ExperimentalMaterialApi::class)
 @Composable
@@ -169,7 +176,7 @@ fun HomeScreen(
                             Spacer(modifier = Modifier.height(ThesisDimens.SpacingSm))
                             Text(
                                 text = "Updated $pulseTimestamp",
-                                style = ThesisTypography.labelSmall,
+                                style = ThesisTypography.bodySmall,
                                 color = ThesisColors.TextMuted
                             )
                         }
@@ -177,7 +184,7 @@ fun HomeScreen(
                             Spacer(modifier = Modifier.height(ThesisDimens.SpacingXs))
                             Text(
                                 text = pulseFreshnessText,
-                                style = ThesisTypography.labelSmall,
+                                style = ThesisTypography.bodySmall,
                                 color = if (pulseLoadedFromCache) ThesisColors.SignalWarning else ThesisColors.TextMuted
                             )
                         }
@@ -224,22 +231,30 @@ fun HomeScreen(
                 pulse == null && !pulseError.isNullOrBlank() -> {
                     item {
                         if (pulseError.contains("No internet connection", ignoreCase = true)) {
-                            OfflineEmptyState(onRetry = onRetryPulse)
+                            ErrorState(
+                                title = StateCopy.OFFLINE_TITLE,
+                                cause = StateCopy.OFFLINE_CAUSE,
+                                onRetry = onRetryPulse
+                            )
                         } else {
-                            PulseUnavailableState(message = pulseError, onRetry = onRetryPulse)
+                            ErrorState(title = StateCopy.pulseUnavailable, cause = pulseError, onRetry = onRetryPulse)
                         }
                     }
                 }
 
                 pulse == null && watchlist.isEmpty() -> {
-                    item { NoNamesEmptyState(onAddName = onManageNames) }
+                    item { NoNamesState(onAddName = onManageNames) }
                 }
 
                 pulse == null -> {
                     val fallbackTicker = lastViewedTicker ?: watchlist.firstOrNull()
                     item {
-                        NoPulseEmptyState(
-                            onRunDeepDive = {
+                        EmptyState(
+                            sentence = StateCopy.NO_PULSE,
+                            how = StateCopy.NO_PULSE_HOW,
+                            icon = ThesisIcons.Pulse,
+                            actionLabel = StateCopy.NO_PULSE_ACTION,
+                            onAction = {
                                 if (!fallbackTicker.isNullOrBlank()) {
                                     onRunDeepDive(fallbackTicker)
                                 }
@@ -398,7 +413,7 @@ private fun MorningBriefingCard(
             onClick = onOpen,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(48.dp),
+                .heightIn(min = ThesisSpace.touchMin),
             shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
             colors = ButtonDefaults.buttonColors(
                 containerColor = ThesisColors.Primary,
@@ -461,13 +476,15 @@ private fun MacroStressSummaryCard(
                         marketDate.isNullOrBlank() -> "No macro snapshot yet"
                         else -> marketDate
                     },
-                    style = ThesisTypography.labelSmall,
-                    color = ThesisColors.TextMuted
+                    style = ThesisTypography.bodySmall,
+                    color = ThesisColors.TextMuted,
+                    // A4: the date never breaks inside the number; the fallback sentences may wrap.
+                    softWrap = !sentimentError.isNullOrBlank() || marketDate.isNullOrBlank()
                 )
                 Spacer(modifier = Modifier.height(ThesisDimens.SpacingXs))
                 Text(
                     text = Phase4Copy.todayMacroStressSourceNote,
-                    style = ThesisTypography.labelSmall,
+                    style = ThesisTypography.bodySmall,
                     color = ThesisColors.TextMuted
                 )
             }
@@ -520,12 +537,13 @@ private fun MacroStressSummaryCard(
 
         HorizontalDivider(color = ThesisColors.Border, thickness = ThesisDimens.BorderWidth)
 
-        Row(horizontalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)) {
+        // Above the display cap (1.3x) the two labels no longer fit side by side (2.0x broke "Dashboard" mid-word):
+        // stack them, full width.
+        val stackActions = LocalDensity.current.fontScale > ThesisType.MAX_DISPLAY_SCALE
+        val dashboardButton: @Composable (Modifier) -> Unit = { modifier ->
             Button(
                 onClick = onOpenDashboard,
-                modifier = Modifier
-                    .weight(1f)
-                    .height(48.dp),
+                modifier = modifier.heightIn(min = ThesisSpace.touchMin),
                 shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = ThesisColors.Primary,
@@ -537,11 +555,11 @@ private fun MacroStressSummaryCard(
                     style = ThesisTypography.labelLarge.copy(fontWeight = FontWeight.Medium)
                 )
             }
+        }
+        val digestButton: @Composable (Modifier) -> Unit = { modifier ->
             Button(
                 onClick = onOpenWeeklyDigest,
-                modifier = Modifier
-                    .weight(1f)
-                    .height(48.dp),
+                modifier = modifier.heightIn(min = ThesisSpace.touchMin),
                 shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = ThesisColors.SurfaceElevated,
@@ -552,6 +570,17 @@ private fun MacroStressSummaryCard(
                     text = "Weekly Digest",
                     style = ThesisTypography.labelLarge.copy(fontWeight = FontWeight.Medium)
                 )
+            }
+        }
+        if (stackActions) {
+            Column(verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)) {
+                dashboardButton(Modifier.fillMaxWidth())
+                digestButton(Modifier.fillMaxWidth())
+            }
+        } else {
+            Row(horizontalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)) {
+                dashboardButton(Modifier.weight(1f))
+                digestButton(Modifier.weight(1f))
             }
         }
     }
@@ -622,7 +651,7 @@ private fun YourNamesSection(
         }
 
         if (watchlist.isEmpty()) {
-            NoNamesEmptyState(onAddName = onManageNames)
+            NoNamesState(onAddName = onManageNames)
             return
         }
 
@@ -741,7 +770,7 @@ private fun InsightAlertSection(
             onClick = { onRunDeepDive(insight.ticker) },
             modifier = Modifier
                 .fillMaxWidth()
-                .height(48.dp),
+                .heightIn(min = ThesisSpace.touchMin),
             shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
             colors = ButtonDefaults.buttonColors(
                 containerColor = ThesisColors.Primary,
@@ -774,6 +803,7 @@ private fun FullPulseSection(sections: List<SectionView>) {
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun BottomLinksSection(
     showFullPulse: Boolean,
@@ -781,16 +811,20 @@ private fun BottomLinksSection(
     onOpenPulseBrief: () -> Unit,
     onOpenHistory: () -> Unit
 ) {
-    Row(
+    // Wraps whole links onto a second line instead of breaking a word letter by letter (the tracked label
+    // style is wider since the PR-1 type remap; rubric A4).
+    FlowRow(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.Center,
-        verticalAlignment = Alignment.CenterVertically
+        horizontalArrangement = Arrangement.Center
     ) {
         Text(
             text = "MORNING BRIEF",
             style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Medium),
             color = ThesisColors.Primary,
+            maxLines = 1,
+            softWrap = false,
             modifier = Modifier
+                .align(Alignment.CenterVertically)
                 .clickable { onOpenPulseBrief() }
                 .padding(ThesisDimens.SpacingMd)
                 .semantics {
@@ -798,18 +832,22 @@ private fun BottomLinksSection(
                     role = Role.Button
                 }
         )
-        Spacer(modifier = Modifier.size(ThesisDimens.SpacingLg))
+        Spacer(modifier = Modifier.size(ThesisDimens.SpacingSm))
         Text(
             text = "/",
             style = ThesisTypography.labelSmall,
-            color = ThesisColors.Border
+            color = ThesisColors.Border,
+            modifier = Modifier.align(Alignment.CenterVertically)
         )
-        Spacer(modifier = Modifier.size(ThesisDimens.SpacingLg))
+        Spacer(modifier = Modifier.size(ThesisDimens.SpacingSm))
         Text(
             text = if (showFullPulse) "HIDE SECTIONS" else "SHOW SECTIONS",
             style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Medium),
             color = ThesisColors.TextMuted,
+            maxLines = 1,
+            softWrap = false,
             modifier = Modifier
+                .align(Alignment.CenterVertically)
                 .clickable { onToggleFullPulse() }
                 .padding(ThesisDimens.SpacingMd)
                 .semantics {
@@ -817,18 +855,22 @@ private fun BottomLinksSection(
                     role = Role.Button
                 }
         )
-        Spacer(modifier = Modifier.size(ThesisDimens.SpacingLg))
+        Spacer(modifier = Modifier.size(ThesisDimens.SpacingSm))
         Text(
             text = "/",
             style = ThesisTypography.labelSmall,
-            color = ThesisColors.Border
+            color = ThesisColors.Border,
+            modifier = Modifier.align(Alignment.CenterVertically)
         )
-        Spacer(modifier = Modifier.size(ThesisDimens.SpacingLg))
+        Spacer(modifier = Modifier.size(ThesisDimens.SpacingSm))
         Text(
             text = "HISTORY",
             style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Medium),
             color = ThesisColors.Primary,
+            maxLines = 1,
+            softWrap = false,
             modifier = Modifier
+                .align(Alignment.CenterVertically)
                 .clickable { onOpenHistory() }
                 .padding(ThesisDimens.SpacingMd)
                 .semantics {
@@ -939,7 +981,7 @@ private fun ResumeCard(title: String, onResume: () -> Unit, onDismiss: () -> Uni
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = "Pick up where you left off",
-                style = ThesisTypography.labelSmall,
+                style = ThesisTypography.bodySmall,
                 color = ThesisColors.TextMuted
             )
             Text(
@@ -1028,6 +1070,8 @@ private fun formatMacroStressLabel(label: String?): String = when (label?.lowerc
     else -> "Unavailable"
 }
 
+@Composable
+@ReadOnlyComposable
 private fun macroStressColor(label: String?): Color = when (label?.lowercase()) {
     "extreme_fear", "fear", "high_stress", "elevated", "elevated_pressure" -> ThesisColors.SignalNegative
     "greed", "extreme_greed", "low_stress", "risk_on", "low_pressure" -> ThesisColors.SignalPositive
@@ -1117,3 +1161,16 @@ private fun summarizeBody(body: String, limit: Int = 140): String {
 private fun formatTimestamp(raw: String): String = runCatching {
     Instant.parse(raw).atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("MMM d, HH:mm"))
 }.getOrElse { raw }
+
+/** No followed names yet (the kit's EmptyState, 3 #25), with the one way forward. */
+@Composable
+private fun NoNamesState(onAddName: () -> Unit) {
+    EmptyState(
+        sentence = StateCopy.NO_NAMES,
+        how = StateCopy.noNamesHow,
+        icon = ThesisIcons.Names,
+        actionLabel = StateCopy.NO_NAMES_ACTION,
+        onAction = onAddName,
+        primaryAction = true
+    )
+}

@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -1162,6 +1163,8 @@ private fun MetricGrid(metrics: List<FinancialDerivedMetricView>) {
     }
 }
 
+@Composable
+@ReadOnlyComposable
 private fun signalTint(signal: String): Color = when (signal.lowercase()) {
     "positive" -> ThesisColors.SignalPositive
     "negative" -> ThesisColors.SignalNegative
@@ -1169,6 +1172,8 @@ private fun signalTint(signal: String): Color = when (signal.lowercase()) {
     else -> ThesisColors.SignalWarning
 }
 
+@Composable
+@ReadOnlyComposable
 private fun changeTint(direction: String): Color = when (direction.lowercase()) {
     "up" -> ThesisColors.SignalPositive
     "down" -> ThesisColors.SignalNegative
@@ -1177,12 +1182,16 @@ private fun changeTint(direction: String): Color = when (direction.lowercase()) 
     else -> ThesisColors.SignalWarning
 }
 
+@Composable
+@ReadOnlyComposable
 private fun ladderTint(tone: String): Color = when (tone.lowercase()) {
     "strong" -> ThesisColors.SignalPositive
     "moderate" -> ThesisColors.Primary
     else -> ThesisColors.TextMuted
 }
 
+@Composable
+@ReadOnlyComposable
 private fun bridgeTint(tone: String): Color = when (tone.lowercase()) {
     "spot" -> ThesisColors.SignalWarning
     "mid" -> ThesisColors.Primary
@@ -1191,12 +1200,16 @@ private fun bridgeTint(tone: String): Color = when (tone.lowercase()) {
     else -> ThesisColors.TextPrimary
 }
 
+@Composable
+@ReadOnlyComposable
 private fun valueSignalTint(status: String): Color = when (status.lowercase()) {
     "pass" -> ThesisColors.SignalPositive
     "fail" -> ThesisColors.SignalNegative
     else -> ThesisColors.SignalWarning
 }
 
+@Composable
+@ReadOnlyComposable
 private fun coverageStateTint(coverageState: String): Color = when (coverageState.lowercase()) {
     "full" -> ThesisColors.Primary
     "limited" -> ThesisColors.SignalNegative
@@ -1210,6 +1223,8 @@ private fun coverageStateLabel(coverageState: String): String = when (coverageSt
     else -> coverageState.replace('_', ' ')
 }
 
+@Composable
+@ReadOnlyComposable
 private fun metricTint(direction: String, status: String): Color {
     if (status.equals("omitted", ignoreCase = true)) {
         return ThesisColors.TextMuted

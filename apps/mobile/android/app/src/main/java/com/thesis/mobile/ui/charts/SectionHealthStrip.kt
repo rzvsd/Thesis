@@ -17,6 +17,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -129,6 +130,8 @@ private fun LegendDot(color: Color, label: String) {
     }
 }
 
+@Composable
+@ReadOnlyComposable
 private fun statusColor(status: String?): Color = when (status?.lowercase()) {
     "complete" -> ThesisColors.Primary
     "data_incomplete" -> ThesisColors.SignalWarning

@@ -1,91 +1,40 @@
 package com.thesis.mobile.ui.navigation
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.AccountCircle
-import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
 import com.thesis.mobile.model.AlertLedgerItemView
-import com.thesis.mobile.ui.theme.ThesisColors
-import com.thesis.mobile.ui.theme.ThesisDimens
-import com.thesis.mobile.ui.theme.ThesisTypography
+import com.thesis.mobile.ui.components.Avatar
+import com.thesis.mobile.ui.components.ThesisIconButton
+import com.thesis.mobile.ui.components.ThesisTopBar
+import com.thesis.mobile.ui.icons.ThesisIcons
 import java.time.LocalDate
 import java.time.OffsetDateTime
 
 /**
- * Top bar shared by the three tabs. Inbox is the bell, You is the profile icon.
- * No unread badge: the alert ledger has no read state yet.
+ * Root top bar of the four tabs (DESIGN-DIRECTION 5.5, kit `ThesisTopBar` 3 #3): the `THESIS` brand on the left,
+ * Search and the You avatar (initials, 3 #36) on the right. The bell is gone (Inbox is a tab). The avatar has no
+ * selected tint (accent is the brand's, 2.8).
  */
 @Composable
-fun ThesisTopBar(
-    inboxSelected: Boolean,
-    profileSelected: Boolean,
-    onOpenInbox: () -> Unit,
+fun ShellRootTopBar(
+    initials: String,
+    onOpenSearch: () -> Unit,
     onOpenProfile: () -> Unit
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(ThesisColors.Background)
-            .statusBarsPadding()
-            .height(48.dp)
-            .padding(horizontal = ThesisDimens.SpacingSm),
-        horizontalArrangement = Arrangement.End,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        IconButton(onClick = onOpenInbox) {
-            Icon(
-                imageVector = Icons.Filled.Notifications,
-                contentDescription = "Inbox",
-                tint = if (inboxSelected) ThesisColors.Primary else ThesisColors.TextMuted
-            )
+    ThesisTopBar(
+        actions = {
+            ThesisIconButton(ThesisIcons.Search, contentDescription = "Search", onClick = onOpenSearch)
+            Avatar(initials = initials, onClick = onOpenProfile, contentDescription = "You")
         }
-        IconButton(onClick = onOpenProfile) {
-            Icon(
-                imageVector = Icons.Filled.AccountCircle,
-                contentDescription = "You",
-                tint = if (profileSelected) ThesisColors.Primary else ThesisColors.TextMuted
-            )
-        }
-    }
+    )
 }
 
-/** Back row for screens that are opened from a Deep Dive or a name, not from a tab. */
+/**
+ * Top bar of a pushed screen that has no header of its own: back and the [title] (none when blank, because the
+ * screen carries its own headline: no repeated words, rubric V3).
+ */
 @Composable
-fun SubScreenBackRow(title: String, onBack: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = ThesisDimens.SpacingSm),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        IconButton(onClick = onBack) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                contentDescription = "Back",
-                tint = ThesisColors.Primary
-            )
-        }
-        Text(
-            text = title,
-            style = ThesisTypography.labelLarge.copy(fontWeight = FontWeight.Medium),
-            color = ThesisColors.TextPrimary
-        )
-    }
+fun ThesisBackTopBar(title: String, onBack: () -> Unit) {
+    ThesisTopBar(title = title.ifBlank { null }, onBack = onBack, titleAlwaysVisible = title.isNotBlank())
 }
 
 /**

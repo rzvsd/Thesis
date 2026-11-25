@@ -41,6 +41,8 @@ import com.thesis.mobile.ui.theme.ThesisTypography
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
 
 @Composable
 fun InboxScreen(
@@ -52,7 +54,9 @@ fun InboxScreen(
     onUnlockDetail: () -> Unit,
     onSubmitFeedback: (String, String) -> Unit,
     onQuietAlertType: (String) -> Unit,
-    onDisableAlertType: (String) -> Unit
+    onDisableAlertType: (String) -> Unit,
+    /** False for an alert whose "Open" would only land back on Inbox (`DeepLinkRouter.alertHasDestination`). */
+    canOpenAlert: (AlertLedgerItemView) -> Boolean = { true }
 ) {
     var selectedSegment by rememberSaveable { mutableStateOf(Phase4Copy.inboxSegments.first()) }
     val filteredAlerts = remember(alerts, selectedSegment) {
@@ -68,8 +72,7 @@ fun InboxScreen(
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .padding(padding)
-            .background(ThesisColors.Background),
+            .padding(padding),
         contentPadding = PaddingValues(
             horizontal = ThesisDimens.ScreenPaddingHorizontal,
             vertical = ThesisDimens.SpacingLg
@@ -135,7 +138,7 @@ fun InboxScreen(
             items(filteredAlerts, key = { it.id }) { alert ->
                 InboxRowCard(
                     alert = alert,
-                    onOpen = { onOpenAlert(alert) },
+                    onOpen = if (canOpenAlert(alert)) ({ onOpenAlert(alert) }) else null,
                     onUnlockDetail = onUnlockDetail,
                     onUseful = { onSubmitFeedback(alert.id, "useful") },
                     onNotUseful = { onSubmitFeedback(alert.id, "not_useful") },
@@ -150,7 +153,8 @@ fun InboxScreen(
 @Composable
 private fun InboxRowCard(
     alert: AlertLedgerItemView,
-    onOpen: () -> Unit,
+    /** Null hides "Open" (the alert's route has nowhere to go but Inbox). */
+    onOpen: (() -> Unit)?,
     onUnlockDetail: () -> Unit,
     onUseful: () -> Unit,
     onNotUseful: () -> Unit,
@@ -237,16 +241,18 @@ private fun InboxRowCard(
         HorizontalDivider(color = ThesisColors.Border)
 
         Row(horizontalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)) {
-            Button(
-                onClick = onOpen,
-                modifier = Modifier.weight(1f),
-                shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = ThesisColors.Primary,
-                    contentColor = ThesisColors.TextInverse
-                )
-            ) {
-                Text(Phase4Copy.inboxOpenLabel)
+            if (onOpen != null) {
+                Button(
+                    onClick = onOpen,
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = ThesisColors.Primary,
+                        contentColor = ThesisColors.TextInverse
+                    )
+                ) {
+                    Text(Phase4Copy.inboxOpenLabel)
+                }
             }
             OutlinedButton(
                 onClick = onUseful,
@@ -284,11 +290,17 @@ private fun InboxRowCard(
 
 @Composable
 private fun FilterRow(options: List<String>, selected: String, onSelect: (String) -> Unit) {
-    Row(horizontalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)) {
+    // Scrolls sideways instead of breaking a label letter by letter at large font scales or narrow widths (A4).
+    Row(
+        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)
+    ) {
         options.forEach { option ->
             val shape = RoundedCornerShape(ThesisDimens.CardCornerRadius)
             Text(
                 text = option,
+                maxLines = 1,
+                softWrap = false,
                 style = ThesisTypography.labelLarge.copy(
                     fontWeight = if (selected == option) FontWeight.Medium else FontWeight.Normal
                 ),

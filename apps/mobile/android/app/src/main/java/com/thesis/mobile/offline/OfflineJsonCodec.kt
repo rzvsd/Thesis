@@ -19,6 +19,8 @@ import com.thesis.mobile.model.InvestmentMemoView
 import com.thesis.mobile.model.IssuerView
 import com.thesis.mobile.model.KillSwitchConditionView
 import com.thesis.mobile.model.MetricDeltaPanelView
+import com.thesis.mobile.model.MarketTapeParser
+import com.thesis.mobile.model.ReportSummaryView
 import com.thesis.mobile.model.PulseReportView
 import com.thesis.mobile.model.RangeBandPanelView
 import com.thesis.mobile.model.ReportViewMapper
@@ -53,6 +55,7 @@ object OfflineJsonCodec {
                     pulse.sections.forEach { put(sectionToJson(it)) }
                 }
             )
+            .putOpt("market_tape", pulse.tape?.let(MarketTapeParser::toJson))
         return payload.toString()
     }
 
@@ -65,7 +68,8 @@ object OfflineJsonCodec {
             reportId = reportId,
             generatedAt = generatedAt,
             cycleEnd = root.optString("cycle_end").ifBlank { null },
-            sections = sections
+            sections = sections,
+            tape = MarketTapeParser.parse(root.optJSONObject("market_tape"))
         )
     }.getOrNull()
 
@@ -118,6 +122,84 @@ object OfflineJsonCodec {
     fun decodeDeepDiveReport(payload: String): DeepDiveReportView? = runCatching {
         ReportViewMapper.mapAnalysisReport(JSONObject(payload))
     }.getOrNull()
+
+    /** A [ReportSummaryView] (5.5 `report_summaries`): change summary and recent annual rows. */
+    fun encodeReportSummary(summary: ReportSummaryView): String =
+        JSONObject()
+            .put("report_id", summary.reportId)
+            .putOpt("ticker", summary.ticker)
+            .putOpt("company_name", summary.companyName)
+            .putOpt("generated_at", summary.generatedAt)
+            .putOpt("filing_period", summary.filingPeriod)
+            .putOpt("verdict", summary.verdict)
+            .putOpt("change_summary", changeSummaryToJson(summary.changeSummary))
+            .put(
+                "annual_history",
+                JSONArray().apply { summary.annualHistory.forEach { put(financialHistoryRowToJson(it)) } }
+            )
+            .toString()
+
+    fun decodeReportSummary(payload: String): ReportSummaryView? = runCatching {
+        val root = JSONObject(payload)
+        val reportId = root.optString("report_id").ifBlank { return null }
+        val changeSummary = root.optJSONObject("change_summary")?.let { row ->
+            val topChanges = row.optJSONArray("top_changes") ?: JSONArray()
+            DeepDiveChangeSummaryView(
+                previousView = row.optString("previous_view"),
+                currentView = row.optString("current_view"),
+                topChanges = (0 until topChanges.length()).mapNotNull { index ->
+                    topChanges.optJSONObject(index)?.let { change ->
+                        DeepDiveTopChangeView(
+                            title = change.optString("title"),
+                            direction = change.optString("direction"),
+                            impactLevel = change.optString("impact_level"),
+                            whyItChanged = change.optString("why_it_changed"),
+                            whyItMatters = change.optString("why_it_matters")
+                        )
+                    }
+                }
+            )
+        }
+        val rows = root.optJSONArray("annual_history") ?: JSONArray()
+        ReportSummaryView(
+            reportId = reportId,
+            ticker = root.optNullableText("ticker"),
+            companyName = root.optNullableText("company_name"),
+            generatedAt = root.optNullableText("generated_at"),
+            filingPeriod = root.optNullableText("filing_period"),
+            verdict = root.optNullableText("verdict"),
+            changeSummary = changeSummary,
+            annualHistory = (0 until rows.length()).mapNotNull { index ->
+                rows.optJSONObject(index)?.let(::financialHistoryRowFromJson)
+            }
+        )
+    }.getOrNull()
+
+    private fun financialHistoryRowFromJson(row: JSONObject): FinancialHistoryRowView? {
+        val period = row.optString("period").ifBlank { return null }
+        return FinancialHistoryRowView(
+            period = period,
+            periodType = row.optString("period_type"),
+            fiscalYear = row.optInt("fiscal_year"),
+            fiscalQuarter = row.optNullableNumber("fiscal_quarter")?.toInt(),
+            revenue = row.optNullableNumber("revenue"),
+            grossMargin = row.optNullableNumber("gross_margin"),
+            operatingMargin = row.optNullableNumber("operating_margin"),
+            netIncome = row.optNullableNumber("net_income"),
+            freeCashFlow = row.optNullableNumber("free_cash_flow"),
+            debtTotal = row.optNullableNumber("debt_total"),
+            cashAndEquivalents = row.optNullableNumber("cash_and_equivalents"),
+            sharesOutstanding = row.optNullableNumber("shares_outstanding")
+        )
+    }
+
+    private fun JSONObject.optNullableText(key: String): String? =
+        if (!has(key) || isNull(key)) null else optString(key).trim().ifBlank { null }
+
+    private fun JSONObject.optNullableNumber(key: String): Double? {
+        if (!has(key) || isNull(key)) return null
+        return optDouble(key).takeIf { it.isFinite() }
+    }
 
     fun encodeSentimentSnapshot(snapshot: SentimentSnapshotView): String {
         val payload = JSONObject()

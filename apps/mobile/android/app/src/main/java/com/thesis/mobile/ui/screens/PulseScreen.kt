@@ -30,6 +30,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -51,6 +52,8 @@ import com.thesis.mobile.ui.animations.StaggeredEntrance
 import com.thesis.mobile.ui.theme.HeadingFont
 import com.thesis.mobile.ui.theme.ThesisColors
 import com.thesis.mobile.ui.theme.ThesisDimens
+import com.thesis.mobile.ui.theme.ThesisSpace
+import com.thesis.mobile.ui.theme.ThesisType
 import com.thesis.mobile.ui.theme.ThesisTypography
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -90,7 +93,6 @@ fun PulseScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(ThesisColors.Background)
             .pullRefresh(pullRefreshState)
     ) {
         LazyColumn(
@@ -224,12 +226,13 @@ private fun BriefTopBar(
     onExportPdf: () -> Unit,
     onRefresh: () -> Unit
 ) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+    // Title row (back, brand + title, actions), then the date under the title: side by side, the date column
+    // squeezed the title to one letter per line at large font scales (A4).
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             IconButton(onClick = onBack) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.ArrowBack,
@@ -237,7 +240,7 @@ private fun BriefTopBar(
                     tint = ThesisColors.TextPrimary
                 )
             }
-            Column {
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = "THESIS",
                     style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Medium),
@@ -245,26 +248,11 @@ private fun BriefTopBar(
                 )
                 Text(
                     text = "Morning Brief",
-                    style = ThesisTypography.headlineLarge.copy(fontFamily = HeadingFont),
+                    // Capped at 1.3x like every display title (2.3), so the words never break at 2.0x.
+                    style = ThesisType.capped(ThesisTypography.headlineLarge.copy(fontFamily = HeadingFont)),
                     color = ThesisColors.TextPrimary
                 )
             }
-        }
-        Column(horizontalAlignment = Alignment.End) {
-            Text(
-                text = dateLabel.uppercase(),
-                style = ThesisTypography.labelSmall,
-                color = ThesisColors.TextMuted
-            )
-            if (!generatedAt.isNullOrBlank()) {
-                Text(
-                    text = "Updated $generatedAt",
-                    style = ThesisTypography.bodySmall,
-                    color = ThesisColors.TextMuted
-                )
-            }
-        }
-        Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onExportPdf) {
                 Icon(
                     imageVector = Icons.Default.Share,
@@ -277,6 +265,20 @@ private fun BriefTopBar(
                     imageVector = Icons.Default.Refresh,
                     contentDescription = "Refresh Pulse",
                     tint = ThesisColors.TextMuted
+                )
+            }
+        }
+        Column(modifier = Modifier.padding(start = ThesisSpace.touchMin)) {
+            Text(
+                text = dateLabel.uppercase(),
+                style = ThesisTypography.labelSmall,
+                color = ThesisColors.TextMuted
+            )
+            if (!generatedAt.isNullOrBlank()) {
+                Text(
+                    text = "Updated $generatedAt",
+                    style = ThesisTypography.bodySmall,
+                    color = ThesisColors.TextMuted
                 )
             }
         }
@@ -550,6 +552,8 @@ private enum class RowTone {
     NEGATIVE,
     NEUTRAL;
 
+    @Composable
+    @ReadOnlyComposable
     fun color(): Color = when (this) {
         POSITIVE -> ThesisColors.SignalPositive
         NEGATIVE -> ThesisColors.SignalNegative

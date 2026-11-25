@@ -7,6 +7,7 @@ import androidx.security.crypto.MasterKey
 import com.thesis.mobile.BuildConfig
 import com.thesis.mobile.model.AuthTokens
 import com.thesis.mobile.model.LastViewedReport
+import com.thesis.mobile.ui.shell.AppearancePrefs
 import java.time.Instant
 import java.util.UUID
 
@@ -153,6 +154,43 @@ class SessionStore(context: Context) {
 
     fun getAppBackgroundedAtMs(): Long = prefs.getLong(KEY_APP_BACKGROUNDED_AT_MS, 0L)
 
+    // ---- Appearance (You > Appearance), per device
+
+    fun loadAppearance(): AppearancePrefs = AppearancePrefs(
+        themeMode = AppearancePrefs.themeModeOf(prefs.getString(KEY_THEME_MODE, null)),
+        upDown = AppearancePrefs.upDownOf(prefs.getString(KEY_UP_DOWN, null)),
+        reduceMotion = prefs.getBoolean(KEY_REDUCE_MOTION, false),
+        namesDensity = AppearancePrefs.densityOf(prefs.getString(KEY_NAMES_DENSITY, null))
+    )
+
+    fun saveAppearance(value: AppearancePrefs) {
+        prefs.edit()
+            .putString(KEY_THEME_MODE, value.themeMode.name)
+            .putString(KEY_UP_DOWN, value.upDown.name)
+            .putBoolean(KEY_REDUCE_MOTION, value.reduceMotion)
+            .putString(KEY_NAMES_DENSITY, value.namesDensity.name)
+            .apply()
+    }
+
+    // ---- "Since your last visit" markers (client-only, epoch ms; 0 = never)
+
+    fun getLastInboxVisitAtMs(): Long = prefs.getLong(KEY_LAST_INBOX_VISIT_AT, 0L)
+
+    fun saveLastInboxVisitAtMs(value: Long) {
+        prefs.edit().putLong(KEY_LAST_INBOX_VISIT_AT, value).apply()
+    }
+
+    fun getLastNamesVisitAtMs(): Long = prefs.getLong(KEY_LAST_NAMES_VISIT_AT, 0L)
+
+    fun saveLastNamesVisitAtMs(value: Long) {
+        prefs.edit().putLong(KEY_LAST_NAMES_VISIT_AT, value).apply()
+    }
+
+    /** Log out: the visit markers belong to the account; appearance stays with the device. */
+    fun clearVisitMarkers() {
+        prefs.edit().remove(KEY_LAST_INBOX_VISIT_AT).remove(KEY_LAST_NAMES_VISIT_AT).apply()
+    }
+
     companion object {
         private const val PREFS_NAME = "thesis_mobile_prefs"
         private const val KEY_ACCESS_TOKEN = "access_token"
@@ -170,5 +208,11 @@ class SessionStore(context: Context) {
         private const val KEY_LAST_VIEWED_TIMESTAMP = "last_viewed_timestamp"
         private const val KEY_BIOMETRIC_LOCK_ENABLED = "biometric_lock_enabled"
         private const val KEY_APP_BACKGROUNDED_AT_MS = "app_backgrounded_at_ms"
+        private const val KEY_THEME_MODE = "appearance_theme_mode"
+        private const val KEY_UP_DOWN = "appearance_up_down"
+        private const val KEY_REDUCE_MOTION = "appearance_reduce_motion"
+        private const val KEY_NAMES_DENSITY = "appearance_names_density"
+        private const val KEY_LAST_INBOX_VISIT_AT = "last_inbox_visit_at_ms"
+        private const val KEY_LAST_NAMES_VISIT_AT = "last_names_visit_at_ms"
     }
 }

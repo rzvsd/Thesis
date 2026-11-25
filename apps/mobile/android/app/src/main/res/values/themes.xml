@@ -1,8 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!--
+        The app theme defaults to Dark in both system modes until PR-3 (spec Q2), so the window background is
+        ink here too; WP-INT points values/themes.xml at @color/thesis_bg_paper when the default becomes Auto.
+    -->
     <style name="Theme.ThesisMobile" parent="Theme.Material3.DayNight.NoActionBar">
-        <item name="android:statusBarColor">@color/thesis_background</item>
-        <item name="android:navigationBarColor">@color/thesis_background</item>
         <item name="android:windowBackground">@color/thesis_background</item>
         <item name="android:windowLightStatusBar">false</item>
     </style>

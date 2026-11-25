@@ -25,7 +25,10 @@ import androidx.compose.ui.window.DialogProperties
 import com.thesis.mobile.billing.RevenueCatBilling
 import com.thesis.mobile.model.AlertLedgerItemView
 import com.thesis.mobile.model.SubscriptionOfferView
+import com.thesis.mobile.ui.components.ProvidePageBackground
+import com.thesis.mobile.ui.components.pageBackground
 import com.thesis.mobile.ui.theme.HeadingFont
+import com.thesis.mobile.ui.theme.LocalThesisPalette
 import com.thesis.mobile.ui.theme.ThesisColors
 import com.thesis.mobile.ui.theme.ThesisDimens
 import com.thesis.mobile.ui.theme.ThesisTypography
@@ -69,80 +72,83 @@ fun PaywallScreen(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(ThesisColors.Background)
-                .verticalScroll(rememberScrollState())
-                .padding(ThesisDimens.ScreenPaddingHorizontal),
-            verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingLg)
-        ) {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                TextButton(onClick = onDismiss) {
-                    Text("Not now", color = ThesisColors.TextMuted)
+        // A Dialog is its own window, so it gets its own page-background cache in its own coordinates (2.7).
+        ProvidePageBackground {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .pageBackground(LocalThesisPalette.current)
+                    .verticalScroll(rememberScrollState())
+                    .padding(ThesisDimens.ScreenPaddingHorizontal),
+                verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingLg)
+            ) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    TextButton(onClick = onDismiss) {
+                        Text("Not now", color = ThesisColors.TextMuted)
+                    }
                 }
-            }
-            Text(
-                text = "Know what changed in every filing",
-                style = ThesisTypography.headlineLarge.copy(fontFamily = HeadingFont, fontWeight = FontWeight.Normal),
-                color = ThesisColors.TextPrimary
-            )
-
-            LockedAlertCard(
-                title = alert?.title ?: SAMPLE_TITLE,
-                body = alert?.body ?: SAMPLE_BODY,
-                isSample = alert == null
-            )
-
-            Column(verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)) {
                 Text(
-                    text = "PRO ADDS",
-                    style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Medium),
-                    color = ThesisColors.TextMuted
+                    text = "Know what changed in every filing",
+                    style = ThesisTypography.headlineLarge.copy(fontFamily = HeadingFont, fontWeight = FontWeight.Normal),
+                    color = ThesisColors.TextPrimary
                 )
-                proAdds.forEach { line ->
-                    Text(text = "- $line", style = ThesisTypography.bodyMedium, color = ThesisColors.TextSecondary)
-                }
-            }
 
-            if (offers.isEmpty()) {
-                Text(
-                    text = if (RevenueCatBilling.isEnabled()) {
-                        "Loading plans..."
-                    } else {
-                        "Subscriptions are not available in this build."
-                    },
-                    style = ThesisTypography.bodySmall,
-                    color = ThesisColors.TextMuted
+                LockedAlertCard(
+                    title = alert?.title ?: SAMPLE_TITLE,
+                    body = alert?.body ?: SAMPLE_BODY,
+                    isSample = alert == null
                 )
-            }
-            monthly?.let { offer ->
-                Button(
-                    onClick = { onPurchase("MONTHLY") },
-                    enabled = !actionInFlight,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = ThesisColors.Primary,
-                        contentColor = ThesisColors.TextInverse
+
+                Column(verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)) {
+                    Text(
+                        text = "PRO ADDS",
+                        style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Medium),
+                        color = ThesisColors.TextMuted
                     )
-                ) {
-                    Text(planLabel("Monthly", offer.price))
+                    proAdds.forEach { line ->
+                        Text(text = "- $line", style = ThesisTypography.bodyMedium, color = ThesisColors.TextSecondary)
+                    }
                 }
-            }
-            yearly?.let { offer ->
-                OutlinedButton(
-                    onClick = { onPurchase("YEARLY") },
-                    enabled = !actionInFlight,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(ThesisDimens.CardCornerRadius)
-                ) {
-                    Text(planLabel("Yearly", offer.price), color = ThesisColors.Primary)
+
+                if (offers.isEmpty()) {
+                    Text(
+                        text = if (RevenueCatBilling.isEnabled()) {
+                            "Loading plans..."
+                        } else {
+                            "Subscriptions are not available in this build."
+                        },
+                        style = ThesisTypography.bodySmall,
+                        color = ThesisColors.TextMuted
+                    )
                 }
-            }
-            if (RevenueCatBilling.isEnabled()) {
-                TextButton(onClick = onRestore, enabled = !actionInFlight, modifier = Modifier.fillMaxWidth()) {
-                    Text("Restore purchase", color = ThesisColors.TextMuted)
+                monthly?.let { offer ->
+                    Button(
+                        onClick = { onPurchase("MONTHLY") },
+                        enabled = !actionInFlight,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = ThesisColors.Primary,
+                            contentColor = ThesisColors.TextInverse
+                        )
+                    ) {
+                        Text(planLabel("Monthly", offer.price))
+                    }
+                }
+                yearly?.let { offer ->
+                    OutlinedButton(
+                        onClick = { onPurchase("YEARLY") },
+                        enabled = !actionInFlight,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(ThesisDimens.CardCornerRadius)
+                    ) {
+                        Text(planLabel("Yearly", offer.price), color = ThesisColors.Primary)
+                    }
+                }
+                if (RevenueCatBilling.isEnabled()) {
+                    TextButton(onClick = onRestore, enabled = !actionInFlight, modifier = Modifier.fillMaxWidth()) {
+                        Text("Restore purchase", color = ThesisColors.TextMuted)
+                    }
                 }
             }
         }
