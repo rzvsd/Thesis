@@ -123,6 +123,21 @@ class NameModelTest {
     }
 
     @Test
+    fun `net cash below zero reads as net debt with the absolute amount`() {
+        val debt = filingsFigures(listOf(year(2026, 100.0, null, null, 43.2e9, 10.0, null), year(2025, 90.0, null, null, 53.3e9, 10.0, null)))!!
+        // Debt 43.2B, cash 10: the tile names net debt and both years read as positive amounts.
+        val tile = filingsKpis(debt)[4]
+        assertTrue(tile.label, tile.label.startsWith("Net debt"))
+        assertFalse(tile.value.contains(Fmt.MINUS))
+        assertFalse(tile.reference.orEmpty().contains(Fmt.MINUS))
+        assertEquals("Net debt", filingsSource(debt, 4).metric)
+        // A prior year on the other side of zero is named.
+        val flip = filingsFigures(listOf(year(2026, 110.0, 0.32, 22.0, 30.0, 50.0, 95.0), year(2025, 100.0, 0.30, 25.0, 40.0, 30.0, 100.0)))!!
+        assertTrue(filingsKpis(flip)[4].label.startsWith("Net cash"))
+        assertTrue(filingsKpis(flip)[4].reference!!.startsWith("vs net debt of "))
+    }
+
+    @Test
     fun `missing inputs read as words, never as zero`() {
         val f = filingsFigures(listOf(year(2026, null, null, null, null, null, null)))!!
         assertNull(f.priorPeriod)

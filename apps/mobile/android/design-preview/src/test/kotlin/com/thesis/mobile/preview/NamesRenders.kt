@@ -6,6 +6,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.unit.dp
 import com.thesis.mobile.model.AlertLedgerItemView
 import com.thesis.mobile.model.NoteTrailEntry
+import com.thesis.mobile.model.SnapshotDelta
 import com.thesis.mobile.preview.fixtures.NamesFixtures
 import com.thesis.mobile.ui.screens.BoardFilter
 import com.thesis.mobile.ui.screens.BoardSeed
@@ -39,6 +40,8 @@ class NamesRenders {
         segment: Int = 0,
         lastVisit: Long = NamesFixtures.lastVisitAtMs,
         warRooms: Map<String, String> = NamesFixtures.warRooms,
+        liveWarRooms: Set<String> = emptySet(),
+        deltas: Map<String, SnapshotDelta> = NamesFixtures.deltas,
     ) {
         NamesFixtures.Clocked {
             CompositionLocalProvider(LocalBoardSeed provides seed) {
@@ -50,10 +53,11 @@ class NamesRenders {
                     onRefresh = {}, onAddTicker = {}, onRemoveTicker = {}, onRunDeepDive = {}, onOpenResearch = {},
                     onImportHoldingsCsv = { Result.success(NamesFixtures.importResult) },
                     warRoomByTicker = warRooms,
+                    liveWarRooms = liveWarRooms,
                     refreshing = refreshing,
                     loaded = loaded,
                     error = error,
-                    snapshotDeltas = NamesFixtures.deltas,
+                    snapshotDeltas = deltas,
                     lastVisitAtMs = lastVisit,
                     allNotes = notes,
                     companyNames = NamesFixtures.companyNames,
@@ -88,7 +92,19 @@ class NamesRenders {
         renderScreen("names-compact-full", heightDp = PhoneSpec.FULL_PAGE_HEIGHT_DP) { Board(density = ListDensity.Compact) }
     }
 
-    @Test fun firstVisit() { renderScreen("names-first-visit") { Board(lastVisit = 0L) } }
+    /** First visit: no reference point yet, so no deltas, no "changed" and no "new" marks. */
+    @Test fun firstVisit() { renderScreen("names-first-visit") { Board(lastVisit = 0L, deltas = emptyMap()) } }
+
+    /** GOOGL reports today: its War Room is live, so the row's StatusSquare gives way to the LiveDot (#11, #29). */
+    @Test fun warRoomLive() {
+        renderScreen("names-war-room-live") { Board(alerts = NamesFixtures.alertsLive, liveWarRooms = NamesFixtures.liveWarRooms) }
+    }
+
+    @Test fun warRoomLiveSheet() {
+        renderScreen("names-war-room-live-sheet") {
+            Board(alerts = NamesFixtures.alertsLive, liveWarRooms = NamesFixtures.liveWarRooms, seed = BoardSeed(contextFor = "GOOGL"))
+        }
+    }
 
     @Test fun loading() { renderScreen("names-loading") { Board(watchlist = emptyList(), loaded = false) } }
 

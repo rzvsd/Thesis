@@ -102,13 +102,13 @@ class NameRenders {
 
     @Test fun warRoomLive() {
         renderScreen("name-war-room-live", heightDp = PhoneSpec.FULL_PAGE_HEIGHT_DP) {
-            Name(detail = NamesFixtures.detailWarRoom, warRoomId = "wr-googl", warRoomLive = true, isPro = false)
+            Name(detail = NamesFixtures.detailWarRoomLive, warRoomId = "wr-googl", warRoomLive = true, isPro = false)
         }
     }
 
     @Test fun warRoomLiveReduced() {
         renderScreen("name-war-room-live-reduced", heightDp = PhoneSpec.FULL_PAGE_HEIGHT_DP, reducedMotion = true) {
-            Name(detail = NamesFixtures.detailWarRoom, warRoomId = "wr-googl", warRoomLive = true, isPro = false)
+            Name(detail = NamesFixtures.detailWarRoomLive, warRoomId = "wr-googl", warRoomLive = true, isPro = false)
         }
     }
 

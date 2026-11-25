@@ -10,6 +10,7 @@ import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.isFocused
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -53,6 +54,7 @@ class NamesSemanticsTest {
         undo: (suspend (String, String) -> Boolean)? = null,
         watchlist: List<String> = NamesFixtures.watchlist,
         onCompare: ((List<String>) -> Unit)? = {},
+        liveWarRooms: Set<String> = emptySet(),
     ) {
         rule.setContent {
             ThesisTheme(mode = ThemeMode.Light) {
@@ -62,9 +64,12 @@ class NamesSemanticsTest {
                             padding = PaddingValues(),
                             watchlist = watchlist,
                             monitorSnapshots = NamesFixtures.snapshots,
-                            alerts = NamesFixtures.alerts,
+                            alerts = if (liveWarRooms.isEmpty()) NamesFixtures.alerts else NamesFixtures.alertsLive,
                             onRefresh = {}, onAddTicker = {}, onRemoveTicker = { removed += it }, onRunDeepDive = {}, onOpenResearch = {},
                             onImportHoldingsCsv = { Result.success(NamesFixtures.importResult) },
+                            warRoomByTicker = NamesFixtures.warRooms,
+                            onOpenWarRoom = { opened += it },
+                            liveWarRooms = liveWarRooms,
                             snapshotDeltas = NamesFixtures.deltas,
                             lastVisitAtMs = NamesFixtures.lastVisitAtMs,
                             allNotes = NamesFixtures.notes,
@@ -116,6 +121,22 @@ class NamesSemanticsTest {
         board()
         rule.onNodeWithText(NamesCopy.TITLE).assertIsHeading()
         rule.assertAllTouchTargetsAtLeast()
+    }
+
+    @Test
+    fun aLiveWarRoomShowsTheLiveDotAndTheSheetOffersIt() {
+        board(seed = BoardSeed(contextFor = "GOOGL"), liveWarRooms = NamesFixtures.liveWarRooms)
+        // The row's leading column holds the LiveDot (#11, #29): exactly one, on GOOGL.
+        assertEquals(1, rule.onAllNodesWithContentDescription("Live", useUnmergedTree = true).fetchSemanticsNodes().size)
+        rule.onNodeWithText(NamesCopy.WAR_ROOM).assertExists().performClick()
+        assertEquals(listOf("wr-googl"), opened)
+    }
+
+    @Test
+    fun aWarRoomOutsideItsLivePhaseShowsNoDotAndNoSheetAction() {
+        board(seed = BoardSeed(contextFor = "GOOGL"))
+        assertEquals(0, rule.onAllNodesWithContentDescription("Live", useUnmergedTree = true).fetchSemanticsNodes().size)
+        rule.onNodeWithText(NamesCopy.WAR_ROOM).assertDoesNotExist()
     }
 
     @Test

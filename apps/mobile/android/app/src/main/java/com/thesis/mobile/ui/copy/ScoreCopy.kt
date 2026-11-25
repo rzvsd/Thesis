@@ -32,10 +32,12 @@ object ScoreCopy {
     // ---- Freshness (snapshot `freshness_score`, `freshness_state`)
 
     const val FRESHNESS = "Freshness"
-    const val FRESHNESS_DEFINITION = "How current the report is for this name. It starts at 100 and loses up to 55 " +
-        "points as the report ages (aging from 14 days, stale after 45), up to 35 points for material events you " +
-        "have not reviewed (all 35 at 6 or more) and 20 points when kill-switch conditions fired."
-    const val FRESHNESS_DERIVATION = "100 − age (up to 55) − unreviewed events (up to 35) − kill switch (20)."
+    const val FRESHNESS_DEFINITION = "How current the report is for this name. It starts at 100 and loses points " +
+        "steadily from the day the report is built, up to 55 at 90 days (the state reads Aging from 14 days, Stale " +
+        "after 45), up to 35 points for material events you have not reviewed (all 35 at 6 or more) and 20 points " +
+        "when kill-switch conditions fired."
+    const val FRESHNESS_DERIVATION = "100 − 55 × min(1, report age in days ÷ 90) − 35 × min(1, unreviewed events ÷ 6) " +
+        "− 20 if the kill switch fired."
 
     fun freshnessInputs(
         score: String,
@@ -79,6 +81,9 @@ object ScoreCopy {
     const val NET_CASH_DEFINITION = "Cash and equivalents less total debt at the fiscal year end. Negative means " +
         "more debt than cash."
     const val NET_CASH_DERIVATION = "Cash and equivalents − total debt."
+    const val NET_DEBT_DEFINITION = "Total debt less cash and equivalents at the fiscal year end: how much more the " +
+        "company owes than it holds in cash."
+    const val NET_DEBT_DERIVATION = "Total debt − cash and equivalents."
     const val SHARES_DEFINITION = "Change in shares outstanding over the fiscal year. Fewer shares usually means " +
         "buybacks; more shares, issuance or stock pay."
     const val SHARES_DERIVATION = "Shares outstanding this year ÷ last year − 1."

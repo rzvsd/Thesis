@@ -186,6 +186,8 @@ data class BoardInputs(
     val companyNames: Map<String, String> = emptyMap(),
     /** War Room id by ticker for names in their earnings window (`warRoomsInEarningsWindow`). */
     val warRooms: Map<String, String> = emptyMap(),
+    /** Tickers whose War Room is in its Live phase (`WAR_ROOM_LIVE` status): the row shows the LiveDot (#11, #29). */
+    val liveWarRooms: Set<String> = emptySet(),
     /** Last Names visit, epoch ms; 0 = never (no "changed" or "new" marks then). */
     val lastVisitAtMs: Long = 0L,
     val focusTicker: String? = null,
@@ -202,8 +204,11 @@ data class BoardRow(
     val line2: String,
     /** Monitor score on the 0-100 scale, formatted; null without a snapshot. */
     val figure: String?,
+    /** Comfortable caption: the score change since the last visit, or the report age with no earlier reading. */
     val figureCaption: String?,
     val figureTone: Tone,
+    /** Compact caption: the score change alone (aligned Δ column, #11); null when unchanged or no earlier reading. */
+    val compactCaption: String?,
     /** Source: `snapshotDeltas` (state changed, or score moved by half a point or more, since the last visit). */
     val changed: Boolean,
     /** Source: the snapshot's thesis state (Unfavourable: weakened, at risk, broken). */
@@ -221,6 +226,8 @@ data class BoardRow(
     val reportAtMs: Long?,
     val reportId: String?,
     val warRoomId: String?,
+    /** Source: `BoardInputs.liveWarRooms`. A War Room in its Live phase: LiveDot in the row, War Room in the sheet. */
+    val live: Boolean = false,
     val pinned: Boolean = false,
 ) {
     /** 0 Unfavourable, 1 Attention, 2 Favourable, 3 no assessment: the default sort's first key. */
@@ -332,21 +339,27 @@ fun buildBoardRows(inputs: BoardInputs, fmt: Fmt, now: Instant): List<BoardRow> 
             )
             else -> snapshot.reason.trim().ifBlank { word }
         }
-        // Every score names its reference point (principle 4), in the short #11 form so the trailing block leaves
-        // room for the company name and line 2 at 360 dp: "+4 since Tue", "0 since Tue" when it did not move (Name's
-        // wider tile says "Unchanged since Tue"), or with no earlier reading the report's age, "Report · 4 days ago".
-        val (caption, captionTone) = when {
-            snapshot == null -> null to Tone.Neutral
-            previous != null && change != null -> {
-                if (abs(change) >= SCORE_CHANGE_MIN && Math.round(change) != 0L) {
-                    NamesCopy.scoreSince(signedPoints(change), dayOf(previous.takenAtMs)) to
-                        if (change > 0) Tone.Favourable else Tone.Unfavourable
-                } else {
-                    NamesCopy.scoreSince(signedPoints(0.0), dayOf(previous.takenAtMs)) to Tone.Neutral
-                }
-            }
-            reportAtMs != null -> NamesCopy.reportOn(fmt.relative(Instant.ofEpochMilli(reportAtMs))) to Tone.Neutral
-            else -> null to Tone.Neutral
+        // The #11 trailing block, in the short form so it leaves room for the company name and line 2 at 360 dp: a
+        // moved score says by how much since when ("+4 since Tue", as Name's tile says it); an unmoved one has no
+        // caption (#11, "none when unchanged"; Name's wider tile says "Unchanged since Tue"); with no earlier reading
+        // the report's age is the reference ("Report · 4 days ago"). Compact rows show the change alone.
+        val moved = previous != null && change != null && abs(change) >= SCORE_CHANGE_MIN && Math.round(change) != 0L
+        val deltaCaption = if (moved && previous != null && change != null) {
+            NamesCopy.scoreSince(signedPoints(change), dayOf(previous.takenAtMs))
+        } else {
+            null
+        }
+        val captionTone = when {
+            !moved || change == null -> Tone.Neutral
+            change > 0 -> Tone.Favourable
+            else -> Tone.Unfavourable
+        }
+        val caption = when {
+            snapshot == null -> null
+            deltaCaption != null -> deltaCaption
+            previous != null && change != null -> null
+            reportAtMs != null -> NamesCopy.reportOn(fmt.relative(Instant.ofEpochMilli(reportAtMs)))
+            else -> null
         }
         val tickerAlerts = inputs.alerts.filter { it.concerns(ticker) }
         val newAlerts = if (inputs.lastVisitAtMs <= 0L) {
@@ -368,6 +381,7 @@ fun buildBoardRows(inputs: BoardInputs, fmt: Fmt, now: Instant): List<BoardRow> 
             figure = score?.let { Fmt.score(it) },
             figureCaption = caption,
             figureTone = captionTone,
+            compactCaption = deltaCaption.takeIf { snapshot != null },
             changed = inputs.lastVisitAtMs > 0L && changed,
             atRisk = tone == Tone.Unfavourable,
             earningsSoon = earningsSoon,
@@ -377,6 +391,7 @@ fun buildBoardRows(inputs: BoardInputs, fmt: Fmt, now: Instant): List<BoardRow> 
             reportAtMs = reportAtMs,
             reportId = snapshot?.reportId?.trim()?.ifBlank { null },
             warRoomId = inputs.warRooms[ticker],
+            live = inputs.liveWarRooms.any { it.trim().equals(ticker, ignoreCase = true) },
             pinned = ticker == focus,
         )
     }
@@ -539,6 +554,7 @@ fun NamesScreen(
     onImportHoldingsCsv: suspend (String) -> Result<HoldingsImportResultView>,
     warRoomByTicker: Map<String, String> = emptyMap(),
     onOpenWarRoom: (String) -> Unit = {},
+    liveWarRooms: Set<String> = emptySet(),
     refreshing: Boolean = false,
     loaded: Boolean = true,
     error: String? = null,
@@ -586,6 +602,7 @@ fun NamesScreen(
         notedTickers = notedTickers,
         companyNames = companyNames,
         warRooms = warRoomByTicker,
+        liveWarRooms = liveWarRooms,
         lastVisitAtMs = lastVisitAtMs,
         focusTicker = focusTicker,
     )
@@ -595,7 +612,9 @@ fun NamesScreen(
         monitorSnapshots.mapNotNull { parseMs(it.updatedAt) }.maxOrNull()?.let { fmt.asOf(Instant.ofEpochMilli(it)) }
     }
     val latestNoteAt = remember(allNotes) { allNotes.filter { it.text.isNotBlank() }.mapNotNull { parseMs(it.updatedAt) }.maxOrNull() }
-    val notesMeta = latestNoteAt?.let { NamesCopy.notesMeta(fmt.relative(Instant.ofEpochMilli(it))) } ?: asOf
+    // The Notes view's meta is about notes ("Last note 2 days ago"); with none there is nothing to date, so no meta
+    // (the board's "As of" describes snapshots, not local notes).
+    val notesMeta = latestNoteAt?.let { NamesCopy.notesMeta(fmt.relative(Instant.ofEpochMilli(it))) }
 
     // Board and Notes crossfade in place (principle 8, #27 StateCrossfade).
     AnimatedContent(
@@ -1056,28 +1075,29 @@ private fun Board(
         }
     }
 
-    contextFor?.let { ticker ->
-        val row = rows.firstOrNull { it.ticker == ticker }
-        if (row == null) {
-            contextFor = null
-        } else {
-            ThesisSheet(onDismissRequest = { contextFor = null }, title = row.company?.let { "${row.ticker} · $it" } ?: row.ticker) {
-                NameContextActions(
-                    row = row,
-                    canCompare = onCompareWith != null,
-                    onAction = { action ->
-                        contextFor = null
-                        when (action) {
-                            NameContextAction.OpenReport -> row.reportId?.let { onOpenReport(it, row.ticker) }
-                            NameContextAction.BuildReport -> onRunDeepDive(row.ticker)
-                            NameContextAction.WriteNote -> onOpenNotes(row.ticker)
-                            NameContextAction.CompareWith -> onCompareWith?.invoke(row.ticker)
-                            NameContextAction.WarRoom -> row.warRoomId?.let(onOpenWarRoom)
-                            NameContextAction.Remove -> confirmRemove = row.ticker
-                        }
-                    },
-                )
-            }
+    // The sheet shows only while its row exists; a row that left the board (removed elsewhere) clears it after
+    // composition, never by a state write during it.
+    val contextRow = contextFor?.let { ticker -> rows.firstOrNull { it.ticker == ticker } }
+    LaunchedEffect(contextFor, contextRow == null) {
+        if (contextFor != null && contextRow == null) contextFor = null
+    }
+    contextRow?.let { row ->
+        ThesisSheet(onDismissRequest = { contextFor = null }, title = row.company?.let { "${row.ticker} · $it" } ?: row.ticker) {
+            NameContextActions(
+                row = row,
+                canCompare = onCompareWith != null,
+                onAction = { action ->
+                    contextFor = null
+                    when (action) {
+                        NameContextAction.OpenReport -> row.reportId?.let { onOpenReport(it, row.ticker) }
+                        NameContextAction.BuildReport -> onRunDeepDive(row.ticker)
+                        NameContextAction.WriteNote -> onOpenNotes(row.ticker)
+                        NameContextAction.CompareWith -> onCompareWith?.invoke(row.ticker)
+                        NameContextAction.WarRoom -> row.warRoomId?.let(onOpenWarRoom)
+                        NameContextAction.Remove -> confirmRemove = row.ticker
+                    }
+                },
+            )
         }
     }
 
@@ -1243,11 +1263,18 @@ private fun LazyListScope.boardBody(
                         company = row.company,
                         line2 = row.line2,
                         figure = row.figure,
-                        figureCaption = row.figureCaption ?: NamesCopy.NO_REPORT.takeIf { alignedCompact && row.figure == null },
+                        // Compact columns hold the change alone, so the Δ column keeps one width; a name without
+                        // a report says so in its empty figure columns (compact rows have no line 2).
+                        figureCaption = when {
+                            !alignedCompact -> row.figureCaption
+                            row.figure == null -> NamesCopy.NO_REPORT
+                            else -> row.compactCaption
+                        },
                         figureCaptionTone = row.figureTone,
                         stateLabel = row.stateWord,
                         hasNote = row.hasNote,
                         count = row.newAlerts.takeIf { it > 0 }?.let(NamesCopy::newAlerts),
+                        live = row.live,
                         compact = compact,
                         onLongClick = { onContext(row.ticker) },
                         onBoundsCaptured = onBounds,
@@ -1319,7 +1346,8 @@ internal fun NameContextActions(row: BoardRow, canCompare: Boolean = true, onAct
     if (canCompare) {
         SheetActionRow(ThesisIcons.Small.Compare, NamesCopy.COMPARE_WITH, { onAction(NameContextAction.CompareWith) })
     }
-    if (row.warRoomId != null) {
+    // War Room (when live), 5.10 item 7: only in its Live phase, as the row's LiveDot says.
+    if (row.live && row.warRoomId != null) {
         SheetActionRow(ThesisIcons.Small.WarRoom, NamesCopy.WAR_ROOM, { onAction(NameContextAction.WarRoom) })
     }
     SheetActionRow(ThesisIcons.Small.Remove, NamesCopy.REMOVE, { onAction(NameContextAction.Remove) }, destructive = true)
@@ -1427,7 +1455,7 @@ private fun NotesView(
         contentPadding = listPadding(padding),
     ) {
         item(key = "header", contentType = "header") {
-            // The meta line holds the header at the board's height, so the segmented control does not jump.
+            // With notes, the meta line ("Last note …") holds the header at the board's height.
             HeaderWithActions(deck = NamesCopy.notesLede(groups.size, noteCount), meta = meta, refreshing = false) {
                 if (onExportNotes != null) ThesisIconButton(ThesisIcons.Overflow, NamesCopy.MORE, { moreOpen = true })
             }

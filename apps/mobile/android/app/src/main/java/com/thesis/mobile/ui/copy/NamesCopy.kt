@@ -23,7 +23,7 @@ object NamesCopy {
         if (!hasVisited) return names
         val tail = when (changed) {
             0 -> "none changed since your last visit"
-            else -> "$changed changed since your last visit"
+            else -> "${Fmt.number(changed.toLong())} changed since your last visit"
         }
         return "$names · $tail"
     }
@@ -85,14 +85,14 @@ object NamesCopy {
     /** Report age under the score when there is no earlier reading (#11 "10-K · 23 days ago"): "Report · 4 days ago". */
     fun reportOn(age: String): String = "$REPORT · $age"
 
-    /** Name's score tile when the score did not move since the last visit (rows say "0 since Sat"): "Unchanged since Sat". */
+    /** Name's score tile when the score did not move since the last visit (rows show no caption then): "Unchanged since Sat". */
     fun unchangedSince(on: String): String = "Unchanged since $on"
 
     /** A day said briefly in rows: "today", then the weekday within the week, then the date. */
     const val TODAY = "today"
 
     /** A count badge: alerts created since the last Names visit. */
-    fun newAlerts(n: Int): String = "$n new"
+    fun newAlerts(n: Int): String = "${Fmt.number(n.toLong())} new"
 
     // Context sheet (5.10 item 7).
     const val OPEN_REPORT = "Open report"
@@ -131,7 +131,7 @@ object NamesCopy {
     fun showSkipped(n: Int): String = "Show ${Fmt.count(n, "skipped row", "skipped rows")}"
     const val HIDE_SKIPPED = "Hide skipped rows"
     fun rowError(line: Int, ticker: String?, message: String): String =
-        if (ticker.isNullOrBlank()) "Line $line · $message" else "Line $line · $ticker · $message"
+        if (ticker.isNullOrBlank()) "Line ${Fmt.number(line.toLong())} · $message" else "Line ${Fmt.number(line.toLong())} · $ticker · $message"
 
     // ---- Notes view (5.28)
 
@@ -139,7 +139,7 @@ object NamesCopy {
     fun notesMeta(whenText: String): String = "Last note $whenText"
 
     fun notesLede(tickers: Int, notes: Int): String =
-        if (notes == 0) "Your notes, one per filing" else "${Fmt.count(notes, "note", "notes")} on ${Fmt.count(tickers, "name", "names")}"
+        if (notes == 0) "No notes yet" else "${Fmt.count(notes, "note", "notes")} on ${Fmt.count(tickers, "name", "names")}"
     const val NOTES_FILTER = "Filter notes"
     const val NOTES_EMPTY = "Notes you write on a report will collect here, one per filing."
     const val NOTES_EMPTY_HOW = "Open a name and write under Your notes."
@@ -208,12 +208,17 @@ object NamesCopy {
     const val LABEL_OPERATING = "Operating margin"
     const val LABEL_FCF = "FCF margin"
     const val LABEL_NET_CASH = "Net cash"
+    /** Net cash below zero is called what a finance reader calls it, with the absolute value. */
+    const val LABEL_NET_DEBT = "Net debt"
+    /** The years table's signed row: one line across years whose sign may change. */
+    const val LABEL_NET_CASH_SIGNED = "Net cash (debt)"
     const val LABEL_SHARES = "Share count change"
     const val LABEL_NET_INCOME = "Net income"
     const val LABEL_FCF_ABS = "Free cash flow"
     const val LABEL_SHARES_ABS = "Shares outstanding"
     fun labelFor(metric: String, period: String): String = "$metric, $period"
-    fun netCashWas(prior: String, period: String): String = "vs $prior in $period"
+    /** A figure's earlier value as its reference: "vs $416B in FY2025" (Revenue, Net cash, Net debt tiles). */
+    fun priorValue(prior: String, period: String): String = "vs $prior in $period"
     const val TABLE_METRIC = "Metric"
 
     // Report card (5.11 item 5).
@@ -252,6 +257,8 @@ object NamesCopy {
     fun earningsOn(date: String): String = "Earnings on $date"
     const val EARNINGS_KICKER = "Earnings"
     const val WAR_ROOM_LIVE = "The War Room is live"
+    /** A War Room in its earnings window that no alert has dated yet. */
+    const val EARNINGS_WINDOW_UNDATED = "Earnings window open, date not announced"
     const val WAR_ROOM_CAPTION = "The War Room follows the call and the filing as they land."
 
     // Conviction journal (5.11 item 8).

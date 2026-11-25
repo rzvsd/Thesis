@@ -295,7 +295,7 @@ fun filingsKpis(f: FilingsFigures): List<KpiSpec> {
         KpiSpec(
             label = NamesCopy.labelFor(NamesCopy.LABEL_REVENUE, f.period),
             value = Fmt.money(f.revenue),
-            reference = if (f.priorPeriod != null && f.priorRevenue != null) NamesCopy.netCashWas(Fmt.money(f.priorRevenue), f.priorPeriod) else null,
+            reference = if (f.priorPeriod != null && f.priorRevenue != null) NamesCopy.priorValue(Fmt.money(f.priorRevenue), f.priorPeriod) else null,
         ),
         KpiSpec(
             label = NamesCopy.labelFor(NamesCopy.LABEL_GROWTH, f.period),
@@ -317,16 +317,37 @@ fun filingsKpis(f: FilingsFigures): List<KpiSpec> {
             deltaTone = fcfTone,
             reference = vs,
         ),
-        KpiSpec(
-            label = NamesCopy.labelFor(NamesCopy.LABEL_NET_CASH, f.period),
-            value = Fmt.money(f.netCash),
-            reference = if (f.priorPeriod != null && f.priorNetCash != null) NamesCopy.netCashWas(Fmt.money(f.priorNetCash), f.priorPeriod) else null,
-        ),
+        netCashKpi(f),
         KpiSpec(
             label = NamesCopy.labelFor(NamesCopy.LABEL_SHARES, f.period),
             value = if (f.shareChange == null) Fmt.NOT_COMPUTED else Fmt.signedPct(f.shareChange * 100.0),
             reference = vs,
         ),
+    )
+}
+
+/**
+ * Net cash, or Net debt when debt exceeds cash: a finance reader calls a negative net cash net debt and reads it as a
+ * positive amount ("Net debt, FY2026 $33.2B, vs $43.3B in FY2025"). A prior year on the other side of zero is named.
+ */
+internal fun netCashKpi(f: FilingsFigures): KpiSpec {
+    val debt = f.netCash != null && f.netCash < 0
+    val prior = f.priorNetCash
+    val reference = if (f.priorPeriod != null && prior != null) {
+        val priorDebt = prior < 0
+        val amount = Fmt.money(abs(prior))
+        when {
+            f.netCash == null || priorDebt == debt -> NamesCopy.priorValue(amount, f.priorPeriod)
+            priorDebt -> NamesCopy.priorValue("${NamesCopy.LABEL_NET_DEBT.lowercase()} of $amount", f.priorPeriod)
+            else -> NamesCopy.priorValue("${NamesCopy.LABEL_NET_CASH.lowercase()} of $amount", f.priorPeriod)
+        }
+    } else {
+        null
+    }
+    return KpiSpec(
+        label = NamesCopy.labelFor(if (debt) NamesCopy.LABEL_NET_DEBT else NamesCopy.LABEL_NET_CASH, f.period),
+        value = Fmt.money(f.netCash?.let { abs(it) }),
+        reference = reference,
     )
 }
 
@@ -359,7 +380,9 @@ fun filingsSource(f: FilingsFigures, index: Int): SourceInfo {
             ),
         )
         4 -> Quad(
-            NamesCopy.LABEL_NET_CASH, ScoreCopy.NET_CASH_DEFINITION, ScoreCopy.NET_CASH_DERIVATION,
+            if (f.netCash != null && f.netCash < 0) NamesCopy.LABEL_NET_DEBT else NamesCopy.LABEL_NET_CASH,
+            if (f.netCash != null && f.netCash < 0) ScoreCopy.NET_DEBT_DEFINITION else ScoreCopy.NET_CASH_DEFINITION,
+            if (f.netCash != null && f.netCash < 0) ScoreCopy.NET_DEBT_DERIVATION else ScoreCopy.NET_CASH_DERIVATION,
             listOfNotNull(
                 pair(NamesCopy.LABEL_CASH, f.period, Fmt.money(f.annual.lastOrNull()?.cashAndEquivalents)),
                 pair(NamesCopy.LABEL_DEBT, f.period, Fmt.money(f.annual.lastOrNull()?.debtTotal)),
@@ -405,7 +428,8 @@ fun filingsTable(f: FilingsFigures): CompareTableModel {
             row(NamesCopy.LABEL_NET_INCOME) { Fmt.money(it.netIncome) },
             row(NamesCopy.LABEL_FCF_ABS) { Fmt.money(it.freeCashFlow) },
             row(NamesCopy.LABEL_FCF) { r -> ratio(r.freeCashFlow, r.revenue)?.let { Fmt.pct(it * 100.0) } ?: Fmt.NOT_DISCLOSED },
-            row(NamesCopy.LABEL_NET_CASH) { Fmt.money(it.netCash()) },
+            // Across years the sign can change, so the row keeps one signed line: below zero is net debt.
+            row(NamesCopy.LABEL_NET_CASH_SIGNED) { Fmt.money(it.netCash()) },
             row(NamesCopy.LABEL_SHARES_ABS) { compactCount(it.sharesOutstanding) },
         ),
         labelHeader = NamesCopy.TABLE_METRIC,
@@ -532,7 +556,9 @@ fun NameScreen(
     var moreOpen by rememberSaveable { mutableStateOf(seed.moreOpen) }
     var confirmRemove by rememberSaveable { mutableStateOf(seed.confirmRemove) }
     var showYears by rememberSaveable { mutableStateOf(seed.showYears) }
-    var copied by remember { mutableStateOf(false) }
+    // "Copied as a table" confirms the last copy of these figures: it resets when the table hides or the figures
+    // change (another report, another name).
+    var copied by remember(detail?.summary?.annualHistory) { mutableStateOf(false) }
 
     val notes = remember(detail) { detail?.let(::nameNotes).orEmpty() }
     val figures = remember(detail?.summary) { detail?.summary?.annualHistory?.let(::filingsFigures) }
@@ -595,7 +621,10 @@ fun NameScreen(
                     journal = journal,
                     showYears = showYears,
                     copied = copied,
-                    onShowYears = { showYears = !showYears },
+                    onShowYears = {
+                        showYears = !showYears
+                        copied = false
+                    },
                     onCopyTable = { table ->
                         clipboard.setText(AnnotatedString(table.toTsv()))
                         haptics.confirm()
@@ -874,7 +903,7 @@ private fun NameBody(
         Spacer(Modifier.height(ThesisSpace.sectionGapData))
         val day = nextEarnings(detail.alerts, ticker, now.atZone(zone).toLocalDate())?.first
         EarningsSection(
-            title = day?.let { NamesCopy.earningsOn(fmt.marketDate(it)) } ?: NamesCopy.WAR_ROOM,
+            title = day?.let { NamesCopy.earningsOn(fmt.marketDate(it)) },
             live = warRoomLive,
             onClick = { onOpenWarRoom(warRoomId) },
         )
@@ -895,13 +924,20 @@ private fun NameBody(
  * HANDOFF-B asks WP-K for one; until then the dot sits over the row's empty leading column).
  */
 @Composable
-private fun EarningsSection(title: String, live: Boolean, onClick: () -> Unit) {
-    SectionHeader(kicker = NamesCopy.EARNINGS_KICKER, headline = if (live) NamesCopy.WAR_ROOM_LIVE else title)
+private fun EarningsSection(title: String?, live: Boolean, onClick: () -> Unit) {
+    // The headline is the conclusion (V3): live, the dated earnings, or an open window without a date; never the
+    // row's own title again.
+    val headline = when {
+        live -> NamesCopy.WAR_ROOM_LIVE
+        title != null -> title
+        else -> NamesCopy.EARNINGS_WINDOW_UNDATED
+    }
+    SectionHeader(kicker = NamesCopy.EARNINGS_KICKER, headline = headline)
     Spacer(Modifier.height(ThesisSpace.l))
     Box(Modifier.rowGroupSegment(RowPosition.of(0, 1), LeadingRowDividerInset)) {
         ActionRow(
             icon = if (live) null else ThesisIcons.WarRoom,
-            title = if (live) title else NamesCopy.WAR_ROOM,
+            title = if (live) title ?: NamesCopy.WAR_ROOM else NamesCopy.WAR_ROOM,
             caption = NamesCopy.WAR_ROOM_CAPTION,
             onClick = onClick,
             reserveLeading = true,
@@ -968,11 +1004,12 @@ internal fun monitorTiles(detail: NameDetailView, lastVisitAtMs: Long, now: Inst
     val scoreTile = KpiSpec(
         label = NamesCopy.KPI_SCORE,
         value = Fmt.score(score),
-        delta = change?.takeIf { abs(it) >= 0.5 }?.let { Fmt.pts(it) },
+        // The board's wording ("+4 since Sat"): the same change reads the same on both screens.
+        delta = change?.takeIf { abs(it) >= 0.5 && Math.round(it) != 0L }?.let { signedPoints(it) },
         deltaTone = changeTone,
         reference = when {
             since == null -> NamesCopy.SCALE_100
-            change != null && abs(change) >= 0.5 -> NamesCopy.since(since)
+            change != null && abs(change) >= 0.5 && Math.round(change) != 0L -> NamesCopy.since(since)
             else -> NamesCopy.unchangedSince(since)
         },
     ) to SourceInfo(

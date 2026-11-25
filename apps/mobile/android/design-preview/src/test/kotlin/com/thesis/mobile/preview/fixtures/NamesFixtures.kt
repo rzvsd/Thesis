@@ -73,10 +73,10 @@ object NamesFixtures {
     )
 
     val snapshots = listOf(
-        snap("AAPL", "intact", "Services growth still carries margins through the hardware cycle.", 0.78, "2026-11-02T13:00:00Z"),
+        snap("AAPL", "intact", "Services growth still carries margins through the hardware cycle.", 0.78, "2026-11-13T13:00:00Z"),
         snap(
             "MSFT", "weakened", "Capital spending grew faster than cloud revenue for a second quarter.", 0.61,
-            "2026-10-28T13:00:00Z", freshness = "aging", freshnessScore = 0.71, material = 3, unreviewed = 2,
+            "2026-11-12T13:00:00Z", freshness = "aging", freshnessScore = 0.71, material = 3, unreviewed = 2,
             freshnessReason = "Two filings since the report are not reviewed yet.",
         ),
         snap("NVDA", "improved", "Data-centre margins widened as supply caught up with orders.", 0.84, "2026-11-20T13:00:00Z"),
@@ -85,10 +85,10 @@ object NamesFixtures {
             "2026-09-30T13:00:00Z", freshness = "stale", freshnessScore = 0.32, material = 4, unreviewed = 4,
             freshnessReason = "The report is 56 days old and four events are not reviewed.",
         ),
-        snap("GOOGL", "intact", "Search revenue held up while cloud losses narrowed.", 0.72, "2026-11-10T13:00:00Z"),
+        snap("GOOGL", "intact", "Search revenue held up while cloud losses narrowed.", 0.72, "2026-11-16T13:00:00Z"),
         snap("COST", "intact", "Membership renewals stayed above 90% in every region.", 0.81, "2026-11-12T13:00:00Z"),
         snap(
-            "TSLA", "weakened", "Automotive gross margin fell for a fourth straight quarter.", 0.44, "2026-11-04T13:00:00Z",
+            "TSLA", "weakened", "Automotive gross margin fell for a fourth straight quarter.", 0.44, "2026-11-16T13:00:00Z",
             freshness = "triggered", freshnessScore = 0.55, material = 2, unreviewed = 1,
             kill = "2026-11-22T12:00:00Z", freshnessReason = "A kill-switch condition fired on 22 Nov.",
         ),
@@ -132,7 +132,7 @@ object NamesFixtures {
     val notes = listOf(
         NoteTrailEntry(
             "rep-aapl", "AAPL", "Services mix is the whole case. If the attach rate stalls below 1.4, revisit.",
-            "2026-11-03T09:12:00Z", "FY2026", "The thesis holds: services keep margins up.",
+            "2026-11-14T09:12:00Z", "FY2026", "The thesis holds: services keep margins up.",
         ),
         NoteTrailEntry(
             "rep-aapl-2025", "AAPL", "Watching China unit sales; one more weak quarter changes the picture.",
@@ -140,7 +140,7 @@ object NamesFixtures {
         ),
         NoteTrailEntry(
             "rep-msft", "MSFT", "Capex is the question. I want cloud growth back above 30% before adding conviction.",
-            "2026-10-29T07:30:00Z", "FY2026 Q1", "The thesis is weaker: spending runs ahead of revenue.",
+            "2026-11-13T07:30:00Z", "FY2026 Q1", "The thesis is weaker: spending runs ahead of revenue.",
         ),
         NoteTrailEntry(
             "rep-cost", "COST", "Renewal rate is the tell. Fee increase landed without churn.",
@@ -186,7 +186,7 @@ object NamesFixtures {
         reportId = "rep-aapl",
         ticker = "AAPL",
         companyName = "Apple Inc.",
-        generatedAt = "2026-11-02T13:00:00Z",
+        generatedAt = "2026-11-13T13:00:00Z",
         filingPeriod = "FY2026",
         verdict = "The thesis holds: services keep margins up while hardware is flat.",
         changeSummary = DeepDiveChangeSummaryView(
@@ -202,12 +202,12 @@ object NamesFixtures {
     )
 
     val reports = listOf(
-        ReportHistoryItem("rep-aapl", "job-1", "deep_dive", "AAPL", "2026-11-02T13:00:00Z"),
+        ReportHistoryItem("rep-aapl", "job-1", "deep_dive", "AAPL", "2026-11-13T13:00:00Z"),
         ReportHistoryItem("rep-aapl-2025", "job-0", "deep_dive", "AAPL", "2025-11-05T13:00:00Z"),
     )
 
     val journal = listOf(
-        ConvictionJournalEntryView("j1", "AAPL", "report_generated", "report", "rep-aapl", "2026-11-02T13:00:00Z", "Deep Dive on the FY2026 10-K", "The thesis holds; services margin up 120 bps.", reportId = "rep-aapl", thesisSnapshot = ConvictionThesisSnapshotView(monitorState = "intact")),
+        ConvictionJournalEntryView("j1", "AAPL", "report_generated", "report", "rep-aapl", "2026-11-13T13:00:00Z", "Deep Dive on the FY2026 10-K", "The thesis holds; services margin up 120 bps.", reportId = "rep-aapl", thesisSnapshot = ConvictionThesisSnapshotView(monitorState = "intact")),
         ConvictionJournalEntryView("j2", "AAPL", "alert", "alert", "a9", "2026-08-01T21:00:00Z", "Thesis state confirmed Intact", "Q3 services revenue at a record.", thesisSnapshot = ConvictionThesisSnapshotView(monitorState = "intact")),
         ConvictionJournalEntryView("j3", "AAPL", "war_room", "war_room", "wr-1", "2026-07-31T20:30:00Z", "Q3 earnings War Room", "Guidance kept; China down 6%."),
     )
@@ -241,7 +241,7 @@ object NamesFixtures {
         ticker = "JPM", snapshot = null, delta = null, summary = null, notesTrail = emptyList(), alerts = emptyList(), reports = emptyList(),
     )
 
-    /** GOOGL: intact, with a stored report but no cached summary, a live War Room and an earnings date. */
+    /** GOOGL: intact, with a stored report but no cached summary, a War Room in its window and an earnings date (3 Dec). */
     val detailWarRoom = NameDetailView(
         ticker = "GOOGL",
         snapshot = snapshots.first { it.ticker == "GOOGL" },
@@ -249,6 +249,15 @@ object NamesFixtures {
         summary = null,
         notesTrail = emptyList(),
         alerts = alerts.filter { it.ticker == "GOOGL" },
-        reports = listOf(ReportHistoryItem("rep-googl", "job-g", "deep_dive", "GOOGL", "2026-11-10T13:00:00Z")),
+        reports = listOf(ReportHistoryItem("rep-googl", "job-g", "deep_dive", "GOOGL", "2026-11-16T13:00:00Z")),
     )
+
+    /** GOOGL reports today: the War Room is in its Live phase (renders and tests of the LiveDot). */
+    val alertsLive: List<AlertLedgerItemView> = alerts.map {
+        if (it.id == "a3") it.copy(title = "GOOGL reports today", body = "GOOGL reports today", eventDate = "2026-11-25") else it
+    }
+
+    val detailWarRoomLive = detailWarRoom.copy(alerts = alertsLive.filter { it.ticker == "GOOGL" })
+
+    val liveWarRooms: Set<String> = setOf("GOOGL")
 }
