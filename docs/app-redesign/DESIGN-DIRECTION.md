@@ -599,7 +599,12 @@ excludes them only for the two polling `delay(` calls, section 7.2).
    open per issue, through `EntranceCoordinator` (playbook §5, first 8 items): never replays on scroll-back, tab
    return, refresh or recreation. Its seen-set lives in a navigator-scoped registry keyed by the entry's `entryId`
    (not a `HashSet` in `remember`, which is disposed with the screen and replays on every tab return). Reset key =
-   the data identity (Pulse report id), not `Unit`.
+   the data identity (Pulse report id), not `Unit`. It plays only when the screen opens on a loaded issue (an
+   issue already in memory or cache, or Home re-entered after a new issue arrived elsewhere). A cold load (cold
+   start, fresh login, retry from the error or empty state) paints the skeleton first, and the issue then
+   crossfades in place (4.4 "Skeleton → content"): blocks already painted settle, the blocks the issue brings
+   appear at once, nothing staggers after a skeleton (`rememberDataEntranceCoordinator`). While the Pulse loads
+   network-first, the cold path is the common one, so Home's stagger is mostly seen on re-entry with a new issue.
 3. Primary element first: in a push, the whole new screen lands as one surface; nothing is choreographed after it.
 4. The background (page glow) never moves during foreground motion.
 5. Refresh never blanks: app-computed values roll, market values crossfade, rows animate placement, a
@@ -851,7 +856,8 @@ A briefing, not a dashboard: **five blocks**, and "Your names" above the fold on
   "Offline · showing 07:02" above content; no names → one `EmptyState` in the names section ("Follow a company to
   see it here", `PrimaryButton` "Add a name" → Names with the field focused); no Pulse → `EmptyState` in the Pulse
   section ("Today's Pulse arrives before the open" + scheduled time if known).
-- Hero motion: first-open stagger of the sections (keyed by Pulse report id; once per issue). Refresh:
+- Hero motion: first-open stagger of the sections (keyed by Pulse report id; once per issue), only when Home
+  opens on a loaded issue; a cold load crossfades from the skeleton in place and does not stagger (4.3 rule 2). Refresh:
   `ThesisRefreshBox` bound to `isPulseRefreshing || isMacroRefreshing`; app-computed values roll, tape crossfades.
 - Removed: duplicate timestamp, `LiveDot` next to the time, 3×2 serif KPI strip, double NoNames empty state, 40 sp
   "Pre-market" title, inline Full Pulse toggle, separate morning-alert card, "Deserves a deeper look" card, "Run a
@@ -1361,6 +1367,18 @@ full render sweep → rubric review → PR into `rebuild`.
   cuts a hard seam through the page glow at the bar's bottom edge (dark: (10,10,10) above, (36,31,22) below, at
   x=1050 in `shell-today-history-dark`; it shows in every push/pop frame). Drop the private bar for the shell's
   `ShellTopBar.Back` (drawn on `barBackground`), or draw the sticky header on `barBackground`.
+- WP-B, WP-E, WP-INT: the 4.5 container transform (list item → its detail) is not wired yet; `ContainerTransformHost`
+  exists only in `ui/motion`, and History row → report runs shared-axis X (HANDOFF-M1 item 10, deferred). WP-B
+  (Names rows, Home name rows) and WP-E (History rows, Recent reports) make each row capture its bounds
+  (`captureBounds`); WP-INT then opens list → detail through `ContainerTransformHost` (300 ms in, 240 out).
+- WP-A, WP-C, WP-D, WP-G: no production screen calls `HeroUnderBars()` yet (only the test fixture
+  `HeroPageFixture`), so the 2.7 status bar over a HeroBand, `ThesisTheme(statusBarOverHero)` and `ThesisApp`'s
+  `SurfaceChrome` wiring for Onboarding, Auth and Password reset are staged with no caller. Pulse (WP-A),
+  Deep Dive loading (WP-C), the classic report hero (WP-D), Auth, Onboarding and Paywall (WP-G) each call it
+  once (HANDOFF-M3 item 4); screens that draw their own bar pass `HeroUnderBars(collapsed = …)`.
+- Spec owner: confirm the 4.3 rule 2 / 5.6 reading added in the PR-2 review (a cold load crossfades from the
+  skeleton and does not stagger). If Home should stagger on a cold load too, the blocks the issue brings would
+  stagger while the blocks already painted stay settled (a change in `rememberDataEntranceCoordinator`).
 
 ### 6.4 PR-4 (after the redesign, WP-INT)
 `compose-bom:2025.04.00` (with it, `rememberIsResumed()` and `CoveredBackScope()` in `ThesisApp.kt` move from the

@@ -134,5 +134,6 @@ pruned on every change, persisted as `nav.entrances`, cleared on log out), 9 (`P
 `EntryFrame`), 10 for shared-axis X (one sequenced spec, `ThesisTransitions.sharedAxisX`, 90 ms out then 210 ms in;
 the shell calls it), 11, 12 (Home and Pulse: `Modifier.staggeredEntrance(order, rememberEntranceCoordinator(reportId))`,
 first 8 blocks, nothing before the issue loads; Home's score is a `RollingNumber`), 14, 15, 16.
-Deferred to PR-3: 10 container transform (rows must capture bounds first), 13 (screens are not on `RowGroup` yet),
+Deferred to PR-3: 10 container transform (rows must capture bounds first; on the DESIGN-DIRECTION 6.3 "Carried from
+the PR-2 review" list for WP-B, WP-E and WP-INT), 13 (screens are not on `RowGroup` yet),
 17 and 18 (spec owner questions, unchanged).

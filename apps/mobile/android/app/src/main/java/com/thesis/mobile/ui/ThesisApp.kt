@@ -131,7 +131,17 @@ fun ThesisApp(
         AppSurface.SignIn -> if (showPasswordReset) SURFACE_PASSWORD_RESET else SURFACE_AUTH
         AppSurface.Shell -> null
     }
-    val overHero = if (surfaceKey == null) shellOverHero else surfaceChromes[surfaceKey]?.overHero == true
+    // A surface's chrome registers after its first composition (SurfaceChrome's DisposableEffect), so the first
+    // composition after a switch (Auth → Password reset, Onboarding → Auth) finds no entry: keep the last value
+    // until it registers, so a switch between two HeroBand surfaces never turns the icons dark for one frame.
+    // Not state: only this composition reads it, and writing it must not recompose.
+    val lastSurfaceOverHero = remember { BooleanArray(1) }
+    val overHero = if (surfaceKey == null) {
+        shellOverHero
+    } else {
+        surfaceChromes[surfaceKey]?.overHero ?: lastSurfaceOverHero[0]
+    }
+    lastSurfaceOverHero[0] = overHero
     // The theme ORs the in-app toggle with the system animator scale (4.8) and owns the system-bar call.
     ThesisTheme(
         mode = appearance.themeMode,

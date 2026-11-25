@@ -498,7 +498,7 @@ private fun ShellContentScope.EntryTopBar(entry: NavEntry, bar: ShellTopBar, chr
             }
         }
         ShellTopBar.Back -> ThesisBackTopBar(
-            title = titleOf(entry.destination, state),
+            title = titleOf(entry.destination),
             onBack = { actions.onBack() },
             collapsed = chrome.collapsed,
             overHero = chrome.heroBand
@@ -603,7 +603,7 @@ private fun topBarBelowRoot(destination: Destination, state: UiState): ShellTopB
     else -> ShellTopBar.Back
 }
 
-internal fun titleOf(destination: Destination, state: UiState): String = when (destination) {
+internal fun titleOf(destination: Destination): String = when (destination) {
     // The War Room screen carries its own "War Room" headline and ticker; the bar only goes back (rubric V3).
     is Destination.WarRoom -> ""
     // Scenario Stress carries its own "Scenario Stress" headline; the bar only goes back (rubric V3).

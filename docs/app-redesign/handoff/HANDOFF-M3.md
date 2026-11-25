@@ -33,7 +33,12 @@ File, change, reason. Paths are relative to `apps/mobile/android/app/src/main/ja
      (Auth, Onboarding and Password reset each have their own `ScreenChrome` provided by `ThesisApp`).
    - No production screen calls it yet (only the test fixture `HeroPageFixture`), so nothing in the app shows the
      hero → paper bar or the light status-bar icons until this lands. Put it on the PR-3 WP checklists: Pulse
-     (WP-A), Deep Dive loading and classic hero (WP-C/WP-D), Auth, Onboarding and Paywall (WP-G).
+     (WP-A), Deep Dive loading and classic hero (WP-C/WP-D), Auth, Onboarding and Paywall (WP-G). Carried in
+     DESIGN-DIRECTION 6.3 "Carried from the PR-2 review".
+   - Staged with no caller: `ThesisApp`'s `SurfaceChrome` wiring (the `surfaceChromes` map and the `overHero`
+     lookup) works only once Onboarding, Auth or Password reset call `HeroUnderBars(collapsed)`; until then those
+     surfaces' status bar follows the theme. The lookup keeps its last value while a newly shown surface's chrome
+     is not registered yet (first composition after a switch), so two HeroBand surfaces never flash dark icons.
 5. Every screen that takes the shell's `padding` (`HomeScreen`, `NamesScreen`, `InboxScreen`, `ResearchScreen`, ...).
    - Change: apply the top part of `padding` as the list's `contentPadding`, not `Modifier.padding(padding)`.
    - Reason: 4.4 "Top bar: scroll under". The shell now reveals the bar's background and hairline once content

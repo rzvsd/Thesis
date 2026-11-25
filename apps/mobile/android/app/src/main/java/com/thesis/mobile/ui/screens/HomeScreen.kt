@@ -71,6 +71,7 @@ import com.thesis.mobile.ui.theme.ThesisDimens
 import com.thesis.mobile.ui.theme.ThesisSpace
 import com.thesis.mobile.ui.theme.ThesisType
 import com.thesis.mobile.ui.theme.ThesisTypography
+import com.thesis.mobile.ui.theme.tnum
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.time.Instant
@@ -507,19 +508,14 @@ private fun MacroStressSummaryCard(
                             value = scoreValue,
                             // C1: the app formatter, so the rolled figure matches a static score (61.5 -> "62").
                             format = { Fmt.score(it) },
-                            style = ThesisTypography.displayLarge.copy(
-                                fontFamily = HeadingFont,
-                                fontWeight = FontWeight.Normal
-                            ),
+                            // 5.6: the `figure` style; tabular digits, because the value rolls on refresh.
+                            style = ThesisType.figure.tnum(),
                             color = ThesisColors.TextPrimary
                         )
                     } else {
                         Text(
                             text = "--",
-                            style = ThesisTypography.displayLarge.copy(
-                                fontFamily = HeadingFont,
-                                fontWeight = FontWeight.Normal
-                            ),
+                            style = ThesisType.figure.tnum(),
                             color = ThesisColors.TextPrimary
                         )
                     }
