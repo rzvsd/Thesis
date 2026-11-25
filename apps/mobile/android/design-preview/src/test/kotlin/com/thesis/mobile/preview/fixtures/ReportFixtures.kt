@@ -64,7 +64,7 @@ object ReportFixtures {
         updatedAt = "2026-03-03T09:00:00Z", filingPeriod = "FY2024", verdict = null,
     )
 
-    val noteWithQuote = "Margins look durable.\n\n> “Services grew faster than hardware.” (Ch. 06 Financials, AAPL 10-K FY2025)"
+    val noteWithQuote = "Margins look durable.\n\n> \"Services grew faster than hardware.\" (Ch. 06 Financials, AAPL 10-K FY2025)"
 
     val history = listOf(
         ReportHistoryItem("rep-aapl-2025", "j1", "deep_dive", "AAPL", "2026-11-20T14:00:00Z"),

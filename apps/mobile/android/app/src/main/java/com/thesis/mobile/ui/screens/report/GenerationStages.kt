@@ -37,7 +37,8 @@ object GenerationStages {
 
     /**
      * The three stages for [phase]: In the queue, Reading the filings and building the report, Ready. A failed
-     * build keeps the stage it reached ([reached]: the phase before the failure, Building when unknown).
+     * build shows how far it got: the stages before the one it reached ([reached]: the phase before the failure,
+     * Building when unknown) are done, and that one carries "Stopped here".
      */
     fun stagesFor(phase: GenerationPhase, reached: GenerationPhase = GenerationPhase.Building): List<Stage> {
         val at = when (phase) {
@@ -53,7 +54,8 @@ object GenerationStages {
                 index == at && phase != GenerationPhase.Failed -> StageStatus.Current
                 else -> StageStatus.Waiting
             }
-            Stage(label, status)
+            val caption = if (phase == GenerationPhase.Failed && index == at) ReportCopy.STAGE_STOPPED else null
+            Stage(label, status, caption)
         }
     }
 }

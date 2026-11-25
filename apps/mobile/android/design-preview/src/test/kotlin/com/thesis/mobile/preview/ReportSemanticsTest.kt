@@ -9,10 +9,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsNotSelected
@@ -21,6 +24,7 @@ import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasProgressBarRangeInfo
+import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.junit4.ComposeContentTestRule
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -113,9 +117,34 @@ class ReportSemanticsTest {
     }
 
     @Test
+    fun focusingTheNoteFieldTakesThePanelTo85Percent() {
+        var detent by mutableStateOf(DockDetent.Half)
+        val asked = mutableListOf<DockDetent>()
+        set {
+            Frame {
+                ReportNotesPanel(
+                    visible = true, onDismiss = {}, detent = detent,
+                    onDetentChange = { asked += it; detent = it },
+                    note = "", onNoteChange = {}, filing = "10-K FY2025", saveState = NoteSaveState.Idle,
+                    savedAgo = null, onRetry = {}, onCopy = null,
+                    earlier = EarlierNote("FY2024 · 3 Mar", ReportFixtures.earlierNote.text),
+                )
+            }
+        }
+        rule.waitForIdle()
+        assertTrue(asked.isEmpty())
+        rule.onNode(hasSetTextAction()).performClick()
+        rule.waitForIdle()
+        assertEquals(listOf(DockDetent.Full), asked)
+        assertEquals(DockDetent.Full, detent)
+    }
+
+    @Test
     fun overflowShowsTheExportInProgress() {
         set { Column { ReportOverflowContent(exporting = ExportJob.Pdf, onClassicView = {}, onExportPdf = {}, onShareCard = {}, onFeedback = {}) } }
-        rule.onNodeWithText(ReportCopy.PREPARING_PDF).assertExists()
+        // The row that replaced Export PDF is announced (A3): TalkBack is not silent until the print dialog opens.
+        rule.onNodeWithText(ReportCopy.PREPARING_PDF)
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.LiveRegion, LiveRegionMode.Polite))
         rule.onNodeWithText(ReportCopy.EXPORT_PDF).assertDoesNotExist()
         rule.onNodeWithText(ReportCopy.SHARE_CARD).assertIsNotEnabled()
         rule.onNodeWithText(ReportCopy.CLASSIC_VIEW).assertIsEnabled()
@@ -194,14 +223,19 @@ class ReportSemanticsTest {
     fun generationHasAHeadingAndATryAgainLiveRegion() {
         var retried = false
         set { DeepDiveLoadingScreen(building = true, ticker = "AAPL", jobStatus = "failed", onRetry = { retried = true }) }
-        // The heading says the build stopped (never "Building the report" over a failure), and no "you can leave".
+        // The heading says the build stopped (never "Building the report" over a failure), announced as it changes;
+        // no "you can leave", and no lede about the filings under a failure.
         rule.onNodeWithText(ReportCopy.STOPPED_TITLE).assertIsHeading()
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.LiveRegion, LiveRegionMode.Polite))
         rule.onNodeWithText(ReportCopy.BUILDING_TITLE).assertDoesNotExist()
         rule.onNodeWithText(ReportCopy.CAN_LEAVE).assertDoesNotExist()
-        rule.onNodeWithText(ReportCopy.buildFailedTitle("AAPL")).assertExists()
+        rule.onNodeWithText(ReportCopy.BUILDING_LEDE).assertDoesNotExist()
+        // The stages show how far the build got; the card says what trying again does (one failure sentence, V3).
+        rule.onNode(hasContentDescription(ReportCopy.STAGE_STOPPED, substring = true)).assertExists()
+        rule.onNodeWithText(ReportCopy.BUILD_RETRY_TITLE).assertExists()
         rule.onNode(hasClickAction() and androidx.compose.ui.test.hasText(ReportCopy.TRY_AGAIN)).performClick()
         assertTrue(retried)
-        val live = rule.onAllNodes(androidx.compose.ui.test.SemanticsMatcher.keyIsDefined(SemanticsProperties.LiveRegion))
+        val live = rule.onAllNodes(SemanticsMatcher.keyIsDefined(SemanticsProperties.LiveRegion))
         assertTrue(live.fetchSemanticsNodes().isNotEmpty())
     }
 

@@ -298,11 +298,13 @@ private fun ReportWebHost(
         }
         currentTools.isPro
     }
-    val finishExport: (Boolean) -> Unit = { ok ->
+    // [confirm]: a file exists (the app's PDF or the card), so the confirm haptic is a completed result (4.7, H1).
+    // The print dialog only opens the system's save step, which the person can still cancel: no haptic there.
+    val finishExport: (ok: Boolean, confirm: Boolean) -> Unit = { ok, confirm ->
         exporting = ExportJob.None
         panel = ReportPanel.None
         if (ok) {
-            haptics.confirm()
+            if (confirm) haptics.confirm()
         } else {
             haptics.reject()
             currentTools.onNotify(ReportCopy.EXPORT_FAILED)
@@ -315,15 +317,19 @@ private fun ReportWebHost(
                 // One frame for the arc before the print framework takes the main thread.
                 withFrameNanos { }
                 // The page's own PDF (print of the new view); the app's PDF (built off the main thread) otherwise.
-                val ok = printer.print(context, report.ticker) || try {
-                    shareExport(context, renderReportPdf(context, report, ReportExportType.FULL_REPORT))
-                    true
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: Exception) {
-                    false
+                if (printer.print(context, report.ticker)) {
+                    finishExport(true, false)
+                } else {
+                    val ok = try {
+                        shareExport(context, renderReportPdf(context, report, ReportExportType.FULL_REPORT))
+                        true
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        false
+                    }
+                    finishExport(ok, true)
                 }
-                finishExport(ok)
             }
         }
     }
@@ -339,7 +345,7 @@ private fun ReportWebHost(
                 } catch (e: Exception) {
                     false
                 }
-                finishExport(ok)
+                finishExport(ok, true)
             }
         }
     }

@@ -23,7 +23,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import com.thesis.mobile.ui.components.ErrorState
@@ -62,7 +64,11 @@ import com.thesis.mobile.ui.theme.ThesisType
  * failed; see [GenerationStages]), with no timers and no invented sub-steps. Below it the 13 chapters the report
  * will hold, so the wait teaches the structure. "You can leave this screen" shows only while the build is queued
  * or running. When the job completes the last ring fills with the kit's reward pulse and a confirm haptic; the
- * caller then crossfades into the report. A failed job shows [ErrorState] with [onRetry].
+ * caller then crossfades into the report. The title is a polite live region, so each change of phase is announced.
+ *
+ * A failed job: the hero's "The build stopped" is the one sentence that says so (no lede under it), the stages show
+ * how far the build got ("Stopped here" on the stage it reached), and an [ErrorState] says what trying again does,
+ * with [onRetry].
  *
  * [padding] is the shell's padding for the entry: the band runs under the status bar and the back bar (its top
  * padding), and the rest keeps clear of the system bars. Null (a render on its own) leaves no room for bars.
@@ -125,8 +131,8 @@ private fun GenerationContent(
     val haptics = rememberHaptics()
     val phase = GenerationStages.phaseOf(jobStatus)
 
-    // The stage a failed build reached, and the confirm haptic once when the build completes (not on a screen that
-    // opens on a finished job).
+    // The stage a failed build reached (shown with "Stopped here"), and the confirm haptic once when the build
+    // completes (not on a screen that opens on a finished job).
     var reached by remember { mutableStateOf(phase.takeIf { it != GenerationPhase.Failed } ?: GenerationPhase.Building) }
     var previous by remember { mutableStateOf(phase) }
     LaunchedEffect(phase) {
@@ -154,11 +160,16 @@ private fun GenerationContent(
                     GenerationPhase.Ready -> ReportCopy.READY_TITLE
                     GenerationPhase.Failed -> ReportCopy.STOPPED_TITLE
                 },
-                modifier = Modifier.semantics { heading() },
+                modifier = Modifier.semantics {
+                    heading()
+                    liveRegion = LiveRegionMode.Polite
+                },
                 style = ThesisType.title,
                 color = hero.ink,
             )
-            Text(ReportCopy.BUILDING_LEDE, style = ThesisType.lede, color = hero.ink2)
+            if (phase != GenerationPhase.Failed) {
+                Text(ReportCopy.BUILDING_LEDE, style = ThesisType.lede, color = hero.ink2)
+            }
         }
 
         Column(
@@ -169,18 +180,16 @@ private fun GenerationContent(
                 .padding(horizontal = ThesisSpace.gutter, vertical = ThesisSpace.xxl),
             verticalArrangement = Arrangement.spacedBy(ThesisSpace.l),
         ) {
-            if (phase == GenerationPhase.Failed) {
+            StageProgress(GenerationStages.stagesFor(phase, reached))
+            if (phase == GenerationPhase.Queued || phase == GenerationPhase.Building) {
+                Text(ReportCopy.CAN_LEAVE, style = ThesisType.bodySmall, color = p.muted)
+            }
+            if (phase == GenerationPhase.Failed && onRetry != null) {
                 ErrorState(
-                    title = ReportCopy.buildFailedTitle(symbol),
-                    cause = ReportCopy.BUILD_FAILED_CAUSE,
+                    title = ReportCopy.BUILD_RETRY_TITLE,
                     retryLabel = retryLabel ?: ReportCopy.TRY_AGAIN,
                     onRetry = onRetry,
                 )
-            } else {
-                StageProgress(GenerationStages.stagesFor(phase, reached))
-                if (phase == GenerationPhase.Queued || phase == GenerationPhase.Building) {
-                    Text(ReportCopy.CAN_LEAVE, style = ThesisType.bodySmall, color = p.muted)
-                }
             }
         }
 

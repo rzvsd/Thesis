@@ -30,12 +30,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import com.thesis.mobile.model.NoteTrailEntry
 import com.thesis.mobile.model.ReportHistoryItem
 import com.thesis.mobile.ui.components.ArcSpinner
@@ -102,13 +104,18 @@ fun ColumnScope.ReportOverflowContent(
     SheetActionRow(ThesisIcons.Info, ReportCopy.REPORT_FEEDBACK, onFeedback)
 }
 
-/** A menu row whose action is under way: the 20 dp arc in place of the icon, the label in ink2. */
+/**
+ * A menu row whose action is under way: the 20 dp arc in place of the icon, the label in ink2. It replaces the
+ * tapped row, so it is announced politely (rubric A3): TalkBack says "Preparing the PDF…" in the time before the
+ * print dialog or the share sheet opens.
+ */
 @Composable
 private fun PreparingRow(label: String) {
     val p = LocalThesisPalette.current
     Row(
         Modifier
             .fillMaxWidth()
+            .semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite }
             .heightIn(min = ThesisSpace.touchMin)
             .padding(vertical = ThesisSpace.s),
         verticalAlignment = Alignment.CenterVertically,
@@ -329,7 +336,14 @@ fun ReportNotesPanel(
         verticalArrangement = Arrangement.spacedBy(ThesisSpace.l),
     ) {
         if (earlier != null) {
-            EarlierNoteBlock(earlier, canCarry = note.isBlank(), onCarryForward = onCarryForward)
+            EarlierNoteBlock(
+                earlier,
+                // At 45% this report's note comes first: the earlier one keeps two lines; four once the panel is
+                // at 85% (the field's focus or a drag).
+                maxLines = if (detent == DockDetent.Full) EARLIER_NOTE_LINES_FULL else EARLIER_NOTE_LINES_HALF,
+                canCarry = note.isBlank(),
+                onCarryForward = onCarryForward,
+            )
             ThesisDivider()
         }
         NoteBlock(
@@ -346,7 +360,7 @@ fun ReportNotesPanel(
 }
 
 @Composable
-private fun EarlierNoteBlock(note: EarlierNote, canCarry: Boolean, onCarryForward: () -> Unit) {
+private fun EarlierNoteBlock(note: EarlierNote, maxLines: Int, canCarry: Boolean, onCarryForward: () -> Unit) {
     val p = LocalThesisPalette.current
     Column(verticalArrangement = Arrangement.spacedBy(ThesisSpace.xs)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -357,14 +371,15 @@ private fun EarlierNoteBlock(note: EarlierNote, canCarry: Boolean, onCarryForwar
             note.text,
             style = ThesisType.story,
             color = p.ink2,
-            maxLines = EARLIER_NOTE_LINES,
+            maxLines = maxLines,
             overflow = TextOverflow.Ellipsis,
         )
         if (canCarry) TextAction(ReportCopy.CARRY_FORWARD, onCarryForward)
     }
 }
 
-private const val EARLIER_NOTE_LINES = 4
+private const val EARLIER_NOTE_LINES_HALF = 2
+private const val EARLIER_NOTE_LINES_FULL = 4
 
 // ---------------------------------------------------------------------------------------------------------------
 // Report feedback
@@ -445,7 +460,12 @@ private fun FeedbackForm(
     val p = LocalThesisPalette.current
     Column(verticalArrangement = Arrangement.spacedBy(ThesisSpace.m)) {
         Text(ReportCopy.FEEDBACK_HOW, style = ThesisType.body, color = p.ink2)
-        ChipRow(contentPadding = PaddingValues()) {
+        // The row runs to the panel's edges (as the page's chip rows do), its first chip on the text edge, so a
+        // chip past the edge reads as a scrollable row rather than a cropped one.
+        ChipRow(
+            modifier = Modifier.bleedHorizontally(PanelGutter),
+            contentPadding = PaddingValues(horizontal = PanelGutter),
+        ) {
             items(ReportCopy.feedbackOptions, key = { it.first }) { (value, label) ->
                 ThesisChip(label = label, selected = code == value, onClick = { onCode(value) }, role = Role.RadioButton)
             }
@@ -463,4 +483,20 @@ private fun FeedbackForm(
             enabled = code != null,
         )
     }
+}
+
+/** The DockPanel's text inset (the kit's sheet content padding). */
+private val PanelGutter = ThesisSpace.l
+
+/** Widens this element by [amount] on both sides, past its parent's padding (a full-bleed row in a padded panel). */
+private fun Modifier.bleedHorizontally(amount: Dp): Modifier = layout { measurable, constraints ->
+    val extra = amount.roundToPx() * 2
+    val wide = if (constraints.hasBoundedWidth) {
+        constraints.copy(minWidth = constraints.minWidth + extra, maxWidth = constraints.maxWidth + extra)
+    } else {
+        constraints
+    }
+    val placeable = measurable.measure(wide)
+    val width = (placeable.width - extra).coerceIn(constraints.minWidth, constraints.maxWidth)
+    layout(width, placeable.height) { placeable.place(-amount.roundToPx(), 0) }
 }

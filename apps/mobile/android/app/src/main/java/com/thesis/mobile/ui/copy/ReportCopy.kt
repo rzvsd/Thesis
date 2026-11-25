@@ -92,14 +92,18 @@ object ReportCopy {
     const val STAGE_QUEUED = "In the queue"
     const val STAGE_BUILDING = "Reading the filings and building the report"
     const val STAGE_READY = "Ready"
+    /** The caption on the stage a failed build reached. */
+    const val STAGE_STOPPED = "Stopped here"
     /** Shown only while the build is queued or running. No push is sent when it ends, so no promise of one. */
     const val CAN_LEAVE =
         "You can leave this screen. The build keeps running, and the report appears in History when it’s ready."
     const val CONTENTS_KICKER = "What this report will contain"
     const val CONTENTS_HEADLINE = "Thirteen chapters, in the same order for every company"
-    fun buildFailedTitle(ticker: String?): String =
-        if (ticker.isNullOrBlank()) "Couldn’t build the report" else "Couldn’t build the $ticker report"
-    const val BUILD_FAILED_CAUSE = "The report wasn’t finished. Trying again starts a new build."
+    /**
+     * The failed build's card under the stages. The hero's "The build stopped" is the one sentence that says it
+     * failed (rubric V3); the card says what trying again does.
+     */
+    const val BUILD_RETRY_TITLE = "Trying again starts a new build"
 
     /** The 13 chapters of every Deep Dive (docs/deep-dive/SPEC.md section 3, the chip names). */
     val chapters: List<String> = listOf(

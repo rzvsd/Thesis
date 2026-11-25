@@ -55,4 +55,16 @@ class GenerationStagesTest {
             statuses(GenerationPhase.Failed, reached = GenerationPhase.Queued),
         )
     }
+
+    @Test
+    fun aFailedBuildMarksWhereItStopped() {
+        fun captions(phase: GenerationPhase, reached: GenerationPhase = GenerationPhase.Building) =
+            GenerationStages.stagesFor(phase, reached).map { it.caption }
+
+        assertEquals(listOf(null, ReportCopy.STAGE_STOPPED, null), captions(GenerationPhase.Failed))
+        assertEquals(listOf(ReportCopy.STAGE_STOPPED, null, null), captions(GenerationPhase.Failed, GenerationPhase.Queued))
+        GenerationPhase.values().filter { it != GenerationPhase.Failed }.forEach { phase ->
+            assertEquals(phase.name, listOf<String?>(null, null, null), captions(phase))
+        }
+    }
 }

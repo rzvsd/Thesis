@@ -13,7 +13,7 @@ class ReportQuoteTest {
     @Test
     fun formatsTheQuoteWithChapterAndSource() {
         assertEquals(
-            "> “Services grew faster than hardware.” (Ch. 04 Margins, AAPL 10-K FY2025)",
+            "> \"Services grew faster than hardware.\" (Ch. 04 Margins, AAPL 10-K FY2025)",
             ReportQuote.format(selection, "AAPL 10-K FY2025"),
         )
     }
@@ -21,10 +21,10 @@ class ReportQuoteTest {
     @Test
     fun leavesOutWhatTheSelectionDoesNotHave() {
         val cover = selection.copy(chapterNumber = "", chapterName = "")
-        assertEquals("> “Services grew faster than hardware.” (AAPL 10-K FY2025)", ReportQuote.format(cover, "AAPL 10-K FY2025"))
-        assertEquals("> “Services grew faster than hardware.”", ReportQuote.format(cover, " "))
+        assertEquals("> \"Services grew faster than hardware.\" (AAPL 10-K FY2025)", ReportQuote.format(cover, "AAPL 10-K FY2025"))
+        assertEquals("> \"Services grew faster than hardware.\"", ReportQuote.format(cover, " "))
         assertEquals(
-            "> “Services grew faster than hardware.” (Ch. 04, AAPL)",
+            "> \"Services grew faster than hardware.\" (Ch. 04, AAPL)",
             ReportQuote.format(selection.copy(chapterName = ""), "AAPL"),
         )
     }
@@ -43,7 +43,7 @@ class ReportQuoteTest {
     fun clipsALongSelectionAtAWord() {
         val long = PageSelection(quote = List(200) { "word$it" }.joinToString(" "))
         val formatted = ReportQuote.format(long, "")
-        val quoted = formatted.removePrefix("> “").removeSuffix("”")
+        val quoted = formatted.removePrefix("> \"").removeSuffix("\"")
         assertTrue(quoted.endsWith("…"))
         assertTrue(quoted.length <= ReportQuote.MAX_QUOTE_CHARS + 1)
         assertTrue(quoted.removeSuffix("…").split(' ').all { it.startsWith("word") && it.length > 4 })

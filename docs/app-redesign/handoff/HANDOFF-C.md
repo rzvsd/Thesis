@@ -53,6 +53,10 @@ branch; the integrator also pastes it into the PR description (6.0 rule 1).
 4. The classic view no longer gets the "new view didn't load" snackbar: the host draws `ReportFallbackBanner` at the
    bottom of the classic view after a failed page load. Keep the bottom of the classic content clear by the banner's
    height when `onOpenNewView != null` (optional).
+5. "Add to note" in the classic view (5.15 item 5, "same format as 5.13"): build the line with
+   `ReportQuote.format(PageSelection(quote, chapterNumber, chapterName), ReportQuote.sourceLabel(report))` and add
+   it with `ReportQuote.append`, so both views write `> "quote" (Ch. 04 Margins, AAPL 10-K FY2025)` with the spec's
+   straight quotes.
 
 ## WP-K (kit: ui/components, ui/format)
 
@@ -61,20 +65,33 @@ branch; the integrator also pastes it into the PR description (6.0 rule 1).
    softWrap = false` and let a badged segment size to content, or render the badge as a superscript. Reason: 5.13
    "Conviction (Pro)"; WP-C passes no badge until then (`ReportCopy.PRO_BADGE` is ready), so free users only learn
    about the gate when they tap. Once it lands WP-C turns the badge on (one line in `DeepDiveWebReportState.kt`).
-2. **PR-3 blocker (rubric A4, starred).** Same: at 2.0x font scale "Conviction" is clipped ("Convictio"; render
-   `report-host-loaded-2.0x-*.png`, kept as the regression check). The dock could drop to icons or scroll at large
-   font scales, or give each segment its intrinsic width.
+2. **PR-3 blocker (rubric A4, starred).** Same: "Conviction" is clipped to "Convictio" on a 412 dp screen
+   **already at 1.3x font scale** (the most common large-text setting), not only at 2.0x. Cause: each segment's
+   label is `maxLines = 1` in a `weight(1f)` cell, so the four cells split the width evenly whatever their labels
+   need. Suggested fix: let each segment take its intrinsic width; when the four do not fit, scroll the dock or drop
+   to icons. Regression renders: `report-host-loaded-1.3x-*.png`, `report-host-loaded-2.0x-*.png` and
+   `report-host-loaded-360dp-*.png`; a fix must clear all three, not only 2.0x.
 3. Optional: a "flag" icon for Report feedback in the overflow (WP-C uses `ThesisIcons.Info`).
-4. `components/Bars.kt` `ReportTopBar`: make `onFollowChange` (and `onOverflow`) nullable and hide the control when
-   null. Reason: a report whose follow state is not wired, and the opening skeleton's bar (`ReportOpeningBar`,
-   which has no overflow to offer yet), would then show no dead control. WP-C would then pass
-   `extras.onFollowChange` straight through.
+4. **PR-3 blocker (with WP-INT 1).** `components/Bars.kt` `ReportTopBar`: make `onFollowChange` (and
+   `onOverflow`) nullable and hide the control when null. Reason: a report whose follow state is not wired, and
+   the opening skeleton's bar (`ReportOpeningBar`, which has no overflow to offer yet), would then show no dead
+   control. Until WP-INT 1 and this land, the bookmark plays the toggle haptic and does nothing, and the opening
+   bar's overflow does nothing. WP-C then passes `extras.onFollowChange` straight through.
 5. `components/Loading.kt` `SkeletonBlock`: the light fill (`surface2` on `bg`) is almost invisible on paper below
-   the hero (render `report-opening-skeleton-light.png`). Consider `line` or a slightly darker skeleton token in
-   light mode. WP-C already clips its chip skeletons to the pill shape.
+   the hero, and lighter than the paper, so the bars read as highlights rather than placeholders (renders
+   `report-host-loading-light.png`, `report-opening-skeleton-light.png`, `report-opening-report-bar-light.png`).
+   Use a fill darker than `bg` in light mode (`line`, or a dedicated skeleton token) at about 1.3:1 against the
+   paper. WP-C already clips its chip skeletons to the pill shape.
 6. `format/Fmt.kt`: add `shortDate(instant: Instant)` (the date in Fmt's zone), or expose the zone. Reason: screens
    must not call `ZoneId.systemDefault()` (2.1). WP-C uses `fmt.relative(instant)` for the earlier-report rows
    ("Built 23 days ago", then the date) until then.
+7. `components/Overlays.kt` `DockPanel`: the surface is translucent (`ThesisSurface.DOCK_PANEL_ALPHA`), so over a
+   text-heavy page the chapter headline and story text show through behind the panel's own text (render
+   `report-notes-earlier-light.png`, behind "Earlier note"). Raise the opacity (the page stays visible above the
+   panel, which is what 5.13 asks for) or add a blur or a scrim edge.
+8. Optional: `components/Story.kt` `StageProgress`: a `StageStatus.Stopped` (a `neg` or `line2` ring, announced as
+   "stopped") for the stage a failed build reached. WP-C marks it with the caption "Stopped here" over a Waiting
+   ring, which TalkBack reads as "Stopped here, waiting".
 
 ## Shared harness (design-preview)
 
