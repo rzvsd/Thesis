@@ -14,6 +14,7 @@ import java.time.Clock
 import java.time.Instant
 import java.time.ZoneOffset
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -158,5 +159,26 @@ class NameModelTest {
         assertEquals(null to "AAPL", nameNeighbours(order, "MSFT"))
         assertNull(namePagerOf(order, "JPM"))
         assertNull(namePagerOf(listOf("AAPL"), "AAPL"))
+    }
+
+    @Test
+    fun `reports are this ticker's Deep Dives only`() {
+        val mixed = reports + listOf(
+            ReportHistoryItem("rpulse", "j5", "market_pulse", "AAPL", "2026-11-24T13:00:00Z"),
+            ReportHistoryItem("rnone", "j6", "deep_dive", null, "2026-11-24T13:00:00Z"),
+        )
+        assertEquals(listOf("r2024", "r2026", "r2025"), deepDivesOf(mixed, "aapl").map { it.reportId })
+        val noSummary = detail.copy(summary = null, reports = mixed)
+        assertEquals("r2026", currentReportId(noSummary))
+    }
+
+    @Test
+    fun `like-for-like pairs read the filing kind from the period`() {
+        assertEquals("annual", filingKindOf("FY2026"))
+        assertEquals("quarterly", filingKindOf("Q3 FY25"))
+        assertEquals(null, filingKindOf(null))
+        assertTrue(likeForLike("annual", "annual"))
+        assertTrue(likeForLike(null, "quarterly"))
+        assertFalse(likeForLike("annual", "quarterly"))
     }
 }

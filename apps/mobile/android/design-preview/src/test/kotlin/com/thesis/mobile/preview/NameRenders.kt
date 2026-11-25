@@ -33,6 +33,7 @@ class NameRenders {
         error: String? = null,
         isPro: Boolean = true,
         warRoomId: String? = null,
+        warRoomLive: Boolean = false,
         pager: NamePager? = NamePager(4, 8),
         seed: NameSeed = NameSeed(),
     ) {
@@ -47,6 +48,7 @@ class NameRenders {
                     companyName = NamesFixtures.companyNames[ticker],
                     lastVisitAtMs = NamesFixtures.lastVisitAtMs,
                     warRoomId = warRoomId,
+                    warRoomLive = warRoomLive,
                     isPro = isPro,
                     journal = NamesFixtures.journal,
                     pager = pager,
@@ -90,6 +92,18 @@ class NameRenders {
     @Test fun warRoom() {
         renderScreen("name-war-room", heightDp = PhoneSpec.FULL_PAGE_HEIGHT_DP) {
             Name(detail = NamesFixtures.detailWarRoom, warRoomId = "wr-googl", isPro = false)
+        }
+    }
+
+    @Test fun warRoomLive() {
+        renderScreen("name-war-room-live", heightDp = PhoneSpec.FULL_PAGE_HEIGHT_DP) {
+            Name(detail = NamesFixtures.detailWarRoom, warRoomId = "wr-googl", warRoomLive = true, isPro = false)
+        }
+    }
+
+    @Test fun trailLoading() {
+        renderScreen("name-trail-loading", heightDp = PhoneSpec.FULL_PAGE_HEIGHT_DP, themes = listOf(PreviewTheme.entries.first())) {
+            Name(detail = NamesFixtures.detail.copy(notesTrail = emptyList(), isLoading = true))
         }
     }
 

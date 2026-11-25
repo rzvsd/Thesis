@@ -29,6 +29,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Text
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -42,7 +43,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -102,6 +106,7 @@ import com.thesis.mobile.ui.motion.ThesisTransitions
 import com.thesis.mobile.ui.motion.rememberHaptics
 import com.thesis.mobile.ui.motion.rememberShowSkeleton
 import com.thesis.mobile.ui.motion.thesisPress
+import com.thesis.mobile.ui.platform.ThesisBackHandler
 import com.thesis.mobile.ui.shell.ListDensity
 import com.thesis.mobile.ui.shell.exceptTop
 import com.thesis.mobile.ui.theme.LocalReducedMotion
@@ -117,6 +122,8 @@ import java.time.LocalDate
 import java.time.OffsetDateTime
 import java.time.ZoneId
 import java.time.ZoneOffset
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 import kotlin.math.abs
 
 /*
@@ -197,7 +204,10 @@ data class BoardRow(
     val changed: Boolean,
     /** Source: the snapshot's thesis state (Unfavourable: weakened, at risk, broken). */
     val atRisk: Boolean,
-    /** Source: the alert ledger (an unmuted earnings alert or War Room whose event date is within 14 days). */
+    /**
+     * Source: the alert ledger (an unmuted earnings alert or War Room whose event date is within 14 days) or a War
+     * Room in its earnings window for the ticker (`BoardInputs.warRooms`, `warRoomsInEarningsWindow`).
+     */
     val earningsSoon: Boolean,
     /** Source: the `report_notes` cache (`allNotes`). */
     val hasNote: Boolean,
@@ -268,9 +278,32 @@ internal fun nextEarnings(alerts: List<AlertLedgerItemView>, ticker: String, tod
         .mapNotNull { alert -> alert.earningsDay()?.takeIf { !it.isBefore(today) }?.let { it to (alert.warRoomId != null) } }
         .minByOrNull { it.first }
 
+private val Weekday = DateTimeFormatter.ofPattern("EEE", Locale.US)
+
+/** A day said briefly in rows and captions (#11): "today", "Tue" within the last week, else "21 Nov". */
+internal fun briefDay(day: LocalDate, today: LocalDate, fmt: Fmt): String = when {
+    day == today -> NamesCopy.TODAY
+    day.isBefore(today) && !day.isBefore(today.minusDays(BRIEF_WEEKDAY_DAYS)) -> day.format(Weekday)
+    else -> fmt.shortDate(day)
+}
+
+private const val BRIEF_WEEKDAY_DAYS = 6L
+
+/** A whole-point score change with its sign and no unit (#11 "+4 since Tue"): "+4", "−9". */
+internal fun signedPoints(change: Double): String {
+    val n = Math.round(change)
+    return when {
+        n > 0 -> "+" + Fmt.number(n)
+        n < 0 -> Fmt.MINUS + Fmt.number(-n)
+        else -> Fmt.number(0L)
+    }
+}
+
 /** Builds the board's rows from [inputs] in watchlist order (sorting is [sortBoard]'s job). */
 fun buildBoardRows(inputs: BoardInputs, fmt: Fmt, now: Instant): List<BoardRow> {
-    val today = now.atZone(ZoneId.systemDefault()).toLocalDate()
+    val zone = ZoneId.systemDefault()
+    val today = now.atZone(zone).toLocalDate()
+    fun dayOf(ms: Long): String = briefDay(Instant.ofEpochMilli(ms).atZone(zone).toLocalDate(), today, fmt)
     val focus = inputs.focusTicker?.trim()?.uppercase()?.ifBlank { null }
     return inputs.watchlist.map { it.trim().uppercase() }.filter { it.isNotEmpty() }.distinct().map { ticker ->
         val snapshot = inputs.snapshots.firstOrNull { it.ticker.equals(ticker, ignoreCase = true) }
@@ -291,22 +324,23 @@ fun buildBoardRows(inputs: BoardInputs, fmt: Fmt, now: Instant): List<BoardRow> 
             delta?.stateChanged == true -> NamesCopy.stateChange(
                 stateWordOf(previous?.state),
                 word,
-                parseMs(snapshot.updatedAt)?.let { fmt.relative(Instant.ofEpochMilli(it)) },
+                parseMs(snapshot.updatedAt)?.let(::dayOf),
             )
             else -> snapshot.reason.trim().ifBlank { word }
         }
+        // The caption is short on purpose (#11 "+4 since Tue"): at 360 dp the trailing block must leave room for the
+        // company name and line 2. An unchanged score says nothing; with no earlier reading, the report's day.
         val (caption, captionTone) = when {
             snapshot == null -> null to Tone.Neutral
             previous != null && change != null -> {
-                val since = fmt.shortDate(Instant.ofEpochMilli(previous.takenAtMs).atZone(ZoneId.systemDefault()).toLocalDate())
-                val moved = abs(change) >= SCORE_CHANGE_MIN
-                NamesCopy.scoreSince(if (moved) Fmt.pts(change) else null, since) to when {
-                    !moved -> Tone.Neutral
-                    change > 0 -> Tone.Favourable
-                    else -> Tone.Unfavourable
+                if (abs(change) >= SCORE_CHANGE_MIN && Math.round(change) != 0L) {
+                    NamesCopy.scoreSince(signedPoints(change), dayOf(previous.takenAtMs)) to
+                        if (change > 0) Tone.Favourable else Tone.Unfavourable
+                } else {
+                    null to Tone.Neutral
                 }
             }
-            reportAtMs != null -> fmt.reportAge(NamesCopy.REPORT, Instant.ofEpochMilli(reportAtMs)) to Tone.Neutral
+            reportAtMs != null -> NamesCopy.reportOn(dayOf(reportAtMs)) to Tone.Neutral
             else -> null to Tone.Neutral
         }
         val tickerAlerts = inputs.alerts.filter { it.concerns(ticker) }
@@ -315,7 +349,7 @@ fun buildBoardRows(inputs: BoardInputs, fmt: Fmt, now: Instant): List<BoardRow> 
         } else {
             tickerAlerts.count { (parseMs(it.createdAt) ?: 0L) > inputs.lastVisitAtMs }
         }
-        val earningsSoon = tickerAlerts.any { alert ->
+        val earningsSoon = ticker in inputs.warRooms || tickerAlerts.any { alert ->
             alert.mutedAt == null && alert.earningsDay()?.let { day ->
                 !day.isBefore(today) && !day.isAfter(today.plusDays(EARNINGS_SOON_DAYS))
             } == true
@@ -478,7 +512,9 @@ sealed interface CsvImportState {
  * - [onOpenName] (until wired: [onOpenResearch]) gets the ticker, the pager scope (`Destination.Name(ticker, pagerScope)`) and the row's window
  *   bounds for the container transform; [onOpenNotes] opens Name at "Your notes".
  * - [onShowUndo] shows the undo snackbar and returns true when the user tapped Undo; without it the remove commits
- *   once the row has collapsed.
+ *   once the row has collapsed. A confirmed remove is never dropped: when Names leaves composition before the
+ *   snackbar resolves (tab switch, push, the Notes segment), the remove commits then.
+ * - [now] is for renders and tests; the app leaves it null and the screen reads the clock when new data arrives.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -505,13 +541,14 @@ fun NamesScreen(
     companyNames: Map<String, String> = emptyMap(),
     tickerSuggestions: List<TickerSearchItem> = emptyList(),
     density: ListDensity = ListDensity.Comfortable,
-    now: Instant = Instant.now(),
+    now: Instant? = null,
     onDensityChange: (ListDensity) -> Unit = {},
     onQueryTickers: (String) -> Unit = {},
     onLoadNotes: () -> Unit = {},
     onOpenName: (ticker: String, pagerScope: String, bounds: Rect?) -> Unit = { ticker, _, _ -> onOpenResearch(ticker) },
     onOpenNotes: (ticker: String) -> Unit = { onOpenName(it, namesPagerScope(BoardFilter.All, BoardSort.State), null) },
-    onOpenReport: (reportId: String, ticker: String) -> Unit = { _, ticker -> onOpenResearch(ticker) },
+    // Until WP-INT wires it: the Deep Dive request for the ticker returns the stored report (SPEC rule 1).
+    onOpenReport: (reportId: String, ticker: String) -> Unit = { _, ticker -> onRunDeepDive(ticker) },
     onCompare: (List<String>) -> Unit = {},
     onCompareWith: (String) -> Unit = {},
     onExportNotes: (() -> Unit)? = null,
@@ -536,10 +573,13 @@ fun NamesScreen(
         lastVisitAtMs = lastVisitAtMs,
         focusTicker = focusTicker,
     )
-    val rows = remember(inputs, fmt, now) { buildBoardRows(inputs, fmt, now) }
+    val clock = rememberNow(now, monitorSnapshots to alerts)
+    val rows = remember(inputs, fmt, clock) { buildBoardRows(inputs, fmt, clock) }
     val asOf = remember(monitorSnapshots, fmt) {
         monitorSnapshots.mapNotNull { parseMs(it.updatedAt) }.maxOrNull()?.let { fmt.asOf(Instant.ofEpochMilli(it)) }
     }
+    val latestNoteAt = remember(allNotes) { allNotes.filter { it.text.isNotBlank() }.mapNotNull { parseMs(it.updatedAt) }.maxOrNull() }
+    val notesMeta = latestNoteAt?.let { NamesCopy.notesMeta(fmt.relative(Instant.ofEpochMilli(it))) } ?: asOf
 
     Box(Modifier.fillMaxSize()) {
         if (segment == 0) {
@@ -575,6 +615,7 @@ fun NamesScreen(
                 padding = padding,
                 notes = allNotes,
                 companyNames = companyNames,
+                meta = notesMeta,
                 header = { NamesHeaderRow(segment, { segment = it }) },
                 onOpenNotes = onOpenNotes,
                 onExportNotes = onExportNotes,
@@ -582,6 +623,15 @@ fun NamesScreen(
         }
     }
 }
+
+/**
+ * The current time for relative captions: [override] in renders and tests, else the wall clock read once per
+ * [refreshKey] (new data from a load or refresh), so rows are not rebuilt on every recomposition (rubric P1) and
+ * "2 days ago" moves with each refresh. No ticking loop: a perpetual delay would keep Compose tests from idling.
+ */
+@Composable
+internal fun rememberNow(override: Instant?, refreshKey: Any?): Instant =
+    remember(override, refreshKey) { override ?: Instant.now() }
 
 /** The Board · Notes segmented control under the header (5.10 item 3). */
 @Composable
@@ -681,15 +731,29 @@ private fun Board(
     var importDetent by remember { mutableStateOf(DockDetent.Half) }
     var importState by remember { mutableStateOf(seed.importState ?: CsvImportState.Idle) }
     val removing = remember { mutableStateListOf<String>() }
+    // Tickers already handed to onRemoveTicker, so the snackbar's end, the collapse and leaving the screen commit
+    // each confirmed remove exactly once.
+    val committed = remember { mutableSetOf<String>() }
     val boundsHolder = remember { BoundsHolder() }
     val undo by rememberUpdatedState(onShowUndo)
+    val removeTicker by rememberUpdatedState(onRemoveTicker)
+    val fieldFocus = remember { FocusRequester() }
 
     // A ticker leaves the collapse set once the watchlist no longer has it (the remove reached the server).
     LaunchedEffect(watchlist) {
         val live = watchlist.map { it.trim().uppercase() }.toSet()
         removing.removeAll { it !in live }
+        committed.retainAll(live)
         selected = selected.filter { it in live }
     }
+
+    fun endSelection() {
+        selecting = false
+        selected = emptyList()
+    }
+
+    // System back ends compare selection before it leaves the tab.
+    ThesisBackHandler(enabled = selecting) { endSelection() }
 
     val filter = BoardFilter.of(filterKey)
     val sort = BoardSort.of(sortKey)
@@ -715,17 +779,32 @@ private fun Board(
         }
     }
 
-    fun commitRemoval(ticker: String) = onRemoveTicker(ticker)
+    fun commitRemoval(ticker: String) {
+        if (committed.add(ticker)) removeTicker(ticker)
+    }
 
     fun startRemoval(ticker: String) {
         if (ticker !in removing) removing += ticker
         selected = selected - ticker
         val show = undo ?: return
         scope.launch {
-            val undone = show(NamesCopy.removed(ticker), NamesCopy.UNDO)
-            if (undone) removing -= ticker else commitRemoval(ticker)
+            var undone = false
+            try {
+                undone = show(NamesCopy.removed(ticker), NamesCopy.UNDO)
+            } finally {
+                // Also on cancellation (the board left composition before the snackbar resolved): the user
+                // confirmed the remove, so only an Undo tap keeps the name.
+                if (undone) removing -= ticker else commitRemoval(ticker)
+            }
         }
     }
+
+    // A remove still collapsing (no undo wired) or waiting on its snackbar commits when the board leaves.
+    DisposableEffect(Unit) {
+        onDispose { removing.toList().forEach(::commitRemoval) }
+    }
+
+    val emptyAndLoaded = loaded && error == null && watchlist.isEmpty()
 
     val launchPicker = rememberHoldingsCsvPicker { pick ->
         when (pick) {
@@ -763,24 +842,26 @@ private fun Board(
                         meta = asOf,
                         refreshing = refreshing,
                     ) {
-                        ThesisIconButton(ThesisIcons.Sort, NamesCopy.SORT, { openSheet = SHEET_SORT })
-                        ThesisIconButton(
-                            if (compact) ThesisIcons.DensityComfortable else ThesisIcons.DensityCompact,
-                            if (compact) NamesCopy.DENSITY_TO_COMFORTABLE else NamesCopy.DENSITY_TO_COMPACT,
-                            {
-                                compact = !compact
-                                onDensityChange(if (compact) ListDensity.Compact else ListDensity.Comfortable)
-                            },
-                        )
-                        ThesisIconButton(
-                            ThesisIcons.Compare,
-                            NamesCopy.COMPARE,
-                            {
-                                selecting = !selecting
-                                if (!selecting) selected = emptyList()
-                            },
-                            enabled = rows.size >= 2,
-                        )
+                        // Sort, density and compare act on rows: none of them shows on an empty board.
+                        if (rows.isNotEmpty()) {
+                            ThesisIconButton(ThesisIcons.Sort, NamesCopy.SORT, { openSheet = SHEET_SORT })
+                            ThesisIconButton(
+                                if (compact) ThesisIcons.DensityComfortable else ThesisIcons.DensityCompact,
+                                if (compact) NamesCopy.DENSITY_TO_COMFORTABLE else NamesCopy.DENSITY_TO_COMPACT,
+                                {
+                                    compact = !compact
+                                    onDensityChange(if (compact) ListDensity.Compact else ListDensity.Comfortable)
+                                },
+                            )
+                        }
+                        if (rows.size >= 2) {
+                            ThesisIconButton(
+                                ThesisIcons.Compare,
+                                NamesCopy.COMPARE,
+                                { if (selecting) endSelection() else selecting = true },
+                                tint = if (selecting) LocalThesisPalette.current.accent else Color.Unspecified,
+                            )
+                        }
                         ThesisIconButton(ThesisIcons.Overflow, NamesCopy.MORE, { openSheet = SHEET_MORE })
                     }
                 }
@@ -796,7 +877,8 @@ private fun Board(
                         tickerSuggestionsFor(trimmed, tickerSuggestions, watchlist)
                     }
                     Column(Modifier.padding(horizontal = ThesisSpace.gutter)) {
-                        Spacer(Modifier.height(ThesisSpace.xxl))
+                        // One header group: the field sits close under the control it belongs with (24 dp to data).
+                        Spacer(Modifier.height(ThesisSpace.l))
                         TickerField(
                             value = input,
                             onValueChange = {
@@ -818,7 +900,13 @@ private fun Board(
                                 }
                             },
                             actionLabel = NamesCopy.FOLLOW.takeIf { trimmed.isNotEmpty() && followError(trimmed, watchlist) == null },
+                            modifier = Modifier.focusRequester(fieldFocus),
                         )
+                        // Empty board (5.10): the field is focused, so the first thing to do is type a ticker. Run
+                        // from the field's own item, so the requester is attached when it asks.
+                        LaunchedEffect(emptyAndLoaded) {
+                            if (emptyAndLoaded) runCatching { fieldFocus.requestFocus() }
+                        }
                     }
                 }
                 if (watchlist.isNotEmpty()) {
@@ -839,6 +927,25 @@ private fun Board(
                     }
                 }
                 item(key = "gap", contentType = "gap") { Spacer(Modifier.height(ThesisSpace.m)) }
+                if (selecting) {
+                    // Compare selection says what it wants and how to leave it (system back does the same).
+                    item(key = "selecting", contentType = "selecting") {
+                        Row(
+                            Modifier
+                                .padding(start = ThesisSpace.gutter, end = ThesisSpace.gutter, bottom = ThesisSpace.s)
+                                .fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                if (selected.size < 2) NamesCopy.COMPARE_PICK else NamesCopy.compareSelected(selected.size),
+                                Modifier.weight(1f),
+                                style = ThesisType.caption,
+                                color = LocalThesisPalette.current.muted,
+                            )
+                            TextAction(NamesCopy.CANCEL, { endSelection() })
+                        }
+                    }
+                }
                 if (error != null && watchlist.isNotEmpty()) {
                     item(key = "banner", contentType = "banner") {
                         InlineBanner(
@@ -886,11 +993,9 @@ private fun Board(
             label = NamesCopy.compareRun(selected.size),
             onClick = {
                 onCompare(selected)
-                selecting = false
-                selected = emptyList()
+                endSelection()
             },
             visible = selecting,
-            caption = if (selected.size < 2) NamesCopy.COMPARE_PICK else NamesCopy.compareSelected(selected.size),
             enabled = selected.size in 2..COMPARE_MAX,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
@@ -1254,6 +1359,7 @@ private fun NotesView(
     padding: PaddingValues,
     notes: List<NoteTrailEntry>,
     companyNames: Map<String, String>,
+    meta: String?,
     header: @Composable () -> Unit,
     onOpenNotes: (String) -> Unit,
     onExportNotes: (() -> Unit)?,
@@ -1273,7 +1379,8 @@ private fun NotesView(
         contentPadding = listPadding(padding),
     ) {
         item(key = "header", contentType = "header") {
-            HeaderWithActions(deck = NamesCopy.notesLede(groups.size, noteCount), meta = null, refreshing = false) {
+            // The meta line holds the header at the board's height, so the segmented control does not jump.
+            HeaderWithActions(deck = NamesCopy.notesLede(groups.size, noteCount), meta = meta, refreshing = false) {
                 if (onExportNotes != null) ThesisIconButton(ThesisIcons.Overflow, NamesCopy.MORE, { moreOpen = true })
             }
         }
@@ -1286,7 +1393,7 @@ private fun NotesView(
         if (groups.isNotEmpty()) {
             item(key = "filter", contentType = "field") {
                 Column(Modifier.padding(horizontal = ThesisSpace.gutter)) {
-                    Spacer(Modifier.height(ThesisSpace.xxl))
+                    Spacer(Modifier.height(ThesisSpace.l))
                     ThesisTextField(
                         value = query,
                         onValueChange = { query = it },

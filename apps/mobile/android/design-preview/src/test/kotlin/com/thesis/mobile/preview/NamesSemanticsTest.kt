@@ -3,10 +3,12 @@ package com.thesis.mobile.preview
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.isFocused
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
@@ -16,6 +18,7 @@ import com.thesis.mobile.model.NameDetailView
 import com.thesis.mobile.preview.fixtures.NamesFixtures
 import com.thesis.mobile.ui.copy.NamesCopy
 import com.thesis.mobile.ui.platform.HapticKind
+import com.thesis.mobile.ui.platform.PreviewBack
 import com.thesis.mobile.ui.platform.PreviewHaptics
 import com.thesis.mobile.ui.screens.BoardSeed
 import com.thesis.mobile.ui.screens.LocalBoardSeed
@@ -26,6 +29,8 @@ import com.thesis.mobile.ui.screens.NameSeed
 import com.thesis.mobile.ui.screens.NamesScreen
 import com.thesis.mobile.ui.theme.ThemeMode
 import com.thesis.mobile.ui.theme.ThesisTheme
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -43,14 +48,18 @@ class NamesSemanticsTest {
     private val opened = mutableListOf<String>()
     private var builds = 0
 
-    private fun board(seed: BoardSeed = BoardSeed(), undo: (suspend (String, String) -> Boolean)? = null) {
+    private fun board(
+        seed: BoardSeed = BoardSeed(),
+        undo: (suspend (String, String) -> Boolean)? = null,
+        watchlist: List<String> = NamesFixtures.watchlist,
+    ) {
         rule.setContent {
             ThesisTheme(mode = ThemeMode.Light) {
                 NamesFixtures.Clocked {
                     CompositionLocalProvider(LocalBoardSeed provides seed) {
                         NamesScreen(
                             padding = PaddingValues(),
-                            watchlist = NamesFixtures.watchlist,
+                            watchlist = watchlist,
                             monitorSnapshots = NamesFixtures.snapshots,
                             alerts = NamesFixtures.alerts,
                             onRefresh = {}, onAddTicker = {}, onRemoveTicker = { removed += it }, onRunDeepDive = {}, onOpenResearch = {},
@@ -132,6 +141,67 @@ class NamesSemanticsTest {
         rule.onNodeWithText(NamesCopy.REMOVE_CONFIRM).performClick()
         rule.waitForIdle()
         assertTrue(removed.isEmpty())
+    }
+
+    @Test
+    fun removeCommitsWhenTheBoardLeavesBeforeTheSnackbarResolves() {
+        // The snackbar never resolves: the user switches to Notes while it shows, so the board leaves composition.
+        board(seed = BoardSeed(confirmRemove = "TSLA"), undo = { _, _ -> awaitCancellation() })
+        rule.onNodeWithText(NamesCopy.REMOVE_CONFIRM).performClick()
+        rule.waitForIdle()
+        assertTrue(removed.isEmpty())
+        rule.onNodeWithText(NamesCopy.SEGMENT_NOTES).performClick()
+        rule.waitForIdle()
+        assertEquals(listOf("TSLA"), removed)
+    }
+
+    @Test
+    fun compareSelectionEndsOnCancelAndOnSystemBack() {
+        board(seed = BoardSeed(selected = listOf("AAPL", "MSFT")))
+        rule.onNodeWithText(NamesCopy.CANCEL).assertExists()
+        rule.runOnIdle { runBlocking { assertTrue(PreviewBack.press()) } }
+        rule.waitForIdle()
+        rule.onNodeWithText(NamesCopy.CANCEL).assertDoesNotExistCompat()
+        // Back is not claimed once selection is off: it goes to the shell again.
+        rule.runOnIdle { assertEquals(0, PreviewBack.enabledCount) }
+    }
+
+    @Test
+    fun emptyBoardFocusesTheFieldAndHidesRowActions() {
+        board(watchlist = emptyList())
+        rule.waitForIdle()
+        rule.onNode(isFocused()).assertExists()
+        rule.onNodeWithContentDescription(NamesCopy.SORT).assertDoesNotExistCompat()
+        rule.onNodeWithContentDescription(NamesCopy.COMPARE).assertDoesNotExistCompat()
+    }
+
+    @Test
+    fun noteEditorWaitsForTheTrailAndShowsTheStoredNote() {
+        val saves = mutableListOf<String>()
+        val stored = NamesFixtures.notes.first().text
+        // MainViewModel.openName publishes the cached detail first (empty trail on a first open), then the trail.
+        val state = mutableStateOf(NamesFixtures.detail.copy(notesTrail = emptyList(), isLoading = true))
+        rule.setContent {
+            ThesisTheme(mode = ThemeMode.Light) {
+                NamesFixtures.Clocked {
+                    NameScreen(
+                        padding = PaddingValues(),
+                        ticker = "AAPL",
+                        detail = state.value,
+                        following = true,
+                        now = NamesFixtures.now,
+                        onSaveNote = { _, text -> saves += text; true },
+                    )
+                }
+            }
+        }
+        rule.onNodeWithText(stored).assertDoesNotExistCompat()
+        rule.runOnIdle { state.value = NamesFixtures.detail }
+        rule.waitForIdle()
+        rule.onNodeWithText(stored).assertExists()
+        rule.mainClock.advanceTimeBy(3_000)
+        rule.waitForIdle()
+        assertTrue("showing the stored note must not save it: $saves", saves.isEmpty())
     }
 
     @Test

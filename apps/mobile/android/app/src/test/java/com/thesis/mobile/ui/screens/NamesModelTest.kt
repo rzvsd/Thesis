@@ -74,9 +74,42 @@ class NamesModelTest {
         val changed = rows.filter { it.changed }.map { it.ticker }
         assertEquals(listOf("AAPL", "MSFT"), changed)
         val msft = rows.first { it.ticker == "MSFT" }
-        assertTrue(msft.line2.startsWith("Intact → Weakened"))
-        assertEquals("+4 pts since 21 Nov", rows[0].figureCaption)
+        assertEquals("Intact → Weakened, today", msft.line2)
+        // The short #11 form: no unit, the weekday within the week (21 Nov 2026 is a Saturday).
+        assertEquals("+4 since Sat", rows[0].figureCaption)
         assertEquals(Tone.Favourable, rows[0].figureTone)
+        assertEquals("−1 since Sat", msft.figureCaption)
+    }
+
+    @Test
+    fun `an unchanged score has no caption and a name without a reading shows its report day`() {
+        val flat = inputs.copy(
+            deltas = mapOf(
+                "AAPL" to SnapshotDelta("AAPL", point("AAPL", "2026-11-25T14:00:00Z", "intact", 0.78), point("AAPL", "2026-11-21T08:00:00Z", "intact", 0.78)),
+            ),
+        )
+        val built = buildBoardRows(flat, fmt, now)
+        assertNull(built.first { it.ticker == "AAPL" }.figureCaption)
+        assertEquals("Report · 1 Oct", built.first { it.ticker == "COST" }.figureCaption)
+        assertEquals("Report · Fri", built.first { it.ticker == "NVDA" }.figureCaption)
+    }
+
+    @Test
+    fun `brief days and signed points`() {
+        val today = java.time.LocalDate.parse("2026-11-25")
+        assertEquals("today", briefDay(today, today, fmt))
+        assertEquals("Tue", briefDay(today.minusDays(1), today, fmt))
+        assertEquals("Thu", briefDay(today.minusDays(6), today, fmt))
+        assertEquals("18 Nov", briefDay(today.minusDays(7), today, fmt))
+        assertEquals("+4", signedPoints(3.6))
+        assertEquals("−9", signedPoints(-9.2))
+    }
+
+    @Test
+    fun `a War Room in its earnings window counts as earnings soon without a dated alert`() {
+        val withRoom = buildBoardRows(inputs.copy(warRooms = mapOf("AAPL" to "wr-1")), fmt, now)
+        assertTrue(withRoom.first { it.ticker == "AAPL" }.earningsSoon)
+        assertEquals(2, boardFilterCounts(withRoom)[BoardFilter.EarningsSoon])
     }
 
     @Test

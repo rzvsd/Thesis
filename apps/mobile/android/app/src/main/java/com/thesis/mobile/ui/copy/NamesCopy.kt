@@ -17,9 +17,10 @@ object NamesCopy {
     val segments: List<String> = listOf(SEGMENT_BOARD, SEGMENT_NOTES)
 
     /** The generated lede: "12 names · 2 changed since your last visit". */
-    fun boardLede(count: Int, changed: Int, hasVisited: Boolean): String {
+    fun boardLede(count: Int, changed: Int, hasVisited: Boolean): String? {
+        if (count == 0) return null
         val names = Fmt.count(count, "name", "names")
-        if (!hasVisited || count == 0) return names
+        if (!hasVisited) return names
         val tail = when (changed) {
             0 -> "none changed since your last visit"
             else -> "$changed changed since your last visit"
@@ -71,13 +72,18 @@ object NamesCopy {
     const val NO_REPORT_FIGURE = "No report"
     const val REPORT = "Report"
 
-    /** Line 2 of a row whose state changed since the last visit: "Intact → Weakened, 2 days ago". */
+    /** Line 2 of a row whose state changed since the last visit: "Intact → Weakened, Tue". */
     fun stateChange(from: String, to: String, whenText: String?): String =
         if (whenText.isNullOrBlank()) "$from → $to" else "$from → $to, $whenText"
 
-    /** Score caption since the last visit: "+4 pts since 21 Nov"; "Unchanged since 21 Nov". */
-    fun scoreSince(change: String?, since: String): String =
-        if (change == null) "Unchanged since $since" else "$change since $since"
+    /** Score caption since the last visit (#11): "+4 since Tue", "−9 since 12 Nov". */
+    fun scoreSince(change: String, since: String): String = "$change since $since"
+
+    /** Report age under the score when there is no earlier reading: "Report · Tue", "Report · 30 Sep". */
+    fun reportOn(day: String): String = "$REPORT · $day"
+
+    /** A day said briefly in rows: "today", then the weekday within the week, then the date. */
+    const val TODAY = "today"
 
     /** A count badge: alerts created since the last Names visit. */
     fun newAlerts(n: Int): String = "$n new"
@@ -126,6 +132,9 @@ object NamesCopy {
 
     // ---- Notes view (5.28)
 
+    /** The Notes view's meta line, in the place the board's "As of" sits: "Last note 2 days ago". */
+    fun notesMeta(whenText: String): String = "Last note $whenText"
+
     fun notesLede(tickers: Int, notes: Int): String =
         if (notes == 0) "Your notes, one per filing" else "${Fmt.count(notes, "note", "notes")} on ${Fmt.count(tickers, "name", "names")}"
     const val NOTES_FILTER = "Filter notes"
@@ -148,8 +157,8 @@ object NamesCopy {
     const val COPIED = "Copied as a table"
     fun couldNotLoad(ticker: String): String = KitCopy.couldNotLoad(ticker)
 
-    /** State caption next to the badge: "Was Intact on 21 Nov" or "No state change since 21 Nov". */
-    fun wasState(previous: String, on: String): String = "Was $previous on $on"
+    /** State caption next to the badge: "Was Intact on Sat" or "No state change since 21 Nov" (days as in rows). */
+    fun wasState(previous: String, on: String): String = if (on == TODAY) "Was $previous earlier today" else "Was $previous on $on"
     fun unchangedSince(on: String): String = "Unchanged since $on"
     fun stateSteadySince(on: String): String = "No state change since $on"
 
@@ -166,13 +175,13 @@ object NamesCopy {
     const val SINCE_LAST_VISIT = "since your last visit"
     const val FROM_WAR_ROOM = "from the War Room"
     const val FROM_ALERT = "from an earnings alert"
+    /** What the count is (it clears only when a new report lands, ScoreCopy.EVENTS_DEFINITION): no review action. */
     fun eventsOf(unreviewed: Int, material: Int): String =
-        "${Fmt.number(unreviewed.toLong())} of ${Fmt.count(material, "material event", "material events")} to review"
-    const val NO_EVENTS = "none waiting for review"
+        "${Fmt.number(unreviewed.toLong())} of ${Fmt.number(material.toLong())} not yet in a report"
     const val SEE_ALERTS = "See alerts"
     const val LAST_VISIT = "Your last visit"
     const val MATERIAL_EVENTS = "Material events since the report"
-    const val UNREVIEWED_EVENTS = "Not reviewed yet"
+    const val UNREVIEWED_EVENTS = "Not yet in a report"
 
 
     // Freshness words (server freshness_state).
@@ -241,6 +250,7 @@ object NamesCopy {
     // Earnings (5.11 item 7).
     fun earningsOn(date: String): String = "Earnings on $date"
     const val EARNINGS_KICKER = "Earnings"
+    const val WAR_ROOM_LIVE = "The War Room is live"
     const val WAR_ROOM_CAPTION = "The War Room follows the call and the filing as they land."
 
     // Conviction journal (5.11 item 8).
@@ -262,7 +272,9 @@ object NamesCopy {
     const val REPORTS_KICKER = "Reports"
     fun reportsHeadline(n: Int): String =
         if (n == 0) "No reports opened yet" else "${Fmt.count(n, "report", "reports")} you have opened"
-    const val REPORTS_CAPTION = "Reports you have opened, newest first."
+    const val REPORTS_CAPTION = "Newest first."
+    /** Like-for-like only (5.18): an annual report compares with an annual one, a quarter with a quarter. */
+    const val PICK_LIKE = "Pick two reports of the same kind: two annual or two quarterly."
     fun reportsEmpty(ticker: String): String = "You have not opened a report for $ticker yet."
     const val COMPARE_TWO = "Compare two"
     const val PICK_TWO = "Pick two reports to compare."
