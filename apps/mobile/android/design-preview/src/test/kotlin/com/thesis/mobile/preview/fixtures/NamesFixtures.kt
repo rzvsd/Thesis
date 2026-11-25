@@ -3,6 +3,13 @@ package com.thesis.mobile.preview.fixtures
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import com.thesis.mobile.model.AlertLedgerItemView
+import com.thesis.mobile.model.ConvictionJournalEntryView
+import com.thesis.mobile.model.DeepDiveChangeSummaryView
+import com.thesis.mobile.model.DeepDiveTopChangeView
+import com.thesis.mobile.model.FinancialHistoryRowView
+import com.thesis.mobile.model.NameDetailView
+import com.thesis.mobile.model.ReportHistoryItem
+import com.thesis.mobile.model.ReportSummaryView
 import com.thesis.mobile.model.HoldingsImportResultView
 import com.thesis.mobile.model.HoldingsImportRowErrorView
 import com.thesis.mobile.model.NoteTrailEntry
@@ -155,5 +162,92 @@ object NamesFixtures {
             HoldingsImportRowErrorView(6, null, "Shares must be a positive number."),
         ),
         watchlist = watchlist + listOf("V", "UNH"),
+    )
+
+    // ---- Name (5.11): AAPL with two reports, a change summary, five annual rows and a note trail.
+
+    private fun year(fy: Int, revenue: Double, gross: Double, op: Double, net: Double, fcf: Double, debt: Double, cash: Double, shares: Double) =
+        FinancialHistoryRowView(
+            period = "FY$fy", periodType = "annual", fiscalYear = fy, revenue = revenue, grossMargin = gross,
+            operatingMargin = op, netIncome = net, freeCashFlow = fcf, debtTotal = debt, cashAndEquivalents = cash,
+            sharesOutstanding = shares,
+        )
+
+    val annual = listOf(
+        year(2022, 394.3e9, 0.433, 0.303, 99.8e9, 111.4e9, 120.1e9, 48.3e9, 16.07e9),
+        year(2023, 383.3e9, 0.441, 0.298, 97.0e9, 99.6e9, 111.1e9, 61.6e9, 15.55e9),
+        year(2024, 391.0e9, 0.462, 0.315, 93.7e9, 108.8e9, 106.6e9, 65.2e9, 15.12e9),
+        year(2025, 416.2e9, 0.469, 0.320, 112.0e9, 98.8e9, 98.7e9, 55.4e9, 14.84e9),
+        year(2026, 431.5e9, 0.472, 0.327, 118.4e9, 120.3e9, 94.2e9, 61.0e9, 14.61e9),
+    )
+
+    val summary = ReportSummaryView(
+        reportId = "rep-aapl",
+        ticker = "AAPL",
+        companyName = "Apple Inc.",
+        generatedAt = "2026-11-02T13:00:00Z",
+        filingPeriod = "FY2026",
+        verdict = "The thesis holds: services keep margins up while hardware is flat.",
+        changeSummary = DeepDiveChangeSummaryView(
+            previousView = "Services growth offsets a soft hardware cycle, with China the open question.",
+            currentView = "Services now carry the margin story on their own; China stabilised.",
+            topChanges = listOf(
+                DeepDiveTopChangeView("Services gross margin", "up", "high", "Mix shift to subscriptions.", "Each point of mix adds about 30 bps to the company margin."),
+                DeepDiveTopChangeView("Greater China revenue", "down", "medium", "Unit sales fell 6%.", "The one region where the hardware cycle still bites."),
+                DeepDiveTopChangeView("Capital returns", "mixed", "low", "Buybacks slowed, dividends rose.", "Share count still fell 1.5%."),
+            ),
+        ),
+        annualHistory = annual,
+    )
+
+    val reports = listOf(
+        ReportHistoryItem("rep-aapl", "job-1", "deep_dive", "AAPL", "2026-11-02T13:00:00Z"),
+        ReportHistoryItem("rep-aapl-2025", "job-0", "deep_dive", "AAPL", "2025-11-05T13:00:00Z"),
+    )
+
+    val journal = listOf(
+        ConvictionJournalEntryView("j1", "AAPL", "report_generated", "report", "rep-aapl", "2026-11-02T13:00:00Z", "Deep Dive on the FY2026 10-K", "The thesis holds; services margin up 120 bps.", reportId = "rep-aapl"),
+        ConvictionJournalEntryView("j2", "AAPL", "alert", "alert", "a9", "2026-08-01T21:00:00Z", "Thesis state confirmed Intact", "Q3 services revenue at a record."),
+        ConvictionJournalEntryView("j3", "AAPL", "war_room", "war_room", "wr-1", "2026-07-31T20:30:00Z", "Q3 earnings War Room", "Guidance kept; China down 6%."),
+    )
+
+    private val aaplSnapshot = snapshots.first { it.ticker == "AAPL" }
+
+    /** The full Name: report, change summary, five years, two notes, alerts. */
+    val detail = NameDetailView(
+        ticker = "AAPL",
+        snapshot = aaplSnapshot,
+        delta = deltas["AAPL"],
+        summary = summary,
+        notesTrail = notes.filter { it.ticker == "AAPL" },
+        alerts = listOf(alert("n1", "AAPL", "filing", "AAPL filed its 10-K", "2026-11-01T21:00:00Z"), alert("n2", "AAPL", "thesis", "AAPL score rose 4 pts", "2026-11-24T08:00:00Z")),
+        reports = reports,
+    )
+
+    /** First report for the name: no change summary yet, no earlier notes. */
+    val detailFirstReport = detail.copy(
+        summary = summary.copy(changeSummary = null),
+        notesTrail = emptyList(),
+        reports = reports.take(1),
+        delta = null,
+    )
+
+    /** A new report with no note yet while last year's report has one: Carry forward shows. */
+    val detailCarryForward = detail.copy(notesTrail = notes.filter { it.reportId == "rep-aapl-2025" })
+
+    /** A followed name with no report at all. */
+    val detailNoReport = NameDetailView(
+        ticker = "JPM", snapshot = null, delta = null, summary = null, notesTrail = emptyList(), alerts = emptyList(), reports = emptyList(),
+    )
+
+    /** GOOGL: intact, with a stored report but no cached summary, a live War Room and an earnings date. */
+    val detailWarRoom = NameDetailView(
+        ticker = "GOOGL",
+        snapshot = snapshots.first { it.ticker == "GOOGL" },
+        delta = deltas["GOOGL"],
+        summary = null,
+        notesTrail = emptyList(),
+        alerts = alerts.filter { it.ticker == "GOOGL" },
+        reports = listOf(ReportHistoryItem("rep-googl", "job-g", "deep_dive", "GOOGL", "2026-11-10T13:00:00Z")),
     )
 }

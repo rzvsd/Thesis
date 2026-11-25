@@ -1118,7 +1118,7 @@ private fun emptyFilterSentence(filter: BoardFilter): String = when (filter) {
 }
 
 /** Data screens may widen to 960 dp on wide windows, never centring a narrow column for a table (2.5). */
-private fun Modifier.wrapDataWidth(): Modifier = this.then(Modifier.widthIn(max = ThesisSpace.dataMaxWidth))
+internal fun Modifier.wrapDataWidth(): Modifier = this.then(Modifier.widthIn(max = ThesisSpace.dataMaxWidth))
 
 /** A board row in compare selection (5.10 item 8): the check box in the leading column, the whole row toggles. */
 @Composable

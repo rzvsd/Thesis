@@ -156,6 +156,7 @@ object NamesCopy {
     const val KPI_SCORE = "Monitor score"
     const val KPI_FRESHNESS = "Freshness"
     const val KPI_ALERTS = "Alerts since your last visit"
+    const val KPI_ALERTS_ALL = "Alerts on this name"
     const val KPI_EARNINGS = "Next earnings"
     const val KPI_EVENTS = "Events since the report"
     const val SCALE_100 = "on a scale of 0 to 100"
@@ -168,6 +169,10 @@ object NamesCopy {
         "${Fmt.number(unreviewed.toLong())} of ${Fmt.count(material, "material event", "material events")} to review"
     const val NO_EVENTS = "none waiting for review"
     const val SEE_ALERTS = "See alerts"
+    const val LAST_VISIT = "Your last visit"
+    const val MATERIAL_EVENTS = "Material events since the report"
+    const val UNREVIEWED_EVENTS = "Not reviewed yet"
+
 
     // Freshness words (server freshness_state).
     fun freshnessWord(state: String?): String = when (state?.trim()?.lowercase()) {
@@ -188,10 +193,13 @@ object NamesCopy {
     }
     fun filingsDeck(period: String, prior: String?): String =
         if (prior == null) "Annual figures, $period, from the latest Deep Dive." else "Annual figures, $period vs $prior, from the latest Deep Dive. Tap a figure for its source."
-    const val SHOW_YEARS = "Show the five years"
-    const val HIDE_YEARS = "Hide the five years"
+    const val SHOW_YEARS = "Show the last four years"
+    const val HIDE_YEARS = "Hide the years"
     const val COPY_TABLE = "Copy as table"
     const val LABEL_REVENUE = "Revenue"
+    const val LABEL_GROWTH = "Revenue growth"
+    const val LABEL_CASH = "Cash and equivalents"
+    const val LABEL_DEBT = "Total debt"
     const val LABEL_GROSS = "Gross margin"
     const val LABEL_OPERATING = "Operating margin"
     const val LABEL_FCF = "FCF margin"
@@ -232,10 +240,12 @@ object NamesCopy {
     // Earnings (5.11 item 7).
     fun earningsOn(date: String): String = "Earnings on $date"
     const val EARNINGS_KICKER = "Earnings"
+    const val WAR_ROOM_CAPTION = "The War Room follows the call and the filing as they land."
 
     // Conviction journal (5.11 item 8).
     const val JOURNAL_KICKER = "Conviction journal"
     fun journalHeadline(n: Int): String = if (n == 0) "Nothing in the journal yet" else Fmt.count(n, "dated event", "dated events")
+    const val JOURNAL_PRO_HEADLINE = "A dated record of this name"
     const val JOURNAL_PRO = "Pro keeps a dated journal of every report, alert and War Room for this name."
     const val SEE_PRO = "See Pro"
     fun journalEvent(type: String): String = when (type.trim().lowercase()) {
@@ -257,9 +267,16 @@ object NamesCopy {
     const val PICK_TWO = "Pick two reports to compare."
     const val COMPARE_REPORTS = "Compare these two"
     fun reportRow(date: String): String = "Deep Dive · $date"
+    const val WITH_NOTE = "Your note"
+    const val PREVIOUS_REPORT = "Previous report"
+    const val CHANGE_UP = "Up"
+    const val CHANGE_DOWN = "Down"
+    const val CHANGE_MIXED = "Mixed"
+    const val CHANGE_WATCH = "Watch"
 
     // Pager (4.5).
     fun pagerCaption(position: Int, count: Int): String = "$position of $count"
     const val NEXT_NAME = "Next name"
+    fun pagerSpoken(position: Int, count: Int): String = "Name $position of $count. Swipe sideways for the next one."
     const val PREVIOUS_NAME = "Previous name"
 }

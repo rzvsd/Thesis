@@ -62,6 +62,9 @@ object ScoreCopy {
     const val ALERTS = "Alerts since your last visit"
     const val ALERTS_DEFINITION = "Alerts for this name created after you last opened Names. Opening Names " +
         "moves the reference point."
+    const val EARNINGS = "Next earnings"
+    const val EARNINGS_DEFINITION = "The next earnings date that an earnings alert or the War Room for this name " +
+        "announced. The War Room opens in the days around it."
 
     // ---- Name: figures from the filings (5.11 item 4); the report's annual history rows
 
@@ -79,6 +82,7 @@ object ScoreCopy {
     const val SHARES_DEFINITION = "Change in shares outstanding over the fiscal year. Fewer shares usually means " +
         "buybacks; more shares, issuance or stock pay."
     const val SHARES_DERIVATION = "Shares outstanding this year ÷ last year − 1."
+    const val GROWTH_DEFINITION = "How much revenue changed from the fiscal year before."
     const val GROWTH_DERIVATION = "Revenue this year ÷ revenue last year − 1."
     const val SOURCE_FORM = "Annual filing"
 }
