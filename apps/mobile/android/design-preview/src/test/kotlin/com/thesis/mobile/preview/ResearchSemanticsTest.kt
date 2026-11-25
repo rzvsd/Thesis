@@ -9,6 +9,10 @@ import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertIsNotSelected
+import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
@@ -16,6 +20,8 @@ import androidx.compose.ui.test.performClick
 import com.thesis.mobile.model.WarRoomView
 import com.thesis.mobile.preview.fixtures.ResearchFixtures as F
 import com.thesis.mobile.ui.copy.ResearchCopy
+import com.thesis.mobile.ui.screens.CompareNamesScreen
+import com.thesis.mobile.ui.screens.CompareReportsScreen
 import com.thesis.mobile.ui.screens.HistoryScreen
 import com.thesis.mobile.ui.screens.ResearchScreen
 import com.thesis.mobile.ui.screens.ScenarioStressScreen
@@ -114,6 +120,76 @@ class ResearchSemanticsTest {
         rule.onAllNodesWithText("a1b2c3d4", substring = true).assertCountEquals(0)
         rule.onAllNodesWithText("run-7", substring = true).assertCountEquals(0)
         rule.assertAllTouchTargetsAtLeast()
+    }
+
+    @Test
+    fun compareNamesHeadersSortCellsOpenTheirSourceAndCopyIsLabelled() {
+        set { CompareNamesScreen(state = F.compareNames, onBack = {}, disciplines = F.disciplines, zone = F.zone) }
+        rule.assertAllTouchTargetsAtLeast()
+        rule.onNodeWithContentDescription(ResearchCopy.COPY_TABLE).assertExists().assertRole(Role.Button)
+        // Column headers are headings and sort buttons; a tap sorts by the picked row (revenue until a cell is tapped).
+        val header = rule.onNode(hasText("MSFT", substring = true) and SemanticsMatcher.keyIsDefined(SemanticsProperties.Heading) and hasClickAction())
+        header.assertRole(Role.Button)
+        rule.onAllNodesWithText(ResearchCopy.sortedBy(ResearchCopy.ROW_REVENUE)).assertCountEquals(0)
+        header.performClick()
+        rule.onNodeWithText(ResearchCopy.sortedBy(ResearchCopy.ROW_REVENUE)).assertExists()
+        // A figure is a button that opens its source; a name with no report says so once, not "Not computed".
+        val cells = rule.onAllNodes(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Button) and hasContentDescription("Revenue, AAPL", substring = true))
+        assertTrue(cells.fetchSemanticsNodes().isNotEmpty())
+        rule.onAllNodesWithText(com.thesis.mobile.ui.format.Fmt.NOT_COMPUTED).assertCountEquals(0)
+        rule.onAllNodesWithText(ResearchCopy.NO_REPORT_YET, substring = true).fetchSemanticsNodes().let { assertTrue(it.isNotEmpty()) }
+    }
+
+    @Test
+    fun compareReportsTargetsCopyAndRefusalsSayWhy() {
+        set { CompareReportsScreen(state = F.compareReports, onBack = {}, notes = F.compareNotes, zone = F.zone) }
+        rule.assertAllTouchTargetsAtLeast()
+        rule.onNodeWithContentDescription(ResearchCopy.COPY_TABLE).assertExists().assertRole(Role.Button)
+        rule.onNodeWithText(ResearchCopy.COPY_TABLE).assertRole(Role.Button)
+        // The basis is said once on screen: in the table header (the top bar subtitle names the filings).
+        rule.onAllNodesWithText("FY2025 vs FY2024").assertCountEquals(1)
+    }
+
+    @Test
+    fun compareReportsOfOneFilingSaySo() {
+        val same = F.compareReports.copy(a = F.aaplNewer.copy(reportId = "aapl-25b"), b = F.aaplNewer)
+        set { CompareReportsScreen(state = same, onBack = {}, zone = F.zone) }
+        rule.onNodeWithText(ResearchCopy.SAME_FILING).assertExists()
+        rule.onAllNodesWithText(ResearchCopy.NOT_LIKE_FOR_LIKE).assertCountEquals(0)
+    }
+
+    @Test
+    fun stressRowsDoNotBuildAndOpenNameOnlyWhenWired() {
+        var built = 0
+        set {
+            ScenarioStressScreen(
+                userTier = "PRO", templates = F.templates, selectedScenarioId = "rates_higher_for_longer", run = F.stressRun,
+                templatesError = null, runError = null, isLoadingTemplates = false, isRunning = false,
+                watchlistCount = F.watchlist.size, onRefreshTemplates = {}, onSelectTemplate = {}, onRunScenario = {},
+                onOpenTickerResearch = { built++ }, onOpenRunFromRoute = { _, _ -> }, onRequireUpgrade = {}, zone = F.zone,
+            )
+        }
+        // The rationale is said once (in By name), not again on the chart's bars.
+        rule.onAllNodesWithText(F.stressRun.impacts.first { it.ticker == "NVDA" }.rationale).assertCountEquals(1)
+        rule.onNodeWithText(F.stressRun.impacts.first { it.ticker == "NVDA" }.rationale).performClick()
+        rule.onAllNodesWithText(ResearchCopy.openName("NVDA")).assertCountEquals(0)
+        assertEquals(0, built)
+    }
+
+    @Test
+    fun historyCompareModeLeavesOnSystemBack() {
+        set {
+            HistoryScreen(
+                historyItems = F.history, onBack = {}, onOpenReport = {}, filingPeriods = F.filingPeriods,
+                onCompareReports = { _, _ -> }, initialCompareMode = true, clock = F.clock,
+            )
+        }
+        rule.onNodeWithText(ResearchCopy.COMPARE_BANNER).assertExists()
+        // System back leaves compare mode (R1) instead of popping History.
+        val handled = rule.runOnIdle { kotlinx.coroutines.runBlocking { com.thesis.mobile.ui.platform.PreviewBack.press() } }
+        assertTrue(handled)
+        rule.onAllNodesWithText(ResearchCopy.COMPARE_BANNER).assertCountEquals(0)
+        rule.onNodeWithContentDescription(ResearchCopy.COMPARE_ACTION).assertExists()
     }
 
     @Test

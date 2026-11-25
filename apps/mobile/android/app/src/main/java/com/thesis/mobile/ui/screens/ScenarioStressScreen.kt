@@ -81,7 +81,8 @@ import java.time.ZoneId
  * Scenario Stress (DESIGN-DIRECTION 5.20): pick one macro shock, run it across the names you follow, and read which
  * name it touches first. Header with the names count, a Pro gate for everyone else, the scenario cards (radio
  * group), a run bar at the bottom, then the results: KPIs, ranked stress bars (descending, toned by level, scale
- * stated), a by-name list whose rows open to their evidence and the Name page, and guardrails as plain callouts.
+ * stated, one line each), a by-name list that carries each name's rationale and badges once and opens to its
+ * evidence and the Name page, and guardrails as plain callouts.
  * Removed: duplicated title, "Reopen run", the always-amber "Critical: 0", `%.2f` scores and the two spinners.
  */
 
@@ -149,9 +150,12 @@ private fun ScenarioStressImpactView.toRow(): StressRow {
     )
 }
 
-/** The rows as bars for [RankedBars]. */
+/**
+ * The rows as single-line bars for [RankedBars]: the rationale is said once, in "By name" under the chart, so the
+ * results do not list every name twice (until the kit's bars take a row tap and a badge, HANDOFF-E).
+ */
 internal fun stressBars(rows: List<StressRow>): List<RankedBar> =
-    rows.map { RankedBar(label = it.ticker, value = it.score, valueText = it.scoreText, rationale = it.rationale, tone = it.tone) }
+    rows.map { RankedBar(label = it.ticker, value = it.score, valueText = it.scoreText, tone = it.tone) }
 
 /** "Copy as table": tab-separated, a header line then one line per name in rank order. */
 internal fun stressTsv(rows: List<StressRow>): String = buildString {
@@ -175,8 +179,10 @@ private fun hostOf(url: String): String = runCatching { URI(url).host?.removePre
 
 /**
  * Scenario Stress. Draws its own top bar (back, "Scenario Stress", Copy as table once a run is in); the shell gives
- * it none (HANDOFF-E). [onOpenRunFromRoute] is kept for the shell's call site; the "Reopen run" button it fed is
- * gone (5.20).
+ * it none (HANDOFF-E). [onOpenName] opens a name's Name page ("Open NVDA" in an opened row; hidden while null).
+ * [onOpenTickerResearch] (the shell wires it to a Deep Dive build) and [onOpenRunFromRoute] are kept for the shell's
+ * call site only: nothing on this screen builds a report, and the "Reopen run" button is gone (5.20). With [onBack]
+ * null there is no back arrow (the shell's own bar still shows until WP-INT wires it).
  */
 @Composable
 fun ScenarioStressScreen(
@@ -192,11 +198,12 @@ fun ScenarioStressScreen(
     onRefreshTemplates: () -> Unit,
     onSelectTemplate: (String) -> Unit,
     onRunScenario: (String?) -> Unit,
-    onOpenTickerResearch: (String) -> Unit,
+    @Suppress("UNUSED_PARAMETER") onOpenTickerResearch: (String) -> Unit,
     @Suppress("UNUSED_PARAMETER") onOpenRunFromRoute: (String, String?) -> Unit,
     onRequireUpgrade: (String) -> Unit,
-    onBack: () -> Unit = {},
+    onBack: (() -> Unit)? = null,
     padding: PaddingValues = PaddingValues(),
+    onOpenName: ((ticker: String) -> Unit)? = null,
     zone: ZoneId = ZoneId.systemDefault(),
 ) {
     val fmt = LocalFmt.current
@@ -326,7 +333,7 @@ fun ScenarioStressScreen(
                         rows = rows,
                         fmt = fmt,
                         zone = zone,
-                        onOpenName = onOpenTickerResearch,
+                        onOpenName = onOpenName,
                     )
                 }
             }
@@ -382,7 +389,7 @@ private fun StressResults(
     rows: List<StressRow>,
     fmt: Fmt,
     zone: ZoneId,
-    onOpenName: (String) -> Unit,
+    onOpenName: ((String) -> Unit)?,
 ) {
     val p = LocalThesisPalette.current
     val header = run.run
@@ -400,11 +407,11 @@ private fun StressResults(
         InlineBanner(text = ResearchCopy.RUN_DEGRADED, tone = BannerTone.Attention)
     }
     Spacer(Modifier.height(ThesisSpace.m))
+    // Two KPIs, one row: the as-of date is on the chart's source line, and a third tile left an empty fourth cell.
     KpiGrid(
-        items = listOfNotNull(
+        items = listOf(
             KpiSpec(ResearchCopy.KPI_AFFECTED, ResearchCopy.ofTotal(impacted, header.totalNames.coerceAtLeast(impacted))),
             KpiSpec(ResearchCopy.KPI_CRITICAL, Fmt.number(header.criticalNames.toLong())),
-            asOf?.let { KpiSpec(ResearchCopy.KPI_AS_OF, it) },
         ),
     )
 
@@ -450,14 +457,14 @@ private fun StressResults(
 }
 
 /**
- * A name's line in "By name": ticker and score, the rationale, the break badge in a wrapping row. Tapping opens
- * its evidence links and "Open AAPL" (the Name page).
+ * A name's line in "By name": ticker and score, the rationale, the impact and break badges in a wrapping row.
+ * Tapping opens its evidence links and "Open AAPL" (the Name page, when [onOpenName] is set). No haptic on open:
+ * toggle() is for follow and notification switches (4.7).
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun StressNameRow(row: StressRow, onOpenName: (String) -> Unit) {
+private fun StressNameRow(row: StressRow, onOpenName: ((String) -> Unit)?) {
     val p = LocalThesisPalette.current
-    val haptics = rememberHaptics()
     val uri = LocalUriHandler.current
     var open by remember(row.ticker) { mutableStateOf(false) }
     val interaction = remember { MutableInteractionSource() }
@@ -472,10 +479,7 @@ private fun StressNameRow(row: StressRow, onOpenName: (String) -> Unit) {
                     interactionSource = interaction,
                     indication = null,
                     role = Role.Button,
-                    onValueChange = {
-                        haptics.toggle(it)
-                        open = it
-                    },
+                    onValueChange = { open = it },
                 )
                 .semantics(mergeDescendants = true) {
                     stateDescription = if (open) ResearchCopy.EXPANDED else ResearchCopy.COLLAPSED
@@ -514,7 +518,9 @@ private fun StressNameRow(row: StressRow, onOpenName: (String) -> Unit) {
                     onClick = { runCatching { uri.openUri(link) } },
                 )
             }
-            ActionRow(icon = ThesisIcons.Names, title = ResearchCopy.openName(row.ticker), onClick = { onOpenName(row.ticker) })
+            if (onOpenName != null) {
+                ActionRow(icon = ThesisIcons.Names, title = ResearchCopy.openName(row.ticker), onClick = { onOpenName(row.ticker) })
+            }
         }
     }
 }

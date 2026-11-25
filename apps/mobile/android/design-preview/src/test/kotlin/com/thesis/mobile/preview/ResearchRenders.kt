@@ -51,6 +51,9 @@ class ResearchRenders {
     @Test fun rootFont20() { renderScreen("research-root-font20", fontScale = 2.0f, glow = false) { Root() } }
     @Test fun root360() { renderScreen("research-root-360", widthDp = 360, glow = false) { Root() } }
     @Test fun rootFull() { renderScreen("research-root-full", heightDp = 2400, glow = false) { Root() } }
+    // Reduced motion (M3): the first frames already show the final layout (continue row in place, no entrance).
+    @Test fun rootReduced() { renderScreen("research-root-reduced", reducedMotion = true, settleMs = 100, glow = false) { Root() } }
+    @Test fun rootFont20Light() { renderScreen("research-root-font20-360", fontScale = 2.0f, widthDp = 360, glow = false) { Root() } }
 
     // ---- History (5.18)
 
@@ -106,6 +109,11 @@ class ResearchRenders {
     @Test fun compareReportsFont20() { renderScreen("research-compare-reports-font20", fontScale = 2.0f, glow = false) { Reports(F.compareReports) } }
     @Test fun compareReports360() { renderScreen("research-compare-reports-360", widthDp = 360, glow = false) { Reports(F.compareReports) } }
     @Test fun compareReportsFull() { renderScreen("research-compare-reports-full", heightDp = 2400, glow = false) { Reports(F.compareReports) } }
+    @Test
+    fun compareReportsSameFiling() {
+        val same = F.compareReports.copy(a = F.aaplNewer.copy(reportId = "aapl-25b"), b = F.aaplNewer)
+        renderScreen("research-compare-reports-same", glow = false) { Reports(same) }
+    }
 
     // ---- Compare names (5.26)
 
@@ -133,6 +141,7 @@ class ResearchRenders {
     @Test fun compareNamesFont20() { renderScreen("research-compare-names-font20", fontScale = 2.0f, glow = false) { Names() } }
     @Test fun compareNames360() { renderScreen("research-compare-names-360", widthDp = 360, glow = false) { Names() } }
     @Test fun compareNamesTablet() { renderScreen("research-compare-names-tablet", widthDp = 840, glow = false) { Names() } }
+    @Test fun compareNamesFull() { renderScreen("research-compare-names-full", heightDp = 2400, glow = false) { Names() } }
 
     // ---- Search (5.27)
 
@@ -141,7 +150,7 @@ class ResearchRenders {
         SearchScreen(
             query = query, onQueryChange = {}, results = results, onBack = {},
             recentSearches = recent, onClearRecent = {},
-            companyNames = F.companyNames, filingPeriods = F.filingPeriods,
+            companyNames = F.companyNames, filingPeriods = F.filingPeriods, notedReportIds = F.noted,
             autoFocus = false,
         )
     }
@@ -178,6 +187,8 @@ class ResearchRenders {
     @Test fun warRoomFont20() { renderScreen("research-war-room-font20", fontScale = 2.0f, glow = false) { War(F.warRoomLive) } }
     @Test fun warRoom360() { renderScreen("research-war-room-360", widthDp = 360, glow = false) { War(F.warRoomLive) } }
     @Test fun warRoomFull() { renderScreen("research-war-room-full", heightDp = 2400, glow = false) { War(F.warRoomLive) } }
+    // Reduced motion (M3): the live mark holds still and the phase cards are open without a transition.
+    @Test fun warRoomReduced() { renderScreen("research-war-room-reduced", reducedMotion = true, settleMs = 100, glow = false) { War(F.warRoomLive) } }
 
     // ---- Scenario Stress (5.20)
 
@@ -204,6 +215,7 @@ class ResearchRenders {
             watchlistCount = F.watchlist.size,
             onRefreshTemplates = {}, onSelectTemplate = {}, onRunScenario = {}, onOpenTickerResearch = {},
             onOpenRunFromRoute = { _, _ -> }, onRequireUpgrade = {},
+            onBack = {}, onOpenName = {},
             zone = F.zone,
         )
     }
@@ -219,4 +231,6 @@ class ResearchRenders {
     @Test fun stressFont20() { renderScreen("research-stress-font20", fontScale = 2.0f, glow = false) { Stress() } }
     @Test fun stress360() { renderScreen("research-stress-360", widthDp = 360, glow = false) { Stress() } }
     @Test fun stressFull() { renderScreen("research-stress-full", heightDp = 2400, glow = false) { Stress() } }
+    // Reduced motion (M3): the bars are at their values on the first frames (no growth from 0).
+    @Test fun stressReduced() { renderScreen("research-stress-reduced", heightDp = 2400, reducedMotion = true, settleMs = 100, glow = false) { Stress() } }
 }

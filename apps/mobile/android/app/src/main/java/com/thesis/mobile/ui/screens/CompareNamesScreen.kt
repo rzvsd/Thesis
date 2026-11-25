@@ -36,7 +36,6 @@ import com.thesis.mobile.ui.charts.kit.legendFor
 import com.thesis.mobile.ui.components.ActionRow
 import com.thesis.mobile.ui.components.CompareColumn
 import com.thesis.mobile.ui.components.CompareRow
-import com.thesis.mobile.ui.components.CompareTable
 import com.thesis.mobile.ui.components.CompareTableModel
 import com.thesis.mobile.ui.components.EmptyState
 import com.thesis.mobile.ui.components.ErrorState
@@ -62,6 +61,7 @@ import com.thesis.mobile.ui.theme.LocalThesisPalette
 import com.thesis.mobile.ui.theme.ThesisSpace
 import com.thesis.mobile.ui.theme.ThesisType
 import java.time.Instant
+import java.time.YearMonth
 import java.time.ZoneId
 import kotlin.math.abs
 
@@ -180,7 +180,10 @@ internal data class DisciplineScore(val met: Int, val available: Int) {
     val ratio: Double? get() = if (available > 0) met.toDouble() / available else null
 }
 
-/** One ticker column: its latest annual figures, or none when it has no report yet. */
+/**
+ * One ticker column: its latest annual figures, or none when it has no report yet. [fyEnd] is the month its fiscal
+ * year ends, when known (header "FY Sep-25").
+ */
 @Immutable
 internal data class CompareNameColumn(
     val ticker: String,
@@ -190,12 +193,18 @@ internal data class CompareNameColumn(
     val reportAt: Instant?,
     val hasReport: Boolean,
     val subject: Boolean,
+    val fyEnd: YearMonth? = null,
 )
 
-/** Columns for [state] in its ticker order; the first ticker is the subject. */
+/**
+ * Columns for [state]: the subject (the first ticker) first, then the other names with a report in their ticker
+ * order, then the names without one, so the figures come before the gaps on a phone. [fiscalYearEnds] maps a
+ * ticker to the year-end of its latest fiscal year (HANDOFF-E: not in the payload yet).
+ */
 internal fun compareNameColumns(
     state: CompareNamesState,
     disciplines: Map<String, ValueDisciplineView?>,
+    fiscalYearEnds: Map<String, YearMonth> = emptyMap(),
 ): List<CompareNameColumn> = state.tickers.mapIndexed { i, t ->
     val summary = state.summaries[t]
     CompareNameColumn(
@@ -206,8 +215,9 @@ internal fun compareNameColumns(
         reportAt = parseInstant(summary?.generatedAt),
         hasReport = summary != null,
         subject = i == 0,
+        fyEnd = fiscalYearEnds[t],
     )
-}
+}.withIndex().sortedBy { (i, c) -> if (i == 0) 0 else if (c.hasReport) 1 else 2 }.map { it.value }
 
 /** The value [metric] sorts and medians on (discipline as its ratio). */
 internal fun metricValue(column: CompareNameColumn, metric: NameMetric): Double? {
@@ -257,11 +267,16 @@ internal fun formatMetric(metric: NameMetric, value: Double?, missing: Missing =
     NameMetric.Discipline -> if (value == null) Fmt.missing(missing) else Fmt.pct(value * 100.0, dp = 0)
 }
 
-private fun cellText(column: CompareNameColumn, metric: NameMetric): String {
-    if (!column.hasReport || column.figures == null) return Fmt.NOT_COMPUTED
+/**
+ * A cell's text. A name with no report leaves its cells blank (its header says "No report yet"): "Not computed"
+ * is for a gap on our side in a report that exists (2.4), not for a report never built.
+ */
+internal fun cellText(column: CompareNameColumn, metric: NameMetric): String {
+    if (!column.hasReport) return ""
+    if (column.figures == null) return Fmt.NOT_COMPUTED
     if (metric == NameMetric.Discipline) {
         val d = column.discipline ?: return Fmt.NOT_COMPUTED
-        return "${d.met} of ${d.available}"
+        return ResearchCopy.signalsMet(d.met, d.available)
     }
     val fig = figureOf(column, metric) ?: return Fmt.NOT_COMPUTED
     return formatMetric(metric, fig.value?.takeIf { it.isFinite() }, fig.missing)
@@ -289,12 +304,29 @@ internal fun sortColumns(columns: List<CompareNameColumn>, metric: NameMetric?):
 internal fun periodLabel(key: FilingKey): String =
     if (key.annual) Fmt.period(PeriodKind.FY, key.fiscalYear) else Fmt.period(PeriodKind.Q, key.fiscalYear, key.quarter)
 
-/** "10-K · built 12 Nov" (the report's date; the payload has no filed date yet). */
+/** A column's period header: "FY Sep-25" once its year-end is known, else "FY2025"; the gap word otherwise. */
+private fun columnPeriod(column: CompareNameColumn): String = when {
+    !column.hasReport -> ResearchCopy.NO_REPORT_YET
+    column.figures == null -> ResearchCopy.NO_ANNUAL_FIGURES
+    column.figures.key.annual && column.fyEnd != null ->
+        Fmt.period(PeriodKind.FY, column.figures.key.fiscalYear, fyEnd = column.fyEnd, header = true)
+    else -> periodLabel(column.figures.key)
+}
+
+private fun formOf(column: CompareNameColumn): String? = when {
+    !column.hasReport -> null
+    column.figures?.key?.annual != false -> ResearchCopy.FORM_10K
+    else -> ResearchCopy.FORM_10Q
+}
+
+/**
+ * "10-K · built 12 Nov" (the report's date; the payload has no filed date yet), for "Copy as table". The table's
+ * header shows the form only, so four columns stay as narrow as their figures on a phone.
+ */
 private fun filingLine(column: CompareNameColumn, fmt: Fmt, zone: ZoneId): String? {
-    if (!column.hasReport) return null
-    val form = if (column.figures?.key?.annual != false) ResearchCopy.FORM_10K else ResearchCopy.FORM_10Q
+    val form = formOf(column) ?: return null
     val at = column.reportAt ?: return form
-    return "$form · built ${fmt.shortDate(at.atZone(zone).toLocalDate())}"
+    return ResearchCopy.formBuilt(form, fmt.shortDate(at.atZone(zone).toLocalDate()))
 }
 
 /**
@@ -307,8 +339,8 @@ internal fun compareNamesTable(columns: List<CompareNameColumn>, fmt: Fmt, zone:
         columns = columns.map { c ->
             CompareColumn(
                 // Two header lines in one cell until the kit grows a title line (HANDOFF-E, WP-K).
-                period = "${c.ticker}\n${c.figures?.key?.let(::periodLabel) ?: ResearchCopy.NO_REPORT_YET}",
-                filing = filingLine(c, fmt, zone),
+                period = "${c.ticker}\n${columnPeriod(c)}",
+                filing = formOf(c),
                 subject = c.subject,
             )
         },
@@ -333,28 +365,24 @@ internal fun compareNamesTsv(columns: List<CompareNameColumn>, fmt: Fmt, zone: Z
     fun cell(s: String?) = s.orEmpty().replace('\t', ' ').replace('\n', ' ').trim()
     val lines = mutableListOf<List<String>>()
     lines += listOf(ResearchCopy.METRIC) + columns.map { it.ticker } + ResearchCopy.MEDIAN
-    lines += listOf(ResearchCopy.PERIOD) + columns.map { it.figures?.key?.let(::periodLabel) ?: ResearchCopy.NO_REPORT_YET } + ""
+    lines += listOf(ResearchCopy.PERIOD) + columns.map { columnPeriod(it) } + ""
     lines += listOf(ResearchCopy.FILING) + columns.map { cell(filingLine(it, fmt, zone)) } + ""
     val table = compareNamesTable(columns, fmt, zone)
     table.rows.forEach { r -> lines += listOf(r.label) + r.values + r.delta.orEmpty() }
     return lines.joinToString("\n") { line -> line.joinToString("\t") { cell(it) } }
 }
 
-/** The screen title as a result: the widest operating margin, else the largest revenue (principle 4). */
+/**
+ * The screen title as a result: the widest operating margin, else the largest revenue (principle 4). The group
+ * ("of the three") counts only the names that have the figure, never a name with no report.
+ */
 internal fun compareNamesHeadline(columns: List<CompareNameColumn>): String? {
-    val n = columns.size
-    val group = when (n) {
-        2 -> "of the two"
-        3 -> "of the three"
-        4 -> "of the four"
-        else -> return null
-    }
     columns.filter { metricValue(it, NameMetric.Operating) != null }.takeIf { it.size >= 2 }
-        ?.maxByOrNull { metricValue(it, NameMetric.Operating)!! }
-        ?.let { return "${it.ticker} has the widest operating margin $group" }
+        ?.let { with -> with.maxByOrNull { metricValue(it, NameMetric.Operating)!! }?.let { ResearchCopy.widestMarginHeadline(it.ticker, with.size) } }
+        ?.let { return it }
     columns.filter { metricValue(it, NameMetric.Revenue) != null }.takeIf { it.size >= 2 }
-        ?.maxByOrNull { metricValue(it, NameMetric.Revenue)!! }
-        ?.let { return "${it.ticker} is the largest by revenue $group" }
+        ?.let { with -> with.maxByOrNull { metricValue(it, NameMetric.Revenue)!! }?.let { ResearchCopy.largestRevenueHeadline(it.ticker, with.size) } }
+        ?.let { return it }
     return null
 }
 
@@ -385,21 +413,46 @@ internal fun compareNamesSource(column: CompareNameColumn, metric: NameMetric, d
     )
 }
 
-/** Revenue by fiscal year per column for the chart: shared x labels (FY years every column has), oldest first. */
+/**
+ * Revenue by fiscal year for the chart: one line per column that has annual revenue, over the fiscal years every
+ * one of those lines has (oldest first), so indexing to the first year (= 100) uses a year each line really has.
+ */
+@Immutable
+internal data class RevenueSeries(val years: List<Int>, val series: List<ChartSeries>) {
+    val labels: List<String> get() = years.map { Fmt.period(PeriodKind.FY, it) }
+
+    /** The first common fiscal year, the index base; null when the lines share no year. */
+    val baseYear: Int? get() = years.firstOrNull()
+
+    /**
+     * The line that grew revenue the most from [baseYear] to the last common year, or null with fewer than two
+     * lines or fewer than two common years (nothing to rank).
+     */
+    val leader: String?
+        get() {
+            if (series.size < 2 || years.size < 2) return null
+            return series.mapNotNull { s ->
+                val first = s.values.firstOrNull()
+                val last = s.values.lastOrNull()
+                if (first != null && last != null && first > 0.0) s.name to last / first else null
+            }.takeIf { it.size >= 2 }?.maxByOrNull { it.second }?.first
+        }
+}
+
 internal fun revenueSeries(
     state: CompareNamesState,
     columns: List<CompareNameColumn>,
-): Pair<List<String>, List<ChartSeries>> {
+): RevenueSeries {
     val byTicker = columns.associate { c ->
         c.ticker to state.summaries[c.ticker]?.annualHistory.orEmpty()
-            .filter { FilingKey(it.fiscalYear, null) == it.key() }
-            .associate { it.fiscalYear to it.revenue }
+            .filter { it.key().annual && it.revenue != null && it.revenue.isFinite() }
+            .associate { it.fiscalYear to it.revenue!! }
+    }.filterValues { it.isNotEmpty() }
+    val years = byTicker.values.map { it.keys }.reduceOrNull { acc, ys -> acc intersect ys }.orEmpty().sorted()
+    val series = columns.filter { it.ticker in byTicker }.mapIndexed { i, c ->
+        ChartSeries(name = c.ticker, values = years.map { y -> byTicker.getValue(c.ticker)[y] }, subject = c.subject, colorIndex = i)
     }
-    val years = byTicker.values.flatMap { it.keys }.distinct().sorted()
-    val series = columns.filter { byTicker[it.ticker].orEmpty().isNotEmpty() }.mapIndexed { i, c ->
-        ChartSeries(name = c.ticker, values = years.map { y -> byTicker[c.ticker]?.get(y) }, subject = c.subject, colorIndex = i)
-    }
-    return years.map { Fmt.period(PeriodKind.FY, it) } to series
+    return RevenueSeries(years, if (years.isEmpty()) emptyList() else series)
 }
 
 // ---- Screen
@@ -423,6 +476,8 @@ fun CompareNamesScreen(
     onBack: () -> Unit,
     padding: PaddingValues = PaddingValues(),
     disciplines: Map<String, ValueDisciplineView?> = emptyMap(),
+    /** Ticker to the month its latest fiscal year ended (header "FY Sep-25"); empty until the payload has it. */
+    fiscalYearEnds: Map<String, YearMonth> = emptyMap(),
     onRetry: () -> Unit = {},
     onBuildReport: (ticker: String) -> Unit = {},
     initialSortMetric: NameMetric? = null,
@@ -446,7 +501,7 @@ fun CompareNamesScreen(
     val tickers = state?.tickers.orEmpty()
     val subject = tickers.firstOrNull().orEmpty()
     val others = tickers.drop(1)
-    val base = remember(state, disciplines) { state?.let { compareNameColumns(it, disciplines) }.orEmpty() }
+    val base = remember(state, disciplines, fiscalYearEnds) { state?.let { compareNameColumns(it, disciplines, fiscalYearEnds) }.orEmpty() }
     val columns = remember(base, sortMetric) { sortColumns(base, sortMetric) }
     val model = remember(columns, fmt, zone) { if (columns.isEmpty()) null else compareNamesTable(columns, fmt, zone) }
     val copy = {
@@ -480,7 +535,11 @@ fun CompareNamesScreen(
                 eyebrow = ResearchCopy.COMPARE_NAMES_EYEBROW,
                 title = (if (state?.isLoading == false) compareNamesHeadline(columns) else null)
                     ?: ResearchCopy.compareNamesTitle(subject, others),
-                deck = ResearchCopy.COMPARE_NAMES_DECK,
+                deck = if (base.any { it.hasReport } && base.filter { it.hasReport }.all { it.fyEnd != null }) {
+                    ResearchCopy.COMPARE_NAMES_DECK_YEAR_ENDS
+                } else {
+                    ResearchCopy.COMPARE_NAMES_DECK
+                },
             )
             Spacer(Modifier.height(ThesisSpace.headerToSection))
             when {
@@ -498,14 +557,17 @@ fun CompareNamesScreen(
                     onRetry = onRetry,
                 )
                 model != null -> {
-                    CompareTable(
+                    FittedCompareTable(
                         model = model,
+                        columnNames = columns.map { it.ticker },
+                        deltaName = ResearchCopy.THE_MEDIAN,
                         onHeaderClick = { sortMetric = pickedRow },
                         onCellClick = { r, c ->
                             val metric = NameMetric.entries[r]
                             pickedRow = metric
                             val col = columns[c]
-                            source = compareNamesSource(col, metric, disciplines[col.ticker])
+                            // A name with no report has no figure to source.
+                            if (col.hasReport) source = compareNamesSource(col, metric, disciplines[col.ticker])
                         },
                     )
                     Spacer(Modifier.height(ThesisSpace.s))
@@ -556,17 +618,11 @@ fun CompareNamesScreen(
 /** "Show chart" (5.26): revenue indexed to the first common fiscal year, or side by side on a shared scale. */
 @Composable
 private fun RevenueChart(state: CompareNamesState, columns: List<CompareNameColumn>, mode: Int, onMode: (Int) -> Unit) {
-    val (labels, series) = remember(state, columns) { revenueSeries(state, columns) }
-    val leader = remember(series) {
-        series.maxByOrNull { s ->
-            val first = s.values.firstOrNull { it != null && it > 0.0 }
-            val last = s.values.lastOrNull { it != null }
-            if (first != null && last != null) last / first else Double.NEGATIVE_INFINITY
-        }?.name
-    }
-    val firstYear = labels.firstOrNull()?.removePrefix("FY")?.toIntOrNull()
+    val revenue = remember(state, columns) { revenueSeries(state, columns) }
+    val labels = revenue.labels
+    val series = revenue.series
     ChartCard(
-        title = ResearchCopy.chartTitle(leader, firstYear),
+        title = ResearchCopy.chartTitle(revenue.leader, revenue.baseYear),
         subtitle = if (mode == 0) ResearchCopy.CHART_INDEXED_SUB else ResearchCopy.CHART_SIDE_SUB,
         source = ResearchCopy.CHART_SOURCE,
         legend = if (mode == 0) legendFor(series) else emptyList(),

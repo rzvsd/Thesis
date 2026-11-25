@@ -62,8 +62,8 @@ class CompareModelTest {
         assertEquals(ReportPair.OtherCompanies, compareReportsModel(a, m, fmt, zone))
         val q = report("q", "AAPL", FinancialHistoryRowView(period = "2025-Q3", periodType = "quarterly", fiscalYear = 2025, fiscalQuarter = 3, revenue = 90e9))
         assertEquals(ReportPair.NotLikeForLike, compareReportsModel(a, q, fmt, zone))
-        // The same filing twice is not a comparison either.
-        assertEquals(ReportPair.NotLikeForLike, compareReportsModel(a, a.copy(reportId = "a2"), fmt, zone))
+        // The same filing twice is not a comparison either, and says so in its own words.
+        assertEquals(ReportPair.SameFiling, compareReportsModel(a, a.copy(reportId = "a2"), fmt, zone))
     }
 
     @Test
@@ -80,9 +80,33 @@ class CompareModelTest {
         val revenue = m.table.rows.first { it.label == ResearchCopy.ROW_REVENUE }
         assertEquals(listOf(Fmt.money(391e9), Fmt.money(416e9)), revenue.values)
         assertEquals(Fmt.signedPct((416.0 / 391.0 - 1) * 100), revenue.delta)
-        val op = m.table.rows.first { it.label == ResearchCopy.ROW_OPERATING }
+        val op = m.table.rows.first { it.label == ResearchCopy.ROW_OPERATING_SHORT }
         assertEquals(Fmt.bpsFromPoints(0.5), op.delta)
         assertTrue(m.headline!!.startsWith("Revenue up"))
+        assertTrue(m.headline!!.contains("operating margin"))
+        // Header row 2 is the form only (the build dates are in the deck), so the columns fit a phone.
+        assertEquals(listOf(ResearchCopy.FORM_10K, ResearchCopy.FORM_10K), m.table.columns.map { it.filing })
+        assertTrue(m.deck.contains("12 Nov"))
+        // The basis is said once, in the table header, not in the title or the deck.
+        assertEquals(ResearchCopy.basis("FY2025", "FY2024", sameQuarter = false), m.table.labelHeader)
+        assertFalse(m.deck.contains("FY2025"))
+        assertFalse(m.headline!!.contains("FY2025"))
+    }
+
+    @Test
+    fun keyFiguresHeadlineSaysFlatUpOrDown() {
+        assertEquals("Revenue flat, operating margin +50 bps", ResearchCopy.compareReportsHeadline(0.01, "+50 bps"))
+        assertEquals("Revenue down 3.0%", ResearchCopy.compareReportsHeadline(-3.0, null))
+        assertEquals("Operating margin −20 bps", ResearchCopy.compareReportsHeadline(null, "−20 bps"))
+        assertNull(ResearchCopy.compareReportsHeadline(null, null))
+    }
+
+    @Test
+    fun periodsDisplayThroughTheFormatterNeverRaw() {
+        assertEquals("FY2025", periodDisplay("2025-FY"))
+        assertEquals("Q3 FY25", periodDisplay("2025-Q3"))
+        assertEquals("FY2025", periodDisplay("FY2025"))
+        assertNull(periodDisplay(" "))
     }
 
     @Test
@@ -132,6 +156,94 @@ class CompareModelTest {
     )
 
     @Test
+    fun namesWithoutAReportGoAfterTheOnesWithFiguresButTheSubjectStaysFirst() {
+        val s = state.copy(tickers = listOf("AAPL", "NVDA", "MSFT"))
+        assertEquals(listOf("AAPL", "MSFT", "NVDA"), compareNameColumns(s, emptyMap()).map { it.ticker })
+        val subjectWithout = state.copy(tickers = listOf("NVDA", "AAPL", "MSFT"))
+        assertEquals(listOf("NVDA", "AAPL", "MSFT"), compareNameColumns(subjectWithout, emptyMap()).map { it.ticker })
+    }
+
+    @Test
+    fun aNameWithNoReportHasBlankCellsAndTheHeadlineCountsOnlyNamesWithTheFigure() {
+        val cols = compareNameColumns(state, emptyMap())
+        val nvda = cols.first { it.ticker == "NVDA" }
+        assertEquals("", cellText(nvda, NameMetric.Revenue))
+        assertEquals("", cellText(nvda, NameMetric.Discipline))
+        // Two of the three have an operating margin: "of the two", never "of the three".
+        assertEquals("MSFT has the widest operating margin of the two", compareNamesHeadline(cols))
+    }
+
+    @Test
+    fun yearEndsNameTheColumnOnceKnown() {
+        val cols = compareNameColumns(state, emptyMap(), mapOf("AAPL" to java.time.YearMonth.of(2025, 9)))
+        val table = compareNamesTable(cols, fmt, zone)
+        assertTrue(table.columns[0].period.endsWith("FY Sep-25"))
+        assertTrue(table.columns[1].period.endsWith("FY2025"))
+    }
+
+    @Test
+    fun revenueChartIndexesToTheFirstYearEveryLineHas() {
+        val s = CompareNamesState(
+            tickers = listOf("AAPL", "MSFT", "COST", "NVDA"),
+            summaries = mapOf(
+                "AAPL" to summary("AAPL", "Apple", 400e9, 30.0).copy(
+                    annualHistory = listOf(fy(2022, 300e9, 30.0), fy(2023, 320e9, 30.0), fy(2024, 360e9, 30.0), fy(2025, 400e9, 30.0)),
+                ),
+                "MSFT" to summary("MSFT", "Microsoft", 280e9, 45.0).copy(
+                    annualHistory = listOf(fy(2023, 200e9, 45.0), fy(2024, 240e9, 45.0), fy(2025, 280e9, 45.0)),
+                ),
+                "COST" to summary("COST", "Costco", 275e9, 3.6).copy(
+                    annualHistory = listOf(fy(2023, 240e9, 3.6), fy(2024, 255e9, 3.6), fy(2025, 275e9, 3.6)),
+                ),
+                "NVDA" to null,
+            ),
+            isLoading = false,
+        )
+        val r = revenueSeries(s, compareNameColumns(s, emptyMap()))
+        // AAPL's FY2022 is not on the chart: MSFT and COST start in FY2023, so every line is 100 there.
+        assertEquals(listOf(2023, 2024, 2025), r.years)
+        assertEquals(2023, r.baseYear)
+        assertEquals(listOf("FY2023", "FY2024", "FY2025"), r.labels)
+        assertEquals(listOf("AAPL", "MSFT", "COST"), r.series.map { it.name })
+        assertTrue(r.series.all { line -> line.values.all { it != null } })
+        // Growth from FY2023: MSFT 1.40, AAPL 1.25, COST 1.15.
+        assertEquals("MSFT", r.leader)
+        assertEquals("MSFT grew revenue the most since fiscal 2023", ResearchCopy.chartTitle(r.leader, r.baseYear))
+    }
+
+    @Test
+    fun revenueChartWithNoCommonYearHasNoLeader() {
+        val s = CompareNamesState(
+            tickers = listOf("AAPL", "MSFT"),
+            summaries = mapOf(
+                "AAPL" to summary("AAPL", "Apple", 400e9, 30.0).copy(annualHistory = listOf(fy(2021, 300e9, 30.0), fy(2022, 320e9, 30.0))),
+                "MSFT" to summary("MSFT", "Microsoft", 280e9, 45.0).copy(annualHistory = listOf(fy(2024, 240e9, 45.0), fy(2025, 280e9, 45.0))),
+            ),
+            isLoading = false,
+        )
+        val r = revenueSeries(s, compareNameColumns(s, emptyMap()))
+        assertTrue(r.years.isEmpty())
+        assertNull(r.leader)
+        assertEquals("Revenue over the years", ResearchCopy.chartTitle(r.leader, r.baseYear))
+    }
+
+    @Test
+    fun hiddenColumnsAreThoseThatDoNotFitBesideTheLabels() {
+        val table = compareNamesTable(compareNameColumns(state, emptyMap()), fmt, zone)
+        // Every text 10 px a character; padding 20, column minimum 80: label 21 chars -> 230, capped at 42%.
+        val measure = { text: String, _: androidx.compose.ui.text.TextStyle ->
+            val lines = text.split('\n')
+            TextWidth(lines.maxOf { it.length } * 10, text.split(' ', '\n').maxOf { it.length } * 10)
+        }
+        assertEquals(emptyList<Int>(), hiddenColumns(table, 2000, 80, 20, measure))
+        val narrow = hiddenColumns(table, 400, 80, 20, measure)
+        assertTrue(narrow.isNotEmpty())
+        // The median (the delta column, index columns.size) is past the edge on a narrow phone.
+        assertTrue(table.columns.size in narrow)
+        assertTrue(0 !in narrow)
+    }
+
+    @Test
     fun sortingByAColumnPutsGapsLastAndKeepsTiesInOrder() {
         val cols = compareNameColumns(state, emptyMap())
         assertEquals(listOf("AAPL", "MSFT", "NVDA"), sortColumns(cols, null).map { it.ticker })
@@ -160,7 +272,8 @@ class CompareModelTest {
         lines.forEach { assertEquals(5, it.split("\t").size) }
         val revenue = lines.first { it.startsWith(ResearchCopy.ROW_REVENUE + "\t") }.split("\t")
         assertEquals(Fmt.money(416e9), revenue[1])
-        assertEquals(Fmt.NOT_COMPUTED, revenue[3])
+        // No report: a blank cell, not "Not computed" (a gap on our side).
+        assertEquals("", revenue[3])
         assertFalse(tsv.contains("\n\n"))
     }
 }

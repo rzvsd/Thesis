@@ -52,7 +52,8 @@ class StressWarRoomSearchModelTest {
         assertEquals("Cloud demand holds", rows[2].rationale)
         val bars = stressBars(rows)
         assertEquals(rows.map { it.ticker }, bars.map { it.label })
-        assertEquals(rows.map { it.rationale }, bars.map { it.rationale })
+        // Single-line bars: the rationale is said once, in "By name" (no list that repeats the chart).
+        assertTrue(bars.all { it.rationale == null })
         assertEquals(Tone.Unfavourable, rows[0].tone)
         assertEquals(Tone.Neutral, rows[3].tone)
         // Only web links survive as evidence; ids are never rendered.

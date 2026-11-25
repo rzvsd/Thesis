@@ -46,6 +46,18 @@ class ResearchHistoryModelTest {
         assertTrue(s.first().inYourNames)
         assertTrue(tickerSuggestions("AAPL", emptyList(), listOf("AAPL"), emptyMap()).isEmpty())
         assertTrue(tickerSuggestions(" ", server, emptyList(), emptyMap()).isEmpty())
+        // The server list may be from an earlier query: it is filtered by the current one too.
+        val stale = listOf(TickerSearchItem("MSFT", "Microsoft Corp.", "NASDAQ"), TickerSearchItem("AMD", "Advanced Micro Devices", "NASDAQ"))
+        assertEquals(listOf("AMD"), tickerSuggestions("am", stale, emptyList(), emptyMap()).map { it.ticker })
+        assertEquals(listOf("MSFT"), tickerSuggestions("soft", stale, emptyList(), emptyMap()).map { it.ticker })
+    }
+
+    @Test
+    fun openedThisWeekCountsReportsNotPulseBriefs() {
+        // r1, r3 and p1 are within the week; p1 is a Pulse brief.
+        assertEquals(2, openedSince(history, now.minusDays(7).toInstant()))
+        assertEquals("You opened 2 reports this week", ResearchCopy.recentHeadline(2, "AAPL", "3 h ago"))
+        assertNull(ResearchCopy.recentHeadline(0, null, null))
     }
 
     @Test
@@ -83,6 +95,9 @@ class ResearchHistoryModelTest {
         assertEquals(ResearchCopy.WHY_OTHER_COMPANY, historyPickBlock(r3, listOf(r1), periods))
         assertEquals(ResearchCopy.WHY_NOT_LIKE, historyPickBlock(r4, listOf(r1), periods))
         assertNull(historyPickBlock(r2, listOf(r1), periods))
+        // The same period: worded on the period, since the History period is not yet each report's own filing.
+        val r1b = dd("r1b", "AAPL", "2026-11-20T06:00:00Z")
+        assertEquals(ResearchCopy.whySamePeriod(annual = true), historyPickBlock(r1b, listOf(r1), periods + ("r1b" to "2026-FY")))
         assertEquals(ResearchCopy.WHY_TWO_PICKED, historyPickBlock(r4, listOf(r1, r2), periods))
         // A picked row can always be unpicked.
         assertNull(historyPickBlock(r1, listOf(r1, r2), periods))

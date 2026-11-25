@@ -45,6 +45,7 @@ import com.thesis.mobile.ui.copy.ResearchCopy
 import com.thesis.mobile.ui.format.Fmt
 import com.thesis.mobile.ui.format.LocalFmt
 import com.thesis.mobile.ui.icons.ThesisIcons
+import com.thesis.mobile.ui.platform.ThesisBackHandler
 import com.thesis.mobile.ui.theme.ThesisSpace
 import java.time.Clock
 import java.time.LocalDate
@@ -116,25 +117,21 @@ fun HistoryScreen(
     val byId = remember(historyItems) { historyItems.associateBy { it.reportId } }
     val picks = picked.mapNotNull { byId[it] }
     val canCompare = onCompareReports != null
+    val leaveCompare = {
+        compareMode = false
+        picked.clear()
+    }
+    // System back leaves compare mode first (R1), like the bar's back arrow and Cancel.
+    ThesisBackHandler(enabled = compareMode, onBack = leaveCompare)
 
     ResearchBarPage(
         title = ResearchCopy.HISTORY_TITLE,
-        onBack = {
-            if (compareMode) {
-                compareMode = false
-                picked.clear()
-            } else {
-                onBack()
-            }
-        },
+        onBack = { if (compareMode) leaveCompare() else onBack() },
         padding = padding,
         collapsed = collapsed,
         actions = {
             if (compareMode) {
-                TextAction(ResearchCopy.COMPARE_CANCEL, onClick = {
-                    compareMode = false
-                    picked.clear()
-                }, modifier = Modifier.padding(end = ThesisSpace.s))
+                TextAction(ResearchCopy.COMPARE_CANCEL, onClick = leaveCompare, modifier = Modifier.padding(end = ThesisSpace.s))
             } else if (canCompare) {
                 ThesisIconButton(ThesisIcons.Compare, contentDescription = ResearchCopy.COMPARE_ACTION, onClick = { compareMode = true })
             }
@@ -146,8 +143,8 @@ fun HistoryScreen(
                     label = if (pair != null) {
                         ResearchCopy.compareRun(
                             pair.first.ticker.orEmpty().uppercase(),
-                            filingPeriods[pair.first.reportId].orEmpty(),
-                            filingPeriods[pair.second.reportId].orEmpty(),
+                            periodDisplay(filingPeriods[pair.first.reportId]).orEmpty(),
+                            periodDisplay(filingPeriods[pair.second.reportId]).orEmpty(),
                         )
                     } else {
                         ResearchCopy.COMPARE_PICK_TWO
@@ -386,8 +383,13 @@ internal fun historyDays(items: List<ReportHistoryItem>, zone: ZoneId): List<His
 
 /**
  * Why [item] cannot be picked next in compare mode, or null when it can (5.18 item 4): only Deep Dives, at most
- * two, one company, like-for-like filings (10-K with 10-K, or the same fiscal quarter), never the same filing
+ * two, one company, like-for-like filings (10-K with 10-K, or the same fiscal quarter), never the same period
  * twice. A picked row can always be unpicked.
+ *
+ * [periods] is report id to the report's period. Until WP-INT passes the period of the filing each report read
+ * (HANDOFF-E), it is the latest annual row a report holds, so a report on a 10-Q reads as annual here; Compare
+ * reports reads each report's own filing and refuses a pair that is not like for like, saying why. The captions
+ * therefore speak of the period, never of "the same filing".
  */
 internal fun historyPickBlock(
     item: ReportHistoryItem,
@@ -403,7 +405,7 @@ internal fun historyPickBlock(
     val firstKey = filingKeyOf(periods[first.reportId]) ?: return ResearchCopy.WHY_UNKNOWN_FILING
     return when {
         !likeForLike(firstKey, key) -> ResearchCopy.WHY_NOT_LIKE
-        firstKey == key -> ResearchCopy.WHY_SAME_FILING
+        firstKey == key -> ResearchCopy.whySamePeriod(key.annual)
         else -> null
     }
 }

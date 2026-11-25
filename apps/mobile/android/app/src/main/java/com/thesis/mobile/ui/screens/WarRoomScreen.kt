@@ -58,7 +58,6 @@ import com.thesis.mobile.ui.copy.ResearchCopy
 import com.thesis.mobile.ui.format.Fmt
 import com.thesis.mobile.ui.format.LocalFmt
 import com.thesis.mobile.ui.icons.ThesisIcons
-import com.thesis.mobile.ui.motion.rememberHaptics
 import com.thesis.mobile.ui.motion.thesisPress
 import com.thesis.mobile.ui.theme.LocalThesisPalette
 import com.thesis.mobile.ui.theme.ThesisSpace
@@ -119,7 +118,8 @@ internal fun phaseBadge(status: String?): PhaseBadge? {
     val key = status?.trim()?.lowercase()?.replace('-', '_')?.replace(' ', '_')?.ifBlank { null } ?: return null
     return when (key) {
         "complete", "completed", "done", "closed", "success" -> PhaseBadge(ResearchCopy.PHASE_COMPLETE, Tone.Neutral)
-        "live", "in_progress", "running", "active" -> PhaseBadge(ResearchCopy.PHASE_IN_PROGRESS, Tone.Favourable)
+        // A status, not a figure: no up/down colour (T3); the live mark beside "Live" says it is live.
+        "live", "in_progress", "running", "active" -> PhaseBadge(ResearchCopy.PHASE_IN_PROGRESS, Tone.Neutral)
         "pending", "scheduled", "queued", "upcoming", "preparing" -> PhaseBadge(ResearchCopy.PHASE_SCHEDULED, Tone.Unknown)
         "degraded", "timeout" -> PhaseBadge(ResearchCopy.humanize(key) ?: key, Tone.Attention)
         "failed", "failure" -> PhaseBadge(ResearchCopy.humanize(key) ?: key, Tone.Unfavourable)
@@ -135,9 +135,10 @@ private fun stepLabel(step: WarRoomStep): String = when (step) {
 
 /**
  * The War Room. Draws its own top bar ("War Room", subtitle the ticker); the shell gives it none (HANDOFF-E).
- * Pull-to-refresh is on except while Live, when the ViewModel refreshes every 60 s (WP-INT). A failed refresh
- * keeps the room on screen under a banner. [onOpenName] opens a related ticker's Name page and [onOpenReport] the
- * Deep Dive the room reads against.
+ * Pull-to-refresh is on except while Live, when the shell refreshes every 60 s. A failed refresh keeps the room on
+ * screen under a banner. [onOpenName] opens a related ticker's Name page and [onOpenReport] the Deep Dive the room
+ * reads against. With [onBack] null (the shell's own bar still showing, until WP-INT wires it) there is no back
+ * arrow, so no arrow that does nothing.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -146,7 +147,7 @@ fun WarRoomScreen(
     errorMessage: String?,
     onRefresh: () -> Unit,
     padding: PaddingValues,
-    onBack: () -> Unit = {},
+    onBack: (() -> Unit)? = null,
     isLoading: Boolean = false,
     refreshing: Boolean = false,
     onOpenName: (ticker: String) -> Unit = {},
@@ -235,7 +236,6 @@ private fun WarRoomBody(
     fmt: Fmt,
 ) {
     val p = LocalThesisPalette.current
-    val haptics = rememberHaptics()
     val current = warRoomCurrentStep(room)
     val closed = warRoomClosed(room)
     val live = warRoomIsLive(room)
@@ -286,10 +286,8 @@ private fun WarRoomBody(
             phase = phase,
             step = step,
             expanded = expanded,
-            onToggle = {
-                haptics.toggle(!expanded)
-                open[index] = !expanded
-            },
+            // No haptic: toggle() is for follow and notification switches (4.7); opening a card is a plain tap.
+            onToggle = { open[index] = !expanded },
             fmt = fmt,
         )
     }
@@ -321,9 +319,10 @@ private fun WarRoomBody(
 }
 
 /**
- * Horizontal three-step stepper: a ring per step on a `line2` rail, the label under it. Done and current rings in
- * the gold series colour (current filled), upcoming in `line2`; the current label in `ink`, the others muted. The
- * live mark sits beside "Live" only while the room is live. One TalkBack stop per step with its state.
+ * Horizontal three-step stepper: a ring per step on a `line2` rail, the label under it. The current step in `ink`
+ * (filled ring and label, 5.19), done steps as muted filled rings, upcoming as `line2` rings; done and upcoming
+ * labels muted. No phase colours. The live mark sits beside "Live" only while the room is live. One TalkBack stop
+ * per step with its state.
  * (The kit Timeline is vertical only; a horizontal variant is requested from WP-K in HANDOFF-E.)
  */
 @Composable
@@ -360,10 +359,14 @@ private fun PhaseStepper(current: WarRoomStep?, closed: Boolean, live: Boolean) 
                             val rail = border.toPx()
                             if (!first) drawLine(p.line2, Offset(0f, cy), Offset(cx - r, cy), rail)
                             if (!last) drawLine(p.line2, Offset(cx + r, cy), Offset(size.width, cy), rail)
-                            val stroke = if (done || isCurrent) p.series[0] else p.line2
+                            val mark = when {
+                                isCurrent -> p.ink
+                                done -> p.muted
+                                else -> p.line2
+                            }
                             drawCircle(p.surface, r, Offset(cx, cy))
-                            drawCircle(stroke, r - rail / 2f, Offset(cx, cy), style = Stroke(rail))
-                            if (isCurrent || done) drawCircle(p.series[0], r / 2f, Offset(cx, cy))
+                            drawCircle(mark, r - rail / 2f, Offset(cx, cy), style = Stroke(rail))
+                            if (isCurrent || done) drawCircle(mark, r / 2f, Offset(cx, cy))
                         },
                 )
                 Spacer(Modifier.height(ThesisSpace.s))
@@ -385,7 +388,7 @@ private fun PhaseStepper(current: WarRoomStep?, closed: Boolean, live: Boolean) 
 }
 
 /**
- * One phase: a card whose header (step and time as the eyebrow, the phase title, a Show/Hide word) toggles it;
+ * One phase: a card whose header (step and time as a muted caption, the phase title, a Show/Hide word) toggles it;
  * open, it shows the status badge in a wrapping row, the summary and each highlight as its own paragraph.
  */
 @OptIn(ExperimentalLayoutApi::class)
@@ -423,7 +426,8 @@ private fun PhaseCard(
         ) {
             Column(Modifier.weight(1f)) {
                 if (eyebrow.isNotBlank()) {
-                    Text(eyebrow, style = ThesisType.eyebrow, color = p.muted)
+                    // Sentence case and a relative time: a caption, not the letter-spaced eyebrow.
+                    Text(eyebrow, style = ThesisType.caption, color = p.muted)
                     Spacer(Modifier.height(ThesisSpace.xs))
                 }
                 Text(

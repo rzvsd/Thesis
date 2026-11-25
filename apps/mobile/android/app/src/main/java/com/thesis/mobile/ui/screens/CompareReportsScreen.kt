@@ -29,7 +29,6 @@ import com.thesis.mobile.model.verdictSentence
 import com.thesis.mobile.ui.components.BadgeSpec
 import com.thesis.mobile.ui.components.CompareColumn
 import com.thesis.mobile.ui.components.CompareRow
-import com.thesis.mobile.ui.components.CompareTable
 import com.thesis.mobile.ui.components.CompareTableModel
 import com.thesis.mobile.ui.components.EmptyState
 import com.thesis.mobile.ui.components.ErrorState
@@ -60,7 +59,6 @@ import com.thesis.mobile.ui.theme.Tone
 import com.thesis.mobile.ui.theme.thesisStateTone
 import java.time.Instant
 import java.time.ZoneId
-import kotlin.math.abs
 
 // ---- Filings: what "like for like" means (shared with History)
 
@@ -122,6 +120,7 @@ internal data class ReportSide(
 internal sealed interface ReportPair {
     data object OtherCompanies : ReportPair
     data object NotLikeForLike : ReportPair
+    data object SameFiling : ReportPair
     data class Ready(val model: CompareReportsModel) : ReportPair
 }
 
@@ -133,7 +132,10 @@ internal data class CompareReportsModel(
     val newer: ReportSide,
     val basis: String,
     val table: CompareTableModel,
+    /** The result ("Revenue up 6.4%, operating margin +50 bps"), the screen title; null when neither is known. */
     val headline: String?,
+    /** What was compared: company, filing kind and when each report was built. */
+    val deck: String,
     val since: SinceLastReportModel?,
 )
 
@@ -172,7 +174,8 @@ internal fun compareReportsModel(a: DeepDiveReportView, b: DeepDiveReportView, f
     if (!a.ticker.equals(b.ticker, ignoreCase = true)) return ReportPair.OtherCompanies
     val sa = sideOf(a) ?: return ReportPair.NotLikeForLike
     val sb = sideOf(b) ?: return ReportPair.NotLikeForLike
-    if (!likeForLike(sa.key, sb.key) || sa.key == sb.key) return ReportPair.NotLikeForLike
+    if (sa.key == sb.key) return ReportPair.SameFiling
+    if (!likeForLike(sa.key, sb.key)) return ReportPair.NotLikeForLike
     val (older, newer) = if (sa.key.fiscalYear <= sb.key.fiscalYear) sa to sb else sb to sa
     val fo = figuresFor(historyOf(older.report, older.key), older.key)
     val fn = figuresFor(historyOf(newer.report, newer.key), newer.key)
@@ -193,16 +196,16 @@ internal fun compareReportsModel(a: DeepDiveReportView, b: DeepDiveReportView, f
             deltaTone = toneOf(revD),
         ),
         CompareRow(
-            ResearchCopy.ROW_GROWTH,
+            ResearchCopy.ROW_GROWTH_SHORT,
             listOf(Fmt.signedPct(v(fo?.revenueGrowthPct), missing = word(fo?.revenueGrowthPct)), Fmt.signedPct(v(fn?.revenueGrowthPct), missing = word(fn?.revenueGrowthPct))),
             delta = v(fn?.revenueGrowthPct)?.let { n -> v(fo?.revenueGrowthPct)?.let { Fmt.bpsFromPoints(n - it) } },
         ),
         marginRow(ResearchCopy.ROW_GROSS, fo?.grossMarginPct, fn?.grossMarginPct),
-        marginRow(ResearchCopy.ROW_OPERATING, fo?.operatingMarginPct, fn?.operatingMarginPct),
+        marginRow(ResearchCopy.ROW_OPERATING_SHORT, fo?.operatingMarginPct, fn?.operatingMarginPct),
         run {
             val d = pctChange(v(fo?.freeCashFlow), v(fn?.freeCashFlow))
             CompareRow(
-                ResearchCopy.ROW_FCF_ABS,
+                ResearchCopy.ROW_FCF_SHORT,
                 listOf(Fmt.money(v(fo?.freeCashFlow), missing = word(fo?.freeCashFlow)), Fmt.money(v(fn?.freeCashFlow), missing = word(fn?.freeCashFlow))),
                 delta = d?.let { Fmt.signedPct(it) },
                 deltaTone = toneOf(d),
@@ -220,7 +223,7 @@ internal fun compareReportsModel(a: DeepDiveReportView, b: DeepDiveReportView, f
         run {
             val d = pctChange(v(fo?.shares), v(fn?.shares))
             CompareRow(
-                ResearchCopy.ROW_SHARES_ABS,
+                ResearchCopy.ROW_SHARES_SHORT,
                 listOf(compactCount(v(fo?.shares)), compactCount(v(fn?.shares))),
                 delta = d?.let { Fmt.signedPct(it) },
             )
@@ -235,34 +238,30 @@ internal fun compareReportsModel(a: DeepDiveReportView, b: DeepDiveReportView, f
             )
         },
     )
+    // Header row 2 is the filing form only: the build dates go in the deck, so label, both values and the change
+    // fit a phone instead of the date line setting each column's width.
     val table = CompareTableModel(
         columns = listOf(
-            CompareColumn(period = olderLabel, filing = older.at?.let { "${older.form} · built ${fmt.shortDate(it.atZone(zone).toLocalDate())}" } ?: older.form),
-            CompareColumn(period = newerLabel, filing = newer.at?.let { "${newer.form} · built ${fmt.shortDate(it.atZone(zone).toLocalDate())}" } ?: newer.form, subject = true),
+            CompareColumn(period = olderLabel, filing = older.form),
+            CompareColumn(period = newerLabel, filing = newer.form, subject = true),
         ),
         rows = rows,
-        labelHeader = ResearchCopy.basis(newerLabel, olderLabel, sameQuarter),
+        labelHeader = basis,
         deltaHeader = ResearchCopy.CHANGE,
     )
-    val headline = listOfNotNull(
-        revD?.let {
-            when {
-                abs(it) < 0.05 -> "Revenue flat"
-                it > 0 -> "Revenue up ${Fmt.pct(abs(it))}"
-                else -> "Revenue down ${Fmt.pct(abs(it))}"
-            }
-        },
-        opD?.let { "operating margin ${Fmt.bpsFromPoints(it)}" },
-    ).joinToString(", ").ifBlank { null }
+    val ticker = (newer.report.ticker ?: older.report.ticker).orEmpty().trim().uppercase()
+    val company = newer.report.issuer?.name?.trim()?.ifBlank { null } ?: older.report.issuer?.name?.trim()?.ifBlank { null }
+    fun built(side: ReportSide) = side.at?.let { fmt.shortDate(it.atZone(zone).toLocalDate()) }
     return ReportPair.Ready(
         CompareReportsModel(
-            ticker = (newer.report.ticker ?: older.report.ticker).orEmpty().trim().uppercase(),
-            company = newer.report.issuer?.name ?: older.report.issuer?.name,
+            ticker = ticker,
+            company = company,
             older = older,
             newer = newer,
             basis = basis,
             table = table,
-            headline = headline,
+            headline = ResearchCopy.compareReportsHeadline(revD, opD?.let { Fmt.bpsFromPoints(it) }),
+            deck = ResearchCopy.compareReportsDeck(company ?: ticker, newer.form, built(older), built(newer)),
             since = sinceLastReportOf(older, newer, fmt, zone),
         ),
     )
@@ -398,17 +397,17 @@ fun CompareReportsScreen(
                         onRetry = onRetry,
                     )
                 }
-                pair is ReportPair.OtherCompanies || pair is ReportPair.NotLikeForLike -> {
+                ready == null -> {
                     ScreenHeader(title = ResearchCopy.COMPARE, eyebrow = ResearchCopy.COMPARE_REPORTS_EYEBROW)
                     Spacer(Modifier.height(ThesisSpace.headerToSection))
-                    val other = pair is ReportPair.OtherCompanies
-                    EmptyState(
-                        sentence = if (other) ResearchCopy.OTHER_COMPANIES else ResearchCopy.NOT_LIKE_FOR_LIKE,
-                        how = if (other) ResearchCopy.OTHER_COMPANIES_HOW else ResearchCopy.NOT_LIKE_FOR_LIKE_HOW,
-                        icon = ThesisIcons.Compare,
-                    )
+                    val (sentence, how) = when (pair) {
+                        ReportPair.OtherCompanies -> ResearchCopy.OTHER_COMPANIES to ResearchCopy.OTHER_COMPANIES_HOW
+                        ReportPair.SameFiling -> ResearchCopy.SAME_FILING to ResearchCopy.SAME_FILING_HOW
+                        else -> ResearchCopy.NOT_LIKE_FOR_LIKE to ResearchCopy.NOT_LIKE_FOR_LIKE_HOW
+                    }
+                    EmptyState(sentence = sentence, how = how, icon = ThesisIcons.Compare)
                 }
-                ready != null -> CompareReportsBody(
+                else -> CompareReportsBody(
                     model = ready,
                     notes = notes,
                     copied = copied,
@@ -435,10 +434,11 @@ private fun ColumnScope.CompareReportsBody(
     zone: ZoneId,
 ) {
     val p = LocalThesisPalette.current
+    // The title is the result; the deck says what was compared; the basis is said once, in the table header.
     ScreenHeader(
         eyebrow = "${ResearchCopy.COMPARE_REPORTS_EYEBROW} · ${model.ticker}",
-        title = ResearchCopy.compareReportsTitle(model.company ?: model.ticker, periodLabel(model.newer.key), periodLabel(model.older.key)),
-        deck = model.basis,
+        title = model.headline ?: model.company ?: model.ticker,
+        deck = model.deck,
     )
     if (model.since != null) {
         Spacer(Modifier.height(ThesisSpace.headerToSection))
@@ -449,9 +449,9 @@ private fun ColumnScope.CompareReportsBody(
     }
 
     Spacer(Modifier.height(ThesisSpace.sectionGapData))
-    SectionHeader(kicker = ResearchCopy.KEY_FIGURES_KICKER, headline = model.headline ?: ResearchCopy.KEY_FIGURES_FALLBACK)
+    SectionHeader(kicker = ResearchCopy.KEY_FIGURES_KICKER, headline = ResearchCopy.KEY_FIGURES_FALLBACK)
     Spacer(Modifier.height(ThesisSpace.m))
-    CompareTable(model = model.table)
+    FittedCompareTable(model = model.table, columnNames = listOf(model.older.label, model.newer.label), deltaName = ResearchCopy.THE_CHANGE)
     TextAction(
         if (copied) ResearchCopy.COPIED else ResearchCopy.COPY_TABLE,
         onClick = onCopy,

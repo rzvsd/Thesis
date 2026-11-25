@@ -38,6 +38,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -46,6 +47,7 @@ import com.thesis.mobile.model.ReportHistoryItem
 import com.thesis.mobile.model.TickerSearchItem
 import com.thesis.mobile.ui.components.ActionRow
 import com.thesis.mobile.ui.components.EmptyState
+import com.thesis.mobile.ui.components.Kicker
 import com.thesis.mobile.ui.components.NoteMark
 import com.thesis.mobile.ui.components.RowPosition
 import com.thesis.mobile.ui.components.ScreenHeader
@@ -62,6 +64,7 @@ import com.thesis.mobile.ui.copy.ResearchCopy
 import com.thesis.mobile.ui.format.LocalFmt
 import com.thesis.mobile.ui.icons.ThesisIcons
 import com.thesis.mobile.ui.motion.DismissibleItem
+import com.thesis.mobile.ui.motion.rememberHaptics
 import com.thesis.mobile.ui.motion.thesisPress
 import com.thesis.mobile.ui.shell.exceptTop
 import com.thesis.mobile.ui.theme.LocalThesisPalette
@@ -135,10 +138,17 @@ fun ResearchScreen(
     val picks = remember(symbol, suggestions, watchlist, companyNames) {
         tickerSuggestions(symbol, suggestions, watchlist, companyNames)
     }
+    val haptics = rememberHaptics()
     val action = if (stored != null) ResearchCopy.OPEN_REPORT else ResearchCopy.BUILD_REPORT
     val go = {
         if (symbol.isNotEmpty()) {
-            if (stored != null) onOpenReport(stored.reportId) else onRunReport()
+            if (stored != null) {
+                onOpenReport(stored.reportId)
+            } else {
+                // Building is the commit (4.7: press() on a commit CTA); opening a stored report is a plain tap.
+                haptics.press()
+                onRunReport()
+            }
         }
     }
     val continueItem = continueReading?.takeIf { it.type.equals(LAST_VIEWED_DEEP_DIVE, ignoreCase = true) }
@@ -184,18 +194,24 @@ fun ResearchScreen(
 
             Spacer(Modifier.height(ThesisSpace.sectionGapData))
             val last = recent.firstOrNull()
-            SectionHeader(
-                kicker = ResearchCopy.RECENT_KICKER,
-                headline = ResearchCopy.recentHeadline(
-                    openedThisWeek = openedSince(recentHistory, clock.instant().minus(7, ChronoUnit.DAYS)),
-                    lastTicker = last?.let { it.ticker ?: ResearchCopy.PULSE },
-                    lastAgo = last?.let { parseInstant(it.createdAt) }?.let(fmt::relative),
-                ),
-                deck = if (recent.isEmpty()) null else ResearchCopy.RECENT_DECK,
-                actionLabel = ResearchCopy.SEE_ALL.takeIf { recentHistory.size > RECENT_REPORTS_SHOWN },
-                onAction = onSeeAllHistory,
-                modifier = Modifier.padding(horizontal = ThesisSpace.gutter),
+            val recentHeadline = ResearchCopy.recentHeadline(
+                openedThisWeek = openedSince(recentHistory, clock.instant().minus(7, ChronoUnit.DAYS)),
+                lastTicker = last?.let { it.ticker ?: ResearchCopy.PULSE },
+                lastAgo = last?.let { parseInstant(it.createdAt) }?.let(fmt::relative),
             )
+            if (recentHeadline != null) {
+                SectionHeader(
+                    kicker = ResearchCopy.RECENT_KICKER,
+                    headline = recentHeadline,
+                    deck = if (recent.isEmpty()) null else ResearchCopy.RECENT_DECK,
+                    actionLabel = ResearchCopy.SEE_ALL.takeIf { recentHistory.size > RECENT_REPORTS_SHOWN },
+                    onAction = onSeeAllHistory,
+                    modifier = Modifier.padding(horizontal = ThesisSpace.gutter),
+                )
+            } else {
+                // Nothing to report yet: the kicker over the empty state, not a headline that repeats it.
+                Kicker(ResearchCopy.RECENT_KICKER, Modifier.padding(horizontal = ThesisSpace.gutter).semantics { heading() })
+            }
             Spacer(Modifier.height(ThesisSpace.m))
             if (recent.isEmpty() && continueItem == null) {
                 EmptyState(
@@ -295,7 +311,8 @@ internal fun storedReportFor(ticker: String, history: List<ReportHistoryItem>): 
 
 /**
  * Suggestions under the ticker field (#44): your names first, then the server's matches, up to six, by prefix of
- * ticker or company. None while the field is empty or already holds an exact pick.
+ * ticker or a company name that contains the query. [server] is the last `searchTickers` result, which may be for
+ * an earlier query, so it is filtered the same way. None while the field is empty or already holds an exact pick.
  */
 internal fun tickerSuggestions(
     query: String,
@@ -308,15 +325,17 @@ internal fun tickerSuggestions(
     val yours = watchlist.map { it.uppercase() }.toSet()
     val own = watchlist.map { it.uppercase() }.filter { it.startsWith(q) || companyNames[it]?.uppercase()?.contains(q) == true }
         .map { TickerSuggestion(it, companyNames[it], inYourNames = true) }
-    val others = server.filter { it.symbol.uppercase() !in yours }
+    val others = server
+        .filter { it.symbol.uppercase() !in yours }
+        .filter { it.symbol.uppercase().startsWith(q) || it.companyName.uppercase().contains(q) }
         .map { TickerSuggestion(it.symbol.uppercase(), it.companyName, inYourNames = false) }
     val all = (own + others).distinctBy { it.ticker }.take(SUGGESTIONS_SHOWN)
     return if (all.size == 1 && all[0].ticker == q) emptyList() else all
 }
 
-/** Reports opened at or after [since]. */
+/** Deep Dives opened at or after [since] (a Pulse brief is not a report). */
 internal fun openedSince(history: List<ReportHistoryItem>, since: Instant): Int =
-    history.count { item -> parseInstant(item.createdAt)?.let { !it.isBefore(since) } == true }
+    history.count { item -> item.type == TYPE_DEEP_DIVE && parseInstant(item.createdAt)?.let { !it.isBefore(since) } == true }
 
 /** An ISO-8601 instant or offset date-time; null when unreadable. */
 internal fun parseInstant(raw: String?): Instant? {
@@ -327,7 +346,8 @@ internal fun parseInstant(raw: String?): Instant? {
 
 /**
  * A History item as a row (Research root, History, Search): `menu_book` for a Deep Dive, `article` for a Pulse;
- * ticker (or "Pulse") with the company muted and the note mark; the filing line; the time on the right.
+ * ticker (or "Pulse") with the company muted and the note mark; the filing line; the time on the right. [period]
+ * is the raw period as stored ("2025-FY", "2025-Q3"); it is shown through [periodDisplay] ("FY2025", "Q3 FY25").
  */
 @Composable
 internal fun HistoryItemRow(
@@ -346,7 +366,7 @@ internal fun HistoryItemRow(
         icon = if (deepDive) ThesisIcons.DeepDive else ThesisIcons.Pulse,
         title = if (deepDive) item.ticker?.uppercase() ?: ResearchCopy.DEEP_DIVE else ResearchCopy.PULSE,
         aside = if (deepDive) company else null,
-        line2 = if (deepDive) ResearchCopy.deepDiveLine(period) else ResearchCopy.PULSE_LINE,
+        line2 = if (deepDive) ResearchCopy.deepDiveLine(periodDisplay(period)) else ResearchCopy.PULSE_LINE,
         hasNote = hasNote,
         trailing = trailing,
         onClick = onOpen,
@@ -403,6 +423,7 @@ internal fun ResearchRow(
         }
     }
     val second = selection?.disabledReason ?: line2
+    val large = LocalDensity.current.fontScale > ThesisType.MAX_DISPLAY_SCALE
     Row(
         modifier
             .fillMaxWidth()
@@ -423,7 +444,16 @@ internal fun ResearchRow(
         Spacer(Modifier.width(ThesisSpace.leadingGap))
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(ThesisSpace.s)) {
-                Text(title, style = ThesisType.rowTitle, color = if (enabled) p.ink else p.muted, maxLines = 1)
+                // A ticker title stays on one line beside its company; a longer title ("Continue reading MSFT") takes
+                // the row's width and, at large font sizes, a second line instead of losing its last word.
+                Text(
+                    title,
+                    modifier = if (aside == null) Modifier.weight(1f, fill = false) else Modifier,
+                    style = ThesisType.rowTitle,
+                    color = if (enabled) p.ink else p.muted,
+                    maxLines = if (large) 2 else 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
                 if (aside != null) {
                     Text(
                         aside,
@@ -443,7 +473,7 @@ internal fun ResearchRow(
                     second,
                     style = ThesisType.bodySmall,
                     color = if (enabled) p.ink2 else p.muted,
-                    maxLines = if (LocalDensity.current.fontScale > ThesisType.MAX_DISPLAY_SCALE) 3 else 2,
+                    maxLines = if (large) 3 else 2,
                     overflow = TextOverflow.Ellipsis,
                 )
             }
@@ -467,7 +497,8 @@ internal fun ResearchRow(
 @Composable
 internal fun ResearchBarPage(
     title: String,
-    onBack: () -> Unit,
+    /** Null: no back arrow (a screen still under the shell's own bar until WP-INT wires its back). */
+    onBack: (() -> Unit)?,
     padding: PaddingValues,
     collapsed: Boolean,
     modifier: Modifier = Modifier,

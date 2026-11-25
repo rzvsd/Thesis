@@ -82,16 +82,17 @@ object ResearchFixtures {
         dd("aapl-q3", "AAPL", 24 * 60),
     )
 
+    /** Report id to its period in the payload's own spelling ("2025-FY", "2026-Q3"): screens format it. */
     val filingPeriods = mapOf(
-        "aapl-25" to "FY2025",
-        "msft-25" to "FY2025",
-        "nvda-q3" to "Q3 FY26",
-        "cost-25" to "FY2025",
-        "aapl-24" to "FY2024",
-        "asml-25" to "FY2025",
-        "v-25" to "FY2025",
-        "ko-25" to "FY2025",
-        "aapl-q3" to "Q3 FY25",
+        "aapl-25" to "2025-FY",
+        "msft-25" to "2025-FY",
+        "nvda-q3" to "2026-Q3",
+        "cost-25" to "2025-FY",
+        "aapl-24" to "2024-FY",
+        "asml-25" to "2025-FY",
+        "v-25" to "2025-FY",
+        "ko-25" to "2025-FY",
+        "aapl-q3" to "2025-Q3",
     )
 
     val noted = setOf("aapl-25", "cost-25", "aapl-24")
@@ -159,8 +160,8 @@ object ResearchFixtures {
     val compareReportsError = CompareReportsState("aapl-24", "aapl-25", isLoading = false, error = "The server took too long to answer.")
 
     val compareNotes = listOf(
-        NoteTrailEntry("aapl-25", "AAPL", "Services margin keeps expanding while hardware is flat. Watch the China line next quarter.", ago(1), "FY2025", null),
-        NoteTrailEntry("aapl-24", "AAPL", "Buybacks still eat most of the free cash flow.", now.minusDays(360).toInstant().toString(), "FY2024", null),
+        NoteTrailEntry("aapl-25", "AAPL", "Services margin keeps expanding while hardware is flat. Watch the China line next quarter.", ago(1), "2025-FY", null),
+        NoteTrailEntry("aapl-24", "AAPL", "Buybacks still eat most of the free cash flow.", now.minusDays(360).toInstant().toString(), "2024-FY", null),
     )
 
     // ---- Compare names
@@ -176,6 +177,7 @@ object ResearchFixtures {
         fy(2025, 281.7e9, 68.8, 45.6, 71.6e9, 30.2e9, 43.2e9, 7.43e9, 101.8e9),
     )
     private val costRows = listOf(
+        fy(2023, 242.3e9, 12.3, 3.4, 6.2e9, 13.7e9, 6.5e9, 0.443e9, 6.3e9),
         fy(2024, 254.5e9, 12.6, 3.4, 6.6e9, 9.9e9, 5.8e9, 0.443e9, 7.4e9),
         fy(2025, 275.2e9, 12.8, 3.6, 7.8e9, 14.2e9, 5.7e9, 0.443e9, 8.1e9),
     )
@@ -219,8 +221,8 @@ object ResearchFixtures {
             ReportSearchHit("aapl-24", "AAPL", "Apple Inc.", "deep_dive", now.minusDays(9).toInstant().toString()),
         ),
         notes = listOf(
-            NoteTrailEntry("aapl-25", "AAPL", "Services margin keeps expanding while hardware is flat; capex is the thing to watch into next year.", ago(1), "FY2025", null),
-            NoteTrailEntry("cost-25", "COST", "Membership fee hike lands in the fiscal year; the renewal rate held above 90%.", ago(48), "FY2025", null),
+            NoteTrailEntry("aapl-25", "AAPL", "Services margin keeps expanding while hardware is flat; capex is the thing to watch into next year.", ago(1), "2025-FY", null),
+            NoteTrailEntry("cost-25", "COST", "Membership fee hike lands in the fiscal year; the renewal rate held above 90%.", ago(48), "2025-FY", null),
         ),
         isSearchingServer = false,
     )

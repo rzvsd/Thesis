@@ -23,17 +23,26 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Dp
 import com.thesis.mobile.model.NoteTrailEntry
 import com.thesis.mobile.model.ReportHistoryItem
@@ -57,9 +66,11 @@ import com.thesis.mobile.ui.format.Fmt
 import com.thesis.mobile.ui.format.LocalFmt
 import com.thesis.mobile.ui.icons.ThesisIcons
 import com.thesis.mobile.ui.motion.thesisPress
+import com.thesis.mobile.ui.theme.Kit
 import com.thesis.mobile.ui.theme.LocalThesisPalette
 import com.thesis.mobile.ui.theme.ThesisSpace
 import com.thesis.mobile.ui.theme.ThesisType
+import kotlin.math.abs
 
 /*
  * Search (DESIGN-DIRECTION 5.27): one field, focused on open, over your names, SEC companies, the reports on this
@@ -97,6 +108,9 @@ internal fun noteExcerpt(text: String, query: String, max: Int = EXCERPT_MAX): N
     return NoteExcerpt(lead = lead, rest = rest, clipped = start > 0)
 }
 
+/** Lines of a note excerpt. */
+private const val EXCERPT_LINES = 3
+
 private fun clip(s: String, max: Int): String {
     if (s.length <= max) return s
     val cut = s.lastIndexOf(' ', max).takeIf { it > max / 2 } ?: max
@@ -129,9 +143,10 @@ private enum class SearchGroup { Names, Companies, Reports, Notes }
 
 /**
  * Search. Draws its own top bar (back, "Search"); the shell gives it none and wires [onQueryChange] to
- * `vm.search` (HANDOFF-E). [companyNames] and [filingPeriods] come from cached report summaries; [recentSearches]
- * from the session store. A tap on a name or company opens Name, a report opens the report, a note opens Name at
- * "Your notes" on that entry ([onOpenNote]).
+ * `vm.search` (HANDOFF-E). [companyNames] and [filingPeriods] come from cached report summaries, [notedReportIds]
+ * from the notes cache, [recentSearches] from the session store. A tap on a name or company opens Name, a report
+ * opens the report, a note opens Name at "Your notes" on that entry ([onOpenNote]). The query is recorded as a
+ * recent search ([onSubmit]) on the keyboard's Search action and before any result opens.
  */
 @Composable
 fun SearchScreen(
@@ -145,6 +160,7 @@ fun SearchScreen(
     onClearRecent: (() -> Unit)? = null,
     companyNames: Map<String, String> = emptyMap(),
     filingPeriods: Map<String, String> = emptyMap(),
+    notedReportIds: Set<String> = emptySet(),
     onOpenName: (ticker: String) -> Unit = {},
     onOpenReport: (reportId: String) -> Unit = {},
     onOpenNote: (ticker: String?, reportId: String) -> Unit = { _, id -> onOpenReport(id) },
@@ -164,6 +180,10 @@ fun SearchScreen(
     val searching = trimmed.isNotEmpty() && (current == null || current.isSearchingServer)
 
     LaunchedEffect(Unit) { if (autoFocus) runCatching { focus.requestFocus() } }
+    // A result tap records the query too: most searches end on a tap, not on the keyboard's Search key.
+    fun record() {
+        if (trimmed.isNotEmpty()) onSubmit(trimmed)
+    }
 
     ResearchBarPage(
         title = ResearchCopy.SEARCH_TITLE,
@@ -240,7 +260,10 @@ fun SearchScreen(
                             title = ticker,
                             aside = companyNames[ticker],
                             line2 = ResearchCopy.IN_YOUR_NAMES,
-                            onClick = { onOpenName(ticker) },
+                            onClick = {
+                                record()
+                                onOpenName(ticker)
+                            },
                             modifier = mod,
                         )
                     }
@@ -256,7 +279,10 @@ fun SearchScreen(
                             title = item.symbol.uppercase(),
                             aside = item.exchange.ifBlank { null },
                             line2 = item.companyName.ifBlank { null },
-                            onClick = { onOpenName(item.symbol.uppercase()) },
+                            onClick = {
+                                record()
+                                onOpenName(item.symbol.uppercase())
+                            },
                             modifier = mod,
                         )
                     }
@@ -271,9 +297,12 @@ fun SearchScreen(
                             item = ReportHistoryItem(hit.reportId, jobId = "", type = hit.type, ticker = hit.ticker, createdAt = hit.createdAt),
                             company = hit.companyName ?: hit.ticker?.let { companyNames[it.uppercase()] },
                             period = filingPeriods[hit.reportId],
-                            hasNote = false,
+                            hasNote = hit.reportId in notedReportIds,
                             trailing = parseInstant(hit.createdAt)?.let(fmt::relative),
-                            onOpen = { onOpenReport(hit.reportId) },
+                            onOpen = {
+                                record()
+                                onOpenReport(hit.reportId)
+                            },
                             modifier = mod,
                         )
                     }
@@ -284,7 +313,16 @@ fun SearchScreen(
                         expanded = expanded,
                         divider = { ThesisSpace.l },
                     ) { note, mod ->
-                        NoteHitRow(note = note, query = trimmed, fmt = fmt, onOpen = { onOpenNote(note.ticker, note.reportId) }, modifier = mod)
+                        NoteHitRow(
+                            note = note,
+                            query = trimmed,
+                            fmt = fmt,
+                            onOpen = {
+                                record()
+                                onOpenNote(note.ticker, note.reportId)
+                            },
+                            modifier = mod,
+                        )
                     }
                 }
             }
@@ -354,7 +392,11 @@ private fun <T> LazyListScope.group(
     }
 }
 
-/** A note hit: ticker and filing over the excerpt, the matched word on the highlight band; the date on the right. */
+/**
+ * A note hit: ticker and filing period over the excerpt, the matched word on the highlight band; the date on the
+ * right. The excerpt is set in `story` serif, as notes are everywhere else, and starts with "…" when it starts
+ * mid-note.
+ */
 @Composable
 private fun NoteHitRow(note: NoteTrailEntry, query: String, fmt: Fmt, onOpen: () -> Unit, modifier: Modifier = Modifier) {
     val p = LocalThesisPalette.current
@@ -371,7 +413,7 @@ private fun NoteHitRow(note: NoteTrailEntry, query: String, fmt: Fmt, onOpen: ()
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                listOfNotNull(note.ticker?.uppercase(), note.filingPeriod?.ifBlank { null }).joinToString(" · ").ifBlank { ResearchCopy.GROUP_NOTES },
+                listOfNotNull(note.ticker?.uppercase(), periodDisplay(note.filingPeriod)).joinToString(" · ").ifBlank { ResearchCopy.GROUP_NOTES },
                 style = ThesisType.rowTitle,
                 color = p.ink,
                 modifier = Modifier.weight(1f),
@@ -379,10 +421,62 @@ private fun NoteHitRow(note: NoteTrailEntry, query: String, fmt: Fmt, onOpen: ()
             parseInstant(note.updatedAt)?.let { Text(fmt.relative(it), style = ThesisType.caption, color = p.muted) }
         }
         if (excerpt.lead.isEmpty()) {
-            Text(excerpt.rest, style = ThesisType.bodySmall, color = p.ink2, maxLines = 3)
-        } else {
+            Text(excerpt.rest, style = ThesisType.story, color = p.ink2, maxLines = EXCERPT_LINES, overflow = TextOverflow.Ellipsis)
+        } else if (!excerpt.clipped) {
             // The excerpt starts at the matched word, so the kit's lead band marks exactly the term (5.27).
-            HighlightText(lead = excerpt.lead, rest = excerpt.rest, style = ThesisType.bodySmall)
+            HighlightText(lead = excerpt.lead, rest = excerpt.rest, style = ThesisType.story)
+        } else {
+            ClippedExcerpt(excerpt)
         }
     }
+}
+
+/**
+ * An excerpt that starts mid-note: "… " then the matched word on the highlight band, then the rest, in `story`.
+ * The kit's HighlightText bands from the first character, which would mark the ellipsis too; until it takes a
+ * band range (HANDOFF-E, WP-K) this draws the same band (Kit.HIGHLIGHT_FROM to HIGHLIGHT_TO of each line, on
+ * `highlight`) behind the word only.
+ */
+@Composable
+private fun ClippedExcerpt(excerpt: NoteExcerpt) {
+    val p = LocalThesisPalette.current
+    val prefix = ResearchCopy.EXCERPT_CLIPPED
+    val text = buildAnnotatedString {
+        append(prefix)
+        withStyle(ThesisType.lead) { append(excerpt.lead) }
+        if (excerpt.rest.isNotEmpty()) {
+            if (!excerpt.rest.startsWith(' ')) append(' ')
+            append(excerpt.rest)
+        }
+    }
+    val from = prefix.length
+    val to = prefix.length + excerpt.lead.length
+    var layout by remember { mutableStateOf<TextLayoutResult?>(null) }
+    Text(
+        text,
+        modifier = Modifier.drawBehind {
+            val l = layout ?: return@drawBehind
+            val end = minOf(to, l.layoutInput.text.length)
+            if (end <= from) return@drawBehind
+            for (line in l.getLineForOffset(from)..l.getLineForOffset(end - 1)) {
+                val a = maxOf(from, l.getLineStart(line))
+                val b = minOf(end, l.getLineEnd(line, visibleEnd = true))
+                if (b <= a) continue
+                val x1 = l.getHorizontalPosition(a, usePrimaryDirection = true)
+                val x2 = l.getHorizontalPosition(b, usePrimaryDirection = true)
+                val top = l.getLineTop(line)
+                val h = l.getLineBottom(line) - top
+                drawRect(
+                    p.highlight,
+                    topLeft = Offset(minOf(x1, x2), top + h * Kit.HIGHLIGHT_FROM),
+                    size = Size(abs(x2 - x1), h * (Kit.HIGHLIGHT_TO - Kit.HIGHLIGHT_FROM)),
+                )
+            }
+        },
+        style = ThesisType.story,
+        color = p.ink,
+        maxLines = EXCERPT_LINES,
+        overflow = TextOverflow.Ellipsis,
+        onTextLayout = { layout = it },
+    )
 }

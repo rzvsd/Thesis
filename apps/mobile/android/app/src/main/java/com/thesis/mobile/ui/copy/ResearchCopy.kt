@@ -51,16 +51,24 @@ object ResearchCopy {
     const val RECENT_EMPTY = "Reports you open will appear here."
     const val RECENT_EMPTY_HOW = "Type a ticker above to read the company’s latest filings."
 
-    /** The Recent reports headline: a result, not a label. */
-    fun recentHeadline(openedThisWeek: Int, lastTicker: String?, lastAgo: String?): String = when {
+    /**
+     * The Recent reports headline: a result, not a label. [openedThisWeek] counts Deep Dives only (a Pulse brief is
+     * not a report). Null when there is nothing to report: the section then shows its kicker and empty state only.
+     */
+    fun recentHeadline(openedThisWeek: Int, lastTicker: String?, lastAgo: String?): String? = when {
         openedThisWeek >= 2 -> "You opened ${Fmt.count(openedThisWeek, "report", "reports")} this week"
         lastTicker != null && lastAgo != null -> "$lastTicker was the last report you opened, $lastAgo"
         lastTicker != null -> "$lastTicker was the last report you opened"
-        else -> "Nothing opened yet"
+        else -> null
     }
 
     fun continueReading(ticker: String): String = "Continue reading $ticker"
-    fun continueCaption(ago: String): String = "Where you left it, $ago"
+
+    /** "Where you left it, 19 h ago": the time never breaks across lines ("19 / h ago" at 2.0x). */
+    fun continueCaption(ago: String): String = "Where you left it, ${keepTogether(ago)}"
+
+    /** [s] with its spaces made non-breaking, so a short figure and its unit stay on one line. */
+    fun keepTogether(s: String): String = s.replace(' ', '\u00A0')
     const val DISMISS = "Dismiss"
 
     const val TOOLS_KICKER = "Tools"
@@ -108,14 +116,42 @@ object ResearchCopy {
     const val WHY_PULSE = "A Pulse brief has no filing to compare"
     const val WHY_OTHER_COMPANY = "Another company: Compare names lines up two companies"
     const val WHY_NOT_LIKE = "Not the same kind of filing as your first pick"
-    const val WHY_SAME_FILING = "The same filing as your first pick"
+    /**
+     * The pick covers the same period as the first one. Worded on the period, not the filing: until History gets
+     * each report's own filing (HANDOFF-E), the period is the latest annual row the report holds.
+     */
+    fun whySamePeriod(annual: Boolean): String =
+        if (annual) "Covers the same fiscal year as your first pick" else "Covers the same quarter as your first pick"
     const val WHY_UNKNOWN_FILING = "Filing not known yet: open this report once"
     const val WHY_TWO_PICKED = "Two reports picked already"
 
     // ---- Compare reports (5.17)
 
     fun compareReportsSubtitle(ticker: String, older: String, newer: String): String = "$ticker · $older vs $newer"
-    fun compareReportsTitle(name: String, newer: String, older: String): String = "$name, $newer against $older"
+
+    /**
+     * The deck under the result title: what was compared (company, filing kind, when each report was built). The
+     * basis ("FY2025 vs FY2024") is said once, in the table header.
+     */
+    fun compareReportsDeck(company: String, form: String, olderBuilt: String?, newerBuilt: String?): String =
+        if (olderBuilt != null && newerBuilt != null) {
+            "Two reports on $company’s $form filings, built $olderBuilt and $newerBuilt."
+        } else {
+            "Two reports on $company’s $form filings."
+        }
+
+    /** The key-figure result: "Revenue up 6.4%, operating margin +50 bps"; null when neither is known. */
+    fun compareReportsHeadline(revenueChangePct: Double?, operatingMarginChange: String?): String? =
+        listOfNotNull(
+            revenueChangePct?.let {
+                when {
+                    kotlin.math.abs(it) < 0.05 -> "Revenue flat"
+                    it > 0 -> "Revenue up ${Fmt.pct(kotlin.math.abs(it))}"
+                    else -> "Revenue down ${Fmt.pct(kotlin.math.abs(it))}"
+                }
+            },
+            operatingMarginChange?.let { if (revenueChangePct != null) "operating margin $it" else "Operating margin $it" },
+        ).joinToString(", ").ifBlank { null }
     fun basis(newer: String, older: String, sameQuarter: Boolean): String =
         if (sameQuarter) "$newer vs $older, same quarter" else "$newer vs $older"
     const val KEY_FIGURES_KICKER = "Key figures"
@@ -131,6 +167,8 @@ object ResearchCopy {
     const val COMPARE_REPORTS_FAILED = "these two reports"
     const val NOT_LIKE_FOR_LIKE = "These two reports cover different kinds of filings."
     const val NOT_LIKE_FOR_LIKE_HOW = "Compare a 10-K with a 10-K, or the same quarter a year apart."
+    const val SAME_FILING = "These two reports read the same filing."
+    const val SAME_FILING_HOW = "Pick a report on an earlier year to see what changed."
     const val OTHER_COMPANIES = "These reports are on different companies."
     const val OTHER_COMPANIES_HOW = "Compare names lines up two or more companies on the same figures."
     const val CHANGE = "Change"
@@ -145,12 +183,44 @@ object ResearchCopy {
         1 -> "$subject with ${others[0]}"
         else -> "$subject with ${others.dropLast(1).joinToString(", ")} and ${others.last()}"
     }
+    /** Until each column carries its fiscal year-end (HANDOFF-E), the deck does not claim the columns name it. */
     const val COMPARE_NAMES_DECK =
-        "Each company’s latest annual figures, from its own filing. Year-ends differ, so every column names its period."
+        "Each company’s latest annual figures, from its own 10-K. Fiscal years can end in different months."
+    const val COMPARE_NAMES_DECK_YEAR_ENDS =
+        "Each company’s latest annual figures, from its own 10-K. Year-ends differ, so every column names its own."
     const val COMPARE_NAMES_TOO_FEW = "Pick at least two names to compare."
     const val COMPARE_NAMES_TOO_FEW_HOW = "Choose them on Names, or from a report’s Compare."
     const val COMPARE_NAMES_FAILED = "these names"
     const val NO_REPORT_YET = "No report yet"
+    const val NO_ANNUAL_FIGURES = "No annual figures"
+
+    /** A column's filing line in "Copy as table": "10-K · built 24 Nov" (the report's date; no filed date yet). */
+    fun formBuilt(form: String, built: String): String = "$form · built $built"
+
+    /** A value-discipline cell: "4 of 6" signals met. */
+    fun signalsMet(met: Int, available: Int): String = "${Fmt.number(met.toLong())} of ${Fmt.number(available.toLong())}"
+
+    private fun ofThe(n: Int): String? = when (n) {
+        2 -> "of the two"
+        3 -> "of the three"
+        4 -> "of the four"
+        else -> null
+    }
+
+    /** "MSFT has the widest operating margin of the three": [n] counts the names that have the figure. */
+    fun widestMarginHeadline(ticker: String, n: Int): String? = ofThe(n)?.let { "$ticker has the widest operating margin $it" }
+
+    /** "AAPL is the largest by revenue of the three". */
+    fun largestRevenueHeadline(ticker: String, n: Int): String? = ofThe(n)?.let { "$ticker is the largest by revenue $it" }
+
+    /** Under a table wider than the phone: which columns are past the edge. */
+    fun swipeFor(hidden: List<String>): String? = when (hidden.size) {
+        0 -> null
+        1 -> "Swipe the table for ${hidden[0]}."
+        else -> "Swipe the table for ${hidden.dropLast(1).joinToString(", ")} and ${hidden.last()}."
+    }
+    const val THE_MEDIAN = "the median"
+    const val THE_CHANGE = "the change"
     fun buildReportFor(ticker: String): String = "Build report for $ticker"
     const val NO_REPORT_CAPTION = "Compare never builds on its own: building reads the latest filings at the SEC."
     const val METRIC = "Metric"
@@ -166,9 +236,14 @@ object ResearchCopy {
     const val ROW_NET_CASH = "Net cash"
     const val ROW_SHARES = "Share count, YoY"
     const val ROW_DISCIPLINE = "Value discipline"
-    const val ROW_FCF_ABS = "Free cash flow"
-    const val ROW_SHARES_ABS = "Shares outstanding"
     const val ROW_EPS = "EPS, derived"
+
+    // Compare reports' row labels: the conventional short forms of a filings table, so the label column leaves
+    // room for both years and the change on a 412 dp phone. The source sheet and the spoken row keep the meaning.
+    const val ROW_GROWTH_SHORT = "Growth, YoY"
+    const val ROW_OPERATING_SHORT = "Op. margin"
+    const val ROW_FCF_SHORT = "FCF"
+    const val ROW_SHARES_SHORT = "Shares"
     const val UP = "Up"
     const val DOWN = "Down"
     const val CHANGED = "Changed"
@@ -180,6 +255,7 @@ object ResearchCopy {
     const val HIDE_CHART = "Hide chart"
     const val CHART_INDEXED = "Indexed"
     const val CHART_SIDE_BY_SIDE = "Side by side"
+    /** [firstYear] is the first fiscal year every line has (the index base). */
     fun chartTitle(leader: String?, firstYear: Int?): String =
         if (leader != null && firstYear != null) "$leader grew revenue the most since fiscal $firstYear" else "Revenue over the years"
     const val CHART_INDEXED_SUB = "Revenue, fiscal years, first common year = 100"
@@ -222,6 +298,8 @@ object ResearchCopy {
     const val CLEAR_SEARCH = "Clear search"
     const val CLEAR_RECENT = "Clear"
     const val SHOW_FEWER = "Show fewer"
+    /** Before a note excerpt that starts mid-note. */
+    const val EXCERPT_CLIPPED = "… "
     fun showAll(n: Int): String = "Show all ${Fmt.number(n.toLong())}"
 
     // ---- War Room (5.19)
@@ -292,7 +370,6 @@ object ResearchCopy {
     const val KPI_AFFECTED = "Names affected"
     fun ofTotal(n: Int, total: Int): String = "${Fmt.number(n.toLong())} of ${Fmt.number(total.toLong())}"
     const val KPI_CRITICAL = "Critical"
-    const val KPI_AS_OF = "As of"
     const val STRESS_SCALE = "Stress score, 0–100, higher = more exposed"
     fun stressSource(asOf: String): String = "Scenario Stress run · as of $asOf"
     const val BY_NAME = "By name"
