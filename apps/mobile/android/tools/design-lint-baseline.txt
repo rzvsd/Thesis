@@ -55,11 +55,6 @@ ui/screens/HistoryScreen.kt	dp-literal	3
 ui/screens/HistoryScreen.kt	copy-alpha	1
 ui/screens/HistoryScreen.kt	material-icons	3
 ui/screens/HoldingsCsvImport.kt	outlined-button	1
-ui/screens/HomeScreen.kt	dp-literal	7
-ui/screens/HomeScreen.kt	shape-literal	1
-ui/screens/HomeScreen.kt	copy-alpha	6
-ui/screens/HomeScreen.kt	delay	1
-ui/screens/HomeScreen.kt	material-icons	3
 ui/screens/InboxScreen.kt	copy-alpha	3
 ui/screens/InboxScreen.kt	outlined-button	5
 ui/screens/NamesScreen.kt	dp-literal	1
@@ -73,9 +68,6 @@ ui/screens/OnboardingScreen.kt	delay	1
 ui/screens/OnboardingScreen.kt	material-icons	5
 ui/screens/PasswordResetScreen.kt	dp-literal	3
 ui/screens/PaywallScreen.kt	outlined-button	1
-ui/screens/PulseScreen.kt	dp-literal	1
-ui/screens/PulseScreen.kt	delay	1
-ui/screens/PulseScreen.kt	material-icons	4
 ui/screens/ReportExport.kt	string-format	4
 ui/screens/ReportExport.kt	printf-float	3
 ui/screens/ScenarioStressScreen.kt	dp-literal	5
@@ -96,6 +88,3 @@ ui/screens/SentimentDashboardScreen.kt	deprecated-colors	1
 ui/screens/SettingsScreen.kt	dp-literal	6
 ui/screens/SettingsScreen.kt	copy-alpha	3
 ui/screens/SettingsScreen.kt	outlined-button	6
-ui/screens/WeeklyDigestScreen.kt	dp-literal	4
-ui/screens/WeeklyDigestScreen.kt	copy-alpha	1
-ui/screens/WeeklyDigestScreen.kt	material-icons	2

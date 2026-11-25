@@ -1,49 +1,67 @@
 package com.thesis.mobile.ui.screens
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.ReadOnlyComposable
-import androidx.compose.ui.Alignment
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.role
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.LightMode
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
+import com.thesis.mobile.model.AlertLedgerItemView
 import com.thesis.mobile.model.PulseReportView
-import com.thesis.mobile.model.SectionView
+import com.thesis.mobile.model.ReportSummaryView
 import com.thesis.mobile.model.SentimentSnapshotView
+import com.thesis.mobile.model.SnapshotDelta
 import com.thesis.mobile.model.ThesisMonitorSnapshotView
+import com.thesis.mobile.ui.charts.kit.ChartMath
+import com.thesis.mobile.ui.charts.kit.Sparkline
+import com.thesis.mobile.ui.components.ActionRow
+import com.thesis.mobile.ui.components.EmptyState
+import com.thesis.mobile.ui.components.KpiGrid
+import com.thesis.mobile.ui.components.KpiSpec
+import com.thesis.mobile.ui.components.LeadingRowDividerInset
+import com.thesis.mobile.ui.components.PressableCard
+import com.thesis.mobile.ui.components.RowGroup
+import com.thesis.mobile.ui.components.ScreenHeader
+import com.thesis.mobile.ui.components.SectionHeader
+import com.thesis.mobile.ui.components.ThesisTopBar
+import com.thesis.mobile.ui.components.TickerRow
+import com.thesis.mobile.ui.copy.TodayCopy
 import com.thesis.mobile.ui.format.Fmt
-import com.thesis.mobile.ui.theme.HeadingFont
-import com.thesis.mobile.ui.theme.ThesisColors
-import com.thesis.mobile.ui.theme.ThesisDimens
-import com.thesis.mobile.ui.theme.ThesisTypography
+import com.thesis.mobile.ui.format.LocalFmt
+import com.thesis.mobile.ui.icons.ThesisIcons
+import com.thesis.mobile.ui.motion.rememberDataEntranceCoordinator
+import com.thesis.mobile.ui.motion.staggeredEntrance
+import com.thesis.mobile.ui.theme.LocalThesisPalette
+import com.thesis.mobile.ui.theme.ThesisSpace
+import com.thesis.mobile.ui.theme.ThesisType
+import com.thesis.mobile.ui.theme.Tone
+import com.thesis.mobile.ui.theme.alertCategoryColor
+import com.thesis.mobile.ui.today.CategoryCountRow
+import com.thesis.mobile.ui.today.DigestBuilder
+import com.thesis.mobile.ui.today.DigestModel
+import com.thesis.mobile.ui.today.LocalTodayClock
+import com.thesis.mobile.ui.today.PulseBrief
+import com.thesis.mobile.ui.today.PulseText
+
+/*
+ * The weekly digest, "This week" (docs/app-redesign/DESIGN-DIRECTION.md 5.8): built only from data the app already
+ * has (monitor snapshots, the macro stress history, the alert ledger, the snapshot history and the latest Pulse).
+ * A top bar with the week's range, a lede generated from facts, four result KPIs, then the week's new filings,
+ * macro stress over seven days, state changes, alerts by category and the latest Pulse line. Nothing daily is
+ * presented as weekly, and no raw status strings.
+ */
 
 @Composable
 fun WeeklyDigestScreen(
@@ -53,256 +71,248 @@ fun WeeklyDigestScreen(
     monitorSnapshots: List<ThesisMonitorSnapshotView>,
     pulse: PulseReportView?,
     onOpenDashboard: () -> Unit,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    /** The shell's padding (bottom: the navigation bar). */
+    padding: PaddingValues = PaddingValues(),
+    sentimentHistory: List<SentimentSnapshotView> = emptyList(),
+    /** The alert ledger; this week's alerts are counted by category. */
+    alerts: List<AlertLedgerItemView> = emptyList(),
+    /** Monitor readings now against a week ago (the local snapshot history); null when not available. */
+    stateChanges: List<SnapshotDelta>? = null,
+    /** Cached report summaries by report id, for each filing's change line. */
+    reportSummaries: Map<String, ReportSummaryView> = emptyMap(),
+    onOpenReport: ((reportId: String, ticker: String) -> Unit)? = null,
+    onOpenName: ((String) -> Unit)? = null,
+    onOpenInbox: ((category: String) -> Unit)? = null,
+    onOpenPulse: (() -> Unit)? = null,
 ) {
-    val sections = pulse?.sections?.filter { it.body.isNotBlank() }.orEmpty()
-    // C1: the app formatter, so the digest shows the same figure as Home and the Macro Stress dashboard (61.5 -> "62").
-    val scoreText = sentimentCurrent?.score?.let { Fmt.score(it) } ?: "--"
-    val labelText = sentimentCurrent?.label
-        ?.replace("_", " ")
-        ?.replaceFirstChar { it.uppercase() }
-        ?: "Unavailable"
+    val fmt = LocalFmt.current
+    val clock = LocalTodayClock.current
+    val pulseLine = remember(pulse, watchlist) {
+        pulse?.let { PulseBrief.from(it, watchlist) }?.let { b -> b.morningLine.ifBlank { b.leadConclusion } }
+    }
+    val model = remember(digestDate, sentimentCurrent, sentimentHistory, watchlist, monitorSnapshots, alerts, stateChanges, reportSummaries, pulseLine) {
+        DigestBuilder.build(
+            digestDate = digestDate,
+            clock = clock,
+            fmt = fmt,
+            watchlist = watchlist,
+            monitorSnapshots = monitorSnapshots,
+            sentimentCurrent = sentimentCurrent,
+            sentimentHistory = sentimentHistory,
+            alerts = alerts,
+            weeklyDeltas = stateChanges,
+            reportSummaries = reportSummaries,
+            pulseLine = pulseLine,
+            pulseDate = pulse?.cycleEnd,
+        )
+    }
+    val density = LocalDensity.current
+    var barHeightPx by remember { mutableIntStateOf(0) }
+    val barHeight = with(density) { barHeightPx.toDp() }
+    val coordinator = rememberDataEntranceCoordinator(dataKey = model.end)
+    val entrance: Modifier.(Int) -> Modifier = { i -> staggeredEntrance(i, coordinator) }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-    ) {
+    Box(Modifier.fillMaxSize()) {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(
-                top = 56.dp + ThesisDimens.ScreenPaddingTop,
-                bottom = ThesisDimens.ScreenPaddingBottom,
-                start = ThesisDimens.ScreenPaddingHorizontal,
-                end = ThesisDimens.ScreenPaddingHorizontal
+                top = barHeight,
+                bottom = padding.calculateBottomPadding() + ThesisSpace.x5,
             ),
-            verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingXxl)
         ) {
-            item {
-                Column {
-                    Text(
-                        text = "Weekly Digest",
-                        style = ThesisTypography.displayMedium.copy(
-                            fontFamily = HeadingFont,
-                            fontWeight = FontWeight.Normal
-                        ),
-                        color = ThesisColors.TextPrimary
-                    )
-                    Spacer(modifier = Modifier.height(ThesisDimens.SpacingSm))
-                    Text(
-                        text = digestDate?.let { "Week of $it" } ?: "Latest digest",
-                        style = ThesisTypography.bodyLarge,
-                        color = ThesisColors.TextMuted
-                    )
-                }
-            }
-
-            item {
-                val shape = RoundedCornerShape(ThesisDimens.CardCornerRadius)
-                Row(
+            item(key = "header") {
+                ScreenHeader(
+                    title = TodayCopy.THIS_WEEK,
+                    deck = if (model.isEmpty) null else model.lede,
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(shape)
-                        .background(ThesisColors.Surface)
-                        .border(ThesisDimens.BorderWidth, ThesisColors.Border, shape)
-                        .padding(ThesisDimens.CardPadding),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            Icons.Default.LightMode,
-                            contentDescription = null,
-                            tint = ThesisColors.Primary,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.size(ThesisDimens.SpacingMd))
-                        Column {
-                            Text(
-                                text = "Macro Stress",
-                                style = ThesisTypography.bodyMedium.copy(fontWeight = FontWeight.Medium),
-                                color = ThesisColors.TextPrimary
-                            )
-                            Text(
-                                text = labelText,
-                                style = ThesisTypography.labelSmall,
-                                color = sentimentColorDigest(sentimentCurrent?.label)
-                            )
-                        }
-                    }
-
-                    Text(
-                        text = scoreText,
-                        style = ThesisTypography.headlineLarge.copy(
-                            fontFamily = HeadingFont,
-                            fontWeight = FontWeight.Normal
-                        ),
-                        color = ThesisColors.TextPrimary
+                        .entrance(0)
+                        .padding(horizontal = ThesisSpace.gutter)
+                        .padding(top = ThesisSpace.headerTop),
+                )
+            }
+            if (model.isEmpty) {
+                item(key = "empty") {
+                    EmptyState(
+                        sentence = TodayCopy.DIGEST_NO_DATA,
+                        how = TodayCopy.DIGEST_NO_DATA_HOW,
+                        modifier = Modifier.padding(ThesisSpace.gutter),
                     )
                 }
+            } else {
+                digest(model, entrance, onOpenDashboard, onOpenReport, onOpenName, onOpenInbox, onOpenPulse)
             }
+        }
+        ThesisTopBar(
+            modifier = Modifier.onSizeChanged { barHeightPx = it.height },
+            title = TodayCopy.DIGEST_TITLE,
+            subtitle = fmt.weekRange(model.start, model.end),
+            onBack = onBack,
+            titleAlwaysVisible = true,
+        )
+    }
+}
 
-            if (watchlist.isNotEmpty()) {
-                item {
-                    Column(verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)) {
-                        Text(
-                            text = "Names Tracked",
-                            style = ThesisTypography.headlineMedium.copy(fontWeight = FontWeight.Medium),
-                            color = ThesisColors.TextPrimary
-                        )
-                        Row(horizontalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)) {
-                            watchlist.take(8).forEach { ticker ->
-                                val state = monitorSnapshots.firstOrNull {
-                                    it.ticker.equals(ticker, ignoreCase = true)
-                                }?.state?.replaceFirstChar { it.uppercase() }
-                                Text(
-                                    text = if (state.isNullOrBlank()) ticker else "$ticker · $state",
-                                    style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Medium),
-                                    color = ThesisColors.TextPrimary,
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(ThesisDimens.SignalBadgeCorner))
-                                        .background(ThesisColors.SurfaceElevated)
-                                        .border(
-                                            ThesisDimens.BorderWidth,
-                                            ThesisColors.Border,
-                                            RoundedCornerShape(ThesisDimens.SignalBadgeCorner)
-                                        )
-                                        .padding(
-                                            horizontal = ThesisDimens.SpacingSm,
-                                            vertical = ThesisDimens.SpacingXs
-                                        )
-                                )
-                            }
-                        }
-                    }
-                }
-            }
+private fun LazyListScope.digest(
+    model: DigestModel,
+    entrance: Modifier.(Int) -> Modifier,
+    onOpenDashboard: () -> Unit,
+    onOpenReport: ((String, String) -> Unit)?,
+    onOpenName: ((String) -> Unit)?,
+    onOpenInbox: ((String) -> Unit)?,
+    onOpenPulse: (() -> Unit)?,
+) {
+    item(key = "kpis") {
+        val macro = model.macro
+        val items = listOf(
+            KpiSpec(
+                label = TodayCopy.KPI_MACRO,
+                value = macro?.let { Fmt.score(it.score) } ?: Fmt.NOT_COMPUTED,
+                delta = macro?.deltaValue,
+                deltaTone = macro?.deltaTone ?: Tone.Neutral,
+                reference = macro?.deltaReference ?: macro?.label,
+            ),
+            KpiSpec(
+                label = TodayCopy.KPI_FILINGS,
+                value = model.filings.size.toString(),
+                reference = TodayCopy.amongNames(model.total),
+            ),
+            KpiSpec(
+                label = TodayCopy.KPI_STATE_CHANGES,
+                value = model.stateChanges?.size?.toString() ?: Fmt.NOT_COMPUTED,
+                reference = TodayCopy.LAST_7_DAYS,
+            ),
+            KpiSpec(
+                label = TodayCopy.KPI_ALERTS,
+                value = model.alertsTotal.toString(),
+                reference = TodayCopy.LAST_7_DAYS,
+            ),
+        )
+        KpiGrid(
+            items = items,
+            modifier = Modifier
+                .entrance(1)
+                .padding(horizontal = ThesisSpace.gutter)
+                .padding(top = ThesisSpace.headerToSection),
+        )
+    }
 
-            if (sections.isEmpty()) {
-                item {
-                    val shape = RoundedCornerShape(ThesisDimens.CardCornerRadius)
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(shape)
-                            .background(ThesisColors.Surface)
-                            .border(ThesisDimens.BorderWidth, ThesisColors.Border, shape)
-                            .padding(ThesisDimens.CardPadding)
-                    ) {
-                        Text(
-                            text = "No weekly digest available yet. This feature updates every Sunday.",
-                            style = ThesisTypography.bodyMedium,
-                            color = ThesisColors.TextMuted
-                        )
-                    }
-                }
-            }
-
-            items(sections.size) { index ->
-                val section = sections[index]
-                val shape = RoundedCornerShape(ThesisDimens.CardCornerRadius)
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(shape)
-                        .background(ThesisColors.Surface)
-                        .border(ThesisDimens.BorderWidth, ThesisColors.Border, shape)
-                        .padding(ThesisDimens.CardPadding),
-                    verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingMd)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = section.title,
-                            style = ThesisTypography.headlineMedium.copy(fontWeight = FontWeight.Medium),
-                            color = ThesisColors.TextPrimary,
-                            modifier = Modifier.weight(1f)
-                        )
-                        section.status?.let { status ->
-                            Text(
-                                text = status.uppercase(),
-                                style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Medium),
-                                color = ThesisColors.TextMuted,
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(ThesisDimens.SignalBadgeCorner))
-                                    .background(ThesisColors.SurfaceElevated)
-                                    .padding(
-                                        horizontal = ThesisDimens.SpacingSm,
-                                        vertical = ThesisDimens.SpacingXs
-                                    )
+    item(key = "filings") {
+        Section(Modifier.entrance(2)) {
+            SectionHeader(kicker = TodayCopy.FILINGS_KICKER, headline = TodayCopy.filingsHeadline(model.filings.size))
+            if (model.filings.isNotEmpty()) {
+                RowGroup {
+                    model.filings.forEach { f ->
+                        row(LeadingRowDividerInset) {
+                            TickerRow(
+                                ticker = f.ticker,
+                                stateTone = f.tone,
+                                stateLabel = f.stateLabel,
+                                line2 = f.sub,
+                                onClick = {
+                                    when {
+                                        f.reportId != null && onOpenReport != null -> onOpenReport(f.reportId, f.ticker)
+                                        onOpenName != null -> onOpenName(f.ticker)
+                                    }
+                                },
                             )
                         }
                     }
-                    Text(
-                        text = truncateDigestBody(section.body),
-                        style = ThesisTypography.bodyMedium,
-                        color = ThesisColors.TextSecondary
-                    )
-                }
-            }
-
-            item {
-                Button(
-                    onClick = onOpenDashboard,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(48.dp)
-                        .semantics {
-                            contentDescription = "Open Sentiment Dashboard"
-                            role = Role.Button
-                        },
-                    shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = ThesisColors.SurfaceElevated,
-                        contentColor = ThesisColors.TextPrimary
-                    )
-                ) {
-                    Text(
-                        text = "Open Sentiment Dashboard",
-                        style = ThesisTypography.labelLarge.copy(fontWeight = FontWeight.Medium)
-                    )
                 }
             }
         }
+    }
 
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(56.dp)
-                .background(ThesisColors.Background.copy(alpha = 0.97f))
-                .padding(horizontal = ThesisDimens.SpacingSm),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconButton(
-                onClick = onBack,
-                modifier = Modifier.semantics {
-                    contentDescription = "Navigate back"
-                    role = Role.Button
+    val macro = model.macro
+    if (macro != null) {
+        item(key = "macro") {
+            Section(Modifier.entrance(3)) {
+                SectionHeader(kicker = TodayCopy.MACRO_KICKER, headline = macro.title)
+                PressableCard(onClick = onOpenDashboard, onClickLabel = TodayCopy.OPEN_MACRO) {
+                    val p = LocalThesisPalette.current
+                    Sparkline(
+                        values = macro.spark,
+                        contentDescription = ChartMath.summary(
+                            subject = TodayCopy.MACRO_SPARK_SUBJECT,
+                            values = macro.spark,
+                            format = { Fmt.score(it) },
+                            window = TodayCopy.LAST_7_DAYS,
+                        ),
+                        modifier = Modifier.fillMaxWidth(),
+                        dataKey = macro.day,
+                    )
+                    Text(TodayCopy.MACRO_WEEK_SCALE, style = ThesisType.caption, color = p.muted)
                 }
-            ) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = ThesisColors.Primary)
             }
-            Text(
-                text = "Weekly Digest",
-                style = ThesisTypography.headlineMedium.copy(fontWeight = FontWeight.Medium),
-                color = ThesisColors.TextPrimary
+        }
+    }
+
+    item(key = "states") {
+        Section(Modifier.entrance(4)) {
+            SectionHeader(kicker = TodayCopy.STATE_KICKER, headline = TodayCopy.stateChangesHeadline(model.stateChanges?.size))
+            val rows = model.stateChanges.orEmpty()
+            if (rows.isNotEmpty()) {
+                RowGroup {
+                    rows.forEach { r ->
+                        row(LeadingRowDividerInset) {
+                            TickerRow(
+                                ticker = r.ticker,
+                                stateTone = r.tone,
+                                stateLabel = r.stateLabel,
+                                line2 = r.line2,
+                                onClick = { onOpenName?.invoke(r.ticker) },
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    item(key = "alerts") {
+        Section(Modifier.entrance(5)) {
+            SectionHeader(
+                kicker = TodayCopy.ALERTS_KICKER,
+                headline = TodayCopy.alertsHeadline(model.alertsTotal, model.alerts.firstOrNull()?.label),
             )
+            if (model.alerts.isNotEmpty()) {
+                RowGroup {
+                    model.alerts.forEach { c ->
+                        row(LeadingRowDividerInset) {
+                            CategoryCountRow(
+                                color = alertCategoryColor(c.category),
+                                label = c.label,
+                                count = c.count,
+                                onClick = { onOpenInbox?.invoke(c.category) },
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    val pulseLine = model.pulseLine
+    if (pulseLine != null) {
+        item(key = "pulse") {
+            Section(Modifier.entrance(6)) {
+                SectionHeader(kicker = TodayCopy.LATEST_PULSE_KICKER, headline = PulseText.oneSentence(pulseLine))
+                RowGroup {
+                    row(LeadingRowDividerInset) {
+                        ActionRow(icon = ThesisIcons.Pulse, title = TodayCopy.OPEN_PULSE, onClick = { onOpenPulse?.invoke() })
+                    }
+                }
+            }
         }
     }
 }
 
 @Composable
-@ReadOnlyComposable
-private fun sentimentColorDigest(label: String?): Color = when (label?.lowercase()) {
-    "extreme_fear", "fear" -> ThesisColors.SignalNegative
-    "greed", "extreme_greed" -> ThesisColors.SignalPositive
-    "neutral" -> ThesisColors.SignalNeutral
-    else -> ThesisColors.TextMuted
-}
-
-private fun truncateDigestBody(body: String): String {
-    val sentence = body.split(". ").firstOrNull()?.trim()?.trimEnd('.') ?: body.trim()
-    return if (sentence.length <= 180) sentence else sentence.take(179).trimEnd() + "\u2026"
+private fun Section(modifier: Modifier, content: @Composable () -> Unit) {
+    Column(
+        modifier
+            .padding(horizontal = ThesisSpace.gutter)
+            .padding(top = ThesisSpace.sectionGapData),
+        verticalArrangement = Arrangement.spacedBy(ThesisSpace.m),
+    ) { content() }
 }
