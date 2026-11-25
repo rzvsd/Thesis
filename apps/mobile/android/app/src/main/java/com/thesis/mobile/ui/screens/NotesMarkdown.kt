@@ -1,0 +1,84 @@
+package com.thesis.mobile.ui.screens
+
+import com.thesis.mobile.model.NoteTrailEntry
+import com.thesis.mobile.ui.format.Fmt
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.Locale
+
+/**
+ * You > Your notes > "Export my notes" (DESIGN-DIRECTION 5.22): every cached note as one Markdown file, grouped by
+ * ticker, newest first, each note under its filing period and date and the report's verdict sentence.
+ *
+ * Tickers are ordered by their newest note (the name you wrote about last comes first), notes inside a ticker
+ * newest first. Dates always carry the year (an export outlives the year it was made in). Blank notes are left out.
+ * Pure: the caller hands the text to the system share sheet or a `CreateDocument` picker.
+ */
+object NotesMarkdown {
+
+    /** Notes without a ticker are grouped under this heading. */
+    const val NO_TICKER = "Other notes"
+
+    private val DateFormat: DateTimeFormatter = DateTimeFormatter.ofPattern("d MMM yyyy", Locale.US)
+    private val FileDateFormat: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd", Locale.US)
+
+    /** The export's file name: `thesis-notes-2026-11-25.md`. */
+    fun fileName(today: LocalDate): String = "thesis-notes-${today.format(FileDateFormat)}.md"
+
+    /** The note count and the number of tickers they are on (for the row caption). */
+    fun counts(notes: List<NoteTrailEntry>): Pair<Int, Int> {
+        val kept = notes.filter { it.text.isNotBlank() }
+        return kept.size to kept.map { tickerOf(it) }.distinct().size
+    }
+
+    /**
+     * The Markdown document. [today] dates the export; [zone] turns each note's `updatedAt` into a calendar date.
+     */
+    fun build(notes: List<NoteTrailEntry>, today: LocalDate, zone: ZoneId): String {
+        val kept = notes.filter { it.text.isNotBlank() }
+        val (count, names) = counts(kept)
+        val groups = kept
+            .groupBy { tickerOf(it) }
+            .mapValues { (_, entries) -> entries.sortedByDescending { instantOf(it) ?: Instant.MIN } }
+            .entries
+            .sortedWith(
+                compareByDescending<Map.Entry<String, List<NoteTrailEntry>>> { e -> instantOf(e.value.first()) ?: Instant.MIN }
+                    .thenBy { it.key },
+            )
+        return buildString {
+            append("# Thesis notes\n\n")
+            append("Exported ${today.format(DateFormat)} · ")
+            append(Fmt.count(count, "note", "notes")).append(" on ").append(Fmt.count(names, "name", "names"))
+            append("\n")
+            groups.forEach { (ticker, entries) ->
+                append("\n## ").append(ticker).append("\n")
+                entries.forEach { note ->
+                    append("\n### ").append(headingOf(note, zone)).append("\n\n")
+                    note.verdict?.trim()?.takeIf { it.isNotEmpty() }?.let { verdict ->
+                        append("> ").append(oneLine(verdict)).append("\n\n")
+                    }
+                    append(note.text.trim().replace("\r\n", "\n")).append("\n")
+                }
+            }
+        }
+    }
+
+    private fun tickerOf(note: NoteTrailEntry): String =
+        note.ticker?.trim()?.uppercase()?.takeIf { it.isNotEmpty() } ?: NO_TICKER
+
+    private fun instantOf(note: NoteTrailEntry): Instant? =
+        note.updatedAt?.let { runCatching { Instant.parse(it) }.getOrNull() }
+
+    /** "FY2025 report · 24 Nov 2026"; without a period "Report · 24 Nov 2026"; without a date the period alone. */
+    private fun headingOf(note: NoteTrailEntry, zone: ZoneId): String {
+        val period = note.filingPeriod?.trim()?.takeIf { it.isNotEmpty() }
+        val report = if (period != null) "$period report" else "Report"
+        val date = instantOf(note)?.atZone(zone)?.toLocalDate()?.format(DateFormat)
+        return if (date != null) "$report · $date" else report
+    }
+
+    /** A verdict quoted on one line (a newline would end the Markdown quote). */
+    private fun oneLine(text: String): String = text.lines().joinToString(" ") { it.trim() }.trim()
+}
