@@ -18,9 +18,13 @@ import java.time.OffsetDateTime
 fun ShellRootTopBar(
     initials: String,
     onOpenSearch: () -> Unit,
-    onOpenProfile: () -> Unit
+    onOpenProfile: () -> Unit,
+    collapsed: Boolean = false,
+    overHero: Boolean = false
 ) {
     ThesisTopBar(
+        collapsed = collapsed,
+        overHero = overHero,
         actions = {
             ThesisIconButton(ThesisIcons.Search, contentDescription = "Search", onClick = onOpenSearch)
             Avatar(initials = initials, onClick = onOpenProfile, contentDescription = "You")
@@ -31,10 +35,19 @@ fun ShellRootTopBar(
 /**
  * Top bar of a pushed screen that has no header of its own: back and the [title] (none when blank, because the
  * screen carries its own headline: no repeated words, rubric V3).
+ *
+ * Both shell bars are transparent at rest and fade in their background and hairline once content scrolls under
+ * them ([collapsed], 200 ms, 4.4); over a HeroBand ([overHero]) they read the hero palette until they collapse.
  */
 @Composable
-fun ThesisBackTopBar(title: String, onBack: () -> Unit) {
-    ThesisTopBar(title = title.ifBlank { null }, onBack = onBack, titleAlwaysVisible = title.isNotBlank())
+fun ThesisBackTopBar(title: String, onBack: () -> Unit, collapsed: Boolean = false, overHero: Boolean = false) {
+    ThesisTopBar(
+        title = title.ifBlank { null },
+        onBack = onBack,
+        titleAlwaysVisible = title.isNotBlank(),
+        collapsed = collapsed,
+        overHero = overHero
+    )
 }
 
 /**
