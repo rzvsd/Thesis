@@ -15,6 +15,7 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.hasClickAction
@@ -22,6 +23,7 @@ import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasProgressBarRangeInfo
 import androidx.compose.ui.test.junit4.ComposeContentTestRule
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.unit.Dp
@@ -150,23 +152,74 @@ class ReportSemanticsTest {
                 ReportFeedbackPanel(visible = true, onDismiss = {}, detent = DockDetent.Full, onDetentChange = {}, onSubmit = { c, d -> sent = c to d })
             }
         }
-        val (code, label) = ReportCopy.feedbackOptions.first()
+        // Nothing chosen at first, so Send waits for a choice.
+        ReportCopy.feedbackOptions.forEach { (_, label) -> rule.onNodeWithText(label).assertIsNotSelected() }
+        rule.onNodeWithText(ReportCopy.FEEDBACK_SEND).assertIsNotEnabled()
+        val (code, label) = ReportCopy.feedbackOptions[1]
         rule.onNodeWithText(label).assertRole(Role.RadioButton).performClick()
-        rule.onNodeWithText(ReportCopy.FEEDBACK_SEND).performClick()
-        assertEquals(code, sent?.first)
         rule.assertAllLaidOutTargetsAtLeast()
+        rule.onNodeWithText(ReportCopy.FEEDBACK_SEND).assertIsEnabled().performClick()
+        assertEquals(code, sent?.first)
+        // The sent state stays until the person closes the panel.
+        rule.onNodeWithText(ReportCopy.FEEDBACK_THANKS).assertExists()
+        rule.onNodeWithText(ReportCopy.FEEDBACK_DONE).assertExists()
+        rule.assertAllLaidOutTargetsAtLeast()
+    }
+
+    @Test
+    fun compareStepsHaveAWayBackToTheChoice() {
+        var step by mutableStateOf(CompareStep.Names)
+        set {
+            Column {
+                ReportCompareContent(
+                    ticker = "AAPL", step = step, onStep = { step = it },
+                    otherNames = otherNamesFor("AAPL", ReportFixtures.watchlist),
+                    earlierReports = earlierReportsFor("rep-aapl-2025", "AAPL", ReportFixtures.history),
+                    onCompareNames = {}, onCompareReport = {},
+                )
+            }
+        }
+        rule.onNodeWithContentDescription(ReportCopy.compareBack("AAPL")).performClick()
+        rule.waitForIdle()
+        assertEquals(CompareStep.Choose, step)
+        step = CompareStep.Reports
+        rule.waitForIdle()
+        rule.onNodeWithText(ReportCopy.EARLIER_REPORTS_TITLE).assertIsHeading()
+        rule.onNodeWithContentDescription(ReportCopy.compareBack("AAPL")).performClick()
+        rule.waitForIdle()
+        assertEquals(CompareStep.Choose, step)
     }
 
     @Test
     fun generationHasAHeadingAndATryAgainLiveRegion() {
         var retried = false
         set { DeepDiveLoadingScreen(building = true, ticker = "AAPL", jobStatus = "failed", onRetry = { retried = true }) }
-        rule.onNodeWithText(ReportCopy.BUILDING_TITLE).assertIsHeading()
+        // The heading says the build stopped (never "Building the report" over a failure), and no "you can leave".
+        rule.onNodeWithText(ReportCopy.STOPPED_TITLE).assertIsHeading()
+        rule.onNodeWithText(ReportCopy.BUILDING_TITLE).assertDoesNotExist()
+        rule.onNodeWithText(ReportCopy.CAN_LEAVE).assertDoesNotExist()
         rule.onNodeWithText(ReportCopy.buildFailedTitle("AAPL")).assertExists()
         rule.onNode(hasClickAction() and androidx.compose.ui.test.hasText(ReportCopy.TRY_AGAIN)).performClick()
         assertTrue(retried)
         val live = rule.onAllNodes(androidx.compose.ui.test.SemanticsMatcher.keyIsDefined(SemanticsProperties.LiveRegion))
         assertTrue(live.fetchSemanticsNodes().isNotEmpty())
+    }
+
+    @Test
+    fun generationCopyFollowsThePhase() {
+        var status by mutableStateOf<String?>("queued")
+        set { DeepDiveLoadingScreen(building = true, ticker = "AAPL", jobStatus = status) }
+        rule.onNodeWithText(ReportCopy.BUILDING_TITLE).assertIsHeading()
+        rule.onNodeWithText(ReportCopy.CAN_LEAVE).assertExists()
+        status = "running"
+        rule.waitForIdle()
+        rule.onNodeWithText(ReportCopy.BUILDING_TITLE).assertIsHeading()
+        rule.onNodeWithText(ReportCopy.CAN_LEAVE).assertExists()
+        status = "complete"
+        rule.waitForIdle()
+        rule.onNodeWithText(ReportCopy.READY_TITLE).assertIsHeading()
+        rule.onNodeWithText(ReportCopy.BUILDING_TITLE).assertDoesNotExist()
+        rule.onNodeWithText(ReportCopy.CAN_LEAVE).assertDoesNotExist()
     }
 
     @Test

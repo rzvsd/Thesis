@@ -26,6 +26,7 @@ import com.thesis.mobile.ui.screens.report.ReportFallbackBanner
 import com.thesis.mobile.ui.screens.report.ReportFeedbackPanel
 import com.thesis.mobile.ui.screens.report.ReportHostFrame
 import com.thesis.mobile.ui.screens.report.ReportNotesPanel
+import com.thesis.mobile.ui.screens.report.ReportOpeningBar
 import com.thesis.mobile.ui.screens.report.ReportOverflowContent
 import com.thesis.mobile.ui.screens.report.earlierReportsFor
 import com.thesis.mobile.ui.screens.report.otherNamesFor
@@ -197,7 +198,11 @@ class ReportRenders {
 
     @Test
     fun generationFullPage() {
-        renderScreen("report-generation-full", fitHeight = true, themes = listOf(PreviewTheme.LIGHT)) { Generation("running") }
+        // A tall phone, so the whole chapter list (01 to 13) and the bottom padding are on the PNG: the screen
+        // fills the height and scrolls, so cropping to the content would cut at the viewport.
+        renderScreen("report-generation-full", heightDp = PhoneSpec.FULL_PAGE_HEIGHT_DP, themes = listOf(PreviewTheme.LIGHT)) {
+            Generation("running")
+        }
     }
 
     @Test
@@ -211,4 +216,15 @@ class ReportRenders {
     }
 
     @Test fun openingStoredReport() { renderScreen("report-opening-skeleton") { Generation(jobStatus = null, building = false) } }
+
+    /** The stored report opening under the report's own bar (the chrome the host keeps once the page is in). */
+    @Test
+    fun openingStoredReportWithReportBar() {
+        renderScreen("report-opening-report-bar") {
+            DeepDiveLoadingScreen(
+                padding = ReportFixtures.shellPadding,
+                reportBar = ReportOpeningBar(ticker = "AAPL", onBack = {}, following = true),
+            )
+        }
+    }
 }

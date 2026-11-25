@@ -12,14 +12,18 @@ import com.thesis.mobile.model.ReportHistoryItem
 
 /**
  * What the report host needs from the shell besides [com.thesis.mobile.ui.screens.DeepDiveNativeTools]. Every field
- * has a default so callers keep compiling until WP-INT wires them; a null callback hides its control instead of
- * showing one that does nothing.
+ * has a default so callers keep compiling until WP-INT wires them; a null compare callback hides its control
+ * instead of showing one that does nothing ([onFollowChange] is the exception, see there).
  */
 @Immutable
 data class ReportHostExtras(
     /** The report's ticker is one of the person's names (the top bar's bookmark). */
     val isFollowing: Boolean = false,
-    /** Follow or unfollow the ticker (the bookmark; `toggle(on)` haptic in the kit). Null hides the bookmark. */
+    /**
+     * Follow or unfollow the ticker (the bookmark; `toggle(on)` haptic in the kit). The kit [com.thesis.mobile.ui.components.ReportTopBar] always
+     * draws the bookmark, so WP-INT must wire this before PR-3 ships (HANDOFF-C: WP-INT 1, WP-K 4); until then
+     * the bookmark toggles nothing.
+     */
     val onFollowChange: ((Boolean) -> Unit)? = null,
     /** The person's names, for "Compare with other names". */
     val watchlist: List<String> = emptyList(),
@@ -33,18 +37,36 @@ data class ReportHostExtras(
     val onCompareReports: ((earlierReportId: String, reportId: String) -> Unit)? = null,
 )
 
+/**
+ * Where the dock's show/hide rule (#48) stands: whether the dock shows, and how far the page has scrolled (px) in
+ * the current direction since that direction began (positive down, negative up).
+ */
+@Immutable
+data class DockScroll(val visible: Boolean = true, val travel: Int = 0)
+
 /** The dock's show/hide rule (#48): hides on scroll down, shows on scroll up and at the top of the page. */
 object ReportDockScroll {
     /**
-     * Whether the dock shows after the page scrolled by [dy] px to [scrollY]. Movements under [slopPx] keep the
+     * [state] after the page scrolled by [dy] px to [scrollY]. The scroll listener fires once a frame, so a reading
+     * drag moves a few px per event: the rule adds up the movement in one direction (starting over when the
+     * direction flips) and hides or shows the dock once that distance passes [slopPx]. Shorter movements keep the
      * current state, so a slow reader's small corrections do not make the dock flicker.
      */
-    fun visibleAfter(visible: Boolean, scrollY: Int, dy: Int, slopPx: Int): Boolean = when {
-        scrollY <= slopPx -> true
-        dy > slopPx -> false
-        dy < -slopPx -> true
-        else -> visible
+    fun next(state: DockScroll, scrollY: Int, dy: Int, slopPx: Int): DockScroll {
+        if (scrollY <= slopPx) return DockScroll(visible = true, travel = 0)
+        if (dy == 0) return state
+        val sameDirection = state.travel == 0 || (state.travel > 0) == (dy > 0)
+        // Capped, so a long read never piles up a number that a flip would have to undo.
+        val travel = ((if (sameDirection) state.travel else 0) + dy).coerceIn(-TRAVEL_CAP * slopPx, TRAVEL_CAP * slopPx)
+        val visible = when {
+            travel > slopPx -> false
+            travel < -slopPx -> true
+            else -> state.visible
+        }
+        return DockScroll(visible = visible, travel = travel)
     }
+
+    private const val TRAVEL_CAP = 4
 }
 
 /** The earlier note shown above the field: the newest non-empty note on another report of the same ticker. */
@@ -52,8 +74,10 @@ fun earlierNoteFor(reportId: String, trail: List<NoteTrailEntry>): NoteTrailEntr
     trail.firstOrNull { it.reportId != reportId && it.text.isNotBlank() }
 
 /**
- * Earlier reports "With an earlier report" can open: same ticker, same report type (like for like), not this
- * report, newest first.
+ * Earlier reports "With an earlier report" can open: same ticker, same report type, not this report, newest first.
+ * The type is the kind of report (a Deep Dive), not the filing it reads: history does not carry the filing form or
+ * period yet (HANDOFF-C, WP-INT 5), so a 10-Q based report can sit next to a 10-K based one and the sheet's copy
+ * promises no more than "an earlier report".
  */
 fun earlierReportsFor(
     reportId: String,

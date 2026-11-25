@@ -33,9 +33,8 @@ object ReportCopy {
     /** Export failures (no success message: the system dialog is the feedback). */
     const val EXPORT_FAILED = "Couldn’t prepare the export. Try again."
 
-    /** Accessibility: the page while it loads, and the page itself. */
+    /** Accessibility: the page while it loads. */
     const val PAGE_LOADING = "Loading the report"
-    fun pageDescription(ticker: String): String = "$ticker Deep Dive report"
 
     // ---- Notes panel
 
@@ -46,6 +45,8 @@ object ReportCopy {
     // ---- Compare sheet
 
     fun compareTitle(ticker: String): String = "Compare $ticker"
+    /** The back control of a Compare step (to the choice). */
+    fun compareBack(ticker: String): String = "Back to Compare $ticker"
     const val WITH_OTHER_NAMES = "With other names"
     const val WITH_EARLIER_REPORT = "With an earlier report"
     fun pickNamesTitle(ticker: String): String = "Compare $ticker with"
@@ -54,19 +55,22 @@ object ReportCopy {
     const val PICK_A_NAME = "Pick a name"
     fun compareNamesAction(count: Int): String = "Compare $count names"
     const val EARLIER_REPORTS_TITLE = "Compare with an earlier report"
-    const val NO_EARLIER_REPORT =
-        "There is no earlier report on a comparable filing yet. A comparison appears after the next one."
-    fun earlierReportLabel(date: String): String = "Report of $date"
-
-    // ---- Conviction sheet
-
-    const val CONVICTION_TITLE = "Conviction"
+    fun noEarlierReport(ticker: String): String =
+        "There is no earlier Deep Dive on $ticker yet. A comparison appears after the next one."
+    /** An earlier report by when it was built: "Built 23 days ago", "Built 14 Nov 2025" ([age] from Fmt.relative). */
+    fun earlierReportLabel(age: String): String = "Built $age"
+    /** An earlier report whose date the history did not give. */
+    const val EARLIER_REPORT = "Earlier report"
 
     // ---- Report feedback panel
 
     const val FEEDBACK_HOW = "Tell us whether this report helped, or what needs fixing."
     const val FEEDBACK_DETAILS = "Details (optional)"
     const val FEEDBACK_SEND = "Send feedback"
+    /** The sent state (the view model's notice then says whether the send went through). */
+    const val FEEDBACK_THANKS = "Thanks for telling us"
+    const val FEEDBACK_THANKS_HOW = "It’s attached to this report for the Thesis team to review."
+    const val FEEDBACK_DONE = "Done"
 
     /** Feedback codes the API accepts, with their labels. */
     val feedbackOptions: List<Pair<String, String>> = listOf(
@@ -80,18 +84,22 @@ object ReportCopy {
     // ---- Generation (5.14)
 
     fun buildingEyebrow(ticker: String): String = "Deep Dive · $ticker"
+    /** The generation screen's title, by phase: honest about where the build stands. */
     const val BUILDING_TITLE = "Building the report"
+    const val READY_TITLE = "The report is ready"
+    const val STOPPED_TITLE = "The build stopped"
     const val BUILDING_LEDE = "From the company’s latest annual and quarterly filings at the SEC."
     const val STAGE_QUEUED = "In the queue"
     const val STAGE_BUILDING = "Reading the filings and building the report"
     const val STAGE_READY = "Ready"
+    /** Shown only while the build is queued or running. No push is sent when it ends, so no promise of one. */
     const val CAN_LEAVE =
-        "You can leave this screen. The build keeps running, and Thesis tells you when the report is ready."
+        "You can leave this screen. The build keeps running, and the report appears in History when it’s ready."
     const val CONTENTS_KICKER = "What this report will contain"
     const val CONTENTS_HEADLINE = "Thirteen chapters, in the same order for every company"
     fun buildFailedTitle(ticker: String?): String =
         if (ticker.isNullOrBlank()) "Couldn’t build the report" else "Couldn’t build the $ticker report"
-    const val BUILD_FAILED_CAUSE = "The build stopped before the report was ready."
+    const val BUILD_FAILED_CAUSE = "The report wasn’t finished. Trying again starts a new build."
 
     /** The 13 chapters of every Deep Dive (docs/deep-dive/SPEC.md section 3, the chip names). */
     val chapters: List<String> = listOf(
@@ -128,4 +136,8 @@ object ReportCopy {
     const val SHARE_CARD_TITLE = "Share the card"
     const val SHARE_PULSE_TITLE = "Share the Pulse PDF"
     fun pageOf(page: Int, pages: Int): String = "$page of $pages"
+    /** The memo's valuation lines: "Fair value, mid: $212.00 ($180.00 to $240.00)", "Price at the report: $198.50". */
+    fun fairValueLine(mid: String, low: String?, high: String?): String =
+        if (low != null && high != null) "Fair value, mid: $mid ($low to $high)" else "Fair value, mid: $mid"
+    fun priceAtReport(price: String): String = "Price at the report: $price"
 }

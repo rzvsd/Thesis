@@ -30,6 +30,7 @@ import com.thesis.mobile.ui.screens.report.ExportSlice
 import com.thesis.mobile.ui.theme.PaperLight
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
 
@@ -37,8 +38,9 @@ import java.io.FileOutputStream
  * Export (docs/app-redesign/DESIGN-DIRECTION.md 5.24). The PDF is the print look of the Deep Dive page: PaperLight
  * tokens, Newsreader for titles and story text from the bundled fonts, A4 pages with every section paginated (no
  * text is dropped at the foot of a page). The share card is the report's HeroBand: the dark band, the gold hairline
- * and the ticker in Newsreader. [renderReportPdf] and [renderShareCard] build and write off the main thread; the
- * blocking [createPdfExport] / [createShareCard] stay for callers that already run off it.
+ * and the ticker in Newsreader. [renderReportPdf] and [renderShareCard] lay out, draw and encode on
+ * Dispatchers.Default (CPU work, 5.13) and write the file on Dispatchers.IO; the blocking [createPdfExport] /
+ * [createShareCard] stay for callers that already run off the main thread.
  */
 
 internal data class ExportArtifact(
@@ -52,16 +54,37 @@ internal enum class ReportExportType {
     INVESTMENT_MEMO
 }
 
-/** The report PDF, built and written on a background thread. Call [shareExport] with the result on the main thread. */
+/** An export laid out, drawn and encoded, not yet written: [bytes] go to [fileName] in the exports cache. */
+private class EncodedExport(
+    val bytes: ByteArray,
+    val fileName: String,
+    val mimeType: String,
+    val chooserTitle: String,
+)
+
+/** The report PDF, built on Dispatchers.Default and written on IO. Call [shareExport] with the result on the main thread. */
 internal suspend fun renderReportPdf(
     context: Context,
     report: DeepDiveReportView,
     type: ReportExportType
-): ExportArtifact = withContext(Dispatchers.IO) { createPdfExport(context.applicationContext, report, type) }
+): ExportArtifact {
+    val app = context.applicationContext
+    val encoded = withContext(Dispatchers.Default) { encodeReportPdf(app, report, type) }
+    return withContext(Dispatchers.IO) { writeExport(app, encoded) }
+}
 
-/** The share card, built and written on a background thread. Call [shareExport] with the result on the main thread. */
-internal suspend fun renderShareCard(context: Context, report: DeepDiveReportView): ExportArtifact =
-    withContext(Dispatchers.IO) { createShareCard(context.applicationContext, report) }
+/** The share card, drawn on Dispatchers.Default and written on IO. Call [shareExport] with the result on the main thread. */
+internal suspend fun renderShareCard(context: Context, report: DeepDiveReportView): ExportArtifact {
+    val app = context.applicationContext
+    val encoded = withContext(Dispatchers.Default) { encodeShareCard(app, report) }
+    return withContext(Dispatchers.IO) { writeExport(app, encoded) }
+}
+
+private fun writeExport(context: Context, encoded: EncodedExport): ExportArtifact {
+    val output = exportFile(context, encoded.fileName)
+    FileOutputStream(output).use { stream -> stream.write(encoded.bytes) }
+    return ExportArtifact(file = output, mimeType = encoded.mimeType, chooserTitle = encoded.chooserTitle)
+}
 
 // ---- PDF -------------------------------------------------------------------------------------------------------
 
@@ -89,7 +112,14 @@ internal fun createPdfExport(
     context: Context,
     report: DeepDiveReportView,
     type: ReportExportType
-): ExportArtifact {
+): ExportArtifact = writeExport(context, encodeReportPdf(context, report, type))
+
+/** Lays out, paginates and draws the PDF, and returns its bytes (CPU only, no file). */
+private fun encodeReportPdf(
+    context: Context,
+    report: DeepDiveReportView,
+    type: ReportExportType
+): EncodedExport {
     val fonts = ExportFonts(context)
     val ink = PaperLight.ink.toArgb()
     val muted = PaperLight.muted.toArgb()
@@ -140,14 +170,13 @@ internal fun createPdfExport(
             report.valuation?.let { valuation ->
                 val lines = listOfNotNull(
                     valuation.fairValueMid?.let { mid ->
-                        val range = if (valuation.fairValueLow != null && valuation.fairValueHigh != null) {
-                            " (${Fmt.money(valuation.fairValueLow)} to ${Fmt.money(valuation.fairValueHigh)})"
-                        } else {
-                            ""
-                        }
-                        "Fair value, mid: ${Fmt.money(mid)}$range"
+                        ReportCopy.fairValueLine(
+                            mid = Fmt.money(mid),
+                            low = valuation.fairValueLow?.let { Fmt.money(it) },
+                            high = valuation.fairValueHigh?.let { Fmt.money(it) },
+                        )
                     },
-                    valuation.spotPrice?.let { "Price at the report: ${Fmt.money(it)}" },
+                    valuation.spotPrice?.let { ReportCopy.priceAtReport(Fmt.money(it)) },
                 )
                 if (lines.isNotEmpty()) {
                     add(ReportCopy.EXPORT_VALUATION.uppercase(), kickerPaint, 26f, keep = true, rule = ExportRule.Hairline)
@@ -188,16 +217,16 @@ internal fun createPdfExport(
             drawFooter(canvas, footerLeft, ReportCopy.pageOf(pageIndex + 1, pages.size), footerPaint, rulePaint)
             document.finishPage(page)
         }
-        val output = exportFile(
-            context,
-            when (type) {
+        val bytes = ByteArrayOutputStream().use { stream ->
+            document.writeTo(stream)
+            stream.toByteArray()
+        }
+        return EncodedExport(
+            bytes = bytes,
+            fileName = when (type) {
                 ReportExportType.FULL_REPORT -> "deep-dive-${report.reportId}-${System.currentTimeMillis()}.pdf"
                 ReportExportType.INVESTMENT_MEMO -> "investment-memo-${report.reportId}-${System.currentTimeMillis()}.pdf"
-            }
-        )
-        FileOutputStream(output).use { stream -> document.writeTo(stream) }
-        return ExportArtifact(
-            file = output,
+            },
             mimeType = "application/pdf",
             chooserTitle = if (type == ReportExportType.FULL_REPORT) ReportCopy.SHARE_PDF_TITLE else ReportCopy.SHARE_MEMO_TITLE
         )
@@ -259,7 +288,11 @@ private const val CARD = 1080
 private const val CARD_PAD = 88f
 
 /** Blocking: draws the card and writes it to the cache. Prefer [renderShareCard] on the main thread. */
-internal fun createShareCard(context: Context, report: DeepDiveReportView): ExportArtifact {
+internal fun createShareCard(context: Context, report: DeepDiveReportView): ExportArtifact =
+    writeExport(context, encodeShareCard(context, report))
+
+/** Draws the card and returns it as PNG bytes (CPU only, no file). */
+private fun encodeShareCard(context: Context, report: DeepDiveReportView): EncodedExport {
     val fonts = ExportFonts(context)
     val bitmap = Bitmap.createBitmap(CARD, CARD, Bitmap.Config.ARGB_8888)
     try {
@@ -313,9 +346,16 @@ internal fun createShareCard(context: Context, report: DeepDiveReportView): Expo
         canvas.drawText(ReportCopy.EXPORT_BRAND, CARD_PAD, baseline, brandPaint)
         canvas.drawText(ReportCopy.EXPORT_CARD_NOTICE, CARD - CARD_PAD, baseline, noticePaint)
 
-        val output = exportFile(context, "share-card-${report.reportId}-${System.currentTimeMillis()}.png")
-        FileOutputStream(output).use { stream -> bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream) }
-        return ExportArtifact(file = output, mimeType = "image/png", chooserTitle = ReportCopy.SHARE_CARD_TITLE)
+        val bytes = ByteArrayOutputStream().use { stream ->
+            bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream)
+            stream.toByteArray()
+        }
+        return EncodedExport(
+            bytes = bytes,
+            fileName = "share-card-${report.reportId}-${System.currentTimeMillis()}.png",
+            mimeType = "image/png",
+            chooserTitle = ReportCopy.SHARE_CARD_TITLE,
+        )
     } finally {
         bitmap.recycle()
     }

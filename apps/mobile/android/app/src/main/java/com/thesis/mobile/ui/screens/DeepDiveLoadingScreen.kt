@@ -37,6 +37,9 @@ import com.thesis.mobile.ui.motion.ShimmerHost
 import com.thesis.mobile.ui.motion.rememberHaptics
 import com.thesis.mobile.ui.screens.report.GenerationPhase
 import com.thesis.mobile.ui.screens.report.GenerationStages
+import com.thesis.mobile.ui.screens.report.PAGE_PROGRESS_UNKNOWN
+import com.thesis.mobile.ui.screens.report.ReportHostFrame
+import com.thesis.mobile.ui.screens.report.ReportOpeningBar
 import com.thesis.mobile.ui.screens.report.ReportPageSkeleton
 import com.thesis.mobile.ui.shell.HeroUnderBars
 import com.thesis.mobile.ui.shell.exceptTop
@@ -48,14 +51,18 @@ import com.thesis.mobile.ui.theme.ThesisType
  * What shows before a report is on screen (docs/app-redesign/DESIGN-DIRECTION.md 5.13 and 5.14).
  *
  * Opening a stored report ([building] false): the report's own skeleton, hero first, so the page or the classic
- * view crossfades in without a jump.
+ * view crossfades in without a jump. With [reportBar] the skeleton sits under the report's own bar
+ * ([ReportHostFrame]: THESIS, the ticker, on `surface`), the same chrome the host draws next, so the open has one
+ * bar throughout; the shell then shows no bar of its own for the entry (HANDOFF-C, WP-INT 6). Without it the hero
+ * runs under the shell's back bar.
  *
  * Building one ([building] true): the generation screen. A HeroBand under the top bar ("Deep Dive · AAPL",
- * "Building the report"), then [StageProgress] driven by [jobStatus] alone (the server's queued, running, complete,
+ * "Building the report"; "The report is ready" and "The build stopped" once it ends, so the heading never
+ * contradicts the state), then [StageProgress] driven by [jobStatus] alone (the server's queued, running, complete,
  * failed; see [GenerationStages]), with no timers and no invented sub-steps. Below it the 13 chapters the report
- * will hold, so the wait teaches the structure. When the job completes the last ring fills with the kit's reward
- * pulse and a confirm haptic; the caller then crossfades into the report. A failed job shows [ErrorState] with
- * [onRetry].
+ * will hold, so the wait teaches the structure. "You can leave this screen" shows only while the build is queued
+ * or running. When the job completes the last ring fills with the kit's reward pulse and a confirm haptic; the
+ * caller then crossfades into the report. A failed job shows [ErrorState] with [onRetry].
  *
  * [padding] is the shell's padding for the entry: the band runs under the status bar and the back bar (its top
  * padding), and the rest keeps clear of the system bars. Null (a render on its own) leaves no room for bars.
@@ -69,8 +76,25 @@ fun DeepDiveLoadingScreen(
     jobStatus: String? = null,
     onRetry: (() -> Unit)? = null,
     retryLabel: String? = null,
+    reportBar: ReportOpeningBar? = null,
 ) {
     val p = LocalThesisPalette.current
+    if (!building && reportBar != null) {
+        ReportHostFrame(
+            ticker = reportBar.ticker,
+            padding = padding ?: PaddingValues(),
+            onBack = reportBar.onBack,
+            following = reportBar.following,
+            onFollowChange = reportBar.onFollowChange,
+            onOverflow = reportBar.onOverflow,
+            pageLoaded = false,
+            progress = PAGE_PROGRESS_UNKNOWN,
+            dockItems = emptyList(),
+            dockVisible = false,
+            modifier = modifier,
+        ) { }
+        return
+    }
     val topInset = padding?.calculateTopPadding()
     if (padding != null) HeroUnderBars()
     Box(
@@ -125,7 +149,11 @@ private fun GenerationContent(
             val hero = LocalThesisPalette.current
             Eyebrow(if (symbol != null) ReportCopy.buildingEyebrow(symbol) else ReportCopy.EXPORT_REPORT_TITLE)
             Text(
-                ReportCopy.BUILDING_TITLE,
+                when (phase) {
+                    GenerationPhase.Queued, GenerationPhase.Building -> ReportCopy.BUILDING_TITLE
+                    GenerationPhase.Ready -> ReportCopy.READY_TITLE
+                    GenerationPhase.Failed -> ReportCopy.STOPPED_TITLE
+                },
                 modifier = Modifier.semantics { heading() },
                 style = ThesisType.title,
                 color = hero.ink,
@@ -150,7 +178,9 @@ private fun GenerationContent(
                 )
             } else {
                 StageProgress(GenerationStages.stagesFor(phase, reached))
-                Text(ReportCopy.CAN_LEAVE, style = ThesisType.bodySmall, color = p.muted)
+                if (phase == GenerationPhase.Queued || phase == GenerationPhase.Building) {
+                    Text(ReportCopy.CAN_LEAVE, style = ThesisType.bodySmall, color = p.muted)
+                }
             }
         }
 
@@ -186,7 +216,8 @@ private fun ChapterList(modifier: Modifier = Modifier) {
                         number,
                         modifier = Modifier.widthIn(min = ThesisSpace.leadingColumn),
                         style = ThesisType.heroLine,
-                        color = p.control,
+                        // Text under 24 sp: muted (at least 4.5:1 on bg and bg2), never the control boundary token.
+                        color = p.muted,
                     )
                     Text(name, style = ThesisType.body, color = p.muted)
                 }

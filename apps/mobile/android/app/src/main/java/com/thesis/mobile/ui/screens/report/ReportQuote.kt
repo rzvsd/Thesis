@@ -6,7 +6,8 @@ import org.json.JSONObject
 
 /*
  * "Add to note" (docs/app-redesign/DESIGN-DIRECTION.md 5.13 item 5): a passage selected on the report page is
- * appended to this report's note as `> "quote" (Ch. 04 Margins, AAPL 10-K FY2025)`. Client only: the WebView reads
+ * appended to this report's note as `> “quote” (Ch. 04 Margins, AAPL 10-K FY2025)`, with typographic quotes like
+ * the rest of the app's copy (the spec's example uses straight ones; a note is UTF-8 text, so they copy out intact). Client only: the WebView reads
  * the selection and the nearest chapter kicker with [SelectionScript] (no JavaScript interface, no renderer change);
  * everything else here is pure and unit tested.
  */
@@ -70,7 +71,7 @@ object ReportQuote {
     }
 
     /**
-     * The line added to the note: `> "quote" (Ch. 04 Margins, AAPL 10-K FY2025)`. The chapter part is left out
+     * The line added to the note: `> “quote” (Ch. 04 Margins, AAPL 10-K FY2025)`. The chapter part is left out
      * when the selection is outside a chapter (the cover); the parentheses when there is no source at all.
      */
     fun format(selection: PageSelection, source: String): String {
@@ -81,7 +82,7 @@ object ReportQuote {
             else -> selection.chapterName
         }
         val cite = listOf(chapter, source.trim()).filter { it.isNotEmpty() }.joinToString(", ")
-        val quote = "> \"${clip(selection.quote.squash())}\""
+        val quote = "> “${clip(selection.quote.squash())}”"
         return if (cite.isEmpty()) quote else "$quote ($cite)"
     }
 

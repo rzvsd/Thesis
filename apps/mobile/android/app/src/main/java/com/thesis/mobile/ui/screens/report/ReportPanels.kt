@@ -6,14 +6,16 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.Icon
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.selection.toggleable
@@ -29,21 +31,28 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import com.thesis.mobile.model.NoteTrailEntry
 import com.thesis.mobile.model.ReportHistoryItem
 import com.thesis.mobile.ui.components.ArcSpinner
+import com.thesis.mobile.ui.components.ChipRow
 import com.thesis.mobile.ui.components.DockDetent
 import com.thesis.mobile.ui.components.DockPanel
 import com.thesis.mobile.ui.components.Eyebrow
 import com.thesis.mobile.ui.components.NoteBlock
 import com.thesis.mobile.ui.components.NoteSaveState
 import com.thesis.mobile.ui.components.PrimaryButton
+import com.thesis.mobile.ui.components.SecondaryButton
 import com.thesis.mobile.ui.components.SheetActionRow
 import com.thesis.mobile.ui.components.TextAction
 import com.thesis.mobile.ui.components.ThesisCheckbox
 import com.thesis.mobile.ui.components.ThesisChip
 import com.thesis.mobile.ui.components.ThesisDivider
+import com.thesis.mobile.ui.components.ThesisIconButton
 import com.thesis.mobile.ui.components.ThesisTextField
 import com.thesis.mobile.ui.copy.ReportCopy
 import com.thesis.mobile.ui.format.LocalFmt
@@ -56,7 +65,6 @@ import com.thesis.mobile.ui.theme.LocalThesisPalette
 import com.thesis.mobile.ui.theme.ThesisSpace
 import com.thesis.mobile.ui.theme.ThesisType
 import java.time.Instant
-import java.time.ZoneId
 
 /*
  * The report's sheets and panels (docs/app-redesign/DESIGN-DIRECTION.md 5.13): the overflow menu, Compare, the
@@ -149,19 +157,50 @@ fun ColumnScope.ReportCompareContent(
                         SheetActionRow(ThesisIcons.History, ReportCopy.WITH_EARLIER_REPORT, { onStep(CompareStep.Reports) })
                     }
                 }
-                CompareStep.Names -> NamesPicker(ticker, otherNames) { picked -> onCompareNames?.invoke(picked) }
-                CompareStep.Reports -> EarlierReports(earlierReports) { id -> onCompareReport?.invoke(id) }
+                CompareStep.Names -> NamesPicker(ticker, otherNames, onBack = { onStep(CompareStep.Choose) }) { picked ->
+                    onCompareNames?.invoke(picked)
+                }
+                CompareStep.Reports -> EarlierReports(ticker, earlierReports, onBack = { onStep(CompareStep.Choose) }) { id ->
+                    onCompareReport?.invoke(id)
+                }
             }
         }
     }
 }
 
+/**
+ * The head of a Compare step after the choice: Back (to the choice, "Compare AAPL") and the step's title. The back
+ * glyph sits on the sheet's text edge; its 48 dp target overhangs into the sheet's padding.
+ */
 @Composable
-private fun NamesPicker(ticker: String, otherNames: List<String>, onCompare: (List<String>) -> Unit) {
+private fun CompareStepHead(title: String, backLabel: String, onBack: () -> Unit) {
+    val p = LocalThesisPalette.current
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        ThesisIconButton(
+            ThesisIcons.Back,
+            contentDescription = backLabel,
+            onClick = onBack,
+            modifier = Modifier.offset(x = -BackGlyphInset),
+            tint = p.ink,
+        )
+        Text(
+            title,
+            modifier = Modifier.offset(x = -BackGlyphInset).semantics { heading() },
+            style = ThesisType.subhead,
+            color = p.ink,
+        )
+    }
+}
+
+/** How far the back glyph's 48 dp target reaches past the glyph: the head shifts left by it. */
+private val BackGlyphInset = (ThesisSpace.touchMin - ThesisSpace.iconL) / 2
+
+@Composable
+private fun NamesPicker(ticker: String, otherNames: List<String>, onBack: () -> Unit, onCompare: (List<String>) -> Unit) {
     val p = LocalThesisPalette.current
     var picked by rememberSaveable(ticker) { mutableStateOf(listOf<String>()) }
     Column(verticalArrangement = Arrangement.spacedBy(ThesisSpace.s)) {
-        Text(ReportCopy.pickNamesTitle(ticker), style = ThesisType.subhead, color = p.ink)
+        CompareStepHead(ReportCopy.pickNamesTitle(ticker), ReportCopy.compareBack(ticker), onBack)
         if (otherNames.isEmpty()) {
             Text(ReportCopy.noOtherNames(ticker), style = ThesisType.body, color = p.ink2)
             return@Column
@@ -213,21 +252,22 @@ private fun PickRow(name: String, checked: Boolean, enabled: Boolean, onChange: 
 }
 
 @Composable
-private fun EarlierReports(reports: List<ReportHistoryItem>, onOpen: (String) -> Unit) {
+private fun EarlierReports(ticker: String, reports: List<ReportHistoryItem>, onBack: () -> Unit, onOpen: (String) -> Unit) {
     val p = LocalThesisPalette.current
     val fmt = LocalFmt.current
     Column(verticalArrangement = Arrangement.spacedBy(ThesisSpace.s)) {
-        Text(ReportCopy.EARLIER_REPORTS_TITLE, style = ThesisType.subhead, color = p.ink)
+        CompareStepHead(ReportCopy.EARLIER_REPORTS_TITLE, ReportCopy.compareBack(ticker), onBack)
         if (reports.isEmpty()) {
-            Text(ReportCopy.NO_EARLIER_REPORT, style = ThesisType.body, color = p.ink2)
+            Text(ReportCopy.noEarlierReport(ticker), style = ThesisType.body, color = p.ink2)
             return@Column
         }
         Column {
             reports.forEach { item ->
-                val date = parseInstantMs(item.createdAt)
-                    ?.let { fmt.shortDate(Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).toLocalDate()) }
-                    ?: item.createdAt
-                SheetActionRow(ThesisIcons.DeepDive, ReportCopy.earlierReportLabel(date), { onOpen(item.reportId) })
+                // Fmt's own zone and clock ("23 days ago", then "14 Nov 2025"); never a raw timestamp.
+                val label = parseInstantMs(item.createdAt)
+                    ?.let { ReportCopy.earlierReportLabel(fmt.relative(Instant.ofEpochMilli(it))) }
+                    ?: ReportCopy.EARLIER_REPORT
+                SheetActionRow(ThesisIcons.DeepDive, label, { onOpen(item.reportId) })
             }
         }
     }
@@ -331,10 +371,11 @@ private const val EARLIER_NOTE_LINES = 4
 // ---------------------------------------------------------------------------------------------------------------
 
 /**
- * Report feedback in a DockPanel (it has a text field): one choice of [ReportCopy.feedbackOptions] (chips,
- * Role.RadioButton), optional details, Send. Sending calls [onSubmit] with the code and the trimmed details.
+ * Report feedback in a DockPanel (it has a text field), the pattern of 5.15 item 5: a [ChipRow] of
+ * [ReportCopy.feedbackOptions] with nothing chosen (Role.RadioButton), optional details, and Send, enabled once a
+ * chip is chosen. Sending calls [onSubmit] with the code and the trimmed details and turns the panel into its sent
+ * state (a thank-you and Done) until it closes; the view model's notice says whether the send went through.
  */
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun ReportFeedbackPanel(
     visible: Boolean,
@@ -345,8 +386,17 @@ fun ReportFeedbackPanel(
     modifier: Modifier = Modifier,
 ) {
     val p = LocalThesisPalette.current
-    var code by rememberSaveable { mutableStateOf(ReportCopy.feedbackOptions.first().first) }
+    var code by rememberSaveable { mutableStateOf<String?>(null) }
     var details by rememberSaveable { mutableStateOf("") }
+    var sent by rememberSaveable { mutableStateOf(false) }
+    // Each opening starts fresh: no choice carried over, no sent state from last time.
+    LaunchedEffect(visible) {
+        if (!visible) {
+            code = null
+            details = ""
+            sent = false
+        }
+    }
     DockPanel(
         visible = visible,
         onDismiss = onDismiss,
@@ -356,26 +406,61 @@ fun ReportFeedbackPanel(
         title = ReportCopy.REPORT_FEEDBACK,
         verticalArrangement = Arrangement.spacedBy(ThesisSpace.m),
     ) {
+        if (sent) {
+            Row(
+                Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(ThesisSpace.s),
+            ) {
+                Icon(ThesisIcons.Check, contentDescription = null, modifier = Modifier.size(ThesisSpace.iconL), tint = p.ink)
+                Text(ReportCopy.FEEDBACK_THANKS, style = ThesisType.subhead, color = p.ink)
+            }
+            Text(ReportCopy.FEEDBACK_THANKS_HOW, style = ThesisType.body, color = p.ink2)
+            SecondaryButton(ReportCopy.FEEDBACK_DONE, onDismiss, modifier = Modifier.fillMaxWidth())
+        } else {
+            FeedbackForm(
+                code = code,
+                onCode = { code = it },
+                details = details,
+                onDetails = { details = it },
+                onSend = {
+                    code?.let { chosen ->
+                        onSubmit(chosen, details.trim())
+                        sent = true
+                    }
+                },
+            )
+        }
+    }
+}
+
+@Composable
+private fun FeedbackForm(
+    code: String?,
+    onCode: (String) -> Unit,
+    details: String,
+    onDetails: (String) -> Unit,
+    onSend: () -> Unit,
+) {
+    val p = LocalThesisPalette.current
+    Column(verticalArrangement = Arrangement.spacedBy(ThesisSpace.m)) {
         Text(ReportCopy.FEEDBACK_HOW, style = ThesisType.body, color = p.ink2)
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(ThesisSpace.s)) {
-            ReportCopy.feedbackOptions.forEach { (value, label) ->
-                ThesisChip(label = label, selected = code == value, onClick = { code = value }, role = Role.RadioButton)
+        ChipRow(contentPadding = PaddingValues()) {
+            items(ReportCopy.feedbackOptions, key = { it.first }) { (value, label) ->
+                ThesisChip(label = label, selected = code == value, onClick = { onCode(value) }, role = Role.RadioButton)
             }
         }
         ThesisTextField(
             value = details,
-            onValueChange = { details = it },
+            onValueChange = onDetails,
             label = ReportCopy.FEEDBACK_DETAILS,
             singleLine = false,
         )
         PrimaryButton(
             text = ReportCopy.FEEDBACK_SEND,
-            onClick = {
-                onSubmit(code, details.trim())
-                details = ""
-                onDismiss()
-            },
+            onClick = onSend,
             modifier = Modifier.fillMaxWidth(),
+            enabled = code != null,
         )
     }
 }

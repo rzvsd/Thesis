@@ -14,9 +14,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.graphicsLayer
@@ -41,6 +43,7 @@ import com.thesis.mobile.ui.motion.ThesisMotion
 import com.thesis.mobile.ui.shell.exceptTop
 import com.thesis.mobile.ui.theme.LocalReducedMotion
 import com.thesis.mobile.ui.theme.LocalThesisPalette
+import com.thesis.mobile.ui.theme.ThesisShape
 import com.thesis.mobile.ui.theme.ThesisSpace
 import com.thesis.mobile.ui.theme.ThesisType
 
@@ -49,6 +52,20 @@ import com.thesis.mobile.ui.theme.ThesisType
  * app bar of its own in embed mode), the page, the loading skeleton with its progress hairline, and the dock. The
  * page itself is a slot, so the frame renders in design-preview without a WebView.
  */
+
+/**
+ * The report's bar while a stored report opens ([com.thesis.mobile.ui.screens.DeepDiveLoadingScreen]), so the
+ * skeleton and the host that follows share one chrome. [onOverflow] has nothing to offer until the report is open
+ * (the kit bar always draws the overflow and the bookmark; HANDOFF-C asks WP-K to let them hide).
+ */
+@Immutable
+data class ReportOpeningBar(
+    val ticker: String,
+    val onBack: () -> Unit,
+    val following: Boolean = false,
+    val onFollowChange: (Boolean) -> Unit = {},
+    val onOverflow: () -> Unit = {},
+)
 
 /** Progress (0..100) of a page load the host knows nothing about yet. */
 const val PAGE_PROGRESS_UNKNOWN = 0
@@ -156,8 +173,9 @@ fun ReportPageSkeleton(modifier: Modifier = Modifier, heroTop: Dp? = null) {
                 .padding(horizontal = ThesisSpace.gutter, vertical = ThesisSpace.m),
             horizontalArrangement = Arrangement.spacedBy(ThesisSpace.s),
         ) {
+            // Pills, as the page's chapter chips, so the shape does not jump when the page fades in.
             ChipWidths.forEach { fraction ->
-                SkeletonBlock(Modifier.weight(fraction).height(ThesisSpace.chipHeight))
+                SkeletonBlock(Modifier.weight(fraction).height(ThesisSpace.chipHeight).clip(ThesisShape.pill))
             }
         }
         Column(

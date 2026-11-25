@@ -44,6 +44,7 @@ import com.thesis.mobile.ui.motion.ThesisMotion
 import com.thesis.mobile.ui.motion.rememberHaptics
 import com.thesis.mobile.ui.parseInstantMs
 import com.thesis.mobile.ui.screens.report.CompareStep
+import com.thesis.mobile.ui.screens.report.DockScroll
 import com.thesis.mobile.ui.screens.report.ExportJob
 import com.thesis.mobile.ui.screens.report.PAGE_PROGRESS_UNKNOWN
 import com.thesis.mobile.ui.screens.report.PageSelection
@@ -237,16 +238,17 @@ private fun ReportWebHost(
     var feedbackDetent by rememberSaveable(report.reportId) { mutableStateOf(DockDetent.Half) }
     var exporting by remember(report.reportId) { mutableStateOf(ExportJob.None) }
     var scrollNoteToEnd by remember(report.reportId) { mutableIntStateOf(0) }
-    var dockVisible by remember(report.reportId) { mutableStateOf(true) }
+    var dockScroll by remember(report.reportId) { mutableStateOf(DockScroll()) }
     // Export PDF prints the loaded page (same template as the share link).
     val printer = remember(report.reportId) { DeepDivePagePrinter() }
     // One token refresh per attempt after a 401. Kept in memory only: a token never goes into saved state.
     var tokenRetried by remember(report.reportId, attempt) { mutableStateOf(false) }
     var refreshedToken by remember(report.reportId, attempt) { mutableStateOf<String?>(null) }
     var isRefreshingToken by remember(report.reportId, attempt) { mutableStateOf(false) }
-    // Per WebView (a refreshed token gives a new one): loaded once it has finished, and its progress.
-    var pageLoaded by remember(report.reportId, attempt, refreshedToken) { mutableStateOf(false) }
-    var progress by remember(report.reportId, attempt, refreshedToken) { mutableIntStateOf(PAGE_PROGRESS_UNKNOWN) }
+    // Per WebView (a refreshed token or a new page URL, after a theme switch, gives a new one): loaded once it has
+    // finished, and its progress. The skeleton and the hairline come back with each new WebView.
+    var pageLoaded by remember(report.reportId, attempt, refreshedToken, pageUrl) { mutableStateOf(false) }
+    var progress by remember(report.reportId, attempt, refreshedToken, pageUrl) { mutableIntStateOf(PAGE_PROGRESS_UNKNOWN) }
 
     // The paywall is drawn in the activity window, under a sheet's window, so an open sheet or panel closes when
     // the paywall opens (also when the server, not the host, asked for the upgrade).
@@ -283,6 +285,8 @@ private fun ReportWebHost(
     val addToNote: (PageSelection) -> Unit = { selection ->
         val quote = ReportQuote.format(selection, ReportQuote.sourceLabel(report))
         currentTools.onReportNoteChange(ReportQuote.append(currentTools.reportNoteDraft, quote))
+        // Add to note opens the panel at 45% like the dock (the field's focus takes it to 85%).
+        if (panel != ReportPanel.Notes) notesDetent = DockDetent.Half
         panel = ReportPanel.Notes
         scrollNoteToEnd += 1
     }
@@ -341,7 +345,13 @@ private fun ReportWebHost(
     }
 
     val dockItems = buildList {
-        add(DockItem(ReportCopy.DOCK_NOTES, { panel = ReportPanel.Notes }))
+        add(
+            DockItem(ReportCopy.DOCK_NOTES, {
+                // Always 45% when opened (5.13 item 4); the field's focus takes it to 85%.
+                notesDetent = DockDetent.Half
+                panel = ReportPanel.Notes
+            })
+        )
         if (extras.onCompareNames != null || extras.onCompareReports != null) {
             add(
                 DockItem(ReportCopy.DOCK_COMPARE, {
@@ -366,18 +376,22 @@ private fun ReportWebHost(
         padding = padding,
         onBack = onBack,
         following = extras.isFollowing,
+        // The kit bar always draws the bookmark; until WP-INT passes onFollowChange it toggles nothing (HANDOFF-C).
         onFollowChange = { on -> extras.onFollowChange?.invoke(on) },
         onOverflow = { panel = ReportPanel.Overflow },
         pageLoaded = pageLoaded && !isRefreshingToken,
         progress = progress,
         dockItems = dockItems,
-        dockVisible = dockVisible && panel != ReportPanel.Notes && panel != ReportPanel.Feedback,
+        dockVisible = dockScroll.visible && panel != ReportPanel.Notes && panel != ReportPanel.Feedback,
         overlays = {
             val fmt = LocalFmt.current
             val earlier = earlierNoteFor(report.reportId, extras.notesTrail)?.let { earlierNoteOf(it) }
             ReportNotesPanel(
                 visible = panel == ReportPanel.Notes,
-                onDismiss = { panel = ReportPanel.None },
+                onDismiss = {
+                    panel = ReportPanel.None
+                    notesDetent = DockDetent.Half
+                },
                 detent = notesDetent,
                 onDetentChange = { notesDetent = it },
                 note = tools.reportNoteDraft,
@@ -397,7 +411,10 @@ private fun ReportWebHost(
             )
             ReportFeedbackPanel(
                 visible = panel == ReportPanel.Feedback,
-                onDismiss = { panel = ReportPanel.None },
+                onDismiss = {
+                    panel = ReportPanel.None
+                    feedbackDetent = DockDetent.Half
+                },
                 detent = feedbackDetent,
                 onDetentChange = { feedbackDetent = it },
                 onSubmit = { code, details -> currentTools.onSubmitReportFeedback(code, details) },
@@ -417,7 +434,7 @@ private fun ReportWebHost(
                     onProgress = { progress = it },
                     onLoaded = { pageLoaded = true },
                     onScroll = { scrollY, dy ->
-                        dockVisible = ReportDockScroll.visibleAfter(dockVisible, scrollY, dy, slopPx)
+                        dockScroll = ReportDockScroll.next(dockScroll, scrollY, dy, slopPx)
                     },
                     onAddToNote = addToNote,
                 )
@@ -435,7 +452,10 @@ private fun ReportWebHost(
                 },
                 onExportPdf = exportPdf,
                 onShareCard = shareCard,
-                onFeedback = { panel = ReportPanel.Feedback },
+                onFeedback = {
+                    feedbackDetent = DockDetent.Half
+                    panel = ReportPanel.Feedback
+                },
             )
         }
         ReportPanel.Compare -> ThesisSheet(
