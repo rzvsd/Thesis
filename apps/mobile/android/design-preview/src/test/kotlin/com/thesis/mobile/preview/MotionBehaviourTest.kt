@@ -13,6 +13,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -33,17 +34,22 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.text.TextMeasurer
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.unit.dp
 import com.thesis.mobile.ui.animations.StaggeredEntrance
 import com.thesis.mobile.ui.motion.ContainerTransformHost
+import com.thesis.mobile.ui.motion.Glyphs
+import com.thesis.mobile.ui.motion.RollPlan
 import com.thesis.mobile.ui.motion.DismissibleItem
 import com.thesis.mobile.ui.motion.EntranceRegistry
 import com.thesis.mobile.ui.motion.ProvideEntranceScope
 import com.thesis.mobile.ui.motion.RollingNumber
 import com.thesis.mobile.ui.motion.ScrollSpyState
 import com.thesis.mobile.ui.motion.ThesisMotion
-import com.thesis.mobile.ui.motion.ThesisRefreshBox
+import com.thesis.mobile.ui.motion.ThesisPullRefresh
 import com.thesis.mobile.ui.motion.rememberEntranceCoordinator
 import com.thesis.mobile.ui.motion.rememberScrollSpy
 import com.thesis.mobile.ui.motion.rememberShowSkeleton
@@ -52,6 +58,7 @@ import com.thesis.mobile.ui.platform.PreviewBack
 import com.thesis.mobile.ui.theme.ThemeMode
 import com.thesis.mobile.ui.theme.ThesisTheme
 import com.thesis.mobile.ui.theme.ThesisType
+import com.thesis.mobile.ui.theme.tnum
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -131,11 +138,35 @@ class MotionBehaviourTest {
         val registry = EntranceRegistry()
         var scope by mutableStateOf("entry-a")
         rule.mainClock.autoAdvance = false
-        theme { ProvideEntranceScope(registry, scope) { Block("header", "block") } }
+        // Each entry is its own subtree in the shell (keyed by entryId), so its blocks attach fresh.
+        theme { key(scope) { ProvideEntranceScope(registry, scope) { Block("header", "block") } } }
         rule.mainClock.advanceTimeBy(1_000)
         scope = "entry-b"
         rule.mainClock.advanceTimeByFrame()
         assertNotEquals(red.toArgb(), rule.onNodeWithTag("block").centre().toArgb())
+    }
+
+    @Test
+    fun aNewIssueOpenedLaterStaggersOnItsFirstOpen() {
+        val registry = EntranceRegistry()
+        var issue by mutableStateOf("issue-1")
+        var shown by mutableStateOf(true)
+        rule.mainClock.autoAdvance = false
+        theme {
+            ProvideEntranceScope(registry, "home-entry") {
+                if (shown) {
+                    val coordinator = rememberEntranceCoordinator(issue)
+                    Box(Modifier.size(48.dp).testTag("block").staggeredEntrance("header", coordinator).background(red))
+                }
+            }
+        }
+        rule.mainClock.advanceTimeBy(1_000)
+        change { shown = false } // away on another tab
+        change { issue = "issue-2" } // a new issue lands meanwhile
+        change { shown = true } // Home's first open for the new issue
+        assertNotEquals(red.toArgb(), rule.onNodeWithTag("block").centre().toArgb())
+        rule.mainClock.advanceTimeBy(ThesisMotion.Enter + 2L * 16)
+        assertEquals(red.toArgb(), rule.onNodeWithTag("block").centre().toArgb())
     }
 
     @Test
@@ -294,7 +325,7 @@ class MotionBehaviourTest {
         var refreshing by mutableStateOf(false)
         var refreshed = 0
         theme {
-            ThesisRefreshBox(refreshing = refreshing, onRefresh = { refreshed++ }, modifier = Modifier.testTag("box")) {
+            ThesisPullRefresh(refreshing = refreshing, onRefresh = { refreshed++ }, modifier = Modifier.testTag("box")) {
                 Text("Content")
             }
         }
@@ -340,5 +371,128 @@ class MotionBehaviourTest {
         count = 12
         rule.waitForIdle()
         rule.onNodeWithContentDescription("12 new").assertExists()
+    }
+
+    @Test
+    fun aNewIssueWhileOnScreenNeverBlanksOrReplays() {
+        val registry = EntranceRegistry()
+        var issue by mutableStateOf("issue-1")
+        rule.mainClock.autoAdvance = false
+        theme {
+            ProvideEntranceScope(registry, "home-entry") {
+                val coordinator = rememberEntranceCoordinator(issue)
+                Column {
+                    // Same size across the refresh, and one whose size changes (it is remeasured): both stay opaque.
+                    Box(Modifier.size(48.dp).testTag("same").staggeredEntrance("header", coordinator).background(red))
+                    val h = if (issue == "issue-1") 48.dp else 64.dp
+                    Box(Modifier.size(48.dp, h).testTag("grows").staggeredEntrance("card", coordinator).background(red))
+                }
+            }
+        }
+        // First open: both stagger in.
+        rule.mainClock.advanceTimeByFrame()
+        assertNotEquals(red.toArgb(), rule.onNodeWithTag("grows").centre().toArgb())
+        rule.mainClock.advanceTimeBy(1_000)
+        assertEquals(red.toArgb(), rule.onNodeWithTag("same").centre().toArgb())
+        assertEquals(red.toArgb(), rule.onNodeWithTag("grows").centre().toArgb())
+
+        change { issue = "issue-2" } // a new Pulse issue arrives by refresh while Home is on screen
+        repeat(40) {
+            assertEquals("frame $it", red.toArgb(), rule.onNodeWithTag("same").centre().toArgb())
+            assertEquals("frame $it", red.toArgb(), rule.onNodeWithTag("grows").centre().toArgb())
+            rule.mainClock.advanceTimeByFrame()
+        }
+    }
+
+    @Test
+    fun rollingNumberChangedMidRollContinuesFromWhereItIs() {
+        lateinit var measurer: TextMeasurer
+        theme { measurer = rememberTextMeasurer() }
+        rule.runOnIdle {
+            val glyphs = Glyphs(measurer, ThesisType.statValue.tnum())
+            val at = 100f // the second refresh lands 100 ms into the first roll
+
+            // New target for a rolling digit: rolls on from the strip's current position, up to the new digit.
+            val first = RollPlan.build(previous = "10", text = "11", trend = 1, reduced = false, glyphs = glyphs)
+            val now = first.columns[0].position(at)
+            assertTrue("mid-roll at 100 ms: $now", now > 0f && now < 1f)
+            val second = RollPlan.build("11", "12", 1, false, glyphs, prior = first, priorMs = at)
+            assertEquals(now, second.columns[0].position(0f), 1e-4f)
+            assertEquals(2f, second.columns[0].position(second.durationMs.toFloat()), 1e-4f)
+            assertEquals(first.width(at), second.width(0f), 0.5f)
+
+            // Unchanged target for a column still moving: its motion simply continues on the new clock.
+            val a = RollPlan.build(previous = "10", text = "19", trend = 1, reduced = false, glyphs = glyphs)
+            val b = RollPlan.build("19", "29", 1, false, glyphs, prior = a, priorMs = at)
+            assertEquals(a.columns[0].position(at), b.columns[0].position(0f), 0.05f)
+            assertEquals(a.columns[0].position(a.durationMs.toFloat()), b.columns[0].position(b.durationMs.toFloat()), 1e-4f)
+            assertEquals(2f, b.columns[1].position(b.durationMs.toFloat()), 1e-4f)
+        }
+    }
+
+    @Test
+    fun rollingNumberChangedTwice100MsApartEndsOnTheLastValue() {
+        var value by mutableIntStateOf(10)
+        rule.mainClock.autoAdvance = false
+        theme { RollingNumber(value, { it.toString() }, ThesisType.statValue) }
+        rule.mainClock.advanceTimeByFrame()
+        change { value = 11 }
+        rule.mainClock.advanceTimeBy(100)
+        change { value = 12 }
+        rule.onNodeWithContentDescription("12").assertExists()
+        rule.mainClock.advanceTimeBy(ThesisMotion.Roll + ThesisMotion.rollDelay(4) + 100L)
+        rule.onNodeWithContentDescription("12").assertExists()
+    }
+
+    @Test
+    fun rapidPillTapsKeepThePinOnTheLatestTap() {
+        lateinit var spy: ScrollSpyState
+        val starts = listOf(0, 10, 20, 30)
+        rule.mainClock.autoAdvance = false
+        theme {
+            val list = rememberLazyListState()
+            spy = rememberScrollSpy(list, starts)
+            LazyColumn(Modifier.fillMaxSize(), state = list) {
+                items(40) { i -> Text("Item $i", Modifier.fillMaxWidth().height(80.dp)) }
+            }
+        }
+        rule.mainClock.advanceTimeByFrame()
+        change { spy.jumpTo(2) }
+        rule.mainClock.advanceTimeBy(50)
+        change { spy.jumpTo(3) } // a second tap while the first glide runs
+        val seen = mutableSetOf<Int>()
+        repeat(120) {
+            rule.mainClock.advanceTimeByFrame()
+            rule.runOnIdle { seen += spy.selected }
+        }
+        assertEquals("no flicker through the chapters in between", setOf(3), seen)
+    }
+
+    @Test
+    fun committedPredictiveBackClosesIntoTheRowNotBeside() {
+        var open by mutableStateOf<String?>(null)
+        rule.mainClock.autoAdvance = false
+        theme {
+            ContainerTransformHost(
+                openKey = open,
+                origin = Rect(0f, 200f, 400f, 300f),
+                onClose = { open = null },
+                list = { Box(Modifier.fillMaxSize().background(red)) },
+                detail = { key -> Text("Detail $key") },
+            )
+        }
+        change { open = "AAPL" }
+        rule.mainClock.advanceTimeBy(1_000)
+        runBlocking { assertTrue(PreviewBack.press()) } // swipes to progress 1, then commits
+        rule.mainClock.advanceTimeByFrame()
+        // Near the end of the close the page is almost the row again: its left edge is the row's left edge. If the
+        // preview's 0.9 scale and 8 dp shift stayed, the shrinking clip would sit tens of px right of the row.
+        repeat(ThesisMotion.ScreenOut / 16 - 2) { rule.mainClock.advanceTimeByFrame() } // frame by frame: the close runs
+        val pixels = rule.onRoot().captureToImage().toPixelMap()
+        // The list is red; the closing page is paper. (The scrim tints the list slightly, so compare channels.)
+        val edge = pixels[4, 250]
+        assertTrue("the closing page covers the row's left edge: $edge", edge.green > 0.5f)
+        rule.mainClock.advanceTimeBy(500)
+        rule.onNodeWithText("Detail AAPL").assertDoesNotExist()
     }
 }

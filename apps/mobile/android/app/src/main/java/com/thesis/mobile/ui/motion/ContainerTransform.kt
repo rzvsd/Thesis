@@ -105,9 +105,13 @@ fun <K : Any> ContainerTransformHost(
             back.snapTo(0f)
             progress.animateTo(1f, tween(if (reduced) ThesisMotion.Quick else ThesisMotion.Screen, easing = ThesisMotion.EaseStandard))
         } else if (shownKey != null) {
-            progress.animateTo(0f, tween(if (reduced) ThesisMotion.Quick else ThesisMotion.ScreenOut, easing = ThesisMotion.EaseStandard))
+            val closeSpec = tween<Float>(if (reduced) ThesisMotion.Quick else ThesisMotion.ScreenOut, easing = ThesisMotion.EaseStandard)
+            // A committed predictive back leaves the page scaled and shifted: unwind that preview together with the
+            // clip, so the page lands in the row instead of in a rect offset from it.
+            val unwind = launch { back.animateTo(0f, closeSpec) }
+            progress.animateTo(0f, closeSpec)
+            unwind.join()
             shownKey = null
-            back.snapTo(0f)
         }
     }
 

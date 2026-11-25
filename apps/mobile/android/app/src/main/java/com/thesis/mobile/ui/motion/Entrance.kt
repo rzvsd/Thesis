@@ -17,6 +17,7 @@ import androidx.compose.ui.node.CompositionLocalConsumerModifierNode
 import androidx.compose.ui.node.LayoutModifierNode
 import androidx.compose.ui.node.ModifierNodeElement
 import androidx.compose.ui.node.currentValueOf
+import androidx.compose.ui.node.invalidatePlacement
 import androidx.compose.ui.platform.InspectorInfo
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
@@ -203,9 +204,12 @@ private data class EntranceElement(
     override fun update(node: EntranceNode) {
         node.offset = offset
         if (node.key != key || node.coordinator !== coordinator) {
+            val coordinatorChanged = node.coordinator !== coordinator
             node.key = key
             node.coordinator = coordinator
-            if (node.isAttached) node.claim()
+            // The block is already on screen: a new data identity (a new Pulse issue arriving by refresh) or a new
+            // key never blanks it or replays a stagger (4.3 rules 2 and 5). Only onAttach (first open) animates.
+            if (node.isAttached) node.settle(closeWindow = coordinatorChanged)
         }
     }
 
@@ -223,13 +227,36 @@ private class EntranceNode(
 ) : Modifier.Node(), LayoutModifierNode, CompositionLocalConsumerModifierNode {
     private var progress: Animatable<Float, AnimationVector1D>? = null
 
-    override fun onAttach() = claim()
+    override fun onAttach() {
+        claim()
+        // A reused or re-attached node may keep its last placement (with a layer whose animation was cancelled):
+        // place again so the layer always matches [progress].
+        invalidatePlacement()
+    }
 
     override fun onDetach() {
         progress = null
     }
 
-    fun claim() {
+    /** Swaps [progress] and re-places the content, so the placed layer always matches it. */
+    private fun setProgress(value: Animatable<Float, AnimationVector1D>?) {
+        if (progress === value) return
+        progress = value
+        if (isAttached) invalidatePlacement()
+    }
+
+    /**
+     * Marks [key] seen on the current coordinator without animating and shows the block at once. With
+     * [closeWindow] (the coordinator changed under a block that is already on screen) the new coordinator's window
+     * closes too: the user already sees this data, so blocks scrolled in later do not stagger either.
+     */
+    fun settle(closeWindow: Boolean) {
+        coordinator.claim(key)
+        if (closeWindow) coordinator.close()
+        setProgress(null)
+    }
+
+    private fun claim() {
         val order = coordinator.claim(key)
         if (order == EntranceCoordinator.NO_ENTRANCE || currentValueOf(LocalReducedMotion)) {
             progress = null
@@ -240,7 +267,7 @@ private class EntranceNode(
         val gate = coordinator
         coroutineScope.launch {
             if (!gate.isOpenAt(withFrameMillis { it })) {
-                anim.snapTo(1f)
+                setProgress(null)
                 return@launch
             }
             if (order == 0) {
@@ -252,14 +279,17 @@ private class EntranceNode(
                 1f,
                 tween(ThesisMotion.Enter, ThesisMotion.staggerDelay(order), ThesisMotion.EaseEnter),
             )
+            // Done: drop the layer, so a settled block costs nothing.
+            if (progress === anim) setProgress(null)
         }
     }
 
     override fun MeasureScope.measure(measurable: Measurable, constraints: Constraints): MeasureResult {
         val placeable = measurable.measure(constraints)
-        val anim = progress
         val dy = offset.toPx()
         return layout(placeable.width, placeable.height) {
+            // Read at placement time, so invalidatePlacement() alone brings the layer in line with [progress].
+            val anim = progress
             if (anim == null) {
                 placeable.place(0, 0)
             } else {

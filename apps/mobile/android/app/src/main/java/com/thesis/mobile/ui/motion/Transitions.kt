@@ -116,9 +116,9 @@ object ThesisTransitions {
                 fadeOut(tween(ThesisMotion.Quick, easing = ThesisMotion.EaseExit))
         }
 
-    /** A value swap that must not move (market values, tape items, 4.6): a `Base` crossfade. */
+    /** A value swap that must not move (market values, tape items, 4.6): a `Base` crossfade (`EaseStandard`). */
     fun valueCrossfade(reduced: Boolean): ContentTransform =
-        if (reduced) reducedCrossfade() else fadeIn(tween(ThesisMotion.Base)) togetherWith fadeOut(tween(ThesisMotion.Base))
+        if (reduced) reducedCrossfade() else fadeIn(ThesisMotion.base()) togetherWith fadeOut(ThesisMotion.base())
 
     /** The reduced-motion replacement for every transition: a 150 ms crossfade (4.8). */
     fun reducedCrossfade(): ContentTransform =

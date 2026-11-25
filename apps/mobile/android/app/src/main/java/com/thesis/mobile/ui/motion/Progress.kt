@@ -55,7 +55,8 @@ fun rememberDrawOn(done: Boolean, durationMillis: Int = ThesisMotion.Base): Stat
 /**
  * The reward pulse (the `reward` spring, the app's one celebratory motion: "Deep Dive ready", the final
  * generation stage completing). When [trigger] changes after first paint and [enabled], the element swells to
- * about 1.08 and settles (damping 0.8). Never on first paint; static under reduced motion (4.8). Layer phase only.
+ * about 1.04 (in ~55 ms) and settles (damping 0.8). Never on first paint; static under reduced motion (4.8).
+ * Layer phase only.
  */
 fun Modifier.rewardPulse(trigger: Any?, enabled: Boolean = true): Modifier = composed {
     val reduced = LocalReducedMotion.current

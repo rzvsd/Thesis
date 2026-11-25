@@ -10,6 +10,7 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
@@ -109,10 +110,25 @@ fun RollingText(
     val ink = color.takeOrElse { tabular.color.takeOrElse { LocalContentColor.current } }
     val glyphs = remember(measurer, tabular) { Glyphs(measurer, tabular) }
     val committed = remember { arrayOfNulls<String>(1) }
+    val committedPlan = remember { arrayOfNulls<RollPlan>(1) }
     val plan = remember(text, glyphs) {
-        RollPlan.build(previous = committed[0], text = text, trend = trend.sign, reduced = reduced, glyphs = glyphs)
+        // A change mid-roll continues from where the figure is now (the NumberFlow model), not from the old target.
+        val prior = committedPlan[0]?.takeIf { it.glyphs === glyphs }
+        val priorMs = prior?.let { Snapshot.withoutReadObservation { it.clock.value } } ?: 0f
+        RollPlan.build(
+            previous = committed[0],
+            text = text,
+            trend = trend.sign,
+            reduced = reduced,
+            glyphs = glyphs,
+            prior = prior?.takeIf { it.isMoving(priorMs) },
+            priorMs = priorMs,
+        )
     }
-    SideEffect { committed[0] = text }
+    SideEffect {
+        committed[0] = text
+        committedPlan[0] = plan
+    }
     LaunchedEffect(plan) {
         if (plan.durationMs > 0) {
             plan.clock.animateTo(plan.durationMs.toFloat(), tween(plan.durationMs, easing = ThesisMotion.Linear))
@@ -133,10 +149,11 @@ fun RollingText(
                     placeable.place(0, 0)
                 }
             }
-            // Offscreen so the DstIn edge mask only cuts this layer; clipped to the slot.
+            // Offscreen only while rolling, so the DstIn edge mask cuts this layer alone; a static figure pays for
+            // no offscreen buffer. Clipped to the slot.
             .graphicsLayer {
                 clip = true
-                compositingStrategy = CompositingStrategy.Offscreen
+                compositingStrategy = if (plan.isRolling(plan.clock.value)) CompositingStrategy.Offscreen else CompositingStrategy.Auto
             }
             .drawWithCache {
                 val mask = Brush.verticalGradient(
@@ -155,7 +172,7 @@ fun RollingText(
 }
 
 /** Measured single-character layouts for one style (tabular digits share one advance). */
-private class Glyphs(private val measurer: TextMeasurer, private val style: TextStyle) {
+internal class Glyphs(private val measurer: TextMeasurer, private val style: TextStyle) {
     private val cache = HashMap<Char, TextLayoutResult>()
     private val zero = layout('0')
     val lineHeight: Int = zero.size.height
@@ -166,11 +183,11 @@ private class Glyphs(private val measurer: TextMeasurer, private val style: Text
     fun width(c: Char?): Float = if (c == null) 0f else layout(c).size.width.toFloat()
 }
 
-private enum class ColumnKind { Static, Roll, Fade }
+internal enum class ColumnKind { Static, Roll, Fade }
 
 /** One character position, counted from the right. Null chars mean "absent" (the number got shorter or longer). */
 @Immutable
-private class RollColumn(
+internal class RollColumn(
     val from: Char?,
     val to: Char?,
     val kind: ColumnKind,
@@ -189,12 +206,20 @@ private class RollColumn(
         return ThesisMotion.EaseStandard.transform(t)
     }
 
+    /** Odometer strip position at [ms] (meaningful for [ColumnKind.Roll]). */
+    fun position(ms: Float): Float = lerp(start, end, progress(ms))
+
+    /** This column on a clock that starts [elapsedMs] later: the same motion, continued from where it is now. */
+    fun shiftedBy(elapsedMs: Float): RollColumn =
+        RollColumn(from, to, kind, start, end, delayMs - elapsedMs.roundToInt(), durationMs, fromWidth, toWidth)
+
     fun width(ms: Float): Float = lerp(fromWidth, toWidth, progress(ms))
 }
 
-private class RollPlan(
-    private val columns: List<RollColumn>,
-    private val glyphs: Glyphs,
+/** One change of the figure: its columns (from the right) on one clock. Internal for the plan tests. */
+internal class RollPlan(
+    val columns: List<RollColumn>,
+    val glyphs: Glyphs,
     val durationMs: Int,
 ) {
     /** The plan's own clock, in ms: a new plan starts at 0, so its first frame is the "before" state. */
@@ -205,6 +230,9 @@ private class RollPlan(
     fun width(ms: Float): Float = columns.sumOf { it.width(ms).toDouble() }.toFloat()
 
     fun isRolling(ms: Float): Boolean = hasRoll && ms < durationMs
+
+    /** True while any column still changes at [ms] (a roll, a fade or a width glide). */
+    fun isMoving(ms: Float): Boolean = ms < durationMs
 
     fun draw(scope: DrawScope, ms: Float, color: Color) = with(scope) {
         val slot = size.height
@@ -242,38 +270,63 @@ private class RollPlan(
     }
 
     companion object {
-        fun build(previous: String?, text: String, trend: Int, reduced: Boolean, glyphs: Glyphs): RollPlan {
-            if (previous == null || previous == text) {
+        /**
+         * The plan from [previous] to [text]. When [prior] is still moving at [priorMs] (the value changed again
+         * mid-roll), each column continues from its current state: a column whose target is unchanged keeps its
+         * motion on the new clock, and a rolling digit with a new target rolls on from its current strip position.
+         */
+        fun build(
+            previous: String?,
+            text: String,
+            trend: Int,
+            reduced: Boolean,
+            glyphs: Glyphs,
+            prior: RollPlan? = null,
+            priorMs: Float = 0f,
+        ): RollPlan {
+            if (prior == null && (previous == null || previous == text)) {
                 val columns = text.reversed().map { c ->
                     val w = glyphs.width(c)
                     RollColumn(c, c, ColumnKind.Static, 0f, 0f, 0, 0, w, w)
                 }
                 return RollPlan(columns, glyphs, durationMs = 0)
             }
-            val from = previous.reversed()
+            val from = (previous ?: text).reversed()
             val to = text.reversed()
-            val count = maxOf(from.length, to.length)
+            val count = maxOf(from.length, to.length, prior?.columns?.size ?: 0)
             var total = 0
             val columns = (0 until count).map { i ->
-                val a = from.getOrNull(i)
+                val old = prior?.columns?.getOrNull(i)?.takeIf { it.progress(priorMs) < 1f }
+                val a = old?.to ?: from.getOrNull(i)
                 val b = to.getOrNull(i)
-                val aw = glyphs.width(a)
+                val aw = old?.width(priorMs) ?: glyphs.width(a)
                 val bw = glyphs.width(b)
                 when {
+                    old != null && old.to == b -> {
+                        // Same target: the motion already under way simply continues.
+                        old.shiftedBy(priorMs).also { total = maxOf(total, it.delayMs + it.durationMs) }
+                    }
                     a == b -> RollColumn(a, b, ColumnKind.Static, 0f, 0f, 0, 0, aw, bw)
                     reduced -> {
                         // Reduced motion: a 150 ms crossfade of what changed; widths take their new size at once.
                         total = maxOf(total, ThesisMotion.Quick)
                         RollColumn(a, b, ColumnKind.Fade, 0f, 0f, 0, ThesisMotion.Quick, bw, bw)
                     }
+                    old != null && old.kind == ColumnKind.Roll && b != null && b.isDigit() -> {
+                        // Mid-roll with a new target: roll on from the strip's current position, at once (no stagger
+                        // delay, which would stall the strip), in the direction of the change.
+                        val start = old.position(priorMs)
+                        val direction = if (trend != 0) trend else (old.end - old.start).sign.toInt()
+                        val end = nearestStop(start, (b - '0').toFloat(), direction)
+                        total = maxOf(total, ThesisMotion.Roll)
+                        RollColumn(a, b, ColumnKind.Roll, start, end, 0, ThesisMotion.Roll, aw, bw)
+                    }
                     else -> {
                         val delay = ThesisMotion.rollDelay(i)
                         total = maxOf(total, delay + ThesisMotion.Roll)
                         if (a != null && b != null && a.isDigit() && b.isDigit() && trend != 0) {
                             val start = (a - '0').toFloat()
-                            var end = (b - '0').toFloat()
-                            if (trend > 0 && end < start) end += DIGITS
-                            if (trend < 0 && end > start) end -= DIGITS
+                            val end = nearestStop(start, (b - '0').toFloat(), trend)
                             RollColumn(a, b, ColumnKind.Roll, start, end, delay, ThesisMotion.Roll, aw, bw)
                         } else {
                             RollColumn(a, b, ColumnKind.Fade, 0f, 0f, delay, ThesisMotion.Roll, aw, bw)
@@ -282,6 +335,20 @@ private class RollPlan(
                 }
             }
             return RollPlan(columns, glyphs, durationMs = total)
+        }
+
+        /**
+         * The strip position showing [digit] reached from [start] travelling in [direction] (> 0 upward, < 0
+         * downward; 0 takes the nearest), at most one turn of the strip away.
+         */
+        fun nearestStop(start: Float, digit: Float, direction: Int): Float {
+            val base = floor(start / DIGITS) * DIGITS + digit
+            val candidates = floatArrayOf(base - DIGITS, base, base + DIGITS)
+            return when {
+                direction > 0 -> candidates.filter { it >= start }.min()
+                direction < 0 -> candidates.filter { it <= start }.max()
+                else -> candidates.minBy { abs(it - start) }
+            }
         }
 
         private fun digit(v: Int): Char = '0' + ((v % DIGITS) + DIGITS) % DIGITS

@@ -58,7 +58,7 @@ import com.thesis.mobile.ui.motion.RefreshHairline
 import com.thesis.mobile.ui.motion.RollingNumber
 import com.thesis.mobile.ui.motion.ShimmerHost
 import com.thesis.mobile.ui.motion.ThesisMotion
-import com.thesis.mobile.ui.motion.ThesisRefreshBox
+import com.thesis.mobile.ui.motion.ThesisPullRefresh
 import com.thesis.mobile.ui.motion.ThesisTransitions
 import com.thesis.mobile.ui.motion.captureBounds
 import com.thesis.mobile.ui.motion.rememberBoundsCapture
@@ -303,7 +303,7 @@ class MotionRenders {
 
     @Test
     fun refreshBox() = frames("refresh-box", listOf(0, 120, 400, 1200), heightDp = 360, fit = false) {
-        ThesisRefreshBox(refreshing = true, onRefresh = {}) {
+        ThesisPullRefresh(refreshing = true, onRefresh = {}) {
             Column(Modifier.fillMaxWidth().padding(ThesisSpace.gutter)) {
                 ScreenHeader(title = "Macro stress", eyebrow = "Today", meta = "Updated 07:42")
                 Spacer(Modifier.height(ThesisSpace.l))

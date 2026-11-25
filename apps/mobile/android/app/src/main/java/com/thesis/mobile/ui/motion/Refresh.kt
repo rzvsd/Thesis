@@ -59,12 +59,14 @@ import kotlinx.coroutines.flow.distinctUntilChanged
  */
 
 /**
- * Pull-to-refresh container. [indicatorTop] is where the gap opens (below a transparent top bar, for example).
+ * Pull-to-refresh container. Screens do not call it directly: the kit's `ui.components.ThesisRefreshBox` (spec
+ * 3 #34) stays the one public entry point and delegates here, so the two packages never export the same name.
+ * [indicatorTop] is where the gap opens (below a transparent top bar, for example).
  * [refreshLabel] / [refreshingLabel] are the accessibility action and status (screens pass their copy).
  */
 @OptIn(ExperimentalMaterialApi::class)
 @Composable
-fun ThesisRefreshBox(
+fun ThesisPullRefresh(
     refreshing: Boolean,
     onRefresh: () -> Unit,
     modifier: Modifier = Modifier,

@@ -12,6 +12,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import com.thesis.mobile.ui.theme.LocalReducedMotion
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
 /*
@@ -44,18 +46,29 @@ class ScrollSpyState internal constructor(
     /** The chapter to show as selected: the tapped one while its scroll runs, else the spied one. */
     val selected: Int get() = pinned ?: spied.value
 
+    // The latest tap's scroll. A newer tap cancels it (the list's scroll mutex), and only the latest one may unpin.
+    private var jump: Job? = null
+
     /** Scrolls to chapter [index] (glides; jumps under reduced motion), keeping the pill on it meanwhile. */
     fun jumpTo(index: Int) {
         val target = chapterStarts.getOrNull(index) ?: return
+        jump?.cancel()
         pinned = index
-        scope.launch {
+        lateinit var self: Job
+        self = scope.launch(start = CoroutineStart.LAZY) {
             try {
                 if (reduced()) list.scrollToItem(target) else list.animateScrollToItem(target)
             } finally {
-                lastSpied = index
-                pinned = null
+                // A superseded scroll leaves the pin to the tap that replaced it (no flicker through the chapters).
+                if (jump === self) {
+                    lastSpied = index
+                    pinned = null
+                    jump = null
+                }
             }
         }
+        jump = self
+        self.start()
     }
 
     private fun spy(): Int {

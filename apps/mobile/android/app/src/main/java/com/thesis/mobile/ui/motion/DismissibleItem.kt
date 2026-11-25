@@ -54,13 +54,13 @@ fun DismissibleItem(
         visibleState = state,
         modifier = modifier,
         enter = if (reduced) {
-            fadeIn(tween(ThesisMotion.Quick))
+            fadeIn(ThesisMotion.quick())
         } else {
             expandVertically(ThesisMotion.spatial(), expandFrom = Alignment.Top) +
                 fadeIn(tween(ThesisMotion.Base, ThesisMotion.CrossfadeDelay, ThesisMotion.EaseStandard))
         },
         exit = if (reduced) {
-            fadeOut(tween(ThesisMotion.Quick))
+            fadeOut(ThesisMotion.quick())
         } else {
             shrinkVertically(tween(ThesisMotion.Base, easing = ThesisMotion.EaseStandard), shrinkTowards = Alignment.Top) +
                 fadeOut(tween(ThesisMotion.Quick, easing = ThesisMotion.EaseExit))

@@ -111,9 +111,10 @@ object ThesisMotion {
     const val RefreshOverPull = 1.2f
     /**
      * `rewardPulse`: initial velocity (scale units per second) given to the `reward` spring. With
-     * damping 0.8 / stiffness 380 the mark swells to about 1.08 and settles in about 400 ms.
+     * damping 0.8 / stiffness 380 the peak is (v0 / wd) * e^(-zeta w0 t) * sin(wd t) at t ~ 55 ms (w0 ~ 19.5 rad/s,
+     * wd ~ 11.7 rad/s), so 1.85 gives the 1 -> 1.04 -> 1 of section 5 "Deep Dive ready"; it settles in about 300 ms.
      */
-    const val RewardVelocity = 2.6f
+    const val RewardVelocity = 1.85f
 
     // Scales
     /** Standalone buttons and standalone clickable cards only. */
