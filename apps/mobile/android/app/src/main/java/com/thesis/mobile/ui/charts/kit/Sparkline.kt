@@ -22,14 +22,16 @@ import com.thesis.mobile.ui.theme.Kit
 import com.thesis.mobile.ui.theme.LocalThesisPalette
 
 /*
- * Sparkline (section 3 "Charts"): a 1.5 dp line, monochrome `ink` @ 60% (accent only for the subject), an optional
+ * Sparkline (section 3 "Charts"): a 1.5 dp line, monochrome `ink` @ 60% (gold `series[0]` only for the subject: marks
+ * take the bright gold, the text gold `accent` is for words), an optional
  * area fill from 18% to 0, an end dot r 2.5. Draws on left to right once per data identity ([dataKey]). Not
  * scrubbable (section 4.6: the Weekly digest sparkline is not).
  */
 
 /**
- * A sparkline of [values] (gaps break the line). [subject] = true draws it in accent (the one subject on a
- * screen). [contentDescription] is what TalkBack reads ("Macro stress, 30 days, from 41 to 58, now 58"); build it
+ * A sparkline of [values] (gaps break the line; a reading alone between gaps is a dot). [subject] = true draws it
+ * in the subject gold (the one subject on a screen). [dataKey] is the data identity for the draw-on (the latest
+ * reading date); it is kept apart from a LineChart's, so both can use the same date. [contentDescription] is what TalkBack reads ("Macro stress, 30 days, from 41 to 58, now 58"); build it
  * with [ChartMath.summary]. With no finite value it draws a dashed `line2` midline (an honest absence).
  */
 @Composable
@@ -43,9 +45,9 @@ fun Sparkline(
     dataKey: Any? = null,
 ) {
     val p = LocalThesisPalette.current
-    val reveal = rememberDrawOn(dataKey)
+    val reveal = rememberDrawOn(DrawOnKind.Sparkline, dataKey)
     val clean = values.sanitized()
-    val color = if (subject) p.accent else p.ink.copy(alpha = ChartAlpha.SPARK_INK)
+    val color = if (subject) p.series[0] else p.ink.copy(alpha = ChartAlpha.SPARK_INK)
     Spacer(
         modifier
             .fillMaxWidth()
@@ -69,6 +71,7 @@ fun Sparkline(
                 fun y(v: Double) = (bottom - scale.fraction(v) * (bottom - top)).toFloat()
                 val line = Path()
                 val area = Path()
+                val dots = ArrayList<Offset>()
                 var open = false
                 var runStart = -1
                 fun closeArea(end: Int) {
@@ -90,6 +93,8 @@ fun Sparkline(
                         line.moveTo(x(i), y(v))
                         area.moveTo(x(i), y(v))
                         runStart = i
+                        // A reading with a gap (or the end) on both sides has no segment: draw it as a dot.
+                        if (i + 1 >= n || clean[i + 1] == null) dots += Offset(x(i), y(v))
                     } else {
                         line.lineTo(x(i), y(v))
                         area.lineTo(x(i), y(v))
@@ -111,7 +116,7 @@ fun Sparkline(
                     clipRect(right = if (r < 1f) left + (right - left + pad) * r else size.width) {
                         if (fill) drawPath(area, areaBrush)
                         drawPath(line, color, style = stroke)
-                        if (n == 1 || lastIndex == clean.firstFiniteIndex()) drawCircle(color, lineW, end)
+                        dots.forEach { drawCircle(color, lineW, it) }
                     }
                     val a = labelAlpha(r)
                     if (a > 0f) drawCircle(color, dotR, end, alpha = a)

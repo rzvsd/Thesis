@@ -1,9 +1,11 @@
 package com.thesis.mobile.preview
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -20,6 +22,7 @@ import com.thesis.mobile.ui.charts.kit.ChartHeights
 import com.thesis.mobile.ui.charts.kit.ChartMath
 import com.thesis.mobile.ui.charts.kit.ChartSeries
 import com.thesis.mobile.ui.charts.kit.ColumnChart
+import com.thesis.mobile.ui.charts.kit.DrawOnKind
 import com.thesis.mobile.ui.charts.kit.LineChart
 import com.thesis.mobile.ui.charts.kit.LineChartData
 import com.thesis.mobile.ui.charts.kit.LineChartReadout
@@ -38,8 +41,10 @@ import com.thesis.mobile.ui.charts.kit.legendFor
 import com.thesis.mobile.ui.charts.kit.macroStressBands
 import com.thesis.mobile.ui.charts.kit.macroStressSegments
 import com.thesis.mobile.ui.charts.kit.rememberLineChartState
+import com.thesis.mobile.ui.components.ThesisCard
 import com.thesis.mobile.ui.format.Fmt
 import com.thesis.mobile.ui.theme.LocalThesisPalette
+import com.thesis.mobile.ui.theme.ThesisType
 import com.thesis.mobile.ui.theme.Tone
 import com.thesis.mobile.ui.theme.macroStressDeltaTone
 import com.thesis.mobile.ui.theme.macroStressLabel
@@ -98,8 +103,8 @@ class ChartKitRenders {
 
     @Test
     fun drawOnFrames() {
-        // Draw-on (900 ms EaseCalm): first frame, mid, done.
-        listOf(0L, 300L, 1_200L).forEach { ms ->
+        // Draw-on (900 ms EaseCalm): first frame, early, mid, labels fading in, done.
+        listOf(0L, 150L, 300L, 400L, 1_200L).forEach { ms ->
             chartGallery("kit-charts-drawon-${ms}ms", settleMs = ms, frameMs = 50) { Fresh { CompactSheet(drawOn = true) } }
         }
     }
@@ -110,6 +115,38 @@ class ChartKitRenders {
         listOf(100L, 250L, 400L, 800L).forEach { ms ->
             chartGallery("kit-charts-morph-${ms}ms", settleMs = ms, frameMs = 50) { Fresh { MorphSpecimen() } }
         }
+    }
+
+    @Test
+    fun reducedMotionMorphFrames() {
+        // Reduced motion, range tap at 100 ms: a Quick (150 ms) crossfade of lines and end labels, no movement.
+        listOf(160L, 400L).forEach { ms ->
+            chartGallery("kit-charts-reducedmorph-${ms}ms", reducedMotion = true, settleMs = ms, frameMs = 10) {
+                Fresh { MorphSpecimen() }
+                Fresh { ColumnChangeSpecimen() }
+            }
+        }
+    }
+
+    @Test
+    fun interruptedMorphFrames() {
+        // 30 -> 90 days at 100 ms, then 90 -> 60 days at 300 ms (mid-morph): the second morph starts where the
+        // line is, and the latest-value label stays on the moving end throughout.
+        listOf(310L, 450L, 1_200L).forEach { ms ->
+            chartGallery("kit-charts-interrupt-${ms}ms", settleMs = ms, frameMs = 10) { Fresh { InterruptSpecimen() } }
+        }
+    }
+
+    @Test
+    fun remountDoesNotReplay() {
+        // Drawn on at 0 ms, left at 1000 ms, back at 1200 ms: complete at 1250 ms (once per data identity).
+        chartGallery("kit-charts-replay-1250ms", settleMs = 1_250, frameMs = 10) { Fresh { RemountSpecimen() } }
+    }
+
+    @Test
+    fun cardShadow() {
+        // ChartCard keeps the light-theme card shadow of every ThesisCard (section 2.7).
+        chartGallery("kit-charts-cards", settleMs = 1_500) { Fresh { CardSpecimens() } }
     }
 
     @Test
@@ -178,7 +215,7 @@ private fun GalleryScope.LineSpecimens() {
             LineChart(ChartFixtures.indexedRevenue, valueFormat = { Fmt.number(it, 0) })
         }
     }
-    Specimen("Sparkline", "ink 60% / subject accent with fill / empty") {
+    Specimen("Sparkline", "ink 60% / subject gold (series[0]) with fill / empty") {
         Sparkline(ChartFixtures.stress90.takeLast(30), "Macro stress, 30 days", dataKey = null)
         Sparkline(ChartFixtures.stress90.takeLast(30), "Macro stress, 30 days", subject = true, fill = true)
         Sparkline(emptyList(), "Macro stress, no readings yet")
@@ -328,8 +365,10 @@ private fun GalleryScope.EdgeSpecimens() {
 /** A short sheet with one of each, for the font-scale, width, reduced-motion and draw-on frames. */
 @Composable
 private fun GalleryScope.CompactSheet(drawOn: Boolean = false) {
-    // One data identity per chart: a key is claimed by the first chart that draws with it.
-    fun key(chart: String): Any? = if (drawOn) "$chart/2025-11-24" else null
+    // The latest reading date as every chart's data identity: keys are kept apart per chart kind, so the line, the
+    // columns, the bars and the sparkline all draw on (two charts of one kind would need keys of their own).
+    @Suppress("UNUSED_PARAMETER")
+    fun key(chart: String): Any? = if (drawOn) "2025-11-24" else null
     Specimen("LineChart") { MacroCard(rememberLineChartState(), days = 30, dataKey = key("macro")) }
     Specimen("ColumnChart") {
         ChartCard(title = "Sales grew 5.9% a year since fiscal 2015", fignum = 3, subtitle = "Sales, fiscal years", source = "Income statement") {
@@ -356,7 +395,7 @@ private fun GalleryScope.MorphSpecimen() {
             days = 90
         }
         // The chart drew on earlier this visit (same data identity): the range tap morphs, it does not redraw.
-        val seen = remember { ChartDrawOnRegistry().apply { claim("2025-11-24") } }
+        val seen = remember { ChartDrawOnRegistry().apply { claim(DrawOnKind.Line to "2025-11-24") } }
         CompositionLocalProvider(LocalChartDrawOn provides seen) {
             MacroCard(rememberLineChartState(), days = days, dataKey = "2025-11-24")
         }
@@ -376,3 +415,64 @@ private fun GalleryScope.ScrubSpecimens() {
         MacroCard(state, days = 30)
     }
 }
+
+@Composable
+private fun GalleryScope.ColumnChangeSpecimen() {
+    Specimen("Column values change", "same identity, new values at 100 ms") {
+        var later by remember { mutableStateOf(false) }
+        LaunchedEffect(Unit) {
+            delay(100)
+            later = true
+        }
+        val sales = if (later) ChartFixtures.sales.map { it?.times(1.18) } else ChartFixtures.sales
+        ColumnChart(listOf(ChartSeries("Sales", sales)), ChartFixtures.fiscalYears, valueFormat = ChartFixtures.money, tickFormat = ChartFixtures.moneyTick)
+    }
+}
+
+@Composable
+private fun GalleryScope.InterruptSpecimen() {
+    Specimen("Interrupted morph", "30 -> 90 days at 100 ms, 90 -> 60 days at 300 ms") {
+        var days by remember { mutableStateOf(30) }
+        LaunchedEffect(Unit) {
+            delay(100)
+            days = 90
+            delay(200)
+            days = 60
+        }
+        val seen = remember { ChartDrawOnRegistry().apply { claim(DrawOnKind.Line to "2025-11-24") } }
+        CompositionLocalProvider(LocalChartDrawOn provides seen) {
+            MacroCard(rememberLineChartState(), days = days, dataKey = "2025-11-24")
+        }
+    }
+}
+
+@Composable
+private fun GalleryScope.RemountSpecimen() {
+    Specimen("Leave and come back", "drawn on at 0 ms, disposed at 1000 ms, composed again at 1200 ms: no replay") {
+        var shown by remember { mutableStateOf(true) }
+        LaunchedEffect(Unit) {
+            delay(1_000)
+            shown = false
+            delay(200)
+            shown = true
+        }
+        if (shown) {
+            MacroCard(rememberLineChartState(), days = 30, dataKey = "2025-11-24")
+        } else {
+            Text("(away)", style = ThesisType.caption)
+        }
+    }
+}
+
+@Composable
+private fun GalleryScope.CardSpecimens() {
+    Specimen("ThesisCard and ChartCard", "the same shadow in light; the table expands inside, not the card") {
+        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            ThesisCard(title = "A plain kit card") { Text("Body copy for comparison.", style = ThesisType.bodySmall) }
+            ChartCard(title = "Sales grew 5.9% a year since fiscal 2015", fignum = 3, subtitle = "Sales, fiscal years", source = "Income statement") {
+                ColumnChart(listOf(ChartSeries("Sales", ChartFixtures.sales)), ChartFixtures.fiscalYears, valueFormat = ChartFixtures.money, tickFormat = ChartFixtures.moneyTick)
+            }
+        }
+    }
+}
+

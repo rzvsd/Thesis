@@ -3,6 +3,7 @@ package com.thesis.mobile.ui.charts.kit
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.VisibilityThreshold
 import androidx.compose.animation.core.snap
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -22,10 +23,12 @@ import com.thesis.mobile.ui.components.CompareTable
 import com.thesis.mobile.ui.components.CompareTableModel
 import com.thesis.mobile.ui.components.Eyebrow
 import com.thesis.mobile.ui.components.ThesisCard
+import com.thesis.mobile.ui.copy.ChartCopy
 import com.thesis.mobile.ui.motion.ThesisMotion
 import com.thesis.mobile.ui.theme.Kit
 import com.thesis.mobile.ui.theme.LocalReducedMotion
 import com.thesis.mobile.ui.theme.LocalThesisPalette
+import com.thesis.mobile.ui.theme.ThesisSpace
 import com.thesis.mobile.ui.theme.ThesisType
 
 /*
@@ -38,15 +41,13 @@ import com.thesis.mobile.ui.theme.ThesisType
  *   ---- Income statement   Show table     card foot: hairline, source, the table toggle
  */
 
-/** Labels of the table toggle in the card foot. */
-const val SHOW_TABLE = "Show table"
-const val HIDE_TABLE = "Hide table"
-
 /**
  * A chart card. [fignum] is the figure number ("CHART 3"); [title] is a conclusion sentence, not a label
  * ("Macro stress is Balanced and rising"); [subtitle] names units and period ("Score 0 to 100, last 30 days").
  * [readout] sits above the chart ([LineChartReadout] for scrubbable lines). With a [table] the foot carries
- * "Show table", which expands a [CompareTable] of the values in place (`animateContentSize`, `spatial`).
+ * "Show table", which expands a [CompareTable] of the values in place (`animateContentSize`, `spatial`). The size
+ * animation sits on an inner column (it clips to its bounds), never on the card itself, so the card keeps its
+ * light-theme shadow (section 2.7).
  */
 @Composable
 fun ChartCard(
@@ -67,21 +68,16 @@ fun ChartCard(
     val footer = if (source != null || table != null) {
         CardFooter(
             source = source,
-            actionLabel = table?.let { if (showTable) HIDE_TABLE else SHOW_TABLE },
+            actionLabel = table?.let { if (showTable) ChartCopy.HIDE_TABLE else ChartCopy.SHOW_TABLE },
             onAction = table?.let { { showTable = !showTable } },
         )
     } else {
         null
     }
-    ThesisCard(
-        modifier = modifier.animateContentSize(
-            if (reduced) snap() else ThesisMotion.spatial(IntSize.VisibilityThreshold),
-        ),
-        footer = footer,
-    ) {
+    ThesisCard(modifier = modifier, footer = footer) {
         Column(Modifier.fillMaxWidth()) {
             if (fignum != null) {
-                Eyebrow("Chart $fignum", color = p.accent.copy(alpha = Kit.FIGNUM_ALPHA))
+                Eyebrow(ChartCopy.figure(fignum), color = p.accent.copy(alpha = Kit.FIGNUM_ALPHA))
                 Spacer(Modifier.height(ChartDims.fignumGap))
             }
             Text(title, modifier = Modifier.semantics { heading() }, style = ThesisType.cardTitle, color = p.ink)
@@ -90,9 +86,17 @@ fun ChartCard(
                 Text(subtitle, style = ThesisType.caption, color = p.muted)
             }
         }
-        readout?.invoke()
-        chart()
-        ChartLegend(legend)
-        if (showTable && table != null) CompareTable(table)
+        // The same 12 dp rhythm as the card body; only this part changes height when the table opens.
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .animateContentSize(if (reduced) snap() else ThesisMotion.spatial(IntSize.VisibilityThreshold)),
+            verticalArrangement = Arrangement.spacedBy(ThesisSpace.cardInnerGap),
+        ) {
+            readout?.invoke()
+            chart()
+            ChartLegend(legend)
+            if (showTable && table != null) CompareTable(table)
+        }
     }
 }

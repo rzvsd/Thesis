@@ -220,6 +220,35 @@ class ChartMathTest {
     }
 
     @Test
+    fun spreadLabelsToleratesASqueezedRange() {
+        // A bar narrower than its widest label (a 0 or 40 dp layout pass): bottom < top must not throw.
+        val out = ChartMath.spreadLabels(listOf(5f, 30f), minGap = 12f, top = 26f, bottom = 14f)
+        assertEquals(2, out.size)
+        assertTrue(out.all { it.isFinite() && it >= 26f - 1e-3f })
+    }
+
+    @Test
+    fun spreadSpansMovesLabelsOnlyByTheirOverlap() {
+        // Far apart: nothing moves.
+        assertEquals(listOf(50f, 300f), ChartMath.spreadSpans(listOf(50f, 300f), listOf(40f, 80f), 8f, 0f, 400f))
+        // Overlapping: each pair keeps half of each width plus the gap, not the widest label.
+        val out = ChartMath.spreadSpans(listOf(200f, 210f), listOf(40f, 120f), 8f, 0f, 400f)
+        assertEquals(20f + 8f + 60f, out[1] - out[0], 1e-3f)
+        assertEquals(200f, out[0], 1e-3f) // the first stays on its anchor
+        assertEquals(288f, out[1], 1e-3f)
+        // Against the right edge: shifted back inside, gap kept.
+        val edge = ChartMath.spreadSpans(listOf(390f, 395f), listOf(40f, 40f), 8f, 0f, 400f)
+        assertEquals(380f, edge[1], 1e-3f)
+        assertEquals(332f, edge[0], 1e-3f)
+        // Too narrow: no throw, every centre finite.
+        val tight = ChartMath.spreadSpans(listOf(5f, 6f, 7f), listOf(40f, 40f, 40f), 8f, 0f, 20f)
+        assertTrue(tight.all { it.isFinite() })
+        assertFalse(ChartMath.fitsInRow(listOf(40f, 40f, 40f), 8f, 20f))
+        assertTrue(ChartMath.fitsInRow(listOf(40f, 40f), 8f, 88f))
+        assertEquals(emptyList<Float>(), ChartMath.spreadSpans(emptyList(), emptyList(), 8f, 0f, 1f))
+    }
+
+    @Test
     fun columnWidthIsCappedAndShared() {
         assertEquals(24f, ChartMath.columnWidth(100f, 24f), 1e-3f)
         assertEquals(7.2f, ChartMath.columnWidth(10f, 24f), 1e-3f)
@@ -263,9 +292,17 @@ class ChartMathTest {
 
     @Test
     fun withoutDatesTicksFallInBuckets() {
-        val values = List(48) { 50.0 }
-        assertEquals(ScrubHaptic.None, ChartMath.scrubHaptic(0, 1, values))
-        assertEquals(ScrubHaptic.Tick, ChartMath.scrubHaptic(1, 2, values))
+        // 30 points (a 30-day chart without dates): buckets of 7, about weekly, never every point.
+        val month = List(30) { 50.0 }
+        assertEquals(ScrubHaptic.None, ChartMath.scrubHaptic(0, 1, month))
+        assertEquals(ScrubHaptic.None, ChartMath.scrubHaptic(5, 6, month))
+        assertEquals(ScrubHaptic.Tick, ChartMath.scrubHaptic(6, 7, month))
+        val ticks = (0 until 29).count { ChartMath.scrubHaptic(it, it + 1, month) == ScrubHaptic.Tick }
+        assertEquals(4, ticks)
+        // Long series: about 24 buckets across the width (240 points, buckets of 10).
+        val long = List(240) { 50.0 }
+        assertEquals(ScrubHaptic.None, ChartMath.scrubHaptic(8, 9, long))
+        assertEquals(ScrubHaptic.Tick, ChartMath.scrubHaptic(9, 10, long))
         assertEquals(ScrubHaptic.None, ChartMath.scrubHaptic(0, 1, emptyList()))
     }
 

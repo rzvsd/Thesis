@@ -14,6 +14,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import com.thesis.mobile.ui.copy.ChartCopy
 import com.thesis.mobile.ui.format.Fmt
 import com.thesis.mobile.ui.theme.LocalThesisPalette
 import com.thesis.mobile.ui.theme.ThesisSpace
@@ -47,14 +48,14 @@ fun SmallMultiples(
     tickFormat: (Double) -> String = valueFormat,
     highlightLast: Boolean = true,
     dataKey: Any? = null,
-    emptyText: String = CHART_NO_DATA,
+    emptyText: String = ChartCopy.NO_DATA,
 ) {
     if (items.isEmpty() || items.all { m -> m.values.all { it.finiteOrNull() == null } }) {
         ChartEmpty(emptyText, modifier)
         return
     }
     val p = LocalThesisPalette.current
-    val shared = remember(items) { ChartMath.niceScale(items.flatMap { it.values }, target = 3, includeZero = true) }
+    val shared = remember(items) { ChartMath.niceScale(items.flatMap { it.values }, target = ChartMath.TICKS, includeZero = true) }
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(ThesisSpace.l)) {
         items.chunked(2).forEach { row ->
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(ThesisSpace.m), verticalAlignment = Alignment.Top) {

@@ -19,6 +19,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
+import com.thesis.mobile.ui.copy.ChartCopy
 import com.thesis.mobile.ui.theme.LocalThesisPalette
 import com.thesis.mobile.ui.theme.ThesisSpace
 import com.thesis.mobile.ui.theme.ThesisType
@@ -98,7 +99,7 @@ fun Timeline(items: List<TimelineItem>, modifier: Modifier = Modifier) {
 }
 
 private fun stateWord(state: TimelineState): String = when (state) {
-    TimelineState.Done -> "Done"
-    TimelineState.Current -> "Current"
-    TimelineState.Upcoming -> "Upcoming"
+    TimelineState.Done -> ChartCopy.DONE
+    TimelineState.Current -> ChartCopy.CURRENT
+    TimelineState.Upcoming -> ChartCopy.UPCOMING
 }

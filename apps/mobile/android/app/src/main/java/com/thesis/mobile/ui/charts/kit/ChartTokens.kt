@@ -59,6 +59,12 @@ internal object ChartDims {
     /** Gap between the plot and the x labels. */
     val xLabelGap: Dp = 6.dp
 
+    /** A grid line closer than this to the reference line (indexed 100, the zero line) is left out. */
+    val gridSkip: Dp = 8.dp
+
+    /** Regime band names sit this far inside the top left of their band. */
+    val bandLabelInset: Dp = 4.dp
+
     /** Gap between two x labels when thinning. */
     val xLabelSpacing: Dp = 12.dp
 
@@ -115,6 +121,9 @@ internal object ChartAlpha {
     /** Regime bands behind a line (section 3: 6% fills). */
     const val BAND = 0.06f
 
+    /** Grid lines over regime bands: `line2` at 70% (the plain `grid` colour vanishes into a 6% band). */
+    const val BAND_GRID = 0.70f
+
     /** Scale bar regime segments (18%). */
     const val SCALE_SEGMENT = 0.18f
 
@@ -153,4 +162,7 @@ internal object ChartText {
 
     /** Ranked bar value: 11 / 600 tnum, ink. */
     val rankValue: TextStyle get() = endLabel
+
+    /** Ranked bar rationale under the label: 11 / 400, ink2 (never larger than the label it explains). */
+    val rankNote: TextStyle get() = ThesisType.tick.copy(fontFeatureSettings = null)
 }

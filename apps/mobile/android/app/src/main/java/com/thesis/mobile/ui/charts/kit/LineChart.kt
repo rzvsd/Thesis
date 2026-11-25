@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -41,6 +42,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.thesis.mobile.ui.components.ChartReadout
 import com.thesis.mobile.ui.components.drawReadoutCursor
+import com.thesis.mobile.ui.copy.ChartCopy
 import com.thesis.mobile.ui.format.Fmt
 import com.thesis.mobile.ui.motion.ThesisMotion
 import com.thesis.mobile.ui.motion.rememberHaptics
@@ -59,8 +61,10 @@ import kotlin.math.min
  * only the latest value labelled (11 / 600 with a 3 dp halo). Optional regime bands (6% fills).
  *
  * Motion: draws on once per data identity ([dataKey]); a data change with the same identity (a range tap)
- * morphs: both versions resampled to 120 points, y lerped over `Morph` 500 ms `EaseCalm`, the axis domain lerped
- * and the tick and x labels crossfaded. Reduced motion: complete on first paint, range changes crossfade.
+ * morphs: both versions resampled to 120 points, y lerped over `Morph` 500 ms `EaseCalm`, the axis domain lerped,
+ * the tick labels crossfaded and the x labels handed over in sequence (old out, then new in). The end dots and the
+ * latest-value labels ride the morphing ends (a changed figure crossfades). Reduced motion: complete on first
+ * paint, range changes crossfade (`Quick`), labels included.
  *
  * Gestures (with a [LineChartState]): one-finger horizontal drag after the touch slop scrubs (vertical drags
  * still scroll the page); two fingers compare the window between them. `gestureStart()` / `gestureEnd()`,
@@ -166,8 +170,10 @@ private class Morph(val from: MorphFrom?, val progress: Animatable<Float, Animat
 /**
  * The line chart. [data] holds the series, x labels (and optional dates); [valueFormat] formats the end labels
  * and readout, [tickFormat] the y ticks. [bands] paint regimes and are the scrub's regime lines. [yRange] pins
- * the axis (Macro stress 0 to 100); [includeZero] keeps 0 on it. With [state] the chart scrubs. [dataKey] is the
- * data identity for the draw-on (the latest reading date, not the range). [summary] is what TalkBack reads; by
+ * the axis (Macro stress 0 to 100); [includeZero] keeps 0 on it. With [state] the chart scrubs; pass
+ * [LineChartData.dates] then, so the scrub ticks on real weeks. [dataKey] is the data identity for the draw-on
+ * (the latest reading date, not the range); it is namespaced per chart kind, so a Sparkline of the same series can
+ * use the same date, but two LineCharts on screen need keys of their own. [summary] is what TalkBack reads; by
  * default it is built from the data ("Gross margin, from 40.0% to 46.9%, now 46.9%").
  */
 @Composable
@@ -183,13 +189,13 @@ fun LineChart(
     state: LineChartState? = null,
     dataKey: Any? = null,
     summary: String? = null,
-    emptyText: String = CHART_NO_DATA,
+    emptyText: String = ChartCopy.NO_DATA,
 ) {
     val density = LocalDensity.current
     // Fixed plot height (section 3), plus whatever the user's font size adds to the x label line.
     val extra = with(density) { (ThesisType.tick.lineHeight.toDp() - ThesisType.tick.lineHeight.value.dp).coerceAtLeast(0.dp) }
     if (data.isEmpty) {
-        ChartEmpty(emptyText, modifier, minHeight = height)
+        ChartEmpty(emptyText, modifier, minHeight = height + extra)
         return
     }
     val p = LocalThesisPalette.current
@@ -197,7 +203,7 @@ fun LineChart(
     val measurer = rememberTextMeasurer()
     val haptics = rememberHaptics()
     val currentHaptics by rememberUpdatedState(haptics)
-    val reveal = rememberDrawOn(dataKey)
+    val reveal = rememberDrawOn(DrawOnKind.Line, dataKey)
     val holder = remember { MorphHolder() }
     val geometry = remember { PlotGeometry() }
 
@@ -212,17 +218,21 @@ fun LineChart(
         )
     }
     // The morph's start is decided in composition (not in an effect), so the frame on which the data changes
-    // already draws the old line: no one-frame flash of the new data before the morph starts.
+    // already draws the old line: no one-frame flash of the new data before the morph starts. It reads only what
+    // applied compositions committed (the SideEffect below), so a discarded composition cannot skew the next morph.
     val morph = remember(target) {
         val prev = holder.last
-        holder.last = target
         val before = holder.running
         val from = when {
             prev == null || prev == target || prev.isEmpty || reveal.value < 1f -> null
             before?.from != null && before.progress.value < 1f -> before.from.toward(prev, before.progress.value)
             else -> MorphFrom.of(prev)
         }
-        Morph(from, Animatable(if (from == null) 1f else 0f)).also { holder.running = it }
+        Morph(from, Animatable(if (from == null) 1f else 0f))
+    }
+    SideEffect {
+        holder.last = target
+        holder.running = morph
     }
     LaunchedEffect(morph) {
         if (morph.from == null) return@LaunchedEffect
@@ -313,7 +323,14 @@ fun LineChart(
                 val fromTickLayouts = from?.scale?.ticks?.map { it to measurer.line(ticks(it), tickStyle) }.orEmpty()
                 val xLayouts = target.labels.map { measurer.line(it, tickStyle) }
                 val fromXLayouts = from?.labels?.map { measurer.line(it, tickStyle) }.orEmpty()
-                val endLayouts = target.values.map { s -> s.lastOrNull { it != null }?.let { measurer.line(format(it), endStyle) } }
+                val endTexts = target.values.map { s -> s.lastOrNull { it != null }?.let { format(it) } }
+                val endLayouts = endTexts.map { t -> t?.let { measurer.line(it, endStyle) } }
+                // The figures the outgoing frame showed at its ends (a morph crossfades them when they change).
+                val fromEndTexts = from?.curves?.mapValues { (_, c) -> c.lastOrNull { !it.isNaN() }?.let { format(it) } }.orEmpty()
+                val fromEndLayouts = fromEndTexts.mapValues { (_, t) -> t?.let { measurer.line(it, endStyle) } }
+                val bandStyle = ChartText.tick.copy(color = p.muted)
+                val bandLayouts = bands.map { b -> b.label?.let { measurer.line(it, bandStyle) } }
+                val refLayout = if (target.indexed) measurer.line(ticks(INDEX_BASE), tickStyle) else null
 
                 val tickGap = ChartDims.tickGap.toPx()
                 val leftW = (tickLayouts + fromTickLayouts).maxOfOrNull { it.second.size.width }?.toFloat()?.plus(tickGap) ?: 0f
@@ -337,6 +354,11 @@ fun LineChart(
                 val halo = ChartDims.halo.toPx()
                 val xSpacing = ChartDims.xLabelSpacing.toPx()
                 val gridW = ChartDims.hairline.toPx()
+                // Over 6% regime bands the plain grid colour all but vanishes (dark: 1 to 3 levels): line2 there.
+                val gridColor = if (bands.isEmpty()) p.grid else p.line2.copy(alpha = ChartAlpha.BAND_GRID)
+                val gridSkip = ChartDims.gridSkip.toPx()
+                val labelGap = ChartDims.endLabelGap.toPx()
+                val bandInset = ChartDims.bandLabelInset.toPx()
 
                 fun xOf(i: Int, count: Int): Float =
                     if (count <= 1) plot.right else plot.left + i * plot.width / (count - 1)
@@ -361,6 +383,38 @@ fun LineChart(
                 val targetCurves = if (from != null) target.curves() else emptyMap()
                 val scratch = Path()
 
+                /** A line's end: its dot, its latest-value label and, while a changed figure crossfades, the old one. */
+                class EndMark(val point: Offset, val color: Color, val layout: TextLayoutResult?, val alt: TextLayoutResult?, val alpha: Float)
+
+                // End dots and latest-value labels. Labels of lines that end close together are pushed apart; a label
+                // pushed off its dot gets a short leader in the line's colour. The primary series is drawn last (on top).
+                fun DrawScope.drawEnds(marks: List<EndMark>, dotAlpha: Float, textAlpha: Float, mix: Float) {
+                    if (marks.isEmpty()) return
+                    val h = marks.firstNotNullOfOrNull { it.layout ?: it.alt }?.size?.height?.toFloat() ?: 0f
+                    val ys = ChartMath.spreadLabels(marks.map { it.point.y }, h, plot.top, plot.bottom)
+                    marks.forEachIndexed { j, mk ->
+                        val a = mk.alpha * textAlpha
+                        if (a <= 0f || abs(ys[j] - mk.point.y) <= h / 2f) return@forEachIndexed
+                        drawLine(
+                            mk.color.copy(alpha = mk.color.alpha * a),
+                            Offset(mk.point.x + dotR + ringW, mk.point.y),
+                            Offset(mk.point.x + dotR + labelGap - ringW, ys[j]),
+                            gridW,
+                        )
+                    }
+                    marks.forEach { mk ->
+                        val a = mk.alpha * dotAlpha
+                        if (a > 0f) drawEndDot(mk.point, mk.color.copy(alpha = mk.color.alpha * a), p.surface.copy(alpha = a), dotR, ringW)
+                    }
+                    marks.forEachIndexed { j, mk ->
+                        val a = mk.alpha * textAlpha
+                        fun place(l: TextLayoutResult) = Offset(mk.point.x + dotR + labelGap, ys[j] - l.size.height / 2f)
+                        if (mk.alt != null && mix < 1f) drawHaloText(mk.alt, place(mk.alt), p.ink, p.surface, halo, a * (1f - mix))
+                        if (mk.layout != null) drawHaloText(mk.layout, place(mk.layout), p.ink, p.surface, halo, if (mk.alt != null) a * mix else a)
+                    }
+                }
+                val order = target.values.indices.sortedBy { if (it == data.primary) 1 else 0 }
+
                 onDrawBehind {
                     val r = reveal.value
                     val m = morph.progress.value
@@ -383,7 +437,13 @@ fun LineChart(
                         }
                     }
 
-                    // Grid lines and y ticks (crossfaded during a morph).
+                    // Indexed mode: the reference line is 100 (the first common value), else zero or the bottom.
+                    val reference = if (target.indexed && INDEX_BASE in scale.min..scale.max) INDEX_BASE else scale.baseline
+                    val baseY = yOf(reference, scale).coerceIn(plot.top, plot.bottom)
+
+                    // Grid lines and y ticks (crossfaded during a morph). A grid line a few px from the reference
+                    // line is left out with its label (no double baseline in indexed mode).
+                    val labelledYs = ArrayList<Float>()
                     fun ticksLayer(layouts: List<Pair<Double, TextLayoutResult>>, alpha: Float) {
                         if (alpha <= 0f || layouts.isEmpty()) return
                         val spacing = if (layouts.size > 1) abs(yOf(layouts[1].first, scale) - yOf(layouts[0].first, scale)) else plot.height
@@ -391,9 +451,11 @@ fun LineChart(
                         layouts.forEachIndexed { i, (v, layout) ->
                             val y = yOf(v, scale)
                             if (y < plot.top - 0.5f || y > plot.bottom + 0.5f) return@forEachIndexed
-                            drawLine(p.grid.copy(alpha = p.grid.alpha * alpha), Offset(plot.left, y), Offset(plot.right, y), gridW)
+                            if (v != reference && abs(y - baseY) < gridSkip) return@forEachIndexed
+                            drawLine(gridColor.copy(alpha = gridColor.alpha * alpha), Offset(plot.left, y), Offset(plot.right, y), gridW)
                             if (i in labelled) {
                                 drawText(layout, topLeft = Offset(plot.left - tickGap - layout.size.width, tickLabelTop(y, layout.size.height.toFloat(), plot.bottom)), alpha = alpha)
+                                labelledYs += y
                             }
                         }
                     }
@@ -403,10 +465,14 @@ fun LineChart(
                     } else {
                         ticksLayer(tickLayouts, 1f)
                     }
-                    // Indexed mode: the reference line is 100 (the first common value), else zero or the bottom.
-                    val reference = if (target.indexed && INDEX_BASE in scale.min..scale.max) INDEX_BASE else scale.baseline
-                    val baseY = yOf(reference, scale).coerceIn(plot.top, plot.bottom)
                     drawLine(p.axis, Offset(plot.left, baseY), Offset(plot.right, baseY), gridW)
+                    // Indexed mode labels its reference line "100" when no tick does and there is room for it.
+                    if (refLayout != null && reference == INDEX_BASE && INDEX_BASE !in target.scale.ticks) {
+                        val h = refLayout.size.height.toFloat()
+                        if (labelledYs.none { abs(it - baseY) < h }) {
+                            drawText(refLayout, topLeft = Offset(plot.left - tickGap - refLayout.size.width, tickLabelTop(baseY, h, plot.bottom)))
+                        }
+                    }
 
                     // X labels, thinned from the last, kept inside the canvas.
                     fun xLayer(layouts: List<TextLayoutResult>, shown: List<Int>, count: Int, alpha: Float) {
@@ -419,8 +485,9 @@ fun LineChart(
                         }
                     }
                     if (morphing) {
-                        xLayer(fromXLayouts, fromXShown, from!!.labels.size, 1f - m)
-                        xLayer(xLayouts, xShown, target.count, m)
+                        // In sequence, not at once: two label sets at 50% read as one overprinted line.
+                        xLayer(fromXLayouts, fromXShown, from!!.labels.size, (1f - 2f * m).coerceIn(0f, 1f))
+                        xLayer(xLayouts, xShown, target.count, (2f * m - 1f).coerceIn(0f, 1f))
                     } else {
                         xLayer(xLayouts, xShown, target.count, 1f)
                     }
@@ -440,29 +507,38 @@ fun LineChart(
                     val cursorX = if (scrub >= 0) xOf(scrub, target.count) else Float.NaN
                     val labelsAlpha = labelAlpha(r) * (if (state?.active == true) ChartAlpha.AFTER_CURSOR else 1f)
                     if (morphing && !crossfade) {
-                        val ends = ArrayList<Pair<Offset, Color>>()
-                        target.names.forEachIndexed { k, name ->
-                            val to = targetCurves[name] ?: return@forEachIndexed
+                        val marks = ArrayList<EndMark>()
+                        order.forEach { k ->
+                            val name = target.names[k]
+                            val to = targetCurves[name] ?: return@forEach
                             val fromCurve = from!!.curves[name]
                             val curve = if (fromCurve != null) ChartMath.lerp(fromCurve, to, m) else to
                             val color = p.seriesColor(target.colorSlots[k])
                             val alpha = if (fromCurve != null) 1f else m
                             curvePath(scratch, curve, plot, scale)
                             drawPath(scratch, color, alpha = alpha, style = stroke)
-                            lastPoint(curve, plot, scale)?.let { ends += it to color.copy(alpha = alpha) }
+                            val changed = fromEndTexts[name] != endTexts[k]
+                            lastPoint(curve, plot, scale)?.let {
+                                marks += EndMark(it, color, endLayouts[k], if (changed) fromEndLayouts[name] else null, alpha)
+                            }
                         }
                         from!!.curves.forEach { (name, curve) ->
                             if (name in target.names) return@forEach
                             curvePath(scratch, curve, plot, scale)
                             drawPath(scratch, p.seriesColor(from.colorSlots[name] ?: 0), alpha = 1f - m, style = stroke)
                         }
-                        ends.forEach { (o, c) -> drawEndDot(o, c, p.surface, dotR, ringW) }
+                        // The ends ride the morph: the latest value never blinks out on a range tap.
+                        drawEnds(marks, 1f, labelsAlpha, m)
                     } else {
                         if (crossfade) {
+                            val outgoing = ArrayList<EndMark>()
                             from!!.curves.forEach { (name, curve) ->
+                                val color = p.seriesColor(from.colorSlots[name] ?: 0)
                                 curvePath(scratch, curve, plot, from.scale)
-                                drawPath(scratch, p.seriesColor(from.colorSlots[name] ?: 0), alpha = 1f - m, style = stroke)
+                                drawPath(scratch, color, alpha = 1f - m, style = stroke)
+                                lastPoint(curve, plot, from.scale)?.let { outgoing += EndMark(it, color, fromEndLayouts[name], null, 1f - m) }
                             }
+                            drawEnds(outgoing, 1f, labelsAlpha, 1f)
                         }
                         val alpha = if (crossfade) m else 1f
                         val revealRight = plot.left + (plot.width + dotR * 2) * r
@@ -482,28 +558,19 @@ fun LineChart(
                                 }
                             }
                         }
-                        // End dots and the latest-value labels (pushed apart when lines end close together).
-                        val ends = endPoints.withIndex().filter { it.value != null }
-                        val labelYs = ChartMath.spreadLabels(
-                            ends.map { it.value!!.y },
-                            minGap = endLayouts.firstOrNull { it != null }?.size?.height?.toFloat() ?: 0f,
-                            top = plot.top,
-                            bottom = plot.bottom,
-                        )
-                        ends.forEachIndexed { j, (k, o) ->
-                            val color = p.seriesColor(target.colorSlots[k])
-                            val dotAlpha = labelAlpha(r) * alpha
-                            if (dotAlpha > 0f) drawEndDot(o!!, color.copy(alpha = dotAlpha), p.surface.copy(alpha = dotAlpha), dotR, ringW)
-                            val layout = endLayouts[k] ?: return@forEachIndexed
-                            drawHaloText(
-                                layout,
-                                Offset(o!!.x + dotR + ChartDims.endLabelGap.toPx(), labelYs[j] - layout.size.height / 2f),
-                                color = p.ink,
-                                haloColor = p.surface,
-                                halo = halo,
-                                alpha = labelsAlpha * alpha,
-                            )
+                        val marks = order.mapNotNull { k ->
+                            endPoints[k]?.let { EndMark(it, p.seriesColor(target.colorSlots[k]), endLayouts[k], null, alpha) }
                         }
+                        drawEnds(marks, labelAlpha(r), labelsAlpha, 1f)
+                    }
+
+                    // Regime names, muted, inside the top left of each band (over the line, with a halo).
+                    bands.forEachIndexed { i, b ->
+                        val layout = bandLayouts[i] ?: return@forEachIndexed
+                        val top = yOf(max(b.from, b.to), scale).coerceIn(plot.top, plot.bottom)
+                        val bottom = yOf(min(b.from, b.to), scale).coerceIn(plot.top, plot.bottom)
+                        if (bottom - top < layout.size.height + bandInset * 2) return@forEachIndexed
+                        drawHaloText(layout, Offset(plot.left + bandInset, top + bandInset), p.muted, p.surface, halo, labelAlpha(r))
                     }
 
                     // Scrub cursor on the primary series; two cursors for a window.

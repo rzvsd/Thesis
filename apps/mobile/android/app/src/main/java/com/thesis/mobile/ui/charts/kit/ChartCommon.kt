@@ -52,24 +52,28 @@ import com.thesis.mobile.ui.theme.ThesisType
 /** The draw-on registry charts consult (section 4.6). The app uses the process-wide one. */
 val LocalChartDrawOn = staticCompositionLocalOf { ChartDrawOnRegistry.Process }
 
+/** The chart kinds that draw on; the registry key is (kind, dataKey), so a Sparkline never claims a LineChart's. */
+internal enum class DrawOnKind { Line, Sparkline, Column, Ranked }
+
 /**
- * Draw-on progress for [dataKey] (0 to 1 over `Draw` 900 ms, `EaseCalm`), once per data identity: a key that has
- * drawn before (on this or an earlier visit) starts complete, and so does a null key and reduced motion.
- * Read `.value` in the draw phase only.
+ * Draw-on progress for [dataKey] (0 to 1 over `Draw` 900 ms, `EaseCalm`), once per data identity and chart kind:
+ * the key claimed is ([kind], [dataKey]), so the Home macro Sparkline and the Macro Stress LineChart can both use
+ * the latest reading date. A key that has drawn before (on this or an earlier visit) starts complete, and so do a
+ * null key and reduced motion. The claim is made while composing, so a second chart of the same kind composed with
+ * the same key (in the same frame or later) starts complete rather than blank. Two charts of one kind on screen
+ * at once need keys of their own ("macro/2025-11-24"). Read `.value` in the draw phase only.
  */
 @Composable
-internal fun rememberDrawOn(dataKey: Any?): Animatable<Float, AnimationVector1D> {
+internal fun rememberDrawOn(kind: DrawOnKind, dataKey: Any?): Animatable<Float, AnimationVector1D> {
     val registry = LocalChartDrawOn.current
     val reduced = LocalReducedMotion.current
-    val progress = remember(dataKey) {
-        val fresh = dataKey != null && !reduced && !registry.isSeen(dataKey)
+    val progress = remember(kind, dataKey) {
+        val fresh = dataKey != null && !reduced && registry.claim(kind to dataKey)
         Animatable(if (fresh) 0f else 1f)
     }
     LaunchedEffect(progress) {
-        if (progress.value < 1f && dataKey != null && registry.claim(dataKey)) {
+        if (progress.value < 1f) {
             progress.animateTo(1f, ThesisMotion.timed(false, ThesisMotion.Draw, easing = ThesisMotion.EaseCalm))
-        } else {
-            progress.snapTo(1f)
         }
     }
     return progress
@@ -163,6 +167,3 @@ fun ChartEmpty(text: String, modifier: Modifier = Modifier, minHeight: androidx.
         Text(text, style = ThesisType.bodySmall, color = p.muted, textAlign = TextAlign.Center)
     }
 }
-
-/** Default "no data" sentence. */
-const val CHART_NO_DATA = "No readings yet"

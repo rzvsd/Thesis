@@ -209,7 +209,10 @@ object ChartMath {
         }
     }
 
-    /** Element-wise lerp of two curves of equal length; a NaN on either side stays NaN. */
+    /**
+     * Element-wise lerp of two curves of equal length. A gap (NaN) in [from] takes the [to] value at once; a gap in
+     * [to] stays a gap.
+     */
     fun lerp(from: DoubleArray, to: DoubleArray, t: Float): DoubleArray {
         require(from.size == to.size) { "Curves must have the same length" }
         return DoubleArray(to.size) { i ->
@@ -262,10 +265,13 @@ object ChartMath {
 
     /**
      * End labels of several lines at their y positions ([ys], px), pushed apart to at least [minGap] and kept
-     * inside [top]..[bottom]. Returns the new positions in the input order.
+     * inside [top]..[bottom]. Returns the new positions in the input order. A range too small for the labels
+     * ([bottom] < [top], a squeezed layout) is treated as the single position [top]: never a throw.
      */
     fun spreadLabels(ys: List<Float>, minGap: Float, top: Float, bottom: Float): List<Float> {
         if (ys.isEmpty()) return ys
+        @Suppress("NAME_SHADOWING")
+        val bottom = max(top, bottom)
         val order = ys.indices.sortedBy { ys[it] }
         val placed = FloatArray(ys.size)
         var last = Float.NEGATIVE_INFINITY
@@ -286,6 +292,38 @@ object ChartMath {
         }
         return placed.toList()
     }
+
+    /**
+     * Horizontal labels centred on their anchors ([centers], px) with widths [widths]: each label moves only as far
+     * as it must so that neighbours keep [gap] between their edges (per pair, not the widest label), and every
+     * label stays inside [start]..[end] when they fit. Returns the new centres in the input order. When the labels
+     * do not fit side by side they overlap rather than throw; callers check [fitsInRow] first.
+     */
+    fun spreadSpans(centers: List<Float>, widths: List<Float>, gap: Float, start: Float, end: Float): List<Float> {
+        require(centers.size == widths.size) { "One width per label" }
+        if (centers.isEmpty()) return centers
+        val order = centers.indices.sortedBy { centers[it] }
+        val placed = FloatArray(centers.size)
+        var prevRight = Float.NEGATIVE_INFINITY
+        for (i in order) {
+            val half = widths[i] / 2f
+            val c = max(max(centers[i], start + half), prevRight + gap + half)
+            placed[i] = c
+            prevRight = c + half
+        }
+        var nextLeft = Float.POSITIVE_INFINITY
+        for (i in order.reversed()) {
+            val half = widths[i] / 2f
+            val c = min(min(placed[i], end - half), nextLeft - gap - half)
+            placed[i] = max(c, start + half)
+            nextLeft = placed[i] - half
+        }
+        return placed.toList()
+    }
+
+    /** True when labels of [widths] fit side by side with [gap] between them in [available] px. */
+    fun fitsInRow(widths: List<Float>, gap: Float, available: Float): Boolean =
+        widths.sum() + gap * max(0, widths.size - 1) <= available
 
     /** Column (bar) width: min([maxPx], 72% of the band) for one series; grouped bars share it minus [gapPx]. */
     fun columnWidth(bandPx: Float, maxPx: Float, seriesCount: Int = 1, gapPx: Float = 0f): Float {
@@ -310,7 +348,9 @@ object ChartMath {
     /**
      * The haptic for a scrub step from [prev] to [next] (section 4.6 / 4.7): [ScrubHaptic.Segment] when the
      * value crosses a regime line in [boundaries], else [ScrubHaptic.Tick] when the step crosses a week boundary
-     * ([weekKeys], one per point; without dates, buckets of [fallbackBucket] points), else none. Gaps never tick.
+     * ([weekKeys], one per point; without dates, buckets of [fallbackBucket] points: at least
+     * [MIN_SCRUB_BUCKET], about weekly for daily data, so a 30-day chart without dates never ticks on every point),
+     * else none. Gaps never tick. Pass [LineChartData.dates] for scrubbable charts so the ticks fall on real weeks.
      */
     fun scrubHaptic(
         prev: Int,
@@ -318,7 +358,7 @@ object ChartMath {
         values: List<Double?>,
         boundaries: List<Double> = emptyList(),
         weekKeys: List<Long>? = null,
-        fallbackBucket: Int = max(1, values.size / SCRUB_BUCKETS),
+        fallbackBucket: Int = max(MIN_SCRUB_BUCKET, values.size / SCRUB_BUCKETS),
     ): ScrubHaptic {
         if (prev == next || prev < 0 || next < 0 || prev >= values.size || next >= values.size) return ScrubHaptic.None
         val a = values[prev].finiteOrNull()
@@ -329,13 +369,17 @@ object ChartMath {
         val crossed = if (weekKeys != null && prev < weekKeys.size && next < weekKeys.size) {
             weekKeys[prev] != weekKeys[next]
         } else {
-            prev / fallbackBucket != next / fallbackBucket
+            val bucket = max(1, fallbackBucket)
+            prev / bucket != next / bucket
         }
         return if (crossed) ScrubHaptic.Tick else ScrubHaptic.None
     }
 
     /** Buckets across a chart without dates (playbook section 10: about 24 ticks across the width). */
     const val SCRUB_BUCKETS = 24
+
+    /** The smallest fallback bucket: 7 points (a week of daily readings). */
+    const val MIN_SCRUB_BUCKET = 7
 
     /** ISO week key per date (Monday-based), for [scrubHaptic]. */
     fun weekKeys(dates: List<LocalDate>): List<Long> =

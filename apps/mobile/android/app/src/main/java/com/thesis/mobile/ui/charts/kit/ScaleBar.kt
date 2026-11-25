@@ -26,10 +26,10 @@ import com.thesis.mobile.ui.theme.LocalReducedMotion
 import com.thesis.mobile.ui.theme.LocalThesisPalette
 import com.thesis.mobile.ui.theme.MACRO_STRESS_BALANCED_MAX
 import com.thesis.mobile.ui.theme.MACRO_STRESS_CONTAINED_MAX
-import com.thesis.mobile.ui.theme.macroStressLabel
-import com.thesis.mobile.ui.theme.macroStressTone
 import com.thesis.mobile.ui.theme.ThesisType
 import com.thesis.mobile.ui.theme.Tone
+import com.thesis.mobile.ui.theme.macroStressLabel
+import com.thesis.mobile.ui.theme.macroStressTone
 import com.thesis.mobile.ui.theme.markColor
 
 /*
@@ -91,7 +91,9 @@ fun ScaleBar(
                     }
                     val m = marker.value
                     if (!m.isNaN()) {
-                        val x = (m * size.width).coerceIn(ChartDims.markerStroke.toPx(), size.width - ChartDims.markerStroke.toPx())
+                        val edge = ChartDims.markerStroke.toPx()
+                        // Kept off the rounded ends; a bar narrower than two strokes (a squeezed pass) just centres it.
+                        val x = if (size.width > edge * 2) (m * size.width).coerceIn(edge, size.width - edge) else size.width / 2f
                         drawLine(p.ink, Offset(x, 0f), Offset(x, size.height), ChartDims.markerStroke.toPx(), StrokeCap.Round)
                     }
                 },
