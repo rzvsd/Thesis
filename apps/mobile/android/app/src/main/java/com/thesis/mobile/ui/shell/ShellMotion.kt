@@ -5,7 +5,6 @@ import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.core.Easing
 import androidx.compose.animation.core.FiniteAnimationSpec
 import androidx.compose.animation.core.animate
-import androidx.compose.animation.core.snap
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
@@ -45,9 +44,8 @@ internal enum class ShellTransition {
     Backward,
 
     /**
-     * [Forward] inside the modal layer, where no page lies under the two (only the tab layer, another screen):
-     * the old page slides the same way but stays opaque under the new one until it has arrived, so the screen
-     * under the modal never shows through. The new page arrives exactly as in [Forward].
+     * [Forward] inside the modal layer (You → Appearance). Same motion; the modal layer puts the page background
+     * under the two pages while it runs, so the tab layer under the modal never shows through.
      */
     ForwardOver,
 
@@ -60,8 +58,19 @@ internal enum class ShellTransition {
     /** Close a modal destination: fall 32 dp + fade, 240 `EaseExit`. */
     Fall,
 
-    /** A replaced entry (a build becoming its report) or a restore: 150 ms crossfade, nothing moves. */
+    /** A replaced entry (a build becoming its report, 5.14) or a restore: 240 ms crossfade (`Base`), nothing moves. */
     Crossfade,
+
+    /** Every move under reduced motion (4.8): 150 ms crossfade (`Quick`), nothing slides, rises or scales. */
+    ReducedCrossfade;
+
+    /**
+     * Shared-axis X: the incoming page is opaque (2.7) from its first frame and only its content fades in, so the
+     * page it covers never shows through it (4.5 "Screens are opaque, so nothing double-exposes"). Layers whose
+     * pages carry their own background apply that fade inside the page ([pageContentFadeSpec]).
+     */
+    val incomingPageOpaque: Boolean
+        get() = this == Forward || this == Backward || this == ForwardOver || this == BackwardOver
 }
 
 /**
@@ -69,7 +78,7 @@ internal enum class ShellTransition {
  * 150 ms crossfade: no slide, no scale.
  */
 internal fun shellTransitionFor(move: NavMove, reducedMotion: Boolean): ShellTransition = when {
-    reducedMotion -> ShellTransition.Crossfade
+    reducedMotion -> ShellTransition.ReducedCrossfade
     move == NavMove.Tab -> ShellTransition.FadeThrough
     move == NavMove.Push -> ShellTransition.Forward
     move == NavMove.Pop -> ShellTransition.Backward
@@ -83,7 +92,7 @@ internal fun shellTransitionFor(move: NavMove, reducedMotion: Boolean): ShellTra
  */
 internal fun modalTransitionFor(from: NavEntry?, to: NavEntry?, forward: Boolean, reducedMotion: Boolean): ShellTransition =
     when {
-        reducedMotion -> ShellTransition.Crossfade
+        reducedMotion -> ShellTransition.ReducedCrossfade
         from == null -> ShellTransition.Rise
         to == null -> ShellTransition.Fall
         forward -> ShellTransition.ForwardOver
@@ -93,38 +102,46 @@ internal fun modalTransitionFor(from: NavEntry?, to: NavEntry?, forward: Boolean
 /** Pixel distances of the shell transitions at the current density. */
 internal data class ShellMotionPx(val shiftPx: Int, val risePx: Int)
 
-/** The [ContentTransform] for [transition]. Never animates size: every layer is full size in every state. */
-internal fun ShellTransition.toContentTransform(px: ShellMotionPx): ContentTransform =
-    contentTransformOf(this, px).withoutSizeAnimation()
+/**
+ * The [ContentTransform] for [transition]. Never animates size: every layer is full size in every state.
+ * [pageFadesItsContent]: the layer's pages draw their own opaque background and fade their content themselves
+ * when [ShellTransition.incomingPageOpaque] ([pageContentFadeSpec]), so the incoming page only slides here.
+ */
+internal fun ShellTransition.toContentTransform(px: ShellMotionPx, pageFadesItsContent: Boolean = false): ContentTransform =
+    contentTransformOf(this, px, pageFadesItsContent && incomingPageOpaque).withoutSizeAnimation()
 
 /** Same enter and exit, no size animation and no clip (the scope's `using` exists only inside transitionSpec). */
 private fun ContentTransform.withoutSizeAnimation(): ContentTransform =
     ContentTransform(targetContentEnter, initialContentExit, targetContentZIndex, SizeTransform(clip = false))
 
-private fun contentTransformOf(transition: ShellTransition, px: ShellMotionPx): ContentTransform = when (transition) {
-    ShellTransition.FadeThrough -> {
-        val enter = motionSpec<Float>(ThesisMotion.TabIn, delayMillis = ThesisMotion.TabOut, easing = ThesisMotion.EaseEnter)
-        (fadeIn(enter) + scaleIn(enter, initialScale = ThesisMotion.TabScaleFrom))
-            .togetherWith(fadeOut(motionSpec(ThesisMotion.TabOut, easing = ThesisMotion.EaseExit)))
+private fun contentTransformOf(transition: ShellTransition, px: ShellMotionPx, opaqueIncoming: Boolean): ContentTransform =
+    when (transition) {
+        ShellTransition.FadeThrough -> {
+            val enter = motionSpec<Float>(ThesisMotion.TabIn, delayMillis = ThesisMotion.TabOut, easing = ThesisMotion.EaseEnter)
+            (fadeIn(enter) + scaleIn(enter, initialScale = ThesisMotion.TabScaleFrom))
+                .togetherWith(fadeOut(motionSpec(ThesisMotion.TabOut, easing = ThesisMotion.EaseExit)))
+        }
+        ShellTransition.Forward, ShellTransition.ForwardOver ->
+            sharedAxisXOf(forward = true, shiftPx = px.shiftPx, fadeIncoming = !opaqueIncoming)
+        ShellTransition.Backward, ShellTransition.BackwardOver ->
+            sharedAxisXOf(forward = false, shiftPx = px.shiftPx, fadeIncoming = !opaqueIncoming)
+        ShellTransition.Rise ->
+            (slideInVertically(motionSpec(ThesisMotion.Screen, easing = ThesisMotion.EaseEnter)) { px.risePx } +
+                fadeIn(motionSpec(ThesisMotion.Screen, easing = ThesisMotion.EaseEnter)))
+                .togetherWith(fadeOut(motionSpec(ThesisMotion.TabOut, easing = ThesisMotion.EaseExit)))
+        ShellTransition.Fall ->
+            fadeIn(motionSpec(ThesisMotion.TabOut, easing = ThesisMotion.EaseStandard))
+                .togetherWith(
+                    slideOutVertically(motionSpec(ThesisMotion.ScreenOut, easing = ThesisMotion.EaseExit)) { px.risePx } +
+                        fadeOut(motionSpec(ThesisMotion.ScreenOut, easing = ThesisMotion.EaseExit))
+                )
+        ShellTransition.Crossfade ->
+            fadeIn(motionSpec(ThesisMotion.Base, easing = ThesisMotion.EaseStandard)) togetherWith
+                fadeOut(motionSpec(ThesisMotion.Base, easing = ThesisMotion.EaseStandard))
+        ShellTransition.ReducedCrossfade -> reducedCrossfade()
     }
-    ShellTransition.Forward -> sharedAxisX(forward = true, reducedMotion = false, shiftPx = px.shiftPx)
-    ShellTransition.Backward -> sharedAxisX(forward = false, reducedMotion = false, shiftPx = px.shiftPx)
-    ShellTransition.ForwardOver -> sharedAxisXOver(forward = true, shiftPx = px.shiftPx)
-    ShellTransition.BackwardOver -> sharedAxisXOver(forward = false, shiftPx = px.shiftPx)
-    ShellTransition.Rise ->
-        (slideInVertically(motionSpec(ThesisMotion.Screen, easing = ThesisMotion.EaseEnter)) { px.risePx } +
-            fadeIn(motionSpec(ThesisMotion.Screen, easing = ThesisMotion.EaseEnter)))
-            .togetherWith(fadeOut(motionSpec(ThesisMotion.TabOut, easing = ThesisMotion.EaseExit)))
-    ShellTransition.Fall ->
-        fadeIn(motionSpec(ThesisMotion.TabOut, easing = ThesisMotion.EaseStandard))
-            .togetherWith(
-                slideOutVertically(motionSpec(ThesisMotion.ScreenOut, easing = ThesisMotion.EaseExit)) { px.risePx } +
-                    fadeOut(motionSpec(ThesisMotion.ScreenOut, easing = ThesisMotion.EaseExit))
-            )
-    ShellTransition.Crossfade -> reducedCrossfade()
-}
 
-/** Reduced motion (4.8) and replaced entries: a 150 ms crossfade instead of any slide, scale or rise. */
+/** Reduced motion (4.8): a 150 ms crossfade instead of any slide, scale or rise. */
 internal fun reducedCrossfade(): ContentTransform =
     fadeIn(motionSpec(ThesisMotion.Quick, easing = ThesisMotion.EaseStandard)) togetherWith
         fadeOut(motionSpec(ThesisMotion.Quick, easing = ThesisMotion.EaseStandard))
@@ -133,36 +150,31 @@ internal fun reducedCrossfade(): ContentTransform =
 internal val SHARED_AXIS_SHIFT: Dp = ThesisMotion.PushOffset
 
 /**
- * Shared-axis X (4.5): forward, the new screen comes in from +[shiftPx] with a fade (300 ms) while the old one
- * leaves toward −[shiftPx] with a fade (180 ms); backward mirrors it. A 150 ms crossfade when motion is reduced.
- * Used by pushes and pops in the shell and by Auth ↔ Password reset in `ThesisApp`.
+ * The incoming page's content fade of shared-axis X (300 ms `EaseEnter`), for a page whose background is drawn
+ * outside the fade ([ShellTransition.incomingPageOpaque]).
  */
-internal fun sharedAxisX(forward: Boolean, reducedMotion: Boolean, shiftPx: Int): ContentTransform {
-    if (reducedMotion) return reducedCrossfade()
-    val direction = if (forward) 1 else -1
-    return (slideInHorizontally(motionSpec(ThesisMotion.Screen, easing = ThesisMotion.EaseEnter)) { direction * shiftPx } +
-        fadeIn(motionSpec(ThesisMotion.Screen, easing = ThesisMotion.EaseEnter)))
-        .togetherWith(
-            slideOutHorizontally(motionSpec(ThesisMotion.PushOut, easing = ThesisMotion.EaseExit)) { -direction * shiftPx } +
-                fadeOut(motionSpec(ThesisMotion.PushOut, easing = ThesisMotion.EaseExit))
-        )
-}
+internal fun pageContentFadeSpec(): FiniteAnimationSpec<Float> = motionSpec(ThesisMotion.Screen, easing = ThesisMotion.EaseEnter)
 
 /**
- * [sharedAxisX] for a layer with nothing of its own under it (the modal layer): the new page is drawn on top and
- * arrives as in a push; the old page slides out but keeps full opacity until the new one is in, then goes. The
- * two pages cover the screen between them at every frame, so the tab layer under the modal never shows through.
+ * Shared-axis X (4.5): forward, the new screen comes in from +[shiftPx] with a fade (300 ms) while the old one
+ * leaves toward −[shiftPx] with a fade (180 ms); backward mirrors it. A 150 ms crossfade when motion is reduced.
+ * Used by Auth ↔ Password reset in `ThesisApp`; the shell's layers use the same motion with an opaque incoming page.
  */
-private fun sharedAxisXOver(forward: Boolean, shiftPx: Int): ContentTransform {
+internal fun sharedAxisX(forward: Boolean, reducedMotion: Boolean, shiftPx: Int): ContentTransform =
+    if (reducedMotion) reducedCrossfade() else sharedAxisXOf(forward, shiftPx, fadeIncoming = true)
+
+/**
+ * Shared-axis X. [fadeIncoming] false: the incoming page fades its own content over its opaque background
+ * ([pageContentFadeSpec]), so the transform only slides it; the page it covers is hidden at once, except the
+ * 24 dp strip it slides in from, where the old page leaves as specified.
+ */
+private fun sharedAxisXOf(forward: Boolean, shiftPx: Int, fadeIncoming: Boolean): ContentTransform {
     val direction = if (forward) 1 else -1
-    return ContentTransform(
-        targetContentEnter = slideInHorizontally(motionSpec(ThesisMotion.Screen, easing = ThesisMotion.EaseEnter)) {
-            direction * shiftPx
-        } + fadeIn(motionSpec(ThesisMotion.Screen, easing = ThesisMotion.EaseEnter)),
-        initialContentExit = slideOutHorizontally(motionSpec(ThesisMotion.PushOut, easing = ThesisMotion.EaseExit)) {
-            -direction * shiftPx
-        } + fadeOut(snap(delayMillis = ThesisMotion.Screen)),
-        targetContentZIndex = 1f
+    val slideIn = slideInHorizontally(motionSpec(ThesisMotion.Screen, easing = ThesisMotion.EaseEnter)) { direction * shiftPx }
+    val enter = if (fadeIncoming) slideIn + fadeIn(pageContentFadeSpec()) else slideIn
+    return enter.togetherWith(
+        slideOutHorizontally(motionSpec(ThesisMotion.PushOut, easing = ThesisMotion.EaseExit)) { -direction * shiftPx } +
+            fadeOut(motionSpec(ThesisMotion.PushOut, easing = ThesisMotion.EaseExit))
     )
 }
 

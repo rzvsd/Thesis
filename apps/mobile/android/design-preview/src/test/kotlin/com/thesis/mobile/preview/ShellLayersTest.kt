@@ -29,6 +29,8 @@ import androidx.compose.ui.test.swipeDown
 import androidx.compose.ui.test.swipeUp
 import androidx.compose.ui.unit.dp
 import com.thesis.mobile.preview.fixtures.ShellFixtures
+import com.thesis.mobile.preview.fixtures.heroPlatform
+import com.thesis.mobile.preview.fixtures.newAccountState
 import com.thesis.mobile.ui.navigation.Destination
 import com.thesis.mobile.ui.navigation.ShellTab
 import com.thesis.mobile.ui.platform.PreviewBack
@@ -241,7 +243,11 @@ class ShellLayersTest {
 
     // ---- The real shell
 
-    private fun setShell(navigator: AppNavigator) {
+    private fun setShell(
+        navigator: AppNavigator,
+        state: com.thesis.mobile.ui.UiState = ShellFixtures.state,
+        platform: com.thesis.mobile.ui.shell.ShellPlatform = com.thesis.mobile.ui.shell.ShellPlatform()
+    ) {
         val actions = object : ShellActions {
             override fun onBack(): Boolean = navigator.back()
             override fun onSelectTab(tab: ShellTab) {
@@ -251,9 +257,10 @@ class ShellLayersTest {
         rule.setContent {
             ThesisTheme(mode = ThemeMode.Dark) {
                 ThesisShell(
-                    state = ShellFixtures.state,
+                    state = state,
                     navigator = navigator,
                     actions = actions,
+                    platform = platform,
                     snackbarHostState = remember { SnackbarHostState() }
                 )
             }
@@ -294,6 +301,51 @@ class ShellLayersTest {
         rule.waitForIdle()
         assertEquals(Destination.Today, navigator.tabTop.destination)
         assertEquals(0, PreviewBack.enabledCount)
+    }
+
+    @Test
+    fun statusBarIsOverTheHeroAtRestAndLeavesItOnceCollapsed() {
+        // 2.7: an entry that declares its HeroBand (HeroUnderBars) under the shell's top bar puts the status bar
+        // over the hero (light icons, both themes) until content scrolls under the bar.
+        val calls = mutableListOf<Boolean>()
+        val navigator = AppNavigator()
+        setShell(navigator, newAccountState, heroPlatform { calls += it })
+        rule.waitForIdle()
+        assertEquals("over the hero at rest", true, calls.lastOrNull())
+
+        // From mid-screen: a swipe from the bottom edge starts on the bottom bar.
+        rule.onAllNodes(verticalScroll).onFirst().performTouchInput { swipeUp(startY = bottom * 0.8f, endY = bottom * 0.4f) }
+        rule.waitForIdle()
+        assertTrue("the hero page scrolled", todayScroll() > 0f)
+        assertEquals("collapsed: back to the theme's icons", false, calls.lastOrNull())
+
+        rule.onAllNodes(verticalScroll).onFirst().performTouchInput { swipeDown() }
+        rule.waitForIdle()
+        assertEquals("back at the top: over the hero again", true, calls.lastOrNull())
+
+        // A pushed screen without a HeroBand is what the status bar sits over now.
+        move { navigator.push(Destination.History()) }
+        assertEquals(false, calls.lastOrNull())
+        move { navigator.pop() }
+        assertEquals(true, calls.lastOrNull())
+    }
+
+    @Test
+    fun aModalTakesTheLayersUnderItOutOfTheAccessibilityTree() {
+        val navigator = AppNavigator()
+        setShell(navigator)
+        rule.waitForIdle()
+        val search = SemanticsMatcher.expectValue(SemanticsProperties.ContentDescription, listOf("Search"))
+        val todayTab = SemanticsMatcher.expectValue(SemanticsProperties.Text, listOf(androidx.compose.ui.text.AnnotatedString("Today")))
+        assertTrue("Today's root bar is read", rule.onAllNodes(search).fetchSemanticsNodes().isNotEmpty())
+        assertTrue("the bottom bar is read", rule.onAllNodes(todayTab).fetchSemanticsNodes().isNotEmpty())
+
+        move { navigator.openModal(Destination.You) }
+        assertTrue("Today's page is not read under You", rule.onAllNodes(search).fetchSemanticsNodes().isEmpty())
+        assertTrue("the bottom bar is not read under You", rule.onAllNodes(todayTab).fetchSemanticsNodes().isEmpty())
+
+        move { navigator.pop() }
+        assertTrue(rule.onAllNodes(search).fetchSemanticsNodes().isNotEmpty())
     }
 
     private fun androidx.compose.ui.test.junit4.ComposeContentTestRule.onNodeWithTagSafe(tag: String) =

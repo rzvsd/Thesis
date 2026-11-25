@@ -1,6 +1,14 @@
 package com.thesis.mobile.ui.shell
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.updateTransition
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -32,6 +40,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -121,6 +130,8 @@ fun ThesisShell(
     val reportBase = currentStack.lastOrNull { it.destination is Destination.Report }
     val paywallOpen = !state.paywallFeature.isNullOrBlank()
     val bottomBarShown = !tabTop.destination.hidesBottomBar
+    // A modal or the paywall is over the tab layer, the report and the bottom bar: they leave the accessibility tree.
+    val coveredByModal = modalTop != null || paywallOpen
 
     // Drop the saved UI state of entries that left every stack.
     val liveIds = navigator.liveEntryIds()
@@ -173,11 +184,11 @@ fun ThesisShell(
                 entry = reportBase,
                 tabTopId = tabTop.entryId,
                 move = { navigator.lastMove },
-                env = env
+                env = env,
+                hidden = coveredByModal
             ) { report ->
                 // Back handlers inside the report (the WebView's history) only while it is what the user sees.
-                val covered = report.entryId != navigator.tabTop.entryId ||
-                    navigator.modalStack.isNotEmpty() || paywallOpen
+                val covered = report.entryId != navigator.tabTop.entryId || coveredByModal
                 CompositionLocalProvider(LocalEntryCovered provides covered) {
                     platform.backScope(covered) {
                         scope.EntryFrame(report, inModal = false, bottomBarHeightPx = bottomBarHeightPx)
@@ -189,6 +200,7 @@ fun ThesisShell(
                 target = tabTop,
                 move = { navigator.lastMove },
                 env = env,
+                hidden = coveredByModal,
                 // A report is drawn only by the base layer: on top, this layer stays empty so nothing covers it,
                 // and a report that is leaving (another report pushed over it, a tab switch) never builds a
                 // second WebView here.
@@ -208,6 +220,7 @@ fun ThesisShell(
             )
             ShellBottomBar(
                 shown = bottomBarShown,
+                covered = coveredByModal,
                 hidden = { barHidden },
                 reducedMotion = reducedMotion,
                 items = shellNavItems(inboxHasNew = state.hasNewInboxItems),
@@ -225,7 +238,9 @@ fun ThesisShell(
             }
 
             if (paywallOpen) {
-                // A Dialog: its own window, with the platform's window animation (5.23 makes it a destination).
+                // A Dialog: its own window, with the platform's window animation and no reduced-motion path. The
+                // one entry into the shell that is not a 4.5 move: 5.23 (WP-G) makes Paywall a modal-stack
+                // destination, which rises through ModalLayer, and this branch goes (HANDOFF-M3).
                 PaywallScreen(
                     alerts = state.alertLedger,
                     watchlist = state.watchlist,
@@ -249,7 +264,12 @@ fun ThesisShell(
             )
             ShellSnackbarHost(
                 hostState = snackbarHostState,
-                barPx = { bottomBarHeightPx * (1f - barHidden) * (1f - barCovered) }
+                barPx = {
+                    // Reduced motion (4.8): the bar only fades, so the snackbar moves to its new place at once
+                    // instead of sliding with the bar's 150 ms fade.
+                    val hiddenNow = if (reducedMotion) (if (bottomBarShown) 0f else 1f) else barHidden
+                    bottomBarHeightPx * (1f - hiddenNow) * (1f - barCovered)
+                }
             )
         }
     }
@@ -289,13 +309,7 @@ private fun ShellContentScope.EntryFrame(entry: NavEntry, inModal: Boolean, bott
         Scaffold(
             // The page background is painted under the entry (OpaqueEntry, or the root for the report base layer).
             containerColor = Color.Transparent,
-            topBar = {
-                // A screen that declares its HeroBand (HeroUnderBars) does so after its first frame: the bar is
-                // rebuilt then, so it starts in the hero palette instead of fading into it as the screen opens.
-                key(chrome.heroBand) {
-                    EntryTopBar(entry, bar, chrome)
-                }
-            },
+            topBar = { EntryTopBarSlot(entry, bar, chrome) },
             bottomBar = {
                 // Reserves the shell's bottom bar (drawn above the tab layer) in this entry's padding.
                 if (reserveBottomBar) {
@@ -317,6 +331,41 @@ private fun ShellContentScope.EntryFrame(entry: NavEntry, inModal: Boolean, bott
     }
 }
 
+/**
+ * The top bar slot of [entry]. A change of [bar] (a report's interim back bar giving way to the report's own bar
+ * once it has loaded) crossfades over `Quick` instead of cutting; the slot takes the new bar's height at once, so
+ * the page's padding does not move twice.
+ *
+ * A screen that declares its HeroBand ([HeroUnderBars]) does so right after its first composition: the bar is
+ * rebuilt then, so it starts in the hero palette instead of fading into it as the screen opens. Only then: once
+ * the page has drawn two frames, a HeroBand that comes or goes (a state change of the screen) crossfades the bar's
+ * palette over 200 ms (4.4) like a collapse.
+ */
+@Composable
+private fun ShellContentScope.EntryTopBarSlot(entry: NavEntry, bar: ShellTopBar, chrome: ScreenChrome) {
+    var settled by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        repeat(SETTLE_FRAMES) { withFrameNanos { } }
+        settled = true
+    }
+    val heroKey = heldWhile(hold = settled, value = chrome.heroBand)
+    AnimatedContent(
+        targetState = bar,
+        transitionSpec = {
+            val fade = ThesisMotion.timed<Float>(reduced = false, durationMillis = ThesisMotion.Quick)
+            (fadeIn(fade) togetherWith fadeOut(fade)) using SizeTransform(clip = false) { _, _ -> snap() }
+        },
+        label = "top-bar-slot"
+    ) { shown ->
+        key(heroKey) {
+            EntryTopBar(entry, shown, chrome)
+        }
+    }
+}
+
+/** Frames after which a page's HeroBand declaration no longer rebuilds its bar (see [EntryTopBarSlot]). */
+private const val SETTLE_FRAMES = 2
+
 /** The shell's top bar for [entry]: scroll reveal and the hero palette come from [chrome]. */
 @Composable
 private fun ShellContentScope.EntryTopBar(entry: NavEntry, bar: ShellTopBar, chrome: ScreenChrome) {
@@ -331,18 +380,19 @@ private fun ShellContentScope.EntryTopBar(entry: NavEntry, bar: ShellTopBar, chr
             )
             // Interim (5.5) until PR-3 puts the hairline in each root's ScreenHeader: over the bar's bottom edge,
             // no layout shift. It fades in and out with the refresh instead of appearing and vanishing.
+            // Composed while refreshing or fading out; the alpha is read in the draw phase only (4.3.9).
             val refreshing = rootRefreshing(entry.destination, state)
-            val shown by animateFloatAsState(
-                targetValue = if (refreshing) 1f else 0f,
-                animationSpec = ThesisMotion.timed(reduced = false, durationMillis = ThesisMotion.Quick),
-                label = "refresh-hairline"
-            )
-            if (refreshing || shown > 0f) {
+            val fade = updateTransition(refreshing, label = "refresh-hairline")
+            val shown = fade.animateFloat(
+                transitionSpec = { ThesisMotion.timed(reduced = false, durationMillis = ThesisMotion.Quick) },
+                label = "refresh-hairline-alpha"
+            ) { on -> if (on) 1f else 0f }
+            if (fade.currentState || fade.targetState) {
                 LoadingHairline(
                     active = refreshing,
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
-                        .graphicsLayer { alpha = shown }
+                        .graphicsLayer { alpha = shown.value }
                 )
             }
         }
@@ -368,12 +418,14 @@ internal fun rootRefreshing(destination: Destination, state: UiState): Boolean =
 /**
  * The bottom bar, always composed (so its height is known before it shows again) and drawn above the tab layer.
  * Hiding slides it down by its height and fades it (3 #4, `Base`); showing is the reverse; reduced motion fades
- * only (4.8). While hidden it is below the screen edge, out of the accessibility tree, and ignores taps. The
+ * only (4.8). While hidden it is below the screen edge, out of the accessibility tree, and ignores taps; under a
+ * modal or the paywall ([covered]) it is out of the accessibility tree too. The
  * selected tab's glyph and colour crossfade in the kit bar (150 ms); no tab is selected while a modal is open.
  */
 @Composable
 private fun BoxScope.ShellBottomBar(
     shown: Boolean,
+    covered: Boolean,
     hidden: () -> Float,
     reducedMotion: Boolean,
     items: List<BottomBarItem>,
@@ -397,7 +449,7 @@ private fun BoxScope.ShellBottomBar(
                     else -> progress * size.height
                 }
             }
-            .then(if (shown) Modifier else Modifier.clearAndSetSemantics {})
+            .then(if (shown && !covered) Modifier else Modifier.clearAndSetSemantics {})
     )
 }
 

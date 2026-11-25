@@ -135,6 +135,10 @@ fun ThesisTheme(
     }
     val palette = remember(dark, upDown) { (if (dark) InkDark else PaperLight).withUpDown(upDown) }
     // The Android window calls live in ui/platform (section 4 preamble: android.* only there).
+    // Ordering dependency (PR-2 M3): ThesisApp's StatusBarIconsOverHero overrides the status bar icons over a
+    // HeroBand with its own SideEffect, which works only because this one is recorded first, in this restart
+    // scope. Keep this call before `content` and in this scope until the theme takes a `statusBarOverHero`
+    // parameter itself (HANDOFF-M3 items 1-2, WP-K), then drop the override.
     SystemBarAppearance(light = palette.isLight)
 
     val reduced = reduceMotion || rememberSystemReducedMotion()

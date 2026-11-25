@@ -23,7 +23,7 @@ class ShellMotionTest {
         assertEquals(ShellTransition.FadeThrough, shellTransitionFor(NavMove.Tab, reducedMotion = false))
         assertEquals(ShellTransition.Forward, shellTransitionFor(NavMove.Push, reducedMotion = false))
         assertEquals(ShellTransition.Backward, shellTransitionFor(NavMove.Pop, reducedMotion = false))
-        // A replaced entry (build → report), a restore and a modal change under the tab layer only crossfade.
+        // A replaced entry (build → report, 5.14), a restore and a modal change under the tab layer crossfade (Base).
         assertEquals(ShellTransition.Crossfade, shellTransitionFor(NavMove.Replace, reducedMotion = false))
         assertEquals(ShellTransition.Crossfade, shellTransitionFor(NavMove.None, reducedMotion = false))
         assertEquals(ShellTransition.Crossfade, shellTransitionFor(NavMove.Modal, reducedMotion = false))
@@ -32,12 +32,24 @@ class ShellMotionTest {
     @Test
     fun reducedMotionCrossfadesEveryMove() {
         NavMove.entries.forEach { move ->
-            assertEquals(move.name, ShellTransition.Crossfade, shellTransitionFor(move, reducedMotion = true))
+            assertEquals(move.name, ShellTransition.ReducedCrossfade, shellTransitionFor(move, reducedMotion = true))
         }
         val you = NavEntry(Destination.You, "e1")
         val page = NavEntry(Destination.YouPage("appearance"), "e2")
-        assertEquals(ShellTransition.Crossfade, modalTransitionFor(null, you, forward = false, reducedMotion = true))
-        assertEquals(ShellTransition.Crossfade, modalTransitionFor(you, page, forward = true, reducedMotion = true))
+        assertEquals(ShellTransition.ReducedCrossfade, modalTransitionFor(null, you, forward = false, reducedMotion = true))
+        assertEquals(ShellTransition.ReducedCrossfade, modalTransitionFor(you, page, forward = true, reducedMotion = true))
+    }
+
+    @Test
+    fun onlySharedAxisMovesKeepTheIncomingPageOpaque() {
+        // 4.5 "Screens are opaque, so nothing double-exposes": push and pop (in the tab layer and inside the modal
+        // stack) fade the incoming page's content over its own opaque background. Fade-through, rise/fall and the
+        // crossfades fade whole pages, as specified.
+        val opaque = ShellTransition.entries.filter { it.incomingPageOpaque }.toSet()
+        assertEquals(
+            setOf(ShellTransition.Forward, ShellTransition.Backward, ShellTransition.ForwardOver, ShellTransition.BackwardOver),
+            opaque
+        )
     }
 
     @Test
@@ -46,7 +58,7 @@ class ShellMotionTest {
         val page = NavEntry(Destination.YouPage("appearance"), "e2")
         assertEquals(ShellTransition.Rise, modalTransitionFor(null, you, forward = false, reducedMotion = false))
         assertEquals(ShellTransition.Fall, modalTransitionFor(you, null, forward = true, reducedMotion = false))
-        // Inside the modal stack: the X axis, with the old page opaque under the new one (no tab layer bleed).
+        // Inside the modal stack: the X axis, over the modal layer's page-background floor (no tab layer bleed).
         assertEquals(ShellTransition.ForwardOver, modalTransitionFor(you, page, forward = true, reducedMotion = false))
         assertEquals(ShellTransition.BackwardOver, modalTransitionFor(page, you, forward = false, reducedMotion = false))
     }

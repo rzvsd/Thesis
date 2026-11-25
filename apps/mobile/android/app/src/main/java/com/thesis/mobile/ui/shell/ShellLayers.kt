@@ -1,12 +1,16 @@
 package com.thesis.mobile.ui.shell
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.SaveableStateHolder
 import androidx.compose.ui.Modifier
@@ -38,7 +42,8 @@ internal class ShellLayerEnv(
  * The tab layer: the current tab's top entry, with the 4.5 transition for the navigator's last [move] (fade-through
  * between tabs, shared-axis X for push and pop, a crossfade for a replace or a restore, crossfades only under
  * reduced motion). Entries for which [drawnBelow] is true (a `Report`, drawn by [ReportBaseLayer]) leave this
- * layer empty and transparent, so the report underneath shows and takes touches.
+ * layer empty and transparent, so the report underneath shows and takes touches. [hidden]: a modal or the paywall
+ * covers the layer, so it is out of the accessibility tree.
  */
 @Composable
 internal fun TabLayer(
@@ -47,19 +52,27 @@ internal fun TabLayer(
     env: ShellLayerEnv,
     drawnBelow: (NavEntry) -> Boolean,
     modifier: Modifier = Modifier,
+    hidden: Boolean = false,
     content: @Composable (NavEntry) -> Unit,
 ) {
+    // False during the layer's first composition: the first page is simply there, it does not arrive.
+    val started = remember { HeldValue(false) }
+    SideEffect { started.value = true }
     AnimatedContent(
         targetState = target,
-        modifier = modifier.fillMaxSize(),
-        transitionSpec = { shellTransitionFor(move(), env.reducedMotion).toContentTransform(env.px) },
+        modifier = modifier.fillMaxSize().hiddenFromAccessibility(hidden),
+        transitionSpec = {
+            shellTransitionFor(move(), env.reducedMotion).toContentTransform(env.px, pageFadesItsContent = true)
+        },
         contentKey = { it.entryId },
         label = "tab-layer"
     ) { entry ->
         if (drawnBelow(entry)) {
             Box(Modifier.fillMaxSize())
         } else {
-            OpaqueEntry(entry, env) { content(entry) }
+            // The move this page arrived by (read once, when it is composed as the new target).
+            val enteredBy = remember { if (started.value) shellTransitionFor(move(), env.reducedMotion) else null }
+            OpaqueEntry(entry, env, fadeContentIn = enteredBy?.incomingPageOpaque == true) { content(entry) }
         }
     }
 }
@@ -73,7 +86,8 @@ internal fun TabLayer(
  * While a screen pushed over it covers it ([coveredBy] != the report), it slides out like the old page of a push
  * (to −24 dp and transparent, 180 ms `EaseExit`) and stays composed; when that screen is popped it slides back
  * (300 ms `EaseEnter`). Reduced motion: it only fades. A report that is leaving keeps whatever cover it had.
- * Touches never reach a covered report: the opaque page above it takes them ([OpaqueEntry]).
+ * Touches never reach a covered report: the opaque page above it takes them ([OpaqueEntry]). [hidden]: a modal
+ * or the paywall covers it, so it is out of the accessibility tree as well (it does not slide for that).
  */
 @Composable
 internal fun ReportBaseLayer(
@@ -82,11 +96,13 @@ internal fun ReportBaseLayer(
     move: () -> NavMove,
     env: ShellLayerEnv,
     modifier: Modifier = Modifier,
+    hidden: Boolean = false,
     content: @Composable (NavEntry) -> Unit,
 ) {
     AnimatedContent(
         targetState = entry,
-        modifier = modifier.fillMaxSize(),
+        modifier = modifier.fillMaxSize().hiddenFromAccessibility(hidden),
+        // The report has no background of its own (the root's shows through it), so it fades as a whole.
         transitionSpec = { shellTransitionFor(move(), env.reducedMotion).toContentTransform(env.px) },
         contentKey = { it?.entryId },
         label = "report-base-layer"
@@ -115,7 +131,7 @@ internal fun ReportBaseLayer(
                     if (!env.reducedMotion) translationX = -cover * env.px.shiftPx
                 }
                 // Hidden under the page above it: out of the accessibility tree too (Compose semantics).
-                .then(if (covered) Modifier.clearAndSetSemantics { } else Modifier)
+                .hiddenFromAccessibility(covered)
                 .backPreview(env.backPreview, report.entryId, env.backShiftPx, env.reducedMotion)
         ) {
             LeaveHook(report.entryId, env.backPreview)
@@ -129,6 +145,10 @@ internal fun ReportBaseLayer(
  * when it closes; pages inside it move on the X axis like a push. [onStack] tells whether an entry is still on the
  * modal stack (to tell a push inside it from a pop). Empty and transparent with no modal, so touches reach the
  * layers under it.
+ *
+ * While one modal page replaces another, the page background is drawn under the two (the layer's own floor): the
+ * leaving page slides out and fades as in a push (180 ms `EaseExit`) and the screens under the modal never show
+ * through it or through the strip the new page slides in from.
  */
 @Composable
 internal fun ModalLayer(
@@ -138,22 +158,39 @@ internal fun ModalLayer(
     modifier: Modifier = Modifier,
     content: @Composable (NavEntry) -> Unit,
 ) {
-    AnimatedContent(
-        targetState = target,
-        // Full size in every state, so opening or closing never animates the container from 0 x 0.
-        modifier = modifier.fillMaxSize(),
-        transitionSpec = {
-            val from = initialState
-            val forward = from != null && onStack(from)
-            modalTransitionFor(from, targetState, forward, env.reducedMotion).toContentTransform(env.px)
-        },
-        contentKey = { it?.entryId },
-        label = "modal-layer"
-    ) { entry ->
-        if (entry != null) {
-            OpaqueEntry(entry, env) { content(entry) }
-        } else {
-            Box(Modifier.fillMaxSize())
+    val targets = remember { TargetHistory(target) }
+    targets.update(target)
+    // The modal pages composed right now: two while one replaces the other.
+    val composedPages = remember { mutableStateListOf<String>() }
+    val floor = target != null && targets.previous != null && composedPages.size > 1
+    Box(modifier.fillMaxSize()) {
+        if (floor) Box(Modifier.fillMaxSize().pageBackground(LocalThesisPalette.current))
+        AnimatedContent(
+            targetState = target,
+            // Full size in every state, so opening or closing never animates the container from 0 x 0.
+            modifier = Modifier.fillMaxSize(),
+            transitionSpec = {
+                val from = initialState
+                val forward = from != null && onStack(from)
+                modalTransitionFor(from, targetState, forward, env.reducedMotion)
+                    .toContentTransform(env.px, pageFadesItsContent = true)
+            },
+            contentKey = { it?.entryId },
+            label = "modal-layer"
+        ) { entry ->
+            if (entry != null) {
+                val enteredBy = remember {
+                    val from = targets.previous
+                    modalTransitionFor(from, entry, forward = from != null && onStack(from), env.reducedMotion)
+                }
+                DisposableEffect(entry.entryId) {
+                    composedPages += entry.entryId
+                    onDispose { composedPages -= entry.entryId }
+                }
+                OpaqueEntry(entry, env, fadeContentIn = enteredBy.incomingPageOpaque) { content(entry) }
+            } else {
+                Box(Modifier.fillMaxSize())
+            }
         }
     }
 }
@@ -162,9 +199,17 @@ internal fun ModalLayer(
  * One page on the shared page background (the window-fixed bitmap, 2.7), with its saved state keyed by `entryId`.
  * Opaque to touch as well as to the eye: a pointer handler on the page stops hit testing here, so a tap on an
  * empty part of a screen pushed over the report never reaches the covered WebView underneath.
+ *
+ * [fadeContentIn]: the page arrived by shared-axis X ([ShellTransition.incomingPageOpaque]). Its background is
+ * opaque from the first frame and only its content fades in (300 ms `EaseEnter`, [pageContentFadeSpec]), so the
+ * page it covers never double-exposes with it (4.5). The alpha is read in the draw phase only.
  */
 @Composable
-private fun OpaqueEntry(entry: NavEntry, env: ShellLayerEnv, content: @Composable () -> Unit) {
+private fun OpaqueEntry(entry: NavEntry, env: ShellLayerEnv, fadeContentIn: Boolean, content: @Composable () -> Unit) {
+    val contentAlpha = remember { Animatable(if (fadeContentIn) 0f else 1f) }
+    LaunchedEffect(contentAlpha) {
+        if (contentAlpha.value < 1f) contentAlpha.animateTo(1f, pageContentFadeSpec())
+    }
     Box(
         Modifier
             .fillMaxSize()
@@ -176,10 +221,16 @@ private fun OpaqueEntry(entry: NavEntry, env: ShellLayerEnv, content: @Composabl
                 }
             }
     ) {
-        LeaveHook(entry.entryId, env.backPreview)
-        env.holder.SaveableStateProvider(entry.entryId) { content() }
+        Box(Modifier.fillMaxSize().graphicsLayer { alpha = contentAlpha.value }) {
+            LeaveHook(entry.entryId, env.backPreview)
+            env.holder.SaveableStateProvider(entry.entryId) { content() }
+        }
     }
 }
+
+/** Out of the accessibility tree while [hidden] (a modal or the paywall is over the layer). */
+private fun Modifier.hiddenFromAccessibility(hidden: Boolean): Modifier =
+    if (hidden) clearAndSetSemantics { } else this
 
 /** Ends the predictive-back preview of [entryId] when its page leaves the composition (its exit has run). */
 @Composable
@@ -191,10 +242,25 @@ private fun LeaveHook(entryId: String, preview: BackPreview) {
 
 /** [value], except that while [hold] is true it keeps returning the last value seen before. Not snapshot state. */
 @Composable
-private fun <T> heldWhile(hold: Boolean, value: T): T {
+internal fun <T> heldWhile(hold: Boolean, value: T): T {
     val held = remember { HeldValue(value) }
     if (!hold) held.value = value
     return held.value
 }
 
 private class HeldValue<T>(var value: T)
+
+/** The layer's current target and the one before it, updated during composition. Not snapshot state. */
+private class TargetHistory(initial: NavEntry?) {
+    var current: NavEntry? = initial
+        private set
+    var previous: NavEntry? = null
+        private set
+
+    fun update(target: NavEntry?) {
+        if (target?.entryId != current?.entryId) {
+            previous = current
+            current = target
+        }
+    }
+}
