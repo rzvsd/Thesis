@@ -1,57 +1,43 @@
 package com.thesis.mobile.ui.components
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import com.thesis.mobile.ui.theme.ThesisColors
-import com.thesis.mobile.ui.theme.ThesisDimens
-import com.thesis.mobile.ui.theme.ThesisTypography
+import com.thesis.mobile.ui.copy.AccountCopy
+import com.thesis.mobile.ui.theme.LocalThesisPalette
+import com.thesis.mobile.ui.theme.ThesisSpace
+import com.thesis.mobile.ui.theme.ThesisType
 
-private fun legalPageUrl(apiBaseUrl: String, slug: String): String = "${apiBaseUrl.trim().trimEnd('/')}/legal/$slug"
+/** The page product-api serves for a legal document: `terms` or `privacy`. */
+fun legalPageUrl(apiBaseUrl: String, slug: String): String = "${apiBaseUrl.trim().trimEnd('/')}/legal/$slug"
 
-/** Links to the Terms of Service and Privacy Policy pages served by product-api. */
+/**
+ * Links to the Terms of Service and Privacy Policy pages served by product-api (WP-G, DESIGN-DIRECTION 5.3): an
+ * optional [leadText] caption, then the two links as kit [ThesisLink]s (accent, underlined, 48 dp touch targets)
+ * that wrap onto a second line when they do not fit. Start-aligned, on the form's text edge.
+ */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun LegalLinks(
     apiBaseUrl: String,
     leadText: String? = null,
     modifier: Modifier = Modifier
 ) {
+    val p = LocalThesisPalette.current
     val uriHandler = LocalUriHandler.current
-    Column(
-        modifier = modifier.fillMaxWidth(),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingXs)
-    ) {
+    Column(modifier.fillMaxWidth()) {
         if (leadText != null) {
-            Text(
-                text = leadText,
-                style = ThesisTypography.bodySmall,
-                color = ThesisColors.TextMuted,
-                textAlign = TextAlign.Center
-            )
+            Text(leadText, style = ThesisType.caption, color = p.ink2)
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingLg)) {
-            LegalLink("Terms of Service") { uriHandler.openUri(legalPageUrl(apiBaseUrl, "terms")) }
-            LegalLink("Privacy Policy") { uriHandler.openUri(legalPageUrl(apiBaseUrl, "privacy")) }
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(ThesisSpace.l)) {
+            ThesisLink(AccountCopy.TERMS, onClick = { uriHandler.openUri(legalPageUrl(apiBaseUrl, "terms")) })
+            ThesisLink(AccountCopy.PRIVACY, onClick = { uriHandler.openUri(legalPageUrl(apiBaseUrl, "privacy")) })
         }
     }
-}
-
-@Composable
-private fun LegalLink(label: String, onClick: () -> Unit) {
-    Text(
-        text = label,
-        style = ThesisTypography.bodySmall.copy(fontWeight = FontWeight.Medium),
-        color = ThesisColors.Primary,
-        modifier = Modifier.clickable(onClick = onClick)
-    )
 }
