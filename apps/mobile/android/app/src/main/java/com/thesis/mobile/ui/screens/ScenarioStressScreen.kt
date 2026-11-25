@@ -358,6 +358,8 @@ private fun TemplateCards(
                         onClick = { onSelect(template.scenarioId) },
                     ),
                 variant = if (isSelected) CardVariant.Selected else CardVariant.Plain,
+                // The Selected variant draws its check in the eyebrow row; give that row a word instead of a gap.
+                eyebrow = if (isSelected) ResearchCopy.SELECTED_SCENARIO else null,
                 title = template.title,
             ) {
                 val line = template.summary.ifBlank { template.hypothesis }.trim()

@@ -40,7 +40,6 @@ import com.thesis.mobile.model.ReportHistoryItem
 import com.thesis.mobile.model.ReportSearchHit
 import com.thesis.mobile.model.SearchResultsView
 import com.thesis.mobile.model.TickerSearchItem
-import com.thesis.mobile.ui.components.CompactRowDividerInset
 import com.thesis.mobile.ui.components.EmptyState
 import com.thesis.mobile.ui.components.Eyebrow
 import com.thesis.mobile.ui.components.HighlightText
@@ -51,7 +50,6 @@ import com.thesis.mobile.ui.components.SkeletonRow
 import com.thesis.mobile.ui.components.TextAction
 import com.thesis.mobile.ui.components.ThesisIconButton
 import com.thesis.mobile.ui.components.ThesisTextField
-import com.thesis.mobile.ui.components.TickerRow
 import com.thesis.mobile.ui.components.rememberTopBarCollapsed
 import com.thesis.mobile.ui.components.rowGroupSegment
 import com.thesis.mobile.ui.copy.ResearchCopy
@@ -62,7 +60,6 @@ import com.thesis.mobile.ui.motion.thesisPress
 import com.thesis.mobile.ui.theme.LocalThesisPalette
 import com.thesis.mobile.ui.theme.ThesisSpace
 import com.thesis.mobile.ui.theme.ThesisType
-import com.thesis.mobile.ui.theme.Tone
 
 /*
  * Search (DESIGN-DIRECTION 5.27): one field, focused on open, over your names, SEC companies, the reports on this
@@ -236,14 +233,13 @@ fun SearchScreen(
                         title = ResearchCopy.GROUP_NAMES,
                         items = groups.names,
                         expanded = expanded,
-                        divider = { CompactRowDividerInset },
+                        divider = { LeadingRowDividerInset },
                     ) { ticker, mod ->
-                        TickerRow(
-                            ticker = ticker,
-                            stateTone = Tone.Unknown,
-                            company = companyNames[ticker],
-                            stateLabel = ResearchCopy.IN_YOUR_NAMES,
-                            compact = true,
+                        ResearchRow(
+                            icon = ThesisIcons.FollowFilled,
+                            title = ticker,
+                            aside = companyNames[ticker],
+                            line2 = ResearchCopy.IN_YOUR_NAMES,
                             onClick = { onOpenName(ticker) },
                             modifier = mod,
                         )
@@ -253,14 +249,13 @@ fun SearchScreen(
                         title = ResearchCopy.GROUP_COMPANIES,
                         items = groups.companies,
                         expanded = expanded,
-                        divider = { CompactRowDividerInset },
+                        divider = { LeadingRowDividerInset },
                     ) { item, mod ->
-                        TickerRow(
-                            ticker = item.symbol.uppercase(),
-                            stateTone = Tone.Unknown,
-                            company = item.companyName,
-                            figure = item.exchange.ifBlank { null },
-                            compact = true,
+                        ResearchRow(
+                            icon = ThesisIcons.Names,
+                            title = item.symbol.uppercase(),
+                            aside = item.exchange.ifBlank { null },
+                            line2 = item.companyName.ifBlank { null },
                             onClick = { onOpenName(item.symbol.uppercase()) },
                             modifier = mod,
                         )

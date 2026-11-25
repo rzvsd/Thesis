@@ -279,6 +279,7 @@ object ResearchCopy {
     const val NO_SCENARIOS = "No scenarios are available right now."
     const val NO_SCENARIOS_HOW = "They come back once the scenario library is published again."
     const val PICK_SCENARIO = "Pick a scenario to run"
+    const val SELECTED_SCENARIO = "Selected"
     fun runLabel(title: String, namesCount: Int): String = "Run ‘$title’ on ${names(namesCount)}"
     const val RESULTS_KICKER = "Results"
     fun resultsHeadline(topTicker: String?, impacted: Int): String = when {

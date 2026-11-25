@@ -101,6 +101,10 @@ internal fun warRoomIsLive(room: WarRoomView): Boolean =
 internal fun warRoomClosed(room: WarRoomView): Boolean =
     room.status?.trim()?.lowercase() == "closed"
 
+/** Phases with something written: every phase whose status is not a scheduled/pending word. */
+internal fun phasesWritten(phases: List<WarRoomPhaseView>): Int =
+    phases.count { phaseBadge(it.status)?.text != ResearchCopy.PHASE_SCHEDULED }
+
 /** Phases in step order (unknown phases last, in server order). */
 internal fun warRoomPhasesInOrder(room: WarRoomView): List<WarRoomPhaseView> =
     room.phases.withIndex()
@@ -266,7 +270,7 @@ private fun WarRoomBody(
     Spacer(Modifier.height(ThesisSpace.sectionGapReading))
     SectionHeader(
         kicker = ResearchCopy.PHASES_KICKER,
-        headline = ResearchCopy.phasesHeadline(phases.size, closed || phases.size >= WarRoomStep.entries.size),
+        headline = ResearchCopy.phasesHeadline(phasesWritten(phases), closed),
     )
     Spacer(Modifier.height(ThesisSpace.m))
     if (phases.isEmpty()) {

@@ -153,7 +153,8 @@ private fun toneOf(d: Double?): Tone = when {
     else -> Tone.Unfavourable
 }
 
-private fun pctChange(now: Double?, before: Double?): Double? =
+/** Percent change from [before] (the older filing) to [now] (the newer one); null without a positive base. */
+private fun pctChange(before: Double?, now: Double?): Double? =
     if (now == null || before == null || before <= 0.0) null else (now / before - 1.0) * 100.0
 
 private fun signedMoney(d: Double?): String? = d?.let { (if (it > 0) "+" else "") + Fmt.money(it) }
@@ -420,7 +421,6 @@ fun CompareReportsScreen(
             }
         }
     }
-    // Palette read for the verdict colours below happens inside the body; nothing else here.
 }
 
 @Composable
