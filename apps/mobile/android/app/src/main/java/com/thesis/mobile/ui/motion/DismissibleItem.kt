@@ -24,10 +24,11 @@ import kotlinx.coroutines.flow.filter
  * Quiet alert). `animateItemPlacement` (Compose 1.6) moves the survivors but does not animate the removed item;
  * this does.
  *
- * The screen keeps a `pendingRemoval` set and passes [removing] = key in it. The item then collapses (shrinks
- * toward its top and fades, `Base`), and [onRemoved] is called once the collapse has finished: commit the removal
- * there (or when the undo snackbar times out). Undo = take the key out of the set before committing: the item
- * expands back in place. First paint never animates. Reduced motion: a 150 ms fade, then the space closes at once.
+ * The screen keeps a `pendingRemoval` set and passes [removing] = key in it. The item then collapses (its content
+ * fades over `Quick`; 60 ms in, the row starts shrinking toward its top over `Base`), and [onRemoved] is called
+ * once the collapse has finished: commit the removal there (or when the undo snackbar times out). Undo = take the
+ * key out of the set before committing: the item expands back in place. First paint never animates. Reduced
+ * motion: a 150 ms fade, then the space closes at once.
  *
  * Inside a RowGroup, pass the row's container (`Modifier.rowGroupSegment(position)`) as [modifier] rather than
  * wrapping [content] in it: the card surface then closes up with the row while only the content fades, so the
@@ -62,8 +63,12 @@ fun DismissibleItem(
         exit = if (reduced) {
             fadeOut(ThesisMotion.quick())
         } else {
-            shrinkVertically(tween(ThesisMotion.Base, easing = ThesisMotion.EaseStandard), shrinkTowards = Alignment.Top) +
-                fadeOut(tween(ThesisMotion.Quick, easing = ThesisMotion.EaseExit))
+            // The content clears first (Quick, EaseStandard: most of the fade is in its first 60 ms), and the row
+            // starts closing only after CrossfadeDelay, so the clip never cuts through text that is still legible.
+            shrinkVertically(
+                tween(ThesisMotion.Base, ThesisMotion.CrossfadeDelay, ThesisMotion.EaseStandard),
+                shrinkTowards = Alignment.Top,
+            ) + fadeOut(ThesisMotion.quick())
         },
         label = "dismissible",
     ) { content() }

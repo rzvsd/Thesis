@@ -44,6 +44,7 @@ import com.thesis.mobile.ui.motion.ContainerTransformHost
 import com.thesis.mobile.ui.motion.Glyphs
 import com.thesis.mobile.ui.motion.RollPlan
 import com.thesis.mobile.ui.motion.DismissibleItem
+import com.thesis.mobile.ui.motion.EntranceCoordinator
 import com.thesis.mobile.ui.motion.EntranceRegistry
 import com.thesis.mobile.ui.motion.ProvideEntranceScope
 import com.thesis.mobile.ui.motion.RollingNumber
@@ -494,5 +495,97 @@ class MotionBehaviourTest {
         assertTrue("the closing page covers the row's left edge: $edge", edge.green > 0.5f)
         rule.mainClock.advanceTimeBy(500)
         rule.onNodeWithText("Detail AAPL").assertDoesNotExist()
+    }
+
+    @Test
+    fun aBlockAttachedAfterTheFirstOneLeftEarlyIsNeverHidden() {
+        val registry = EntranceRegistry()
+        var first by mutableStateOf(true)
+        var late by mutableStateOf(false)
+        rule.mainClock.autoAdvance = false
+        theme {
+            ProvideEntranceScope(registry, "home-entry") {
+                Column {
+                    if (first) Block("header", "first")
+                    if (late) Block("macro", "late")
+                }
+            }
+        }
+        rule.mainClock.advanceTimeBy(100)
+        change { first = false } // a fast fling or tab switch inside the window: the only animating block leaves
+        rule.mainClock.advanceTimeBy(1_000)
+        // Nothing keeps the window's clock any more, so it closed with that block: no later key is granted an
+        // entrance (which would hide it on its first frame before the clock could close the window).
+        rule.runOnIdle {
+            assertEquals(EntranceCoordinator.NO_ENTRANCE, registry.coordinator("home-entry", "issue-1").claim("probe"))
+        }
+        change { late = true } // scrolled in long after the window: on screen at once, never a blank frame
+        assertEquals(red.toArgb(), rule.onNodeWithTag("late").centre().toArgb())
+    }
+
+    @Test
+    fun rollStaggerLeadsFromTheRightmostChangedDigit() {
+        lateinit var measurer: TextMeasurer
+        theme { measurer = rememberTextMeasurer() }
+        rule.runOnIdle {
+            val glyphs = Glyphs(measurer, ThesisType.statValue.tnum())
+            // A suffix never delays the digits: "12 new" -> "15 new", "12.5%" -> "13.0%".
+            val suffix = RollPlan.build("12 new", "15 new", 1, false, glyphs)
+            assertEquals(0, suffix.columns[4].delayMs)
+            val percent = RollPlan.build("12.5%", "13.0%", 1, false, glyphs)
+            assertEquals(0, percent.columns[1].delayMs)
+            assertEquals(ThesisMotion.RollStagger, percent.columns[3].delayMs)
+            // An unchanged digit to the right does not delay the changed one.
+            assertEquals(0, RollPlan.build("1205", "1215", 1, false, glyphs).columns[1].delayMs)
+        }
+    }
+
+    @Test
+    fun rollingNumberRetargetedMidFadeContinuesFromWhatIsOnScreen() {
+        lateinit var measurer: TextMeasurer
+        theme { measurer = rememberTextMeasurer() }
+        rule.runOnIdle {
+            val glyphs = Glyphs(measurer, ThesisType.statValue.tnum())
+            val at = 120f
+            fun RollPlan.shown(column: Int, ms: Float) =
+                columns[column].visibleAt(ms).map { Triple(it.char, it.alpha, it.offset) }.sortedBy { it.first }
+
+            fun assertSame(expected: List<Triple<Char, Float, Float>>, actual: List<Triple<Char, Float, Float>>) {
+                assertEquals(expected.map { it.first }, actual.map { it.first })
+                expected.zip(actual).forEach { (e, a) ->
+                    assertEquals(e.second, a.second, 0.01f)
+                    assertEquals(e.third, a.third, 0.01f)
+                }
+            }
+
+            // A sign still fading in gets a new character: both glyphs keep the opacity they have on screen.
+            val sign = RollPlan.build("5", "-5", -1, false, glyphs)
+            val plus = RollPlan.build("-5", "+5", 1, false, glyphs, prior = sign, priorMs = at)
+            assertSame(sign.shown(1, at), plus.shown(1, 0f))
+            assertEquals(listOf('+'), plus.shown(1, plus.durationMs.toFloat()).map { it.first })
+            // ...and back to the sign it was leaving: it fades in from where it is, not from 0 or 100%.
+            val back = RollPlan.build("+5", "-5", -1, false, glyphs, prior = plus, priorMs = at)
+            assertSame(plus.shown(1, at), back.shown(1, 0f))
+
+            // A rolling digit whose column leaves: the strip glyphs fade out where they stopped.
+            val roll = RollPlan.build("19", "28", 1, false, glyphs)
+            val gone = RollPlan.build("28", "8", -1, false, glyphs, prior = roll, priorMs = at)
+            assertSame(roll.shown(1, at), gone.shown(1, 0f))
+            assertTrue(gone.columns[1].visibleAt(gone.durationMs.toFloat()).isEmpty())
+            assertEquals(0f, gone.width(gone.durationMs.toFloat()) - glyphs.width('8'), 0.5f)
+        }
+    }
+
+    @Test
+    fun rollingNumberWiderThanItsSlotIsScaledToFitNeverCut() {
+        theme {
+            Box(Modifier.size(width = 40.dp, height = 200.dp)) {
+                RollingNumber(1_234_567, { it.toString() }, ThesisType.statValue)
+            }
+        }
+        val width = rule.onNodeWithContentDescription("1234567").fetchSemanticsNode().size.width
+        val slot = with(rule.density) { 40.dp.roundToPx() }
+        assertTrue("fits its 40 dp slot: $width px of $slot", width <= slot)
+        assertTrue("not collapsed: $width px", width > slot * 3 / 4)
     }
 }

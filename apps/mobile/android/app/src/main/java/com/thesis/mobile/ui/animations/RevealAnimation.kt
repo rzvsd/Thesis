@@ -10,8 +10,9 @@ import com.thesis.mobile.ui.motion.staggeredEntrance
 /**
  * Old "materialize" reveal (scale .85 + fade), kept so HomeScreen compiles until WP-A deletes it in PR-3
  * (docs/app-redesign/DESIGN-DIRECTION.md 3, "Composables deleted"). Scale from .85 broke 4.3 rule 8 and it
- * replayed on every tab return; it now runs the kit entrance once per entry (8 dp rise + fade, layer phase,
- * never replayed) and ignores [delayMs], [durationMs] and [initialScale].
+ * replayed on every tab return; it now runs the kit entrance once (8 dp rise + fade, layer phase, never replayed)
+ * and ignores [delayMs], [durationMs] and [initialScale]. "Once" means once per back-stack entry when the shell
+ * provides `ProvideEntranceScope` (HANDOFF-M1 items 8-9), and once per process until then (see StaggeredEntrance).
  */
 @Deprecated("Hero figures are final on first paint (4.6); use no reveal, or Modifier.staggeredEntrance on Home/Pulse.")
 @Suppress("UNUSED_PARAMETER")

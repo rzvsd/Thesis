@@ -63,7 +63,10 @@ committed with the branch; the integrator also pastes it into the PR description
 9. **`ThesisShell`, per entry**
    - Change: `ProvideEntranceScope(navigator.entranceRegistry, entry.entryId) { screen() }`.
    - Reason: scopes the entrances to the entry. Without it, every screen shares the process-wide default scope
-     `"app"`. That default still never replays, but two entries of the same screen would share a seen-set.
+     `"app"`, with no data identity. That default never replays, but its window closes for good 700 ms after the
+     first entrance in the process: Pulse opened after Home never staggers, and a new Pulse issue never staggers
+     again. **Land items 8 and 9 in the same PR as M1** (round-2 review), so the deprecated `StaggeredEntrance` /
+     `RevealAnimation` sites on Home, Pulse and Deep Dive get per-entry behaviour from the start.
 10. **`ThesisShell` transitions**
     - Change: build the `AnimatedContent` specs from `ThesisTransitions.sharedAxisX(forward, reduced, PushOffset px)`,
       `fadeThrough(reduced)` and `modalRise(open, reduced, ModalOffset px)`.
@@ -94,19 +97,29 @@ committed with the branch; the integrator also pastes it into the PR description
       the survivors.
     - Reason: if the segment sits inside the content, its surface fades with the row and leaves a page-coloured
       gap in the card for about 100 ms.
-14. **`components/ConfidenceRing.kt` (kit; F2 now, WP-K in PR-3)**
+14. **`components/ConfidenceRing.kt` (kit; F2 now, WP-K in PR-3). Must land before PR-2 merges.**
     - Change: drop the `delay(800L)` + `Animatable` text fade and `Modifier.alpha(textAlpha.value)`. Where the ring
       shows a frozen report figure, make it final on first paint (4.6: frozen report figures never animate). If a
       live use needs a reveal, draw the ring with `rememberDrawOn(...)` and read any alpha inside `graphicsLayer`.
     - Reason: it replays on every composition, uses a raw `delay` and `FastOutSlowInEasing` (not `ThesisMotion`),
       and the M1 criterion forbids animated `Modifier.alpha` in the kit. It predates PR-2 and is outside M1's files.
+      The M1 acceptance grep ("no `Modifier.alpha(` / `.scale(` with animated values in the kit") still finds
+      `Modifier.alpha(textAlpha.value)` here, so that criterion holds only once this item lands (round-2 review).
 
 ## Spec owner (`docs/app-redesign/DESIGN-DIRECTION.md`)
 
 15. **3 #34 and the 4.4 "Pull to refresh" row** still describe the 0 -> 300 degree arc and the rotating 90 degree
     arc (`RefreshSpin`). Update them to the travelling hairline (item 5).
-16. **4.5 shared axis X** double-exposure (item 10).
+16. **4.5 shared axis X** double-exposure (item 10). Round 2 confirmed it again: both screens' text overlaps in
+    `kit-motion-push-t060`, and a faint ghost of the outgoing title is still under the incoming one at `t150`,
+    which contradicts 4.5's own "nothing double-exposes". Decide before M3 ships the shell transitions.
 17. **`reward`**: `RewardVelocity` is now 1.85, so the `spring(0.8, 380)` pulse peaks at 1.04 (5, "Deep Dive
     ready": 1 -> 1.04 -> 1). The peak comes at about 55 ms: that rise is set by the spring itself (spec 4.2), so it
     reads as a quick pop. If a slower swell is wanted, 4.2 would need a lower stiffness (about 200 puts the peak
     near 75 ms) rather than a different impulse.
+18. **4.2 `Roll` travel** (restraint). With `Roll` = 360 ms, a large digit change rolls through every digit in
+    between: 1 -> 8 passes 7 digits, and 5 -> 1 upward passes 6, at about 20 digits/s. That is busier than the
+    NumberFlow reference (900 ms, no-overshoot spring) in `research/browse-reference-sites.md`. Options: cap the
+    strip travel (roll at most about 3 positions and crossfade the rest), or scale the duration with distance up to
+    about 500 ms. `RollingNumber` follows 4.2 as written until 4.2 changes (`RollPlan.build` is the one place to
+    change).

@@ -11,9 +11,13 @@ import com.thesis.mobile.ui.motion.staggeredEntrance
  * Old staggered entrance, kept so existing call sites compile until PR-3 moves them
  * (docs/app-redesign/DESIGN-DIRECTION.md 4.3 rule 2, 6.2 M1).
  *
- * It now delegates to [staggeredEntrance]: the item rises 8 dp and fades in once, on the entry's first open, in the
- * layer phase, and **never replays** (not on scroll-back, tab return, refresh or recreation), because the "seen"
- * memory lives in the navigator's entrance registry for the current entry, keyed by this call site and [index].
+ * It now delegates to [staggeredEntrance]: the item rises 8 dp and fades in once, in the layer phase, and **never
+ * replays** (not on scroll-back, tab return, refresh or recreation), because the "seen" memory lives in the entrance
+ * registry, keyed by this call site and [index]. "Once" is per entry only after the shell provides
+ * `ProvideEntranceScope` per back-stack entry (HANDOFF-M1 items 8-9). Until then every call site shares the
+ * process-wide "app" scope with no data identity, whose window closes for good 700 ms after the first entrance in
+ * the process: so the entrance plays **once per process** (a screen opened later, or a new Pulse issue, does not
+ * stagger).
  * Timing comes from `ThesisMotion` (`Enter`, `EaseEnter`, 35 ms per step); [baseDelayMs], [staggerMs],
  * [slideDistancePx] and [durationMs] are ignored. Under reduced motion the content appears at once.
  *

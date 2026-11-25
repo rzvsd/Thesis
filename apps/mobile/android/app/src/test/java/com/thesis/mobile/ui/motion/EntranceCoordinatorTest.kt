@@ -96,6 +96,21 @@ class EntranceCoordinatorTest {
     }
 
     @Test
+    fun windowClosesWhenTheLastTickingItemLeavesEarly() {
+        val c = EntranceRegistry().coordinator("home")
+        assertEquals(0, c.claim("a"))
+        assertEquals(1, c.claim("b"))
+        assertTrue(c.isOpenAt(1_000L))
+        c.tickerStarted()
+        c.tickerStarted()
+        c.tickerStopped() // "a" detached: "b" still keeps the clock
+        assertEquals(2, c.claim("c"))
+        c.tickerStopped() // the last one detached inside the window: nothing keeps the clock any more
+        assertEquals(none, c.claim("late"))
+        assertFalse(c.isOpenAt(1_001L))
+    }
+
+    @Test
     fun closeEndsTheWindow() {
         val c = EntranceRegistry().coordinator("home")
         c.close()

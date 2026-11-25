@@ -22,6 +22,7 @@ import androidx.compose.ui.platform.InspectorInfo
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import com.thesis.mobile.ui.theme.LocalReducedMotion
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.launch
 
 /*
@@ -53,6 +54,7 @@ class EntranceCoordinator internal constructor(
     private var nextOrder = 0
     private var windowStartMs = -1L
     private var closed = alreadyPlayed
+    private var tickers = 0
 
     /** True once any key was claimed, or when the coordinator was restored as already played. */
     val hasPlayed: Boolean get() = closed || seen.isNotEmpty()
@@ -85,6 +87,24 @@ class EntranceCoordinator internal constructor(
     /** Closes the window: keys claimed from now on appear at once. */
     fun close() {
         closed = true
+    }
+
+    /**
+     * An animating node started driving [isOpenAt] every frame. While at least one does, the window closes on the
+     * frame clock, on time, whatever else attaches or detaches.
+     */
+    internal fun tickerStarted() {
+        tickers++
+    }
+
+    /**
+     * An animating node stopped driving the clock (the window closed, or the node detached: fast fling, tab switch).
+     * When the last one stops inside an open window, nothing keeps the clock any more, so the window closes now:
+     * a key that first attaches later then appears at once instead of being hidden for a frame.
+     */
+    internal fun tickerStopped() {
+        tickers--
+        if (tickers <= 0 && windowStartMs >= 0) closed = true
     }
 
     companion object {
@@ -270,10 +290,17 @@ private class EntranceNode(
                 setProgress(null)
                 return@launch
             }
-            if (order == 0) {
-                // The first item keeps the window's clock ticking, so the window closes on time even if no other
-                // item attaches until long after (a later scroll then never hides an item for a frame).
-                launch { while (gate.isOpenAt(withFrameMillis { it })) Unit }
+            // Every animating item keeps the window's clock ticking until the window closes, so it closes on time
+            // even if no other item attaches until long after; when the last ticking item detaches early, the
+            // window closes with it. Either way a later attach (scroll, tab return) is never hidden for a frame.
+            // UNDISPATCHED: the count is taken before the first suspension, so `finally` always balances it.
+            launch(start = CoroutineStart.UNDISPATCHED) {
+                gate.tickerStarted()
+                try {
+                    while (gate.isOpenAt(withFrameMillis { it })) Unit
+                } finally {
+                    gate.tickerStopped()
+                }
             }
             anim.animateTo(
                 1f,
