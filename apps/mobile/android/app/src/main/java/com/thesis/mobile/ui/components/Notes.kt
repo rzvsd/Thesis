@@ -51,11 +51,13 @@ import androidx.compose.ui.text.style.TextOverflow
 import com.thesis.mobile.ui.icons.ThesisIcons
 import com.thesis.mobile.ui.motion.ThesisMotion
 import com.thesis.mobile.ui.motion.rememberHaptics
+import com.thesis.mobile.ui.theme.Kit
 import com.thesis.mobile.ui.theme.LocalReducedMotion
 import com.thesis.mobile.ui.theme.LocalThesisPalette
 import com.thesis.mobile.ui.theme.ThesisShape
 import com.thesis.mobile.ui.theme.ThesisSpace
 import com.thesis.mobile.ui.theme.ThesisType
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 
 /*
@@ -66,7 +68,7 @@ import kotlinx.coroutines.delay
 enum class NoteSaveState { Idle, Saving, Saved, Failed }
 
 /** The placeholder scaffold an empty note shows (plain text, no schema). */
-const val NotePlaceholder = "What I believe\n\nWhat would prove me wrong\n\nWhat I'm watching"
+const val NotePlaceholder = "What I believe\n\nWhat would prove me wrong\n\nWhat I\u2019m watching"
 
 /** Autosave wait after typing stops. */
 const val NOTE_AUTOSAVE_MS = 800L
@@ -103,7 +105,15 @@ fun rememberNoteAutosave(
         if (text == autosave.lastSaved) return@LaunchedEffect
         delay(NOTE_AUTOSAVE_MS)
         autosave.state = NoteSaveState.Saving
-        val ok = runCatching { currentSave(text) }.getOrDefault(false)
+        // A restart (the user typed during a slow save) cancels this save: rethrow, so a cancelled save is never
+        // reported as "Not saved, try again" (principle 11).
+        val ok = try {
+            currentSave(text)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            false
+        }
         if (ok) autosave.lastSaved = text
         autosave.state = if (ok) NoteSaveState.Saved else NoteSaveState.Failed
     }

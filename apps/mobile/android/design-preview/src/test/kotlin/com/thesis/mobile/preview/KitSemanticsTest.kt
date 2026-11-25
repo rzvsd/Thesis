@@ -10,9 +10,14 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.toPixelMap
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.assertIsOff
+import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertIsNotSelected
@@ -32,6 +37,7 @@ import com.thesis.mobile.ui.components.ThesisBottomBar
 import com.thesis.mobile.ui.components.ThesisCheckbox
 import com.thesis.mobile.ui.components.ThesisChip
 import com.thesis.mobile.ui.components.ThesisRadio
+import com.thesis.mobile.ui.components.ThesisSnackbar
 import com.thesis.mobile.ui.components.ToggleRow
 import com.thesis.mobile.ui.components.defaultBottomBarItems
 import com.thesis.mobile.ui.platform.HapticKind
@@ -160,7 +166,7 @@ class KitSemanticsTest {
 
     @Test
     fun errorStateIsALiveRegion() {
-        setKit { ErrorState("This didn't load", cause = "No connection.", onRetry = {}) }
+        setKit { ErrorState("Couldn\u2019t load your names", cause = "No connection.", onRetry = {}) }
         rule.onNode(hasLiveRegionMatcher()).assertExists()
         rule.onNodeWithText("Try again").assertRole(Role.Button)
         rule.assertAllTouchTargetsAtLeast()
@@ -178,6 +184,34 @@ class KitSemanticsTest {
         assertEquals(1, clicks)
         assertTrue(PreviewHaptics.log.isEmpty() || PreviewHaptics.log.all { it == HapticKind.Press || it == HapticKind.Confirm })
     }
+
+    /** Rubric A2: the snackbar action ("Undo") on the ink container reaches 4.5:1 in both themes (review round 2). */
+    @Test fun snackbarActionContrastLight() = snackbarActionContrast(ThemeMode.Light)
+
+    @Test fun snackbarActionContrastDark() = snackbarActionContrast(ThemeMode.Dark)
+
+    private fun snackbarActionContrast(mode: ThemeMode) {
+        rule.setContent {
+            ThesisTheme(mode = mode) {
+                Column { ThesisSnackbar("Removed AAPL from your names", actionLabel = "Undo") }
+            }
+        }
+        val pixels = rule.onNodeWithText("Undo").captureToImage().toPixelMap()
+        val counts = HashMap<Int, Int>()
+        for (y in 0 until pixels.height) for (x in 0 until pixels.width) {
+            val c = pixels[x, y].toArgb()
+            counts[c] = (counts[c] ?: 0) + 1
+        }
+        val background = Color(counts.maxByOrNull { it.value }!!.key)
+        val best = counts.keys.maxOf { contrast(Color(it), background) }
+        assertTrue("Snackbar action contrast ${"%.2f".format(best)}:1 in $mode is under 4.5:1", best >= 4.5f)
+    }
+}
+
+private fun contrast(a: Color, b: Color): Float {
+    val la = a.luminance() + 0.05f
+    val lb = b.luminance() + 0.05f
+    return maxOf(la, lb) / minOf(la, lb)
 }
 
 private fun hasRoleMatcher(role: Role) = androidx.compose.ui.test.SemanticsMatcher.expectValue(

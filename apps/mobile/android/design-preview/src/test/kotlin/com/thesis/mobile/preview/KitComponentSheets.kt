@@ -48,6 +48,7 @@ import com.thesis.mobile.ui.components.EmptyState
 import com.thesis.mobile.ui.components.ErrorState
 import com.thesis.mobile.ui.components.Eyebrow
 import com.thesis.mobile.ui.components.HighlightText
+import com.thesis.mobile.ui.components.HeroBand
 import com.thesis.mobile.ui.components.InlineBanner
 import com.thesis.mobile.ui.components.Kicker
 import com.thesis.mobile.ui.components.KpiGrid
@@ -345,10 +346,10 @@ object KitComponentSheets {
         }
         Specimen("EmptyState / ErrorState") {
             EmptyState("No names yet.", how = "Follow a company to see it here.", icon = ThesisIcons.Names, actionLabel = "Add a name", onAction = noop, primaryAction = true)
-            ErrorState("This didn't load", cause = "The server took too long to answer.", onRetry = noop)
+            ErrorState("Couldn\u2019t load your names", cause = "The server took too long to answer.", onRetry = noop)
         }
         Specimen("InlineBanner", "neutral / attention / error") {
-            InlineBanner("You're offline. Showing saved reports.")
+            InlineBanner("You\u2019re offline. Showing saved reports.")
             InlineBanner("Two filings are late.", tone = BannerTone.Attention, actionLabel = "See", onAction = noop)
             InlineBanner("Sign-in expired.", tone = BannerTone.Error, actionLabel = "Sign in", onAction = noop)
         }
@@ -393,7 +394,9 @@ object KitComponentSheets {
                 row(LeadingRowDividerInset) {
                     TickerRow("NVDA", Tone.Attention, noop, company = "Nvidia", line2 = "Supply is the constraint", figure = "48", figureCaption = "−6 since Mon", figureCaptionTone = Tone.Unfavourable, stateLabel = "Drifting", hasNote = true, live = true)
                 }
-                row(LeadingRowDividerInset) { TickerRow("MSFT", Tone.Neutral, noop, company = "Microsoft", figure = "55", figureCaption = "No change", figureCaptionTone = Tone.Neutral, compact = true) }
+                row(LeadingRowDividerInset) { TickerRow("MSFT", Tone.Neutral, noop, company = "Microsoft", figure = "55", figureCaption = "No change", figureCaptionTone = Tone.Neutral, compact = true, stateLabel = "On track") }
+                row(LeadingRowDividerInset) { TickerRow("GOOGL", Tone.Attention, noop, figure = "$1,234.56", figureCaption = "+12 since Tue", figureCaptionTone = Tone.Favourable, compact = true, hasNote = true, stateLabel = "Drifting") }
+                row(LeadingRowDividerInset) { TickerRow("V", Tone.Favourable, noop, figure = "7", figureCaption = "−1", figureCaptionTone = Tone.Unfavourable, compact = true, stateLabel = "On track") }
                 row(LeadingRowDividerInset) { TickerRow("AMZN", Tone.Unknown, noop, company = "Amazon", interactionSource = pressedSource()) }
             }
         }
@@ -420,7 +423,7 @@ object KitComponentSheets {
         }
         Specimen("ToggleRow", "on / off / disabled") {
             RowGroup {
-                row { ToggleRow("Morning pulse", true, {}, sub = "Daily at 6:30 AM ET") }
+                row { ToggleRow("Morning pulse", true, {}, sub = "Each morning before the open") }
                 row { ToggleRow("Drift alerts", false, {}) }
                 row { ToggleRow("Price alerts", false, {}, sub = "Coming soon", enabled = false) }
             }
@@ -546,11 +549,14 @@ object KitComponentSheets {
     }
 
     val loading: @Composable GalleryScope.() -> Unit = {
-        Specimen("Skeletons", "hero / KPI grid / card / row / chart") {
-            SkeletonHero()
+        Specimen("Skeletons", "hero (in a HeroBand) / KPI grid / card / row (in a RowGroup) / chart") {
+            HeroBand { SkeletonHero() }
             SkeletonKpiGrid()
             SkeletonCard()
-            SkeletonRow()
+            RowGroup {
+                row { SkeletonRow() }
+                row { SkeletonRow(twoLine = false) }
+            }
             SkeletonChart()
         }
         Specimen("SkeletonKpiGrid over KpiGrid", "same padding and row heights: the crossfade does not jump") {

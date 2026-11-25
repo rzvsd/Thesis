@@ -109,7 +109,12 @@ fun ThesisTopBar(
             modifier
                 .fillMaxWidth()
                 // Over a HeroBand the collapsed bar is opaque: at 92% the band's title ghosts through as text.
-                .barBackground(BarHairline.Bottom, opacity = if (overHero) 1f else ThesisSurface.BAR_ALPHA) { background }
+                // The background always uses the page palette [base], never the provided hero one.
+                .barBackground(
+                    BarHairline.Bottom,
+                    opacity = if (overHero) 1f else ThesisSurface.BAR_ALPHA,
+                    palette = base,
+                ) { background }
                 .windowInsetsPadding(TopBarInsets)
                 .heightIn(min = ThesisSpace.topBar)
                 .padding(horizontal = ThesisSpace.xs),
@@ -121,7 +126,7 @@ fun ThesisTopBar(
                 Text(
                     "THESIS",
                     modifier = Modifier.padding(horizontal = ThesisSpace.m),
-                    style = ThesisType.kicker,
+                    style = ThesisType.eyebrow,
                     color = accent,
                 )
             }
@@ -172,9 +177,9 @@ fun ReportTopBar(
     ) {
         ThesisIconButton(ThesisIcons.Back, contentDescription = "Back", onClick = onBack, tint = p.ink)
         Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
-            // Large font scales: the ticker keeps the room; the brand kicker steps aside.
+            // Large font scales: the ticker keeps the room; the brand eyebrow steps aside.
             if (LocalDensity.current.fontScale <= ThesisType.MAX_DISPLAY_SCALE) {
-                Text("THESIS", style = ThesisType.kicker, color = p.accent)
+                Text("THESIS", style = ThesisType.eyebrow, color = p.accent)
                 Spacer(Modifier.width(ThesisSpace.s))
             }
             Text(ticker, style = ThesisType.capped(ThesisType.barTitle), color = p.ink, maxLines = 1)

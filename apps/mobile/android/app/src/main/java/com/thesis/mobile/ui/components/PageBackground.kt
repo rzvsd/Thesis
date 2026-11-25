@@ -139,13 +139,18 @@ enum class BarHairline { None, Top, Bottom }
  * hairline. [visible] (0..1, read in the draw phase) fades both in, for the top bar that is transparent at rest.
  * Without a cache it falls back to `bg` at the same alpha. Pass [opacity] = 1 where the bar can sit over a HeroBand:
  * at 92% the band's white title ghosts through the light bar as readable text, not as glow.
+ *
+ * [palette] is the page palette the bitmap is drawn with (default: the provided one). A bar that provides a hero
+ * palette to its content passes the page palette here, so the one shared bitmap is never rebuilt in hero colours
+ * (2.7: rasterised once per window size and theme).
  */
 fun Modifier.barBackground(
     hairline: BarHairline = BarHairline.Bottom,
     opacity: Float = ThesisSurface.BAR_ALPHA,
+    palette: ThesisPalette? = null,
     visible: () -> Float = { 1f },
 ): Modifier = composed {
-    val p = LocalThesisPalette.current
+    val p = palette ?: LocalThesisPalette.current
     val cache = LocalPageBackgroundCache.current
     val density = LocalDensity.current
     var position by remember { mutableStateOf(Offset.Zero) }

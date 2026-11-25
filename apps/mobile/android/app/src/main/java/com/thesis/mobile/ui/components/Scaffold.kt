@@ -9,7 +9,9 @@ import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.calculateEndPadding
 import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.displayCutout
+import androidx.compose.foundation.layout.exclude
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.systemBars
@@ -62,9 +64,13 @@ fun rememberTopBarCollapsed(state: ScrollState, threshold: Dp = ThesisSpace.s): 
     return remember(state, px) { derivedStateOf { state.value > px } }
 }
 
-/** Insets the content avoids (system bars and cutout); the keyboard is handled by `imePadding` on the layout. */
+/**
+ * Insets the content avoids (system bars and cutout). The keyboard is handled by `imePadding` on the layout, so the
+ * part the IME already covers is excluded: with the keyboard open the nav-bar inset is not added on top of it.
+ * (On Android the `WindowInsets.*` getters are `@Composable`, hence the composable getter.)
+ */
 private val ContentInsets: WindowInsets
-    get() = WindowInsets.systemBars.union(WindowInsets.displayCutout)
+    @Composable get() = WindowInsets.systemBars.union(WindowInsets.displayCutout).exclude(WindowInsets.ime)
 
 /**
  * Page scaffold (#1): paints `pageBackground` behind everything (from the shared cached bitmap; it creates its own
@@ -131,8 +137,8 @@ private enum class ScaffoldSlot { Top, Bottom, Content }
 
 /** Top inset only (status bar and cutout), for bars drawn edge to edge. */
 internal val TopBarInsets: WindowInsets
-    get() = WindowInsets.systemBars.union(WindowInsets.displayCutout).only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)
+    @Composable get() = WindowInsets.systemBars.union(WindowInsets.displayCutout).only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)
 
 /** Bottom inset only (navigation bar), for bottom bars drawn edge to edge. */
 internal val BottomBarInsets: WindowInsets
-    get() = WindowInsets.systemBars.only(WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal)
+    @Composable get() = WindowInsets.systemBars.only(WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal)

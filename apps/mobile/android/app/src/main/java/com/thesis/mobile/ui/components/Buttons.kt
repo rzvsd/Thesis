@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -37,6 +38,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
 import com.thesis.mobile.ui.motion.rememberHaptics
 import com.thesis.mobile.ui.motion.thesisPress
+import com.thesis.mobile.ui.theme.Kit
 import com.thesis.mobile.ui.theme.LocalThesisPalette
 import com.thesis.mobile.ui.theme.ThesisPalette
 import com.thesis.mobile.ui.theme.ThesisShape
@@ -201,6 +203,9 @@ fun DestructiveButton(
  * (no horizontal padding), 48 dp tall touch area, tint press without scale. [trailing] = true (a row's end action:
  * card foot, banner, section header) puts the label at the end of its touch box, so trailing actions share the
  * right edge of their row instead of ending wherever a short label leaves the 48 dp box.
+ *
+ * [color] overrides the accent (the snackbar passes `inversePrimary` for its ink container; `style.color` is not
+ * read, so pass the colour here) and [pressTint] the ink press tint ([ThesisMotion.pressTintOnInk] on ink).
  */
 @Composable
 fun TextAction(
@@ -210,17 +215,50 @@ fun TextAction(
     enabled: Boolean = true,
     style: TextStyle = ThesisType.label,
     trailing: Boolean = false,
+    color: Color = Color.Unspecified,
+    pressTint: Color = Color.Unspecified,
+    interactionSource: MutableInteractionSource = remember { MutableInteractionSource() },
+) = TextActionImpl(text, onClick, modifier, enabled, style, trailing, color, pressTint, inlineTouch = false, interactionSource)
+
+/**
+ * [TextAction] whose 48 dp touch area overhangs its line instead of making it 48 dp tall ([inlineTouch]): the card
+ * foot uses it so the foot sits 8 dp under its hairline and 16 dp above the card edge, like the Deep Dive card foot,
+ * while the target stays 48 dp.
+ */
+@Composable
+internal fun TextActionImpl(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    style: TextStyle = ThesisType.label,
+    trailing: Boolean = false,
+    color: Color = Color.Unspecified,
+    pressTint: Color = Color.Unspecified,
+    inlineTouch: Boolean = false,
     interactionSource: MutableInteractionSource = remember { MutableInteractionSource() },
 ) {
     val p = LocalThesisPalette.current
+    val resolved = when {
+        !enabled -> p.muted
+        color != Color.Unspecified -> color
+        else -> p.accent
+    }
     Box(
         modifier
+            .then(if (inlineTouch) Modifier.touchHeight(ThesisSpace.touchMin) else Modifier)
             .clickable(interactionSource, indication = null, enabled = enabled, role = Role.Button, onClick = onClick)
-            .sizeIn(minWidth = ThesisSpace.touchMin, minHeight = ThesisSpace.touchMin)
-            .thesisPress(interactionSource, shape = ThesisShape.badge, enabled = enabled),
+            .then(
+                if (inlineTouch) {
+                    Modifier.widthIn(min = ThesisSpace.touchMin)
+                } else {
+                    Modifier.sizeIn(minWidth = ThesisSpace.touchMin, minHeight = ThesisSpace.touchMin)
+                },
+            )
+            .thesisPress(interactionSource, shape = ThesisShape.badge, enabled = enabled, tint = pressTint),
         contentAlignment = if (trailing) Alignment.CenterEnd else Alignment.CenterStart,
     ) {
-        Text(text, style = style, color = if (enabled) p.accent else p.muted)
+        Text(text, style = style, color = resolved)
     }
 }
 

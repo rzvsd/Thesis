@@ -27,6 +27,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -44,8 +45,10 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.thesis.mobile.ui.copy.KitCopy
 import com.thesis.mobile.ui.motion.ThesisMotion
 import com.thesis.mobile.ui.motion.rememberHaptics
+import com.thesis.mobile.ui.theme.Kit
 import com.thesis.mobile.ui.theme.LocalReducedMotion
 import com.thesis.mobile.ui.theme.LocalThesisPalette
 import com.thesis.mobile.ui.theme.ThesisSpace
@@ -85,7 +88,8 @@ fun <T> Loadable<T>.valueOrNull(): T? = (this as? Loadable.Ready<T>)?.value
  * Crossfades between [Loadable] kinds (#27, 4.4): fade out Quick with EaseExit, fade in Base after a 60 ms delay
  * (EaseStandard), the size change on the `spatial` spring; a change inside the same kind (Ready→Ready, a new
  * error message) recomposes in place with no transition. Under reduced motion it
- * swaps instantly. The slots default to the kit's skeleton, [EmptyState] and [ErrorState].
+ * swaps instantly. The slots default to the kit's skeleton, [EmptyState] and [ErrorState]; the default error title
+ * is "Couldn’t load [failedSubject]" (#26), e.g. `failedSubject = "your names"`.
  */
 @Composable
 fun <T> StateCrossfade(
@@ -93,9 +97,14 @@ fun <T> StateCrossfade(
     modifier: Modifier = Modifier,
     onRetry: (() -> Unit)? = null,
     loading: @Composable () -> Unit = { SkeletonCard() },
-    empty: @Composable (Loadable.Empty) -> Unit = { EmptyState(sentence = it.sentence ?: "Nothing here yet.") },
+    failedSubject: String? = null,
+    empty: @Composable (Loadable.Empty) -> Unit = { EmptyState(sentence = it.sentence ?: KitCopy.NOTHING_HERE) },
     failed: @Composable (Loadable.Failed) -> Unit = {
-        ErrorState(title = "This didn't load", cause = it.cause, onRetry = if (it.retryable) onRetry else null)
+        ErrorState(
+            title = KitCopy.couldNotLoad(failedSubject),
+            cause = it.cause,
+            onRetry = if (it.retryable) onRetry else null,
+        )
     },
     ready: @Composable (T) -> Unit,
 ) {
@@ -138,10 +147,13 @@ fun ThesisRefreshBox(
 ) {
     val state = rememberPullRefreshState(refreshing, onRefresh)
     val haptics = rememberHaptics()
+    // Read [refreshing] through updated state: the effect is keyed on the (stable) state object and would otherwise
+    // keep the value from the first composition.
+    val currentRefreshing by rememberUpdatedState(refreshing)
     LaunchedEffect(state) {
         snapshotFlow { state.progress >= 1f }
             .distinctUntilChanged()
-            .collect { armed -> if (armed && !refreshing) haptics.threshold() }
+            .collect { armed -> if (armed && !currentRefreshing) haptics.threshold() }
     }
     Box(modifier.pullRefresh(state, enabled)) {
         content()

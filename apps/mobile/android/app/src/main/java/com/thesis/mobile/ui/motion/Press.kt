@@ -82,17 +82,19 @@ fun rememberPressProgress(source: InteractionSource): PressProgress {
  * with `clickable(interactionSource, indication = null, ...)` on the same or an enclosing node.
  *
  * Under reduced motion the tint stays and the scale is dropped (section 4.8). [enabled] = false draws nothing.
+ * [tint] overrides the ink tint, for a control on an `ink` container ([ThesisMotion.pressTintOnInk]).
  */
 fun Modifier.thesisPress(
     interactionSource: InteractionSource,
     scale: Boolean = false,
     shape: Shape? = null,
     enabled: Boolean = true,
+    tint: Color = Color.Unspecified,
 ): Modifier = composed {
     if (!enabled) return@composed Modifier
     val progress = rememberPressProgress(interactionSource)
     val reduced = LocalReducedMotion.current
-    val tint = ThesisMotion.pressTint(LocalThesisPalette.current)
+    val pressTint = if (tint != Color.Unspecified) tint else ThesisMotion.pressTint(LocalThesisPalette.current)
     val scaled = if (scale && !reduced) {
         Modifier.graphicsLayer {
             val s = lerp(1f, ThesisMotion.PressScaleButton, progress.scaleValue)
@@ -105,7 +107,7 @@ fun Modifier.thesisPress(
     scaled.drawWithContent {
         drawContent()
         val t = progress.tintValue
-        if (t > 0f) drawPressTint(tint, t, shape)
+        if (t > 0f) drawPressTint(pressTint, t, shape)
     }
 }
 

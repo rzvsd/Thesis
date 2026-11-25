@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -46,10 +47,12 @@ import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
@@ -57,6 +60,7 @@ import com.thesis.mobile.ui.icons.ThesisIcons
 import com.thesis.mobile.ui.motion.ThesisMotion
 import com.thesis.mobile.ui.motion.rememberHaptics
 import com.thesis.mobile.ui.motion.thesisPress
+import com.thesis.mobile.ui.theme.Kit
 import com.thesis.mobile.ui.theme.LocalReducedMotion
 import com.thesis.mobile.ui.theme.LocalThesisPalette
 import com.thesis.mobile.ui.theme.ThesisShape
@@ -307,6 +311,7 @@ fun ToggleRow(
  * [figure] (`body` tabular) over [figureCaption] (tone). No chevron, no meter.
  *
  * [compact] is the Names density option: 48 dp, one line of aligned columns (ticker, state, figure, change, note).
+ * Above 1.3x font scale both densities move the figure block under the text and let line 2 wrap to two lines.
  * Press: tint only (inside a RowGroup). [onLongClick] opens the context sheet with the `longPress()` haptic.
  * [onBoundsCaptured] receives the row's window bounds just before [onClick] (container transform).
  * [stateLabel] ("Intact") is what TalkBack says for the square.
@@ -362,7 +367,15 @@ fun TickerRow(
         }
     }
 
-    if (compact) {
+    // Large font scales (> 1.3x): the trailing figure block moves under the text so the company name and line 2
+    // keep their meaning on a 360 dp screen (rubric A4) instead of ellipsizing to nothing.
+    val large = LocalDensity.current.fontScale > ThesisType.MAX_DISPLAY_SCALE
+    val figureStyle = ThesisType.body.tnum()
+    val captionStyle = ThesisType.caption.tnum()
+
+    if (compact && !large) {
+        // Aligned columns: ticker, state, figure, change, note. The figure and change columns have fixed minimum
+        // widths and are right-aligned, so every compact row lines up and the two never run together.
         Row(
             container
                 .heightIn(min = ThesisSpace.rowMinCompact)
@@ -371,27 +384,46 @@ fun TickerRow(
         ) {
             Text(
                 ticker,
-                modifier = Modifier.widthIn(min = Kit.tableColumnMin),
+                modifier = Modifier.widthIn(min = Kit.compactTickerColumn),
                 style = ThesisType.rowTitle,
                 color = p.ink,
                 maxLines = 1,
             )
             leading()
             Spacer(Modifier.weight(1f))
-            if (figure != null) Text(figure, style = ThesisType.body.tnum(), color = p.ink, maxLines = 1)
-            Box(Modifier.widthIn(min = ThesisSpace.x5), contentAlignment = Alignment.CenterEnd) {
-                if (figureCaption != null) {
-                    Text(figureCaption, style = ThesisType.caption.tnum(), color = figureCaptionTone.textColor(p), maxLines = 1)
-                }
-            }
+            Text(
+                figure.orEmpty(),
+                modifier = Modifier.widthIn(min = Kit.compactFigureColumn),
+                style = figureStyle,
+                color = p.ink,
+                textAlign = TextAlign.End,
+                maxLines = 1,
+            )
+            Spacer(Modifier.width(ThesisSpace.s))
+            Text(
+                figureCaption.orEmpty(),
+                modifier = Modifier.widthIn(min = Kit.compactCaptionColumn),
+                style = captionStyle,
+                color = figureCaptionTone.textColor(p),
+                textAlign = TextAlign.End,
+                maxLines = 1,
+            )
             Box(Modifier.padding(start = ThesisSpace.s).size(ThesisSpace.iconS)) { if (hasNote) NoteMark() }
         }
         return
     }
 
+    val hasFigure = figure != null || figureCaption != null
+
     Row(
         container
-            .heightIn(min = if (line2 != null) ThesisSpace.rowMinComfortableTwoLine else ThesisSpace.rowMinComfortable)
+            .heightIn(
+                min = when {
+                    compact -> ThesisSpace.rowMinCompact
+                    line2 != null -> ThesisSpace.rowMinComfortableTwoLine
+                    else -> ThesisSpace.rowMinComfortable
+                },
+            )
             .padding(horizontal = ThesisSpace.l, vertical = ThesisSpace.rowPaddingV),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -414,15 +446,38 @@ fun TickerRow(
                 if (count != null) CountBadge(count)
             }
             if (line2 != null) {
-                Text(line2, style = ThesisType.bodySmall, color = p.ink2, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(
+                    line2,
+                    style = ThesisType.bodySmall,
+                    color = p.ink2,
+                    maxLines = if (large) 2 else 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            if (large && hasFigure) {
+                // The figure, then its caption, which wraps rather than clipping at the row edge.
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(ThesisSpace.s),
+                ) {
+                    if (figure != null) Text(figure, style = figureStyle, color = p.ink, maxLines = 1)
+                    if (figureCaption != null) {
+                        Text(
+                            figureCaption,
+                            modifier = Modifier.weight(1f, fill = false),
+                            style = captionStyle,
+                            color = figureCaptionTone.textColor(p),
+                        )
+                    }
+                }
             }
         }
-        if (figure != null || figureCaption != null) {
+        if (!large && hasFigure) {
             Spacer(Modifier.width(ThesisSpace.m))
             Column(horizontalAlignment = Alignment.End) {
-                if (figure != null) Text(figure, style = ThesisType.body.tnum(), color = p.ink, maxLines = 1)
+                if (figure != null) Text(figure, style = figureStyle, color = p.ink, maxLines = 1)
                 if (figureCaption != null) {
-                    Text(figureCaption, style = ThesisType.caption.tnum(), color = figureCaptionTone.textColor(p), maxLines = 1)
+                    Text(figureCaption, style = captionStyle, color = figureCaptionTone.textColor(p), maxLines = 1)
                 }
             }
         }
@@ -568,7 +623,7 @@ fun AlertRow(
                 overflow = TextOverflow.Ellipsis,
             )
             if (expanded && detail != null) {
-                Spacer(Modifier.width(ThesisSpace.xs))
+                Spacer(Modifier.height(ThesisSpace.xs))
                 detail()
             }
         }

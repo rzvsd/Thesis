@@ -46,9 +46,11 @@ import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.Dp
+import com.thesis.mobile.ui.copy.KitCopy
 import com.thesis.mobile.ui.icons.ThesisIcons
 import com.thesis.mobile.ui.motion.thesisPress
 import com.thesis.mobile.ui.platform.thesisCardShadow
+import com.thesis.mobile.ui.theme.Kit
 import com.thesis.mobile.ui.theme.LocalThesisPalette
 import com.thesis.mobile.ui.theme.ThesisPalette
 import com.thesis.mobile.ui.theme.ThesisShape
@@ -185,8 +187,10 @@ private fun CardFoot(footer: CardFooter) {
     val p = LocalThesisPalette.current
     Column {
         ThesisDivider()
+        // DD card foot: 8 dp under the hairline, the card's 16 dp padding below. The action's 48 dp touch area
+        // overhangs the line (TextActionImpl inlineTouch) instead of making the foot 48 dp tall.
         Row(
-            Modifier.fillMaxWidth().padding(top = ThesisSpace.xs),
+            Modifier.fillMaxWidth().padding(top = ThesisSpace.s),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
@@ -197,7 +201,7 @@ private fun CardFoot(footer: CardFooter) {
             )
             if (footer.actionLabel != null && footer.onAction != null) {
                 Spacer(Modifier.width(ThesisSpace.m))
-                TextAction(footer.actionLabel, footer.onAction, trailing = true)
+                TextActionImpl(footer.actionLabel, footer.onAction, trailing = true, inlineTouch = true)
             }
         }
     }
@@ -372,15 +376,15 @@ fun EmptyState(
 }
 
 /**
- * Error state (#26): a card with a `subhead` [title] ("Couldn't load your names"), the [cause] in plain words and a
- * "Try again" secondary button. Announced politely.
+ * Error state (#26): a card with a `subhead` [title] ("Couldn’t load your names", [KitCopy.couldNotLoad]), the
+ * [cause] in plain words and a "Try again" secondary button. Announced politely.
  */
 @Composable
 fun ErrorState(
     title: String,
     modifier: Modifier = Modifier,
     cause: String? = null,
-    retryLabel: String = "Try again",
+    retryLabel: String = KitCopy.TRY_AGAIN,
     onRetry: (() -> Unit)? = null,
 ) {
     val p = LocalThesisPalette.current
@@ -395,7 +399,7 @@ fun ErrorState(
 enum class BannerTone { Neutral, Attention, Error }
 
 /**
- * Inline banner (#26): a `surface2` row with a 16 dp icon, caption text and an optional text action. It never
+ * Inline banner (#26): a `surface2` row with a 1 dp `line` border, a 16 dp icon, caption text and an optional text action. It never
  * replaces content that is already loaded. Announced politely.
  */
 @Composable
@@ -417,6 +421,8 @@ fun InlineBanner(
             .fillMaxWidth()
             .clip(ThesisShape.panel)
             .background(p.surface2)
+            // A 1 dp line, as the plain Callout has: in light, surface2 on bg is 1.03:1 and draws no container.
+            .border(ThesisSpace.border, p.line, ThesisShape.panel)
             .semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite }
             .padding(start = ThesisSpace.m, end = ThesisSpace.m),
         verticalAlignment = Alignment.CenterVertically,

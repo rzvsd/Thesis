@@ -19,7 +19,9 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
+import com.thesis.mobile.ui.theme.Kit
 import com.thesis.mobile.ui.theme.LocalThesisPalette
 import com.thesis.mobile.ui.theme.ThesisPalette
 import com.thesis.mobile.ui.theme.ThesisSpace
@@ -44,7 +46,7 @@ fun ledeText(lead: String, rest: String?, p: ThesisPalette): AnnotatedString = b
 
 /**
  * The one screen title block (#5): optional [eyebrow], the serif [title] (`title`, capped at 1.3x; Home passes
- * [compact] = true for `headline`, max 2 lines), an optional [deck] (`lede`, ink2) and a [meta] caption with a
+ * [compact] = true for `headline`, also capped at 1.3x, max 2 lines), an optional [deck] (`lede`, ink2) and a [meta] caption with a
  * [LoadingHairline] while [refreshing]. The top bar shows [title] once this block has scrolled away.
  */
 @Composable
@@ -66,9 +68,11 @@ fun ScreenHeader(
         Text(
             title,
             modifier = Modifier.semantics { heading() },
-            style = if (compact) ThesisType.headline else ThesisType.capped(ThesisType.title),
+            // Both are capped at 1.3x, so Home's compact headline never outgrows the other tabs' titles at 2.0x.
+            style = ThesisType.capped(if (compact) ThesisType.headline else ThesisType.title),
             color = p.ink,
             maxLines = if (compact) 2 else Int.MAX_VALUE,
+            overflow = TextOverflow.Ellipsis,
         )
         if (deck != null) {
             Spacer(Modifier.height(ThesisSpace.s))
@@ -107,7 +111,7 @@ fun SectionHeader(
                     .weight(1f)
                     .alignByBaseline()
                     .semantics { heading() },
-                style = ThesisType.headline,
+                style = ThesisType.capped(ThesisType.headline),
                 color = p.ink,
             )
             if (actionLabel != null && onAction != null) {
@@ -175,7 +179,7 @@ fun ChapterHeader(
         Text(
             title,
             modifier = Modifier.semantics { heading() },
-            style = if (small) ThesisType.headline else ThesisType.capped(ThesisType.title),
+            style = ThesisType.capped(if (small) ThesisType.headline else ThesisType.title),
             color = p.ink,
         )
         if (lede != null) Text(lede, style = ThesisType.lede, color = p.ink2)

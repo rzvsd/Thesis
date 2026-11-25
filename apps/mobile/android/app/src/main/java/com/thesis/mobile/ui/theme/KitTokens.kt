@@ -1,14 +1,14 @@
-package com.thesis.mobile.ui.components
+package com.thesis.mobile.ui.theme
 
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
-import com.thesis.mobile.ui.theme.ThesisSpace
 
 /**
- * Component-internal geometry that section 2.5 does not name (Deep Dive values from deep-dive-visual-language.md
- * section 4). Kept in one place so no other kit file holds a numeric dp; HANDOFF-F2.md asks F1 to adopt these
- * into ThesisSpace, after which this object forwards to them. Screens never read it (internal).
+ * Component-internal geometry and ratios that section 2.5 does not name (Deep Dive values from
+ * deep-dive-visual-language.md section 4). They live in ui/theme so no file outside ui/theme holds a numeric dp
+ * (6.1, F2 criterion); only the kit (ui/components) reads them, screens never do (internal). F1 may fold them into
+ * ThesisSpace / ThesisType later (HANDOFF-F2 #1); the kit then reads the new names.
  */
 internal object Kit {
     /** Status badge vertical padding (DD phase badge 3 x 8). */
@@ -63,6 +63,14 @@ internal object Kit {
 
     /** Link underline offset below the baseline. */
     val underlineOffset: Dp = 2.dp
+
+    /**
+     * Compact TickerRow (Names density option) columns: ticker, figure ("$1,234.56") and change caption
+     * ("+12 since Tue"), so every compact row aligns. Minimums: at large font scales the row stacks instead.
+     */
+    val compactTickerColumn: Dp = 64.dp
+    val compactFigureColumn: Dp = 72.dp
+    val compactCaptionColumn: Dp = 96.dp
 
     /** CompareTable: minimum value column width and cell padding. */
     val tableColumnMin: Dp = 88.dp

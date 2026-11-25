@@ -36,6 +36,7 @@ import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.Dp
 import com.thesis.mobile.ui.motion.ThesisMotion
+import com.thesis.mobile.ui.theme.Kit
 import com.thesis.mobile.ui.theme.LocalReducedMotion
 import com.thesis.mobile.ui.theme.LocalThesisPalette
 import com.thesis.mobile.ui.theme.ThesisShape

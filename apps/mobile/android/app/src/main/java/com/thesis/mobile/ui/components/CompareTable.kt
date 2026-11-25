@@ -34,11 +34,14 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.LayoutDirection
 import com.thesis.mobile.ui.format.Fmt
 import com.thesis.mobile.ui.motion.thesisPress
+import com.thesis.mobile.ui.theme.Kit
 import com.thesis.mobile.ui.theme.LocalThesisPalette
 import com.thesis.mobile.ui.theme.ThesisShape
 import com.thesis.mobile.ui.theme.ThesisSpace
@@ -196,6 +199,10 @@ fun CompareTable(
                 }
                 model.rows.forEachIndexed { r, row ->
                     val fill = if (row.median) p.surface2 else p.surface
+                    // Label and values share one line height with proportional line spacing, so their first
+                    // baselines coincide in every row (same family: the baseline no longer depends on font size).
+                    val labelStyle = (if (row.median) ThesisType.label else ThesisType.bodySmall).copy(lineHeightStyle = TableLines)
+                    val valueStyle = ThesisType.tableNum.copy(lineHeight = labelStyle.lineHeight, lineHeightStyle = TableLines)
                     Text(
                         model.labelOf(row),
                         modifier = Modifier
@@ -203,12 +210,13 @@ fun CompareTable(
                             .background(fill)
                             .semantics { contentDescription = model.describe(row) }
                             .padding(horizontal = Kit.tableCellPaddingH, vertical = Kit.tableCellPaddingV),
-                        style = if (row.median) ThesisType.label else ThesisType.bodySmall,
+                        style = labelStyle,
                         color = if (row.median) p.ink2 else p.ink,
                     )
                     row.values.forEachIndexed { c, v ->
                         ValueCell(
                             text = v,
+                            style = valueStyle,
                             color = if (model.columns[c].subject) p.ink else p.ink2,
                             fill = fill,
                             label = "${model.labelOf(row)}, ${model.columns[c].period}",
@@ -219,6 +227,7 @@ fun CompareTable(
                     if (model.deltaHeader != null) {
                         ValueCell(
                             text = row.delta ?: model.missingDelta,
+                            style = valueStyle,
                             color = row.deltaTone.textColor(p),
                             fill = fill,
                             label = null,
@@ -368,9 +377,16 @@ private fun HeaderCell(
     }
 }
 
+/** Proportional line spacing for table cells: with equal line heights, label and value baselines line up. */
+private val TableLines = LineHeightStyle(
+    alignment = LineHeightStyle.Alignment.Proportional,
+    trim = LineHeightStyle.Trim.None,
+)
+
 @Composable
 private fun ValueCell(
     text: String,
+    style: TextStyle,
     color: Color,
     fill: Color,
     label: String?,
@@ -395,6 +411,6 @@ private fun ValueCell(
             .padding(horizontal = Kit.tableCellPaddingH, vertical = Kit.tableCellPaddingV),
         contentAlignment = Alignment.TopEnd,
     ) {
-        Text(text, style = ThesisType.tableNum, color = color, textAlign = TextAlign.End, maxLines = 1)
+        Text(text, style = style, color = color, textAlign = TextAlign.End, maxLines = 1)
     }
 }

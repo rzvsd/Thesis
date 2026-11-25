@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import com.thesis.mobile.ui.copy.KitCopy
 import com.thesis.mobile.ui.copy.ProductCopy
 import com.thesis.mobile.ui.icons.ThesisIcons
 import com.thesis.mobile.ui.theme.ThesisSpace
@@ -21,7 +22,7 @@ private const val MIGRATE = "Use EmptyState or ErrorState from the kit (section 
 fun NoPulseEmptyState(onRunDeepDive: () -> Unit, modifier: Modifier = Modifier) {
     EmptyState(
         sentence = "No pulse yet.",
-        how = "Your morning pulse arrives daily at 6:30 AM ET. Check back then, or explore a company now.",
+        how = "Your pulse arrives each morning before the open. Check back then, or explore a company now.",
         icon = ThesisIcons.Pulse,
         actionLabel = "Run a Deep Dive",
         onAction = onRunDeepDive,
@@ -61,8 +62,8 @@ fun NoNamesEmptyState(onAddName: () -> Unit, modifier: Modifier = Modifier) {
 @Composable
 fun OfflineEmptyState(modifier: Modifier = Modifier, onRetry: (() -> Unit)? = null) {
     ErrorState(
-        title = "You're offline",
-        cause = "Reports you've already opened are still available. We'll sync again when you reconnect.",
+        title = "You\u2019re offline",
+        cause = "Reports you\u2019ve already opened are still available. We\u2019ll sync again when you reconnect.",
         onRetry = onRetry,
         modifier = modifier,
     )
@@ -71,11 +72,23 @@ fun OfflineEmptyState(modifier: Modifier = Modifier, onRetry: (() -> Unit)? = nu
 @Deprecated(MIGRATE)
 @Composable
 fun PulseUnavailableState(message: String, onRetry: () -> Unit, modifier: Modifier = Modifier) {
-    ErrorState(title = "Pulse unavailable", cause = message, retryLabel = "Retry pulse", onRetry = onRetry, modifier = modifier)
+    ErrorState(
+        title = KitCopy.couldNotLoad("today\u2019s pulse"),
+        cause = message,
+        retryLabel = KitCopy.TRY_AGAIN,
+        onRetry = onRetry,
+        modifier = modifier,
+    )
 }
 
 @Deprecated(MIGRATE)
 @Composable
 fun DeepDiveUnavailableState(message: String, onRetry: () -> Unit, modifier: Modifier = Modifier) {
-    ErrorState(title = "Deep Dive unavailable", cause = message, retryLabel = "Retry Deep Dive", onRetry = onRetry, modifier = modifier)
+    ErrorState(
+        title = KitCopy.couldNotLoad("this Deep Dive"),
+        cause = message,
+        retryLabel = KitCopy.TRY_AGAIN,
+        onRetry = onRetry,
+        modifier = modifier,
+    )
 }

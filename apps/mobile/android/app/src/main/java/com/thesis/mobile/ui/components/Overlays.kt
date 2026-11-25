@@ -65,6 +65,7 @@ import androidx.compose.ui.util.lerp
 import androidx.compose.ui.window.Dialog
 import com.thesis.mobile.ui.motion.ThesisMotion
 import com.thesis.mobile.ui.platform.ThesisBackHandler
+import com.thesis.mobile.ui.theme.Kit
 import com.thesis.mobile.ui.theme.LocalReducedMotion
 import com.thesis.mobile.ui.theme.LocalThesisPalette
 import com.thesis.mobile.ui.theme.ThesisShape
@@ -362,12 +363,16 @@ fun ThesisSnackbar(
         )
         if (actionLabel != null) {
             Spacer(Modifier.size(ThesisSpace.s))
+            // On the ink container: inversePrimary (8.6:1 light, 6.1:1 dark), not the accent, and a surface press
+            // tint (an ink tint would not show on ink).
             TextAction(
                 actionLabel,
                 onAction,
                 Modifier.padding(horizontal = ThesisSpace.s),
-                style = ThesisType.button.copy(color = MaterialTheme.colorScheme.inversePrimary),
+                style = ThesisType.button,
                 trailing = true,
+                color = MaterialTheme.colorScheme.inversePrimary,
+                pressTint = ThesisMotion.pressTintOnInk(p),
             )
         }
     }

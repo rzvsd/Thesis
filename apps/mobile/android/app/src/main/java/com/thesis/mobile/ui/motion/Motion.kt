@@ -94,6 +94,13 @@ object ThesisMotion {
     fun pressTint(p: ThesisPalette): Color =
         p.ink.copy(alpha = if (p.isLight) PressTintAlphaLight else PressTintAlphaDark)
 
+    /**
+     * Press tint for a control on an `ink` container (the snackbar): `surface` at the alpha of the opposite theme,
+     * since the container is dark in the light theme and light in the dark theme. An ink tint would not show.
+     */
+    fun pressTintOnInk(p: ThesisPalette): Color =
+        p.surface.copy(alpha = if (p.isLight) PressTintAlphaDark else PressTintAlphaLight)
+
     // Easing
     val EaseStandard: Easing = CubicBezierEasing(0.2f, 0f, 0f, 1f)
     val EaseEnter: Easing = CubicBezierEasing(0.05f, 0.7f, 0.1f, 1f)

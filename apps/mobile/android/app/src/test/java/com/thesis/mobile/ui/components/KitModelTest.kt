@@ -1,12 +1,13 @@
 package com.thesis.mobile.ui.components
 
+import com.thesis.mobile.ui.copy.KitCopy
 import com.thesis.mobile.ui.theme.Tone
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Test
 
-/** Pure-model tests for the kit: CompareTable TSV, RowPosition, Loadable, SourceInfo. */
+/** Pure-model tests for the kit: CompareTable TSV, RowPosition, Loadable, SourceInfo, kit copy. */
 class KitModelTest {
 
     private val model = CompareTableModel(
@@ -85,5 +86,13 @@ class KitModelTest {
         assertEquals("10-K · FY2025 · filed 31 Oct 2025", SourceInfo("m", form = "10-K", period = "FY2025", filed = "31 Oct 2025").sourceLine)
         assertEquals("10-Q", SourceInfo("m", form = "10-Q").sourceLine)
         assertNull(SourceInfo("m").sourceLine)
+    }
+
+    @Test
+    fun errorTitleUsesSpecWordingAndTypographicApostrophe() {
+        assertEquals("Couldn\u2019t load your names", KitCopy.couldNotLoad("your names"))
+        assertEquals("Couldn\u2019t load this", KitCopy.couldNotLoad())
+        assertEquals("Couldn\u2019t load this", KitCopy.couldNotLoad(" "))
+        assertEquals("Try again", KitCopy.TRY_AGAIN)
     }
 }

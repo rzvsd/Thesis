@@ -53,6 +53,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import com.thesis.mobile.ui.icons.ThesisIcons
 import com.thesis.mobile.ui.motion.ThesisMotion
 import com.thesis.mobile.ui.motion.thesisPress
+import com.thesis.mobile.ui.theme.Kit
 import com.thesis.mobile.ui.theme.LocalThesisPalette
 import com.thesis.mobile.ui.theme.ThesisPalette
 import com.thesis.mobile.ui.theme.ThesisShape
