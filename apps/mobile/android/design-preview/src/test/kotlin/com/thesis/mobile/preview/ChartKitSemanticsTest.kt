@@ -2,17 +2,22 @@ package com.thesis.mobile.preview
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.toPixelMap
@@ -37,12 +42,14 @@ import com.thesis.mobile.ui.charts.kit.ChartHeights
 import com.thesis.mobile.ui.charts.kit.ChartMath
 import com.thesis.mobile.ui.charts.kit.ChartSeries
 import com.thesis.mobile.ui.charts.kit.ColumnChart
+import com.thesis.mobile.ui.charts.kit.DrawOn
 import com.thesis.mobile.ui.charts.kit.DrawOnKind
 import com.thesis.mobile.ui.charts.kit.LineChart
 import com.thesis.mobile.ui.charts.kit.LineChartReadout
 import com.thesis.mobile.ui.charts.kit.LineChartState
 import com.thesis.mobile.ui.charts.kit.LocalChartDrawOn
 import com.thesis.mobile.ui.charts.kit.MeterRow
+import com.thesis.mobile.ui.charts.kit.NiceScale
 import com.thesis.mobile.ui.charts.kit.RangeBar
 import com.thesis.mobile.ui.charts.kit.RankedBars
 import com.thesis.mobile.ui.charts.kit.ScaleBar
@@ -278,6 +285,8 @@ class ChartKitSemanticsTest {
         LineChart(ChartFixtures.indexedRevenue, valueFormat = ChartFixtures.score)
         ColumnChart(listOf(ChartSeries("Sales", ChartFixtures.sales)), ChartFixtures.fiscalYears, valueFormat = ChartFixtures.money)
         ColumnChart(listOf(ChartSeries("Sales", ChartFixtures.sales), ChartSeries("Net profit", ChartFixtures.netProfit)), ChartFixtures.fiscalYears, valueFormat = ChartFixtures.money)
+        // A shared scale with no ticks (NiceScale is public; Sparkline builds one) falls back to the data's own.
+        ColumnChart(listOf(ChartSeries("Sales", ChartFixtures.sales)), ChartFixtures.fiscalYears, valueFormat = ChartFixtures.money, scale = NiceScale(0.0, 1.0, 1.0, emptyList()))
         SmallMultiples(ChartFixtures.multiples, valueFormat = ChartFixtures.money)
         RankedBars(ChartFixtures.scenario, "Change in monitor score in the scenario, points")
         MeterRow("Coverage", null, "Not computed")
@@ -292,40 +301,84 @@ class ChartKitSemanticsTest {
     @Test
     fun drawOnIsOncePerChartKindAndKeyAndNeverReplays() {
         val registry = ChartDrawOnRegistry()
-        val starts = mutableMapOf<String, Float>()
+        val probes = mutableMapOf<String, DrawOnLog>()
         var mount by mutableStateOf(0)
         rule.setContent {
             ThesisTheme(mode = ThemeMode.Light) {
                 CompositionLocalProvider(LocalChartDrawOn provides registry) {
-                    key(mount) {
-                        if (mount >= 0) {
-                            DrawOnProbe("line-$mount", DrawOnKind.Line, "2025-11-24", starts)
-                            // The Home sparkline of the same series, keyed by the same date: its own draw-on.
-                            DrawOnProbe("spark-$mount", DrawOnKind.Sparkline, "2025-11-24", starts)
-                            // A second LineChart composed with the same key in the same frame: complete, never blank.
-                            DrawOnProbe("dup-$mount", DrawOnKind.Line, "2025-11-24", starts)
+                    Column {
+                        key(mount) {
+                            if (mount >= 0) {
+                                DrawOnProbe("line-$mount", DrawOnKind.Line, "2025-11-24", probes)
+                                // The Home sparkline of the same series, keyed by the same date: its own draw-on.
+                                DrawOnProbe("spark-$mount", DrawOnKind.Sparkline, "2025-11-24", probes)
+                                // A second LineChart composed with the same key in the same frame: it completes at
+                                // once when seen (the first one claimed the key), it never draws on a second time.
+                                DrawOnProbe("dup-$mount", DrawOnKind.Line, "2025-11-24", probes)
+                            }
                         }
                     }
                 }
             }
         }
         rule.waitForIdle()
-        assertEquals(0f, starts["line-0"])
-        assertEquals(0f, starts["spark-0"])
-        assertEquals(1f, starts["dup-0"])
+        assertEquals(0f, probes.getValue("line-0").initial)
+        assertTrue(probes.getValue("line-0").ran)
+        assertEquals(0f, probes.getValue("spark-0").initial)
+        assertTrue(probes.getValue("spark-0").ran)
+        assertFalse("the duplicate does not replay the draw-on", probes.getValue("dup-0").ran)
+        listOf("line-0", "spark-0", "dup-0").forEach { assertEquals(it, 1f, probes.getValue(it).drawOn.value) }
         // Leave and come back (dispose, then compose again): the same identity does not draw on again.
         mount = -1
         rule.waitForIdle()
         mount = 1
         rule.waitForIdle()
-        assertEquals(1f, starts["line-1"])
-        assertEquals(1f, starts["spark-1"])
+        assertEquals(1f, probes.getValue("line-1").initial)
+        assertEquals(1f, probes.getValue("spark-1").initial)
+        assertFalse(probes.getValue("line-1").ran)
+    }
+
+    @Test
+    fun drawOnWaitsUntilTheChartIsOnScreen() {
+        // A chart below the fold of a 200 dp viewport: composed and laid out, but not seen, so it keeps its claim.
+        val registry = ChartDrawOnRegistry()
+        val probes = mutableMapOf<String, DrawOnLog>()
+        var above by mutableStateOf(600)
+        rule.setContent {
+            ThesisTheme(mode = ThemeMode.Light) {
+                CompositionLocalProvider(LocalChartDrawOn provides registry) {
+                    Column(Modifier.height(200.dp).verticalScroll(rememberScrollState())) {
+                        Spacer(Modifier.height(above.dp))
+                        DrawOnProbe("below", DrawOnKind.Line, "2025-11-24", probes)
+                    }
+                }
+            }
+        }
+        rule.waitForIdle()
+        assertFalse("not claimed while off screen", registry.isSeen(DrawOnKind.Line to "2025-11-24"))
+        assertEquals(0f, probes.getValue("below").drawOn.value)
+        assertFalse(probes.getValue("below").ran)
+        // The user gets there: the draw-on starts (and claims the key) now.
+        above = 0
+        rule.waitForIdle()
+        assertTrue(registry.isSeen(DrawOnKind.Line to "2025-11-24"))
+        assertTrue(probes.getValue("below").ran)
+        assertEquals(1f, probes.getValue("below").drawOn.value)
+    }
+
+    /** What a [DrawOnProbe] saw: its draw-on, its first value and whether it ever animated. */
+    private class DrawOnLog(val drawOn: DrawOn, val initial: Float) {
+        var ran = false
     }
 
     @Composable
-    private fun DrawOnProbe(name: String, kind: DrawOnKind, key: Any?, starts: MutableMap<String, Float>) {
-        val progress = rememberDrawOn(kind, key)
-        val initial = remember(progress) { progress.value }
-        SideEffect { starts.getOrPut(name) { initial } }
+    private fun DrawOnProbe(name: String, kind: DrawOnKind, key: Any?, probes: MutableMap<String, DrawOnLog>) {
+        val drawOn = rememberDrawOn(kind, key)
+        val log = remember(drawOn) { DrawOnLog(drawOn, drawOn.value) }
+        SideEffect { probes.getOrPut(name) { log } }
+        LaunchedEffect(drawOn) {
+            snapshotFlow { drawOn.progress.isRunning }.collect { if (it) log.ran = true }
+        }
+        Box(Modifier.size(40.dp).then(drawOn.modifier))
     }
 }

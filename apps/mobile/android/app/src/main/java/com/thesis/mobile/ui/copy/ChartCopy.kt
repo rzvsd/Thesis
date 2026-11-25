@@ -12,6 +12,16 @@ object ChartCopy {
     /** The honest absence inside a chart's dashed box. */
     const val NO_DATA = "No readings yet"
 
+    /** The spoken summary of a chart (ChartMath.summary): "Macro stress, 30 days, from 41 to 58, now 58, Balanced". */
+    fun summaryRange(from: String, to: String): String = "from $from to $to"
+    fun summaryNow(value: String): String = "now $value"
+
+    /** The summary's words when there is nothing to read: [NO_DATA] mid-sentence. */
+    val summaryEmpty: String get() = NO_DATA.lowercase()
+
+    /** A two-finger compare window in the chart readout ("2 Nov to 16 Nov"). */
+    fun window(from: String, to: String): String = "$from to $to"
+
     /** The figure number above a chart card's title ("Chart 3"; the eyebrow sets it in capitals). */
     fun figure(number: Int): String = "Chart $number"
 

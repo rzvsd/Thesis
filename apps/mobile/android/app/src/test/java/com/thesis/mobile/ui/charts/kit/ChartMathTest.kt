@@ -332,4 +332,57 @@ class ChartMathTest {
         assertEquals(1, ChartMath.bandOf(50.0, listOf(35.5, 69.5)))
         assertEquals(2, ChartMath.bandOf(90.0, listOf(35.5, 69.5)))
     }
+
+    // --- regime lines (scrub segment haptic) -----------------------------------------------------------------
+
+    @Test
+    fun regimeLinesAreTheInteriorBandEdgesOnly() {
+        val lines = ChartMath.regimeLines(macroStressBands())
+        assertEquals(listOf(35.5, 69.5), lines)
+        // A reading of exactly 100 (or 0) is not across a regime line.
+        val values = listOf(99.0, 100.0, 0.0, 1.0)
+        assertFalse(ChartMath.scrubHaptic(0, 1, values, lines, weekKeys = listOf(0L, 0L, 0L, 0L)) == ScrubHaptic.Segment)
+        assertFalse(ChartMath.scrubHaptic(2, 3, values, lines, weekKeys = listOf(0L, 0L, 0L, 0L)) == ScrubHaptic.Segment)
+        assertTrue(ChartMath.regimeLines(emptyList()).isEmpty())
+    }
+
+    // --- exact morph curves ----------------------------------------------------------------------------------
+
+    @Test
+    fun morphStartsAndEndsOnTheExactLines() {
+        // 90 noisy daily readings to 30: 120 even samples would shave the peaks; the union grid keeps every vertex.
+        val ninety = List(90) { i -> if (i % 2 == 0) 40.0 else 60.0 + i % 7 }
+        val thirty: List<Double?> = List(30) { i -> 50.0 + (i % 3) * 5.0 }
+        val from = ChartMath.morphCurve(ninety)
+        val to = ChartMath.morphCurve(thirty)
+        val pair = ChartMath.morphPair(from, to)
+        assertTrue("at least the spec's 120 points", pair.grid.size >= ChartMath.MORPH_POINTS)
+        val start = pair.at(0f)
+        val end = pair.at(1f)
+        ninety.forEachIndexed { i, v -> assertEquals("from vertex $i", v, start.at(i / 89.0), 1e-9) }
+        thirty.forEachIndexed { i, v -> assertEquals("to vertex $i", v!!, end.at(i / 29.0), 1e-9) }
+        // Between two vertices the start curve is the straight segment of the old line.
+        assertEquals((ninety[10] + ninety[11]) / 2.0, start.at(10.5 / 89.0), 1e-9)
+    }
+
+    @Test
+    fun morphCurvesKeepGapsAndEdgeCases() {
+        val gappy = ChartMath.morphCurve(listOf(1.0, null, 3.0, Double.NaN, 5.0))
+        assertEquals(1.0, gappy.at(0.0), 0.0)
+        assertTrue(gappy.at(0.1).isNaN())
+        assertEquals(3.0, gappy.at(0.5), 0.0)
+        assertTrue(gappy.at(1.5).isNaN())
+        assertEquals(5.0, gappy.lastValue()!!, 0.0)
+        // One value is a flat line; none is all gaps; padding to a longer x grid leaves the tail empty.
+        assertEquals(58.0, ChartMath.morphCurve(listOf(58.0)).at(0.3), 0.0)
+        assertEquals(null, ChartMath.morphCurve(emptyList()).lastValue())
+        val padded = ChartMath.morphCurve(listOf(1.0, 2.0), count = 5)
+        assertEquals(2.0, padded.at(0.25), 0.0)
+        assertTrue(padded.at(0.75).isNaN())
+        // A gap in the old line takes the new value at once; a gap in the new line stays a gap.
+        val mid = ChartMath.morphPair(gappy, ChartMath.morphCurve(listOf(10.0, 10.0, null, 10.0, 10.0))).at(0.5f)
+        assertEquals(5.5, mid.at(0.0), 1e-9)
+        assertEquals(10.0, mid.at(0.25), 1e-9)
+        assertTrue(mid.at(0.5).isNaN())
+    }
 }

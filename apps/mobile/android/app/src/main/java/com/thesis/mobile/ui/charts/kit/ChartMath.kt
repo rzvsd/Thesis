@@ -1,5 +1,6 @@
 package com.thesis.mobile.ui.charts.kit
 
+import com.thesis.mobile.ui.copy.ChartCopy
 import java.time.DayOfWeek
 import java.time.LocalDate
 import kotlin.math.abs
@@ -210,6 +211,42 @@ object ChartMath {
     }
 
     /**
+     * A line as a morph sees it: [values] at x positions 0 to 1 spread evenly over [count] slots (the plot's x
+     * grid; NaN is a gap). One value is a flat line across, as [resample] makes it.
+     */
+    fun morphCurve(values: List<Double?>, count: Int = values.size): MorphCurve {
+        val v = values.sanitized()
+        val n = max(count, v.size)
+        if (n == 0) return MorphCurve(doubleArrayOf(0.0, 1.0), doubleArrayOf(Double.NaN, Double.NaN))
+        if (n == 1) {
+            val y = v.getOrNull(0) ?: Double.NaN
+            return MorphCurve(doubleArrayOf(0.0, 1.0), doubleArrayOf(y, y))
+        }
+        return MorphCurve(DoubleArray(n) { it.toDouble() / (n - 1) }, DoubleArray(n) { v.getOrNull(it) ?: Double.NaN })
+    }
+
+    /**
+     * Both curves sampled on one x grid for a range morph (section 4.6): the union of their own vertices and
+     * [MORPH_POINTS] even steps. Because every vertex of both is on the grid, `t = 0` and `t = 1` redraw the
+     * exact polylines (no peak is shaved off at either end of the morph), and every frame between is the exact
+     * lerp of the two lines.
+     */
+    fun morphPair(from: MorphCurve, to: MorphCurve): MorphPair {
+        val grid = mergeGrids(from.xs, to.xs, DoubleArray(MORPH_POINTS) { it.toDouble() / (MORPH_POINTS - 1) })
+        return MorphPair(grid, DoubleArray(grid.size) { from.at(grid[it]) }, DoubleArray(grid.size) { to.at(grid[it]) })
+    }
+
+    private fun mergeGrids(vararg grids: DoubleArray): DoubleArray {
+        val all = grids.flatMap { it.asList() }.sorted()
+        val out = ArrayList<Double>(all.size)
+        for (x in all) if (out.isEmpty() || x - out.last() > GRID_EPS) out += x
+        return out.toDoubleArray()
+    }
+
+    /** Two x positions closer than this are one grid point. */
+    internal const val GRID_EPS = 1e-7
+
+    /**
      * Element-wise lerp of two curves of equal length. A gap (NaN) in [from] takes the [to] value at once; a gap in
      * [to] stays a gap.
      */
@@ -342,6 +379,14 @@ object ChartMath {
         return Math.round(f * (count - 1)).coerceIn(0, count - 1)
     }
 
+    /**
+     * The regime lines of [bands] for the scrub's `segment()` haptic: the upper edge of every band except the top
+     * one (macro stress: 35.5 and 69.5). The outer ends of the band stack are not regime lines, so a reading of
+     * exactly 100 is not "across" anything. Bands are expected to tile the axis, as [macroStressBands] do.
+     */
+    fun regimeLines(bands: List<ChartBand>): List<Double> =
+        bands.map { max(it.from, it.to) }.filter { it.isFinite() }.distinct().sorted().dropLast(1)
+
     /** Which band (by [boundaries], ascending) a value falls in: 0 below the first boundary. */
     fun bandOf(value: Double, boundaries: List<Double>): Int = boundaries.count { value >= it }
 
@@ -403,22 +448,58 @@ object ChartMath {
         format: (Double) -> String,
         window: String? = null,
         qualifier: String? = null,
-        emptyText: String = "no readings yet",
+        emptyText: String = ChartCopy.summaryEmpty,
     ): String {
         val finite = values.finiteValues()
         val parts = mutableListOf(subject)
         if (!window.isNullOrBlank()) parts += window
         when {
             finite.isEmpty() -> parts += emptyText
-            finite.size == 1 -> parts += "now ${format(finite[0])}"
+            finite.size == 1 -> parts += ChartCopy.summaryNow(format(finite[0]))
             else -> {
-                parts += "from ${format(finite.first())} to ${format(finite.last())}"
-                parts += "now ${format(finite.last())}"
+                parts += ChartCopy.summaryRange(format(finite.first()), format(finite.last()))
+                parts += ChartCopy.summaryNow(format(finite.last()))
             }
         }
         if (!qualifier.isNullOrBlank() && finite.isNotEmpty()) parts += qualifier
         return parts.joinToString(", ")
     }
+}
+
+/**
+ * A line for a range morph: [ys] at x positions [xs] (ascending, 0 to 1 across the plot), straight between them;
+ * NaN is a gap. Outside [xs] there is nothing (NaN).
+ */
+class MorphCurve(val xs: DoubleArray, val ys: DoubleArray) {
+    init {
+        require(xs.size == ys.size) { "One y per x" }
+    }
+
+    /** The line's value at [x] (0 to 1): a vertex's value, the straight line between two vertices, or NaN in a gap. */
+    fun at(x: Double): Double {
+        if (xs.isEmpty() || x < xs[0] - ChartMath.GRID_EPS || x > xs[xs.size - 1] + ChartMath.GRID_EPS) return Double.NaN
+        var lo = 0
+        var hi = xs.size - 1
+        while (hi - lo > 1) {
+            val mid = (lo + hi) ushr 1
+            if (xs[mid] <= x) lo = mid else hi = mid
+        }
+        if (abs(x - xs[lo]) <= ChartMath.GRID_EPS) return ys[lo]
+        if (abs(x - xs[hi]) <= ChartMath.GRID_EPS) return ys[hi]
+        val a = ys[lo]
+        val b = ys[hi]
+        if (a.isNaN() || b.isNaN()) return Double.NaN
+        return a + (b - a) * (x - xs[lo]) / (xs[hi] - xs[lo])
+    }
+
+    /** The last value that is not a gap, or null. */
+    fun lastValue(): Double? = ys.lastOrNull { !it.isNaN() }
+}
+
+/** Two lines sampled on one [grid] ([MorphCurve.xs] style) for a morph: [at] gives the line at progress t. */
+class MorphPair(val grid: DoubleArray, val from: DoubleArray, val to: DoubleArray) {
+    /** The line [t] of the way from [from] to [to] (a gap in [from] takes [to] at once; a gap in [to] stays). */
+    fun at(t: Float): MorphCurve = MorphCurve(grid, ChartMath.lerp(from, to, t))
 }
 
 /** What a scrub step should feel like. */

@@ -36,7 +36,6 @@ import com.thesis.mobile.ui.theme.ThesisSpace
 import com.thesis.mobile.ui.theme.ThesisType
 import com.thesis.mobile.ui.theme.Tone
 import com.thesis.mobile.ui.theme.markColor
-import com.thesis.mobile.ui.theme.tnum
 import kotlin.math.max
 import kotlin.math.min
 
@@ -92,7 +91,7 @@ fun RankedBars(
             (rows.filter { it.value.finiteOrNull() != null }.maxOfOrNull { measurer.line(it.valueText, ChartText.rankValue).size.width } ?: 0).toDp()
         }
     }.coerceAtLeast(ChartDims.valueColumn)
-    Column(modifier.fillMaxWidth()) {
+    Column(modifier.fillMaxWidth().then(reveal.modifier)) {
         Text(scaleLabel, style = ThesisType.caption, color = p.muted)
         Spacer(Modifier.height(ThesisSpace.s))
         if (finite.isEmpty()) {
@@ -199,9 +198,10 @@ fun MeterRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(ThesisSpace.s),
     ) {
-        Text(label, Modifier.weight(LABEL_SHARE), style = ThesisType.bodySmall, color = p.ink2)
+        // The same row anatomy as [RankedBars]: 11 / 500 ink label, 11 / 600 tnum ink value.
+        Text(label, Modifier.weight(LABEL_SHARE), style = ChartText.rankLabel, color = p.ink)
         if (value.finiteOrNull() == null) {
-            Text(valueText, Modifier.weight(1f - LABEL_SHARE), style = ThesisType.bodySmall, color = p.muted)
+            Text(valueText, Modifier.weight(1f - LABEL_SHARE), style = ChartText.rankValue, color = p.muted)
             Spacer(Modifier.width(valueWidth))
         } else {
             Box(Modifier.weight(1f - LABEL_SHARE)) {
@@ -210,7 +210,7 @@ fun MeterRow(
             Text(
                 valueText,
                 Modifier.width(valueWidth),
-                style = ThesisType.bodySmall.tnum(),
+                style = ChartText.rankValue,
                 color = p.ink,
                 textAlign = TextAlign.End,
             )

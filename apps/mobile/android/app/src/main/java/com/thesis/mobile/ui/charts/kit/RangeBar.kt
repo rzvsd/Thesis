@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -20,6 +21,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
@@ -41,7 +43,8 @@ import kotlin.math.min
  * gold tick (a zero-width band would be invisible). Any width, including 0, draws without throwing.
  *
  * Motion: markers glide (`spatial`) when the price or your value changes (typing a price in the report moves the
- * marker); reduced motion moves them at once.
+ * marker), the axis domain glides with them and changed ticks and marker figures crossfade; reduced motion moves
+ * them at once and keeps the crossfades (`Quick`).
  */
 
 /**
@@ -80,11 +83,38 @@ fun RangeBar(
     val yourV = yourValue.finiteOrNull()
     val axis = remember(lo, hi, baseV, priceV, yourV) { ChartMath.niceScale(listOf(lo, hi, baseV, priceV, yourV)) }
 
-    // Markers glide between values (draw-phase reads).
+    // Markers glide between values (draw-phase reads), and the axis glides with them on the same spring, so a
+    // price that moves outside the range widens the scale smoothly instead of the band and ticks jumping on the
+    // first frame. Changed tick labels crossfade. Reduced motion moves everything at once and crossfades the
+    // ticks (`Quick`).
     val priceAnim = remember { Animatable(priceV?.toFloat() ?: Float.NaN) }
     val yourAnim = remember { Animatable(yourV?.toFloat() ?: Float.NaN) }
     LaunchedEffect(priceV) { glide(priceAnim, priceV, reduced) }
     LaunchedEffect(yourV) { glide(yourAnim, yourV, reduced) }
+    val axisHolder = remember { AxisMoveHolder() }
+    val axisMove = remember(axis) {
+        val prev = axisHolder.last
+        val running = axisHolder.running
+        val from = when {
+            prev == null || prev == axis -> null
+            running?.from != null && running.progress.value < 1f && !reduced -> {
+                val t = running.progress.value
+                running.from.lerpTo(prev, t).copy(ticks = if (t < 0.5f) running.from.ticks else prev.ticks)
+            }
+            else -> prev
+        }
+        AxisMove(from, Animatable(if (from == null) 1f else 0f))
+    }
+    SideEffect {
+        axisHolder.last = axis
+        axisHolder.running = axisMove
+    }
+    LaunchedEffect(axisMove) {
+        if (axisMove.from != null) axisMove.progress.animateTo(1f, if (reduced) ThesisMotion.quick<Float>() else ThesisMotion.spatial<Float>())
+    }
+    // A marker's label rides its marker; a changed figure hands over (`Quick`, old out then new in) instead of jumping.
+    val priceFade = rememberTextFade(priceV?.let { "$priceLabel ${format(it)}" })
+    val yourFade = rememberTextFade(yourV?.let { "$yourLabel ${format(it)}" })
 
     val density = LocalDensity.current
     val lineH = with(density) { ThesisType.tick.lineHeight.toDp() }
@@ -128,7 +158,10 @@ fun RangeBar(
                         hi to measurer.line("$bullName ${fmt(hi)}", nameStyle),
                     )
                 }
+                val from = axisMove.from
                 val tickLayouts = axis.ticks.map { it to measurer.line(fmt(it), tickStyle) }
+                val fromTickLayouts = from?.ticks?.map { it to measurer.line(fmt(it), tickStyle) }.orEmpty()
+                val sameTicks = from != null && from.ticks == axis.ticks
                 val lineHpx = lineH.toPx()
                 val gapPx = gap.toPx()
                 val over = ChartDims.markerOverhang.toPx()
@@ -140,7 +173,6 @@ fun RangeBar(
                 val inset = max(ChartDims.yourRing.toPx() + ChartDims.markerStroke.toPx(), 1f)
                 val left = inset
                 val right = max(left, size.width - inset)
-                fun x(v: Double) = (left + axis.fraction(v) * (right - left)).toFloat()
                 // Left edge of a label of width [w] centred on [c], kept inside the canvas (any width, even 0).
                 fun leftOf(c: Float, w: Float) = (c - w / 2f).coerceIn(0f, max(0f, size.width - w))
                 val labelGap = gapPx * 2
@@ -150,22 +182,33 @@ fun RangeBar(
                 } else {
                     scenarioAll
                 }
-                val scenarioX = ChartMath.spreadSpans(
-                    scenario.map { x(it.first) },
-                    scenario.map { it.second.size.width.toFloat() },
-                    labelGap,
-                    0f,
-                    size.width,
-                )
                 val radius = CornerRadius(ChartDims.trackRadius.toPx())
                 val markW = ChartDims.markerStroke.toPx()
                 val gridW = ChartDims.hairline.toPx()
                 val gold = p.series[0]
-                val priceLayout = priceV?.let { measurer.line("$priceLabel ${fmt(it)}", markStyle) }
-                val yourLayout = yourV?.let { measurer.line("$yourLabel ${fmt(it)}", yourStyle) }
+                val priceLayout = priceFade.text?.let { measurer.line(it, markStyle) }
+                val priceOld = priceFade.from?.let { measurer.line(it, markStyle) }
+                val yourLayout = yourFade.text?.let { measurer.line(it, yourStyle) }
+                val yourOld = yourFade.from?.let { measurer.line(it, yourStyle) }
 
                 onDrawBehind {
-                    // Scenario names above the bar.
+                    val m = axisMove.progress.value
+                    val moving = from != null && m < 1f
+                    val sc = if (moving && !reduced) from!!.lerpTo(axis, m) else axis
+                    fun x(v: Double) = (left + sc.fraction(v) * (right - left)).toFloat()
+                    /** [layout] centred on [c] at [top]; a changed figure hands over from [old] in sequence by [mix]. */
+                    fun label(layout: TextLayoutResult, old: TextLayoutResult?, mix: Float, c: Float, top: Float) {
+                        if (old != null && mix < 1f) drawText(old, topLeft = Offset(leftOf(c, old.size.width.toFloat()), top), alpha = MorphFrom.outgoing(mix))
+                        drawText(layout, topLeft = Offset(leftOf(c, layout.size.width.toFloat()), top), alpha = if (old != null) MorphFrom.incoming(mix) else 1f)
+                    }
+                    // Scenario names above the bar, each over its mark.
+                    val scenarioX = ChartMath.spreadSpans(
+                        scenario.map { x(it.first) },
+                        scenario.map { it.second.size.width.toFloat() },
+                        labelGap,
+                        0f,
+                        size.width,
+                    )
                     scenario.forEachIndexed { i, (_, layout) ->
                         drawText(layout, topLeft = Offset(leftOf(scenarioX[i], layout.size.width.toFloat()), 0f))
                     }
@@ -188,7 +231,7 @@ fun RangeBar(
                     if (!pv.isNaN() && priceLayout != null) {
                         val px = x(pv.toDouble())
                         drawLine(p.ink, Offset(px, barTop - over), Offset(px, barTop + barH + over), markW, StrokeCap.Round)
-                        drawText(priceLayout, topLeft = Offset(leftOf(px, priceLayout.size.width.toFloat()), markerTop + line * lineHpx))
+                        label(priceLayout, priceOld, priceFade.progress.value, px, markerTop + line * lineHpx)
                         line++
                     }
                     val yv = yourAnim.value
@@ -196,14 +239,24 @@ fun RangeBar(
                         val yx = x(yv.toDouble())
                         drawCircle(p.surface, ChartDims.yourRing.toPx(), Offset(yx, barMid))
                         drawCircle(p.accent, ChartDims.yourRing.toPx(), Offset(yx, barMid), style = Stroke(markW))
-                        drawText(yourLayout, topLeft = Offset(leftOf(yx, yourLayout.size.width.toFloat()), markerTop + line * lineHpx))
+                        label(yourLayout, yourOld, yourFade.progress.value, yx, markerTop + line * lineHpx)
                     }
-                    // Axis ticks below.
-                    if (showAxis) {
-                        tickLayouts.forEach { (v, layout) ->
+                    // Axis ticks below: unchanged ticks glide with the axis, changed ones crossfade.
+                    fun ticksLayer(layouts: List<Pair<Double, TextLayoutResult>>, alpha: Float) {
+                        if (alpha <= 0f) return
+                        layouts.forEach { (v, layout) ->
                             val tx = x(v)
-                            drawLine(p.axis, Offset(tx, axisTop - gapPx / 2f), Offset(tx, axisTop - gapPx), gridW)
-                            drawText(layout, topLeft = Offset(leftOf(tx, layout.size.width.toFloat()), axisTop))
+                            if (tx < left - 0.5f || tx > right + 0.5f) return@forEach
+                            drawLine(p.axis.copy(alpha = p.axis.alpha * alpha), Offset(tx, axisTop - gapPx / 2f), Offset(tx, axisTop - gapPx), gridW)
+                            drawText(layout, topLeft = Offset(leftOf(tx, layout.size.width.toFloat()), axisTop), alpha = alpha)
+                        }
+                    }
+                    if (showAxis) {
+                        if (!moving || sameTicks) {
+                            ticksLayer(tickLayouts, 1f)
+                        } else {
+                            ticksLayer(fromTickLayouts, 1f - m)
+                            ticksLayer(tickLayouts, m)
                         }
                     }
                 }
@@ -214,4 +267,30 @@ fun RangeBar(
 private suspend fun glide(anim: Animatable<Float, AnimationVector1D>, target: Double?, reduced: Boolean) {
     val t = target?.toFloat() ?: Float.NaN
     if (t.isNaN() || anim.value.isNaN() || reduced) anim.snapTo(t) else anim.animateTo(t, ThesisMotion.spatial())
+}
+
+/** The axis a [RangeBar] glides from ([from], null when it is not moving) and the glide's progress. */
+private class AxisMove(val from: NiceScale?, val progress: Animatable<Float, AnimationVector1D>)
+
+private class AxisMoveHolder {
+    var last: NiceScale? = null
+    var running: AxisMove? = null
+}
+
+/** A label whose text changed: [from] (the old text, crossfading out) to [text] over [progress]. */
+private class TextFade(val from: String?, val text: String?, val progress: Animatable<Float, AnimationVector1D>)
+
+@Composable
+private fun rememberTextFade(text: String?): TextFade {
+    val last = remember { arrayOfNulls<String>(1) }
+    val fade = remember(text) {
+        val prev = last[0]
+        val from = prev?.takeIf { text != null && it != text }
+        TextFade(from, text, Animatable(if (from == null) 1f else 0f))
+    }
+    SideEffect { last[0] = text }
+    LaunchedEffect(fade) {
+        if (fade.from != null) fade.progress.animateTo(1f, ThesisMotion.quick())
+    }
+    return fade
 }

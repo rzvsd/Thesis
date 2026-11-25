@@ -52,6 +52,7 @@ fun Sparkline(
         modifier
             .fillMaxWidth()
             .height(height)
+            .then(reveal.modifier)
             .semantics { this.contentDescription = contentDescription }
             .drawWithCache {
                 val lineW = ChartDims.sparkLine.toPx()

@@ -4,6 +4,7 @@ import androidx.compose.runtime.Immutable
 import com.thesis.mobile.ui.components.CompareColumn
 import com.thesis.mobile.ui.components.CompareRow
 import com.thesis.mobile.ui.components.CompareTableModel
+import com.thesis.mobile.ui.copy.ChartCopy
 import com.thesis.mobile.ui.format.Fmt
 import com.thesis.mobile.ui.theme.Tone
 import java.time.LocalDate
@@ -113,7 +114,7 @@ object ChartReadouts {
                 val b = compare.last.coerceIn(0, data.count - 1)
                 val to = v.getOrNull(b)
                 val (text, d) = change(v.getOrNull(a), to)
-                ReadoutText(to?.let(format) ?: missing, "${data.labelAt(a)} to ${data.labelAt(b)}", text, d)
+                ReadoutText(to?.let(format) ?: missing, ChartCopy.window(data.labelAt(a), data.labelAt(b)), text, d)
             }
             scrubIndex >= 0 -> {
                 val i = scrubIndex.coerceIn(0, data.count - 1)

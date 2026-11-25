@@ -42,13 +42,14 @@ import kotlin.math.min
  * alpha .42 when [highlightLast], the latest value labelled above its column, about 4 nice ticks with zero on the
  * axis, x labels thinned from the last.
  *
- * Motion: columns grow from the baseline once per data identity (`Draw`, `EaseCalm`); new values with the same
- * identity morph in height (`Morph`); reduced motion shows them complete and crossfades changes (`Quick`).
+ * Motion: columns grow from the baseline once per data identity (`Draw`, `EaseCalm`), when the chart first comes
+ * into view; new values with the same identity morph in height (`Morph`) while the axis domain moves with them and
+ * changed tick labels crossfade; reduced motion shows them complete and crossfades changes (`Quick`).
  */
 
 /**
  * A column chart of [series] over [xLabels] (one value per label; gaps leave the slot empty). [scale] shares a
- * y scale between charts ([SmallMultiples]); [showYLabels] = false keeps the grid but drops the tick labels, and
+ * y scale between charts ([SmallMultiples]; a scale without ticks falls back to the data's own); [showYLabels] = false keeps the grid but drops the tick labels, and
  * [reserveYLabels] keeps their width anyway, so cells of a grid share one plot geometry (x labels line up).
  */
 @Composable
@@ -84,25 +85,28 @@ fun ColumnChart(
     val reveal = rememberDrawOn(DrawOnKind.Column, dataKey)
     val format by rememberUpdatedState(valueFormat)
     val ticks by rememberUpdatedState(tickFormat)
-    val axis = scale ?: remember(clean) { ChartMath.niceScale(clean.flatten(), includeZero = true) }
+    val ownAxis = remember(clean) { ChartMath.niceScale(clean.flatten(), includeZero = true) }
+    val axis = scale?.takeIf { it.ticks.isNotEmpty() } ?: ownAxis
+    val frame = ColumnFrame(clean, axis)
 
-    // Morph of heights (same identity, new values): from the previous values to the new ones. The start is
-    // decided in composition, so the frame on which the values change still draws the old heights; the bookkeeping
-    // is committed in a SideEffect, so a composition that is never applied leaves it untouched. Reduced motion
-    // crossfades the old columns out and the new ones in (`Quick`) instead of moving them.
+    // Morph of heights (same identity, new values): from the previous values and axis to the new ones, so the
+    // old columns do not jump to a new nice scale before they move. The start is decided in composition, so the
+    // frame on which the values change still draws the old heights; the bookkeeping is committed in a SideEffect,
+    // so a composition that is never applied leaves it untouched. Reduced motion crossfades the old columns (on
+    // their old axis) out and the new ones in (`Quick`) instead of moving them.
     val holder = remember { ColumnMorphHolder() }
-    val morph = remember(clean) {
+    val morph = remember(frame) {
         val before = holder.last
         val running = holder.running
         val from = when {
-            before == null || before == clean || reveal.value < 1f -> null
-            running?.from != null && running.progress.value < 1f && !reduced -> lerpValues(running.from, before, running.progress.value)
+            before == null || before == frame || reveal.value < 1f -> null
+            running?.from != null && running.progress.value < 1f && !reduced -> running.from.toward(before, running.progress.value)
             else -> before
         }
         ColumnMorph(from, Animatable(if (from == null) 1f else 0f))
     }
     SideEffect {
-        holder.last = clean
+        holder.last = frame
         holder.running = morph
     }
     LaunchedEffect(morph) {
@@ -122,22 +126,27 @@ fun ColumnChart(
         modifier
             .fillMaxWidth()
             .height(height + extra)
+            .then(reveal.modifier)
             .semantics { contentDescription = description }
             .drawWithCache {
                 val before = morph.from
                 val tickStyle = ChartText.tick.copy(color = p.muted)
                 val endStyle = ChartText.endLabel.copy(color = p.ink)
                 val tickLayouts = axis.ticks.map { it to measurer.line(ticks(it), tickStyle) }
+                val fromTickLayouts = before?.axis?.ticks?.map { it to measurer.line(ticks(it), tickStyle) }.orEmpty()
+                val sameTicks = before != null && before.axis.ticks == axis.ticks
                 val xLayouts = List(count) { measurer.line(xLabels.getOrNull(it).orEmpty(), tickStyle) }
                 val lastIdx = clean.map { it.lastFiniteIndex() }
                 val endLayouts = clean.mapIndexed { k, s -> if (labelLast && lastIdx[k] >= 0) measurer.line(format(s[lastIdx[k]]!!), endStyle) else null }
                 // Reduced motion crossfades: the outgoing columns keep their own latest-value labels.
-                val beforeLast = before?.map { it.lastFiniteIndex() }.orEmpty()
-                val beforeLayouts = before?.mapIndexed { k, s -> if (labelLast && beforeLast[k] >= 0) measurer.line(format(s[beforeLast[k]]!!), endStyle) else null }.orEmpty()
+                val beforeValues = before?.values
+                val beforeLast = beforeValues?.map { it.lastFiniteIndex() }.orEmpty()
+                val beforeLayouts = beforeValues?.mapIndexed { k, s -> if (labelLast && beforeLast[k] >= 0) measurer.line(format(s[beforeLast[k]]!!), endStyle) else null }.orEmpty()
 
                 val tickGap = ChartDims.tickGap.toPx()
-                val leftW = if (showYLabels || reserveYLabels) (tickLayouts.maxOfOrNull { it.second.size.width } ?: 0) + tickGap else 0f
-                val xLabelH = xLayouts.first().size.height.toFloat()
+                val tickW = (tickLayouts + fromTickLayouts).maxOfOrNull { it.second.size.width } ?: 0
+                val leftW = if (showYLabels || reserveYLabels) tickW + tickGap else 0f
+                val xLabelH = (xLayouts.firstOrNull() ?: measurer.line("0", tickStyle)).size.height.toFloat()
                 val labelH = endLayouts.firstOrNull { it != null }?.size?.height?.toFloat() ?: 0f
                 val top = max(ChartDims.plotTop.toPx(), if (labelLast) labelH + ChartDims.columnLabelGap.toPx() else 0f)
                 // Grouped columns: the later series' labels start at their column and run right (renderer chart
@@ -168,46 +177,64 @@ fun ColumnChart(
                     right = max(plotLeft + 1f, size.width - labelRight),
                     bottom = max(top + 1f, size.height - xLabelH - ChartDims.xLabelGap.toPx()),
                 )
+                val xLabelTop = plot.bottom + ChartDims.xLabelGap.toPx()
                 val band = plot.width / count
                 val colW = ChartMath.columnWidth(band, ChartDims.columnMax.toPx(), k, gap)
                 val groupW = colW * k + gap * (k - 1)
                 val radius = ChartDims.columnRadius.toPx()
                 val gridW = ChartDims.hairline.toPx()
                 val halo = ChartDims.halo.toPx()
-                fun yOf(v: Double) = (plot.bottom - axis.fraction(v) * plot.height).toFloat()
-                val zeroY = yOf(axis.baseline).coerceIn(plot.top, plot.bottom)
+                fun yOf(v: Double, sc: NiceScale) = (plot.bottom - sc.fraction(v) * plot.height).toFloat()
                 fun colLeft(i: Int, s: Int) = plot.left + band * i + (band - groupW) / 2f + s * (colW + gap)
 
-                val widest = xLayouts.maxOf { it.size.width }.toFloat()
+                val widest = xLayouts.maxOfOrNull { it.size.width }?.toFloat() ?: 0f
                 // The last label is pulled in from the right edge when it is wider than its band: count that in.
                 val clampShift = max(0f, widest / 2f - band / 2f)
                 val shown = ChartMath.thinnedLabels(count, band, widest + ChartDims.xLabelSpacing.toPx() + clampShift)
-                val tickSpacing = if (axis.ticks.size > 1) abs(yOf(axis.ticks[1]) - yOf(axis.ticks[0])) else plot.height
-                val labelledTicks = ChartMath.thinnedTicks(axis.ticks.size, tickSpacing, tickLayouts.first().second.size.height.toFloat()).toSet()
                 val path = Path()
 
                 onDrawBehind {
                     val r = reveal.value
                     val m = morph.progress.value
-                    // Grid and ticks.
-                    tickLayouts.forEachIndexed { t, (v, layout) ->
-                        val y = yOf(v)
-                        drawLine(p.grid, Offset(plot.left, y), Offset(plot.right, y), gridW)
-                        if (showYLabels && t in labelledTicks) drawText(layout, topLeft = Offset(plot.left - tickGap - layout.size.width, tickLabelTop(y, layout.size.height.toFloat(), plot.bottom)))
+                    val changing = before != null && m < 1f
+                    // The axis moves with the columns (a height morph) or stays the new one (reduced motion).
+                    val sc = if (changing && !reduced) before!!.axis.lerpTo(axis, m) else axis
+                    val zeroY = yOf(sc.baseline, sc).coerceIn(plot.top, plot.bottom)
+
+                    // Grid and ticks: changed ticks crossfade, unchanged ones stay at full strength.
+                    fun ticksLayer(layouts: List<Pair<Double, TextLayoutResult>>, alpha: Float) {
+                        if (alpha <= 0f || layouts.isEmpty()) return
+                        val spacing = if (layouts.size > 1) abs(yOf(layouts[1].first, sc) - yOf(layouts[0].first, sc)) else plot.height
+                        val labelled = ChartMath.thinnedTicks(layouts.size, spacing, layouts[0].second.size.height.toFloat()).toSet()
+                        layouts.forEachIndexed { t, (v, layout) ->
+                            val y = yOf(v, sc)
+                            if (y < plot.top - 0.5f || y > plot.bottom + 0.5f) return@forEachIndexed
+                            drawLine(p.grid.copy(alpha = p.grid.alpha * alpha), Offset(plot.left, y), Offset(plot.right, y), gridW)
+                            if (showYLabels && t in labelled) {
+                                drawText(layout, topLeft = Offset(plot.left - tickGap - layout.size.width, tickLabelTop(y, layout.size.height.toFloat(), xLabelTop)), alpha = alpha)
+                            }
+                        }
+                    }
+                    if (!changing || sameTicks) {
+                        ticksLayer(tickLayouts, 1f)
+                    } else {
+                        ticksLayer(fromTickLayouts, 1f - m)
+                        ticksLayer(tickLayouts, m)
                     }
                     // Columns: 4 dp rounded data end only.
-                    fun columns(values: List<List<Double?>>, last: List<Int>, lerpFrom: List<List<Double?>>?, alpha: Float) {
+                    fun columns(values: List<List<Double?>>, last: List<Int>, lerpFrom: List<List<Double?>>?, alpha: Float, cs: NiceScale) {
                         if (alpha <= 0f) return
+                        val baseY = yOf(cs.baseline, cs).coerceIn(plot.top, plot.bottom)
                         for (s in 0 until k) {
                             val color = p.colorOf(series[s], s)
                             for (i in 0 until count) {
                                 val target = values.getOrNull(s)?.getOrNull(i) ?: continue
                                 val from = lerpFrom?.getOrNull(s)?.getOrNull(i) ?: target
                                 val v = if (lerpFrom != null) from + (target - from) * m else target
-                                val h = (yOf(v) - zeroY) * r
+                                val h = (yOf(v, cs) - baseY) * r
                                 if (abs(h) < 0.5f) continue
                                 val x = colLeft(i, s)
-                                val rect = Rect(x, min(zeroY, zeroY + h), x + colW, max(zeroY, zeroY + h))
+                                val rect = Rect(x, min(baseY, baseY + h), x + colW, max(baseY, baseY + h))
                                 val rr = min(radius, min(colW / 2f, rect.height))
                                 val corner = CornerRadius(rr, rr)
                                 val shape = if (h < 0) {
@@ -223,17 +250,25 @@ fun ColumnChart(
                         }
                     }
                     // Latest value labels above (or below, for a negative) their column, pushed apart.
-                    fun labels(values: List<List<Double?>>, last: List<Int>, layouts: List<TextLayoutResult?>, alpha: Float) {
+                    fun labels(
+                        values: List<List<Double?>>,
+                        last: List<Int>,
+                        layouts: List<TextLayoutResult?>,
+                        alpha: Float,
+                        cs: NiceScale,
+                        alts: List<TextLayoutResult?> = emptyList(),
+                        mix: Float = 1f,
+                    ) {
                         if (alpha <= 0f) return
                         val placed = ArrayList<Rect>()
                         for (s in 0 until k) {
                             val layout: TextLayoutResult = layouts.getOrNull(s) ?: continue
-                            val i = last[s]
-                            val v = values[s][i] ?: continue
+                            val i = last.getOrNull(s)?.takeIf { it >= 0 } ?: continue
+                            val v = values.getOrNull(s)?.getOrNull(i) ?: continue
                             val cx = colLeft(i, s) + colW / 2f
                             val w = layout.size.width.toFloat()
                             val hgt = layout.size.height.toFloat()
-                            var y = if (v >= 0) yOf(v) - ChartDims.columnLabelGap.toPx() - hgt else yOf(v) + ChartDims.columnLabelGap.toPx()
+                            var y = if (v >= 0) yOf(v, cs) - ChartDims.columnLabelGap.toPx() - hgt else yOf(v, cs) + ChartDims.columnLabelGap.toPx()
                             val anchor = if (s == 0) cx - w / 2f else colLeft(i, s)
                             val x = anchor.coerceIn(0f, max(0f, size.width - w))
                             // Two labels at about the same height: the later one stacks above the earlier one.
@@ -242,45 +277,59 @@ fun ColumnChart(
                             }
                             y = y.coerceIn(0f, max(0f, size.height - hgt))
                             placed += Rect(x, y, x + w, y + hgt)
-                            drawHaloText(layout, Offset(x, y), p.ink, p.surface, halo, alpha)
+                            // A changed figure hands over on top of its moving column, in sequence (old out, then
+                            // new in): two figures at 50% in one place read as one garbled number.
+                            val alt = alts.getOrNull(s)?.takeIf { mix < 1f && it.layoutInput.text != layout.layoutInput.text }
+                            if (alt != null) {
+                                val aw = alt.size.width.toFloat()
+                                val ax = (if (s == 0) cx - aw / 2f else colLeft(i, s)).coerceIn(0f, max(0f, size.width - aw))
+                                drawHaloText(alt, Offset(ax, y), p.ink, p.surface, halo, alpha * MorphFrom.outgoing(mix))
+                            }
+                            drawHaloText(layout, Offset(x, y), p.ink, p.surface, halo, if (alt != null) alpha * MorphFrom.incoming(mix) else alpha)
                         }
                     }
-                    val changing = before != null && m < 1f
                     val a = labelAlpha(r)
                     if (changing && reduced) {
-                        columns(before!!, beforeLast, null, 1f - m)
-                        columns(clean, lastIdx, null, m)
+                        columns(beforeValues!!, beforeLast, null, 1f - m, before!!.axis)
+                        columns(clean, lastIdx, null, m, axis)
                     } else {
-                        columns(clean, lastIdx, if (changing) before else null, 1f)
+                        columns(clean, lastIdx, if (changing) beforeValues else null, 1f, sc)
                     }
                     drawLine(p.axis, Offset(plot.left, zeroY), Offset(plot.right, zeroY), gridW)
                     if (changing && reduced) {
-                        labels(before!!, beforeLast, beforeLayouts, a * (1f - m))
-                        labels(clean, lastIdx, endLayouts, a * m)
-                    } else if (!changing || before!!.map { it.lastFiniteIndex() } == lastIdx) {
+                        labels(beforeValues!!, beforeLast, beforeLayouts, a * (1f - m), before!!.axis)
+                        labels(clean, lastIdx, endLayouts, a * m, axis)
+                    } else if (!changing || beforeLast == lastIdx) {
                         // A height morph: the label rides on top of its growing column.
-                        labels(if (changing) lerpValues(before!!, clean, m) else clean, lastIdx, endLayouts, a)
+                        labels(if (changing) lerpValues(beforeValues!!, clean, m) else clean, lastIdx, endLayouts, a, sc, beforeLayouts, if (changing) m else 1f)
                     } else {
-                        labels(clean, lastIdx, endLayouts, a * m)
+                        labels(clean, lastIdx, endLayouts, a * m, sc)
                     }
                     // X labels.
                     shown.forEach { i ->
                         val layout = xLayouts[i]
                         val w = layout.size.width.toFloat()
                         val x = (plot.left + band * i + band / 2f - w / 2f).coerceIn(0f, max(0f, size.width - w))
-                        drawText(layout, topLeft = Offset(x, plot.bottom + ChartDims.xLabelGap.toPx()))
+                        drawText(layout, topLeft = Offset(x, xLabelTop))
                     }
                 }
             },
     )
 }
 
+/** What a column chart shows: the values and the axis they are drawn on. */
+private data class ColumnFrame(val values: List<List<Double?>>, val axis: NiceScale) {
+    /** Where a running morph from this toward [target] is at [t] (the ticks of whichever is more shown). */
+    fun toward(target: ColumnFrame, t: Float): ColumnFrame =
+        ColumnFrame(lerpValues(values, target.values, t), axis.lerpTo(target.axis, t).copy(ticks = if (t < 0.5f) axis.ticks else target.axis.ticks))
+}
+
 private class ColumnMorphHolder {
-    var last: List<List<Double?>>? = null
+    var last: ColumnFrame? = null
     var running: ColumnMorph? = null
 }
 
-private class ColumnMorph(val from: List<List<Double?>>?, val progress: Animatable<Float, AnimationVector1D>)
+private class ColumnMorph(val from: ColumnFrame?, val progress: Animatable<Float, AnimationVector1D>)
 
 /** Where a running height morph from [a] toward [b] is at [t] (a gap on either side takes [b]'s value). */
 private fun lerpValues(a: List<List<Double?>>, b: List<List<Double?>>, t: Float): List<List<Double?>> =

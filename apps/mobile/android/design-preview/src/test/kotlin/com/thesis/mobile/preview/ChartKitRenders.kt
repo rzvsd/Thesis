@@ -129,6 +129,26 @@ class ChartKitRenders {
     }
 
     @Test
+    fun columnMorphFrames() {
+        // Column values x1.5 at 100 ms (crosses the $500B tick): the axis moves with the columns and the changed
+        // ticks crossfade; no jump to the new scale on the first frame.
+        listOf(100L, 250L, 400L, 800L).forEach { ms ->
+            chartGallery("kit-charts-columnmorph-${ms}ms", settleMs = ms, frameMs = 10) {
+                Fresh { ColumnChangeSpecimen(factor = 1.5) }
+                Fresh { RangeMoveSpecimen() }
+            }
+        }
+    }
+
+    @Test
+    fun scrubReleaseFrames() {
+        // Scrub at 100 ms, release at 400 ms: the dimming fades in and back out (`Quick`), no cut either way.
+        listOf(110L, 180L, 420L, 600L).forEach { ms ->
+            chartGallery("kit-charts-scrubrelease-${ms}ms", settleMs = ms, frameMs = 10) { Fresh { ScrubReleaseSpecimen() } }
+        }
+    }
+
+    @Test
     fun interruptedMorphFrames() {
         // 30 -> 90 days at 100 ms, then 90 -> 60 days at 300 ms (mid-morph): the second morph starts where the
         // line is, and the latest-value label stays on the moving end throughout.
@@ -417,15 +437,41 @@ private fun GalleryScope.ScrubSpecimens() {
 }
 
 @Composable
-private fun GalleryScope.ColumnChangeSpecimen() {
-    Specimen("Column values change", "same identity, new values at 100 ms") {
+private fun GalleryScope.ColumnChangeSpecimen(factor: Double = 1.18) {
+    Specimen("Column values change", "same identity, values x$factor at 100 ms") {
         var later by remember { mutableStateOf(false) }
         LaunchedEffect(Unit) {
             delay(100)
             later = true
         }
-        val sales = if (later) ChartFixtures.sales.map { it?.times(1.18) } else ChartFixtures.sales
+        val sales = if (later) ChartFixtures.sales.map { it?.times(factor) } else ChartFixtures.sales
         ColumnChart(listOf(ChartSeries("Sales", sales)), ChartFixtures.fiscalYears, valueFormat = ChartFixtures.money, tickFormat = ChartFixtures.moneyTick)
+    }
+}
+
+@Composable
+private fun GalleryScope.RangeMoveSpecimen() {
+    Specimen("Price moves outside the range", "price 142 -> 175 at 100 ms: axis and marker glide, figure crossfades") {
+        var price by remember { mutableStateOf(142.0) }
+        LaunchedEffect(Unit) {
+            delay(100)
+            price = 175.0
+        }
+        RangeBar(101.0, 157.0, ChartFixtures.price, base = 128.0, price = price)
+    }
+}
+
+@Composable
+private fun GalleryScope.ScrubReleaseSpecimen() {
+    Specimen("Scrub and release", "scrub to 4 Nov at 100 ms, release at 400 ms") {
+        val state = remember { LineChartState() }
+        LaunchedEffect(Unit) {
+            delay(100)
+            state.scrubTo(9)
+            delay(300)
+            state.release()
+        }
+        MacroCard(state, days = 30)
     }
 }
 

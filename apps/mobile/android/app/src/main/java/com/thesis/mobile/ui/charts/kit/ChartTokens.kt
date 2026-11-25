@@ -149,7 +149,11 @@ internal object ChartAlpha {
     const val LABELS_FROM = 0.85f
 }
 
-/** Chart text: Roboto (sans) apparatus, tabular figures (deep-dive-visual-language.md section 8). */
+/**
+ * Chart text: Roboto (sans) apparatus, tabular figures (deep-dive-visual-language.md section 8). The two weighted
+ * tick styles are defined here, once, until `ThesisType.tickStrong` (11 / 600 tnum) and `ThesisType.tickMedium`
+ * (11 / 500) land in ui/theme (handoff to the theme owner, rubric T2); then [endLabel] and [rankLabel] point at them.
+ */
 internal object ChartText {
     /** Axis ticks and x labels: 11 / 400 tnum, muted. */
     val tick: TextStyle get() = ThesisType.tick
