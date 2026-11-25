@@ -68,7 +68,6 @@ object InboxCopy {
     const val OPEN_REPORT = "Open report"
     const val OPEN_PULSE = "Open Pulse"
     const val OPEN_DIGEST = "Open Weekly digest"
-    const val OPEN_NAMES = "Open Names"
 
     /** What a Free user sees in place of the change detail (Pro). */
     const val PRO_LOCKED = "The full change, before and after, is part of Pro."
@@ -107,6 +106,10 @@ object InboxCopy {
 
     const val EMPTY = "No alerts yet."
     const val EMPTY_HOW = "You’ll see thesis drift, earnings and macro changes here."
+
+    /** Every alert in the ledger is quiet: the footer below offers them. */
+    const val ALL_QUIET = "All your alerts are quiet for now."
+    const val ALL_QUIET_HOW = "Quiet alerts come back after 24 hours. Show them below."
     fun filteredEmpty(category: String): String = "No ${category.lowercase()} alerts."
     const val FILTERED_EMPTY_HOW = "Other categories still have alerts."
     const val SHOW_ALL = "Show all alerts"
@@ -165,7 +168,6 @@ object MacroStressCopy {
     }
 
     fun chartTitleOne(value: Double): String = "One reading so far: ${Fmt.score(value)}"
-    const val CHART_EMPTY_TITLE = "No readings in this range yet"
     fun chartSubtitle(days: Int): String = "Score 0 to 100, higher is more pressure, last $days days"
     const val CHART_SOURCE = "Thesis macro model on official releases"
     const val SERIES = "Macro stress"
@@ -174,6 +176,9 @@ object MacroStressCopy {
     const val TABLE_CHANGE = "Change, pts"
     const val COPY_TABLE = "Copy readings as table"
     const val COPIED = "Readings copied"
+
+    /** The readout's change, from the window's first reading: "+22 pts since 30 Oct". */
+    fun changeSinceStart(change: String, startDate: String): String = "$change since $startDate"
 
     // ---- Factors
 
@@ -234,6 +239,8 @@ object MacroStressCopy {
 
     const val HOW_TITLE = "How to read this"
     const val HOW_CAPTION = "The scale, the regimes and what moves the score"
+    const val EXPANDED = "Expanded"
+    const val COLLAPSED = "Collapsed"
     const val HOW_BODY = "The score runs from 0 to 100, and higher means more macro pressure. 0 to 35 reads Contained, " +
         "36 to 69 Balanced and 70 to 100 Elevated. Each official input is rated low, medium or high pressure " +
         "against fixed levels, and the score is the average of the inputs available that day. It describes " +

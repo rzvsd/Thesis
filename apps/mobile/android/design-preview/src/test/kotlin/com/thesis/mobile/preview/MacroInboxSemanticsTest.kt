@@ -194,6 +194,35 @@ class MacroInboxSemanticsTest {
     }
 
     @Test
+    fun `a quiet the server refuses brings the row back, and it can be quieted again`() {
+        val host = SnackbarHostState()
+        var error by mutableStateOf<String?>(null)
+        val calls = setInbox(host = host, error = { error })
+        rule.quietAction(drift.title)
+        rule.waitForIdle()
+        rule.runOnIdle { host.currentSnackbarData!!.dismiss() }
+        rule.waitForIdle()
+        assertEquals(listOf(drift.id), calls.quiet)
+        rule.onNodeWithText(drift.title).assertDoesNotExist()
+        // The mute failed: the ViewModel reports it, and the alert comes back without mutedAt.
+        error = "Couldn’t quiet this alert."
+        rule.waitForIdle()
+        rule.onNodeWithText(drift.title).assertExists()
+        rule.quietAction(drift.title)
+        rule.waitForIdle()
+        rule.runOnIdle { host.currentSnackbarData!!.dismiss() }
+        rule.waitForIdle()
+        assertEquals(listOf(drift.id, drift.id), calls.quiet)
+    }
+
+    @Test
+    fun `every alert quiet says so instead of the empty sentence`() {
+        setInbox(list = alerts.map { it.copy(mutedAt = "2025-11-25T07:00:00Z") })
+        rule.onNodeWithText(InboxCopy.ALL_QUIET).assertExists()
+        rule.onNodeWithText(InboxCopy.EMPTY).assertDoesNotExist()
+    }
+
+    @Test
     fun `the screen's own snackbar shows the quiet with Undo`() {
         setInbox()
         rule.mainClock.autoAdvance = false

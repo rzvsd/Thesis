@@ -107,6 +107,15 @@ class MacroStressModelTest {
     }
 
     @Test
+    fun `the readout's change names the window's first reading as its basis`() {
+        val history = listOf(snap("2025-11-10", 38.0), snap("2025-11-24", 46.0))
+        assertEquals("10 Nov", build(history).windowStartText)
+        assertEquals("+8 pts since 10 Nov", MacroStressCopy.changeSinceStart(Fmt.pts(8.0), "10 Nov"))
+        // One reading: no change, so no basis.
+        assertNull(build(listOf(snap("2025-11-24", 46.0))).windowStartText)
+    }
+
+    @Test
     fun `one reading per date, the later calculation wins`() {
         val readings = MacroStressModels.readings(
             null,

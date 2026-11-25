@@ -23,6 +23,8 @@ import androidx.compose.ui.unit.Density
 import com.thesis.mobile.model.AlertLedgerItemView
 import com.thesis.mobile.model.SentimentSnapshotView
 import com.thesis.mobile.preview.fixtures.MacroInboxFixtures
+import com.thesis.mobile.ui.charts.kit.ChartDrawOnRegistry
+import com.thesis.mobile.ui.charts.kit.LocalChartDrawOn
 import com.thesis.mobile.ui.components.LocalPageBackgroundCache
 import com.thesis.mobile.ui.components.PageBackgroundCache
 import com.thesis.mobile.ui.components.pageBackground
@@ -83,8 +85,19 @@ class MacroInboxRenders {
 
     @Test fun macroReducedMotion() = render("macro-reduced", reducedMotion = true, themes = listOf(PreviewTheme.DARK)) { Macro() }
 
-    /** The chart drawing on, part way (first paint of a reading date). */
-    @Test fun macroDrawOnMid() = render("macro-drawon-mid", settleMs = 400, themes = listOf(PreviewTheme.DARK)) { Macro() }
+    /** The 90 day range, settled: the x axis and the title after a range change. */
+    @Test fun macroNinetyDays() = render("macro-90d", themes = listOf(PreviewTheme.DARK)) { Macro(range = 90) }
+
+    /**
+     * The chart drawing on, part way (first paint of a reading date). A registry of its own: the process-wide one
+     * has already seen this reading date when another test in this class ran first, and would start it complete.
+     */
+    @Test fun macroDrawOnMid() = render("macro-drawon-mid", settleMs = 400, themes = listOf(PreviewTheme.DARK)) {
+        CompositionLocalProvider(LocalChartDrawOn provides remember { ChartDrawOnRegistry() }) { Macro() }
+    }
+
+    /** A finger held on the chart: the cursor, the regime line and the readout rewritten for that day. */
+    @Test fun macroScrub() = scene("macro-scrub", captureAtMs = SCRUB_AT_MS + 400, content = { Macro() }) { scrub(it) }
 
     /** 30D to 90D: the line morphing between ranges, 120 ms in. */
     @Test fun macroMorphMid() = render("macro-morph-mid", settleMs = MOVE_AT_MS + 120, frameMs = 10, themes = listOf(PreviewTheme.DARK)) {
@@ -129,6 +142,11 @@ class MacroInboxRenders {
         Inbox(alerts = emptyList(), error = "The Inbox service did not answer.")
     }
 
+    /** Every alert quiet: says so, and the footer offers them. */
+    @Test fun inboxAllQuiet() = render("inbox-all-quiet", glow = false, themes = listOf(PreviewTheme.LIGHT)) {
+        Inbox(alerts = MacroInboxFixtures.alerts.map { it.copy(mutedAt = "2025-11-25T07:00:00Z") })
+    }
+
     @Test fun inboxRefreshFailed() = render("inbox-refresh-failed", glow = false, themes = listOf(PreviewTheme.LIGHT)) {
         Inbox(error = "The Inbox service did not answer.", refreshError = "The Inbox service did not answer.")
     }
@@ -147,6 +165,9 @@ class MacroInboxRenders {
 
     /** A real swipe toward the start: the row 140 ms into its collapse after the release, the Undo snackbar rising. */
     @Test fun inboxQuietCollapseMid() = scene("inbox-quiet-mid", captureAtMs = SWIPE_END_MS + 140) { swipe(it) }
+
+    /** Late in the collapse: the row's slice of the card, a thin strip, still carries the card's top edge. */
+    @Test fun inboxQuietCollapseLate() = scene("inbox-quiet-late", captureAtMs = SWIPE_END_MS + 300) { swipe(it) }
 
     /** After the collapse: the card has closed over the row; the snackbar offers Undo. */
     @Test fun inboxQuietDone() = scene("inbox-quiet-done", captureAtMs = SWIPE_END_MS + 900) { swipe(it) }
@@ -256,6 +277,16 @@ class MacroInboxRenders {
         events += Touch(atMs + FRAME_MS, PointerEventType.Release, xDp, yDp)
     }
 
+    /** A finger pressed on the chart, dragged past the touch slop to the middle of the window, and held. */
+    private fun scrub(events: MutableList<Touch>) {
+        events += Touch(SCRUB_AT_MS, PointerEventType.Press, SCRUB_FROM_X_DP, CHART_Y_DP)
+        val steps = 8
+        for (i in 1..steps) {
+            val x = SCRUB_FROM_X_DP + (SCRUB_TO_X_DP - SCRUB_FROM_X_DP) * i / steps
+            events += Touch(SCRUB_AT_MS + i * FRAME_MS, PointerEventType.Move, x, CHART_Y_DP)
+        }
+    }
+
     /** A finger swipe toward the start across the first row, released past the threshold. */
     private fun swipe(events: MutableList<Touch>) {
         val steps = ((SWIPE_END_MS - SWIPE_AT_MS) / FRAME_MS).toInt()
@@ -268,14 +299,16 @@ class MacroInboxRenders {
     }
 
     /**
-     * The Inbox in an [ImageComposeScene] on virtual time, driven by real touch events ([script]) and captured at
-     * [captureAtMs]: the frames between a gesture and its result, which a settled render cannot show.
+     * A screen ([content], the Inbox by default) in an [ImageComposeScene] on virtual time, driven by real touch
+     * events ([script]) and captured at [captureAtMs]: the frames between a gesture and its result, which a settled
+     * render cannot show.
      */
     @OptIn(ExperimentalCoroutinesApi::class)
     private fun scene(
         name: String,
         captureAtMs: Long,
         themes: List<PreviewTheme> = listOf(PreviewTheme.DARK),
+        content: @Composable () -> Unit = { Inbox() },
         script: (MutableList<Touch>) -> Unit,
     ) {
         if (!selected(name)) return
@@ -297,7 +330,7 @@ class MacroInboxRenders {
                                 Modifier.fillMaxSize()
                                     .onSizeChanged { cache.areaSize = it }
                                     .pageBackground(LocalThesisPalette.current),
-                            ) { Inbox() }
+                            ) { content() }
                         }
                     }
                 }
@@ -354,5 +387,11 @@ class MacroInboxRenders {
         const val UNDO_AT_MS = 2_400L
         const val UNDO_X_DP = 360f
         const val UNDO_Y_DP = 870f
+
+        // Macro Stress: the chart's plot at 412 dp wide, from its right part to the middle of the window.
+        const val SCRUB_AT_MS = 2_000L
+        const val CHART_Y_DP = 640f
+        const val SCRUB_FROM_X_DP = 300f
+        const val SCRUB_TO_X_DP = 200f
     }
 }

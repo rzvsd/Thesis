@@ -110,6 +110,16 @@ class InboxModelTest {
     }
 
     @Test
+    fun `without a Name or War Room callback, Open is offered only when the alert's own route goes somewhere`() {
+        val drift = alert("a", category = "thesis_drift", type = "contrarian_alert", ticker = "NVDA")
+        assertEquals(InboxRoute.NameChanges("NVDA"), InboxModels.route(drift, canOpen = true, canOpenName = false))
+        assertNull(InboxModels.route(drift, canOpen = false, canOpenName = false))
+        val earnings = alert("b", category = "earnings", type = "earnings_preview", warRoomId = "wr-1")
+        assertEquals(InboxRoute.WarRoom("wr-1"), InboxModels.route(earnings, canOpen = true, canOpenWarRoom = false))
+        assertNull(InboxModels.route(earnings, canOpen = false, canOpenWarRoom = false))
+    }
+
+    @Test
     fun `earnings alerts with a War Room open the War Room`() {
         val earnings = alert("a", category = "earnings", type = "earnings_preview", ticker = "AAPL", warRoomId = "wr-1")
         assertEquals(InboxRoute.WarRoom("wr-1"), InboxModels.route(earnings, canOpen = false))
@@ -141,6 +151,9 @@ class InboxModelTest {
         // No visit recorded: nothing is marked new, the lede counts the alerts.
         assertEquals(0, InboxModels.newCount(alerts, null))
         assertEquals("3 alerts, newest first", InboxModels.lede(alerts, null))
+        // UiState keeps 0 for "never visited": the same as no visit.
+        assertEquals(0, InboxModels.newCount(alerts, 0L))
+        assertEquals("3 alerts, newest first", InboxModels.lede(alerts, 0L))
         assertNull(InboxModels.lede(emptyList(), visit))
     }
 

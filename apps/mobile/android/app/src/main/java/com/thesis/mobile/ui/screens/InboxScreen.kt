@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.calculateEndPadding
 import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
@@ -27,6 +28,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateMapOf
@@ -39,6 +41,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
@@ -47,7 +51,6 @@ import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import com.thesis.mobile.model.AlertLedgerItemView
 import com.thesis.mobile.ui.components.BannerTone
-import com.thesis.mobile.ui.components.Callout
 import com.thesis.mobile.ui.components.ChipRow
 import com.thesis.mobile.ui.components.DayHeader
 import com.thesis.mobile.ui.components.DialogAction
@@ -81,6 +84,7 @@ import com.thesis.mobile.ui.motion.ThesisMotion
 import com.thesis.mobile.ui.motion.rememberHaptics
 import com.thesis.mobile.ui.motion.rememberShowSkeleton
 import com.thesis.mobile.ui.theme.LocalThesisPalette
+import com.thesis.mobile.ui.theme.ThesisShape
 import com.thesis.mobile.ui.theme.ThesisSpace
 import com.thesis.mobile.ui.theme.ThesisType
 import com.thesis.mobile.ui.theme.alertCategoryColor
@@ -174,19 +178,22 @@ internal object InboxModels {
         return now.isBefore(at.plus(QuietWindow))
     }
 
+    /** The last visit, or null when none is recorded (UiState keeps 0 for "never"). */
+    fun visit(lastVisitAtMs: Long?): Long? = lastVisitAtMs?.takeIf { it > 0L }
+
     /** Whether the alert arrived after the last visit to the Inbox (no visit recorded: nothing is new). */
     fun isNew(alert: AlertLedgerItemView, lastVisitAtMs: Long?): Boolean {
-        if (lastVisitAtMs == null) return false
+        val visit = visit(lastVisitAtMs) ?: return false
         val at = instant(alert.createdAt) ?: return false
-        return at.toEpochMilli() > lastVisitAtMs
+        return at.toEpochMilli() > visit
     }
 
     fun newCount(alerts: List<AlertLedgerItemView>, lastVisitAtMs: Long?): Int = alerts.count { isNew(it, lastVisitAtMs) }
 
-    /** The header lede: new since the last visit, or the total when no visit is recorded. */
+    /** The header lede: new since the last visit, or the total when no visit is recorded (null or 0). */
     fun lede(alerts: List<AlertLedgerItemView>, lastVisitAtMs: Long?): String? = when {
         alerts.isEmpty() -> null
-        lastVisitAtMs == null -> InboxCopy.total(alerts.size)
+        visit(lastVisitAtMs) == null -> InboxCopy.total(alerts.size)
         else -> InboxCopy.newSinceLastVisit(newCount(alerts, lastVisitAtMs))
     }
 
@@ -207,16 +214,26 @@ internal object InboxModels {
     /**
      * Where Open goes: thesis drift with a ticker to the Name at its changes; earnings with a War Room to the War
      * Room; otherwise the alert's own route when it has somewhere to go ([canOpen]); else nowhere (no Open).
+     * [canOpenName] / [canOpenWarRoom] say whether the screen can open those directly; without that, the special
+     * routes are offered only when the alert's own route ([canOpen], the fallback) goes somewhere, so Open never
+     * lands back on the Inbox.
      */
-    fun route(alert: AlertLedgerItemView, canOpen: Boolean): InboxRoute? {
+    fun route(
+        alert: AlertLedgerItemView,
+        canOpen: Boolean,
+        canOpenName: Boolean = true,
+        canOpenWarRoom: Boolean = true,
+    ): InboxRoute? {
         val key = categoryKey(alert)
         val type = alert.notificationType.trim().lowercase()
         val ticker = alert.ticker?.trim()?.takeIf { it.isNotEmpty() }
         val warRoom = alert.warRoomId?.trim()?.takeIf { it.isNotEmpty() }
         return when {
-            ticker != null && (key == "thesis_drift" || type == "thesis_drift" || type == "contrarian_alert") ->
+            ticker != null && (canOpenName || canOpen) &&
+                (key == "thesis_drift" || type == "thesis_drift" || type == "contrarian_alert") ->
                 InboxRoute.NameChanges(ticker)
-            warRoom != null && (key == "earnings" || type.startsWith("earnings")) -> InboxRoute.WarRoom(warRoom)
+            warRoom != null && (canOpenWarRoom || canOpen) && (key == "earnings" || type.startsWith("earnings")) ->
+                InboxRoute.WarRoom(warRoom)
             canOpen -> InboxRoute.Alert
             else -> null
         }
@@ -295,11 +312,24 @@ fun InboxScreen(
     // Rows quieted on this screen: collapsing / collapsed while their Undo snackbar shows, then committed.
     val exits = remember { mutableStateMapOf<String, RowExit>() }
     val committed = remember { mutableStateMapOf<String, Boolean>() }
+    // The height of each row on its way out (px), and those already shorter than the card's corner radius.
+    val exitHeights = remember { mutableStateMapOf<String, Int>() }
+    val cornerPx = with(LocalDensity.current) { ThesisShape.CardRadius.roundToPx() }
+    val closing by remember(cornerPx) {
+        derivedStateOf { exits.keys.filter { (exitHeights[it] ?: Int.MAX_VALUE) < cornerPx }.toSet() }
+    }
     // Bumped on Undo so the row's swipe state starts again from rest.
     val restores = remember { mutableStateMapOf<String, Int>() }
     // Feedback shown before the server answers; dropped when an error comes back (the list keeps the server's).
     val feedback = remember { mutableStateMapOf<String, String>() }
-    LaunchedEffect(inboxError) { if (!inboxError.isNullOrBlank()) feedback.clear() }
+    val currentAlerts by rememberUpdatedState(alerts)
+    LaunchedEffect(inboxError) {
+        if (!inboxError.isNullOrBlank()) {
+            feedback.clear()
+            // A quiet the server did not take (no mutedAt): bring the row back, so it can be quieted again.
+            committed.keys.removeAll { id -> currentAlerts.none { it.id == id && !it.mutedAt.isNullOrBlank() } }
+        }
+    }
 
     val quietCall by rememberUpdatedState(onQuietAlertType)
     val disableCall by rememberUpdatedState(onDisableAlertType)
@@ -327,10 +357,12 @@ fun InboxScreen(
                 } finally {
                     if (undone) {
                         exits.remove(alert.id)
+                        exitHeights.remove(alert.id)
                         restores[alert.id] = (restores[alert.id] ?: 0) + 1
                     } else {
                         committed[alert.id] = true
                         exits.remove(alert.id)
+                        exitHeights.remove(alert.id)
                         quietCall(alert.id)
                     }
                 }
@@ -425,6 +457,14 @@ fun InboxScreen(
                             modifier = Modifier.padding(horizontal = ThesisSpace.gutter),
                         )
                     }
+                    visible.isEmpty() && !showQuiet && alerts.isNotEmpty() -> item(key = "all-quiet", contentType = "state") {
+                        EmptyState(
+                            sentence = InboxCopy.ALL_QUIET,
+                            how = InboxCopy.ALL_QUIET_HOW,
+                            icon = ThesisIcons.Quiet,
+                            modifier = Modifier.padding(horizontal = ThesisSpace.gutter).padding(bottom = ThesisSpace.l),
+                        )
+                    }
                     visible.isEmpty() && !showQuiet -> item(key = "empty", contentType = "state") {
                         EmptyState(
                             sentence = InboxCopy.EMPTY,
@@ -447,7 +487,7 @@ fun InboxScreen(
                             item(key = "refresh-failed", contentType = "banner") {
                                 InlineBanner(
                                     text = InboxCopy.REFRESH_FAILED,
-                                    tone = BannerTone.Error,
+                                    tone = BannerTone.Attention,
                                     actionLabel = KitCopy.TRY_AGAIN,
                                     onAction = onRefresh,
                                     modifier = Modifier
@@ -461,9 +501,15 @@ fun InboxScreen(
                             days = days,
                             exits = exits,
                             restores = restores,
+                            closing = closing,
                             alpha = { listAlpha.value },
                             row = { alert ->
-                                val route = InboxModels.route(alert, canOpenAlert(alert))
+                                val route = InboxModels.route(
+                                    alert,
+                                    canOpen = canOpenAlert(alert),
+                                    canOpenName = onOpenNameAtChanges != null || onOpenName != null,
+                                    canOpenWarRoom = onOpenWarRoom != null,
+                                )
                                 val quietNow = InboxModels.isQuiet(alert, now) || committed[alert.id] == true
                                 InboxRow(
                                     alert = alert,
@@ -489,6 +535,7 @@ fun InboxScreen(
                                     onMore = { menuFor = alert },
                                 )
                             },
+                            onExitHeight = { id, height -> if (id in exits) exitHeights[id] = height else exitHeights.remove(id) },
                             onCollapsed = { id -> if (exits[id] == RowExit.Collapsing) exits[id] = RowExit.Collapsed },
                         )
                     }
@@ -553,52 +600,63 @@ fun InboxScreen(
 }
 
 /**
- * The day groups: a sticky [DayHeader] per day, then its rows as one card (rowGroupSegment). A row on its way out
- * keeps its place until its collapse ends ([onCollapsed]); then the rows around it close the card over it, and a
- * day whose rows have all gone loses its header.
+ * The day groups: a sticky [DayHeader] per day, then its rows as one card (rowGroupSegment). The segment is the
+ * [DismissibleItem]'s own container, so a row on its way out closes up with its slice of the card (its corners
+ * and border intact, no page background through the card) while only its content fades. It keeps its shape, and
+ * its neighbours theirs, until its slice is shorter than the card's corner radius ([closing], measured through
+ * [onExitHeight]): from there the neighbour takes the card's edge at full radius while the last sliver closes,
+ * so the corners never shrink to square and nothing snaps when the collapse ends ([onCollapsed]). A day whose
+ * rows have all gone loses its header. The day's top and bottom spacing are items of their own, so they never
+ * collapse with a row.
  */
 @OptIn(ExperimentalFoundationApi::class)
 private fun LazyListScope.alertDays(
     days: List<InboxDay>,
     exits: Map<String, RowExit>,
     restores: Map<String, Int>,
+    closing: Set<String>,
     alpha: () -> Float,
     row: @Composable (AlertLedgerItemView) -> Unit,
+    onExitHeight: (String, Int) -> Unit,
     onCollapsed: (String) -> Unit,
 ) {
     days.forEach { day ->
         val present = day.alerts.filter { exits[it.id] != RowExit.Collapsed }
+        // The rows that shape the card: a row nearly closed no longer counts for its neighbours.
+        val shaping = present.filter { it.id !in closing }
+        val dayKey = day.date ?: "undated"
         // A day whose rows have all collapsed loses its header; the rows stay composed (they come back on Undo).
         if (present.isNotEmpty()) {
-            stickyHeader(key = "day-${day.date ?: "undated"}", contentType = "day") {
+            stickyHeader(key = "day-$dayKey", contentType = "day") {
                 DayHeader(day.label)
             }
+            item(key = "day-top-$dayKey", contentType = "day-gap") { Spacer(Modifier.height(ThesisSpace.s)) }
         }
         day.alerts.forEach { alert ->
-            val index = present.indexOf(alert)
+            val position = when {
+                alert.id in closing && alert in present -> RowPosition.of(present.indexOf(alert), present.size)
+                alert in shaping -> RowPosition.of(shaping.indexOf(alert), shaping.size)
+                else -> RowPosition.Only
+            }
             item(key = alert.id, contentType = "alert") {
                 DismissibleItem(
                     removing = alert.id in exits,
                     onRemoved = { onCollapsed(alert.id) },
-                    modifier = Modifier.graphicsLayer { this.alpha = alpha() },
+                    modifier = Modifier
+                        .onSizeChanged { onExitHeight(alert.id, it.height) }
+                        .padding(horizontal = ThesisSpace.gutter)
+                        .rowGroupSegment(position, LeadingRowDividerInset),
                 ) {
-                    val first = index == 0
-                    val last = index == present.size - 1
-                    Box(
-                        Modifier
-                            .padding(horizontal = ThesisSpace.gutter)
-                            .then(if (first) Modifier.padding(top = ThesisSpace.s) else Modifier)
-                            .then(if (last) Modifier.padding(bottom = ThesisSpace.l) else Modifier)
-                            .rowGroupSegment(
-                                if (index < 0) RowPosition.Only else RowPosition.of(index, present.size),
-                                LeadingRowDividerInset,
-                            ),
-                    ) {
+                    // The filter fade (150 ms) is on the content, so the card itself never thins out.
+                    Box(Modifier.graphicsLayer { this.alpha = alpha() }) {
                         // A new swipe state after Undo, so the row comes back at rest.
                         key(restores[alert.id] ?: 0) { row(alert) }
                     }
                 }
             }
+        }
+        if (present.isNotEmpty()) {
+            item(key = "day-end-$dayKey", contentType = "day-gap") { Spacer(Modifier.height(ThesisSpace.l)) }
         }
     }
 }
@@ -684,9 +742,10 @@ private fun AlertDetail(
     val detail = alert.detailBody?.trim()?.takeIf { it.isNotEmpty() }
     Column(verticalArrangement = Arrangement.spacedBy(ThesisSpace.s)) {
         when {
-            detail != null -> Text(detail, style = ThesisType.body, color = p.ink)
-            alert.detailLocked -> {
-                Callout(InboxCopy.PRO_LOCKED)
+            // The summary's size, set apart by colour only (V3: three sizes a card).
+            detail != null -> Text(detail, style = ThesisType.bodySmall, color = p.ink)
+            alert.detailLocked -> Column {
+                Text(InboxCopy.PRO_LOCKED, style = ThesisType.bodySmall, color = p.ink2)
                 TextAction(InboxCopy.UNLOCK, onClick = onUnlockDetail)
             }
         }

@@ -17,19 +17,24 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.AnnotatedString
@@ -96,6 +101,8 @@ import com.thesis.mobile.ui.theme.macroStressLabel
 import com.thesis.mobile.ui.theme.macroStressTone
 import com.thesis.mobile.ui.theme.textColor
 import com.thesis.mobile.ui.theme.tnum
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withTimeoutOrNull
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
 import kotlin.math.abs
@@ -177,6 +184,8 @@ internal data class MacroStressModel(
     val chart: LineChartData,
     val chartTitle: String,
     val chartSummary: String,
+    /** The window's first reading date ("30 Oct"), the readout change's basis; null with one reading. */
+    val windowStartText: String?,
     val table: CompareTableModel?,
     val factors: List<MacroFactor>,
     val factorHeadline: String,
@@ -295,6 +304,7 @@ internal object MacroStressModels {
             chart = chart,
             chartTitle = chartTitle,
             chartSummary = chartSummary,
+            windowStartText = window.takeIf { it.size > 1 }?.first()?.date?.let(fmt::shortDate),
             table = table(window, fmt),
             factors = factors,
             factorHeadline = factorHeadline(factors, scoreDelta),
@@ -435,7 +445,9 @@ internal object MacroStressModels {
 
 /**
  * The previous entry point, kept so `ThesisApp.kt` compiles until WP-INT calls [MacroStressScreen] from the shell
- * (HANDOFF-F). Same behaviour: no refresh state.
+ * with `isMacroRefreshing` (HANDOFF-F item 2). Until then it keeps its own refresh state, as the old screen did:
+ * the skeleton while nothing has answered yet (at most [FIRST_LOAD_MAX_MS]), and the pull indicator until the data
+ * changes or [PULL_INDICATOR_MS] passes.
  */
 @Composable
 fun MacroStressDashboardScreen(
@@ -446,15 +458,37 @@ fun MacroStressDashboardScreen(
     onSelectRange: (Int) -> Unit,
     onBack: () -> Unit,
     onRefresh: (() -> Unit)? = null,
-) = MacroStressScreen(
-    current = current,
-    history = history,
-    selectedRangeDays = selectedRangeDays,
-    sentimentError = sentimentError,
-    onSelectRange = onSelectRange,
-    onBack = onBack,
-    onRefresh = onRefresh,
-)
+) {
+    var refreshing by remember { mutableStateOf(current == null && history.isEmpty() && sentimentError.isNullOrBlank()) }
+    var pulls by remember { mutableIntStateOf(0) }
+    val answer by rememberUpdatedState(Triple(current, history, sentimentError))
+    LaunchedEffect(pulls) {
+        if (!refreshing) return@LaunchedEffect
+        val before = answer
+        withTimeoutOrNull(if (pulls == 0) FIRST_LOAD_MAX_MS else PULL_INDICATOR_MS) {
+            snapshotFlow { answer }.first { it != before }
+        }
+        refreshing = false
+    }
+    val range = MacroStressModels.normalizeRange(selectedRangeDays)
+    MacroStressScreen(
+        current = current,
+        history = history,
+        selectedRangeDays = selectedRangeDays,
+        sentimentError = sentimentError,
+        onSelectRange = onSelectRange,
+        onBack = onBack,
+        refreshing = refreshing,
+        onRefresh = {
+            refreshing = true
+            pulls++
+            onRefresh?.invoke() ?: onSelectRange(range)
+        },
+    )
+}
+
+private const val FIRST_LOAD_MAX_MS = 10_000L
+private const val PULL_INDICATOR_MS = 1_800L
 
 /**
  * Macro Stress (5.9). [history] is the ViewModel's readings for the selected range (any order); [current] the
@@ -663,50 +697,68 @@ private fun TrendSection(model: MacroStressModel, onSelectRange: (Int) -> Unit) 
     val chartState = rememberLineChartState()
     val clipboard = LocalClipboardManager.current
     val haptics = rememberHaptics()
+    // "Readings copied" stands until the readings change (another range, a refresh).
+    var copied by remember(model.table) { mutableStateOf(false) }
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(ThesisSpace.cardGap)) {
         SegmentedControl(
             options = MacroStressCopy.RANGES,
             selectedIndex = MacroStressRanges.indexOf(model.rangeDays).coerceAtLeast(0),
             onSelect = { i -> onSelectRange(MacroStressRanges[i]) },
         )
-        ChartCard(
-            title = model.chartTitle,
-            fignum = 1,
-            subtitle = MacroStressCopy.chartSubtitle(model.rangeDays),
-            source = MacroStressCopy.CHART_SOURCE,
-            table = model.table,
-            readout = {
-                LineChartReadout(
-                    data = model.chart,
-                    state = chartState,
-                    valueFormat = { Fmt.score(it) },
-                    changeFormat = { Fmt.pts(it) },
-                    nowLabel = model.asOfText,
-                    changeTone = ::macroStressDeltaTone,
-                )
-            },
-        ) {
-            LineChart(
-                data = model.chart,
-                valueFormat = { Fmt.score(it) },
-                height = ChartHeights.Featured,
-                bands = macroStressBands(),
-                yRange = 0.0..SCORE_MAX,
-                state = chartState,
-                // Draws on once per reading date: back on Macro Stress the same day, the chart is complete (4.6).
-                dataKey = model.asOf?.let { "macro-stress-$it" },
-                summary = model.chartSummary,
-            )
-        }
-        val table = model.table
-        if (table != null) {
-            TextAction(
-                MacroStressCopy.COPY_TABLE,
-                onClick = {
-                    clipboard.setText(AnnotatedString(table.toTsv()))
-                    haptics.confirm()
+        Column(Modifier.fillMaxWidth()) {
+            ChartCard(
+                title = model.chartTitle,
+                fignum = 1,
+                subtitle = MacroStressCopy.chartSubtitle(model.rangeDays),
+                source = MacroStressCopy.CHART_SOURCE,
+                table = model.table,
+                readout = {
+                    LineChartReadout(
+                        data = model.chart,
+                        state = chartState,
+                        valueFormat = { Fmt.score(it) },
+                        // The kit's change runs from the window's first reading (latest or scrubbed point), so it names
+                        // that basis; a two-finger window shows its own dates beside it.
+                        changeFormat = { d ->
+                            val start = model.windowStartText
+                            if (start == null || chartState.compareRange != null) {
+                                Fmt.pts(d)
+                            } else {
+                                MacroStressCopy.changeSinceStart(Fmt.pts(d), start)
+                            }
+                        },
+                        nowLabel = model.asOfText,
+                        changeTone = ::macroStressDeltaTone,
+                    )
                 },
-            )
+            ) {
+                LineChart(
+                    data = model.chart,
+                    valueFormat = { Fmt.score(it) },
+                    height = ChartHeights.Featured,
+                    bands = macroStressBands(),
+                    yRange = 0.0..SCORE_MAX,
+                    state = chartState,
+                    // Draws on once per reading date: back on Macro Stress the same day, the chart is complete (4.6).
+                    dataKey = model.asOf?.let { "macro-stress-$it" },
+                    summary = model.chartSummary,
+                )
+            }
+            val table = model.table
+            if (table != null) {
+                // Under the card's foot, at its end; the label confirms the copy (no system toast before Android 13).
+                TextAction(
+                    if (copied) MacroStressCopy.COPIED else MacroStressCopy.COPY_TABLE,
+                    onClick = {
+                        clipboard.setText(AnnotatedString(table.toTsv()))
+                        haptics.confirm()
+                        copied = true
+                    },
+                    modifier = Modifier
+                        .align(Alignment.End)
+                        .semantics { liveRegion = LiveRegionMode.Polite },
+                )
+            }
         }
     }
 }
@@ -790,7 +842,7 @@ private fun HowToRead() {
                     title = MacroStressCopy.HOW_TITLE,
                     caption = MacroStressCopy.HOW_CAPTION,
                     onClick = { open = !open },
-                    modifier = Modifier.semantics { stateDescription = if (open) "Expanded" else "Collapsed" },
+                    modifier = Modifier.semantics { stateDescription = if (open) MacroStressCopy.EXPANDED else MacroStressCopy.COLLAPSED },
                 )
             }
         }
