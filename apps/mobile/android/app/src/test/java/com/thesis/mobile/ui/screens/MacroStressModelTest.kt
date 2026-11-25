@@ -143,7 +143,8 @@ class MacroStressModelTest {
         val treasury = m.factors.first { it.key == "TREASURY_DAILY_10Y" }
         assertEquals(30.0, treasury.change!!, 1e-9)
         assertEquals(Tone.Unfavourable, treasury.changeTone)
-        assertEquals("+30 pts since Fri 21 Nov", treasury.changeText)
+        assertEquals("+30 pts", treasury.changeText)
+        assertTrue(treasury.spoken.endsWith("+30 pts since Fri 21 Nov"))
         assertEquals(MacroStressCopy.changeSince("Fri 21 Nov"), m.factorDeck)
     }
 

@@ -29,6 +29,7 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.AnnotatedString
@@ -341,7 +342,9 @@ internal object MacroStressModels {
         val score = s.normalizedScore!!.coerceIn(0.0, SCORE_MAX)
         val label = MacroStressCopy.inputLabel(s.inputName)
         val change = previous?.takeIf { it.isFinite() }?.let { score - it }
-        val changeText = change?.let { c -> previousDate?.let { "${Fmt.pts(c)} ${MacroStressCopy.since(it)}" } ?: Fmt.pts(c) }
+        // The rows show the change alone (the section deck names the date); TalkBack hears the date too.
+        val changeText = change?.let { Fmt.pts(it) }
+        val changeSpoken = change?.let { c -> previousDate?.let { "${Fmt.pts(c)} ${MacroStressCopy.since(it)}" } ?: Fmt.pts(c) }
         val reading = reading(s, fmt)
         val pressure = pressureWord(score)
         val sub = listOfNotNull(reading, pressure).joinToString(" · ").ifEmpty { null }
@@ -354,7 +357,7 @@ internal object MacroStressModels {
             change = change,
             changeText = changeText,
             changeTone = change?.let(::macroStressDeltaTone) ?: Tone.Neutral,
-            spoken = MacroStressCopy.factorSpoken(label, Fmt.score(score), pressure, changeText),
+            spoken = MacroStressCopy.factorSpoken(label, Fmt.score(score), pressure, changeSpoken),
         )
     }
 
@@ -595,6 +598,8 @@ private fun MacroHeader(model: MacroStressModel, onOpenInfo: () -> Unit, modifie
         Spacer(Modifier.height(ThesisSpace.s))
         Text(
             ledeText(model.leadClause, model.changeClause, p),
+            // The page's heading: the bar names the screen, this sentence says what it found.
+            modifier = Modifier.semantics { heading() },
             style = ThesisType.lede,
             color = p.ink2,
         )

@@ -1,6 +1,7 @@
 package com.thesis.mobile.ui.screens
 
 import androidx.compose.animation.core.Animatable
+import androidx.compose.foundation.background
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -273,6 +274,8 @@ fun InboxScreen(
     onOpenNameAtChanges: ((String) -> Unit)? = null,
     onOpenWarRoom: ((String) -> Unit)? = null,
     initialCategory: String? = null,
+    /** The alert to open expanded (a notification tap that lands on the Inbox). */
+    initialExpandedId: String? = null,
     refreshError: String? = null,
     snackbarHostState: SnackbarHostState? = null,
     clock: Clock = Clock.systemDefaultZone(),
@@ -285,7 +288,7 @@ fun InboxScreen(
     val layoutDirection = LocalLayoutDirection.current
 
     var category by rememberSaveable { mutableStateOf(initialCategory) }
-    var expandedId by rememberSaveable { mutableStateOf<String?>(null) }
+    var expandedId by rememberSaveable { mutableStateOf(initialExpandedId) }
     var showQuiet by rememberSaveable { mutableStateOf(false) }
     var menuFor by remember { mutableStateOf<AlertLedgerItemView?>(null) }
     var confirmTurnOff by remember { mutableStateOf<AlertLedgerItemView?>(null) }
@@ -490,7 +493,8 @@ fun InboxScreen(
                         )
                     }
                 }
-                val quietCount = alerts.count { it.id in quietIds }
+                // Counted within the filter, so the footer never points at alerts the filter hides anyway.
+                val quietCount = InboxModels.filter(alerts.filter { it.id in quietIds }, selected).size
                 if (quietCount > 0 && alerts.isNotEmpty()) {
                     item(key = "quiet-footer", contentType = "footer") {
                         QuietFooter(count = quietCount, showing = showQuiet, onToggle = { showQuiet = !showQuiet })
@@ -642,6 +646,8 @@ private fun InboxRow(
             body = alert.body,
             time = time,
             onClick = onToggle,
+            // Opaque, so the swipe's Quiet background shows only where the row has moved away.
+            modifier = Modifier.background(LocalThesisPalette.current.surface),
             ticker = ticker,
             onTickerClick = if (ticker != null && onOpenName != null) ({ onOpenName(ticker) }) else null,
             isNew = isNew,
