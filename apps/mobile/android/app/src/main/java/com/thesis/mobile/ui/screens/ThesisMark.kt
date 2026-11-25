@@ -1,5 +1,7 @@
 package com.thesis.mobile.ui.screens
 
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -18,8 +20,12 @@ internal const val THESIS_MARK_PATH =
 /** Viewport of [THESIS_MARK_PATH]. */
 private const val MARK_VIEWPORT = 100f
 
-/** The mark as a vector for `Icon` (tint it `accent`; the fill below is replaced by the tint). */
-internal val ThesisMark: ImageVector by lazy {
+/**
+ * The mark as a vector filled with [color], a palette token (the caller passes `accent`): draw it with `Image`, so
+ * no colour literal and no tint are involved.
+ */
+@Composable
+internal fun rememberThesisMark(color: Color): ImageVector = remember(color) {
     ImageVector.Builder(
         name = "ThesisMark",
         defaultWidth = ThesisSpace.iconL,
@@ -27,7 +33,6 @@ internal val ThesisMark: ImageVector by lazy {
         viewportWidth = MARK_VIEWPORT,
         viewportHeight = MARK_VIEWPORT,
     )
-        // Any opaque colour: Icon draws the path through its tint.
-        .addPath(pathData = addPathNodes(THESIS_MARK_PATH), fill = SolidColor(Color.Gray))
+        .addPath(pathData = addPathNodes(THESIS_MARK_PATH), fill = SolidColor(color))
         .build()
 }

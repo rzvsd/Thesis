@@ -55,13 +55,16 @@ object AccountCopy {
     const val ONBOARDING_ADVICE_EYEBROW = "Before you start"
     const val ONBOARDING_ADVICE_TITLE = "Research, not advice"
     const val ONBOARDING_ADVICE_LEDE = "Thesis explains what companies report and how it changed. Decisions stay " +
-        "with you, and your notes stay on this device until you export them."
+        "with you. Your notes are private to your account, and you can export them from You at any time."
 
     // ---- Auth (5.3) ----------------------------------------------------------------------------------------------
 
     const val AUTH_TAGLINE = "Company research from SEC filings, written plainly."
     const val AUTH_MODE_LOG_IN = "Log in"
     const val AUTH_MODE_CREATE = "Create account"
+
+    /** The Create account segment where "Create account" does not fit half the control (large font scales, A4). */
+    const val AUTH_MODE_CREATE_SHORT = "Sign up"
     const val EMAIL = "Email"
     const val EMAIL_PLACEHOLDER = "you@example.com"
     const val PASSWORD = "Password"
@@ -100,6 +103,7 @@ object AccountCopy {
     const val RESET_NEW_PASSWORD = "New password"
     const val RESET_SET = "Set new password"
     const val RESET_SEND_AGAIN = "Send a new code"
+    const val RESET_OTHER_EMAIL = "Use another email"
     const val RESET_LONG_ENOUGH = "Long enough"
 
     fun resetDeckCode(email: String): String = "Enter the code we sent to ${email.trim()} and choose a new password."
@@ -129,7 +133,7 @@ object AccountCopy {
     const val REDUCE_MOTION_SUB = "Also on when the system turns animations off"
 
     const val SECTION_NOTIFICATIONS = "Notifications"
-    const val NOTIFICATIONS_MASTER = "Notifications"
+    const val NOTIFICATIONS_MASTER = "Allow notifications"
     const val NOTIFICATIONS_MASTER_SUB = "Filing changes, earnings and your morning Pulse"
     const val NOTIFICATIONS_OFF_SUB = "Applies when notifications are on"
     const val SYSTEM_NOTIFICATIONS = "System notification settings"
@@ -139,7 +143,7 @@ object AccountCopy {
 
     const val SECTION_SECURITY = "Security"
     const val APP_LOCK = "App lock"
-    const val APP_LOCK_SUB = "Asks for your fingerprint after 5 minutes away"
+    const val APP_LOCK_SUB = "Asks to unlock (biometrics or screen lock) after 5 minutes away"
 
     const val SECTION_PORTFOLIO = "Portfolio"
     const val IMPORT_HOLDINGS = "Import holdings"
@@ -247,6 +251,8 @@ object AccountCopy {
     const val PAYWALL_CONTINUE = "Continue"
     const val PAYWALL_RESTORE = "Restore purchases"
     const val PAYWALL_UNAVAILABLE = "Subscriptions are not available in this build."
+    const val PAYWALL_PLANS_STALLED = "Plans could not be loaded from Google Play."
+    const val PAYWALL_PLANS_RETRY = "Try again"
     const val PAYWALL_LEGAL = "Billed through Google Play. Renews automatically until you cancel in Google Play, under " +
         "Payments and subscriptions."
 

@@ -30,6 +30,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
@@ -40,15 +41,17 @@ import androidx.compose.ui.semantics.semantics
 import com.thesis.mobile.billing.RevenueCatBilling
 import com.thesis.mobile.model.AlertLedgerItemView
 import com.thesis.mobile.model.SubscriptionOfferView
+import com.thesis.mobile.ui.components.BannerTone
 import com.thesis.mobile.ui.components.CardFooter
 import com.thesis.mobile.ui.components.Eyebrow
 import com.thesis.mobile.ui.components.HeroBand
+import com.thesis.mobile.ui.components.InlineBanner
 import com.thesis.mobile.ui.components.Kicker
 import com.thesis.mobile.ui.components.LegalLinks
 import com.thesis.mobile.ui.components.PlanCard
 import com.thesis.mobile.ui.components.RunBar
 import com.thesis.mobile.ui.components.SkeletonCard
-import com.thesis.mobile.ui.components.TertiaryButton
+import com.thesis.mobile.ui.components.TextAction
 import com.thesis.mobile.ui.components.ThesisCard
 import com.thesis.mobile.ui.components.ThesisScreen
 import com.thesis.mobile.ui.components.ThesisTopBar
@@ -59,6 +62,8 @@ import com.thesis.mobile.ui.shell.HeroUnderBars
 import com.thesis.mobile.ui.theme.LocalThesisPalette
 import com.thesis.mobile.ui.theme.ThesisSpace
 import com.thesis.mobile.ui.theme.ThesisType
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.math.roundToInt
 
 /** The store's package types, and what [PaywallScreen]'s `onPurchase` is called with for each. */
@@ -67,12 +72,16 @@ private const val PACKAGE_ANNUAL = "ANNUAL"
 private const val PURCHASE_MONTHLY = "MONTHLY"
 private const val PURCHASE_YEARLY = "YEARLY"
 
+/** How long the paywall waits for the store's plans before it says they did not load and offers Try again. */
+const val PAYWALL_OFFERS_WAIT_MILLIS = 10_000L
+
 /**
  * The paywall (DESIGN-DIRECTION 5.23): a full-screen page, not a `Dialog`. A HeroBand opens it (eyebrow "Thesis
  * Pro", `display` "Read deeper", the one-sentence promise); then a real filing alert for one of the user's names (an
  * example when there is none yet), what Pro adds as plain sentences with 16 dp checks, the two plans as PlanCards
  * (Yearly selected by default, "Saves X% vs monthly" only when both prices are known), "Restore purchases" and the
- * legal caption. "Continue" is the sticky RunBar. While plans load, skeleton cards stand in for them.
+ * legal caption. "Continue" is the sticky RunBar. While plans load, skeleton cards stand in for them; when none
+ * arrive within [offersWaitMillis], an error banner says so and "Try again" asks the store again ([onRefreshOffers]).
  *
  * [padding]: the modal stack's frame padding when the shell hosts it as `Destination.Paywall` (its bar shows the
  * way back). Null when the paywall is drawn on its own over the shell: it then draws its own top bar (back =
@@ -91,9 +100,22 @@ fun PaywallScreen(
     padding: PaddingValues? = null,
     apiBaseUrl: String? = null,
     billingEnabled: Boolean = RevenueCatBilling.isEnabled(),
+    offersWaitMillis: Long = PAYWALL_OFFERS_WAIT_MILLIS,
 ) {
     LaunchedEffect(Unit) { onRefreshOffers() }
     val p = LocalThesisPalette.current
+
+    // Plans that never arrive (store down, no network) end the skeletons with an error and a retry, not forever.
+    var offersAttempt by remember { mutableIntStateOf(0) }
+    var offersStalled by remember { mutableStateOf(false) }
+    val offersReady by rememberUpdatedState(offers.isNotEmpty())
+    LaunchedEffect(offersAttempt, billingEnabled) {
+        offersStalled = false
+        if (billingEnabled) {
+            val arrived = withTimeoutOrNull(offersWaitMillis) { snapshotFlow { offersReady }.first { it } }
+            offersStalled = arrived == null
+        }
+    }
 
     val followed = watchlist.map { it.uppercase() }.toSet()
     val filingAlerts = alerts.filter { it.notificationType == "filing_change" }
@@ -177,6 +199,15 @@ fun PaywallScreen(
                     Kicker(AccountCopy.PAYWALL_PLANS, modifier = Modifier.semantics { heading() })
                     when {
                         !billingEnabled -> Text(AccountCopy.PAYWALL_UNAVAILABLE, style = ThesisType.body, color = p.ink2)
+                        offers.isEmpty() && offersStalled -> InlineBanner(
+                            text = AccountCopy.PAYWALL_PLANS_STALLED,
+                            tone = BannerTone.Error,
+                            actionLabel = AccountCopy.PAYWALL_PLANS_RETRY,
+                            onAction = {
+                                onRefreshOffers()
+                                offersAttempt++
+                            },
+                        )
                         offers.isEmpty() -> {
                             SkeletonCard(bodyLines = 1)
                             SkeletonCard(bodyLines = 1)
@@ -204,7 +235,8 @@ fun PaywallScreen(
                         }
                     }
                     if (billingEnabled) {
-                        TertiaryButton(AccountCopy.PAYWALL_RESTORE, onRestore, enabled = !actionInFlight)
+                        // On the text edge with the plan cards and the legal lines (T4).
+                        TextAction(AccountCopy.PAYWALL_RESTORE, onRestore, enabled = !actionInFlight)
                     }
                 }
 

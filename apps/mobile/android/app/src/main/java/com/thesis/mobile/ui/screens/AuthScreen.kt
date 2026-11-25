@@ -22,6 +22,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -60,7 +61,6 @@ import com.thesis.mobile.ui.components.PasswordField
 import com.thesis.mobile.ui.components.PrimaryButton
 import com.thesis.mobile.ui.components.SecondaryButton
 import com.thesis.mobile.ui.components.SegmentedControl
-import com.thesis.mobile.ui.components.TertiaryButton
 import com.thesis.mobile.ui.components.TextAction
 import com.thesis.mobile.ui.components.ThesisLink
 import com.thesis.mobile.ui.components.ThesisScreen
@@ -175,18 +175,20 @@ fun AuthScreen(
                         .padding(top = ThesisSpace.xxl, bottom = ThesisSpace.x3),
                     verticalArrangement = Arrangement.spacedBy(ThesisSpace.l),
                 ) {
+                    val showVerify = verifying && createMode
                     SegmentedControl(
-                        options = listOf(AccountCopy.AUTH_MODE_LOG_IN, AccountCopy.AUTH_MODE_CREATE),
+                        options = authModeOptions(this@BoxWithConstraints.maxWidth),
                         selectedIndex = if (createMode) 1 else 0,
                         onSelect = { i ->
                             createMode = i == 1
                             if (!createMode) verifying = false
                         },
                     )
+                    // The verify step opens with its kicker and lede, above the email it was sent to.
+                    if (showVerify) VerifyHeading(email)
                     EmailField(value = email, onValueChange = { email = it })
-                    if (verifying && createMode) {
+                    if (showVerify) {
                         VerifyStep(
-                            email = email,
                             code = code,
                             onCodeChange = { code = it },
                             canVerify = canVerify,
@@ -218,7 +220,9 @@ fun AuthScreen(
                         )
                         if (!createMode) ThesisLink(AccountCopy.FORGOT_PASSWORD, onForgotPassword)
                     }
-                    if (status != null) {
+                    // While verifying, the lede already says the code was sent: no second line saying it again.
+                    val repeatsVerify = showVerify && status?.kind == AuthStatus.Kind.VerificationSent
+                    if (status != null && !repeatsVerify) {
                         InlineBanner(
                             text = status.text,
                             tone = when (status.tone) {
@@ -298,10 +302,35 @@ private fun EmailField(value: String, onValueChange: (String) -> Unit) {
     )
 }
 
-/** After "Create account": the code from the email, Verify, and a way back to the create form. */
+/**
+ * The Log in · Create account labels. Where "Create account" does not fit half the control (2.0x on a 360 dp
+ * screen: the kit segment would cut it to "Create"), the segment reads "Sign up"; the button below keeps
+ * "Create account". [screenWidth] is the form's window width; the control spans it less the gutters.
+ */
+@Composable
+private fun authModeOptions(screenWidth: Dp): List<String> {
+    val controlWidth = minOf(screenWidth, ThesisSpace.contentMaxWidth) - ThesisSpace.gutter * 2
+    val full = listOf(AccountCopy.AUTH_MODE_LOG_IN, AccountCopy.AUTH_MODE_CREATE)
+    return if (segmentLabelsFit(full, controlWidth)) full else listOf(AccountCopy.AUTH_MODE_LOG_IN, AccountCopy.AUTH_MODE_CREATE_SHORT)
+}
+
+/** The verify step's kicker and lede (a heading for TalkBack): what to do with the email that was just sent. */
+@Composable
+private fun VerifyHeading(email: String) {
+    val p = LocalThesisPalette.current
+    Column(verticalArrangement = Arrangement.spacedBy(ThesisSpace.s)) {
+        Kicker(AccountCopy.VERIFY_KICKER, modifier = Modifier.semantics { heading() })
+        Text(AccountCopy.verifyLede(email.trim()), style = ThesisType.body, color = p.ink2)
+    }
+}
+
+/**
+ * After "Create account": the code from the email, Verify, and a way back to the create form. A free-text field,
+ * not the kit's 6-digit NumberField (5.3): the API's verification token is not guaranteed to be six digits. No
+ * "Send a new code" yet: there is no resend endpoint (HANDOFF-G 13).
+ */
 @Composable
 private fun VerifyStep(
-    email: String,
     code: String,
     onCodeChange: (String) -> Unit,
     canVerify: Boolean,
@@ -309,11 +338,6 @@ private fun VerifyStep(
     onVerify: () -> Unit,
     onUseAnotherEmail: () -> Unit,
 ) {
-    val p = LocalThesisPalette.current
-    Column(verticalArrangement = Arrangement.spacedBy(ThesisSpace.s)) {
-        Kicker(AccountCopy.VERIFY_KICKER)
-        Text(AccountCopy.verifyLede(email.trim()), style = ThesisType.body, color = p.ink2)
-    }
     ThesisTextField(
         value = code,
         onValueChange = { onCodeChange(it.trim()) },
@@ -333,7 +357,8 @@ private fun VerifyStep(
         enabled = canVerify || loading,
         loading = loading,
     )
-    TertiaryButton(AccountCopy.VERIFY_OTHER_EMAIL, onUseAnotherEmail)
+    // On the text edge, like the fields above it (T4), not inset by a button's padding.
+    TextAction(AccountCopy.VERIFY_OTHER_EMAIL, onUseAnotherEmail)
 }
 
 /** Debug builds only: the API base URL switch. */
@@ -380,7 +405,13 @@ internal fun Modifier.autofill(hint: AutofillHint, onFill: (String) -> Unit): Mo
     val autofill = LocalAutofill.current
     val fill by rememberUpdatedState(onFill)
     val node = remember(hint) { AutofillNode(autofillTypes = listOf(hint.type()), onFill = { fill(it) }) }
-    LocalAutofillTree.current += node
+    val tree = LocalAutofillTree.current
+    // Registered while the field is in the composition only: a field that leaves (mode switch, verify step) takes
+    // its node, and its stale bounds, with it.
+    DisposableEffect(tree, node) {
+        tree += node
+        onDispose { tree.children.remove(node.id) }
+    }
     this
         .onGloballyPositioned { node.boundingBox = it.boundsInWindow() }
         .onFocusChanged { state ->

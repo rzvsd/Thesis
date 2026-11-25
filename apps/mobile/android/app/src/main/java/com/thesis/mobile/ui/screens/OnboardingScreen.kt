@@ -2,6 +2,8 @@ package com.thesis.mobile.ui.screens
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -25,7 +27,6 @@ import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -37,6 +38,11 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
@@ -87,7 +93,7 @@ private const val CASCADE_STEPS = 4
  * ("Continue", then "Get started") and "Skip" (on the last page, the research-tool disclaimer).
  *
  * Every page scrolls on its own and fills the pager's height with flexible space, so nothing is fixed: at 1.3x and
- * 2.0x font scale the text grows and the page scrolls. Each page's elements enter once, the first time it shows:
+ * 2.0x font scale the text grows and the page scrolls, its bottom edge fading while more is below. Each page's elements enter once, the first time it shows:
  * fade and an 8 dp rise, [ThesisMotion.Enter] each, [ThesisMotion.CrossfadeDelay] apart; nothing moves under
  * reduced motion. System back goes to the previous page.
  */
@@ -214,10 +220,12 @@ private fun OnboardingPageContent(page: OnboardingPage, showing: Boolean, played
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val pageHeight = maxHeight
+        val scroll = rememberScrollState()
         Column(
             Modifier
                 .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
+                .fadeWhenMoreBelow(scroll, mask = p.ink)
+                .verticalScroll(scroll)
                 .heightIn(min = pageHeight)
                 .widthIn(max = ThesisSpace.contentMaxWidth)
                 .padding(horizontal = ThesisSpace.gutter),
@@ -244,6 +252,30 @@ private fun OnboardingPageContent(page: OnboardingPage, showing: Boolean, played
     }
 }
 
+/**
+ * Fades the bottom 80 dp ([ThesisSpace.x5] + [ThesisSpace.xxl], about one lede line at 2.0x) of a scrolling page out while more of it is below (large font scales on short
+ * screens), so a lede cut by the controls reads as "keeps going" rather than as truncated text. A mask on this
+ * node's own layer (outside the scroll, so it stays at the viewport's bottom edge); nothing is drawn when the page
+ * fits. [mask] is an opaque palette colour; only its alpha is used.
+ */
+private fun Modifier.fadeWhenMoreBelow(scroll: ScrollState, mask: Color): Modifier = this
+    .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+    .drawWithContent {
+        drawContent()
+        if (scroll.canScrollForward) {
+            val fade = (ThesisSpace.x5 + ThesisSpace.xxl).toPx()
+            drawRect(
+                // Only the mask's alpha counts ([mask] is any opaque token): DstOut keeps the content where it is clear.
+                brush = Brush.verticalGradient(
+                    colors = listOf(Color.Transparent, mask),
+                    startY = size.height - fade,
+                    endY = size.height,
+                ),
+                blendMode = BlendMode.DstOut,
+            )
+        }
+    }
+
 /** Total length of a page's cascade: the last element starts [CASCADE_STEPS] - 1 delays in and runs Enter. */
 private const val CASCADE_TOTAL_MILLIS = ThesisMotion.Enter + (CASCADE_STEPS - 1) * ThesisMotion.CrossfadeDelay
 
@@ -260,14 +292,14 @@ internal fun cascadeAt(driver: Float, index: Int): Float {
 private fun PageFragment(page: OnboardingPage) {
     val p = LocalThesisPalette.current
     when (page) {
-        OnboardingPage.Desk -> Icon(
-            imageVector = ThesisMark,
+        OnboardingPage.Desk -> Image(
+            imageVector = rememberThesisMark(p.accent),
             contentDescription = null,
             modifier = Modifier.size(ThesisSpace.x5 + ThesisSpace.s),
-            tint = p.accent,
         )
-        OnboardingPage.Pulse -> Column(verticalArrangement = Arrangement.spacedBy(ThesisSpace.m)) {
-            Eyebrow(AccountCopy.ONBOARDING_PULSE_FRAGMENT_EYEBROW, color = p.ink2)
+        // A plain caption names the fragment: the page's own ruled eyebrow ("Pulse") is the only kicker (V3).
+        OnboardingPage.Pulse -> Column(verticalArrangement = Arrangement.spacedBy(ThesisSpace.s)) {
+            Text(AccountCopy.ONBOARDING_PULSE_FRAGMENT_EYEBROW, style = ThesisType.caption, color = p.ink2)
             Text(AccountCopy.ONBOARDING_PULSE_FRAGMENT, style = ThesisType.heroLine, color = p.ink)
         }
         OnboardingPage.DeepDive -> ChapterHeader(

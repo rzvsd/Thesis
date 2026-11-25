@@ -14,6 +14,8 @@ import java.util.Locale
  *
  * Tickers are ordered by their newest note (the name you wrote about last comes first), notes inside a ticker
  * newest first. Dates always carry the year (an export outlives the year it was made in). Blank notes are left out.
+ * A note is the user's plain text: lines that Markdown would read as structure (a heading, a quote, a list item, a
+ * rule, a fence) are escaped, so a note can never break the ticker and report headings around it.
  * Pure: the caller hands the text to the system share sheet or a `CreateDocument` picker.
  */
 object NotesMarkdown {
@@ -59,7 +61,7 @@ object NotesMarkdown {
                     note.verdict?.trim()?.takeIf { it.isNotEmpty() }?.let { verdict ->
                         append("> ").append(oneLine(verdict)).append("\n\n")
                     }
-                    append(note.text.trim().replace("\r\n", "\n")).append("\n")
+                    append(noteBody(note.text)).append("\n")
                 }
             }
         }
@@ -77,6 +79,26 @@ object NotesMarkdown {
         val report = if (period != null) "$period report" else "Report"
         val date = instantOf(note)?.atZone(zone)?.toLocalDate()?.format(DateFormat)
         return if (date != null) "$report · $date" else report
+    }
+
+    /** The note's text with every line escaped by [escapeLine]. */
+    internal fun noteBody(text: String): String =
+        text.trim().replace("\r\n", "\n").replace('\r', '\n').lines().joinToString("\n") { escapeLine(it) }
+
+    /** Leading `#`, `>`, `+`, a code fence, `-`/`*` list markers and rules, and `=`/`-` underlines. */
+    private val BlockMarker = Regex("""^(\s{0,3})(#|>|[-+*](?=\s|$)|`{3}|~{3}|[-*_=](?=(\s*[-*_=]){2,}\s*$)|=+\s*$)""")
+
+    /** An ordered-list marker: digits then `.` or `)` and a space (or the end of the line). */
+    private val OrderedMarker = Regex("""^(\s{0,3}\d{1,9})([.)])(?=\s|$)""")
+
+    /**
+     * One note line, with a leading Markdown block marker backslash-escaped (`\#`, `\>`, `\-`, `1\.`): Markdown
+     * renders the character as written, and a plain-text reader still sees the note almost unchanged.
+     */
+    internal fun escapeLine(line: String): String {
+        OrderedMarker.find(line)?.let { m -> return m.groupValues[1] + "\\" + m.groupValues[2] + line.substring(m.range.last + 1) }
+        BlockMarker.find(line)?.let { m -> return m.groupValues[1] + "\\" + line.substring(m.groupValues[1].length) }
+        return line
     }
 
     /** A verdict quoted on one line (a newline would end the Markdown quote). */

@@ -95,4 +95,23 @@ class NotesMarkdownTest {
         assertEquals("thesis-notes-2026-11-25.md", NotesMarkdown.fileName(today))
         assertEquals("thesis-notes-2027-01-05.md", NotesMarkdown.fileName(LocalDate.of(2027, 1, 5)))
     }
+
+    @Test
+    fun `note lines that Markdown reads as structure are escaped, plain lines are kept`() {
+        val text = "# Not a heading\n## Nor this\n> not a quote\n- not a list\n* nor this\n+ nor this\n" +
+            "1. not numbered\n12) nor this\n---\n===\n```\n  # indented\n-5% margin is fine\n#hashtag\nPlain line."
+        val expected = "\\# Not a heading\n\\## Nor this\n\\> not a quote\n\\- not a list\n\\* nor this\n" +
+            "\\+ nor this\n1\\. not numbered\n12\\) nor this\n\\---\n\\===\n\\```\n  \\# indented\n" +
+            "-5% margin is fine\n\\#hashtag\nPlain line."
+        assertEquals(expected, NotesMarkdown.noteBody(text))
+    }
+
+    @Test
+    fun `a note with a heading line stays under its ticker and report headings`() {
+        val md = NotesMarkdown.build(listOf(note("AAPL", "# My take\n> quoted", "2026-11-20T15:00:00Z")), today, zone)
+        val headings = md.lines().filter { it.startsWith("#") }
+        assertEquals(listOf("# Thesis notes", "## AAPL", "### FY2025 report · 20 Nov 2026"), headings)
+        assertTrue(md.contains("\\# My take\n\\> quoted"))
+        assertFalse(md.lines().any { it.startsWith(">") })
+    }
 }

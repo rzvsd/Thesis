@@ -32,14 +32,12 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.foundation.text.KeyboardOptions
@@ -60,7 +58,6 @@ import com.thesis.mobile.ui.components.ScreenHeader
 import com.thesis.mobile.ui.components.SecondaryButton
 import com.thesis.mobile.ui.components.SegmentedControl
 import com.thesis.mobile.ui.components.StatusBadge
-import com.thesis.mobile.ui.components.TertiaryButton
 import com.thesis.mobile.ui.components.ThesisCard
 import com.thesis.mobile.ui.components.ThesisChip
 import com.thesis.mobile.ui.components.ThesisSheet
@@ -78,6 +75,7 @@ import com.thesis.mobile.ui.theme.ThesisSpace
 import com.thesis.mobile.ui.theme.ThesisType
 import com.thesis.mobile.ui.theme.UpDownScheme
 import com.thesis.mobile.ui.theme.withUpDown
+import java.time.Clock
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -103,7 +101,9 @@ private val FeedbackFlowCodes = listOf("cancel", "downgrade")
  * `CreateDocument`), the import panel and the Android-only delete-account section, so design-preview renders it.
  * [onExportNotes] receives the file name and the Markdown ([NotesMarkdown]); [onLoadNotes] asks for the cached notes.
  * [subscriptionOffers], [onRefreshOffers], [onStartPurchase] and [canStartPurchase] are kept for the callers: plans
- * are chosen on the Paywall, which "See Pro" opens through [onRequireUpgrade].
+ * are chosen on the Paywall, which "See Pro" opens through [onRequireUpgrade]. [clock] dates the notes export and
+ * decides whether a quiet-until time has passed (its zone also dates the billing period end), so renders and tests
+ * pass a fixed one.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -148,6 +148,7 @@ fun SettingsScreen(
     onExportNotes: ((fileName: String, markdown: String) -> Unit)? = null,
     /** Opens the holdings CSV import (WP-B's panel); the row is hidden while null. */
     onImportHoldings: (() -> Unit)? = null,
+    clock: Clock = Clock.systemDefaultZone(),
 ) {
     val p = LocalThesisPalette.current
     val fmt = LocalFmt.current
@@ -214,7 +215,7 @@ fun SettingsScreen(
                 }
                 notificationPreferences.forEach { preference ->
                     row {
-                        val quiet = preference.quietUntil?.let { quietUntilLabel(it, fmt) }
+                        val quiet = preference.quietUntil?.let { quietUntilLabel(it, fmt, now = clock.instant(), zone = clock.zone) }
                         ToggleRow(
                             title = AccountCopy.notificationFamily(preference.type),
                             checked = preference.enabled,
@@ -285,9 +286,8 @@ fun SettingsScreen(
                             icon = ThesisIcons.Notes,
                             title = AccountCopy.EXPORT_NOTES,
                             onClick = {
-                                val zone = ZoneId.systemDefault()
-                                val today = LocalDate.now(zone)
-                                onExportNotes(NotesMarkdown.fileName(today), NotesMarkdown.build(notes, today, zone))
+                                val today = LocalDate.now(clock)
+                                onExportNotes(NotesMarkdown.fileName(today), NotesMarkdown.build(notes, today, clock.zone))
                             },
                             caption = AccountCopy.exportNotesSub(noteCount, nameCount),
                         )
@@ -303,7 +303,7 @@ fun SettingsScreen(
                         DataRow(
                             label = AccountCopy.PLAN,
                             value = if (isPro) AccountCopy.PLAN_VALUE_PRO else AccountCopy.PLAN_VALUE_FREE,
-                            sub = profile?.billingPeriodEnd?.let { periodEndLabel(it, fmt) }?.let(AccountCopy::periodEnds),
+                            sub = profile?.billingPeriodEnd?.let { periodEndLabel(it, fmt, clock.zone) }?.let(AccountCopy::periodEnds),
                         )
                     }
                     if (profile != null) {
@@ -414,8 +414,11 @@ fun SettingsScreen(
         }
 
         section("account", AccountCopy.SECTION_ACCOUNT) {
-            Column(verticalArrangement = Arrangement.spacedBy(ThesisSpace.s)) {
-                TertiaryButton(AccountCopy.LOG_OUT, onLogout, leadingIcon = ThesisIcons.SignOut)
+            Column(verticalArrangement = Arrangement.spacedBy(ThesisSpace.m)) {
+                // A row like every other You action: its card and the delete button below share the text edge.
+                RowGroup {
+                    row { ActionRow(icon = ThesisIcons.SignOut, title = AccountCopy.LOG_OUT, onClick = onLogout) }
+                }
                 deleteAccountSection()
             }
         }
@@ -456,7 +459,10 @@ private fun LazyListScope.section(key: String, kicker: String, content: @Composa
     }
 }
 
-/** A row holding a label above a full-width control (Theme, Up and down colours). */
+/**
+ * A row holding a label above a full-width control (Theme, Up and down colours). Title and sub use the ToggleRow
+ * styles (`body`, `bodySmall`), so the Appearance rows read as one anatomy.
+ */
 @Composable
 private fun LabelledControl(label: String, sub: String? = null, trailing: @Composable () -> Unit = {}, control: @Composable () -> Unit) {
     val p = LocalThesisPalette.current
@@ -468,8 +474,8 @@ private fun LabelledControl(label: String, sub: String? = null, trailing: @Compo
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text(label, style = ThesisType.rowTitle, color = p.ink)
-                if (sub != null) Text(sub, style = ThesisType.caption, color = p.ink2)
+                Text(label, style = ThesisType.body, color = p.ink)
+                if (sub != null) Text(sub, style = ThesisType.bodySmall, color = p.ink2)
             }
             trailing()
         }
@@ -486,14 +492,8 @@ private fun LabelledControl(label: String, sub: String? = null, trailing: @Compo
 private fun UpDownRow(scheme: UpDownScheme, onSelect: (UpDownScheme) -> Unit) {
     val sub = if (scheme == UpDownScheme.ColourBlind) AccountCopy.UP_DOWN_COLOUR_BLIND_SUB else AccountCopy.UP_DOWN_CLASSIC_SUB
     BoxWithConstraints(Modifier.fillMaxWidth()) {
-        val measurer = rememberTextMeasurer()
-        val density = LocalDensity.current
-        val longest = AccountCopy.UP_DOWN_OPTIONS.maxOf { measurer.measure(it, ThesisType.label).size.width }
-        // Half the row, less the row padding and the segment's own padding (inset and label padding each side).
-        val segment = with(density) {
-            ((maxWidth - ThesisSpace.l * 2) / AccountCopy.UP_DOWN_OPTIONS.size - (ThesisSpace.xs + ThesisSpace.s) * 2).toPx()
-        }
-        if (longest <= segment) {
+        // The control spans the row less its padding.
+        if (segmentLabelsFit(AccountCopy.UP_DOWN_OPTIONS, maxWidth - ThesisSpace.l * 2)) {
             LabelledControl(AccountCopy.UP_DOWN, sub = sub, trailing = { UpDownPreview(scheme) }) {
                 SegmentedControl(
                     options = AccountCopy.UP_DOWN_OPTIONS,
@@ -587,9 +587,11 @@ private fun MonthlyReview(
     val p = LocalThesisPalette.current
     val fmt = LocalFmt.current
     if (!isPro) {
-        ThesisCard(title = AccountCopy.REVIEW_PRO_TITLE) {
+        ThesisCard(
+            title = AccountCopy.REVIEW_PRO_TITLE,
+            footer = CardFooter(actionLabel = AccountCopy.SEE_PRO, onAction = onSeePro),
+        ) {
             Text(AccountCopy.REVIEW_PRO_BODY, style = ThesisType.body, color = p.ink2)
-            TertiaryButton(AccountCopy.SEE_PRO, onSeePro)
         }
         return
     }
@@ -640,15 +642,18 @@ private fun DeveloperApi(currentApiBaseUrl: String, onSave: (String) -> Unit) {
     }
 }
 
-/** "14:30, 26 Nov" for a quiet-until instant still in the future; null when it has passed or cannot be read. */
-internal fun quietUntilLabel(raw: String, fmt: Fmt, now: Instant = Instant.now(), zone: ZoneId = ZoneId.systemDefault()): String? {
+/**
+ * "14:30, 26 Nov" for a quiet-until instant still in the future; null when it has passed or cannot be read. [now]
+ * and [zone] come from the screen's injected clock (never the system's), so the caption is deterministic.
+ */
+internal fun quietUntilLabel(raw: String, fmt: Fmt, now: Instant, zone: ZoneId): String? {
     val until = runCatching { Instant.parse(raw) }.getOrNull() ?: return null
     if (!until.isAfter(now)) return null
     return "${fmt.time(until)}, ${fmt.shortDate(until.atZone(zone).toLocalDate())}"
 }
 
 /** The billing period end as a short date ("24 Dec"); the raw value when it is not a date the app can read. */
-internal fun periodEndLabel(raw: String, fmt: Fmt, zone: ZoneId = ZoneId.systemDefault()): String? {
+internal fun periodEndLabel(raw: String, fmt: Fmt, zone: ZoneId): String? {
     val trimmed = raw.trim().takeIf { it.isNotEmpty() } ?: return null
     val date = runCatching { Instant.parse(trimmed).atZone(zone).toLocalDate() }.getOrNull()
         ?: runCatching { LocalDate.parse(trimmed.take(10)) }.getOrNull()

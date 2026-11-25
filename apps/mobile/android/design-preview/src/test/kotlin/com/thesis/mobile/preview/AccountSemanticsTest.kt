@@ -12,6 +12,7 @@ import androidx.compose.ui.test.hasScrollToNodeAction
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -29,7 +30,11 @@ import com.thesis.mobile.ui.screens.OnboardingScreen
 import com.thesis.mobile.ui.screens.PasswordResetContent
 import com.thesis.mobile.ui.screens.PaywallScreen
 import com.thesis.mobile.ui.shell.AppearancePrefs
+import com.thesis.mobile.ui.theme.InkDark
+import com.thesis.mobile.ui.theme.PaperLight
 import com.thesis.mobile.ui.theme.ThemeMode
+import com.thesis.mobile.ui.theme.ThesisPalette
+import com.thesis.mobile.ui.theme.withUpDown
 import com.thesis.mobile.ui.theme.ThesisTheme
 import com.thesis.mobile.ui.theme.UpDownScheme
 import org.junit.Assert.assertEquals
@@ -223,7 +228,9 @@ class AccountSemanticsTest {
         rule.onNode(hasScrollToNodeAction()).performScrollToNode(hasText(AccountCopy.EXPORT_NOTES))
         rule.onNodeWithText(AccountCopy.EXPORT_NOTES).assertRole(Role.Button).assertTouchTargetAtLeast().performClick()
         val (name, md) = exported!!
-        assertTrue(name, name.matches(Regex("""thesis-notes-\d{4}-\d{2}-\d{2}\.md""")))
+        // Dated by the screen's injected clock (the fixture's 25 Nov 2026), not the machine's.
+        assertEquals("thesis-notes-2026-11-25.md", name)
+        assertTrue(md.contains("Exported 25 Nov 2026"))
         assertTrue(md.startsWith("# Thesis notes"))
         assertTrue(md.contains("## NVDA") && md.contains("## AAPL"))
     }
@@ -235,6 +242,67 @@ class AccountSemanticsTest {
         rule.onNode(hasScrollToNodeAction()).performScrollToNode(hasText(AccountCopy.SEE_PRO_SUB))
         rule.onNodeWithText(AccountCopy.SEE_PRO_SUB, substring = true).performClick()
         assertEquals("settings_subscription", feature)
+    }
+
+    @Test
+    fun `the theme and up-down settings change the palette the screen is drawn with`() {
+        val palettes = mutableListOf<ThesisPalette>()
+        set { AccountFixtures.YouWithAppearance(AppearancePrefs(themeMode = ThemeMode.Dark), onPalette = { palettes += it }) }
+        assertEquals(InkDark.bg, palettes.last().bg)
+        rule.onNodeWithText("Light").performClick()
+        rule.waitForIdle()
+        assertEquals(PaperLight.bg, palettes.last().bg)
+        rule.onNodeWithText("Light").assertIsSelected()
+        val classicUp = palettes.last().upText
+        rule.onNodeWithText("Colour-blind").performClick()
+        rule.waitForIdle()
+        assertEquals(PaperLight.withUpDown(UpDownScheme.ColourBlind).upText, palettes.last().upText)
+        assertTrue(classicUp != palettes.last().upText)
+    }
+
+    @Test
+    fun `reset can go back to correct the email after a code was sent`() {
+        val requested = mutableListOf<String>()
+        set {
+            PasswordResetContent(
+                onBack = {},
+                onRequestCode = { email, done ->
+                    requested += email
+                    done(null, null)
+                },
+                onConfirm = { _, _, _, _ -> },
+                initialEmail = AccountFixtures.EMAIL,
+                initialCodeSent = true,
+            )
+        }
+        field(AccountCopy.EMAIL).assertIsNotEnabled()
+        rule.onNodeWithText(AccountCopy.RESET_SEND_AGAIN).assertTouchTargetAtLeast().performClick()
+        assertEquals(listOf(AccountFixtures.EMAIL), requested)
+        rule.onNodeWithText(AccountCopy.RESET_OTHER_EMAIL).assertTouchTargetAtLeast().performClick()
+        rule.waitForIdle()
+        field(AccountCopy.EMAIL).assertIsEnabled()
+        rule.onNode(hasClickAction() and hasText(AccountCopy.RESET_SEND)).assertExists()
+    }
+
+    @Test
+    fun `paywall plans that never arrive end in an error with try again`() {
+        var refreshes = 0
+        set {
+            PaywallScreen(
+                alerts = emptyList(), watchlist = emptyList(), offers = emptyList(), actionInFlight = false,
+                onPurchase = {}, onRestore = {}, onRefreshOffers = { refreshes++ }, onDismiss = {},
+                billingEnabled = true, offersWaitMillis = 300,
+            )
+        }
+        // The wait runs on the effect's own timer (not the test clock): poll for the banner.
+        rule.waitUntil(timeoutMillis = 5_000) {
+            rule.onAllNodesWithText(AccountCopy.PAYWALL_PLANS_STALLED, substring = true).fetchSemanticsNodes().isNotEmpty()
+        }
+        rule.onNodeWithText(AccountCopy.PAYWALL_PLANS_STALLED, substring = true).assertIsLiveRegion()
+        val before = refreshes
+        rule.onNodeWithText(AccountCopy.PAYWALL_PLANS_RETRY).performScrollTo().performClick()
+        rule.waitForIdle()
+        assertEquals(before + 1, refreshes)
     }
 
     private fun hasRadio() = androidx.compose.ui.test.SemanticsMatcher.expectValue(

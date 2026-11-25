@@ -6,6 +6,8 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -22,6 +24,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -34,7 +37,7 @@ import com.thesis.mobile.ui.components.InlineBanner
 import com.thesis.mobile.ui.components.PasswordField
 import com.thesis.mobile.ui.components.PrimaryButton
 import com.thesis.mobile.ui.components.ScreenHeader
-import com.thesis.mobile.ui.components.TertiaryButton
+import com.thesis.mobile.ui.components.TextAction
 import com.thesis.mobile.ui.components.ThesisScreen
 import com.thesis.mobile.ui.components.ThesisTextField
 import com.thesis.mobile.ui.components.ThesisTopBar
@@ -52,13 +55,17 @@ fun meetsPasswordRule(password: String): Boolean = password.length >= PASSWORD_M
  * Password reset (DESIGN-DIRECTION 5.4): a top bar with back, the ScreenHeader "Reset your password", then two
  * steps. Step 1: the account email and "Send reset code". Step 2: the code and the new password, whose rule shows
  * as helper text and updates as the user types ("At least 10 characters, 4 to go"); "Set new password" is enabled
- * once the rule holds, and "Send a new code" asks for another code for the same email. The status line is
- * announced (liveRegion).
+ * once the rule holds; "Send a new code" asks for another code for the same email and "Use another email" goes back
+ * to step 1 to correct it. The status line is announced (liveRegion).
+ *
+ * The in-flight flag is plain `remember`, not saveable: the ViewModel's callback writes to this composition's
+ * state, so after a rotation a restored `busy = true` would never be cleared.
  *
  * Pure (renders in design-preview). The Android entry point is [PasswordResetScreen], which passes the ViewModel's
  * calls: [onRequestCode] answers `(error, message)`, [onConfirm] answers `error` (null on success, after which the
  * caller returns to Auth, which shows the result). [onBack] returns to Auth.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun PasswordResetContent(
     onBack: () -> Unit,
@@ -71,7 +78,7 @@ fun PasswordResetContent(
     var code by rememberSaveable { mutableStateOf("") }
     var newPassword by rememberSaveable { mutableStateOf("") }
     var codeSent by rememberSaveable { mutableStateOf(initialCodeSent) }
-    var busy by rememberSaveable { mutableStateOf(false) }
+    var busy by remember { mutableStateOf(false) }
     var status by rememberSaveable { mutableStateOf<String?>(null) }
     var isError by rememberSaveable { mutableStateOf(false) }
 
@@ -168,7 +175,20 @@ fun PasswordResetContent(
                         enabled = canConfirm || busy,
                         loading = busy,
                     )
-                    TertiaryButton(AccountCopy.RESET_SEND_AGAIN, requestCode, enabled = !busy)
+                    // Text actions on the text edge (T4), side by side while they fit.
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(ThesisSpace.xl)) {
+                        TextAction(AccountCopy.RESET_SEND_AGAIN, requestCode, enabled = !busy)
+                        TextAction(
+                            AccountCopy.RESET_OTHER_EMAIL,
+                            onClick = {
+                                codeSent = false
+                                code = ""
+                                newPassword = ""
+                                status = null
+                            },
+                            enabled = !busy,
+                        )
+                    }
                 } else {
                     PrimaryButton(
                         text = AccountCopy.RESET_SEND,

@@ -1,7 +1,14 @@
 package com.thesis.mobile.preview.fixtures
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import com.thesis.mobile.model.AlertLedgerItemView
 import com.thesis.mobile.model.ConvictionInsightCardView
 import com.thesis.mobile.model.ConvictionInsightFindingView
@@ -13,7 +20,11 @@ import com.thesis.mobile.ui.format.Fmt
 import com.thesis.mobile.ui.format.LocalFmt
 import com.thesis.mobile.ui.screens.DeleteAccountControl
 import com.thesis.mobile.ui.screens.SettingsScreen
+import com.thesis.mobile.ui.components.pageBackground
 import com.thesis.mobile.ui.shell.AppearancePrefs
+import com.thesis.mobile.ui.theme.LocalThesisPalette
+import com.thesis.mobile.ui.theme.ThesisPalette
+import com.thesis.mobile.ui.theme.ThesisTheme
 import androidx.compose.foundation.layout.PaddingValues
 import java.time.Clock
 import java.time.Instant
@@ -23,7 +34,8 @@ import java.time.ZoneId
 object AccountFixtures {
     val zone: ZoneId = ZoneId.of("America/New_York")
     val now: Instant = Instant.parse("2026-11-25T12:30:00Z")
-    val fmt = Fmt(Clock.fixed(now, zone), zone, is24h = true)
+    val clock: Clock = Clock.fixed(now, zone)
+    val fmt = Fmt(clock, zone, is24h = true)
 
     const val API = "https://api.example.invalid"
     const val EMAIL = "maya.chen@example.com"
@@ -140,7 +152,28 @@ object AccountFixtures {
                 notes = notesList,
                 onExportNotes = onExportNotes,
                 onImportHoldings = {},
+                clock = clock,
             )
+        }
+    }
+
+    /**
+     * You as the app hosts it: the appearance settings drive the theme around the screen (mode, up/down colours,
+     * reduced motion), and changing one recomposes with the new palette, as ThesisApp does with the stored prefs.
+     * The page background is redrawn inside, so the whole frame follows the setting, not the render's own theme.
+     */
+    @Composable
+    fun YouWithAppearance(
+        initial: AppearancePrefs,
+        pro: Boolean = false,
+        onPalette: (ThesisPalette) -> Unit = {},
+    ) {
+        var appearance by remember { mutableStateOf(initial) }
+        ThesisTheme(mode = appearance.themeMode, upDown = appearance.upDown, reduceMotion = appearance.reduceMotion) {
+            onPalette(LocalThesisPalette.current)
+            Box(Modifier.fillMaxSize().pageBackground(LocalThesisPalette.current)) {
+                You(pro = pro, appearance = appearance, onSetAppearance = { appearance = it })
+            }
         }
     }
 }

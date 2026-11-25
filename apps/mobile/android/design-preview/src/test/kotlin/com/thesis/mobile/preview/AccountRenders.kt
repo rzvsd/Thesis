@@ -9,6 +9,7 @@ import com.thesis.mobile.preview.fixtures.AccountFixtures
 import com.thesis.mobile.ui.screens.AuthScreen
 import com.thesis.mobile.ui.screens.DeleteAccountControl
 import com.thesis.mobile.ui.screens.OnboardingScreen
+import com.thesis.mobile.ui.screens.PAYWALL_OFFERS_WAIT_MILLIS
 import com.thesis.mobile.ui.screens.PasswordResetContent
 import com.thesis.mobile.ui.screens.PaywallScreen
 import com.thesis.mobile.ui.shell.AppearancePrefs
@@ -133,10 +134,23 @@ class AccountRenders {
     @Test fun youFreeFullPage() = render("account-you-free-full", heightDp = youPage) { AccountFixtures.You() }
     @Test fun youProFullPage() = render("account-you-pro-full", heightDp = youPage) { AccountFixtures.You(pro = true, showDeveloperOptions = true) }
 
-    /** Colour-blind up/down: the swatches switch to blue and clay (the palette changes, 5.22). */
-    @Test fun youColourBlind() = render("account-you-colour-blind", upDown = UpDownScheme.ColourBlind) {
-        AccountFixtures.You(appearance = AppearancePrefs(themeMode = ThemeMode.Light, upDown = UpDownScheme.ColourBlind, reduceMotion = true))
+    /**
+     * The settings drive the palette (5.22): each render runs in the opposite harness theme, and the frame follows
+     * the selected Theme segment instead (file suffix = the harness theme it overrides). Colour-blind switches the
+     * swatches to blue and clay; reduce motion is on in that one, and the theme around it runs reduced.
+     */
+    private fun youSetting(name: String, harness: PreviewTheme, prefs: AppearancePrefs) {
+        val files = renderScreen(name, themes = listOf(harness)) { AccountFixtures.WithFixedTime { AccountFixtures.YouWithAppearance(prefs) } }
+        files.forEach { assertTrue("${it.name} was not written", it.isFile && it.length() > 0) }
     }
+
+    @Test fun youSetLight() = youSetting("account-you-set-light-from", PreviewTheme.DARK, AppearancePrefs(themeMode = ThemeMode.Light))
+    @Test fun youSetDark() = youSetting("account-you-set-dark-from", PreviewTheme.LIGHT, AppearancePrefs(themeMode = ThemeMode.Dark))
+    @Test fun youSetColourBlind() = youSetting(
+        "account-you-set-light-colour-blind-from",
+        PreviewTheme.DARK,
+        AppearancePrefs(themeMode = ThemeMode.Light, upDown = UpDownScheme.ColourBlind, reduceMotion = true),
+    )
 
     @Test fun youNotificationsOff() = render("account-you-notifications-off") {
         AccountFixtures.You(notificationsEnabled = false, notesList = emptyList())
@@ -171,6 +185,7 @@ class AccountRenders {
         offers: Boolean = true,
         ownAlert: Boolean = false,
         inFlight: Boolean = false,
+        waitMillis: Long = PAYWALL_OFFERS_WAIT_MILLIS,
     ) = PaywallScreen(
         alerts = if (ownAlert) listOf(AccountFixtures.filingAlert) else emptyList(),
         watchlist = listOf("NVDA", "AAPL"),
@@ -182,11 +197,16 @@ class AccountRenders {
         onDismiss = {},
         apiBaseUrl = AccountFixtures.API,
         billingEnabled = billing,
+        offersWaitMillis = waitMillis,
     )
 
     @Test fun paywallPlans() = render("account-paywall-plans") { Paywall() }
     @Test fun paywallPlansFull() = render("account-paywall-plans-full", heightDp = PhoneSpec.FULL_PAGE_HEIGHT_DP) { Paywall(ownAlert = true) }
     @Test fun paywallLoading() = render("account-paywall-loading-full", heightDp = PhoneSpec.FULL_PAGE_HEIGHT_DP) { Paywall(offers = false) }
+
+    /** No plans after the wait: the skeletons give way to an error banner with Try again. */
+    @Test fun paywallStalled() =
+        render("account-paywall-stalled-full", heightDp = PhoneSpec.FULL_PAGE_HEIGHT_DP, settleMs = 1_500) { Paywall(offers = false, waitMillis = 1_000) }
     @Test fun paywallUnavailable() = render("account-paywall-unavailable-full", heightDp = PhoneSpec.FULL_PAGE_HEIGHT_DP) { Paywall(billing = false, offers = false) }
     @Test fun paywallPurchasing() = render("account-paywall-purchasing", settleMs = 600) { Paywall(inFlight = true) }
     @Test fun paywallScale13() = render("account-paywall-scale1.3", fontScale = 1.3f) { Paywall() }

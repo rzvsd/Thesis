@@ -7,6 +7,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -49,8 +50,10 @@ fun DeleteAccountControl(
     val haptics = rememberHaptics()
     var showDialog by rememberSaveable { mutableStateOf(initiallyOpen) }
     var confirmText by rememberSaveable { mutableStateOf(initialConfirmText) }
-    var busy by rememberSaveable { mutableStateOf(false) }
-    var error by rememberSaveable { mutableStateOf<String?>(null) }
+    // Not saveable: [onDelete]'s error callback writes to this composition's state, so a `busy = true` restored
+    // after a rotation would never be cleared and the button would spin for good.
+    var busy by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
 
     Column(modifier, verticalArrangement = Arrangement.spacedBy(ThesisSpace.s)) {
         DestructiveButton(
