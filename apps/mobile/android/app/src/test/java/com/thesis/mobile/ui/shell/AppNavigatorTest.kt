@@ -376,4 +376,65 @@ class AppNavigatorTest {
         nav.back()
         assertFalse(pushed.entryId in nav.liveEntryIds())
     }
+
+    @Test
+    fun everyWayOffAStackReportsTheRemovedEntries() {
+        val nav = AppNavigator()
+        val removed = mutableListOf<Destination>()
+        val record: (NavEntry) -> Unit = { removed += it.destination }
+
+        // Reselecting Today pops a dated Pulse; the caller hears about it, as it does from back().
+        nav.push(Destination.Pulse("2026-11-20"))
+        nav.selectTab(ShellTab.Today, record)
+        assertEquals(listOf<Destination>(Destination.Pulse("2026-11-20")), removed)
+
+        // Changing tab keeps the old tab's stack: nothing is reported. Closing a modal on a tap is.
+        removed.clear()
+        nav.push(Destination.Pulse("2026-11-19"))
+        nav.openModal(Destination.You)
+        nav.selectTab(ShellTab.Names, record)
+        assertEquals(listOf<Destination>(Destination.You), removed)
+        assertEquals(listOf(Destination.Today, Destination.Pulse("2026-11-19")), destinations(nav, ShellTab.Today))
+
+        // A route that lands on Today pops its sub-stack (the dated Pulse) and closes modals.
+        removed.clear()
+        nav.openModal(Destination.Search)
+        nav.apply(DeepLinkRouter.route(LaunchTarget(tab = "today"))!!, record)
+        assertEquals(listOf(Destination.Search, Destination.Pulse("2026-11-19")), removed)
+
+        // popToRoot reports top first.
+        removed.clear()
+        nav.push(Destination.History())
+        nav.push(Destination.Pulse("2026-11-18"))
+        nav.popToRoot(ShellTab.Today, record)
+        assertEquals(listOf(Destination.Pulse("2026-11-18"), Destination.History()), removed)
+        removed.clear()
+        nav.popToRoot(ShellTab.Today, record)
+        assertTrue("nothing to pop, nothing reported", removed.isEmpty())
+    }
+
+    @Test
+    fun backingOutOfABuildAndStartingAnotherShowsTheRunningBuild() {
+        val nav = AppNavigator()
+        nav.selectTab(ShellTab.Research)
+        nav.push(Destination.DeepDiveRunning("AAPL"))
+        // Back out while AAPL builds, then ask for MSFT from Names.
+        nav.back()
+        nav.selectTab(ShellTab.Names)
+        val decision = decideDeepDiveStart("msft", isRunning = true, runningTicker = "AAPL", top = nav.tabTop.destination)
+        assertEquals(
+            DeepDiveStartDecision.ShowRunning(
+                runningTicker = "AAPL",
+                alreadyShowing = false,
+                replaceTop = false,
+                message = stillBuildingMessage("AAPL", "MSFT")
+            ),
+            decision
+        )
+        nav.push(Destination.DeepDiveRunning("AAPL"))
+        // AAPL finishes: its entry becomes the report, and no MSFT entry was ever left behind to say "no longer running".
+        nav.replaceWhere(Destination.Report("r1", "AAPL")) { it is Destination.DeepDiveRunning && it.ticker == "AAPL" }
+        assertEquals(listOf(Destination.Names, Destination.Report("r1", "AAPL")), destinations(nav, ShellTab.Names))
+        assertFalse(nav.isInCurrentStack { it is Destination.DeepDiveRunning })
+    }
 }

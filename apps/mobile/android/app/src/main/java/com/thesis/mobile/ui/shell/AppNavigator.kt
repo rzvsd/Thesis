@@ -99,16 +99,19 @@ class AppNavigator(private val store: NavigatorStateStore? = null) {
     /**
      * A bottom-bar tap. Closes any modal; tapping the tab that is already showing returns it to its root.
      * Returns true when the tap changed the tab (the caller refreshes that tab's data if it is stale).
+     * [onRemoved] sees each entry the tap took off a stack (closed modals, a popped sub-stack), as [back] does.
      */
-    fun selectTab(tab: ShellTab): Boolean {
+    fun selectTab(tab: ShellTab, onRemoved: (NavEntry) -> Unit = {}): Boolean {
         val wasModalOpen = modalStack.isNotEmpty()
+        val removed = modalStack.toMutableList()
         modalStack.clear()
         val changed = currentTab != tab
-        if (!changed && !wasModalOpen) popToRoot(tab)
+        if (!changed && !wasModalOpen) removed += popStackToRoot(tab)
         if (tab == ShellTab.Names) namesFocusTicker = null
         currentTab = tab
         lastMove = if (changed) NavMove.Tab else if (wasModalOpen) NavMove.Modal else NavMove.Pop
         persist()
+        removed.forEach(onRemoved)
         return changed
     }
 
@@ -234,29 +237,40 @@ class AppNavigator(private val store: NavigatorStateStore? = null) {
         return false
     }
 
-    fun popToRoot(tab: ShellTab = currentTab) {
+    /** Pops [tab] back to its root. [onRemoved] sees each popped entry (top first), as [back] does. */
+    fun popToRoot(tab: ShellTab = currentTab, onRemoved: (NavEntry) -> Unit = {}) {
+        val removed = popStackToRoot(tab)
+        if (removed.isNotEmpty()) persist()
+        removed.forEach(onRemoved)
+    }
+
+    /** Pops [tab]'s stack to its root without persisting; returns the popped entries, top first. */
+    private fun popStackToRoot(tab: ShellTab): List<NavEntry> {
         val stack = stacks.getValue(tab)
-        if (stack.size > 1) {
-            // removeAt(lastIndex), not removeLast(): on compileSdk 35 that resolves to the Java 21 member.
-            while (stack.size > 1) stack.removeAt(stack.lastIndex)
-            lastMove = NavMove.Pop
-            persist()
-        }
+        val removed = mutableListOf<NavEntry>()
+        // removeAt(lastIndex), not removeLast(): on compileSdk 35 that resolves to the Java 21 member.
+        while (stack.size > 1) removed += stack.removeAt(stack.lastIndex)
+        if (removed.isNotEmpty()) lastMove = NavMove.Pop
+        return removed
     }
 
     /** True when [destination] is anywhere on the current tab's stack (the report base layer needs this). */
     fun isInCurrentStack(predicate: (Destination) -> Boolean): Boolean =
         stacks.getValue(currentTab).any { predicate(it.destination) }
 
-    /** Applies a deep-link, notification or alert route: see [com.thesis.mobile.ui.navigation.DeepLinkRouter]. */
-    fun apply(route: NavRoute) {
+    /**
+     * Applies a deep-link, notification or alert route: see [com.thesis.mobile.ui.navigation.DeepLinkRouter].
+     * [onRemoved] sees each entry the route took off a stack (closed modals, the landing tab's popped sub-stack).
+     */
+    fun apply(route: NavRoute, onRemoved: (NavEntry) -> Unit = {}) {
         if (route.modal != null) {
             if (modalStack.lastOrNull()?.destination != route.modal) openModal(route.modal)
             return
         }
         val tab = route.tab ?: return
+        val removed = modalStack.toMutableList()
         modalStack.clear()
-        popToRoot(tab)
+        removed += popStackToRoot(tab)
         val changedTab = currentTab != tab
         currentTab = tab
         if (tab == ShellTab.Names) namesFocusTicker = route.namesFocusTicker
@@ -264,6 +278,7 @@ class AppNavigator(private val store: NavigatorStateStore? = null) {
         // A link that lands on another tab reads as a tab change even when it pushes an entry there.
         lastMove = if (changedTab) NavMove.Tab else if (route.push != null) NavMove.Push else NavMove.Pop
         persist()
+        removed.forEach(onRemoved)
     }
 
     fun clearNamesFocus() {

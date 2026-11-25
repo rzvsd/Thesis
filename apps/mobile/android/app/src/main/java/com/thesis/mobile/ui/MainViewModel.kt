@@ -58,9 +58,11 @@ import com.thesis.mobile.ui.navigation.RouteAction
 import com.thesis.mobile.ui.navigation.ShellTab
 import com.thesis.mobile.ui.shell.AppNavigator
 import com.thesis.mobile.ui.shell.AppearancePrefs
+import com.thesis.mobile.ui.shell.DeepDiveStartDecision
 import com.thesis.mobile.ui.shell.NavEntry
 import com.thesis.mobile.ui.shell.NavigatorStateStore
 import com.thesis.mobile.ui.shell.ShellActions
+import com.thesis.mobile.ui.shell.decideDeepDiveStart
 import com.thesis.mobile.network.ProductApiClient
 import com.thesis.mobile.network.ProductApiException
 import com.thesis.mobile.observability.MobileTelemetry
@@ -137,6 +139,9 @@ class MainViewModel(
     private val deepDiveResumePrefs = application.applicationContext
         .getSharedPreferences(DEEP_DIVE_RESUME_PREFS, Context.MODE_PRIVATE)
     private var deepDivePoll: Job? = null
+    // The job the app follows (one build at a time, decideDeepDiveStart). A poll that is not for this job (an older
+    // one still winding down) never publishes the build state or clears the resume prefs of the current one.
+    private var activeDeepDiveJobId: String? = null
 
     // Only one Pulse / macro stress refresh runs at a time: a newer refresh cancels the older one, so a
     // slow or stuck older request can no longer finish late and replace fresh data with the saved copy.
@@ -564,7 +569,7 @@ class MainViewModel(
                     )
                 )
                 cacheStore.setDeepDiveNotePinned(report.reportId, saved.content.isNotBlank())
-                runCatching { cacheStore.cacheReportNote(report.reportId, saved, report) }
+                runCatchingNonCancellation { cacheStore.cacheReportNote(report.reportId, saved, report) }
                 trackEvent(
                     "deep_dive_note_saved",
                     mapOf(
@@ -1314,33 +1319,44 @@ class MainViewModel(
             publish(state.copy(message = "Select a ticker first."))
             return
         }
+        // One build at a time: callers go through startOrShowDeepDive, which shows the running build instead.
+        if (state.isDeepDiveRunning) return
 
         // The entry that shows this build's progress and failure is DeepDiveRunning(buildTicker) (ShellDestinations).
         val buildTicker = ticker.trim().uppercase()
-        withAuthorizedCall(onError = {
-            publish(state.copy(isDeepDiveRunning = false, deepDiveBuildTicker = buildTicker, deepDiveError = state.message))
-        }) {
-            publish(
-                state.copy(
-                    isDeepDiveRunning = true,
-                    deepDiveBuildTicker = buildTicker,
-                    deepDiveReport = null,
-                    deepDiveLoadedFromCache = false,
-                    reportNote = null,
-                    reportNoteDraft = "",
-                    isSavingNote = false,
-                    convictionTimeline = emptyList(),
-                    convictionTimelineError = null,
-                    oppositeCase = null,
-                    oppositeCaseError = null,
-                    isGeneratingOppositeCase = false,
-                    scenarioResult = null,
-                    isRunningScenario = false,
-                    deepDiveError = null,
-                    jobStatus = "queued"
-                )
+        // Marked running before the request goes out, so a second tap in the same frame finds the build running.
+        activeDeepDiveJobId = null
+        publish(
+            state.copy(
+                isDeepDiveRunning = true,
+                deepDiveBuildTicker = buildTicker,
+                deepDiveReport = null,
+                deepDiveLoadedFromCache = false,
+                reportNote = null,
+                reportNoteDraft = "",
+                isSavingNote = false,
+                convictionTimeline = emptyList(),
+                convictionTimelineError = null,
+                oppositeCase = null,
+                oppositeCaseError = null,
+                isGeneratingOppositeCase = false,
+                scenarioResult = null,
+                isRunningScenario = false,
+                deepDiveError = null,
+                jobStatus = "queued"
             )
+        )
+        var createdJobId: String? = null
+        withAuthorizedCall(onError = {
+            // Only this build's failure ends the build state (never a newer job's).
+            if (activeDeepDiveJobId == null || activeDeepDiveJobId == createdJobId) {
+                activeDeepDiveJobId = null
+                publish(state.copy(isDeepDiveRunning = false, deepDiveBuildTicker = buildTicker, deepDiveError = state.message))
+            }
+        }) {
             val job = client.createDeepDiveJob(state.apiBaseUrl, requireTokens().accessToken, ticker)
+            createdJobId = job.jobId
+            activeDeepDiveJobId = job.jobId
             publish(state.copy(jobStatus = job.status))
             trackEvent(
                 "deep_dive_requested",
@@ -1374,8 +1390,9 @@ class MainViewModel(
             dropIdleRunningEntries()
             return
         }
-        if (deepDivePoll?.isActive == true) return
+        if (deepDivePoll?.isActive == true || state.isDeepDiveRunning) return
         val ticker = deepDiveResumePrefs.getString(KEY_RESUME_TICKER, null)
+        activeDeepDiveJobId = jobId
         publish(
             state.copy(
                 selectedTicker = state.selectedTicker ?: ticker,
@@ -1387,7 +1404,9 @@ class MainViewModel(
         )
         viewModelScope.launch {
             val error = runAuthorizedWithRefresh { pollDeepDiveJob(jobId) }
-            if (error != null) {
+            // The job may already have ended (complete, then the report fetch failed): its failure still ends the build.
+            if (error != null && (activeDeepDiveJobId == null || activeDeepDiveJobId == jobId)) {
+                activeDeepDiveJobId = null
                 clearDeepDiveInFlight()
                 // The restored running entry shows the failure (with Retry) rather than an empty search.
                 val message = toMessage(error)
@@ -1417,6 +1436,17 @@ class MainViewModel(
         deepDiveResumePrefs.edit().clear().apply()
     }
 
+    /**
+     * Ends [jobId]'s build: forgets it and clears its resume prefs. False (and nothing changes) when [jobId] is not
+     * the job the app follows any more, so a poll that outlived its build cannot end the current one.
+     */
+    private fun endDeepDiveJob(jobId: String): Boolean {
+        if (activeDeepDiveJobId != jobId) return false
+        activeDeepDiveJobId = null
+        clearDeepDiveInFlight()
+        return true
+    }
+
     fun refreshReportHistory() {
         historyInFlight++
         publish(state.copy(isHistoryLoading = true))
@@ -1435,7 +1465,7 @@ class MainViewModel(
             publish(state.copy(isOpeningReport = true, message = null, deepDiveError = null))
             val error = runAuthorizedWithRefresh {
                 val report = client.getDeepDiveReport(state.apiBaseUrl, requireTokens().accessToken, reportId)
-                val note = runCatching {
+                val note = runCatchingNonCancellation {
                     client.getReportNote(state.apiBaseUrl, requireTokens().accessToken, report.reportId)
                 }.getOrNull()
                 cacheStore.cacheDeepDive(report, notePinned = !note?.content.isNullOrBlank())
@@ -1949,12 +1979,13 @@ class MainViewModel(
         )
     }
 
-    fun refreshWatchlist() {
+    /** [thenSnapshots]: refresh the board's snapshots after the list (false when the caller refreshes them itself). */
+    fun refreshWatchlist(thenSnapshots: Boolean = true) {
         boardStarted()
         withAuthorizedCall(onDone = ::boardFinished) {
             val items = client.getWatchlist(state.apiBaseUrl, requireTokens().accessToken)
             publish(state.copy(watchlist = items, watchlistLoaded = true))
-            refreshMonitorSnapshots()
+            if (thenSnapshots) refreshMonitorSnapshots()
         }
     }
 
@@ -2055,7 +2086,7 @@ class MainViewModel(
                 )
                 publish(state.copy(monitorSnapshots = snapshots))
                 // 5.5: every board refresh appends to the 90-day history; deltas compare to the last Names visit.
-                runCatching { cacheStore.appendSnapshotHistory(snapshots) }
+                runCatchingNonCancellation { cacheStore.appendSnapshotHistory(snapshots) }
                 publish(state.copy(snapshotDeltas = computeSnapshotDeltas(snapshots, state.lastNamesVisitAtMs)))
             }
           } finally {
@@ -2075,22 +2106,26 @@ class MainViewModel(
     }
 
     private suspend fun pollDeepDiveJob(jobId: String) {
-        deepDivePoll = currentCoroutineContext()[Job]
+        val current = currentCoroutineContext()[Job]
+        // One poll at a time: an older poll still running (it should not be; see decideDeepDiveStart) stops here.
+        deepDivePoll?.takeIf { it !== current && it.isActive }?.cancel()
+        deepDivePoll = current
         // Up to 6 minutes at a 2 s interval: a cloud runner needs a few minutes to start and finish.
         repeat(DEEP_DIVE_MAX_POLLS) {
             val status = client.getJobStatus(state.apiBaseUrl, requireTokens().accessToken, jobId)
+            if (activeDeepDiveJobId != jobId) return
             publish(state.copy(jobStatus = status.status))
             when (status.status) {
                 "complete" -> {
                     val reportId = status.reportId
                     if (!reportId.isNullOrBlank()) {
-                        clearDeepDiveInFlight()
+                        if (!endDeepDiveJob(jobId)) return
                         val report = client.getDeepDiveReport(
                             state.apiBaseUrl,
                             requireTokens().accessToken,
                             reportId
                         )
-                        val note = runCatching {
+                        val note = runCatchingNonCancellation {
                             client.getReportNote(state.apiBaseUrl, requireTokens().accessToken, report.reportId)
                         }.getOrNull()
                         cacheStore.cacheDeepDive(report, notePinned = !note?.content.isNullOrBlank())
@@ -2144,7 +2179,7 @@ class MainViewModel(
                     }
                 }
                 "failed" -> {
-                    clearDeepDiveInFlight()
+                    if (!endDeepDiveJob(jobId)) return
                     val failureMessage = status.errorMessage ?: "Deep Dive failed."
                     publish(
                         state.copy(
@@ -2158,7 +2193,7 @@ class MainViewModel(
             }
             delay(DEEP_DIVE_POLL_INTERVAL_MS)
         }
-        clearDeepDiveInFlight()
+        if (!endDeepDiveJob(jobId)) return
         publish(
             state.copy(
                 isDeepDiveRunning = false,
@@ -2241,6 +2276,7 @@ class MainViewModel(
         sessionStore.clearLastViewedReport()
         sessionStore.clearTokens()
         deepDivePoll?.cancel()
+        activeDeepDiveJobId = null
         clearDeepDiveInFlight()
         sessionStore.clearVisitMarkers()
         tabFetchedAtMs.clear()
@@ -2557,11 +2593,15 @@ class MainViewModel(
 
     private fun applyRoute(route: NavRoute, forceRefresh: Boolean = false, onLanded: (String) -> Unit = {}) {
         val previousTab = navigator.currentTab
-        navigator.apply(route)
-        noteTabLeft(previousTab, navigator.currentTab)
         // The tab refresh runs before the route's own loads, so a dated Pulse load below cancels a "latest" refresh
         // (5.5 race fix) and never the other way round. A route that opens a Pulse loads it itself.
         val opensPulse = route.actions.any { it is RouteAction.OpenPulse }
+        // Entries the route pops (a dated Pulse under the landing tab) are undone like a back; a route that loads
+        // the Pulse itself replaces the shared Pulse anyway.
+        navigator.apply(route, onRemoved = { removed ->
+            if (!opensPulse || removed.destination !is Destination.Pulse) onEntryPopped(removed)
+        })
+        noteTabLeft(previousTab, navigator.currentTab)
         route.tab?.let { refreshTab(it, force = forceRefresh, skipPulse = opensPulse) }
         if (route.modal is Destination.You) refreshYou()
         route.actions.forEach { action ->
@@ -2573,10 +2613,8 @@ class MainViewModel(
                 is RouteAction.SelectScenario -> selectScenarioStressTemplate(action.scenarioId)
                 is RouteAction.OpenReport -> openHistoryReport(action.reportId)
                 is RouteAction.SelectTicker -> selectTicker(action.ticker)
-                is RouteAction.RunDeepDive -> {
-                    selectTicker(action.ticker)
-                    runDeepDive()
-                }
+                // The route already pushed DeepDiveRunning(ticker); while another build runs, that entry shows it instead.
+                is RouteAction.RunDeepDive -> startOrShowDeepDive(action.ticker) {}
                 is RouteAction.TrackLanded -> onLanded(action.tab)
             }
         }
@@ -2599,18 +2637,21 @@ class MainViewModel(
         }
     }
 
-    /** Undo work tied to an entry that left the screen. */
+    /**
+     * Undo work tied to an entry that left the stacks: by back, a tab reselect, a route or a jump to a tab's root.
+     */
     private fun onEntryPopped(entry: NavEntry) {
         when (val destination = entry.destination) {
-            // A past Pulse replaced the shared Pulse; going back restores the latest issue.
-            is Destination.Pulse -> if (destination.date != null) refreshPulse()
+            // A past Pulse replaced the shared Pulse; once it is gone the latest issue comes back (once, even when
+            // several dated entries leave together).
+            is Destination.Pulse -> if (destination.date != null && pulseRequestedDate != null) refreshPulse()
             else -> Unit
         }
     }
 
     override fun onSelectTab(tab: ShellTab) {
         val previous = navigator.currentTab
-        navigator.selectTab(tab)
+        navigator.selectTab(tab, ::onEntryPopped)
         noteTabLeft(previous, tab)
         refreshTab(tab, force = false)
     }
@@ -2662,10 +2703,7 @@ class MainViewModel(
             publish(state.copy(message = "Select a ticker first."))
             return
         }
-        navigator.closeModals()
-        selectTicker(symbol)
-        navigator.push(Destination.DeepDiveRunning(symbol))
-        runDeepDive()
+        startOrShowDeepDive(symbol) { navigator.push(Destination.DeepDiveRunning(it)) }
     }
 
     override fun onRetryDeepDive(ticker: String) {
@@ -2674,19 +2712,51 @@ class MainViewModel(
             publish(state.copy(message = "Select a ticker first."))
             return
         }
-        if (navigator.modalStack.isEmpty() && navigator.tabTop.destination is Destination.DeepDiveRunning) {
-            selectTicker(symbol)
-            navigator.replaceTop(Destination.DeepDiveRunning(symbol))
-            runDeepDive()
-        } else {
-            onRunDeepDive(symbol)
+        // Retry on a failed running entry rebuilds in place; from anywhere else it pushes a new running entry.
+        startOrShowDeepDive(symbol) {
+            if (navigator.tabTop.destination is Destination.DeepDiveRunning) {
+                navigator.replaceTop(Destination.DeepDiveRunning(it))
+            } else {
+                navigator.push(Destination.DeepDiveRunning(it))
+            }
+        }
+    }
+
+    /**
+     * Starts [ticker]'s build, or shows the build already running (one at a time, see [decideDeepDiveStart]):
+     * a double tap during the push, a Run after backing out of a running build, a research link or a Retry never
+     * start a second job. [showEntry] puts the new build's running entry on screen before it starts.
+     */
+    private fun startOrShowDeepDive(ticker: String, showEntry: (String) -> Unit) {
+        navigator.closeModals()
+        val decision = decideDeepDiveStart(
+            requested = ticker,
+            isRunning = state.isDeepDiveRunning,
+            runningTicker = state.deepDiveBuildTicker,
+            top = navigator.tabTop.destination
+        )
+        when (decision) {
+            is DeepDiveStartDecision.Start -> {
+                selectTicker(decision.ticker)
+                showEntry(decision.ticker)
+                runDeepDive()
+            }
+            is DeepDiveStartDecision.ShowRunning -> {
+                val running = Destination.DeepDiveRunning(decision.runningTicker)
+                when {
+                    decision.alreadyShowing -> Unit
+                    decision.replaceTop -> navigator.replaceTop(running)
+                    else -> navigator.push(running)
+                }
+                decision.message?.let { publish(state.copy(message = it)) }
+            }
         }
     }
 
     override fun onOpenResearchFor(ticker: String) {
         selectTicker(ticker)
         onSelectTab(ShellTab.Research)
-        navigator.popToRoot(ShellTab.Research)
+        navigator.popToRoot(ShellTab.Research, ::onEntryPopped)
     }
 
     override fun onOpenHistory() {
@@ -2763,7 +2833,9 @@ class MainViewModel(
 
     override fun onRefreshNames() {
         tabFetchedAtMs[ShellTab.Names] = System.currentTimeMillis()
-        refreshWatchlist()
+        // The snapshots refresh on their own, so the board's states and scores update even when the list call fails.
+        refreshWatchlist(thenSnapshots = false)
+        refreshMonitorSnapshots()
         refreshAlertLedger()
     }
 
@@ -2824,8 +2896,8 @@ class MainViewModel(
 
     /** Caches what Name, Compare and the notes trail read later (report summary and note). Never throws. */
     private suspend fun cacheReportExtras(report: DeepDiveReportView, note: ReportNoteView?) {
-        runCatching { cacheStore.cacheReportSummary(report) }
-        if (note != null) runCatching { cacheStore.cacheReportNote(report.reportId, note, report) }
+        runCatchingNonCancellation { cacheStore.cacheReportSummary(report) }
+        if (note != null) runCatchingNonCancellation { cacheStore.cacheReportNote(report.reportId, note, report) }
     }
 
     private suspend fun computeSnapshotDeltas(
@@ -2837,7 +2909,7 @@ class MainViewModel(
         return snapshots.mapNotNull { snapshot ->
             val ticker = snapshot.ticker.trim().uppercase().ifBlank { return@mapNotNull null }
             val current = SnapshotPoint(ticker, takenAt, snapshot.state, snapshot.score, snapshot.freshnessScore, snapshot.reportId)
-            val previous = runCatching { cacheStore.getSnapshotAtOrBefore(ticker, sinceMs) }.getOrNull()
+            val previous = runCatchingNonCancellation { cacheStore.getSnapshotAtOrBefore(ticker, sinceMs) }.getOrNull()
             ticker to snapshotDeltaSince(current, listOfNotNull(previous), sinceMs)
         }.toMap()
     }
@@ -2870,7 +2942,7 @@ class MainViewModel(
             val reportId = state.monitorSnapshots.firstOrNull { it.ticker.equals(symbol, ignoreCase = true) }?.reportId
                 ?: state.reportHistory.filter { it.ticker.equals(symbol, true) && it.type == "deep_dive" }
                     .maxByOrNull { it.createdAt }?.reportId
-            var summary = reportId?.let { runCatching { cacheStore.getReportSummary(it) }.getOrNull() }
+            var summary = reportId?.let { runCatchingNonCancellation { cacheStore.getReportSummary(it) }.getOrNull() }
             if (summary == null && reportId != null) {
                 runAuthorizedWithRefresh {
                     val report = client.getDeepDiveReport(state.apiBaseUrl, requireTokens().accessToken, reportId)
@@ -2903,14 +2975,14 @@ class MainViewModel(
                 .filter { it.type == "deep_dive" && it.ticker.equals(symbol, ignoreCase = true) }
             for (item in reports) {
                 if (cacheStore.getCachedReportNote(item.reportId) != null) continue
-                val note = runCatching {
+                val note = runCatchingNonCancellation {
                     client.getReportNote(state.apiBaseUrl, requireTokens().accessToken, item.reportId)
                 }.getOrNull() ?: continue
                 // The ticker comes from the history row: the report itself may not be cached.
                 cacheStore.cacheReportNote(item.reportId, note, ticker = symbol)
             }
         }
-        val trail = runCatching { cacheStore.getNotesTrail(symbol) }.getOrDefault(emptyList())
+        val trail = runCatchingNonCancellation { cacheStore.getNotesTrail(symbol) }.getOrDefault(emptyList())
         publish(state.copy(notesTrails = state.notesTrails + (symbol to trail)))
         return trail
     }
@@ -2918,7 +2990,7 @@ class MainViewModel(
     /** Fills [UiState.allNotes] from the cache (every non-empty note, newest first). */
     fun allNotes() {
         viewModelScope.launch {
-            val notes = runCatching { cacheStore.getAllNotes() }.getOrDefault(emptyList())
+            val notes = runCatchingNonCancellation { cacheStore.getAllNotes() }.getOrDefault(emptyList())
             publish(state.copy(allNotes = notes))
         }
     }
@@ -2952,7 +3024,7 @@ class MainViewModel(
                 cacheReportExtras(it, null)
             }
         }
-        return report ?: runCatching { cacheStore.getCachedDeepDive(reportId) }.getOrNull()
+        return report ?: runCatchingNonCancellation { cacheStore.getCachedDeepDive(reportId) }.getOrNull()
     }
 
     /** Compare names: each ticker's latest report (by its monitor snapshot's `reportId`) as a cached summary. */
@@ -2965,7 +3037,7 @@ class MainViewModel(
                 val reportId = state.monitorSnapshots.firstOrNull { it.ticker.equals(symbol, ignoreCase = true) }?.reportId
                 summaries[symbol] = when (reportId) {
                     null -> null
-                    else -> runCatching { cacheStore.getReportSummary(reportId) }.getOrNull()
+                    else -> runCatchingNonCancellation { cacheStore.getReportSummary(reportId) }.getOrNull()
                         ?: fetchReportForCompare(reportId)?.toSummaryOrNull()
                 }
             }
@@ -2986,9 +3058,9 @@ class MainViewModel(
             return
         }
         searchJob = viewModelScope.launch {
-            val notes = runCatching { cacheStore.getAllNotes() }.getOrDefault(emptyList())
+            val notes = runCatchingNonCancellation { cacheStore.getAllNotes() }.getOrDefault(emptyList())
             val summaries = state.reportHistory.mapNotNull { item ->
-                runCatching { cacheStore.getReportSummary(item.reportId) }.getOrNull()?.let { item.reportId to it }
+                runCatchingNonCancellation { cacheStore.getReportSummary(item.reportId) }.getOrNull()?.let { item.reportId to it }
             }.toMap()
             val local = searchLocal(q, state.watchlist, state.reportHistory, summaries, notes)
                 .copy(isSearchingServer = true)
@@ -3079,3 +3151,16 @@ private class SavedStateNavigatorStore(private val handle: SavedStateHandle) : N
         if (value == null) handle.remove<String>(key) else handle[key] = value
     }
 }
+
+/**
+ * [runCatching] that lets cancellation through. Inside a coroutine, plain runCatching also catches the
+ * CancellationException of a cancelled job, so the job would carry on (publish, cache) instead of stopping.
+ */
+private inline fun <T> runCatchingNonCancellation(block: () -> T): Result<T> =
+    try {
+        Result.success(block())
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (error: Throwable) {
+        Result.failure(error)
+    }

@@ -122,10 +122,14 @@ fun ThesisApp(
         CompositionLocalProvider(LocalFmt provides fmt) {
             ProvidePageBackground {
                 Box(Modifier.fillMaxSize().pageBackground(LocalThesisPalette.current)) {
-                    // Onboarding → Auth → App: 300 ms crossfade, no slide (4.5).
+                    // Onboarding → Auth → App: 300 ms crossfade, no slide (4.5); 150 ms under reduced motion (4.8).
+                    val reducedMotion = LocalReducedMotion.current
                     Crossfade(
                         targetState = surface,
-                        animationSpec = ThesisMotion.timed(reduced = false, durationMillis = ThesisMotion.Screen),
+                        animationSpec = ThesisMotion.timed(
+                            reduced = false,
+                            durationMillis = if (reducedMotion) ThesisMotion.Quick else ThesisMotion.Screen
+                        ),
                         label = "surface"
                     ) { current ->
                         when (current) {

@@ -6,6 +6,10 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
+import com.thesis.mobile.model.DeepDiveReportView
+import com.thesis.mobile.model.IssuerView
+import com.thesis.mobile.model.ScenarioStressTemplateView
+import com.thesis.mobile.model.SectionView
 import com.thesis.mobile.model.WarRoomView
 import com.thesis.mobile.preview.fixtures.ShellFixtures
 import com.thesis.mobile.ui.UiState
@@ -135,15 +139,65 @@ class ShellRenders {
         state = ShellFixtures.state.copy(deepDiveError = "Couldn't open this report. Check your connection.")
     )
 
-    /** War Room: the back bar has no title over the screen's own "War Room" headline (rubric V3). */
-    @Test fun warRoom() = shell(
-        "shell-warroom", ShellTab.Names, push = Destination.WarRoom("wr-aapl"),
-        state = ShellFixtures.state.copy(
-            warRoom = WarRoomView(
-                warRoomId = "wr-aapl", title = "AAPL earnings", ticker = "AAPL", status = "active",
-                generatedAt = "2026-11-24T06:00:00Z", summary = "Services margin is the line to watch."
-            )
+    private val warRoomState = ShellFixtures.state.copy(
+        warRoom = WarRoomView(
+            warRoomId = "wr-aapl", title = "AAPL earnings", ticker = "AAPL", status = "active",
+            generatedAt = "2026-11-24T06:00:00Z", summary = "Services margin is the line to watch."
         )
+    )
+
+    /** War Room: the back bar has no title over the screen's own "War Room" headline (rubric V3). */
+    @Test fun warRoom() = shell("shell-warroom", ShellTab.Names, push = Destination.WarRoom("wr-aapl"), state = warRoomState)
+
+    // Rule 6.0.6 and the 6.1 type-remap check: the pushed screens with data at 360 dp x 2.0, tall enough to show
+    // their whole first screens. No-data states are in ScreenSmokeRenders; restyles are PR-3's (each WP re-renders).
+    // What these show at 2.0x (legacy screen bodies, for the PR-3 screen WPs; the shell chrome holds):
+    // - classic report: the POSITIVE / FOLLOWED badges beside the title stack one letter per line, and the
+    //   CONFIDENCE / FRESHNESS tiles break mid-word;
+    // - War Room: the "Status: ACTIVE" chip breaks mid-word;
+    // - Weekly digest: the "MSFT · Watch" chip wraps; Scenario Stress: "Refresh templates" wraps (readable).
+    // History has no clipping.
+    private val scenarioState = ShellFixtures.state.copy(
+        scenarioStressTemplates = listOf(
+            ScenarioStressTemplateView(
+                "rates-up", "Rates up 100 bp", "Long yields rise a full point in a quarter.",
+                "Higher discount rates compress long-duration growth multiples.", true,
+                "2026-11-01T00:00:00Z", "2026-11-01T00:00:00Z"
+            ),
+            ScenarioStressTemplateView(
+                "china-demand", "China demand slump", "Mainland consumer spending falls for two quarters.",
+                "Hardware names with high China revenue share miss guidance.", true,
+                "2026-11-01T00:00:00Z", "2026-11-01T00:00:00Z"
+            ),
+        ),
+        selectedScenarioStressId = "rates-up"
+    )
+    private val classicReportState = ShellFixtures.state.copy(
+        deepDiveReport = DeepDiveReportView(
+            reportId = "rep-AAPL", ticker = "AAPL", generatedAt = "2026-11-20T14:00:00Z",
+            issuer = IssuerView(name = "Apple Inc.", exchange = "NASDAQ"),
+            thesisStatement = "Services keep growing faster than hardware, so margins hold up through the cycle.",
+            signalValue = "positive", confidenceLabel = "medium", confidenceScore = 0.7,
+            sections = listOf(
+                SectionView(sectionId = "summary", title = "Summary", body = "Revenue grew 6% on Services."),
+                SectionView(sectionId = "risks", title = "Risks", body = "China demand and App Store rules."),
+            ),
+        )
+    )
+
+    private fun scale20(name: String, tab: ShellTab, push: Destination, state: UiState = ShellFixtures.state) =
+        shell(name, tab, push = push, state = state, fontScale = 2.0f, widthDp = 360, heightDp = 1800)
+
+    @Test fun history360Scale20() = scale20("shell-today-history-360-scale2.0", ShellTab.Today, Destination.History())
+    @Test fun warRoom360Scale20() =
+        scale20("shell-warroom-360-scale2.0", ShellTab.Names, Destination.WarRoom("wr-aapl"), warRoomState)
+    @Test fun scenarioStress360Scale20() =
+        scale20("shell-research-scenario-360-scale2.0", ShellTab.Research, Destination.ScenarioStress(), scenarioState)
+    @Test fun weeklyDigest360Scale20() =
+        scale20("shell-today-digest-360-scale2.0", ShellTab.Today, Destination.WeeklyDigest("2026-11-23"))
+    @Test fun reportClassic360Scale20() = scale20(
+        "shell-research-report-classic-360-scale2.0", ShellTab.Research,
+        Destination.ReportClassic("rep-AAPL", "AAPL"), classicReportState
     )
 
     /**

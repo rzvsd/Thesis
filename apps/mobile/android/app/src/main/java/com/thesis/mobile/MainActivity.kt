@@ -3,8 +3,10 @@ package com.thesis.mobile
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
+import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.SideEffect
@@ -52,8 +54,14 @@ class MainActivity : FragmentActivity() {
                 .withEndAction { provider.remove() }
                 .start()
         }
-        // Edge to edge on every API level; Compose pads with WindowInsets (bars are drawn by the theme).
-        enableEdgeToEdge()
+        // Edge to edge on every API level; Compose pads with WindowInsets, and ThesisTheme sets the icon colours.
+        // Both bars transparent: the default auto style paints a 90 % white navigation bar on API 26-28 when the
+        // system is in light mode, under the (dark by default) app and its light icons. Revisit when
+        // ThemeMode.System becomes the default.
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
+            navigationBarStyle = SystemBarStyle.dark(Color.TRANSPARENT)
+        )
         super.onCreate(savedInstanceState)
         // A recreate (rotation, the night-mode switch, process death) gets the same intent again. Once it has been
         // routed, routing it again would reset the restored stack to the link's destination and start a second

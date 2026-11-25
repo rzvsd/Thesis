@@ -36,12 +36,15 @@ interface ShellActions {
     /** A `Report(id)` entry is on screen but the ViewModel holds another report (after recreate or a pop). */
     fun onEnsureReport(reportId: String) {}
 
-    /** Pushes `DeepDiveRunning(ticker)` and starts the build; the entry becomes `Report(id)` when it is ready. */
+    /**
+     * Pushes `DeepDiveRunning(ticker)` and starts the build; the entry becomes `Report(id)` when it is ready. One
+     * build runs at a time: while one runs, this shows that build's entry instead (and says so for another name).
+     */
     fun onRunDeepDive(ticker: String) {}
 
     /**
      * Run again from a `DeepDiveRunning` entry whose build failed: the entry is replaced by a new running entry
-     * (no second copy on the stack) and the build starts.
+     * (no second copy on the stack) and the build starts, unless another build is running ([onRunDeepDive]).
      */
     fun onRetryDeepDive(ticker: String) {}
 
@@ -53,7 +56,10 @@ interface ShellActions {
     /** A History row: a Deep Dive opens as a report, a Pulse as `Pulse(date)`. */
     fun onOpenHistoryItem(item: ReportHistoryItem) {}
 
-    /** Pushes `Pulse(date)`; a past date loads that issue and the latest is restored when it is popped. */
+    /**
+     * Pushes `Pulse(date)`; a past date loads that issue and the latest is restored when the entry leaves the stacks
+     * (back, a tab reselect, a link or alert route, a jump to a tab root).
+     */
     fun onOpenPulse(date: String?) {}
 
     /**
