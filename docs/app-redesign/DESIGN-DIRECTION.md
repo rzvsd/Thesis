@@ -1339,6 +1339,15 @@ full render sweep → rubric review → PR into `rebuild`.
 - WP-INT: `values/themes.xml` and `values/splash.xml` keep an ink `windowBackground` (Q2: Dark stays the default);
   point them at `thesis_bg_paper` when the Auto default ships, or set the window background from `ThesisTheme`
   to `palette.bg`. Unknown alert routes (see Appendix A).
+- WP-INT, PR-2 M3 (predictive back): PR-1 previews the layer the gesture closes (the modal layer for You and
+  Search, else the report and tab layers) and, on commit, runs the pop while that whole layer settles from .90
+  back to full size. M3 replaces this interim with the 4.5 behaviour: only the leaving page keeps the scaled
+  state into its exit, and the page under it enters at full size.
+- WP-INT (with the next Room change, at the latest PR-4): `OfflineCacheDatabase` has `exportSchema = false`, so the
+  v1→v2 migration is checked only against the hand-written `OfflineCacheMigrations.MIGRATION_1_2_SQL`. Set
+  `exportSchema = true` with the KSP arg `room.schemaLocation`, commit `schemas/…/2.json`, and add a
+  `MigrationTestHelper` androidTest (or have the JVM test compare the SQL with the exported JSON), so an entity
+  field added without a migration edit fails CI instead of crashing after the upgrade.
 
 ### 6.4 PR-4 (after the redesign, WP-INT)
 `compose-bom:2025.04.00` (with it, `rememberIsResumed()` and `CoveredBackScope()` in `ThesisApp.kt` move from the

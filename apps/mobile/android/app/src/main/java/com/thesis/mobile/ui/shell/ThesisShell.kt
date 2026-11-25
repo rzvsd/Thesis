@@ -46,6 +46,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.GraphicsLayerScope
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
@@ -140,15 +141,21 @@ fun ThesisShell(
     // Predictive back (4.5): progress 0..1 of the gesture, and the edge it started from.
     val backProgress = remember { Animatable(0f) }
     var backEdge by remember { mutableStateOf(BackSwipeEdge.Left) }
+    // The layer the gesture previews: the modal layer when a modal (You, Search) is open, else the page under it.
+    // Fixed when the gesture starts, so the modal keeps its transform while it leaves after the commit.
+    var backPreviewsModal by remember { mutableStateOf(false) }
     val backScope = rememberCoroutineScope()
     ThesisPredictiveBackHandler(enabled = navigator.canGoBack && !paywallOpen) { events ->
+        backPreviewsModal = navigator.modalStack.isNotEmpty()
         try {
             events.collect { event ->
                 backEdge = event.swipeEdge
                 backProgress.snapTo(event.progress)
             }
-            backProgress.snapTo(0f)
+            // Commit: the pop runs from the previewed state and the layer settles back to full size while it plays
+            // (no jump to full size first). Interim until PR-2 M3 scales only the leaving page.
             actions.onBack()
+            backScope.launch { backProgress.animateTo(0f, ThesisMotion.spatialSlow()) }
         } catch (cancelled: CancellationException) {
             backScope.launch { backProgress.animateTo(0f, ThesisMotion.spatialSlow()) }
             throw cancelled
@@ -167,18 +174,19 @@ fun ThesisShell(
 
     ShellPageBackground(modifier) {
         Box(Modifier.fillMaxSize()) {
+            // The visible page follows the back gesture: the report base layer and tab layer, or the modal layer
+            // when the gesture closes a modal. Reduced motion: no scale or translation (4.8); back still commits.
+            val backPreview: GraphicsLayerScope.() -> Unit = {
+                val progress = if (reducedMotion) 0f else backProgress.value
+                val scale = 1f - (1f - PREDICTIVE_BACK_SCALE) * progress
+                scaleX = scale
+                scaleY = scale
+                translationX = progress * backShiftPx * if (backEdge == BackSwipeEdge.Left) 1f else -1f
+            }
             Box(
                 Modifier
                     .fillMaxSize()
-                    .graphicsLayer {
-                        // The visible page (report base layer and tab layer) follows the back gesture. Reduced
-                        // motion: no scale or translation (4.8); back still commits.
-                        val progress = if (reducedMotion) 0f else backProgress.value
-                        val scale = 1f - (1f - PREDICTIVE_BACK_SCALE) * progress
-                        scaleX = scale
-                        scaleY = scale
-                        translationX = progress * backShiftPx * if (backEdge == BackSwipeEdge.Left) 1f else -1f
-                    }
+                    .graphicsLayer { if (!backPreviewsModal) backPreview() }
             ) {
                 if (reportBase != null) {
                     key(reportBase.entryId) {
@@ -221,7 +229,9 @@ fun ThesisShell(
             AnimatedContent(
                 targetState = modalTop,
                 // Full size in both states, so opening or closing never animates the container from 0 x 0.
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer { if (backPreviewsModal) backPreview() },
                 transitionSpec = { modalTransition(reducedMotion, modalRisePx) },
                 contentKey = { it?.entryId },
                 label = "modal-layer"

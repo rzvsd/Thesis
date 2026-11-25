@@ -1315,10 +1315,15 @@ class MainViewModel(
             return
         }
 
-        withAuthorizedCall(onError = { publish(state.copy(isDeepDiveRunning = false, deepDiveError = state.message)) }) {
+        // The entry that shows this build's progress and failure is DeepDiveRunning(buildTicker) (ShellDestinations).
+        val buildTicker = ticker.trim().uppercase()
+        withAuthorizedCall(onError = {
+            publish(state.copy(isDeepDiveRunning = false, deepDiveBuildTicker = buildTicker, deepDiveError = state.message))
+        }) {
             publish(
                 state.copy(
                     isDeepDiveRunning = true,
+                    deepDiveBuildTicker = buildTicker,
                     deepDiveReport = null,
                     deepDiveLoadedFromCache = false,
                     reportNote = null,
@@ -1375,6 +1380,7 @@ class MainViewModel(
             state.copy(
                 selectedTicker = state.selectedTicker ?: ticker,
                 isDeepDiveRunning = true,
+                deepDiveBuildTicker = ticker?.trim()?.uppercase()?.ifBlank { null },
                 jobStatus = "running",
                 deepDiveError = null
             )
@@ -2295,6 +2301,7 @@ class MainViewModel(
                 subscriptionActionInFlight = false,
                 authBusy = false,
                 isDeepDiveRunning = false,
+                deepDiveBuildTicker = null,
                 isOpeningReport = false,
                 lastInboxVisitAtMs = 0L,
                 lastNamesVisitAtMs = 0L,
@@ -2647,6 +2654,8 @@ class MainViewModel(
         if (pulseRequestedDate != date.trim()) loadPulseByDate(date)
     }
 
+    override fun onReloadPulse(date: String) = loadPulseByDate(date)
+
     override fun onRunDeepDive(ticker: String) {
         val symbol = ticker.trim().uppercase()
         if (symbol.isBlank()) {
@@ -2718,6 +2727,17 @@ class MainViewModel(
     override fun onOpenScenarioStress() {
         navigator.push(Destination.ScenarioStress(ticker = state.deepDiveReport?.ticker))
         maybeRefreshScenarioStressTemplates()
+    }
+
+    override fun onEnsureScenarioStress(runId: String?, scenarioId: String?) {
+        if (!isProTier()) return
+        if (state.scenarioStressTemplates.isEmpty() && !state.isLoadingScenarioStressTemplates) {
+            refreshScenarioStressTemplates()
+        }
+        val run = runId?.trim()?.ifBlank { null } ?: return
+        if (state.scenarioStressRun?.run?.scenarioRunId != run && !state.isRunningScenarioStress) {
+            openScenarioStressRun(run, scenarioId)
+        }
     }
 
     override fun onOpenName(ticker: String) {

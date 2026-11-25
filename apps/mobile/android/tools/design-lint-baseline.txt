@@ -63,7 +63,7 @@ ui/screens/HistoryScreen.kt	dp-literal	3
 ui/screens/HistoryScreen.kt	copy-alpha	1
 ui/screens/HistoryScreen.kt	material-icons	3
 ui/screens/HoldingsCsvImport.kt	outlined-button	1
-ui/screens/HomeScreen.kt	dp-literal	11
+ui/screens/HomeScreen.kt	dp-literal	7
 ui/screens/HomeScreen.kt	shape-literal	1
 ui/screens/HomeScreen.kt	copy-alpha	6
 ui/screens/HomeScreen.kt	delay	1

@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -42,6 +43,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
@@ -64,6 +66,8 @@ import com.thesis.mobile.ui.copy.Phase4Copy
 import com.thesis.mobile.ui.theme.HeadingFont
 import com.thesis.mobile.ui.theme.ThesisColors
 import com.thesis.mobile.ui.theme.ThesisDimens
+import com.thesis.mobile.ui.theme.ThesisSpace
+import com.thesis.mobile.ui.theme.ThesisType
 import com.thesis.mobile.ui.theme.ThesisTypography
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -409,7 +413,7 @@ private fun MorningBriefingCard(
             onClick = onOpen,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(48.dp),
+                .heightIn(min = ThesisSpace.touchMin),
             shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
             colors = ButtonDefaults.buttonColors(
                 containerColor = ThesisColors.Primary,
@@ -533,12 +537,13 @@ private fun MacroStressSummaryCard(
 
         HorizontalDivider(color = ThesisColors.Border, thickness = ThesisDimens.BorderWidth)
 
-        Row(horizontalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)) {
+        // Above the display cap (1.3x) the two labels no longer fit side by side (2.0x broke "Dashboard" mid-word):
+        // stack them, full width.
+        val stackActions = LocalDensity.current.fontScale > ThesisType.MAX_DISPLAY_SCALE
+        val dashboardButton: @Composable (Modifier) -> Unit = { modifier ->
             Button(
                 onClick = onOpenDashboard,
-                modifier = Modifier
-                    .weight(1f)
-                    .height(48.dp),
+                modifier = modifier.heightIn(min = ThesisSpace.touchMin),
                 shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = ThesisColors.Primary,
@@ -550,11 +555,11 @@ private fun MacroStressSummaryCard(
                     style = ThesisTypography.labelLarge.copy(fontWeight = FontWeight.Medium)
                 )
             }
+        }
+        val digestButton: @Composable (Modifier) -> Unit = { modifier ->
             Button(
                 onClick = onOpenWeeklyDigest,
-                modifier = Modifier
-                    .weight(1f)
-                    .height(48.dp),
+                modifier = modifier.heightIn(min = ThesisSpace.touchMin),
                 shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = ThesisColors.SurfaceElevated,
@@ -565,6 +570,17 @@ private fun MacroStressSummaryCard(
                     text = "Weekly Digest",
                     style = ThesisTypography.labelLarge.copy(fontWeight = FontWeight.Medium)
                 )
+            }
+        }
+        if (stackActions) {
+            Column(verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)) {
+                dashboardButton(Modifier.fillMaxWidth())
+                digestButton(Modifier.fillMaxWidth())
+            }
+        } else {
+            Row(horizontalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)) {
+                dashboardButton(Modifier.weight(1f))
+                digestButton(Modifier.weight(1f))
             }
         }
     }
@@ -754,7 +770,7 @@ private fun InsightAlertSection(
             onClick = { onRunDeepDive(insight.ticker) },
             modifier = Modifier
                 .fillMaxWidth()
-                .height(48.dp),
+                .heightIn(min = ThesisSpace.touchMin),
             shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
             colors = ButtonDefaults.buttonColors(
                 containerColor = ThesisColors.Primary,

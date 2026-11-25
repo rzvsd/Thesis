@@ -64,7 +64,7 @@ class ShellRenders {
     /** A build in flight: loading screen under a back bar (5.14), no bottom bar. */
     @Test fun deepDiveRunning() = shell(
         "shell-research-running", ShellTab.Research, push = Destination.DeepDiveRunning("AAPL"),
-        state = ShellFixtures.state.copy(isDeepDiveRunning = true, jobStatus = "running")
+        state = ShellFixtures.state.copy(isDeepDiveRunning = true, deepDiveBuildTicker = "AAPL", jobStatus = "running")
     )
 
     /**
@@ -73,6 +73,19 @@ class ShellRenders {
      */
     @Test fun deepDiveRunningEnded() = shell(
         "shell-research-running-ended", ShellTab.Research, push = Destination.DeepDiveRunning("AAPL")
+    )
+
+    /**
+     * The AAPL entry while another name's build runs (or failed): it shows neither MSFT's progress nor MSFT's
+     * error, only that its own build is no longer running; its retry builds AAPL.
+     */
+    @Test fun deepDiveRunningOtherTicker() = shell(
+        "shell-research-running-other", ShellTab.Research, push = Destination.DeepDiveRunning("AAPL"),
+        state = ShellFixtures.state.copy(
+            isDeepDiveRunning = false,
+            deepDiveBuildTicker = "MSFT",
+            deepDiveError = "MSFT Deep Dive failed."
+        )
     )
 
     /** A report entry whose report failed to open: error card under a back bar. */
@@ -142,7 +155,7 @@ class ShellRenders {
     @Test fun pushToPulse120ms() = transition("shell-transition-pulse-120ms", ShellTab.Today, Destination.Pulse(), 120)
     @Test fun pushToRunning120ms() = transition(
         "shell-transition-running-120ms", ShellTab.Research, Destination.DeepDiveRunning("AAPL"), 120,
-        state = ShellFixtures.state.copy(isDeepDiveRunning = true, jobStatus = "running")
+        state = ShellFixtures.state.copy(isDeepDiveRunning = true, deepDiveBuildTicker = "AAPL", jobStatus = "running")
     )
 
     private fun transition(name: String, tab: ShellTab, push: Destination, atMs: Long, state: UiState = ShellFixtures.state) {

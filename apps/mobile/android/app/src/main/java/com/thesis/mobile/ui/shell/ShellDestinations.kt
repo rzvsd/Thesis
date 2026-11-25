@@ -99,7 +99,12 @@ internal fun ShellContentScope.Content(entry: NavEntry, padding: PaddingValues) 
                 onBack = { actions.onBack() },
                 onRunDeepDive = actions::onRunDeepDive,
                 onExportPdf = platform.exportPulsePdf,
-                onRefresh = actions::onRefreshPulse
+                // A dated entry refreshes its own day: the latest issue would replace it under a header naming
+                // another date.
+                onRefresh = {
+                    val day = destination.date
+                    if (day != null) actions.onReloadPulse(day) else actions.onRefreshPulse()
+                }
             )
         }
         Destination.MacroStress -> Box(Modifier.padding(padding)) {
@@ -125,16 +130,22 @@ internal fun ShellContentScope.Content(entry: NavEntry, padding: PaddingValues) 
         }
         is Destination.Report -> ReportEntry(entry, destination.reportId, classic = false, padding = padding)
         is Destination.ReportClassic -> ReportEntry(entry, destination.reportId, classic = true, padding = padding)
-        // Loading only while a build runs. MainViewModel drops a running entry restored after its job ended
-        // (dropIdleRunningEntries); should one still show with no job, it shows the build's error (or that the
-        // build is no longer running) with a retry, instead of spinning forever.
-        is Destination.DeepDiveRunning -> DeepDiveScreenFor(
-            report = null,
-            isLoading = state.isDeepDiveRunning,
-            padding = padding,
-            classic = false,
-            onRetry = { actions.onRetryDeepDive(state.selectedTicker?.ifBlank { null } ?: destination.ticker) }
-        )
+        // Loading only while this entry's own build runs. MainViewModel drops a running entry restored after its
+        // job ended (dropIdleRunningEntries); should one still show with no job, it shows its build's error (or
+        // that the build is no longer running) with a retry, instead of spinning forever. Another name's build
+        // (started from another tab after this one ended) never shows here: neither its progress nor its error.
+        // Retry always builds this entry's ticker, never the shared selectedTicker (the Research field).
+        is Destination.DeepDiveRunning -> {
+            val own = state.deepDiveBuildTicker?.equals(destination.ticker, ignoreCase = true) == true
+            DeepDiveScreenFor(
+                report = null,
+                isLoading = own && state.isDeepDiveRunning,
+                errorMessage = (if (own) state.deepDiveError else null) ?: buildEndedMessage(destination.ticker),
+                padding = padding,
+                classic = false,
+                onRetry = { actions.onRetryDeepDive(destination.ticker) }
+            )
+        }
         is Destination.WarRoom -> {
             val id = destination.warRoomId
             val warRoom = state.warRoom?.takeIf { id == null || it.warRoomId == id }
@@ -162,6 +173,13 @@ internal fun ShellContentScope.Content(entry: NavEntry, padding: PaddingValues) 
             )
         }
         is Destination.ScenarioStress -> Box(Modifier.padding(padding)) {
+            // Like WarRoom(id): a restored entry (process death skips the Research tab refresh for 5 minutes)
+            // loads its templates and the run it was opened on. Keyed on the tier as well, because the profile
+            // (and with it Pro) arrives after the restore; a free tier asks for nothing (no paywall from here).
+            val isPro = state.userProfile?.tier.equals(PRO_TIER, ignoreCase = true)
+            LaunchedEffect(entry.entryId, isPro) {
+                if (isPro) actions.onEnsureScenarioStress(destination.runId, destination.scenarioId)
+            }
             ScenarioStressScreen(
                 userTier = state.userProfile?.tier,
                 templates = state.scenarioStressTemplates,
@@ -313,6 +331,7 @@ private fun ShellContentScope.ReportEntry(entry: NavEntry, reportId: String, cla
     DeepDiveScreenFor(
         report = report,
         isLoading = report == null && (state.isOpeningReport || state.deepDiveError == null),
+        errorMessage = state.deepDiveError,
         padding = padding,
         classic = classic,
         // The error card's button opens this stored report again; it never starts a new build (principle 11).
@@ -320,6 +339,12 @@ private fun ShellContentScope.ReportEntry(entry: NavEntry, reportId: String, cla
         retryLabel = OPEN_REPORT_AGAIN
     )
 }
+
+/** `UserProfileView.tier` of a Pro subscriber (as `MainViewModel.isProTier`). */
+private const val PRO_TIER = "PRO"
+
+/** A `DeepDiveRunning(ticker)` entry whose own build is not the one running or last run. */
+private fun buildEndedMessage(ticker: String): String = "The ${ticker.uppercase()} Deep Dive is no longer running."
 
 /** The failed report entry's button says what it does: open the stored report again (principle 11). */
 private const val OPEN_REPORT_AGAIN = "Open report again"
@@ -332,6 +357,7 @@ private const val NONE_HELD = "\u0000none"
 private fun ShellContentScope.DeepDiveScreenFor(
     report: com.thesis.mobile.model.DeepDiveReportView?,
     isLoading: Boolean,
+    errorMessage: String?,
     padding: PaddingValues,
     classic: Boolean,
     onRetry: () -> Unit,
@@ -340,7 +366,7 @@ private fun ShellContentScope.DeepDiveScreenFor(
     DeepDiveScreen(
         report = report,
         isLoading = isLoading,
-        errorMessage = state.deepDiveError,
+        errorMessage = errorMessage,
         watchlist = state.watchlist,
         onRetry = onRetry,
         retryLabel = retryLabel,

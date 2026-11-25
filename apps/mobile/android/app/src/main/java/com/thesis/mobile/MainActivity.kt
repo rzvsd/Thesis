@@ -55,7 +55,11 @@ class MainActivity : FragmentActivity() {
         // Edge to edge on every API level; Compose pads with WindowInsets (bars are drawn by the theme).
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
-        applyLaunchIntent(intent)
+        // A recreate (rotation, the night-mode switch, process death) gets the same intent again. Once it has been
+        // routed, routing it again would reset the restored stack to the link's destination and start a second
+        // build for a research link, so it is applied only on a fresh start or while it is still waiting (a link
+        // opened before log-in). New intents arrive in onNewIntent.
+        if (savedInstanceState?.getBoolean(STATE_LAUNCH_ROUTED, false) != true) applyLaunchIntent(intent)
         requestNotificationPermissionIfNeeded()
         if (sessionStore.loadTokens() != null) {
             PrefetchScheduler.schedule(applicationContext)
@@ -81,6 +85,12 @@ class MainActivity : FragmentActivity() {
                 }
             }
         )
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        // ThesisApp clears launchTarget (onLaunchHandled) once it has routed it.
+        outState.putBoolean(STATE_LAUNCH_ROUTED, launchTarget == null)
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -229,6 +239,8 @@ class MainActivity : FragmentActivity() {
 
     private companion object {
         const val SPLASH_EXIT_MS = 240L
+        /** Saved state: the launch intent has been routed (nothing pending), so a recreate does not route it again. */
+        const val STATE_LAUNCH_ROUTED = "thesis.launch_routed"
     }
 
     private fun requestNotificationPermissionIfNeeded() {

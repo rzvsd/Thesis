@@ -52,6 +52,12 @@ data class UiState(
     val jobStatus: String? = null,
     /** A Deep Dive build is running (created or resumed); [jobStatus] has its server status. */
     val isDeepDiveRunning: Boolean = false,
+    /**
+     * Upper-case ticker of the Deep Dive build that is running, or that ran last ([deepDiveError] is its failure).
+     * A `DeepDiveRunning(ticker)` entry shows progress and a failure only when this is its own ticker; otherwise
+     * its build is no longer running.
+     */
+    val deepDiveBuildTicker: String? = null,
     /** A stored report is being fetched for a `Report(id)` entry. */
     val isOpeningReport: Boolean = false,
     val deepDiveReport: DeepDiveReportView? = null,

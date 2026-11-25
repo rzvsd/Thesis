@@ -62,6 +62,9 @@ interface ShellActions {
      */
     fun onEnsurePulse(date: String) {}
 
+    /** Pull to refresh on a `Pulse(date)` entry: that day's issue again (never the latest, which is another day). */
+    fun onReloadPulse(date: String) {}
+
     fun onOpenMacroStress() {}
     fun onOpenWeeklyDigest(date: String?) {}
     fun onOpenWarRoom(warRoomId: String) {}
@@ -69,6 +72,12 @@ interface ShellActions {
     /** A `WarRoom(id)` entry is on screen but another War Room (or none) is loaded. */
     fun onEnsureWarRoom(warRoomId: String) {}
     fun onOpenScenarioStress() {}
+
+    /**
+     * A `ScenarioStress` entry is on screen (restored after process death, or revisited): loads the templates when
+     * none are held and, for an entry opened on a run, that run when another one (or none) is held. Pro only.
+     */
+    fun onEnsureScenarioStress(runId: String?, scenarioId: String?) {}
     fun onOpenName(ticker: String) {}
     fun onResumeLastViewed(report: LastViewedReport) {}
     fun onDismissResumeCard() {}
