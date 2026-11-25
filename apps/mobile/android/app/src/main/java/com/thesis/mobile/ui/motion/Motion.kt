@@ -67,6 +67,15 @@ object ThesisMotion {
     /** Home and Pulse first open per issue only. */
     const val StaggerStep = 35
     const val StaggerMaxSteps = 8
+    /**
+     * `EntranceCoordinator`: only items that attach within this long of the coordinator's first entrance frame
+     * animate; later ones (scrolled in, paged in) appear at once (playbook section 5).
+     */
+    const val EntranceWindow = 700L
+    /** `rememberShowSkeleton`: a skeleton appears only after this grace (loads faster than it never flash one)... */
+    const val SkeletonGrace = 300L
+    /** ...and once shown stays at least this long, so it never flickers (section 3, #25). */
+    const val SkeletonMinShow = 400L
 
     // Travel
     /** Entrance rise (sheets, panels, banners, swapped text). */
@@ -77,6 +86,35 @@ object ThesisMotion {
     val PushOffset: Dp = 24.dp
     /** Modal destinations only (Paywall, You, Search). */
     val ModalOffset: Dp = 32.dp
+    /** Pull to refresh: pull distance (after M2's 0.5 drag resistance) that arms a refresh. */
+    val RefreshThreshold: Dp = 72.dp
+    /** Pull to refresh: how far the content follows the finger at the arming point. */
+    val RefreshTravel: Dp = 40.dp
+    /** Pull to refresh: the gap the content keeps open above it while refreshing (the hairline sits in it). */
+    val RefreshRest: Dp = 16.dp
+    /** Predictive back preview: sideways shift toward the swipe edge at full progress (section 4.5). */
+    val BackShift: Dp = 8.dp
+
+    // Shares and ratios
+    /** `RollingNumber` edge fade: top and bottom share of the slot faded with a DstIn gradient (section 4.6). */
+    const val RollMaskFraction = 0.18f
+    /** Container transform: the detail fades in over the last 70% of the reveal (section 4.5). */
+    const val TransformContentFrom = 0.30f
+    /** Predictive back preview: content scales toward this (section 4.5). */
+    const val BackScaleTo = 0.90f
+    /** Shimmer: band width as a share of the screen width (one continuous light across all blocks). */
+    const val ShimmerBandFraction = 0.45f
+    /** Shimmer highlight: `ink` at this alpha on graphite; `surface` at the light alpha on paper. */
+    const val ShimmerHighlightAlphaDark = 0.06f
+    const val ShimmerHighlightAlphaLight = 0.85f
+    /** Pull to refresh: content travel past the arming point is capped here (share of [RefreshTravel]). */
+    const val RefreshOverPull = 1.2f
+    /**
+     * `rewardPulse`: initial velocity (scale units per second) given to the `reward` spring. With
+     * damping 0.8 / stiffness 380 the peak is (v0 / wd) * e^(-zeta w0 t) * sin(wd t) at t ~ 55 ms (w0 ~ 19.5 rad/s,
+     * wd ~ 11.7 rad/s), so 1.85 gives the 1 -> 1.04 -> 1 of section 5 "Deep Dive ready"; it settles in about 300 ms.
+     */
+    const val RewardVelocity = 1.85f
 
     // Scales
     /** Standalone buttons and standalone clickable cards only. */
@@ -154,4 +192,7 @@ object ThesisMotion {
 
     /** Stagger delay for the [order]-th item (first open of Home/Pulse only). */
     fun staggerDelay(order: Int): Int = min(order, StaggerMaxSteps) * StaggerStep
+
+    /** `RollingNumber`: delay of the column [fromRight] positions from the right (0 = last character). */
+    fun rollDelay(fromRight: Int): Int = min(fromRight, RollStaggerCap) * RollStagger
 }
