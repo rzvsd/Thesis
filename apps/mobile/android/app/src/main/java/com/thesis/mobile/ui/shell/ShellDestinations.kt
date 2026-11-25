@@ -91,12 +91,12 @@ internal fun ShellContentScope.Content(entry: NavEntry, padding: PaddingValues) 
             onDisableAlertType = { type -> actions.onSetNotificationPreference(type, false) }
         )
         is Destination.Pulse -> Box(Modifier.padding(padding)) {
-            // Like Report(id) and WarRoom(id): a restored or revisited past-day entry asks for its day again. Only
-            // while it is the top entry, so the entry under a predictive-back preview does not load early.
+            // Like Report(id) and WarRoom(id): a restored or revisited entry asks for its issue again (its day, or the
+            // latest when a past day replaced it). Only while it is the top entry, so the entry under a predictive-back
+            // preview does not load early.
             val onTop = navigator.tabTop.entryId == entry.entryId
             LaunchedEffect(entry.entryId, onTop) {
-                val day = destination.date
-                if (onTop && day != null) actions.onEnsurePulse(day)
+                if (onTop) actions.onEnsurePulse(destination.date)
             }
             PulseScreen(
                 pulse = state.pulseReport,
