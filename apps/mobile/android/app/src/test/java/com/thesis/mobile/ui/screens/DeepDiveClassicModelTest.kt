@@ -1,7 +1,6 @@
 package com.thesis.mobile.ui.screens
 
 import com.thesis.mobile.model.FilingMetricDeltaView
-import com.thesis.mobile.preview.fixtures.DeepDiveFixtures
 import com.thesis.mobile.ui.copy.DeepDiveCopy
 import com.thesis.mobile.ui.format.Fmt
 import com.thesis.mobile.ui.theme.Tone
@@ -77,10 +76,12 @@ class DeepDiveClassicModelTest {
         val five = DeepDiveFixtures.sampleFiveYear
         assertNotNull(five)
         five!!
-        assertEquals(2025, five.years.last())
-        assertEquals(FiveYearSeries.SPAN, five.years.size)
+        // current, one, three and five years ago: the years in between are not in the payload, so they are left
+        // out instead of drawn as empty slots under a year label.
+        assertEquals(listOf(2020, 2022, 2024, 2025), five.years)
+        assertFalse(five.consecutive)
         assertEquals(265e9, five.revenue.last()!!, 1.0)
-        assertNull("two years ago is not in the payload", five.revenue[five.years.indexOf(2023)])
+        assertTrue(five.revenue.all { it != null })
         assertEquals(DeepDiveCopy.filingSource, five.source)
         assertNull(FiveYearSeries.fromIndicatorsJson(JSONObject("{}")))
     }
@@ -126,6 +127,13 @@ class DeepDiveClassicModelTest {
         assertEquals(2, model.columns.size)
         assertTrue(model.columns[1].subject)
         assertEquals(listOf("$391B", "$416B"), model.rows.first().values)
+        assertEquals("", model.labelHeader)
+        // The narrow shape: now and the change, the reference period in the change header.
+        val compact = deltaTableModel(tables[0], "10-K", compact = true)
+        assertEquals(listOf("FY2025"), compact.columns.map { it.period })
+        assertEquals("vs FY2024", compact.deltaHeader)
+        assertEquals(listOf("$416B"), compact.rows.first().values)
+        assertEquals("+6.4%", compact.rows.first().delta)
     }
 
     @Test
@@ -153,7 +161,7 @@ class DeepDiveClassicModelTest {
         val plan = classicPlan(structured, null, withDesk = true)
         val titles = plan.chapters.map { chapterHead(structured, plan, it).title }
         assertTrue(titles.toString(), "Revenue up 52% since FY2020" in titles)
-        assertTrue(titles.toString(), "The model range runs from $186.00 to $262.00" in titles)
+        assertTrue(titles.toString(), "The model range runs from $186 to $262" in titles)
         assertTrue(titles.toString(), "2 lines would change the thesis" in titles)
         val banned = Regex("""\b(buy|sell|hold|upside|target|cheap|attractive)\b""", RegexOption.IGNORE_CASE)
         titles.forEach { assertFalse(it, banned.containsMatchIn(it)) }
@@ -204,9 +212,101 @@ class DeepDiveClassicModelTest {
     fun copyHasNoBannedWords() {
         val banned = Regex("""\b(buy|sell|hold|upside|downside|target|cheap|expensive|attractive|entry|exit|stop)\b""", RegexOption.IGNORE_CASE)
         val strings = listOf(
-            DeepDiveCopy.modelRange, DeepDiveCopy.modelRangeTitle, DeepDiveCopy.priceInReport, DeepDiveCopy.modelValueVsPrice,
-            DeepDiveCopy.convictionPro, DeepDiveCopy.sampleNote, DeepDiveCopy.disclaimer,
+            DeepDiveCopy.modelRange, DeepDiveCopy.modelRangeTitle, DeepDiveCopy.priceInReport, DeepDiveCopy.yourValueGap("+3.9%"),
+            DeepDiveCopy.convictionPro, DeepDiveCopy.deskPro, DeepDiveCopy.sampleNote, DeepDiveCopy.disclaimer,
         ) + DeepDiveCopy.feedbackOptions.map { it.second }
         strings.forEach { assertFalse(it, banned.containsMatchIn(it)) }
+    }
+
+    @Test
+    fun axisAndHeadlineMoneyIsWhole() {
+        assertEquals("$0", ClassicFormat.wholeMoney(0.0))
+        assertEquals("$186", ClassicFormat.wholeMoney(185.6))
+        assertEquals("$1.2K", ClassicFormat.wholeMoney(1204.0))
+        assertEquals("$300B", ClassicFormat.wholeMoney(300e9))
+        assertEquals("$50B", ClassicFormat.wholeMoney(50e9))
+        assertEquals("$2.5B", ClassicFormat.wholeMoney(2.5e9))
+        assertEquals("${Fmt.MINUS}$20", ClassicFormat.wholeMoney(-20.0))
+        assertEquals("50%", ClassicFormat.wholePct(50.0))
+        assertEquals("$180", ClassicFormat.rangeMoney(180.0))
+        assertEquals("$241.50", ClassicFormat.rangeMoney(241.5))
+    }
+
+    private fun entries(report: com.thesis.mobile.model.DeepDiveReportView, plan: ClassicPlan): ClassicItems =
+        ClassicItems().apply { addChapters(report, plan, ClassicContext(report.ticker, null, null, {})) }
+
+    @Test
+    fun chartCardsAreNumberedAcrossChapters() {
+        // Five-year revenue (1), margins (2), the model range (3), sources per section (4): the next is 5.
+        val items = entries(structured, classicPlan(structured, null, withDesk = false))
+        assertEquals(5, items.nextFigure())
+        assertTrue(items.entries.any { it.key.startsWith("ev-bars") })
+    }
+
+    @Test
+    fun sampleHasNoModelRangeToDraw() {
+        // The bundled asset has no valuation block, so the Value chapter keeps its static title and draws no range
+        // bar; the range bar is pinned by the structured fixture (HANDOFF-D: waiver asked of the spec owner).
+        assertNull(sample.valuation)
+        val plan = classicPlan(sample, DeepDiveFixtures.sampleFiveYear, withDesk = false)
+        assertTrue(ClassicChapter.Value in plan.chapters)
+        assertEquals(DeepDiveCopy.valueTitle, chapterHead(sample, plan, ClassicChapter.Value).title)
+        val keys = entries(sample, plan).entries.map { it.key }
+        assertTrue(keys.toString(), keys.any { it.startsWith("fin-five") })
+        assertFalse(keys.toString(), keys.any { it.startsWith("value-range") || it.startsWith("value-band") })
+    }
+
+    @Test
+    fun filingPointsSkipWhatTheChapterAlreadySays() {
+        val points = filingPoints(sample)
+        val lede = chapterHead(sample, classicPlan(sample, null, withDesk = false), ClassicChapter.Filing).lede!!
+        val said = "${lede.first} ${lede.second} ${sample.filingRead!!.whatChanged}".lowercase()
+        assertTrue(points.isNotEmpty())
+        points.forEach { assertFalse(it, said.contains(it.lowercase())) }
+        assertTrue(sample.filingRead!!.topChanges.size > points.size)
+    }
+
+    @Test
+    fun sampleHeroNamesTheCompany() {
+        val shown = sampleWithIssuer(sample)
+        assertEquals(DeepDiveCopy.sampleIssuer, shown.issuer?.name)
+        assertEquals(structured, sampleWithIssuer(structured))
+    }
+
+    @Test
+    fun modelKeysAreWordsOrHidden() {
+        assertEquals("Discounted cash flow model", DeepDiveCopy.modelName("dcf_v2"))
+        assertEquals("Reverse discounted cash flow model", DeepDiveCopy.modelName("reverse_dcf"))
+        assertNull(DeepDiveCopy.modelName("xgb_2025"))
+    }
+
+    @Test
+    fun journalMetaDoesNotRepeatTheTitle() {
+        assertNull(journalEventLabel("Opposite case built", "opposite_case_generated"))
+        assertEquals("Kill switch fired", journalEventLabel("Gross margin line crossed", "kill_switch_alert_fired"))
+    }
+
+    @Test
+    fun killSwitchSubLineDoesNotRepeatTheSignal() {
+        assertEquals("Line: Gross margin under 44%", killSwitchSub("gross_margin", "Gross margin under 44%"))
+        assertEquals("Services growth · Line: under 5%", killSwitchSub("services_growth", "under 5%"))
+        assertNull(killSwitchSub("", null))
+    }
+
+    @Test
+    fun metricDeltasAreOneTablePerBasis() {
+        val panel = com.thesis.mobile.model.MetricDeltaPanelView(
+            title = "What moved",
+            metrics = listOf(
+                com.thesis.mobile.model.MetricDeltaItemView("Revenue", 70.0, 65.0, 7.7, "qoq", "improved"),
+                com.thesis.mobile.model.MetricDeltaItemView("Revenue", 70.0, 60.0, 16.7, "yoy", "improved"),
+                com.thesis.mobile.model.MetricDeltaItemView("Gross margin", 70.0, 68.0, 2.9, "qoq", "improved"),
+            ),
+        )
+        val tables = metricDeltaTables(panel)
+        assertEquals(listOf(DeepDiveCopy.basisQuarter, DeepDiveCopy.basisYear), tables.map { it.label })
+        assertEquals(listOf("Revenue", "Gross margin"), tables[0].full.rows.map { it.label })
+        assertEquals("on the quarter", tables[0].full.columns.last().filing)
+        assertEquals(1, tables[0].compact.columns.size)
     }
 }

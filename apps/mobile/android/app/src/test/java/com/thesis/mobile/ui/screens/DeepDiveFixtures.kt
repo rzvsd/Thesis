@@ -1,4 +1,4 @@
-package com.thesis.mobile.preview.fixtures
+package com.thesis.mobile.ui.screens
 
 import com.thesis.mobile.model.ConfidenceDisplayView
 import com.thesis.mobile.model.ConvictionJournalEntryView
@@ -32,7 +32,6 @@ import com.thesis.mobile.model.ValuationDisplayView
 import com.thesis.mobile.model.ValueDisciplineSignalView
 import com.thesis.mobile.model.ValueDisciplineView
 import com.thesis.mobile.model.ValueTrapWarningView
-import com.thesis.mobile.ui.screens.FiveYearSeries
 import org.json.JSONObject
 import java.io.File
 
@@ -229,11 +228,13 @@ internal object DeepDiveFixtures {
     )
 
     private val sampleJson: JSONObject by lazy {
+        // CI's :app unit tests run in the module folder; design-preview runs next to it.
         val candidates = listOf(
+            File("src/main/assets/sample/deep-dive-sample-msft.json"),
             File("../app/src/main/assets/sample/deep-dive-sample-msft.json"),
             File("app/src/main/assets/sample/deep-dive-sample-msft.json"),
         )
-        JSONObject(candidates.first { it.exists() }.readText())
+        JSONObject((candidates.firstOrNull { it.isFile } ?: error("sample asset not found (cwd ${File(".").absolutePath})")).readText())
     }
 
     /** The bundled MSFT sample, parsed as the app parses it. */

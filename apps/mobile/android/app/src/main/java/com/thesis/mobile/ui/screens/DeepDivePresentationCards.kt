@@ -3,6 +3,7 @@ package com.thesis.mobile.ui.screens
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -11,23 +12,31 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.TextMeasurer
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import com.thesis.mobile.model.DeepDiveReaderOutline
 import com.thesis.mobile.model.DeepDiveReportView
@@ -95,6 +104,7 @@ import com.thesis.mobile.ui.format.Missing
 import com.thesis.mobile.ui.format.PeriodKind
 import com.thesis.mobile.ui.icons.ThesisIcons
 import com.thesis.mobile.ui.motion.rememberHaptics
+import com.thesis.mobile.ui.theme.Kit
 import com.thesis.mobile.ui.theme.LocalThesisPalette
 import com.thesis.mobile.ui.theme.ThesisSpace
 import com.thesis.mobile.ui.theme.ThesisType
@@ -214,7 +224,7 @@ internal fun chapterHead(report: DeepDiveReportView, plan: ClassicPlan, chapter:
             val high = v?.fairValueHigh
             ChapterHead(
                 title = if (low != null && high != null) {
-                    DeepDiveCopy.valueTitleRange(Fmt.money(low), Fmt.money(high))
+                    DeepDiveCopy.valueTitleRange(ClassicFormat.wholeMoney(low), ClassicFormat.wholeMoney(high))
                 } else {
                     DeepDiveCopy.valueTitle
                 },
@@ -318,6 +328,10 @@ internal class ClassicEntry(val key: String, val top: Dp, val content: @Composab
 internal class ClassicItems {
     val entries = mutableListOf<ClassicEntry>()
     val chapterStarts = mutableListOf<Int>()
+    private var figures = 0
+
+    /** The next chart card's number: CHART 1, 2, ... in page order, across chapters (5.15 renderer anatomy). */
+    fun nextFigure(): Int = ++figures
 
     fun add(key: String, top: Dp = ThesisSpace.xxl, content: @Composable () -> Unit) {
         entries += ClassicEntry("$key#${entries.size}", top, content)
@@ -460,6 +474,51 @@ private fun Group(label: String, content: @Composable ColumnScope.() -> Unit) {
     }
 }
 
+/** A kicker over a serif card title: the head of a block that sits on the page, not in a second card. */
+@Composable
+internal fun TitledKicker(kicker: String?, title: String?) {
+    val p = LocalThesisPalette.current
+    Column(verticalArrangement = Arrangement.spacedBy(ThesisSpace.s)) {
+        kicker?.let { Kicker(it) }
+        title?.let { Text(it, Modifier.semantics { heading() }, style = ThesisType.cardTitle, color = p.ink) }
+    }
+}
+
+/**
+ * What a kill switch watches and its line ("Line: Gross margin under 44%"); the signal is named only when the line
+ * does not already name it.
+ */
+internal fun killSwitchSub(signalType: String, threshold: String?): String? {
+    val line = threshold?.trim()?.takeIf { it.isNotEmpty() }
+    val signal = signalType.takeIf { it.isNotBlank() }?.let(ClassicFormat::humanize)
+        ?.takeUnless { line != null && line.contains(it, ignoreCase = true) }
+    return listOfNotNull(signal, line?.let(DeepDiveCopy::threshold)).joinToString(" · ").ifBlank { null }
+}
+
+/**
+ * A kill switch: the condition and, under it, what it watches and its line. The square stays neutral grey: the
+ * report carries the line but not the latest reading (HANDOFF-D), so the row has no state to colour.
+ */
+@Composable
+private fun KillSwitchRow(condition: String, sub: String?) {
+    val p = LocalThesisPalette.current
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .semantics(mergeDescendants = true) {}
+            .heightIn(min = if (sub != null) ThesisSpace.rowMinComfortableTwoLine else ThesisSpace.rowMinComfortable)
+            .padding(horizontal = ThesisSpace.l, vertical = ThesisSpace.rowPaddingV),
+        horizontalArrangement = Arrangement.spacedBy(ThesisSpace.m),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        StatusSquare(Tone.Unknown)
+        Column(Modifier.weight(1f)) {
+            Text(condition, style = ThesisType.body, color = p.ink)
+            if (sub != null) Text(sub, style = ThesisType.bodySmall, color = p.ink2)
+        }
+    }
+}
+
 // -------------------------------------------------------------------------------------------------------------
 // Hero
 // -------------------------------------------------------------------------------------------------------------
@@ -504,7 +563,7 @@ internal fun ClassicHero(
                 badges.forEach { StatusBadge(it.text, it.tone) }
             }
         }
-        heroLine(report)?.let { Text(it, style = ThesisType.heroLine, color = p.ink2) }
+        heroLine(report)?.let { Text(it, style = ThesisType.heroLine, color = p.ink) }
         if (kpis.isNotEmpty()) KpiGrid(kpis, featured = true)
     }
 }
@@ -616,10 +675,14 @@ private const val COLLAPSE_CHARS = 280
 
 private fun ClassicItems.filingBlocks(report: DeepDiveReportView, quote: ((String) -> Unit)?) {
     val f = report.filingRead ?: return
-    if (f.topChanges.isNotEmpty()) add("filing-top") { Points(f.topChanges.take(MAX_TOP_CHANGES)) }
+    val points = filingPoints(report)
+    if (points.isNotEmpty()) add("filing-top") { Points(points) }
     val tables = deltaTables(f.metricDeltas)
     if (tables.isNotEmpty()) {
-        add("filing-table") { DeltaTablesCard(tables, f.form) }
+        val choices = tables.map { t ->
+            TableChoice(t.basis.label(), deltaTableModel(t, f.form), deltaTableModel(t, f.form, compact = true))
+        }
+        add("filing-table") { TablesBlock(DeepDiveCopy.changesTitle, choices) }
     }
     ClassicFormat.clean(f.whatChanged)?.let { add("filing-changed") { LabeledParagraph(DeepDiveCopy.filingTitle, it, quote) } }
     ClassicFormat.clean(f.theGood)?.let {
@@ -633,35 +696,136 @@ private fun ClassicItems.filingBlocks(report: DeepDiveReportView, quote: ((Strin
 
 private const val MAX_TOP_CHANGES = 5
 
-/** Every line that moved, one CompareTable per basis, a segmented control between them. */
+/**
+ * The filing's top changes that the chapter does not already say in words: a point that the lede or "What changed"
+ * repeats sentence for sentence is dropped (the sample's memo restates its top changes in both).
+ */
+internal fun filingPoints(report: DeepDiveReportView): List<String> {
+    val f = report.filingRead ?: return emptyList()
+    val said = listOfNotNull(filingLede(report)?.let { (lead, rest) -> "$lead $rest" }, ClassicFormat.clean(f.whatChanged))
+        .joinToString(" ")
+        .lowercase()
+    return f.topChanges.mapNotNull(ClassicFormat::clean)
+        .filterNot { said.contains(it.lowercase()) }
+        .take(MAX_TOP_CHANGES)
+}
+
+/**
+ * A table the block can show in two shapes: [full] (before, now, change) where it fits the width, else [compact]
+ * (now and the change against the reference period), so no column is ever cut at the panel edge.
+ */
+internal class TableChoice(val label: String, val full: CompareTableModel, val compact: CompareTableModel)
+
+/** A kicker, an optional title and summary, the segmented control when there are several tables, the table. */
 @Composable
-private fun DeltaTablesCard(tables: List<DeltaTable>, form: String?) {
+private fun TablesBlock(kicker: String, choices: List<TableChoice>, title: String? = null, summary: String? = null) {
+    val p = LocalThesisPalette.current
     var selected by rememberSaveable { mutableIntStateOf(0) }
-    val table = tables[selected.coerceIn(0, tables.lastIndex)]
+    val choice = choices[selected.coerceIn(0, choices.lastIndex)]
     Column(verticalArrangement = Arrangement.spacedBy(ThesisSpace.m)) {
-        Kicker(DeepDiveCopy.changesTitle)
-        if (tables.size > 1) SegmentedControl(tables.map { it.basis.label() }, selected, { selected = it })
-        CompareTable(deltaTableModel(table, form))
+        Column(verticalArrangement = Arrangement.spacedBy(ThesisSpace.s)) {
+            Kicker(kicker)
+            title?.let { Text(it, style = ThesisType.cardTitle, color = p.ink) }
+            summary?.let { Text(it, style = ThesisType.bodySmall, color = p.ink2) }
+        }
+        if (choices.size > 1) SegmentedControl(choices.map { it.label }, selected, { selected = it })
+        FittingCompareTable(choice.full, choice.compact)
     }
 }
 
-/** One basis as a table: before, now (the subject column, with its form) and the change with its tone. */
-internal fun deltaTableModel(table: DeltaTable, form: String?): CompareTableModel = CompareTableModel(
-    columns = listOf(
-        CompareColumn(table.referencePeriod.ifBlank { DeepDiveCopy.before }),
-        CompareColumn(table.currentPeriod.ifBlank { DeepDiveCopy.now }, filing = form?.ifBlank { null }, subject = true),
-    ),
-    rows = table.rows.map { d ->
-        CompareRow(
-            label = d.label,
-            values = listOf(ClassicFormat.value(d.referenceValue, d.unit), ClassicFormat.value(d.currentValue, d.unit)),
-            delta = ClassicFormat.change(d),
-            deltaTone = ClassicFormat.tone(d.direction),
-        )
-    },
-    labelHeader = DeepDiveCopy.metricHeader,
-    deltaHeader = DeepDiveCopy.changeHeader,
-)
+/**
+ * The table that fits the width at the current font size, so no column is cut at the panel edge: [full] as it
+ * is; else [full] with its row labels wrapped between words ("Operating / margin"); else [compact] the same way.
+ * At sizes where even that cannot fit (2.0x on 360 dp) CompareTable's own scroll takes over.
+ */
+@Composable
+private fun FittingCompareTable(full: CompareTableModel, compact: CompareTableModel) {
+    val measurer = rememberTextMeasurer()
+    val density = LocalDensity.current
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val widthPx = constraints.maxWidth
+        val shown = remember(full, compact, widthPx, density) {
+            val fit = TableFit(measurer, density)
+            fit.fitted(full, widthPx) ?: fit.fitted(compact, widthPx) ?: compact
+        }
+        CompareTable(shown)
+    }
+}
+
+/**
+ * CompareTable's widths, measured ahead: each value column as wide as its widest cell and never under
+ * `Kit.tableColumnMin`, 12 dp cell padding each side; the label column takes what is left.
+ */
+private class TableFit(private val measurer: TextMeasurer, density: Density) {
+    private val pad = with(density) { Kit.tableCellPaddingH.roundToPx() } * 2
+    private val colMin = with(density) { Kit.tableColumnMin.roundToPx() }
+
+    private fun w(text: String, style: TextStyle): Int =
+        if (text.isEmpty()) 0 else measurer.measure(AnnotatedString(text), style, softWrap = false, maxLines = 1).size.width
+
+    private fun column(head: Int, cells: List<String>): Int =
+        maxOf(colMin, head + pad, (cells.maxOfOrNull { w(it, ThesisType.tableNum) } ?: 0) + pad)
+
+    /** [model] as it fits [width]: unchanged, or with its labels wrapped between words; null when it cannot fit. */
+    fun fitted(model: CompareTableModel, width: Int): CompareTableModel? {
+        val values = model.columns.mapIndexed { c, col ->
+            column(maxOf(w(col.period, ThesisType.tableHead), w(col.filing.orEmpty(), ThesisType.tick)), model.rows.map { it.values[c] })
+        }.sum()
+        val delta = model.deltaHeader?.let { header ->
+            column(w(header, ThesisType.tableHead), model.rows.map { it.delta ?: model.missingDelta })
+        } ?: 0
+        val room = width - values - delta - pad
+        if (w(model.labelHeader, ThesisType.tableHead) > room) return null
+        val labels = model.rows.map { model.labelOf(it) }
+        if (labels.all { w(it, ThesisType.bodySmall) <= room }) return model
+        val wrappable = model.rows.all { it.unit.isNullOrBlank() }
+        if (!wrappable || labels.any { l -> l.split(' ').any { w(it, ThesisType.bodySmall) > room } }) return null
+        return model.copy(rows = model.rows.map { it.copy(label = wrap(it.label, room)) })
+    }
+
+    /** [label] in lines no wider than [room], broken between words only. */
+    private fun wrap(label: String, room: Int): String {
+        val lines = mutableListOf<String>()
+        var line = ""
+        label.split(' ').filter { it.isNotEmpty() }.forEach { word ->
+            val candidate = if (line.isEmpty()) word else "$line $word"
+            if (line.isEmpty() || w(candidate, ThesisType.bodySmall) <= room) {
+                line = candidate
+            } else {
+                lines += line
+                line = word
+            }
+        }
+        if (line.isNotEmpty()) lines += line
+        return lines.joinToString("\n")
+    }
+}
+
+/**
+ * One basis as a table. Full: before, now (the subject column, with its form) and the change with its tone.
+ * [compact]: now and the change, the reference period named in the change header ("vs FY2024").
+ */
+internal fun deltaTableModel(table: DeltaTable, form: String?, compact: Boolean = false): CompareTableModel {
+    val now = CompareColumn(table.currentPeriod.ifBlank { DeepDiveCopy.now }, filing = form?.ifBlank { null }, subject = true)
+    val before = CompareColumn(table.referencePeriod.ifBlank { DeepDiveCopy.before })
+    return CompareTableModel(
+        columns = if (compact) listOf(now) else listOf(before, now),
+        rows = table.rows.map { d ->
+            val current = ClassicFormat.value(d.currentValue, d.unit)
+            CompareRow(
+                label = d.label,
+                values = if (compact) listOf(current) else listOf(ClassicFormat.value(d.referenceValue, d.unit), current),
+                delta = ClassicFormat.change(d),
+                deltaTone = ClassicFormat.tone(d.direction),
+            )
+        },
+        deltaHeader = if (compact && table.referencePeriod.isNotBlank()) {
+            DeepDiveCopy.vsPeriod(table.referencePeriod)
+        } else {
+            DeepDiveCopy.changeHeader
+        },
+    )
+}
 
 // -------------------------------------------------------------------------------------------------------------
 // Financials
@@ -669,13 +833,12 @@ internal fun deltaTableModel(table: DeltaTable, form: String?): CompareTableMode
 
 private fun ClassicItems.financialsBlocks(report: DeepDiveReportView, plan: ClassicPlan, quote: ((String) -> Unit)?) {
     val five = plan.fiveYear
-    var fig = 1
     if (five != null && five.hasRevenue) {
-        val n = fig++
+        val n = nextFigure()
         add("fin-five") { FiveYearCard(five, n, report.reportId) }
     }
     if (five != null && five.hasMargins) {
-        val n = fig
+        val n = nextFigure()
         add("fin-margins") { MarginsCard(five, n, report.reportId) }
     }
     val ir = report.indicatorsRead
@@ -691,7 +854,17 @@ private fun ClassicItems.financialsBlocks(report: DeepDiveReportView, plan: Clas
         add("fin-ind-$label") { IndicatorGroup(label, rows) }
     }
     plan.outline.financialPanels.filterIsInstance<MetricDeltaPanelView>().forEachIndexed { i, panel ->
-        if (panel.metrics.isNotEmpty()) add("fin-delta-$i") { MetricDeltaCard(panel) }
+        if (panel.metrics.isNotEmpty()) {
+            val choices = metricDeltaTables(panel)
+            add("fin-delta-$i") {
+                TablesBlock(
+                    kicker = panel.eyebrow ?: DeepDiveCopy.deltasTitle,
+                    choices = choices,
+                    title = panel.title,
+                    summary = ClassicFormat.clean(panel.summary),
+                )
+            }
+        }
     }
     ClassicFormat.clean(ir?.cashFlowRead)?.let { add("fin-cash") { LabeledParagraph(DeepDiveCopy.cashFlow, it, quote) } }
     ClassicFormat.clean(ir?.balanceSheetRead)?.let { add("fin-balance") { LabeledParagraph(DeepDiveCopy.balanceSheet, it, quote) } }
@@ -703,13 +876,9 @@ private fun ClassicItems.financialsBlocks(report: DeepDiveReportView, plan: Clas
     }
 }
 
-/** Number of chart cards the Financials chapter draws, so the Value chapter's figure numbers continue. */
-private fun financialFigures(plan: ClassicPlan): Int =
-    (if (plan.fiveYear?.hasRevenue == true) 1 else 0) + (if (plan.fiveYear?.hasMargins == true) 1 else 0)
+private fun moneyValue(v: Double): String = Fmt.money(v)
 
-private fun moneyTick(v: Double): String = Fmt.money(v)
-
-private fun pctTick(v: Double): String = Fmt.pct(v, 1)
+private fun pctValue(v: Double): String = Fmt.pct(v, 1)
 
 @Composable
 private fun FiveYearCard(five: FiveYearSeries, fignum: Int, key: String) {
@@ -721,12 +890,12 @@ private fun FiveYearCard(five: FiveYearSeries, fignum: Int, key: String) {
         title = five.growthPct(five.freeCashFlow)?.let { growthWords(DeepDiveCopy.freeCashFlow, it) }
             ?: DeepDiveCopy.financialsTitle,
         fignum = fignum,
-        subtitle = DeepDiveCopy.fiveYearSubtitleRevenue,
+        subtitle = if (five.consecutive) DeepDiveCopy.fiveYearSubtitleRevenue else DeepDiveCopy.fiveYearSubtitleRevenueSelected,
         source = five.source,
         legend = legendFor(series, bars = true),
-        table = chartTable(five.labels, series, ::moneyTick, DeepDiveCopy.fiscalYear),
+        table = chartTable(five.labels, series, ::moneyValue, DeepDiveCopy.fiscalYear),
     ) {
-        ColumnChart(series, five.labels, valueFormat = ::moneyTick, dataKey = key)
+        ColumnChart(series, five.labels, valueFormat = ::moneyValue, tickFormat = ClassicFormat::wholeMoney, dataKey = key)
     }
 }
 
@@ -745,15 +914,21 @@ private fun MarginsCard(five: FiveYearSeries, fignum: Int, key: String) {
     } else {
         DeepDiveCopy.marginsTitle
     }
+    // Selected years (gaps between them) as columns: a line across uneven gaps would draw slopes the data does not
+    // have.
     ChartCard(
         title = title,
         fignum = fignum,
-        subtitle = DeepDiveCopy.fiveYearSubtitleMargins,
+        subtitle = if (five.consecutive) DeepDiveCopy.fiveYearSubtitleMargins else DeepDiveCopy.fiveYearSubtitleMarginsSelected,
         source = five.source,
-        legend = legendFor(series),
-        table = chartTable(five.labels, series, ::pctTick, DeepDiveCopy.fiscalYear),
+        legend = legendFor(series, bars = !five.consecutive),
+        table = chartTable(five.labels, series, ::pctValue, DeepDiveCopy.fiscalYear),
     ) {
-        LineChart(LineChartData(series, five.labels), valueFormat = ::pctTick, dataKey = key)
+        if (five.consecutive) {
+            LineChart(LineChartData(series, five.labels), valueFormat = ::pctValue, tickFormat = ClassicFormat::wholePct, dataKey = key)
+        } else {
+            ColumnChart(series, five.labels, valueFormat = ::pctValue, tickFormat = ClassicFormat::wholePct, dataKey = key)
+        }
     }
 }
 
@@ -798,30 +973,38 @@ private fun IndicatorGroup(label: String, rows: List<IndicatorView>) {
     }
 }
 
-/** A metric-delta panel as one table (5.15: "instead of four boxes"): before, now, change, basis in the label. */
-@Composable
-private fun MetricDeltaCard(panel: MetricDeltaPanelView) {
-    val model = CompareTableModel(
-        columns = listOf(CompareColumn(DeepDiveCopy.before), CompareColumn(DeepDiveCopy.now, subject = true)),
-        rows = panel.metrics.map { m ->
-            CompareRow(
-                label = "${m.label}, ${DeepDiveCopy.basisLabel(m.basis)}",
-                values = listOf(ClassicFormat.plain(m.referenceValue), ClassicFormat.plain(m.currentValue)),
-                delta = m.deltaPct?.let { Fmt.signedPct(it) },
-                deltaTone = ClassicFormat.tone(m.direction),
-            )
-        },
-        labelHeader = DeepDiveCopy.metricHeader,
-        deltaHeader = DeepDiveCopy.changeHeader,
-    )
-    ThesisCard(eyebrow = panel.eyebrow ?: DeepDiveCopy.deltasTitle, title = panel.title) {
-        ClassicFormat.clean(panel.summary)?.let {
-            Text(it, style = ThesisType.bodySmall, color = LocalThesisPalette.current.ink2)
-            Spacer(Modifier.height(ThesisSpace.m))
+/**
+ * A metric-delta panel as tables (5.15: "instead of four boxes"), one per basis: the basis is the segmented
+ * control's label and the caption under "Now" ("on the quarter"), not a suffix on every row. The change is a signed
+ * percent: the panel's items carry no unit, so margins cannot be told apart for bps (HANDOFF-D).
+ */
+internal fun metricDeltaTables(panel: MetricDeltaPanelView): List<TableChoice> =
+    panel.metrics.groupBy { it.basis.lowercase() }.map { (basis, metrics) ->
+        val known = basis == "yoy" || basis == "qoq"
+        val caption = DeepDiveCopy.basisLabel(basis).takeIf { known }
+        fun model(compact: Boolean) = CompareTableModel(
+            columns = listOfNotNull(
+                CompareColumn(DeepDiveCopy.before).takeUnless { compact },
+                CompareColumn(DeepDiveCopy.now, filing = caption, subject = true),
+            ),
+            rows = metrics.map { m ->
+                val now = ClassicFormat.plain(m.currentValue)
+                CompareRow(
+                    label = m.label,
+                    values = if (compact) listOf(now) else listOf(ClassicFormat.plain(m.referenceValue), now),
+                    delta = m.deltaPct?.let { Fmt.signedPct(it) },
+                    deltaTone = ClassicFormat.tone(m.direction),
+                )
+            },
+            deltaHeader = DeepDiveCopy.changeHeader,
+        )
+        val segment = when (basis) {
+            "yoy" -> DeepDiveCopy.basisYear
+            "qoq" -> DeepDiveCopy.basisQuarter
+            else -> DeepDiveCopy.changeHeader
         }
-        CompareTable(model)
+        TableChoice(segment, model(compact = false), model(compact = true))
     }
-}
 
 // -------------------------------------------------------------------------------------------------------------
 // Price and value
@@ -834,10 +1017,10 @@ private fun ClassicItems.valueBlocks(
     quote: ((String) -> Unit)?,
 ) {
     val v = report.valuation
-    val fig = financialFigures(plan) + 1
     val low = v?.fairValueLow
     val high = v?.fairValueHigh
     if (low != null && high != null) {
+        val fig = nextFigure()
         val subtitle = DeepDiveCopy.modelRangeSubtitle(
             v.assumptions?.projectionYears,
             v.assumptions?.terminalGrowthRate?.let { Fmt.pct(it * PERCENT, 1) },
@@ -849,6 +1032,7 @@ private fun ClassicItems.valueBlocks(
         val bandLow = band?.lowValue
         val bandHigh = band?.highValue
         if (band != null && bandLow != null && bandHigh != null) {
+            val fig = nextFigure()
             add("value-band") {
                 ModelRangeCard(bandLow, bandHigh, band.midValue, band.referenceValue, fig, ClassicFormat.clean(band.summary))
             }
@@ -874,28 +1058,29 @@ private fun ClassicItems.valueBlocks(
     report.valueDiscipline?.let { vd ->
         add("value-discipline") {
             val p = LocalThesisPalette.current
-            ThesisCard(eyebrow = DeepDiveCopy.discipline, title = DeepDiveCopy.disciplineTitle(vd.score, vd.maxScore)) {
-                Column(verticalArrangement = Arrangement.spacedBy(ThesisSpace.m)) {
-                    if (vd.signals.isNotEmpty()) {
-                        RowGroup {
-                            vd.signals.forEach { s ->
-                                row {
-                                    DataRow(
-                                        label = s.label,
-                                        value = ClassicFormat.humanize(s.status),
-                                        sub = ClassicFormat.clean(s.reason),
-                                    )
-                                }
+            Column(verticalArrangement = Arrangement.spacedBy(ThesisSpace.m)) {
+                TitledKicker(DeepDiveCopy.discipline, DeepDiveCopy.disciplineTitle(vd.score, vd.maxScore))
+                if (vd.signals.isNotEmpty()) {
+                    RowGroup {
+                        vd.signals.forEach { s ->
+                            row {
+                                DataRow(
+                                    label = s.label,
+                                    value = ClassicFormat.humanize(s.status),
+                                    sub = ClassicFormat.clean(s.reason),
+                                )
                             }
                         }
                     }
-                    ClassicFormat.clean(vd.doesNotProve)?.let {
+                }
+                ClassicFormat.clean(vd.doesNotProve)?.let {
+                    Column(verticalArrangement = Arrangement.spacedBy(ThesisSpace.s)) {
                         Kicker(DeepDiveCopy.doesNotProve)
                         Text(it, style = ThesisType.bodySmall, color = p.ink2)
                     }
-                    if (vd.valueTrapWarning.triggered) {
-                        ClassicFormat.clean(vd.valueTrapWarning.summary)?.let { Callout(it) }
-                    }
+                }
+                if (vd.valueTrapWarning.triggered) {
+                    ClassicFormat.clean(vd.valueTrapWarning.summary)?.let { Callout(it) }
                 }
             }
         }
@@ -918,7 +1103,8 @@ private fun ClassicItems.valueBlocks(
                 }
             }
             is ScenarioComparePanelView -> add("value-compare-$i") {
-                ThesisCard(eyebrow = panel.eyebrow, title = panel.title) {
+                Column(verticalArrangement = Arrangement.spacedBy(ThesisSpace.m)) {
+                    TitledKicker(panel.eyebrow ?: DeepDiveCopy.modelValue, panel.title)
                     RowGroup {
                         row { DataRow(panel.baseLabel, Fmt.money(panel.baseValue, missing = Missing.NotComputed)) }
                         row { DataRow(panel.scenarioLabel, Fmt.money(panel.scenarioValue, missing = Missing.NotComputed)) }
@@ -948,7 +1134,7 @@ private fun ModelRangeCard(low: Double, high: Double, mid: Double?, price: Doubl
             RangeBar(
                 bear = low,
                 bull = high,
-                format = ::moneyTick,
+                format = ClassicFormat::rangeMoney,
                 base = mid,
                 price = price,
                 priceLabel = DeepDiveCopy.priceInReport,
@@ -970,24 +1156,14 @@ private fun ClassicItems.riskBlocks(report: DeepDiveReportView, plan: ClassicPla
             Group(DeepDiveCopy.killSwitches) {
                 RowGroup {
                     report.killSwitchConditions.forEach { k ->
-                        row {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                StatusSquare(Tone.Attention, Modifier.padding(start = ThesisSpace.l))
-                                DataRow(
-                                    label = k.conditionText,
-                                    value = ClassicFormat.humanize(k.signalType),
-                                    modifier = Modifier.weight(1f),
-                                    sub = k.thresholdDescription?.takeIf { it.isNotBlank() }?.let(DeepDiveCopy::threshold),
-                                )
-                            }
-                        }
+                        row { KillSwitchRow(condition = k.conditionText, sub = killSwitchSub(k.signalType, k.thresholdDescription)) }
                     }
                 }
             }
         }
     }
     val top = plan.outline.topRisks
-    if (top.isNotEmpty()) add("risk-top") { Group(DeepDiveCopy.topRisks) { Points(top, Tone.Unfavourable) } }
+    if (top.isNotEmpty()) add("risk-top") { Group(DeepDiveCopy.topRisks) { Points(top) } }
     plan.outline.riskPanels.filterIsInstance<TimelinePanelView>().forEachIndexed { i, panel ->
         if (panel.points.isNotEmpty()) {
             add("risk-timeline-$i") {
@@ -1035,8 +1211,13 @@ private const val EXCERPT_CHARS = 140
 private fun ClassicItems.evidenceBlocks(report: DeepDiveReportView, plan: ClassicPlan, ctx: ClassicContext) {
     val counted = report.sections.filter { it.evidence.isNotEmpty() }
     if (counted.size >= 2) {
+        val fig = nextFigure()
         add("ev-bars") {
-            ChartCard(title = DeepDiveCopy.mostSources(counted.maxBy { it.evidence.size }.title)) {
+            ChartCard(
+                title = DeepDiveCopy.mostSources(counted.maxBy { it.evidence.size }.title),
+                fignum = fig,
+                source = DeepDiveCopy.evidenceSource,
+            ) {
                 RankedBars(
                     items = counted.map { s ->
                         RankedBar(s.title, s.evidence.size.toDouble(), DeepDiveCopy.sourcesCount(s.evidence.size))
@@ -1049,8 +1230,14 @@ private fun ClassicItems.evidenceBlocks(report: DeepDiveReportView, plan: Classi
     }
     plan.outline.evidencePanels.filterIsInstance<EvidenceLadderPanelView>().forEachIndexed { i, panel ->
         if (panel.rungs.isNotEmpty()) {
+            val fig = nextFigure()
             add("ev-ladder-$i") {
-                ChartCard(title = panel.title, subtitle = ClassicFormat.clean(panel.summary)) {
+                ChartCard(
+                    title = panel.title,
+                    fignum = fig,
+                    subtitle = ClassicFormat.clean(panel.summary),
+                    source = DeepDiveCopy.evidenceSource,
+                ) {
                     RankedBars(
                         items = panel.rungs.map { r ->
                             RankedBar(r.label, r.count.toDouble(), DeepDiveCopy.sourcesCount(r.count), tone = ClassicFormat.tone(r.tone))

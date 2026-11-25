@@ -55,6 +55,10 @@ private fun ProUpsell(text: String, onUpgrade: () -> Unit) {
     }
 }
 
+/**
+ * The conviction tools: the journal and the opposite case, or for a free user the one Pro upsell ([upsell]: the
+ * classic page passes [DeepDiveCopy.deskPro] so the what-if model needs no upsell of its own).
+ */
 @Composable
 fun DeepDiveConvictionSection(
     isPro: Boolean,
@@ -66,6 +70,7 @@ fun DeepDiveConvictionSection(
     onGenerateOppositeCase: () -> Unit,
     onRefreshTimeline: () -> Unit,
     onRequireUpgrade: (String) -> Unit,
+    upsell: String = DeepDiveCopy.convictionPro,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(ThesisSpace.l)) {
         SectionHeader(
@@ -74,7 +79,7 @@ fun DeepDiveConvictionSection(
             deck = DeepDiveCopy.convictionDeck,
         )
         if (!isPro) {
-            ProUpsell(DeepDiveCopy.convictionPro) { onRequireUpgrade("conviction_intelligence") }
+            ProUpsell(upsell) { onRequireUpgrade("conviction_intelligence") }
             return@Column
         }
         JournalCard(timeline, timelineError, onRefreshTimeline)
@@ -99,7 +104,7 @@ private fun JournalCard(timeline: List<ConvictionJournalEntryView>, errorMessage
                     TimelineItem(
                         title = item.title,
                         meta = listOfNotNull(
-                            DeepDiveCopy.eventLabel(item.eventType),
+                            journalEventLabel(item.title, item.eventType),
                             parseInstant(item.eventAt)?.let(fmt::relative),
                         ).joinToString(" · "),
                         body = item.summary.takeIf { it.isNotBlank() },
@@ -111,6 +116,10 @@ private fun JournalCard(timeline: List<ConvictionJournalEntryView>, errorMessage
         if (errorMessage.isNullOrBlank()) TextAction(DeepDiveCopy.refresh, onClick = onRefresh)
     }
 }
+
+/** The event's label for the meta line, or null when the entry's title already says it ("Opposite case built"). */
+internal fun journalEventLabel(title: String, eventType: String): String? =
+    DeepDiveCopy.eventLabel(eventType).takeUnless { it.equals(title.trim(), ignoreCase = true) }
 
 @Composable
 private fun OppositeCaseCard(
@@ -178,25 +187,22 @@ fun MonthlyCoherenceSection(
         if (latest == null) {
             Text(DeepDiveCopy.coherenceEmpty, style = ThesisType.bodySmall, color = p.muted)
         } else {
-            ThesisCard(
-                eyebrow = DeepDiveCopy.periodRange(latest.periodStart, latest.periodEnd),
-                title = latest.title,
-            ) {
-                Column(verticalArrangement = Arrangement.spacedBy(ThesisSpace.m)) {
-                    Text(latest.summary, style = ThesisType.body, color = p.ink2)
-                    if (latest.findings.isNotEmpty()) {
-                        RowGroup {
-                            latest.findings.take(POINTS_SHOWN).forEach { finding ->
-                                row {
-                                    DataRow(
-                                        label = finding.title,
-                                        value = DeepDiveCopy.findingLabel(finding.findingType),
-                                        sub = listOfNotNull(
-                                            finding.summary.takeIf { it.isNotBlank() },
-                                            finding.tickers.takeIf { it.isNotEmpty() }?.joinToString(", "),
-                                        ).joinToString(" · ").ifBlank { null },
-                                    )
-                                }
+            // One container: the findings' RowGroup sits on the page under the card's head, not in a second card.
+            Column(verticalArrangement = Arrangement.spacedBy(ThesisSpace.m)) {
+                TitledKicker(DeepDiveCopy.periodRange(latest.periodStart, latest.periodEnd), latest.title)
+                Text(latest.summary, style = ThesisType.body, color = p.ink2)
+                if (latest.findings.isNotEmpty()) {
+                    RowGroup {
+                        latest.findings.take(POINTS_SHOWN).forEach { finding ->
+                            row {
+                                DataRow(
+                                    label = finding.title,
+                                    value = DeepDiveCopy.findingLabel(finding.findingType),
+                                    sub = listOfNotNull(
+                                        finding.summary.takeIf { it.isNotBlank() },
+                                        finding.tickers.takeIf { it.isNotEmpty() }?.joinToString(", "),
+                                    ).joinToString(" · ").ifBlank { null },
+                                )
                             }
                         }
                     }

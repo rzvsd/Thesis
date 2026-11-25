@@ -28,11 +28,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import com.thesis.mobile.model.ConvictionJournalEntryView
 import com.thesis.mobile.model.DeepDiveReportView
+import com.thesis.mobile.model.IssuerView
 import com.thesis.mobile.model.OppositeCaseReportView
 import com.thesis.mobile.model.ScenarioResultView
 import com.thesis.mobile.model.ValuationDisplayView
@@ -43,6 +47,7 @@ import com.thesis.mobile.ui.components.Callout
 import com.thesis.mobile.ui.components.ChapterPills
 import com.thesis.mobile.ui.components.ChipRow
 import com.thesis.mobile.ui.components.DataRow
+import com.thesis.mobile.ui.components.EmptyState
 import com.thesis.mobile.ui.components.ErrorState
 import com.thesis.mobile.ui.components.HeroBand
 import com.thesis.mobile.ui.components.InlineBanner
@@ -61,7 +66,6 @@ import com.thesis.mobile.ui.components.SkeletonCard
 import com.thesis.mobile.ui.components.SkeletonHero
 import com.thesis.mobile.ui.components.StateCrossfade
 import com.thesis.mobile.ui.components.TextAction
-import com.thesis.mobile.ui.components.ThesisCard
 import com.thesis.mobile.ui.components.ThesisChip
 import com.thesis.mobile.ui.components.ThesisSheet
 import com.thesis.mobile.ui.components.ThesisTextField
@@ -251,81 +255,45 @@ internal fun DeepDiveClassic(
     val exportCard = { requirePro { shareExport(context, createShareCard(context, report)) } }
     val exportMemo = { requirePro { shareExport(context, createPdfExport(context, report, ReportExportType.INVESTMENT_MEMO)) } }
 
-    val ctx = ClassicContext(
-        ticker = report.ticker,
-        filing = filing,
-        onQuote = { source, text -> sheet = ClassicSheet.Quote(source, text) },
-        onOpenUrl = { url -> runCatching { uriHandler.openUri(url) } },
-        whatIf = report.valuation?.let { valuation ->
-            @Composable {
-                ScenarioSection(
-                    isPro = tools.isPro,
-                    valuation = valuation,
-                    isRunning = tools.isRunningScenario,
-                    scenarioResult = tools.scenarioResult,
-                    onRunScenario = tools.onRunScenario,
-                    onRequireUpgrade = tools.onRequireUpgrade,
-                )
-            }
-        },
-        desk = buildList<Pair<String, @Composable () -> Unit>> {
-            add(
-                "notes" to @Composable {
-                    NotesSection(
-                        noteDraft = tools.reportNoteDraft,
-                        noteUpdatedAt = tools.noteUpdatedAt,
-                        isSaving = tools.isSavingNote,
-                        onNoteChange = tools.onReportNoteChange,
-                        onSave = tools.onSaveReportNote,
-                        filing = listOfNotNull(report.ticker?.uppercase(), filing).joinToString(" ").ifBlank { null },
+    // The entries and their lambdas are built once per report (and per Pro state, which changes which blocks
+    // exist), so a sheet, a note keystroke or a running scenario does not hand every list item new lambdas. The
+    // blocks read the tools through this state, so each recomposes only when what it reads changes.
+    val current by rememberUpdatedState(tools)
+    val hasStress = tools.onOpenScenarioStress != null
+    val items = remember(report, plan, tools.isPro, hasStress) {
+        // Free users see one Pro upsell on the page (5.15): the desk's, which names the what-if model too.
+        val whatIf = report.valuation?.takeIf { tools.isPro }
+        val ctx = ClassicContext(
+            ticker = report.ticker,
+            filing = filing,
+            onQuote = { source, text -> sheet = ClassicSheet.Quote(source, text) },
+            onOpenUrl = { url -> runCatching { uriHandler.openUri(url) } },
+            whatIf = whatIf?.let { valuation ->
+                @Composable {
+                    ScenarioSection(
+                        isPro = current.isPro,
+                        valuation = valuation,
+                        isRunning = current.isRunningScenario,
+                        scenarioResult = current.scenarioResult,
+                        onRunScenario = current.onRunScenario,
+                        onRequireUpgrade = current.onRequireUpgrade,
                     )
-                },
-            )
-            add(
-                "conviction" to @Composable {
-                    DeepDiveConvictionSection(
-                        isPro = tools.isPro,
-                        timeline = tools.convictionTimeline,
-                        timelineError = tools.convictionTimelineError,
-                        oppositeCase = tools.oppositeCase,
-                        oppositeCaseError = tools.oppositeCaseError,
-                        isGeneratingOppositeCase = tools.isGeneratingOppositeCase,
-                        onGenerateOppositeCase = tools.onGenerateOppositeCase,
-                        onRefreshTimeline = tools.onRefreshConvictionTimeline,
-                        onRequireUpgrade = tools.onRequireUpgrade,
-                    )
-                },
-            )
-            tools.onOpenScenarioStress?.let { open ->
-                add(
-                    "stress" to @Composable {
-                        ActionRow(
-                            icon = ThesisIcons.ScenarioStress,
-                            title = DeepDiveCopy.stressAction,
-                            onClick = open,
-                            caption = DeepDiveCopy.stressCaption,
-                        )
-                    },
-                )
-            }
-            add("feedback" to @Composable { ReportFeedbackSection(onSubmit = tools.onSubmitReportFeedback) })
-            add(
-                "export" to @Composable {
-                    ExportSection(
-                        isPro = tools.isPro,
-                        onRequireUpgrade = tools.onRequireUpgrade,
-                        onNotify = tools.onNotify,
-                        onExportPdf = { shareExport(context, createPdfExport(context, report, ReportExportType.FULL_REPORT)) },
-                        onExportCard = { shareExport(context, createShareCard(context, report)) },
-                        onExportMemo = {
-                            shareExport(context, createPdfExport(context, report, ReportExportType.INVESTMENT_MEMO))
-                        },
-                    )
-                },
-            )
-        },
-    )
-    val items = ClassicItems().apply { addChapters(report, plan, ctx) }
+                }
+            },
+            desk = deskBlocks(
+                report = report,
+                filing = filing,
+                hasStress = hasStress,
+                tools = { current },
+                exports = DeskExports(
+                    pdf = { shareExport(context, createPdfExport(context, report, ReportExportType.FULL_REPORT)) },
+                    card = { shareExport(context, createShareCard(context, report)) },
+                    memo = { shareExport(context, createPdfExport(context, report, ReportExportType.INVESTMENT_MEMO)) },
+                ),
+            ),
+        )
+        ClassicItems().apply { addChapters(report, plan, ctx) }
+    }
     val spyHolder = remember { arrayOfNulls<(Int) -> Unit>(1) }
 
     Column(Modifier.fillMaxSize()) {
@@ -417,6 +385,75 @@ internal fun DeepDiveClassic(
 
 private const val QUOTE_PREVIEW_LINES = 6
 
+/** What the export rows run (the Pro gate is ExportSection's). */
+private class DeskExports(val pdf: () -> Unit, val card: () -> Unit, val memo: () -> Unit)
+
+/** The "Your notes" chapter's blocks; each reads the tools through [tools] when it composes. */
+private fun deskBlocks(
+    report: DeepDiveReportView,
+    filing: String?,
+    hasStress: Boolean,
+    tools: () -> DeepDiveNativeTools,
+    exports: DeskExports,
+): List<Pair<String, @Composable () -> Unit>> = buildList {
+    add(
+        "notes" to @Composable {
+            val t = tools()
+            NotesSection(
+                noteDraft = t.reportNoteDraft,
+                noteUpdatedAt = t.noteUpdatedAt,
+                isSaving = t.isSavingNote,
+                onNoteChange = t.onReportNoteChange,
+                onSave = t.onSaveReportNote,
+                filing = listOfNotNull(report.ticker?.uppercase(), filing).joinToString(" ").ifBlank { null },
+            )
+        },
+    )
+    add(
+        "conviction" to @Composable {
+            val t = tools()
+            DeepDiveConvictionSection(
+                isPro = t.isPro,
+                timeline = t.convictionTimeline,
+                timelineError = t.convictionTimelineError,
+                oppositeCase = t.oppositeCase,
+                oppositeCaseError = t.oppositeCaseError,
+                isGeneratingOppositeCase = t.isGeneratingOppositeCase,
+                onGenerateOppositeCase = t.onGenerateOppositeCase,
+                onRefreshTimeline = t.onRefreshConvictionTimeline,
+                onRequireUpgrade = t.onRequireUpgrade,
+                upsell = if (report.valuation != null) DeepDiveCopy.deskPro else DeepDiveCopy.convictionPro,
+            )
+        },
+    )
+    if (hasStress) {
+        add(
+            "stress" to @Composable {
+                ActionRow(
+                    icon = ThesisIcons.ScenarioStress,
+                    title = DeepDiveCopy.stressAction,
+                    onClick = { tools().onOpenScenarioStress?.invoke() },
+                    caption = DeepDiveCopy.stressCaption,
+                )
+            },
+        )
+    }
+    add("feedback" to @Composable { ReportFeedbackSection(onSubmit = { c, d -> tools().onSubmitReportFeedback(c, d) }) })
+    add(
+        "export" to @Composable {
+            val t = tools()
+            ExportSection(
+                isPro = t.isPro,
+                onRequireUpgrade = t.onRequireUpgrade,
+                onNotify = t.onNotify,
+                onExportPdf = exports.pdf,
+                onExportCard = exports.card,
+                onExportMemo = exports.memo,
+            )
+        },
+    )
+}
+
 private fun DeepDiveReportView.readerTicker(): String = issuer?.name ?: DeepDiveCopy.deepDive
 
 /**
@@ -497,17 +534,20 @@ internal fun SampleDeepDiveContent(
     Box(Modifier.fillMaxSize()) {
         when {
             report != null -> {
-                val plan = remember(report, fiveYear) { classicPlan(report, fiveYear, withDesk = false) }
-                val kpis = remember(report, plan) { heroKpis(report, plan.fiveYear) }
-                val ctx = ClassicContext(
-                    ticker = report.ticker,
-                    filing = ClassicFormat.filingLabel(report.filingRead?.form, report.filingRead?.period),
-                    onQuote = null,
-                    onOpenUrl = { url -> runCatching { uriHandler.openUri(url) } },
-                )
-                val items = ClassicItems().apply { addChapters(report, plan, ctx) }
+                val shown = remember(report) { sampleWithIssuer(report) }
+                val plan = remember(shown, fiveYear) { classicPlan(shown, fiveYear, withDesk = false) }
+                val kpis = remember(shown, plan) { heroKpis(shown, plan.fiveYear) }
+                val items = remember(shown, plan) {
+                    val ctx = ClassicContext(
+                        ticker = shown.ticker,
+                        filing = ClassicFormat.filingLabel(shown.filingRead?.form, shown.filingRead?.period),
+                        onQuote = null,
+                        onOpenUrl = { url -> runCatching { uriHandler.openUri(url) } },
+                    )
+                    ClassicItems().apply { addChapters(shown, plan, ctx) }
+                }
                 ClassicReportList(
-                    report = report,
+                    report = shown,
                     plan = plan,
                     items = items,
                     kpis = kpis,
@@ -528,7 +568,13 @@ internal fun SampleDeepDiveContent(
                     .padding(ThesisSpace.gutter),
                 contentAlignment = Alignment.Center,
             ) {
-                ErrorState(title = DeepDiveCopy.sampleFailed, retryLabel = DeepDiveCopy.closeSample, onRetry = onDismiss)
+                // Nothing to retry (the asset is in the app): the one action closes the sample, with no retry icon.
+                EmptyState(
+                    sentence = DeepDiveCopy.sampleFailed,
+                    modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+                    actionLabel = DeepDiveCopy.closeSample,
+                    onAction = onDismiss,
+                )
             }
             else -> Column(Modifier.fillMaxSize()) {
                 HeroBand(underTopBar = true) { SkeletonHero() }
@@ -552,6 +598,17 @@ internal fun SampleDeepDiveContent(
 }
 
 private val SAMPLE_BAR_SPACE = ThesisSpace.x5 + ThesisSpace.x4
+
+/**
+ * The bundled sample names only its ticker; the hero shows the company ("Microsoft", with "MSFT" in the meta line),
+ * as the page does. Any other report is returned as it is.
+ */
+internal fun sampleWithIssuer(report: DeepDiveReportView): DeepDiveReportView =
+    if (report.issuer?.name.isNullOrBlank() && report.ticker.equals(DeepDiveCopy.sampleTicker, ignoreCase = true)) {
+        report.copy(issuer = IssuerView(DeepDiveCopy.sampleIssuer))
+    } else {
+        report
+    }
 
 // -------------------------------------------------------------------------------------------------------------
 // Desk tools (also opened one at a time from the new view's tool row, DeepDiveWebReportState.kt)
@@ -682,52 +739,57 @@ internal fun ScenarioSection(
     }
 }
 
+/**
+ * The what-if result, on the page under the section's header (one container: the rows' own panel, no card around
+ * it): the report's model value, yours, and the price in report with how far your value sits from it.
+ */
 @Composable
 private fun ScenarioResultCard(result: ScenarioResultView) {
     val p = LocalThesisPalette.current
     val base = result.base.fairValueMid
     val mine = result.scenario.fairValueMid
     val price = result.scenario.spotPrice ?: result.base.spotPrice
-    ThesisCard(eyebrow = DeepDiveCopy.modelValue, title = DeepDiveCopy.modelResultTitle) {
-        Column(verticalArrangement = Arrangement.spacedBy(ThesisSpace.m)) {
-            RowGroup {
-                row { DataRow(DeepDiveCopy.baseCase, Fmt.money(base, missing = Missing.NotComputed)) }
-                row {
-                    DataRow(
-                        label = DeepDiveCopy.yourInputs,
-                        value = Fmt.money(mine, missing = Missing.NotComputed),
-                        delta = if (base != null && mine != null && base != 0.0) Fmt.signedPct((mine / base - 1.0) * 100.0) else null,
-                    )
-                }
-                if (price != null && mine != null && price > 0.0) {
-                    val gap = (mine / price - 1.0) * 100.0
-                    row {
-                        DataRow(
-                            label = DeepDiveCopy.modelValueVsPrice,
-                            value = Fmt.money(price),
-                            delta = Fmt.signedPct(gap),
-                            deltaTone = if (gap >= 0) Tone.Favourable else Tone.Unfavourable,
-                        )
-                    }
-                }
-            }
-            val low = result.scenario.fairValueLow
-            val high = result.scenario.fairValueHigh
-            if (low != null && high != null) {
-                RangeBar(
-                    bear = low,
-                    bull = high,
-                    format = { Fmt.money(it) },
-                    base = base,
-                    price = price,
-                    yourValue = mine,
-                    priceLabel = DeepDiveCopy.priceInReport,
+    Column(Modifier.padding(top = ThesisSpace.s), verticalArrangement = Arrangement.spacedBy(ThesisSpace.m)) {
+        TitledKicker(DeepDiveCopy.modelValue, DeepDiveCopy.modelResultTitle)
+        RowGroup {
+            row { DataRow(DeepDiveCopy.baseCase, Fmt.money(base, missing = Missing.NotComputed)) }
+            row {
+                DataRow(
+                    label = DeepDiveCopy.yourInputs,
+                    value = Fmt.money(mine, missing = Missing.NotComputed),
+                    delta = if (base != null && mine != null && base != 0.0) Fmt.signedPct((mine / base - 1.0) * 100.0) else null,
                 )
             }
-            result.deterministicModel?.takeIf { it.isNotBlank() }?.let {
-                Text(DeepDiveCopy.modelName(it), style = ThesisType.caption, color = p.muted)
+            if (price != null && mine != null && price > 0.0) {
+                val gap = (mine / price - 1.0) * 100.0
+                row {
+                    DataRow(
+                        label = DeepDiveCopy.priceInReport,
+                        value = Fmt.money(price),
+                        delta = DeepDiveCopy.yourValueGap(Fmt.signedPct(gap)),
+                        deltaTone = if (gap >= 0) Tone.Favourable else Tone.Unfavourable,
+                    )
+                }
             }
-            if (result.omissions.isNotEmpty()) {
+        }
+        val low = result.scenario.fairValueLow
+        val high = result.scenario.fairValueHigh
+        if (low != null && high != null) {
+            RangeBar(
+                bear = low,
+                bull = high,
+                format = ClassicFormat::rangeMoney,
+                base = base,
+                price = price,
+                yourValue = mine,
+                priceLabel = DeepDiveCopy.priceInReport,
+            )
+        }
+        result.deterministicModel?.let(DeepDiveCopy::modelName)?.let {
+            Text(it, style = ThesisType.caption, color = p.muted)
+        }
+        if (result.omissions.isNotEmpty()) {
+            Column(verticalArrangement = Arrangement.spacedBy(ThesisSpace.s)) {
                 Kicker(DeepDiveCopy.leftOut)
                 result.omissions.forEach { Text(it.omissionText, style = ThesisType.bodySmall, color = p.ink2) }
             }

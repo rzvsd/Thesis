@@ -12,8 +12,8 @@ import com.thesis.mobile.model.DeepDiveReportView
 import com.thesis.mobile.model.OppositeCasePointView
 import com.thesis.mobile.model.OppositeCaseReportView
 import com.thesis.mobile.model.ScenarioResultView
-import com.thesis.mobile.preview.fixtures.DeepDiveFixtures
 import com.thesis.mobile.ui.screens.DeepDiveConvictionSection
+import com.thesis.mobile.ui.screens.DeepDiveFixtures
 import com.thesis.mobile.ui.screens.DeepDiveScreen
 import com.thesis.mobile.ui.screens.ExportSection
 import com.thesis.mobile.ui.screens.MonthlyCoherenceSection
@@ -72,6 +72,21 @@ class DeepDiveRenders {
         },
     )
 
+    /**
+     * The page at 360 dp down to the Value chapter: every table fits or wraps its labels, nothing is cut at the
+     * panel edge. Not the whole page: with the end of the list in view the scroll-spy selects the last chapter and
+     * the pill row animates to it, which deadlocks Compose Desktop (README "deadlock").
+     */
+    @Test
+    fun classicWholePageNarrow() = check(
+        renderScreen(
+            "dd-classic-whole-360", widthDp = PhoneSpec.NARROW_WIDTH_DP, heightDp = NARROW_PAGE_DP, density = 1.0f,
+            glow = false, themes = listOf(PreviewTheme.DARK),
+        ) {
+            Classic(DeepDiveFixtures.structured, scenario = DeepDiveFixtures.scenario)
+        },
+    )
+
     @Test
     fun classicWholePageFree() = check(
         renderScreen("dd-classic-whole-free", heightDp = WHOLE_PAGE_DP, density = 1.0f, glow = false, themes = listOf(PreviewTheme.LIGHT)) {
@@ -123,6 +138,16 @@ class DeepDiveRenders {
     @Test
     fun sampleWholePage() = check(
         renderScreen("dd-sample-whole", heightDp = WHOLE_PAGE_DP, density = 1.0f, glow = false) {
+            SampleDeepDiveContent(DeepDiveFixtures.sample, DeepDiveFixtures.sampleFiveYear, PaddingValues(), {}, {})
+        },
+    )
+
+    @Test
+    fun sampleWholePageNarrow() = check(
+        renderScreen(
+            "dd-sample-whole-360", widthDp = PhoneSpec.NARROW_WIDTH_DP, heightDp = WHOLE_PAGE_DP, density = 1.0f,
+            glow = false, themes = listOf(PreviewTheme.DARK),
+        ) {
             SampleDeepDiveContent(DeepDiveFixtures.sample, DeepDiveFixtures.sampleFiveYear, PaddingValues(), {}, {})
         },
     )
@@ -195,6 +220,7 @@ class DeepDiveRenders {
 
     private companion object {
         const val WHOLE_PAGE_DP = 9_000
+        const val NARROW_PAGE_DP = 4_500
         const val DESK_HEIGHT_DP = 6_000
     }
 }

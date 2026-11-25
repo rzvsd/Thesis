@@ -135,6 +135,30 @@ internal object ClassicFormat {
      */
     fun marginPercent(v: Double): Double = if (abs(v) <= 1.5) v * 100.0 else v
 
+    /**
+     * Money in whole units for axis ticks and headlines, as the renderer sets them: "$0", "$186", "$1.2K",
+     * "$300B", "$2.5B" (no ".00", no trailing zeros after the point).
+     */
+    fun wholeMoney(v: Double): String {
+        if (!v.isFinite()) return Fmt.money(v)
+        val r = Math.round(v).toDouble()
+        if (abs(r) < 1_000.0) return (if (r < 0) Fmt.MINUS else "") + Fmt.currencyPrefix("USD") + Fmt.number(abs(r), 0)
+        return Fmt.money(v).replace(trailingZeros, "$1$2").replace(barePoint, "$1")
+    }
+
+    private val trailingZeros = Regex("""(\.\d*?)0+([KMBT])$""")
+    private val barePoint = Regex("""\.([KMBT])$""")
+
+    /**
+     * A RangeBar figure: whole dollars when the value is whole (ticks and round model values: "$180", "$186"), cents
+     * when it is not, so a stored price keeps its precision ("$241.50").
+     */
+    fun rangeMoney(v: Double): String =
+        if (v.isFinite() && abs(v) < 1_000.0 && v != Math.rint(v)) Fmt.money(v) else wholeMoney(v)
+
+    /** A percent axis tick in whole percent: "50%". */
+    fun wholePct(v: Double): String = Fmt.pct(v, 0)
+
     /** "up 8.2%" / "down 300 bps": a signed change in words for generated titles (the sign is dropped). */
     fun moved(positive: Boolean, change: String): String =
         (if (positive) "up " else "down ") + change.trimStart('+', Fmt.MINUS.first())
@@ -148,8 +172,10 @@ internal object ClassicFormat {
 // -------------------------------------------------------------------------------------------------------------
 
 /**
- * Fiscal years for the five-year chart, oldest first, one value per year (null = a year the payload does not
- * have, drawn as an empty slot, never interpolated). [source] names where it came from (the chart card's foot).
+ * Fiscal years for the five-year chart, oldest first, one value per year (null = a line the payload does not have
+ * for that year, never interpolated). Years with no value at all are left out ([trimmed]), so a chart never shows
+ * an empty slot under a year label; [consecutive] says whether the years left run without a gap (the sample has
+ * FY2020, FY2022, FY2024 and FY2025 only). [source] names where it came from (the chart card's foot).
  */
 internal data class FiveYearSeries(
     val years: List<Int>,
@@ -160,6 +186,24 @@ internal data class FiveYearSeries(
     val source: String = DeepDiveCopy.incomeStatement,
 ) {
     val labels: List<String> get() = years.map { Fmt.period(PeriodKind.FY, it) }
+
+    /** True when the years run without a gap (FY2020 to FY2025); false for selected years. */
+    val consecutive: Boolean get() = years.zipWithNext().all { (a, b) -> b == a + 1 }
+
+    /** The same series without the years that have no value in any line. */
+    fun trimmed(): FiveYearSeries {
+        val keep = years.indices.filter { i ->
+            listOf(revenue, freeCashFlow, grossMargin, operatingMargin).any { it.getOrNull(i)?.isFinite() == true }
+        }
+        fun List<Double?>.kept(): List<Double?> = if (isEmpty()) this else keep.map { getOrNull(it) }
+        return copy(
+            years = keep.map { years[it] },
+            revenue = revenue.kept(),
+            freeCashFlow = freeCashFlow.kept(),
+            grossMargin = grossMargin.kept(),
+            operatingMargin = operatingMargin.kept(),
+        )
+    }
     val hasMargins: Boolean get() = (grossMargin + operatingMargin).any { it != null && it.isFinite() }
     val hasRevenue: Boolean get() = (revenue + freeCashFlow).any { it != null && it.isFinite() }
 
@@ -195,13 +239,13 @@ internal data class FiveYearSeries(
                 grossMargin = byYear.map { it?.grossMargin?.let(ClassicFormat::marginPercent) },
                 operatingMargin = byYear.map { it?.operatingMargin?.let(ClassicFormat::marginPercent) },
             )
-            return series.takeIf { it.hasRevenue || it.hasMargins }
+            return series.takeIf { it.hasRevenue || it.hasMargins }?.trimmed()
         }
 
         /**
          * From `financial_indicators.five_year_trends` (the memo payload of the bundled sample and of reports with a
          * native memo): `current`, `one_year_ago`, `three_years_ago` and `five_years_ago` per indicator, placed on
-         * their fiscal years; the two years in between stay empty slots.
+         * their fiscal years. The two years in between are not in the payload, so they are left out ([trimmed]).
          */
         fun fromIndicatorsJson(indicators: JSONObject?): FiveYearSeries? {
             val trends = indicators?.optJSONArray("five_year_trends") ?: return null
@@ -227,7 +271,7 @@ internal data class FiveYearSeries(
                 operatingMargin = series("operating_margin"),
                 source = DeepDiveCopy.filingSource,
             )
-            return result.takeIf { it.hasRevenue || it.hasMargins }
+            return result.takeIf { it.hasRevenue || it.hasMargins }?.trimmed()
         }
     }
 }

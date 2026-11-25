@@ -15,7 +15,12 @@ object DeepDiveCopy {
     const val memoPdf = "Memo as PDF"
     const val reportFeedback = "Report feedback"
     const val sampleBadge = "Sample report"
-    const val sampleNote = "Built on 8 May 2026 from test data and a test price, so the figures are not current."
+    const val sampleNote =
+        "A sample report on Microsoft, built on 8 May 2026 from test data and a test price, so the figures are not current."
+
+    /** The sample's company: the bundled MSFT asset carries the ticker but no issuer name. */
+    const val sampleTicker = "MSFT"
+    const val sampleIssuer = "Microsoft"
     const val followFirstName = "Follow your first name"
     const val closeSample = "Close sample"
     const val disclaimer = "A research summary built from SEC filings, not financial advice."
@@ -77,17 +82,19 @@ object DeepDiveCopy {
     const val theGood = "The good"
     const val theBad = "The bad"
     const val changesTitle = "Every line that moved"
-    const val basisYear = "On the year"
-    const val basisQuarter = "On the quarter"
+    // Segment labels: short enough for three segments at 360 dp ("On the quarter" was cut to "On the").
+    const val basisYear = "Year ago"
+    const val basisQuarter = "Last quarter"
     const val basisFiscal = "Fiscal year"
     fun vsPeriod(period: String): String = "vs $period"
-    const val metricHeader = "Line"
     const val changeHeader = "Change"
     const val filingSource = "SEC filing data"
 
     // ---- Financials chapter
     const val fiveYearSubtitleRevenue = "Revenue and free cash flow, fiscal years"
     const val fiveYearSubtitleMargins = "% of revenue, fiscal years"
+    const val fiveYearSubtitleRevenueSelected = "Revenue and free cash flow, selected fiscal years"
+    const val fiveYearSubtitleMarginsSelected = "% of revenue, selected fiscal years"
     const val marginsTitle = "Margins over the same years"
     fun marginsTitleMove(label: String, change: String): String = "$label $change over the period"
     const val incomeStatement = "Income statement"
@@ -150,11 +157,23 @@ object DeepDiveCopy {
     const val errPercent = "Use a percent, for example 2.5."
     const val errWaccAboveGrowth = "The discount rate has to be above terminal growth."
     const val modelValue = "Model value"
-    const val modelValueVsPrice = "Model value vs price in report"
+    /** Under the price in report: how far your model value sits from it ("Your value +3.9%"). */
+    fun yourValueGap(change: String): String = "Your value $change"
     const val baseCase = "Report's model"
     const val yourInputs = "Your inputs"
     const val modelResultTitle = "Your inputs move the model value"
-    fun modelName(model: String): String = "Model: $model"
+    /** The model's name in words ("dcf_v2" is "Discounted cash flow model"); null for a model key we do not know. */
+    fun modelName(model: String): String? {
+        val key = model.trim().lowercase()
+        val words = when {
+            key.startsWith("reverse_dcf") -> "Reverse discounted cash flow"
+            key.startsWith("dcf") -> "Discounted cash flow"
+            key.startsWith("ddm") -> "Dividend discount"
+            key.startsWith("multiples") || key.startsWith("comps") -> "Trading multiples"
+            else -> return null
+        }
+        return "$words model"
+    }
     const val leftOut = "Left out"
 
     // ---- Risks
@@ -163,6 +182,7 @@ object DeepDiveCopy {
     fun threshold(text: String): String = "Line: $text"
 
     // ---- Evidence
+    const val evidenceSource = "Sources cited in the report"
     const val sourcesPerSection = "Sources per section"
     fun mostSources(section: String): String = "$section has the most sources"
     fun sourcesCount(n: Int): String = if (n == 1) "1 source" else "$n sources"
@@ -227,7 +247,7 @@ object DeepDiveCopy {
     const val convictionKicker = "Conviction"
     const val convictionTitle = "What you believed and what changed"
     const val convictionDeck = "Your journal for this name and the strongest case against the thesis."
-    const val journalTitle = "Conviction journal"
+    const val journalTitle = "Journal"
     const val journalEmpty = "Nothing is in the journal for this name yet."
     const val refresh = "Refresh"
     const val oppositeTitle = "The opposite case"
@@ -236,6 +256,9 @@ object DeepDiveCopy {
     const val oppositeBuilding = "Building the opposite case"
     const val decisiveFactors = "Decisive factors"
     const val convictionPro = "The conviction journal and the opposite case are part of Thesis Pro."
+
+    /** The page's one Pro upsell when the what-if model would also be locked (5.15 "Pro upsell once"). */
+    const val deskPro = "The what-if model, the conviction journal and the opposite case are part of Thesis Pro."
     const val seePro = "See Thesis Pro"
     const val coherenceKicker = "Coherence"
     const val coherenceTitle = "Monthly coherence"
