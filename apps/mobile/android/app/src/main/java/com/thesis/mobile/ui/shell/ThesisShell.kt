@@ -2,6 +2,8 @@ package com.thesis.mobile.ui.shell
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
@@ -22,16 +24,22 @@ import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarData
+import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarVisuals
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.State
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -47,8 +55,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.AccessibilityManager
+import androidx.compose.ui.platform.LocalAccessibilityManager
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.dismiss
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.IntOffset
 import com.thesis.mobile.ui.UiState
 import com.thesis.mobile.ui.components.BottomBarItem
@@ -56,7 +68,7 @@ import com.thesis.mobile.ui.components.LoadingHairline
 import com.thesis.mobile.ui.components.LocalPageBackgroundCache
 import com.thesis.mobile.ui.components.ProvidePageBackground
 import com.thesis.mobile.ui.components.ThesisBottomBar
-import com.thesis.mobile.ui.components.ThesisSnackbarHost
+import com.thesis.mobile.ui.components.ThesisSnackbar
 import com.thesis.mobile.ui.motion.ThesisMotion
 import com.thesis.mobile.ui.navigation.Destination
 import com.thesis.mobile.ui.navigation.ShellRootTopBar
@@ -66,9 +78,13 @@ import com.thesis.mobile.ui.navigation.shellNavItems
 import com.thesis.mobile.ui.platform.ThesisBackHandler
 import com.thesis.mobile.ui.platform.ThesisPredictiveBackHandler
 import com.thesis.mobile.ui.screens.PaywallScreen
+import com.thesis.mobile.ui.theme.Kit
 import com.thesis.mobile.ui.theme.LocalReducedMotion
+import com.thesis.mobile.ui.theme.ThesisSpace
 import kotlin.math.roundToInt
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 /**
  * The logged-in app (DESIGN-DIRECTION 5.5). Pure: it takes the published [state], the [navigator] (snapshot
@@ -82,13 +98,17 @@ import kotlinx.coroutines.CancellationException
  * `entryId`) → the bottom bar (slides away on Report, ReportClassic, DeepDiveRunning) → the modal layer (You,
  * Search, Paywall destinations: rise and fall, X axis inside) → the paywall → snackbars (one host, last child of
  * the root, so messages raised while You or Search is open are seen: 5.5 layer order). Every move animates: no
- * layer appears or disappears in a hard cut. The paywall is still a `Dialog` (its own window, with the platform's
- * window animation); 5.23 (WP-G) makes it a full-screen destination.
+ * layer appears or disappears in a hard cut. A tab root's bar (brand, search, avatar) is drawn once above the tab
+ * layer while the layer is on tab roots only, so a switch between two roots fades the page bodies through and the
+ * identical bar stays still ([SharedRootTopBar]); in a push or pop the bar moves with its screen. The paywall is
+ * still a `Dialog` (its own window, with the platform's window animation); 5.23 (WP-G) makes it a full-screen
+ * destination.
  *
  * Each entry draws its own top bar (5.5 "each screen supplies its top bar") and computes its own insets from its
  * own destination, so in a push or pop the bar moves with its screen and the leaving screen keeps its layout
  * while it slides out (principle 8). The bar reveals its background and hairline when content scrolls under it,
- * and over a HeroBand it reads the hero palette, as do the status bar icons ([ScreenChrome], 2.7).
+ * and over a HeroBand it reads the hero palette, as do the status bar icons ([ScreenChrome], 2.7), which switch to
+ * a new page's once the page it replaces has gone ([rememberFrontEntryId]).
  *
  * Back (4.5): a predictive back handler, enabled while [AppNavigator.canGoBack], previews the pop on the page it
  * closes only (scale to .90, 8 dp away from the swipe edge; still under reduced motion, 4.8); on commit that page
@@ -144,8 +164,10 @@ fun ThesisShell(
     }
 
     // Status bar icons (2.7): light over a HeroBand at rest (both themes), else the theme's. ThesisApp applies it.
-    val statusBarOverHero by remember(navigator, chromes) {
-        derivedStateOf { chromes[navigator.top.entryId]?.overHero == true }
+    // They follow the page in front, which changes once the page it replaces has gone, not in a move's first frame.
+    val front = rememberFrontEntryId(navigator, reducedMotion)
+    val statusBarOverHero by remember(front, chromes) {
+        derivedStateOf { chromes[front.value]?.overHero == true }
     }
     val onStatusBarOverHero by rememberUpdatedState(platform.onStatusBarOverHero)
     LaunchedEffect(statusBarOverHero) { onStatusBarOverHero(statusBarOverHero) }
@@ -169,6 +191,20 @@ fun ThesisShell(
     }
     ThesisBackHandler(enabled = paywallOpen) { actions.onDismissPaywall() }
 
+    // The tab roots' shared bar: the entries composed in the tab layer, and the root whose bar the shell draws.
+    val tabEntries = remember { mutableStateListOf<NavEntry>() }
+    val rootBarShared by remember(navigator, backPreview) {
+        derivedStateOf {
+            usesRootBar(navigator.tabTop.destination) && tabEntries.isNotEmpty() &&
+                tabEntries.all { usesRootBar(it.destination) } && backPreview.entryId == null
+        }
+    }
+    // The bar shows the target root's chrome, or for the first frame of a switch (before the new root has
+    // registered its chrome) the one it showed before, so it never drops out.
+    val topChrome = chromes[tabTop.entryId]
+    val sharedBar = heldWhile(hold = topChrome == null, value = topChrome?.let { tabTop to it })
+    val drawSharedBar = rootBarShared && sharedBar != null
+
     val scope = ShellContentScope(
         state = state,
         navigator = navigator,
@@ -176,7 +212,8 @@ fun ThesisShell(
         platform = platform,
         sampleDismissed = sampleDismissed,
         onDismissSample = { sampleDismissed = true },
-        chromes = chromes
+        chromes = chromes,
+        rootBarShared = drawSharedBar
     )
 
     ShellPageBackground(modifier) {
@@ -205,9 +242,14 @@ fun ThesisShell(
                 // A report is drawn only by the base layer: on top, this layer stays empty so nothing covers it,
                 // and a report that is leaving (another report pushed over it, a tab switch) never builds a
                 // second WebView here.
-                drawnBelow = { it.destination is Destination.Report }
+                drawnBelow = { it.destination is Destination.Report },
+                composed = tabEntries
             ) { entry ->
                 scope.EntryFrame(entry, inModal = false, bottomBarHeightPx = bottomBarHeightPx)
+            }
+
+            if (drawSharedBar && sharedBar != null) {
+                scope.SharedRootTopBar(entry = sharedBar.first, chrome = sharedBar.second, covered = coveredByModal)
             }
 
             val barHidden by animateFloatAsState(
@@ -274,6 +316,36 @@ fun ThesisShell(
             )
         }
     }
+}
+
+/**
+ * The entry in front, for the status bar's icons (2.7): [AppNavigator.top], except that after a move the new top
+ * takes over only at the move's [frontChangeMillis] (once the page it replaces has gone, or half way through a
+ * crossfade), so the new page's icons never sit over the leaving page. Timed on the animation clock (no `delay`),
+ * so it is instant when the system turns animations off.
+ */
+@Composable
+private fun rememberFrontEntryId(navigator: AppNavigator, reducedMotion: Boolean): State<String> {
+    val topId = navigator.top.entryId
+    val modalTop = navigator.modalStack.lastOrNull()
+    val modals = remember { TargetHistory(modalTop) }
+    val modalBefore = modals.current
+    modals.update(modalTop)
+    // The move that brought [topId] in: the modal layer's when the modal top changed, else the tab layer's.
+    val move = if (modalBefore?.entryId != modalTop?.entryId) {
+        val forward = modalBefore != null && navigator.modalStack.any { it.entryId == modalBefore.entryId }
+        modalTransitionFor(modalBefore, modalTop, forward, reducedMotion)
+    } else {
+        shellTransitionFor(navigator.lastMove, reducedMotion)
+    }
+    val front = remember { mutableStateOf(topId) }
+    LaunchedEffect(topId) {
+        if (front.value != topId) {
+            animate(0f, 1f, animationSpec = motionSpec(move.frontChangeMillis, easing = ThesisMotion.Linear)) { _, _ -> }
+            front.value = topId
+        }
+    }
+    return front
 }
 
 /**
@@ -367,11 +439,31 @@ private fun ShellContentScope.EntryTopBarSlot(entry: NavEntry, bar: ShellTopBar,
 /** Frames after which a page's HeroBand declaration no longer rebuilds its bar (see [EntryTopBarSlot]). */
 private const val SETTLE_FRAMES = 2
 
-/** The shell's top bar for [entry]: scroll reveal and the hero palette come from [chrome]. */
+/**
+ * The tab roots' bar, drawn once above the tab layer while the layer shows tab roots only ([ShellContentScope.rootBarShared]):
+ * in a switch between two roots the page bodies fade through under it and the bar itself stays still (no blink
+ * of identical chrome). It shows [entry]'s refresh hairline and [chrome]'s scroll reveal, which crossfades (200 ms)
+ * when the new root's differs. The roots' own bars are kept, invisible and out of the accessibility tree, and take
+ * over in a push or pop, where the bar moves with its screen. [covered]: a modal or the paywall is over it.
+ */
 @Composable
-private fun ShellContentScope.EntryTopBar(entry: NavEntry, bar: ShellTopBar, chrome: ScreenChrome) {
+private fun ShellContentScope.SharedRootTopBar(entry: NavEntry, chrome: ScreenChrome, covered: Boolean) {
+    Box(Modifier.fillMaxWidth().then(if (covered) Modifier.clearAndSetSemantics {} else Modifier)) {
+        EntryTopBar(entry, ShellTopBar.Root, chrome, shared = true)
+    }
+}
+
+/**
+ * The shell's top bar for [entry]: scroll reveal and the hero palette come from [chrome]. A tab root's own bar is
+ * invisible while the shared bar ([shared] = true) is drawn in its place.
+ */
+@Composable
+private fun ShellContentScope.EntryTopBar(entry: NavEntry, bar: ShellTopBar, chrome: ScreenChrome, shared: Boolean = false) {
     when (bar) {
-        ShellTopBar.Root -> Box {
+        ShellTopBar.Root -> Box(
+            // Under the shared bar: same pixels in the same place, so it can take over in any frame.
+            if (!shared && rootBarShared) Modifier.graphicsLayer { alpha = 0f }.clearAndSetSemantics {} else Modifier
+        ) {
             ShellRootTopBar(
                 initials = initialsOf(state.userProfile?.email),
                 onOpenSearch = actions::onOpenSearch,
@@ -388,7 +480,8 @@ private fun ShellContentScope.EntryTopBar(entry: NavEntry, bar: ShellTopBar, chr
                 transitionSpec = { ThesisMotion.timed(reduced = false, durationMillis = ThesisMotion.Quick) },
                 label = "refresh-hairline-alpha"
             ) { on -> if (on) 1f else 0f }
-            if (fade.currentState || fade.targetState) {
+            // Not under the shared bar, which draws its own (one infinite animation on screen, 4.3.10).
+            if ((fade.currentState || fade.targetState) && (shared || !rootBarShared)) {
                 LoadingHairline(
                     active = refreshing,
                     modifier = Modifier
@@ -455,26 +548,97 @@ private fun BoxScope.ShellBottomBar(
 }
 
 /**
- * The shell's only snackbar host (the kit's [ThesisSnackbarHost], 3 #23, which rises 12 dp and fades in over
- * 220 ms and fades out over 150 ms), bottom-aligned above the bottom bar ([barPx], animated), the navigation bar
- * or the keyboard, whichever is highest. The lift is read in the layout phase, so keyboard and bar animation
- * frames only move the host. Messages go through `showThesisSnackbar`, which this host times out (4 s, 8 s with
- * an action).
+ * The shell's only snackbar host (3 #23, 4.4), bottom-aligned above the bottom bar ([barPx], animated), the
+ * navigation bar or the keyboard, whichever is highest. The lift is read in the layout phase, so keyboard and bar
+ * animation frames only move the host.
+ *
+ * It draws the kit's [ThesisSnackbar] itself instead of going through Material3's `SnackbarHost`, whose own
+ * fade-and-scale (from .8, which 4.3.8 rules out) would run on top of the kit's motion and ignore reduced motion.
+ * Each snackbar rises 12 dp and fades in over 220 ms (`EaseEnter`) and fades out over 150 ms (`EaseExit`) when it
+ * times out, its action is tapped or it is dismissed; under reduced motion (4.8) it shows and hides at once.
+ * Messages go through `showThesisSnackbar`, which this host times out ([snackbarTimeoutMillis]).
  */
 @Composable
 private fun BoxScope.ShellSnackbarHost(hostState: SnackbarHostState, barPx: () -> Float) {
     val ime = WindowInsets.ime
     val navigationBars = WindowInsets.navigationBars
-    ThesisSnackbarHost(
-        hostState = hostState,
-        modifier = Modifier
+    val reduced = LocalReducedMotion.current
+    val accessibility = LocalAccessibilityManager.current
+    val current = hostState.currentSnackbarData
+    // The snackbar on screen: the current one, or the one before while it fades out.
+    var shown by remember { mutableStateOf<SnackbarData?>(null) }
+    val progress = remember { Animatable(0f) }
+    val scope = rememberCoroutineScope()
+    val hide: suspend () -> Unit = {
+        if (reduced) {
+            progress.snapTo(0f)
+        } else {
+            progress.animateTo(0f, motionSpec(ThesisMotion.Quick, easing = ThesisMotion.EaseExit))
+        }
+    }
+    LaunchedEffect(current) {
+        if (shown != null && shown !== current) hide()
+        shown = current
+        val data = current ?: return@LaunchedEffect
+        if (reduced) {
+            progress.snapTo(1f)
+        } else {
+            progress.snapTo(0f)
+            progress.animateTo(1f, motionSpec(ThesisMotion.Dialog, easing = ThesisMotion.EaseEnter))
+        }
+        val timeout = snackbarTimeoutMillis(data.visuals, accessibility) ?: return@LaunchedEffect
+        delay(timeout)
+        hide()
+        data.dismiss()
+    }
+    val data = shown ?: return
+    val rise = with(LocalDensity.current) { ThesisMotion.SnackbarOffset.toPx() }
+    Box(
+        Modifier
             .align(Alignment.BottomCenter)
             .offset {
                 val lift = maxOf(ime.getBottom(this), navigationBars.getBottom(this), barPx().roundToInt())
                 IntOffset(0, -lift)
             }
-    )
+            .padding(ThesisSpace.l)
+            .semantics {
+                dismiss {
+                    scope.launch { hide(); data.dismiss() }
+                    true
+                }
+            }
+    ) {
+        ThesisSnackbar(
+            message = data.visuals.message,
+            actionLabel = data.visuals.actionLabel,
+            onAction = { scope.launch { hide(); data.performAction() } },
+            modifier = Modifier.graphicsLayer {
+                val shownFraction = progress.value
+                alpha = shownFraction
+                translationY = (1f - shownFraction) * rise
+            }
+        )
+    }
 }
+
+/**
+ * How long [visuals] stays up, stretched to the user's accessibility timeout ("Time to take action") as
+ * Material3's own host does; null: until dismissed. `showThesisSnackbar` posts `Indefinite` messages that this
+ * host times out itself: 4 s, or 8 s with an action (3 #23). `Short` and `Long` keep Material3's 4 s and 10 s.
+ */
+internal fun snackbarTimeoutMillis(visuals: SnackbarVisuals, accessibility: AccessibilityManager?): Long? {
+    val hasAction = visuals.actionLabel != null
+    val base = when (visuals.duration) {
+        SnackbarDuration.Short -> SNACKBAR_SHORT_MS
+        SnackbarDuration.Long -> SNACKBAR_LONG_MS
+        SnackbarDuration.Indefinite -> if (hasAction) Kit.SNACKBAR_ACTION_MS else Kit.SNACKBAR_MS
+    }
+    return accessibility?.calculateRecommendedTimeoutMillis(base, containsText = true, containsControls = hasAction) ?: base
+}
+
+/** Material3's `SnackbarDuration.Short` and `Long`, for a message posted with plain `showSnackbar`. */
+private const val SNACKBAR_SHORT_MS = 4_000L
+private const val SNACKBAR_LONG_MS = 10_000L
 
 internal enum class ShellTopBar { Root, Back, None }
 
@@ -484,8 +648,18 @@ internal enum class ShellTopBar { Root, Back, None }
  * (`DeepDiveRunning`, 5.14 "under the top bar, back allowed"), the shell gives it a back bar, because the
  * bottom bar is hidden there and the loading and error states have no back control of their own.
  */
-internal fun topBarFor(destination: Destination, state: UiState): ShellTopBar = when (destination) {
-    Destination.Today, Destination.Names, Destination.Research, Destination.Inbox -> ShellTopBar.Root
+internal fun topBarFor(destination: Destination, state: UiState): ShellTopBar = when {
+    usesRootBar(destination) -> ShellTopBar.Root
+    else -> topBarBelowRoot(destination, state)
+}
+
+/** The four tab roots, which get the brand + search + avatar bar. */
+internal fun usesRootBar(destination: Destination): Boolean = when (destination) {
+    Destination.Today, Destination.Names, Destination.Research, Destination.Inbox -> true
+    else -> false
+}
+
+private fun topBarBelowRoot(destination: Destination, state: UiState): ShellTopBar = when (destination) {
     is Destination.Pulse, is Destination.WeeklyDigest, Destination.MacroStress, is Destination.History -> ShellTopBar.None
     is Destination.Report ->
         if (state.deepDiveReport?.reportId == destination.reportId) ShellTopBar.None else ShellTopBar.Back
@@ -531,5 +705,7 @@ internal class ShellContentScope(
     val sampleDismissed: Boolean,
     val onDismissSample: () -> Unit,
     /** Each composed entry's [ScreenChrome] by `entryId` (EntryFrame registers it; the status bar reads it). */
-    val chromes: MutableMap<String, ScreenChrome> = mutableMapOf()
+    val chromes: MutableMap<String, ScreenChrome> = mutableMapOf(),
+    /** The shell draws the tab roots' bar above the tab layer ([SharedRootTopBar]): the roots' own bars hide. */
+    val rootBarShared: Boolean = false
 )

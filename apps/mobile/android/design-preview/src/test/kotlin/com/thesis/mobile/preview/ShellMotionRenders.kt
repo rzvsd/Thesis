@@ -37,6 +37,7 @@ import com.thesis.mobile.ui.shell.ShellPlatform
 import com.thesis.mobile.ui.shell.ThesisShell
 import com.thesis.mobile.ui.theme.ThesisTheme
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import org.jetbrains.skia.EncodedImageFormat
 import org.jetbrains.skia.Image
 import org.junit.Assert.assertTrue
@@ -79,6 +80,8 @@ class ShellMotionRenders {
         reducedMotion: Boolean = false,
         themes: List<PreviewTheme> = listOf(PreviewTheme.DARK),
         snackbar: String? = null,
+        /** Shown at the move instead of at the start, to capture its entrance. */
+        snackbarAtMove: String? = null,
         platform: ShellPlatform = ShellPlatform(),
         /** Published at the move (a report arriving, data loading), before [move] runs. */
         nextState: UiState? = null,
@@ -96,6 +99,7 @@ class ShellMotionRenders {
             LaunchedEffect(Unit) {
                 delay(moveAtMs)
                 nextState?.let { current = it }
+                snackbarAtMove?.let { launch { host.showThesisSnackbar(it) } }
                 move(navigator)
             }
             ThesisShell(
@@ -106,14 +110,19 @@ class ShellMotionRenders {
         files.forEach { assertTrue("${it.name} was not written", it.isFile && it.length() > 0) }
     }
 
-    // ---- Tabs: fade-through (out 90 ms, in 210 ms after 90 with scale .985 → 1)
+    // ---- Tabs: fade-through (out 90 ms, in 210 ms after 90 with the content's scale .985 → 1). Between two tab
+    // roots the bar (THESIS, search, avatar) is drawn once above the pages and stays still while their bodies fade.
 
     @Test fun tabFadeThroughOut() = frame("shell-motion-tab-60ms", 60) { it.selectTab(ShellTab.Names) }
+    @Test fun tabFadeThroughGap() = frame("shell-motion-tab-90ms", 90) { it.selectTab(ShellTab.Names) }
     @Test fun tabFadeThroughIn() = frame("shell-motion-tab-170ms", 170) { it.selectTab(ShellTab.Names) }
+    @Test fun tabFadeThroughReduced() = listOf(45L, 150L).forEach { ms ->
+        frame("shell-motion-tab-reduced-${ms}ms", ms, reducedMotion = true) { it.selectTab(ShellTab.Names) }
+    }
 
-    // ---- Push and pop: shared-axis X in sequence (out 180 ms to −24 dp, then in 300 ms from +24 dp)
+    // ---- Push and pop: shared-axis X in sequence within 300 ms (out 90 ms to −24 dp, then in 210 ms from +24 dp)
 
-    // The old page is seen leaving (0-180 ms) with nothing over it; the new page comes in after it has gone
+    // The old page is seen leaving (0-90 ms) with nothing over it; the new page comes in after it has gone
     // (4.5 "nothing double-exposes"): no frame shows both pages' headlines. ShellDoubleExposureTest checks pixels.
     private val sequenceMs = listOf(0L, 20L, 60L, 120L, 200L, 260L)
 
@@ -175,9 +184,9 @@ class ShellMotionRenders {
 
     // ---- Modal stack: rise and fall 32 dp; pages inside it on the X axis
 
-    // The page background fades in over Names first, then You's content rises and fades in; on close the content
-    // goes first, then the background. The two pages' text never overlaps.
-    @Test fun youRises() = listOf(20L, 60L, 120L, 200L).forEach { ms ->
+    // The page background covers Names first (150 ms), then You's content rises and fades in
+    // (150 ms after 150); on close the content goes first, then the background. The two pages' text never overlaps.
+    @Test fun youRises() = listOf(20L, 60L, 120L, 160L, 200L).forEach { ms ->
         frame("shell-motion-you-rise-${ms}ms", ms, setup = { selectTab(ShellTab.Names) }) { it.openModal(Destination.You) }
     }
 
@@ -185,7 +194,7 @@ class ShellMotionRenders {
         frame("shell-motion-you-fall-${ms}ms", ms, setup = { selectTab(ShellTab.Names); openModal(Destination.You) }) { it.pop() }
     }
 
-    /** You → Appearance: the old page slides and fades out (180 ms) over the modal floor; no tab layer, no ghosts. */
+    /** You → Appearance: the old page slides and fades out (90 ms) over the modal floor; no tab layer, no ghosts. */
     @Test fun youPagePush() = listOf(60L, 220L).forEach { ms ->
         frame("shell-motion-you-page-${ms}ms", ms, setup = { openModal(Destination.You) }) {
             it.push(Destination.YouPage("appearance"))
@@ -234,6 +243,17 @@ class ShellMotionRenders {
     @Test fun reportArrives() = frame(
         "shell-motion-report-loaded-75ms", 75, openingReportState, nextState = reportState,
         setup = { selectTab(ShellTab.Research); push(Destination.Report("rep-AAPL", "AAPL")) }
+    ) { }
+
+    // ---- Snackbar: rises 12 dp and fades in (220 ms), no scale (the shell draws the kit snackbar itself)
+
+    @Test fun snackbarRises() = listOf(40L, 120L).forEach { ms ->
+        frame("shell-motion-snackbar-in-${ms}ms", ms, snackbarAtMove = "Notification preference saved.") { }
+    }
+
+    /** Reduced motion (4.8): at 40 ms the snackbar is already at its resting place, size and opacity. */
+    @Test fun snackbarReduced() = frame(
+        "shell-motion-snackbar-reduced-40ms", 40, reducedMotion = true, snackbarAtMove = "Notification preference saved."
     ) { }
 
     // ---- Snackbar rides the bottom bar down when the bar slides away (no jump)

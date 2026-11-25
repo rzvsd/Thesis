@@ -1,5 +1,6 @@
 package com.thesis.mobile.ui.shell
 
+import com.thesis.mobile.ui.motion.ThesisMotion
 import com.thesis.mobile.ui.navigation.Destination
 import com.thesis.mobile.ui.platform.BackSwipeEdge
 import kotlinx.coroutines.CoroutineScope
@@ -41,10 +42,44 @@ class ShellMotionTest {
     }
 
     @Test
-    fun sharedAxisRunsItsHalvesInSequence() {
-        // 4.5 "nothing double-exposes": the new page starts when the old page's 180 ms exit has ended, so the two
+    fun sharedAxisRunsItsHalvesInSequenceWithinScreen() {
+        // 4.5 "nothing double-exposes": the new page starts when the old page's 90 ms exit has ended, so the two
         // are never both visible, and the old page's exit (and a predictive back's preview) is seen to its end.
-        assertEquals(com.thesis.mobile.ui.motion.ThesisMotion.PushOut, SHARED_AXIS_IN_DELAY)
+        assertEquals(ThesisMotion.TabOut, SHARED_AXIS_IN_DELAY)
+        // 4.2: push and pop take `Screen` (300 ms) in all.
+        assertEquals(ThesisMotion.Screen, SHARED_AXIS_IN_DELAY + SHARED_AXIS_IN)
+    }
+
+    @Test
+    fun aModalRiseTakesScreenAndItsContentWaitsForTheBackground() {
+        // The page background covers the page under it in 150 ms; the content starts then and the rise ends at 300.
+        assertEquals(ThesisMotion.Quick, MODAL_CONTENT_DELAY)
+        assertEquals(ShellTransition.Rise.frontChangeMillis, MODAL_CONTENT_DELAY)
+    }
+
+    @Test
+    fun theStatusBarSwitchesOnceTheLeavingPageHasGone() {
+        // 2.7: never in a move's first frame; for the X axis and fade-through, when the old page's exit ends.
+        assertEquals(SHARED_AXIS_IN_DELAY, ShellTransition.Forward.frontChangeMillis)
+        assertEquals(SHARED_AXIS_IN_DELAY, ShellTransition.Backward.frontChangeMillis)
+        assertEquals(ThesisMotion.TabOut, ShellTransition.FadeThrough.frontChangeMillis)
+        ShellTransition.entries.forEach { assertTrue(it.name, it.frontChangeMillis in 1..ThesisMotion.Screen) }
+    }
+
+    @Test
+    fun snackbarsTimeOutAsSection3Says() {
+        fun visuals(action: String?, duration: androidx.compose.material3.SnackbarDuration) =
+            object : androidx.compose.material3.SnackbarVisuals {
+                override val message = "Saved."
+                override val actionLabel = action
+                override val withDismissAction = false
+                override val duration = duration
+            }
+        val indefinite = androidx.compose.material3.SnackbarDuration.Indefinite
+        // showThesisSnackbar posts Indefinite messages: 4 s, 8 s with an action (3 #23).
+        assertEquals(4_000L, snackbarTimeoutMillis(visuals(null, indefinite), accessibility = null))
+        assertEquals(8_000L, snackbarTimeoutMillis(visuals("Open", indefinite), accessibility = null))
+        assertEquals(4_000L, snackbarTimeoutMillis(visuals(null, androidx.compose.material3.SnackbarDuration.Short), null))
     }
 
     @Test

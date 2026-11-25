@@ -8,3 +8,6 @@ ui/MainViewModel.kt:/delay(DEEP_DIVE_POLL_INTERVAL_MS)/ delay  # Deep Dive job p
 
 # War Room auto-refresh (5.19): a 60 s poll while the room is live and on screen, not animation timing.
 ui/shell/ShellDestinations.kt:/delay(WAR_ROOM_REFRESH_MS)/ delay  # War Room live refresh poll
+
+# The shell's snackbar time-out (3 #23: 4 s, 8 s with an action): a perception wait before the hide, not animation.
+ui/shell/ThesisShell.kt:/delay(timeout)/ delay  # snackbar time-out

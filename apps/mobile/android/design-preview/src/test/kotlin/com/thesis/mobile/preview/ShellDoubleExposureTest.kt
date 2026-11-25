@@ -80,19 +80,25 @@ class ShellDoubleExposureTest {
         rule.waitForIdle()
     }
 
-    /** The red, green and blue presence (0..1) at the middle of the window. */
+    /**
+     * The red, green and blue presence (0..1) of the pages' colours at the middle of the window, over the page
+     * background: sampled against the window's top edge, which no page box reaches (they are inset 40 dp, slide
+     * horizontally and rise from below), so the background's own tint does not count as a page showing.
+     */
     private fun sample(): FloatArray {
         val pixels = rule.onRoot().captureToImage().toPixelMap()
         val c = pixels[pixels.width / 2, pixels.height / 2]
-        return floatArrayOf(c.red, c.green, c.blue)
+        val bg = pixels[pixels.width / 2, 4]
+        fun over(v: Float, floor: Float) = ((v - floor) / (1f - floor)).coerceAtLeast(0f)
+        return floatArrayOf(over(c.red, bg.red), over(c.green, bg.green), over(c.blue, bg.blue))
     }
 
     /**
      * Runs [move] and steps 16 ms frames for 600 ms. [from] and [to] are the channels (0 red, 1 green, 2 blue) of
-     * the leaving and arriving pages: never both above 0.2 in one frame; the leaving one still above 0.5 up to
-     * [seenUntilMs] (48 ms: its exit is seen; a modal's rise covers the page under it with the 300 ms `EaseEnter`
-     * fade, which is past half way at 32 ms, so only its first frame is checked); the arriving one at full
-     * strength at the end.
+     * the leaving and arriving pages: never both above 0.03 in one frame (no ghost of one page's text under the
+     * other); the leaving one still above 0.5 up to [seenUntilMs] (48 ms: its exit is seen; a modal's rise covers
+     * the page under it with a 150 ms `EaseEnter` fade, past half way at 32 ms, so only its first frame is
+     * checked); the arriving one at full strength at the end.
      */
     private fun assertNoDoubleExposure(name: String, from: Int, to: Int, seenUntilMs: Int = 48, move: () -> Unit) {
         rule.mainClock.autoAdvance = false
@@ -105,7 +111,7 @@ class ShellDoubleExposureTest {
             elapsed += 16
             val rgb = sample()
             frames += "%d ms: from %.2f, to %.2f".format(elapsed, rgb[from], rgb[to])
-            assertTrue("$name double-exposes at $elapsed ms\n${frames.joinToString("\n")}", minOf(rgb[from], rgb[to]) < 0.2f)
+            assertTrue("$name double-exposes at $elapsed ms\n${frames.joinToString("\n")}", minOf(rgb[from], rgb[to]) < 0.03f)
             if (elapsed <= seenUntilMs) {
                 assertTrue("$name cuts the leaving page at $elapsed ms\n${frames.joinToString("\n")}", rgb[from] > 0.5f)
             }

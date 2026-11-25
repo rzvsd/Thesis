@@ -43,8 +43,11 @@ internal class ShellLayerEnv(
  * between tabs, shared-axis X for push and pop, a crossfade for a replace or a restore, crossfades only under
  * reduced motion). Entries for which [drawnBelow] is true (a `Report`, drawn by [ReportBaseLayer]) leave this
  * layer empty and transparent, so the report underneath shows and takes touches. [hidden]: a modal or the paywall
- * covers the layer, so it is out of the accessibility tree.
+ * covers the layer, so it is out of the accessibility tree. [composed], when given, holds the entries composed in
+ * the layer right now (two while one replaces the other), so the shell can tell a settled tab root from one in a move.
  */
+// EnterExitState and AnimatedVisibilityScope.transition: experimental in Compose 1.6, stable since 1.7.
+@OptIn(ExperimentalAnimationApi::class)
 @Composable
 internal fun TabLayer(
     target: NavEntry,
@@ -53,6 +56,7 @@ internal fun TabLayer(
     drawnBelow: (NavEntry) -> Boolean,
     modifier: Modifier = Modifier,
     hidden: Boolean = false,
+    composed: MutableList<NavEntry>? = null,
     content: @Composable (NavEntry) -> Unit,
 ) {
     AnimatedContent(
@@ -62,10 +66,23 @@ internal fun TabLayer(
         contentKey = { it.entryId },
         label = "tab-layer"
     ) { entry ->
+        if (composed != null) {
+            DisposableEffect(entry.entryId) {
+                composed += entry
+                onDispose { composed.removeAll { it.entryId == entry.entryId } }
+            }
+        }
         if (drawnBelow(entry)) {
             Box(Modifier.fillMaxSize())
         } else {
-            OpaqueEntry(entry, env) { content(entry) }
+            // Fade-through's .985 → 1 scale moves the page's content only: the page background (the window-fixed
+            // bitmap with its glow) never moves during foreground motion (4.3.4).
+            val scaleIn = remember { shellTransitionFor(move(), env.reducedMotion) == ShellTransition.FadeThrough }
+            val contentScale = transition.animateFloat(
+                transitionSpec = { if (scaleIn && targetState == EnterExitState.Visible) fadeThroughInSpec() else snapSpec() },
+                label = "tab-content-scale"
+            ) { state -> if (state == EnterExitState.PreEnter && scaleIn) ThesisMotion.TabScaleFrom else 1f }
+            OpaqueEntry(entry, env, contentScale = { contentScale.value }) { content(entry) }
         }
     }
 }
@@ -77,8 +94,8 @@ internal fun TabLayer(
  * layer when it arrives or leaves (pushed, popped, a tab switch), so there is no hard cut.
  *
  * While a screen pushed over it covers it ([tabTopId] != the report), it slides out like the old page of a push
- * (to −24 dp and transparent, 180 ms `EaseExit`) and stays composed; when that screen is popped it slides back
- * like the new page of a pop (300 ms `EaseEnter`), once the popped screen has gone (after 180 ms), so the two
+ * (to −24 dp and transparent, 90 ms `EaseExit`) and stays composed; when that screen is popped it slides back
+ * like the new page of a pop (210 ms `EaseEnter`), once the popped screen has gone (after 90 ms), so the two
  * never show at once. Reduced motion: it only fades. A report that is leaving keeps whatever cover it had.
  * Touches never reach a covered report: the opaque page above it takes them ([OpaqueEntry]). [hidden]: a modal
  * or the paywall covers it, so it is out of the accessibility tree as well (it does not slide for that).
@@ -146,8 +163,8 @@ internal fun ReportBaseLayer(
  * through it or through the strip the new page slides in from.
  *
  * Rise and Fall fade the page (its background) in place over the tab page and move only its content 32 dp
- * ([ModalContentMotion]): on a rise the content fades in once the background covers the page under it, on a fall
- * it fades out before the background, so the two pages' text never overlaps.
+ * ([ModalContentMotion]): on a rise the content rises and fades in once the background covers the page under it
+ * (150 ms, then the content from 150 ms), on a fall it fades out before the background, so the two pages' text never overlaps.
  */
 // EnterExitState and AnimatedVisibilityScope.transition: experimental in Compose 1.6, stable since 1.7.
 @OptIn(ExperimentalAnimationApi::class)
@@ -238,8 +255,8 @@ internal fun ModalLayer(
  * Opaque to touch as well as to the eye: a pointer handler on the page stops hit testing here, so a tap on an
  * empty part of a screen pushed over the report never reaches the covered WebView underneath.
  *
- * [contentAlpha] and [contentOffsetY] move the content inside the page while its background stays (a modal's
- * rise and fall, [ModalContentMotion]). Both are read in the draw phase only.
+ * [contentAlpha], [contentOffsetY] and [contentScale] move the content inside the page while its background stays
+ * (a modal's rise and fall, [ModalContentMotion]; fade-through's scale). All are read in the draw phase only.
  */
 @Composable
 private fun OpaqueEntry(
@@ -247,6 +264,7 @@ private fun OpaqueEntry(
     env: ShellLayerEnv,
     contentAlpha: () -> Float = { 1f },
     contentOffsetY: () -> Float = { 0f },
+    contentScale: () -> Float = { 1f },
     content: @Composable () -> Unit,
 ) {
     Box(
@@ -264,6 +282,9 @@ private fun OpaqueEntry(
             Modifier.fillMaxSize().graphicsLayer {
                 alpha = contentAlpha()
                 translationY = contentOffsetY()
+                val scale = contentScale()
+                scaleX = scale
+                scaleY = scale
             }
         ) {
             LeaveHook(entry.entryId, env.backPreview)
@@ -295,7 +316,7 @@ internal fun <T> heldWhile(hold: Boolean, value: T): T {
 private class HeldValue<T>(var value: T)
 
 /** The layer's current target and the one before it, updated during composition. Not snapshot state. */
-private class TargetHistory(initial: NavEntry?) {
+internal class TargetHistory(initial: NavEntry?) {
     var current: NavEntry? = initial
         private set
     var previous: NavEntry? = null
