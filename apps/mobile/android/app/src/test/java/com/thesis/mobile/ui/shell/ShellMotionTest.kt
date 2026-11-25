@@ -41,15 +41,22 @@ class ShellMotionTest {
     }
 
     @Test
-    fun onlySharedAxisMovesKeepTheIncomingPageOpaque() {
-        // 4.5 "Screens are opaque, so nothing double-exposes": push and pop (in the tab layer and inside the modal
-        // stack) fade the incoming page's content over its own opaque background. Fade-through, rise/fall and the
-        // crossfades fade whole pages, as specified.
-        val opaque = ShellTransition.entries.filter { it.incomingPageOpaque }.toSet()
+    fun sharedAxisRunsItsHalvesInSequence() {
+        // 4.5 "nothing double-exposes": the new page starts when the old page's 180 ms exit has ended, so the two
+        // are never both visible, and the old page's exit (and a predictive back's preview) is seen to its end.
+        assertEquals(com.thesis.mobile.ui.motion.ThesisMotion.PushOut, SHARED_AXIS_IN_DELAY)
+    }
+
+    @Test
+    fun onlyRiseAndFallMoveAModalPagesContent() {
+        // Rise and Fall fade the page in place and move its content 32 dp; every other move leaves the content be.
+        val moving = ShellTransition.entries.associateWith { ModalContentMotion.of(it) }
+            .filterValues { it != ModalContentMotion.None }
         assertEquals(
-            setOf(ShellTransition.Forward, ShellTransition.Backward, ShellTransition.ForwardOver, ShellTransition.BackwardOver),
-            opaque
+            mapOf(ShellTransition.Rise to ModalContentMotion.Rise, ShellTransition.Fall to ModalContentMotion.Fall),
+            moving
         )
+        assertEquals(ModalContentMotion.None, ModalContentMotion.of(null))
     }
 
     @Test

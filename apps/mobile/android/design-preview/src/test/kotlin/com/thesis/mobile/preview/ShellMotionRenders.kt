@@ -111,14 +111,19 @@ class ShellMotionRenders {
     @Test fun tabFadeThroughOut() = frame("shell-motion-tab-60ms", 60) { it.selectTab(ShellTab.Names) }
     @Test fun tabFadeThroughIn() = frame("shell-motion-tab-170ms", 170) { it.selectTab(ShellTab.Names) }
 
-    // ---- Push and pop: shared-axis X (in 300 ms from +24 dp, out 180 ms to −24 dp)
+    // ---- Push and pop: shared-axis X in sequence (out 180 ms to −24 dp, then in 300 ms from +24 dp)
 
-    // The incoming page is opaque from its first frame and only its content fades in (4.5 "nothing
-    // double-exposes"): no frame shows both pages' headlines.
-    @Test fun pushHistoryEarly() = frame("shell-motion-push-50ms", 50) { it.push(Destination.History()) }
-    @Test fun pushHistory() = frame("shell-motion-push-100ms", 100) { it.push(Destination.History()) }
-    @Test fun popHistoryEarly() = frame("shell-motion-pop-50ms", 50, setup = { push(Destination.History()) }) { it.pop() }
-    @Test fun popHistory() = frame("shell-motion-pop-100ms", 100, setup = { push(Destination.History()) }) { it.pop() }
+    // The old page is seen leaving (0-180 ms) with nothing over it; the new page comes in after it has gone
+    // (4.5 "nothing double-exposes"): no frame shows both pages' headlines. ShellDoubleExposureTest checks pixels.
+    private val sequenceMs = listOf(0L, 20L, 60L, 120L, 200L, 260L)
+
+    @Test fun pushHistory() = sequenceMs.forEach { ms ->
+        frame("shell-motion-push-${ms}ms", ms) { it.push(Destination.History()) }
+    }
+
+    @Test fun popHistory() = sequenceMs.forEach { ms ->
+        frame("shell-motion-pop-${ms}ms", ms, setup = { push(Destination.History()) }) { it.pop() }
+    }
     @Test fun pushMacroStress() = frame("shell-motion-push-macro-80ms", 80, setup = { push(Destination.History()) }) {
         it.push(Destination.MacroStress)
     }
@@ -129,9 +134,11 @@ class ShellMotionRenders {
 
     // ---- The report base layer
 
-    /** A report pushed from Research arrives on the X axis like any push; the bottom bar slides away. */
-    @Test fun pushReport() = frame("shell-motion-report-in-120ms", 120, reportState, setup = { selectTab(ShellTab.Research) }) {
-        it.push(Destination.Report("rep-AAPL", "AAPL"))
+    /** A report pushed from Research arrives on the X axis like any push, after Research has left. */
+    @Test fun pushReport() = listOf(120L, 240L).forEach { ms ->
+        frame("shell-motion-report-in-${ms}ms", ms, reportState, setup = { selectTab(ShellTab.Research) }) {
+            it.push(Destination.Report("rep-AAPL", "AAPL"))
+        }
     }
 
     /** Compare pushed over the live report: the report slides out to −24 dp and fades, but stays composed. */
@@ -140,21 +147,27 @@ class ShellMotionRenders {
         setup = { selectTab(ShellTab.Research); push(Destination.Report("rep-AAPL", "AAPL")) }
     ) { it.push(Destination.CompareReports("rep-AAPL", "rep-AAPL-2025")) }
 
-    /** Back from Compare: the same live report slides back in from −24 dp (no reload). */
-    @Test fun backToReport() = frame(
-        "shell-motion-back-to-report-120ms", 120, reportState,
-        setup = {
-            selectTab(ShellTab.Research)
-            push(Destination.Report("rep-AAPL", "AAPL"))
-            push(Destination.CompareReports("rep-AAPL", "rep-AAPL-2025"))
-        }
-    ) { it.pop() }
+    /**
+     * Back from Compare: Compare leaves, then the same live report slides back in from −24 dp (no reload). The
+     * two bars never show together.
+     */
+    @Test fun backToReport() = listOf(60L, 120L, 220L).forEach { ms ->
+        frame(
+            "shell-motion-back-to-report-${ms}ms", ms, reportState,
+            setup = {
+                selectTab(ShellTab.Research)
+                push(Destination.Report("rep-AAPL", "AAPL"))
+                push(Destination.CompareReports("rep-AAPL", "rep-AAPL-2025"))
+            }
+        ) { it.pop() }
+    }
 
-    // ---- Predictive back: the leaving page keeps its .90 preview into its exit; the page under it is full size
+    // ---- Predictive back: the leaving page slides and fades out from its .90 preview, seen to its end; then the
+    // page under it comes in at full size
 
-    @Test fun predictiveBackExit() = frame(
-        "shell-motion-predictive-back-60ms", 60, setup = { push(Destination.History()) }
-    ) { PreviewBack.press() }
+    @Test fun predictiveBackExit() = sequenceMs.forEach { ms ->
+        frame("shell-motion-predictive-back-${ms}ms", ms, setup = { push(Destination.History()) }) { PreviewBack.press() }
+    }
 
     @Test fun predictiveBackExitFromRightEdge() = frame(
         "shell-motion-predictive-back-right-60ms", 60, setup = { push(Destination.History()) }
@@ -162,25 +175,29 @@ class ShellMotionRenders {
 
     // ---- Modal stack: rise and fall 32 dp; pages inside it on the X axis
 
-    @Test fun youRises() = frame("shell-motion-you-rise-120ms", 120, setup = { selectTab(ShellTab.Names) }) {
-        it.openModal(Destination.You)
+    // The page background fades in over Names first, then You's content rises and fades in; on close the content
+    // goes first, then the background. The two pages' text never overlaps.
+    @Test fun youRises() = listOf(20L, 60L, 120L, 200L).forEach { ms ->
+        frame("shell-motion-you-rise-${ms}ms", ms, setup = { selectTab(ShellTab.Names) }) { it.openModal(Destination.You) }
     }
 
-    @Test fun youFalls() = frame("shell-motion-you-fall-100ms", 100, setup = { openModal(Destination.You) }) { it.pop() }
+    @Test fun youFalls() = listOf(60L, 100L, 150L).forEach { ms ->
+        frame("shell-motion-you-fall-${ms}ms", ms, setup = { selectTab(ShellTab.Names); openModal(Destination.You) }) { it.pop() }
+    }
 
     /** You → Appearance: the old page slides and fades out (180 ms) over the modal floor; no tab layer, no ghosts. */
-    @Test fun youPagePushEarly() = frame("shell-motion-you-page-50ms", 50, setup = { openModal(Destination.You) }) {
-        it.push(Destination.YouPage("appearance"))
+    @Test fun youPagePush() = listOf(60L, 220L).forEach { ms ->
+        frame("shell-motion-you-page-${ms}ms", ms, setup = { openModal(Destination.You) }) {
+            it.push(Destination.YouPage("appearance"))
+        }
     }
 
-    @Test fun youPagePush() = frame("shell-motion-you-page-100ms", 100, setup = { openModal(Destination.You) }) {
-        it.push(Destination.YouPage("appearance"))
+    @Test fun youPagePop() = listOf(60L, 220L).forEach { ms ->
+        frame(
+            "shell-motion-you-page-pop-${ms}ms", ms,
+            setup = { openModal(Destination.You); push(Destination.YouPage("appearance")) }
+        ) { it.pop() }
     }
-
-    @Test fun youPagePop() = frame(
-        "shell-motion-you-page-pop-100ms", 100,
-        setup = { openModal(Destination.You); push(Destination.YouPage("appearance")) }
-    ) { it.pop() }
 
     // ---- Today's root: the sample Deep Dive and Home swap as a content state change (no hard cut)
 

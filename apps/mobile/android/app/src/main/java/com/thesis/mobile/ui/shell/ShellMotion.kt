@@ -9,9 +9,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
@@ -30,6 +28,16 @@ import kotlinx.coroutines.launch
 /*
  * Shell motion (DESIGN-DIRECTION 4.5, 4.8): which transition each navigator move gets, the transitions themselves
  * (all [1.6 OK], all values from ThesisMotion), and the predictive-back preview.
+ *
+ * No double exposure, no hard cut (4.5 "Screens are opaque, so nothing double-exposes"): two pages are never both
+ * readable in the same frame, and a page that leaves is seen leaving.
+ * - Shared-axis X runs its two halves in sequence: the old page slides to −24 dp and fades out (180 ms `EaseExit`),
+ *   then the new page slides in from +24 dp and fades in (300 ms `EaseEnter`). The old page is drawn under the new
+ *   one, which is fully transparent until the old one has gone, so the old page's exit (and a predictive back's
+ *   .90 preview) is visible to its last frame and the new page never shows over it.
+ * - Rise and Fall (the modal layer, over a tab page that stays): the page's background fades in place, over the
+ *   whole window, while its content rises (or falls) 32 dp; the content fades in only once the background covers
+ *   the page under it, and fades out before the background does ([ModalContentMotion]).
  */
 
 /** The transitions of section 4.5, by name. Picked by [shellTransitionFor] and [modalTransitionFor]. */
@@ -37,7 +45,10 @@ internal enum class ShellTransition {
     /** Bottom tab ↔ tab: out fade 90 `EaseExit`; in fade + scale .985 → 1, 210 after 90 `EaseEnter`. */
     FadeThrough,
 
-    /** Push: new from +24 dp + fade, 300 `EaseEnter`; old to −24 dp + fade out, 180 `EaseExit`. */
+    /**
+     * Push: old to −24 dp + fade out, 180 `EaseExit`; then new from +24 dp + fade, 300 `EaseEnter` (it starts when
+     * the old page has gone, [SHARED_AXIS_IN_DELAY]).
+     */
     Forward,
 
     /** Pop: the mirror of [Forward]. */
@@ -52,25 +63,17 @@ internal enum class ShellTransition {
     /** [Backward] inside the modal layer; see [ForwardOver]. */
     BackwardOver,
 
-    /** Open a modal destination: rise 32 dp + fade, 300 `EaseEnter`. */
+    /** Open a modal destination: rise 32 dp + fade, 300 `EaseEnter` ([ModalContentMotion.Rise]). */
     Rise,
 
-    /** Close a modal destination: fall 32 dp + fade, 240 `EaseExit`. */
+    /** Close a modal destination: fall 32 dp + fade, 240 `EaseExit` ([ModalContentMotion.Fall]). */
     Fall,
 
     /** A replaced entry (a build becoming its report, 5.14) or a restore: 240 ms crossfade (`Base`), nothing moves. */
     Crossfade,
 
     /** Every move under reduced motion (4.8): 150 ms crossfade (`Quick`), nothing slides, rises or scales. */
-    ReducedCrossfade;
-
-    /**
-     * Shared-axis X: the incoming page is opaque (2.7) from its first frame and only its content fades in, so the
-     * page it covers never shows through it (4.5 "Screens are opaque, so nothing double-exposes"). Layers whose
-     * pages carry their own background apply that fade inside the page ([pageContentFadeSpec]).
-     */
-    val incomingPageOpaque: Boolean
-        get() = this == Forward || this == Backward || this == ForwardOver || this == BackwardOver
+    ReducedCrossfade,
 }
 
 /**
@@ -103,38 +106,35 @@ internal fun modalTransitionFor(from: NavEntry?, to: NavEntry?, forward: Boolean
 internal data class ShellMotionPx(val shiftPx: Int, val risePx: Int)
 
 /**
- * The [ContentTransform] for [transition]. Never animates size: every layer is full size in every state.
- * [pageFadesItsContent]: the layer's pages draw their own opaque background and fade their content themselves
- * when [ShellTransition.incomingPageOpaque] ([pageContentFadeSpec]), so the incoming page only slides here.
+ * The [ContentTransform] for [transition], applied to whole pages (background and content). Never animates size:
+ * every layer is full size in every state. Rise and Fall only fade the page here: the modal layer moves and fades
+ * the page's content itself ([ModalContentMotion]).
  */
-internal fun ShellTransition.toContentTransform(px: ShellMotionPx, pageFadesItsContent: Boolean = false): ContentTransform =
-    contentTransformOf(this, px, pageFadesItsContent && incomingPageOpaque).withoutSizeAnimation()
+internal fun ShellTransition.toContentTransform(px: ShellMotionPx): ContentTransform =
+    contentTransformOf(this, px).withoutSizeAnimation()
 
 /** Same enter and exit, no size animation and no clip (the scope's `using` exists only inside transitionSpec). */
 private fun ContentTransform.withoutSizeAnimation(): ContentTransform =
     ContentTransform(targetContentEnter, initialContentExit, targetContentZIndex, SizeTransform(clip = false))
 
-private fun contentTransformOf(transition: ShellTransition, px: ShellMotionPx, opaqueIncoming: Boolean): ContentTransform =
+private fun contentTransformOf(transition: ShellTransition, px: ShellMotionPx): ContentTransform =
     when (transition) {
         ShellTransition.FadeThrough -> {
             val enter = motionSpec<Float>(ThesisMotion.TabIn, delayMillis = ThesisMotion.TabOut, easing = ThesisMotion.EaseEnter)
             (fadeIn(enter) + scaleIn(enter, initialScale = ThesisMotion.TabScaleFrom))
                 .togetherWith(fadeOut(motionSpec(ThesisMotion.TabOut, easing = ThesisMotion.EaseExit)))
         }
-        ShellTransition.Forward, ShellTransition.ForwardOver ->
-            sharedAxisXOf(forward = true, shiftPx = px.shiftPx, fadeIncoming = !opaqueIncoming)
-        ShellTransition.Backward, ShellTransition.BackwardOver ->
-            sharedAxisXOf(forward = false, shiftPx = px.shiftPx, fadeIncoming = !opaqueIncoming)
+        ShellTransition.Forward, ShellTransition.ForwardOver -> sharedAxisXOf(forward = true, shiftPx = px.shiftPx)
+        ShellTransition.Backward, ShellTransition.BackwardOver -> sharedAxisXOf(forward = false, shiftPx = px.shiftPx)
+        // The page's background fades in over the whole window (it covers the tab page under it); its content
+        // rises and fades in inside the page (ModalContentMotion.Rise). The initial "page" is the empty layer.
         ShellTransition.Rise ->
-            (slideInVertically(motionSpec(ThesisMotion.Screen, easing = ThesisMotion.EaseEnter)) { px.risePx } +
-                fadeIn(motionSpec(ThesisMotion.Screen, easing = ThesisMotion.EaseEnter)))
+            fadeIn(motionSpec(ThesisMotion.Screen, easing = ThesisMotion.EaseEnter))
                 .togetherWith(fadeOut(motionSpec(ThesisMotion.TabOut, easing = ThesisMotion.EaseExit)))
+        // The page's content falls and fades out first (ModalContentMotion.Fall), then its background.
         ShellTransition.Fall ->
             fadeIn(motionSpec(ThesisMotion.TabOut, easing = ThesisMotion.EaseStandard))
-                .togetherWith(
-                    slideOutVertically(motionSpec(ThesisMotion.ScreenOut, easing = ThesisMotion.EaseExit)) { px.risePx } +
-                        fadeOut(motionSpec(ThesisMotion.ScreenOut, easing = ThesisMotion.EaseExit))
-                )
+                .togetherWith(fadeOut(motionSpec(ThesisMotion.ScreenOut, easing = ThesisMotion.EaseExit)))
         ShellTransition.Crossfade ->
             fadeIn(motionSpec(ThesisMotion.Base, easing = ThesisMotion.EaseStandard)) togetherWith
                 fadeOut(motionSpec(ThesisMotion.Base, easing = ThesisMotion.EaseStandard))
@@ -150,32 +150,79 @@ internal fun reducedCrossfade(): ContentTransform =
 internal val SHARED_AXIS_SHIFT: Dp = ThesisMotion.PushOffset
 
 /**
- * The incoming page's content fade of shared-axis X (300 ms `EaseEnter`), for a page whose background is drawn
- * outside the fade ([ShellTransition.incomingPageOpaque]).
+ * How long the incoming page of shared-axis X waits: the outgoing page's whole exit (`PushOut`, 180 ms), so the
+ * two pages are never both visible.
  */
-internal fun pageContentFadeSpec(): FiniteAnimationSpec<Float> = motionSpec(ThesisMotion.Screen, easing = ThesisMotion.EaseEnter)
+internal const val SHARED_AXIS_IN_DELAY: Int = ThesisMotion.PushOut
 
 /**
- * Shared-axis X (4.5): forward, the new screen comes in from +[shiftPx] with a fade (300 ms) while the old one
- * leaves toward −[shiftPx] with a fade (180 ms); backward mirrors it. A 150 ms crossfade when motion is reduced.
- * Used by Auth ↔ Password reset in `ThesisApp`; the shell's layers use the same motion with an opaque incoming page.
+ * The incoming half of shared-axis X (300 ms `EaseEnter` after [SHARED_AXIS_IN_DELAY]), also used for the report
+ * base layer's uncover when the page over the report is popped.
+ */
+internal fun <T> sharedAxisInSpec(): FiniteAnimationSpec<T> =
+    motionSpec(ThesisMotion.Screen, delayMillis = SHARED_AXIS_IN_DELAY, easing = ThesisMotion.EaseEnter)
+
+/** The outgoing half of shared-axis X (180 ms `EaseExit`). */
+internal fun <T> sharedAxisOutSpec(): FiniteAnimationSpec<T> = motionSpec(ThesisMotion.PushOut, easing = ThesisMotion.EaseExit)
+
+/**
+ * Shared-axis X (4.5) for Auth ↔ Password reset in `ThesisApp`: the same motion as the shell's push and pop.
+ * A 150 ms crossfade when motion is reduced.
  */
 internal fun sharedAxisX(forward: Boolean, reducedMotion: Boolean, shiftPx: Int): ContentTransform =
-    if (reducedMotion) reducedCrossfade() else sharedAxisXOf(forward, shiftPx, fadeIncoming = true)
+    if (reducedMotion) reducedCrossfade() else sharedAxisXOf(forward, shiftPx)
 
 /**
- * Shared-axis X. [fadeIncoming] false: the incoming page fades its own content over its opaque background
- * ([pageContentFadeSpec]), so the transform only slides it; the page it covers is hidden at once, except the
- * 24 dp strip it slides in from, where the old page leaves as specified.
+ * Shared-axis X, in sequence: forward, the old page leaves toward −[shiftPx] with a fade (180 ms `EaseExit`), then
+ * the new page comes in from +[shiftPx] with a fade (300 ms `EaseEnter`); backward mirrors it. The new page is
+ * drawn over the old one but is fully transparent until the old one has gone.
  */
-private fun sharedAxisXOf(forward: Boolean, shiftPx: Int, fadeIncoming: Boolean): ContentTransform {
+private fun sharedAxisXOf(forward: Boolean, shiftPx: Int): ContentTransform {
     val direction = if (forward) 1 else -1
-    val slideIn = slideInHorizontally(motionSpec(ThesisMotion.Screen, easing = ThesisMotion.EaseEnter)) { direction * shiftPx }
-    val enter = if (fadeIncoming) slideIn + fadeIn(pageContentFadeSpec()) else slideIn
-    return enter.togetherWith(
-        slideOutHorizontally(motionSpec(ThesisMotion.PushOut, easing = ThesisMotion.EaseExit)) { -direction * shiftPx } +
-            fadeOut(motionSpec(ThesisMotion.PushOut, easing = ThesisMotion.EaseExit))
-    )
+    return (slideInHorizontally(sharedAxisInSpec()) { direction * shiftPx } + fadeIn(sharedAxisInSpec()))
+        .togetherWith(slideOutHorizontally(sharedAxisOutSpec()) { -direction * shiftPx } + fadeOut(sharedAxisOutSpec()))
+}
+
+/**
+ * How a modal page's content moves inside the page while the page itself only fades ([ShellTransition.Rise],
+ * [ShellTransition.Fall]): the background is the window-fixed page bitmap, so only the content shows the rise.
+ * Offsets are in multiples of the rise distance (32 dp); alphas multiply the page's own fade.
+ */
+internal enum class ModalContentMotion {
+    /** Rise: the content comes up from +32 dp (300 ms `EaseEnter`) and fades in 210 ms after 90 (`EaseEnter`). */
+    Rise,
+
+    /**
+     * Fall: the content drops 32 dp (240 ms `EaseExit`) and fades out in 90 ms (`EaseExit`, the fade-through out),
+     * so it has gone before the page's own 240 ms fade uncovers the page under it.
+     */
+    Fall,
+
+    /** Any other move: the content stays put at full alpha (the page's own transition does the work). */
+    None;
+
+    companion object {
+        fun of(transition: ShellTransition?): ModalContentMotion = when (transition) {
+            ShellTransition.Rise -> Rise
+            ShellTransition.Fall -> Fall
+            else -> None
+        }
+    }
+}
+
+/** The content's alpha spec for an entering ([entering]) or leaving page moving by [motion]. */
+internal fun modalContentAlphaSpec(motion: ModalContentMotion, entering: Boolean): FiniteAnimationSpec<Float> = when {
+    entering && motion == ModalContentMotion.Rise ->
+        motionSpec(ThesisMotion.TabIn, delayMillis = ThesisMotion.TabOut, easing = ThesisMotion.EaseEnter)
+    !entering && motion == ModalContentMotion.Fall -> motionSpec(ThesisMotion.TabOut, easing = ThesisMotion.EaseExit)
+    else -> motionSpec(0, easing = ThesisMotion.Linear)
+}
+
+/** The content's offset spec (in rise distances) for an entering ([entering]) or leaving page moving by [motion]. */
+internal fun modalContentOffsetSpec(motion: ModalContentMotion, entering: Boolean): FiniteAnimationSpec<Float> = when {
+    entering && motion == ModalContentMotion.Rise -> motionSpec(ThesisMotion.Screen, easing = ThesisMotion.EaseEnter)
+    !entering && motion == ModalContentMotion.Fall -> motionSpec(ThesisMotion.ScreenOut, easing = ThesisMotion.EaseExit)
+    else -> motionSpec(0, easing = ThesisMotion.Linear)
 }
 
 /** A 4.2 timed spec (never snapped: the reduced-motion paths above pick their own crossfade). */
@@ -191,9 +238,10 @@ internal val PREDICTIVE_BACK_SHIFT: Dp = ThesisMotion.EnterOffset
  * entry [entryId]) scales toward .90 and shifts 8 dp away from the swipe edge, with progress. Only that page
  * moves: the layers under it stay put.
  *
- * - Commit ([commit]): the pop runs and the leaving page keeps its previewed transform into its exit transition;
- *   the page under it enters at full size. The preview ends when the leaving page leaves the composition
- *   ([onLeft]); if the back did not take the page off screen, it settles back instead.
+ * - Commit ([commit]): the pop runs and the leaving page keeps its previewed transform into its exit transition,
+ *   which is visible to its end (shared-axis X draws nothing over it until it has gone); then the page under it
+ *   comes in at full size. The preview ends when the leaving page leaves the composition ([onLeft]); if the back
+ *   did not take the page off screen, it settles back instead.
  * - Cancel ([cancel]): the page settles back to full size with `spatialSlow`.
  *
  * Read only in the draw phase ([backPreview]), so a gesture never recomposes the page.

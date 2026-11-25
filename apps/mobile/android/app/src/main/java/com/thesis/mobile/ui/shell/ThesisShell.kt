@@ -92,7 +92,8 @@ import kotlinx.coroutines.CancellationException
  *
  * Back (4.5): a predictive back handler, enabled while [AppNavigator.canGoBack], previews the pop on the page it
  * closes only (scale to .90, 8 dp away from the swipe edge; still under reduced motion, 4.8); on commit that page
- * keeps the previewed transform into its exit and the page under it enters at full size; a cancel settles back
+ * slides and fades out from the previewed transform (nothing is drawn over it until it has gone), then the page
+ * under it comes in at full size; a cancel settles back
  * with `spatialSlow`. While the paywall is open, back closes it. The whole tree sits on one shared page
  * background (2.7).
  */

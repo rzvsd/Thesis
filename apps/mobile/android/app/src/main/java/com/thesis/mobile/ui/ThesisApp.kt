@@ -137,7 +137,9 @@ fun ThesisApp(
         }
         // After ThesisTheme's own system-bar SideEffect (the theme's palette), in the scope that re-runs whenever
         // the theme body does: a new content lambda, or a change of palette or reduced motion (both read here),
-        // so the hero override always wins.
+        // so the hero override always wins. Ordering dependency: this works only while ThesisTheme calls
+        // SystemBarAppearance before `content`, in its own restart scope. It goes once the theme takes a
+        // `statusBarOverHero` parameter itself (HANDOFF-M3 items 1-2, kit WP).
         val palette = LocalThesisPalette.current
         LocalReducedMotion.current
         val surfaceKey = when (surface) {
