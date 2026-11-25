@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.ContextWrapper
 import android.content.Intent
 import android.graphics.Bitmap
+import android.graphics.Rect
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
@@ -14,19 +15,22 @@ import android.os.Handler
 import android.os.Looper
 import android.print.PrintAttributes
 import android.print.PrintManager
+import android.view.ActionMode
+import android.view.Menu
+import android.view.MenuItem
 import android.view.View
+import android.webkit.JsPromptResult
+import android.webkit.JsResult
 import android.webkit.RenderProcessGoneDetail
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
+import android.webkit.WebChromeClient
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.size
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.State
@@ -36,15 +40,16 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import com.thesis.mobile.ui.copy.ReportCopy
+import com.thesis.mobile.ui.platform.ThesisBackHandler
+import com.thesis.mobile.ui.screens.report.PageSelection
+import com.thesis.mobile.ui.screens.report.ReportQuote
 import com.thesis.mobile.ui.shell.LocalEntryCovered
-import com.thesis.mobile.ui.theme.ThesisColors
 
 /**
  * The server-rendered Deep Dive page in a WebView. The page is loaded once per [pageUrl] with [headers]
@@ -52,6 +57,12 @@ import com.thesis.mobile.ui.theme.ThesisColors
  * Links to other pages open in the external browser; in-page anchors stay here. A failed main-frame
  * load calls [onMainFrameFailed] with the HTTP status (null for a network or renderer failure) so the
  * caller can refresh the token and retry, or show the native report screen instead.
+ *
+ * The host draws the loading state (docs/app-redesign/DESIGN-DIRECTION.md 5.13): [onProgress] reports the load
+ * (0..100), [onLoaded] fires once the main frame finished without failing, and [onScroll] reports the page's
+ * scroll position and step for the dock. [onAddToNote], when set, adds "Add to note" to the text-selection menu:
+ * the selection and its chapter are read with [ReportQuote.SelectionScript] (`evaluateJavascript`, no JavaScript
+ * interface), so the page's security settings stay as they are.
  *
  * The shell keeps the report composed under pages pushed over it and under modals ([LocalEntryCovered]). While it
  * is covered, the WebView's own View tree leaves the accessibility tree (the shell clears only the Compose
@@ -64,16 +75,23 @@ internal fun DeepDiveWebPage(
     backgroundColor: Color,
     onMainFrameFailed: (Int?) -> Unit,
     modifier: Modifier = Modifier,
-    printer: DeepDivePagePrinter? = null
+    printer: DeepDivePagePrinter? = null,
+    onProgress: (Int) -> Unit = {},
+    onLoaded: () -> Unit = {},
+    onScroll: (scrollY: Int, dy: Int) -> Unit = { _, _ -> },
+    onAddToNote: ((PageSelection) -> Unit)? = null,
 ) {
     val holder = remember { WebViewHolder() }
-    var isLoading by remember(pageUrl) { mutableStateOf(true) }
     var canGoBack by remember(pageUrl) { mutableStateOf(false) }
     val currentOnFailed by rememberUpdatedState(onMainFrameFailed)
+    val currentOnProgress by rememberUpdatedState(onProgress)
+    val currentOnLoaded by rememberUpdatedState(onLoaded)
+    val currentOnScroll by rememberUpdatedState(onScroll)
+    val currentOnAddToNote by rememberUpdatedState(onAddToNote)
     val covered = LocalEntryCovered.current
 
     // Back goes back within the page (for example after following an in-page anchor) before it leaves.
-    BackHandler(enabled = canGoBack) {
+    ThesisBackHandler(enabled = canGoBack) {
         holder.webView?.goBack()
     }
 
@@ -81,19 +99,22 @@ internal fun DeepDiveWebPage(
         key(pageUrl) {
             AndroidView(
                 factory = { context ->
-                    WebView(context).apply {
+                    ReportWebView(context).apply {
                         setBackgroundColor(backgroundColor.toArgb())
                         applyDeepDiveSettings(settings)
                         webViewClient = DeepDiveWebClient(
                             pageUrl = pageUrl,
-                            onLoadingChange = {
-                                isLoading = it
-                                printer?.isLoading = it
-                            },
+                            onLoadingChange = { printer?.isLoading = it },
+                            onLoaded = { currentOnLoaded() },
                             onHistoryChange = { canGoBack = it },
                             onFailed = { status -> currentOnFailed(status) },
                             openExternal = { url -> openExternalLink(context, url) }
                         )
+                        webChromeClient = DeepDiveChromeClient(onProgress = { currentOnProgress(it) })
+                        setOnScrollChangeListener { _, _, scrollY, _, oldScrollY ->
+                            currentOnScroll(scrollY, scrollY - oldScrollY)
+                        }
+                        addToNote = { selection -> currentOnAddToNote?.invoke(selection) }
                         holder.webView = this
                         printer?.webView = this
                         printer?.isLoading = true
@@ -106,23 +127,135 @@ internal fun DeepDiveWebPage(
                     }
                     holder.forget(webView)
                     printer?.let { if (it.webView === webView) it.webView = null }
+                    webView.setOnScrollChangeListener(null)
                     webView.stopLoading()
                     webView.destroy()
                 },
-                update = { webView -> holder.applyCovered(webView, covered) },
+                update = { webView ->
+                    holder.applyCovered(webView, covered)
+                    webView.addToNoteEnabled = onAddToNote != null
+                },
                 modifier = Modifier.fillMaxSize()
             )
         }
+    }
+}
 
-        if (isLoading) {
-            CircularProgressIndicator(
-                modifier = Modifier
-                    .align(Alignment.Center)
-                    .size(28.dp),
-                color = ThesisColors.Primary,
-                strokeWidth = 2.dp
-            )
+/**
+ * The page's WebView, with "Add to note" in its text-selection menu while [addToNoteEnabled]. Chromium starts the
+ * selection menu through [startActionMode]; the callback is wrapped so the item is added on create and again on
+ * every prepare (Chromium rebuilds the menu), and everything else goes to Chromium's own callback.
+ */
+private class ReportWebView(context: Context) : WebView(context) {
+    var addToNote: (PageSelection) -> Unit = {}
+    var addToNoteEnabled: Boolean = false
+
+    override fun startActionMode(callback: ActionMode.Callback?): ActionMode? =
+        super.startActionMode(wrap(callback))
+
+    override fun startActionMode(callback: ActionMode.Callback?, type: Int): ActionMode? =
+        super.startActionMode(wrap(callback), type)
+
+    private fun wrap(callback: ActionMode.Callback?): ActionMode.Callback? =
+        if (callback == null || !addToNoteEnabled || callback is AddToNoteCallback) {
+            callback
+        } else {
+            AddToNoteCallback(callback, ReportCopy.ADD_TO_NOTE, ::readSelection)
         }
+
+    /** Reads the selection and its chapter, hands them on, then closes the menu (which clears the selection). */
+    private fun readSelection(mode: ActionMode) {
+        evaluateJavascript(ReportQuote.SelectionScript) { json ->
+            ReportQuote.parseSelection(json)?.let { addToNote(it) }
+            mode.finish()
+        }
+    }
+}
+
+private class AddToNoteCallback(
+    private val wrapped: ActionMode.Callback,
+    private val label: String,
+    private val onAdd: (ActionMode) -> Unit,
+) : ActionMode.Callback2() {
+    override fun onCreateActionMode(mode: ActionMode, menu: Menu): Boolean {
+        val created = wrapped.onCreateActionMode(mode, menu)
+        if (created) addItem(menu)
+        return created
+    }
+
+    override fun onPrepareActionMode(mode: ActionMode, menu: Menu): Boolean {
+        val changed = wrapped.onPrepareActionMode(mode, menu)
+        return addItem(menu) || changed
+    }
+
+    override fun onActionItemClicked(mode: ActionMode, item: MenuItem): Boolean {
+        if (item.itemId == ADD_TO_NOTE_ITEM_ID) {
+            onAdd(mode)
+            return true
+        }
+        return wrapped.onActionItemClicked(mode, item)
+    }
+
+    override fun onDestroyActionMode(mode: ActionMode) {
+        wrapped.onDestroyActionMode(mode)
+    }
+
+    override fun onGetContentRect(mode: ActionMode, view: View, outRect: Rect) {
+        if (wrapped is ActionMode.Callback2) {
+            wrapped.onGetContentRect(mode, view, outRect)
+        } else {
+            super.onGetContentRect(mode, view, outRect)
+        }
+    }
+
+    /** Adds the item once; true when the menu changed. */
+    private fun addItem(menu: Menu): Boolean {
+        if (menu.findItem(ADD_TO_NOTE_ITEM_ID) != null) return false
+        menu.add(Menu.NONE, ADD_TO_NOTE_ITEM_ID, ADD_TO_NOTE_ORDER, label)
+            .setShowAsAction(MenuItem.SHOW_AS_ACTION_IF_ROOM)
+        return true
+    }
+}
+
+/** Menu id of "Add to note": outside the range Chromium uses for its own items (android.R.id values). */
+private const val ADD_TO_NOTE_ITEM_ID = 0x0D0E_0001
+
+/** After Copy and Share, before the overflow items. */
+private const val ADD_TO_NOTE_ORDER = 50
+
+/**
+ * Load progress only. Every dialog the page could open (alert, confirm, prompt, leave-page) is cancelled, as it was
+ * before this client existed; new windows, file choosers and permission requests keep their default (refused).
+ */
+private class DeepDiveChromeClient(private val onProgress: (Int) -> Unit) : WebChromeClient() {
+    override fun onProgressChanged(view: WebView, newProgress: Int) {
+        onProgress(newProgress)
+    }
+
+    override fun onJsAlert(view: WebView, url: String?, message: String?, result: JsResult): Boolean {
+        result.cancel()
+        return true
+    }
+
+    override fun onJsConfirm(view: WebView, url: String?, message: String?, result: JsResult): Boolean {
+        result.cancel()
+        return true
+    }
+
+    override fun onJsPrompt(
+        view: WebView,
+        url: String?,
+        message: String?,
+        defaultValue: String?,
+        result: JsPromptResult,
+    ): Boolean {
+        result.cancel()
+        return true
+    }
+
+    override fun onJsBeforeUnload(view: WebView, url: String?, message: String?, result: JsResult): Boolean {
+        result.cancel()
+        return true
     }
 }
 
@@ -208,6 +341,7 @@ private fun applyDeepDiveSettings(settings: WebSettings) {
 private class DeepDiveWebClient(
     private val pageUrl: String,
     private val onLoadingChange: (Boolean) -> Unit,
+    private val onLoaded: () -> Unit,
     private val onHistoryChange: (Boolean) -> Unit,
     private val onFailed: (Int?) -> Unit,
     private val openExternal: (String) -> Unit
@@ -243,6 +377,8 @@ private class DeepDiveWebClient(
 
     override fun onPageFinished(view: WebView, url: String?) {
         onLoadingChange(false)
+        // A failed load (a 401 body, an error page) never counts as loaded: the skeleton stays until the retry.
+        if (!failed) onLoaded()
     }
 
     override fun doUpdateVisitedHistory(view: WebView, url: String?, isReload: Boolean) {
