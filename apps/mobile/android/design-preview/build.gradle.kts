@@ -24,7 +24,19 @@ val androidOnlyFiles = listOf(
     "com/thesis/mobile/ui/screens/DeleteAccountSection.kt", // viewModel<MainViewModel>()
     "com/thesis/mobile/ui/screens/PasswordResetScreen.kt", // viewModel<MainViewModel>()
     "com/thesis/mobile/ui/screens/SentimentDashboardScreen.kt", // Vico charts (Android-only)
+    "com/thesis/mobile/ui/theme/ThesisFonts.kt", // R.font; src/shim loads ../app/src/main/res/font/*.ttf instead
 )
+
+// Whole directories that are Android-only by design (docs/app-redesign/DESIGN-DIRECTION.md 4, 6.0 rule 5):
+// ui/platform/* wraps BackHandler, View haptics, the animator-scale ContentObserver and the framework shadow
+// paint. src/shim/kotlin/com/thesis/mobile/ui/platform holds the preview implementations of the same API.
+val androidOnlyDirs = listOf(
+    "com/thesis/mobile/ui/platform/**",
+)
+
+// Bundled fonts (F1 adds res/font/newsreader_*.ttf). The ThesisFonts shim loads them from here and falls back
+// to the system serif while they are absent. Override with -Ppreview.fontDir=/abs/dir.
+val appFontDir = file("../app/src/main/res/font")
 
 // Stage a filtered copy of the app's UI + model sources so the filters do not apply to the shims.
 val stageAppSources by tasks.registering(Sync::class) {
@@ -33,6 +45,7 @@ val stageAppSources by tasks.registering(Sync::class) {
         // Pure-Kotlin helpers outside ui/model that the app's JVM unit tests cover.
         include("com/thesis/mobile/offline/OfflineJsonCodec.kt", "com/thesis/mobile/launch/LaunchDestinationResolver.kt")
         exclude(*androidOnlyFiles.toTypedArray())
+        exclude(*androidOnlyDirs.toTypedArray())
     }
     into(layout.buildDirectory.dir("app-src"))
 }
@@ -73,6 +86,8 @@ dependencies {
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.1")
+    // Semantics tests (createComposeRule): touch bounds, Role, selected, heading, toggleable, liveRegion.
+    testImplementation("org.jetbrains.compose.ui:ui-test-junit4-desktop:$composeMpVersion")
 }
 
 configurations.all {
@@ -113,14 +128,27 @@ tasks.test {
     val out = (project.findProperty("screens.out") as String?)
         ?: layout.buildDirectory.dir("screens").get().asFile.absolutePath
     systemProperty("screens.out", out)
-    // Optional filters / knobs, forwarded as system properties.
-    listOf("screens.only", "screens.density", "screens.theme").forEach { key ->
-        project.findProperty(key)?.let { systemProperty(key, it) }
+    // Optional filters / knobs, forwarded as system properties. Each one may be given as -Pkey=value or as
+    // -Dkey=value on the Gradle command line (the doc's "-Dpreview.glow=false").
+    //   screens.only       regex of render names to run          screens.theme  dark | light
+    //   screens.density    px per dp (default 2.625)             screens.fontScale  default font scale (1.0)
+    //   preview.glow       false = skip page glows (bulk renders) preview.reducedMotion  true = reduced motion
+    //   preview.fontDir    folder with newsreader_*.ttf           preview.online / preview.billing (screen stubs)
+    listOf(
+        "screens.only", "screens.density", "screens.theme", "screens.fontScale",
+        "preview.glow", "preview.reducedMotion", "preview.fontDir", "preview.online", "preview.billing",
+    ).forEach { key ->
+        (project.findProperty(key) ?: System.getProperty(key))?.let { systemProperty(key, it) }
+    }
+    if (!project.hasProperty("preview.fontDir") && System.getProperty("preview.fontDir") == null) {
+        systemProperty("preview.fontDir", appFontDir.absolutePath)
     }
     systemProperty("java.awt.headless", "true")
-    // -PappTestsOnly / -PrendersOnly pick one half of the test suite.
+    // -PappTestsOnly / -PrendersOnly pick one half of the test suite; -PharnessOnly runs the harness's own
+    // tests (render knobs, ui/platform and font shims, semantics helpers), which are part of the renders half.
     if (project.hasProperty("appTestsOnly")) filter { excludeTestsMatching("com.thesis.mobile.preview.*") }
     if (project.hasProperty("rendersOnly")) filter { includeTestsMatching("com.thesis.mobile.preview.*") }
+    if (project.hasProperty("harnessOnly")) filter { includeTestsMatching("com.thesis.mobile.preview.harness.*") }
     maxHeapSize = "2g"
     testLogging { events("passed", "failed", "skipped"); showStandardStreams = true }
     outputs.upToDateWhen { false }
