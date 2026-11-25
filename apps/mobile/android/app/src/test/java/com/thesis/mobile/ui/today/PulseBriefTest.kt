@@ -36,7 +36,11 @@ class PulseBriefTest {
     @Test
     fun theMorningLineAndLeadConclusionAreSentencesOfTheIssue() {
         assertEquals("US risk assets were broadly higher on the day.", brief.morningLine)
-        assertEquals("Macro pressure is elevated: CPI-U All Items, Treasury 10Y.", brief.leadConclusion)
+        // The macro reading in reader words, never the raw series labels ("CPI-U All Items, Treasury 10Y").
+        assertEquals(
+            "Macro pressure is elevated, led by consumer prices and the 10-year Treasury yield.",
+            brief.leadConclusion,
+        )
         assertFalse(brief.leadConclusion == brief.morningLine)
     }
 
@@ -89,7 +93,10 @@ class PulseBriefTest {
     fun noMachineResidueReachesTheReader() {
         // Links are the only place raw identifiers may appear.
         val text = brief.asText("Pulse").lines().filterNot { it.contains("http") }.joinToString("\n")
-        listOf("(filing_posted)", "[medium]", "[high]", "_", "2026-04-25", "usd_per_barrel", "Coverage note:").forEach { residue ->
+        listOf(
+            "(filing_posted)", "[medium]", "[high]", "_", "2026-04-25", "usd_per_barrel", "Coverage note:", "Coverage:",
+            "live path", "this run", "this cycle", "CPI-U All Items",
+        ).forEach { residue ->
             assertFalse("\"$residue\" in:\n$text", text.contains(residue))
         }
         brief.chapters.flatMap { c -> listOf(c.title) + c.paragraphs.map { it.text } + c.items + c.names.map { it.sentence } }
@@ -100,11 +107,34 @@ class PulseBriefTest {
     }
 
     @Test
-    fun whatChangedReadsTheEventsAsSentences() {
+    fun whatChangedListsTheEventsAndNeverLeadsWithOne() {
         val changed = brief.chapter(ChapterKind.Changed)!!
-        val texts = changed.paragraphs.map { it.text }
-        assertTrue(texts.toString(), "AAPL filed a new 8-K." in texts)
-        assertTrue(texts.toString(), "CPI update published." in texts)
+        // The headline is the issue's prose (the macro reading), not an event fragment or a list of series labels.
+        assertEquals("Macro pressure is elevated, led by consumer prices and the 10-year Treasury yield.", changed.title)
+        // Events are a compact list, never story paragraphs; the two filings are told by Your names.
+        assertTrue(changed.paragraphs.toString(), changed.paragraphs.isEmpty())
+        assertEquals(listOf("CPI update published."), changed.items)
+    }
+
+    @Test
+    fun noWhatChangedLineRepeatsAYourNamesReason() {
+        val changed = brief.chapter(ChapterKind.Changed)!!
+        val reasons = brief.chapter(ChapterKind.Names)!!.names.map { it.sentence }
+        val lines = changed.paragraphs.flatMap { PulseText.sentences(it.text) } + changed.items + changed.title
+        lines.forEach { line -> assertFalse("\"$line\" repeats a Your names reason", line in reasons) }
+        // A reader following nothing sees the filings in What changed instead.
+        val unfollowed = PulseBrief.from(pulse, emptyList()).chapter(ChapterKind.Changed)!!
+        assertEquals(listOf("AAPL filed a new 8-K.", "MSFT filed a new 8-K.", "CPI update published."), unfollowed.items)
+    }
+
+    @Test
+    fun anIssueWithOnlyEventsLeadsWithACountOfThem() {
+        val events = pulse.sections.first { it.sectionId == "canonical_events" }
+        val b = PulseBrief.from(pulse.copy(sections = listOf(events)), emptyList())
+        val changed = b.chapter(ChapterKind.Changed)!!
+        assertEquals("2 filings and 1 macro release in this issue", changed.title)
+        assertEquals(3, changed.items.size)
+        assertTrue(changed.items.none { it == changed.title })
     }
 
     @Test
@@ -117,15 +147,42 @@ class PulseBriefTest {
 
     @Test
     fun headlinesAndSourcesKeepTheirLinks() {
-        val headlines = brief.chapter(ChapterKind.Headlines)!!.headlines
-        assertEquals("Apple investor update confirms release cadence.", headlines.single().title)
-        assertEquals("https://investor.apple.com/investor-relations/", headlines.single().url)
+        val headlines = brief.chapter(ChapterKind.Headlines)!!
+        // The chapter headline is the top story itself (content, not a count); its link stays on the chapter.
+        assertEquals("Apple investor update confirms release cadence.", headlines.title)
+        assertEquals("https://investor.apple.com/investor-relations/", headlines.leadHeadline!!.url)
+        assertTrue(headlines.headlines.isEmpty())
         val sources = brief.chapter(ChapterKind.Sources)!!
         assertTrue(sources.sources.any { it.url == "https://fred.stlouisfed.org/series/SP500" })
         assertTrue(sources.sources.any { it.url == "https://www.sec.gov/AAPL" })
         assertEquals(sources.sources.size, sources.sources.map { it.url }.distinct().size)
-        assertTrue(sources.notes.toString(), sources.notes.any { it.startsWith("Sector ETF leadership") })
-        assertTrue(sources.notes.toString(), sources.notes.any { it == "Market tape incomplete" })
+        // Two sources with one label say which document each opens.
+        assertEquals(
+            listOf("SEC EDGAR · AAPL 8-K", "SEC EDGAR · MSFT 8-K"),
+            sources.sources.filter { it.label == "SEC EDGAR" }.map { it.title },
+        )
+        assertEquals(sources.sources.size, sources.sources.map { it.title }.distinct().size)
+    }
+
+    @Test
+    fun theSourcesHeadlineIsAPlainCount() {
+        val sources = brief.chapter(ChapterKind.Sources)!!
+        assertEquals("This issue cites ${sources.sources.size} references", sources.title)
+        assertFalse(sources.title.contains("every", ignoreCase = true))
+    }
+
+    @Test
+    fun coverageNotesAreReaderSentencesWithoutRepeats() {
+        val notes = brief.chapter(ChapterKind.Sources)!!.notes
+        // "Sector leadership was unavailable" and "Sector ETF leadership is not available" say the same thing.
+        assertEquals(1, notes.count { it.contains("leadership") })
+        assertTrue(notes.toString(), "Sector leadership was not available for this issue." in notes)
+        assertTrue(notes.toString(), "Market tape data is incomplete." in notes)
+        notes.forEach { note ->
+            assertTrue(note, note.endsWith("."))
+            assertTrue(note, note.first().isUpperCase())
+            listOf("live path", "this run", "this cycle", "Coverage", "optional in M").forEach { assertFalse(note, note.contains(it)) }
+        }
     }
 
     @Test

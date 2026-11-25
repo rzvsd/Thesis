@@ -349,7 +349,7 @@ private fun TodayHomeContent(
     )
 }
 
-enum class PulseState { Loaded, Real, Loading, Empty, Error, Exporting }
+enum class PulseState { Loaded, Real, Loading, Empty, Error, Exporting, Stale }
 
 @Composable
 fun TodayPulse(
@@ -363,7 +363,7 @@ fun TodayPulse(
     FreshEntrances("today-pulse") {
         PulseScreen(
             pulse = when (state) {
-                PulseState.Loaded, PulseState.Exporting -> f.richPulse
+                PulseState.Loaded, PulseState.Exporting, PulseState.Stale -> f.richPulse
                 PulseState.Real -> f.realPulse
                 else -> null
             },
@@ -373,7 +373,8 @@ fun TodayPulse(
             onExportPdf = {},
             onRefresh = {},
             loading = state == PulseState.Loading,
-            error = if (state == PulseState.Error) "HTTP 503" else null,
+            error = if (state == PulseState.Error || state == PulseState.Stale) "HTTP 503" else null,
+            pulseFailure = if (state == PulseState.Stale) RefreshFailureKind.SERVER else null,
             isExporting = state == PulseState.Exporting,
             monitorSnapshots = f.snapshots,
             onOpenSource = onOpenSource,

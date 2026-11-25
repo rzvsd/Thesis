@@ -18,7 +18,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
@@ -87,7 +89,9 @@ import com.thesis.mobile.ui.today.PulseText
 import com.thesis.mobile.ui.today.TapeModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import java.time.Instant
 import java.time.LocalDate
 
@@ -177,8 +181,17 @@ fun HomeScreen(
     val macro = remember(sentimentCurrent, sentimentHistory) { MacroModel.summary(sentimentCurrent, sentimentHistory, fmt) }
 
     // One refresh line at a time (4.3 rule 10): the pull's own hairline when the reader pulled, else the header's.
+    // A pull is over when its refresh has started and ended; when no refresh starts within a short window (the
+    // ViewModel had nothing to do, or `refreshing` is not wired), it is over too, so a later background refresh
+    // shows the header's hairline, not the pull's.
     var pulled by remember { mutableStateOf(false) }
-    LaunchedEffect(refreshing) { if (!refreshing) pulled = false }
+    val refreshingNow by rememberUpdatedState(refreshing)
+    LaunchedEffect(pulled) {
+        if (!pulled) return@LaunchedEffect
+        val started = withTimeoutOrNull(PULL_START_WINDOW_MS) { snapshotFlow { refreshingNow }.first { it } }
+        if (started != null) snapshotFlow { refreshingNow }.first { !it }
+        pulled = false
+    }
 
     // No cache and a load in flight: nothing for the skeleton's grace period (no flash of empty states), then
     // the skeleton, held for its minimum time once the data lands.
@@ -260,7 +273,11 @@ private fun HomeList(
     val coordinator = rememberDataEntranceCoordinator(dataKey = pulse?.reportId)
     fun Modifier.entrance(block: Int) = staggeredEntrance(block, coordinator)
 
-    val phase = remember(now) { MarketCalendar.phase(now) }
+    // The phase is New York's; it is shown only when the reader's date is New York's date too (in Tokyo at 07:00
+    // Wednesday, New York is still in Tuesday's session: "WED 25 NOV · AFTER THE CLOSE" would mislead).
+    val phase = remember(now, today) {
+        MarketCalendar.phase(now)?.takeIf { now.atZone(MarketCalendar.NewYork).toLocalDate() == today }
+    }
     val generated = brief?.generatedAt
     val header = HeaderText(
         eyebrow = TodayCopy.eyebrow(fmt.marketDate(today), phase?.let(::phaseWord)),
@@ -270,7 +287,8 @@ private fun HomeList(
             if (at.atZone(clock.zone).toLocalDate() == today) TodayCopy.asOf(fmt.time(at)) else fmt.asOf(at)
         },
     )
-    val tape = remember(pulse?.tape) { TapeModel.items(TapeModel.lines(pulse?.tape)) }
+    // The briefing's six instruments (5.6); the Pulse's Markets chapter has the whole tape.
+    val tape = remember(pulse?.tape) { TapeModel.items(TapeModel.homeLines(TapeModel.lines(pulse?.tape))) }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -352,6 +370,9 @@ private data class HeaderText(val eyebrow: String, val morningLine: String?, val
 private const val HEADLINE_LINES = 2
 
 private const val MINUTE_MS = 60_000L
+
+/** How long a pull waits for its refresh to start before it counts as over (not motion timing). */
+private const val PULL_START_WINDOW_MS = 1_500L
 
 /**
  * The header with the morning line shortened to what fits two `headline` lines at this width and font scale: the
@@ -459,7 +480,11 @@ private fun MacroBlock(macro: MacroSummary?, error: String?, onOpen: () -> Unit,
     Box(Modifier.padding(horizontal = ThesisSpace.gutter)) {
         when {
             // "Try again" only when it reloads macro stress itself (never the Pulse under this label).
-            macro == null && error != null -> ErrorState(title = TodayCopy.MACRO_FAILED, onRetry = onRetry)
+            macro == null && error != null -> Column(verticalArrangement = Arrangement.spacedBy(ThesisSpace.m)) {
+                // Labelled like the Pulse block's error: the card never stands alone without its section.
+                Kicker(TodayCopy.MACRO_EYEBROW)
+                ErrorState(title = TodayCopy.MACRO_FAILED, onRetry = onRetry)
+            }
             macro == null -> ThesisCard(eyebrow = TodayCopy.MACRO_EYEBROW, title = TodayCopy.MACRO_NO_READING) {
                 Text(TodayCopy.MACRO_NO_READING_HOW, style = ThesisType.bodySmall, color = p.ink2)
             }

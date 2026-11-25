@@ -16,9 +16,7 @@ import com.thesis.mobile.ui.theme.thesisStateTone
 import java.time.Clock
 import java.time.Instant
 import java.time.LocalDate
-import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
-import java.util.Locale
 
 /*
  * Models of the Today screens (docs/app-redesign/DESIGN-DIRECTION.md 5.6 blocks 4 and 5, 5.8): the names rows and
@@ -33,14 +31,12 @@ internal fun dayWord(at: Instant, clock: Clock, fmt: Fmt): String {
     val today = LocalDate.now(clock)
     val days = ChronoUnit.DAYS.between(day, today)
     return when {
-        days <= 0L -> "today"
-        days == 1L -> "yesterday"
-        days < 7L -> day.format(Weekday)
+        days <= 0L -> TodayCopy.DAY_TODAY
+        days == 1L -> TodayCopy.DAY_YESTERDAY
+        days < 7L -> TodayCopy.weekday(day)
         else -> fmt.shortDate(day)
     }
 }
-
-private val Weekday = DateTimeFormatter.ofPattern("EEE", Locale.US)
 
 // ---- Your names ---------------------------------------------------------------------------------------------------
 

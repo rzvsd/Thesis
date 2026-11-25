@@ -2,6 +2,9 @@ package com.thesis.mobile.ui.copy
 
 import com.thesis.mobile.ui.format.Fmt
 import com.thesis.mobile.ui.today.TapeLine
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -25,8 +28,28 @@ object TodayCopy {
     const val PHASE_OPEN = "Market open"
     const val PHASE_AFTER_CLOSE = "After the close"
 
-    /** "Mon 24 Nov · Pre-market" (the phase word is left out when unsure). The Eyebrow sets it in capitals. */
-    fun eyebrow(date: String, phase: String?): String = listOfNotNull(date, phase).joinToString(" · ")
+    /**
+     * "Mon 24 Nov · Pre-market" (the phase word is left out when unsure). The Eyebrow sets it in capitals. Each part
+     * is kept whole (no-break spaces, a non-breaking hyphen U+2011, which Roboto draws like "-"): a narrow screen
+     * wraps only at the " · ", so "PRE-MARKET" never splits across lines. (A word joiner would take the eyebrow's
+     * letter spacing and open a gap after the hyphen.)
+     */
+    fun eyebrow(date: String, phase: String?): String = listOfNotNull(date, phase).joinToString(" · ") { unbreakable(it) }
+
+    private const val NO_BREAK_SPACE = '\u00A0'
+    private const val NO_BREAK_HYPHEN = '\u2011'
+
+    private fun unbreakable(part: String): String = part.replace(' ', NO_BREAK_SPACE).replace('-', NO_BREAK_HYPHEN)
+
+    // ---- Day words ("since" captions) ---------------------------------------------------------------------------
+
+    const val DAY_TODAY = "today"
+    const val DAY_YESTERDAY = "yesterday"
+
+    /** "Tue": a day within the past week. */
+    fun weekday(day: LocalDate): String = day.format(Weekday)
+
+    private val Weekday = DateTimeFormatter.ofPattern("EEE", Locale.US)
 
     /** "As of 07:02" (the one timestamp on Home). */
     fun asOf(time: String): String = "As of $time"
@@ -215,17 +238,76 @@ object TodayCopy {
         lines.takeIf { it.isNotEmpty() }?.joinToString(", ", postfix = ".") { "${it.name} ${it.level} (${it.change})" }
 
     const val CHANGED_FALLBACK = "What the inputs show since the last issue"
+
+    /**
+     * What changed when the issue has events but no prose: a count of what they are ("2 filings and 1 macro release
+     * in this issue"); null without events.
+     */
+    fun eventsHeadline(filings: Int, releases: Int, total: Int): String? {
+        if (total <= 0) return null
+        val other = total - filings - releases
+        if (filings < 0 || releases < 0 || other < 0) return "${Fmt.count(total, "event", "events")} in this issue"
+        val parts = listOfNotNull(
+            Fmt.count(filings, "filing", "filings").takeIf { filings > 0 },
+            Fmt.count(releases, "macro release", "macro releases").takeIf { releases > 0 },
+            Fmt.count(other, "other event", "other events").takeIf { other > 0 && (filings > 0 || releases > 0) },
+            Fmt.count(other, "event", "events").takeIf { other > 0 && filings == 0 && releases == 0 },
+        )
+        val joined = if (parts.size <= 1) parts.joinToString("") else parts.dropLast(1).joinToString(", ") + " and " + parts.last()
+        return "$joined in this issue"
+    }
+
+    /** Reader words for the pipeline's macro series labels; null when a label has none (it is then not shown). */
+    fun seriesWords(label: String): String? = when (label.trim().lowercase().replace(Regex("\\s+"), " ")) {
+        "cpi-u all items", "cpi", "cpi-u", "consumer price index" -> "consumer prices"
+        "core cpi", "cpi-u core" -> "core consumer prices"
+        "core pce", "pce" -> "PCE inflation"
+        "treasury 10y", "10y treasury", "dgs10" -> "the 10-year Treasury yield"
+        "treasury 2y", "2y treasury", "dgs2" -> "the 2-year Treasury yield"
+        "treasury 30y", "dgs30" -> "the 30-year Treasury yield"
+        "unemployment rate", "unemployment" -> "unemployment"
+        "real gdp", "gdp" -> "real GDP"
+        "wti spot", "wti", "wti crude" -> "oil"
+        "brent", "brent spot" -> "Brent crude"
+        "us high yield oas", "high yield oas" -> "high-yield spreads"
+        "vix" -> "volatility"
+        else -> null
+    }
+
+    /**
+     * "Macro pressure is elevated, led by consumer prices and the 10-year Treasury yield." ([series] in the issue's
+     * order, which is by pressure); "Macro pressure is elevated." without series.
+     */
+    fun macroPressure(reading: String, series: List<String>): String = when (series.size) {
+        0 -> "$reading."
+        1 -> "$reading, led by ${series[0]}."
+        else -> "$reading, led by ${series.dropLast(1).joinToString(", ")} and ${series.last()}."
+    }
+
     fun namesInBrief(n: Int): String =
-        if (n == 1) "One of your names is in today’s brief" else "$n of your names are in today’s brief"
-    fun headlinesHeadline(n: Int): String = "${Fmt.count(n, "headline", "headlines")} with a source"
-    fun sourcesHeadline(n: Int): String = "Every figure traces to ${Fmt.count(n, "source", "sources")}"
+        if (n == 1) "1 of your names is in today’s brief" else "$n of your names are in today’s brief"
+
+    /**
+     * The Sources headline: a plain count of what the issue links to. It makes no claim that every figure is
+     * traced (the app does not link figures to sources).
+     */
+    fun sourcesHeadline(n: Int): String = "This issue cites ${Fmt.count(n, "reference", "references")}"
+
+    /** The caption-level label above the coverage notes (once, never a prefix on each note). */
+    const val COVERAGE = "Coverage"
+
+    /** A section the issue marks incomplete, when the issue has no flags of its own: "Market tape coverage is incomplete". */
+    fun sectionStatus(title: String, unavailable: Boolean): String {
+        val name = title.lowercase().replaceFirstChar { it.uppercase() }
+        return if (unavailable) "$name was not available for this issue" else "$name coverage is incomplete"
+    }
+
+    /** "Read at investor.apple.com": the link under a chapter headline that quotes a headline. */
+    fun readAt(source: String): String = "Read at $source"
 
     const val SIGNAL = "Signal"
     const val NOISE = "Noise"
     const val UPSHOT = "The upshot"
-
-    /** Coverage notes in the Sources chapter: "Coverage: market tape data incomplete". */
-    fun coverageNote(text: String): String = "Coverage: $text"
 
     const val NO_PULSE_DAY = "No Pulse for this day"
     const val NO_PULSE_DAY_HOW = "Pulse issues are written on market days, before the open."
@@ -243,8 +325,10 @@ object TodayCopy {
     const val THIS_WEEK = "This week"
 
     /**
-     * The digest lede, built from facts: "Macro stress rose 6 points; 2 of your names filed; 1 changed state;
-     * 5 alerts." Parts with no data are left out; [stateChanges] null means the history is not available.
+     * The digest lede, built from facts: "Macro stress rose 6 points; 2 of your names have new reports; 1 name
+     * changed state; 5 alerts." Parts with no data are left out; [stateChanges] null means the history is not
+     * available. "Reports", not "filed": the count is of Thesis reports built this week (the monitor snapshot's
+     * report time), and the snapshot has no filing date yet (HANDOFF).
      */
     fun digestLede(macroDelta: Double?, filings: Int, stateChanges: Int?, alerts: Int, total: Int): String {
         val parts = mutableListOf<String>()
@@ -258,15 +342,16 @@ object TodayCopy {
         }
         if (total > 0) {
             parts += when (filings) {
-                0 -> "none of your names filed"
-                else -> "${filings} of your names filed"
+                0 -> "no new reports on your names"
+                1 -> "1 of your names has a new report"
+                else -> "$filings of your names have new reports"
             }
         }
         if (stateChanges != null && total > 0) {
             parts += when (stateChanges) {
                 0 -> "no name changed state"
-                1 -> "1 changed state"
-                else -> "$stateChanges changed state"
+                1 -> "1 name changed state"
+                else -> "$stateChanges names changed state"
             }
         }
         parts += Fmt.count(alerts, "alert", "alerts")
@@ -274,17 +359,17 @@ object TodayCopy {
     }
 
     const val KPI_MACRO = "Macro stress now"
-    const val KPI_FILINGS = "New filings"
+    const val KPI_FILINGS = "New reports"
     const val KPI_STATE_CHANGES = "State changes"
     const val KPI_ALERTS = "Alerts"
     fun amongNames(total: Int): String = "among your ${Fmt.count(total, "name", "names")}"
     const val LAST_7_DAYS = "last 7 days"
 
-    const val FILINGS_KICKER = "New filings"
+    const val FILINGS_KICKER = "New reports"
     fun filingsHeadline(n: Int): String = when (n) {
-        0 -> "None of your names filed this week"
-        1 -> "One of your names filed this week"
-        else -> "$n of your names filed this week"
+        0 -> "No new reports on your names this week"
+        1 -> "1 of your names has a new report this week"
+        else -> "$n of your names have new reports this week"
     }
 
     const val MACRO_KICKER = "Macro"
@@ -292,7 +377,7 @@ object TodayCopy {
     fun stateChangesHeadline(n: Int?): String = when (n) {
         null -> "State changes appear once Thesis has a week of readings"
         0 -> "No name changed state this week"
-        1 -> "One name changed state this week"
+        1 -> "1 name changed state this week"
         else -> "$n names changed state this week"
     }
 

@@ -34,12 +34,15 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.Dp
 import com.thesis.mobile.model.PulseReportView
 import com.thesis.mobile.model.ThesisMonitorSnapshotView
+import com.thesis.mobile.ui.RefreshFailureKind
 import com.thesis.mobile.ui.components.ActionRow
 import com.thesis.mobile.ui.components.ArcSpinner
 import com.thesis.mobile.ui.components.BadgeSpec
+import com.thesis.mobile.ui.components.BannerTone
 import com.thesis.mobile.ui.components.Callout
 import com.thesis.mobile.ui.components.ChapterDivider
 import com.thesis.mobile.ui.components.ChapterHeader
@@ -50,6 +53,7 @@ import com.thesis.mobile.ui.components.ErrorState
 import com.thesis.mobile.ui.components.Eyebrow
 import com.thesis.mobile.ui.components.HeroBand
 import com.thesis.mobile.ui.components.HighlightText
+import com.thesis.mobile.ui.components.InlineBanner
 import com.thesis.mobile.ui.components.Kicker
 import com.thesis.mobile.ui.components.LeadingRowDividerInset
 import com.thesis.mobile.ui.components.Loadable
@@ -108,8 +112,11 @@ private const val HERO_ITEM = 0
 private const val PILLS_ITEM = 1
 private const val FIRST_CHAPTER_ITEM = 2
 
-/** Width from which Signal and Noise sit side by side. */
-private val SideBySideMin: Dp = ThesisSpace.x4 * 10
+/**
+ * Content width from which Signal and Noise sit side by side: spec 5.7's 400 dp is the window width, and the
+ * callouts are measured inside the two 16 dp gutters (a 412 dp phone gives 380 dp).
+ */
+private val SideBySideMin: Dp = ThesisSpace.x4 * 10 - ThesisSpace.gutter * 2
 
 @Suppress("UNUSED_PARAMETER")
 @Composable
@@ -130,6 +137,16 @@ fun PulseScreen(
     refreshing: Boolean = false,
     /** The PDF export is running (an inline arc replaces its icon). */
     isExporting: Boolean = false,
+    /**
+     * When the last PDF export finished successfully (any value that changes per export, such as its epoch ms): a
+     * change plays the confirm haptic (4.7 "export done"). A failed export never changes it, so it never confirms.
+     */
+    exportDoneAt: Long? = null,
+    /**
+     * Why the last refresh failed, when [error] is set and an issue is still shown: the hero's banner says
+     * "Offline · showing 06:30" for [RefreshFailureKind.OFFLINE], else "Couldn’t refresh · showing 06:30" (as Home).
+     */
+    pulseFailure: RefreshFailureKind? = null,
     /** Monitor readings, for the state squares on Your names. */
     monitorSnapshots: List<ThesisMonitorSnapshotView> = emptyList(),
     /** Opens a name; without it the name rows are plain text (a tap never starts a Deep Dive build). */
@@ -159,10 +176,11 @@ fun PulseScreen(
     val clipboard = LocalClipboardManager.current
     val uri = LocalUriHandler.current
     val haptics = rememberHaptics()
-    var exportWasRunning by remember { mutableStateOf(isExporting) }
-    LaunchedEffect(isExporting) {
-        if (exportWasRunning && !isExporting) haptics.confirm()
-        exportWasRunning = isExporting
+    // Confirm only on a success signal: the first value is the state on arrival, not an export that just finished.
+    var lastExportDone by remember { mutableStateOf(exportDoneAt) }
+    LaunchedEffect(exportDoneAt) {
+        if (exportDoneAt != null && exportDoneAt != lastExportDone) haptics.confirm()
+        lastExportDone = exportDoneAt
     }
     val copyText: (String) -> Unit = { text ->
         if (onCopyText != null) onCopyText(text) else clipboard.setText(AnnotatedString(text))
@@ -217,10 +235,18 @@ fun PulseScreen(
             },
         ) { b ->
             ThesisRefreshBox(refreshing = refreshing, onRefresh = onRefresh, indicatorTop = barHeight) {
+                // A refresh failed while an issue is shown: the same banner as Home, under the hero line.
+                val stale = if (error == null) {
+                    null
+                } else {
+                    val shown = b.generatedAt?.let(fmt::time)
+                    if (pulseFailure == RefreshFailureKind.OFFLINE) TodayCopy.offlineShowing(shown) else TodayCopy.staleShowing(shown)
+                }
                 Brief(
                     brief = b,
                     list = list,
                     dayLabel = dayLabel,
+                    staleBanner = stale,
                     padding = padding,
                     barHeightPx = barHeightPx,
                     pillsPinned = pillsPinned,
@@ -263,6 +289,7 @@ private fun Brief(
     brief: PulseBrief,
     list: LazyListState,
     dayLabel: String?,
+    staleBanner: String?,
     padding: PaddingValues,
     barHeightPx: Int,
     pillsPinned: Boolean,
@@ -350,6 +377,7 @@ private fun Brief(
                             if (brief.heroPartial) StatusBadge(TodayCopy.PARTIAL_COVERAGE, Tone.Attention)
                         }
                     }
+                    if (staleBanner != null) InlineBanner(staleBanner, tone = BannerTone.Neutral)
                 }
             }
             item(key = "pills") {
@@ -451,6 +479,8 @@ private fun Chapter(
             }
             ChapterKind.Changed -> {
                 Paragraphs(chapter)
+                // The issue's events (filings, releases): a compact list, never story paragraphs.
+                if (chapter.items.isNotEmpty()) MarkedList(chapter.items, ThesisType.body)
                 SignalNoise(chapter.signal, chapter.noise)
             }
             ChapterKind.Names -> {
@@ -476,33 +506,43 @@ private fun Chapter(
                     }
                 }
             }
-            ChapterKind.Watch -> {
-                // A story list: neutral marks (gold is never a bullet, principle 3).
-                Column(verticalArrangement = Arrangement.spacedBy(ThesisSpace.m)) {
-                    chapter.items.forEach { item ->
-                        Row(horizontalArrangement = Arrangement.spacedBy(ThesisSpace.m)) {
-                            Box(Modifier.padding(top = ThesisSpace.s)) { StatusSquare(p.muted) }
-                            Text(item, style = ThesisType.story, color = p.ink)
+            ChapterKind.Watch -> MarkedList(chapter.items, ThesisType.story)
+            ChapterKind.Headlines -> {
+                // The headline above quotes the top story: its source opens from the first row.
+                val lead = chapter.leadHeadline
+                val leadSource = lead?.source ?: lead?.url?.let(PulseText::host)
+                if (lead?.url != null || chapter.headlines.isNotEmpty()) {
+                    RowGroup {
+                        if (lead?.url != null) {
+                            row {
+                                ActionRow(
+                                    icon = null,
+                                    title = TodayCopy.readAt(leadSource ?: lead.url),
+                                    caption = lead.at?.let(fmt::time),
+                                    external = true,
+                                    onClick = { onOpenSource(lead.url) },
+                                )
+                            }
+                        }
+                        chapter.headlines.forEach { h ->
+                            row { HeadlineRow(h, fmt::time, onOpenSource) }
                         }
                     }
-                }
-            }
-            ChapterKind.Headlines -> {
-                RowGroup {
-                    chapter.headlines.forEach { h ->
-                        row { HeadlineRow(h, fmt::time, onOpenSource) }
-                    }
+                } else if (leadSource != null) {
+                    Text(leadSource, style = ThesisType.caption, color = p.muted)
                 }
             }
             ChapterKind.Sources -> {
                 if (chapter.sources.isNotEmpty()) {
                     RowGroup {
                         chapter.sources.forEach { s ->
+                            // The host only when it adds something ("investor.apple.com / investor.apple.com" does not).
+                            val host = PulseText.host(s.url)?.takeUnless { it.equals(s.label, ignoreCase = true) }
                             row {
                                 ActionRow(
                                     icon = null,
-                                    title = s.label,
-                                    caption = TodayCopy.sourceCaption(PulseText.host(s.url), s.at?.let { fmt.marketDate(it.atZone(zone).toLocalDate()) }),
+                                    title = s.title,
+                                    caption = TodayCopy.sourceCaption(host, s.at?.let { fmt.marketDate(it.atZone(zone).toLocalDate()) }),
                                     external = true,
                                     onClick = { onOpenSource(s.url) },
                                 )
@@ -511,10 +551,31 @@ private fun Chapter(
                     }
                 }
                 if (chapter.notes.isNotEmpty()) {
+                    // One label, then the notes as sentences (never "Coverage:" on every line).
                     Column(verticalArrangement = Arrangement.spacedBy(ThesisSpace.xs)) {
-                        chapter.notes.forEach { Text(TodayCopy.coverageNote(it), style = ThesisType.caption, color = p.muted) }
+                        Eyebrow(TodayCopy.COVERAGE)
+                        chapter.notes.forEach { Text(it, style = ThesisType.caption, color = p.muted) }
                     }
                 }
+            }
+        }
+    }
+}
+
+/**
+ * A list with neutral square marks (gold is never a bullet, principle 3). Each mark is centred on its item's first
+ * line, from the style's line height at the current font scale (a fixed offset drifts at 2.0x).
+ */
+@Composable
+private fun MarkedList(items: List<String>, style: TextStyle) {
+    val p = LocalThesisPalette.current
+    val lineHeight = with(LocalDensity.current) { style.lineHeight.toDp() }
+    val markTop = (lineHeight - ThesisSpace.statusSquare) / 2
+    Column(verticalArrangement = Arrangement.spacedBy(ThesisSpace.m)) {
+        items.forEach { item ->
+            Row(horizontalArrangement = Arrangement.spacedBy(ThesisSpace.m)) {
+                StatusSquare(p.muted, Modifier.padding(top = markTop))
+                Text(item, style = style, color = p.ink)
             }
         }
     }

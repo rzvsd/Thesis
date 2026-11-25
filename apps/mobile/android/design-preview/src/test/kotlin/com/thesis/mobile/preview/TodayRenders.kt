@@ -51,6 +51,16 @@ class TodayRenders {
     @Test fun pulseScale20() { renderScreen("today-pulse-2_0x", fontScale = 2.0f, glow = false) { TodayPulse() } }
     @Test fun pulseNarrow() { renderScreen("today-pulse-360", widthDp = PhoneSpec.NARROW_WIDTH_DP, glow = false) { TodayPulse() } }
     @Test fun pulseFull() { renderScreen("today-pulse-full", heightDp = full, glow = false) { TodayPulse() } }
+    @Test fun pulseStale() { renderScreen("today-pulse-stale") { TodayPulse(PulseState.Stale) } }
+    // The brief's tail: Watch, Headlines and Sources (coverage notes, qualified source rows).
+    @Test fun pulseTailRich() { renderScreen("today-pulse-tail-rich", glow = false) { TodayPulse(initialChapter = ChapterKind.Headlines) } }
+    @Test fun pulseTailReal() { renderScreen("today-pulse-tail-real", glow = false) { TodayPulse(PulseState.Real, initialChapter = ChapterKind.Changed) } }
+    @Test fun pulseSourcesReal() { renderScreen("today-pulse-sources-real", heightDp = full, glow = false) { TodayPulse(PulseState.Real, initialChapter = ChapterKind.Sources) } }
+    @Test fun pulseWatch360x2() {
+        renderScreen("today-pulse-watch-360-2_0x", widthDp = PhoneSpec.NARROW_WIDTH_DP, fontScale = 2.0f, glow = false) {
+            TodayPulse(initialChapter = ChapterKind.Watch)
+        }
+    }
 
     @Test fun pulseStagger0() { renderScreen("today-pulse-stagger-000", settleMs = 0, themes = listOf(PreviewTheme.DARK), glow = false) { TodayPulse() } }
     @Test fun pulseStagger150() { renderScreen("today-pulse-stagger-150", settleMs = 150, themes = listOf(PreviewTheme.DARK), glow = false) { TodayPulse() } }

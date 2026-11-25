@@ -33,9 +33,15 @@ data class NameMention(val ticker: String, val sentence: String)
 @Immutable
 data class Headline(val title: String, val source: String?, val at: Instant?, val url: String?)
 
-/** A source the issue cites, opening in the browser. */
+/**
+ * A source the issue cites, opening in the browser. [detail] tells apart two sources with the same [label] ("SEC
+ * EDGAR · AAPL 8-K" and "SEC EDGAR · MSFT 8-K"); null when the label alone is unique.
+ */
 @Immutable
-data class SourceRef(val label: String, val url: String, val at: Instant?)
+data class SourceRef(val label: String, val url: String, val at: Instant?, val detail: String? = null) {
+    /** The row title: the label, qualified by [detail] when two sources share it. */
+    val title: String get() = if (detail == null) label else "$label · $detail"
+}
 
 @Immutable
 data class PulseChapter(
@@ -50,9 +56,11 @@ data class PulseChapter(
     val tape: List<TapeLine> = emptyList(),
     val names: List<NameMention> = emptyList(),
     val items: List<String> = emptyList(),
+    /** Headlines: the one the chapter headline quotes ([title]) is [leadHeadline]; the rest are rows. */
     val headlines: List<Headline> = emptyList(),
+    val leadHeadline: Headline? = null,
     val sources: List<SourceRef> = emptyList(),
-    /** Coverage notes about the pipeline (Sources chapter), never mixed into the story. */
+    /** Coverage notes in reader copy, each a sentence (Sources chapter), never mixed into the story. */
     val notes: List<String> = emptyList(),
     val signal: String? = null,
     val noise: String? = null,
@@ -126,11 +134,13 @@ data class PulseBrief(
             c.paragraphs.forEach { appendLine(it.text) }
             c.names.forEach { appendLine("${it.ticker}: ${it.sentence}") }
             c.items.forEach { appendLine("· $it") }
+            c.leadHeadline?.let { h -> listOfNotNull(h.source, h.url).joinToString(" · ").ifBlank { null }?.let(::appendLine) }
             c.headlines.forEach { h -> appendLine(listOfNotNull(h.title, h.source).joinToString(" · ")) }
             c.signal?.let { appendLine("${TodayCopy.SIGNAL}: $it") }
             c.noise?.let { appendLine("${TodayCopy.NOISE}: $it") }
-            c.sources.forEach { appendLine("${it.label}: ${it.url}") }
-            c.notes.forEach { appendLine(TodayCopy.coverageNote(it)) }
+            c.sources.forEach { appendLine("${it.title}: ${it.url}") }
+            if (c.notes.isNotEmpty()) appendLine(TodayCopy.COVERAGE)
+            c.notes.forEach { appendLine(it) }
         }
         upshot?.let {
             appendLine()
@@ -194,52 +204,7 @@ data class PulseBrief(
                 null
             }
 
-            // ---- 02 What changed
-            val changedSections = changed + listOfNotNull(macro) + moves
-            val changedParagraphs = mutableListOf<Paragraph>()
-            changedSections.forEach { section ->
-                val items = PulseText.listItems(section.body)
-                if (items != null) {
-                    items.forEach { changedParagraphs += Paragraph("", it) }
-                } else {
-                    val (story, notes) = PulseText.splitCoverage(PulseText.clean(section.body))
-                    coverageNotes += notes
-                    if (story.isNotEmpty()) {
-                        val (lead, rest) = PulseText.leadAndRest(story)
-                        changedParagraphs += Paragraph(lead, rest)
-                    }
-                }
-            }
-            val dedupedChanged = changedParagraphs.distinctBy { it.text }
-            val signal = signalNoise?.body?.let { extractLabelled(it, "signal") }
-            val noise = signalNoise?.body?.let { extractLabelled(it, "noise") }
-            val whatChanged = if (dedupedChanged.isNotEmpty() || signal != null || noise != null) {
-                // The chapter headline is the first sentence; it is not repeated in the first paragraph.
-                val first = dedupedChanged.firstOrNull()
-                val firstSentences = first?.let { PulseText.sentences(it.text) }.orEmpty()
-                val title = firstSentences.firstOrNull() ?: TodayCopy.CHANGED_FALLBACK
-                val remainder = firstSentences.drop(1)
-                val paragraphs = buildList {
-                    if (remainder.isNotEmpty()) {
-                        val (lead, rest) = PulseText.leadAndRest(remainder)
-                        add(Paragraph(lead, rest))
-                    }
-                    addAll(dedupedChanged.drop(1))
-                }
-                PulseChapter(
-                    kind = ChapterKind.Changed,
-                    label = TodayCopy.CHAPTER_CHANGED,
-                    title = title,
-                    partial = changedSections.any(::isPartial),
-                    paragraphs = paragraphs,
-                    signal = signal,
-                    noise = noise,
-                )
-            } else {
-                null
-            }
-
-            // ---- 03 Your names
+            // ---- 03 Your names (built first: What changed leaves out the events this chapter already tells)
             val mentions = nameMentions(watchlist, namesSection, sections)
             val names = if (mentions.isNotEmpty()) {
                 PulseChapter(
@@ -248,6 +213,80 @@ data class PulseBrief(
                     title = TodayCopy.namesInBrief(mentions.size),
                     partial = isPartial(namesSection),
                     names = mentions,
+                )
+            } else {
+                null
+            }
+
+            // ---- 02 What changed: the issue's prose as story paragraphs, the macro reading as a sentence, and the
+            // event list (filings, releases) as a compact list. An event list item is never a paragraph and never
+            // the headline.
+            val changedSections = changed + listOfNotNull(macro) + moves
+            // Prose, one block per section (a block becomes a paragraph).
+            val proseBlocks = mutableListOf<List<String>>()
+            val events = mutableListOf<String>()
+            var eventKinds = emptyList<String>()
+            changed.forEach { section ->
+                val items = PulseText.listItems(section.body)
+                if (items != null) {
+                    events += items
+                } else {
+                    val (story, notes) = PulseText.splitCoverage(PulseText.clean(section.body))
+                    coverageNotes += notes
+                    if (story.isNotEmpty()) proseBlocks += story
+                }
+            }
+            val macroLine = macro?.let { macroSentence(it, coverageNotes) }
+            moves.forEach { section ->
+                val items = PulseText.listItems(section.body)
+                if (items != null) {
+                    events += items
+                    eventKinds = eventKinds + PulseText.eventKinds(section.body)
+                } else {
+                    val (story, notes) = PulseText.splitCoverage(PulseText.clean(section.body))
+                    coverageNotes += notes
+                    if (story.isNotEmpty()) proseBlocks += story
+                }
+            }
+            val prose = proseBlocks.flatten().distinct()
+            val storySentences = (prose + listOfNotNull(macroLine)).distinct()
+            // An event a "Your names" row already tells (its ticker, or the same sentence) is left out here.
+            val namedTickers = mentions.map { Regex("\\b${Regex.escape(it.ticker)}\\b") }
+            val namedSentences = mentions.map { it.sentence }.toSet()
+            val shownEvents = events.distinct().filterNot { e ->
+                e in namedSentences || e in storySentences || namedTickers.any { it.containsMatchIn(e) }
+            }
+            val eventsHeadline = TodayCopy.eventsHeadline(
+                filings = eventKinds.count { it.contains("filing") },
+                releases = eventKinds.count { it.contains("release") },
+                total = events.distinct().size,
+            )
+            val signal = signalNoise?.body?.let { extractLabelled(it, "signal") }
+            val noise = signalNoise?.body?.let { extractLabelled(it, "noise") }
+            val changedFallback = eventsHeadline ?: TodayCopy.CHANGED_FALLBACK
+            val whatChanged = if (storySentences.isNotEmpty() || shownEvents.isNotEmpty() || signal != null || noise != null) {
+                // The headline is the first sentence of prose; it is not repeated in the paragraphs. Without prose,
+                // a count of the events ("2 filings and 1 macro release in this issue").
+                val title = storySentences.firstOrNull() ?: changedFallback
+                val paragraphs = buildList {
+                    proseBlocks.forEachIndexed { i, block ->
+                        val sentences = if (i == 0) block.drop(1) else block
+                        if (sentences.isNotEmpty()) {
+                            val (lead, rest) = PulseText.leadAndRest(sentences)
+                            add(Paragraph(lead, rest))
+                        }
+                    }
+                    if (macroLine != null && prose.isNotEmpty() && macroLine !in prose) add(Paragraph("", macroLine))
+                }.distinctBy { it.text }
+                PulseChapter(
+                    kind = ChapterKind.Changed,
+                    label = TodayCopy.CHAPTER_CHANGED,
+                    title = title,
+                    partial = changedSections.any(::isPartial),
+                    paragraphs = paragraphs,
+                    items = shownEvents,
+                    signal = signal,
+                    noise = noise,
                 )
             } else {
                 null
@@ -287,28 +326,29 @@ data class PulseBrief(
                 null
             }
 
-            // ---- 05 Headlines
+            // ---- 05 Headlines: the top headline is the chapter headline (content, not a count); the rest are rows.
             val headlines = news?.let(::headlinesOf).orEmpty()
-            val headlinesChapter = if (headlines.isNotEmpty()) {
+            val headlinesChapter = headlines.firstOrNull()?.let { top ->
                 PulseChapter(
                     kind = ChapterKind.Headlines,
                     label = TodayCopy.CHAPTER_HEADLINES,
-                    title = TodayCopy.headlinesHeadline(headlines.size),
+                    title = top.title,
                     partial = isPartial(news),
-                    headlines = headlines,
+                    leadHeadline = top,
+                    headlines = headlines.drop(1),
                 )
-            } else {
-                null
             }
 
             // ---- 06 Sources: every cited link, plus coverage notes and section statuses.
-            val sources = buildList {
-                pulse.tape?.moves?.forEach { m ->
-                    val url = m.sourceUrl?.trim()?.ifBlank { null } ?: return@forEach
-                    add(SourceRef(m.sourceName?.trim()?.ifBlank { null } ?: m.label, url, parseInstant(m.retrievedAt)))
-                }
-                sections.forEach { s -> s.evidence.forEach { e -> sourceOf(e)?.let(::add) } }
-            }.distinctBy { it.url }
+            val sources = qualified(
+                buildList {
+                    pulse.tape?.moves?.forEach { m ->
+                        val url = m.sourceUrl?.trim()?.ifBlank { null } ?: return@forEach
+                        add(SourceRef(m.sourceName?.trim()?.ifBlank { null } ?: m.label, url, parseInstant(m.retrievedAt)) to null)
+                    }
+                    sections.forEach { s -> s.evidence.forEach { e -> sourceOf(e)?.let { add(it to e.excerpt) } } }
+                }.distinctBy { it.first.url },
+            )
             flags?.body?.let { body ->
                 val cleaned = PulseText.clean(body)
                 val text = cleaned.substringAfter(":", cleaned).trim().trimEnd('.')
@@ -316,16 +356,16 @@ data class PulseBrief(
             }
             // Section statuses only when the issue has no flags of its own (they say the same thing).
             if (flags == null) {
-                sections.filter(::isPartial).forEach { s -> coverageNotes += "${s.title.trim()}: ${statusWords(s.status)}" }
+                sections.filter(::isPartial).forEach { s -> coverageNotes += TodayCopy.sectionStatus(s.title.trim(), statusUnavailable(s.status)) }
             }
-            val notes = coverageNotes.map { it.trim().trimEnd('.') }.filter { it.isNotBlank() }.distinct()
+            val notes = PulseText.readerNotes(coverageNotes)
             val sourcesChapter = if (sources.isNotEmpty() || notes.isNotEmpty()) {
                 PulseChapter(
                     kind = ChapterKind.Sources,
                     label = TodayCopy.CHAPTER_SOURCES,
-                    title = if (sources.isNotEmpty()) TodayCopy.sourcesHeadline(sources.size) else TodayCopy.coverageNote(notes.first()),
+                    title = if (sources.isNotEmpty()) TodayCopy.sourcesHeadline(sources.size) else notes.first(),
                     sources = sources,
-                    notes = notes,
+                    notes = if (sources.isNotEmpty()) notes else notes.drop(1),
                 )
             } else {
                 null
@@ -333,15 +373,15 @@ data class PulseBrief(
 
             val built = listOfNotNull(markets, whatChanged, names, watchChapter, headlinesChapter, sourcesChapter)
 
-            // Morning line: the issue's own, else the first sentence of the tape, what changed or macro stress.
+            // Morning line: the issue's own, else the first sentence of the tape or of what changed.
             val morningLine = listOf(
                 PulseText.firstSentence(morning?.body),
                 markets?.title?.takeIf { tapeStory.first.isNotEmpty() }.orEmpty(),
-                whatChanged?.title?.takeIf { dedupedChanged.isNotEmpty() }.orEmpty(),
+                storySentences.firstOrNull().orEmpty(),
             ).firstOrNull { it.isNotBlank() } ?: ""
             val leadConclusion = listOf(
-                whatChanged?.title?.takeIf { dedupedChanged.isNotEmpty() }.orEmpty(),
-                PulseText.firstSentence(macro?.body),
+                storySentences.firstOrNull().orEmpty(),
+                macroLine.orEmpty(),
                 markets?.title?.takeIf { tapeStory.first.isNotEmpty() }.orEmpty(),
             ).firstOrNull { it.isNotBlank() && it != morningLine } ?: TodayCopy.briefChapters(built.size)
 
@@ -352,7 +392,7 @@ data class PulseBrief(
                 if (morningLine.isBlank() || c.title != morningLine) return@map c
                 when (c.kind) {
                     ChapterKind.Markets -> c.promoteNextSentence(TodayCopy.marketsLevels(marketsLead(tapeLines)) ?: TodayCopy.marketsFallback(tapeLines.size))
-                    ChapterKind.Changed -> c.promoteNextSentence(TodayCopy.CHANGED_FALLBACK)
+                    ChapterKind.Changed -> c.promoteNextSentence(changedFallback)
                     else -> c
                 }
             }
@@ -389,9 +429,45 @@ data class PulseBrief(
             }
         }
 
-        private fun statusWords(status: String?): String = when (status?.trim()?.lowercase()) {
-            "data_unavailable", "failed" -> "unavailable"
-            else -> "coverage incomplete"
+        private fun statusUnavailable(status: String?): Boolean = when (status?.trim()?.lowercase()) {
+            "data_unavailable", "failed" -> true
+            else -> false
+        }
+
+        // "Macro pressure is elevated: CPI-U All Items (high), Treasury 10Y (medium)."
+        private val MacroPressure = Regex("^(?i)(macro pressure is [a-z ]+?)\\s*:\\s*(.+?)\\.?$")
+
+        /**
+         * The macro reading as a reader's sentence: the pipeline's series labels read as words ("Macro pressure is
+         * elevated, led by consumer prices and the 10-year Treasury yield."). When a label has no reader name, the
+         * bare list is dropped and only the reading is kept ("Macro pressure is elevated."): no raw identifiers.
+         */
+        private fun macroSentence(section: SectionView, coverageNotes: MutableList<String>): String? {
+            val (story, notes) = PulseText.splitCoverage(PulseText.clean(section.body))
+            coverageNotes += notes
+            val first = story.firstOrNull() ?: return null
+            val m = MacroPressure.find(first) ?: return first
+            val reading = m.groupValues[1].trim()
+            val series = m.groupValues[2].split(',').map { it.trim().trimEnd('.') }.filter { it.isNotEmpty() }
+            val words = series.map { TodayCopy.seriesWords(it) }
+            return TodayCopy.macroPressure(reading, if (words.all { it != null }) words.filterNotNull() else emptyList())
+        }
+
+        private val FilingDoc = Regex("\\b([A-Z]{1,5})\\b.*?\\b(8-K|10-K|10-Q|6-K|20-F|S-1|DEF 14A|Form 4)\\b")
+
+        /**
+         * Qualifies sources that share a label: the ticker and form of a filing ("AAPL 8-K"), else the URL's last
+         * path segment, so two "SEC EDGAR" rows say which document each one opens.
+         */
+        private fun qualified(refs: List<Pair<SourceRef, String?>>): List<SourceRef> {
+            val counts = refs.groupingBy { it.first.label.lowercase() }.eachCount()
+            return refs.map { (ref, excerpt) ->
+                if ((counts[ref.label.lowercase()] ?: 0) < 2) return@map ref
+                val doc = excerpt?.let { FilingDoc.find(it) }?.let { "${it.groupValues[1]} ${it.groupValues[2]}" }
+                val segment = runCatching { java.net.URI(ref.url).path }.getOrNull()
+                    ?.trim('/')?.substringAfterLast('/')?.ifBlank { null }
+                ref.copy(detail = doc ?: segment)
+            }
         }
 
         private fun extractLabelled(body: String, label: String): String? =

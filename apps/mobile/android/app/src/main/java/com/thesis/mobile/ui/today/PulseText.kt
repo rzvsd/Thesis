@@ -113,6 +113,49 @@ object PulseText {
         return story to notes.distinct()
     }
 
+    // An event's kind, as the pipeline tags it in parentheses: "(filing_posted)", "(macro_release_published)".
+    private val EventKind = Regex("\\(([a-z]+(?:_[a-z]+)+)\\)")
+
+    /** The kinds of a raw event list's items, in order ("filing_posted", "macro_release_published"). */
+    fun eventKinds(raw: String?): List<String> = EventKind.findAll(raw.orEmpty()).map { it.groupValues[1] }.toList()
+
+    // Pipeline wording in coverage notes, read as reader copy (principle 11: honest, but in the reader's terms).
+    private val NoteRewrites = listOf(
+        Regex("(?i)^issuer filing coverage (?:this cycle|for this run|in this run)\\s*:") to "Filings covered in this issue:",
+        Regex("(?i)\\s+(?:are|is) optional in M\\d+ and\\b") to "",
+        Regex("(?i)\\s+in the approved free live path(?: for this run)?") to " for this issue",
+        Regex("(?i)\\b(?:in|for|during) (?:this|the) (?:run|cycle)\\b") to "for this issue",
+        Regex("(?i)\\bthis (?:run|cycle)\\b") to "this issue",
+        Regex("(?i)\\b(is|was|were|are) unavailable\\b") to "$1 not available",
+        // A bare flag with no verb ("Market tape incomplete", from the issue's uncertainty flags).
+        Regex("(?i)^(?!.*\\b(?:is|are|was|were)\\b)(.+?) incomplete$") to "$1 data is incomplete",
+        Regex("(?i)^(?!.*\\b(?:is|are|was|were)\\b)(.+?) unavailable$") to "$1 was not available for this issue",
+        Regex("(?i)\\bfor this issue for this issue\\b") to "for this issue",
+    )
+
+    // Words a note's subject is compared on: near-duplicates ("Sector leadership was not available" and "Sector ETF
+    // leadership is not available") share the rest.
+    private val NoteFiller = setOf(
+        "a", "an", "the", "is", "was", "were", "are", "not", "available", "unavailable", "for", "this", "issue", "in",
+        "of", "data", "coverage", "incomplete", "etf", "and",
+    )
+
+    /**
+     * Coverage notes as the reader reads them: pipeline phrases rewritten ("in the approved free live path for this
+     * run" -> "for this issue"), each a sentence with a capital and a full stop, near-duplicates dropped.
+     */
+    fun readerNotes(raw: List<String>): List<String> {
+        val seen = mutableSetOf<Set<String>>()
+        return raw.mapNotNull { note ->
+            var s = note.replace(Whitespace, " ").trim().trimEnd('.').trim()
+            if (s.isEmpty()) return@mapNotNull null
+            NoteRewrites.forEach { (re, to) -> s = s.replace(re, to) }
+            s = s.replace(Whitespace, " ").trim().trimEnd('.').replaceFirstChar { it.uppercase() } + "."
+            val key = s.lowercase().split(Regex("[^a-z0-9]+")).filter { it.isNotEmpty() && it !in NoteFiller }.toSet()
+            if (!seen.add(key)) null else s
+        }
+    }
+
     /**
      * A paragraph's lead phrase (the DD marker): the first sentence when the paragraph has more than one, else
      * nothing (a single sentence set in bold would read as a heading).

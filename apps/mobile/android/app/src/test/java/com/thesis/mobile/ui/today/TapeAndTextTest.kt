@@ -63,6 +63,52 @@ class TapeAndTextTest {
     }
 
     @Test
+    fun homeShowsTheBriefingSixInstrumentsThePulseKeepsTheRest() {
+        val full = tape.copy(
+            indices = tape.indices + listOf(
+                move("DJIA", "Dow Jones Industrial Average", MarketTapeFamily.CoreIndex, 40413.78, 320.38, 0.7991, "index"),
+                move("NASDAQCOM", "Nasdaq Composite", MarketTapeFamily.CoreIndex, 17382.94, 260.5, 1.5213, "index"),
+            ),
+            crossAsset = tape.crossAsset + move("DGS2", "Treasury 2Y", MarketTapeFamily.Rates, 3.93, -0.05, -1.2563, "percent"),
+        )
+        val home = TapeModel.homeLines(TapeModel.lines(full))
+        assertEquals(listOf("SP500", "NASDAQCOM", "DGS10", "VIXCLS", "DTWEXBGS", "DCOILWTICO"), home.map { it.id })
+        // Nothing of the set: the whole tape rather than an empty row.
+        val credit = TapeModel.lines(tape.copy(indices = emptyList(), crossAsset = tape.crossAsset.takeLast(1)))
+        assertEquals(credit, TapeModel.homeLines(credit))
+    }
+
+    @Test
+    fun coverageNotesReadAsReaderCopy() {
+        val notes = PulseText.readerNotes(
+            listOf(
+                "Sector leadership was unavailable in the approved free live path for this run",
+                "Sector ETF leadership is not available in the approved free live path for this run.",
+                "IMF forecast inputs are optional in M6 and were not available in this run.",
+                "Issuer filing coverage this cycle: AAPL, MSFT.",
+                "Market tape incomplete",
+                "Market tape coverage is incomplete",
+            ),
+        )
+        assertEquals(
+            listOf(
+                "Sector leadership was not available for this issue.",
+                "IMF forecast inputs were not available for this issue.",
+                "Filings covered in this issue: AAPL, MSFT.",
+                "Market tape data is incomplete.",
+            ),
+            notes,
+        )
+    }
+
+    @Test
+    fun theHomeEyebrowWrapsOnlyBetweenItsParts() {
+        val text = com.thesis.mobile.ui.copy.TodayCopy.eyebrow("Tue 24 Nov", com.thesis.mobile.ui.copy.TodayCopy.PHASE_PRE_MARKET)
+        // The only ordinary spaces are around the separator; the hyphen is a non-breaking one.
+        assertEquals(listOf("Tue\u00A024\u00A0Nov", "·", "Pre\u2011market"), text.split(' '))
+    }
+
+    @Test
     fun copyAsTableIsTabSeparatedWithAHeader() {
         val rows = TapeModel.tsv(tape).lines()
         assertEquals("Instrument\tLevel\tChange\tChange %", rows.first())

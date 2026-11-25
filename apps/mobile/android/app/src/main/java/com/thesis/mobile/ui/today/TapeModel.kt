@@ -46,6 +46,25 @@ object TapeModel {
             .map { line(it.value) }
     }
 
+    /**
+     * Home's briefing tape (spec 5.6 block 3): the S&P 500, the Nasdaq 100, the 10-year, the VIX, the dollar and
+     * WTI, each by instrument id (the closest series the issue carries: the Nasdaq Composite, the broad dollar), else
+     * the first line of its family. The Pulse's Markets chapter keeps every line. All lines when none matches.
+     */
+    fun homeLines(lines: List<TapeLine>): List<TapeLine> {
+        fun pick(ids: List<String>, fallback: (TapeLine) -> Boolean): TapeLine? =
+            ids.firstNotNullOfOrNull { id -> lines.firstOrNull { it.id.uppercase() == id } } ?: lines.firstOrNull(fallback)
+        val picked = listOfNotNull(
+            pick(listOf("SP500", "SPX")) { it.family == MarketTapeFamily.CoreIndex },
+            pick(listOf("NASDAQ100", "NDX", "NASDAQCOM")) { it.name.contains("Nasdaq", ignoreCase = true) },
+            pick(listOf("DGS10")) { it.family == MarketTapeFamily.Rates },
+            pick(listOf("VIXCLS", "VIX")) { it.family == MarketTapeFamily.Volatility },
+            pick(listOf("DXY", "DTWEXBGS")) { it.family == MarketTapeFamily.Currency },
+            pick(listOf("DCOILWTICO", "WTI")) { it.family == MarketTapeFamily.Commodity },
+        ).distinctBy { it.id }
+        return picked.ifEmpty { lines }
+    }
+
     /** The kit's tape items for the Home `TapeRow`. */
     fun items(lines: List<TapeLine>): List<TapeItem> = lines.map { TapeItem(it.short, it.level, it.change, it.tone) }
 

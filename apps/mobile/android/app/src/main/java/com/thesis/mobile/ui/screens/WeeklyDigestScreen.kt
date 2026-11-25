@@ -100,7 +100,8 @@ fun WeeklyDigestScreen(
     val pulseLine = remember(pulse, watchlist) {
         pulse?.let { PulseBrief.from(it, watchlist) }?.let { b -> b.morningLine.ifBlank { b.leadConclusion } }
     }
-    val model = remember(digestDate, sentimentCurrent, sentimentHistory, watchlist, monitorSnapshots, alerts, stateChanges, reportSummaries, pulseLine) {
+    // The clock and the formatter are keys: a change of the 24 h, locale or date setting re-reads the range and captions.
+    val model = remember(digestDate, sentimentCurrent, sentimentHistory, watchlist, monitorSnapshots, alerts, stateChanges, reportSummaries, pulseLine, clock, fmt) {
         DigestBuilder.build(
             digestDate = digestDate,
             clock = clock,

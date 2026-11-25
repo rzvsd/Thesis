@@ -146,7 +146,7 @@ class TodayModelsTest {
         assertEquals("Intact → Watch, yesterday", d.stateChanges!!.single().line2)
         assertEquals(3, d.alertsTotal)
         assertEquals(listOf("Thesis drift" to 2, "Earnings" to 1), d.alerts.map { it.label to it.count })
-        assertEquals("Macro stress rose 6 points; 1 of your names filed; 1 changed state; 3 alerts.", d.lede)
+        assertEquals("Macro stress rose 6 points; 1 of your names has a new report; 1 name changed state; 3 alerts.", d.lede)
         assertFalse(d.isEmpty)
     }
 
@@ -166,8 +166,18 @@ class TodayModelsTest {
     @Test
     fun theDigestLedeLeavesOutWhatItDoesNotKnow() {
         assertEquals("0 alerts.", TodayCopy.digestLede(null, 0, null, 0, 0))
-        assertEquals("Macro stress held level; none of your names filed; 0 alerts.", TodayCopy.digestLede(0.2, 0, null, 0, 4))
-        assertEquals("Macro stress eased 3 points; 2 of your names filed; no name changed state; 1 alert.", TodayCopy.digestLede(-3.0, 2, 0, 1, 4))
+        assertEquals("Macro stress held level; no new reports on your names; 0 alerts.", TodayCopy.digestLede(0.2, 0, null, 0, 4))
+        assertEquals(
+            "Macro stress eased 3 points; 2 of your names have new reports; no name changed state; 1 alert.",
+            TodayCopy.digestLede(-3.0, 2, 0, 1, 4),
+        )
+        assertEquals(
+            "1 of your names has a new report; 1 name changed state; 2 alerts.",
+            TodayCopy.digestLede(null, 1, 1, 2, 4),
+        )
+        // Numerals in every generated headline (house style).
+        assertEquals("1 name changed state this week", TodayCopy.stateChangesHeadline(1))
+        assertEquals("1 of your names has a new report this week", TodayCopy.filingsHeadline(1))
     }
 
     // ---- market calendar -----------------------------------------------------------------------------------------
