@@ -1,5 +1,6 @@
 package com.thesis.mobile.ui.screens
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -16,6 +17,8 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsBottomHeight
 import androidx.compose.foundation.layout.windowInsetsTopHeight
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -32,6 +35,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
@@ -39,6 +43,7 @@ import androidx.compose.ui.autofill.AutofillNode
 import androidx.compose.ui.autofill.AutofillType
 import androidx.compose.ui.composed
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -79,8 +84,9 @@ private const val HERO_HEIGHT_FRACTION = 0.4f
  *
  * A HeroBand cover (the wordmark in `display`, the tagline in `heroLine`) fills about 40% of the window and gives
  * the room back while the keyboard is open; below it, on paper: Log in · Create account, the email and password
- * fields (labels, autofill, IME Next then Done to submit), one ink primary button, "Forgot password?", the verify
- * step after an account is created, the status line ([AuthStatus], announced), the legal links and the disclaimer.
+ * fields (labels, autofill, IME Next then Done to submit), the status line ([AuthStatus], announced, right above
+ * the button it answers and brought into view above the keyboard), one ink primary button, "Forgot password?", the
+ * verify step after an account is created, the legal links and the disclaimer.
  *
  * Pure: the password-reset screen and the debug API switch are the caller's ([onForgotPassword],
  * [showDeveloperOptions] = `BuildConfig.DEBUG`). [status] is the typed result; while the ViewModel only publishes
@@ -89,6 +95,7 @@ private const val HERO_HEIGHT_FRACTION = 0.4f
  * consumption-aware insets, so a caller that already pads for them (ThesisApp's pre-login surfaces) gets no double
  * padding.
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun AuthScreen(
     isLoading: Boolean,
@@ -148,6 +155,18 @@ fun AuthScreen(
     val canVerify = !isLoading && email.isNotBlank() && code.isNotBlank()
     val verify = { if (canVerify) onVerify(email, code) }
 
+    // The status line sits with the fields and the button it answers, and scrolls into view when it appears, with
+    // room for the keyboard below it, so a failed log in is seen as well as announced.
+    val statusRequester = remember { BringIntoViewRequester() }
+    var statusHeightPx by remember { mutableIntStateOf(0) }
+    val imeBottomPx by rememberUpdatedState(WindowInsets.ime.getBottom(LocalDensity.current))
+    LaunchedEffect(status) {
+        if (status != null) {
+            withFrameNanos { }  // one frame, so the banner is laid out and measured
+            statusRequester.bringIntoView(Rect(0f, 0f, 1f, (statusHeightPx + imeBottomPx).toFloat()))
+        }
+    }
+
     ThesisScreen { _ ->
         BoxWithConstraints(Modifier.fillMaxSize()) {
             val imeOpen = WindowInsets.ime.getBottom(LocalDensity.current) > 0
@@ -176,6 +195,22 @@ fun AuthScreen(
                     verticalArrangement = Arrangement.spacedBy(ThesisSpace.l),
                 ) {
                     val showVerify = verifying && createMode
+                    // While verifying, the lede already says the code was sent: no second line saying it again.
+                    val repeatsVerify = showVerify && status?.kind == AuthStatus.Kind.VerificationSent
+                    val statusLine: @Composable () -> Unit = {
+                        if (status != null && !repeatsVerify) {
+                            InlineBanner(
+                                text = status.text,
+                                modifier = Modifier
+                                    .bringIntoViewRequester(statusRequester)
+                                    .onSizeChanged { statusHeightPx = it.height },
+                                tone = when (status.tone) {
+                                    AuthStatus.Tone.Error -> BannerTone.Error
+                                    else -> BannerTone.Neutral
+                                },
+                            )
+                        }
+                    }
                     SegmentedControl(
                         options = authModeOptions(this@BoxWithConstraints.maxWidth),
                         selectedIndex = if (createMode) 1 else 0,
@@ -198,6 +233,7 @@ fun AuthScreen(
                                 verifying = false
                                 code = ""
                             },
+                            statusLine = statusLine,
                         )
                     } else {
                         PasswordField(
@@ -211,6 +247,7 @@ fun AuthScreen(
                             imeAction = ImeAction.Done,
                             keyboardActions = KeyboardActions(onDone = { submit() }),
                         )
+                        statusLine()
                         PrimaryButton(
                             text = if (createMode) AccountCopy.CREATE_ACCOUNT else AccountCopy.LOG_IN,
                             onClick = submit,
@@ -219,17 +256,6 @@ fun AuthScreen(
                             loading = isLoading,
                         )
                         if (!createMode) ThesisLink(AccountCopy.FORGOT_PASSWORD, onForgotPassword)
-                    }
-                    // While verifying, the lede already says the code was sent: no second line saying it again.
-                    val repeatsVerify = showVerify && status?.kind == AuthStatus.Kind.VerificationSent
-                    if (status != null && !repeatsVerify) {
-                        InlineBanner(
-                            text = status.text,
-                            tone = when (status.tone) {
-                                AuthStatus.Tone.Error -> BannerTone.Error
-                                else -> BannerTone.Neutral
-                            },
-                        )
                     }
                     if (showDeveloperOptions) {
                         DeveloperApi(
@@ -337,6 +363,7 @@ private fun VerifyStep(
     loading: Boolean,
     onVerify: () -> Unit,
     onUseAnotherEmail: () -> Unit,
+    statusLine: @Composable () -> Unit,
 ) {
     ThesisTextField(
         value = code,
@@ -350,6 +377,7 @@ private fun VerifyStep(
         ),
         keyboardActions = KeyboardActions(onDone = { onVerify() }),
     )
+    statusLine()
     PrimaryButton(
         text = AccountCopy.VERIFY,
         onClick = onVerify,

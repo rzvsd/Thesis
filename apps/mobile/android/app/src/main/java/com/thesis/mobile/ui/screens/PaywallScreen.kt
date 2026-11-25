@@ -1,5 +1,6 @@
 package com.thesis.mobile.ui.screens
 
+import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -33,10 +34,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.isTraversalGroup
+import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.semantics
 import com.thesis.mobile.billing.RevenueCatBilling
 import com.thesis.mobile.model.AlertLedgerItemView
@@ -58,6 +62,8 @@ import com.thesis.mobile.ui.components.ThesisTopBar
 import com.thesis.mobile.ui.copy.AccountCopy
 import com.thesis.mobile.ui.format.Fmt
 import com.thesis.mobile.ui.icons.ThesisIcons
+import com.thesis.mobile.ui.motion.ThesisMotion
+import com.thesis.mobile.ui.theme.LocalReducedMotion
 import com.thesis.mobile.ui.shell.HeroUnderBars
 import com.thesis.mobile.ui.theme.LocalThesisPalette
 import com.thesis.mobile.ui.theme.ThesisSpace
@@ -77,11 +83,11 @@ const val PAYWALL_OFFERS_WAIT_MILLIS = 10_000L
 
 /**
  * The paywall (DESIGN-DIRECTION 5.23): a full-screen page, not a `Dialog`. A HeroBand opens it (eyebrow "Thesis
- * Pro", `display` "Read deeper", the one-sentence promise); then a real filing alert for one of the user's names (an
- * example when there is none yet), what Pro adds as plain sentences with 16 dp checks, the two plans as PlanCards
- * (Yearly selected by default, "Saves X% vs monthly" only when both prices are known), "Restore purchases" and the
- * legal caption. "Continue" is the sticky RunBar. While plans load, skeleton cards stand in for them; when none
- * arrive within [offersWaitMillis], an error banner says so and "Try again" asks the store again ([onRefreshOffers]).
+ * Pro", `display` "Read deeper", the one-sentence promise); then what Pro adds as plain sentences with 16 dp checks,
+ * the two plans as PlanCards (Yearly selected by default, "Saves X% vs monthly" only when both prices are known) and
+ * "Restore purchases", so the Yearly price is on the first screen; then a real filing alert for one of the user's
+ * names (an example when there is none yet) and the legal caption. "Continue" is the sticky RunBar. While plans
+ * load, skeleton cards stand in for them; when none arrive within [offersWaitMillis], an error banner says so and "Try again" asks the store again ([onRefreshOffers]).
  *
  * [padding]: the modal stack's frame padding when the shell hosts it as `Destination.Paywall` (its bar shows the
  * way back). Null when the paywall is drawn on its own over the shell: it then draws its own top bar (back =
@@ -137,9 +143,30 @@ fun PaywallScreen(
     val standalone = padding == null
     HeroUnderBars(collapsed = collapsed)
 
+    // Drawn on its own over the shell (until it moves onto the modal stack, HANDOFF-G 3): it rises in like a modal
+    // (fade + 32 dp, `Enter`; nothing moves under reduced motion) instead of cutting in.
+    val reduced = LocalReducedMotion.current
+    val rise = remember { Animatable(if (standalone && !reduced) 0f else 1f) }
+    LaunchedEffect(Unit) { rise.animateTo(1f, ThesisMotion.enter()) }
+    val riseOffsetPx = with(LocalDensity.current) { ThesisMotion.ModalOffset.toPx() }
+
     ThesisScreen(
-        // Drawn on its own over the shell: take every touch, so the page under it never reacts.
-        modifier = if (standalone) Modifier.pointerInput(Unit) { detectTapGestures { } } else Modifier,
+        // Drawn on its own over the shell: take every touch, so the page under it never reacts, and read as its own
+        // pane (TalkBack announces it and keeps its reading order inside it).
+        modifier = if (standalone) {
+            Modifier
+                .graphicsLayer {
+                    alpha = rise.value
+                    translationY = (1f - rise.value) * riseOffsetPx
+                }
+                .semantics {
+                    paneTitle = AccountCopy.PAYWALL_EYEBROW
+                    isTraversalGroup = true
+                }
+                .pointerInput(Unit) { detectTapGestures { } }
+        } else {
+            Modifier
+        },
         topBar = if (standalone) {
             { ThesisTopBar(title = AccountCopy.PAYWALL_EYEBROW, onBack = onDismiss, collapsed = collapsed, overHero = true) }
         } else {
@@ -182,14 +209,6 @@ fun PaywallScreen(
                     .padding(top = ThesisSpace.xxl, bottom = ThesisSpace.x3),
                 verticalArrangement = Arrangement.spacedBy(ThesisSpace.x3),
             ) {
-                ThesisCard(
-                    eyebrow = if (alert == null) AccountCopy.PAYWALL_ALERT_SAMPLE else AccountCopy.PAYWALL_ALERT_YOURS,
-                    title = alert?.title ?: AccountCopy.PAYWALL_SAMPLE_TITLE,
-                    footer = CardFooter(source = AccountCopy.PAYWALL_ALERT_FOOT),
-                ) {
-                    Text(alert?.body ?: AccountCopy.PAYWALL_SAMPLE_BODY, style = ThesisType.body, color = p.ink2)
-                }
-
                 Column(verticalArrangement = Arrangement.spacedBy(ThesisSpace.m)) {
                     Kicker(AccountCopy.PAYWALL_ADDS, modifier = Modifier.semantics { heading() })
                     AccountCopy.PRO_ADDS.forEach { line -> BenefitLine(line) }
@@ -238,6 +257,16 @@ fun PaywallScreen(
                         // On the text edge with the plan cards and the legal lines (T4).
                         TextAction(AccountCopy.PAYWALL_RESTORE, onRestore, enabled = !actionInFlight)
                     }
+                }
+
+                // After the plans, so the first screen reaches the Yearly price (412 x 915 dp): the example shows what
+                // "what changed" looks like for whoever reads on before choosing.
+                ThesisCard(
+                    eyebrow = if (alert == null) AccountCopy.PAYWALL_ALERT_SAMPLE else AccountCopy.PAYWALL_ALERT_YOURS,
+                    title = alert?.title ?: AccountCopy.PAYWALL_SAMPLE_TITLE,
+                    footer = CardFooter(source = AccountCopy.PAYWALL_ALERT_FOOT),
+                ) {
+                    Text(alert?.body ?: AccountCopy.PAYWALL_SAMPLE_BODY, style = ThesisType.body, color = p.ink2)
                 }
 
                 Column(verticalArrangement = Arrangement.spacedBy(ThesisSpace.xs)) {

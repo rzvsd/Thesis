@@ -24,6 +24,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -36,6 +37,7 @@ import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
@@ -271,15 +273,17 @@ fun SettingsScreen(
             }
         }
 
-        section("notes", AccountCopy.SECTION_NOTES) {
+        // Hidden until the caller wires the export: without it [notes] is not passed either, and "None yet" would be
+        // wrong for a user who has notes.
+        if (onExportNotes != null) section("notes", AccountCopy.SECTION_NOTES) {
             val (noteCount, nameCount) = remember(notes) { NotesMarkdown.counts(notes) }
             RowGroup {
                 row {
-                    if (noteCount == 0 || onExportNotes == null) {
+                    if (noteCount == 0) {
                         DataRow(
                             label = AccountCopy.EXPORT_NOTES,
-                            value = if (noteCount == 0) AccountCopy.NOTES_NONE else Fmt.count(noteCount, "note", "notes"),
-                            sub = if (noteCount == 0) AccountCopy.NOTES_NONE_SUB else null,
+                            value = AccountCopy.NOTES_NONE,
+                            sub = AccountCopy.NOTES_NONE_SUB,
                         )
                     } else {
                         ActionRow(
@@ -338,17 +342,17 @@ fun SettingsScreen(
                         }
                     }
                     row {
-                        ActionRow(
-                            icon = null,
+                        BusyAwareActionRow(
                             title = AccountCopy.RESTORE_PURCHASES,
-                            onClick = { if (!subscriptionActionInFlight) onRestorePurchases() },
+                            onClick = onRestorePurchases,
+                            busy = subscriptionActionInFlight,
                         )
                     }
                     row {
-                        ActionRow(
-                            icon = null,
+                        BusyAwareActionRow(
                             title = AccountCopy.REFRESH_PLAN,
-                            onClick = { if (!subscriptionActionInFlight) onSyncTier() },
+                            onClick = onSyncTier,
+                            busy = subscriptionActionInFlight,
                         )
                     }
                     if (isPro) {
@@ -446,6 +450,29 @@ fun SettingsScreen(
                 Text(Licences.NEWSREADER_OFL, style = ThesisType.caption, color = p.ink2)
             }
         }
+    }
+}
+
+/**
+ * An [ActionRow] that stands down while a store action runs ([busy]): its title and caption turn `muted` (the
+ * disabled ToggleRow's colour), TalkBack hears it as disabled, a caption says why and a tap does nothing. The kit
+ * row has no `enabled` yet (HANDOFF-G 23).
+ */
+@Composable
+private fun BusyAwareActionRow(title: String, onClick: () -> Unit, busy: Boolean) {
+    if (!busy) {
+        ActionRow(icon = null, title = title, onClick = onClick)
+        return
+    }
+    val p = LocalThesisPalette.current
+    CompositionLocalProvider(LocalThesisPalette provides p.copy(ink = p.muted, ink2 = p.muted)) {
+        ActionRow(
+            icon = null,
+            title = title,
+            onClick = {},
+            modifier = Modifier.semantics { disabled() },
+            caption = AccountCopy.STORE_BUSY,
+        )
     }
 }
 
@@ -589,7 +616,8 @@ private fun MonthlyReview(
     if (!isPro) {
         ThesisCard(
             title = AccountCopy.REVIEW_PRO_TITLE,
-            footer = CardFooter(actionLabel = AccountCopy.SEE_PRO, onAction = onSeePro),
+            // Names what it opens: "See Pro" is already the Subscription row's action a few rows up (V3).
+            footer = CardFooter(actionLabel = AccountCopy.REVIEW_PRO_ACTION, onAction = onSeePro),
         ) {
             Text(AccountCopy.REVIEW_PRO_BODY, style = ThesisType.body, color = p.ink2)
         }

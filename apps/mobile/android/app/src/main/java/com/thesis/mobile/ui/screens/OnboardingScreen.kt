@@ -38,6 +38,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
@@ -45,12 +46,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.style.TextAlign
 import com.thesis.mobile.ui.components.ChapterHeader
 import com.thesis.mobile.ui.components.Eyebrow
 import com.thesis.mobile.ui.components.HeroBand
@@ -83,8 +85,11 @@ private enum class OnboardingPage(val eyebrow: String, val title: String, val le
 /** Number of onboarding pages (for tests and renders). */
 const val ONBOARDING_PAGE_COUNT = 5
 
-/** Fragment, eyebrow, title, lede: the elements of a page's entrance cascade. */
-private const val CASCADE_STEPS = 4
+/**
+ * Steps of a page's entrance cascade (5.2: eyebrow, title, lede at 0 / 60 / 120 ms). The product fragment above the
+ * eyebrow enters with it, on step 0.
+ */
+private const val CASCADE_STEPS = 3
 
 /**
  * Onboarding (DESIGN-DIRECTION 5.2): one full-screen HeroBand with a pager of five pages, each a real product
@@ -94,7 +99,8 @@ private const val CASCADE_STEPS = 4
  *
  * Every page scrolls on its own and fills the pager's height with flexible space, so nothing is fixed: at 1.3x and
  * 2.0x font scale the text grows and the page scrolls, its bottom edge fading while more is below. Each page's elements enter once, the first time it shows:
- * fade and an 8 dp rise, [ThesisMotion.Enter] each, [ThesisMotion.CrossfadeDelay] apart; nothing moves under
+ * fade and an 8 dp rise, [ThesisMotion.Enter] each, [ThesisMotion.CrossfadeDelay] apart (the fragment with the
+ * eyebrow, then the title, then the lede); nothing moves under
  * reduced motion. System back goes to the previous page.
  */
 @OptIn(ExperimentalFoundationApi::class)
@@ -120,9 +126,20 @@ fun OnboardingScreen(
     ThesisBackHandler(enabled = pagerState.currentPage > 0) { goTo(pagerState.currentPage - 1) }
     HeroUnderBars(collapsed = false)
 
+    // The band's gold bottom rule separates it from a page below; here there is none, so the band runs one rule
+    // width past the bottom of the screen and draws the rule off-screen, not along the gesture bar. The content
+    // still ends at the screen edge (bottom padding of the same width). HANDOFF-G 22 asks for a HeroBand option.
+    val rule = ThesisSpace.border
     HeroBand(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(0.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .layout { measurable, constraints ->
+                val extra = rule.roundToPx()
+                val tall = constraints.maxHeight + extra
+                val placeable = measurable.measure(constraints.copy(minHeight = tall, maxHeight = tall))
+                layout(constraints.maxWidth, constraints.maxHeight) { placeable.place(0, 0) }
+            },
+        contentPadding = PaddingValues(bottom = rule),
         verticalArrangement = Arrangement.Top,
     ) {
         Column(Modifier.fillMaxSize()) {
@@ -173,6 +190,9 @@ private fun OnboardingControls(pagerState: PagerState, isLast: Boolean, onNext: 
             modifier = Modifier.fillMaxWidth(),
             commit = isLast,
         )
+        // Skip and, on the last page, the disclaimer share one slot. Both are always laid out (the hidden one
+        // invisible, silent and inert), so the slot is as tall as the taller of the two on every page and the dots
+        // and the button above never move when the last page arrives.
         Box(
             Modifier
                 .fillMaxWidth()
@@ -180,16 +200,23 @@ private fun OnboardingControls(pagerState: PagerState, isLast: Boolean, onNext: 
                 .padding(top = ThesisSpace.xs),
             contentAlignment = Alignment.Center,
         ) {
-            if (isLast) {
-                Text(AccountCopy.DISCLAIMER, style = ThesisType.caption, color = p.muted)
-            } else {
-                TertiaryButton(AccountCopy.ONBOARDING_SKIP, onSkip)
-            }
+            Text(
+                AccountCopy.DISCLAIMER,
+                modifier = Modifier.shownIf(isLast),
+                style = ThesisType.caption,
+                color = p.muted,
+                textAlign = TextAlign.Center,
+            )
+            TertiaryButton(AccountCopy.ONBOARDING_SKIP, onSkip, modifier = Modifier.shownIf(!isLast), enabled = !isLast)
         }
         Spacer(Modifier.height(ThesisSpace.s))
         Spacer(Modifier.windowInsetsBottomHeight(WindowInsets.safeDrawing))
     }
 }
+
+/** Kept in the layout either way; drawn, announced and tappable only while [shown]. */
+private fun Modifier.shownIf(shown: Boolean): Modifier =
+    if (shown) this else this.alpha(0f).clearAndSetSemantics { }
 
 @Composable
 private fun OnboardingPageContent(page: OnboardingPage, showing: Boolean, played: Boolean, onPlayed: () -> Unit) {
@@ -232,21 +259,21 @@ private fun OnboardingPageContent(page: OnboardingPage, showing: Boolean, played
         ) {
             Spacer(Modifier.height(ThesisSpace.xxl))
             Spacer(Modifier.weight(1f))
-            Box(Modifier.fillMaxWidth().step(0)) { PageFragment(page) }
+            Box(Modifier.fillMaxWidth().step(0)) { PageFragment(page) }  // with the eyebrow, at 0 ms
             Spacer(Modifier.height(ThesisSpace.x4))
             Spacer(Modifier.weight(0.25f))
-            Eyebrow(page.eyebrow, modifier = Modifier.step(1))
+            Eyebrow(page.eyebrow, modifier = Modifier.step(0))
             Spacer(Modifier.height(ThesisSpace.m))
             Text(
                 page.title,
                 modifier = Modifier
-                    .step(2)
+                    .step(1)
                     .semantics { heading() },
                 style = ThesisType.capped(ThesisType.title),
                 color = p.ink,
             )
             Spacer(Modifier.height(ThesisSpace.m))
-            Text(page.lede, modifier = Modifier.step(3), style = ThesisType.lede, color = p.ink2)
+            Text(page.lede, modifier = Modifier.step(2), style = ThesisType.lede, color = p.ink2)
             Spacer(Modifier.height(ThesisSpace.l))
         }
     }
@@ -314,7 +341,7 @@ private fun PageFragment(page: OnboardingPage) {
     }
 }
 
-/** Two followed names as rows; a picture of the Names list, so it takes no taps and reads as one description. */
+/** Two followed names as rows ([AccountCopy.ONBOARDING_NAMES_SAMPLE]); a picture of the Names list, so it takes no taps and reads as one description. */
 @Composable
 private fun NamesFragment() {
     Box(
@@ -323,31 +350,20 @@ private fun NamesFragment() {
             .clearAndSetSemantics { contentDescription = AccountCopy.ONBOARDING_NAMES_FRAGMENT_DESCRIPTION },
     ) {
         RowGroup {
-            row {
-                TickerRow(
-                    ticker = "AAPL",
-                    stateTone = Tone.Favourable,
-                    onClick = {},
-                    company = "Apple",
-                    line2 = "Intact",
-                    figure = "72",
-                    figureCaption = "+4 since Tue",
-                    figureCaptionTone = Tone.Favourable,
-                    stateLabel = "Intact",
-                )
-            }
-            row {
-                TickerRow(
-                    ticker = "NVDA",
-                    stateTone = Tone.Attention,
-                    onClick = {},
-                    company = "Nvidia",
-                    line2 = "Intact → Watch, Tue",
-                    figure = "58",
-                    figureCaption = "−6 since Tue",
-                    figureCaptionTone = Tone.Unfavourable,
-                    stateLabel = "Watch",
-                )
+            AccountCopy.ONBOARDING_NAMES_SAMPLE.forEach { name ->
+                row {
+                    TickerRow(
+                        ticker = name.ticker,
+                        stateTone = if (name.holding) Tone.Favourable else Tone.Attention,
+                        onClick = {},
+                        company = name.company,
+                        line2 = name.line2,
+                        figure = name.score,
+                        figureCaption = name.change,
+                        figureCaptionTone = if (name.up) Tone.Favourable else Tone.Unfavourable,
+                        stateLabel = name.state,
+                    )
+                }
             }
         }
         // Swallows taps: the rows are a picture here, not navigation.

@@ -49,6 +49,25 @@ object AccountCopy {
     const val ONBOARDING_NAMES_TITLE = "Follow what you own and watch"
     const val ONBOARDING_NAMES_LEDE = "Follow ${ProductCopy.freeWatchlistLimit} names free, up to " +
         "${ProductCopy.proWatchlistLimit} with Pro. Each one shows whether its thesis still holds up."
+    /**
+     * One row of the Names page's sample list (5.2: "two TickerRows from a fixture"). [holding]: the thesis still
+     * holds (favourable state) rather than needing a look; [up]: the score change since the last report is a rise.
+     */
+    data class SampleName(
+        val ticker: String,
+        val company: String,
+        val line2: String,
+        val score: String,
+        val change: String,
+        val state: String,
+        val holding: Boolean,
+        val up: Boolean,
+    )
+
+    val ONBOARDING_NAMES_SAMPLE: List<SampleName> = listOf(
+        SampleName("AAPL", "Apple", "Intact", "72", "+4 since Tue", "Intact", holding = true, up = true),
+        SampleName("NVDA", "Nvidia", "Intact → Watch, Tue", "58", "−6 since Tue", "Watch", holding = false, up = false),
+    )
     const val ONBOARDING_NAMES_FRAGMENT_DESCRIPTION =
         "Example: Apple, thesis intact, score 72. Nvidia, thesis moved from intact to watch, score 58."
 
@@ -165,6 +184,7 @@ object AccountCopy {
     const val UNLIMITED = "Unlimited"
     const val NAMES_LIMIT = "Names you can follow"
     const val SEE_PRO = "See Pro"
+    const val STORE_BUSY = "Waiting for the request in progress"
     const val SEE_PRO_SUB = "Follow up to ${ProductCopy.proWatchlistLimit} names and read what changed in every filing"
     const val MANAGE_SUBSCRIPTION = "Manage subscription"
     const val MANAGE_SUBSCRIPTION_SUB = "In Google Play"
@@ -191,6 +211,7 @@ object AccountCopy {
 
     const val SECTION_REVIEW = "Monthly review"
     const val REVIEW_PRO_TITLE = "Your monthly review is part of Pro"
+    const val REVIEW_PRO_ACTION = "Unlock the monthly review"
     const val REVIEW_PRO_BODY = "Once a month, patterns across your names: overlap, contradictions, and conviction the evidence no longer carries."
     const val REVIEW_EMPTY = "Your first monthly review is not ready yet."
     const val REVIEW_EMPTY_HOW = "It appears after a month of following names."
@@ -225,7 +246,7 @@ object AccountCopy {
     const val DELETE_TITLE = "Delete your account?"
     const val DELETE_BODY = "This permanently deletes your account, names, notes, alerts, devices and all other " +
         "personal data. It can’t be undone."
-    const val DELETE_PLAY_NOTE = "Deleting your account does not cancel a Google Play subscription. Cancel it in " +
+    const val DELETE_PLAY_NOTE = "This does not cancel a Google Play subscription. Cancel it in " +
         "Google Play, under Payments and subscriptions."
     const val DELETE_CONFIRM_WORD = "DELETE"
     const val DELETE_CONFIRM_LABEL = "Type $DELETE_CONFIRM_WORD to confirm"

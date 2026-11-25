@@ -1,7 +1,14 @@
 package com.thesis.mobile.preview
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.SkikoComposeUiTest
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsOff
@@ -37,6 +44,7 @@ import com.thesis.mobile.ui.theme.ThesisPalette
 import com.thesis.mobile.ui.theme.withUpDown
 import com.thesis.mobile.ui.theme.ThesisTheme
 import com.thesis.mobile.ui.theme.UpDownScheme
+import androidx.compose.ui.unit.Density
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -145,6 +153,38 @@ class AccountSemanticsTest {
         assertEquals(1, deletes)
     }
 
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun `at 2_0x on 360 dp the delete dialog keeps both actions on screen`() {
+        // A4: the dialog's window is the phone's (360 x 915 dp at 2.0x font), so the body has to scroll while
+        // "Delete permanently" and "Cancel" stay pinned inside the window, empty or typed.
+        val density = PhoneSpec.density
+        val width = (PhoneSpec.NARROW_WIDTH_DP * density).toInt()
+        val height = (PhoneSpec.HEIGHT_DP * density).toInt()
+        SkikoComposeUiTest(width = width, height = height, density = Density(density, fontScale = 2f)).runTest {
+            setContent { ThesisTheme(mode = ThemeMode.Light) { DeleteAccountControl(onDelete = {}, initiallyOpen = true) } }
+            waitForIdle()
+            fun onScreen(label: String) {
+                val node = onNode(hasClickAction() and hasText(label)).assertIsDisplayed().fetchSemanticsNode()
+                // boundsInWindow is clipped to the window: a button pushed past its edge comes back shorter than itself.
+                val b = node.boundsInWindow
+                assertTrue(
+                    "$label (${node.size}) shows only $b in the ${width}x$height window",
+                    b.height >= node.size.height - 1 && b.width >= node.size.width - 1,
+                )
+            }
+            onScreen(AccountCopy.DELETE_CONFIRM)
+            onScreen(AccountCopy.DELETE_CANCEL)
+            onNode(hasSetTextAction() and hasText(AccountCopy.DELETE_CONFIRM_LABEL, substring = true))
+                .performScrollTo()
+                .performTextInput(AccountCopy.DELETE_CONFIRM_WORD)
+            waitForIdle()
+            onNode(hasClickAction() and hasText(AccountCopy.DELETE_CONFIRM)).assertIsEnabled()
+            onScreen(AccountCopy.DELETE_CONFIRM)
+            onScreen(AccountCopy.DELETE_CANCEL)
+        }
+    }
+
     // ---- Onboarding -----------------------------------------------------------------------------------------------
 
     @Test
@@ -196,6 +236,32 @@ class AccountSemanticsTest {
     }
 
     // ---- You ------------------------------------------------------------------------------------------------------
+
+    @Test
+    fun `restore purchases is disabled and says why while a store action runs`() {
+        var restores = 0
+        var busy by mutableStateOf(true)
+        set { AccountFixtures.You(actionInFlight = busy, onRestorePurchases = { restores++ }) }
+        rule.onNode(hasScrollToNodeAction()).performScrollToNode(hasText(AccountCopy.RESTORE_PURCHASES))
+        rule.onNodeWithText(AccountCopy.RESTORE_PURCHASES).assertIsNotEnabled().performClick()
+        rule.onAllNodesWithText(AccountCopy.STORE_BUSY).assertCountEquals(2)
+        assertEquals(0, restores)
+        busy = false
+        rule.waitForIdle()
+        rule.onNodeWithText(AccountCopy.RESTORE_PURCHASES).assertIsEnabled().performClick()
+        assertEquals(1, restores)
+        rule.onAllNodesWithText(AccountCopy.STORE_BUSY).assertCountEquals(0)
+    }
+
+    @Test
+    fun `your notes stays hidden until the export is wired`() {
+        set { AccountFixtures.You(onExportNotes = null) }
+        // Portfolio and Subscription are its neighbours: with them composed, Your notes would be too.
+        rule.onNode(hasScrollToNodeAction()).performScrollToNode(hasText(AccountCopy.SECTION_PORTFOLIO.uppercase()))
+        rule.onNodeWithText(AccountCopy.SECTION_SUBSCRIPTION.uppercase()).assertExists()
+        rule.onAllNodesWithText(AccountCopy.SECTION_NOTES.uppercase()).assertCountEquals(0)
+        rule.onAllNodesWithText(AccountCopy.NOTES_NONE).assertCountEquals(0)
+    }
 
     @Test
     fun `you rows are switches and radios with headings, and appearance changes are reported`() {

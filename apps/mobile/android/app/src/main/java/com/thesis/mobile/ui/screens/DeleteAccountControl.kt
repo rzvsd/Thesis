@@ -2,7 +2,10 @@ package com.thesis.mobile.ui.screens
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -73,7 +76,6 @@ fun DeleteAccountControl(
         ThesisDialog(
             onDismissRequest = { showDialog = false },
             title = AccountCopy.DELETE_TITLE,
-            body = AccountCopy.DELETE_BODY,
             destructive = true,
             confirm = DialogAction(
                 label = AccountCopy.DELETE_CONFIRM,
@@ -94,18 +96,34 @@ fun DeleteAccountControl(
             ),
             dismiss = DialogAction(AccountCopy.DELETE_CANCEL, { showDialog = false }),
         ) {
-            Text(AccountCopy.DELETE_PLAY_NOTE, style = ThesisType.bodySmall, color = p.ink2)
-            ThesisTextField(
-                value = confirmText,
-                onValueChange = { confirmText = it },
-                label = AccountCopy.DELETE_CONFIRM_LABEL,
-                keyboardOptions = KeyboardOptions(
-                    capitalization = KeyboardCapitalization.Characters,
-                    autoCorrect = false,
-                    keyboardType = KeyboardType.Ascii,
-                    imeAction = ImeAction.Done,
-                ),
-            )
+            // The body, the Play note and the field scroll between the title and the actions, which stay pinned
+            // (A4: at 2.0x on a 360 dp phone, or with the keyboard open, they would otherwise leave the window).
+            // The body is drawn here, not through ThesisDialog's `body`, so it can scroll (HANDOFF-G 21).
+            Column(
+                Modifier
+                    .weight(1f, fill = false)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(ThesisSpace.m),
+            ) {
+                Text(
+                    AccountCopy.DELETE_BODY,
+                    modifier = Modifier.padding(end = ThesisSpace.s),
+                    style = ThesisType.body,
+                    color = p.ink2,
+                )
+                Text(AccountCopy.DELETE_PLAY_NOTE, style = ThesisType.bodySmall, color = p.ink2)
+                ThesisTextField(
+                    value = confirmText,
+                    onValueChange = { confirmText = it },
+                    label = AccountCopy.DELETE_CONFIRM_LABEL,
+                    keyboardOptions = KeyboardOptions(
+                        capitalization = KeyboardCapitalization.Characters,
+                        autoCorrect = false,
+                        keyboardType = KeyboardType.Ascii,
+                        imeAction = ImeAction.Done,
+                    ),
+                )
+            }
         }
     }
 }

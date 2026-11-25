@@ -119,6 +119,8 @@ object AccountFixtures {
         onRequireUpgrade: (String) -> Unit = {},
         showDeveloperOptions: Boolean = false,
         padding: PaddingValues = PaddingValues(),
+        actionInFlight: Boolean = false,
+        onRestorePurchases: () -> Unit = {},
     ) {
         WithFixedTime {
             SettingsScreen(
@@ -128,7 +130,7 @@ object AccountFixtures {
                 convictionInsights = if (pro) insights else emptyList(),
                 convictionInsightsError = null,
                 subscriptionOffers = offers,
-                subscriptionActionInFlight = false,
+                subscriptionActionInFlight = actionInFlight,
                 notificationsEnabled = notificationsEnabled,
                 biometricSupported = true,
                 biometricLockEnabled = false,
@@ -142,7 +144,7 @@ object AccountFixtures {
                 onRequireUpgrade = onRequireUpgrade,
                 onRefreshOffers = {},
                 onStartPurchase = {},
-                onRestorePurchases = {},
+                onRestorePurchases = onRestorePurchases,
                 onSubmitSubscriptionFeedback = { _, _, _, _ -> },
                 onLogout = {},
                 showDeveloperOptions = showDeveloperOptions,
