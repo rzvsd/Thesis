@@ -127,6 +127,8 @@ class ResearchSemanticsTest {
         set { CompareNamesScreen(state = F.compareNames, onBack = {}, disciplines = F.disciplines, zone = F.zone) }
         rule.assertAllTouchTargetsAtLeast()
         rule.onNodeWithContentDescription(ResearchCopy.COPY_TABLE).assertExists().assertRole(Role.Button)
+        // One Copy as table entry: the bar's action, not a second text action under the table.
+        rule.onAllNodesWithText(ResearchCopy.COPY_TABLE).assertCountEquals(0)
         // Column headers are headings and sort buttons; a tap sorts by the picked row (revenue until a cell is tapped).
         val header = rule.onNode(hasText("MSFT", substring = true) and SemanticsMatcher.keyIsDefined(SemanticsProperties.Heading) and hasClickAction())
         header.assertRole(Role.Button)
@@ -145,7 +147,11 @@ class ResearchSemanticsTest {
         set { CompareReportsScreen(state = F.compareReports, onBack = {}, notes = F.compareNotes, zone = F.zone) }
         rule.assertAllTouchTargetsAtLeast()
         rule.onNodeWithContentDescription(ResearchCopy.COPY_TABLE).assertExists().assertRole(Role.Button)
-        rule.onNodeWithText(ResearchCopy.COPY_TABLE).assertRole(Role.Button)
+        rule.onAllNodesWithText(ResearchCopy.COPY_TABLE).assertCountEquals(0)
+        // Every key figure opens its source (5.25); the notes carry no "Edit" until the shell can open the editor.
+        val figures = rule.onAllNodes(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Button) and hasContentDescription("Revenue, FY2025", substring = true))
+        assertTrue(figures.fetchSemanticsNodes().isNotEmpty())
+        rule.onAllNodesWithText("Edit").assertCountEquals(0)
         // The basis is said once on screen: in the table header (the top bar subtitle names the filings).
         rule.onAllNodesWithText("FY2025 vs FY2024").assertCountEquals(1)
     }

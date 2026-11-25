@@ -3,8 +3,6 @@ package com.thesis.mobile.ui.screens
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -30,6 +28,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.AnnotatedString
@@ -157,14 +156,24 @@ private fun ScenarioStressImpactView.toRow(): StressRow {
 internal fun stressBars(rows: List<StressRow>): List<RankedBar> =
     rows.map { RankedBar(label = it.ticker, value = it.score, valueText = it.scoreText, tone = it.tone) }
 
-/** "Copy as table": tab-separated, a header line then one line per name in rank order. */
+/**
+ * "Copy as table": tab-separated, a header line then one line per name in rank order. The score is a plain number
+ * (0 to 100, the scale in its header) that a spreadsheet reads as a number; a missing score or break likelihood is
+ * an empty cell.
+ */
 internal fun stressTsv(rows: List<StressRow>): String = buildString {
     append(listOf(ResearchCopy.TABLE_TICKER, ResearchCopy.TABLE_SCORE, ResearchCopy.TABLE_IMPACT, ResearchCopy.TABLE_BREAK).joinToString("\t"))
     rows.forEach { r ->
         append('\n')
-        append(listOf(r.ticker, r.scoreText, r.impact, r.breakBadge?.text ?: Fmt.NA).joinToString("\t") { it.replace('\t', ' ') })
+        append(listOf(r.ticker, rawCell(r.score, 0), r.impact, r.breakBadge?.text.orEmpty()).joinToString("\t") { it.replace('\t', ' ') })
     }
 }
+
+/**
+ * The one badge a "By name" row carries: the thesis-break likelihood, unless it is "unlikely" (the common case, so
+ * it would repeat on most rows). The impact level is not repeated: the score's colour says it (V3).
+ */
+internal fun stressRowBadge(row: StressRow): PhaseBadge? = row.breakBadge?.takeIf { it.text != ResearchCopy.BREAK_UNLIKELY }
 
 /** The run's as-of date as "Mon 24 Nov" (a date or an instant on the wire); null when unreadable. */
 internal fun stressAsOf(raw: String?, fmt: Fmt, zone: ZoneId): String? {
@@ -243,7 +252,9 @@ fun ScenarioStressScreen(
                         haptics.press()
                         onRunScenario(selected?.scenarioId)
                     },
-                    enabled = selected != null && !isRunning,
+                    // A run reads the names you follow: with none there is nothing to run, and the caption says so.
+                    caption = ResearchCopy.RUN_NEEDS_NAMES.takeIf { watchlistCount <= 0 },
+                    enabled = selected != null && !isRunning && watchlistCount > 0,
                     loading = isRunning,
                 )
             }
@@ -407,7 +418,9 @@ private fun StressResults(
         InlineBanner(text = ResearchCopy.RUN_DEGRADED, tone = BannerTone.Attention)
     }
     Spacer(Modifier.height(ThesisSpace.m))
-    // Two KPIs, one row: the as-of date is on the chart's source line, and a third tile left an empty fourth cell.
+    // Two KPIs, one row: the as-of date is on the chart's source line, and a third tile left an empty fourth cell
+    // (a deviation from 5.20's three KPIs, noted in HANDOFF-E). Critical stays neutral: KpiSpec cannot tone its
+    // value yet (requested from WP-K).
     KpiGrid(
         items = listOf(
             KpiSpec(ResearchCopy.KPI_AFFECTED, ResearchCopy.ofTotal(impacted, header.totalNames.coerceAtLeast(impacted))),
@@ -457,11 +470,11 @@ private fun StressResults(
 }
 
 /**
- * A name's line in "By name": ticker and score, the rationale, the impact and break badges in a wrapping row.
+ * A name's line in "By name": ticker and score (in its level's colour), the rationale, and a break badge only when
+ * a break is possible or likely ([stressRowBadge]).
  * Tapping opens its evidence links and "Open AAPL" (the Name page, when [onOpenName] is set). No haptic on open:
  * toggle() is for follow and notification switches (4.7).
  */
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun StressNameRow(row: StressRow, onOpenName: ((String) -> Unit)?) {
     val p = LocalThesisPalette.current
@@ -489,16 +502,16 @@ private fun StressNameRow(row: StressRow, onOpenName: ((String) -> Unit)?) {
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(row.ticker, style = ThesisType.rowTitle, color = p.ink, modifier = Modifier.weight(1f))
-                Text(row.scoreText, style = ThesisType.tableNum, color = row.tone.textColor(p))
+                // The level is said by colour on screen; TalkBack hears it in words.
+                Text(
+                    row.scoreText,
+                    style = ThesisType.tableNum,
+                    color = row.tone.textColor(p),
+                    modifier = Modifier.semantics { contentDescription = "${row.scoreText}, ${row.impact}" },
+                )
             }
             row.rationale?.let { Text(it, style = ThesisType.bodySmall, color = p.ink2) }
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(ThesisSpace.s),
-                verticalArrangement = Arrangement.spacedBy(ThesisSpace.xs),
-            ) {
-                StatusBadge(row.impact, row.tone)
-                row.breakBadge?.let { StatusBadge(it.text, it.tone) }
-            }
+            stressRowBadge(row)?.let { StatusBadge(it.text, it.tone) }
         }
         if (open) {
             if (row.evidence.isEmpty()) {

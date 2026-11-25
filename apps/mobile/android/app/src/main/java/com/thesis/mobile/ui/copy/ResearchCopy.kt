@@ -1,6 +1,7 @@
 package com.thesis.mobile.ui.copy
 
 import com.thesis.mobile.ui.format.Fmt
+import kotlin.math.roundToLong
 
 /**
  * Copy of the Research area (WP-E, docs/app-redesign/DESIGN-DIRECTION.md 5.12, 5.17 to 5.20, 5.26, 5.27): the
@@ -91,8 +92,13 @@ object ResearchCopy {
 
     const val HISTORY_TITLE = "History"
     const val HISTORY_DECK = "Reports you have opened, newest first."
-    fun historyMeta(count: Int, latestAgo: String?): String =
-        listOfNotNull(Fmt.count(count, "report", "reports"), latestAgo?.let { "latest $it" }).joinToString(" · ")
+    /** "9 reports · 2 Pulse briefs · latest 2 h ago": a Pulse brief is not a report, so each is counted on its own. */
+    fun historyMeta(reports: Int, briefs: Int, latestAgo: String?): String =
+        listOfNotNull(
+            Fmt.count(reports, "report", "reports").takeIf { reports > 0 || briefs == 0 },
+            Fmt.count(briefs, "Pulse brief", "Pulse briefs").takeIf { briefs > 0 },
+            latestAgo?.let { "latest $it" },
+        ).joinToString(" · ")
 
     const val FILTER_ALL = "All"
     const val FILTER_DEEP_DIVES = "Deep Dives"
@@ -140,18 +146,28 @@ object ResearchCopy {
             "Two reports on $company’s $form filings."
         }
 
-    /** The key-figure result: "Revenue up 6.4%, operating margin +50 bps"; null when neither is known. */
-    fun compareReportsHeadline(revenueChangePct: Double?, operatingMarginChange: String?): String? =
-        listOfNotNull(
-            revenueChangePct?.let {
-                when {
-                    kotlin.math.abs(it) < 0.05 -> "Revenue flat"
-                    it > 0 -> "Revenue up ${Fmt.pct(kotlin.math.abs(it))}"
-                    else -> "Revenue down ${Fmt.pct(kotlin.math.abs(it))}"
-                }
-            },
-            operatingMarginChange?.let { if (revenueChangePct != null) "operating margin $it" else "Operating margin $it" },
-        ).joinToString(", ").ifBlank { null }
+    /**
+     * The key-figure result in words: "Revenue up 6.4%, operating margin up 50 bps"; null when neither is known.
+     * [operatingMarginBps] is the change in basis points between the two margins as shown.
+     */
+    fun compareReportsHeadline(revenueChangePct: Double?, operatingMarginBps: Double?): String? {
+        val revenue = revenueChangePct?.let {
+            when {
+                kotlin.math.abs(it) < 0.05 -> "revenue flat"
+                it > 0 -> "revenue up ${Fmt.pct(kotlin.math.abs(it), dp = 1)}"
+                else -> "revenue down ${Fmt.pct(kotlin.math.abs(it), dp = 1)}"
+            }
+        }
+        val margin = operatingMarginBps?.let {
+            val n = kotlin.math.abs(it).roundToLong()
+            when {
+                n == 0L -> "operating margin flat"
+                it > 0 -> "operating margin up ${Fmt.number(n)} bps"
+                else -> "operating margin down ${Fmt.number(n)} bps"
+            }
+        }
+        return listOfNotNull(revenue, margin).joinToString(", ").ifBlank { null }?.replaceFirstChar { it.uppercase() }
+    }
     fun basis(newer: String, older: String, sameQuarter: Boolean): String =
         if (sameQuarter) "$newer vs $older, same quarter" else "$newer vs $older"
     const val KEY_FIGURES_KICKER = "Key figures"
@@ -172,6 +188,18 @@ object ResearchCopy {
     const val OTHER_COMPANIES = "These reports are on different companies."
     const val OTHER_COMPANIES_HOW = "Compare names lines up two or more companies on the same figures."
     const val CHANGE = "Change"
+    const val CHANGE_UNIT = "Change unit"
+    const val YOUR_NOTE = "Your note"
+
+    // Units in "Copy as table": the cells are plain numbers, the unit is in the label or its own column.
+    const val UNIT_USD_BN = "USD bn"
+    const val UNIT_USD = "USD"
+    const val UNIT_MILLIONS = "millions"
+    const val UNIT_PCT = "%"
+    const val UNIT_BPS = "bps"
+
+    /** "Revenue (USD bn)". */
+    fun withUnit(name: String, unit: String): String = "$name ($unit)"
 
     // ---- Compare names (5.26)
 
@@ -226,7 +254,7 @@ object ResearchCopy {
     const val METRIC = "Metric"
     const val PERIOD = "Period"
     const val FILING = "Filing"
-    const val LATEST_FY = "Latest fiscal year"
+    const val LATEST_FY = "Latest FY"
     const val MEDIAN = "Median"
     const val ROW_REVENUE = "Revenue"
     const val ROW_GROWTH = "Revenue growth, YoY"
@@ -235,6 +263,10 @@ object ResearchCopy {
     const val ROW_FCF = "FCF margin"
     const val ROW_NET_CASH = "Net cash"
     const val ROW_SHARES = "Share count, YoY"
+    const val ROW_SHARES_CHANGE = "Share count change, YoY"
+    const val ROW_DISCIPLINE_SIGNALS = "Value discipline, signals met"
+    const val ROW_FCF_FULL = "Free cash flow"
+    const val ROW_SHARES_FULL = "Shares outstanding"
     const val ROW_DISCIPLINE = "Value discipline"
     const val ROW_EPS = "EPS, derived"
 
@@ -244,11 +276,19 @@ object ResearchCopy {
     const val ROW_OPERATING_SHORT = "Op. margin"
     const val ROW_FCF_SHORT = "FCF"
     const val ROW_SHARES_SHORT = "Shares"
+    const val ROW_SHARES_YOY_SHORT = "Shares, YoY"
     const val UP = "Up"
     const val DOWN = "Down"
     const val CHANGED = "Changed"
     const val COMPARE_REPORTS_EYEBROW = "Compare reports"
     fun sortedBy(metric: String): String = "Columns sorted by ${metric.replaceFirstChar { it.lowercase() }}, highest first."
+
+    /** Sorted by one row, another row picked: what the next header tap will do. */
+    fun sortedThenPicked(sorted: String, picked: String): String =
+        "Columns sorted by ${sorted.replaceFirstChar { it.lowercase() }}. Tap a column header to sort by ${picked.replaceFirstChar { it.lowercase() }}."
+
+    /** A row picked, nothing sorted yet. */
+    fun pickedRow(metric: String): String = "Tap a column header to sort by ${metric.replaceFirstChar { it.lowercase() }}."
     const val SORT_HINT = "Tap a figure to choose a row, then a column header to sort by it."
     const val ORIGINAL_ORDER = "Original order"
     const val SHOW_CHART = "Show chart"
@@ -272,6 +312,14 @@ object ResearchCopy {
     const val DEF_DISCIPLINE =
         "How many of the report’s value-discipline signals are met, out of those available. It describes the evidence; it is not a rating."
     const val DERIVE_GROWTH = "Revenue ÷ prior-year revenue − 1"
+    const val DERIVE_GROWTH_QUARTER = "Revenue ÷ revenue of the same quarter a year earlier − 1"
+    const val DERIVE_EPS = "Net income ÷ shares outstanding"
+    const val DEF_REVENUE_PERIOD = "Total revenue for the period, as reported in the income statement."
+    const val DEF_GROWTH_QUARTER = "Revenue for the quarter against the same quarter a year earlier."
+    const val DEF_FCF_AMOUNT = "Free cash flow for the period: cash from operations less capital expenditure."
+    const val DEF_NET_CASH_PERIOD = "Cash and equivalents minus total debt at the period end. Negative means net debt."
+    const val DEF_SHARES_OUTSTANDING = "Shares outstanding at the period end."
+    const val DEF_EPS = "Earnings per share worked out from the filing: net income over shares outstanding at the period end. It can differ from the diluted EPS the company reports."
     const val DERIVE_FCF = "Free cash flow ÷ revenue"
     const val DERIVE_NET_CASH = "Cash and equivalents − total debt"
     const val DERIVE_SHARES = "Shares outstanding ÷ prior-year shares − 1"
@@ -359,6 +407,7 @@ object ResearchCopy {
     const val PICK_SCENARIO = "Pick a scenario to run"
     const val SELECTED_SCENARIO = "Selected"
     fun runLabel(title: String, namesCount: Int): String = "Run ‘$title’ on ${names(namesCount)}"
+    const val RUN_NEEDS_NAMES = "Follow at least one name to run a scenario."
     const val RESULTS_KICKER = "Results"
     fun resultsHeadline(topTicker: String?, impacted: Int): String = when {
         impacted == 0 || topTicker == null -> "None of your names is under stress in this scenario"
@@ -381,7 +430,7 @@ object ResearchCopy {
     const val BREAK_POSSIBLE = "Break possible"
     const val BREAK_UNLIKELY = "Break unlikely"
     const val TABLE_TICKER = "Name"
-    const val TABLE_SCORE = "Stress score"
+    const val TABLE_SCORE = "Stress score (0–100)"
     const val TABLE_IMPACT = "Impact"
     const val TABLE_BREAK = "Thesis break"
     const val STRESS_CHART_TITLE = "Stress score by name"

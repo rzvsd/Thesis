@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
@@ -21,6 +22,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.style.TextOverflow
 import com.thesis.mobile.model.CompareReportsState
 import com.thesis.mobile.model.DeepDiveReportView
 import com.thesis.mobile.model.NoteTrailEntry
@@ -40,6 +42,8 @@ import com.thesis.mobile.ui.components.SectionHeader
 import com.thesis.mobile.ui.components.SinceLastReport
 import com.thesis.mobile.ui.components.SinceLastReportModel
 import com.thesis.mobile.ui.components.SkeletonCard
+import com.thesis.mobile.ui.components.SourceInfo
+import com.thesis.mobile.ui.components.SourceSheet
 import com.thesis.mobile.ui.components.TextAction
 import com.thesis.mobile.ui.components.ThesisCard
 import com.thesis.mobile.ui.components.ThesisDivider
@@ -52,13 +56,18 @@ import com.thesis.mobile.ui.format.LocalFmt
 import com.thesis.mobile.ui.format.Missing
 import com.thesis.mobile.ui.icons.ThesisIcons
 import com.thesis.mobile.ui.motion.rememberHaptics
+import com.thesis.mobile.ui.theme.Kit
 import com.thesis.mobile.ui.theme.LocalThesisPalette
 import com.thesis.mobile.ui.theme.ThesisSpace
 import com.thesis.mobile.ui.theme.ThesisType
 import com.thesis.mobile.ui.theme.Tone
 import com.thesis.mobile.ui.theme.thesisStateTone
+import java.math.BigDecimal
+import java.math.MathContext
+import java.math.RoundingMode
 import java.time.Instant
 import java.time.ZoneId
+import kotlin.math.abs
 
 // ---- Filings: what "like for like" means (shared with History)
 
@@ -124,6 +133,25 @@ internal sealed interface ReportPair {
     data class Ready(val model: CompareReportsModel) : ReportPair
 }
 
+/** The key figures of Compare reports (5.17), in table order. */
+internal enum class ReportMetric { Revenue, Growth, Gross, Operating, Fcf, NetCash, Shares, Eps }
+
+/**
+ * One key-figure row as numbers, for "Copy as table": each side's value in [unit] ("USD bn", "%") and the change
+ * in [changeUnit] ("%", "bps", "USD bn"), rounded as the screen shows them; null when missing or not meaningful.
+ */
+@Immutable
+internal data class RawRow(
+    val metric: ReportMetric,
+    val unit: String,
+    val older: Double?,
+    val newer: Double?,
+    val change: Double?,
+    val changeUnit: String,
+    val dp: Int,
+    val changeDp: Int,
+)
+
 @Immutable
 internal data class CompareReportsModel(
     val ticker: String,
@@ -132,7 +160,9 @@ internal data class CompareReportsModel(
     val newer: ReportSide,
     val basis: String,
     val table: CompareTableModel,
-    /** The result ("Revenue up 6.4%, operating margin +50 bps"), the screen title; null when neither is known. */
+    /** The table's rows as numbers, in table order (Copy as table, the source sheets). */
+    val raw: List<RawRow>,
+    /** The result ("Revenue up 6.4%, operating margin up 50 bps"), the screen title; null when neither is known. */
     val headline: String?,
     /** What was compared: company, filing kind and when each report was built. */
     val deck: String,
@@ -159,16 +189,53 @@ private fun toneOf(d: Double?): Tone = when {
 private fun pctChange(before: Double?, now: Double?): Double? =
     if (now == null || before == null || before <= 0.0) null else (now / before - 1.0) * 100.0
 
+/** [v] rounded half up to [dp] decimals, as the formatter shows it. */
+internal fun roundTo(v: Double, dp: Int): Double = BigDecimal.valueOf(v).setScale(dp, RoundingMode.HALF_UP).toDouble()
+
+/**
+ * The change in points between two percentages as the reader sees them: both rounded to one decimal first, so
+ * "+2.0%" and "+6.4%" give +440 bps, never the +444 of the unrounded inputs.
+ */
+internal fun shownPointsChange(older: Double?, newer: Double?): Double? =
+    if (older == null || newer == null) null else roundTo(roundTo(newer, 1) - roundTo(older, 1), 1)
+
 private fun signedMoney(d: Double?): String? = d?.let { (if (it > 0) "+" else "") + Fmt.money(it) }
 
-/** Share counts in the compact money style, without the currency: "15.2B". */
-private fun compactCount(v: Double?): String = Fmt.money(v).replaceFirst("$", "")
+/**
+ * A share count in the compact style of the money figures, without a currency: "15.2B", "980M". Missing values
+ * take their own word (2.4). (A count formatter in `Fmt` is requested from WP-K in HANDOFF-E.)
+ */
+internal fun compactCount(v: Double?, missing: Missing): String {
+    if (v == null) return Fmt.missing(missing)
+    if (!v.isFinite()) return Fmt.NA
+    val a = abs(v)
+    if (a < 1_000.0) return Fmt.number(v, 0)
+    val r = BigDecimal.valueOf(a).round(MathContext(3, RoundingMode.HALF_UP))
+    val (scale, suffix) = CountScales.first { r >= it.first }
+    val mantissa = r.divide(scale)
+    val decimals = when {
+        mantissa >= BigDecimal(100) -> 0
+        mantissa >= BigDecimal(10) -> 1
+        else -> 2
+    }
+    return (if (v < 0) Fmt.MINUS else "") + mantissa.setScale(decimals, RoundingMode.HALF_UP).toPlainString() + suffix
+}
+
+private val CountScales = listOf(
+    BigDecimal("1e12") to "T",
+    BigDecimal("1e9") to "B",
+    BigDecimal("1e6") to "M",
+    BigDecimal("1e3") to "K",
+)
+
+private const val BN = 1e9
+private const val MN = 1e6
 
 /**
  * The pair [a], [b] as Compare reports shows it: older first, like for like only, with the key-figure table
  * (each report's own figures for its own filing), the change column named by its basis, a headline built from the
  * revenue and operating-margin changes, and the newer report's "Since the last report" block when the older one
- * is the report it was compared with.
+ * is verifiably the report it was compared with ([sinceVerified]).
  */
 internal fun compareReportsModel(a: DeepDiveReportView, b: DeepDiveReportView, fmt: Fmt, zone: ZoneId): ReportPair {
     if (!a.ticker.equals(b.ticker, ignoreCase = true)) return ReportPair.OtherCompanies
@@ -186,57 +253,46 @@ internal fun compareReportsModel(a: DeepDiveReportView, b: DeepDiveReportView, f
 
     fun v(f: Figure?) = f?.value?.takeIf { it.isFinite() }
     fun word(f: Figure?) = f?.missing ?: Missing.NotComputed
-    val revD = pctChange(v(fo?.revenue), v(fn?.revenue))
-    val opD = v(fn?.operatingMarginPct)?.let { n -> v(fo?.operatingMarginPct)?.let { n - it } }
+    fun money(f: Figure?) = Fmt.money(v(f), missing = word(f))
+    fun pctDelta(o: Figure?, n: Figure?) = pctChange(v(o), v(n))
+
+    val revD = pctDelta(fo?.revenue, fn?.revenue)
+    val growthD = shownPointsChange(v(fo?.revenueGrowthPct), v(fn?.revenueGrowthPct))
+    val grossD = shownPointsChange(v(fo?.grossMarginPct), v(fn?.grossMarginPct))
+    val opD = shownPointsChange(v(fo?.operatingMarginPct), v(fn?.operatingMarginPct))
+    val fcfD = pctDelta(fo?.freeCashFlow, fn?.freeCashFlow)
+    val cashD = v(fn?.netCash)?.let { n -> v(fo?.netCash)?.let { n - it } }
+    val sharesD = pctDelta(fo?.shares, fn?.shares)
+    val epsD = pctDelta(fo?.eps, fn?.eps)
+
     val rows = listOf(
-        CompareRow(
-            ResearchCopy.ROW_REVENUE,
-            listOf(Fmt.money(v(fo?.revenue), missing = word(fo?.revenue)), Fmt.money(v(fn?.revenue), missing = word(fn?.revenue))),
-            delta = revD?.let { Fmt.signedPct(it) },
-            deltaTone = toneOf(revD),
-        ),
+        CompareRow(ResearchCopy.ROW_REVENUE, listOf(money(fo?.revenue), money(fn?.revenue)), delta = revD?.let { Fmt.signedPct(it) }, deltaTone = toneOf(revD)),
         CompareRow(
             ResearchCopy.ROW_GROWTH_SHORT,
             listOf(Fmt.signedPct(v(fo?.revenueGrowthPct), missing = word(fo?.revenueGrowthPct)), Fmt.signedPct(v(fn?.revenueGrowthPct), missing = word(fn?.revenueGrowthPct))),
-            delta = v(fn?.revenueGrowthPct)?.let { n -> v(fo?.revenueGrowthPct)?.let { Fmt.bpsFromPoints(n - it) } },
+            delta = growthD?.let { Fmt.bpsFromPoints(it) },
         ),
-        marginRow(ResearchCopy.ROW_GROSS, fo?.grossMarginPct, fn?.grossMarginPct),
-        marginRow(ResearchCopy.ROW_OPERATING_SHORT, fo?.operatingMarginPct, fn?.operatingMarginPct),
-        run {
-            val d = pctChange(v(fo?.freeCashFlow), v(fn?.freeCashFlow))
-            CompareRow(
-                ResearchCopy.ROW_FCF_SHORT,
-                listOf(Fmt.money(v(fo?.freeCashFlow), missing = word(fo?.freeCashFlow)), Fmt.money(v(fn?.freeCashFlow), missing = word(fn?.freeCashFlow))),
-                delta = d?.let { Fmt.signedPct(it) },
-                deltaTone = toneOf(d),
-            )
-        },
-        run {
-            val d = v(fn?.netCash)?.let { n -> v(fo?.netCash)?.let { n - it } }
-            CompareRow(
-                ResearchCopy.ROW_NET_CASH,
-                listOf(Fmt.money(v(fo?.netCash), missing = word(fo?.netCash)), Fmt.money(v(fn?.netCash), missing = word(fn?.netCash))),
-                delta = signedMoney(d),
-                deltaTone = toneOf(d),
-            )
-        },
-        run {
-            val d = pctChange(v(fo?.shares), v(fn?.shares))
-            CompareRow(
-                ResearchCopy.ROW_SHARES_SHORT,
-                listOf(compactCount(v(fo?.shares)), compactCount(v(fn?.shares))),
-                delta = d?.let { Fmt.signedPct(it) },
-            )
-        },
-        run {
-            val d = pctChange(v(fo?.eps), v(fn?.eps))
-            CompareRow(
-                ResearchCopy.ROW_EPS,
-                listOf(Fmt.money(v(fo?.eps), missing = word(fo?.eps)), Fmt.money(v(fn?.eps), missing = word(fn?.eps))),
-                delta = d?.let { Fmt.signedPct(it) },
-                deltaTone = toneOf(d),
-            )
-        },
+        marginRow(ResearchCopy.ROW_GROSS, fo?.grossMarginPct, fn?.grossMarginPct, grossD),
+        marginRow(ResearchCopy.ROW_OPERATING_SHORT, fo?.operatingMarginPct, fn?.operatingMarginPct, opD),
+        CompareRow(ResearchCopy.ROW_FCF_SHORT, listOf(money(fo?.freeCashFlow), money(fn?.freeCashFlow)), delta = fcfD?.let { Fmt.signedPct(it) }, deltaTone = toneOf(fcfD)),
+        CompareRow(ResearchCopy.ROW_NET_CASH, listOf(money(fo?.netCash), money(fn?.netCash)), delta = signedMoney(cashD), deltaTone = toneOf(cashD)),
+        CompareRow(
+            ResearchCopy.ROW_SHARES_SHORT,
+            listOf(compactCount(v(fo?.shares), word(fo?.shares)), compactCount(v(fn?.shares), word(fn?.shares))),
+            delta = sharesD?.let { Fmt.signedPct(it) },
+        ),
+        CompareRow(ResearchCopy.ROW_EPS, listOf(money(fo?.eps), money(fn?.eps)), delta = epsD?.let { Fmt.signedPct(it) }, deltaTone = toneOf(epsD)),
+    )
+    fun scaled(f: Figure?, by: Double) = v(f)?.div(by)
+    val raw = listOf(
+        RawRow(ReportMetric.Revenue, ResearchCopy.UNIT_USD_BN, scaled(fo?.revenue, BN), scaled(fn?.revenue, BN), revD, ResearchCopy.UNIT_PCT, 2, 1),
+        RawRow(ReportMetric.Growth, ResearchCopy.UNIT_PCT, v(fo?.revenueGrowthPct), v(fn?.revenueGrowthPct), growthD?.times(100), ResearchCopy.UNIT_BPS, 1, 0),
+        RawRow(ReportMetric.Gross, ResearchCopy.UNIT_PCT, v(fo?.grossMarginPct), v(fn?.grossMarginPct), grossD?.times(100), ResearchCopy.UNIT_BPS, 1, 0),
+        RawRow(ReportMetric.Operating, ResearchCopy.UNIT_PCT, v(fo?.operatingMarginPct), v(fn?.operatingMarginPct), opD?.times(100), ResearchCopy.UNIT_BPS, 1, 0),
+        RawRow(ReportMetric.Fcf, ResearchCopy.UNIT_USD_BN, scaled(fo?.freeCashFlow, BN), scaled(fn?.freeCashFlow, BN), fcfD, ResearchCopy.UNIT_PCT, 2, 1),
+        RawRow(ReportMetric.NetCash, ResearchCopy.UNIT_USD_BN, scaled(fo?.netCash, BN), scaled(fn?.netCash, BN), cashD?.div(BN), ResearchCopy.UNIT_USD_BN, 2, 2),
+        RawRow(ReportMetric.Shares, ResearchCopy.UNIT_MILLIONS, scaled(fo?.shares, MN), scaled(fn?.shares, MN), sharesD, ResearchCopy.UNIT_PCT, 1, 1),
+        RawRow(ReportMetric.Eps, ResearchCopy.UNIT_USD, v(fo?.eps), v(fn?.eps), epsD, ResearchCopy.UNIT_PCT, 2, 1),
     )
     // Header row 2 is the filing form only: the build dates go in the deck, so label, both values and the change
     // fit a phone instead of the date line setting each column's width.
@@ -260,25 +316,97 @@ internal fun compareReportsModel(a: DeepDiveReportView, b: DeepDiveReportView, f
             newer = newer,
             basis = basis,
             table = table,
-            headline = ResearchCopy.compareReportsHeadline(revD, opD?.let { Fmt.bpsFromPoints(it) }),
+            raw = raw,
+            headline = ResearchCopy.compareReportsHeadline(revD, opD?.times(100)),
             deck = ResearchCopy.compareReportsDeck(company ?: ticker, newer.form, built(older), built(newer)),
-            since = sinceLastReportOf(older, newer, fmt, zone),
+            since = if (sinceVerified(older, newer)) sinceLastReportOf(older, newer, fmt, zone) else null,
         ),
     )
 }
 
-private fun marginRow(label: String, older: Figure?, newer: Figure?): CompareRow {
+private fun marginRow(label: String, older: Figure?, newer: Figure?, change: Double?): CompareRow {
     val o = older?.value?.takeIf { it.isFinite() }
     val n = newer?.value?.takeIf { it.isFinite() }
-    val d = if (o != null && n != null) n - o else null
     return CompareRow(
         label,
         listOf(
             Fmt.pct(o, dp = 1, missing = older?.missing ?: Missing.NotComputed),
             Fmt.pct(n, dp = 1, missing = newer?.missing ?: Missing.NotComputed),
         ),
-        delta = d?.let { Fmt.bpsFromPoints(it) },
-        deltaTone = toneOf(d),
+        delta = change?.let { Fmt.bpsFromPoints(it) },
+        deltaTone = toneOf(change),
+    )
+}
+
+/** [v] as a plain number for a spreadsheet: ASCII minus, no grouping, [dp] decimals; empty when missing. */
+internal fun rawCell(v: Double?, dp: Int): String =
+    v?.takeIf { it.isFinite() }?.let { BigDecimal.valueOf(it).setScale(dp, RoundingMode.HALF_UP).toPlainString() }.orEmpty()
+
+/**
+ * "Copy as table" (5.17): tab-separated numbers that Excel and Sheets read as numbers. Header lines: the basis
+ * with both periods, then the filing forms; one line per figure with its unit in the label ("Revenue (USD bn)"),
+ * the change and the change's unit in its own column. A missing value is an empty cell.
+ */
+internal fun compareReportsTsv(model: CompareReportsModel): String {
+    fun cell(s: String) = s.replace('\t', ' ').replace('\n', ' ').trim()
+    val lines = mutableListOf<List<String>>()
+    lines += listOf(model.basis, periodLabel(model.older.key), periodLabel(model.newer.key), ResearchCopy.CHANGE, ResearchCopy.CHANGE_UNIT)
+    lines += listOf("", model.older.form, model.newer.form, "", "")
+    model.raw.forEach { r ->
+        lines += listOf(
+            ResearchCopy.withUnit(reportMetricName(r.metric), r.unit),
+            rawCell(r.older, r.dp),
+            rawCell(r.newer, r.dp),
+            rawCell(r.change, r.changeDp),
+            if (r.change == null) "" else r.changeUnit,
+        )
+    }
+    return lines.joinToString("\n") { line -> line.joinToString("\t") { cell(it) } }
+}
+
+/** A key figure's full name (the table shows the short form): for the source sheet and the TSV. */
+internal fun reportMetricName(metric: ReportMetric): String = when (metric) {
+    ReportMetric.Revenue -> ResearchCopy.ROW_REVENUE
+    ReportMetric.Growth -> ResearchCopy.ROW_GROWTH
+    ReportMetric.Gross -> ResearchCopy.ROW_GROSS
+    ReportMetric.Operating -> ResearchCopy.ROW_OPERATING
+    ReportMetric.Fcf -> ResearchCopy.ROW_FCF_FULL
+    ReportMetric.NetCash -> ResearchCopy.ROW_NET_CASH
+    ReportMetric.Shares -> ResearchCopy.ROW_SHARES_FULL
+    ReportMetric.Eps -> ResearchCopy.ROW_EPS
+}
+
+/**
+ * What a key figure is and where it comes from (#47, 5.25 "every fundamental figure → SourceSheet"): the figure
+ * of side [col] (0 the older report, 1 the newer) of row [row], with that report's filing and the derivation of the
+ * figures the app computes (growth, net cash, EPS). Null for a row or column that is not a figure.
+ */
+internal fun compareReportsSource(model: CompareReportsModel, row: Int, col: Int): SourceInfo? {
+    val r = model.raw.getOrNull(row) ?: return null
+    val side = when (col) {
+        0 -> model.older
+        1 -> model.newer
+        else -> return null
+    }
+    val annual = side.key.annual
+    val (definition, derivation) = when (r.metric) {
+        ReportMetric.Revenue -> ResearchCopy.DEF_REVENUE_PERIOD to null
+        ReportMetric.Growth -> (if (annual) ResearchCopy.DEF_GROWTH else ResearchCopy.DEF_GROWTH_QUARTER) to
+            (if (annual) ResearchCopy.DERIVE_GROWTH else ResearchCopy.DERIVE_GROWTH_QUARTER)
+        ReportMetric.Gross -> ResearchCopy.DEF_GROSS to null
+        ReportMetric.Operating -> ResearchCopy.DEF_OPERATING to null
+        ReportMetric.Fcf -> ResearchCopy.DEF_FCF_AMOUNT to null
+        ReportMetric.NetCash -> ResearchCopy.DEF_NET_CASH_PERIOD to ResearchCopy.DERIVE_NET_CASH
+        ReportMetric.Shares -> ResearchCopy.DEF_SHARES_OUTSTANDING to null
+        ReportMetric.Eps -> ResearchCopy.DEF_EPS to ResearchCopy.DERIVE_EPS
+    }
+    val period = periodLabel(side.key)
+    return SourceInfo(
+        metric = "${model.ticker} ${reportMetricName(r.metric).replaceFirstChar { it.lowercase() }}, $period",
+        definition = definition,
+        form = side.form,
+        period = period,
+        derivation = derivation,
     )
 }
 
@@ -292,10 +420,21 @@ internal fun changeDirection(raw: String?): Boolean? {
     }
 }
 
+/**
+ * Whether the newer report's "Since the last report" is a change since [older] (5.17: shown only "when the older
+ * one is its comparable report"). The drift metadata names the comparable report: then it must be [older]. Without
+ * it, only two consecutive annual reports qualify (FY2024 then FY2025); FY2023 with FY2025 would label a
+ * one-year change as a change since FY2023, and a quarterly report may have been compared with the quarter before.
+ */
+internal fun sinceVerified(older: ReportSide, newer: ReportSide): Boolean {
+    val comparable = newer.report.trustMetadata?.thesisDrift?.comparableReportId?.trim()?.ifBlank { null }
+    if (comparable != null) return comparable == older.report.reportId
+    return older.key.annual && newer.key.annual && newer.key.fiscalYear - older.key.fiscalYear == 1
+}
+
 private fun sinceLastReportOf(older: ReportSide, newer: ReportSide, fmt: Fmt, zone: ZoneId): SinceLastReportModel? {
     val change = newer.report.changeSummary ?: return null
     val drift = newer.report.trustMetadata?.thesisDrift
-    if (drift?.comparableReportId != null && drift.comparableReportId != older.report.reportId) return null
     fun line(side: ReportSide) = listOfNotNull(side.label, side.at?.let { fmt.shortDate(it.atZone(zone).toLocalDate()) }).joinToString(" · ")
     return SinceLastReportModel(
         previousView = change.previousView,
@@ -325,12 +464,14 @@ private fun sinceLastReportOf(older: ReportSide, newer: ReportSide, fmt: Fmt, zo
 /**
  * Compare reports (DESIGN-DIRECTION 5.17), secondary to Compare names: two reports of one ticker, like for like
  * only (10-K with 10-K, or the same fiscal quarter). "Since the last report" first (from the newer report, when
- * the older one is the report it compared with), then the key figures each report was built on with the change
- * named by its basis, what each report concluded, and your notes on both. Copy as table. Frozen figures: no motion
+ * the older one is verifiably the report it compared with), then the key figures each report was built on with the
+ * change named by its basis (a tap on a figure opens its source), what each report concluded, and your notes on
+ * both. Copy as table (the bar's action) puts the figures on the clipboard as numbers. Frozen figures: no motion
  * beyond the push.
  *
  * Draws its own top bar ("Compare" + "AAPL · 10-K FY2024 vs 10-K FY2025"); the shell gives it none (HANDOFF-E).
- * [notes] is the ticker's notes trail (`state.notesTrails[ticker]`).
+ * [notes] is the ticker's notes trail (`state.notesTrails[ticker]`). [onEditNote] opens a report's note in its
+ * editor; while it is null the notes show without an action, so no "Edit" that only opens the report.
  */
 @Composable
 fun CompareReportsScreen(
@@ -341,6 +482,7 @@ fun CompareReportsScreen(
     onRetry: () -> Unit = {},
     onOpenReport: (reportId: String) -> Unit = {},
     onOpenChange: ((reportId: String, index: Int) -> Unit)? = null,
+    onEditNote: ((reportId: String) -> Unit)? = null,
     zone: ZoneId = ZoneId.systemDefault(),
 ) {
     val fmt = LocalFmt.current
@@ -349,13 +491,14 @@ fun CompareReportsScreen(
     val scroll = rememberScrollState()
     val collapsed by rememberTopBarCollapsed(scroll)
     var copied by remember { mutableStateOf(false) }
+    var source by remember { mutableStateOf<SourceInfo?>(null) }
     val a = state?.a
     val b = state?.b
     val pair = remember(a, b, fmt, zone) { if (a != null && b != null) compareReportsModel(a, b, fmt, zone) else null }
     val ready = (pair as? ReportPair.Ready)?.model
     val copy = {
         if (ready != null) {
-            clipboard.setText(AnnotatedString(ready.table.toTsv()))
+            clipboard.setText(AnnotatedString(compareReportsTsv(ready)))
             haptics.confirm()
             copied = true
         }
@@ -369,7 +512,14 @@ fun CompareReportsScreen(
         padding = padding,
         collapsed = collapsed,
         actions = {
-            if (ready != null) ThesisIconButton(ThesisIcons.Copy, contentDescription = ResearchCopy.COPY_TABLE, onClick = copy)
+            if (ready != null) {
+                // The one Copy as table entry (5.17); the icon turns to a check once the table is on the clipboard.
+                ThesisIconButton(
+                    if (copied) ThesisIcons.Check else ThesisIcons.Copy,
+                    contentDescription = if (copied) ResearchCopy.COPIED else ResearchCopy.COPY_TABLE,
+                    onClick = copy,
+                )
+            }
         },
     ) { inner ->
         Column(
@@ -381,16 +531,13 @@ fun CompareReportsScreen(
                 .padding(horizontal = ThesisSpace.gutter),
         ) {
             when {
+                // The fallback states carry their own sentence; no header repeating the bar's "Compare" (V3).
                 state == null || (state.isLoading && pair == null) -> {
-                    ScreenHeader(title = ResearchCopy.COMPARE, eyebrow = ResearchCopy.COMPARE_REPORTS_EYEBROW)
-                    Spacer(Modifier.height(ThesisSpace.headerToSection))
                     SkeletonCard(bodyLines = 4)
                     Spacer(Modifier.height(ThesisSpace.cardGap))
                     SkeletonCard(bodyLines = 6)
                 }
                 pair == null -> {
-                    ScreenHeader(title = ResearchCopy.COMPARE, eyebrow = ResearchCopy.COMPARE_REPORTS_EYEBROW)
-                    Spacer(Modifier.height(ThesisSpace.headerToSection))
                     ErrorState(
                         title = KitCopy.couldNotLoad(ResearchCopy.COMPARE_REPORTS_FAILED),
                         cause = state.error,
@@ -398,8 +545,6 @@ fun CompareReportsScreen(
                     )
                 }
                 ready == null -> {
-                    ScreenHeader(title = ResearchCopy.COMPARE, eyebrow = ResearchCopy.COMPARE_REPORTS_EYEBROW)
-                    Spacer(Modifier.height(ThesisSpace.headerToSection))
                     val (sentence, how) = when (pair) {
                         ReportPair.OtherCompanies -> ResearchCopy.OTHER_COMPANIES to ResearchCopy.OTHER_COMPANIES_HOW
                         ReportPair.SameFiling -> ResearchCopy.SAME_FILING to ResearchCopy.SAME_FILING_HOW
@@ -410,26 +555,27 @@ fun CompareReportsScreen(
                 else -> CompareReportsBody(
                     model = ready,
                     notes = notes,
-                    copied = copied,
-                    onCopy = copy,
                     onOpenReport = onOpenReport,
                     onOpenChange = onOpenChange,
+                    onEditNote = onEditNote,
+                    onSource = { source = it },
                     fmt = fmt,
                     zone = zone,
                 )
             }
         }
     }
+    source?.let { info -> SourceSheet(info = info, onDismissRequest = { source = null }) }
 }
 
 @Composable
 private fun ColumnScope.CompareReportsBody(
     model: CompareReportsModel,
     notes: List<NoteTrailEntry>,
-    copied: Boolean,
-    onCopy: () -> Unit,
     onOpenReport: (String) -> Unit,
     onOpenChange: ((String, Int) -> Unit)?,
+    onEditNote: ((String) -> Unit)?,
+    onSource: (SourceInfo) -> Unit,
     fmt: Fmt,
     zone: ZoneId,
 ) {
@@ -451,11 +597,11 @@ private fun ColumnScope.CompareReportsBody(
     Spacer(Modifier.height(ThesisSpace.sectionGapData))
     SectionHeader(kicker = ResearchCopy.KEY_FIGURES_KICKER, headline = ResearchCopy.KEY_FIGURES_FALLBACK)
     Spacer(Modifier.height(ThesisSpace.m))
-    FittedCompareTable(model = model.table, columnNames = listOf(model.older.label, model.newer.label), deltaName = ResearchCopy.THE_CHANGE)
-    TextAction(
-        if (copied) ResearchCopy.COPIED else ResearchCopy.COPY_TABLE,
-        onClick = onCopy,
-        modifier = Modifier.align(Alignment.End),
+    FittedCompareTable(
+        model = model.table,
+        columnNames = listOf(model.older.label, model.newer.label),
+        deltaName = ResearchCopy.THE_CHANGE,
+        onCellClick = { r, c -> compareReportsSource(model, r, c)?.let(onSource) },
     )
 
     Spacer(Modifier.height(ThesisSpace.sectionGapData))
@@ -485,6 +631,28 @@ private fun ColumnScope.CompareReportsBody(
     SectionHeader(kicker = ResearchCopy.NOTES_KICKER, headline = ResearchCopy.notesHeadline(pairNotes.size))
     pairNotes.forEach { (side, note) ->
         Spacer(Modifier.height(ThesisSpace.m))
-        NotePreview(text = note.text, onEdit = { onOpenReport(side.report.reportId) }, filing = side.label)
+        if (onEditNote != null) {
+            NotePreview(text = note.text, onEdit = { onEditNote(side.report.reportId) }, filing = side.label)
+        } else {
+            NoteReadOnly(text = note.text, filing = side.label)
+        }
+    }
+}
+
+/**
+ * A note shown without an action, until the shell can open a report's note editor ([CompareReportsScreen]
+ * `onEditNote`): the kit's `NotePreview` always offers "Edit" (a label request is in HANDOFF-E).
+ */
+@Composable
+private fun NoteReadOnly(text: String, filing: String) {
+    val p = LocalThesisPalette.current
+    ThesisCard {
+        Column(verticalArrangement = Arrangement.spacedBy(ThesisSpace.s)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Eyebrow(ResearchCopy.YOUR_NOTE, Modifier.weight(1f))
+                Text(filing, style = ThesisType.caption, color = p.muted)
+            }
+            Text(text, style = ThesisType.story, color = p.ink, maxLines = Kit.NOTE_PREVIEW_LINES, overflow = TextOverflow.Ellipsis)
+        }
     }
 }

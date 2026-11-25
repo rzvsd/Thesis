@@ -169,10 +169,10 @@ class ResearchRenders {
     // ---- War Room (5.19)
 
     @Composable
-    private fun War(room: com.thesis.mobile.model.WarRoomView?, error: String? = null, loading: Boolean = false) = F.Fixed {
+    private fun War(room: com.thesis.mobile.model.WarRoomView?, error: String? = null, loading: Boolean = false, names: Boolean = true) = F.Fixed {
         WarRoomScreen(
             warRoom = room, errorMessage = error, onRefresh = {}, padding = PaddingValues(),
-            onBack = {}, isLoading = loading, onOpenName = {}, onOpenReport = {},
+            onBack = {}, isLoading = loading, onOpenName = if (names) ({ _: String -> }) else null, onOpenReport = {},
         )
     }
 
@@ -182,6 +182,8 @@ class ResearchRenders {
     @Test fun warRoomStale() { renderScreen("research-war-room-stale", glow = false) { War(F.warRoomClosed, error = "No connection.") } }
     @Test fun warRoomLoading() { renderScreen("research-war-room-loading", glow = false, settleMs = 300) { War(null, loading = true) } }
     @Test fun warRoomError() { renderScreen("research-war-room-error", glow = false) { War(null, error = "The server took too long to answer.") } }
+    // Before WP-INT wires onOpenName: the related tickers as text, not buttons that do nothing.
+    @Test fun warRoomUnwired() { renderScreen("research-war-room-unwired", heightDp = 2400, glow = false) { War(F.warRoomClosed, names = false) } }
     @Test fun warRoomEmpty() { renderScreen("research-war-room-empty", glow = false) { War(null) } }
     @Test fun warRoomFont13() { renderScreen("research-war-room-font13", fontScale = 1.3f, glow = false) { War(F.warRoomLive) } }
     @Test fun warRoomFont20() { renderScreen("research-war-room-font20", fontScale = 2.0f, glow = false) { War(F.warRoomLive) } }
@@ -202,6 +204,7 @@ class ResearchRenders {
         loadingTemplates: Boolean = false,
         running: Boolean = false,
         selected: String? = "rates_higher_for_longer",
+        names: Int = F.watchlist.size,
     ) = F.Fixed {
         ScenarioStressScreen(
             userTier = tier,
@@ -212,7 +215,7 @@ class ResearchRenders {
             runError = runError,
             isLoadingTemplates = loadingTemplates,
             isRunning = running,
-            watchlistCount = F.watchlist.size,
+            watchlistCount = names,
             onRefreshTemplates = {}, onSelectTemplate = {}, onRunScenario = {}, onOpenTickerResearch = {},
             onOpenRunFromRoute = { _, _ -> }, onRequireUpgrade = {},
             onBack = {}, onOpenName = {},
@@ -226,6 +229,8 @@ class ResearchRenders {
     @Test fun stressRunFailed() { renderScreen("research-stress-run-failed", glow = false) { Stress(run = null, runError = "The run timed out.") } }
     @Test fun stressTemplatesLoading() { renderScreen("research-stress-templates-loading", glow = false, settleMs = 300) { Stress(run = null, templates = false, loadingTemplates = true, selected = null) } }
     @Test fun stressTemplatesError() { renderScreen("research-stress-templates-error", glow = false) { Stress(run = null, templates = false, templatesError = "No connection.", selected = null) } }
+    // No names followed: the run bar is disabled and says why.
+    @Test fun stressNoNames() { renderScreen("research-stress-no-names", glow = false) { Stress(run = null, names = 0) } }
     @Test fun stressFree() { renderScreen("research-stress-free") { Stress(tier = "FREE", run = null, selected = null) } }
     @Test fun stressFont13() { renderScreen("research-stress-font13", fontScale = 1.3f, glow = false) { Stress() } }
     @Test fun stressFont20() { renderScreen("research-stress-font20", fontScale = 2.0f, glow = false) { Stress() } }

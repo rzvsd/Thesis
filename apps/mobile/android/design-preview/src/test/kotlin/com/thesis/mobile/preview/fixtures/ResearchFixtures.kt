@@ -222,7 +222,7 @@ object ResearchFixtures {
         ),
         notes = listOf(
             NoteTrailEntry("aapl-25", "AAPL", "Services margin keeps expanding while hardware is flat; capex is the thing to watch into next year.", ago(1), "2025-FY", null),
-            NoteTrailEntry("cost-25", "COST", "Membership fee hike lands in the fiscal year; the renewal rate held above 90%.", ago(48), "2025-FY", null),
+            NoteTrailEntry("cost-25", "COST", "Membership fee hike lands in the fiscal year; capital returns stay modest while the renewal rate holds above 90%.", ago(48), "2025-FY", null),
         ),
         isSearchingServer = false,
     )

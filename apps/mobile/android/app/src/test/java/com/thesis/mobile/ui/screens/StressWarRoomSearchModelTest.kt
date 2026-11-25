@@ -77,6 +77,17 @@ class StressWarRoomSearchModelTest {
         assertEquals(listOf(ResearchCopy.TABLE_TICKER, ResearchCopy.TABLE_SCORE, ResearchCopy.TABLE_IMPACT, ResearchCopy.TABLE_BREAK), lines[0].split("\t"))
         assertEquals(listOf("NVDA", "81", ResearchCopy.impactWord("high"), ResearchCopy.BREAK_LIKELY), lines[1].split("\t"))
         assertEquals(5, lines.size)
+        // The score is a plain number; a missing break likelihood is an empty cell, not "n/a".
+        val noBreak = stressTsv(stressRows(run.copy(impacts = listOf(impact("V", 0.3, "watch", "", "Card volumes"))))).split("\n")
+        assertEquals(listOf("V", "30", ResearchCopy.impactWord("watch"), ""), noBreak[1].split("\t"))
+    }
+
+    @Test
+    fun byNameRowsCarryOneBadgeAndOnlyWhenABreakIsPossibleOrLikely() {
+        val rows = stressRows(run).associateBy { it.ticker }
+        assertEquals(ResearchCopy.BREAK_LIKELY, stressRowBadge(rows.getValue("NVDA"))?.text)
+        assertEquals(ResearchCopy.BREAK_POSSIBLE, stressRowBadge(rows.getValue("AAPL"))?.text)
+        assertNull(stressRowBadge(rows.getValue("KO")))
     }
 
     private fun phase(p: String, status: String? = null, reportId: String? = null) =

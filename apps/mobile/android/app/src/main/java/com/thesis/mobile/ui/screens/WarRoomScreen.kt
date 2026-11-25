@@ -136,8 +136,8 @@ private fun stepLabel(step: WarRoomStep): String = when (step) {
 /**
  * The War Room. Draws its own top bar ("War Room", subtitle the ticker); the shell gives it none (HANDOFF-E).
  * Pull-to-refresh is on except while Live, when the shell refreshes every 60 s. A failed refresh keeps the room on
- * screen under a banner. [onOpenName] opens a related ticker's Name page and [onOpenReport] the Deep Dive the room
- * reads against. With [onBack] null (the shell's own bar still showing, until WP-INT wires it) there is no back
+ * screen under a banner. [onOpenName] opens a related ticker's Name page (while it is null the related tickers show
+ * as plain text, not as buttons that do nothing) and [onOpenReport] the Deep Dive the room reads against. With [onBack] null (the shell's own bar still showing, until WP-INT wires it) there is no back
  * arrow, so no arrow that does nothing.
  */
 @OptIn(ExperimentalLayoutApi::class)
@@ -150,7 +150,7 @@ fun WarRoomScreen(
     onBack: (() -> Unit)? = null,
     isLoading: Boolean = false,
     refreshing: Boolean = false,
-    onOpenName: (ticker: String) -> Unit = {},
+    onOpenName: ((ticker: String) -> Unit)? = null,
     onOpenReport: ((reportId: String) -> Unit)? = null,
 ) {
     val fmt = LocalFmt.current
@@ -182,9 +182,9 @@ fun WarRoomScreen(
             ) {
                 when {
                     warRoom == null && (isLoading || (refreshing && errorMessage == null)) -> WarRoomSkeleton()
+                    // No room: the state's own sentence is the message, under the bar's "War Room" (no header
+                    // repeating it, V3).
                     warRoom == null && !errorMessage.isNullOrBlank() -> {
-                        ScreenHeader(title = ResearchCopy.WAR_ROOM_TITLE, eyebrow = ResearchCopy.warRoomEyebrow(null))
-                        Spacer(Modifier.height(ThesisSpace.headerToSection))
                         ErrorState(
                             title = KitCopy.couldNotLoad(ResearchCopy.WAR_ROOM_FAILED),
                             cause = errorMessage,
@@ -192,8 +192,6 @@ fun WarRoomScreen(
                         )
                     }
                     warRoom == null -> {
-                        ScreenHeader(title = ResearchCopy.WAR_ROOM_TITLE, eyebrow = ResearchCopy.warRoomEyebrow(null))
-                        Spacer(Modifier.height(ThesisSpace.headerToSection))
                         EmptyState(
                             sentence = ResearchCopy.WAR_ROOM_EMPTY,
                             how = ResearchCopy.WAR_ROOM_EMPTY_HOW,
@@ -231,7 +229,7 @@ private fun WarRoomBody(
     room: WarRoomView,
     refreshError: String?,
     onRetry: () -> Unit,
-    onOpenName: (String) -> Unit,
+    onOpenName: ((String) -> Unit)?,
     onOpenReport: ((String) -> Unit)?,
     fmt: Fmt,
 ) {
@@ -297,12 +295,16 @@ private fun WarRoomBody(
         Spacer(Modifier.height(ThesisSpace.sectionGapReading))
         SectionHeader(kicker = ResearchCopy.RELATED_KICKER, headline = ResearchCopy.relatedHeadline(related.size))
         Spacer(Modifier.height(ThesisSpace.m))
-        ChipRow(contentPadding = PaddingValues()) {
-            related.forEach { ticker ->
-                item(key = ticker) {
-                    ThesisChip(label = ticker, selected = false, onClick = { onOpenName(ticker) }, role = Role.Button)
+        if (onOpenName != null) {
+            ChipRow(contentPadding = PaddingValues()) {
+                related.forEach { ticker ->
+                    item(key = ticker) {
+                        ThesisChip(label = ticker, selected = false, onClick = { onOpenName(ticker) }, role = Role.Button)
+                    }
                 }
             }
+        } else {
+            Text(related.joinToString(" · "), style = ThesisType.label, color = p.ink)
         }
     }
 

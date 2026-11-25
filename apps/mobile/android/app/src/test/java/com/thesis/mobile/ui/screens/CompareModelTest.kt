@@ -1,10 +1,14 @@
 package com.thesis.mobile.ui.screens
 
 import com.thesis.mobile.model.CompareNamesState
+import com.thesis.mobile.model.DeepDiveChangeSummaryView
 import com.thesis.mobile.model.DeepDiveReportView
+import com.thesis.mobile.model.DeepDiveTopChangeView
 import com.thesis.mobile.model.FinancialAnalysisView
 import com.thesis.mobile.model.FinancialHistoryRowView
 import com.thesis.mobile.model.ReportSummaryView
+import com.thesis.mobile.model.TrustMetadataView
+import com.thesis.mobile.model.TrustThesisDriftView
 import com.thesis.mobile.ui.copy.ResearchCopy
 import com.thesis.mobile.ui.format.Fmt
 import com.thesis.mobile.ui.format.Missing
@@ -95,9 +99,11 @@ class CompareModelTest {
 
     @Test
     fun keyFiguresHeadlineSaysFlatUpOrDown() {
-        assertEquals("Revenue flat, operating margin +50 bps", ResearchCopy.compareReportsHeadline(0.01, "+50 bps"))
+        // Words, not notation: "up 50 bps", never "+50 bps", in a sentence.
+        assertEquals("Revenue flat, operating margin up 50 bps", ResearchCopy.compareReportsHeadline(0.01, 50.0))
+        assertEquals("Revenue up 6.4%, operating margin flat", ResearchCopy.compareReportsHeadline(6.4, 0.0))
         assertEquals("Revenue down 3.0%", ResearchCopy.compareReportsHeadline(-3.0, null))
-        assertEquals("Operating margin −20 bps", ResearchCopy.compareReportsHeadline(null, "−20 bps"))
+        assertEquals("Operating margin down 20 bps", ResearchCopy.compareReportsHeadline(null, -20.0))
         assertNull(ResearchCopy.compareReportsHeadline(null, null))
     }
 
@@ -176,7 +182,7 @@ class CompareModelTest {
     @Test
     fun yearEndsNameTheColumnOnceKnown() {
         val cols = compareNameColumns(state, emptyMap(), mapOf("AAPL" to java.time.YearMonth.of(2025, 9)))
-        val table = compareNamesTable(cols, fmt, zone)
+        val table = compareNamesTable(cols)
         assertTrue(table.columns[0].period.endsWith("FY Sep-25"))
         assertTrue(table.columns[1].period.endsWith("FY2025"))
     }
@@ -229,7 +235,7 @@ class CompareModelTest {
 
     @Test
     fun hiddenColumnsAreThoseThatDoNotFitBesideTheLabels() {
-        val table = compareNamesTable(compareNameColumns(state, emptyMap()), fmt, zone)
+        val table = compareNamesTable(compareNameColumns(state, emptyMap()))
         // Every text 10 px a character; padding 20, column minimum 80: label 21 chars -> 230, capped at 42%.
         val measure = { text: String, _: androidx.compose.ui.text.TextStyle ->
             val lines = text.split('\n')
@@ -253,10 +259,10 @@ class CompareModelTest {
 
     @Test
     fun tableShowsNoReportYetAndTheMedian() {
-        val table = compareNamesTable(compareNameColumns(state, emptyMap()), fmt, zone)
+        val table = compareNamesTable(compareNameColumns(state, emptyMap()))
         assertTrue(table.columns[2].period.contains(ResearchCopy.NO_REPORT_YET))
         assertTrue(table.columns[0].subject)
-        val op = table.rows.first { it.label == ResearchCopy.ROW_OPERATING }
+        val op = table.rows.first { it.label == ResearchCopy.ROW_OPERATING_SHORT }
         assertEquals(Fmt.pct((32.0 + 45.6) / 2, dp = 1), op.delta)
         assertEquals(ResearchCopy.MEDIAN, table.deltaHeader)
     }
@@ -270,10 +276,86 @@ class CompareModelTest {
         assertTrue(lines[2].startsWith(ResearchCopy.FILING + "\t" + ResearchCopy.FORM_10K))
         assertEquals(3 + NameMetric.entries.size, lines.size)
         lines.forEach { assertEquals(5, it.split("\t").size) }
-        val revenue = lines.first { it.startsWith(ResearchCopy.ROW_REVENUE + "\t") }.split("\t")
-        assertEquals(Fmt.money(416e9), revenue[1])
-        // No report: a blank cell, not "Not computed" (a gap on our side).
+        // Plain numbers a spreadsheet reads as numbers, the unit in the label; no report or no figure: empty.
+        val revenue = lines.first { it.startsWith(metricTsvLabel(NameMetric.Revenue) + "\t") }.split("\t")
+        assertEquals("Revenue (USD bn)", revenue[0])
+        assertEquals("416.00", revenue[1])
         assertEquals("", revenue[3])
+        val netCash = lines.first { it.startsWith(metricTsvLabel(NameMetric.NetCash) + "\t") }.split("\t")
+        assertEquals("-40.00", netCash[1])
+        assertFalse(tsv.contains(Fmt.MINUS))
+        assertFalse(tsv.contains("$"))
         assertFalse(tsv.contains("\n\n"))
+    }
+
+    @Test
+    fun theSortedRowIsMarkedInTheTableAndTheCaptionSaysWhatTheNextTapDoes() {
+        val cols = compareNameColumns(state, emptyMap())
+        val table = compareNamesTable(sortColumns(cols, NameMetric.Operating), marked = NameMetric.Operating)
+        assertEquals(listOf(ResearchCopy.ROW_OPERATING_SHORT), table.rows.filter { it.median }.map { it.label })
+        assertTrue(compareNamesTable(cols).rows.none { it.median })
+        assertEquals(ResearchCopy.SORT_HINT, sortCaption(null, null))
+        assertEquals(ResearchCopy.sortedBy(ResearchCopy.ROW_OPERATING), sortCaption(NameMetric.Operating, NameMetric.Operating))
+        assertEquals(
+            ResearchCopy.sortedThenPicked(ResearchCopy.ROW_OPERATING, ResearchCopy.ROW_GROSS),
+            sortCaption(NameMetric.Operating, NameMetric.Gross),
+        )
+    }
+
+    private fun drifted(r: DeepDiveReportView, comparableId: String?) = r.copy(
+        changeSummary = DeepDiveChangeSummaryView(
+            previousView = "Was a quality compounder", currentView = "Still one, at a fuller price",
+            topChanges = listOf(DeepDiveTopChangeView("Buybacks", "up", "medium", "", "Each share owns more of the company.")),
+        ),
+        trustMetadata = comparableId?.let { TrustMetadataView(thesisDrift = TrustThesisDriftView("stable", "", comparableReportId = it)) },
+    )
+
+    @Test
+    fun sinceTheLastReportShowsOnlyWhenTheOlderReportIsVerifiablyTheComparableOne() {
+        val y23 = report("y23", "AAPL", fy(2022, 360e9, 29.0), fy(2023, 380e9, 29.0))
+        val y24 = report("y24", "AAPL", fy(2023, 380e9, 29.0), fy(2024, 391e9, 31.5))
+        val y25 = report("y25", "AAPL", fy(2023, 380e9, 29.0), fy(2024, 391e9, 31.5), fy(2025, 416e9, 32.0))
+        fun since(a: DeepDiveReportView, b: DeepDiveReportView) = (compareReportsModel(a, b, fmt, zone) as ReportPair.Ready).model.since
+        // No drift metadata: FY2023 with FY2025 would mislabel a one-year change as "since FY2023".
+        assertNull(since(y23, drifted(y25, null)))
+        // No drift metadata, consecutive fiscal years: shown.
+        assertTrue(since(y24, drifted(y25, null)) != null)
+        // The drift metadata names the comparable report: it must be the older one.
+        assertTrue(since(y23, drifted(y25, "y23")) != null)
+        assertNull(since(y24, drifted(y25, "y23")))
+    }
+
+    @Test
+    fun bpsChangesComeFromTheShownPercentagesAndSharesKeepTheirMissingWord() {
+        // 1.96% then 6.40% show as +2.0% and +6.4%: the change reads +440 bps (what the reader works out), not the
+        // +444 bps of the unrounded inputs.
+        assertEquals(4.4, shownPointsChange(1.96, 6.40)!!, 1e-9)
+        assertEquals(4.5, shownPointsChange(2.04, 6.45)!!, 1e-9)
+        assertNull(shownPointsChange(null, 6.4))
+        assertEquals("15.2B", compactCount(15.2e9, Missing.NotDisclosed))
+        assertEquals(Fmt.NOT_COMPUTED, compactCount(null, Missing.NotComputed))
+        assertEquals(Fmt.NA, compactCount(null, Missing.NotMeaningful))
+    }
+
+    @Test
+    fun compareReportsCopiesNumbersAndEveryFigureHasASource() {
+        val older = report("old", "AAPL", fy(2023, 380e9, 29.0), fy(2024, 391e9, 31.5))
+        val newer = report("new", "AAPL", fy(2023, 380e9, 29.0), fy(2024, 391e9, 31.5), fy(2025, 416e9, 32.0))
+        val m = (compareReportsModel(older, newer, fmt, zone) as ReportPair.Ready).model
+        val lines = compareReportsTsv(m).split("\n")
+        assertEquals(listOf(m.basis, "FY2024", "FY2025", ResearchCopy.CHANGE, ResearchCopy.CHANGE_UNIT), lines[0].split("\t"))
+        val revenue = lines.first { it.startsWith("Revenue (USD bn)\t") }.split("\t")
+        assertEquals(listOf("391.00", "416.00", "6.4", ResearchCopy.UNIT_PCT), revenue.drop(1))
+        val op = lines.first { it.startsWith(ResearchCopy.withUnit(ResearchCopy.ROW_OPERATING, ResearchCopy.UNIT_PCT)) }.split("\t")
+        assertEquals(listOf("31.5", "32.0", "50", ResearchCopy.UNIT_BPS), op.drop(1))
+        assertFalse(compareReportsTsv(m).contains(Fmt.MINUS))
+        m.table.rows.indices.forEach { r ->
+            val src = compareReportsSource(m, r, 1)!!
+            assertEquals(ResearchCopy.FORM_10K, src.form)
+            assertEquals("FY2025", src.period)
+        }
+        assertEquals("FY2024", compareReportsSource(m, 0, 0)!!.period)
+        assertNull(compareReportsSource(m, 0, 2))
+        assertEquals(ResearchCopy.DERIVE_EPS, compareReportsSource(m, m.raw.indexOfFirst { it.metric == ReportMetric.Eps }, 1)!!.derivation)
     }
 }

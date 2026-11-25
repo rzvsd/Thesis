@@ -12,7 +12,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -107,7 +106,8 @@ fun HistoryScreen(
     var filter by rememberSaveable { mutableStateOf(initialFilter) }
     var query by rememberSaveable { mutableStateOf(initialQuery) }
     var compareMode by rememberSaveable { mutableStateOf(initialCompareMode) }
-    val picked = remember { mutableStateListOf<String>().apply { addAll(initialPicked) } }
+    // The picks survive a rotation with compare mode itself (report ids only).
+    var picked by rememberSaveable { mutableStateOf(initialPicked) }
 
     val visible = remember(historyItems, filter, query, notedReportIds, companyNames) {
         filterHistory(historyItems, filter, query, notedReportIds, companyNames)
@@ -116,10 +116,11 @@ fun HistoryScreen(
     val today = remember(clock) { LocalDate.now(clock) }
     val byId = remember(historyItems) { historyItems.associateBy { it.reportId } }
     val picks = picked.mapNotNull { byId[it] }
-    val canCompare = onCompareReports != null
+    // Compare mode only when there is a pair to pick from: not while loading, empty or failed.
+    val canCompare = onCompareReports != null && loaded && historyItems.count { it.type == TYPE_DEEP_DIVE } >= COMPARE_PICKS
     val leaveCompare = {
         compareMode = false
-        picked.clear()
+        picked = emptyList()
     }
     // System back leaves compare mode first (R1), like the bar's back arrow and Cancel.
     ThesisBackHandler(enabled = compareMode, onBack = leaveCompare)
@@ -156,7 +157,7 @@ fun HistoryScreen(
                         if (pair != null) {
                             onCompareReports?.invoke(pair.first.reportId, pair.second.reportId)
                             compareMode = false
-                            picked.clear()
+                            picked = emptyList()
                         }
                     },
                 )
@@ -186,7 +187,8 @@ fun HistoryScreen(
                         deck = ResearchCopy.HISTORY_DECK,
                         meta = if (loaded && historyItems.isNotEmpty()) {
                             ResearchCopy.historyMeta(
-                                historyItems.size,
+                                historyItems.count { it.type == TYPE_DEEP_DIVE },
+                                historyItems.count { it.type != TYPE_DEEP_DIVE },
                                 historyItems.maxByOrNull { it.createdAt }?.let { parseInstant(it.createdAt) }?.let(fmt::relative),
                             )
                         } else {
@@ -269,8 +271,12 @@ fun HistoryScreen(
                         val label = dayLabel(day.date, today, fmt)
                         stickyHeader(key = "day-${day.date}", contentType = "day") { DayHeader(label) }
                         item(key = "gap-${day.date}", contentType = "gap") { Spacer(Modifier.height(ThesisSpace.s)) }
+                        val seen = HashMap<String, Int>()
                         day.items.forEachIndexed { i, item ->
-                            item(key = "row-${day.date}-$i-${item.reportId}", contentType = "row") {
+                            // Keyed by report and day, not by position, so keys hold when a new item lands on top;
+                            // the occurrence count only matters if the payload ever repeats an id within a day.
+                            val n = seen.merge(item.reportId, 1, Int::plus)!! - 1
+                            item(key = "row-${item.reportId}-${day.date}-$n", contentType = "row") {
                                 val instant = parseInstant(item.createdAt)
                                 HistoryItemRow(
                                     item = item,
@@ -285,8 +291,8 @@ fun HistoryScreen(
                                             checked = item.reportId in picked,
                                             disabledReason = historyPickBlock(item, picks, filingPeriods),
                                             onToggle = { on ->
-                                                if (on && picked.size < COMPARE_PICKS) picked += item.reportId
-                                                if (!on) picked -= item.reportId
+                                                if (on && picked.size < COMPARE_PICKS && item.reportId !in picked) picked = picked + item.reportId
+                                                if (!on) picked = picked - item.reportId
                                             },
                                         )
                                     } else {

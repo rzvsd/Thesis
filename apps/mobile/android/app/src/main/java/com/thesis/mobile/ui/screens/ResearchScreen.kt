@@ -134,7 +134,8 @@ fun ResearchScreen(
     val fmt = LocalFmt.current
     val symbol = ticker.trim().uppercase()
     val stored = remember(symbol, recentHistory) { storedReportFor(symbol, recentHistory) }
-    val recent = remember(recentHistory) { recentHistory.sortedByDescending { it.createdAt }.take(RECENT_REPORTS_SHOWN) }
+    val continueItem = continueReading?.takeIf { it.type.equals(LAST_VIEWED_DEEP_DIVE, ignoreCase = true) }
+    val recent = remember(recentHistory, continueItem?.reportId) { recentRows(recentHistory, continueItem?.reportId) }
     val picks = remember(symbol, suggestions, watchlist, companyNames) {
         tickerSuggestions(symbol, suggestions, watchlist, companyNames)
     }
@@ -151,7 +152,6 @@ fun ResearchScreen(
             }
         }
     }
-    val continueItem = continueReading?.takeIf { it.type.equals(LAST_VIEWED_DEEP_DIVE, ignoreCase = true) }
     var dismissing by remember(continueItem?.reportId) { mutableStateOf(false) }
 
     Box(Modifier.fillMaxSize().padding(padding.exceptTop()), contentAlignment = Alignment.TopCenter) {
@@ -193,10 +193,11 @@ fun ResearchScreen(
             )
 
             Spacer(Modifier.height(ThesisSpace.sectionGapData))
-            val last = recent.firstOrNull()
+            // The last report: a Pulse brief is not a report, so the headline names the last Deep Dive.
+            val last = recentHistory.filter { it.type == TYPE_DEEP_DIVE }.maxByOrNull { it.createdAt }
             val recentHeadline = ResearchCopy.recentHeadline(
                 openedThisWeek = openedSince(recentHistory, clock.instant().minus(7, ChronoUnit.DAYS)),
-                lastTicker = last?.let { it.ticker ?: ResearchCopy.PULSE },
+                lastTicker = last?.ticker?.uppercase(),
                 lastAgo = last?.let { parseInstant(it.createdAt) }?.let(fmt::relative),
             )
             if (recentHeadline != null) {
@@ -300,6 +301,15 @@ private fun researchTools(
     digest?.let { ResearchTool(ThesisIcons.Pulse, ResearchCopy.TOOL_DIGEST, ResearchCopy.TOOL_DIGEST_CAPTION, it) },
     history?.let { ResearchTool(ThesisIcons.History, ResearchCopy.TOOL_HISTORY, ResearchCopy.TOOL_HISTORY_CAPTION, it) },
 )
+
+/**
+ * The Recent reports rows: newest first, up to three, without the report "Continue reading" already offers
+ * ([continueId]), so no slot repeats it.
+ */
+internal fun recentRows(history: List<ReportHistoryItem>, continueId: String?): List<ReportHistoryItem> =
+    history.filter { continueId == null || it.reportId != continueId }
+        .sortedByDescending { it.createdAt }
+        .take(RECENT_REPORTS_SHOWN)
 
 /** The newest Deep Dive of [ticker] in [history]: the field then opens it instead of building (5.12 item 3). */
 internal fun storedReportFor(ticker: String, history: List<ReportHistoryItem>): ReportHistoryItem? {

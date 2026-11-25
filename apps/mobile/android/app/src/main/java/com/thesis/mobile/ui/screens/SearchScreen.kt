@@ -30,6 +30,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -165,6 +166,8 @@ fun SearchScreen(
     onOpenReport: (reportId: String) -> Unit = {},
     onOpenNote: (ticker: String?, reportId: String) -> Unit = { _, id -> onOpenReport(id) },
     onSubmit: (String) -> Unit = {},
+    /** The tapped report row's window bounds, just before [onOpenReport] (4.5 container transform). */
+    onReportBounds: ((reportId: String, bounds: Rect) -> Unit)? = null,
     autoFocus: Boolean = true,
 ) {
     val p = LocalThesisPalette.current
@@ -303,6 +306,7 @@ fun SearchScreen(
                                 record()
                                 onOpenReport(hit.reportId)
                             },
+                            onBounds = onReportBounds?.let { cb -> { r: Rect -> cb(hit.reportId, r) } },
                             modifier = mod,
                         )
                     }

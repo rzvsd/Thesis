@@ -114,4 +114,17 @@ class ResearchHistoryModelTest {
         assertNull(orderedPair(listOf(history[0], history[4]), periods))
         assertNull(orderedPair(listOf(history[0]), periods))
     }
+
+    @Test
+    fun recentRowsLeaveOutTheReportContinueReadingOffers() {
+        assertEquals(listOf("r1", "p1", "r3"), recentRows(history, null).map { it.reportId })
+        assertEquals(listOf("p1", "r3", "r4"), recentRows(history, "r1").map { it.reportId })
+    }
+
+    @Test
+    fun historyMetaCountsReportsAndPulseBriefsApart() {
+        assertEquals("9 reports · 2 Pulse briefs · latest 2 h ago", ResearchCopy.historyMeta(9, 2, "2 h ago"))
+        assertEquals("1 report", ResearchCopy.historyMeta(1, 0, null))
+        assertEquals("1 Pulse brief", ResearchCopy.historyMeta(0, 1, null))
+    }
 }

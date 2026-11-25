@@ -259,6 +259,18 @@ internal fun metricLabel(metric: NameMetric): String = when (metric) {
     NameMetric.Discipline -> ResearchCopy.ROW_DISCIPLINE
 }
 
+/**
+ * The row label in the table: the conventional short forms ("Growth, YoY", "Op. margin", "Shares, YoY"), so the
+ * pinned label column leaves room for a third name on a 412 dp phone. The source sheet, the sort caption and
+ * "Copy as table" keep the full name ([metricLabel]).
+ */
+internal fun metricShortLabel(metric: NameMetric): String = when (metric) {
+    NameMetric.Growth -> ResearchCopy.ROW_GROWTH_SHORT
+    NameMetric.Operating -> ResearchCopy.ROW_OPERATING_SHORT
+    NameMetric.Shares -> ResearchCopy.ROW_SHARES_YOY_SHORT
+    else -> metricLabel(metric)
+}
+
 /** A formatted value; one of the three words when missing (never a dash). */
 internal fun formatMetric(metric: NameMetric, value: Double?, missing: Missing = Missing.NotDisclosed): String = when (metric) {
     NameMetric.Revenue, NameMetric.NetCash -> Fmt.money(value, missing = missing)
@@ -332,9 +344,11 @@ private fun filingLine(column: CompareNameColumn, fmt: Fmt, zone: ZoneId): Strin
 /**
  * The table (#30) for [columns] (already sorted): one column per ticker (ticker over its fiscal period, then the
  * filing line), one row per [NameMetric], and the peer median per row in the basis column ("Median"; with
- * tickers as columns, the median across them is one value per row).
+ * tickers as columns, the median across them is one value per row). [marked] is the row the columns are sorted
+ * by (or the row picked for the next sort): it sits on `surface2`, the kit's one row emphasis (a dedicated
+ * "sorted row" flag is requested from WP-K in HANDOFF-E), so the sort reads in the table, not only in its caption.
  */
-internal fun compareNamesTable(columns: List<CompareNameColumn>, fmt: Fmt, zone: ZoneId): CompareTableModel =
+internal fun compareNamesTable(columns: List<CompareNameColumn>, marked: NameMetric? = null): CompareTableModel =
     CompareTableModel(
         columns = columns.map { c ->
             CompareColumn(
@@ -347,9 +361,10 @@ internal fun compareNamesTable(columns: List<CompareNameColumn>, fmt: Fmt, zone:
         rows = NameMetric.entries.map { m ->
             val med = if (m == NameMetric.Discipline) null else median(columns.mapNotNull { metricValue(it, m) })
             CompareRow(
-                label = metricLabel(m),
+                label = metricShortLabel(m),
                 values = columns.map { cellText(it, m) },
                 delta = formatMetric(m, med, Missing.NotMeaningful),
+                median = m == marked,
             )
         },
         labelHeader = ResearchCopy.LATEST_FY,
@@ -357,9 +372,29 @@ internal fun compareNamesTable(columns: List<CompareNameColumn>, fmt: Fmt, zone:
         missingDelta = Fmt.NA,
     )
 
+/** A metric's label in "Copy as table", with the unit of its plain-number cells. */
+internal fun metricTsvLabel(metric: NameMetric): String = when (metric) {
+    NameMetric.Revenue -> ResearchCopy.withUnit(ResearchCopy.ROW_REVENUE, ResearchCopy.UNIT_USD_BN)
+    NameMetric.Growth -> ResearchCopy.withUnit(ResearchCopy.ROW_GROWTH, ResearchCopy.UNIT_PCT)
+    NameMetric.Gross -> ResearchCopy.withUnit(ResearchCopy.ROW_GROSS, ResearchCopy.UNIT_PCT)
+    NameMetric.Operating -> ResearchCopy.withUnit(ResearchCopy.ROW_OPERATING, ResearchCopy.UNIT_PCT)
+    NameMetric.Fcf -> ResearchCopy.withUnit(ResearchCopy.ROW_FCF, ResearchCopy.UNIT_PCT)
+    NameMetric.NetCash -> ResearchCopy.withUnit(ResearchCopy.ROW_NET_CASH, ResearchCopy.UNIT_USD_BN)
+    NameMetric.Shares -> ResearchCopy.withUnit(ResearchCopy.ROW_SHARES_CHANGE, ResearchCopy.UNIT_PCT)
+    NameMetric.Discipline -> ResearchCopy.withUnit(ResearchCopy.ROW_DISCIPLINE_SIGNALS, ResearchCopy.UNIT_PCT)
+}
+
+/** A metric's value as a plain number for a spreadsheet, in the unit of [metricTsvLabel]; empty when missing. */
+private fun metricRaw(metric: NameMetric, value: Double?): String = when (metric) {
+    NameMetric.Revenue, NameMetric.NetCash -> rawCell(value?.div(1e9), 2)
+    NameMetric.Discipline -> rawCell(value?.times(100.0), 1)
+    else -> rawCell(value, 1)
+}
+
 /**
- * "Copy as table" (5.26): tab-separated, pastes into Excel and Sheets as cells. Header lines: tickers, fiscal
- * periods, filings; then one line per metric with the peer median last.
+ * "Copy as table" (5.26): tab-separated plain numbers that Excel and Sheets read as numbers (ASCII minus, no
+ * grouping, the unit in each row label: "Revenue (USD bn)"). Header lines: tickers, fiscal periods, filings; then
+ * one line per metric with the peer median last. A missing value, or a name with no report, is an empty cell.
  */
 internal fun compareNamesTsv(columns: List<CompareNameColumn>, fmt: Fmt, zone: ZoneId): String {
     fun cell(s: String?) = s.orEmpty().replace('\t', ' ').replace('\n', ' ').trim()
@@ -367,8 +402,10 @@ internal fun compareNamesTsv(columns: List<CompareNameColumn>, fmt: Fmt, zone: Z
     lines += listOf(ResearchCopy.METRIC) + columns.map { it.ticker } + ResearchCopy.MEDIAN
     lines += listOf(ResearchCopy.PERIOD) + columns.map { columnPeriod(it) } + ""
     lines += listOf(ResearchCopy.FILING) + columns.map { cell(filingLine(it, fmt, zone)) } + ""
-    val table = compareNamesTable(columns, fmt, zone)
-    table.rows.forEach { r -> lines += listOf(r.label) + r.values + r.delta.orEmpty() }
+    NameMetric.entries.forEach { m ->
+        val med = if (m == NameMetric.Discipline) null else median(columns.mapNotNull { metricValue(it, m) })
+        lines += listOf(metricTsvLabel(m)) + columns.map { metricRaw(m, metricValue(it, m)) } + metricRaw(m, med)
+    }
     return lines.joinToString("\n") { line -> line.joinToString("\t") { cell(it) } }
 }
 
@@ -492,7 +529,8 @@ fun CompareNamesScreen(
     val scroll = rememberScrollState()
     val collapsed by rememberTopBarCollapsed(scroll)
     var sortMetric by rememberSaveable { mutableStateOf(initialSortMetric) }
-    var pickedRow by rememberSaveable { mutableStateOf(initialSortMetric ?: NameMetric.Revenue) }
+    // The row the next header tap sorts by: the last row whose figure was tapped (revenue until one is).
+    var pickedRow by rememberSaveable { mutableStateOf(initialSortMetric) }
     var showChart by rememberSaveable { mutableStateOf(initialShowChart) }
     var chartMode by rememberSaveable { mutableStateOf(initialChartMode) }
     var copied by remember { mutableStateOf(false) }
@@ -503,7 +541,10 @@ fun CompareNamesScreen(
     val others = tickers.drop(1)
     val base = remember(state, disciplines, fiscalYearEnds) { state?.let { compareNameColumns(it, disciplines, fiscalYearEnds) }.orEmpty() }
     val columns = remember(base, sortMetric) { sortColumns(base, sortMetric) }
-    val model = remember(columns, fmt, zone) { if (columns.isEmpty()) null else compareNamesTable(columns, fmt, zone) }
+    val marked = pickedRow ?: sortMetric
+    val model = remember(columns, marked) { if (columns.isEmpty()) null else compareNamesTable(columns, marked) }
+    // Copy as table only once there are figures to copy (not in the error state, where every cell is blank).
+    val canCopy = model != null && state?.isLoading == false && base.any { it.hasReport }
     val copy = {
         clipboard.setText(AnnotatedString(compareNamesTsv(columns, fmt, zone)))
         haptics.confirm()
@@ -518,8 +559,13 @@ fun CompareNamesScreen(
         padding = padding,
         collapsed = collapsed,
         actions = {
-            if (model != null && state?.isLoading == false) {
-                ThesisIconButton(ThesisIcons.Copy, contentDescription = ResearchCopy.COPY_TABLE, onClick = copy)
+            // The one Copy as table entry (5.26 overflow action); the icon turns to a check once it is copied.
+            if (canCopy) {
+                ThesisIconButton(
+                    if (copied) ThesisIcons.Check else ThesisIcons.Copy,
+                    contentDescription = if (copied) ResearchCopy.COPIED else ResearchCopy.COPY_TABLE,
+                    onClick = copy,
+                )
             }
         },
     ) { inner ->
@@ -531,17 +577,20 @@ fun CompareNamesScreen(
                 .padding(top = inner.calculateTopPadding() + ThesisSpace.headerTop, bottom = inner.calculateBottomPadding())
                 .padding(horizontal = ThesisSpace.gutter),
         ) {
-            ScreenHeader(
-                eyebrow = ResearchCopy.COMPARE_NAMES_EYEBROW,
-                title = (if (state?.isLoading == false) compareNamesHeadline(columns) else null)
-                    ?: ResearchCopy.compareNamesTitle(subject, others),
-                deck = if (base.any { it.hasReport } && base.filter { it.hasReport }.all { it.fyEnd != null }) {
-                    ResearchCopy.COMPARE_NAMES_DECK_YEAR_ENDS
-                } else {
-                    ResearchCopy.COMPARE_NAMES_DECK
-                },
-            )
-            Spacer(Modifier.height(ThesisSpace.headerToSection))
+            // Fewer than two names: the empty state says so, no header with an empty title.
+            if (tickers.size >= 2) {
+                ScreenHeader(
+                    eyebrow = ResearchCopy.COMPARE_NAMES_EYEBROW,
+                    title = (if (state?.isLoading == false) compareNamesHeadline(columns) else null)
+                        ?: ResearchCopy.compareNamesTitle(subject, others),
+                    deck = if (base.any { it.hasReport } && base.filter { it.hasReport }.all { it.fyEnd != null }) {
+                        ResearchCopy.COMPARE_NAMES_DECK_YEAR_ENDS
+                    } else {
+                        ResearchCopy.COMPARE_NAMES_DECK
+                    },
+                )
+                Spacer(Modifier.height(ThesisSpace.headerToSection))
+            }
             when {
                 state == null || tickers.size < 2 -> EmptyState(
                     sentence = ResearchCopy.COMPARE_NAMES_TOO_FEW,
@@ -561,7 +610,7 @@ fun CompareNamesScreen(
                         model = model,
                         columnNames = columns.map { it.ticker },
                         deltaName = ResearchCopy.THE_MEDIAN,
-                        onHeaderClick = { sortMetric = pickedRow },
+                        onHeaderClick = { sortMetric = pickedRow ?: NameMetric.Revenue },
                         onCellClick = { r, c ->
                             val metric = NameMetric.entries[r]
                             pickedRow = metric
@@ -572,7 +621,7 @@ fun CompareNamesScreen(
                     )
                     Spacer(Modifier.height(ThesisSpace.s))
                     Text(
-                        sortMetric?.let { ResearchCopy.sortedBy(metricLabel(it)) } ?: ResearchCopy.SORT_HINT,
+                        sortCaption(sortMetric, pickedRow),
                         style = ThesisType.caption,
                         color = p.muted,
                     )
@@ -586,11 +635,15 @@ fun CompareNamesScreen(
                             if (showChart) ResearchCopy.HIDE_CHART else ResearchCopy.SHOW_CHART,
                             onClick = { showChart = !showChart },
                         )
-                        TextAction(if (copied) ResearchCopy.COPIED else ResearchCopy.COPY_TABLE, onClick = copy)
+                    }
+                    // The chart sits with the table it charts; the "Build report" rows come after both.
+                    if (showChart) {
+                        Spacer(Modifier.height(ThesisSpace.m))
+                        RevenueChart(state, columns, chartMode, onMode = { chartMode = it })
                     }
                     val missing = columns.filter { !it.hasReport }
                     if (missing.isNotEmpty()) {
-                        Spacer(Modifier.height(ThesisSpace.m))
+                        Spacer(Modifier.height(if (showChart) ThesisSpace.sectionGapData else ThesisSpace.m))
                         RowGroup {
                             missing.forEach { c ->
                                 row(LeadingRowDividerInset) {
@@ -604,15 +657,19 @@ fun CompareNamesScreen(
                             }
                         }
                     }
-                    if (showChart) {
-                        Spacer(Modifier.height(ThesisSpace.sectionGapData))
-                        RevenueChart(state, columns, chartMode, onMode = { chartMode = it })
-                    }
                 }
             }
         }
     }
     source?.let { info -> SourceSheet(info = info, onDismissRequest = { source = null }) }
+}
+
+/** The caption under the table: the sort in force, and what the next header tap will do. */
+internal fun sortCaption(sorted: NameMetric?, picked: NameMetric?): String = when {
+    sorted != null && picked != null && picked != sorted -> ResearchCopy.sortedThenPicked(metricLabel(sorted), metricLabel(picked))
+    sorted != null -> ResearchCopy.sortedBy(metricLabel(sorted))
+    picked != null -> ResearchCopy.pickedRow(metricLabel(picked))
+    else -> ResearchCopy.SORT_HINT
 }
 
 /** "Show chart" (5.26): revenue indexed to the first common fiscal year, or side by side on a shared scale. */
