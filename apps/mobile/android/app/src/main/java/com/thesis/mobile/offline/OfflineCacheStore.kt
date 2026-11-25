@@ -2,8 +2,16 @@ package com.thesis.mobile.offline
 
 import android.content.Context
 import com.thesis.mobile.model.DeepDiveReportView
+import com.thesis.mobile.model.NoteTrailEntry
 import com.thesis.mobile.model.PulseReportView
+import com.thesis.mobile.model.ReportNoteView
+import com.thesis.mobile.model.ReportSummaryView
 import com.thesis.mobile.model.SentimentSnapshotView
+import com.thesis.mobile.model.SnapshotPoint
+import com.thesis.mobile.model.ThesisMonitorSnapshotView
+import com.thesis.mobile.model.latestFilingPeriod
+import com.thesis.mobile.model.toReportSummary
+import com.thesis.mobile.model.verdictSentence
 
 class OfflineCacheStore private constructor(
     private val dao: OfflineCacheDao
@@ -81,12 +89,127 @@ class OfflineCacheStore private constructor(
             .mapNotNull { row -> OfflineJsonCodec.decodeSentimentSnapshot(row.payload) }
     }
 
+    // ---- Notes trail (5.5): written through on every load and save of a report note.
+
+    /**
+     * Stores [note] for [reportId]. [report] (when it is the report the note belongs to) adds the ticker,
+     * filing period and verdict; without it, those are kept from the previous row ([ticker] fills the ticker
+     * when only a history row is known).
+     */
+    suspend fun cacheReportNote(
+        reportId: String,
+        note: ReportNoteView,
+        report: DeepDiveReportView? = null,
+        ticker: String? = null
+    ) {
+        val previous = dao.getReportNote(reportId)
+        val owner = report?.takeIf { it.reportId == reportId }
+        dao.upsertReportNote(
+            ReportNoteEntity(
+                reportId = reportId,
+                ticker = owner?.ticker?.trim()?.uppercase()?.ifBlank { null }
+                    ?: ticker?.trim()?.uppercase()?.ifBlank { null }
+                    ?: previous?.ticker,
+                text = note.content,
+                updatedAt = note.updatedAt.ifBlank { null } ?: previous?.updatedAt,
+                filingPeriod = owner?.latestFilingPeriod() ?: previous?.filingPeriod,
+                verdict = owner?.verdictSentence() ?: previous?.verdict,
+                cachedAtMs = System.currentTimeMillis()
+            )
+        )
+    }
+
+    suspend fun getCachedReportNote(reportId: String): NoteTrailEntry? = dao.getReportNote(reportId)?.toTrailEntry()
+
+    /** The ticker's notes, newest first, including empty ones (a report the user opened but did not annotate). */
+    suspend fun getNotesTrail(ticker: String): List<NoteTrailEntry> =
+        dao.getReportNotesForTicker(ticker.trim().uppercase()).map { it.toTrailEntry() }
+
+    /** Every non-empty note, newest first (Notes view, search, export). */
+    suspend fun getAllNotes(): List<NoteTrailEntry> = dao.getAllReportNotes().map { it.toTrailEntry() }
+
+    // ---- Monitor snapshot history (5.5): appended on each board refresh, kept 90 days.
+
+    suspend fun appendSnapshotHistory(
+        snapshots: List<ThesisMonitorSnapshotView>,
+        takenAtMs: Long = System.currentTimeMillis()
+    ) {
+        if (snapshots.isEmpty()) return
+        dao.insertSnapshotHistory(
+            snapshots.mapNotNull { snapshot ->
+                val ticker = snapshot.ticker.trim().uppercase().ifBlank { return@mapNotNull null }
+                MonitorSnapshotHistoryEntity(
+                    ticker = ticker,
+                    takenAtMs = takenAtMs,
+                    state = snapshot.state,
+                    score = snapshot.score,
+                    freshnessScore = snapshot.freshnessScore,
+                    reportId = snapshot.reportId
+                )
+            }
+        )
+        dao.pruneSnapshotHistory(takenAtMs - SNAPSHOT_HISTORY_MS)
+    }
+
+    suspend fun getSnapshotHistory(ticker: String, limit: Int = 90): List<SnapshotPoint> =
+        dao.getSnapshotHistory(ticker.trim().uppercase(), limit.coerceIn(1, 1_000)).map { it.toPoint() }
+
+    /** The latest reading of [ticker] taken at or before [atOrBeforeMs] (for "since your last visit"). */
+    suspend fun getSnapshotAtOrBefore(ticker: String, atOrBeforeMs: Long): SnapshotPoint? =
+        dao.getSnapshotAtOrBefore(ticker.trim().uppercase(), atOrBeforeMs)?.toPoint()
+
+    // ---- Report summaries (5.5): cached on every getDeepDiveReport.
+
+    suspend fun cacheReportSummary(report: DeepDiveReportView) {
+        val summary = report.toReportSummary()
+        dao.upsertReportSummary(
+            ReportSummaryEntity(
+                reportId = summary.reportId,
+                ticker = summary.ticker,
+                companyName = summary.companyName,
+                generatedAt = summary.generatedAt,
+                filingPeriod = summary.filingPeriod,
+                verdict = summary.verdict,
+                payload = OfflineJsonCodec.encodeReportSummary(summary),
+                cachedAtMs = System.currentTimeMillis()
+            )
+        )
+    }
+
+    suspend fun getReportSummary(reportId: String): ReportSummaryView? =
+        dao.getReportSummary(reportId)?.payload?.let(OfflineJsonCodec::decodeReportSummary)
+
+    suspend fun getReportSummariesForTicker(ticker: String): List<ReportSummaryView> =
+        dao.getReportSummariesForTicker(ticker.trim().uppercase())
+            .mapNotNull { OfflineJsonCodec.decodeReportSummary(it.payload) }
+
     suspend fun clearAll() {
         dao.clearPulse()
         dao.clearDeepDives()
         dao.clearSentimentCurrent()
         dao.clearSentimentHistory()
+        dao.clearReportNotes()
+        dao.clearSnapshotHistory()
+        dao.clearReportSummaries()
     }
+
+    private fun ReportNoteEntity.toTrailEntry() = NoteTrailEntry(
+        reportId = reportId,
+        ticker = ticker,
+        text = text,
+        updatedAt = updatedAt,
+        filingPeriod = filingPeriod,
+        verdict = verdict
+    )
+
+    private fun MonitorSnapshotHistoryEntity.toPoint() = SnapshotPoint(
+        ticker = ticker,
+        takenAtMs = takenAtMs,
+        state = state,
+        score = score,
+        freshnessScore = freshnessScore,
+        reportId = reportId
+    )
 
     private suspend fun pruneDeepDiveCache() {
         val overage = dao.countDeepDives() - MAX_DEEP_DIVE_ROWS
@@ -102,6 +225,7 @@ class OfflineCacheStore private constructor(
     companion object {
         private const val MAX_DEEP_DIVE_ROWS = 25
         private const val MAX_SENTIMENT_HISTORY_ROWS = 90
+        private const val SNAPSHOT_HISTORY_MS = OfflineCacheMigrations.SNAPSHOT_HISTORY_DAYS * 24 * 60 * 60 * 1000L
 
         @Volatile
         private var INSTANCE: OfflineCacheStore? = null

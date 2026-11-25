@@ -1,6 +1,5 @@
 package com.thesis.mobile.ui.screens
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -52,7 +51,6 @@ fun PasswordResetScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(ThesisColors.Background)
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 24.dp, vertical = 64.dp),
         verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingMd)

@@ -49,7 +49,6 @@ fun WarRoomScreen(
         modifier = Modifier
             .fillMaxSize()
             .padding(padding)
-            .background(ThesisColors.Background)
     ) {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),

@@ -5,19 +5,23 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AccountCircle
-import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.thesis.mobile.model.AlertLedgerItemView
 import com.thesis.mobile.ui.theme.ThesisColors
@@ -27,14 +31,13 @@ import java.time.LocalDate
 import java.time.OffsetDateTime
 
 /**
- * Top bar shared by the three tabs. Inbox is the bell, You is the profile icon.
- * No unread badge: the alert ledger has no read state yet.
+ * Root top bar of the four tabs (DESIGN-DIRECTION 5.5): brand on the left, Search and the You avatar on the
+ * right. The bell is gone (Inbox is a tab). The avatar has no selected tint (accent is the brand's, 2.8); the
+ * kit's initials avatar replaces the glyph in PR-2.
  */
 @Composable
 fun ThesisTopBar(
-    inboxSelected: Boolean,
-    profileSelected: Boolean,
-    onOpenInbox: () -> Unit,
+    onOpenSearch: () -> Unit,
     onOpenProfile: () -> Unit
 ) {
     Row(
@@ -42,49 +45,66 @@ fun ThesisTopBar(
             .fillMaxWidth()
             .background(ThesisColors.Background)
             .statusBarsPadding()
-            .height(48.dp)
-            .padding(horizontal = ThesisDimens.SpacingSm),
-        horizontalArrangement = Arrangement.End,
+            .heightIn(min = 56.dp)
+            .padding(start = ThesisDimens.ScreenPaddingHorizontal, end = ThesisDimens.SpacingSm),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        IconButton(onClick = onOpenInbox) {
+        // Brand as the accent eyebrow (component #3). labelSmall is the M3 slot F1 remaps to `eyebrow` (2.3).
+        Text(
+            text = "THESIS",
+            style = ThesisTypography.labelSmall,
+            color = ThesisColors.Primary,
+            modifier = Modifier
+                .weight(1f)
+                .semantics { heading() }
+        )
+        IconButton(onClick = onOpenSearch) {
             Icon(
-                imageVector = Icons.Filled.Notifications,
-                contentDescription = "Inbox",
-                tint = if (inboxSelected) ThesisColors.Primary else ThesisColors.TextMuted
+                imageVector = Icons.Filled.Search,
+                contentDescription = "Search",
+                tint = ThesisColors.TextSecondary
             )
         }
         IconButton(onClick = onOpenProfile) {
             Icon(
                 imageVector = Icons.Filled.AccountCircle,
                 contentDescription = "You",
-                tint = if (profileSelected) ThesisColors.Primary else ThesisColors.TextMuted
+                tint = ThesisColors.TextSecondary
             )
         }
     }
 }
 
-/** Back row for screens that are opened from a Deep Dive or a name, not from a tab. */
+/** Top bar of a pushed screen that has no header of its own: back arrow and title (none when [title] is blank). */
 @Composable
-fun SubScreenBackRow(title: String, onBack: () -> Unit) {
+fun ThesisBackTopBar(title: String, onBack: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = ThesisDimens.SpacingSm),
+            .background(ThesisColors.Background)
+            .statusBarsPadding()
+            .heightIn(min = 56.dp)
+            .padding(horizontal = ThesisDimens.SpacingXs),
         verticalAlignment = Alignment.CenterVertically
     ) {
         IconButton(onClick = onBack) {
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                 contentDescription = "Back",
-                tint = ThesisColors.Primary
+                tint = ThesisColors.TextPrimary
             )
         }
-        Text(
-            text = title,
-            style = ThesisTypography.labelLarge.copy(fontWeight = FontWeight.Medium),
-            color = ThesisColors.TextPrimary
-        )
+        // No title (the screen carries its own headline): no Text at all, so TalkBack meets no empty heading.
+        if (title.isNotBlank()) {
+            Text(
+                text = title,
+                style = ThesisTypography.titleMedium.copy(fontWeight = FontWeight.Medium),
+                color = ThesisColors.TextPrimary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, fill = false).semantics { heading() }
+            )
+        }
     }
 }
 

@@ -130,7 +130,6 @@ fun MacroStressDashboardScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(ThesisColors.Background)
     ) {
         Box(
             modifier = Modifier

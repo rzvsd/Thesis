@@ -16,6 +16,7 @@ import com.thesis.mobile.model.NotificationPreferenceView
 import com.thesis.mobile.model.BriefingContextView
 import com.thesis.mobile.model.OppositeCasePointView
 import com.thesis.mobile.model.OppositeCaseReportView
+import com.thesis.mobile.model.MarketTapeParser
 import com.thesis.mobile.model.PulseReportView
 import com.thesis.mobile.model.RegisterResult
 import com.thesis.mobile.model.ReportNoteView
@@ -833,7 +834,8 @@ class ProductApiClient {
             reportId = json.optString("report_id"),
             generatedAt = json.optString("generated_at"),
             cycleEnd = json.optNullableString("cycle_end"),
-            sections = sections
+            sections = sections,
+            tape = MarketTapeParser.parse(json.optJSONObject("market_tape"))
         )
     }
 

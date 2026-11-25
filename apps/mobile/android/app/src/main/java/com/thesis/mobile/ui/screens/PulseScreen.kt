@@ -91,7 +91,6 @@ fun PulseScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(ThesisColors.Background)
             .pullRefresh(pullRefreshState)
     ) {
         LazyColumn(

@@ -116,7 +116,6 @@ fun OnboardingScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(ThesisColors.Background)
     ) {
         HorizontalPager(
             state = pagerState,
