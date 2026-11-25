@@ -68,7 +68,10 @@ fun ColumnChart(
 ) {
     val clean = remember(series) { series.map { it.values.sanitized() } }
     val count = max(xLabels.size, clean.maxOfOrNull { it.size } ?: 0)
-    val extra = with(LocalDensity.current) { (ThesisType.tick.lineHeight.toDp() - ThesisType.tick.lineHeight.value.dp).coerceAtLeast(0.dp) }
+    // Fixed plot height (section 3), plus what the user's font size adds to the x label line and, with
+    // [labelLast], to the value label above the columns, so large text does not squeeze the plot.
+    val growth = with(LocalDensity.current) { (ThesisType.tick.lineHeight.toDp() - ThesisType.tick.lineHeight.value.dp).coerceAtLeast(0.dp) }
+    val extra = if (labelLast) growth * 2 else growth
     if (clean.all { s -> s.all { it == null } } || count == 0) {
         ChartEmpty(emptyText, modifier, minHeight = height)
         return
@@ -175,7 +178,7 @@ fun ColumnChart(
                     tickLayouts.forEachIndexed { t, (v, layout) ->
                         val y = yOf(v)
                         drawLine(p.grid, Offset(plot.left, y), Offset(plot.right, y), gridW)
-                        if (showYLabels && t in labelledTicks) drawText(layout, topLeft = Offset(plot.left - tickGap - layout.size.width, y - layout.size.height / 2f))
+                        if (showYLabels && t in labelledTicks) drawText(layout, topLeft = Offset(plot.left - tickGap - layout.size.width, tickLabelTop(y, layout.size.height.toFloat(), plot.bottom)))
                     }
                     // Columns: 4 dp rounded data end only.
                     for (s in 0 until k) {

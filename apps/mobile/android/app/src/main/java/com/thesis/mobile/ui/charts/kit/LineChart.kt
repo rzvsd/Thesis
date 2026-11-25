@@ -393,7 +393,7 @@ fun LineChart(
                             if (y < plot.top - 0.5f || y > plot.bottom + 0.5f) return@forEachIndexed
                             drawLine(p.grid.copy(alpha = p.grid.alpha * alpha), Offset(plot.left, y), Offset(plot.right, y), gridW)
                             if (i in labelled) {
-                                drawText(layout, topLeft = Offset(plot.left - tickGap - layout.size.width, y - layout.size.height / 2f), alpha = alpha)
+                                drawText(layout, topLeft = Offset(plot.left - tickGap - layout.size.width, tickLabelTop(y, layout.size.height.toFloat(), plot.bottom)), alpha = alpha)
                             }
                         }
                     }

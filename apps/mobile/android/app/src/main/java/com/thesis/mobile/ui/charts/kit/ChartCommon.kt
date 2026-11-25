@@ -99,6 +99,12 @@ internal fun DrawScope.drawHaloText(
     drawText(layout, color = color, topLeft = topLeft, alpha = alpha)
 }
 
+/**
+ * Top of a y tick label centred on its grid line at [y], lifted so it never hangs more than a quarter of its
+ * height below the plot's [bottom] (where it would meet the x labels at large font scales).
+ */
+internal fun tickLabelTop(y: Float, height: Float, bottom: Float): Float = minOf(y - height / 2f, bottom - height * 0.75f)
+
 /** Measures one line of chart text (no wrapping). */
 internal fun TextMeasurer.line(text: String, style: TextStyle): TextLayoutResult =
     measure(text, style, softWrap = false, maxLines = 1)
