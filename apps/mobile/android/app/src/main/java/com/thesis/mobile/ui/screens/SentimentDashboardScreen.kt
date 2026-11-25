@@ -1,8 +1,6 @@
 package com.thesis.mobile.ui.screens
 
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,65 +11,429 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.ExperimentalMaterialApi
-import androidx.compose.material.pullrefresh.PullRefreshIndicator
-import androidx.compose.material.pullrefresh.pullRefresh
-import androidx.compose.material.pullrefresh.rememberPullRefreshState
-import androidx.compose.material3.AssistChip
-import androidx.compose.material3.AssistChipDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Icon
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.runtime.ReadOnlyComposable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
-import com.patrykandpatrick.vico.compose.axis.horizontal.rememberBottomAxis
-import com.patrykandpatrick.vico.compose.axis.vertical.rememberStartAxis
-import com.patrykandpatrick.vico.compose.chart.Chart
-import com.patrykandpatrick.vico.compose.chart.line.lineChart
-import com.patrykandpatrick.vico.compose.chart.scroll.rememberChartScrollSpec
-import com.patrykandpatrick.vico.core.entry.ChartEntryModelProducer
-import com.patrykandpatrick.vico.core.entry.entryOf
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.AnnotatedString
 import com.thesis.mobile.model.SentimentSnapshotView
 import com.thesis.mobile.model.SentimentSubScoreView
-import com.thesis.mobile.ui.copy.Phase4Copy
+import com.thesis.mobile.ui.charts.kit.ChartCard
+import com.thesis.mobile.ui.charts.kit.ChartHeights
+import com.thesis.mobile.ui.charts.kit.ChartMath
+import com.thesis.mobile.ui.charts.kit.ChartSeries
+import com.thesis.mobile.ui.charts.kit.LineChart
+import com.thesis.mobile.ui.charts.kit.LineChartData
+import com.thesis.mobile.ui.charts.kit.LineChartReadout
+import com.thesis.mobile.ui.charts.kit.ScaleBar
+import com.thesis.mobile.ui.charts.kit.macroStressBands
+import com.thesis.mobile.ui.charts.kit.macroStressSegments
+import com.thesis.mobile.ui.charts.kit.rememberLineChartState
+import com.thesis.mobile.ui.components.ActionRow
+import com.thesis.mobile.ui.components.BannerTone
+import com.thesis.mobile.ui.components.Callout
+import com.thesis.mobile.ui.components.CardVariant
+import com.thesis.mobile.ui.components.CompareColumn
+import com.thesis.mobile.ui.components.CompareRow
+import com.thesis.mobile.ui.components.CompareTableModel
+import com.thesis.mobile.ui.components.EmptyState
+import com.thesis.mobile.ui.components.ErrorState
+import com.thesis.mobile.ui.components.Eyebrow
+import com.thesis.mobile.ui.components.InlineBanner
+import com.thesis.mobile.ui.components.Loadable
+import com.thesis.mobile.ui.components.Meter
+import com.thesis.mobile.ui.components.RowGroup
+import com.thesis.mobile.ui.components.SectionHeader
+import com.thesis.mobile.ui.components.SegmentedControl
+import com.thesis.mobile.ui.components.SkeletonBlock
+import com.thesis.mobile.ui.components.SkeletonChart
+import com.thesis.mobile.ui.components.SkeletonText
+import com.thesis.mobile.ui.components.SourceInfo
+import com.thesis.mobile.ui.components.SourceSheet
+import com.thesis.mobile.ui.components.StateCrossfade
+import com.thesis.mobile.ui.components.StatusBadge
+import com.thesis.mobile.ui.components.TextAction
+import com.thesis.mobile.ui.components.ThesisCard
+import com.thesis.mobile.ui.components.ThesisIconButton
+import com.thesis.mobile.ui.components.ThesisRefreshBox
+import com.thesis.mobile.ui.components.ThesisTopBar
+import com.thesis.mobile.ui.components.ledeText
+import com.thesis.mobile.ui.components.rememberTopBarCollapsed
+import com.thesis.mobile.ui.copy.KitCopy
+import com.thesis.mobile.ui.copy.MacroStressCopy
 import com.thesis.mobile.ui.format.Fmt
-import com.thesis.mobile.ui.theme.HeadingFont
-import com.thesis.mobile.ui.theme.ThesisColors
-import com.thesis.mobile.ui.theme.ThesisDimens
-import com.thesis.mobile.ui.theme.ThesisTypography
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
-import java.util.Locale
+import com.thesis.mobile.ui.format.LocalFmt
+import com.thesis.mobile.ui.icons.ThesisIcons
+import com.thesis.mobile.ui.motion.RollingNumber
+import com.thesis.mobile.ui.motion.ShimmerHost
+import com.thesis.mobile.ui.motion.ThesisMotion
+import com.thesis.mobile.ui.motion.rememberHaptics
+import com.thesis.mobile.ui.motion.rememberShowSkeleton
+import com.thesis.mobile.ui.theme.LocalReducedMotion
+import com.thesis.mobile.ui.theme.LocalThesisPalette
+import com.thesis.mobile.ui.theme.ThesisSpace
+import com.thesis.mobile.ui.theme.ThesisType
+import com.thesis.mobile.ui.theme.Tone
+import com.thesis.mobile.ui.theme.macroStressDeltaTone
+import com.thesis.mobile.ui.theme.macroStressLabel
+import com.thesis.mobile.ui.theme.macroStressTone
+import com.thesis.mobile.ui.theme.textColor
+import com.thesis.mobile.ui.theme.tnum
+import java.time.LocalDate
+import java.time.temporal.ChronoUnit
+import kotlin.math.abs
 
-private val macroStressRangeOptions = listOf(7, 14, 30, 90)
+/*
+ * Macro Stress (docs/app-redesign/DESIGN-DIRECTION.md 5.9). File name kept; the composable is MacroStressScreen.
+ *
+ * 1. Own top bar: back, "Macro Stress" (the shell draws no bar on this destination).
+ * 2. Header: eyebrow with the reading date, the sentence first ("Stress is Balanced and rose 6 points this week"),
+ *    then the score (final on first paint, RollingNumber on refresh) with an info target opening the SourceSheet,
+ *    the regime badge, the change against a week ago (rising stress is Unfavourable) and the 0 to 100 ScaleBar.
+ * 3. Range: SegmentedControl 7D · 14D · 30D · 90D.
+ * 4. Trend: the kit LineChart, featured height, y pinned 0 to 100, regime bands, dates on the x axis, scrub
+ *    rewriting the card's readout, morph on a range change, draw-on once per reading date; "Show table" opens the
+ *    readings (date, score, change) and they copy out as tab-separated text.
+ * 5. What drives it: a generated headline, one row per official input (meter 0 to 100, change since the previous
+ *    reading), the source caption, and the missing inputs as a "Not seen yet" card with their reasons.
+ * 6. How to read this: a collapsible explanation of the scale and the regimes.
+ *
+ * Hero motion: the chart draw-on, then scrub. Refresh: ThesisRefreshBox bound to the ViewModel's isMacroRefreshing.
+ */
 
-private fun normalizeMacroStressRange(days: Int): Int =
-    if (macroStressRangeOptions.contains(days)) days else 30
+/** The range segments in days (5.9: default 30). */
+internal val MacroStressRanges: List<Int> = listOf(7, 14, 30, 90)
 
-@OptIn(ExperimentalMaterialApi::class)
+private const val DEFAULT_RANGE = 30
+private const val WEEK_DAYS = 7L
+
+/** A reading counts as "a week ago" when it is 7 to 9 days old (weekends and holidays have no reading). */
+private const val WEEK_DAYS_MAX = 9L
+
+/** Pressure levels of the server's macro model (inputs are rated 25 / 55 / 85). */
+private const val PRESSURE_HIGH_FROM = 75.0
+private const val PRESSURE_MEDIUM_FROM = 45.0
+
+/** Scores closer than this read as unchanged ("held steady"), matching macroStressDeltaTone's Neutral. */
+private const val FLAT = 0.5
+
+private const val SCORE_MAX = 100.0
+
+/** One day's macro stress reading. */
+@Immutable
+internal data class MacroReading(val date: LocalDate, val score: Double, val snapshot: SentimentSnapshotView)
+
+/** One official input of the score ("What drives it"). */
+@Immutable
+internal data class MacroFactor(
+    val key: String,
+    val label: String,
+    val score: Double,
+    val scoreText: String,
+    val sub: String?,
+    val change: Double?,
+    val changeText: String?,
+    val changeTone: Tone,
+    val spoken: String,
+)
+
+/** An input the reading does not have, and why. */
+@Immutable
+internal data class MacroMissing(val label: String, val reason: String)
+
+/** Everything the screen shows, built from the ViewModel's snapshots (pure; see MacroStressModelTest). */
+@Immutable
+internal data class MacroStressModel(
+    val asOf: LocalDate?,
+    val asOfText: String?,
+    val score: Double,
+    val label: String,
+    val tone: Tone,
+    val leadClause: String,
+    val changeClause: String?,
+    /** The change against [deltaReference]'s reading, or null with no earlier reading. */
+    val delta: Double?,
+    val deltaText: String?,
+    val deltaReference: String?,
+    val deltaTone: Tone,
+    val rangeDays: Int,
+    val chart: LineChartData,
+    val chartTitle: String,
+    val chartSummary: String,
+    val table: CompareTableModel?,
+    val factors: List<MacroFactor>,
+    val factorHeadline: String,
+    val factorDeck: String?,
+    val sources: List<String>,
+    val missing: List<MacroMissing>,
+    val sheetInputs: List<Pair<String, String>>,
+)
+
+internal object MacroStressModels {
+
+    /** The range the screen shows: [days] when it is one of the segments, else 30. */
+    fun normalizeRange(days: Int): Int = if (days in MacroStressRanges) days else DEFAULT_RANGE
+
+    /** "2025-11-24" (or a longer ISO date-time) as a date; null when unreadable. */
+    fun parseDate(raw: String?): LocalDate? =
+        raw?.trim()?.take(ISO_DATE_LENGTH)?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
+
+    /** Readings oldest first, one per date (the later calculation wins), [current] included. */
+    fun readings(current: SentimentSnapshotView?, history: List<SentimentSnapshotView>): List<MacroReading> {
+        val byDate = linkedMapOf<LocalDate, MacroReading>()
+        (history + listOfNotNull(current))
+            .mapNotNull { s -> parseDate(s.marketDate)?.takeIf { s.score.isFinite() }?.let { MacroReading(it, s.score, s) } }
+            .sortedWith(compareBy<MacroReading>({ it.date }, { it.snapshot.calculatedAt }))
+            .forEach { byDate[it.date] = it }
+        return byDate.values.sortedBy { it.date }
+    }
+
+    /**
+     * The reading to compare the latest with: the newest one 7 to 9 days older ("this week"); failing that the
+     * previous reading. The flag says whether it is the week basis.
+     */
+    fun comparison(readings: List<MacroReading>): Pair<MacroReading, Boolean>? {
+        val latest = readings.lastOrNull() ?: return null
+        val earlier = readings.dropLast(1)
+        val week = earlier.lastOrNull { ChronoUnit.DAYS.between(it.date, latest.date) >= WEEK_DAYS }
+            ?.takeIf { ChronoUnit.DAYS.between(it.date, latest.date) <= WEEK_DAYS_MAX }
+        return week?.let { it to true } ?: earlier.lastOrNull()?.let { it to false }
+    }
+
+    fun build(
+        current: SentimentSnapshotView?,
+        history: List<SentimentSnapshotView>,
+        rangeDays: Int,
+        fmt: Fmt,
+    ): MacroStressModel? {
+        val all = readings(current, history)
+        val latest = all.lastOrNull() ?: return null
+        val days = normalizeRange(rangeDays)
+        val score = latest.score.coerceIn(0.0, SCORE_MAX)
+        val label = macroStressLabel(score)
+
+        // Header: the change against a week ago (or the previous reading), rising stress Unfavourable.
+        val comparison = comparison(all)
+        val delta = comparison?.let { latest.score - it.first.score }
+        val basisDate = comparison?.first?.date?.let(fmt::marketDate)
+        val weekly = comparison?.second == true && comparison.first.date == latest.date.minusDays(WEEK_DAYS)
+        val changeClause = when {
+            delta == null || basisDate == null -> null
+            comparison.second -> MacroStressCopy.changeClause(delta, MacroStressCopy.THIS_WEEK)
+            else -> MacroStressCopy.changeClause(delta, MacroStressCopy.since(basisDate))
+        }
+        val deltaReference = when {
+            basisDate == null -> null
+            weekly -> MacroStressCopy.VS_WEEK_AGO
+            else -> MacroStressCopy.versus(basisDate)
+        }
+
+        // Trend: the last [days] calendar days up to the latest reading.
+        val window = all.filter { ChronoUnit.DAYS.between(it.date, latest.date) < days }
+        val chart = LineChartData(
+            series = listOf(ChartSeries(MacroStressCopy.SERIES, window.map { it.score }, subject = true)),
+            xLabels = window.map { fmt.shortDate(it.date) },
+            dates = window.map { it.date },
+        )
+        val first = window.first().score
+        val chartTitle = if (window.size < 2) {
+            MacroStressCopy.chartTitleOne(latest.score)
+        } else {
+            MacroStressCopy.chartTitle(first, latest.score, days)
+        }
+        val chartSummary = ChartMath.summary(
+            MacroStressCopy.SERIES,
+            window.map { it.score },
+            { Fmt.score(it) },
+            MacroStressCopy.rangeSpoken(days),
+            label,
+        )
+
+        // Factors: change since the previous reading that carries inputs.
+        val previous = all.dropLast(1).lastOrNull { it.snapshot.subScores.isNotEmpty() }
+        val previousDate = previous?.date?.let(fmt::marketDate)
+        val prevScores = previous?.snapshot?.subScores.orEmpty()
+            .filter { it.available }
+            .associate { it.inputName.trim().uppercase() to it.normalizedScore }
+        val inputs = latest.snapshot.subScores
+        val factors = inputs.filter { it.available && it.normalizedScore?.isFinite() == true }.map { s ->
+            factor(s, prevScores[s.inputName.trim().uppercase()], previousDate, fmt)
+        }
+        val missing = missing(latest.snapshot)
+        val scoreDelta = previous?.let { latest.score - it.score }
+
+        return MacroStressModel(
+            asOf = latest.date,
+            asOfText = fmt.marketDate(latest.date),
+            score = score,
+            label = label,
+            tone = macroStressTone(score),
+            leadClause = MacroStressCopy.leadClause(label),
+            changeClause = changeClause,
+            delta = delta,
+            deltaText = delta?.let { Fmt.pts(it) },
+            deltaReference = deltaReference,
+            deltaTone = delta?.let(::macroStressDeltaTone) ?: Tone.Neutral,
+            rangeDays = days,
+            chart = chart,
+            chartTitle = chartTitle,
+            chartSummary = chartSummary,
+            table = table(window, fmt),
+            factors = factors,
+            factorHeadline = factorHeadline(factors, scoreDelta),
+            factorDeck = if (factors.any { it.change != null } && previousDate != null) MacroStressCopy.changeSince(previousDate) else null,
+            sources = inputs.mapNotNull { MacroStressCopy.sourceName(it.inputName, it.provider) }.distinct(),
+            missing = missing,
+            sheetInputs = factors.map { it.label to listOfNotNull(it.scoreText, pressureWord(it.score)).joinToString(", ") },
+        )
+    }
+
+    /** "high pressure" / "medium pressure" / "low pressure" for an input's 0 to 100 rating. */
+    fun pressureWord(score: Double?): String? = when {
+        score == null || !score.isFinite() -> null
+        score >= PRESSURE_HIGH_FROM -> MacroStressCopy.PRESSURE_HIGH
+        score >= PRESSURE_MEDIUM_FROM -> MacroStressCopy.PRESSURE_MEDIUM
+        score > 0.0 -> MacroStressCopy.PRESSURE_LOW
+        else -> null
+    }
+
+    /**
+     * The headline over the inputs, a sentence about the result: the input that moved most in the direction of the
+     * score's change since the previous reading; with no change, the input that carries the most pressure.
+     */
+    fun factorHeadline(factors: List<MacroFactor>, scoreDelta: Double?): String {
+        if (factors.isEmpty()) return MacroStressCopy.NO_FACTORS
+        if (scoreDelta != null && scoreDelta >= FLAT) {
+            factors.filter { (it.change ?: 0.0) > 0.0 }.maxByOrNull { it.change!! }
+                ?.let { return MacroStressCopy.didMostOfTheRise(it.label) }
+        }
+        if (scoreDelta != null && scoreDelta <= -FLAT) {
+            factors.filter { (it.change ?: 0.0) < 0.0 }.minByOrNull { it.change!! }
+                ?.let { return MacroStressCopy.didMostOfTheFall(it.label) }
+        }
+        val top = factors.maxOf { it.score }
+        val leaders = factors.filter { abs(it.score - top) < FLAT }
+        // Every input at the same level: no single input leads. Otherwise the first of the leaders (server order).
+        return if (factors.size > 1 && leaders.size == factors.size) {
+            MacroStressCopy.EVEN_PRESSURE
+        } else {
+            MacroStressCopy.carriesMost(leaders.first().label)
+        }
+    }
+
+    private fun factor(s: SentimentSubScoreView, previous: Double?, previousDate: String?, fmt: Fmt): MacroFactor {
+        val score = s.normalizedScore!!.coerceIn(0.0, SCORE_MAX)
+        val label = MacroStressCopy.inputLabel(s.inputName)
+        val change = previous?.takeIf { it.isFinite() }?.let { score - it }
+        val changeText = change?.let { c -> previousDate?.let { "${Fmt.pts(c)} ${MacroStressCopy.since(it)}" } ?: Fmt.pts(c) }
+        val reading = reading(s, fmt)
+        val pressure = pressureWord(score)
+        val sub = listOfNotNull(reading, pressure).joinToString(" · ").ifEmpty { null }
+        return MacroFactor(
+            key = s.inputName.trim().uppercase(),
+            label = label,
+            score = score,
+            scoreText = Fmt.score(score),
+            sub = sub,
+            change = change,
+            changeText = changeText,
+            changeTone = change?.let(::macroStressDeltaTone) ?: Tone.Neutral,
+            spoken = MacroStressCopy.factorSpoken(label, Fmt.score(score), pressure, changeText),
+        )
+    }
+
+    /** The input's own reading with its period: "4.40%, 21 Nov", "index 315.6, Oct 2025", "$71.20". */
+    fun reading(s: SentimentSubScoreView, fmt: Fmt): String? {
+        val raw = s.rawValue?.takeIf { it.isFinite() } ?: return null
+        val id = s.inputName.trim().uppercase()
+        val value = when {
+            id.startsWith("TREASURY") -> Fmt.pct(raw, dp = 2)
+            id.startsWith("BLS_CPI") -> "index ${Fmt.number(raw, 1)}"
+            id.startsWith("BLS_UNEMPLOYMENT") || id.startsWith("BEA_") -> Fmt.pct(raw, dp = 1)
+            id.startsWith("EIA") -> Fmt.money(raw)
+            else -> Fmt.number(raw, 2)
+        }
+        val period = period(s.notes, fmt)
+        return if (period == null) value else "$value, $period"
+    }
+
+    private val PeriodInReason = Regex("\\(([^()]+)\\)\\.?\\s*$")
+    private val YearMonth = Regex("^(\\d{4})-(\\d{2})$")
+    private val YearQuarter = Regex("^(\\d{4})-?Q([1-4])$", RegexOption.IGNORE_CASE)
+
+    /** The period at the end of the server's reason ("... (2025-10)."), as words; never a raw ISO date. */
+    fun period(notes: String?, fmt: Fmt): String? {
+        val raw = notes?.let { PeriodInReason.find(it)?.groupValues?.get(1)?.trim() } ?: return null
+        parseDate(raw)?.takeIf { raw.length >= ISO_DATE_LENGTH }?.let { return fmt.shortDate(it) }
+        YearMonth.find(raw)?.let { m ->
+            val month = m.groupValues[2].toInt()
+            if (month in 1..12) {
+                return java.time.YearMonth.of(m.groupValues[1].toInt(), month)
+                    .format(java.time.format.DateTimeFormatter.ofPattern("MMM yyyy", java.util.Locale.US))
+            }
+        }
+        YearQuarter.find(raw)?.let { m -> return "Q${m.groupValues[2]} ${m.groupValues[1]}" }
+        return null
+    }
+
+    /** Missing inputs ("BEA_REAL_GDP:stale_period") and unavailable sub-scores, each once, with the reason. */
+    fun missing(snapshot: SentimentSnapshotView): List<MacroMissing> {
+        val listed = snapshot.missingInputs.mapNotNull { entry ->
+            val id = entry.substringBefore(':').trim().ifBlank { null } ?: return@mapNotNull null
+            val code = entry.substringAfter(':', "").ifBlank { null }
+            id.uppercase() to MacroStressCopy.missingReason(code)
+        }
+        val unavailable = snapshot.subScores.filter { !it.available || it.normalizedScore?.isFinite() != true }
+            .map { it.inputName.trim().uppercase() to MacroStressCopy.missingReason(null) }
+        return (listed + unavailable)
+            .distinctBy { it.first }
+            .map { (id, reason) -> MacroMissing(MacroStressCopy.inputLabel(id), reason) }
+    }
+
+    /** "Show table": the readings in the window, newest first, with the change from the reading before. */
+    fun table(window: List<MacroReading>, fmt: Fmt): CompareTableModel? {
+        if (window.isEmpty()) return null
+        val rows = window.indices.reversed().map { i ->
+            val r = window[i]
+            val change = window.getOrNull(i - 1)?.let { r.score - it.score }
+            CompareRow(
+                label = fmt.marketDate(r.date),
+                values = listOf(Fmt.score(r.score)),
+                delta = change?.let { Fmt.number(it, 0).let { n -> if (it >= FLAT) "+$n" else n } },
+                deltaTone = change?.let(::macroStressDeltaTone) ?: Tone.Neutral,
+            )
+        }
+        return CompareTableModel(
+            columns = listOf(CompareColumn(MacroStressCopy.TABLE_SCORE, subject = true)),
+            rows = rows,
+            labelHeader = MacroStressCopy.TABLE_DATE,
+            deltaHeader = MacroStressCopy.TABLE_CHANGE,
+        )
+    }
+
+    private const val ISO_DATE_LENGTH = 10
+}
+
+/**
+ * The previous entry point, kept so `ThesisApp.kt` compiles until WP-INT calls [MacroStressScreen] from the shell
+ * (HANDOFF-F). Same behaviour: no refresh state.
+ */
 @Composable
 fun MacroStressDashboardScreen(
     current: SentimentSnapshotView?,
@@ -80,589 +442,376 @@ fun MacroStressDashboardScreen(
     sentimentError: String?,
     onSelectRange: (Int) -> Unit,
     onBack: () -> Unit,
-    onRefresh: (() -> Unit)? = null
-) {
-    val activeRangeDays = remember(selectedRangeDays) { normalizeMacroStressRange(selectedRangeDays) }
-    val chartRows = remember(history) { history.sortedBy { it.marketDate } }
-    val recentRows = remember(chartRows) { chartRows.sortedByDescending { it.marketDate }.take(10) }
-    val trailingWindow = remember(chartRows) { chartRows.takeLast(7) }
-    val trailingAverage = remember(trailingWindow) {
-        if (trailingWindow.isEmpty()) null else trailingWindow.map { it.score }.average()
-    }
-    val selectedRangeDelta = remember(chartRows) {
-        val first = chartRows.firstOrNull()?.score
-        val last = chartRows.lastOrNull()?.score
-        if (first == null || last == null || chartRows.size < 2) {
-            null
-        } else {
-            last - first
-        }
-    }
-    val transitionMarkers = remember(chartRows) {
-        chartRows.zipWithNext()
-            .filter { it.first.label != it.second.label }
-            .map { (previous, next) ->
-                "${next.marketDate}: ${formatDashboardLabel(previous.label)} -> ${formatDashboardLabel(next.label)}"
-            }
-            .takeLast(3)
-    }
-    val modelProducer = remember { ChartEntryModelProducer() }
-    var isRefreshing by remember { mutableStateOf(false) }
-    val scope = rememberCoroutineScope()
-    val pullRefreshState = rememberPullRefreshState(
-        refreshing = isRefreshing,
-        onRefresh = {
-            isRefreshing = true
-            onRefresh?.invoke() ?: onSelectRange(activeRangeDays)
-            scope.launch {
-                delay(1800L)
-                isRefreshing = false
-            }
-        }
-    )
+    onRefresh: (() -> Unit)? = null,
+) = MacroStressScreen(
+    current = current,
+    history = history,
+    selectedRangeDays = selectedRangeDays,
+    sentimentError = sentimentError,
+    onSelectRange = onSelectRange,
+    onBack = onBack,
+    onRefresh = onRefresh,
+)
 
-    LaunchedEffect(chartRows) {
-        val entries = chartRows.mapIndexed { index, row ->
-            entryOf(index.toFloat(), row.score.toFloat())
-        }
-        modelProducer.setEntries(entries)
-    }
-
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .pullRefresh(pullRefreshState)
-        ) {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(
-                    start = ThesisDimens.ScreenPaddingHorizontal,
-                    end = ThesisDimens.ScreenPaddingHorizontal,
-                    top = 56.dp + ThesisDimens.ScreenPaddingTop,
-                    bottom = ThesisDimens.ScreenPaddingBottom
-                ),
-                verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingLg)
-            ) {
-                item {
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Text(
-                            text = if (current == null) "--" else Fmt.score(current.score),
-                            style = ThesisTypography.displayLarge.copy(
-                                fontFamily = HeadingFont,
-                                fontWeight = FontWeight.Normal
-                            ),
-                            color = ThesisColors.TextPrimary
-                        )
-                        Spacer(modifier = Modifier.height(ThesisDimens.SpacingSm))
-                        Text(
-                            text = formatDashboardLabel(current?.label),
-                            style = ThesisTypography.headlineMedium.copy(fontWeight = FontWeight.Medium),
-                            color = dashboardLabelColor(current?.label)
-                        )
-                        Spacer(modifier = Modifier.height(ThesisDimens.SpacingXs))
-                        Text(
-                            text = current?.marketDate ?: "No data available",
-                            style = ThesisTypography.labelSmall,
-                            color = ThesisColors.TextMuted
-                        )
-                    }
-                }
-
-                item {
-                    SentimentGaugeCard(current = current, sentimentError = sentimentError)
-                }
-
-                item {
-                    SentimentRangeSelector(
-                        selectedRangeDays = activeRangeDays,
-                        onSelectRange = onSelectRange
-                    )
-                }
-
-                item {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
-                        colors = CardDefaults.cardColors(containerColor = ThesisColors.Surface),
-                        border = androidx.compose.foundation.BorderStroke(ThesisDimens.BorderWidth, ThesisColors.Border)
-                    ) {
-                        Column(modifier = Modifier.padding(ThesisDimens.CardPadding)) {
-                            Text(
-                                text = "Trend",
-                                style = ThesisTypography.headlineMedium.copy(fontWeight = FontWeight.Medium),
-                                color = ThesisColors.TextPrimary
-                            )
-                            Text(
-                                text = "Last $activeRangeDays day macro stress history.",
-                                style = ThesisTypography.bodySmall,
-                                color = ThesisColors.TextMuted
-                            )
-                            Spacer(modifier = Modifier.height(ThesisDimens.SpacingMd))
-                            Text(
-                                text = "Regime overlays",
-                                style = ThesisTypography.labelMedium,
-                                color = ThesisColors.TextSecondary
-                            )
-                            Spacer(modifier = Modifier.height(ThesisDimens.SpacingSm))
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)
-                            ) {
-                                RegimeBandLegendItem(
-                                    label = "Elevated",
-                                    range = "70-100",
-                                    color = ThesisColors.SignalNegative,
-                                    modifier = Modifier.weight(1f)
-                                )
-                                RegimeBandLegendItem(
-                                    label = "Balanced",
-                                    range = "36-69",
-                                    color = ThesisColors.SignalNeutral,
-                                    modifier = Modifier.weight(1f)
-                                )
-                                RegimeBandLegendItem(
-                                    label = "Contained",
-                                    range = "0-35",
-                                    color = ThesisColors.SignalPositive,
-                                    modifier = Modifier.weight(1f)
-                                )
-                            }
-                            Spacer(modifier = Modifier.height(ThesisDimens.SpacingMd))
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = "7-day moving avg",
-                                    style = ThesisTypography.labelMedium,
-                                    color = ThesisColors.TextMuted
-                                )
-                                Text(
-                                    text = trailingAverage?.let { formatScore(it) } ?: "--",
-                                    style = ThesisTypography.bodyMedium.copy(fontWeight = FontWeight.Medium),
-                                    color = ThesisColors.TextPrimary
-                                )
-                            }
-                            Spacer(modifier = Modifier.height(ThesisDimens.SpacingXs))
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = "Selected range drift",
-                                    style = ThesisTypography.labelMedium,
-                                    color = ThesisColors.TextMuted
-                                )
-                                Text(
-                                    text = selectedRangeDelta?.let { formatSignedScore(it) } ?: "--",
-                                    style = ThesisTypography.bodyMedium.copy(fontWeight = FontWeight.Medium),
-                                    color = when {
-                                        selectedRangeDelta == null -> ThesisColors.TextMuted
-                                        selectedRangeDelta > 0 -> ThesisColors.SignalPositive
-                                        selectedRangeDelta < 0 -> ThesisColors.SignalNegative
-                                        else -> ThesisColors.SignalNeutral
-                                    }
-                                )
-                            }
-                            Spacer(modifier = Modifier.height(12.dp))
-                            if (chartRows.isEmpty()) {
-                                Text(
-                                    text = "No macro stress history available for this range yet.",
-                                    style = ThesisTypography.bodySmall,
-                                    color = ThesisColors.TextMuted
-                                )
-                            } else {
-                                Chart(
-                                    chart = lineChart(),
-                                    chartModelProducer = modelProducer,
-                                    startAxis = rememberStartAxis(),
-                                    bottomAxis = rememberBottomAxis(),
-                                    chartScrollSpec = rememberChartScrollSpec(isScrollEnabled = false),
-                                    isZoomEnabled = false,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(220.dp)
-                                )
-                            }
-                            if (transitionMarkers.isNotEmpty()) {
-                                Spacer(modifier = Modifier.height(ThesisDimens.SpacingMd))
-                                Text(
-                                    text = "Recent transitions",
-                                    style = ThesisTypography.labelMedium,
-                                    color = ThesisColors.TextSecondary
-                                )
-                                Spacer(modifier = Modifier.height(ThesisDimens.SpacingSm))
-                                transitionMarkers.forEach { transition ->
-                                    Text(
-                                        text = transition,
-                                        style = ThesisTypography.bodySmall,
-                                        color = ThesisColors.TextMuted
-                                    )
-                                    Spacer(modifier = Modifier.height(ThesisDimens.SpacingXs))
-                                }
-                            }
-                            if (!current?.missingInputs.isNullOrEmpty()) {
-                                Spacer(modifier = Modifier.height(ThesisDimens.SpacingSm))
-                                Text(
-                                    text = "Missing inputs: ${current?.missingInputs?.joinToString(", ") ?: ""}",
-                                    style = ThesisTypography.bodySmall,
-                                    color = ThesisColors.SignalWarning
-                                )
-                            }
-                        }
-                    }
-                }
-
-                item {
-                    Text(
-                        text = "Macro Factor Breakdown",
-                        style = ThesisTypography.headlineMedium.copy(fontWeight = FontWeight.Medium),
-                        color = ThesisColors.TextPrimary
-                    )
-                }
-
-                if (current?.subScores.isNullOrEmpty()) {
-                    item {
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
-                            colors = CardDefaults.cardColors(containerColor = ThesisColors.Surface),
-                            border = androidx.compose.foundation.BorderStroke(ThesisDimens.BorderWidth, ThesisColors.Border)
-                        ) {
-                            Text(
-                                text = "Macro factors are not available yet.",
-                                style = ThesisTypography.bodySmall,
-                                color = ThesisColors.TextMuted,
-                                modifier = Modifier.padding(ThesisDimens.CardPadding)
-                            )
-                        }
-                    }
-                } else {
-                    items(current?.subScores.orEmpty()) { subScore ->
-                        SubScoreRow(subScore = subScore)
-                    }
-                }
-
-                item {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
-                        colors = CardDefaults.cardColors(containerColor = ThesisColors.Surface),
-                        border = androidx.compose.foundation.BorderStroke(ThesisDimens.BorderWidth, ThesisColors.Border)
-                    ) {
-                        Column(modifier = Modifier.padding(ThesisDimens.CardPadding)) {
-                            Text(
-                                text = "Recent History",
-                                style = ThesisTypography.headlineMedium.copy(fontWeight = FontWeight.Medium),
-                                color = ThesisColors.TextPrimary
-                            )
-                            Spacer(modifier = Modifier.height(ThesisDimens.SpacingMd))
-                            if (chartRows.isEmpty()) {
-                                Text(
-                                    text = "No recent readings available.",
-                                    style = ThesisTypography.bodySmall,
-                                    color = ThesisColors.TextMuted
-                                )
-                            } else {
-                                recentRows.forEachIndexed { index, snap ->
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Text(
-                                            text = snap.marketDate,
-                                            style = ThesisTypography.labelMedium,
-                                            color = ThesisColors.TextMuted
-                                        )
-                                        Text(
-                                            text = Fmt.score(snap.score),
-                                            style = ThesisTypography.bodyMedium.copy(fontWeight = FontWeight.Medium),
-                                            color = ThesisColors.TextPrimary
-                                        )
-                                    }
-                                    if (index < recentRows.lastIndex) {
-                                        Spacer(modifier = Modifier.height(ThesisDimens.SpacingSm))
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            PullRefreshIndicator(
-                refreshing = isRefreshing,
-                state = pullRefreshState,
-                modifier = Modifier.align(Alignment.TopCenter),
-                backgroundColor = ThesisColors.Surface,
-                contentColor = ThesisColors.Primary
-            )
-        }
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(56.dp)
-                .background(ThesisColors.Background.copy(alpha = 0.97f))
-                .padding(horizontal = ThesisDimens.SpacingSm),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            androidx.compose.material3.IconButton(onClick = onBack) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = ThesisColors.Primary)
-            }
-            Text(
-                text = Phase4Copy.todayMacroStressDashboardTitle,
-                style = ThesisTypography.headlineMedium.copy(fontWeight = FontWeight.Medium),
-                color = ThesisColors.TextPrimary
-            )
-        }
-    }
-}
-
+/**
+ * Macro Stress (5.9). [history] is the ViewModel's readings for the selected range (any order); [current] the
+ * latest snapshot. [refreshing] is `isMacroRefreshing`; [onRefresh] reloads (by default the selected range again).
+ * [padding] is the shell's: its bottom keeps the last block above the navigation bar; the top bar applies the
+ * status-bar inset itself.
+ */
 @Composable
-fun SentimentDashboardScreen(
+fun MacroStressScreen(
     current: SentimentSnapshotView?,
     history: List<SentimentSnapshotView>,
     selectedRangeDays: Int,
     sentimentError: String?,
     onSelectRange: (Int) -> Unit,
     onBack: () -> Unit,
-    onRefresh: (() -> Unit)? = null
+    padding: PaddingValues = PaddingValues(),
+    refreshing: Boolean = false,
+    onRefresh: (() -> Unit)? = null,
 ) {
-    MacroStressDashboardScreen(
-        current = current,
-        history = history,
-        selectedRangeDays = selectedRangeDays,
-        sentimentError = sentimentError,
-        onSelectRange = onSelectRange,
-        onBack = onBack,
-        onRefresh = onRefresh
-    )
-}
+    val fmt = LocalFmt.current
+    val range = MacroStressModels.normalizeRange(selectedRangeDays)
+    val model = remember(current, history, range, fmt) { MacroStressModels.build(current, history, range, fmt) }
+    val refresh = onRefresh ?: { onSelectRange(range) }
+    val scroll = rememberScrollState()
+    val collapsed by rememberTopBarCollapsed(scroll)
+    var barHeightPx by remember { mutableIntStateOf(0) }
+    val barHeight = with(LocalDensity.current) { barHeightPx.toDp() }
+    var sheetOpen by rememberSaveable { mutableStateOf(false) }
 
-@Composable
-private fun RegimeBandLegendItem(
-    label: String,
-    range: String,
-    color: Color,
-    modifier: Modifier = Modifier
-) {
-    Row(
-        modifier = modifier
-            .clip(RoundedCornerShape(ThesisDimens.SignalBadgeCorner))
-            .border(ThesisDimens.BorderWidth, ThesisColors.Border, RoundedCornerShape(ThesisDimens.SignalBadgeCorner))
-            .padding(
-                horizontal = ThesisDimens.SignalBadgePaddingH,
-                vertical = ThesisDimens.SignalBadgePaddingV
-            ),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(
-            modifier = Modifier
-                .size(8.dp)
-                .background(color, RoundedCornerShape(999.dp))
-        )
-        Spacer(modifier = Modifier.width(ThesisDimens.SpacingSm))
-        Column {
-            Text(
-                text = label,
-                style = ThesisTypography.labelSmall,
-                color = ThesisColors.TextPrimary
-            )
-            Text(
-                text = range,
-                style = ThesisTypography.bodySmall,
-                color = ThesisColors.TextMuted
-            )
-        }
-    }
-}
-
-private fun formatScore(value: Double): String = String.format(Locale.US, "%.1f", value)
-
-private fun formatSignedScore(value: Double): String =
-    if (value > 0) "+${formatScore(value)}" else formatScore(value)
-
-@Composable
-private fun SentimentRangeSelector(
-    selectedRangeDays: Int,
-    onSelectRange: (Int) -> Unit
-) {
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        macroStressRangeOptions.forEach { option ->
-            val selected = selectedRangeDays == option
-            AssistChip(
-                onClick = { onSelectRange(option) },
-                label = { Text("$option days") },
-                colors = AssistChipDefaults.assistChipColors(
-                    containerColor = if (selected) ThesisColors.Primary.copy(alpha = 0.12f) else ThesisColors.Surface,
-                    labelColor = if (selected) ThesisColors.Primary else ThesisColors.TextMuted
-                )
-            )
-        }
-    }
-}
-
-private fun formatDashboardLabel(label: String?): String = when (label?.lowercase()) {
-    "extreme_fear", "fear", "high_stress", "elevated", "elevated_pressure" -> "Elevated Pressure"
-    "neutral", "balanced", "moderate" -> "Balanced"
-    "greed", "extreme_greed", "low_stress", "risk_on", "low_pressure" -> "Contained Pressure"
-    else -> "Unavailable"
-}
-
-@Composable
-@ReadOnlyComposable
-private fun dashboardLabelColor(label: String?): Color = when (label?.lowercase()) {
-    "extreme_fear", "fear", "high_stress", "elevated", "elevated_pressure" -> ThesisColors.SignalNegative
-    "greed", "extreme_greed", "low_stress", "risk_on", "low_pressure" -> ThesisColors.SignalPositive
-    "neutral", "balanced", "moderate" -> ThesisColors.SignalNeutral
-    else -> ThesisColors.TextMuted
-}
-
-@Composable
-private fun SentimentGaugeCard(
-    current: SentimentSnapshotView?,
-    sentimentError: String?
-) {
-    val score = current?.score ?: 0.0
-    val clampedScore = score.coerceIn(0.0, 100.0)
-    val progress = (clampedScore / 100.0).toFloat()
-    val label = when (current?.label?.lowercase()) {
-        "extreme_fear", "fear", "high_stress", "elevated", "elevated_pressure" -> "Elevated Pressure"
-        "neutral", "balanced", "moderate" -> "Balanced"
-        "greed", "extreme_greed", "low_stress", "risk_on", "low_pressure" -> "Contained Pressure"
-        else -> "Unavailable"
-    }
-    val color = when (current?.label?.lowercase()) {
-        "extreme_fear", "fear", "high_stress", "elevated", "elevated_pressure" -> ThesisColors.SignalNegative
-        "greed", "extreme_greed", "low_stress", "risk_on", "low_pressure" -> ThesisColors.SignalPositive
-        "neutral", "balanced", "moderate" -> ThesisColors.SignalNeutral
-        else -> ThesisColors.TextTertiaryDark
+    val loadingFirst = model == null && refreshing && sentimentError.isNullOrBlank()
+    val showSkeleton = rememberShowSkeleton(loadingFirst)
+    val state: Loadable<MacroStressModel> = when {
+        model != null -> Loadable.Ready(model)
+        !sentimentError.isNullOrBlank() -> Loadable.Failed(sentimentError)
+        loadingFirst -> Loadable.Loading
+        else -> Loadable.Empty(MacroStressCopy.EMPTY)
     }
 
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
-        colors = CardDefaults.cardColors(containerColor = ThesisColors.Surface),
-        border = androidx.compose.foundation.BorderStroke(ThesisDimens.BorderWidth, ThesisColors.Border)
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(ThesisDimens.CardPadding),
-            horizontalAlignment = Alignment.CenterHorizontally
+    Box(Modifier.fillMaxSize()) {
+        ThesisRefreshBox(
+            refreshing = refreshing,
+            onRefresh = refresh,
+            modifier = Modifier.fillMaxSize(),
+            indicatorTop = barHeight,
         ) {
-            Text(
-                text = "Current Macro Stress",
-                style = ThesisTypography.headlineMedium.copy(fontWeight = FontWeight.Medium),
-                color = ThesisColors.TextPrimary
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-            Box(
-                modifier = Modifier
-                    .size(220.dp, 140.dp),
-                contentAlignment = Alignment.Center
+            Column(
+                Modifier
+                    .fillMaxSize()
+                    .verticalScroll(scroll)
+                    .padding(top = barHeight, bottom = padding.calculateBottomPadding() + ThesisSpace.x5)
+                    .padding(horizontal = ThesisSpace.gutter),
             ) {
-                val trackColor = ThesisColors.ConfidenceRingBg
-                Canvas(modifier = Modifier.fillMaxSize()) {
-                    val stroke = Stroke(width = 18.dp.toPx(), cap = StrokeCap.Round)
-                    val arcSize = Size(size.width, size.width)
-                    val topLeft = androidx.compose.ui.geometry.Offset(0f, size.height - arcSize.height)
-                    drawArc(
-                        color = trackColor,
-                        startAngle = 180f,
-                        sweepAngle = 180f,
-                        useCenter = false,
-                        topLeft = topLeft,
-                        size = arcSize,
-                        style = stroke
-                    )
-                    drawArc(
-                        color = color,
-                        startAngle = 180f,
-                        sweepAngle = 180f * progress,
-                        useCenter = false,
-                        topLeft = topLeft,
-                        size = arcSize,
-                        style = stroke
-                    )
-                }
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        text = if (current == null) "--" else Fmt.score(clampedScore),
-                        style = ThesisTypography.displayMedium,
-                        color = ThesisColors.TextPrimary
-                    )
-                    Text(
-                        text = label,
-                        style = ThesisTypography.labelLarge.copy(fontWeight = FontWeight.Bold),
-                        color = color
+                StateCrossfade(
+                    state = state,
+                    onRetry = refresh,
+                    failedSubject = MacroStressCopy.LOAD_SUBJECT,
+                    loading = { if (showSkeleton) MacroSkeleton() },
+                    empty = {
+                        EmptyState(
+                            sentence = MacroStressCopy.EMPTY,
+                            how = MacroStressCopy.EMPTY_HOW,
+                            modifier = Modifier.padding(top = ThesisSpace.headerTop),
+                        )
+                    },
+                    failed = {
+                        ErrorState(
+                            title = KitCopy.couldNotLoad(MacroStressCopy.LOAD_SUBJECT),
+                            cause = it.cause,
+                            onRetry = refresh,
+                            modifier = Modifier.padding(top = ThesisSpace.headerTop),
+                        )
+                    },
+                ) { m ->
+                    MacroBody(
+                        model = m,
+                        refreshFailed = !sentimentError.isNullOrBlank(),
+                        onRetry = refresh,
+                        onSelectRange = onSelectRange,
+                        onOpenInfo = { sheetOpen = true },
                     )
                 }
             }
-            if (!sentimentError.isNullOrBlank()) {
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = sentimentError,
-                    style = ThesisTypography.bodySmall,
-                    color = ThesisColors.SignalWarning
+        }
+        ThesisTopBar(
+            modifier = Modifier.onSizeChanged { barHeightPx = it.height },
+            title = MacroStressCopy.TITLE,
+            onBack = onBack,
+            collapsed = collapsed,
+            titleAlwaysVisible = true,
+        )
+    }
+
+    if (sheetOpen && model != null) {
+        SourceSheet(
+            info = SourceInfo(
+                metric = MacroStressCopy.SHEET_METRIC,
+                definition = MacroStressCopy.SHEET_DEFINITION,
+                form = MacroStressCopy.SHEET_FORM,
+                period = model.asOfText?.let(MacroStressCopy::sheetPeriod),
+                derivation = MacroStressCopy.SHEET_DERIVATION,
+                inputs = model.sheetInputs,
+            ),
+            onDismissRequest = { sheetOpen = false },
+        )
+    }
+}
+
+@Composable
+private fun MacroBody(
+    model: MacroStressModel,
+    refreshFailed: Boolean,
+    onRetry: () -> Unit,
+    onSelectRange: (Int) -> Unit,
+    onOpenInfo: () -> Unit,
+) {
+    Column(Modifier.fillMaxWidth()) {
+        if (refreshFailed) {
+            InlineBanner(
+                text = MacroStressCopy.REFRESH_FAILED,
+                tone = BannerTone.Attention,
+                actionLabel = KitCopy.TRY_AGAIN,
+                onAction = onRetry,
+                modifier = Modifier.padding(top = ThesisSpace.headerTop),
+            )
+        }
+        MacroHeader(model, onOpenInfo, Modifier.padding(top = ThesisSpace.headerTop))
+        Spacer(Modifier.height(ThesisSpace.headerToSection))
+        TrendSection(model, onSelectRange)
+        Spacer(Modifier.height(ThesisSpace.sectionGapReading))
+        FactorSection(model)
+        Spacer(Modifier.height(ThesisSpace.sectionGapReading))
+        HowToRead()
+    }
+}
+
+@Composable
+private fun MacroHeader(model: MacroStressModel, onOpenInfo: () -> Unit, modifier: Modifier = Modifier) {
+    val p = LocalThesisPalette.current
+    Column(modifier.fillMaxWidth()) {
+        Eyebrow(MacroStressCopy.eyebrow(model.asOf?.let { LocalFmt.current.shortDate(it) }))
+        Spacer(Modifier.height(ThesisSpace.s))
+        Text(
+            ledeText(model.leadClause, model.changeClause, p),
+            style = ThesisType.lede,
+            color = p.ink2,
+        )
+        Spacer(Modifier.height(ThesisSpace.l))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                Modifier
+                    .weight(1f)
+                    .semantics(mergeDescendants = true) {
+                        contentDescription = "${MacroStressCopy.SHEET_METRIC} ${model.scoreTextSpoken()}, ${model.label}"
+                    },
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Row(verticalAlignment = Alignment.Bottom) {
+                    // Final on first paint; a refresh that changes the score rolls it (4.6).
+                    RollingNumber(
+                        value = model.score,
+                        format = { Fmt.score(it) },
+                        style = ThesisType.capped(ThesisType.figure),
+                        color = p.ink,
+                        modifier = Modifier.alignByBaseline(),
+                    )
+                    Spacer(Modifier.width(ThesisSpace.s))
+                    Text(
+                        MacroStressCopy.OF_100,
+                        modifier = Modifier.alignByBaseline(),
+                        style = ThesisType.caption,
+                        color = p.muted,
+                    )
+                }
+                Spacer(Modifier.width(ThesisSpace.m))
+                StatusBadge(model.label, model.tone)
+            }
+            ThesisIconButton(ThesisIcons.Info, contentDescription = MacroStressCopy.INFO, onClick = onOpenInfo)
+        }
+        Spacer(Modifier.height(ThesisSpace.xs))
+        Row(Modifier.semantics(mergeDescendants = true) { }) {
+            if (model.deltaText != null) {
+                Text(model.deltaText, style = ThesisType.caption.tnum(), color = model.deltaTone.textColor(p))
+                Spacer(Modifier.width(ThesisSpace.xs))
+            }
+            Text(
+                model.deltaReference ?: MacroStressCopy.FIRST_READING,
+                style = ThesisType.caption,
+                color = p.muted,
+            )
+        }
+        Spacer(Modifier.height(ThesisSpace.l))
+        ScaleBar(
+            value = model.score,
+            segments = macroStressSegments(),
+            contentDescription = "${MacroStressCopy.SHEET_METRIC} ${model.scoreTextSpoken()}, ${model.label}",
+        )
+    }
+}
+
+private fun MacroStressModel.scoreTextSpoken(): String = "${Fmt.score(score)} ${MacroStressCopy.OF_100}"
+
+@Composable
+private fun TrendSection(model: MacroStressModel, onSelectRange: (Int) -> Unit) {
+    val chartState = rememberLineChartState()
+    val clipboard = LocalClipboardManager.current
+    val haptics = rememberHaptics()
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(ThesisSpace.cardGap)) {
+        SegmentedControl(
+            options = MacroStressCopy.RANGES,
+            selectedIndex = MacroStressRanges.indexOf(model.rangeDays).coerceAtLeast(0),
+            onSelect = { i -> onSelectRange(MacroStressRanges[i]) },
+        )
+        ChartCard(
+            title = model.chartTitle,
+            fignum = 1,
+            subtitle = MacroStressCopy.chartSubtitle(model.rangeDays),
+            source = MacroStressCopy.CHART_SOURCE,
+            table = model.table,
+            readout = {
+                LineChartReadout(
+                    data = model.chart,
+                    state = chartState,
+                    valueFormat = { Fmt.score(it) },
+                    changeFormat = { Fmt.pts(it) },
+                    nowLabel = model.asOfText,
+                    changeTone = ::macroStressDeltaTone,
                 )
-            }
+            },
+        ) {
+            LineChart(
+                data = model.chart,
+                valueFormat = { Fmt.score(it) },
+                height = ChartHeights.Featured,
+                bands = macroStressBands(),
+                yRange = 0.0..SCORE_MAX,
+                state = chartState,
+                // Draws on once per reading date: back on Macro Stress the same day, the chart is complete (4.6).
+                dataKey = model.asOf?.let { "macro-stress-$it" },
+                summary = model.chartSummary,
+            )
+        }
+        val table = model.table
+        if (table != null) {
+            TextAction(
+                MacroStressCopy.COPY_TABLE,
+                onClick = {
+                    clipboard.setText(AnnotatedString(table.toTsv()))
+                    haptics.confirm()
+                },
+            )
         }
     }
 }
 
 @Composable
-private fun SubScoreRow(subScore: SentimentSubScoreView) {
-    val scoreText = subScore.normalizedScore?.let { "${it.toInt()}/100" } ?: "--"
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
-        colors = CardDefaults.cardColors(containerColor = ThesisColors.Surface),
-        border = androidx.compose.foundation.BorderStroke(ThesisDimens.BorderWidth, ThesisColors.Border)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(ThesisDimens.CardPadding),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = subScore.inputName.replace('_', ' '),
-                    style = ThesisTypography.bodyLarge.copy(fontWeight = FontWeight.Medium),
-                    color = ThesisColors.TextPrimary
-                )
-                Text(
-                    text = "Provider: ${subScore.provider}",
-                    style = ThesisTypography.bodySmall,
-                    color = ThesisColors.TextMuted
-                )
+private fun FactorSection(model: MacroStressModel) {
+    val p = LocalThesisPalette.current
+    Column(Modifier.fillMaxWidth()) {
+        SectionHeader(
+            kicker = MacroStressCopy.FACTORS_KICKER,
+            headline = model.factorHeadline,
+            deck = model.factorDeck,
+        )
+        if (model.factors.isNotEmpty()) {
+            Spacer(Modifier.height(ThesisSpace.m))
+            RowGroup {
+                model.factors.forEach { f -> row { FactorRow(f) } }
             }
-            Column(horizontalAlignment = Alignment.End) {
-                Text(
-                    text = scoreText,
-                    style = ThesisTypography.headlineMedium.copy(fontWeight = FontWeight.Medium),
-                    color = if (subScore.available) ThesisColors.TextPrimary else ThesisColors.TextMuted
-                )
-                Text(
-                    text = if (subScore.available) "available" else "missing",
-                    style = ThesisTypography.labelSmall,
-                    color = if (subScore.available) ThesisColors.SignalPositive else ThesisColors.SignalWarning
-                )
+        }
+        if (model.sources.isNotEmpty()) {
+            Spacer(Modifier.height(ThesisSpace.s))
+            Text(MacroStressCopy.sources(model.sources), style = ThesisType.caption, color = p.muted)
+        }
+        if (model.missing.isNotEmpty()) {
+            Spacer(Modifier.height(ThesisSpace.cardGap))
+            ThesisCard(variant = CardVariant.NotSeen, title = MacroStressCopy.MISSING_TITLE) {
+                model.missing.forEach { m ->
+                    Column(Modifier.semantics(mergeDescendants = true) { }) {
+                        Text(m.label, style = ThesisType.rowTitle, color = p.ink2)
+                        Text(m.reason, style = ThesisType.bodySmall, color = p.muted)
+                    }
+                }
             }
         }
     }
 }
+
+/** One input: label and reading on the left, its 0 to 100 rating over the change on the right, a list meter below. */
+@Composable
+private fun FactorRow(f: MacroFactor) {
+    val p = LocalThesisPalette.current
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .semantics(mergeDescendants = true) { contentDescription = f.spoken }
+            .padding(horizontal = ThesisSpace.l, vertical = ThesisSpace.rowPaddingV),
+        verticalArrangement = Arrangement.spacedBy(ThesisSpace.s),
+    ) {
+        Row(verticalAlignment = Alignment.Top) {
+            Column(Modifier.weight(1f)) {
+                Text(f.label, style = ThesisType.body, color = p.ink)
+                if (f.sub != null) Text(f.sub, style = ThesisType.bodySmall, color = p.ink2)
+            }
+            Spacer(Modifier.width(ThesisSpace.m))
+            Column(horizontalAlignment = Alignment.End) {
+                Text(f.scoreText, style = ThesisType.body.tnum(), color = p.ink)
+                if (f.changeText != null) {
+                    Text(f.changeText, style = ThesisType.caption.tnum(), color = f.changeTone.textColor(p))
+                }
+            }
+        }
+        Meter((f.score / SCORE_MAX).toFloat())
+    }
+}
+
+/** "How to read this": a row that expands in place into the explanation (`animateContentSize`, `spatial`). */
+@Composable
+private fun HowToRead() {
+    val reduced = LocalReducedMotion.current
+    var open by rememberSaveable { mutableStateOf(false) }
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .then(if (reduced) Modifier else Modifier.animateContentSize(ThesisMotion.spatial())),
+        verticalArrangement = Arrangement.spacedBy(ThesisSpace.s),
+    ) {
+        RowGroup {
+            row(dividerInset = ThesisSpace.l) {
+                ActionRow(
+                    icon = ThesisIcons.Info,
+                    title = MacroStressCopy.HOW_TITLE,
+                    caption = MacroStressCopy.HOW_CAPTION,
+                    onClick = { open = !open },
+                    modifier = Modifier.semantics { stateDescription = if (open) "Expanded" else "Collapsed" },
+                )
+            }
+        }
+        if (open) Callout(MacroStressCopy.HOW_BODY)
+    }
+}
+
+/** The first load's skeleton: the header's lines, the range control's place and the chart card. */
+@Composable
+private fun MacroSkeleton() {
+    ShimmerHost {
+        Column(
+            Modifier.fillMaxWidth().padding(top = ThesisSpace.headerTop),
+            verticalArrangement = Arrangement.spacedBy(ThesisSpace.m),
+        ) {
+            SkeletonText(ThesisType.eyebrow, widthFraction = SKELETON_EYEBROW)
+            SkeletonText(ThesisType.lede, widthFraction = SKELETON_LEDE)
+            SkeletonText(ThesisType.figure, widthFraction = SKELETON_FIGURE)
+            SkeletonBlock(Modifier.fillMaxWidth().height(ThesisSpace.s))
+            Spacer(Modifier.height(ThesisSpace.m))
+            SkeletonBlock(Modifier.fillMaxWidth().height(ThesisSpace.touchMin))
+            SkeletonChart()
+        }
+    }
+}
+
+private const val SKELETON_EYEBROW = 0.4f
+private const val SKELETON_LEDE = 0.85f
+private const val SKELETON_FIGURE = 0.25f
