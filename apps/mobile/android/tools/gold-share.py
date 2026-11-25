@@ -13,33 +13,56 @@ skipped unless --include-kit: palette and icon sheets show gold on purpose.
 
 Exit 0 when every image is under --max percent, 1 otherwise, 2 on usage errors. Uses Pillow (+ numpy) when
 installed; otherwise a small built-in PNG reader (8-bit RGB/RGBA, non-interlaced, as Skia writes them).
+
+The test is exact integer arithmetic on the 8-bit channels (see is_gold), so both backends count the same pixels:
+a float test puts colours whose hue is exactly 45 degrees on different sides of the boundary in float32 and float64.
+`--self-check FILE` measures FILE with both backends and fails unless they agree to the pixel.
 """
 
 from __future__ import annotations
 
 import argparse
-import colorsys
 import json
+import math
 import struct
 import sys
 import zlib
 from pathlib import Path
 
-HUE_MIN, HUE_MAX = 35.0, 45.0
-SAT_MIN = 0.35
+HUE_MIN, HUE_MAX = 35, 45  # degrees, inclusive
+SAT_MIN = 0.35  # exclusive: 20 * delta > 7 * max
 
 
-def read_rgb(path: Path):
-    """Returns (width, height, pixels) where pixels is a numpy array (h, w, 3) or a list of (r, g, b) tuples."""
-    try:
-        from PIL import Image  # type: ignore
-        import numpy as np  # type: ignore
+def min_level(min_value: float) -> int:
+    """--min-value as the lowest 8-bit max channel that passes (value = max / 255), rounding away float noise."""
+    return math.ceil(round(min_value * 255.0, 9))
 
-        with Image.open(path) as im:
-            arr = np.asarray(im.convert("RGB"), dtype=np.float32) / 255.0
-        return arr.shape[1], arr.shape[0], arr
-    except ImportError:
-        return _read_png(path)
+
+def is_gold(r: int, g: int, b: int, min_max: int) -> bool:
+    """Exact HSV test on 8-bit channels; min_max is min_level(--min-value).
+
+    HSV hue lies in 0-60 degrees only when red is the maximum channel (ties included: red wins, as in colorsys),
+    and then hue = 60 * (g - b) / delta. So 35 <= hue <= 45  <=>  35 * delta <= 60 * (g - b) <= 45 * delta
+    <=>  7 * delta <= 12 * (g - b) <= 9 * delta. Saturation delta / max > 0.35  <=>  20 * delta > 7 * max.
+    """
+    mx = max(r, g, b)
+    delta = mx - min(r, g, b)
+    return (r == mx and 7 * delta <= 12 * (g - b) <= 9 * delta and 20 * delta > 7 * mx and mx >= min_max)
+
+
+def read_rgb(path: Path, builtin: bool = False):
+    """Returns (width, height, pixels): a numpy int32 array (h, w, 3) of 0-255, or a list of (r, g, b) tuples."""
+    if not builtin:
+        try:
+            from PIL import Image  # type: ignore
+            import numpy as np  # type: ignore
+
+            with Image.open(path) as im:
+                arr = np.asarray(im.convert("RGB"), dtype=np.int32)
+            return arr.shape[1], arr.shape[0], arr
+        except ImportError:
+            pass
+    return _read_png(path)
 
 
 def _read_png(path: Path):
@@ -89,36 +112,59 @@ def _read_png(path: Path):
     return width, height, pixels
 
 
-def gold_share(path: Path, min_value: float) -> float:
-    width, height, px = read_rgb(path)
+def gold_count(path: Path, min_value: float, builtin: bool = False) -> tuple[int, int]:
+    """Returns (gold pixels, total pixels)."""
+    width, height, px = read_rgb(path, builtin)
     total = width * height
+    min_max = min_level(min_value)
     if total == 0:
-        return 0.0
-    if not isinstance(px, list):  # numpy fast path
-        import numpy as np  # type: ignore
-
+        return 0, 0
+    if not isinstance(px, list):  # numpy fast path, same integer test as is_gold
         r, g, b = px[..., 0], px[..., 1], px[..., 2]
         mx = px.max(axis=2)
-        mn = px.min(axis=2)
-        delta = mx - mn
-        sat = np.where(mx > 0, delta / np.maximum(mx, 1e-9), 0.0)
-        safe = np.maximum(delta, 1e-9)
-        hue = np.where(
-            mx == r, ((g - b) / safe) % 6.0, np.where(mx == g, (b - r) / safe + 2.0, (r - g) / safe + 4.0)
-        ) * 60.0
-        hue = np.where(delta > 0, hue, -1.0)
-        gold = (hue >= HUE_MIN) & (hue <= HUE_MAX) & (sat > SAT_MIN) & (mx >= min_value)
-        return float(gold.sum()) * 100.0 / total
+        delta = mx - px.min(axis=2)
+        gb = 12 * (g - b)
+        gold = (r == mx) & (7 * delta <= gb) & (gb <= 9 * delta) & (20 * delta > 7 * mx) & (mx >= min_max)
+        return int(gold.sum()), total
     count = 0
     cache: dict[tuple[int, int, int], bool] = {}
     for rgb in px:
         hit = cache.get(rgb)
         if hit is None:
-            h, s, v = colorsys.rgb_to_hsv(rgb[0] / 255.0, rgb[1] / 255.0, rgb[2] / 255.0)
-            hit = s > SAT_MIN and v >= min_value and HUE_MIN <= h * 360.0 <= HUE_MAX
-            cache[rgb] = hit
+            hit = cache[rgb] = is_gold(rgb[0], rgb[1], rgb[2], min_max)
         count += hit
-    return count * 100.0 / total
+    return count, total
+
+
+def gold_share(path: Path, min_value: float, builtin: bool = False) -> float:
+    count, total = gold_count(path, min_value, builtin)
+    return count * 100.0 / total if total else 0.0
+
+
+def self_check(path: Path, min_value: float) -> int:
+    """Both backends on one file: exit 0 when they count the same pixels, 1 when not, 2 without Pillow/numpy."""
+    try:
+        import numpy  # type: ignore  # noqa: F401
+        from PIL import Image  # type: ignore  # noqa: F401
+    except ImportError:
+        print("gold-share: --self-check needs Pillow and numpy to compare against", file=sys.stderr)
+        return 2
+    import colorsys
+
+    # Colours whose hue is exactly 45 degrees (float32 put them on both sides), gold, glow and grey: is_gold must
+    # match colorsys with the float noise rounded away.
+    for rgb in ((56, 48, 24), (128, 106, 40), (197, 160, 89), (35, 27, 15), (10, 10, 10), (255, 213, 0)):
+        h, s, v = colorsys.rgb_to_hsv(*(c / 255.0 for c in rgb))
+        ref = round(s, 9) > SAT_MIN and v >= min_value and HUE_MIN <= round(h * 360.0, 6) <= HUE_MAX
+        if is_gold(*rgb, min_level(min_value)) != ref:
+            print(f"gold-share: self-check FAILED on {rgb}: is_gold disagrees with HSV", file=sys.stderr)
+            return 1
+    fast, total = gold_count(path, min_value)
+    slow, total2 = gold_count(path, min_value, builtin=True)
+    ok = fast == slow and total == total2
+    print(f"gold-share: self-check {path.name}: Pillow/numpy {fast} px, built-in {slow} px of {total} "
+          f"({'agree' if ok else 'DISAGREE'})")
+    return 0 if ok else 1
 
 
 class UsageError(Exception):
@@ -147,7 +193,15 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--glob", default="*.png", help="file pattern inside folders (default *.png)")
     ap.add_argument("--include-kit", action="store_true", help="also measure kit-*.png gallery sheets")
     ap.add_argument("--json", action="store_true", help="print JSON instead of a table")
+    ap.add_argument("--self-check", action="store_true",
+                    help="measure the one PNG given with both backends and fail unless they agree to the pixel")
     args = ap.parse_args(argv)
+
+    if args.self_check:
+        if len(args.paths) != 1 or not Path(args.paths[0]).is_file():
+            print("gold-share: --self-check takes exactly one PNG file", file=sys.stderr)
+            return 2
+        return self_check(Path(args.paths[0]), args.min_value)
 
     try:
         files = collect(args.paths, args.glob, args.include_kit)

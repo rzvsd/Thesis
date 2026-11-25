@@ -39,9 +39,16 @@ ALLOW_TOTAL_RAISE=0
 QUIET=0
 FILES=()
 
+need_value() { [ $# -ge 2 ] || { echo "design-lint: $1 needs a value" >&2; exit 2; }; }
+
 while [ $# -gt 0 ]; do
   case "$1" in
-    --root) ROOT="$(cd "$2" && pwd)"; shift 2 ;;
+    --root|--baseline|--allow|--copy-allow) need_value "$@" ;;
+  esac
+  case "$1" in
+    --root)
+      [ -d "$2" ] || { echo "design-lint: --root $2: no such folder" >&2; exit 2; }
+      ROOT="$(cd "$2" && pwd)" || exit 2; shift 2 ;;
     --baseline) BASELINE="$2"; shift 2 ;;
     --allow) ALLOW="$2"; shift 2 ;;
     --copy-allow) COPY_ALLOW="$2"; shift 2 ;;

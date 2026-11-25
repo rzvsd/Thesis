@@ -44,8 +44,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
 import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
 import java.io.File
-import java.nio.file.Files
 
 /** The ui/platform and ThesisFonts shims, and ui-test-junit4-desktop itself (section 6.1 F4). */
 class PlatformShimsTest {
@@ -53,11 +53,15 @@ class PlatformShimsTest {
     @get:Rule
     val rule = createComposeRule()
 
+    /** Deleted after each test, so the font tests leave nothing behind in the temp folder. */
+    @get:Rule
+    val tmp = TemporaryFolder()
+
     // ---- Fonts
 
     @Test
     fun fontsFallBackToTheSystemSerifWhenAbsent() {
-        val empty = Files.createTempDirectory("no-fonts").toFile()
+        val empty = tmp.newFolder("no-fonts")
         assertEquals(FontFamily.Serif, PreviewFontLoader.family(PreviewFontLoader.TextFaces, empty))
         assertEquals(FontFamily.Serif, PreviewFontLoader.family(PreviewFontLoader.DisplayFaces, null))
         assertEquals(FontFamily.Default, ThesisFonts.Sans)
@@ -71,7 +75,7 @@ class PlatformShimsTest {
             File(System.getProperty("user.home"), ".local/share/fonts/thesis-preview/NotoSerif-400.ttf"),
         ).firstOrNull { it?.isFile == true }
         assumeTrue("no TTF available to stand in for Newsreader", sample != null)
-        val dir = Files.createTempDirectory("fonts").toFile()
+        val dir = tmp.newFolder("fonts")
         sample!!.copyTo(File(dir, "newsreader_text.ttf"))
         sample.copyTo(File(dir, "newsreader_medium.ttf"))
         assertEquals(2, PreviewFontLoader.fonts(PreviewFontLoader.TextFaces, dir).size)

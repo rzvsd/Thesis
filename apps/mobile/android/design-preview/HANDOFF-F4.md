@@ -255,6 +255,13 @@ object RenderFlags {
   edit by hand: add the glyph to `ICONS` in `tools/icons/make_icons.py` and rerun it; `--check` verifies the file
   is current. API: `ThesisIcons.X` (opsz 24) and `ThesisIcons.Small.X` (opsz 20), `TodayFilled`, `NamesFilled`,
   `ResearchFilled`, `InboxFilled`, `FollowFilled` for selected states.
+- Caveat for F2 and the doc owner: `NamesFilled` and `ResearchFilled` are path-identical to `Names` and
+  `Research`, because Material Symbols `format_list_bulleted` and `manage_search` have no FILL=1 shape. For
+  those two tabs the glyph swap of 2.8 ("the selected tab is the FILL=1 glyph in ink") shows nothing, and the
+  selected state is visible only through the ink vs ink2 tint. `ThesisBottomBar` must not rely on the glyph swap
+  alone for them: either give the selected tab a second cue (for example the label weight or an indicator), or
+  the doc owner picks another selected treatment in 2.8. Selected semantics for screen readers are covered
+  separately by A3.
 - Kit gallery: `design-preview/.../preview/KitGallery.kt` (`renderGallery`, `Specimen`, `Section`) is the
   scaffold; `KitGalleryRenders.kt` holds the foundation sheets (palette, hero palette, type scale 1x/2x, fonts,
   icons, RTL). Change: F2 adds its component renders in new files using `renderGallery` (for example
@@ -320,7 +327,9 @@ Also for the owner, as doc owner: please amend 7.1 T3 and 7.2 (or add an Appendi
 matches the tools: the `\b` before `tween(` / `spring(` and gold-share's `--min-value 0.20` default (both in
 section 6 below). Until then reviewers should know the tools differ from the letter of 7.1/7.2 there. The
 literal T3 rule is one flag away (`--min-value 0`): it gave a max of 7.93% (Welcome) against 6.52% with the
-default on the round-1 renders, both under 8%.
+default on the round-1 renders, both under 8%. (Since review round 2 gold-share classifies pixels in exact
+integer arithmetic, so the Pillow/numpy path and the built-in PNG reader agree to the pixel; the old float32 path
+read 6.52% where the built-in reader read 6.35% on the same Welcome render. `--self-check FILE` compares them.)
 
 ## 6. Deviations from the doc, for the record
 

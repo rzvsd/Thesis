@@ -7,7 +7,8 @@
 #     rise without --allow-raise; an allowlist entry clears it; a removed finding is reported as "below";
 #     --update-baseline FILE... keeps every other file's rows and still refuses to raise; --allow-raise moves
 #     findings between files but the total needs --allow-total-raise.
-#  3. --strict: any finding fails; out-of-scope files are skipped.
+#  3. --strict: any finding fails; out-of-scope files are skipped. Usage errors (missing option value, missing
+#     --root folder, unknown option) exit 2.
 #  4. The real tree: exit 0 at its baseline, and exit 1 once a Color(0x... is added to a screen.
 set -uo pipefail
 
@@ -105,6 +106,12 @@ expect_exit 1 "--strict fails on any finding" "$LINT" "${ARGS[@]}" --strict \
 expect_exit 0 "--strict skips out-of-scope files" "$LINT" "${ARGS[@]}" --strict --quiet \
   "$W/app/src/main/java/com/thesis/mobile/ui/theme/ExcludedTheme.kt"
 expect_exit 2 "--strict on a missing file is an error" "$LINT" "${ARGS[@]}" --strict "$W/nope.kt"
+
+# ---- 3b. usage errors are exit 2, never 1 (1 means findings)
+expect_exit 2 "an option without its value is a usage error" "$LINT" --baseline
+expect_exit 2 "--root without a value is a usage error" "$LINT" --root
+expect_exit 2 "--root on a missing folder is a usage error" "$LINT" --root "$TMP/no-such-folder"
+expect_exit 2 "an unknown option is a usage error" "$LINT" --bogus
 
 # ---- 4. the real tree
 expect_exit 0 "the real tree is at its baseline" "$LINT" --root "$REAL_ROOT" --quiet

@@ -27,15 +27,19 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.thesis.mobile.ui.icons.ThesisIcons
 import com.thesis.mobile.ui.theme.LocalThesisPalette
+import com.thesis.mobile.ui.theme.PreviewFontFace
+import com.thesis.mobile.ui.theme.PreviewFontLoader
 import com.thesis.mobile.ui.theme.ThesisFonts
 import com.thesis.mobile.ui.theme.ThesisPalette
 import com.thesis.mobile.ui.theme.ThesisType
 import com.thesis.mobile.ui.theme.heroOf
 import org.junit.Test
+import java.io.File
 
 /**
  * Kit gallery renders (section 3). Foundation sheets live here today: palette, hero palette, type scale and the
@@ -98,11 +102,13 @@ class KitGalleryRenders {
         renderGallery("kit-fonts") {
             Section("Bundled fonts")
             val ink = LocalThesisPalette.current.ink
-            Specimen("NewsreaderDisplay 400", "newsreader_display.ttf (opsz 72)") {
+            val display = PreviewFontLoader.DisplayFaces
+            val text = PreviewFontLoader.TextFaces
+            Specimen("NewsreaderDisplay 400", faceNote(display, "newsreader_display.ttf (opsz 72)")) {
                 Text("Services now carries the margin", color = ink,
                     style = TextStyle(fontFamily = ThesisFonts.NewsreaderDisplay, fontSize = 30.sp))
             }
-            Specimen("NewsreaderDisplay 400 italic", "newsreader_display_italic.ttf") {
+            Specimen("NewsreaderDisplay 400 italic", faceNote(display, "newsreader_display_italic.ttf")) {
                 Text("01  The morning line", color = ink, style = TextStyle(
                     fontFamily = ThesisFonts.NewsreaderDisplay, fontStyle = FontStyle.Italic, fontSize = 30.sp))
             }
@@ -111,7 +117,7 @@ class KitGalleryRenders {
                 FontWeight.Medium to "newsreader_medium.ttf (opsz 36)",
                 FontWeight.SemiBold to "newsreader_text_semibold.ttf (opsz 16)",
             ).forEach { (weight, file) ->
-                Specimen("Newsreader ${weight.weight}", file) {
+                Specimen("Newsreader ${weight.weight}", faceNote(text, file)) {
                     Text("Revenue grew 6.4% to \$416B in FY2025 − 1,234.56", color = ink,
                         style = TextStyle(fontFamily = ThesisFonts.Newsreader, fontWeight = weight, fontSize = 18.sp))
                 }
@@ -173,11 +179,32 @@ private fun IconGrid(icons: List<Pair<String, ImageVector>>, sizeDp: Int, labels
             ) {
                 Icon(icon, contentDescription = name, Modifier.size(sizeDp.dp),
                     tint = if (name.endsWith("Filled")) p.ink else p.ink2)
-                if (labels) Text(name, style = ThesisType.caption, color = p.muted, maxLines = 1)
+                if (labels) {
+                    Text(wrapCamel(name), style = ThesisType.caption, color = p.muted, maxLines = 2,
+                        textAlign = TextAlign.Center)
+                }
             }
         }
     }
 }
+
+/**
+ * The specimen caption for one bundled face, from what actually loaded: "<file> (detail)" when the TTF is in
+ * -Dpreview.fontDir, otherwise the caption says which fallback the render shows instead, so a sheet drawn without
+ * res/font is never read as Newsreader. [label] is the file name, optionally followed by " (detail)".
+ */
+private fun faceNote(faces: List<PreviewFontFace>, label: String): String {
+    val dir = PreviewFontLoader.fontDir
+    val file = label.substringBefore(' ')
+    return when {
+        dir != null && File(dir, file).isFile -> label
+        PreviewFontLoader.fonts(faces, dir).isNotEmpty() -> "$label (missing: synthesized from the other faces)"
+        else -> "$label (missing: system serif fallback)"
+    }
+}
+
+/** Splits a camelCase icon name into lines at its word starts (zero-width spaces), so no label is cut. */
+private fun wrapCamel(name: String): String = name.replace(Regex("(?<=[a-z0-9])(?=[A-Z])"), "\u200B")
 
 /** Styles that ThesisType.capped() limits to 1.3x (section 2.3). */
 private val CappedStyles = setOf("display", "title", "figure", "numeral")

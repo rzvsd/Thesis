@@ -145,6 +145,11 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--budget-kb", type=int, default=400, help="fail when the five files exceed this (KB)")
     args = ap.parse_args(argv)
 
+    # Check the sources before creating --out, so a typo neither leaves an empty folder nor ends in a traceback.
+    for flag, path in (("--roman", args.roman), ("--italic", args.italic)):
+        if not path.is_file():
+            print(f"make_newsreader: {flag} {path}: no such file", file=sys.stderr)
+            return 2
     args.out.mkdir(parents=True, exist_ok=True)
     total = 0
     for inst in INSTANCES:
