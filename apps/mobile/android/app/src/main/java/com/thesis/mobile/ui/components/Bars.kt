@@ -45,6 +45,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
@@ -93,8 +94,9 @@ fun ThesisTopBar(
     val heroMode = overHero && !collapsed
     val spec = ThesisMotion.timed<Float>(reduced, ThesisMotion.Bar)
     val background by animateFloatAsState(if (collapsed) 1f else 0f, spec, label = "topBarBackground")
+    val titleShown = collapsed || titleAlwaysVisible
     val titleAlpha by animateFloatAsState(
-        if (collapsed || titleAlwaysVisible) 1f else 0f,
+        if (titleShown) 1f else 0f,
         spec,
         label = "topBarTitle",
     )
@@ -134,6 +136,9 @@ fun ThesisTopBar(
                 Modifier
                     .weight(1f)
                     .padding(horizontal = ThesisSpace.xs)
+                    // Hidden at rest (the ScreenHeader below shows the same title): out of the semantics tree too,
+                    // so TalkBack does not read a title that is not on screen.
+                    .then(if (titleShown) Modifier else Modifier.clearAndSetSemantics { })
                     .graphicsLayer { alpha = titleAlpha },
             ) {
                 if (title != null) {

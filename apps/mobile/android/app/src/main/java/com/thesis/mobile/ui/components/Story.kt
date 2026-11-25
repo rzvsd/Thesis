@@ -41,6 +41,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -66,6 +67,7 @@ import com.thesis.mobile.ui.theme.ThesisSpace
 import com.thesis.mobile.ui.theme.ThesisType
 import com.thesis.mobile.ui.theme.Tone
 import com.thesis.mobile.ui.theme.textColor
+import kotlin.math.roundToInt
 
 /*
  * Report prose and progress pieces (docs/app-redesign/DESIGN-DIRECTION.md, section 3 #32, #33, #49, #50, #51).
@@ -167,10 +169,32 @@ private fun DropCapText(text: AnnotatedString, band: IntRange, style: TextStyle,
             s.subSequence(s.length - trimmed, s.length)
         }
         val bandAfterCap = (band.first - 1).coerceAtLeast(0) until (band.last).coerceAtLeast(0)
+        // The cap sits on the baseline of the second line beside it (DD: a two-line drop cap), or of the only line.
+        val capLine = (lines - 1).coerceAtMost(1)
+        // Compose 1.6 has no public per-line baseline; the story style has one fixed line height, so line n's
+        // baseline is the first baseline moved down by line n's top.
+        val besideBaseline = beside.firstBaseline + beside.getLineTop(capLine) - beside.getLineTop(0)
+        val capShift = (besideBaseline - capLayout.firstBaseline).roundToInt()
         Column(Modifier.semantics(mergeDescendants = true) { contentDescription = text.text }) {
-            Row {
-                Text(cap, style = capStyle, modifier = Modifier.padding(end = ThesisSpace.s))
-                BandText(first, bandAfterCap, style, p, Modifier.weight(1f))
+            Layout(
+                content = {
+                    Text(cap, style = capStyle)
+                    BandText(first, bandAfterCap, style, p, Modifier)
+                },
+            ) { measurables, c ->
+                val capPlaceable = measurables[0].measure(Constraints())
+                val textWidth = (c.maxWidth - capPlaceable.width - gap).coerceAtLeast(0)
+                val textPlaceable = measurables[1].measure(Constraints(maxWidth = textWidth))
+                // A negative shift (cap baseline below the line's) moves the text down instead of the cap up.
+                val top = minOf(0, capShift)
+                val capY = capShift - top
+                val textY = -top
+                val capBaseline = capY + capLayout.firstBaseline.roundToInt()
+                val height = maxOf(textY + textPlaceable.height, capBaseline)
+                layout(c.maxWidth, height) {
+                    capPlaceable.place(0, capY)
+                    textPlaceable.place(capPlaceable.width + gap, textY)
+                }
             }
             if (second.isNotEmpty()) {
                 val offset = split + (body.length - split - second.length)

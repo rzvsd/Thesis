@@ -203,8 +203,8 @@ fun RefreshArc(progress: () -> Float, refreshing: Boolean, modifier: Modifier = 
             .drawBehind {
                 drawCircle(p.surface)
                 drawCircle(p.line, style = Stroke(ThesisSpace.border.toPx()))
-                val stroke = Kit.ringStroke.toPx() * 1.5f
-                val inset = size.minDimension * 0.3f
+                val stroke = Kit.refreshStroke.toPx()
+                val inset = size.minDimension * Kit.REFRESH_ARC_INSET
                 val sweep = if (refreshing) {
                     Kit.REFRESH_SWEEP_SPINNING
                 } else {

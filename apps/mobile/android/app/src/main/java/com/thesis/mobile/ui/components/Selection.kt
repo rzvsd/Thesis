@@ -78,6 +78,9 @@ fun ThesisSwitch(
         Switch(
             checked = checked,
             onCheckedChange = null,
+            // The kit press tint on the track (rubric M1), as ThesisCheckbox and ThesisRadio do; in a ToggleRow
+            // (null callback) the row draws the tint instead.
+            modifier = Modifier.thesisPress(source, shape = ThesisShape.pill, enabled = onCheckedChange != null && enabled),
             enabled = enabled,
             colors = SwitchDefaults.colors(
                 checkedThumbColor = p.surface,
@@ -141,7 +144,7 @@ fun ThesisCheckbox(
                 .thesisPress(interactionSource, shape = ThesisShape.badge, enabled = onCheckedChange != null && enabled)
                 .drawBehind {
                     val stroke = Kit.ringStroke.toPx()
-                    val r = CornerRadius(ThesisShape.BadgeRadius.toPx() * 0.66f)
+                    val r = CornerRadius(ThesisShape.BadgeRadius.toPx())
                     drawRoundRect(on.copy(alpha = t), cornerRadius = r)
                     drawRoundRect(
                         lerp(off, on, t),

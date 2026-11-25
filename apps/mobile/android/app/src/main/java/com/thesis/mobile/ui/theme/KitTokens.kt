@@ -66,9 +66,13 @@ internal object Kit {
 
     /**
      * Compact TickerRow (Names density option) columns: ticker, figure ("$1,234.56") and change caption
-     * ("+12 since Tue"), so every compact row aligns. Minimums: at large font scales the row stacks instead.
+     * ("+12 since Tue"), so every compact row aligns. Minimums; the ticker column is multiplied by the font scale.
+     * Above [COMPACT_ALIGNED_MAX_SCALE] the row uses the comfortable layout instead.
      */
     val compactTickerColumn: Dp = 64.dp
+
+    /** Largest font scale at which compact TickerRows keep their aligned one-line columns (they fit 360 dp). */
+    const val COMPACT_ALIGNED_MAX_SCALE = 1.15f
     val compactFigureColumn: Dp = 72.dp
     val compactCaptionColumn: Dp = 96.dp
 
@@ -128,6 +132,12 @@ internal object Kit {
     /** Snackbar on screen: plain, and with an action (Undo). */
     const val SNACKBAR_MS = 4_000L
     const val SNACKBAR_ACTION_MS = 8_000L
+
+    /** Pull-to-refresh arc stroke (playbook section 15: a heavier line than the 1.5 dp rings). */
+    val refreshStroke: Dp = 2.25.dp
+
+    /** Pull-to-refresh arc inset inside its 48 dp disc, as a share of the disc (a 19 dp arc in 48 dp). */
+    const val REFRESH_ARC_INSET = 0.30f
 
     /** Pull-to-refresh arc: sweep at full pull and while refreshing (degrees). */
     const val REFRESH_SWEEP_MAX = 300f

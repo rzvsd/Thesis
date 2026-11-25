@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyListScope
@@ -105,7 +106,10 @@ fun ThesisChip(
             )
             .minimumInteractiveComponentSize()
             .thesisPress(interactionSource, shape = shape, enabled = enabled)
+            // At least 48 wide: a short label ("All") widens the pill instead of floating centred in the 48 dp touch
+            // area, so the outline starts on the gutter and ChipRow gaps stay 6 dp.
             .heightIn(min = ThesisSpace.chipHeight)
+            .widthIn(min = ThesisSpace.touchMin)
             .drawBehind {
                 val stroke = ThesisSpace.border.toPx()
                 val r = CornerRadius(size.height / 2f)

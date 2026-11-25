@@ -25,6 +25,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -56,6 +57,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import com.thesis.mobile.ui.icons.ThesisIcons
 import com.thesis.mobile.ui.motion.ThesisMotion
 import com.thesis.mobile.ui.motion.rememberHaptics
@@ -164,6 +166,16 @@ fun RowGroup(modifier: Modifier = Modifier, content: RowGroupScope.() -> Unit) {
 
 /** Divider inset for rows with the 24 dp leading column (16 + 24 + 12). */
 val LeadingRowDividerInset: Dp = ThesisSpace.l + ThesisSpace.leadingColumn + ThesisSpace.leadingGap
+
+/**
+ * Divider inset for compact [TickerRow]s: the ticker is their text edge (16) while they show aligned columns; above
+ * 1.15x font scale they use the comfortable layout, whose text edge is [LeadingRowDividerInset]. Read it in the
+ * composable that builds the group (RowGroupScope.row is not composable).
+ */
+val CompactRowDividerInset: Dp
+    @Composable
+    @ReadOnlyComposable
+    get() = if (LocalDensity.current.fontScale <= Kit.COMPACT_ALIGNED_MAX_SCALE) ThesisSpace.l else LeadingRowDividerInset
 
 /**
  * Data row (#9): label (`body`, ink) with an optional [sub] line, and on the right the value (`body` tabular) over
@@ -310,8 +322,11 @@ fun ToggleRow(
  * the change since the last visit ("Intact -> Watch, Tue") or the reason. Trailing: one stacked figure block,
  * [figure] (`body` tabular) over [figureCaption] (tone). No chevron, no meter.
  *
- * [compact] is the Names density option: 48 dp, one line of aligned columns (ticker, state, figure, change, note).
- * Above 1.3x font scale both densities move the figure block under the text and let line 2 wrap to two lines.
+ * [compact] is the Names density option: 48 dp, one line of aligned columns (ticker, state, figure, change, note),
+ * up to 1.15x font scale (the ticker column grows with the font scale so a five-letter ticker never pushes the
+ * state square out of its column). Above 1.15x a compact row uses the comfortable layout at the compact height;
+ * above 1.3x both densities move the figure block under the text and let line 2 wrap to two lines. Divider insets:
+ * [LeadingRowDividerInset] for comfortable rows, [CompactRowDividerInset] for compact ones.
  * Press: tint only (inside a RowGroup). [onLongClick] opens the context sheet with the `longPress()` haptic.
  * [onBoundsCaptured] receives the row's window bounds just before [onClick] (container transform).
  * [stateLabel] ("Intact") is what TalkBack says for the square.
@@ -369,11 +384,12 @@ fun TickerRow(
 
     // Large font scales (> 1.3x): the trailing figure block moves under the text so the company name and line 2
     // keep their meaning on a 360 dp screen (rubric A4) instead of ellipsizing to nothing.
-    val large = LocalDensity.current.fontScale > ThesisType.MAX_DISPLAY_SCALE
+    val fontScale = LocalDensity.current.fontScale
+    val large = fontScale > ThesisType.MAX_DISPLAY_SCALE
     val figureStyle = ThesisType.body.tnum()
     val captionStyle = ThesisType.caption.tnum()
 
-    if (compact && !large) {
+    if (compact && fontScale <= Kit.COMPACT_ALIGNED_MAX_SCALE) {
         // Aligned columns: ticker, state, figure, change, note. The figure and change columns have fixed minimum
         // widths and are right-aligned, so every compact row lines up and the two never run together.
         Row(
@@ -384,11 +400,12 @@ fun TickerRow(
         ) {
             Text(
                 ticker,
-                modifier = Modifier.widthIn(min = Kit.compactTickerColumn),
+                modifier = Modifier.widthIn(min = Kit.compactTickerColumn * fontScale),
                 style = ThesisType.rowTitle,
                 color = p.ink,
                 maxLines = 1,
             )
+            Spacer(Modifier.width(ThesisSpace.s))
             leading()
             Spacer(Modifier.weight(1f))
             Text(
@@ -648,7 +665,11 @@ internal fun Modifier.touchHeight(min: Dp): Modifier = layout { measurable, cons
     }
 }
 
-/** Sheet menu row (#43): 48 dp, a 20 dp icon and a `body` label; [destructive] in neg. Press tint. */
+/**
+ * Sheet menu row (#43): 48 dp, a 20 dp icon and a `body` label; [destructive] in neg. Press tint. Inside a sheet
+ * ([ThesisSheetContent]) it runs full-bleed across the sheet's 16 dp content inset, so the press tint reaches both
+ * sheet edges and the icon sits on the title's text edge; consecutive rows sit flush (48 dp pitch).
+ */
 @Composable
 fun SheetActionRow(
     icon: ImageVector,
@@ -665,13 +686,15 @@ fun SheetActionRow(
         destructive -> p.neg
         else -> p.ink
     }
+    val bleed = LocalSheetGutter.current
     Row(
         modifier
+            .bleedHorizontally(bleed)
             .fillMaxWidth()
             .clickable(interactionSource, indication = null, enabled = enabled, role = Role.Button, onClick = onClick)
             .thesisPress(interactionSource, enabled = enabled)
             .heightIn(min = ThesisSpace.touchMin)
-            .padding(horizontal = ThesisSpace.l, vertical = ThesisSpace.s),
+            .padding(horizontal = bleed.takeIf { it > 0.dp } ?: ThesisSpace.l, vertical = ThesisSpace.s),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(ThesisSpace.l),
     ) {
@@ -679,3 +702,21 @@ fun SheetActionRow(
         Text(label, style = ThesisType.body, color = color)
     }
 }
+
+/** Widens this element by [amount] on both sides past its parent's padding (full-bleed rows in a padded column). */
+private fun Modifier.bleedHorizontally(amount: Dp): Modifier =
+    if (amount <= 0.dp) {
+        this
+    } else {
+        layout { measurable, constraints ->
+            val extra = amount.roundToPx() * 2
+            val wide = if (constraints.hasBoundedWidth) {
+                constraints.copy(minWidth = constraints.minWidth + extra, maxWidth = constraints.maxWidth + extra)
+            } else {
+                constraints
+            }
+            val placeable = measurable.measure(wide)
+            val width = (placeable.width - extra).coerceIn(constraints.minWidth, constraints.maxWidth)
+            layout(width, placeable.height) { placeable.place(-amount.roundToPx(), 0) }
+        }
+    }

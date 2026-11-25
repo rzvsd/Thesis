@@ -69,7 +69,7 @@ data class SourceInfo(
 /** The body of the source sheet, for galleries and for a [DockPanel] host. */
 @Composable
 fun SourceSheetContent(info: SourceInfo, modifier: Modifier = Modifier) {
-    ThesisSheetContent(modifier = modifier, title = info.metric) {
+    ThesisSheetContent(modifier = modifier, title = info.metric, verticalArrangement = Arrangement.spacedBy(ThesisSpace.m)) {
         SourceBody(info)
     }
 }
@@ -78,7 +78,12 @@ fun SourceSheetContent(info: SourceInfo, modifier: Modifier = Modifier) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SourceSheet(info: SourceInfo, onDismissRequest: () -> Unit, modifier: Modifier = Modifier) {
-    ThesisSheet(onDismissRequest = onDismissRequest, modifier = modifier, title = info.metric) {
+    ThesisSheet(
+        onDismissRequest = onDismissRequest,
+        modifier = modifier,
+        title = info.metric,
+        verticalArrangement = Arrangement.spacedBy(ThesisSpace.m),
+    ) {
         SourceBody(info)
     }
 }

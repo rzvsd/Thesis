@@ -25,6 +25,11 @@ import com.thesis.mobile.ui.components.CompareRow
 import com.thesis.mobile.ui.components.CompareTable
 import com.thesis.mobile.ui.components.CompareTableModel
 import com.thesis.mobile.ui.components.DataRow
+import com.thesis.mobile.ui.components.DialogAction
+import com.thesis.mobile.ui.components.SheetActionRow
+import com.thesis.mobile.ui.components.ThesisDialogContent
+import com.thesis.mobile.ui.components.ThesisSheetContent
+import com.thesis.mobile.ui.icons.ThesisIcons
 import com.thesis.mobile.ui.components.KpiGrid
 import com.thesis.mobile.ui.components.KpiSpec
 import com.thesis.mobile.ui.components.SkeletonKpiGrid
@@ -147,5 +152,60 @@ class KitLayoutTest {
         )
         setAt(2f, 360.dp) { CompareTable(model) }
         assertBreaksOnlyBetweenWords("Operating margin, %")
+    }
+
+    private fun textNode(text: String): SemanticsNode =
+        rule.onAllNodes(SemanticsMatcher.expectValue(SemanticsProperties.Text, listOf(androidx.compose.ui.text.AnnotatedString(text))), useUnmergedTree = true)
+            .fetchSemanticsNodes()
+            .first()
+
+    @Test
+    fun dialogActionsStackInsteadOfBreakingWordsAt2xOn360dp() {
+        setAt(2f, 360.dp) {
+            ThesisDialogContent(
+                title = "Discard this note?",
+                body = "The changes since your last save are lost.",
+                confirm = DialogAction("Discard changes", {}),
+                dismiss = DialogAction("Keep editing", {}),
+                destructive = true,
+            )
+        }
+        assertBreaksOnlyBetweenWords("Discard changes")
+        assertBreaksOnlyBetweenWords("Keep editing")
+        val confirm = textNode("Discard changes").boundsInRoot
+        val dismiss = textNode("Keep editing").boundsInRoot
+        assertTrue("stacked: confirm $confirm above dismiss $dismiss", confirm.bottom <= dismiss.top)
+    }
+
+    @Test
+    fun dialogActionsShareOneLineWhenTheyFit() {
+        setAt(1f, PhoneSpec.WIDTH_DP.dp) {
+            ThesisDialogContent(title = "Remove AAPL?", confirm = DialogAction("Remove", {}), dismiss = DialogAction("Cancel", {}), destructive = true)
+        }
+        val confirm = textNode("Remove").boundsInRoot
+        val dismiss = textNode("Cancel").boundsInRoot
+        assertTrue("one line, dismiss left of confirm: $dismiss / $confirm", dismiss.right <= confirm.left && kotlin.math.abs(dismiss.center.y - confirm.center.y) < 1f)
+    }
+
+    @Test
+    fun sheetActionRowsRunFullBleedAndFlush() {
+        setAt(1f, PhoneSpec.WIDTH_DP.dp) {
+            ThesisSheetContent(Modifier.testTag("sheet"), title = "AAPL") {
+                SheetActionRow(ThesisIcons.Notes, "Add a note", {}, Modifier.testTag("a"))
+                SheetActionRow(ThesisIcons.Compare, "Compare", {}, Modifier.testTag("b"))
+            }
+        }
+        val sheet = rule.onNodeWithTag("sheet", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+        val a = rule.onNodeWithTag("a", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+        val b = rule.onNodeWithTag("b", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+        val title = textNode("AAPL").boundsInRoot
+        val label = textNode("Add a note").boundsInRoot
+        val dp = rule.density.density
+        assertEquals("row starts at the sheet edge", sheet.left, a.left, 1f)
+        assertEquals("row ends at the sheet edge", sheet.right, a.right, 1f)
+        assertEquals("rows sit flush", a.bottom, b.top, 1f)
+        // Title on the 16 dp inset; label after the 20 dp icon and the 16 dp gap.
+        assertEquals(sheet.left + ThesisSpace.l.value * dp, title.left, 1f)
+        assertEquals(title.left + (ThesisSpace.iconM + ThesisSpace.l).value * dp, label.left, 1f)
     }
 }

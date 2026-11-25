@@ -34,6 +34,7 @@ import com.thesis.mobile.ui.components.ChapterHeader
 import com.thesis.mobile.ui.components.ChapterPills
 import com.thesis.mobile.ui.components.ChartReadout
 import com.thesis.mobile.ui.components.ChipRow
+import com.thesis.mobile.ui.components.CompactRowDividerInset
 import com.thesis.mobile.ui.components.CompareColumn
 import com.thesis.mobile.ui.components.CompareRow
 import com.thesis.mobile.ui.components.CompareTable
@@ -208,6 +209,7 @@ object KitComponentSheets {
         }
     }
 
+    @OptIn(ExperimentalLayoutApi::class)
     val buttons: @Composable GalleryScope.() -> Unit = {
         Specimen("PrimaryButton", "default / pressed / disabled / loading / commit with icon") {
             PrimaryButton("Run the report", noop)
@@ -223,7 +225,7 @@ object KitComponentSheets {
             SecondaryButton("Compare", noop, loading = true)
         }
         Specimen("TertiaryButton", "default / pressed / disabled") {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 TertiaryButton("Not now", noop)
                 TertiaryButton("Not now", noop, interactionSource = pressedSource())
                 TertiaryButton("Not now", noop, enabled = false)
@@ -235,7 +237,7 @@ object KitComponentSheets {
             DestructiveButton("Delete account", noop, enabled = false)
         }
         Specimen("TextAction / ThesisLink", "default / pressed / disabled") {
-            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 TextAction("See all", noop)
                 TextAction("See all", noop, interactionSource = pressedSource())
                 TextAction("See all", noop, enabled = false)
@@ -387,6 +389,7 @@ object KitComponentSheets {
             }
         }
         Specimen("TickerRow", "comfortable / with note and live / compact / pressed") {
+            val compactInset = CompactRowDividerInset
             RowGroup {
                 row(LeadingRowDividerInset) {
                     TickerRow("AAPL", Tone.Favourable, noop, company = "Apple", line2 = "Services carry the margin", figure = "62", figureCaption = "+4 since Tue", figureCaptionTone = Tone.Favourable, stateLabel = "On track")
@@ -394,9 +397,9 @@ object KitComponentSheets {
                 row(LeadingRowDividerInset) {
                     TickerRow("NVDA", Tone.Attention, noop, company = "Nvidia", line2 = "Supply is the constraint", figure = "48", figureCaption = "−6 since Mon", figureCaptionTone = Tone.Unfavourable, stateLabel = "Drifting", hasNote = true, live = true)
                 }
-                row(LeadingRowDividerInset) { TickerRow("MSFT", Tone.Neutral, noop, company = "Microsoft", figure = "55", figureCaption = "No change", figureCaptionTone = Tone.Neutral, compact = true, stateLabel = "On track") }
-                row(LeadingRowDividerInset) { TickerRow("GOOGL", Tone.Attention, noop, figure = "$1,234.56", figureCaption = "+12 since Tue", figureCaptionTone = Tone.Favourable, compact = true, hasNote = true, stateLabel = "Drifting") }
-                row(LeadingRowDividerInset) { TickerRow("V", Tone.Favourable, noop, figure = "7", figureCaption = "−1", figureCaptionTone = Tone.Unfavourable, compact = true, stateLabel = "On track") }
+                row(compactInset) { TickerRow("MSFT", Tone.Neutral, noop, company = "Microsoft", figure = "55", figureCaption = "No change", figureCaptionTone = Tone.Neutral, compact = true, stateLabel = "On track") }
+                row(compactInset) { TickerRow("GOOGL", Tone.Attention, noop, figure = "$1,234.56", figureCaption = "+12 since Tue", figureCaptionTone = Tone.Favourable, compact = true, hasNote = true, stateLabel = "Drifting") }
+                row(compactInset) { TickerRow("V", Tone.Favourable, noop, figure = "7", figureCaption = "−1", figureCaptionTone = Tone.Unfavourable, compact = true, stateLabel = "On track") }
                 row(LeadingRowDividerInset) { TickerRow("AMZN", Tone.Unknown, noop, company = "Amazon", interactionSource = pressedSource()) }
             }
         }
@@ -502,7 +505,7 @@ object KitComponentSheets {
                 ),
             )
         }
-        Specimen("ThesisDialogContent", "normal / destructive") {
+        Specimen("ThesisDialogContent", "normal / destructive / longer labels: stacked, confirm on top, when they do not fit (2.0x)") {
             ThesisDialogContent(
                 title = "Leave without saving?",
                 body = "Your note has changes that are not saved yet.",
@@ -515,6 +518,19 @@ object KitComponentSheets {
                 confirm = DialogAction("Delete", noop),
                 dismiss = DialogAction("Cancel", noop),
                 destructive = true,
+            )
+            ThesisDialogContent(
+                title = "Discard this note?",
+                body = "The changes since your last save are lost.",
+                confirm = DialogAction("Discard changes", noop),
+                dismiss = DialogAction("Keep editing", noop),
+                destructive = true,
+            )
+            ThesisDialogContent(
+                title = "Leave without saving?",
+                body = "Your note has changes that are not saved yet.",
+                confirm = DialogAction("Leave without saving", noop),
+                dismiss = DialogAction("Keep editing my note", noop),
             )
         }
         Specimen("ThesisSnackbar", "message / with action") {
@@ -554,8 +570,9 @@ object KitComponentSheets {
             SkeletonKpiGrid()
             SkeletonCard()
             RowGroup {
-                row { SkeletonRow() }
-                row { SkeletonRow(twoLine = false) }
+                // The TickerRow insets: a skeleton row crossfades into the row it stands in for without its hairline moving.
+                row(LeadingRowDividerInset) { SkeletonRow() }
+                row(LeadingRowDividerInset) { SkeletonRow(twoLine = false) }
             }
             SkeletonChart()
         }

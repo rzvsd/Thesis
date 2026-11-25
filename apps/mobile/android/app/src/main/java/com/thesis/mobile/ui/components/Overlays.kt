@@ -40,21 +40,28 @@ import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
+import androidx.compose.material3.SnackbarVisuals
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.platform.LocalAccessibilityManager
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.heading
@@ -72,7 +79,8 @@ import com.thesis.mobile.ui.theme.ThesisShape
 import com.thesis.mobile.ui.theme.ThesisSpace
 import com.thesis.mobile.ui.theme.ThesisSurface
 import com.thesis.mobile.ui.theme.ThesisType
-import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -109,13 +117,22 @@ fun SheetHandle(modifier: Modifier = Modifier) {
 }
 
 /**
- * The body of a sheet: an optional `subhead` [title] (heading) and the [content], padded 16 with the entrance rise.
- * Used by [ThesisSheet] and [DockPanel]; galleries render it on its own.
+ * How far sheet content is inset from the sheet edges. [SheetActionRow] reads it to run full-bleed (its press tint
+ * reaches both sheet edges) while its icon stays on the title's text edge.
+ */
+internal val LocalSheetGutter = staticCompositionLocalOf { 0.dp }
+
+/**
+ * The body of a sheet: an optional `subhead` [title] (heading) and the [content], inset 16 from the sheet edges, with
+ * the entrance rise. [SheetActionRow]s run full-bleed and sit flush one after another (48 dp pitch); free content
+ * passes its own [verticalArrangement] (SourceSheet uses `spacedBy(m)`). Used by [ThesisSheet] and [DockPanel];
+ * galleries render it on its own.
  */
 @Composable
 fun ThesisSheetContent(
     modifier: Modifier = Modifier,
     title: String? = null,
+    verticalArrangement: Arrangement.Vertical = Arrangement.Top,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val p = LocalThesisPalette.current
@@ -124,12 +141,18 @@ fun ThesisSheetContent(
             .fillMaxWidth()
             .enterRise()
             .padding(start = ThesisSpace.l, end = ThesisSpace.l, bottom = ThesisSpace.l),
-        verticalArrangement = Arrangement.spacedBy(ThesisSpace.m),
     ) {
         if (title != null) {
-            Text(title, modifier = Modifier.semantics { heading() }, style = ThesisType.subhead, color = p.ink)
+            Text(
+                title,
+                modifier = Modifier.padding(bottom = ThesisSpace.m).semantics { heading() },
+                style = ThesisType.subhead,
+                color = p.ink,
+            )
         }
-        content()
+        CompositionLocalProvider(LocalSheetGutter provides ThesisSpace.l) {
+            Column(Modifier.fillMaxWidth(), verticalArrangement = verticalArrangement, content = content)
+        }
     }
 }
 
@@ -144,6 +167,7 @@ fun ThesisSheet(
     modifier: Modifier = Modifier,
     title: String? = null,
     sheetState: SheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+    verticalArrangement: Arrangement.Vertical = Arrangement.Top,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val p = LocalThesisPalette.current
@@ -158,7 +182,7 @@ fun ThesisSheet(
         scrimColor = p.scrim,
         dragHandle = { SheetHandle() },
     ) {
-        ThesisSheetContent(title = title, content = content)
+        ThesisSheetContent(title = title, verticalArrangement = verticalArrangement, content = content)
     }
 }
 
@@ -179,6 +203,7 @@ fun DockPanel(
     onDetentChange: (DockDetent) -> Unit,
     modifier: Modifier = Modifier,
     title: String? = null,
+    verticalArrangement: Arrangement.Vertical = Arrangement.Top,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val p = LocalThesisPalette.current
@@ -234,6 +259,7 @@ fun DockPanel(
                         .verticalScroll(rememberScrollState())
                         .onFocusChanged { if (it.hasFocus && detent != DockDetent.Full) onDetentChange(DockDetent.Full) },
                     title = title,
+                    verticalArrangement = verticalArrangement,
                     content = content,
                 )
             }
@@ -246,7 +272,9 @@ data class DialogAction(val label: String, val onClick: () -> Unit, val enabled:
 
 /**
  * The dialog card itself (#22): `dialog` radius, `surface`, `subhead` title, `body` ink2 text and right-aligned
- * actions (a tertiary dismiss and a primary, or a destructive confirm whose disabled state is visibly muted).
+ * actions (a tertiary dismiss and a primary, or a destructive confirm whose disabled state is visibly muted). When
+ * the two buttons do not fit side by side on one line (long labels, large font scales, narrow screens) they stack,
+ * right-aligned, the confirm on top (M3's AlertDialogFlowRow), so a label never breaks inside a word.
  */
 @Composable
 fun ThesisDialogContent(
@@ -277,16 +305,53 @@ fun ThesisDialogContent(
         )
         if (body != null) Text(body, modifier = Modifier.padding(end = ThesisSpace.s), style = ThesisType.body, color = p.ink2)
         content?.invoke(this)
-        Row(
-            Modifier.fillMaxWidth().padding(top = ThesisSpace.xs),
-            horizontalArrangement = Arrangement.spacedBy(ThesisSpace.xs, Alignment.End),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            if (dismiss != null) TertiaryButton(dismiss.label, dismiss.onClick, enabled = dismiss.enabled)
+        DialogActions(Modifier.fillMaxWidth().padding(top = ThesisSpace.xs)) {
+            // Composition order is the reading order of the stacked layout: confirm first, then dismiss.
             if (destructive) {
                 DestructiveButton(confirm.label, confirm.onClick, enabled = confirm.enabled)
             } else {
                 PrimaryButton(confirm.label, confirm.onClick, enabled = confirm.enabled)
+            }
+            if (dismiss != null) TertiaryButton(dismiss.label, dismiss.onClick, enabled = dismiss.enabled)
+        }
+    }
+}
+
+/**
+ * Dialog actions: given confirm then dismiss. On one line (dismiss left of confirm, right-aligned, [ThesisSpace.xs]
+ * apart) when both fit at their single-line widths; otherwise stacked, each right-aligned at up to the full width,
+ * confirm on top. Stacked buttons wrap only when one label alone is wider than the dialog, which wraps between
+ * words.
+ */
+@Composable
+private fun DialogActions(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+    Layout(content, modifier) { measurables, constraints ->
+        val gap = ThesisSpace.xs.roundToPx()
+        val loose = constraints.copy(minWidth = 0, minHeight = 0)
+        val single = measurables.map { it.maxIntrinsicWidth(constraints.maxHeight) }
+        val oneLine = !constraints.hasBoundedWidth ||
+            single.sum() + gap * (measurables.size - 1).coerceAtLeast(0) <= constraints.maxWidth
+        val placeables = measurables.map { it.measure(loose) }
+        val width = if (constraints.hasBoundedWidth) constraints.maxWidth else placeables.sumOf { it.width } + gap * (placeables.size - 1).coerceAtLeast(0)
+        if (oneLine) {
+            val height = placeables.maxOfOrNull { it.height } ?: 0
+            layout(width, height) {
+                // Right to left: confirm at the end, dismiss before it.
+                var x = width
+                placeables.forEach { placeable ->
+                    x -= placeable.width
+                    placeable.place(x, (height - placeable.height) / 2)
+                    x -= gap
+                }
+            }
+        } else {
+            val height = placeables.sumOf { it.height } + gap * (placeables.size - 1).coerceAtLeast(0)
+            layout(width, height) {
+                var y = 0
+                placeables.forEach { placeable ->
+                    placeable.place(width - placeable.width, y)
+                    y += placeable.height + gap
+                }
             }
         }
     }
@@ -294,8 +359,9 @@ fun ThesisDialogContent(
 
 /**
  * Dialog (#22): [ThesisDialogContent] in a window, entering with scale 0.96 + 8 dp rise + fade over 220 ms
- * (`EaseEnter`). Destructive confirms are required before Remove / Delete (with the `reject()` haptic at the
- * call site when the user confirms a destructive action).
+ * (`EaseEnter`) and leaving the same way in reverse over 150 ms (`EaseExit`, section 4.4) before [onDismissRequest]
+ * or an action's `onClick` runs. Instant under reduced motion. Destructive confirms are required before Remove /
+ * Delete (with the `reject()` haptic at the call site when the user confirms a destructive action).
  */
 @Composable
 fun ThesisDialog(
@@ -308,17 +374,34 @@ fun ThesisDialog(
     content: (@Composable ColumnScope.() -> Unit)? = null,
 ) {
     val reduced = LocalReducedMotion.current
-    Dialog(onDismissRequest = onDismissRequest) {
-        val progress = remember { Animatable(if (reduced) 1f else 0f) }
-        LaunchedEffect(Unit) {
-            if (!reduced) progress.animateTo(1f, tween(ThesisMotion.Dialog, easing = ThesisMotion.EaseEnter))
+    val scope = rememberCoroutineScope()
+    val progress = remember { Animatable(if (reduced) 1f else 0f) }
+    var closing by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        if (!reduced) progress.animateTo(1f, tween(ThesisMotion.Dialog, easing = ThesisMotion.EaseEnter))
+    }
+    // Plays the exit, then hands over to the caller, which removes the dialog. One exit at a time.
+    val closeThen: (() -> Unit) -> Unit = { action ->
+        if (!closing) {
+            closing = true
+            scope.launch {
+                if (!reduced) progress.animateTo(0f, tween(ThesisMotion.Quick, easing = ThesisMotion.EaseExit))
+                action()
+                // Normally the caller has removed the dialog by now and this scope is cancelled. A caller that keeps
+                // it open (a check that failed) gets it back.
+                delay(ThesisMotion.Quick.toLong())
+                closing = false
+                if (!reduced) progress.animateTo(1f, tween(ThesisMotion.Dialog, easing = ThesisMotion.EaseEnter))
+            }
         }
+    }
+    Dialog(onDismissRequest = { closeThen(onDismissRequest) }) {
         val rise = with(LocalDensity.current) { ThesisMotion.EnterOffset.toPx() }
         ThesisDialogContent(
             title = title,
-            confirm = confirm,
+            confirm = confirm.copy(onClick = { closeThen(confirm.onClick) }),
             body = body,
-            dismiss = dismiss,
+            dismiss = dismiss?.let { d -> d.copy(onClick = { closeThen(d.onClick) }) },
             destructive = destructive,
             content = content,
             modifier = Modifier.graphicsLayer {
@@ -379,22 +462,57 @@ fun ThesisSnackbar(
 }
 
 /**
+ * What [showThesisSnackbar] puts on the host: shown until [ThesisSnackbarHost] times it out after [baseMillis]
+ * (4 s, 8 s with an action), stretched to the user's accessibility timeout ("Time to take action").
+ */
+private class ThesisSnackbarVisuals(
+    override val message: String,
+    override val actionLabel: String?,
+    val baseMillis: Long,
+) : SnackbarVisuals {
+    override val withDismissAction: Boolean get() = false
+    override val duration: SnackbarDuration get() = SnackbarDuration.Indefinite
+}
+
+/**
  * The shell's snackbar host (#23): one at a time, 16 dp from the edges (the shell places it above the bottom bar),
- * each one rising 12 dp and fading in over 220 ms. Show messages with [showThesisSnackbar].
+ * each one rising 12 dp and fading in over 220 ms, and fading out over 150 ms (`EaseExit`) when it times out or its
+ * action is tapped. Show messages with [showThesisSnackbar]: this host times them out, routing the 4 s / 8 s base
+ * through the accessibility manager's recommended timeout as M3's own host does.
  */
 @Composable
 fun ThesisSnackbarHost(hostState: SnackbarHostState, modifier: Modifier = Modifier) {
     val reduced = LocalReducedMotion.current
+    val accessibility = LocalAccessibilityManager.current
     SnackbarHost(hostState, modifier.padding(ThesisSpace.l)) { data: SnackbarData ->
+        val scope = rememberCoroutineScope()
         val progress = remember(data) { Animatable(if (reduced) 1f else 0f) }
+        // Fades out, then ends the snackbar with [end] (dismiss on time-out, performAction on the action).
+        val hideThen: (() -> Unit) -> Unit = { end ->
+            scope.launch {
+                if (!reduced) progress.animateTo(0f, tween(ThesisMotion.Quick, easing = ThesisMotion.EaseExit))
+                end()
+            }
+        }
         LaunchedEffect(data) {
             if (!reduced) progress.animateTo(1f, tween(ThesisMotion.Dialog, easing = ThesisMotion.EaseEnter))
+            val visuals = data.visuals
+            if (visuals is ThesisSnackbarVisuals) {
+                val hasAction = visuals.actionLabel != null
+                val timeout = accessibility?.calculateRecommendedTimeoutMillis(
+                    visuals.baseMillis,
+                    containsText = true,
+                    containsControls = hasAction,
+                ) ?: visuals.baseMillis
+                delay(timeout)
+                hideThen { data.dismiss() }
+            }
         }
         val rise = with(LocalDensity.current) { ThesisMotion.SnackbarOffset.toPx() }
         ThesisSnackbar(
             message = data.visuals.message,
             actionLabel = data.visuals.actionLabel,
-            onAction = { data.performAction() },
+            onAction = { hideThen { data.performAction() } },
             modifier = Modifier.graphicsLayer {
                 alpha = progress.value
                 translationY = (1f - progress.value) * rise
@@ -404,12 +522,10 @@ fun ThesisSnackbarHost(hostState: SnackbarHostState, modifier: Modifier = Modifi
 }
 
 /**
- * Shows [message] for 4 s, or 8 s when it has an [actionLabel] (section 3 #23), and returns how it ended.
+ * Shows [message] on a [ThesisSnackbarHost] for 4 s, or 8 s when it has an [actionLabel] (section 3 #23), longer
+ * when the user's accessibility settings ask for more time, and returns how it ended.
  */
 suspend fun SnackbarHostState.showThesisSnackbar(message: String, actionLabel: String? = null): SnackbarResult {
-    val duration = if (actionLabel != null) Kit.SNACKBAR_ACTION_MS else Kit.SNACKBAR_MS
-    return withTimeoutOrNull(duration) {
-        showSnackbar(message = message, actionLabel = actionLabel, duration = SnackbarDuration.Indefinite)
-    } ?: SnackbarResult.Dismissed
+    val base = if (actionLabel != null) Kit.SNACKBAR_ACTION_MS else Kit.SNACKBAR_MS
+    return showSnackbar(ThesisSnackbarVisuals(message, actionLabel, base))
 }
-

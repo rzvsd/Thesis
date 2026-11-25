@@ -3,7 +3,11 @@ package com.thesis.mobile.preview
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -14,6 +18,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.toPixelMap
+import androidx.compose.ui.platform.AccessibilityManager
+import androidx.compose.ui.platform.LocalAccessibilityManager
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.assertIsOff
@@ -38,6 +44,8 @@ import com.thesis.mobile.ui.components.ThesisCheckbox
 import com.thesis.mobile.ui.components.ThesisChip
 import com.thesis.mobile.ui.components.ThesisRadio
 import com.thesis.mobile.ui.components.ThesisSnackbar
+import com.thesis.mobile.ui.components.ThesisSnackbarHost
+import com.thesis.mobile.ui.components.showThesisSnackbar
 import com.thesis.mobile.ui.components.ToggleRow
 import com.thesis.mobile.ui.components.defaultBottomBarItems
 import com.thesis.mobile.ui.platform.HapticKind
@@ -205,6 +213,41 @@ class KitSemanticsTest {
         val background = Color(counts.maxByOrNull { it.value }!!.key)
         val best = counts.keys.maxOf { contrast(Color(it), background) }
         assertTrue("Snackbar action contrast ${"%.2f".format(best)}:1 in $mode is under 4.5:1", best >= 4.5f)
+    }
+
+    /**
+     * Rubric A3 (review round 3): the 8 s Undo snackbar follows the accessibility "Time to take action" setting, as
+     * M3's own host does, instead of always ending after 8 s.
+     */
+    @Test
+    fun snackbarTimeoutFollowsTheAccessibilityTimeout() {
+        val host = SnackbarHostState()
+        var result: SnackbarResult? = null
+        val slowReader = object : AccessibilityManager {
+            override fun calculateRecommendedTimeoutMillis(
+                originalTimeoutMillis: Long,
+                containsIcons: Boolean,
+                containsText: Boolean,
+                containsControls: Boolean,
+            ): Long = if (containsControls) originalTimeoutMillis * 3 else originalTimeoutMillis
+        }
+        rule.mainClock.autoAdvance = false
+        rule.setContent {
+            CompositionLocalProvider(LocalAccessibilityManager provides slowReader) {
+                ThesisTheme(mode = ThemeMode.Light) {
+                    ThesisSnackbarHost(host)
+                    LaunchedEffect(Unit) { result = host.showThesisSnackbar("Removed AAPL from your names", "Undo") }
+                }
+            }
+        }
+        // In 100 ms steps, so the entrance and exit animations get their frames.
+        fun advanceSeconds(seconds: Int) = repeat(seconds * 10) { rule.mainClock.advanceTimeBy(100) }
+        // Well past the 8 s base, short of the 24 s the accessibility manager asks for.
+        advanceSeconds(20)
+        assertEquals("still showing after 20 s (24 s recommended)", null, result)
+        assertTrue(host.currentSnackbarData != null)
+        advanceSeconds(10)
+        assertEquals(SnackbarResult.Dismissed, result)
     }
 }
 

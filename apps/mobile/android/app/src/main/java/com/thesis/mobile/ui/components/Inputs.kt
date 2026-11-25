@@ -12,14 +12,20 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.selection.TextSelectionColors
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -28,6 +34,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -40,6 +48,10 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.layout.findRootCoordinates
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.liveRegion
@@ -50,6 +62,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import com.thesis.mobile.ui.icons.ThesisIcons
 import com.thesis.mobile.ui.motion.ThesisMotion
 import com.thesis.mobile.ui.motion.thesisPress
@@ -294,7 +307,9 @@ fun PasswordField(
 
 /**
  * In-window suggestion dropdown (#44): a `surface` card with `panel` radius and up to six rows (ticker, company
- * name, "In your names"). Appears with a Quick fade; rows press with the tint.
+ * name, "In your names"). Appears with a Quick fade; rows press with the tint. Keyboard-aware: its height is capped
+ * at the space between its top and the keyboard (or the navigation bar), and the rows scroll inside that, so a
+ * short window with the IME open never hides a suggestion under the keyboard.
  */
 @Composable
 fun SuggestionList(
@@ -303,6 +318,18 @@ fun SuggestionList(
     modifier: Modifier = Modifier,
 ) {
     val p = LocalThesisPalette.current
+    val density = LocalDensity.current
+    val bottomInset = WindowInsets.ime.union(WindowInsets.navigationBars).getBottom(density)
+    var topInRoot by remember { mutableFloatStateOf(-1f) }
+    var rootHeight by remember { mutableIntStateOf(0) }
+    val maxHeight: Dp? = if (topInRoot >= 0f && rootHeight > 0) {
+        with(density) {
+            (rootHeight - bottomInset - topInRoot - ThesisSpace.s.toPx()).coerceAtLeast(ThesisSpace.touchMin.toPx()).toDp()
+        }
+    } else {
+        null
+    }
+    val scroll = rememberScrollState()
     AnimatedVisibility(
         visible = suggestions.isNotEmpty(),
         enter = fadeIn(tween(ThesisMotion.Quick, easing = ThesisMotion.EaseStandard)),
@@ -311,9 +338,16 @@ fun SuggestionList(
         Column(
             modifier
                 .fillMaxWidth()
+                .onGloballyPositioned { c ->
+                    topInRoot = c.positionInRoot().y
+                    rootHeight = c.findRootCoordinates().size.height
+                }
+                .then(if (maxHeight != null) Modifier.heightIn(max = maxHeight) else Modifier)
                 .clip(ThesisShape.panel)
                 .background(p.surface)
-                .border(ThesisSpace.border, p.line, ThesisShape.panel),
+                .border(ThesisSpace.border, p.line, ThesisShape.panel)
+                // Only once the cap is known: a scroll inside an unbounded parent (a scrolling screen) would throw.
+                .then(if (maxHeight != null) Modifier.verticalScroll(scroll) else Modifier),
         ) {
             suggestions.take(Kit.SUGGESTIONS_MAX).forEachIndexed { i, s ->
                 if (i > 0) ThesisDivider(startInset = ThesisSpace.l)
