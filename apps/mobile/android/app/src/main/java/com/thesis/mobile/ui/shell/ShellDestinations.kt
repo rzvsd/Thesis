@@ -1,5 +1,11 @@
 package com.thesis.mobile.ui.shell
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,6 +20,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import com.thesis.mobile.ui.motion.ThesisMotion
 import com.thesis.mobile.ui.navigation.DeepLinkRouter
 import com.thesis.mobile.ui.navigation.Destination
 import com.thesis.mobile.ui.navigation.warRoomsInEarningsWindow
@@ -30,6 +37,7 @@ import com.thesis.mobile.ui.screens.ScenarioStressScreen
 import com.thesis.mobile.ui.screens.SettingsScreen
 import com.thesis.mobile.ui.screens.WarRoomScreen
 import com.thesis.mobile.ui.screens.WeeklyDigestScreen
+import com.thesis.mobile.ui.theme.LocalReducedMotion
 import com.thesis.mobile.ui.theme.ThesisColors
 import com.thesis.mobile.ui.theme.ThesisDimens
 import com.thesis.mobile.ui.theme.ThesisTypography
@@ -271,22 +279,50 @@ internal fun ShellContentScope.Content(entry: NavEntry, padding: PaddingValues) 
     }
 }
 
+/**
+ * Today's root: Home, or the sample Deep Dive for a new account (no names, no reports). The two swap as a content
+ * state change (4.4: out `Quick` `EaseExit`, in `Base` after 60 ms), never in one frame: the sample replaces Home
+ * once the empty watchlist and history arrive, and "Not now" returns to Home. 150 ms crossfade under reduced
+ * motion (4.8).
+ */
 @Composable
 private fun ShellContentScope.TodayRoot(padding: PaddingValues) {
     val showSample = !sampleDismissed &&
         state.watchlistLoaded && state.watchlist.isEmpty() &&
         state.reportHistoryLoaded && state.reportHistory.isEmpty()
-    if (showSample) {
-        platform.sampleDeepDive(
-            padding,
-            {
-                onDismissSample()
-                actions.onSelectTab(com.thesis.mobile.ui.navigation.ShellTab.Names)
-            },
-            onDismissSample
-        )
-        return
+    val reduced = LocalReducedMotion.current
+    AnimatedContent(
+        targetState = showSample,
+        modifier = Modifier.fillMaxSize(),
+        transitionSpec = {
+            val swap = if (reduced) {
+                fadeIn(ThesisMotion.timed(reduced = false, durationMillis = ThesisMotion.Quick)) togetherWith
+                    fadeOut(ThesisMotion.timed(reduced = false, durationMillis = ThesisMotion.Quick))
+            } else {
+                fadeIn(ThesisMotion.timed(reduced = false, ThesisMotion.Base, delayMillis = ThesisMotion.CrossfadeDelay)) togetherWith
+                    fadeOut(ThesisMotion.timed(reduced = false, ThesisMotion.Quick, easing = ThesisMotion.EaseExit))
+            }
+            swap using SizeTransform(clip = false) { _, _ -> snap() }
+        },
+        label = "today-root"
+    ) { sample ->
+        if (sample) {
+            platform.sampleDeepDive(
+                padding,
+                {
+                    onDismissSample()
+                    actions.onSelectTab(com.thesis.mobile.ui.navigation.ShellTab.Names)
+                },
+                onDismissSample
+            )
+        } else {
+            TodayHome(padding)
+        }
     }
+}
+
+@Composable
+private fun ShellContentScope.TodayHome(padding: PaddingValues) {
     HomeScreen(
         pulse = state.pulseReport,
         pulseLoadedFromCache = state.pulseLoadedFromCache,

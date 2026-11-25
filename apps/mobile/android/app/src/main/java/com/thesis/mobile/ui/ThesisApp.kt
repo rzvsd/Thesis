@@ -2,6 +2,7 @@ package com.thesis.mobile.ui
 
 import android.app.Activity
 import android.content.Context
+import android.content.ContextWrapper
 import android.content.Intent
 import android.provider.Settings
 import android.text.format.DateFormat
@@ -21,7 +22,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.NonRestartableComposable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -30,6 +34,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.platform.LocalView
+import androidx.core.view.WindowCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -50,9 +56,12 @@ import com.thesis.mobile.ui.screens.PasswordResetScreen
 import com.thesis.mobile.ui.screens.SampleDeepDiveScreen
 import com.thesis.mobile.ui.screens.createPulsePdfExport
 import com.thesis.mobile.ui.screens.shareExport
+import com.thesis.mobile.ui.shell.LocalScreenChrome
 import com.thesis.mobile.ui.shell.SHARED_AXIS_SHIFT
+import com.thesis.mobile.ui.shell.ScreenChrome
 import com.thesis.mobile.ui.shell.ShellPlatform
 import com.thesis.mobile.ui.shell.ThesisShell
+import com.thesis.mobile.ui.shell.rememberScreenChrome
 import com.thesis.mobile.ui.shell.sharedAxisX
 import com.thesis.mobile.ui.theme.LocalReducedMotion
 import com.thesis.mobile.ui.theme.LocalThesisPalette
@@ -81,6 +90,10 @@ fun ThesisApp(
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
     var showPasswordReset by rememberSaveable { mutableStateOf(false) }
+    // Status bar icons over a HeroBand at rest (2.7): the shell reports its visible page; Onboarding, Auth and
+    // Password reset report through their own ScreenChrome (HeroUnderBars), by surface key.
+    var shellOverHero by remember { mutableStateOf(false) }
+    val surfaceChromes = remember { mutableStateMapOf<String, ScreenChrome>() }
 
     DisposableEffect(mainViewModel) {
         mainViewModel.observe { state -> uiState = state }
@@ -122,6 +135,20 @@ fun ThesisApp(
             uiState.tokens == null -> AppSurface.SignIn
             else -> AppSurface.Shell
         }
+        // After ThesisTheme's own system-bar SideEffect (the theme's palette), in the scope that re-runs whenever
+        // the theme body does: a new content lambda, or a change of palette or reduced motion (both read here),
+        // so the hero override always wins. Ordering dependency: this works only while ThesisTheme calls
+        // SystemBarAppearance before `content`, in its own restart scope. It goes once the theme takes a
+        // `statusBarOverHero` parameter itself (HANDOFF-M3 items 1-2, kit WP).
+        val palette = LocalThesisPalette.current
+        LocalReducedMotion.current
+        val surfaceKey = when (surface) {
+            AppSurface.Onboarding -> SURFACE_ONBOARDING
+            AppSurface.SignIn -> if (showPasswordReset) SURFACE_PASSWORD_RESET else SURFACE_AUTH
+            AppSurface.Shell -> null
+        }
+        val overHero = if (surfaceKey == null) shellOverHero else surfaceChromes[surfaceKey]?.overHero == true
+        StatusBarIconsOverHero(view = LocalView.current, lightTheme = palette.isLight, overHero = overHero)
         // One window-sized page background for every surface (2.7); the shell reuses it.
         CompositionLocalProvider(LocalFmt provides fmt) {
             ProvidePageBackground {
@@ -137,18 +164,27 @@ fun ThesisApp(
                         label = "surface"
                     ) { current ->
                         when (current) {
-                            AppSurface.Onboarding -> PreLoginInsets {
-                                OnboardingScreen(onComplete = mainViewModel::completeWelcome)
+                            AppSurface.Onboarding -> SurfaceChrome(SURFACE_ONBOARDING, surfaceChromes) {
+                                PreLoginInsets {
+                                    OnboardingScreen(onComplete = mainViewModel::completeWelcome)
+                                }
                             }
                             AppSurface.SignIn -> SignInFlow(
                                 showPasswordReset = showPasswordReset,
                                 onShowPasswordReset = { showPasswordReset = it },
                                 uiState = uiState,
-                                mainViewModel = mainViewModel
+                                mainViewModel = mainViewModel,
+                                surfaceChromes = surfaceChromes
                             )
                             // The shell applies its own insets (each entry's Scaffold padding, consumeWindowInsets,
                             // imePadding) and its own back handling (predictive back, paywall).
-                            AppSurface.Shell -> LoggedInApp(uiState, mainViewModel, snackbarHostState, context)
+                            AppSurface.Shell -> LoggedInApp(
+                                uiState = uiState,
+                                mainViewModel = mainViewModel,
+                                snackbarHostState = snackbarHostState,
+                                context = context,
+                                onStatusBarOverHero = { shellOverHero = it }
+                            )
                         }
                     }
                 }
@@ -163,7 +199,8 @@ private fun SignInFlow(
     showPasswordReset: Boolean,
     onShowPasswordReset: (Boolean) -> Unit,
     uiState: UiState,
-    mainViewModel: MainViewModel
+    mainViewModel: MainViewModel,
+    surfaceChromes: MutableMap<String, ScreenChrome>
 ) {
     val reducedMotion = LocalReducedMotion.current
     val shiftPx = with(LocalDensity.current) { SHARED_AXIS_SHIFT.roundToPx() }
@@ -174,29 +211,76 @@ private fun SignInFlow(
         label = "sign-in"
     ) { reset ->
         if (reset) {
-            PreLoginInsets {
-                // Only the visible Password reset handles back (not one that is leaving).
-                ThesisBackHandler(enabled = showPasswordReset) { onShowPasswordReset(false) }
-                PasswordResetScreen(onDone = { onShowPasswordReset(false) }, mainViewModel = mainViewModel)
+            SurfaceChrome(SURFACE_PASSWORD_RESET, surfaceChromes) {
+                PreLoginInsets {
+                    // Only the visible Password reset handles back (not one that is leaving).
+                    ThesisBackHandler(enabled = showPasswordReset) { onShowPasswordReset(false) }
+                    PasswordResetScreen(onDone = { onShowPasswordReset(false) }, mainViewModel = mainViewModel)
+                }
             }
         } else {
-            PreLoginInsets {
-                AuthScreen(
-                    isLoading = uiState.authBusy,
-                    currentApiBaseUrl = uiState.apiBaseUrl,
-                    verificationToken = uiState.verificationToken,
-                    registerStatus = uiState.registerStatus,
-                    message = uiState.message,
-                    onSaveApiBaseUrl = mainViewModel::updateApiBaseUrl,
-                    onRegister = mainViewModel::register,
-                    onVerify = mainViewModel::verify,
-                    onLogin = mainViewModel::login,
-                    onForgotPassword = { onShowPasswordReset(true) },
-                    showDeveloperOptions = BuildConfig.DEBUG
-                )
+            SurfaceChrome(SURFACE_AUTH, surfaceChromes) {
+                PreLoginInsets {
+                    AuthScreen(
+                        isLoading = uiState.authBusy,
+                        currentApiBaseUrl = uiState.apiBaseUrl,
+                        verificationToken = uiState.verificationToken,
+                        registerStatus = uiState.registerStatus,
+                        message = uiState.message,
+                        onSaveApiBaseUrl = mainViewModel::updateApiBaseUrl,
+                        onRegister = mainViewModel::register,
+                        onVerify = mainViewModel::verify,
+                        onLogin = mainViewModel::login,
+                        onForgotPassword = { onShowPasswordReset(true) },
+                        showDeveloperOptions = BuildConfig.DEBUG
+                    )
+                }
             }
         }
     }
+}
+
+private const val SURFACE_ONBOARDING = "onboarding"
+private const val SURFACE_AUTH = "auth"
+private const val SURFACE_PASSWORD_RESET = "password-reset"
+
+/**
+ * Gives a surface outside the shell its own [ScreenChrome] (registered under [key] in [chromes]), so a screen that
+ * opens on a HeroBand can declare it with `HeroUnderBars(collapsed)` and the status bar follows (2.7).
+ */
+@Composable
+private fun SurfaceChrome(key: String, chromes: MutableMap<String, ScreenChrome>, content: @Composable () -> Unit) {
+    val chrome = rememberScreenChrome()
+    DisposableEffect(key, chrome) {
+        chromes[key] = chrome
+        onDispose { if (chromes[key] === chrome) chromes.remove(key) }
+    }
+    CompositionLocalProvider(LocalScreenChrome provides chrome, content = content)
+}
+
+/**
+ * Status bar icons (2.7, 5.1): light over a HeroBand at rest in both themes ([overHero]), else the theme's (dark
+ * on paper, light on graphite). Only the status bar: the navigation bar keeps the theme's icons. Must be called
+ * in the scope of ThesisTheme's content, after the theme applied its own appearance; non-restartable (so never
+ * skipped), it re-applies every time that scope runs.
+ */
+@Composable
+@NonRestartableComposable
+private fun StatusBarIconsOverHero(view: android.view.View, lightTheme: Boolean, overHero: Boolean) {
+    val lightIcons = lightTheme && !overHero
+    if (!view.isInEditMode) {
+        SideEffect {
+            val window = view.context.findActivity()?.window ?: return@SideEffect
+            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = lightIcons
+        }
+    }
+}
+
+/** The Activity behind [this] context, unwrapping ContextWrappers; null if none. */
+private tailrec fun Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
 }
 
 /**
@@ -217,7 +301,8 @@ private fun LoggedInApp(
     uiState: UiState,
     mainViewModel: MainViewModel,
     snackbarHostState: SnackbarHostState,
-    context: Context
+    context: Context,
+    onStatusBarOverHero: (Boolean) -> Unit
 ) {
     val navigator = mainViewModel.navigator
     val activity = context as? Activity
@@ -250,7 +335,8 @@ private fun LoggedInApp(
         },
         deleteAccountSection = { DeleteAccountSection(mainViewModel) },
         isResumed = rememberIsResumed(),
-        backScope = { covered, content -> CoveredBackScope(covered, content) }
+        backScope = { covered, content -> CoveredBackScope(covered, content) },
+        onStatusBarOverHero = onStatusBarOverHero
     )
 
     ThesisShell(

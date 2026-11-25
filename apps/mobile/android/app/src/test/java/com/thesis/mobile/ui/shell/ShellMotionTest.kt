@@ -1,0 +1,229 @@
+package com.thesis.mobile.ui.shell
+
+import com.thesis.mobile.ui.motion.ThesisMotion
+import com.thesis.mobile.ui.navigation.Destination
+import com.thesis.mobile.ui.platform.BackSwipeEdge
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+/**
+ * Shell motion rules (DESIGN-DIRECTION 4.4, 4.5, 4.8): which transition each navigator move gets, the top bar's
+ * scroll reveal and hero state, and the predictive-back preview's bookkeeping.
+ */
+class ShellMotionTest {
+
+    // ---- 4.5 transitions
+
+    @Test
+    fun eachMoveGetsItsSection45Transition() {
+        assertEquals(ShellTransition.FadeThrough, shellTransitionFor(NavMove.Tab, reducedMotion = false))
+        assertEquals(ShellTransition.Forward, shellTransitionFor(NavMove.Push, reducedMotion = false))
+        assertEquals(ShellTransition.Backward, shellTransitionFor(NavMove.Pop, reducedMotion = false))
+        // A replaced entry (build → report, 5.14), a restore and a modal change under the tab layer crossfade (Base).
+        assertEquals(ShellTransition.Crossfade, shellTransitionFor(NavMove.Replace, reducedMotion = false))
+        assertEquals(ShellTransition.Crossfade, shellTransitionFor(NavMove.None, reducedMotion = false))
+        assertEquals(ShellTransition.Crossfade, shellTransitionFor(NavMove.Modal, reducedMotion = false))
+    }
+
+    @Test
+    fun reducedMotionCrossfadesEveryMove() {
+        NavMove.entries.forEach { move ->
+            assertEquals(move.name, ShellTransition.ReducedCrossfade, shellTransitionFor(move, reducedMotion = true))
+        }
+        val you = NavEntry(Destination.You, "e1")
+        val page = NavEntry(Destination.YouPage("appearance"), "e2")
+        assertEquals(ShellTransition.ReducedCrossfade, modalTransitionFor(null, you, forward = false, reducedMotion = true))
+        assertEquals(ShellTransition.ReducedCrossfade, modalTransitionFor(you, page, forward = true, reducedMotion = true))
+    }
+
+    @Test
+    fun sharedAxisRunsItsHalvesInSequenceWithinScreen() {
+        // 4.5 "nothing double-exposes": the new page starts when the old page's 90 ms exit has ended, so the two
+        // are never both visible, and the old page's exit (and a predictive back's preview) is seen to its end.
+        assertEquals(ThesisMotion.TabOut, SHARED_AXIS_IN_DELAY)
+        // 4.2: push and pop take `Screen` (300 ms) in all.
+        assertEquals(ThesisMotion.Screen, SHARED_AXIS_IN_DELAY + SHARED_AXIS_IN)
+    }
+
+    @Test
+    fun aModalRiseTakesScreenAndItsContentWaitsForTheBackground() {
+        // The page background covers the page under it in 150 ms; the content starts in its last 30 ms (under 1%
+        // of the page under it left) and the rise ends at 300.
+        assertEquals(ThesisMotion.Quick, MODAL_BACKGROUND_IN)
+        assertTrue(MODAL_CONTENT_DELAY in (MODAL_BACKGROUND_IN * 3 / 4) until MODAL_BACKGROUND_IN)
+        assertEquals(ThesisMotion.Screen, MODAL_CONTENT_DELAY + ThesisMotion.PushOut)
+        assertEquals(ShellTransition.Rise.frontChangeMillis, MODAL_CONTENT_DELAY)
+    }
+
+    @Test
+    fun theStatusBarSwitchesOnceTheLeavingPageHasGone() {
+        // 2.7: never in a move's first frame; for the X axis and fade-through, when the old page's exit ends.
+        assertEquals(SHARED_AXIS_IN_DELAY, ShellTransition.Forward.frontChangeMillis)
+        assertEquals(SHARED_AXIS_IN_DELAY, ShellTransition.Backward.frontChangeMillis)
+        assertEquals(ThesisMotion.TabOut, ShellTransition.FadeThrough.frontChangeMillis)
+        ShellTransition.entries.forEach { assertTrue(it.name, it.frontChangeMillis in 1..ThesisMotion.Screen) }
+    }
+
+    @Test
+    fun snackbarsTimeOutAsSection3Says() {
+        fun visuals(action: String?, duration: androidx.compose.material3.SnackbarDuration) =
+            object : androidx.compose.material3.SnackbarVisuals {
+                override val message = "Saved."
+                override val actionLabel = action
+                override val withDismissAction = false
+                override val duration = duration
+            }
+        val indefinite = androidx.compose.material3.SnackbarDuration.Indefinite
+        // showThesisSnackbar posts Indefinite messages: 4 s, 8 s with an action (3 #23).
+        assertEquals(4_000L, snackbarTimeoutMillis(visuals(null, indefinite), accessibility = null))
+        assertEquals(8_000L, snackbarTimeoutMillis(visuals("Open", indefinite), accessibility = null))
+        assertEquals(4_000L, snackbarTimeoutMillis(visuals(null, androidx.compose.material3.SnackbarDuration.Short), null))
+    }
+
+    @Test
+    fun onlyRiseAndFallMoveAModalPagesContent() {
+        // Rise and Fall fade the page in place and move its content 32 dp; every other move leaves the content be.
+        val moving = ShellTransition.entries.associateWith { ModalContentMotion.of(it) }
+            .filterValues { it != ModalContentMotion.None }
+        assertEquals(
+            mapOf(ShellTransition.Rise to ModalContentMotion.Rise, ShellTransition.Fall to ModalContentMotion.Fall),
+            moving
+        )
+        assertEquals(ModalContentMotion.None, ModalContentMotion.of(null))
+    }
+
+    @Test
+    fun modalsRiseAndFallAndMoveOnXInside() {
+        val you = NavEntry(Destination.You, "e1")
+        val page = NavEntry(Destination.YouPage("appearance"), "e2")
+        assertEquals(ShellTransition.Rise, modalTransitionFor(null, you, forward = false, reducedMotion = false))
+        assertEquals(ShellTransition.Fall, modalTransitionFor(you, null, forward = true, reducedMotion = false))
+        // Inside the modal stack: the X axis, over the modal layer's page-background floor (no tab layer bleed).
+        assertEquals(ShellTransition.ForwardOver, modalTransitionFor(you, page, forward = true, reducedMotion = false))
+        assertEquals(ShellTransition.BackwardOver, modalTransitionFor(page, you, forward = false, reducedMotion = false))
+    }
+
+    @Test
+    fun navigatorMovesFeedTheTransitions() {
+        val navigator = AppNavigator()
+        navigator.push(Destination.Pulse())
+        assertEquals(ShellTransition.Forward, shellTransitionFor(navigator.lastMove, false))
+        navigator.pop()
+        assertEquals(ShellTransition.Backward, shellTransitionFor(navigator.lastMove, false))
+        navigator.selectTab(com.thesis.mobile.ui.navigation.ShellTab.Names)
+        assertEquals(ShellTransition.FadeThrough, shellTransitionFor(navigator.lastMove, false))
+        navigator.push(Destination.DeepDiveRunning("AAPL"))
+        navigator.replaceTop(Destination.Report("rep-1", "AAPL"))
+        assertEquals(ShellTransition.Crossfade, shellTransitionFor(navigator.lastMove, false))
+    }
+
+    // ---- 4.4 top bar: scroll under, hero → paper
+
+    private fun chrome(scrolled: Float = 0f) = ScreenChrome(scrolled, collapseAfterPx = 21f)
+
+    @Test
+    fun barCollapsesOnlyOnceContentIsMoreThan8dpUnderIt() {
+        val chrome = chrome()
+        assertFalse(chrome.collapsed)
+        chrome.onScrolled(consumedY = -20f, leftoverY = 0f)
+        assertFalse("20 px is not past 8 dp (21 px)", chrome.collapsed)
+        chrome.onScrolled(consumedY = -2f, leftoverY = 0f)
+        assertTrue(chrome.collapsed)
+        chrome.onScrolled(consumedY = 10f, leftoverY = 0f)
+        assertFalse("back above the threshold", chrome.collapsed)
+    }
+
+    @Test
+    fun reachingTheTopResetsAnyDrift() {
+        val chrome = chrome(scrolled = 400f)
+        assertTrue(chrome.collapsed)
+        // The list could not take the whole upward drag: it is at its top, whatever the offset said.
+        chrome.onScrolled(consumedY = 30f, leftoverY = 12f)
+        assertEquals(0f, chrome.scrolledPx)
+        assertFalse(chrome.collapsed)
+        // Never below zero.
+        chrome.onScrolled(consumedY = 50f, leftoverY = 0f)
+        assertEquals(0f, chrome.scrolledPx)
+    }
+
+    @Test
+    fun heroBandIsUnderTheBarsUntilTheyCollapse() {
+        val chrome = chrome()
+        assertFalse("no hero declared", chrome.overHero)
+        chrome.heroBand = true
+        assertTrue(chrome.overHero)
+        chrome.onScrolled(consumedY = -100f, leftoverY = 0f)
+        assertFalse("collapsed: paper palette, theme status bar", chrome.overHero)
+        chrome.onScrolled(consumedY = 100f, leftoverY = 1f)
+        assertTrue(chrome.overHero)
+    }
+
+    @Test
+    fun aScreenWithItsOwnBarReportsItsOwnCollapse() {
+        val chrome = chrome(scrolled = 500f)
+        chrome.heroBand = true
+        chrome.ownCollapsed = false
+        assertFalse("the screen says it has not collapsed, whatever the scroll", chrome.collapsed)
+        assertTrue(chrome.overHero)
+        chrome.ownCollapsed = true
+        assertFalse(chrome.overHero)
+    }
+
+    @Test
+    fun scrollOffsetSurvivesSaveAndRestore() {
+        val saver = ScreenChrome.saver(collapseAfterPx = 21f)
+        val chrome = chrome()
+        chrome.onScrolled(consumedY = -300f, leftoverY = 0f)
+        val saved = with(saver) { androidx.compose.runtime.saveable.SaverScope { true }.save(chrome) }!!
+        val restored = saver.restore(saved)!!
+        assertEquals(300f, restored.scrolledPx)
+        assertTrue(restored.collapsed)
+    }
+
+    // ---- 4.5 predictive back
+
+    @Test
+    fun previewFollowsTheGestureOnTheClosingPageOnly() {
+        val preview = BackPreview()
+        preview.start("e7")
+        preview.update(0.4f, BackSwipeEdge.Right)
+        assertEquals("e7", preview.entryId)
+        assertEquals(0.4f, preview.progress)
+        assertEquals(BackSwipeEdge.Right, preview.edge)
+        preview.update(1.6f, BackSwipeEdge.Right)
+        assertEquals("progress is clamped", 1f, preview.progress)
+    }
+
+    @Test
+    fun committedPreviewLastsUntilTheLeavingPageIsGone() {
+        val preview = BackPreview()
+        preview.start("e7")
+        preview.update(0.8f, BackSwipeEdge.Left)
+        // The pop took e7 off screen: it keeps its transform into its exit transition.
+        preview.commit(CoroutineScope(Dispatchers.Unconfined), stillOnScreen = false)
+        assertEquals("e7", preview.entryId)
+        assertEquals(0.8f, preview.progress)
+        // Another page leaving does not end it.
+        preview.onLeft("e3")
+        assertEquals("e7", preview.entryId)
+        // e7's exit ran and it left the composition: the preview is over (a page that comes back is full size).
+        preview.onLeft("e7")
+        assertNull(preview.entryId)
+        assertEquals(0f, preview.progress)
+    }
+
+    @Test
+    fun aNewGestureOnAnotherPageStartsFromFullSize() {
+        val preview = BackPreview()
+        preview.start("e7")
+        preview.update(0.5f, BackSwipeEdge.Left)
+        preview.start("e9")
+        assertEquals("e9", preview.entryId)
+        assertEquals(0f, preview.progress)
+    }
+}
