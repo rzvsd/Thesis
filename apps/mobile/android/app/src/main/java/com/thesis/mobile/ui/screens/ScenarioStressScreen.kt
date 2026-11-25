@@ -1,45 +1,183 @@
 package com.thesis.mobile.ui.screens
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.OutlinedButton
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.ReadOnlyComposable
+import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.AnnotatedString
 import com.thesis.mobile.model.ScenarioStressImpactView
-import com.thesis.mobile.model.ScenarioStressRuleSuggestionView
 import com.thesis.mobile.model.ScenarioStressRunView
 import com.thesis.mobile.model.ScenarioStressTemplateView
-import com.thesis.mobile.ui.components.ThesisButton
-import com.thesis.mobile.ui.copy.Phase4Copy
-import com.thesis.mobile.ui.theme.HeadingFont
-import com.thesis.mobile.ui.theme.ThesisColors
-import com.thesis.mobile.ui.theme.ThesisDimens
-import com.thesis.mobile.ui.theme.ThesisTypography
+import com.thesis.mobile.ui.charts.kit.ChartCard
+import com.thesis.mobile.ui.charts.kit.RankedBar
+import com.thesis.mobile.ui.charts.kit.RankedBars
+import com.thesis.mobile.ui.components.ActionRow
+import com.thesis.mobile.ui.components.BannerTone
+import com.thesis.mobile.ui.components.Callout
+import com.thesis.mobile.ui.components.CardVariant
+import com.thesis.mobile.ui.components.EmptyState
+import com.thesis.mobile.ui.components.ErrorState
+import com.thesis.mobile.ui.components.InlineBanner
+import com.thesis.mobile.ui.components.KpiGrid
+import com.thesis.mobile.ui.components.KpiSpec
+import com.thesis.mobile.ui.components.Loadable
+import com.thesis.mobile.ui.components.RunBar
+import com.thesis.mobile.ui.components.ScreenHeader
+import com.thesis.mobile.ui.components.SectionHeader
+import com.thesis.mobile.ui.components.SkeletonCard
+import com.thesis.mobile.ui.components.SkeletonKpiGrid
+import com.thesis.mobile.ui.components.StateCrossfade
+import com.thesis.mobile.ui.components.StatusBadge
+import com.thesis.mobile.ui.components.TextAction
+import com.thesis.mobile.ui.components.ThesisCard
+import com.thesis.mobile.ui.components.ThesisDivider
+import com.thesis.mobile.ui.components.ThesisIconButton
+import com.thesis.mobile.ui.components.rememberTopBarCollapsed
+import com.thesis.mobile.ui.copy.KitCopy
+import com.thesis.mobile.ui.copy.ResearchCopy
+import com.thesis.mobile.ui.format.Fmt
+import com.thesis.mobile.ui.format.LocalFmt
+import com.thesis.mobile.ui.icons.ThesisIcons
+import com.thesis.mobile.ui.motion.rememberHaptics
+import com.thesis.mobile.ui.motion.thesisPress
+import com.thesis.mobile.ui.theme.LocalThesisPalette
+import com.thesis.mobile.ui.theme.ThesisSpace
+import com.thesis.mobile.ui.theme.ThesisType
+import com.thesis.mobile.ui.theme.Tone
+import com.thesis.mobile.ui.theme.textColor
+import java.net.URI
+import java.time.LocalDate
+import java.time.ZoneId
 
+/*
+ * Scenario Stress (DESIGN-DIRECTION 5.20): pick one macro shock, run it across the names you follow, and read which
+ * name it touches first. Header with the names count, a Pro gate for everyone else, the scenario cards (radio
+ * group), a run bar at the bottom, then the results: KPIs, ranked stress bars (descending, toned by level, scale
+ * stated), a by-name list whose rows open to their evidence and the Name page, and guardrails as plain callouts.
+ * Removed: duplicated title, "Reopen run", the always-amber "Critical: 0", `%.2f` scores and the two spinners.
+ */
+
+// ---- Pure model (unit-tested)
+
+/** A stress score as 0 to 100: the contract sends 0..1; a value already above 1 is taken as 0..100. */
+internal fun stressScore100(raw: Double): Double? {
+    if (raw.isNaN() || raw.isInfinite()) return null
+    val scaled = if (raw <= 1.0) raw * 100.0 else raw
+    return scaled.coerceIn(0.0, 100.0)
+}
+
+/** Impact level → tone: critical/high Unfavourable, elevated/watch Attention, none Neutral, unknown Unknown. */
+internal fun stressTone(level: String?): Tone = when (level?.trim()?.lowercase()) {
+    "critical", "high" -> Tone.Unfavourable
+    "elevated", "watch" -> Tone.Attention
+    "none" -> Tone.Neutral
+    else -> Tone.Unknown
+}
+
+/** Thesis break likelihood → badge text and tone (very high/high: likely; moderate: possible; low: unlikely). */
+internal fun breakBadge(likelihood: String?): PhaseBadge? = when (likelihood?.trim()?.lowercase()?.replace(' ', '_')) {
+    "very_high", "high" -> PhaseBadge(ResearchCopy.BREAK_LIKELY, Tone.Unfavourable)
+    "moderate", "medium" -> PhaseBadge(ResearchCopy.BREAK_POSSIBLE, Tone.Attention)
+    "low", "very_low" -> PhaseBadge(ResearchCopy.BREAK_UNLIKELY, Tone.Neutral)
+    null, "" -> null
+    else -> PhaseBadge(ResearchCopy.humanize(likelihood) ?: likelihood, Tone.Unknown)
+}
+
+/** One name's result, ready to draw. [evidence] keeps web links only (ids are never rendered). */
+@Immutable
+internal data class StressRow(
+    val ticker: String,
+    val score: Double?,
+    val scoreText: String,
+    val rationale: String?,
+    val tone: Tone,
+    val impact: String,
+    val breakBadge: PhaseBadge?,
+    val evidence: List<String>,
+)
+
+private val webLink = Regex("^https?://\\S+$", RegexOption.IGNORE_CASE)
+
+/**
+ * The run's impacts as rows, sorted by stress score descending (missing scores last, ties by ticker), each with its
+ * one-line rationale. This is the order of the chart and the by-name list.
+ */
+internal fun stressRows(run: ScenarioStressRunView): List<StressRow> =
+    run.impacts
+        .map { it.toRow() }
+        .sortedWith(compareBy<StressRow>({ it.score == null }, { -(it.score ?: 0.0) }, { it.ticker }))
+
+private fun ScenarioStressImpactView.toRow(): StressRow {
+    val score = stressScore100(stressScore)
+    return StressRow(
+        ticker = ticker.trim().uppercase(),
+        score = score,
+        scoreText = Fmt.score(score),
+        rationale = rationale.trim().lineSequence().firstOrNull { it.isNotBlank() }?.trim(),
+        tone = stressTone(impactLevel),
+        impact = ResearchCopy.impactWord(impactLevel),
+        breakBadge = breakBadge(thesisBreakLikelihood),
+        evidence = evidenceRefs.map { it.trim() }.filter { webLink.matches(it) }.distinct(),
+    )
+}
+
+/** The rows as bars for [RankedBars]. */
+internal fun stressBars(rows: List<StressRow>): List<RankedBar> =
+    rows.map { RankedBar(label = it.ticker, value = it.score, valueText = it.scoreText, rationale = it.rationale, tone = it.tone) }
+
+/** "Copy as table": tab-separated, a header line then one line per name in rank order. */
+internal fun stressTsv(rows: List<StressRow>): String = buildString {
+    append(listOf(ResearchCopy.TABLE_TICKER, ResearchCopy.TABLE_SCORE, ResearchCopy.TABLE_IMPACT, ResearchCopy.TABLE_BREAK).joinToString("\t"))
+    rows.forEach { r ->
+        append('\n')
+        append(listOf(r.ticker, r.scoreText, r.impact, r.breakBadge?.text ?: Fmt.NA).joinToString("\t") { it.replace('\t', ' ') })
+    }
+}
+
+/** The run's as-of date as "Mon 24 Nov" (a date or an instant on the wire); null when unreadable. */
+internal fun stressAsOf(raw: String?, fmt: Fmt, zone: ZoneId): String? {
+    val value = raw?.trim()?.ifBlank { null } ?: return null
+    parseInstant(value)?.let { return fmt.marketDate(it.atZone(zone).toLocalDate()) }
+    return runCatching { fmt.marketDate(LocalDate.parse(value.take(10))) }.getOrNull()
+}
+
+private fun hostOf(url: String): String = runCatching { URI(url).host?.removePrefix("www.") }.getOrNull() ?: url
+
+// ---- Screen
+
+/**
+ * Scenario Stress. Draws its own top bar (back, "Scenario Stress", Copy as table once a run is in); the shell gives
+ * it none (HANDOFF-E). [onOpenRunFromRoute] is kept for the shell's call site; the "Reopen run" button it fed is
+ * gone (5.20).
+ */
 @Composable
 fun ScenarioStressScreen(
     userTier: String?,
@@ -55,222 +193,141 @@ fun ScenarioStressScreen(
     onSelectTemplate: (String) -> Unit,
     onRunScenario: (String?) -> Unit,
     onOpenTickerResearch: (String) -> Unit,
-    onOpenRunFromRoute: (String, String?) -> Unit,
-    onRequireUpgrade: (String) -> Unit
+    @Suppress("UNUSED_PARAMETER") onOpenRunFromRoute: (String, String?) -> Unit,
+    onRequireUpgrade: (String) -> Unit,
+    onBack: () -> Unit = {},
+    padding: PaddingValues = PaddingValues(),
+    zone: ZoneId = ZoneId.systemDefault(),
 ) {
+    val fmt = LocalFmt.current
+    val haptics = rememberHaptics()
+    val clipboard = LocalClipboardManager.current
+    val scroll = rememberScrollState()
+    val collapsed by rememberTopBarCollapsed(scroll)
     val isPro = userTier.equals("PRO", ignoreCase = true)
-    val selectedTemplate = templates.firstOrNull { it.scenarioId == selectedScenarioId }
+    val active = templates.filter { it.active }.ifEmpty { templates }
+    val selected = active.firstOrNull { it.scenarioId == selectedScenarioId }
+    val rows = remember(run) { run?.let(::stressRows).orEmpty() }
+    var copied by remember(run) { mutableStateOf(false) }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = ThesisDimens.ScreenPaddingHorizontal)
-    ) {
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(
-                top = ThesisDimens.ScreenPaddingTop,
-                bottom = ThesisDimens.ScreenPaddingBottom + 96.dp
-            ),
-            verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingLg)
-        ) {
-            item {
-                Column(verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)) {
-                    Text(
-                        text = Phase4Copy.researchStressHeadline,
-                        style = ThesisTypography.headlineLarge.copy(
-                            fontFamily = HeadingFont,
-                            fontWeight = FontWeight.Normal
-                        ),
-                        color = ThesisColors.TextPrimary
-                    )
-                    Text(
-                        text = Phase4Copy.researchStressSubtitle,
-                        style = ThesisTypography.bodyMedium,
-                        color = ThesisColors.TextMuted
-                    )
-                    Text(
-                        text = "Tracking $watchlistCount name(s).",
-                        style = ThesisTypography.labelSmall,
-                        color = ThesisColors.TextMuted
-                    )
-                }
+    ResearchBarPage(
+        title = ResearchCopy.STRESS_TITLE,
+        onBack = onBack,
+        padding = padding,
+        collapsed = collapsed,
+        actions = {
+            if (isPro && run != null && rows.isNotEmpty()) {
+                ThesisIconButton(
+                    icon = ThesisIcons.Copy,
+                    contentDescription = if (copied) ResearchCopy.COPIED else ResearchCopy.COPY_TABLE,
+                    onClick = {
+                        clipboard.setText(AnnotatedString(stressTsv(rows)))
+                        haptics.confirm()
+                        copied = true
+                    },
+                )
             }
-
+        },
+        bottomBar = if (isPro && active.isNotEmpty()) {
+            {
+                RunBar(
+                    label = selected?.let { ResearchCopy.runLabel(it.title, watchlistCount) } ?: ResearchCopy.PICK_SCENARIO,
+                    onClick = {
+                        haptics.press()
+                        onRunScenario(selected?.scenarioId)
+                    },
+                    enabled = selected != null && !isRunning,
+                    loading = isRunning,
+                )
+            }
+        } else {
+            null
+        },
+    ) { inner ->
+        Column(
+            Modifier
+                .fillMaxSize()
+                .verticalScroll(scroll)
+                .researchWidth(data = true)
+                .padding(top = inner.calculateTopPadding() + ThesisSpace.headerTop, bottom = inner.calculateBottomPadding())
+                .padding(horizontal = ThesisSpace.gutter),
+        ) {
+            ScreenHeader(title = ResearchCopy.STRESS_TITLE, deck = ResearchCopy.stressDeck(watchlistCount))
             if (!isPro) {
-                item {
-                    InfoCard(
-                        title = "Pro Required",
-                        body = Phase4Copy.researchStressProOnly
-                    )
-                }
-                item {
-                    ThesisButton(
-                        text = "Upgrade to Pro",
-                        onClick = { onRequireUpgrade("scenario_stress") }
-                    )
-                }
-                return@LazyColumn
+                Spacer(Modifier.height(ThesisSpace.headerToSection))
+                Callout(ResearchCopy.STRESS_PRO)
+                Spacer(Modifier.height(ThesisSpace.s))
+                TextAction(ResearchCopy.SEE_PRO, onClick = { onRequireUpgrade("scenario_stress") })
+                return@Column
             }
 
-            item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "Templates",
-                        style = ThesisTypography.labelLarge.copy(fontWeight = FontWeight.Medium),
-                        color = ThesisColors.TextPrimary
-                    )
-                    OutlinedButton(
-                        onClick = onRefreshTemplates,
-                        shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
-                        border = androidx.compose.foundation.BorderStroke(
-                            ThesisDimens.BorderWidth,
-                            ThesisColors.Border
-                        )
-                    ) {
-                        Text(
-                            text = Phase4Copy.researchStressRefreshLabel,
-                            style = ThesisTypography.labelSmall,
-                            color = ThesisColors.TextMuted
-                        )
-                    }
+            Spacer(Modifier.height(ThesisSpace.headerToSection))
+            SectionHeader(
+                kicker = ResearchCopy.SCENARIOS_KICKER,
+                headline = if (active.isEmpty()) ResearchCopy.PICK_SCENARIO else ResearchCopy.scenariosHeadline(active.size),
+            )
+            Spacer(Modifier.height(ThesisSpace.m))
+            when {
+                active.isEmpty() && isLoadingTemplates -> {
+                    SkeletonCard(bodyLines = 1)
+                    Spacer(Modifier.height(ThesisSpace.cardGap))
+                    SkeletonCard(bodyLines = 1)
                 }
-            }
-
-            if (isLoadingTemplates) {
-                item {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.Center
-                    ) {
-                        CircularProgressIndicator(
-                            color = ThesisColors.Primary,
-                            strokeWidth = 2.dp,
-                            modifier = Modifier.size(24.dp)
-                        )
-                    }
-                }
-            }
-
-            if (!templatesError.isNullOrBlank()) {
-                item {
-                    InfoCard(
-                        title = "Templates unavailable",
-                        body = templatesError
-                    )
-                }
-            } else if (templates.isEmpty() && !isLoadingTemplates) {
-                item {
-                    InfoCard(
-                        title = "No templates",
-                        body = Phase4Copy.researchStressNoTemplates
-                    )
-                }
-            } else {
-                items(templates) { template ->
-                    ScenarioTemplateCard(
-                        template = template,
-                        selected = template.scenarioId == selectedScenarioId,
-                        onSelect = { onSelectTemplate(template.scenarioId) }
-                    )
-                }
-            }
-
-            item {
-                ThesisButton(
-                    text = if (isRunning) "Running..." else Phase4Copy.researchStressRunLabel,
-                    onClick = { onRunScenario(selectedTemplate?.scenarioId) },
-                    enabled = !isRunning && selectedTemplate != null
+                active.isEmpty() && !templatesError.isNullOrBlank() -> ErrorState(
+                    title = KitCopy.couldNotLoad(ResearchCopy.SCENARIOS_FAILED),
+                    cause = templatesError,
+                    onRetry = onRefreshTemplates,
+                )
+                active.isEmpty() -> EmptyState(
+                    sentence = ResearchCopy.NO_SCENARIOS,
+                    how = ResearchCopy.NO_SCENARIOS_HOW,
+                    icon = ThesisIcons.ScenarioStress,
+                    actionLabel = KitCopy.TRY_AGAIN,
+                    onAction = onRefreshTemplates,
+                )
+                else -> TemplateCards(
+                    templates = active,
+                    selectedId = selected?.scenarioId,
+                    enabled = !isRunning,
+                    onSelect = {
+                        haptics.segment()
+                        onSelectTemplate(it)
+                    },
                 )
             }
 
-            if (selectedTemplate == null && templates.isNotEmpty()) {
-                item {
-                    Text(
-                        text = Phase4Copy.researchStressSelectPrompt,
-                        style = ThesisTypography.bodySmall,
-                        color = ThesisColors.TextMuted
+            Spacer(Modifier.height(ThesisSpace.sectionGapData))
+            val results: Loadable<ScenarioStressRunView> = when {
+                run != null -> Loadable.Ready(run)
+                isRunning -> Loadable.Loading
+                !runError.isNullOrBlank() -> Loadable.Failed(runError, retryable = selected != null)
+                else -> Loadable.Empty(ResearchCopy.NO_RUN)
+            }
+            if (run != null && !runError.isNullOrBlank() && !isRunning) {
+                InlineBanner(text = ResearchCopy.RUN_STALE, tone = BannerTone.Attention)
+                Spacer(Modifier.height(ThesisSpace.m))
+            }
+            StateCrossfade(
+                state = results,
+                onRetry = { onRunScenario(selected?.scenarioId) },
+                loading = { ResultsSkeleton() },
+                empty = { EmptyState(sentence = ResearchCopy.NO_RUN, how = ResearchCopy.NO_RUN_HOW, icon = ThesisIcons.ScenarioStress) },
+                failed = {
+                    ErrorState(
+                        title = ResearchCopy.RUN_FAILED,
+                        cause = it.cause,
+                        onRetry = if (it.retryable) ({ onRunScenario(selected?.scenarioId) }) else null,
                     )
-                }
-            }
-
-            if (!runError.isNullOrBlank()) {
-                item {
-                    InfoCard(
-                        title = "Run failed",
-                        body = runError
+                },
+            ) { ready ->
+                Column {
+                    StressResults(
+                        run = ready,
+                        rows = rows,
+                        fmt = fmt,
+                        zone = zone,
+                        onOpenName = onOpenTickerResearch,
                     )
-                }
-            }
-
-            if (isRunning) {
-                item {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        CircularProgressIndicator(
-                            color = ThesisColors.Primary,
-                            strokeWidth = 2.dp,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(modifier = Modifier.width(ThesisDimens.SpacingSm))
-                        Text(
-                            text = Phase4Copy.researchStressLoadingRun,
-                            style = ThesisTypography.bodySmall,
-                            color = ThesisColors.TextMuted
-                        )
-                    }
-                }
-            }
-
-            if (run == null && runError.isNullOrBlank() && !isRunning) {
-                item {
-                    InfoCard(
-                        title = "No run yet",
-                        body = Phase4Copy.researchStressNoRunYet
-                    )
-                }
-            }
-
-            run?.let { scenarioRun ->
-                item {
-                    ScenarioRunHeaderCard(run = scenarioRun)
-                }
-
-                if (scenarioRun.impacts.isNotEmpty()) {
-                    item {
-                        Text(
-                            text = "Impacted Names",
-                            style = ThesisTypography.labelLarge.copy(fontWeight = FontWeight.Medium),
-                            color = ThesisColors.TextPrimary
-                        )
-                    }
-                    items(scenarioRun.impacts) { impact ->
-                        ScenarioImpactCard(
-                            impact = impact,
-                            onOpenTickerResearch = onOpenTickerResearch,
-                            onOpenRunFromRoute = onOpenRunFromRoute
-                        )
-                    }
-                }
-
-                if (scenarioRun.ruleSuggestions.isNotEmpty()) {
-                    item {
-                        Text(
-                            text = "Suggested Guardrails",
-                            style = ThesisTypography.labelLarge.copy(fontWeight = FontWeight.Medium),
-                            color = ThesisColors.TextPrimary
-                        )
-                    }
-                    items(scenarioRun.ruleSuggestions) { suggestion ->
-                        ScenarioSuggestionCard(suggestion = suggestion)
-                    }
                 }
             }
         }
@@ -278,224 +335,184 @@ fun ScenarioStressScreen(
 }
 
 @Composable
-private fun ScenarioTemplateCard(
-    template: ScenarioStressTemplateView,
-    selected: Boolean,
-    onSelect: () -> Unit
+private fun TemplateCards(
+    templates: List<ScenarioStressTemplateView>,
+    selectedId: String?,
+    enabled: Boolean,
+    onSelect: (String) -> Unit,
 ) {
-    val shape = RoundedCornerShape(ThesisDimens.CardCornerRadius)
-    val borderColor = if (selected) ThesisColors.Primary else ThesisColors.Border
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(shape)
-            .background(ThesisColors.Surface)
-            .border(ThesisDimens.BorderWidth, borderColor, shape)
-            .clickable(onClick = onSelect)
-            .padding(ThesisDimens.CardPadding),
-        verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)
-    ) {
-        Text(
-            text = template.title,
-            style = ThesisTypography.labelLarge.copy(fontWeight = FontWeight.Medium),
-            color = ThesisColors.TextPrimary
-        )
-        Text(
-            text = template.summary,
-            style = ThesisTypography.bodySmall,
-            color = ThesisColors.TextMuted
-        )
-        Text(
-            text = template.hypothesis,
-            style = ThesisTypography.bodySmall,
-            color = ThesisColors.TextSecondary
-        )
-    }
-}
-
-@Composable
-private fun ScenarioRunHeaderCard(run: ScenarioStressRunView) {
-    val shape = RoundedCornerShape(ThesisDimens.CardCornerRadius)
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(shape)
-            .background(ThesisColors.Surface)
-            .border(ThesisDimens.BorderWidth, ThesisColors.Border, shape)
-            .padding(ThesisDimens.CardPadding),
-        verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)
-    ) {
-        Text(
-            text = run.run.summary,
-            style = ThesisTypography.bodyMedium,
-            color = ThesisColors.TextPrimary
-        )
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text(
-                text = "Impacted: ${run.run.impactedNames}/${run.run.totalNames}",
-                style = ThesisTypography.bodySmall,
-                color = ThesisColors.TextMuted
-            )
-            Text(
-                text = "Critical: ${run.run.criticalNames}",
-                style = ThesisTypography.bodySmall,
-                color = ThesisColors.SignalWarning
-            )
-        }
-        Text(
-            text = "As of ${run.run.asOf} | ${run.run.status.replace('_', ' ')}",
-            style = ThesisTypography.labelSmall,
-            color = ThesisColors.TextMuted
-        )
-    }
-}
-
-@Composable
-private fun ScenarioImpactCard(
-    impact: ScenarioStressImpactView,
-    onOpenTickerResearch: (String) -> Unit,
-    onOpenRunFromRoute: (String, String?) -> Unit
-) {
-    val shape = RoundedCornerShape(ThesisDimens.CardCornerRadius)
-    val color = impactColor(impact.impactLevel)
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(shape)
-            .background(ThesisColors.Surface)
-            .border(ThesisDimens.BorderWidth, color.copy(alpha = 0.35f), shape)
-            .padding(ThesisDimens.CardPadding),
-        verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = impact.ticker,
-                style = ThesisTypography.labelLarge.copy(fontWeight = FontWeight.Medium),
-                color = ThesisColors.TextPrimary
-            )
-            Text(
-                text = impact.impactLevel.replace('_', ' ').uppercase(),
-                style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Medium),
-                color = color
-            )
-        }
-        Text(
-            text = impact.rationale,
-            style = ThesisTypography.bodySmall,
-            color = ThesisColors.TextMuted
-        )
-        Text(
-            text = "Break likelihood: ${impact.thesisBreakLikelihood.replace('_', ' ')} | Score ${formatScore(impact.stressScore)}",
-            style = ThesisTypography.labelSmall,
-            color = ThesisColors.TextMuted
-        )
-        Row(horizontalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)) {
-            OutlinedButton(
-                onClick = { onOpenTickerResearch(impact.ticker) },
-                shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
-                border = androidx.compose.foundation.BorderStroke(ThesisDimens.BorderWidth, ThesisColors.Border)
+    val p = LocalThesisPalette.current
+    Column(Modifier.selectableGroup(), verticalArrangement = Arrangement.spacedBy(ThesisSpace.cardGap)) {
+        templates.forEach { template ->
+            val isSelected = template.scenarioId == selectedId
+            val interaction = remember { MutableInteractionSource() }
+            ThesisCard(
+                modifier = Modifier
+                    .thesisPress(interaction, enabled = enabled)
+                    .selectable(
+                        selected = isSelected,
+                        enabled = enabled,
+                        role = Role.RadioButton,
+                        interactionSource = interaction,
+                        indication = null,
+                        onClick = { onSelect(template.scenarioId) },
+                    ),
+                variant = if (isSelected) CardVariant.Selected else CardVariant.Plain,
+                title = template.title,
             ) {
-                Text(
-                    text = Phase4Copy.researchStressOpenResearch,
-                    style = ThesisTypography.labelSmall,
-                    color = ThesisColors.TextPrimary
-                )
-            }
-            OutlinedButton(
-                onClick = { onOpenRunFromRoute(impact.route.scenarioRunId, impact.route.scenarioId) },
-                shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
-                border = androidx.compose.foundation.BorderStroke(ThesisDimens.BorderWidth, ThesisColors.Border)
-            ) {
-                Text(
-                    text = Phase4Copy.researchStressReopenRun,
-                    style = ThesisTypography.labelSmall,
-                    color = ThesisColors.TextMuted
-                )
+                val line = template.summary.ifBlank { template.hypothesis }.trim()
+                if (line.isNotEmpty()) Text(line, style = ThesisType.bodySmall, color = p.ink2, maxLines = 2)
             }
         }
     }
 }
 
 @Composable
-private fun ScenarioSuggestionCard(suggestion: ScenarioStressRuleSuggestionView) {
-    val shape = RoundedCornerShape(ThesisDimens.CardCornerRadius)
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(shape)
-            .background(ThesisColors.Surface)
-            .border(ThesisDimens.BorderWidth, ThesisColors.Border, shape)
-            .padding(ThesisDimens.CardPadding),
-        verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingXs)
-    ) {
-        Text(
-            text = "${suggestion.ticker} | ${suggestion.signalType.replace('_', ' ')}",
-            style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Medium),
-            color = ThesisColors.TextPrimary
-        )
-        Text(
-            text = suggestion.conditionText,
-            style = ThesisTypography.bodySmall,
-            color = ThesisColors.TextSecondary
-        )
-        Text(
-            text = "Confidence ${formatScore(suggestion.confidence)} | ${suggestion.direction.replace('_', ' ')}",
-            style = ThesisTypography.labelSmall,
-            color = ThesisColors.TextMuted
-        )
-        if (suggestion.rationale.isNotBlank()) {
-            Text(
-                text = suggestion.rationale,
-                style = ThesisTypography.bodySmall,
-                color = ThesisColors.TextMuted
+private fun ResultsSkeleton() {
+    SkeletonKpiGrid()
+    Spacer(Modifier.height(ThesisSpace.cardGap))
+    SkeletonCard(bodyLines = 5)
+}
+
+@Composable
+private fun StressResults(
+    run: ScenarioStressRunView,
+    rows: List<StressRow>,
+    fmt: Fmt,
+    zone: ZoneId,
+    onOpenName: (String) -> Unit,
+) {
+    val p = LocalThesisPalette.current
+    val header = run.run
+    val asOf = stressAsOf(header.asOf, fmt, zone)
+    val impacted = header.impactedNames.coerceAtLeast(0)
+    val top = rows.firstOrNull { it.score != null && it.tone != Tone.Neutral }?.ticker
+
+    SectionHeader(kicker = ResearchCopy.RESULTS_KICKER, headline = ResearchCopy.resultsHeadline(top, impacted))
+    if (header.summary.isNotBlank()) {
+        Spacer(Modifier.height(ThesisSpace.s))
+        Text(header.summary.trim(), style = ThesisType.story, color = p.ink2)
+    }
+    if (header.status.equals("degraded", ignoreCase = true)) {
+        Spacer(Modifier.height(ThesisSpace.m))
+        InlineBanner(text = ResearchCopy.RUN_DEGRADED, tone = BannerTone.Attention)
+    }
+    Spacer(Modifier.height(ThesisSpace.m))
+    KpiGrid(
+        items = listOfNotNull(
+            KpiSpec(ResearchCopy.KPI_AFFECTED, ResearchCopy.ofTotal(impacted, header.totalNames.coerceAtLeast(impacted))),
+            KpiSpec(ResearchCopy.KPI_CRITICAL, Fmt.number(header.criticalNames.toLong())),
+            asOf?.let { KpiSpec(ResearchCopy.KPI_AS_OF, it) },
+        ),
+    )
+
+    if (rows.isNotEmpty()) {
+        Spacer(Modifier.height(ThesisSpace.cardGap))
+        ChartCard(
+            title = ResearchCopy.STRESS_CHART_TITLE,
+            source = asOf?.let(ResearchCopy::stressSource),
+        ) {
+            RankedBars(
+                items = stressBars(rows),
+                scaleLabel = ResearchCopy.STRESS_SCALE,
+                dataKey = header.scenarioRunId,
             )
         }
+
+        Spacer(Modifier.height(ThesisSpace.sectionGapData))
+        SectionHeader(kicker = ResearchCopy.BY_NAME, headline = ResearchCopy.names(rows.size).replaceFirstChar { it.uppercase() })
+        Spacer(Modifier.height(ThesisSpace.m))
+        ThesisCard {
+            rows.forEachIndexed { i, row ->
+                if (i > 0) ThesisDivider()
+                StressNameRow(row = row, onOpenName = onOpenName)
+            }
+        }
+    }
+
+    val guardrails = run.ruleSuggestions.filter { it.conditionText.isNotBlank() }
+    if (guardrails.isNotEmpty()) {
+        Spacer(Modifier.height(ThesisSpace.sectionGapData))
+        SectionHeader(kicker = ResearchCopy.GUARDRAILS_KICKER, headline = ResearchCopy.guardrailsHeadline(guardrails.size))
+        Spacer(Modifier.height(ThesisSpace.m))
+        Column(verticalArrangement = Arrangement.spacedBy(ThesisSpace.s)) {
+            guardrails.forEach { g ->
+                val text = buildString {
+                    append(ResearchCopy.guardrailLine(g.ticker.trim().uppercase(), g.conditionText.trim()))
+                    g.rationale.trim().ifBlank { null }?.let { append("\n").append(it) }
+                }
+                Callout(text)
+            }
+        }
     }
 }
 
+/**
+ * A name's line in "By name": ticker and score, the rationale, the break badge in a wrapping row. Tapping opens
+ * its evidence links and "Open AAPL" (the Name page).
+ */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun InfoCard(
-    title: String,
-    body: String
-) {
-    val shape = RoundedCornerShape(ThesisDimens.CardCornerRadius)
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(shape)
-            .background(ThesisColors.Surface)
-            .border(ThesisDimens.BorderWidth, ThesisColors.Border, shape)
-            .padding(ThesisDimens.CardPadding),
-        verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)
-    ) {
-        Text(
-            text = title,
-            style = ThesisTypography.labelLarge.copy(fontWeight = FontWeight.Medium),
-            color = ThesisColors.TextPrimary
-        )
-        Text(
-            text = body,
-            style = ThesisTypography.bodySmall,
-            color = ThesisColors.TextMuted
-        )
+private fun StressNameRow(row: StressRow, onOpenName: (String) -> Unit) {
+    val p = LocalThesisPalette.current
+    val haptics = rememberHaptics()
+    val uri = LocalUriHandler.current
+    var open by remember(row.ticker) { mutableStateOf(false) }
+    val interaction = remember { MutableInteractionSource() }
+    Column(Modifier.fillMaxWidth()) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .heightIn(min = ThesisSpace.rowMinComfortableTwoLine)
+                .thesisPress(interaction)
+                .toggleable(
+                    value = open,
+                    interactionSource = interaction,
+                    indication = null,
+                    role = Role.Button,
+                    onValueChange = {
+                        haptics.toggle(it)
+                        open = it
+                    },
+                )
+                .semantics(mergeDescendants = true) {
+                    stateDescription = if (open) ResearchCopy.EXPANDED else ResearchCopy.COLLAPSED
+                }
+                .padding(vertical = ThesisSpace.s),
+            verticalArrangement = Arrangement.spacedBy(ThesisSpace.xs),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(row.ticker, style = ThesisType.rowTitle, color = p.ink, modifier = Modifier.weight(1f))
+                Text(row.scoreText, style = ThesisType.tableNum, color = row.tone.textColor(p))
+            }
+            row.rationale?.let { Text(it, style = ThesisType.bodySmall, color = p.ink2) }
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(ThesisSpace.s),
+                verticalArrangement = Arrangement.spacedBy(ThesisSpace.xs),
+            ) {
+                StatusBadge(row.impact, row.tone)
+                row.breakBadge?.let { StatusBadge(it.text, it.tone) }
+            }
+        }
+        if (open) {
+            if (row.evidence.isEmpty()) {
+                Text(
+                    ResearchCopy.NO_EVIDENCE,
+                    style = ThesisType.caption,
+                    color = p.muted,
+                    modifier = Modifier.padding(bottom = ThesisSpace.s),
+                )
+            }
+            row.evidence.forEach { link ->
+                ActionRow(
+                    icon = ThesisIcons.Document,
+                    title = hostOf(link),
+                    caption = ResearchCopy.EVIDENCE,
+                    external = true,
+                    onClick = { runCatching { uri.openUri(link) } },
+                )
+            }
+            ActionRow(icon = ThesisIcons.Names, title = ResearchCopy.openName(row.ticker), onClick = { onOpenName(row.ticker) })
+        }
     }
 }
-
-@Composable
-@ReadOnlyComposable
-private fun impactColor(level: String): Color =
-    when (level.lowercase()) {
-        "critical", "high" -> ThesisColors.SignalNegative
-        "elevated", "watch" -> ThesisColors.SignalWarning
-        else -> ThesisColors.TextMuted
-    }
-
-private fun formatScore(value: Double): String =
-    String.format("%.2f", value)

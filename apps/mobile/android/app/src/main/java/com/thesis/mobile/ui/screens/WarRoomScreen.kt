@@ -1,175 +1,208 @@
 package com.thesis.mobile.ui.screens
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.ReadOnlyComposable
+import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.style.TextAlign
 import com.thesis.mobile.model.WarRoomPhaseView
 import com.thesis.mobile.model.WarRoomView
-import com.thesis.mobile.ui.copy.Phase4Copy
-import com.thesis.mobile.ui.theme.HeadingFont
-import com.thesis.mobile.ui.theme.ThesisColors
-import com.thesis.mobile.ui.theme.ThesisDimens
-import com.thesis.mobile.ui.theme.ThesisTypography
-import java.time.Instant
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
+import com.thesis.mobile.ui.components.ActionRow
+import com.thesis.mobile.ui.components.BannerTone
+import com.thesis.mobile.ui.components.ChipRow
+import com.thesis.mobile.ui.components.EmptyState
+import com.thesis.mobile.ui.components.ErrorState
+import com.thesis.mobile.ui.components.InlineBanner
+import com.thesis.mobile.ui.components.LiveDot
+import com.thesis.mobile.ui.components.ScreenHeader
+import com.thesis.mobile.ui.components.SectionHeader
+import com.thesis.mobile.ui.components.SkeletonCard
+import com.thesis.mobile.ui.components.SkeletonRow
+import com.thesis.mobile.ui.components.StatusBadge
+import com.thesis.mobile.ui.components.ThesisCard
+import com.thesis.mobile.ui.components.ThesisChip
+import com.thesis.mobile.ui.components.ThesisRefreshBox
+import com.thesis.mobile.ui.components.rememberTopBarCollapsed
+import com.thesis.mobile.ui.copy.KitCopy
+import com.thesis.mobile.ui.copy.ResearchCopy
+import com.thesis.mobile.ui.format.Fmt
+import com.thesis.mobile.ui.format.LocalFmt
+import com.thesis.mobile.ui.icons.ThesisIcons
+import com.thesis.mobile.ui.motion.rememberHaptics
+import com.thesis.mobile.ui.motion.thesisPress
+import com.thesis.mobile.ui.theme.LocalThesisPalette
+import com.thesis.mobile.ui.theme.ThesisSpace
+import com.thesis.mobile.ui.theme.ThesisType
+import com.thesis.mobile.ui.theme.Tone
 
+/*
+ * War Room (DESIGN-DIRECTION 5.19): an earnings event read in three steps. Header on paper (a utility screen opened
+ * often, so no hero band): eyebrow "Earnings · AAPL", the event title, a Pre-open · Live · After close stepper with
+ * the live mark on Live only, "Updated 12 min ago", the summary as a lede. Phases follow as collapsible cards (the
+ * current one open), each with its status badge in a wrapping row, a relative time and its highlights as plain
+ * paragraphs. Related names are chips into Name; "Open the Deep Dive" opens the report the room reads against.
+ * Room and report ids, routes and the grey/gold/green phase colours are gone.
+ */
+
+/** The three steps of an earnings room, in order. */
+internal enum class WarRoomStep { Pre, Live, Post }
+
+/** A phase word from the server ("pre", "pre_open", "live", "post", "after_close") as a step; null when unknown. */
+internal fun warRoomStepOf(raw: String?): WarRoomStep? =
+    when (raw?.trim()?.lowercase()?.replace('-', '_')?.replace(' ', '_')) {
+        "pre", "pre_open", "preopen", "preparing", "ready" -> WarRoomStep.Pre
+        "live" -> WarRoomStep.Live
+        "post", "after_close", "post_close", "closed" -> WarRoomStep.Post
+        else -> null
+    }
+
+/**
+ * The room's current step: the room state when it names one ("preparing"/"ready" → Pre, "live" → Live,
+ * "post"/"closed" → Post), else the furthest phase written so far; null when nothing says.
+ */
+internal fun warRoomCurrentStep(room: WarRoomView): WarRoomStep? =
+    warRoomStepOf(room.status) ?: room.phases.mapNotNull { warRoomStepOf(it.phase) }.maxOrNull()
+
+/** True when the room is in its Live step (the only time the live mark shows and pull-to-refresh is off). */
+internal fun warRoomIsLive(room: WarRoomView): Boolean =
+    room.status?.trim()?.lowercase() == "live"
+
+/** True once the room has closed: every step is done. */
+internal fun warRoomClosed(room: WarRoomView): Boolean =
+    room.status?.trim()?.lowercase() == "closed"
+
+/** Phases in step order (unknown phases last, in server order). */
+internal fun warRoomPhasesInOrder(room: WarRoomView): List<WarRoomPhaseView> =
+    room.phases.withIndex()
+        .sortedWith(compareBy({ warRoomStepOf(it.value.phase)?.ordinal ?: Int.MAX_VALUE }, { it.index }))
+        .map { it.value }
+
+/** A phase status word as a badge: text and tone. Null when the phase carries none. */
+@Immutable
+internal data class PhaseBadge(val text: String, val tone: Tone)
+
+internal fun phaseBadge(status: String?): PhaseBadge? {
+    val key = status?.trim()?.lowercase()?.replace('-', '_')?.replace(' ', '_')?.ifBlank { null } ?: return null
+    return when (key) {
+        "complete", "completed", "done", "closed", "success" -> PhaseBadge(ResearchCopy.PHASE_COMPLETE, Tone.Neutral)
+        "live", "in_progress", "running", "active" -> PhaseBadge(ResearchCopy.PHASE_IN_PROGRESS, Tone.Favourable)
+        "pending", "scheduled", "queued", "upcoming", "preparing" -> PhaseBadge(ResearchCopy.PHASE_SCHEDULED, Tone.Unknown)
+        "degraded", "timeout" -> PhaseBadge(ResearchCopy.humanize(key) ?: key, Tone.Attention)
+        "failed", "failure" -> PhaseBadge(ResearchCopy.humanize(key) ?: key, Tone.Unfavourable)
+        else -> PhaseBadge(ResearchCopy.humanize(key) ?: key, Tone.Unknown)
+    }
+}
+
+private fun stepLabel(step: WarRoomStep): String = when (step) {
+    WarRoomStep.Pre -> ResearchCopy.STEP_PRE
+    WarRoomStep.Live -> ResearchCopy.STEP_LIVE
+    WarRoomStep.Post -> ResearchCopy.STEP_POST
+}
+
+/**
+ * The War Room. Draws its own top bar ("War Room", subtitle the ticker); the shell gives it none (HANDOFF-E).
+ * Pull-to-refresh is on except while Live, when the ViewModel refreshes every 60 s (WP-INT). A failed refresh
+ * keeps the room on screen under a banner. [onOpenName] opens a related ticker's Name page and [onOpenReport] the
+ * Deep Dive the room reads against.
+ */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun WarRoomScreen(
     warRoom: WarRoomView?,
     errorMessage: String?,
     onRefresh: () -> Unit,
-    padding: PaddingValues
+    padding: PaddingValues,
+    onBack: () -> Unit = {},
+    isLoading: Boolean = false,
+    refreshing: Boolean = false,
+    onOpenName: (ticker: String) -> Unit = {},
+    onOpenReport: ((reportId: String) -> Unit)? = null,
 ) {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(padding)
-    ) {
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(
-                top = ThesisDimens.ScreenPaddingTop,
-                bottom = ThesisDimens.ScreenPaddingBottom,
-                start = ThesisDimens.ScreenPaddingHorizontal,
-                end = ThesisDimens.ScreenPaddingHorizontal
-            ),
-            verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingLg)
+    val fmt = LocalFmt.current
+    val scroll = rememberScrollState()
+    val collapsed by rememberTopBarCollapsed(scroll)
+    val live = warRoom != null && warRoomIsLive(warRoom)
+
+    ResearchBarPage(
+        title = ResearchCopy.WAR_ROOM_TITLE,
+        subtitle = warRoom?.ticker?.ifBlank { null },
+        titleAlwaysVisible = true,
+        onBack = onBack,
+        padding = padding,
+        collapsed = collapsed,
+    ) { inner ->
+        ThesisRefreshBox(
+            refreshing = refreshing,
+            onRefresh = onRefresh,
+            enabled = warRoom != null && !live,
+            modifier = Modifier.padding(top = inner.calculateTopPadding()),
         ) {
-            item {
-                Column(verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)) {
-                    Text(
-                        text = Phase4Copy.researchWarRoomLabel,
-                        style = ThesisTypography.displayMedium.copy(
-                            fontFamily = HeadingFont,
-                            fontWeight = FontWeight.Normal
-                        ),
-                        color = ThesisColors.TextPrimary
-                    )
-                    Text(
-                        text = Phase4Copy.researchWarRoomSubtitle,
-                        style = ThesisTypography.bodyMedium,
-                        color = ThesisColors.TextMuted
-                    )
-                }
-            }
-
-            item {
-                val shape = RoundedCornerShape(ThesisDimens.CardCornerRadius)
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(shape)
-                        .background(ThesisColors.Surface)
-                        .border(ThesisDimens.BorderWidth, ThesisColors.Border, shape)
-                        .padding(ThesisDimens.CardPadding),
-                    verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingMd)
-                ) {
-                    Text(
-                        text = warRoom?.title ?: "Waiting for an earnings room",
-                        style = ThesisTypography.headlineMedium.copy(fontWeight = FontWeight.Medium),
-                        color = ThesisColors.TextPrimary
-                    )
-                    if (!warRoom?.warRoomId.isNullOrBlank()) {
-                        Text(
-                            text = "Room ${warRoom?.warRoomId}",
-                            style = ThesisTypography.bodySmall,
-                            color = ThesisColors.TextMuted
+            Column(
+                Modifier
+                    .fillMaxSize()
+                    .verticalScroll(scroll)
+                    .researchWidth(data = false)
+                    .padding(top = ThesisSpace.headerTop, bottom = inner.calculateBottomPadding())
+                    .padding(horizontal = ThesisSpace.gutter),
+            ) {
+                when {
+                    warRoom == null && (isLoading || (refreshing && errorMessage == null)) -> WarRoomSkeleton()
+                    warRoom == null && !errorMessage.isNullOrBlank() -> {
+                        ScreenHeader(title = ResearchCopy.WAR_ROOM_TITLE, eyebrow = ResearchCopy.warRoomEyebrow(null))
+                        Spacer(Modifier.height(ThesisSpace.headerToSection))
+                        ErrorState(
+                            title = KitCopy.couldNotLoad(ResearchCopy.WAR_ROOM_FAILED),
+                            cause = errorMessage,
+                            onRetry = onRefresh,
                         )
                     }
-                    if (!warRoom?.ticker.isNullOrBlank()) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)) {
-                            infoBadge("Ticker", warRoom?.ticker ?: "")
-                            warRoom?.status?.let { status ->
-                                infoBadge("Status", status.uppercase())
-                            }
-                        }
-                    }
-                    warRoom?.generatedAt?.let { generatedAt ->
-                        Text(
-                            text = "Updated ${formatTimestamp(generatedAt)}",
-                            style = ThesisTypography.labelSmall,
-                            color = ThesisColors.TextMuted
+                    warRoom == null -> {
+                        ScreenHeader(title = ResearchCopy.WAR_ROOM_TITLE, eyebrow = ResearchCopy.warRoomEyebrow(null))
+                        Spacer(Modifier.height(ThesisSpace.headerToSection))
+                        EmptyState(
+                            sentence = ResearchCopy.WAR_ROOM_EMPTY,
+                            how = ResearchCopy.WAR_ROOM_EMPTY_HOW,
+                            icon = ThesisIcons.WarRoom,
                         )
                     }
-                    warRoom?.summary?.takeIf { it.isNotBlank() }?.let { summary ->
-                        Text(
-                            text = summary,
-                            style = ThesisTypography.bodyMedium,
-                            color = ThesisColors.TextSecondary
-                        )
-                    }
-                    if (warRoom?.relatedTickers.orEmpty().isNotEmpty()) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)) {
-                            warRoom?.relatedTickers.orEmpty().take(4).forEach { ticker ->
-                                infoBadge("Related", ticker)
-                            }
-                        }
-                    }
-                    Button(
-                        onClick = onRefresh,
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = ThesisColors.SurfaceElevated,
-                            contentColor = ThesisColors.TextPrimary
-                        )
-                    ) {
-                        Text("Refresh War Room")
-                    }
-                }
-            }
-
-            if (!errorMessage.isNullOrBlank()) {
-                item {
-                    MessageCard(
-                        title = "War Room unavailable",
-                        body = errorMessage
+                    else -> WarRoomBody(
+                        room = warRoom,
+                        refreshError = errorMessage?.ifBlank { null },
+                        onRetry = onRefresh,
+                        onOpenName = onOpenName,
+                        onOpenReport = onOpenReport,
+                        fmt = fmt,
                     )
-                }
-            }
-
-            if (warRoom == null) {
-                item {
-                    MessageCard(
-                        title = "No War Room loaded",
-                        body = "Open an earnings war room notification to load pre-open, live, and post-close summaries."
-                    )
-                }
-            } else if (warRoom.phases.isEmpty()) {
-                item {
-                    MessageCard(
-                        title = "No phase summaries yet",
-                        body = "This room will fill in as the earnings event moves through pre, live, and post stages."
-                    )
-                }
-            } else {
-                items(warRoom.phases.size) { index ->
-                    WarRoomPhaseCard(phase = warRoom.phases[index])
                 }
             }
         }
@@ -177,123 +210,246 @@ fun WarRoomScreen(
 }
 
 @Composable
-private fun WarRoomPhaseCard(phase: WarRoomPhaseView) {
-    val shape = RoundedCornerShape(ThesisDimens.CardCornerRadius)
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(shape)
-            .background(ThesisColors.Surface)
-            .border(ThesisDimens.BorderWidth, ThesisColors.Border, shape)
-            .padding(ThesisDimens.CardPadding),
-        verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)
-    ) {
-        Text(
-            text = phase.phase.uppercase(),
-            style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Medium),
-            color = phaseAccentColor(phase.phase)
-        )
-        Text(
-            text = phase.title,
-            style = ThesisTypography.headlineMedium.copy(fontWeight = FontWeight.Medium),
-            color = ThesisColors.TextPrimary
-        )
-        phase.status?.takeIf { it.isNotBlank() }?.let { status ->
-            infoBadge("State", status.uppercase())
-        }
-
-        Text(
-            text = phase.summary,
-            style = ThesisTypography.bodyMedium,
-            color = ThesisColors.TextSecondary
-        )
-
-        if (phase.highlights.isNotEmpty()) {
-            Column(verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingXs)) {
-                phase.highlights.forEach { highlight ->
-                    Row(verticalAlignment = Alignment.Top) {
-                        Text(
-                            text = "-",
-                            style = ThesisTypography.bodyMedium,
-                            color = ThesisColors.Primary
-                        )
-                        Spacer(modifier = Modifier.size(ThesisDimens.SpacingXs))
-                        Text(
-                            text = highlight,
-                            style = ThesisTypography.bodyMedium,
-                            color = ThesisColors.TextSecondary
-                        )
-                    }
-                }
-            }
-        }
-
-        Row(horizontalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)) {
-            phase.ticker?.takeIf { it.isNotBlank() }?.let { ticker ->
-                infoBadge("Ticker", ticker)
-            }
-            phase.route?.takeIf { it.isNotBlank() }?.let { route ->
-                infoBadge("Route", route.replace('_', ' ').uppercase())
-            }
-            phase.reportId?.takeIf { it.isNotBlank() }?.let { reportId ->
-                infoBadge("Report", reportId)
-            }
-            phase.updatedAt?.takeIf { it.isNotBlank() }?.let { updatedAt ->
-                infoBadge("Updated", formatTimestamp(updatedAt))
-            }
-        }
-    }
+private fun WarRoomSkeleton() {
+    ScreenHeader(title = ResearchCopy.WAR_ROOM_TITLE, eyebrow = ResearchCopy.warRoomEyebrow(null), refreshing = true)
+    Spacer(Modifier.height(ThesisSpace.l))
+    SkeletonRow()
+    Spacer(Modifier.height(ThesisSpace.headerToSection))
+    SkeletonCard(bodyLines = 4)
+    Spacer(Modifier.height(ThesisSpace.cardGap))
+    SkeletonCard(bodyLines = 2)
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun infoBadge(label: String, value: String) {
-    Text(
-        text = "$label: $value",
-        style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Medium),
-        color = ThesisColors.TextPrimary,
-        modifier = Modifier
-            .clip(RoundedCornerShape(ThesisDimens.SignalBadgeCorner))
-            .background(ThesisColors.SurfaceElevated)
-            .padding(horizontal = ThesisDimens.SpacingSm, vertical = ThesisDimens.SpacingXs)
+private fun WarRoomBody(
+    room: WarRoomView,
+    refreshError: String?,
+    onRetry: () -> Unit,
+    onOpenName: (String) -> Unit,
+    onOpenReport: ((String) -> Unit)?,
+    fmt: Fmt,
+) {
+    val p = LocalThesisPalette.current
+    val haptics = rememberHaptics()
+    val current = warRoomCurrentStep(room)
+    val closed = warRoomClosed(room)
+    val live = warRoomIsLive(room)
+    val phases = warRoomPhasesInOrder(room)
+    // Which phase cards are open: the current step's by default; the reader's taps override it.
+    val open = remember(room.warRoomId) { mutableStateMapOf<Int, Boolean>() }
+
+    ScreenHeader(
+        eyebrow = ResearchCopy.warRoomEyebrow(room.ticker),
+        title = room.title?.ifBlank { null } ?: ResearchCopy.WAR_ROOM_FALLBACK_TITLE,
     )
-}
-
-@Composable
-private fun MessageCard(title: String, body: String) {
-    val shape = RoundedCornerShape(ThesisDimens.CardCornerRadius)
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(shape)
-            .background(ThesisColors.Surface)
-            .border(ThesisDimens.BorderWidth, ThesisColors.Border, shape)
-            .padding(ThesisDimens.CardPadding),
-        verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)
-    ) {
-        Text(
-            text = title,
-            style = ThesisTypography.headlineMedium.copy(fontWeight = FontWeight.Medium),
-            color = ThesisColors.TextPrimary
+    Spacer(Modifier.height(ThesisSpace.l))
+    PhaseStepper(current = current, closed = closed, live = live)
+    parseInstant(room.generatedAt)?.let { at ->
+        Spacer(Modifier.height(ThesisSpace.m))
+        Text(ResearchCopy.updated(fmt.relative(at)), style = ThesisType.caption, color = p.muted)
+    }
+    if (refreshError != null) {
+        Spacer(Modifier.height(ThesisSpace.m))
+        InlineBanner(
+            text = ResearchCopy.WAR_ROOM_REFRESH_FAILED,
+            tone = BannerTone.Attention,
+            actionLabel = KitCopy.TRY_AGAIN,
+            onAction = onRetry,
         )
-        Text(
-            text = body,
-            style = ThesisTypography.bodyMedium,
-            color = ThesisColors.TextMuted
+    }
+    room.summary?.ifBlank { null }?.let { summary ->
+        Spacer(Modifier.height(ThesisSpace.l))
+        Text(summary, style = ThesisType.lede, color = p.ink)
+    }
+
+    Spacer(Modifier.height(ThesisSpace.sectionGapReading))
+    SectionHeader(
+        kicker = ResearchCopy.PHASES_KICKER,
+        headline = ResearchCopy.phasesHeadline(phases.size, closed || phases.size >= WarRoomStep.entries.size),
+    )
+    Spacer(Modifier.height(ThesisSpace.m))
+    if (phases.isEmpty()) {
+        Text(ResearchCopy.PHASES_EMPTY, style = ThesisType.body, color = p.ink2)
+    }
+    phases.forEachIndexed { index, phase ->
+        if (index > 0) Spacer(Modifier.height(ThesisSpace.cardGap))
+        val step = warRoomStepOf(phase.phase)
+        val isCurrent = step != null && step == current
+        val defaultOpen = isCurrent || (current == null && index == phases.lastIndex)
+        val expanded = open[index] ?: defaultOpen
+        PhaseCard(
+            phase = phase,
+            step = step,
+            expanded = expanded,
+            onToggle = {
+                haptics.toggle(!expanded)
+                open[index] = !expanded
+            },
+            fmt = fmt,
+        )
+    }
+
+    val related = room.relatedTickers.filter { it.isNotBlank() }.distinct()
+    if (related.isNotEmpty()) {
+        Spacer(Modifier.height(ThesisSpace.sectionGapReading))
+        SectionHeader(kicker = ResearchCopy.RELATED_KICKER, headline = ResearchCopy.relatedHeadline(related.size))
+        Spacer(Modifier.height(ThesisSpace.m))
+        ChipRow(contentPadding = PaddingValues()) {
+            related.forEach { ticker ->
+                item(key = ticker) {
+                    ThesisChip(label = ticker, selected = false, onClick = { onOpenName(ticker) }, role = Role.Button)
+                }
+            }
+        }
+    }
+
+    val reportId = phases.lastOrNull { !it.reportId.isNullOrBlank() }?.reportId
+    if (reportId != null && onOpenReport != null) {
+        Spacer(Modifier.height(ThesisSpace.l))
+        ActionRow(
+            icon = ThesisIcons.DeepDive,
+            title = ResearchCopy.OPEN_DEEP_DIVE,
+            caption = ResearchCopy.OPEN_DEEP_DIVE_CAPTION,
+            onClick = { onOpenReport(reportId) },
         )
     }
 }
 
+/**
+ * Horizontal three-step stepper: a ring per step on a `line2` rail, the label under it. Done and current rings in
+ * the gold series colour (current filled), upcoming in `line2`; the current label in `ink`, the others muted. The
+ * live mark sits beside "Live" only while the room is live. One TalkBack stop per step with its state.
+ * (The kit Timeline is vertical only; a horizontal variant is requested from WP-K in HANDOFF-E.)
+ */
 @Composable
-@ReadOnlyComposable
-private fun phaseAccentColor(phase: String) = when (phase.lowercase()) {
-    "pre" -> ThesisColors.SignalNeutral
-    "live" -> ThesisColors.Primary
-    "post" -> ThesisColors.SignalPositive
-    else -> ThesisColors.TextMuted
+private fun PhaseStepper(current: WarRoomStep?, closed: Boolean, live: Boolean) {
+    val p = LocalThesisPalette.current
+    val steps = WarRoomStep.entries
+    val ring = ThesisSpace.m
+    val border = ThesisSpace.xxs
+    Row(Modifier.fillMaxWidth()) {
+        steps.forEachIndexed { index, step ->
+            val done = closed || (current != null && step < current)
+            val isCurrent = !closed && step == current
+            val state = when {
+                isCurrent -> ResearchCopy.STEP_STATE_CURRENT
+                done -> ResearchCopy.STEP_STATE_DONE
+                else -> ResearchCopy.STEP_STATE_UPCOMING
+            }
+            val first = index == 0
+            val last = index == steps.lastIndex
+            Column(
+                Modifier
+                    .weight(1f)
+                    .semantics(mergeDescendants = true) { stateDescription = state },
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(ring)
+                        .drawBehind {
+                            val cy = size.height / 2f
+                            val cx = size.width / 2f
+                            val r = ring.toPx() / 2f
+                            val rail = border.toPx()
+                            if (!first) drawLine(p.line2, Offset(0f, cy), Offset(cx - r, cy), rail)
+                            if (!last) drawLine(p.line2, Offset(cx + r, cy), Offset(size.width, cy), rail)
+                            val stroke = if (done || isCurrent) p.series[0] else p.line2
+                            drawCircle(p.surface, r, Offset(cx, cy))
+                            drawCircle(stroke, r - rail / 2f, Offset(cx, cy), style = Stroke(rail))
+                            if (isCurrent || done) drawCircle(p.series[0], r / 2f, Offset(cx, cy))
+                        },
+                )
+                Spacer(Modifier.height(ThesisSpace.s))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (step == WarRoomStep.Live && live) {
+                        LiveDot()
+                        Spacer(Modifier.width(ThesisSpace.xs))
+                    }
+                    Text(
+                        stepLabel(step),
+                        style = ThesisType.caption,
+                        color = if (isCurrent) p.ink else p.muted,
+                        textAlign = TextAlign.Center,
+                    )
+                }
+            }
+        }
+    }
 }
 
-private fun formatTimestamp(raw: String): String = runCatching {
-    Instant.parse(raw)
-        .atZone(ZoneId.of("America/New_York"))
-        .format(DateTimeFormatter.ofPattern("MMM d, HH:mm z"))
-}.getOrElse { raw }
+/**
+ * One phase: a card whose header (step and time as the eyebrow, the phase title, a Show/Hide word) toggles it;
+ * open, it shows the status badge in a wrapping row, the summary and each highlight as its own paragraph.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun PhaseCard(
+    phase: WarRoomPhaseView,
+    step: WarRoomStep?,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+    fmt: Fmt,
+) {
+    val p = LocalThesisPalette.current
+    val interaction = remember { MutableInteractionSource() }
+    val stepWord = step?.let(::stepLabel) ?: ResearchCopy.humanize(phase.phase)
+    val at = parseInstant(phase.updatedAt)?.let(fmt::relative)
+    val eyebrow = listOfNotNull(stepWord, at).joinToString(" · ")
+    val badge = phaseBadge(phase.status)
+    ThesisCard {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .heightIn(min = ThesisSpace.touchMin)
+                .thesisPress(interaction)
+                .toggleable(
+                    value = expanded,
+                    interactionSource = interaction,
+                    indication = null,
+                    role = Role.Button,
+                    onValueChange = { onToggle() },
+                )
+                .semantics(mergeDescendants = true) {
+                    stateDescription = if (expanded) ResearchCopy.EXPANDED else ResearchCopy.COLLAPSED
+                },
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f)) {
+                if (eyebrow.isNotBlank()) {
+                    Text(eyebrow, style = ThesisType.eyebrow, color = p.muted)
+                    Spacer(Modifier.height(ThesisSpace.xs))
+                }
+                Text(
+                    phase.title.ifBlank { stepWord ?: ResearchCopy.WAR_ROOM_FALLBACK_TITLE },
+                    style = ThesisType.cardTitle,
+                    color = p.ink,
+                    modifier = Modifier.semantics { heading() },
+                )
+            }
+            Spacer(Modifier.width(ThesisSpace.m))
+            Text(
+                if (expanded) ResearchCopy.HIDE else ResearchCopy.SHOW,
+                style = ThesisType.caption,
+                color = p.accent,
+                modifier = Modifier.clearAndSetSemantics { },
+            )
+        }
+        if (expanded) {
+            if (badge != null) {
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(ThesisSpace.s),
+                    verticalArrangement = Arrangement.spacedBy(ThesisSpace.s),
+                ) {
+                    StatusBadge(badge.text, badge.tone)
+                }
+            }
+            phase.summary.ifBlank { null }?.let { Text(it, style = ThesisType.story, color = p.ink) }
+            phase.highlights.filter { it.isNotBlank() }.forEach { highlight ->
+                Text(highlight, style = ThesisType.story, color = p.ink2)
+            }
+        }
+    }
+}

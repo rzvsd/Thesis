@@ -51,9 +51,6 @@ ui/screens/DeepDiveWebReportState.kt	circular-progress	1
 ui/screens/DeepDiveWebReportState.kt	material-icons	2
 ui/screens/DeleteAccountSection.kt	dp-literal	1
 ui/screens/DeleteAccountSection.kt	alert-dialog	1
-ui/screens/HistoryScreen.kt	dp-literal	3
-ui/screens/HistoryScreen.kt	copy-alpha	1
-ui/screens/HistoryScreen.kt	material-icons	3
 ui/screens/HoldingsCsvImport.kt	outlined-button	1
 ui/screens/HomeScreen.kt	dp-literal	7
 ui/screens/HomeScreen.kt	shape-literal	1
@@ -78,12 +75,6 @@ ui/screens/PulseScreen.kt	delay	1
 ui/screens/PulseScreen.kt	material-icons	4
 ui/screens/ReportExport.kt	string-format	4
 ui/screens/ReportExport.kt	printf-float	3
-ui/screens/ScenarioStressScreen.kt	dp-literal	5
-ui/screens/ScenarioStressScreen.kt	copy-alpha	1
-ui/screens/ScenarioStressScreen.kt	circular-progress	2
-ui/screens/ScenarioStressScreen.kt	outlined-button	3
-ui/screens/ScenarioStressScreen.kt	string-format	1
-ui/screens/ScenarioStressScreen.kt	printf-float	1
 ui/screens/SentimentDashboardScreen.kt	dp-literal	12
 ui/screens/SentimentDashboardScreen.kt	shape-literal	1
 ui/screens/SentimentDashboardScreen.kt	copy-alpha	2

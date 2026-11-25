@@ -219,6 +219,10 @@ object ResearchCopy {
     const val SEARCH_NO_MATCH_HOW = "Try a ticker, such as AAPL, or a word from one of your notes."
     const val IN_YOUR_NAMES = "In your names"
     const val SEARCHING = "Searching companies"
+    const val CLEAR_SEARCH = "Clear search"
+    const val CLEAR_RECENT = "Clear"
+    const val SHOW_FEWER = "Show fewer"
+    fun showAll(n: Int): String = "Show all ${Fmt.number(n.toLong())}"
 
     // ---- War Room (5.19)
 
@@ -249,6 +253,13 @@ object ResearchCopy {
     const val PHASE_COMPLETE = "Complete"
     const val PHASE_IN_PROGRESS = "In progress"
     const val PHASE_SCHEDULED = "Scheduled"
+    const val STEP_STATE_DONE = "Done"
+    const val STEP_STATE_CURRENT = "Current step"
+    const val STEP_STATE_UPCOMING = "Upcoming"
+    const val SHOW = "Show"
+    const val HIDE = "Hide"
+    const val EXPANDED = "Expanded"
+    const val COLLAPSED = "Collapsed"
 
     // ---- Scenario Stress (5.20)
 
@@ -295,6 +306,20 @@ object ResearchCopy {
     const val TABLE_SCORE = "Stress score"
     const val TABLE_IMPACT = "Impact"
     const val TABLE_BREAK = "Thesis break"
+    const val STRESS_CHART_TITLE = "Stress score by name"
+    const val RUN_DEGRADED = "Part of this run used incomplete data. Treat the lower scores with care."
+    const val RUN_STALE = "This run didn’t finish. You are looking at the previous one."
+    const val EVIDENCE = "Evidence"
+    fun impactWord(raw: String?): String = when (raw?.trim()?.lowercase()) {
+        "critical" -> "Critical"
+        "high" -> "High stress"
+        "elevated" -> "Elevated"
+        "watch" -> "Watch"
+        "none" -> "Not touched"
+        else -> humanize(raw) ?: "Not rated"
+    }
+    fun guardrailLine(ticker: String, condition: String): String = "$ticker: $condition"
+    const val RUNNING = "Running the scenario on your names"
 
     /** A raw enum word ("thesis_drift", "AT_RISK") as sentence-case text ("Thesis drift", "At risk"). */
     fun humanize(raw: String?): String? {
