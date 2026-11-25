@@ -25,6 +25,7 @@ object DeepDiveCopy {
     const val closeSample = "Close sample"
     const val disclaimer = "A research summary built from SEC filings, not financial advice."
     const val loadingSample = "Opening the sample report"
+    const val openingReport = "Opening the report"
 
     // ---- Hero
     const val deepDive = "Deep Dive"
@@ -48,6 +49,7 @@ object DeepDiveCopy {
     const val chValue = "Price and value"
     const val chRisks = "Risks"
     const val chEvidence = "Evidence"
+    const val chReading = "Reading notes"
     const val chDesk = "Your notes"
 
     // ---- Chapter titles (static fallbacks; the screen prefers a sentence generated from the data)
@@ -64,6 +66,7 @@ object DeepDiveCopy {
     const val evidenceTitle = "Where the figures come from"
     fun evidenceTitleCount(n: Int, sections: Int): String =
         if (sections <= 1) "$n sources back this report" else "$n sources across $sections sections"
+    const val readingTitle = "How to read the numbers"
     const val deskTitle = "What you think about it"
     const val deskLede = "Your note for this report, the conviction journal and the tools that run on it."
 
@@ -123,7 +126,15 @@ object DeepDiveCopy {
 
     // ---- Value chapter
     const val modelRange = "Model range"
-    const val modelRangeTitle = "Bear to bull model range"
+    /** The range chart's caption (its subtitle); the title is generated from where the price sits. */
+    const val modelRangeCaption = "Bear to bull model range"
+    fun rangeTitleVsBase(pct: String, above: Boolean): String =
+        "Price in report is $pct ${if (above) "above" else "below"} the model's base case"
+    const val rangeTitleAtBase = "Price in report sits at the model's base case"
+    const val rangeTitleBelowBear = "Price in report sits below the bear case"
+    const val rangeTitleAboveBull = "Price in report sits above the bull case"
+    const val rangeTitleInside = "Price in report sits inside the model range"
+    fun rangeTitleBase(base: String): String = "The model's base case is $base"
     const val priceInReport = "Price in report"
     fun modelRangeSubtitle(years: Int?, growth: String?, wacc: String?): String = listOfNotNull(
         years?.let { "Discounted cash flow over $it years" } ?: "Discounted cash flow",
@@ -202,6 +213,11 @@ object DeepDiveCopy {
     const val readFull = "Read the full section"
     const val hideFull = "Hide the full section"
     const val howToRead = "How to read this report"
+    const val reportChecks = "Report checks"
+    const val checkFreshness = "Freshness"
+    const val checkContradictions = "Contradictions"
+    const val checkValuation = "Valuation"
+    const val checkEvidence = "Evidence"
     const val noSectionSummary = "This section came back without a summary."
     fun coverageState(state: String): String = when (state.lowercase()) {
         "full" -> "Full coverage"
@@ -266,6 +282,7 @@ object DeepDiveCopy {
     const val coherenceEmpty = "No monthly coherence card has been built yet."
     const val coherencePro = "Monthly coherence is part of Thesis Pro."
     const val refreshCoherence = "Refresh coherence"
+    /** A period whose dates did not parse, shown as sent (the caption under a coherence card's title). */
     fun periodRange(start: String, end: String): String = "$start to $end"
     fun eventLabel(type: String): String = when (type.lowercase()) {
         "kill_switch_alert_fired" -> "Kill switch fired"

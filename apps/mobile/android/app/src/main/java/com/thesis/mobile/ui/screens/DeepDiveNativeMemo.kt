@@ -418,7 +418,7 @@ internal fun indicatorGroups(indicators: List<IndicatorView>): List<Pair<String,
 internal data class QuoteSource(val chapterNumber: Int, val chapterLabel: String, val ticker: String?, val filing: String?)
 
 internal object NoteQuotes {
-    /** The quote line, same format as the report host's "Add to note". */
+    /** The quote line, same format (straight ASCII quotes) as the new view's "Add to note" (WP-C ReportQuote). */
     fun format(text: String, source: QuoteSource): String {
         val where = buildString {
             append("Ch. ").append(source.chapterNumber.toString().padStart(2, '0')).append(' ').append(source.chapterLabel)
@@ -426,7 +426,7 @@ internal object NoteQuotes {
             if (ref.isNotBlank()) append(", ").append(ref)
         }
         val quote = text.replace(Regex("\\s+"), " ").trim()
-        return "> “$quote” ($where)"
+        return "> \"$quote\" ($where)"
     }
 
     /** Appends [quote] to [draft] after a blank line (or starts the note with it). */

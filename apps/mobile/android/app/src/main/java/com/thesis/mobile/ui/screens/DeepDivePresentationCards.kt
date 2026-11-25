@@ -24,7 +24,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.CustomAccessibilityAction
@@ -40,6 +39,7 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import com.thesis.mobile.model.DeepDiveReaderOutline
 import com.thesis.mobile.model.DeepDiveReportView
+import com.thesis.mobile.model.DeepDiveVisualPanelView
 import com.thesis.mobile.model.DueDiligenceSectionView
 import com.thesis.mobile.model.EvidenceLadderPanelView
 import com.thesis.mobile.model.FinancialDerivedMetricView
@@ -49,6 +49,7 @@ import com.thesis.mobile.model.RangeBandPanelView
 import com.thesis.mobile.model.ScenarioComparePanelView
 import com.thesis.mobile.model.SectionView
 import com.thesis.mobile.model.TimelinePanelView
+import com.thesis.mobile.model.TrustScorecardPanelView
 import com.thesis.mobile.model.ValuationBridgePanelView
 import com.thesis.mobile.model.memoSection
 import com.thesis.mobile.model.readerIssuerMetadataLine
@@ -109,7 +110,6 @@ import com.thesis.mobile.ui.theme.LocalThesisPalette
 import com.thesis.mobile.ui.theme.ThesisSpace
 import com.thesis.mobile.ui.theme.ThesisType
 import com.thesis.mobile.ui.theme.Tone
-import com.thesis.mobile.ui.theme.textColor
 import java.time.LocalDate
 import java.time.OffsetDateTime
 
@@ -129,6 +129,9 @@ internal enum class ClassicChapter(val label: String) {
     Value(DeepDiveCopy.chValue),
     Risks(DeepDiveCopy.chRisks),
     Evidence(DeepDiveCopy.chEvidence),
+
+    /** In place of [Evidence] when the report has only explainers to show: no sources or counts to promise. */
+    Reading(DeepDiveCopy.chReading),
     Desk(DeepDiveCopy.chDesk),
 }
 
@@ -170,13 +173,15 @@ internal fun classicPlan(report: DeepDiveReportView, fiveYear: FiveYearSeries?, 
         }
         val sectionsToShow = report.sections.isNotEmpty() &&
             (outline.usesStructuredArtifact || report.sections.any { it.evidence.isNotEmpty() })
-        if (sectionsToShow || outline.dueDiligenceSections.isNotEmpty() ||
-            report.investmentMemo?.materialClaims?.isNotEmpty() == true || report.coverageTruth != null ||
-            report.explainers != null || report.indicatorsRead?.education?.isNotEmpty() == true ||
-            outline.evidencePanels.isNotEmpty()
-        ) {
-            add(ClassicChapter.Evidence)
-        }
+        val memo = report.investmentMemo
+        val hasEvidence = sectionsToShow || outline.dueDiligenceSections.isNotEmpty() ||
+            memo?.materialClaims?.isNotEmpty() == true || memo?.unsupportedClaims?.isNotEmpty() == true ||
+            memo?.sparseDataHonestyNote.has() || report.coverageTruth != null ||
+            report.trustMetadata?.missingDataNotes?.isNotEmpty() == true || outline.evidencePanels.isNotEmpty() ||
+            trustScorecards(report).isNotEmpty()
+        val hasExplainers = report.explainers != null || report.indicatorsRead?.education?.isNotEmpty() == true
+        // A chapter of explainers alone is titled as what it is, not "Where the figures come from".
+        if (hasEvidence) add(ClassicChapter.Evidence) else if (hasExplainers) add(ClassicChapter.Reading)
         if (withDesk) add(ClassicChapter.Desk)
     }
     return ClassicPlan(chapters, outline, five)
@@ -245,6 +250,7 @@ internal fun chapterHead(report: DeepDiveReportView, plan: ClassicPlan, chapter:
                 lede = lede(report.coverageTruth?.summary),
             )
         }
+        ClassicChapter.Reading -> ChapterHead(DeepDiveCopy.readingTitle)
         ClassicChapter.Desk -> ChapterHead(DeepDiveCopy.deskTitle, lede = ClassicFormat.splitLead(DeepDiveCopy.deskLede))
     }
 }
@@ -367,7 +373,7 @@ internal fun ClassicItems.addChapters(report: DeepDiveReportView, plan: ClassicP
             ClassicChapter.Financials -> financialsBlocks(report, plan, quote)
             ClassicChapter.Value -> valueBlocks(report, plan, ctx, quote)
             ClassicChapter.Risks -> riskBlocks(report, plan, quote)
-            ClassicChapter.Evidence -> evidenceBlocks(report, plan, ctx)
+            ClassicChapter.Evidence, ClassicChapter.Reading -> evidenceBlocks(report, plan, ctx)
             ClassicChapter.Desk -> ctx.desk.forEach { (key, block) -> add("desk-$key") { block() } }
         }
         chapterUpshot(report, chapter)?.let { text ->
@@ -441,12 +447,15 @@ private fun ClassicChapterHeader(number: Int, chapter: ClassicChapter, head: Cha
     }
 }
 
-/** A kicker over a story paragraph ("Why now", "The good"), the paragraph quotable. */
+/**
+ * A kicker over a story paragraph ("Why now", "The good"), the paragraph quotable. The kicker keeps the accent:
+ * up/down colour is for figures only (T3), so "The good" and "The bad" are not toned.
+ */
 @Composable
-private fun LabeledParagraph(label: String, text: String, onQuote: ((String) -> Unit)?, labelTone: Tone? = null) {
+private fun LabeledParagraph(label: String, text: String, onQuote: ((String) -> Unit)?) {
     val p = LocalThesisPalette.current
     Column(verticalArrangement = Arrangement.spacedBy(ThesisSpace.s)) {
-        Kicker(label, color = labelTone?.textColor(p) ?: Color.Unspecified)
+        Kicker(label)
         Text(text, Modifier.quotable(text, onQuote), style = ThesisType.story, color = p.ink)
     }
 }
@@ -686,10 +695,10 @@ private fun ClassicItems.filingBlocks(report: DeepDiveReportView, quote: ((Strin
     }
     ClassicFormat.clean(f.whatChanged)?.let { add("filing-changed") { LabeledParagraph(DeepDiveCopy.filingTitle, it, quote) } }
     ClassicFormat.clean(f.theGood)?.let {
-        add("filing-good") { LabeledParagraph(DeepDiveCopy.theGood, it, quote, Tone.Favourable) }
+        add("filing-good") { LabeledParagraph(DeepDiveCopy.theGood, it, quote) }
     }
     ClassicFormat.clean(f.theBad)?.let {
-        add("filing-bad") { LabeledParagraph(DeepDiveCopy.theBad, it, quote, Tone.Unfavourable) }
+        add("filing-bad") { LabeledParagraph(DeepDiveCopy.theBad, it, quote) }
     }
     ClassicFormat.clean(f.whatToWatchNext)?.let { add("filing-watch") { LabeledParagraph(DeepDiveCopy.watchNext, it, quote) } }
 }
@@ -853,6 +862,9 @@ private fun ClassicItems.financialsBlocks(report: DeepDiveReportView, plan: Clas
     indicatorGroups(ir?.indicators.orEmpty().filter { it.group != "valuation" }).forEach { (label, rows) ->
         add("fin-ind-$label") { IndicatorGroup(label, rows) }
     }
+    // Every visual panel type has one home: metric deltas here; range bands, valuation bridges and scenario
+    // compares in Price and value; timelines in Risks; evidence ladders and trust scorecards in Evidence. A
+    // non-metric panel that lands in financialPanels only because its title says "margin" is drawn by its home.
     plan.outline.financialPanels.filterIsInstance<MetricDeltaPanelView>().forEachIndexed { i, panel ->
         if (panel.metrics.isNotEmpty()) {
             val choices = metricDeltaTables(panel)
@@ -956,16 +968,28 @@ private fun MetricGroup(label: String, metrics: List<FinancialDerivedMetricView>
     }
 }
 
+/**
+ * An indicator group's kicker and whether each row names its own period: when every row has the same period it is
+ * said once, in the kicker ("Profitability, FY2025"), as the page puts it once in the card's head; rows name a
+ * period only when they differ.
+ */
+internal fun indicatorGroupHead(label: String, rows: List<IndicatorView>): Pair<String, Boolean> {
+    val periods = rows.map { ClassicFormat.periodLabel(it.period) }.distinct()
+    val shared = periods.singleOrNull()
+    return if (shared != null) "$label, $shared" to false else label to (periods.size > 1)
+}
+
 @Composable
 private fun IndicatorGroup(label: String, rows: List<IndicatorView>) {
-    Group(label) {
+    val (kicker, perRow) = indicatorGroupHead(label, rows)
+    Group(kicker) {
         RowGroup {
             rows.forEach { ind ->
                 row {
                     DataRow(
                         label = ind.label,
                         value = ClassicFormat.value(ind.value, ind.unit),
-                        sub = ClassicFormat.periodLabel(ind.period),
+                        sub = if (perRow) ClassicFormat.periodLabel(ind.period) else null,
                     )
                 }
             }
@@ -1027,15 +1051,11 @@ private fun ClassicItems.valueBlocks(
             v.assumptions?.wacc?.let { Fmt.pct(it * PERCENT, 1) },
         )
         add("value-range") { ModelRangeCard(low, high, v.fairValueMid, v.spotPrice, fig, subtitle) }
-    } else {
-        val band = plan.outline.valuationPanels.filterIsInstance<RangeBandPanelView>().firstOrNull()
-        val bandLow = band?.lowValue
-        val bandHigh = band?.highValue
-        if (band != null && bandLow != null && bandHigh != null) {
-            val fig = nextFigure()
-            add("value-band") {
-                ModelRangeCard(bandLow, bandHigh, band.midValue, band.referenceValue, fig, ClassicFormat.clean(band.summary))
-            }
+    }
+    rangeBands(plan.outline.valuationPanels, if (low != null && high != null) low to high else null).forEachIndexed { i, band ->
+        val fig = nextFigure()
+        add("value-band-$i") {
+            ModelRangeCard(band.lowValue!!, band.highValue!!, band.midValue, band.referenceValue, fig, ClassicFormat.clean(band.summary))
         }
     }
     ClassicFormat.clean(v?.degradedReason)?.let { reason ->
@@ -1121,13 +1141,53 @@ private fun ClassicItems.valueBlocks(
 
 private const val PERCENT = 100.0
 
+/**
+ * The range-band panels to draw as range charts: those with both ends, except one that repeats the valuation's own
+ * range ([drawn], already chart-drawn from the valuation) to the cent.
+ */
+internal fun rangeBands(panels: List<DeepDiveVisualPanelView>, drawn: Pair<Double, Double>?): List<RangeBandPanelView> =
+    panels.filterIsInstance<RangeBandPanelView>().filter { b ->
+        val lo = b.lowValue
+        val hi = b.highValue
+        lo != null && hi != null && (drawn == null || !(sameCents(lo, drawn.first) && sameCents(hi, drawn.second)))
+    }
+
+private fun sameCents(a: Double, b: Double): Boolean = Math.round(a * PERCENT) == Math.round(b * PERCENT)
+
+/**
+ * The range chart's conclusion title, generated from where the price in report sits: outside the range, against the
+ * base case (rounded to whole percent; within half a percent reads "at"), or inside the range. Neutral words only:
+ * never "upside", "target" or "cheap" (5.15, C1). With no price, the base case; with neither, the caption.
+ */
+internal fun modelRangeTitle(low: Double, high: Double, mid: Double?, price: Double?): String {
+    if (price == null || !price.isFinite()) {
+        return mid?.takeIf { it.isFinite() }?.let { DeepDiveCopy.rangeTitleBase(ClassicFormat.rangeMoney(it)) }
+            ?: DeepDiveCopy.modelRangeCaption
+    }
+    return when {
+        price < minOf(low, high) -> DeepDiveCopy.rangeTitleBelowBear
+        price > maxOf(low, high) -> DeepDiveCopy.rangeTitleAboveBull
+        mid != null && mid.isFinite() && mid > 0.0 -> {
+            val gap = (price / mid - 1.0) * PERCENT
+            if (kotlin.math.abs(gap) < AT_BASE_PCT) {
+                DeepDiveCopy.rangeTitleAtBase
+            } else {
+                DeepDiveCopy.rangeTitleVsBase(Fmt.pct(kotlin.math.abs(gap), 0), above = gap > 0)
+            }
+        }
+        else -> DeepDiveCopy.rangeTitleInside
+    }
+}
+
+private const val AT_BASE_PCT = 0.5
+
 /** Bear to bull model range with the price stored in the report (never "upside"; 5.15). */
 @Composable
 private fun ModelRangeCard(low: Double, high: Double, mid: Double?, price: Double?, fignum: Int, subtitle: String?) {
     ChartCard(
-        title = DeepDiveCopy.modelRangeTitle,
+        title = modelRangeTitle(low, high, mid, price),
         fignum = fignum,
-        subtitle = subtitle,
+        subtitle = listOfNotNull(DeepDiveCopy.modelRangeCaption, subtitle).joinToString(". "),
         source = DeepDiveCopy.valuationSource,
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(ThesisSpace.m)) {
@@ -1249,6 +1309,7 @@ private fun ClassicItems.evidenceBlocks(report: DeepDiveReportView, plan: Classi
             }
         }
     }
+    trustScorecards(report).forEachIndexed { i, panel -> add("ev-trust-$i") { TrustScorecard(panel) } }
     val sources = openSources(report)
     if (sources.isNotEmpty()) add("ev-sources") { SourceList(sources, ctx.onOpenUrl) }
     plan.outline.dueDiligenceSections.forEach { section ->
@@ -1331,6 +1392,35 @@ private fun ClassicItems.evidenceBlocks(report: DeepDiveReportView, plan: Classi
                     Text(it, style = ThesisType.caption, color = p.muted)
                 }
             }
+        }
+    }
+}
+
+/**
+ * The report's trust scorecards (freshness, contradictions, valuation state, evidence count). The reader outline
+ * puts them in no chapter bucket, so they are read from the panels directly; one with nothing stated is skipped.
+ */
+internal fun trustScorecards(report: DeepDiveReportView): List<TrustScorecardPanelView> =
+    report.visualPanels.filterIsInstance<TrustScorecardPanelView>().filter { t ->
+        t.freshnessState.has() || t.contradictionState.has() || t.valuationState.has() || t.evidenceCount != null
+    }
+
+/** A trust scorecard's rows: (label, value) for each state the panel states, states in words. */
+internal fun trustScorecardRows(panel: TrustScorecardPanelView): List<Pair<String, String>> = listOfNotNull(
+    panel.freshnessState?.takeIf { it.isNotBlank() }?.let { DeepDiveCopy.checkFreshness to DeepDiveCopy.freshnessBadge(it) },
+    panel.contradictionState?.takeIf { it.isNotBlank() }?.let { DeepDiveCopy.checkContradictions to ClassicFormat.humanize(it) },
+    panel.valuationState?.takeIf { it.isNotBlank() }?.let { DeepDiveCopy.checkValuation to ClassicFormat.humanize(it) },
+    panel.evidenceCount?.let { DeepDiveCopy.checkEvidence to DeepDiveCopy.sourcesCount(it) },
+)
+
+@Composable
+private fun TrustScorecard(panel: TrustScorecardPanelView) {
+    val p = LocalThesisPalette.current
+    Column(verticalArrangement = Arrangement.spacedBy(ThesisSpace.m)) {
+        TitledKicker(panel.eyebrow?.takeIf { it.isNotBlank() } ?: DeepDiveCopy.reportChecks, panel.title.takeIf { it.isNotBlank() })
+        ClassicFormat.clean(panel.summary)?.let { Text(it, style = ThesisType.body, color = p.ink2) }
+        RowGroup {
+            trustScorecardRows(panel).forEach { (label, value) -> row { DataRow(label, value) } }
         }
     }
 }

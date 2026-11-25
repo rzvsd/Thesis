@@ -133,7 +133,7 @@ class DeepDiveSemanticsTest {
         rule.onAllNodesWithText(DeepDiveCopy.addToNote).onFirst().performClick()
         rule.waitForIdle()
         assertEquals(1, note.size)
-        assertTrue(note.single(), note.single().startsWith("> “$takeaway” (Ch. 01 Summary, AAPL 10-K FY2025)"))
+        assertTrue(note.single(), note.single().startsWith("> \"$takeaway\" (Ch. 01 Summary, AAPL 10-K FY2025)"))
     }
 
     @Composable

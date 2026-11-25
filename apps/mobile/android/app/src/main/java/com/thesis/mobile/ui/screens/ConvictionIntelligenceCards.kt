@@ -26,8 +26,12 @@ import com.thesis.mobile.ui.format.LocalFmt
 import com.thesis.mobile.ui.theme.LocalThesisPalette
 import com.thesis.mobile.ui.theme.ThesisSpace
 import com.thesis.mobile.ui.theme.ThesisType
+import com.thesis.mobile.ui.format.Fmt
 import java.time.Instant
+import java.time.LocalDate
 import java.time.OffsetDateTime
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 /*
  * Conviction journal, opposite case (the Deep Dive's "Your notes" chapter and the new view's Conviction tool) and
@@ -44,6 +48,37 @@ internal fun parseInstant(raw: String?): Instant? {
     val s = raw?.trim().orEmpty()
     if (s.isEmpty()) return null
     return runCatching { Instant.parse(s) }.getOrNull() ?: runCatching { OffsetDateTime.parse(s).toInstant() }.getOrNull()
+}
+
+/** An ISO date ("2025-10-01", or a timestamp that starts with one) as a date, or null. */
+internal fun parseIsoDate(raw: String?): LocalDate? {
+    val s = raw?.trim().orEmpty()
+    if (s.length < ISO_DATE_LENGTH) return null
+    return runCatching { LocalDate.parse(s.take(ISO_DATE_LENGTH)) }.getOrNull()
+}
+
+private const val ISO_DATE_LENGTH = 10
+private val MonthYear = DateTimeFormatter.ofPattern("MMMM yyyy", Locale.US)
+
+/**
+ * A coherence card's period for its caption: "October 2025" for a whole calendar month, else the range as Fmt writes
+ * it ("1 to 15 Oct", "27 Oct to 2 Nov 2025"). The API sends ISO dates; a value that does not parse is shown as sent,
+ * and null when there is nothing to show.
+ */
+internal fun coherencePeriod(start: String?, end: String?, fmt: Fmt): String? {
+    val s = parseIsoDate(start)
+    val e = parseIsoDate(end)
+    if (s != null && e != null && !e.isBefore(s)) {
+        val wholeMonth = s.dayOfMonth == 1 && e == s.withDayOfMonth(s.lengthOfMonth())
+        return if (wholeMonth) s.format(MonthYear) else fmt.weekRange(s, e)
+    }
+    if (s != null && e == null) return fmt.shortDate(s)
+    val a = start?.trim().orEmpty()
+    val b = end?.trim().orEmpty()
+    return when {
+        a.isNotEmpty() && b.isNotEmpty() -> DeepDiveCopy.periodRange(a, b)
+        else -> a.ifEmpty { b }.ifEmpty { null }
+    }
 }
 
 /** The Pro upsell, once: what the feature is, and the way to Pro. */
@@ -97,7 +132,8 @@ private fun JournalCard(timeline: List<ConvictionJournalEntryView>, errorMessage
             InlineBanner(it, tone = BannerTone.Error, actionLabel = DeepDiveCopy.refresh, onAction = onRefresh)
         }
         if (timeline.isEmpty()) {
-            Text(DeepDiveCopy.journalEmpty, style = ThesisType.bodySmall, color = p.muted)
+            // After a failed load the journal's content is unknown: the banner says so, with no "nothing yet" line.
+            if (errorMessage.isNullOrBlank()) Text(DeepDiveCopy.journalEmpty, style = ThesisType.bodySmall, color = p.muted)
         } else {
             Timeline(
                 timeline.take(JOURNAL_SHOWN).mapIndexed { i, item ->
@@ -170,6 +206,7 @@ fun MonthlyCoherenceSection(
     onRequireUpgrade: (String) -> Unit,
 ) {
     val p = LocalThesisPalette.current
+    val fmt = LocalFmt.current
     Column(verticalArrangement = Arrangement.spacedBy(ThesisSpace.m)) {
         SectionHeader(
             kicker = DeepDiveCopy.coherenceKicker,
@@ -189,7 +226,14 @@ fun MonthlyCoherenceSection(
         } else {
             // One container: the findings' RowGroup sits on the page under the card's head, not in a second card.
             Column(verticalArrangement = Arrangement.spacedBy(ThesisSpace.m)) {
-                TitledKicker(DeepDiveCopy.periodRange(latest.periodStart, latest.periodEnd), latest.title)
+                // The section's header carries the kicker; the period is a sans caption under the card's title,
+                // never an eyebrow over dates.
+                Column(verticalArrangement = Arrangement.spacedBy(ThesisSpace.xs)) {
+                    TitledKicker(null, latest.title)
+                    coherencePeriod(latest.periodStart, latest.periodEnd, fmt)?.let {
+                        Text(it, style = ThesisType.caption, color = p.muted)
+                    }
+                }
                 Text(latest.summary, style = ThesisType.body, color = p.ink2)
                 if (latest.findings.isNotEmpty()) {
                     RowGroup {

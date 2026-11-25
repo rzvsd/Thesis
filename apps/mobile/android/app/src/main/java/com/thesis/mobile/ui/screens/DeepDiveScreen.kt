@@ -131,6 +131,12 @@ fun DeepDiveScreen(
     retryLabel: String? = null,
     following: Boolean? = null,
     onFollowChange: ((Boolean) -> Unit)? = null,
+    /**
+     * True when the entry opens a stored report (nothing is being generated): the loading state is the page's own
+     * skeleton, not the build screen. Defaults to the Report entry's signal (only it passes a [retryLabel]);
+     * HANDOFF-D asks WP-INT to pass it explicitly.
+     */
+    openingStoredReport: Boolean = retryLabel != null,
 ) {
     // Loading → report (or → failed) crossfades instead of swapping in one frame (#27, 4.4); a newer report for
     // the same entry updates in place.
@@ -142,7 +148,9 @@ fun DeepDiveScreen(
     StateCrossfade(
         state = state,
         modifier = Modifier.fillMaxSize(),
-        loading = { DeepDiveLoadingScreen(modifier = Modifier.padding(padding)) },
+        loading = {
+            if (openingStoredReport) ReportOpeningSkeleton(padding) else DeepDiveLoadingScreen(modifier = Modifier.padding(padding))
+        },
         failed = { DeepDiveFailedState(errorMessage = errorMessage, onRetry = onRetry, retryLabel = retryLabel, padding = padding) },
     ) { shown ->
         val tools = DeepDiveNativeTools(
@@ -179,6 +187,29 @@ fun DeepDiveScreen(
                 onOpenNewView = onOpenNewView,
             )
         }
+    }
+}
+
+/**
+ * A stored report on its way (5.15, principle 3): the page's own skeleton, the hero then a card, and one honest line.
+ * No build steps: nothing is being generated.
+ */
+@Composable
+private fun ReportOpeningSkeleton(padding: PaddingValues) {
+    Column(
+        Modifier
+            .fillMaxSize()
+            .padding(padding)
+            .semantics { liveRegion = LiveRegionMode.Polite },
+    ) {
+        HeroBand { SkeletonHero() }
+        ReadingColumn(Modifier.padding(top = ThesisSpace.xxl)) { SkeletonCard() }
+        Text(
+            DeepDiveCopy.openingReport,
+            Modifier.padding(ThesisSpace.gutter),
+            style = ThesisType.caption,
+            color = LocalThesisPalette.current.muted,
+        )
     }
 }
 
@@ -741,7 +772,9 @@ internal fun ScenarioSection(
 
 /**
  * The what-if result, on the page under the section's header (one container: the rows' own panel, no card around
- * it): the report's model value, yours, and the price in report with how far your value sits from it.
+ * it): the report's model value, yours, and the price in report with how far your value sits from it. Rows and the
+ * range bar write each value the same way (ClassicFormat.rangeMoney: whole dollars, cents only when the value has
+ * them), so "$228" never also reads "$228.00" in one block.
  */
 @Composable
 private fun ScenarioResultCard(result: ScenarioResultView) {
@@ -752,11 +785,11 @@ private fun ScenarioResultCard(result: ScenarioResultView) {
     Column(Modifier.padding(top = ThesisSpace.s), verticalArrangement = Arrangement.spacedBy(ThesisSpace.m)) {
         TitledKicker(DeepDiveCopy.modelValue, DeepDiveCopy.modelResultTitle)
         RowGroup {
-            row { DataRow(DeepDiveCopy.baseCase, Fmt.money(base, missing = Missing.NotComputed)) }
+            row { DataRow(DeepDiveCopy.baseCase, modelMoney(base)) }
             row {
                 DataRow(
                     label = DeepDiveCopy.yourInputs,
-                    value = Fmt.money(mine, missing = Missing.NotComputed),
+                    value = modelMoney(mine),
                     delta = if (base != null && mine != null && base != 0.0) Fmt.signedPct((mine / base - 1.0) * 100.0) else null,
                 )
             }
@@ -765,7 +798,7 @@ private fun ScenarioResultCard(result: ScenarioResultView) {
                 row {
                     DataRow(
                         label = DeepDiveCopy.priceInReport,
-                        value = Fmt.money(price),
+                        value = ClassicFormat.rangeMoney(price),
                         delta = DeepDiveCopy.yourValueGap(Fmt.signedPct(gap)),
                         deltaTone = if (gap >= 0) Tone.Favourable else Tone.Unfavourable,
                     )
@@ -796,6 +829,9 @@ private fun ScenarioResultCard(result: ScenarioResultView) {
         }
     }
 }
+
+/** A model value as the range bar writes it; a value the model did not compute says so. */
+private fun modelMoney(v: Double?): String = v?.let(ClassicFormat::rangeMoney) ?: Fmt.money(null, missing = Missing.NotComputed)
 
 /** "Was this report useful?": chips with no preselection, an optional line, and Send with a sent state. */
 @Composable

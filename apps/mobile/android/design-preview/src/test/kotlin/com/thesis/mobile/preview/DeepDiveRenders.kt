@@ -12,7 +12,9 @@ import com.thesis.mobile.model.DeepDiveReportView
 import com.thesis.mobile.model.OppositeCasePointView
 import com.thesis.mobile.model.OppositeCaseReportView
 import com.thesis.mobile.model.ScenarioResultView
+import com.thesis.mobile.ui.screens.DeepDiveClassic
 import com.thesis.mobile.ui.screens.DeepDiveConvictionSection
+import com.thesis.mobile.ui.screens.DeepDiveNativeTools
 import com.thesis.mobile.ui.screens.DeepDiveFixtures
 import com.thesis.mobile.ui.screens.DeepDiveScreen
 import com.thesis.mobile.ui.screens.ExportSection
@@ -41,6 +43,7 @@ class DeepDiveRenders {
         note: String = "",
         scenario: ScenarioResultView? = null,
         generating: Boolean = false,
+        retryLabel: String? = null,
     ) {
         DeepDiveScreen(
             report = report, isLoading = isLoading, errorMessage = error, userTier = tier,
@@ -51,9 +54,18 @@ class DeepDiveRenders {
             scenarioResult = scenario, isRunningScenario = false, onRunScenario = { _, _, _ -> },
             onRequireUpgrade = {}, onSubmitReportFeedback = { _, _ -> }, onNotify = {}, watchlist = listOf("AAPL"),
             onRetry = {}, onBack = {}, padding = PaddingValues(), onOpenScenarioStress = {}, webPage = null,
-            onFollowChange = {},
+            onFollowChange = {}, retryLabel = retryLabel,
         )
     }
+
+    private val tools = DeepDiveNativeTools(
+        isPro = true, reportNoteDraft = "", noteUpdatedAt = null, isSavingNote = false,
+        convictionTimeline = DeepDiveFixtures.journal, convictionTimelineError = null, oppositeCase = null,
+        oppositeCaseError = null, isGeneratingOppositeCase = false, scenarioResult = null, isRunningScenario = false,
+        onReportNoteChange = {}, onSaveReportNote = {}, onGenerateOppositeCase = {}, onRefreshConvictionTimeline = {},
+        onRunScenario = { _, _, _ -> }, onRequireUpgrade = {}, onSubmitReportFeedback = { _, _ -> }, onNotify = {},
+        onOpenScenarioStress = null,
+    )
 
     private fun check(files: List<java.io.File>) = files.forEach { assertTrue(it.name, it.length() > 0) }
 
@@ -125,6 +137,23 @@ class DeepDiveRenders {
 
     @Test fun classicLoading() = check(renderScreen("dd-classic-loading") { Classic(null, isLoading = true) })
 
+    /** A stored report opening (a Report entry passes its retry label): the page's skeleton, no build steps. */
+    @Test
+    fun classicOpening() = check(
+        renderScreen("dd-classic-opening") { Classic(null, isLoading = true, retryLabel = "Open report again") },
+    )
+
+    /** The classic view when the new view can open: the "Classic view" banner with "Open the new view" (5.15 item 1). */
+    @Test
+    fun classicWithNewView() = check(
+        renderScreen("dd-classic-newview") {
+            DeepDiveClassic(
+                report = DeepDiveFixtures.structured, tools = tools, following = true, onFollowChange = {}, onBack = {},
+                padding = PaddingValues(), onOpenNewView = {},
+            )
+        },
+    )
+
     @Test
     fun classicFailed() = check(renderScreen("dd-classic-failed") { Classic(null, error = "The report did not open.") })
 
@@ -147,6 +176,22 @@ class DeepDiveRenders {
         renderScreen(
             "dd-sample-whole-360", widthDp = PhoneSpec.NARROW_WIDTH_DP, heightDp = WHOLE_PAGE_DP, density = 1.0f,
             glow = false, themes = listOf(PreviewTheme.DARK),
+        ) {
+            SampleDeepDiveContent(DeepDiveFixtures.sample, DeepDiveFixtures.sampleFiveYear, PaddingValues(), {}, {})
+        },
+    )
+
+    @Test
+    fun sampleFont130() = check(
+        renderScreen("dd-sample-font130", heightDp = PhoneSpec.FULL_PAGE_HEIGHT_DP, fontScale = 1.3f) {
+            SampleDeepDiveContent(DeepDiveFixtures.sample, DeepDiveFixtures.sampleFiveYear, PaddingValues(), {}, {})
+        },
+    )
+
+    @Test
+    fun sampleFont200() = check(
+        renderScreen(
+            "dd-sample-font200", widthDp = PhoneSpec.NARROW_WIDTH_DP, heightDp = PhoneSpec.FULL_PAGE_HEIGHT_DP, fontScale = 2.0f,
         ) {
             SampleDeepDiveContent(DeepDiveFixtures.sample, DeepDiveFixtures.sampleFiveYear, PaddingValues(), {}, {})
         },
@@ -211,7 +256,7 @@ class DeepDiveRenders {
     )
 
     private val coherence = ConvictionInsightCardView(
-        insightId = "i1", periodStart = "1 Oct 2025", periodEnd = "31 Oct 2025", insightType = "monthly", status = "ready",
+        insightId = "i1", periodStart = "2025-10-01", periodEnd = "2025-10-31", insightType = "monthly", status = "ready",
         title = "Two names lean on the same customer",
         summary = "AAPL and AVGO both depend on iPhone units.",
         findings = listOf(ConvictionInsightFindingView("overlap", "iPhone units", "Both theses need units to hold.", listOf("AAPL", "AVGO"))),

@@ -11,6 +11,9 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.time.Clock
+import java.time.ZoneId
+import java.time.ZonedDateTime
 
 /** The classic Deep Dive's data layer (WP-D): periods, figures, the five-year series, hero KPIs, chapters, quotes. */
 class DeepDiveClassicModelTest {
@@ -189,7 +192,7 @@ class DeepDiveClassicModelTest {
     @Test
     fun quotesCarryTheirChapterAndFiling() {
         val quote = NoteQuotes.format("Gross margin  reached\n46.9%.", QuoteSource(4, "Financials", "aapl", "10-K FY2025"))
-        assertEquals("> “Gross margin reached 46.9%.” (Ch. 04 Financials, AAPL 10-K FY2025)", quote)
+        assertEquals("> \"Gross margin reached 46.9%.\" (Ch. 04 Financials, AAPL 10-K FY2025)", quote)
         assertEquals(quote, NoteQuotes.append("  ", quote))
         assertEquals("Mine\n\n$quote", NoteQuotes.append("Mine\n", quote))
     }
@@ -212,7 +215,7 @@ class DeepDiveClassicModelTest {
     fun copyHasNoBannedWords() {
         val banned = Regex("""\b(buy|sell|hold|upside|downside|target|cheap|expensive|attractive|entry|exit|stop)\b""", RegexOption.IGNORE_CASE)
         val strings = listOf(
-            DeepDiveCopy.modelRange, DeepDiveCopy.modelRangeTitle, DeepDiveCopy.priceInReport, DeepDiveCopy.yourValueGap("+3.9%"),
+            DeepDiveCopy.modelRange, DeepDiveCopy.modelRangeCaption, DeepDiveCopy.priceInReport, DeepDiveCopy.yourValueGap("+3.9%"),
             DeepDiveCopy.convictionPro, DeepDiveCopy.deskPro, DeepDiveCopy.sampleNote, DeepDiveCopy.disclaimer,
         ) + DeepDiveCopy.feedbackOptions.map { it.second }
         strings.forEach { assertFalse(it, banned.containsMatchIn(it)) }
@@ -308,5 +311,84 @@ class DeepDiveClassicModelTest {
         assertEquals(listOf("Revenue", "Gross margin"), tables[0].full.rows.map { it.label })
         assertEquals("on the quarter", tables[0].full.columns.last().filing)
         assertEquals(1, tables[0].compact.columns.size)
+    }
+
+    private val zone: ZoneId = ZoneId.of("Europe/Bucharest")
+    private val fmt = Fmt(Clock.fixed(ZonedDateTime.of(2026, 11, 24, 7, 2, 0, 0, zone).toInstant(), zone), zone, is24h = true)
+
+    @Test
+    fun coherencePeriodReadsIsoDatesAndNeverShowsThemRaw() {
+        assertEquals("October 2025", coherencePeriod("2025-10-01", "2025-10-31", fmt))
+        assertEquals("February 2024", coherencePeriod("2024-02-01", "2024-02-29", fmt))
+        assertEquals("1 to 15 Nov", coherencePeriod("2026-11-01", "2026-11-15", fmt))
+        assertEquals("27 Oct 2025 to 2 Nov 2025", coherencePeriod("2025-10-27", "2025-11-02", fmt))
+        // A timestamp that starts with a date reads the same.
+        assertEquals("October 2026", coherencePeriod("2026-10-01T00:00:00Z", "2026-10-31T23:59:59Z", fmt))
+        // What does not parse is shown as sent; nothing to show is null.
+        assertEquals("Q3 to Q4", coherencePeriod("Q3", "Q4", fmt))
+        assertNull(coherencePeriod("", " ", fmt))
+        val iso = Regex("""\d{4}-\d{2}-\d{2}""")
+        assertFalse(iso.containsMatchIn(coherencePeriod("2025-10-01", "2025-10-31", fmt)!!))
+    }
+
+    @Test
+    fun rangeChartTitleSaysWhereThePriceSits() {
+        assertEquals("Price in report is 6% above the model's base case", modelRangeTitle(205.0, 251.0, 228.0, 241.5))
+        assertEquals("Price in report is 10% below the model's base case", modelRangeTitle(180.0, 260.0, 220.0, 198.0))
+        assertEquals(DeepDiveCopy.rangeTitleAtBase, modelRangeTitle(205.0, 251.0, 228.0, 228.5))
+        assertEquals(DeepDiveCopy.rangeTitleBelowBear, modelRangeTitle(205.0, 251.0, 228.0, 190.0))
+        assertEquals(DeepDiveCopy.rangeTitleAboveBull, modelRangeTitle(205.0, 251.0, 228.0, 270.0))
+        assertEquals(DeepDiveCopy.rangeTitleInside, modelRangeTitle(205.0, 251.0, null, 230.0))
+        assertEquals("The model's base case is $228", modelRangeTitle(205.0, 251.0, 228.0, null))
+        assertEquals(DeepDiveCopy.modelRangeCaption, modelRangeTitle(205.0, 251.0, null, null))
+        val banned = Regex("""\b(upside|downside|target|cheap|expensive|attractive)\b""", RegexOption.IGNORE_CASE)
+        listOf(
+            modelRangeTitle(205.0, 251.0, 228.0, 241.5), DeepDiveCopy.rangeTitleAtBase, DeepDiveCopy.rangeTitleBelowBear,
+            DeepDiveCopy.rangeTitleAboveBull, DeepDiveCopy.rangeTitleInside,
+        ).forEach { assertFalse(it, banned.containsMatchIn(it)) }
+    }
+
+    @Test
+    fun indicatorGroupSaysASharedPeriodOnce() {
+        fun ind(period: String) = com.thesis.mobile.model.IndicatorView("profitability", "ROIC", 30.0, "pct", period, "")
+        assertEquals("Profitability, FY2025" to false, indicatorGroupHead("Profitability", listOf(ind("2025-FY"), ind("FY2025"))))
+        assertEquals("Growth" to true, indicatorGroupHead("Growth", listOf(ind("2025-FY"), ind("2025-Q4"))))
+        assertEquals("Growth" to false, indicatorGroupHead("Growth", listOf(ind(""), ind(" "))))
+    }
+
+    @Test
+    fun trustScorecardsAndRangeBandsAreDrawn() {
+        val trust = com.thesis.mobile.model.TrustScorecardPanelView(
+            title = "How far to trust it", freshnessState = "degraded", contradictionState = "none_found", evidenceCount = 14,
+        )
+        val empty = com.thesis.mobile.model.TrustScorecardPanelView(title = "Nothing stated")
+        val report = structured.copy(visualPanels = structured.visualPanels + trust + empty)
+        assertEquals(listOf(trust), trustScorecards(report))
+        assertEquals(
+            listOf("Freshness" to "Getting old", "Contradictions" to "None found", "Evidence" to "14 sources"),
+            trustScorecardRows(trust),
+        )
+        assertTrue(ClassicChapter.Evidence in classicPlan(report, null, withDesk = false).chapters)
+        val same = com.thesis.mobile.model.RangeBandPanelView(title = "Range", lowValue = 205.0, highValue = 251.0)
+        val other = com.thesis.mobile.model.RangeBandPanelView(title = "Peers", lowValue = 150.0, highValue = 300.0)
+        val open = com.thesis.mobile.model.RangeBandPanelView(title = "Open", lowValue = 150.0)
+        assertEquals(listOf(other), rangeBands(listOf(same, other, open), 205.0 to 251.0))
+        assertEquals(listOf(same, other), rangeBands(listOf(same, other, open), null))
+    }
+
+    @Test
+    fun explainersAloneAreReadingNotesNotEvidence() {
+        // The sample has education boxes and no sources: its last chapter is reading notes.
+        val onlyExplainers = classicPlan(sample, DeepDiveFixtures.sampleFiveYear, withDesk = false)
+        assertEquals(ClassicChapter.Reading, onlyExplainers.chapters.last())
+        assertFalse(ClassicChapter.Evidence in onlyExplainers.chapters)
+        assertEquals(DeepDiveCopy.readingTitle, chapterHead(sample, onlyExplainers, ClassicChapter.Reading).title)
+        val bare = structured.copy(
+            sections = emptyList(), investmentMemo = null, coverageTruth = null, trustMetadata = null, visualPanels = emptyList(),
+        )
+        val plan = classicPlan(bare, null, withDesk = false)
+        assertTrue(plan.chapters.toString(), ClassicChapter.Reading in plan.chapters)
+        assertFalse(ClassicChapter.Evidence in plan.chapters)
+        assertEquals("How to read the numbers", chapterHead(bare, plan, ClassicChapter.Reading).title)
     }
 }
