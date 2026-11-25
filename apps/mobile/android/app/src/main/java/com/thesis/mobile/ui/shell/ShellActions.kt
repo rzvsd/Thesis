@@ -186,5 +186,10 @@ class ShellPlatform(
     val backScope: @androidx.compose.runtime.Composable (
         covered: Boolean,
         content: @androidx.compose.runtime.Composable () -> Unit
-    ) -> Unit = { _, content -> content() }
+    ) -> Unit = { _, content -> content() },
+    /**
+     * The visible page has a HeroBand under the status bar ([ScreenChrome.overHero], 2.7): the status bar icons
+     * turn light in both themes until it collapses. `ThesisApp` applies it to the window; previews ignore it.
+     */
+    val onStatusBarOverHero: (Boolean) -> Unit = {}
 )

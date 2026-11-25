@@ -115,20 +115,31 @@ fun ProvidePageBackground(modifier: Modifier = Modifier, content: @Composable ()
  * window position (so it stays fixed while content or a push transition moves); without a cache it draws directly.
  */
 fun Modifier.pageBackground(p: ThesisPalette): Modifier = composed {
-    val cache = LocalPageBackgroundCache.current
-    val density = LocalDensity.current
     var position by remember { mutableStateOf(Offset.Zero) }
     this
         .onGloballyPositioned { position = it.positionInWindow() }
-        .drawBehind {
-            val image = cache?.bitmapFor(p, density)
-            if (image == null) {
-                drawPageBackground(p, RenderFlags.pageGlow)
-            } else {
-                drawRect(p.bg)
-                drawAreaSlice(image, position - cache.areaOrigin, alpha = 1f)
-            }
+        .pageBackgroundAt(p) { position }
+}
+
+/**
+ * [pageBackground] for a page inside a transform layer (the shell's predictive-back preview): draws the slice under
+ * [origin], the page's window position measured outside that layer (read in the draw phase). The layer then scales
+ * and shifts one coherent page, instead of a slice that already carries the layer's own transform.
+ */
+fun Modifier.pageBackground(p: ThesisPalette, origin: () -> Offset): Modifier = pageBackgroundAt(p, origin)
+
+private fun Modifier.pageBackgroundAt(p: ThesisPalette, origin: () -> Offset): Modifier = composed {
+    val cache = LocalPageBackgroundCache.current
+    val density = LocalDensity.current
+    drawBehind {
+        val image = cache?.bitmapFor(p, density)
+        if (image == null) {
+            drawPageBackground(p, RenderFlags.pageGlow)
+        } else {
+            drawRect(p.bg)
+            drawAreaSlice(image, origin() - cache.areaOrigin, alpha = 1f)
         }
+    }
 }
 
 /** Where a bar draws its hairline. */

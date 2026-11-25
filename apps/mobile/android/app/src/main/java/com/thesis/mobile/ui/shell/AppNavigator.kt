@@ -6,6 +6,7 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.SnapshotStateList
+import com.thesis.mobile.ui.motion.EntranceRegistry
 import com.thesis.mobile.ui.navigation.Destination
 import com.thesis.mobile.ui.navigation.NavRoute
 import com.thesis.mobile.ui.navigation.ShellTab
@@ -60,6 +61,14 @@ class AppNavigator(private val store: NavigatorStateStore? = null) {
 
     private var nextId = 0L
 
+    /**
+     * The first-open entrances of every entry (4.3 rule 2), keyed by `entryId`: the shell provides it to each entry
+     * ([com.thesis.mobile.ui.motion.ProvideEntranceScope]). Scopes of entries that left every stack are dropped on
+     * each change, and the "already played" markers are persisted with the stacks, so Home does not stagger again
+     * for the same issue after a tab return, a recreation or process death.
+     */
+    val entranceRegistry: EntranceRegistry = EntranceRegistry()
+
     /** What the last mutation did (not persisted; [NavMove.None] after a restore). */
     var lastMove: NavMove = NavMove.None
         private set
@@ -69,6 +78,7 @@ class AppNavigator(private val store: NavigatorStateStore? = null) {
             ShellTab.entries.forEach { tab -> stacks.getValue(tab).add(newEntry(tab.root)) }
             persist()
         }
+        entranceRegistry.onPlayed = { persistEntrances() }
     }
 
     /** The stack of [tab], root first. Never empty. */
@@ -294,6 +304,8 @@ class AppNavigator(private val store: NavigatorStateStore? = null) {
         ShellTab.entries.forEach { popToRoot(it) }
         currentTab = ShellTab.Today
         namesFocusTicker = null
+        // A new session opens Home as a first open again.
+        entranceRegistry.retainOnly(emptyList())
         persist()
     }
 
@@ -302,12 +314,21 @@ class AppNavigator(private val store: NavigatorStateStore? = null) {
     private fun newEntry(destination: Destination) = NavEntry(destination, "e${nextId++}")
 
     private fun persist() {
+        // Entrances of entries that left every stack die with them (a new entry for the same screen animates).
+        entranceRegistry.retainOnly(liveEntryIds())
         val store = store ?: return
         store[KEY_TAB] = currentTab.name
         store[KEY_NEXT_ID] = nextId.toString()
         store[KEY_NAMES_FOCUS] = namesFocusTicker
         ShellTab.entries.forEach { tab -> store[stackKey(tab)] = encodeStack(stacks.getValue(tab)) }
         store[KEY_MODAL] = encodeStack(modalStack)
+        persistEntrances()
+    }
+
+    /** Writes the entrance registry's "already played" markers next to the stacks. */
+    private fun persistEntrances() {
+        val store = store ?: return
+        store[KEY_ENTRANCES] = entranceRegistry.saveState().joinToString(ENTRY_SEPARATOR).ifEmpty { null }
     }
 
     private fun restore(): Boolean {
@@ -322,6 +343,8 @@ class AppNavigator(private val store: NavigatorStateStore? = null) {
         namesFocusTicker = store[KEY_NAMES_FOCUS]
         val maxId = (restored.values.flatten() + modalStack).maxOfOrNull { it.entryId.drop(1).toLongOrNull() ?: 0L }
         nextId = maxOf(store[KEY_NEXT_ID]?.toLongOrNull() ?: 0L, (maxId ?: -1L) + 1)
+        store[KEY_ENTRANCES]?.takeIf { it.isNotEmpty() }?.let { entranceRegistry.restoreState(it.split(ENTRY_SEPARATOR)) }
+        entranceRegistry.retainOnly(liveEntryIds())
         return true
     }
 
@@ -346,11 +369,12 @@ class AppNavigator(private val store: NavigatorStateStore? = null) {
         private const val KEY_NAMES_FOCUS = "nav.namesFocus"
         private const val KEY_MODAL = "nav.modal"
         private const val KEY_STACK_PREFIX = "nav.stack."
+        private const val KEY_ENTRANCES = "nav.entrances"
         private const val ENTRY_SEPARATOR = "\n"
         private const val ID_SEPARATOR = ' '
 
         /** Every key the navigator writes, so the ViewModel can clear them on log out if it needs to. */
         val storeKeys: List<String> =
-            listOf(KEY_TAB, KEY_NEXT_ID, KEY_NAMES_FOCUS, KEY_MODAL) + ShellTab.entries.map { "$KEY_STACK_PREFIX${it.launchKey}" }
+            listOf(KEY_TAB, KEY_NEXT_ID, KEY_NAMES_FOCUS, KEY_MODAL, KEY_ENTRANCES) + ShellTab.entries.map { "$KEY_STACK_PREFIX${it.launchKey}" }
     }
 }

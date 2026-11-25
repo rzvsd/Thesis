@@ -1,11 +1,5 @@
 package com.thesis.mobile.ui.components
 
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -19,15 +13,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.State
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -35,9 +24,12 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.Dp
-import com.thesis.mobile.ui.motion.ThesisMotion
+import com.thesis.mobile.ui.motion.drawTravellingHighlight
+import com.thesis.mobile.ui.motion.hairlineHighlight
+import com.thesis.mobile.ui.motion.rememberHairlinePhase
+import com.thesis.mobile.ui.motion.rememberLivePulse
+import com.thesis.mobile.ui.motion.shimmerSweep
 import com.thesis.mobile.ui.theme.Kit
-import com.thesis.mobile.ui.theme.LocalReducedMotion
 import com.thesis.mobile.ui.theme.LocalThesisPalette
 import com.thesis.mobile.ui.theme.ThesisShape
 import com.thesis.mobile.ui.theme.ThesisSpace
@@ -45,8 +37,9 @@ import com.thesis.mobile.ui.theme.ThesisType
 
 /*
  * Loading pieces (docs/app-redesign/DESIGN-DIRECTION.md, section 3 #25, #28, #29). Skeletons look like the final
- * layout (same line heights, same paddings) and are static here; the single slow shimmer sweep and the 300 / 400 ms
- * show-and-keep timing are PR-2 motion work (M1). LoadingHairline and LiveDot are the only loops, one at a time.
+ * layout (same line heights, same paddings). Under a `ShimmerHost` (one per screen) their blocks share one slow
+ * shimmer sweep; screens pick skeleton or content with `rememberShowSkeleton` (300 ms grace, 400 ms minimum).
+ * LoadingHairline and LiveDot are the only loops, one at a time; their phases come from ui/motion.
  */
 
 /** A skeleton block: `surface2` (hero: `chip`), `badge` radius. */
@@ -54,7 +47,8 @@ import com.thesis.mobile.ui.theme.ThesisType
 fun SkeletonBlock(modifier: Modifier = Modifier) {
     val p = LocalThesisPalette.current
     val fill = if (LocalInHeroBand.current) p.chip else p.surface2
-    Box(modifier.clip(ThesisShape.badge).background(fill))
+    // The screen's one shimmer sweep (3 #25): nothing without a ShimmerHost above, or under reduced motion.
+    Box(modifier.clip(ThesisShape.badge).background(fill).shimmerSweep())
 }
 
 /**
@@ -179,18 +173,9 @@ fun SkeletonChart(modifier: Modifier = Modifier) {
 @Composable
 fun LoadingHairline(active: Boolean, modifier: Modifier = Modifier) {
     val p = LocalThesisPalette.current
-    val reduced = LocalReducedMotion.current
-    val phase: State<Float> = if (active && !reduced) {
-        rememberInfiniteTransition(label = "hairline").animateFloat(
-            initialValue = 0f,
-            targetValue = 1f,
-            animationSpec = infiniteRepeatable(tween(ThesisMotion.HairlineLoop, easing = LinearEasing), RepeatMode.Restart),
-            label = "hairlinePhase",
-        )
-    } else {
-        remember { mutableFloatStateOf(-1f) }
-    }
-    val highlight = p.accent.copy(alpha = Kit.HAIRLINE_HIGHLIGHT_ALPHA)
+    // One loop implementation (4.3 rule 10): the motion kit's phase, static under reduced motion.
+    val phase = rememberHairlinePhase(active)
+    val highlight = hairlineHighlight(p)
     Box(
         modifier
             .fillMaxWidth()
@@ -207,12 +192,8 @@ fun LoadingHairline(active: Boolean, modifier: Modifier = Modifier) {
             )
             .drawBehind {
                 drawRect(p.line)
-                val t = phase.value
-                if (t >= 0f) {
-                    val w = size.width * Kit.HAIRLINE_HIGHLIGHT_WIDTH
-                    val x = -w + (size.width + w) * t
-                    drawRect(highlight, topLeft = Offset(x, 0f), size = Size(w, size.height))
-                }
+                // A soft-edged band, like the reference's linear-gradient(transparent, gold, transparent).
+                drawTravellingHighlight(phase.value, highlight)
             },
     )
 }
@@ -224,17 +205,8 @@ fun LoadingHairline(active: Boolean, modifier: Modifier = Modifier) {
 @Composable
 fun LiveDot(modifier: Modifier = Modifier) {
     val p = LocalThesisPalette.current
-    val reduced = LocalReducedMotion.current
-    val pulse: State<Float> = if (reduced) {
-        remember { mutableFloatStateOf(0f) }
-    } else {
-        rememberInfiniteTransition(label = "liveDot").animateFloat(
-            initialValue = 0f,
-            targetValue = 1f,
-            animationSpec = infiniteRepeatable(tween(ThesisMotion.LivePulse, easing = ThesisMotion.EaseInOut), RepeatMode.Reverse),
-            label = "livePulse",
-        )
-    }
+    // LivePulse, EaseInOut, reverse; static under reduced motion (the motion kit's one loop).
+    val pulse = rememberLivePulse()
     Box(
         modifier
             .size(ThesisSpace.liveDot + Kit.liveRingTo * 2)

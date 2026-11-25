@@ -3,7 +3,6 @@ package com.thesis.mobile.ui.components
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -38,6 +37,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathMeasure
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -57,6 +57,9 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Constraints
 import com.thesis.mobile.ui.icons.ThesisIcons
 import com.thesis.mobile.ui.motion.ThesisMotion
+import com.thesis.mobile.ui.motion.ThesisTransitions
+import com.thesis.mobile.ui.motion.rememberDrawOn
+import com.thesis.mobile.ui.motion.rewardPulse
 import com.thesis.mobile.ui.motion.thesisPress
 import com.thesis.mobile.ui.theme.Kit
 import com.thesis.mobile.ui.theme.LocalReducedMotion
@@ -217,17 +220,19 @@ data class Stage(val label: String, val status: StageStatus, val caption: String
 /**
  * Generation stages (#33): a 12 dp ring per stage (done = accent fill with a check, current = accent ring and a
  * [LoadingHairline] under its label, waiting = `line2` ring), the label in `body` and an optional caption. A changed
- * label crossfades with an 8 dp rise (Base). The completion pulse arrives with PR-2.
+ * label crossfades with an 8 dp rise (Base, the motion kit's text swap). A stage that completes after first paint
+ * fills its ring and draws its check on (`Base`, `EaseCalm`); the last stage completing gives the one reward pulse
+ * (3 #33). Final on first paint and static under reduced motion.
  */
 @Composable
 fun StageProgress(stages: List<Stage>, modifier: Modifier = Modifier) {
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(ThesisSpace.m)) {
-        stages.forEach { StageLine(it) }
+        stages.forEachIndexed { index, stage -> StageLine(stage, isLastStage = index == stages.lastIndex) }
     }
 }
 
 @Composable
-private fun StageLine(stage: Stage) {
+private fun StageLine(stage: Stage, isLastStage: Boolean) {
     val p = LocalThesisPalette.current
     val reduced = LocalReducedMotion.current
     val risePx = with(LocalDensity.current) { ThesisMotion.EnterOffset.roundToPx() }
@@ -244,18 +249,13 @@ private fun StageLine(stage: Stage) {
             },
     ) {
         Box(Modifier.height(ThesisSpace.l * 1.5f), contentAlignment = Alignment.Center) {
-            StageRing(stage.status)
+            StageRing(stage.status, isLastStage)
         }
         Spacer(Modifier.width(ThesisSpace.m))
         Column(Modifier.weight(1f)) {
             AnimatedContent(
                 targetState = stage.label,
-                transitionSpec = {
-                    (
-                        fadeIn(ThesisMotion.timed(reduced, ThesisMotion.Base, delayMillis = ThesisMotion.CrossfadeDelay)) +
-                            slideInVertically(ThesisMotion.timed(reduced, ThesisMotion.Base)) { risePx }
-                        ) togetherWith fadeOut(ThesisMotion.timed(reduced, ThesisMotion.Quick))
-                },
+                transitionSpec = { ThesisTransitions.textSwap(reduced, risePx) },
                 label = "stage",
             ) { label ->
                 Text(
@@ -273,11 +273,14 @@ private fun StageLine(stage: Stage) {
 }
 
 @Composable
-private fun StageRing(status: StageStatus) {
+private fun StageRing(status: StageStatus, isLastStage: Boolean) {
     val p = LocalThesisPalette.current
+    // 0..1: the fill grows and the check draws on when the stage completes after first paint (final otherwise).
+    val drawn = rememberDrawOn(status == StageStatus.Done)
     Box(
         Modifier
             .size(Kit.stageRing)
+            .rewardPulse(trigger = status, enabled = isLastStage && status == StageStatus.Done)
             .drawWithCache {
                 val stroke = Kit.ringStroke.toPx()
                 val r = size.minDimension / 2f
@@ -286,11 +289,17 @@ private fun StageRing(status: StageStatus) {
                     lineTo(size.width * 0.44f, size.height * 0.68f)
                     lineTo(size.width * 0.74f, size.height * 0.34f)
                 }
+                val measure = PathMeasure().apply { setPath(check, false) }
+                val part = Path()
                 onDrawBehind {
                     when (status) {
                         StageStatus.Done -> {
-                            drawCircle(p.accent, r)
-                            drawPath(check, p.surface, style = Stroke(stroke, cap = StrokeCap.Round))
+                            val t = drawn.value
+                            if (t < 1f) drawCircle(p.accent, r - stroke / 2f, style = Stroke(stroke))
+                            drawCircle(p.accent, r * t)
+                            part.reset()
+                            measure.getSegment(0f, measure.length * t, part, true)
+                            drawPath(part, p.surface, style = Stroke(stroke, cap = StrokeCap.Round))
                         }
                         StageStatus.Current -> drawCircle(p.accent, r - stroke / 2f, style = Stroke(stroke))
                         StageStatus.Waiting -> drawCircle(p.line2, r - stroke / 2f, style = Stroke(stroke))

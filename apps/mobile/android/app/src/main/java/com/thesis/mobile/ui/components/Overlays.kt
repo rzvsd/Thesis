@@ -37,7 +37,6 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.SheetState
 import androidx.compose.material3.SnackbarData
 import androidx.compose.material3.SnackbarDuration
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.SnackbarVisuals
@@ -61,9 +60,11 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.platform.AccessibilityManager
 import androidx.compose.ui.platform.LocalAccessibilityManager
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.dismiss
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
@@ -465,67 +466,107 @@ fun ThesisSnackbar(
  * What [showThesisSnackbar] puts on the host: shown until [ThesisSnackbarHost] times it out after [baseMillis]
  * (4 s, 8 s with an action), stretched to the user's accessibility timeout ("Time to take action").
  */
-private class ThesisSnackbarVisuals(
+internal class ThesisSnackbarVisuals(
     override val message: String,
     override val actionLabel: String?,
-    val baseMillis: Long,
+    val baseMillis: Long = if (actionLabel != null) Kit.SNACKBAR_ACTION_MS else Kit.SNACKBAR_MS,
 ) : SnackbarVisuals {
     override val withDismissAction: Boolean get() = false
     override val duration: SnackbarDuration get() = SnackbarDuration.Indefinite
 }
 
 /**
- * The shell's snackbar host (#23): one at a time, 16 dp from the edges (the shell places it above the bottom bar),
- * each one rising 12 dp and fading in over 220 ms, and fading out over 150 ms (`EaseExit`) when it times out or its
- * action is tapped. Show messages with [showThesisSnackbar]: this host times them out, routing the 4 s / 8 s base
- * through the accessibility manager's recommended timeout as M3's own host does.
+ * The app's snackbar host (#23, 4.4): one at a time, 16 dp from the edges (the shell places it above the bottom
+ * bar, the navigation bar or the keyboard). It draws [ThesisSnackbar] itself rather than going through Material3's
+ * `SnackbarHost`, whose own fade-and-scale (from .8, which 4.3.8 rules out) would run on top of this motion and ignore
+ * reduced motion. Each snackbar rises 12 dp and fades in over 220 ms (`EaseEnter`) and fades out over 150 ms
+ * (`EaseExit`) when it times out, its action is tapped or it is dismissed (TalkBack's dismiss action); under reduced
+ * motion (4.8) it shows and hides at once. Show messages with [showThesisSnackbar]: this host times them out
+ * ([snackbarTimeoutMillis]), routing the 4 s / 8 s base through the accessibility manager's recommended timeout as
+ * Material3's own host does.
  */
 @Composable
 fun ThesisSnackbarHost(hostState: SnackbarHostState, modifier: Modifier = Modifier) {
     val reduced = LocalReducedMotion.current
     val accessibility = LocalAccessibilityManager.current
-    SnackbarHost(hostState, modifier.padding(ThesisSpace.l)) { data: SnackbarData ->
-        val scope = rememberCoroutineScope()
-        val progress = remember(data) { Animatable(if (reduced) 1f else 0f) }
-        // Fades out, then ends the snackbar with [end] (dismiss on time-out, performAction on the action).
-        val hideThen: (() -> Unit) -> Unit = { end ->
-            scope.launch {
-                if (!reduced) progress.animateTo(0f, tween(ThesisMotion.Quick, easing = ThesisMotion.EaseExit))
-                end()
-            }
+    val current = hostState.currentSnackbarData
+    // The snackbar on screen: the current one, or the one before while it fades out.
+    var shown by remember { mutableStateOf<SnackbarData?>(null) }
+    val progress = remember { Animatable(0f) }
+    val scope = rememberCoroutineScope()
+    val hide: suspend () -> Unit = {
+        if (reduced) {
+            progress.snapTo(0f)
+        } else {
+            progress.animateTo(0f, tween(ThesisMotion.Quick, easing = ThesisMotion.EaseExit))
         }
-        LaunchedEffect(data) {
-            if (!reduced) progress.animateTo(1f, tween(ThesisMotion.Dialog, easing = ThesisMotion.EaseEnter))
-            val visuals = data.visuals
-            if (visuals is ThesisSnackbarVisuals) {
-                val hasAction = visuals.actionLabel != null
-                val timeout = accessibility?.calculateRecommendedTimeoutMillis(
-                    visuals.baseMillis,
-                    containsText = true,
-                    containsControls = hasAction,
-                ) ?: visuals.baseMillis
-                delay(timeout)
-                hideThen { data.dismiss() }
-            }
+    }
+    LaunchedEffect(current) {
+        if (shown != null && shown !== current) hide()
+        shown = current
+        val data = current ?: return@LaunchedEffect
+        if (reduced) {
+            progress.snapTo(1f)
+        } else {
+            progress.snapTo(0f)
+            progress.animateTo(1f, tween(ThesisMotion.Dialog, easing = ThesisMotion.EaseEnter))
         }
-        val rise = with(LocalDensity.current) { ThesisMotion.SnackbarOffset.toPx() }
+        val timeout = snackbarTimeoutMillis(data.visuals, accessibility) ?: return@LaunchedEffect
+        delay(timeout)
+        hide()
+        data.dismiss()
+    }
+    val data = shown ?: return
+    val rise = with(LocalDensity.current) { ThesisMotion.SnackbarOffset.toPx() }
+    Box(
+        modifier
+            .padding(ThesisSpace.l)
+            .semantics {
+                dismiss {
+                    scope.launch { hide(); data.dismiss() }
+                    true
+                }
+            },
+    ) {
         ThesisSnackbar(
             message = data.visuals.message,
             actionLabel = data.visuals.actionLabel,
-            onAction = { hideThen { data.performAction() } },
+            onAction = { scope.launch { hide(); data.performAction() } },
             modifier = Modifier.graphicsLayer {
-                alpha = progress.value
-                translationY = (1f - progress.value) * rise
+                val shownFraction = progress.value
+                alpha = shownFraction
+                translationY = (1f - shownFraction) * rise
             },
         )
     }
 }
 
 /**
+ * How long [visuals] stays up, stretched to the user's accessibility timeout ("Time to take action") as Material3's
+ * own host does; null: until dismissed. [showThesisSnackbar] posts `Indefinite` messages that [ThesisSnackbarHost]
+ * times out itself: 4 s, or 8 s with an action (3 #23). `Short` and `Long` keep Material3's 4 s and 10 s, and a
+ * plain `Indefinite` message (posted with `showSnackbar`, not [showThesisSnackbar]) stays up until it is dismissed or
+ * its action is tapped, as Material3's contract says.
+ */
+fun snackbarTimeoutMillis(visuals: SnackbarVisuals, accessibility: AccessibilityManager?): Long? {
+    val hasAction = visuals.actionLabel != null
+    val base = when {
+        visuals is ThesisSnackbarVisuals -> visuals.baseMillis
+        visuals.duration == SnackbarDuration.Short -> SNACKBAR_SHORT_MS
+        visuals.duration == SnackbarDuration.Long -> SNACKBAR_LONG_MS
+        else -> return null
+    }
+    return accessibility?.calculateRecommendedTimeoutMillis(base, containsText = true, containsControls = hasAction) ?: base
+}
+
+/** Material3's `SnackbarDuration.Short` and `Long`, for a message posted with plain `showSnackbar`. */
+private const val SNACKBAR_SHORT_MS = 4_000L
+private const val SNACKBAR_LONG_MS = 10_000L
+
+/**
  * Shows [message] on a [ThesisSnackbarHost] for 4 s, or 8 s when it has an [actionLabel] (section 3 #23), longer
  * when the user's accessibility settings ask for more time, and returns how it ended.
  */
 suspend fun SnackbarHostState.showThesisSnackbar(message: String, actionLabel: String? = null): SnackbarResult {
-    val base = if (actionLabel != null) Kit.SNACKBAR_ACTION_MS else Kit.SNACKBAR_MS
-    return showSnackbar(ThesisSnackbarVisuals(message, actionLabel, base))
+    return showSnackbar(ThesisSnackbarVisuals(message, actionLabel))
 }

@@ -1,58 +1,17 @@
 package com.thesis.mobile.ui.components
 
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.SizeTransform
-import androidx.compose.animation.core.VisibilityThreshold
-import androidx.compose.animation.core.snap
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
-import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.ExperimentalMaterialApi
-import androidx.compose.material.pullrefresh.PullRefreshState
-import androidx.compose.material.pullrefresh.pullRefresh
-import androidx.compose.material.pullrefresh.rememberPullRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.snapshotFlow
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.semantics.ProgressBarRangeInfo
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.progressBarRangeInfo
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.thesis.mobile.ui.copy.KitCopy
-import com.thesis.mobile.ui.motion.ThesisMotion
-import com.thesis.mobile.ui.motion.rememberHaptics
-import com.thesis.mobile.ui.theme.Kit
+import com.thesis.mobile.ui.motion.MotionCopy
+import com.thesis.mobile.ui.motion.ThesisPullRefresh
+import com.thesis.mobile.ui.motion.ThesisTransitions
 import com.thesis.mobile.ui.theme.LocalReducedMotion
-import com.thesis.mobile.ui.theme.LocalThesisPalette
-import com.thesis.mobile.ui.theme.ThesisSpace
-import kotlinx.coroutines.flow.distinctUntilChanged
 
 /*
  * Screen state and refresh (docs/app-redesign/DESIGN-DIRECTION.md, section 3 #27 and #34; playbook §13 and §15).
@@ -87,9 +46,10 @@ fun <T> Loadable<T>.valueOrNull(): T? = (this as? Loadable.Ready<T>)?.value
 /**
  * Crossfades between [Loadable] kinds (#27, 4.4): fade out Quick with EaseExit, fade in Base after a 60 ms delay
  * (EaseStandard), the size change on the `spatial` spring; a change inside the same kind (Ready→Ready, a new
- * error message) recomposes in place with no transition. Under reduced motion it
- * swaps instantly. The slots default to the kit's skeleton, [EmptyState] and [ErrorState]; the default error title
- * is "Couldn’t load [failedSubject]" (#26), e.g. `failedSubject = "your names"`.
+ * error message) recomposes in place with no transition. Under reduced motion it is a 150 ms crossfade (4.8: no
+ * information lost) and the size snaps. The spec is the motion kit's `ThesisTransitions.stateCrossfade`. The
+ * slots default to the kit's skeleton, [EmptyState] and [ErrorState]; the default error title is
+ * "Couldn’t load [failedSubject]" (#26), e.g. `failedSubject = "your names"`.
  */
 @Composable
 fun <T> StateCrossfade(
@@ -113,11 +73,7 @@ fun <T> StateCrossfade(
         targetState = state,
         modifier = modifier,
         contentKey = { it.kind },
-        transitionSpec = {
-            val fade = fadeIn(ThesisMotion.timed(reduced, ThesisMotion.Base, delayMillis = ThesisMotion.CrossfadeDelay)) togetherWith
-                fadeOut(ThesisMotion.timed(reduced, ThesisMotion.Quick, easing = ThesisMotion.EaseExit))
-            fade using SizeTransform { _, _ -> if (reduced) snap() else ThesisMotion.spatial(IntSize.VisibilityThreshold) }
-        },
+        transitionSpec = { ThesisTransitions.stateCrossfade(reduced) },
         label = "state",
     ) { s ->
         @Suppress("UNCHECKED_CAST")
@@ -131,11 +87,12 @@ fun <T> StateCrossfade(
 }
 
 /**
- * Pull to refresh (#34): M2 `pullRefresh` with the playbook §15 indicator, an ink arc that grows 0→300° with the
- * pull and spins at 90° while [refreshing]. [refreshing] must come from the ViewModel (no fake delays). The
- * `threshold()` haptic fires once each time the pull arms.
+ * Pull to refresh (#34, 4.4): the one entry point screens call. It delegates to the motion kit's
+ * `ThesisPullRefresh`: the content follows the pull, a hairline grows from the centre (`accent` once armed, with
+ * the `threshold()` haptic) and, while [refreshing], the `HairlineLoop` highlight travels across a 16 dp gap; a
+ * TalkBack "Refresh" action and a polite "Refreshing" status. [refreshing] must come from the ViewModel (no fake
+ * delays). [refreshLabel] / [refreshingLabel] are the accessibility copy.
  */
-@OptIn(ExperimentalMaterialApi::class)
 @Composable
 fun ThesisRefreshBox(
     refreshing: Boolean,
@@ -143,87 +100,18 @@ fun ThesisRefreshBox(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     indicatorTop: Dp = 0.dp,
+    refreshLabel: String = MotionCopy.REFRESH,
+    refreshingLabel: String = MotionCopy.REFRESHING,
     content: @Composable BoxScope.() -> Unit,
 ) {
-    val state = rememberPullRefreshState(refreshing, onRefresh)
-    val haptics = rememberHaptics()
-    // Read [refreshing] through updated state: the effect is keyed on the (stable) state object and would otherwise
-    // keep the value from the first composition.
-    val currentRefreshing by rememberUpdatedState(refreshing)
-    LaunchedEffect(state) {
-        snapshotFlow { state.progress >= 1f }
-            .distinctUntilChanged()
-            .collect { armed -> if (armed && !currentRefreshing) haptics.threshold() }
-    }
-    Box(modifier.pullRefresh(state, enabled)) {
-        content()
-        RefreshArc(
-            state = state,
-            refreshing = refreshing,
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .offset(y = indicatorTop),
-        )
-    }
-}
-
-/** The pull indicator on its own: a `surface` disc with the ink arc. Visible only while pulled or refreshing. */
-@OptIn(ExperimentalMaterialApi::class)
-@Composable
-fun RefreshArc(state: PullRefreshState, refreshing: Boolean, modifier: Modifier = Modifier) {
-    RefreshArc(progress = { state.progress }, refreshing = refreshing, modifier = modifier)
-}
-
-/** [RefreshArc] driven by a raw [progress] (0..1+), for galleries and custom pull sources. */
-@Composable
-fun RefreshArc(progress: () -> Float, refreshing: Boolean, modifier: Modifier = Modifier) {
-    val p = LocalThesisPalette.current
-    val reduced = LocalReducedMotion.current
-    val spin = if (refreshing && !reduced) {
-        val t = rememberInfiniteTransition(label = "refresh")
-        t.animateFloat(
-            0f,
-            360f,
-            infiniteRepeatable(tween(ThesisMotion.RefreshSpin, easing = LinearEasing), RepeatMode.Restart),
-            label = "spin",
-        )
-    } else {
-        null
-    }
-    Box(
-        modifier
-            .padding(ThesisSpace.m)
-            .size(ThesisSpace.touchMin)
-            .graphicsLayer {
-                val pulled = progress().coerceIn(0f, 1f)
-                alpha = if (refreshing) 1f else pulled
-                translationY = (if (refreshing) 1f else pulled) * ThesisSpace.m.toPx() - ThesisSpace.m.toPx()
-            }
-            .clip(CircleShape)
-            .drawBehind {
-                drawCircle(p.surface)
-                drawCircle(p.line, style = Stroke(ThesisSpace.border.toPx()))
-                val stroke = Kit.refreshStroke.toPx()
-                val inset = size.minDimension * Kit.REFRESH_ARC_INSET
-                val sweep = if (refreshing) {
-                    Kit.REFRESH_SWEEP_SPINNING
-                } else {
-                    Kit.REFRESH_SWEEP_MAX * progress().coerceIn(0f, 1f)
-                }
-                val start = -90f + (spin?.value ?: 0f)
-                drawArc(
-                    color = p.ink,
-                    startAngle = start,
-                    sweepAngle = sweep,
-                    useCenter = false,
-                    topLeft = Offset(inset, inset),
-                    size = Size(size.width - 2 * inset, size.height - 2 * inset),
-                    style = Stroke(stroke, cap = StrokeCap.Round),
-                )
-            }
-            .semantics {
-                contentDescription = if (refreshing) "Refreshing" else "Pull to refresh"
-                if (refreshing) progressBarRangeInfo = ProgressBarRangeInfo.Indeterminate
-            },
+    ThesisPullRefresh(
+        refreshing = refreshing,
+        onRefresh = onRefresh,
+        modifier = modifier,
+        enabled = enabled,
+        indicatorTop = indicatorTop,
+        refreshLabel = refreshLabel,
+        refreshingLabel = refreshingLabel,
+        content = content,
     )
 }

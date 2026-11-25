@@ -473,7 +473,7 @@ States legend: D default, P pressed, F focused, S selected, X disabled, L loadin
 | 31 | `NoteBlock` | eyebrow "YOUR NOTE" + filing caption ("10-K FY2025"); `story`-style editable text (Newsreader 17) on `surface`; empty placeholder scaffold "What I believe / What would prove me wrong / What I'm watching" (plain text, no schema); footer: saved state ("Saved · 2 min ago" / "Saving…" / "Not saved, try again") + char count + `content_copy` Copy + `share` Share; preview variant (3 lines + "Edit") | Autosave 800 ms after typing stops and on leave; on save success the footer crossfades and a 12 dp check draws (`confirm()` haptic once per editing session); never loses text on error; saved text is written through the local notes cache (section 5.5) | Deep Dive "My Notes" block, "Last saved: <raw>" |
 | 32 | `HighlightText` | `Text` with lead-phrase marker band 54–96% of line height in `highlight` (DD §7), optional drop cap (`newsreader_display`, accent) | Pure draw-phase | — |
 | 33 | `StageProgress` | vertical list of stages: 12 dp ring (done = accent fill + check, current = accent ring + `LoadingHairline` under its label, waiting = `line2` ring), stage label `body`, caption | Label swaps with a `Base` crossfade + 8 dp rise; completion: reward pulse | `DeepDiveLoadingScreen` timers and `PlasmaOrb` |
-| 34 | `ThesisRefreshBox` | playbook §15 arc indicator (ink) on M2 `pullRefresh` | `refreshing` comes from the ViewModel only (no fake delays); `threshold()` haptic when armed | M2 `PullRefreshIndicator` in Home/Pulse/Sentiment, "Refresh …" buttons |
+| 34 | `ThesisRefreshBox` | travelling-hairline indicator on M2 `pullRefresh` (delegates to `ui/motion` `ThesisPullRefresh`): a gutter-inset 1 dp line grows from the centre with the pull (`ink`, `accent` once armed); while refreshing the `HairlineLoop` highlight travels across it in a 16 dp gap the content keeps open | `refreshing` comes from the ViewModel only (no fake delays); `threshold()` haptic when armed; TalkBack "Refresh" action, polite "Refreshing" status | M2 `PullRefreshIndicator` in Home/Pulse/Sentiment, "Refresh …" buttons |
 | 35 | `ActionRow` | 24 dp icon (ink2) + title (`rowTitle`) + caption; whole row clickable; no chevron (`open_in_new` only for external links) | — | card-as-link ("STRESS TEST" card), Research tool links, Settings rows |
 | 36 | `Eyebrow`, `Kicker`, `NoteMark`, `CountBadge`, `Meter`, `StatusSquare`, `Avatar` | small atoms. `Meter` in lists and grids: `ink2`@60% on `grid`; `accent` only for a single subject meter | — | inline caps labels, misc |
 | 37 | `RunBar` | sticky bottom bar: background bitmap @ 92% + top hairline, insets; one `PrimaryButton` (full width minus gutters) + optional caption above it ("2 selected") | Slides up `Enter` when it appears; button loading state in place | Names compare bar, Scenario run button |
@@ -599,7 +599,12 @@ excludes them only for the two polling `delay(` calls, section 7.2).
    open per issue, through `EntranceCoordinator` (playbook §5, first 8 items): never replays on scroll-back, tab
    return, refresh or recreation. Its seen-set lives in a navigator-scoped registry keyed by the entry's `entryId`
    (not a `HashSet` in `remember`, which is disposed with the screen and replays on every tab return). Reset key =
-   the data identity (Pulse report id), not `Unit`.
+   the data identity (Pulse report id), not `Unit`. It plays only when the screen opens on a loaded issue (an
+   issue already in memory or cache, or Home re-entered after a new issue arrived elsewhere). A cold load (cold
+   start, fresh login, retry from the error or empty state) paints the skeleton first, and the issue then
+   crossfades in place (4.4 "Skeleton → content"): blocks already painted settle, the blocks the issue brings
+   appear at once, nothing staggers after a skeleton (`rememberDataEntranceCoordinator`). While the Pulse loads
+   network-first, the cold path is the common one, so Home's stagger is mostly seen on re-entry with a new issue.
 3. Primary element first: in a push, the whole new screen lands as one surface; nothing is choreographed after it.
 4. The background (page glow) never moves during foreground motion.
 5. Refresh never blanks: app-computed values roll, market values crossfade, rows animate placement, a
@@ -645,7 +650,7 @@ no darkening.**
 | Text value change (non-numeric: stage labels, status lines) | swap | crossfade `Base` with an 8 dp rise on the incoming text; no blur, no scale |
 | `StateCrossfade` | kind change | fade out 150 `EaseExit`, fade in 240 after 60 `EaseStandard`, size change `spatial` |
 | Skeleton → content | ready | crossfade in place 240 ms (same layout, nothing jumps) |
-| Pull to refresh | pull | arc draws 0→300° with progress; `threshold()` haptic at arm; while refreshing a 90° arc rotates 1100 ms; on finish values update in place |
+| Pull to refresh | pull | content follows the pull (`RefreshTravel` 40 dp, settles on `spatial`); the hairline grows from the centre with progress and turns `accent` when armed, `threshold()` haptic at arm; while refreshing the `HairlineLoop` highlight travels across a 16 dp gap; on finish values update in place. Reduced motion: nothing moves, the line shows progress in place and is static while refreshing |
 | Errors | inline | banner slides down 8 dp + fade 240; `reject()` haptic only for a failed commit (save, run) |
 
 ### 4.5 Navigation transitions (implemented in `ui/shell/`, all [1.6 OK])
@@ -655,15 +660,15 @@ modal destinations.
 
 | Move | Transition | Spec |
 |---|---|---|
-| Bottom tab ↔ tab | fade-through, state kept | out: fade 90 `EaseExit`; in: fade + scale .985→1, 210 after 90 `EaseEnter`; `SaveableStateHolder` per tab keeps scroll position and sub-stack |
-| Push within a tab (Home→Pulse, Home→Macro, Research→History, Research→Scenario, Inbox→War Room…) | shared-axis X | new: translateX +24 dp→0 + fade, `Screen` 300 `EaseEnter`; old: translateX 0→−24 dp + fade out, 180 `EaseExit`. Pop: mirror. Screens are opaque (2.7), so nothing double-exposes. The new screen arrives complete (no stagger) |
+| Bottom tab ↔ tab | fade-through, state kept | out: fade 90 `EaseExit`; in: fade + scale .985→1, 210 after 90 `EaseEnter` (the scale applies to the page's content only, so the page glow never moves, 4.3.4); `SaveableStateHolder` per tab keeps scroll position and sub-stack |
+| Push within a tab (Home→Pulse, Home→Macro, Research→History, Research→Scenario, Inbox→War Room…) | shared-axis X | `Screen` 300 ms in all, halves in sequence like the tab fade-through: old: translateX 0→−24 dp + fade out, 90 `EaseExit` (`TabOut`); then new: translateX +24 dp→0 + fade, 210 `EaseEnter` (`TabIn`) after 90. The new screen is drawn over the old one but stays transparent until the old one has gone, so nothing double-exposes and the old screen's exit (or a predictive back's .90 preview) is seen to its end. Pop: mirror. One spec in the app: `ThesisTransitions.sharedAxisX` (the shell and Auth ↔ Password reset call it). The new screen arrives complete (no stagger) |
 | List item → its detail (Names row → Name, Home name row → Name, History row → report, Recent report → report) | container transform | `ContainerTransformHost` (playbook §8a): clip from the row's bounds to full screen, row corner radius → 0, `surface → bg`, detail fades in over the last 70%; **300 ms in, 240 out**; Name's KPIs arrive with the transform (no cell stagger) |
 | Name ↔ next/previous name | horizontal pager | swipe on Name follows the current Names sort and filter; caption "3 of 12"; no transform |
 | Any push/transform | predictive back | `ThesisPredictiveBackHandler`: content scales to .90 toward the swipe edge and shifts 8 dp with progress; commit runs the pop; cancel settles back `spatialSlow` |
 | Onboarding → Auth → App | crossfade | 300 ms `EaseStandard`, no slide |
 | Auth ↔ Password reset | shared-axis X | same as push |
 | Report host ↔ classic view | crossfade | 240 ms; scroll position of the classic view starts at the top with a banner |
-| Open Paywall, You, Search | modal rise | full-screen destination on the global modal stack rising `ModalOffset` 32 dp + fade 300 ms; close 240 ms |
+| Open Paywall, You, Search | modal rise | full-screen destination on the global modal stack, 300 ms in all: the page background covers the page under it (150 `EaseEnter`); from 120 ms (under 1% of the page under it left) the content rises `ModalOffset` 32 dp and fades in (180 `EaseEnter`). Close, 240 ms: the content falls 32 dp and fades out (90 `EaseExit`), then the background uncovers the page under it (150 `EaseStandard`). The page glow never moves; under reduced motion both are 150 ms crossfades |
 
 `AndroidManifest.xml` gets `android:enableOnBackInvokedCallback="true"`. Back handlers are enabled only while they
 have work (sub-stack non-empty, sheet open), so the system back-to-home animation still works at the root.
@@ -851,7 +856,8 @@ A briefing, not a dashboard: **five blocks**, and "Your names" above the fold on
   "Offline · showing 07:02" above content; no names → one `EmptyState` in the names section ("Follow a company to
   see it here", `PrimaryButton` "Add a name" → Names with the field focused); no Pulse → `EmptyState` in the Pulse
   section ("Today's Pulse arrives before the open" + scheduled time if known).
-- Hero motion: first-open stagger of the sections (keyed by Pulse report id; once per issue). Refresh:
+- Hero motion: first-open stagger of the sections (keyed by Pulse report id; once per issue), only when Home
+  opens on a loaded issue; a cold load crossfades from the skeleton in place and does not stagger (4.3 rule 2). Refresh:
   `ThesisRefreshBox` bound to `isPulseRefreshing || isMacroRefreshing`; app-computed values roll, tape crossfades.
 - Removed: duplicate timestamp, `LiveDot` next to the time, 3×2 serif KPI strip, double NoNames empty state, 40 sp
   "Pre-market" title, inline Full Pulse toggle, separate morning-alert card, "Deserves a deeper look" card, "Run a
@@ -1348,6 +1354,31 @@ full render sweep → rubric review → PR into `rebuild`.
   `exportSchema = true` with the KSP arg `room.schemaLocation`, commit `schemas/…/2.json`, and add a
   `MigrationTestHelper` androidTest (or have the JVM test compare the SQL with the exported JSON), so an entity
   field added without a migration edit fails CI instead of crashing after the upgrade.
+
+**Carried from the PR-2 review** (add to the named WP checklists):
+- WP-G, WP-INT: the Paywall still opens as a platform `Dialog` (platform window animation, no 4.5 modal rise, no
+  reduced-motion path), the one known exception to M3's "no hard cuts left in `ThesisShell`". WP-G makes it the
+  full-screen destination of 5.23; WP-INT then opens it on the modal stack and deletes the shell's Dialog branch
+  (HANDOFF-M3 item 9).
+- WP-K: the collapsed bar's 92% page slice shows saturated content under it as a muted block (Home's gold
+  "Dashboard" behind THESIS, Inbox chip labels). Re-check after WP-A removes the gold button; if it still reads as
+  clutter, raise the slice opacity or fade content under the bar, checked against Deep Dive's sticky chip-nav bar.
+- WP-E: History draws its own sticky bar on a flat `Background.copy(alpha = 0.97f)` (`HistoryScreen.kt`), which
+  cuts a hard seam through the page glow at the bar's bottom edge (dark: (10,10,10) above, (36,31,22) below, at
+  x=1050 in `shell-today-history-dark`; it shows in every push/pop frame). Drop the private bar for the shell's
+  `ShellTopBar.Back` (drawn on `barBackground`), or draw the sticky header on `barBackground`.
+- WP-B, WP-E, WP-INT: the 4.5 container transform (list item → its detail) is not wired yet; `ContainerTransformHost`
+  exists only in `ui/motion`, and History row → report runs shared-axis X (HANDOFF-M1 item 10, deferred). WP-B
+  (Names rows, Home name rows) and WP-E (History rows, Recent reports) make each row capture its bounds
+  (`captureBounds`); WP-INT then opens list → detail through `ContainerTransformHost` (300 ms in, 240 out).
+- WP-A, WP-C, WP-D, WP-G: no production screen calls `HeroUnderBars()` yet (only the test fixture
+  `HeroPageFixture`), so the 2.7 status bar over a HeroBand, `ThesisTheme(statusBarOverHero)` and `ThesisApp`'s
+  `SurfaceChrome` wiring for Onboarding, Auth and Password reset are staged with no caller. Pulse (WP-A),
+  Deep Dive loading (WP-C), the classic report hero (WP-D), Auth, Onboarding and Paywall (WP-G) each call it
+  once (HANDOFF-M3 item 4); screens that draw their own bar pass `HeroUnderBars(collapsed = …)`.
+- Spec owner: confirm the 4.3 rule 2 / 5.6 reading added in the PR-2 review (a cold load crossfades from the
+  skeleton and does not stagger). If Home should stagger on a cold load too, the blocks the issue brings would
+  stagger while the blocks already painted stay settled (a change in `rememberDataEntranceCoordinator`).
 
 ### 6.4 PR-4 (after the redesign, WP-INT)
 `compose-bom:2025.04.00` (with it, `rememberIsResumed()` and `CoveredBackScope()` in `ThesisApp.kt` move from the

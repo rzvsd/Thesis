@@ -39,6 +39,7 @@ import com.thesis.mobile.model.PulseReportView
 import com.thesis.mobile.model.SectionView
 import com.thesis.mobile.model.SentimentSnapshotView
 import com.thesis.mobile.model.ThesisMonitorSnapshotView
+import com.thesis.mobile.ui.format.Fmt
 import com.thesis.mobile.ui.theme.HeadingFont
 import com.thesis.mobile.ui.theme.ThesisColors
 import com.thesis.mobile.ui.theme.ThesisDimens
@@ -55,7 +56,8 @@ fun WeeklyDigestScreen(
     onBack: () -> Unit
 ) {
     val sections = pulse?.sections?.filter { it.body.isNotBlank() }.orEmpty()
-    val scoreText = sentimentCurrent?.score?.toInt()?.toString() ?: "--"
+    // C1: the app formatter, so the digest shows the same figure as Home and the Macro Stress dashboard (61.5 -> "62").
+    val scoreText = sentimentCurrent?.score?.let { Fmt.score(it) } ?: "--"
     val labelText = sentimentCurrent?.label
         ?.replace("_", " ")
         ?.replaceFirstChar { it.uppercase() }

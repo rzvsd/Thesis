@@ -51,13 +51,13 @@ class ShellTopBarTest {
 
     @Test
     fun theNamePlaceholderDoesNotRepeatItsHeadlineInTheBar() {
-        assertEquals("", titleOf(Destination.Name("AAPL"), idle))
+        assertEquals("", titleOf(Destination.Name("AAPL")))
     }
 
     @Test
     fun scenarioStressDoesNotRepeatItsHeadlineInTheBar() {
         // The screen's own headline is "Scenario Stress" (Phase4Copy.researchStressHeadline).
-        assertEquals("", titleOf(Destination.ScenarioStress(), idle))
+        assertEquals("", titleOf(Destination.ScenarioStress()))
     }
 
     @Test

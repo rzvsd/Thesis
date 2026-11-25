@@ -59,7 +59,6 @@ import com.thesis.mobile.ui.components.ErrorState
 import com.thesis.mobile.ui.components.SectionAccordion
 import com.thesis.mobile.ui.components.SignalBadge
 import com.thesis.mobile.ui.components.ThesisButton
-import com.thesis.mobile.ui.animations.StaggeredEntrance
 import com.thesis.mobile.ui.charts.EvidenceRadar
 import com.thesis.mobile.ui.charts.RadarDataPoint
 import com.thesis.mobile.ui.charts.ScenarioData
@@ -68,6 +67,8 @@ import com.thesis.mobile.ui.charts.SectionHealthItem
 import com.thesis.mobile.ui.charts.SectionHealthStrip
 import com.thesis.mobile.ui.theme.HeadingFont
 import com.thesis.mobile.ui.theme.ThesisColors
+import com.thesis.mobile.ui.components.Loadable
+import com.thesis.mobile.ui.components.StateCrossfade
 import com.thesis.mobile.ui.theme.ThesisDimens
 import com.thesis.mobile.ui.theme.ThesisTypography
 import com.thesis.mobile.ui.copy.KitCopy
@@ -112,15 +113,78 @@ fun DeepDiveScreen(
     /** Label of the error card's button: what [onRetry] does ("Open report again"); null keeps "Try again". */
     retryLabel: String? = null
 ) {
-    if (report == null) {
-        if (isLoading) {
-            DeepDiveLoadingScreen(modifier = Modifier.padding(padding))
-        } else {
-            DeepDiveFailedState(errorMessage = errorMessage, onRetry = onRetry, retryLabel = retryLabel, padding = padding)
-        }
-        return
+    // Loading → report (or → failed) crossfades instead of swapping in one frame (#27, 4.4); a newer report for
+    // the same entry updates in place. The shell crossfades the interim back bar into the report's own bar.
+    val state: Loadable<DeepDiveReportView> = when {
+        report != null -> Loadable.Ready(report)
+        isLoading -> Loadable.Loading
+        else -> Loadable.Failed(errorMessage)
     }
+    StateCrossfade(
+        state = state,
+        modifier = Modifier.fillMaxSize(),
+        loading = { DeepDiveLoadingScreen(modifier = Modifier.padding(padding)) },
+        failed = { DeepDiveFailedState(errorMessage = errorMessage, onRetry = onRetry, retryLabel = retryLabel, padding = padding) }
+    ) { shown ->
+        DeepDiveLoaded(
+            report = shown,
+            userTier = userTier,
+            reportNoteDraft = reportNoteDraft,
+            noteUpdatedAt = noteUpdatedAt,
+            isSavingNote = isSavingNote,
+            convictionTimeline = convictionTimeline,
+            convictionTimelineError = convictionTimelineError,
+            oppositeCase = oppositeCase,
+            oppositeCaseError = oppositeCaseError,
+            isGeneratingOppositeCase = isGeneratingOppositeCase,
+            onReportNoteChange = onReportNoteChange,
+            onSaveReportNote = onSaveReportNote,
+            onGenerateOppositeCase = onGenerateOppositeCase,
+            onRefreshConvictionTimeline = onRefreshConvictionTimeline,
+            scenarioResult = scenarioResult,
+            isRunningScenario = isRunningScenario,
+            onRunScenario = onRunScenario,
+            onRequireUpgrade = onRequireUpgrade,
+            onSubmitReportFeedback = onSubmitReportFeedback,
+            onNotify = onNotify,
+            watchlist = watchlist,
+            onBack = onBack,
+            padding = padding,
+            onOpenScenarioStress = onOpenScenarioStress,
+            webPage = webPage
+        )
+    }
+}
 
+/** A loaded report: the server-rendered page when it can load, else the native screen ([DeepDiveScreen]). */
+@Composable
+private fun DeepDiveLoaded(
+    report: DeepDiveReportView,
+    userTier: String?,
+    reportNoteDraft: String,
+    noteUpdatedAt: String?,
+    isSavingNote: Boolean,
+    convictionTimeline: List<ConvictionJournalEntryView>,
+    convictionTimelineError: String?,
+    oppositeCase: OppositeCaseReportView?,
+    oppositeCaseError: String?,
+    isGeneratingOppositeCase: Boolean,
+    onReportNoteChange: (String) -> Unit,
+    onSaveReportNote: () -> Unit,
+    onGenerateOppositeCase: () -> Unit,
+    onRefreshConvictionTimeline: () -> Unit,
+    scenarioResult: ScenarioResultView?,
+    isRunningScenario: Boolean,
+    onRunScenario: (Int?, Double?, Double?) -> Unit,
+    onRequireUpgrade: (String) -> Unit,
+    onSubmitReportFeedback: (String, String) -> Unit,
+    onNotify: (String) -> Unit,
+    watchlist: List<String>,
+    onBack: () -> Unit,
+    padding: PaddingValues,
+    onOpenScenarioStress: (() -> Unit)?,
+    webPage: DeepDiveWebPageAccess?
+) {
     // Deep Dive 2.0: the server-rendered page when it can load, else this native screen as before.
     val tools = DeepDiveNativeTools(
         isPro = userTier.equals("PRO", ignoreCase = true),
@@ -258,15 +322,11 @@ private fun DeepDiveReportState(
             verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingXxl)
         ) {
             item {
-                StaggeredEntrance(index = 0) {
-                    DeepDiveStoryHeaderCard(report = report, isWatched = isWatched)
-                }
+                DeepDiveStoryHeaderCard(report = report, isWatched = isWatched)
             }
 
             item {
-                StaggeredEntrance(index = 1) {
-                    DeepDiveReadThisFirst(report = report)
-                }
+                DeepDiveReadThisFirst(report = report)
             }
 
             if (report.filingRead != null || report.indicatorsRead != null) {
@@ -275,34 +335,30 @@ private fun DeepDiveReportState(
 
             if (report.sections.isNotEmpty()) {
                 item {
-                    StaggeredEntrance(index = 2) {
-                        SectionHealthStrip(
-                            sections = report.sections.map {
-                                SectionHealthItem(label = it.title, status = it.status)
-                            }
-                        )
-                    }
+                    SectionHealthStrip(
+                        sections = report.sections.map {
+                            SectionHealthItem(label = it.title, status = it.status)
+                        }
+                    )
                 }
             }
 
             if (usesStructuredReader) {
-                item { StaggeredEntrance(index = 3) { DeepDiveExecutiveMemo(report = report) } }
-                item { StaggeredEntrance(index = 4) { DeepDiveDueDiligence(report = report) } }
-                item { StaggeredEntrance(index = 5) { DeepDiveFinancialQuality(report = report) } }
-                item { StaggeredEntrance(index = 6) { DeepDiveValueDiscipline(report = report) } }
-                item { StaggeredEntrance(index = 7) { DeepDiveValuationSection(report = report) } }
-                item { StaggeredEntrance(index = 8) { DeepDiveRisksAndKillSwitches(report = report) } }
-                item { StaggeredEntrance(index = 9) { DeepDiveEvidenceAndAppendix(report = report) } }
+                item { DeepDiveExecutiveMemo(report = report) }
+                item { DeepDiveDueDiligence(report = report) }
+                item { DeepDiveFinancialQuality(report = report) }
+                item { DeepDiveValueDiscipline(report = report) }
+                item { DeepDiveValuationSection(report = report) }
+                item { DeepDiveRisksAndKillSwitches(report = report) }
+                item { DeepDiveEvidenceAndAppendix(report = report) }
             } else {
-                item { StaggeredEntrance(index = 3) { DeepDiveSeeTheStory(report = report) } }
-                item { StaggeredEntrance(index = 4) { DeepDiveUnderstandIt(report = report) } }
+                item { DeepDiveSeeTheStory(report = report) }
+                item { DeepDiveUnderstandIt(report = report) }
             }
 
             if (report.sections.isNotEmpty()) {
                 item {
-                    StaggeredEntrance(index = 10) {
-                        DeepDiveProofHeading()
-                    }
+                    DeepDiveProofHeading()
                 }
                 item {
                     val maxEvidence = report.sections.maxOfOrNull { it.evidence.size }?.coerceAtLeast(1) ?: 1
@@ -317,46 +373,42 @@ private fun DeepDiveReportState(
                             )
                         }
                     if (radarData.size >= 3) {
-                        StaggeredEntrance(index = 11) {
-                            EvidenceRadar(data = radarData)
-                        }
+                        EvidenceRadar(data = radarData)
                     }
                 }
             }
 
             items(report.sections.size) { index ->
                 val section = report.sections[index]
-                StaggeredEntrance(index = 12 + index) {
-                    SectionAccordion(
-                        title = section.title,
-                        statusText = section.status ?: "UNKNOWN",
-                        initiallyExpanded = section.status.equals("complete", ignoreCase = true),
-                        content = {
-                            Column(verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingMd)) {
-                                Text(
-                                    text = section.body.ifBlank { "No section summary returned." },
-                                    style = ThesisTypography.bodyMedium,
-                                    color = ThesisColors.TextSecondary
-                                )
+                SectionAccordion(
+                    title = section.title,
+                    statusText = section.status ?: "UNKNOWN",
+                    initiallyExpanded = section.status.equals("complete", ignoreCase = true),
+                    content = {
+                        Column(verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingMd)) {
+                            Text(
+                                text = section.body.ifBlank { "No section summary returned." },
+                                style = ThesisTypography.bodyMedium,
+                                color = ThesisColors.TextSecondary
+                            )
 
-                                if (section.evidence.isNotEmpty()) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        EvidenceDots(count = section.evidence.size)
-                                        Spacer(modifier = Modifier.size(ThesisDimens.SpacingSm))
-                                        Text(
-                                            text = "${section.evidence.size} sources",
-                                            style = ThesisTypography.labelSmall,
-                                            color = ThesisColors.TextMuted
-                                        )
-                                    }
-
-                                    EvidenceList(evidence = section.evidence)
+                            if (section.evidence.isNotEmpty()) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    EvidenceDots(count = section.evidence.size)
+                                    Spacer(modifier = Modifier.size(ThesisDimens.SpacingSm))
+                                    Text(
+                                        text = "${section.evidence.size} sources",
+                                        style = ThesisTypography.labelSmall,
+                                        color = ThesisColors.TextMuted
+                                    )
                                 }
+
+                                EvidenceList(evidence = section.evidence)
                             }
-                        },
-                        modifier = Modifier.padding(bottom = ThesisDimens.SpacingSm)
-                    )
-                }
+                        }
+                    },
+                    modifier = Modifier.padding(bottom = ThesisDimens.SpacingSm)
+                )
             }
 
             item {

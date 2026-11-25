@@ -46,6 +46,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Text
 import com.thesis.mobile.ui.motion.ThesisMotion
+import com.thesis.mobile.ui.motion.animateIndicatorPosition
 import com.thesis.mobile.ui.motion.rememberHaptics
 import com.thesis.mobile.ui.motion.thesisPress
 import com.thesis.mobile.ui.theme.Kit
@@ -206,11 +207,8 @@ fun SegmentedControl(
     val p = LocalThesisPalette.current
     val reduced = LocalReducedMotion.current
     val haptics = rememberHaptics()
-    val position by animateFloatAsState(
-        targetValue = selectedIndex.toFloat(),
-        animationSpec = if (reduced) ThesisMotion.timed(true, 0) else ThesisMotion.spatial(),
-        label = "segmentIndicator",
-    )
+    // Glides on `spatial`; final on first paint, snaps under reduced motion (the motion kit's indicator).
+    val position by animateIndicatorPosition(selectedIndex)
     val count = options.size
     Row(
         modifier

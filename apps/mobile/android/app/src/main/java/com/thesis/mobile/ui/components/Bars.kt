@@ -281,7 +281,7 @@ fun ThesisBottomBar(
                 Box {
                     Crossfade(
                         targetState = selected,
-                        animationSpec = tween(if (reduced) 0 else ThesisMotion.Quick),
+                        animationSpec = ThesisMotion.timed(reduced, ThesisMotion.Quick),
                         label = "tabGlyph",
                     ) { on ->
                         Icon(
