@@ -13,6 +13,7 @@ import com.thesis.mobile.ui.screens.NamesScreen
 import com.thesis.mobile.ui.screens.OnboardingScreen
 import com.thesis.mobile.ui.screens.PaywallScreen
 import com.thesis.mobile.ui.screens.PulseScreen
+import com.thesis.mobile.ui.screens.ResearchScreen
 import com.thesis.mobile.ui.screens.ScenarioStressScreen
 import com.thesis.mobile.ui.screens.WarRoomScreen
 import com.thesis.mobile.ui.screens.WeeklyDigestScreen
@@ -73,16 +74,9 @@ class ScreenSmokeRenders {
     @Test
     fun research() {
         renderScreen("smoke-research") {
-            DeepDiveScreen(
-                report = null, isLoading = false, errorMessage = null, recentHistory = emptyList(), userTier = "free",
-                reportNoteDraft = "", noteUpdatedAt = null, isSavingNote = false, convictionTimeline = emptyList(),
-                convictionTimelineError = null, oppositeCase = null, oppositeCaseError = null,
-                isGeneratingOppositeCase = false, onReportNoteChange = {}, onSaveReportNote = {},
-                onGenerateOppositeCase = {}, onRefreshConvictionTimeline = {}, scenarioResult = null,
-                isRunningScenario = false, onRunScenario = { _, _, _ -> }, onRequireUpgrade = {},
-                onSubmitReportFeedback = { _, _ -> }, onNotify = {}, onOpenHistoryReport = {},
-                onOpenPulseHistory = {}, tickerState = "", watchlist = names, onTickerChange = {}, onRunReport = {},
-                onBack = {}, padding = PaddingValues(),
+            ResearchScreen(
+                ticker = "", recentHistory = emptyList(), onTickerChange = {}, onRunReport = {}, onOpenReport = {},
+                onOpenPulse = {}, padding = PaddingValues(),
             )
         }
     }
@@ -102,15 +96,13 @@ class ScreenSmokeRenders {
         )
         renderScreen("smoke-research-report") {
             DeepDiveScreen(
-                report = report, isLoading = false, errorMessage = null, recentHistory = emptyList(),
-                userTier = "free", reportNoteDraft = "", noteUpdatedAt = null, isSavingNote = false,
+                report = report, isLoading = false, errorMessage = null, userTier = "free", reportNoteDraft = "", noteUpdatedAt = null, isSavingNote = false,
                 convictionTimeline = emptyList(), convictionTimelineError = null, oppositeCase = null,
                 oppositeCaseError = null, isGeneratingOppositeCase = false, onReportNoteChange = {},
                 onSaveReportNote = {}, onGenerateOppositeCase = {}, onRefreshConvictionTimeline = {},
                 scenarioResult = null, isRunningScenario = false, onRunScenario = { _, _, _ -> },
-                onRequireUpgrade = {}, onSubmitReportFeedback = { _, _ -> }, onNotify = {},
-                onOpenHistoryReport = {}, onOpenPulseHistory = {}, tickerState = "AAPL", watchlist = names,
-                onTickerChange = {}, onRunReport = {}, onBack = {}, padding = PaddingValues(), webPage = null,
+                onRequireUpgrade = {}, onSubmitReportFeedback = { _, _ -> }, onNotify = {}, watchlist = names,
+                onRetry = {}, onBack = {}, padding = PaddingValues(), webPage = null,
             )
         }
     }

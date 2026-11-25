@@ -107,18 +107,17 @@ private fun ColumnScope.SourceBody(info: SourceInfo) {
     }
     if (info.evidence.isNotEmpty()) {
         Labelled("Evidence") {
-            // External links carry only the trailing open_in_new (no duplicate leading glyph). The leading column is
-            // kept only when an in-app link (menu_book) is in the list, so titles line up either way.
-            val anyInApp = info.evidence.any { !it.external }
+            // Every row leads with its kind (2.8, one meaning per glyph): a filing or source document (`description`)
+            // or an in-app report (`menu_book`); external links also carry the trailing open_in_new.
             RowGroup {
                 info.evidence.forEach { link ->
-                    row(dividerInset = if (anyInApp) LeadingRowDividerInset else ThesisSpace.l) {
+                    row(dividerInset = LeadingRowDividerInset) {
                         ActionRow(
-                            icon = if (link.external) null else ThesisIcons.DeepDive,
+                            icon = if (link.external) ThesisIcons.Document else ThesisIcons.DeepDive,
                             title = link.label,
                             onClick = link.onOpen,
                             external = link.external,
-                            reserveLeading = anyInApp,
+                            reserveLeading = true,
                         )
                     }
                 }

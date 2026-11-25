@@ -1,17 +1,21 @@
 package com.thesis.mobile.preview
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.wrapContentHeight
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ImageComposeScene
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.unit.Density
+import com.thesis.mobile.ui.components.LocalPageBackgroundCache
+import com.thesis.mobile.ui.components.PageBackgroundCache
+import com.thesis.mobile.ui.components.pageBackground
+import com.thesis.mobile.ui.theme.LocalThesisPalette
 import com.thesis.mobile.ui.theme.ThemeMode
 import com.thesis.mobile.ui.theme.ThesisTheme
 import com.thesis.mobile.ui.theme.UpDownScheme
@@ -107,14 +111,25 @@ fun renderScreen(
             ) {
                 ThesisTheme(mode = theme.mode, upDown = upDown, reduceMotion = reducedMotion) {
                     val box = if (fitHeight) Modifier.fillMaxWidth() else Modifier.fillMaxSize()
-                    Box(box.background(MaterialTheme.colorScheme.background)) {
-                        content()
+                    // The app's page background (2.7) under every render, from one cached bitmap sized to the
+                    // render (as ThesisApp provides one for the window); `glow = false` keeps the gradient and skips
+                    // the glows. Sized by this box, so `fitHeight` still measures the content, not the scene.
+                    val cache = remember { PageBackgroundCache() }
+                    CompositionLocalProvider(LocalPageBackgroundCache provides cache) {
+                        Box(box.onSizeChanged { cache.areaSize = it }.pageBackground(LocalThesisPalette.current)) {
+                            content()
+                        }
                     }
                 }
             }
-            val png = image.encodeToData(EncodedImageFormat.PNG) ?: error("PNG encoding failed for $name")
+            val (w, h) = image.width to image.height
+            val png = try {
+                image.encodeToData(EncodedImageFormat.PNG) ?: error("PNG encoding failed for $name")
+            } finally {
+                image.close()
+            }
             File(screensOutDir, "$name-${theme.suffix}.png").apply { writeBytes(png.bytes) }
-                .also { println("rendered ${it.absolutePath} (${image.width}x${image.height})") }
+                .also { println("rendered ${it.absolutePath} (${w}x$h)") }
         }
     }
 }
@@ -153,18 +168,20 @@ internal fun captureFrame(
         }
     }
     try {
+        // Intermediate frames are closed at once: each is a full-size native Skia image, and a tall render
+        // keeps dozens of them alive until a GC otherwise (exit 137 on long render classes).
         var nowMs = 0L
-        scene.render(0)
+        scene.render(0).close()
         scheduler.runCurrent()
         while (nowMs < settleMs) {
             nowMs += frameMs
             scheduler.advanceTimeBy(frameMs)
             scheduler.runCurrent()
-            scene.render(nowMs * 1_000_000)
+            scene.render(nowMs * 1_000_000).close()
         }
         val image = scene.render(nowMs * 1_000_000 + 1)
         if (!fitHeight || measuredPx <= 0 || measuredPx >= image.height) return image
-        return crop(image, image.width, measuredPx)
+        return crop(image, image.width, measuredPx).also { image.close() }
     } finally {
         scene.close()
     }

@@ -201,6 +201,14 @@ object ThesisIcons {
         )
     }
 
+    /** a filing or source document (leading glyph of evidence rows). Symbols `description`, opsz 24. */
+    val Document: ImageVector by lazy {
+        symbol(
+            name = "Document", size = 24, viewport = 960f to 960f, translateY = 960f, autoMirror = false,
+            "M330-250h300v-60H330v60Zm0-160h300v-60H330v60Zm-77.69 310Q222-100 201-121q-21-21-21-51.31v-615.38Q180-818 201-839q21-21 51.31-21H570l210 210v477.69Q780-142 759-121q-21 21-51.31 21H252.31ZM540-620v-180H252.31q-4.62 0-8.46 3.85-3.85 3.84-3.85 8.46v615.38q0 4.62 3.85 8.46 3.84 3.85 8.46 3.85h455.38q4.62 0 8.46-3.85 3.85-3.84 3.85-8.46V-620H540ZM240-800v180-180V-160v-640Z",
+        )
+    }
+
     /** open an external link. Symbols `open_in_new`, opsz 24, mirrored in RTL. */
     val OpenExternal: ImageVector by lazy {
         symbol(
@@ -560,6 +568,14 @@ object ThesisIcons {
             symbol(
                 name = "Overflow20", size = 20, viewport = 960f to 960f, translateY = 960f, autoMirror = false,
                 "M479.79-221.23q-21.54 0-36.66-15.34Q428-251.91 428-273.44q0-21.54 15.34-36.67 15.34-15.12 36.87-15.12 21.54 0 36.66 15.34Q532-294.56 532-273.02t-15.34 36.66q-15.34 15.13-36.87 15.13Zm0-206.77q-21.54 0-36.66-15.34Q428-458.68 428-480.21q0-21.54 15.34-36.66Q458.68-532 480.21-532q21.54 0 36.66 15.34Q532-501.32 532-479.79q0 21.54-15.34 36.66Q501.32-428 479.79-428Zm0-206.77q-21.54 0-36.66-15.34Q428-665.44 428-686.98t15.34-36.66q15.34-15.13 36.87-15.13 21.54 0 36.66 15.34Q532-708.09 532-686.56q0 21.54-15.34 36.67-15.34 15.12-36.87 15.12Z",
+            )
+        }
+
+        /** a filing or source document (leading glyph of evidence rows). Symbols `description`, opsz 20. */
+        val Document: ImageVector by lazy {
+            symbol(
+                name = "Document20", size = 20, viewport = 960f to 960f, translateY = 960f, autoMirror = false,
+                "M346-250h268v-52H346v52Zm0-144h268v-52H346v52Zm-69.97 278q-27.03 0-45.53-18.65T212-180.31v-599.38q0-27.01 18.65-45.66Q249.3-844 276.31-844H586l162 162v501.69q0 27.01-18.66 45.66Q710.68-116 683.65-116H276.03ZM548-644v-148H276.31q-4.62 0-8.46 3.85-3.85 3.84-3.85 8.46v599.38q0 4.62 3.85 8.46 3.84 3.85 8.46 3.85h407.38q4.62 0 8.46-3.85 3.85-3.84 3.85-8.46V-644H548ZM264-792v169-169V-168v-624Z",
             )
         }
 

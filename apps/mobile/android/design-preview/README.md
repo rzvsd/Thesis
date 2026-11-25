@@ -25,7 +25,7 @@ G=/opt/gradle/bin/gradle
 # Compile the app UI + model sources and the render tests (about 25 s clean, a few s incremental)
 $G -p design-preview compileKotlin compileTestKotlin
 
-# The app's own JVM unit tests (app/src/test): 34 tests
+# The app's own JVM unit tests (app/src/test): all of them
 $G -p design-preview test -PappTestsOnly
 
 # Renders -> design-preview/build/screens/<name>-dark.png and <name>-light.png
@@ -40,8 +40,8 @@ under `com/thesis/mobile/...` match `app/src/main/java/` one for one.
 
 ## Unit tests
 
-`app/src/test/java` is compiled and run here (JUnit 4, `org.json:json` standing in for Android's copy).
-`Phase4CopyTest` (2 tests) is excluded because `defaultNotificationPreferences()` lives in `MainViewModel`.
+`app/src/test/java` is compiled and run here (JUnit 4, `org.json:json` standing in for Android's copy), all of it
+since PR-1 moved `defaultNotificationPreferences()` to `ui/shell/UiState.kt` (`Phase4CopyTest` included).
 This does not replace CI's `:app:testDebugUnitTest`, but it runs the same test code.
 
 ## Writing a render
@@ -104,7 +104,7 @@ shim files' KDoc; keep both in sync.
 
 `gradle -p design-preview test -PharnessOnly` runs the harness's own tests (`preview/harness/`): render size,
 font scale, reduced motion, glow, `fitHeight`, card shadow, the back/haptics/font shims and the semantics helpers.
-They are part of the renders half (`-PrendersOnly`), not of the app's 34 unit tests (`-PappTestsOnly`).
+They are part of the renders half (`-PrendersOnly`), not of the app's unit tests (`-PappTestsOnly`).
 Their PNGs go to a temp folder, never into `screens.out`, so a `render.sh` run lists only real renders.
 
 ## Not compiled here
@@ -115,6 +115,15 @@ report page, PDF export, the CSV picker, the Vico sentiment screen, two screens 
 stubs the few symbols other files need from them; the WebView is drawn as a labelled placeholder. CI compiles the
 Android-only files, so write them against the APIs on `app/build.gradle.kts`'s classpath. Keep
 `ProductApiException` in sync with `ProductApiClient.kt`.
+
+## Known limits
+
+- Skia's native memory grows with many tall `ImageComposeScene`s in one JVM (a whole kit sheet class was once killed
+  with exit 137), so every test class except the app unit tests runs in its own forked JVM (`forkEvery = 1`).
+- Compose Desktop 1.6 can deadlock (Recomposer lock against the BroadcastFrameClock lock, with the AWT
+  GlobalSnapshotManager) when a frame callback forces a LazyList remeasure, for example `animateScrollToItem`
+  during a render. Set initial scroll positions by jumping on first placement (as the kit's ChapterPills does),
+  not by animating.
 
 ## How close is it to a device
 

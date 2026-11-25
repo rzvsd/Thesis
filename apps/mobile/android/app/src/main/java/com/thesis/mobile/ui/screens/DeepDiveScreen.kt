@@ -54,9 +54,8 @@ import com.thesis.mobile.model.TrustMetadataView
 import com.thesis.mobile.model.ValuationDisplayView
 import com.thesis.mobile.model.toReaderOutline
 import com.thesis.mobile.ui.components.ConfidenceRing
-import com.thesis.mobile.ui.components.DeepDiveUnavailableState
 import com.thesis.mobile.ui.components.EvidenceDots
-import com.thesis.mobile.ui.components.OfflineEmptyState
+import com.thesis.mobile.ui.components.ErrorState
 import com.thesis.mobile.ui.components.SectionAccordion
 import com.thesis.mobile.ui.components.SignalBadge
 import com.thesis.mobile.ui.components.ThesisButton
@@ -71,6 +70,8 @@ import com.thesis.mobile.ui.theme.HeadingFont
 import com.thesis.mobile.ui.theme.ThesisColors
 import com.thesis.mobile.ui.theme.ThesisDimens
 import com.thesis.mobile.ui.theme.ThesisTypography
+import com.thesis.mobile.ui.copy.KitCopy
+import com.thesis.mobile.ui.copy.StateCopy
 
 /**
  * One report (a `Report(id)`, `ReportClassic(id)` or `DeepDiveRunning(ticker)` entry): the report itself, the
@@ -107,13 +108,15 @@ fun DeepDiveScreen(
     onBack: () -> Unit,
     padding: PaddingValues,
     onOpenScenarioStress: (() -> Unit)? = null,
-    webPage: DeepDiveWebPageAccess? = null
+    webPage: DeepDiveWebPageAccess? = null,
+    /** Label of the error card's button: what [onRetry] does ("Open report again"); null keeps "Try again". */
+    retryLabel: String? = null
 ) {
     if (report == null) {
         if (isLoading) {
             DeepDiveLoadingScreen(modifier = Modifier.padding(padding))
         } else {
-            DeepDiveFailedState(errorMessage = errorMessage, onRetry = onRetry, padding = padding)
+            DeepDiveFailedState(errorMessage = errorMessage, onRetry = onRetry, retryLabel = retryLabel, padding = padding)
         }
         return
     }
@@ -180,6 +183,7 @@ fun DeepDiveScreen(
 private fun DeepDiveFailedState(
     errorMessage: String?,
     onRetry: () -> Unit,
+    retryLabel: String?,
     padding: PaddingValues
 ) {
     Box(
@@ -190,10 +194,13 @@ private fun DeepDiveFailedState(
         contentAlignment = Alignment.Center
     ) {
         if (errorMessage?.contains("No internet connection", ignoreCase = true) == true) {
-            OfflineEmptyState(onRetry = onRetry)
+            ErrorState(title = StateCopy.OFFLINE_TITLE, cause = StateCopy.OFFLINE_CAUSE, onRetry = onRetry)
         } else {
-            DeepDiveUnavailableState(
-                message = errorMessage?.ifBlank { null } ?: "This Deep Dive is no longer running.",
+            val message = errorMessage?.ifBlank { null } ?: "This Deep Dive is no longer running."
+            ErrorState(
+                title = StateCopy.deepDiveUnavailable,
+                cause = message,
+                retryLabel = retryLabel ?: KitCopy.TRY_AGAIN,
                 onRetry = onRetry
             )
         }

@@ -98,6 +98,8 @@ object ThesisType {
     val caption = style(Sans, FontWeight.Normal, 12.sp, 17.sp)
     /** Uppercase is applied by the component (Eyebrow), not by callers. */
     val eyebrow = style(Sans, FontWeight.SemiBold, 11.sp, 16.sp, 0.14.em)
+    /** Status badges (3 #8): the eyebrow size with tighter tracking, so short states fit the pill. */
+    val badge = eyebrow.copy(letterSpacing = 0.03.em)
     /** Uppercase is applied by the component (Kicker), not by callers. */
     val kicker = style(Sans, FontWeight.Bold, 11.5.sp, 16.sp, 0.18.em)
     val tick = style(Sans, FontWeight.Normal, 11.sp, 14.sp, features = "tnum")

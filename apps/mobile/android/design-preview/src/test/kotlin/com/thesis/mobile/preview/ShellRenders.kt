@@ -9,6 +9,7 @@ import androidx.compose.ui.unit.Density
 import com.thesis.mobile.model.WarRoomView
 import com.thesis.mobile.preview.fixtures.ShellFixtures
 import com.thesis.mobile.ui.UiState
+import com.thesis.mobile.ui.components.showThesisSnackbar
 import com.thesis.mobile.ui.navigation.Destination
 import com.thesis.mobile.ui.navigation.ShellTab
 import com.thesis.mobile.ui.screens.AuthScreen
@@ -40,7 +41,7 @@ class ShellRenders {
         val files = renderScreen(name, widthDp = widthDp, heightDp = heightDp) {
             val density = LocalDensity.current
             val host = remember { SnackbarHostState() }
-            if (snackbar != null) LaunchedEffect(Unit) { host.showSnackbar(snackbar) }
+            if (snackbar != null) LaunchedEffect(Unit) { host.showThesisSnackbar(snackbar) }
             CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale)) {
                 ThesisShell(
                     state = state,

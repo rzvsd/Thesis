@@ -2,7 +2,6 @@ package com.thesis.mobile.ui.theme
 
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.em
 
 /**
  * Component-internal geometry and ratios that section 2.5 does not name (Deep Dive values from
@@ -93,9 +92,6 @@ internal object Kit {
 
     /** SuggestionList: rows shown before it scrolls. */
     const val SUGGESTIONS_MAX = 6
-
-    /** Status badge text tracking (DD .phase: 11/600, .03em, sentence case). */
-    val badgeTracking = 0.03.em
 
     /** Highlighter band: from 54% to 96% of the line box (DD .story .o). */
     const val HIGHLIGHT_FROM = 0.54f

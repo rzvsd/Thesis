@@ -1,111 +1,40 @@
 package com.thesis.mobile.ui.navigation
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.AccountCircle
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.semantics.heading
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
 import com.thesis.mobile.model.AlertLedgerItemView
-import com.thesis.mobile.ui.theme.ThesisColors
-import com.thesis.mobile.ui.theme.ThesisDimens
-import com.thesis.mobile.ui.theme.ThesisTypography
+import com.thesis.mobile.ui.components.Avatar
+import com.thesis.mobile.ui.components.ThesisIconButton
+import com.thesis.mobile.ui.components.ThesisTopBar
+import com.thesis.mobile.ui.icons.ThesisIcons
 import java.time.LocalDate
 import java.time.OffsetDateTime
 
 /**
- * Root top bar of the four tabs (DESIGN-DIRECTION 5.5): brand on the left, Search and the You avatar on the
- * right. The bell is gone (Inbox is a tab). The avatar has no selected tint (accent is the brand's, 2.8); the
- * kit's initials avatar replaces the glyph in PR-2.
+ * Root top bar of the four tabs (DESIGN-DIRECTION 5.5, kit `ThesisTopBar` 3 #3): the `THESIS` brand on the left,
+ * Search and the You avatar (initials, 3 #36) on the right. The bell is gone (Inbox is a tab). The avatar has no
+ * selected tint (accent is the brand's, 2.8).
  */
 @Composable
-fun ThesisTopBar(
+fun ShellRootTopBar(
+    initials: String,
     onOpenSearch: () -> Unit,
     onOpenProfile: () -> Unit
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(ThesisColors.Background)
-            .statusBarsPadding()
-            .heightIn(min = 56.dp)
-            .padding(start = ThesisDimens.ScreenPaddingHorizontal, end = ThesisDimens.SpacingSm),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        // Brand as the accent eyebrow (component #3). labelSmall is the M3 slot F1 remaps to `eyebrow` (2.3).
-        Text(
-            text = "THESIS",
-            style = ThesisTypography.labelSmall,
-            color = ThesisColors.Primary,
-            modifier = Modifier
-                .weight(1f)
-                .semantics { heading() }
-        )
-        IconButton(onClick = onOpenSearch) {
-            Icon(
-                imageVector = Icons.Filled.Search,
-                contentDescription = "Search",
-                tint = ThesisColors.TextSecondary
-            )
+    ThesisTopBar(
+        actions = {
+            ThesisIconButton(ThesisIcons.Search, contentDescription = "Search", onClick = onOpenSearch)
+            Avatar(initials = initials, onClick = onOpenProfile, contentDescription = "You")
         }
-        IconButton(onClick = onOpenProfile) {
-            Icon(
-                imageVector = Icons.Filled.AccountCircle,
-                contentDescription = "You",
-                tint = ThesisColors.TextSecondary
-            )
-        }
-    }
+    )
 }
 
-/** Top bar of a pushed screen that has no header of its own: back arrow and title (none when [title] is blank). */
+/**
+ * Top bar of a pushed screen that has no header of its own: back and the [title] (none when blank, because the
+ * screen carries its own headline: no repeated words, rubric V3).
+ */
 @Composable
 fun ThesisBackTopBar(title: String, onBack: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(ThesisColors.Background)
-            .statusBarsPadding()
-            .heightIn(min = 56.dp)
-            .padding(horizontal = ThesisDimens.SpacingXs),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        IconButton(onClick = onBack) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                contentDescription = "Back",
-                tint = ThesisColors.TextPrimary
-            )
-        }
-        // No title (the screen carries its own headline): no Text at all, so TalkBack meets no empty heading.
-        if (title.isNotBlank()) {
-            Text(
-                text = title,
-                style = ThesisTypography.titleMedium.copy(fontWeight = FontWeight.Medium),
-                color = ThesisColors.TextPrimary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f, fill = false).semantics { heading() }
-            )
-        }
-    }
+    ThesisTopBar(title = title.ifBlank { null }, onBack = onBack, titleAlwaysVisible = title.isNotBlank())
 }
 
 /**

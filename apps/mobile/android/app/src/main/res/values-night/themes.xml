@@ -2,8 +2,6 @@
 <resources>
     <!-- System dark mode: ink window background (ThesisPalette InkDark bg). -->
     <style name="Theme.ThesisMobile" parent="Theme.Material3.DayNight.NoActionBar">
-        <item name="android:statusBarColor">@color/thesis_background</item>
-        <item name="android:navigationBarColor">@color/thesis_background</item>
         <item name="android:windowBackground">@color/thesis_background</item>
         <item name="android:windowLightStatusBar">false</item>
     </style>

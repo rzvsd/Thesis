@@ -4,10 +4,10 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.ContentTransform
 import androidx.compose.animation.SizeTransform
-import androidx.compose.animation.core.FastOutLinearInEasing
-import androidx.compose.animation.core.LinearOutSlowInEasing
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Easing
+import androidx.compose.animation.core.FiniteAnimationSpec
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
@@ -16,7 +16,6 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -30,11 +29,7 @@ import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Snackbar
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -43,30 +38,41 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.SaveableStateHolder
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.clearAndSetSemantics
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Dp
 import com.thesis.mobile.ui.UiState
+import com.thesis.mobile.ui.components.BottomBarItem
+import com.thesis.mobile.ui.components.LoadingHairline
+import com.thesis.mobile.ui.components.LocalPageBackgroundCache
+import com.thesis.mobile.ui.components.ProvidePageBackground
+import com.thesis.mobile.ui.components.ThesisBottomBar
+import com.thesis.mobile.ui.components.ThesisSnackbarHost
+import com.thesis.mobile.ui.components.pageBackground
+import com.thesis.mobile.ui.motion.ThesisMotion
 import com.thesis.mobile.ui.navigation.Destination
 import com.thesis.mobile.ui.navigation.ShellTab
 import com.thesis.mobile.ui.navigation.ThesisBackTopBar
-import com.thesis.mobile.ui.navigation.ThesisBottomBar
-import com.thesis.mobile.ui.navigation.ThesisTopBar
+import com.thesis.mobile.ui.navigation.ShellRootTopBar
 import com.thesis.mobile.ui.navigation.shellNavItems
+import com.thesis.mobile.ui.platform.BackSwipeEdge
+import com.thesis.mobile.ui.platform.ThesisBackHandler
+import com.thesis.mobile.ui.platform.ThesisPredictiveBackHandler
 import com.thesis.mobile.ui.screens.PaywallScreen
 import com.thesis.mobile.ui.theme.LocalReducedMotion
-import com.thesis.mobile.ui.theme.ThesisColors
-import com.thesis.mobile.ui.theme.ThesisDimens
+import com.thesis.mobile.ui.theme.LocalThesisPalette
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.launch
 
 /**
  * The logged-in app (DESIGN-DIRECTION 5.5). Pure: it takes the published [state], the [navigator] (snapshot
@@ -85,8 +91,13 @@ import com.thesis.mobile.ui.theme.ThesisDimens
  *
  * Each entry draws its own top bar (5.5 "each screen supplies its top bar") and computes its own insets from its
  * own destination, so in a push or pop the bar moves with its screen and the leaving screen keeps its layout
- * while it slides out (principle 8). Back is the caller's (`BackHandler` in `ThesisApp`, enabled while
- * [AppNavigator.canGoBack]).
+ * while it slides out (principle 8).
+ *
+ * Back (4.5): a predictive back handler, enabled while [AppNavigator.canGoBack], previews the pop by scaling the
+ * visible page to .90 and shifting it 8 dp away from the swipe edge (under reduced motion the page stays still,
+ * 4.8), and commits with `actions.onBack()`; while the paywall is open, back closes it. Both are registered before
+ * the layers, so a report WebView's own "back within the page" handler (registered later) wins while it has
+ * history and the report is not covered. The whole tree sits on one shared page background (2.7).
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -100,8 +111,10 @@ fun ThesisShell(
 ) {
     val holder = rememberSaveableStateHolder()
     val reducedMotion = LocalReducedMotion.current
+    val palette = LocalThesisPalette.current
     val shiftPx = with(LocalDensity.current) { SHARED_AXIS_SHIFT.roundToPx() }
-    val modalRisePx = with(LocalDensity.current) { 32.dp.roundToPx() }
+    val modalRisePx = with(LocalDensity.current) { ThesisMotion.ModalOffset.roundToPx() }
+    val backShiftPx = with(LocalDensity.current) { PREDICTIVE_BACK_SHIFT.toPx() }
     var sampleDismissed by rememberSaveable { mutableStateOf(false) }
     var bottomBarHeightPx by remember { mutableIntStateOf(0) }
 
@@ -124,6 +137,25 @@ fun ThesisShell(
         shownIds.addAll(liveIds)
     }
 
+    // Predictive back (4.5): progress 0..1 of the gesture, and the edge it started from.
+    val backProgress = remember { Animatable(0f) }
+    var backEdge by remember { mutableStateOf(BackSwipeEdge.Left) }
+    val backScope = rememberCoroutineScope()
+    ThesisPredictiveBackHandler(enabled = navigator.canGoBack && !paywallOpen) { events ->
+        try {
+            events.collect { event ->
+                backEdge = event.swipeEdge
+                backProgress.snapTo(event.progress)
+            }
+            backProgress.snapTo(0f)
+            actions.onBack()
+        } catch (cancelled: CancellationException) {
+            backScope.launch { backProgress.animateTo(0f, ThesisMotion.spatialSlow()) }
+            throw cancelled
+        }
+    }
+    ThesisBackHandler(enabled = paywallOpen) { actions.onDismissPaywall() }
+
     val scope = ShellContentScope(
         state = state,
         navigator = navigator,
@@ -133,83 +165,116 @@ fun ThesisShell(
         onDismissSample = { sampleDismissed = true }
     )
 
-    Box(modifier = modifier.fillMaxSize().background(ThesisColors.Background)) {
-        if (reportBase != null) {
-            key(reportBase.entryId) {
-                holder.SaveableStateProvider(reportBase.entryId) {
-                    platform.backScope(reportCovered) {
-                        scope.EntryFrame(reportBase, inModal = false, bottomBarHeightPx = bottomBarHeightPx)
+    ShellPageBackground(modifier) {
+        Box(Modifier.fillMaxSize()) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .graphicsLayer {
+                        // The visible page (report base layer and tab layer) follows the back gesture. Reduced
+                        // motion: no scale or translation (4.8); back still commits.
+                        val progress = if (reducedMotion) 0f else backProgress.value
+                        val scale = 1f - (1f - PREDICTIVE_BACK_SCALE) * progress
+                        scaleX = scale
+                        scaleY = scale
+                        translationX = progress * backShiftPx * if (backEdge == BackSwipeEdge.Left) 1f else -1f
+                    }
+            ) {
+                if (reportBase != null) {
+                    key(reportBase.entryId) {
+                        holder.SaveableStateProvider(reportBase.entryId) {
+                            platform.backScope(reportCovered) {
+                                scope.EntryFrame(reportBase, inModal = false, bottomBarHeightPx = bottomBarHeightPx)
+                            }
+                        }
+                    }
+                }
+                AnimatedContent(
+                    targetState = tabTop,
+                    modifier = Modifier.fillMaxSize(),
+                    transitionSpec = { tabTransition(navigator.lastMove, reducedMotion, shiftPx) },
+                    contentKey = { it.entryId },
+                    label = "tab-layer"
+                ) { entry ->
+                    if (entry.destination is Destination.Report) {
+                        // A report is drawn only by the base layer: on top, this layer stays empty so nothing
+                        // covers it, and a report that is leaving (another report pushed over it, a tab switch)
+                        // never builds a second WebView here.
+                        Box(Modifier.fillMaxSize())
+                    } else {
+                        OpaqueEntry(holder, entry) {
+                            scope.EntryFrame(entry, inModal = false, bottomBarHeightPx = bottomBarHeightPx)
+                        }
                     }
                 }
             }
-        }
-        AnimatedContent(
-            targetState = tabTop,
-            modifier = Modifier.fillMaxSize(),
-            transitionSpec = { tabTransition(navigator.lastMove, reducedMotion, shiftPx) },
-            contentKey = { it.entryId },
-            label = "tab-layer"
-        ) { entry ->
-            if (entry.destination is Destination.Report) {
-                // A report is drawn only by the base layer: on top, this layer stays empty so nothing covers it,
-                // and a report that is leaving (another report pushed over it, a tab switch) never builds a
-                // second WebView here.
-                Box(Modifier.fillMaxSize())
-            } else {
-                OpaqueEntry(holder, entry) {
-                    scope.EntryFrame(entry, inModal = false, bottomBarHeightPx = bottomBarHeightPx)
+
+            ShellBottomBar(
+                shown = bottomBarShown,
+                reducedMotion = reducedMotion,
+                items = shellNavItems(inboxHasNew = state.hasNewInboxItems),
+                selectedKey = navigator.selectedTab?.name,
+                onSelect = { key -> ShellTab.entries.firstOrNull { it.name == key }?.let(actions::onSelectTab) },
+                onHeight = { bottomBarHeightPx = it }
+            )
+
+            AnimatedContent(
+                targetState = modalTop,
+                // Full size in both states, so opening or closing never animates the container from 0 x 0.
+                modifier = Modifier.fillMaxSize(),
+                transitionSpec = { modalTransition(reducedMotion, modalRisePx) },
+                contentKey = { it?.entryId },
+                label = "modal-layer"
+            ) { entry ->
+                if (entry != null) {
+                    OpaqueEntry(holder, entry) {
+                        scope.EntryFrame(entry, inModal = true, bottomBarHeightPx = bottomBarHeightPx)
+                    }
+                } else {
+                    // Empty, transparent and without pointer input: touches reach the tab layer underneath.
+                    Box(Modifier.fillMaxSize())
                 }
             }
-        }
 
-        ShellBottomBar(
-            shown = bottomBarShown,
-            reducedMotion = reducedMotion,
-            items = shellNavItems(inboxHasNew = state.hasNewInboxItems),
-            selectedTag = navigator.selectedTab?.name,
-            onSelect = { tag -> ShellTab.entries.firstOrNull { it.name == tag }?.let(actions::onSelectTab) },
-            onHeight = { bottomBarHeightPx = it }
-        )
-
-        AnimatedContent(
-            targetState = modalTop,
-            // Full size in both states, so opening or closing never animates the container from 0 x 0.
-            modifier = Modifier.fillMaxSize(),
-            transitionSpec = { modalTransition(reducedMotion, modalRisePx) },
-            contentKey = { it?.entryId },
-            label = "modal-layer"
-        ) { entry ->
-            if (entry != null) {
-                OpaqueEntry(holder, entry) {
-                    scope.EntryFrame(entry, inModal = true, bottomBarHeightPx = bottomBarHeightPx)
-                }
-            } else {
-                // Empty, transparent and without pointer input: touches reach the tab layer underneath.
-                Box(Modifier.fillMaxSize())
+            if (paywallOpen) {
+                PaywallScreen(
+                    alerts = state.alertLedger,
+                    watchlist = state.watchlist,
+                    offers = state.subscriptionOffers,
+                    actionInFlight = state.subscriptionActionInFlight,
+                    onPurchase = { preferredType -> platform.startPurchase?.invoke(preferredType) },
+                    onRestore = actions::onRestorePurchases,
+                    onRefreshOffers = actions::onRefreshOffers,
+                    onDismiss = actions::onDismissPaywall
+                )
             }
-        }
 
-        if (paywallOpen) {
-            PaywallScreen(
-                alerts = state.alertLedger,
-                watchlist = state.watchlist,
-                offers = state.subscriptionOffers,
-                actionInFlight = state.subscriptionActionInFlight,
-                onPurchase = { preferredType -> platform.startPurchase?.invoke(preferredType) },
-                onRestore = actions::onRestorePurchases,
-                onRefreshOffers = actions::onRefreshOffers,
-                onDismiss = actions::onDismissPaywall
+            // Above every layer: the bottom bar is visible (and the snackbar sits on it) only on a tab entry with
+            // no modal or paywall over it; otherwise the snackbar sits on the navigation bar or the keyboard.
+            ShellSnackbarHost(
+                hostState = snackbarHostState,
+                barHeightPx = { if (bottomBarShown && modalTop == null && !paywallOpen) bottomBarHeightPx else 0 }
             )
         }
-
-        // Above every layer: the bottom bar is visible (and the snackbar sits on it) only on a tab entry with no
-        // modal or paywall over it; otherwise the snackbar sits on the navigation bar or the keyboard.
-        ShellSnackbarHost(
-            hostState = snackbarHostState,
-            barHeightPx = { if (bottomBarShown && modalTop == null && !paywallOpen) bottomBarHeightPx else 0 }
-        )
     }
 }
+
+/**
+ * The shared page background (2.7): reuses the window-sized cache `ThesisApp` provides, else provides one here
+ * (design-preview renders the shell on its own).
+ */
+@Composable
+private fun ShellPageBackground(modifier: Modifier, content: @Composable () -> Unit) {
+    if (LocalPageBackgroundCache.current != null) {
+        Box(modifier.fillMaxSize()) { content() }
+    } else {
+        ProvidePageBackground(modifier, content)
+    }
+}
+
+/** Predictive back preview (4.5): the page scales to this and shifts [PREDICTIVE_BACK_SHIFT] at full progress. */
+private const val PREDICTIVE_BACK_SCALE = 0.90f
+private val PREDICTIVE_BACK_SHIFT: Dp = ThesisMotion.EnterOffset
 
 /**
  * One entry's page: its own top bar ([topBarFor], or a back bar on the modal stack) and its own insets. The
@@ -222,13 +287,20 @@ private fun ShellContentScope.EntryFrame(entry: NavEntry, inModal: Boolean, bott
     val bar = if (inModal) ShellTopBar.Back else topBarFor(entry.destination, state)
     val reserveBottomBar = !inModal && !entry.destination.hidesBottomBar && bottomBarHeightPx > 0
     Scaffold(
-        containerColor = ThesisColors.Background,
+        // The page background is painted under the entry (OpaqueEntry, or the root for the report base layer).
+        containerColor = Color.Transparent,
         topBar = {
             when (bar) {
                 ShellTopBar.Root -> Box {
-                    ThesisTopBar(onOpenSearch = actions::onOpenSearch, onOpenProfile = actions::onOpenYou)
+                    ShellRootTopBar(
+                        initials = initialsOf(state.userProfile?.email),
+                        onOpenSearch = actions::onOpenSearch,
+                        onOpenProfile = actions::onOpenYou
+                    )
+                    // Interim (5.5) until PR-3 puts the hairline in each root's ScreenHeader: over the bar's
+                    // bottom edge, no layout shift.
                     if (rootRefreshing(entry.destination, state)) {
-                        InterimRefreshHairline(Modifier.align(Alignment.BottomCenter))
+                        LoadingHairline(active = true, modifier = Modifier.align(Alignment.BottomCenter))
                     }
                 }
                 ShellTopBar.Back -> ThesisBackTopBar(
@@ -257,28 +329,6 @@ private fun ShellContentScope.EntryFrame(entry: NavEntry, inModal: Boolean, bott
     }
 }
 
-/**
- * Interim refresh signal (5.5) until PR-3 puts the kit's `LoadingHairline` in each root's ScreenHeader: a 1 dp
- * line over the bottom edge of the root bar (no layout shift) while the visible tab's data refreshes in the
- * background. Indeterminate; under reduced motion a static line (4.8).
- */
-@Composable
-private fun InterimRefreshHairline(modifier: Modifier) {
-    val lineModifier = modifier
-        .fillMaxWidth()
-        .height(ThesisDimens.BorderWidth)
-        .semantics { contentDescription = "Refreshing" }
-    if (LocalReducedMotion.current) {
-        Box(lineModifier.background(ThesisColors.Primary.copy(alpha = 0.6f)))
-    } else {
-        LinearProgressIndicator(
-            modifier = lineModifier,
-            color = ThesisColors.Primary,
-            trackColor = ThesisColors.Border
-        )
-    }
-}
-
 /** Whether the tab root [destination] is refreshing its data in the background (the 5.5 refresh flags). */
 internal fun rootRefreshing(destination: Destination, state: UiState): Boolean = when (destination) {
     Destination.Today -> state.isPulseRefreshing || state.isMacroRefreshing
@@ -297,23 +347,23 @@ internal fun rootRefreshing(destination: Destination, state: UiState): Boolean =
 private fun BoxScope.ShellBottomBar(
     shown: Boolean,
     reducedMotion: Boolean,
-    items: List<com.thesis.mobile.ui.navigation.ThesisNavItem>,
-    selectedTag: String?,
+    items: List<BottomBarItem>,
+    selectedKey: String?,
     onSelect: (String) -> Unit,
     onHeight: (Int) -> Unit
 ) {
     val hidden by animateFloatAsState(
         targetValue = if (shown) 0f else 1f,
         animationSpec = if (reducedMotion) {
-            tween(REDUCED_MS)
+            motionSpec(ThesisMotion.Quick, easing = ThesisMotion.EaseStandard)
         } else {
-            tween(BAR_MS, easing = if (shown) LinearOutSlowInEasing else FastOutLinearInEasing)
+            motionSpec(ThesisMotion.Base, easing = if (shown) ThesisMotion.EaseEnter else ThesisMotion.EaseExit)
         },
         label = "bottom-bar"
     )
     ThesisBottomBar(
         items = items,
-        selectedTag = selectedTag,
+        selectedKey = selectedKey,
         onSelect = { tag -> if (shown) onSelect(tag) },
         modifier = Modifier
             .align(Alignment.BottomCenter)
@@ -332,9 +382,10 @@ private fun BoxScope.ShellBottomBar(
 }
 
 /**
- * The shell's only snackbar host, bottom-aligned above the bottom bar when it shows, else above the navigation
- * bar or the keyboard. Its own composable, so keyboard animation frames recompose only this host. Ink container
- * with surface text (3 #23) until the kit's `ThesisSnackbarHost` replaces it.
+ * The shell's only snackbar host (the kit's [ThesisSnackbarHost], 3 #23), bottom-aligned above the bottom bar when
+ * it shows, else above the navigation bar or the keyboard. Its own composable, so keyboard animation frames
+ * recompose only this host. Messages go through `showThesisSnackbar`, which this host times out (4 s, 8 s with an
+ * action).
  */
 @Composable
 private fun BoxScope.ShellSnackbarHost(hostState: SnackbarHostState, barHeightPx: () -> Int) {
@@ -344,29 +395,21 @@ private fun BoxScope.ShellSnackbarHost(hostState: SnackbarHostState, barHeightPx
         WindowInsets.navigationBars.getBottom(density),
         barHeightPx()
     )
-    SnackbarHost(
+    ThesisSnackbarHost(
         hostState = hostState,
         modifier = Modifier
             .align(Alignment.BottomCenter)
             .padding(bottom = with(density) { bottomPx.toDp() })
-            // The M3 snackbar insets itself 12 dp; 4 more make the 16 dp from the edges of 3 #23.
-            .padding(horizontal = ThesisDimens.SpacingXs)
-    ) { data ->
-        Snackbar(
-            snackbarData = data,
-            shape = MaterialTheme.shapes.medium,
-            containerColor = ThesisColors.TextPrimary,
-            contentColor = ThesisColors.Surface,
-            actionColor = ThesisColors.Surface,
-            dismissActionContentColor = ThesisColors.Surface
-        )
-    }
+    )
 }
 
-/** An entry drawn opaque on `bg`, with its own saved state (scroll, fields) keyed by `entryId`. */
+/**
+ * An entry drawn opaque on the page background (the shared window-fixed bitmap, 2.7), with its own saved state
+ * (scroll, fields) keyed by `entryId`.
+ */
 @Composable
 private fun OpaqueEntry(holder: SaveableStateHolder, entry: NavEntry, content: @Composable () -> Unit) {
-    Box(Modifier.fillMaxSize().background(ThesisColors.Background)) {
+    Box(Modifier.fillMaxSize().pageBackground(LocalThesisPalette.current)) {
         holder.SaveableStateProvider(entry.entryId) { content() }
     }
 }
@@ -405,13 +448,6 @@ internal fun titleOf(destination: Destination, state: UiState): String = when (d
     else -> ""
 }
 
-private const val TAB_OUT_MS = 90
-private const val TAB_IN_MS = 210
-private const val PUSH_IN_MS = 300
-private const val PUSH_OUT_MS = 180
-private const val REDUCED_MS = 150
-private const val BAR_MS = 240
-
 /** Section 4.5: fade-through between tabs, shared-axis X for push and pop, crossfade when motion is reduced. */
 private fun AnimatedContentTransitionScope<NavEntry>.tabTransition(
     move: NavMove,
@@ -419,20 +455,27 @@ private fun AnimatedContentTransitionScope<NavEntry>.tabTransition(
     shiftPx: Int
 ): ContentTransform {
     if (reducedMotion || move == NavMove.Replace || move == NavMove.None || move == NavMove.Modal) {
-        return fadeIn(tween(REDUCED_MS)) togetherWith fadeOut(tween(REDUCED_MS))
+        return reducedCrossfade()
     }
     return when (move) {
-        NavMove.Tab ->
-            (fadeIn(tween(TAB_IN_MS, delayMillis = TAB_OUT_MS, easing = LinearOutSlowInEasing)) +
-                scaleIn(tween(TAB_IN_MS, delayMillis = TAB_OUT_MS, easing = LinearOutSlowInEasing), initialScale = 0.985f))
-                .togetherWith(fadeOut(tween(TAB_OUT_MS, easing = FastOutLinearInEasing)))
+        NavMove.Tab -> {
+            val enter =
+                motionSpec<Float>(ThesisMotion.TabIn, delayMillis = ThesisMotion.TabOut, easing = ThesisMotion.EaseEnter)
+            (fadeIn(enter) + scaleIn(enter, initialScale = ThesisMotion.TabScaleFrom))
+                .togetherWith(fadeOut(motionSpec(ThesisMotion.TabOut, easing = ThesisMotion.EaseExit)))
+        }
         NavMove.Push -> sharedAxisX(forward = true, reducedMotion = false, shiftPx = shiftPx)
         else -> sharedAxisX(forward = false, reducedMotion = false, shiftPx = shiftPx)
     }
 }
 
-/** The 4.5 shift of shared-axis X (`ThesisMotion.PushOffset` after F2). */
-internal val SHARED_AXIS_SHIFT = 24.dp
+/** Reduced motion (4.8): a 150 ms crossfade instead of any slide, scale or rise. */
+private fun reducedCrossfade(): ContentTransform =
+    fadeIn(motionSpec(ThesisMotion.Quick, easing = ThesisMotion.EaseStandard)) togetherWith
+        fadeOut(motionSpec(ThesisMotion.Quick, easing = ThesisMotion.EaseStandard))
+
+/** The 4.5 shift of shared-axis X. */
+internal val SHARED_AXIS_SHIFT: Dp = ThesisMotion.PushOffset
 
 /**
  * Shared-axis X (4.5): forward, the new screen comes in from +[shiftPx] with a fade (300 ms) while the old one
@@ -440,30 +483,44 @@ internal val SHARED_AXIS_SHIFT = 24.dp
  * Used by pushes and pops in the shell and by Auth ↔ Password reset in `ThesisApp`.
  */
 internal fun sharedAxisX(forward: Boolean, reducedMotion: Boolean, shiftPx: Int): ContentTransform {
-    if (reducedMotion) return fadeIn(tween(REDUCED_MS)) togetherWith fadeOut(tween(REDUCED_MS))
+    if (reducedMotion) return reducedCrossfade()
     val direction = if (forward) 1 else -1
-    return (slideInHorizontally(tween(PUSH_IN_MS, easing = LinearOutSlowInEasing)) { direction * shiftPx } +
-        fadeIn(tween(PUSH_IN_MS, easing = LinearOutSlowInEasing)))
+    return (slideInHorizontally(motionSpec(ThesisMotion.Screen, easing = ThesisMotion.EaseEnter)) { direction * shiftPx } +
+        fadeIn(motionSpec(ThesisMotion.Screen, easing = ThesisMotion.EaseEnter)))
         .togetherWith(
-            slideOutHorizontally(tween(PUSH_OUT_MS, easing = FastOutLinearInEasing)) { -direction * shiftPx } +
-                fadeOut(tween(PUSH_OUT_MS, easing = FastOutLinearInEasing))
+            slideOutHorizontally(motionSpec(ThesisMotion.PushOut, easing = ThesisMotion.EaseExit)) { -direction * shiftPx } +
+                fadeOut(motionSpec(ThesisMotion.PushOut, easing = ThesisMotion.EaseExit))
         )
 }
 
-/** Modal rise: 32 dp + fade, 300 ms in, 240 ms out. No size animation (the layer is always full size). */
+/** Modal rise (4.5): `ModalOffset` + fade, 300 ms in, 240 ms out. No size animation (the layer is always full size). */
 private fun AnimatedContentTransitionScope<NavEntry?>.modalTransition(
     reducedMotion: Boolean,
     risePx: Int
 ): ContentTransform {
-    if (reducedMotion) {
-        return (fadeIn(tween(REDUCED_MS)) togetherWith fadeOut(tween(REDUCED_MS))) using SizeTransform(clip = false)
-    }
-    return (slideInVertically(tween(300, easing = LinearOutSlowInEasing)) { risePx } +
-        fadeIn(tween(300, easing = LinearOutSlowInEasing)))
+    if (reducedMotion) return reducedCrossfade() using SizeTransform(clip = false)
+    return (slideInVertically(motionSpec(ThesisMotion.Screen, easing = ThesisMotion.EaseEnter)) { risePx } +
+        fadeIn(motionSpec(ThesisMotion.Screen, easing = ThesisMotion.EaseEnter)))
         .togetherWith(
-            slideOutVertically(tween(240, easing = FastOutLinearInEasing)) { risePx } +
-                fadeOut(tween(240, easing = FastOutLinearInEasing))
+            slideOutVertically(motionSpec(ThesisMotion.ScreenOut, easing = ThesisMotion.EaseExit)) { risePx } +
+                fadeOut(motionSpec(ThesisMotion.ScreenOut, easing = ThesisMotion.EaseExit))
         ) using SizeTransform(clip = false)
+}
+
+/** A 4.2 timed spec (never snapped: the reduced-motion paths above pick their own crossfade). */
+private fun <T> motionSpec(durationMillis: Int, delayMillis: Int = 0, easing: Easing): FiniteAnimationSpec<T> =
+    ThesisMotion.timed(reduced = false, durationMillis = durationMillis, delayMillis = delayMillis, easing = easing)
+
+/** Two-letter initials for the You avatar from the account email ("ana.pop@x.com" → "AP"); "Y" with none. */
+internal fun initialsOf(email: String?): String {
+    val local = email?.substringBefore('@')?.trim().orEmpty()
+    val parts = local.split('.', '_', '-', '+').filter { it.isNotBlank() }
+    val letters = when {
+        parts.size >= 2 -> "${parts[0].first()}${parts[1].first()}"
+        parts.size == 1 -> parts[0].take(1)
+        else -> "Y"
+    }
+    return letters.uppercase()
 }
 
 /** Shared by every destination's content; see [ShellContentScope.Content] in ShellDestinations.kt. */

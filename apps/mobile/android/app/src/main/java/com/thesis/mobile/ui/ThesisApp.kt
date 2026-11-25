@@ -4,14 +4,12 @@ import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.provider.Settings
+import android.text.format.DateFormat
 import androidx.activity.OnBackPressedDispatcher
 import androidx.activity.OnBackPressedDispatcherOwner
-import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.Crossfade
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -36,6 +34,13 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.thesis.mobile.BuildConfig
 import com.thesis.mobile.LaunchTarget
+import com.thesis.mobile.ui.components.ProvidePageBackground
+import com.thesis.mobile.ui.components.pageBackground
+import com.thesis.mobile.ui.components.showThesisSnackbar
+import com.thesis.mobile.ui.format.Fmt
+import com.thesis.mobile.ui.format.LocalFmt
+import com.thesis.mobile.ui.motion.ThesisMotion
+import com.thesis.mobile.ui.platform.ThesisBackHandler
 import com.thesis.mobile.ui.screens.AuthScreen
 import com.thesis.mobile.ui.screens.DeleteAccountSection
 import com.thesis.mobile.ui.screens.MacroStressDashboardScreen
@@ -49,8 +54,10 @@ import com.thesis.mobile.ui.shell.ShellPlatform
 import com.thesis.mobile.ui.shell.ThesisShell
 import com.thesis.mobile.ui.shell.sharedAxisX
 import com.thesis.mobile.ui.theme.LocalReducedMotion
-import com.thesis.mobile.ui.theme.ThesisColors
+import com.thesis.mobile.ui.theme.LocalThesisPalette
 import com.thesis.mobile.ui.theme.ThesisTheme
+import java.time.Clock
+import java.time.ZoneId
 
 /**
  * Which top-level surface is showing: the app shell needs a session, Onboarding and sign-in do not. Sign-in
@@ -90,37 +97,52 @@ fun ThesisApp(
     LaunchedEffect(uiState.message, uiState.tokens) {
         val message = uiState.message
         if (!message.isNullOrBlank() && uiState.tokens != null) {
-            snackbarHostState.showSnackbar(message)
+            snackbarHostState.showThesisSnackbar(message)
             mainViewModel.clearMessage()
         }
     }
 
     val appearance = uiState.appearance
+    // Device clock, zone and 12/24 h setting for every date and time the app shows (2.4).
+    val fmt = remember(context) {
+        Fmt(Clock.systemDefaultZone(), ZoneId.systemDefault(), DateFormat.is24HourFormat(context))
+    }
+    // The theme ORs the in-app toggle with the system animator scale (4.8).
     ThesisTheme(
         mode = appearance.themeMode,
         upDown = appearance.upDown,
-        reduceMotion = appearance.reduceMotion || remember(context) { systemAnimationsOff(context) }
+        reduceMotion = appearance.reduceMotion
     ) {
         val surface = when {
             uiState.showWelcome -> AppSurface.Onboarding
             uiState.tokens == null -> AppSurface.SignIn
             else -> AppSurface.Shell
         }
-        Box(Modifier.fillMaxSize().background(ThesisColors.Background)) {
-            // Onboarding → Auth → App: 300 ms crossfade, no slide (4.5).
-            Crossfade(targetState = surface, animationSpec = tween(300), label = "surface") { current ->
-                when (current) {
-                    AppSurface.Onboarding -> PreLoginInsets {
-                        OnboardingScreen(onComplete = mainViewModel::completeWelcome)
+        // One window-sized page background for every surface (2.7); the shell reuses it.
+        CompositionLocalProvider(LocalFmt provides fmt) {
+            ProvidePageBackground {
+                Box(Modifier.fillMaxSize().pageBackground(LocalThesisPalette.current)) {
+                    // Onboarding → Auth → App: 300 ms crossfade, no slide (4.5).
+                    Crossfade(
+                        targetState = surface,
+                        animationSpec = ThesisMotion.timed(reduced = false, durationMillis = ThesisMotion.Screen),
+                        label = "surface"
+                    ) { current ->
+                        when (current) {
+                            AppSurface.Onboarding -> PreLoginInsets {
+                                OnboardingScreen(onComplete = mainViewModel::completeWelcome)
+                            }
+                            AppSurface.SignIn -> SignInFlow(
+                                showPasswordReset = showPasswordReset,
+                                onShowPasswordReset = { showPasswordReset = it },
+                                uiState = uiState,
+                                mainViewModel = mainViewModel
+                            )
+                            // The shell applies its own insets (each entry's Scaffold padding, consumeWindowInsets,
+                            // imePadding) and its own back handling (predictive back, paywall).
+                            AppSurface.Shell -> LoggedInApp(uiState, mainViewModel, snackbarHostState, context)
+                        }
                     }
-                    AppSurface.SignIn -> SignInFlow(
-                        showPasswordReset = showPasswordReset,
-                        onShowPasswordReset = { showPasswordReset = it },
-                        uiState = uiState,
-                        mainViewModel = mainViewModel
-                    )
-                    // The shell applies its own insets (each entry's Scaffold padding, consumeWindowInsets, imePadding).
-                    AppSurface.Shell -> LoggedInApp(uiState, mainViewModel, snackbarHostState, context)
                 }
             }
         }
@@ -146,7 +168,7 @@ private fun SignInFlow(
         if (reset) {
             PreLoginInsets {
                 // Only the visible Password reset handles back (not one that is leaving).
-                BackHandler(enabled = showPasswordReset) { onShowPasswordReset(false) }
+                ThesisBackHandler(enabled = showPasswordReset) { onShowPasswordReset(false) }
                 PasswordResetScreen(onDone = { onShowPasswordReset(false) }, mainViewModel = mainViewModel)
             }
         } else {
@@ -190,13 +212,6 @@ private fun LoggedInApp(
     context: Context
 ) {
     val navigator = mainViewModel.navigator
-    val paywallOpen = !uiState.paywallFeature.isNullOrBlank()
-
-    // Enabled only while back has work, so the system back-to-home animation still plays at Today's root.
-    BackHandler(enabled = paywallOpen || navigator.canGoBack) {
-        if (paywallOpen) mainViewModel.dismissPaywall() else mainViewModel.onBack()
-    }
-
     val activity = context as? Activity
     val platform = ShellPlatform(
         startPurchase = activity?.let { host -> { preferredType -> mainViewModel.startPurchase(host, preferredType) } },
@@ -277,7 +292,3 @@ private fun CoveredBackScope(covered: Boolean, content: @Composable () -> Unit) 
     }
 }
 
-/** System "Remove animations" (animator duration scale 0): reduce motion even with the in-app toggle off (4.8). */
-private fun systemAnimationsOff(context: Context): Boolean = runCatching {
-    Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f
-}.getOrDefault(false)

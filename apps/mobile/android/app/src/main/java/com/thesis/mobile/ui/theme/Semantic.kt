@@ -3,6 +3,7 @@ package com.thesis.mobile.ui.theme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.ui.graphics.Color
+import com.thesis.mobile.model.MarketTapeFamily
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -101,6 +102,13 @@ fun marketTone(family: MarketFamily, change: Double): Tone = when {
     change < 0.0 -> Tone.Unfavourable
     else -> Tone.Neutral
 }
+
+/**
+ * [marketTone] for a parsed `market_tape` move (`MarketTapeMoveView.family`, F3's parser): the family the server
+ * sent decides, never the instrument string. Direction-neutral families (volatility, rates, currency, credit and
+ * unknown) are always [Tone.Neutral].
+ */
+fun marketTone(family: MarketTapeFamily, change: Double): Tone = marketTone(MarketFamily.fromKey(family.wire), change)
 
 /** [marketTone] keyed on a `market_tape` family key ("core_index") or, failing that, the instrument label. */
 fun marketTone(instrument: String, change: Double): Tone {

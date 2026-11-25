@@ -17,9 +17,10 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
+import com.thesis.mobile.ui.motion.ThesisMotion
+import com.thesis.mobile.ui.platform.rememberSystemReducedMotion
 
 /** Light or dark. [System] follows the device setting. */
 enum class ThemeMode { System, Light, Dark }
@@ -73,7 +74,8 @@ fun schemeOf(p: ThesisPalette): ColorScheme {
 }
 
 /** Press tint alpha on `ink` (section 4.2 `PressTint`): 6% on paper, 8% on graphite. */
-internal fun pressTintAlpha(p: ThesisPalette): Float = if (p.isLight) 0.06f else 0.08f
+internal fun pressTintAlpha(p: ThesisPalette): Float =
+    if (p.isLight) ThesisMotion.PressTintAlphaLight else ThesisMotion.PressTintAlphaDark
 
 /**
  * The residual M3 ripple (Switch thumb, text fields, sheets) reads as the kit's press tint: `ink` at the
@@ -114,19 +116,18 @@ fun ThesisMaterialTheme(palette: ThesisPalette, content: @Composable () -> Unit)
  * The app theme (docs/app-redesign/DESIGN-DIRECTION.md, section 2).
  *
  * Provides [LocalThesisPalette] (light paper or dark graphite, with [upDown] resolved), the full Material3 bridge,
- * [LocalReducedMotion] and the system-bar appearance. The default [mode] is [ThemeMode.Dark] until PR-3 passes
- * the rubric in both themes (spec Q2). [reduceMotion] is the combined value (system animator scale 0 or the
- * in-app toggle), computed by the caller.
+ * [LocalReducedMotion] and the system-bar icon appearance. The default [mode] is [ThemeMode.Dark] until PR-3
+ * passes the rubric in both themes (spec Q2). [reduceMotion] is the in-app toggle; the theme ORs it with the
+ * system animator scale (0 = "Remove animations"), so [LocalReducedMotion] is true for either (section 4.8).
  *
- * [edgeToEdge]: when the activity draws behind the system bars, the bars are left transparent and only their
- * icon appearance is set; otherwise both bars are painted `bg`.
+ * The activity draws edge to edge (`enableEdgeToEdge()` in MainActivity, 5.1): the bars stay transparent and
+ * only their icon appearance follows the palette. Over a HeroBand at rest the shell overrides it (2.7, PR-2).
  */
 @Composable
 fun ThesisTheme(
     mode: ThemeMode = ThemeMode.Dark,
     upDown: UpDownScheme = UpDownScheme.Classic,
     reduceMotion: Boolean = false,
-    edgeToEdge: Boolean = false,
     content: @Composable () -> Unit
 ) {
     val dark = when (mode) {
@@ -140,37 +141,14 @@ fun ThesisTheme(
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as Activity).window
-            val barColor = if (edgeToEdge) Color.Transparent else palette.bg
-            window.statusBarColor = barColor.toArgb()
-            window.navigationBarColor = barColor.toArgb()
             val controller = WindowCompat.getInsetsController(window, view)
             controller.isAppearanceLightStatusBars = palette.isLight
             controller.isAppearanceLightNavigationBars = palette.isLight
         }
     }
 
-    CompositionLocalProvider(LocalReducedMotion provides reduceMotion) {
+    val reduced = reduceMotion || rememberSystemReducedMotion()
+    CompositionLocalProvider(LocalReducedMotion provides reduced) {
         ThesisMaterialTheme(palette = palette, content = content)
     }
-}
-
-/**
- * The pre-v2 signature, kept so existing callers (design-preview's RenderScreen.kt) compile.
- * Same selection as before: the light theme is used only when `darkTheme = false` and `dynamicColor = true`.
- * `darkTheme` has no default so that `ThesisTheme { }` resolves to the v2 overload.
- */
-@Deprecated(
-    "Use ThesisTheme(mode, upDown, reduceMotion)",
-    ReplaceWith("ThesisTheme(mode = if (darkTheme) ThemeMode.Dark else ThemeMode.Light, content = content)")
-)
-@Composable
-fun ThesisTheme(
-    darkTheme: Boolean,
-    dynamicColor: Boolean = false,
-    content: @Composable () -> Unit
-) {
-    ThesisTheme(
-        mode = if (darkTheme || !dynamicColor) ThemeMode.Dark else ThemeMode.Light,
-        content = content
-    )
 }

@@ -309,9 +309,13 @@ private fun ShellContentScope.ReportEntry(entry: NavEntry, reportId: String, cla
         padding = padding,
         classic = classic,
         // The error card's button opens this stored report again; it never starts a new build (principle 11).
-        onRetry = { actions.onEnsureReport(reportId) }
+        onRetry = { actions.onEnsureReport(reportId) },
+        retryLabel = OPEN_REPORT_AGAIN
     )
 }
+
+/** The failed report entry's button says what it does: open the stored report again (principle 11). */
+private const val OPEN_REPORT_AGAIN = "Open report again"
 
 private const val NOT_ASKED = "\u0000not-asked"
 private const val NONE_HELD = "\u0000none"
@@ -323,7 +327,8 @@ private fun ShellContentScope.DeepDiveScreenFor(
     isLoading: Boolean,
     padding: PaddingValues,
     classic: Boolean,
-    onRetry: () -> Unit
+    onRetry: () -> Unit,
+    retryLabel: String? = null
 ) {
     DeepDiveScreen(
         report = report,
@@ -331,6 +336,7 @@ private fun ShellContentScope.DeepDiveScreenFor(
         errorMessage = state.deepDiveError,
         watchlist = state.watchlist,
         onRetry = onRetry,
+        retryLabel = retryLabel,
         userTier = state.userProfile?.tier,
         reportNoteDraft = state.reportNoteDraft,
         noteUpdatedAt = state.reportNote?.updatedAt,

@@ -41,6 +41,8 @@ import com.thesis.mobile.ui.theme.ThesisTypography
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
 
 @Composable
 fun InboxScreen(
@@ -283,11 +285,17 @@ private fun InboxRowCard(
 
 @Composable
 private fun FilterRow(options: List<String>, selected: String, onSelect: (String) -> Unit) {
-    Row(horizontalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)) {
+    // Scrolls sideways instead of breaking a label letter by letter at large font scales or narrow widths (A4).
+    Row(
+        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)
+    ) {
         options.forEach { option ->
             val shape = RoundedCornerShape(ThesisDimens.CardCornerRadius)
             Text(
                 text = option,
+                maxLines = 1,
+                softWrap = false,
                 style = ThesisTypography.labelLarge.copy(
                     fontWeight = if (selected == option) FontWeight.Medium else FontWeight.Normal
                 ),

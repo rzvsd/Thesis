@@ -23,10 +23,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import com.thesis.mobile.model.ReportHistoryItem
-import com.thesis.mobile.ui.components.NoDeepDivesEmptyState
+import com.thesis.mobile.ui.components.EmptyState
 import com.thesis.mobile.ui.components.ThesisButton
+import com.thesis.mobile.ui.copy.StateCopy
+import com.thesis.mobile.ui.icons.ThesisIcons
 import com.thesis.mobile.ui.theme.ThesisColors
 import com.thesis.mobile.ui.theme.ThesisDimens
+import com.thesis.mobile.ui.theme.ThesisSpace
 import com.thesis.mobile.ui.theme.ThesisTypography
 
 /**
@@ -56,7 +59,11 @@ fun ResearchScreen(
             .padding(ThesisDimens.ScreenPaddingHorizontal),
         contentAlignment = Alignment.Center
     ) {
-        NoDeepDivesEmptyState {
+        Column(verticalArrangement = Arrangement.spacedBy(ThesisSpace.m)) {
+            // The empty state only while there is nothing to reopen (principle 11: the copy matches the screen).
+            if (recentHistory.isEmpty()) {
+                EmptyState(sentence = StateCopy.NO_REPORTS, how = StateCopy.noReportsHow, icon = ThesisIcons.Search)
+            }
             Column(modifier = Modifier.fillMaxWidth()) {
                 Text(
                     text = "Start new research or reopen something you already explored.",
@@ -154,12 +161,16 @@ private fun RecentResearchCard(
             Text(
                 text = title,
                 style = ThesisTypography.labelLarge.copy(fontWeight = FontWeight.Medium),
-                color = ThesisColors.TextPrimary
+                color = ThesisColors.TextPrimary,
+                modifier = Modifier.weight(1f, fill = false).padding(end = ThesisDimens.SpacingSm)
             )
+            // The date never breaks mid-number; the title gives way instead (A4).
             Text(
                 text = dateLabel,
                 style = ThesisTypography.labelSmall,
-                color = ThesisColors.TextMuted
+                color = ThesisColors.TextMuted,
+                maxLines = 1,
+                softWrap = false
             )
         }
         Text(

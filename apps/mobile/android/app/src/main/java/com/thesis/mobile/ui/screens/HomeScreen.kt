@@ -55,10 +55,8 @@ import com.thesis.mobile.model.PulseReportView
 import com.thesis.mobile.model.SectionView
 import com.thesis.mobile.model.SentimentSnapshotView
 import com.thesis.mobile.model.ThesisMonitorSnapshotView
-import com.thesis.mobile.ui.components.NoNamesEmptyState
-import com.thesis.mobile.ui.components.NoPulseEmptyState
-import com.thesis.mobile.ui.components.OfflineEmptyState
-import com.thesis.mobile.ui.components.PulseUnavailableState
+import com.thesis.mobile.ui.components.EmptyState
+import com.thesis.mobile.ui.components.ErrorState
 import com.thesis.mobile.ui.animations.AnimatedCounter
 import com.thesis.mobile.ui.animations.RevealAnimation
 import com.thesis.mobile.ui.animations.StaggeredEntrance
@@ -75,6 +73,10 @@ import java.time.LocalTime
 import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
+import com.thesis.mobile.ui.icons.ThesisIcons
+import com.thesis.mobile.ui.copy.StateCopy
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 
 @OptIn(ExperimentalMaterialApi::class)
 @Composable
@@ -225,22 +227,30 @@ fun HomeScreen(
                 pulse == null && !pulseError.isNullOrBlank() -> {
                     item {
                         if (pulseError.contains("No internet connection", ignoreCase = true)) {
-                            OfflineEmptyState(onRetry = onRetryPulse)
+                            ErrorState(
+                                title = StateCopy.OFFLINE_TITLE,
+                                cause = StateCopy.OFFLINE_CAUSE,
+                                onRetry = onRetryPulse
+                            )
                         } else {
-                            PulseUnavailableState(message = pulseError, onRetry = onRetryPulse)
+                            ErrorState(title = StateCopy.pulseUnavailable, cause = pulseError, onRetry = onRetryPulse)
                         }
                     }
                 }
 
                 pulse == null && watchlist.isEmpty() -> {
-                    item { NoNamesEmptyState(onAddName = onManageNames) }
+                    item { NoNamesState(onAddName = onManageNames) }
                 }
 
                 pulse == null -> {
                     val fallbackTicker = lastViewedTicker ?: watchlist.firstOrNull()
                     item {
-                        NoPulseEmptyState(
-                            onRunDeepDive = {
+                        EmptyState(
+                            sentence = StateCopy.NO_PULSE,
+                            how = StateCopy.NO_PULSE_HOW,
+                            icon = ThesisIcons.Pulse,
+                            actionLabel = StateCopy.NO_PULSE_ACTION,
+                            onAction = {
                                 if (!fallbackTicker.isNullOrBlank()) {
                                     onRunDeepDive(fallbackTicker)
                                 }
@@ -623,7 +633,7 @@ private fun YourNamesSection(
         }
 
         if (watchlist.isEmpty()) {
-            NoNamesEmptyState(onAddName = onManageNames)
+            NoNamesState(onAddName = onManageNames)
             return
         }
 
@@ -775,6 +785,7 @@ private fun FullPulseSection(sections: List<SectionView>) {
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun BottomLinksSection(
     showFullPulse: Boolean,
@@ -782,16 +793,20 @@ private fun BottomLinksSection(
     onOpenPulseBrief: () -> Unit,
     onOpenHistory: () -> Unit
 ) {
-    Row(
+    // Wraps whole links onto a second line instead of breaking a word letter by letter (the tracked label
+    // style is wider since the PR-1 type remap; rubric A4).
+    FlowRow(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.Center,
-        verticalAlignment = Alignment.CenterVertically
+        horizontalArrangement = Arrangement.Center
     ) {
         Text(
             text = "MORNING BRIEF",
             style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Medium),
             color = ThesisColors.Primary,
+            maxLines = 1,
+            softWrap = false,
             modifier = Modifier
+                .align(Alignment.CenterVertically)
                 .clickable { onOpenPulseBrief() }
                 .padding(ThesisDimens.SpacingMd)
                 .semantics {
@@ -799,18 +814,22 @@ private fun BottomLinksSection(
                     role = Role.Button
                 }
         )
-        Spacer(modifier = Modifier.size(ThesisDimens.SpacingLg))
+        Spacer(modifier = Modifier.size(ThesisDimens.SpacingSm))
         Text(
             text = "/",
             style = ThesisTypography.labelSmall,
-            color = ThesisColors.Border
+            color = ThesisColors.Border,
+            modifier = Modifier.align(Alignment.CenterVertically)
         )
-        Spacer(modifier = Modifier.size(ThesisDimens.SpacingLg))
+        Spacer(modifier = Modifier.size(ThesisDimens.SpacingSm))
         Text(
             text = if (showFullPulse) "HIDE SECTIONS" else "SHOW SECTIONS",
             style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Medium),
             color = ThesisColors.TextMuted,
+            maxLines = 1,
+            softWrap = false,
             modifier = Modifier
+                .align(Alignment.CenterVertically)
                 .clickable { onToggleFullPulse() }
                 .padding(ThesisDimens.SpacingMd)
                 .semantics {
@@ -818,18 +837,22 @@ private fun BottomLinksSection(
                     role = Role.Button
                 }
         )
-        Spacer(modifier = Modifier.size(ThesisDimens.SpacingLg))
+        Spacer(modifier = Modifier.size(ThesisDimens.SpacingSm))
         Text(
             text = "/",
             style = ThesisTypography.labelSmall,
-            color = ThesisColors.Border
+            color = ThesisColors.Border,
+            modifier = Modifier.align(Alignment.CenterVertically)
         )
-        Spacer(modifier = Modifier.size(ThesisDimens.SpacingLg))
+        Spacer(modifier = Modifier.size(ThesisDimens.SpacingSm))
         Text(
             text = "HISTORY",
             style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Medium),
             color = ThesisColors.Primary,
+            maxLines = 1,
+            softWrap = false,
             modifier = Modifier
+                .align(Alignment.CenterVertically)
                 .clickable { onOpenHistory() }
                 .padding(ThesisDimens.SpacingMd)
                 .semantics {
@@ -1120,3 +1143,16 @@ private fun summarizeBody(body: String, limit: Int = 140): String {
 private fun formatTimestamp(raw: String): String = runCatching {
     Instant.parse(raw).atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("MMM d, HH:mm"))
 }.getOrElse { raw }
+
+/** No followed names yet (the kit's EmptyState, 3 #25), with the one way forward. */
+@Composable
+private fun NoNamesState(onAddName: () -> Unit) {
+    EmptyState(
+        sentence = StateCopy.NO_NAMES,
+        how = StateCopy.noNamesHow,
+        icon = ThesisIcons.Names,
+        actionLabel = StateCopy.NO_NAMES_ACTION,
+        onAction = onAddName,
+        primaryAction = true
+    )
+}

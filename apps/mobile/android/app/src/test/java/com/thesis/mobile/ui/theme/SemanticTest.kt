@@ -1,5 +1,6 @@
 package com.thesis.mobile.ui.theme
 
+import com.thesis.mobile.model.MarketTapeFamily
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -74,5 +75,15 @@ class SemanticTest {
         assertEquals(p.series[0], alertCategoryColor("PULSE", p))
         assertEquals(p.muted, alertCategoryColor("system", p))
         assertEquals(p.muted, alertCategoryColor(null, p))
+    }
+
+    @Test
+    fun parsedTapeFamiliesDecideTheTone() {
+        MarketTapeFamily.entries.forEach { family ->
+            val expectedUp = if (family.directionNeutral) Tone.Neutral else Tone.Favourable
+            val expectedDown = if (family.directionNeutral) Tone.Neutral else Tone.Unfavourable
+            assertEquals("$family up", expectedUp, marketTone(family, 1.2))
+            assertEquals("$family down", expectedDown, marketTone(family, -1.2))
+        }
     }
 }

@@ -186,7 +186,7 @@ fun StatusBadge(text: String, color: Color, modifier: Modifier = Modifier) {
         horizontalArrangement = Arrangement.spacedBy(Kit.chipGap),
     ) {
         StatusSquare(color)
-        Text(text, style = ThesisType.eyebrow.copy(letterSpacing = Kit.badgeTracking), color = p.ink2, maxLines = 1)
+        Text(text, style = ThesisType.badge, color = p.ink2, maxLines = 1)
     }
 }
 

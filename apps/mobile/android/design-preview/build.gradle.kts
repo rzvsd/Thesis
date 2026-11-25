@@ -50,11 +50,10 @@ val stageAppSources by tasks.registering(Sync::class) {
     into(layout.buildDirectory.dir("app-src"))
 }
 
-// The app's own JVM unit tests (app/src/test) run here too, minus the one that needs MainViewModel.
+// The app's own JVM unit tests (app/src/test) run here too: all of them since PR-1 moved
+// defaultNotificationPreferences() out of MainViewModel (ui/shell/UiState.kt), so Phase4CopyTest stages too.
 val stageAppTests by tasks.registering(Sync::class) {
-    from(file("../app/src/test/java")) {
-        exclude("com/thesis/mobile/ui/copy/Phase4CopyTest.kt") // defaultNotificationPreferences() lives in MainViewModel
-    }
+    from(file("../app/src/test/java"))
     into(layout.buildDirectory.dir("app-test-src"))
 }
 
@@ -150,6 +149,9 @@ tasks.test {
     if (project.hasProperty("rendersOnly")) filter { includeTestsMatching("com.thesis.mobile.preview.*") }
     if (project.hasProperty("harnessOnly")) filter { includeTestsMatching("com.thesis.mobile.preview.harness.*") }
     maxHeapSize = "2g"
+    // Skia's native memory grows with many tall ImageComposeScenes in one JVM (a whole kit sheet class was
+    // killed with exit 137): render classes run one per forked JVM. App unit tests alone share one JVM.
+    if (!project.hasProperty("appTestsOnly")) forkEvery = 1
     testLogging { events("passed", "failed", "skipped"); showStandardStreams = true }
     outputs.upToDateWhen { false }
 }

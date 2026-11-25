@@ -61,6 +61,7 @@ ICONS = [
     Icon("content_copy", "Copy", "Copy"),
     Icon("bookmark", "Follow", "Follow (outline) / following (filled)", filled=True),
     Icon("more_vert", "Overflow", "overflow menu"),
+    Icon("description", "Document", "a filing or source document (leading glyph of evidence rows)"),
     Icon("open_in_new", "OpenExternal", "open an external link", mirror=True),
     Icon("arrow_back", "Back", "back", mirror=True),
     Icon("arrow_forward", "Forward", "forward / continue", mirror=True),

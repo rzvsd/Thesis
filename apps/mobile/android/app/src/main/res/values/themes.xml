@@ -5,8 +5,6 @@
         ink here too; WP-INT points values/themes.xml at @color/thesis_bg_paper when the default becomes Auto.
     -->
     <style name="Theme.ThesisMobile" parent="Theme.Material3.DayNight.NoActionBar">
-        <item name="android:statusBarColor">@color/thesis_background</item>
-        <item name="android:navigationBarColor">@color/thesis_background</item>
         <item name="android:windowBackground">@color/thesis_background</item>
         <item name="android:windowLightStatusBar">false</item>
     </style>
