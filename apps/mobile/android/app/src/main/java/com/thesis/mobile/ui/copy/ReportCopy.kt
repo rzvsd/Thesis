@@ -22,6 +22,7 @@ object ReportCopy {
     const val DOCK_COMPARE = "Compare"
     const val DOCK_STRESS = "Stress"
     const val DOCK_CONVICTION = "Conviction"
+    /** The Conviction segment's badge for free accounts, once the kit dock can fit it (HANDOFF-C). */
     const val PRO_BADGE = "Pro"
 
     /** The page failed: the classic view shows with this banner. */

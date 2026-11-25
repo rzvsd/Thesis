@@ -355,7 +355,8 @@ private fun ReportWebHost(
             DockItem(
                 label = ReportCopy.DOCK_CONVICTION,
                 onClick = { if (requirePro(FEATURE_CONVICTION)) panel = ReportPanel.Conviction },
-                badge = if (tools.isPro) null else ReportCopy.PRO_BADGE,
+                // No "Pro" badge yet: the kit dock wraps a badge letter by letter in a 4-segment row (HANDOFF-C,
+                // WP-K). Free accounts get the paywall on tap.
             )
         )
     }

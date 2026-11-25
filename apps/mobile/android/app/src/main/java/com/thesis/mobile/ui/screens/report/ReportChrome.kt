@@ -80,7 +80,7 @@ fun ReportHostFrame(
     page: @Composable (Modifier) -> Unit,
 ) {
     val p = LocalThesisPalette.current
-    Column(modifier.fillMaxSize().padding(padding.exceptTop())) {
+    Column(modifier.fillMaxSize().background(p.bg).padding(padding.exceptTop())) {
         Column(Modifier.fillMaxWidth().background(p.surface)) {
             Spacer(Modifier.height(padding.calculateTopPadding()))
             ReportTopBar(
