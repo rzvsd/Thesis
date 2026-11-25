@@ -40,12 +40,13 @@ object NamesCopy {
     // Filters: each names its data source in NamesScreen.kt (boardFilterCounts).
     const val FILTER_ALL = "All"
     const val FILTER_CHANGED = "Changed"
-    const val FILTER_AT_RISK = "At risk"
+    /** Counts names whose thesis state is unfavourable; the server's only such state is "weakened" (monitor.ts). */
+    const val FILTER_AT_RISK = "Weakened"
     const val FILTER_EARNINGS = "Earnings soon"
     const val FILTER_NOTES = "With notes"
 
     // Sort options (5.10 item 6; the default is state severity).
-    const val SORT_STATE = "State, most at risk first"
+    const val SORT_STATE = "State, weakest first"
     const val SORT_SCORE = "Monitor score, lowest first"
     const val SORT_AGE = "Oldest report first"
     const val SORT_TICKER = "Ticker, A to Z"
@@ -62,15 +63,17 @@ object NamesCopy {
     const val EMPTY_BOARD_HOW = "Type its ticker above. Its latest Deep Dive, alerts and your notes collect here."
     const val ERROR_SUBJECT = "your names"
     const val EMPTY_CHANGED = "Nothing changed since your last visit"
-    const val EMPTY_AT_RISK = "None of your names is at risk"
+    const val EMPTY_AT_RISK = "No thesis among your names is weakened"
     const val EMPTY_EARNINGS = "No earnings dates in the next 14 days"
     const val EMPTY_NOTES_FILTER = "None of your names has a note yet"
     const val EMPTY_FILTER_HOW = "Pick All to see every name."
 
-    // Rows.
+    // Rows. One no-report phrase on every surface: row line 2, the compact caption, compare selection, Name's badge.
     const val NO_REPORT = "No Deep Dive yet"
-    const val NO_REPORT_FIGURE = "No report"
     const val REPORT = "Report"
+
+    /** Monitor state words the server may send in another spelling ("at_risk"). */
+    const val STATE_AT_RISK = "At risk"
 
     /** Line 2 of a row whose state changed since the last visit: "Intact → Weakened, Tue". */
     fun stateChange(from: String, to: String, whenText: String?): String =
@@ -79,17 +82,17 @@ object NamesCopy {
     /** Score caption since the last visit (#11): "+4 since Tue", "−9 since 12 Nov". */
     fun scoreSince(change: String, since: String): String = "$change since $since"
 
-    /** Report age under the score when there is no earlier reading: "Report · Tue", "Report · 30 Sep". */
-    fun reportOn(day: String): String = "$REPORT · $day"
+    /** Report age under the score when there is no earlier reading (#11 "10-K · 23 days ago"): "Report · 4 days ago". */
+    fun reportOn(age: String): String = "$REPORT · $age"
+
+    /** Name's score tile when the score did not move since the last visit (rows say "0 since Sat"): "Unchanged since Sat". */
+    fun unchangedSince(on: String): String = "Unchanged since $on"
 
     /** A day said briefly in rows: "today", then the weekday within the week, then the date. */
     const val TODAY = "today"
 
     /** A count badge: alerts created since the last Names visit. */
     fun newAlerts(n: Int): String = "$n new"
-
-    /** TalkBack for the count badge. */
-    fun newAlertsSpoken(n: Int): String = Fmt.count(n, "new alert", "new alerts")
 
     // Context sheet (5.10 item 7).
     const val OPEN_REPORT = "Open report"
@@ -151,15 +154,12 @@ object NamesCopy {
         if (following) "$ticker · In your names" else "$ticker · Not followed"
     fun follow(ticker: String): String = "Follow $ticker"
     fun unfollow(ticker: String): String = "Remove $ticker from Names"
-    const val FOLLOWING = "In your names"
-    const val NOT_FOLLOWING = "Not followed"
     const val COPY_FIGURES = "Copy figures as table"
     const val COPIED = "Copied as a table"
     fun couldNotLoad(ticker: String): String = KitCopy.couldNotLoad(ticker)
 
     /** State caption next to the badge: "Was Intact on Sat" or "No state change since 21 Nov" (days as in rows). */
     fun wasState(previous: String, on: String): String = if (on == TODAY) "Was $previous earlier today" else "Was $previous on $on"
-    fun unchangedSince(on: String): String = "Unchanged since $on"
     fun stateSteadySince(on: String): String = "No state change since $on"
 
     // KPI tiles.
@@ -168,21 +168,15 @@ object NamesCopy {
     const val KPI_ALERTS = "Alerts since your last visit"
     const val KPI_ALERTS_ALL = "Alerts on this name"
     const val KPI_EARNINGS = "Next earnings"
-    const val KPI_EVENTS = "Events since the report"
+    const val EARNINGS_UNDATED = "Not dated yet"
+    const val EARNINGS_UNDATED_WHY = "None in your alerts"
     const val SCALE_100 = "on a scale of 0 to 100"
     fun since(on: String): String = "since $on"
     fun vs(on: String): String = "vs $on"
-    const val SINCE_LAST_VISIT = "since your last visit"
     const val FROM_WAR_ROOM = "from the War Room"
     const val FROM_ALERT = "from an earnings alert"
-    /** What the count is (it clears only when a new report lands, ScoreCopy.EVENTS_DEFINITION): no review action. */
-    fun eventsOf(unreviewed: Int, material: Int): String =
-        "${Fmt.number(unreviewed.toLong())} of ${Fmt.number(material.toLong())} not yet in a report"
     const val SEE_ALERTS = "See alerts"
     const val LAST_VISIT = "Your last visit"
-    const val MATERIAL_EVENTS = "Material events since the report"
-    const val UNREVIEWED_EVENTS = "Not yet in a report"
-
 
     // Freshness words (server freshness_state).
     fun freshnessWord(state: String?): String = when (state?.trim()?.lowercase()) {
@@ -220,8 +214,6 @@ object NamesCopy {
     const val LABEL_SHARES_ABS = "Shares outstanding"
     fun labelFor(metric: String, period: String): String = "$metric, $period"
     fun netCashWas(prior: String, period: String): String = "vs $prior in $period"
-    const val FEWER_SHARES = "fewer shares"
-    const val MORE_SHARES = "more shares"
     const val TABLE_METRIC = "Metric"
 
     // Report card (5.11 item 5).
@@ -234,18 +226,27 @@ object NamesCopy {
     }
     fun noReportTitle(ticker: String): String = "No Deep Dive for $ticker yet"
     const val NO_REPORT_BODY = "A report reads the latest 10-K or 10-Q and is built once per filing. It takes a few minutes."
-    const val REPORT_LOADING = "Loading the latest report"
 
     // Your notes (5.11 item 6).
     const val NOTES_KICKER = "Your notes"
-    fun notesHeadline(notes: Int, reports: Int): String = when {
-        notes == 0 -> "No notes yet"
-        reports <= 1 -> Fmt.count(notes, "note", "notes")
-        else -> "${Fmt.count(notes, "note", "notes")} across ${Fmt.count(reports, "report", "reports")}"
+    /**
+     * The section's conclusion: which report carries the latest note ("Last written on the FY2026 report"), so a
+     * newest report without a note reads at a glance: by the report's filing period, else its date.
+     */
+    fun notesHeadline(written: Boolean, filing: String?, date: String?): String = when {
+        !written -> "Nothing written yet"
+        filing != null -> "Last written on the $filing report"
+        date != null -> "Last written on the report of $date"
+        else -> "Last written on an earlier report"
+    }
+    /** The deck: the count, then the spec's caption. */
+    fun notesDeck(notes: Int, reports: Int): String {
+        val count = if (notes == 0) null else if (reports <= 1) Fmt.count(notes, "note", "notes") else
+            "${Fmt.count(notes, "note", "notes")} across ${Fmt.count(reports, "report", "reports")}"
+        return listOfNotNull(count?.let { "$it." }, NOTES_CAPTION).joinToString(" ")
     }
     const val NOTES_CAPTION = "One note per filing; earlier notes stay here."
     const val NOTES_NEED_REPORT = "Notes belong to a report. Build or open one to start your note."
-    const val NOTE_SAVE_FAILED = "Not saved"
 
     // Earnings (5.11 item 7).
     fun earningsOn(date: String): String = "Earnings on $date"
@@ -255,7 +256,14 @@ object NamesCopy {
 
     // Conviction journal (5.11 item 8).
     const val JOURNAL_KICKER = "Conviction journal"
-    fun journalHeadline(n: Int): String = if (n == 0) "Nothing in the journal yet" else Fmt.count(n, "dated event", "dated events")
+    const val JOURNAL_EMPTY = "Nothing recorded yet"
+    /** The journal's conclusion when its entries carry the monitor state: "State held Intact since 31 Jul". */
+    fun journalHeld(state: String, since: String): String = "State held $state since $since"
+    /** Otherwise the latest entry leads, and the deck counts: "Latest of 3 dated events since 31 Jul." */
+    fun journalDeck(n: Int, since: String?): String =
+        if (since == null) "${Fmt.count(n, "dated event", "dated events")}." else
+            "Latest of ${Fmt.count(n, "dated event", "dated events")} since $since."
+    fun journalHeldDeck(n: Int, latest: String): String = "${Fmt.count(n, "dated event", "dated events")}, the latest $latest."
     const val JOURNAL_PRO_HEADLINE = "A dated record of this name"
     const val JOURNAL_PRO = "Pro keeps a dated journal of every report, alert and War Room for this name."
     const val SEE_PRO = "See Pro"
@@ -270,9 +278,14 @@ object NamesCopy {
 
     // Reports (5.11 item 9).
     const val REPORTS_KICKER = "Reports"
-    fun reportsHeadline(n: Int): String =
-        if (n == 0) "No reports opened yet" else "${Fmt.count(n, "report", "reports")} you have opened"
-    const val REPORTS_CAPTION = "Newest first."
+    /** The conclusion: when the latest was built and how many came before ("Latest built 2 Nov, 1 earlier"). */
+    fun reportsHeadline(n: Int, latest: String?): String = when {
+        n == 0 -> "None opened yet"
+        latest == null -> Fmt.count(n, "Deep Dive", "Deep Dives") + " opened"
+        n == 1 -> "One so far, built $latest"
+        else -> "Latest built $latest, ${Fmt.number((n - 1).toLong())} earlier"
+    }
+    const val REPORTS_CAPTION = "Reports you have opened, newest first."
     /** Like-for-like only (5.18): an annual report compares with an annual one, a quarter with a quarter. */
     const val PICK_LIKE = "Pick two reports of the same kind: two annual or two quarterly."
     fun reportsEmpty(ticker: String): String = "You have not opened a report for $ticker yet."

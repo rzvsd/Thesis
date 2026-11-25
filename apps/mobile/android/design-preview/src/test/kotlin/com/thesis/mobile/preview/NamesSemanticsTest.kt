@@ -52,6 +52,7 @@ class NamesSemanticsTest {
         seed: BoardSeed = BoardSeed(),
         undo: (suspend (String, String) -> Boolean)? = null,
         watchlist: List<String> = NamesFixtures.watchlist,
+        onCompare: ((List<String>) -> Unit)? = {},
     ) {
         rule.setContent {
             ThesisTheme(mode = ThemeMode.Light) {
@@ -70,6 +71,7 @@ class NamesSemanticsTest {
                             companyNames = NamesFixtures.companyNames,
                             now = NamesFixtures.now,
                             onOpenName = { ticker, _, _ -> opened += ticker },
+                            onCompare = onCompare,
                             onShowUndo = undo,
                         )
                     }
@@ -78,7 +80,12 @@ class NamesSemanticsTest {
         }
     }
 
-    private fun name(detail: NameDetailView?, seed: NameSeed = NameSeed(), onFollow: (Boolean) -> Unit = {}) {
+    private fun name(
+        detail: NameDetailView?,
+        seed: NameSeed = NameSeed(),
+        onFollow: (Boolean) -> Unit = {},
+        focusNote: Boolean = false,
+    ) {
         rule.setContent {
             ThesisTheme(mode = ThemeMode.Light) {
                 NamesFixtures.Clocked {
@@ -91,6 +98,7 @@ class NamesSemanticsTest {
                             lastVisitAtMs = NamesFixtures.lastVisitAtMs,
                             pager = NamePager(2, 8),
                             now = NamesFixtures.now,
+                            focusNote = focusNote,
                             onFollowChange = onFollow,
                             onOpenReport = { opened += it },
                             onBuildReport = { builds++ },
@@ -116,6 +124,44 @@ class NamesSemanticsTest {
         rule.onNodeWithText(NamesCopy.FILTER_ALL, substring = true).assertIsSelected()
         rule.onNodeWithText(NamesCopy.FILTER_CHANGED, substring = true).assertIsNotSelected().performClick()
         rule.onNodeWithText(NamesCopy.FILTER_CHANGED, substring = true).assertIsSelected()
+    }
+
+    @Test
+    fun filterAndSortSurviveASwitchToNotesAndBack() {
+        board()
+        rule.onNodeWithText(NamesCopy.FILTER_CHANGED, substring = true).performClick()
+        rule.onNodeWithText(NamesCopy.SEGMENT_NOTES).performClick()
+        rule.waitForIdle()
+        rule.onNodeWithText(NamesCopy.FILTER_CHANGED, substring = true).assertDoesNotExistCompat()
+        rule.onNodeWithText(NamesCopy.SEGMENT_BOARD).performClick()
+        rule.waitForIdle()
+        rule.onNodeWithText(NamesCopy.FILTER_CHANGED, substring = true).assertIsSelected()
+        rule.onNodeWithText(NamesCopy.FILTER_ALL, substring = true).assertIsNotSelected()
+    }
+
+    @Test
+    fun aFifthComparePickSaysWhyItIsRefused() {
+        board(seed = BoardSeed(selected = listOf("AAPL", "MSFT", "NVDA", "AMZN")))
+        rule.onNodeWithText(NamesCopy.COMPARE_MAX).assertDoesNotExistCompat()
+        rule.onNodeWithText("COST").performScrollTo().performClick()
+        rule.onNodeWithText(NamesCopy.COMPARE_MAX).assertExists().assertIsLiveRegion()
+        assertTrue(HapticKind.Reject in PreviewHaptics.log)
+        // Un-picking one clears the reason.
+        rule.onNodeWithText("AAPL").performScrollTo().performClick()
+        rule.onNodeWithText(NamesCopy.COMPARE_MAX).assertDoesNotExistCompat()
+    }
+
+    @Test
+    fun compareIsHiddenUntilItIsWired() {
+        board(onCompare = null)
+        rule.onNodeWithContentDescription(NamesCopy.COMPARE).assertDoesNotExistCompat()
+    }
+
+    @Test
+    fun writeANoteFocusesTheNewestNote() {
+        name(NamesFixtures.detail, focusNote = true)
+        rule.waitForIdle()
+        rule.onNode(isFocused()).assertExists()
     }
 
     @Test

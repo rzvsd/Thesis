@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import com.thesis.mobile.model.AlertLedgerItemView
 import com.thesis.mobile.model.ConvictionJournalEntryView
+import com.thesis.mobile.model.ConvictionThesisSnapshotView
 import com.thesis.mobile.model.DeepDiveChangeSummaryView
 import com.thesis.mobile.model.DeepDiveTopChangeView
 import com.thesis.mobile.model.FinancialHistoryRowView
@@ -206,8 +207,8 @@ object NamesFixtures {
     )
 
     val journal = listOf(
-        ConvictionJournalEntryView("j1", "AAPL", "report_generated", "report", "rep-aapl", "2026-11-02T13:00:00Z", "Deep Dive on the FY2026 10-K", "The thesis holds; services margin up 120 bps.", reportId = "rep-aapl"),
-        ConvictionJournalEntryView("j2", "AAPL", "alert", "alert", "a9", "2026-08-01T21:00:00Z", "Thesis state confirmed Intact", "Q3 services revenue at a record."),
+        ConvictionJournalEntryView("j1", "AAPL", "report_generated", "report", "rep-aapl", "2026-11-02T13:00:00Z", "Deep Dive on the FY2026 10-K", "The thesis holds; services margin up 120 bps.", reportId = "rep-aapl", thesisSnapshot = ConvictionThesisSnapshotView(monitorState = "intact")),
+        ConvictionJournalEntryView("j2", "AAPL", "alert", "alert", "a9", "2026-08-01T21:00:00Z", "Thesis state confirmed Intact", "Q3 services revenue at a record.", thesisSnapshot = ConvictionThesisSnapshotView(monitorState = "intact")),
         ConvictionJournalEntryView("j3", "AAPL", "war_room", "war_room", "wr-1", "2026-07-31T20:30:00Z", "Q3 earnings War Room", "Guidance kept; China down 6%."),
     )
 

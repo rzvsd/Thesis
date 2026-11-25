@@ -1,5 +1,6 @@
 package com.thesis.mobile.ui.screens
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -13,14 +14,17 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -31,6 +35,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.semantics.CustomAccessibilityAction
@@ -62,11 +68,13 @@ import com.thesis.mobile.ui.components.LeadingRowDividerInset
 import com.thesis.mobile.ui.components.LiveDot
 import com.thesis.mobile.ui.components.NoteBlock
 import com.thesis.mobile.ui.components.NoteEntry
+import com.thesis.mobile.ui.components.NoteMark
 import com.thesis.mobile.ui.components.NotesTrail
 import com.thesis.mobile.ui.components.PrimaryButton
 import com.thesis.mobile.ui.components.ReportChange
 import com.thesis.mobile.ui.components.RowPosition
 import com.thesis.mobile.ui.components.ScreenHeader
+import com.thesis.mobile.ui.components.SecondaryButton
 import com.thesis.mobile.ui.components.SectionHeader
 import com.thesis.mobile.ui.components.SheetActionRow
 import com.thesis.mobile.ui.components.SinceLastReport
@@ -381,14 +389,15 @@ const val TABLE_YEARS = 4
 private data class Quad(val a: String, val b: String, val c: String?, val d: List<Pair<String, String>>)
 
 /**
- * The annual rows as a CompareTable (5.11 item 4); the latest year is the subject column. The kit's CompareTable
- * takes at most [TABLE_YEARS] value columns, so the table shows the latest four years (HANDOFF-B: five).
+ * The annual rows as a CompareTable (5.11 item 4), newest year first: the latest year is the subject column and sits
+ * next to the labels, so it is in view at 360 dp without a sideways scroll. The kit's CompareTable takes at most
+ * [TABLE_YEARS] value columns, so the table shows the latest four years (HANDOFF-B: five).
  */
 fun filingsTable(f: FilingsFigures): CompareTableModel {
-    val years = f.annual.takeLast(TABLE_YEARS)
+    val years = f.annual.takeLast(TABLE_YEARS).reversed()
     fun row(label: String, value: (FinancialHistoryRowView) -> String) = CompareRow(label, years.map(value))
     return CompareTableModel(
-        columns = years.map { CompareColumn(it.periodLabel(), subject = it === years.last()) },
+        columns = years.mapIndexed { i, y -> CompareColumn(y.periodLabel(), subject = i == 0) },
         rows = listOf(
             row(NamesCopy.LABEL_REVENUE) { Fmt.money(it.revenue) },
             row(NamesCopy.LABEL_GROSS) { Fmt.pct(it.grossMargin?.let { m -> m * 100.0 }) },
@@ -397,10 +406,24 @@ fun filingsTable(f: FilingsFigures): CompareTableModel {
             row(NamesCopy.LABEL_FCF_ABS) { Fmt.money(it.freeCashFlow) },
             row(NamesCopy.LABEL_FCF) { r -> ratio(r.freeCashFlow, r.revenue)?.let { Fmt.pct(it * 100.0) } ?: Fmt.NOT_DISCLOSED },
             row(NamesCopy.LABEL_NET_CASH) { Fmt.money(it.netCash()) },
-            row(NamesCopy.LABEL_SHARES_ABS) { Fmt.number(it.sharesOutstanding, 0) },
+            row(NamesCopy.LABEL_SHARES_ABS) { compactCount(it.sharesOutstanding) },
         ),
         labelHeader = NamesCopy.TABLE_METRIC,
     )
+}
+
+/**
+ * A share count in the table's compact scale, beside compact money: "15.55B", "742.3M"; under a million in full.
+ * (Fmt has no plain compact count; HANDOFF-B asks WP-K for one.)
+ */
+internal fun compactCount(v: Double?): String {
+    if (v == null || v.isNaN()) return Fmt.NOT_DISCLOSED
+    val a = abs(v)
+    return when {
+        a >= 1e9 -> Fmt.number(v / 1e9, 2) + "B"
+        a >= 1e6 -> Fmt.number(v / 1e6, 1) + "M"
+        else -> Fmt.number(v, 0)
+    }
 }
 
 /** Direction words for a top change; the mark is ▲ for up and ▼ for down, nothing for mixed or watch. */
@@ -462,7 +485,10 @@ fun nameNeighbours(order: List<String>, ticker: String): Pair<String?, String?> 
  * wires it to `Destination.Name` without changing this signature (HANDOFF-B). The Report card never builds when a
  * report is stored: [onBuildReport] runs only from the no-report state. [now] is for renders and tests (the app
  * leaves it null; the screen reads the clock when the detail changes). [warRoomLive] marks the Earnings row with the LiveDot while the
- * War Room is in its Live phase (5.11 item 7; WP-INT wires it from the War Room state).
+ * War Room is in its Live phase (5.11 item 7; WP-INT wires it from the War Room state). [focusNote] opens the screen
+ * with the newest note focused (Write a note on the board, a Notes-view row): the editor takes focus once the notes
+ * trail has arrived, which scrolls it into view. [onSaveNote] reports false until WP-INT wires the real save, so
+ * the note never says Saved when nothing was stored. [onCompareWith] null hides "Compare with…" until it is wired.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -480,18 +506,19 @@ fun NameScreen(
     pager: NamePager? = null,
     now: Instant? = null,
     warRoomLive: Boolean = false,
+    focusNote: Boolean = false,
     onRetry: () -> Unit = {},
     onFollowChange: (Boolean) -> Unit = {},
     onOpenReport: (reportId: String) -> Unit = {},
     onOpenReportChange: (reportId: String, change: Int) -> Unit = { id, _ -> onOpenReport(id) },
     onBuildReport: () -> Unit = {},
-    onSaveNote: suspend (reportId: String, text: String) -> Boolean = { _, _ -> true },
+    onSaveNote: suspend (reportId: String, text: String) -> Boolean = { _, _ -> false },
     onLeaveNote: (reportId: String, text: String) -> Unit = { _, _ -> },
     onShareNote: ((String) -> Unit)? = null,
     onOpenWarRoom: (String) -> Unit = {},
     onSeeAlerts: (() -> Unit)? = null,
     onSeePro: () -> Unit = {},
-    onCompareWith: () -> Unit = {},
+    onCompareWith: (() -> Unit)? = null,
     onCompareReports: (String, String) -> Unit = { _, _ -> },
     onPrevious: (() -> Unit)? = null,
     onNext: (() -> Unit)? = null,
@@ -561,6 +588,7 @@ fun NameScreen(
                     figures = figures,
                     now = clock,
                     warRoomLive = warRoomLive,
+                    focusNote = focusNote,
                     lastVisitAtMs = lastVisitAtMs,
                     warRoomId = warRoomId,
                     isPro = isPro,
@@ -593,10 +621,12 @@ fun NameScreen(
 
     if (moreOpen) {
         ThesisSheet(onDismissRequest = { moreOpen = false }, title = title.takeIf { it != symbol }?.let { "$symbol · $it" } ?: symbol) {
-            SheetActionRow(ThesisIcons.Small.Compare, NamesCopy.COMPARE_WITH, {
-                moreOpen = false
-                onCompareWith()
-            })
+            if (onCompareWith != null) {
+                SheetActionRow(ThesisIcons.Small.Compare, NamesCopy.COMPARE_WITH, {
+                    moreOpen = false
+                    onCompareWith()
+                })
+            }
             if (figures != null) {
                 SheetActionRow(ThesisIcons.Small.Copy, NamesCopy.COPY_FIGURES, {
                     moreOpen = false
@@ -642,7 +672,7 @@ internal data class NameSeed(
 
 internal val LocalNameSeed = staticCompositionLocalOf { NameSeed() }
 
-/** Swipe sideways to the previous or next name of the board (4.5); a quarter of the touch target width or more. */
+/** Swipe sideways to the previous or next name of the board (4.5): a drag of twice the touch target (96 dp) or more. */
 private fun Modifier.pagerSwipe(onPrevious: (() -> Unit)?, onNext: (() -> Unit)?): Modifier {
     if (onPrevious == null && onNext == null) return this
     return this.then(
@@ -738,6 +768,7 @@ private fun NameBody(
     figures: FilingsFigures?,
     now: Instant,
     warRoomLive: Boolean,
+    focusNote: Boolean,
     lastVisitAtMs: Long,
     warRoomId: String?,
     isPro: Boolean,
@@ -778,6 +809,11 @@ private fun NameBody(
         Spacer(Modifier.height(ThesisSpace.headerToSection))
         val tiles = remember(detail, lastVisitAtMs, now, fmt) { monitorTiles(detail, lastVisitAtMs, now, fmt, zone) }
         KpiGrid(items = tiles.map { it.first }, onItemClick = { onSource(tiles[it].second) })
+        // With the Alerts tile it explains (5.11 item 3's Inbox link), not under the report-to-report block.
+        if (onSeeAlerts != null && detail.alerts.isNotEmpty()) {
+            Spacer(Modifier.height(ThesisSpace.xs))
+            TextAction(NamesCopy.SEE_ALERTS, onSeeAlerts)
+        }
     }
 
     // ---- Since the last report (item 3)
@@ -786,9 +822,6 @@ private fun NameBody(
         // SinceLastReport carries its own kicker, so no SectionHeader above it.
         val model = remember(summary, notes, fmt) { sinceLastReportModel(summary, notes, fmt, zone) }
         SinceLastReport(model = model, onChangeClick = { onOpenReportChange(summary.reportId, it) })
-        if (onSeeAlerts != null && detail.alerts.isNotEmpty()) {
-            TextAction(NamesCopy.SEE_ALERTS, onSeeAlerts)
-        }
     }
 
     // ---- From the filings (item 4)
@@ -829,6 +862,7 @@ private fun NameBody(
         // The trail arrives after the cached detail (MainViewModel.openName): no editor until it has, so an empty
         // draft never hides, then overwrites, the stored note.
         loading = detail.isLoading,
+        focus = focusNote,
         currentReportId = (action as? NameReportAction.Open)?.reportId,
         onSaveNote = onSaveNote,
         onLeaveNote = onLeaveNote,
@@ -848,7 +882,7 @@ private fun NameBody(
 
     // ---- Conviction journal (item 8)
     Spacer(Modifier.height(ThesisSpace.sectionGapData))
-    JournalSection(isPro = isPro, journal = journal.filter { it.ticker.equals(ticker, ignoreCase = true) }, onSeePro = onSeePro)
+    JournalSection(isPro = isPro, journal = journal.filter { it.ticker.equals(ticker, ignoreCase = true) }, zone = zone, onSeePro = onSeePro)
 
     // ---- Reports (item 9)
     Spacer(Modifier.height(ThesisSpace.sectionGapData))
@@ -905,7 +939,12 @@ private fun StateLine(detail: NameDetailView, zone: ZoneId, now: Instant) {
     }
 }
 
-/** The four monitor tiles with their SourceSheets: score, freshness, alerts, and next earnings or events. */
+/**
+ * The four monitor tiles with their SourceSheets (5.11 item 2): score, freshness, alerts, next earnings. Without a
+ * date the earnings tile says so ("Not dated yet", principle 11) rather than leave a blank cell in the 2-column grid
+ * (a spec deviation, HANDOFF-B). The material and unreviewed event counts live in Freshness's SourceSheet: the user
+ * cannot clear them until a new report lands (5.10 item 6, Q3), so no tile of their own.
+ */
 internal fun monitorTiles(detail: NameDetailView, lastVisitAtMs: Long, now: Instant, fmt: Fmt, zone: ZoneId): List<Pair<KpiSpec, SourceInfo>> {
     val s = detail.snapshot ?: return emptyList()
     val ticker = detail.ticker.trim().uppercase()
@@ -988,9 +1027,7 @@ internal fun monitorTiles(detail: NameDetailView, lastVisitAtMs: Long, now: Inst
         ),
     )
 
-    val earnings = nextEarnings(detail.alerts, ticker, now.atZone(zone).toLocalDate())
-    val fourth = if (earnings != null) {
-        val (day, fromWarRoom) = earnings
+    val earningsTile = nextEarnings(detail.alerts, ticker, now.atZone(zone).toLocalDate())?.let { (day, fromWarRoom) ->
         KpiSpec(
             label = NamesCopy.KPI_EARNINGS,
             value = fmt.marketDate(day),
@@ -1000,22 +1037,18 @@ internal fun monitorTiles(detail: NameDetailView, lastVisitAtMs: Long, now: Inst
             definition = ScoreCopy.EARNINGS_DEFINITION,
             inputs = listOf(NamesCopy.KPI_EARNINGS to fmt.marketDate(day)),
         )
-    } else {
+    } ?: (
         KpiSpec(
-            label = NamesCopy.KPI_EVENTS,
-            value = Fmt.number(s.materialEventsCount.toLong()),
-            reference = NamesCopy.eventsOf(s.unreviewedEventsCount, s.materialEventsCount),
+            label = NamesCopy.KPI_EARNINGS,
+            value = NamesCopy.EARNINGS_UNDATED,
+            reference = NamesCopy.EARNINGS_UNDATED_WHY,
         ) to SourceInfo(
-            metric = ScoreCopy.EVENTS,
-            definition = ScoreCopy.EVENTS_DEFINITION,
-            period = period,
-            inputs = listOf(
-                NamesCopy.MATERIAL_EVENTS to Fmt.number(s.materialEventsCount.toLong()),
-                NamesCopy.UNREVIEWED_EVENTS to Fmt.number(s.unreviewedEventsCount.toLong()),
-            ),
+            metric = ScoreCopy.EARNINGS,
+            definition = ScoreCopy.EARNINGS_DEFINITION,
+            inputs = listOf(NamesCopy.KPI_EARNINGS to NamesCopy.EARNINGS_UNDATED),
         )
-    }
-    return listOf(scoreTile, freshnessTile, alertsTile, fourth)
+    )
+    return listOf(scoreTile, freshnessTile, alertsTile, earningsTile)
 }
 
 /** The Report card: Open report when one is stored (with when it was built), Build report only when none is. */
@@ -1058,6 +1091,7 @@ private fun NotesSection(
     notes: List<NameNote>,
     reportCount: Int,
     loading: Boolean,
+    focus: Boolean,
     currentReportId: String?,
     onSaveNote: suspend (String, String) -> Boolean,
     onLeaveNote: (String, String) -> Unit,
@@ -1067,10 +1101,16 @@ private fun NotesSection(
     val zone = ZoneId.systemDefault()
     val clipboard = LocalClipboardManager.current
     val written = notes.count { it.text.isNotBlank() }
+    // The conclusion is where the latest note sits (notes are newest report first).
+    val lastWritten = notes.firstOrNull { it.text.isNotBlank() }
     SectionHeader(
         kicker = NamesCopy.NOTES_KICKER,
-        headline = NamesCopy.notesHeadline(written, reportCount),
-        deck = NamesCopy.NOTES_CAPTION,
+        headline = NamesCopy.notesHeadline(
+            written = lastWritten != null,
+            filing = lastWritten?.filing,
+            date = lastWritten?.atMs?.let { fmt.shortDate(Instant.ofEpochMilli(it).atZone(zone).toLocalDate()) },
+        ),
+        deck = NamesCopy.notesDeck(written, reportCount),
     )
     Spacer(Modifier.height(ThesisSpace.l))
     if (loading) {
@@ -1086,10 +1126,27 @@ private fun NotesSection(
     // while the editor still shows the last stored text replaces it; an edit in progress is never overwritten.
     var draft by rememberSaveable(newest.reportId) { mutableStateOf(newest.text) }
     var stored by rememberSaveable(newest.reportId) { mutableStateOf(newest.text) }
-    if (newest.text != stored) {
-        if (draft == stored) draft = newest.text
-        stored = newest.text
+    // One autosave per report, seeded with the stored text, so showing a stored note never saves it again.
+    val autosave = key(newest.reportId) {
+        rememberNoteAutosave(
+            text = draft,
+            save = { text -> onSaveNote(newest.reportId, text) },
+            onLeave = { text -> onLeaveNote(newest.reportId, text) },
+        )
     }
+    // Synced in an effect, not during composition (rubric P1). A server text the draft follows becomes the
+    // autosave's baseline in the same snapshot, so it is not saved straight back.
+    LaunchedEffect(newest.reportId, newest.text) {
+        if (newest.text != stored) {
+            if (draft == stored) {
+                autosave.lastSaved = newest.text
+                draft = newest.text
+            }
+            stored = newest.text
+        }
+    }
+    val editorFocus = remember { FocusRequester() }
+    var focused by rememberSaveable { mutableStateOf(false) }
     val entries = notes.mapIndexed { i, n ->
         NoteEntry(
             key = n.reportId,
@@ -1105,15 +1162,11 @@ private fun NotesSection(
         onCarryForward = { draft = it.text },
     ) { entry ->
         key(entry.key) {
-            // Seeded with the stored text, so showing a stored note never saves it again.
-            val autosave = rememberNoteAutosave(
-                text = draft,
-                save = { text -> onSaveNote(entry.key, text) },
-                onLeave = { text -> onLeaveNote(entry.key, text) },
-            )
             NoteBlock(
                 value = draft,
                 onValueChange = { draft = it },
+                // Focus lands on the block's first focus target, its text field, which brings itself into view.
+                modifier = Modifier.focusRequester(editorFocus),
                 // The entry's header right above names the filing and date.
                 filing = null,
                 saveState = autosave.state,
@@ -1123,11 +1176,18 @@ private fun NotesSection(
             )
         }
     }
+    // Write a note (5.10 item 7): the newest note takes focus once, after the trail has arrived.
+    LaunchedEffect(focus) {
+        if (focus && !focused) {
+            focused = true
+            runCatching { editorFocus.requestFocus() }
+        }
+    }
 }
 
 /** Conviction journal (5.11 item 8): the Timeline for Pro, one Callout with See Pro otherwise. */
 @Composable
-private fun JournalSection(isPro: Boolean, journal: List<ConvictionJournalEntryView>, onSeePro: () -> Unit) {
+private fun JournalSection(isPro: Boolean, journal: List<ConvictionJournalEntryView>, zone: ZoneId, onSeePro: () -> Unit) {
     val fmt = LocalFmt.current
     if (!isPro) {
         SectionHeader(kicker = NamesCopy.JOURNAL_KICKER, headline = NamesCopy.JOURNAL_PRO_HEADLINE)
@@ -1136,10 +1196,15 @@ private fun JournalSection(isPro: Boolean, journal: List<ConvictionJournalEntryV
         TextAction(NamesCopy.SEE_PRO, onSeePro)
         return
     }
-    SectionHeader(kicker = NamesCopy.JOURNAL_KICKER, headline = NamesCopy.journalHeadline(journal.size))
-    if (journal.isEmpty()) return
+    if (journal.isEmpty()) {
+        SectionHeader(kicker = NamesCopy.JOURNAL_KICKER, headline = NamesCopy.JOURNAL_EMPTY)
+        return
+    }
+    val all = journal.sortedByDescending { parseMs(it.eventAt) ?: 0L }
+    val (headline, deck) = remember(all, fmt) { journalConclusion(all, fmt, zone) }
+    SectionHeader(kicker = NamesCopy.JOURNAL_KICKER, headline = headline, deck = deck)
     Spacer(Modifier.height(ThesisSpace.l))
-    val sorted = journal.sortedByDescending { parseMs(it.eventAt) ?: 0L }.take(JOURNAL_MAX)
+    val sorted = all.take(JOURNAL_MAX)
     Timeline(
         items = sorted.mapIndexed { i, e ->
             TimelineItem(
@@ -1156,6 +1221,32 @@ private fun JournalSection(isPro: Boolean, journal: List<ConvictionJournalEntryV
 }
 
 private const val JOURNAL_MAX = 8
+
+/**
+ * The journal's headline and deck, as a conclusion (V3): when the entries carry the monitor state, how long the
+ * current state has held ("State held Intact since 31 Jul"); otherwise the latest entry leads and the deck counts.
+ * [newestFirst] is sorted by event date, newest first, and not empty.
+ */
+internal fun journalConclusion(newestFirst: List<ConvictionJournalEntryView>, fmt: Fmt, zone: ZoneId): Pair<String, String> {
+    fun day(e: ConvictionJournalEntryView): String? =
+        parseMs(e.eventAt)?.let { fmt.shortDate(Instant.ofEpochMilli(it).atZone(zone).toLocalDate()) }
+    val latest = newestFirst.first()
+    val state = latest.thesisSnapshot?.monitorState?.trim()?.ifBlank { null }
+    if (state != null) {
+        // The run of entries, from the newest back, that carry the same state; entries without a state do not break it.
+        val run = newestFirst.takeWhile { e ->
+            val s = e.thesisSnapshot?.monitorState?.trim()?.ifBlank { null }
+            s == null || s.equals(state, ignoreCase = true)
+        }
+        val since = run.lastOrNull { it.thesisSnapshot?.monitorState != null }?.let(::day)
+        if (since != null) {
+            val latestWhen = parseMs(latest.eventAt)?.let { fmt.relative(Instant.ofEpochMilli(it)) } ?: since
+            return NamesCopy.journalHeld(stateWordOf(state), since) to NamesCopy.journalHeldDeck(newestFirst.size, latestWhen)
+        }
+    }
+    val title = latest.title.ifBlank { NamesCopy.journalEvent(latest.eventType) }
+    return title to NamesCopy.journalDeck(newestFirst.size, newestFirst.last().let(::day))
+}
 
 /** Reports (5.11 item 9): your opened Deep Dives for this ticker; Compare two selects a like-for-like pair. */
 @Composable
@@ -1174,9 +1265,11 @@ private fun ReportsSection(
         .sortedByDescending { parseMs(it.createdAt) ?: 0L }
     var selecting by rememberSaveable { mutableStateOf(seed.selectReports != null) }
     var selected by rememberSaveable { mutableStateOf(seed.selectReports.orEmpty()) }
+    fun kindOf(reportId: String): String? = filingKindOf(notes.firstOrNull { it.reportId == reportId }?.filing)
+    val latestDate = mine.firstOrNull()?.let { parseMs(it.createdAt) }?.let { fmt.shortDate(Instant.ofEpochMilli(it).atZone(zone).toLocalDate()) }
     SectionHeader(
         kicker = NamesCopy.REPORTS_KICKER,
-        headline = NamesCopy.reportsHeadline(mine.size),
+        headline = NamesCopy.reportsHeadline(mine.size, latestDate),
         deck = if (mine.isEmpty()) NamesCopy.reportsEmpty(ticker) else NamesCopy.REPORTS_CAPTION,
         actionLabel = when {
             mine.size < 2 -> null
@@ -1195,23 +1288,24 @@ private fun ReportsSection(
             val note = notes.firstOrNull { it.reportId == report.reportId }
             val date = parseMs(report.createdAt)?.let { fmt.shortDate(Instant.ofEpochMilli(it).atZone(zone).toLocalDate()) } ?: Fmt.NOT_DISCLOSED
             val title = note?.filing?.let { "${NamesCopy.DEEP_DIVE} · $it" } ?: NamesCopy.reportRow(date)
-            val caption = listOfNotNull(
-                date.takeIf { note?.filing != null },
-                NamesCopy.WITH_NOTE.takeIf { note?.text?.isNotBlank() == true },
-            ).joinToString(" · ").ifBlank { null }
+            val caption = date.takeIf { note?.filing != null }
+            val hasNote = note?.text?.isNotBlank() == true
             val segment = Modifier.rowGroupSegment(RowPosition.of(i, mine.size), LeadingRowDividerInset)
             if (selecting) {
-                // Like-for-like only (5.18): once one report is picked, reports of another filing kind are off.
-                val kind = filingKindOf(note?.filing)
-                val firstKind = selected.firstOrNull()?.let { id -> filingKindOf(notes.firstOrNull { it.reportId == id }?.filing) }
+                // Like-for-like only (5.18): a report is off when its filing kind differs from any picked report's
+                // known kind, so a pair can never mix an annual and a quarterly report.
+                val kind = kindOf(report.reportId)
                 val isSelected = report.reportId in selected
-                SelectableReportRow(
+                val keeps = if (selected.size >= 2) selected.drop(1) else selected
+                ReportRow(
                     title = title,
                     caption = caption,
+                    hasNote = hasNote,
+                    selecting = true,
                     selected = isSelected,
-                    enabled = isSelected || likeForLike(firstKind, kind),
+                    enabled = isSelected || keeps.all { likeForLike(kindOf(it), kind) },
                     modifier = segment,
-                    onToggle = {
+                    onClick = {
                         selected = when {
                             report.reportId in selected -> selected - report.reportId
                             selected.size >= 2 -> selected.drop(1) + report.reportId
@@ -1220,18 +1314,27 @@ private fun ReportsSection(
                     },
                 )
             } else {
-                Box(segment) {
-                    ActionRow(icon = ThesisIcons.DeepDive, title = title, caption = caption, onClick = { onOpenReport(report.reportId) })
-                }
+                ReportRow(
+                    title = title,
+                    caption = caption,
+                    hasNote = hasNote,
+                    selecting = false,
+                    selected = false,
+                    enabled = true,
+                    modifier = segment,
+                    onClick = { onOpenReport(report.reportId) },
+                )
             }
         }
     }
     if (selecting) {
         Spacer(Modifier.height(ThesisSpace.m))
-        val kinds = mine.mapNotNull { r -> filingKindOf(notes.firstOrNull { it.reportId == r.reportId }?.filing) }.toSet()
+        val kinds = mine.mapNotNull { kindOf(it.reportId) }.toSet()
         Text(if (kinds.size > 1) NamesCopy.PICK_LIKE else NamesCopy.PICK_TWO, style = ThesisType.caption, color = LocalThesisPalette.current.muted)
         Spacer(Modifier.height(ThesisSpace.s))
-        PrimaryButton(
+        // Secondary: Open report above stays the screen's one filled control (V3).
+        val pairOk = selected.size == 2 && likeForLike(kindOf(selected[0]), kindOf(selected[1]))
+        SecondaryButton(
             text = NamesCopy.COMPARE_REPORTS,
             onClick = {
                 val (a, b) = selected
@@ -1240,45 +1343,66 @@ private fun ReportsSection(
                 onCompareReports(a, b)
             },
             modifier = Modifier.fillMaxWidth(),
-            enabled = selected.size == 2,
+            enabled = pairOk,
         )
     }
 }
 
+/**
+ * A Reports row (5.11 item 9): the Deep Dive icon (a check box in selection) in the leading column, the filing and
+ * date, and the note mark the board rows use when you wrote a note on that report. ActionRow has no trailing slot
+ * for the mark (HANDOFF-B asks WP-K for one), so the row is built here with ActionRow's metrics.
+ */
 @Composable
-private fun SelectableReportRow(
+private fun ReportRow(
     title: String,
     caption: String?,
+    hasNote: Boolean,
+    selecting: Boolean,
     selected: Boolean,
     enabled: Boolean,
     modifier: Modifier,
-    onToggle: () -> Unit,
+    onClick: () -> Unit,
 ) {
     val p = LocalThesisPalette.current
     val source = remember { MutableInteractionSource() }
+    val action = if (selecting) {
+        Modifier.toggleable(
+            value = selected,
+            interactionSource = source,
+            indication = null,
+            enabled = enabled,
+            role = Role.Checkbox,
+            onValueChange = { onClick() },
+        )
+    } else {
+        Modifier.clickable(source, indication = null, role = Role.Button, onClick = onClick)
+    }
     Row(
         modifier
             .fillMaxWidth()
-            .toggleable(
-                value = selected,
-                interactionSource = source,
-                indication = null,
-                enabled = enabled,
-                role = Role.Checkbox,
-                onValueChange = { onToggle() },
-            )
+            .then(action)
+            .semantics(mergeDescendants = true) { }
             .thesisPress(source)
-            .heightIn(min = ThesisSpace.rowMinComfortable)
+            .heightIn(min = if (caption != null) ThesisSpace.rowMinComfortableTwoLine else ThesisSpace.rowMinComfortable)
             .padding(horizontal = ThesisSpace.l, vertical = ThesisSpace.rowPaddingV),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(Modifier.width(ThesisSpace.leadingColumn), contentAlignment = Alignment.CenterStart) {
-            ThesisCheckbox(checked = selected, onCheckedChange = null, enabled = enabled)
+            if (selecting) {
+                ThesisCheckbox(checked = selected, onCheckedChange = null, enabled = enabled)
+            } else {
+                Icon(ThesisIcons.DeepDive, contentDescription = null, modifier = Modifier.size(ThesisSpace.iconL), tint = p.ink2)
+            }
         }
         Spacer(Modifier.width(ThesisSpace.leadingGap))
         Column(Modifier.weight(1f)) {
             Text(title, style = ThesisType.rowTitle, color = if (enabled) p.ink else p.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            if (caption != null) Text(caption, style = ThesisType.caption, color = p.muted, maxLines = 1)
+            if (caption != null) Text(caption, style = ThesisType.bodySmall, color = p.ink2, maxLines = 1)
+        }
+        if (hasNote) {
+            Spacer(Modifier.width(ThesisSpace.m))
+            NoteMark(contentDescription = NamesCopy.WITH_NOTE)
         }
     }
 }

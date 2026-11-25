@@ -56,12 +56,17 @@ class NameRenders {
                     onPrevious = {},
                     onNext = {},
                     onSeeAlerts = {},
+                    onSaveNote = { _, _ -> true },
+                    onCompareWith = {},
                 )
             }
         }
     }
 
     @Test fun full() { renderScreen("name-full") { Name() } }
+
+    /** Rubric M3: the in-app Reduce motion toggle. */
+    @Test fun fullReduced() { renderScreen("name-full-reduced", reducedMotion = true) { Name() } }
 
     @Test fun fullPage() { renderScreen("name-full-page", heightDp = PhoneSpec.FULL_PAGE_HEIGHT_DP) { Name() } }
 
@@ -98,6 +103,22 @@ class NameRenders {
     @Test fun warRoomLive() {
         renderScreen("name-war-room-live", heightDp = PhoneSpec.FULL_PAGE_HEIGHT_DP) {
             Name(detail = NamesFixtures.detailWarRoom, warRoomId = "wr-googl", warRoomLive = true, isPro = false)
+        }
+    }
+
+    @Test fun warRoomLiveReduced() {
+        renderScreen("name-war-room-live-reduced", heightDp = PhoneSpec.FULL_PAGE_HEIGHT_DP, reducedMotion = true) {
+            Name(detail = NamesFixtures.detailWarRoom, warRoomId = "wr-googl", warRoomLive = true, isPro = false)
+        }
+    }
+
+    @Test fun reportsSelecting() {
+        renderScreen("name-reports-select", heightDp = PhoneSpec.FULL_PAGE_HEIGHT_DP, themes = listOf(PreviewTheme.entries.first())) {
+            // A shorter page (no change summary, no five years, non-Pro), so Reports is inside the 2400 dp frame.
+            val short = NamesFixtures.detail.copy(
+                summary = NamesFixtures.detail.summary?.copy(changeSummary = null, annualHistory = emptyList()),
+            )
+            Name(detail = short, isPro = false, seed = NameSeed(selectReports = listOf("rep-aapl")))
         }
     }
 

@@ -39,6 +39,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
@@ -47,8 +48,11 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
@@ -71,7 +75,6 @@ import com.thesis.mobile.ui.components.ErrorState
 import com.thesis.mobile.ui.components.InlineBanner
 import com.thesis.mobile.ui.components.LeadingRowDividerInset
 import com.thesis.mobile.ui.components.LoadingHairline
-import com.thesis.mobile.ui.components.NoteMark
 import com.thesis.mobile.ui.components.PrimaryButton
 import com.thesis.mobile.ui.components.RowPosition
 import com.thesis.mobile.ui.components.RunBar
@@ -109,6 +112,7 @@ import com.thesis.mobile.ui.motion.thesisPress
 import com.thesis.mobile.ui.platform.ThesisBackHandler
 import com.thesis.mobile.ui.shell.ListDensity
 import com.thesis.mobile.ui.shell.exceptTop
+import com.thesis.mobile.ui.theme.Kit
 import com.thesis.mobile.ui.theme.LocalReducedMotion
 import com.thesis.mobile.ui.theme.LocalThesisPalette
 import com.thesis.mobile.ui.theme.ThesisSpace
@@ -192,7 +196,7 @@ data class BoardInputs(
 data class BoardRow(
     val ticker: String,
     val company: String?,
-    /** "Intact"; [NamesCopy.NO_REPORT_FIGURE] without a snapshot. */
+    /** "Intact"; [NamesCopy.NO_REPORT] without a snapshot. */
     val stateWord: String,
     val stateTone: Tone,
     val line2: String,
@@ -232,9 +236,9 @@ data class BoardRow(
 /** The display word for a monitor state ("weakened" → "Weakened", "at_risk" → "At risk"). */
 fun stateWordOf(state: String?): String {
     val raw = state?.trim()?.lowercase()?.replace('-', '_')?.replace(' ', '_')?.ifBlank { null }
-        ?: return NamesCopy.NO_REPORT_FIGURE
+        ?: return NamesCopy.NO_REPORT
     return when (raw) {
-        "at_risk" -> "At risk"
+        "at_risk" -> NamesCopy.STATE_AT_RISK
         else -> raw.replace('_', ' ').replaceFirstChar { it.uppercase() }
     }
 }
@@ -328,8 +332,9 @@ fun buildBoardRows(inputs: BoardInputs, fmt: Fmt, now: Instant): List<BoardRow> 
             )
             else -> snapshot.reason.trim().ifBlank { word }
         }
-        // The caption is short on purpose (#11 "+4 since Tue"): at 360 dp the trailing block must leave room for the
-        // company name and line 2. An unchanged score says nothing; with no earlier reading, the report's day.
+        // Every score names its reference point (principle 4), in the short #11 form so the trailing block leaves
+        // room for the company name and line 2 at 360 dp: "+4 since Tue", "0 since Tue" when it did not move (Name's
+        // wider tile says "Unchanged since Tue"), or with no earlier reading the report's age, "Report · 4 days ago".
         val (caption, captionTone) = when {
             snapshot == null -> null to Tone.Neutral
             previous != null && change != null -> {
@@ -337,10 +342,10 @@ fun buildBoardRows(inputs: BoardInputs, fmt: Fmt, now: Instant): List<BoardRow> 
                     NamesCopy.scoreSince(signedPoints(change), dayOf(previous.takenAtMs)) to
                         if (change > 0) Tone.Favourable else Tone.Unfavourable
                 } else {
-                    null to Tone.Neutral
+                    NamesCopy.scoreSince(signedPoints(0.0), dayOf(previous.takenAtMs)) to Tone.Neutral
                 }
             }
-            reportAtMs != null -> NamesCopy.reportOn(dayOf(reportAtMs)) to Tone.Neutral
+            reportAtMs != null -> NamesCopy.reportOn(fmt.relative(Instant.ofEpochMilli(reportAtMs))) to Tone.Neutral
             else -> null to Tone.Neutral
         }
         val tickerAlerts = inputs.alerts.filter { it.concerns(ticker) }
@@ -511,6 +516,8 @@ sealed interface CsvImportState {
  * - [snapshotDeltas], [lastVisitAtMs], [allNotes], [companyNames]: the 5.5 client data layer.
  * - [onOpenName] (until wired: [onOpenResearch]) gets the ticker, the pager scope (`Destination.Name(ticker, pagerScope)`) and the row's window
  *   bounds for the container transform; [onOpenNotes] opens Name at "Your notes".
+ * - [onCompare] / [onCompareWith] are null until WP-INT wires Compare names; the compare action, the RunBar and the
+ *   context sheet's "Compare with…" are hidden while they are.
  * - [onShowUndo] shows the undo snackbar and returns true when the user tapped Undo; without it the remove commits
  *   once the row has collapsed. A confirmed remove is never dropped: when Names leaves composition before the
  *   snackbar resolves (tab switch, push, the Notes segment), the remove commits then.
@@ -549,14 +556,23 @@ fun NamesScreen(
     onOpenNotes: (ticker: String) -> Unit = { onOpenName(it, namesPagerScope(BoardFilter.All, BoardSort.State), null) },
     // Until WP-INT wires it: the Deep Dive request for the ticker returns the stored report (SPEC rule 1).
     onOpenReport: (reportId: String, ticker: String) -> Unit = { _, ticker -> onRunDeepDive(ticker) },
-    onCompare: (List<String>) -> Unit = {},
-    onCompareWith: (String) -> Unit = {},
+    onCompare: ((List<String>) -> Unit)? = null,
+    onCompareWith: ((String) -> Unit)? = null,
     onExportNotes: (() -> Unit)? = null,
     onShowUndo: (suspend (message: String, action: String) -> Boolean)? = null,
     initialSegment: Int = 0,
 ) {
     val fmt = LocalFmt.current
+    val reduced = LocalReducedMotion.current
     var segment by rememberSaveable { mutableStateOf(initialSegment.coerceIn(0, 1)) }
+    // Each segment keeps its saveable state (filter, sort, scroll position, typed text, compare selection) while the
+    // other one shows, so a glance at Notes never resets the board (principle 8).
+    val segmentStates = rememberSaveableStateHolder()
+    // The CSV import belongs to the screen, not the Board segment: a look at Notes mid-import neither cancels the
+    // import nor loses its result.
+    val importScope = rememberCoroutineScope()
+    val seededImport = LocalBoardSeed.current.importState
+    var importState by remember { mutableStateOf(seededImport ?: CsvImportState.Idle) }
     LaunchedEffect(Unit) { onLoadNotes() }
 
     val notedTickers = remember(allNotes) {
@@ -581,45 +597,63 @@ fun NamesScreen(
     val latestNoteAt = remember(allNotes) { allNotes.filter { it.text.isNotBlank() }.mapNotNull { parseMs(it.updatedAt) }.maxOrNull() }
     val notesMeta = latestNoteAt?.let { NamesCopy.notesMeta(fmt.relative(Instant.ofEpochMilli(it))) } ?: asOf
 
-    Box(Modifier.fillMaxSize()) {
-        if (segment == 0) {
-            Board(
-                padding = padding,
-                rows = rows,
-                watchlist = watchlist,
-                loaded = loaded,
-                refreshing = refreshing,
-                error = error,
-                asOf = asOf,
-                hasVisited = lastVisitAtMs > 0L,
-                tickerSuggestions = tickerSuggestions,
-                density = density,
-                onDensityChange = onDensityChange,
-                header = { NamesHeaderRow(segment, { segment = it }) },
-                onRefresh = onRefresh,
-                onAddTicker = onAddTicker,
-                onRemoveTicker = onRemoveTicker,
-                onRunDeepDive = onRunDeepDive,
-                onOpenReport = onOpenReport,
-                onOpenWarRoom = onOpenWarRoom,
-                onImportHoldingsCsv = onImportHoldingsCsv,
-                onQueryTickers = onQueryTickers,
-                onOpenName = onOpenName,
-                onOpenNotes = onOpenNotes,
-                onCompare = onCompare,
-                onCompareWith = onCompareWith,
-                onShowUndo = onShowUndo,
-            )
-        } else {
-            NotesView(
-                padding = padding,
-                notes = allNotes,
-                companyNames = companyNames,
-                meta = notesMeta,
-                header = { NamesHeaderRow(segment, { segment = it }) },
-                onOpenNotes = onOpenNotes,
-                onExportNotes = onExportNotes,
-            )
+    // Board and Notes crossfade in place (principle 8, #27 StateCrossfade).
+    AnimatedContent(
+        targetState = segment,
+        modifier = Modifier.fillMaxSize(),
+        transitionSpec = { ThesisTransitions.stateCrossfade(reduced) },
+        label = "names-segment",
+    ) { shownSegment ->
+        segmentStates.SaveableStateProvider(shownSegment) {
+            if (shownSegment == 0) {
+                Board(
+                    padding = padding,
+                    rows = rows,
+                    watchlist = watchlist,
+                    loaded = loaded,
+                    refreshing = refreshing,
+                    error = error,
+                    asOf = asOf,
+                    hasVisited = lastVisitAtMs > 0L,
+                    tickerSuggestions = tickerSuggestions,
+                    density = density,
+                    onDensityChange = onDensityChange,
+                    header = { NamesHeaderRow(segment, { segment = it }) },
+                    onRefresh = onRefresh,
+                    onAddTicker = onAddTicker,
+                    onRemoveTicker = onRemoveTicker,
+                    onRunDeepDive = onRunDeepDive,
+                    onOpenReport = onOpenReport,
+                    onOpenWarRoom = onOpenWarRoom,
+                    importState = importState,
+                    onImportPicked = { csv ->
+                        importScope.launch {
+                            importState = CsvImportState.Importing
+                            importState = onImportHoldingsCsv(csv).fold(
+                                onSuccess = { CsvImportState.Done(it) },
+                                onFailure = { CsvImportState.Failed(it.message?.takeIf(String::isNotBlank) ?: NamesCopy.IMPORT_FAILED) },
+                            )
+                        }
+                    },
+                    onImportState = { importState = it },
+                    onQueryTickers = onQueryTickers,
+                    onOpenName = onOpenName,
+                    onOpenNotes = onOpenNotes,
+                    onCompare = onCompare,
+                    onCompareWith = onCompareWith,
+                    onShowUndo = onShowUndo,
+                )
+            } else {
+                NotesView(
+                    padding = padding,
+                    notes = allNotes,
+                    companyNames = companyNames,
+                    meta = notesMeta,
+                    header = { NamesHeaderRow(segment, { segment = it }) },
+                    onOpenNotes = onOpenNotes,
+                    onExportNotes = onExportNotes,
+                )
+            }
         }
     }
 }
@@ -703,12 +737,14 @@ private fun Board(
     onRunDeepDive: (String) -> Unit,
     onOpenReport: (String, String) -> Unit,
     onOpenWarRoom: (String) -> Unit,
-    onImportHoldingsCsv: suspend (String) -> Result<HoldingsImportResultView>,
+    importState: CsvImportState,
+    onImportPicked: (String) -> Unit,
+    onImportState: (CsvImportState) -> Unit,
     onQueryTickers: (String) -> Unit,
     onOpenName: (String, String, Rect?) -> Unit,
     onOpenNotes: (String) -> Unit,
-    onCompare: (List<String>) -> Unit,
-    onCompareWith: (String) -> Unit,
+    onCompare: ((List<String>) -> Unit)?,
+    onCompareWith: ((String) -> Unit)?,
     onShowUndo: (suspend (String, String) -> Boolean)?,
 ) {
     val haptics = rememberHaptics()
@@ -729,7 +765,8 @@ private fun Board(
     var openSheet by rememberSaveable { mutableStateOf(seed.sheet) }
     var importOpen by rememberSaveable { mutableStateOf(seed.importState != null) }
     var importDetent by remember { mutableStateOf(DockDetent.Half) }
-    var importState by remember { mutableStateOf(seed.importState ?: CsvImportState.Idle) }
+    // A fifth compare pick is refused; the selection caption then says why (and TalkBack reads it).
+    var compareLimit by remember { mutableStateOf(false) }
     val removing = remember { mutableStateListOf<String>() }
     // Tickers already handed to onRemoveTicker, so the snackbar's end, the collapse and leaving the screen commit
     // each confirmed remove exactly once.
@@ -750,6 +787,7 @@ private fun Board(
     fun endSelection() {
         selecting = false
         selected = emptyList()
+        compareLimit = false
     }
 
     // System back ends compare selection before it leaves the tab.
@@ -808,14 +846,8 @@ private fun Board(
 
     val launchPicker = rememberHoldingsCsvPicker { pick ->
         when (pick) {
-            is CsvPick.Text -> scope.launch {
-                importState = CsvImportState.Importing
-                importState = onImportHoldingsCsv(pick.csv).fold(
-                    onSuccess = { CsvImportState.Done(it) },
-                    onFailure = { CsvImportState.Failed(it.message?.takeIf(String::isNotBlank) ?: NamesCopy.IMPORT_FAILED) },
-                )
-            }
-            CsvPick.Unreadable -> importState = CsvImportState.Failed(NamesCopy.IMPORT_UNREADABLE)
+            is CsvPick.Text -> onImportPicked(pick.csv)
+            CsvPick.Unreadable -> onImportState(CsvImportState.Failed(NamesCopy.IMPORT_UNREADABLE))
             CsvPick.Cancelled -> Unit
         }
     }
@@ -854,7 +886,7 @@ private fun Board(
                                 },
                             )
                         }
-                        if (rows.size >= 2) {
+                        if (rows.size >= 2 && onCompare != null) {
                             ThesisIconButton(
                                 ThesisIcons.Compare,
                                 NamesCopy.COMPARE,
@@ -937,8 +969,14 @@ private fun Board(
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Text(
-                                if (selected.size < 2) NamesCopy.COMPARE_PICK else NamesCopy.compareSelected(selected.size),
-                                Modifier.weight(1f),
+                                when {
+                                    compareLimit -> NamesCopy.COMPARE_MAX
+                                    selected.size < 2 -> NamesCopy.COMPARE_PICK
+                                    else -> NamesCopy.compareSelected(selected.size)
+                                },
+                                Modifier
+                                    .weight(1f)
+                                    .semantics { liveRegion = LiveRegionMode.Polite },
                                 style = ThesisType.caption,
                                 color = LocalThesisPalette.current.muted,
                             )
@@ -972,9 +1010,10 @@ private fun Board(
                     onRetry = onRefresh,
                     onShowAll = { filterKey = BoardFilter.All.key },
                     onToggleSelected = { ticker ->
+                        compareLimit = ticker !in selected && selected.size >= COMPARE_MAX
                         selected = when {
                             ticker in selected -> selected - ticker
-                            selected.size >= COMPARE_MAX -> {
+                            compareLimit -> {
                                 haptics.reject()
                                 selected
                             }
@@ -992,10 +1031,10 @@ private fun Board(
         RunBar(
             label = NamesCopy.compareRun(selected.size),
             onClick = {
-                onCompare(selected)
+                onCompare?.invoke(selected)
                 endSelection()
             },
-            visible = selecting,
+            visible = selecting && onCompare != null,
             enabled = selected.size in 2..COMPARE_MAX,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
@@ -1006,7 +1045,7 @@ private fun Board(
             visible = importOpen,
             onDismiss = {
                 importOpen = false
-                if (importState !is CsvImportState.Importing) importState = CsvImportState.Idle
+                if (importState !is CsvImportState.Importing) onImportState(CsvImportState.Idle)
             },
             detent = importDetent,
             onDetentChange = { importDetent = it },
@@ -1025,13 +1064,14 @@ private fun Board(
             ThesisSheet(onDismissRequest = { contextFor = null }, title = row.company?.let { "${row.ticker} · $it" } ?: row.ticker) {
                 NameContextActions(
                     row = row,
+                    canCompare = onCompareWith != null,
                     onAction = { action ->
                         contextFor = null
                         when (action) {
                             NameContextAction.OpenReport -> row.reportId?.let { onOpenReport(it, row.ticker) }
                             NameContextAction.BuildReport -> onRunDeepDive(row.ticker)
                             NameContextAction.WriteNote -> onOpenNotes(row.ticker)
-                            NameContextAction.CompareWith -> onCompareWith(row.ticker)
+                            NameContextAction.CompareWith -> onCompareWith?.invoke(row.ticker)
                             NameContextAction.WarRoom -> row.warRoomId?.let(onOpenWarRoom)
                             NameContextAction.Remove -> confirmRemove = row.ticker
                         }
@@ -1067,7 +1107,8 @@ private fun Board(
         SHEET_MORE -> ThesisSheet(onDismissRequest = { openSheet = null }) {
             SheetActionRow(ThesisIcons.Small.Add, NamesCopy.IMPORT_CSV, {
                 openSheet = null
-                importState = CsvImportState.Idle
+                // An import still running keeps its progress when the panel reopens.
+                if (importState !is CsvImportState.Importing) onImportState(CsvImportState.Idle)
                 importOpen = true
             })
             SheetActionRow(ThesisIcons.Small.Retry, NamesCopy.REFRESH, {
@@ -1179,11 +1220,16 @@ private fun LazyListScope.boardBody(
         else -> itemsIndexed(shown, key = { _, row -> row.ticker }, contentType = { _, _ -> if (compact) "row-compact" else "row" }) { i, row ->
             val position = RowPosition.of(i, shown.size)
             val inset = if (compact && !selecting) CompactRowDividerInset else LeadingRowDividerInset
+            // Rows glide on sort and filter (5.10 item 6); under reduced motion (system or the in-app toggle, 4.8)
+            // they take their new places without translating (rubric M3).
+            val glide = if (LocalReducedMotion.current) Modifier else Modifier.animateItemPlacement(ThesisMotion.spatial())
+            // The aligned compact row has no line 2: a name without a report says so in its figure column.
+            val alignedCompact = compact && LocalDensity.current.fontScale <= Kit.COMPACT_ALIGNED_MAX_SCALE
             DismissibleItem(
                 removing = row.ticker in removing,
                 onRemoved = { onRemoved(row.ticker) },
                 modifier = Modifier
-                    .animateItemPlacement(ThesisMotion.spatial())
+                    .then(glide)
                     .padding(horizontal = ThesisSpace.gutter)
                     .rowGroupSegment(position, inset),
             ) {
@@ -1197,7 +1243,7 @@ private fun LazyListScope.boardBody(
                         company = row.company,
                         line2 = row.line2,
                         figure = row.figure,
-                        figureCaption = row.figureCaption,
+                        figureCaption = row.figureCaption ?: NamesCopy.NO_REPORT.takeIf { alignedCompact && row.figure == null },
                         figureCaptionTone = row.figureTone,
                         stateLabel = row.stateWord,
                         hasNote = row.hasNote,
@@ -1263,14 +1309,16 @@ enum class NameContextAction { OpenReport, BuildReport, WriteNote, CompareWith, 
 
 /** The context sheet's rows, labelled by the row's state: Open report when one is stored, else Build report. */
 @Composable
-internal fun NameContextActions(row: BoardRow, onAction: (NameContextAction) -> Unit) {
+internal fun NameContextActions(row: BoardRow, canCompare: Boolean = true, onAction: (NameContextAction) -> Unit) {
     if (row.reportId != null) {
         SheetActionRow(ThesisIcons.Small.DeepDive, NamesCopy.OPEN_REPORT, { onAction(NameContextAction.OpenReport) })
     } else {
         SheetActionRow(ThesisIcons.Small.DeepDive, NamesCopy.BUILD_REPORT, { onAction(NameContextAction.BuildReport) })
     }
     SheetActionRow(ThesisIcons.Small.Notes, NamesCopy.WRITE_NOTE, { onAction(NameContextAction.WriteNote) })
-    SheetActionRow(ThesisIcons.Small.Compare, NamesCopy.COMPARE_WITH, { onAction(NameContextAction.CompareWith) })
+    if (canCompare) {
+        SheetActionRow(ThesisIcons.Small.Compare, NamesCopy.COMPARE_WITH, { onAction(NameContextAction.CompareWith) })
+    }
     if (row.warRoomId != null) {
         SheetActionRow(ThesisIcons.Small.WarRoom, NamesCopy.WAR_ROOM, { onAction(NameContextAction.WarRoom) })
     }
@@ -1467,7 +1515,6 @@ private fun NotesRow(group: NotesGroup, meta: String, onClick: () -> Unit, modif
             if (group.company != null) {
                 Text(group.company, Modifier.weight(1f, fill = false), style = ThesisType.bodySmall, color = p.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
-            NoteMark(contentDescription = null)
         }
         Text(
             group.latest.text.trim(),

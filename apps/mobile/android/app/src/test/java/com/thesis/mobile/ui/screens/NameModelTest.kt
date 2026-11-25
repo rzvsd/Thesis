@@ -1,5 +1,7 @@
 package com.thesis.mobile.ui.screens
 
+import com.thesis.mobile.model.ConvictionJournalEntryView
+import com.thesis.mobile.model.ConvictionThesisSnapshotView
 import com.thesis.mobile.model.DeepDiveChangeSummaryView
 import com.thesis.mobile.model.DeepDiveTopChangeView
 import com.thesis.mobile.model.FinancialHistoryRowView
@@ -131,12 +133,22 @@ class NameModelTest {
     }
 
     @Test
-    fun `the table shows at most four years with the latest as subject`() {
+    fun `the table shows at most four years, newest first, with the latest as subject`() {
         val rows = (2022..2026).map { year(it, 100.0 + it, 0.3, 20.0, 10.0, 20.0, 100.0) }
         val table = filingsTable(filingsFigures(rows)!!)
-        assertEquals(listOf("FY2023", "FY2024", "FY2025", "FY2026"), table.columns.map { it.period })
-        assertTrue(table.columns.last().subject)
-        assertTrue(table.toTsv().startsWith("Metric\tFY2023"))
+        // Newest first: the subject column sits beside the labels, in view at 360 dp without scrolling.
+        assertEquals(listOf("FY2026", "FY2025", "FY2024", "FY2023"), table.columns.map { it.period })
+        assertTrue(table.columns.first().subject)
+        assertEquals(1, table.columns.count { it.subject })
+        assertTrue(table.toTsv().startsWith("Metric\tFY2026"))
+    }
+
+    @Test
+    fun `share counts read in the table's compact scale`() {
+        assertEquals("15.55B", compactCount(15_550_000_000.0))
+        assertEquals("742.3M", compactCount(742_300_000.0))
+        assertEquals("98,000", compactCount(98_000.0))
+        assertEquals(Fmt.NOT_DISCLOSED, compactCount(null))
     }
 
     @Test
@@ -180,5 +192,34 @@ class NameModelTest {
         assertTrue(likeForLike("annual", "annual"))
         assertTrue(likeForLike(null, "quarterly"))
         assertFalse(likeForLike("annual", "quarterly"))
+    }
+
+    @Test
+    fun `without an earnings date the tile says so and no tile counts events the user cannot clear`() {
+        val snapshot = ThesisMonitorSnapshotView(
+            ticker = "AAPL", state = "intact", reason = "Holds.", score = 0.78, reportId = "r2026",
+            materialEventsCount = 1, unreviewedEventsCount = 0, freshnessState = "current", updatedAt = "2026-11-25T14:00:00Z",
+        )
+        val tiles = monitorTiles(detail.copy(snapshot = snapshot), 0L, Instant.parse("2026-11-25T15:00:00Z"), fmt, ZoneOffset.UTC)
+        assertEquals(listOf("Monitor score", "Freshness", "Alerts on this name", "Next earnings"), tiles.map { it.first.label })
+        assertEquals("Not dated yet", tiles[3].first.value)
+    }
+
+    @Test
+    fun `the journal headline is a conclusion`() {
+        fun entry(id: String, at: String, title: String, state: String?) = ConvictionJournalEntryView(
+            id, "AAPL", "alert", "alert", id, at, title, "",
+            thesisSnapshot = state?.let { ConvictionThesisSnapshotView(monitorState = it) },
+        )
+        val held = listOf(
+            entry("j1", "2026-11-02T13:00:00Z", "Deep Dive on the FY2026 10-K", "intact"),
+            entry("j2", "2026-08-01T21:00:00Z", "Thesis state confirmed Intact", "intact"),
+            entry("j3", "2026-06-01T21:00:00Z", "Thesis weakened", "weakened"),
+        )
+        val (headline, deck) = journalConclusion(held, fmt, ZoneOffset.UTC)
+        assertEquals("State held Intact since 1 Aug", headline)
+        assertEquals("3 dated events, the latest 23 days ago.", deck)
+        val plain = held.map { it.copy(thesisSnapshot = null) }
+        assertEquals("Deep Dive on the FY2026 10-K" to "Latest of 3 dated events since 1 Jun.", journalConclusion(plain, fmt, ZoneOffset.UTC))
     }
 }

@@ -38,6 +38,7 @@ class NamesRenders {
         seed: BoardSeed = BoardSeed(),
         segment: Int = 0,
         lastVisit: Long = NamesFixtures.lastVisitAtMs,
+        warRooms: Map<String, String> = NamesFixtures.warRooms,
     ) {
         NamesFixtures.Clocked {
             CompositionLocalProvider(LocalBoardSeed provides seed) {
@@ -48,7 +49,7 @@ class NamesRenders {
                     alerts = alerts,
                     onRefresh = {}, onAddTicker = {}, onRemoveTicker = {}, onRunDeepDive = {}, onOpenResearch = {},
                     onImportHoldingsCsv = { Result.success(NamesFixtures.importResult) },
-                    warRoomByTicker = NamesFixtures.warRooms,
+                    warRoomByTicker = warRooms,
                     refreshing = refreshing,
                     loaded = loaded,
                     error = error,
@@ -59,6 +60,8 @@ class NamesRenders {
                     tickerSuggestions = NamesFixtures.suggestions,
                     density = density,
                     now = NamesFixtures.now,
+                    onCompare = {},
+                    onCompareWith = {},
                     onExportNotes = {},
                     initialSegment = segment,
                 )
@@ -69,6 +72,9 @@ class NamesRenders {
     @Test fun loaded() { renderScreen("names-loaded") { Board() } }
 
     @Test fun loadedFullPage() { renderScreen("names-loaded-full", heightDp = PhoneSpec.FULL_PAGE_HEIGHT_DP) { Board() } }
+
+    /** Rubric M3: the in-app Reduce motion toggle; rows take their places without gliding. */
+    @Test fun loadedReduced() { renderScreen("names-loaded-reduced", reducedMotion = true) { Board() } }
 
     @Test fun loaded360() { renderScreen("names-loaded-360", widthDp = PhoneSpec.NARROW_WIDTH_DP) { Board() } }
 
@@ -101,7 +107,10 @@ class NamesRenders {
     @Test fun filtered() { renderScreen("names-filter-changed") { Board(seed = BoardSeed(filter = BoardFilter.Changed)) } }
 
     @Test fun filterEmpty() {
-        renderScreen("names-filter-empty") { Board(seed = BoardSeed(filter = BoardFilter.EarningsSoon), alerts = emptyList()) }
+        // No dated earnings alert and no War Room in its window: the filter is empty and offers Show all.
+        renderScreen("names-filter-empty") {
+            Board(seed = BoardSeed(filter = BoardFilter.EarningsSoon), alerts = emptyList(), warRooms = emptyMap())
+        }
     }
 
     @Test fun fieldError() {

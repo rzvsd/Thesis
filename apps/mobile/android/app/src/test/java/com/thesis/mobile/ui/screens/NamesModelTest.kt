@@ -82,16 +82,19 @@ class NamesModelTest {
     }
 
     @Test
-    fun `an unchanged score has no caption and a name without a reading shows its report day`() {
+    fun `an unchanged score says since when and a name without a reading shows its report age`() {
         val flat = inputs.copy(
             deltas = mapOf(
                 "AAPL" to SnapshotDelta("AAPL", point("AAPL", "2026-11-25T14:00:00Z", "intact", 0.78), point("AAPL", "2026-11-21T08:00:00Z", "intact", 0.78)),
             ),
         )
         val built = buildBoardRows(flat, fmt, now)
-        assertNull(built.first { it.ticker == "AAPL" }.figureCaption)
+        // Every score has its reference point (principle 4), in the short #11 form that fits 360 dp.
+        assertEquals("0 since Sat", built.first { it.ticker == "AAPL" }.figureCaption)
+        assertEquals(Tone.Neutral, built.first { it.ticker == "AAPL" }.figureTone)
+        // The report's age, relative within 30 days (#11 "10-K · 23 days ago"), then the date.
         assertEquals("Report · 1 Oct", built.first { it.ticker == "COST" }.figureCaption)
-        assertEquals("Report · Fri", built.first { it.ticker == "NVDA" }.figureCaption)
+        assertEquals("Report · 5 days ago", built.first { it.ticker == "NVDA" }.figureCaption)
     }
 
     @Test
