@@ -1,12 +1,17 @@
 package com.thesis.mobile.preview
 
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
+import com.thesis.mobile.model.WarRoomView
 import com.thesis.mobile.preview.fixtures.ShellFixtures
 import com.thesis.mobile.ui.UiState
 import com.thesis.mobile.ui.navigation.Destination
 import com.thesis.mobile.ui.navigation.ShellTab
+import com.thesis.mobile.ui.screens.AuthScreen
 import com.thesis.mobile.ui.shell.ShellActions
 import com.thesis.mobile.ui.shell.ThesisShell
 import org.junit.Assert.assertTrue
@@ -27,15 +32,20 @@ class ShellRenders {
         modal: Destination? = null,
         state: UiState = ShellFixtures.state,
         fontScale: Float = 1f,
-        widthDp: Int = PhoneSpec.WIDTH_DP
+        widthDp: Int = PhoneSpec.WIDTH_DP,
+        heightDp: Int = PhoneSpec.HEIGHT_DP,
+        snackbar: String? = null
     ) {
-        val files = renderScreen(name, widthDp = widthDp) {
+        val files = renderScreen(name, widthDp = widthDp, heightDp = heightDp) {
             val density = LocalDensity.current
+            val host = remember { SnackbarHostState() }
+            if (snackbar != null) LaunchedEffect(Unit) { host.showSnackbar(snackbar) }
             CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale)) {
                 ThesisShell(
                     state = state,
                     navigator = ShellFixtures.navigator(tab, push, modal),
-                    actions = actions
+                    actions = actions,
+                    snackbarHostState = host
                 )
             }
         }
@@ -55,7 +65,10 @@ class ShellRenders {
         state = ShellFixtures.state.copy(isDeepDiveRunning = true, jobStatus = "running")
     )
 
-    /** The same entry restored after the job ended: the search, not an endless spinner. */
+    /**
+     * Fallback only: MainViewModel removes a running entry restored with no job left (dropIdleRunningEntries).
+     * Should one still show, it draws the search rather than an endless spinner.
+     */
     @Test fun deepDiveRunningEnded() = shell(
         "shell-research-running-ended", ShellTab.Research, push = Destination.DeepDiveRunning("AAPL")
     )
@@ -72,4 +85,66 @@ class ShellRenders {
     @Test fun inboxScale13() = shell("shell-inbox-scale1.3", ShellTab.Inbox, fontScale = 1.3f)
     @Test fun inboxScale20() = shell("shell-inbox-scale2.0", ShellTab.Inbox, fontScale = 2.0f)
     @Test fun inbox360Scale20() = shell("shell-inbox-360-scale2.0", ShellTab.Inbox, fontScale = 2.0f, widthDp = 360)
+
+    // Rule 6.0.6: every tab root and a pushed screen at 360 dp x 2.0. The shell chrome holds; the screen bodies
+    // under it are WP-A/WP-B's (HANDOFF-F3 section 4 lists what breaks).
+    @Test fun today360Scale20() = shell("shell-today-360-scale2.0", ShellTab.Today, fontScale = 2.0f, widthDp = 360)
+    @Test fun names360Scale20() = shell("shell-names-360-scale2.0", ShellTab.Names, fontScale = 2.0f, widthDp = 360)
+    @Test fun research360Scale20() = shell("shell-research-360-scale2.0", ShellTab.Research, fontScale = 2.0f, widthDp = 360)
+    @Test fun pulse360Scale20() = shell(
+        "shell-today-pulse-360-scale2.0", ShellTab.Today, push = Destination.Pulse(), fontScale = 2.0f, widthDp = 360
+    )
+
+    /** Full page (rule 6.0.6): Today's whole scroll under the shell chrome. */
+    @Test fun todayFullPage() = shell("shell-today-fullpage", ShellTab.Today, heightDp = 2400)
+
+    /** A message raised while You is open shows above the modal (the host is the shell's top layer, 5.5). */
+    @Test fun snackbarOverYou() = shell(
+        "shell-you-snackbar", ShellTab.Names, modal = Destination.You, snackbar = "Notification preference saved."
+    )
+
+    /** On a tab root the snackbar sits on the bottom bar, not under it. */
+    @Test fun snackbarOverBar() = shell("shell-inbox-snackbar", ShellTab.Inbox, snackbar = "Deep Dive ready.")
+
+    /** A failed report open elsewhere leaves the Research root's field and recent list in place. */
+    @Test fun researchRootWithReportError() = shell(
+        "shell-research-root-error", ShellTab.Research,
+        state = ShellFixtures.state.copy(deepDiveError = "Couldn't open this report. Check your connection.")
+    )
+
+    /** War Room: the back bar has no title over the screen's own "War Room" headline (rubric V3). */
+    @Test fun warRoom() = shell(
+        "shell-warroom", ShellTab.Names, push = Destination.WarRoom("wr-aapl"),
+        state = ShellFixtures.state.copy(
+            warRoom = WarRoomView(
+                warRoomId = "wr-aapl", title = "AAPL earnings", ticker = "AAPL", status = "active",
+                generatedAt = "2026-11-24T06:00:00Z", summary = "Services margin is the line to watch."
+            )
+        )
+    )
+
+    /** Auth, which F3 extracted from ThesisApp (ThesisApp adds the safeDrawing insets around it). */
+    @Test fun auth() = authRender("shell-auth", 1f, PhoneSpec.WIDTH_DP)
+    @Test fun auth360Scale20() = authRender("shell-auth-360-scale2.0", 2f, 360)
+
+    private fun authRender(name: String, fontScale: Float, widthDp: Int) {
+        val files = renderScreen(name, widthDp = widthDp) {
+            val density = LocalDensity.current
+            CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale)) {
+                AuthScreen(
+                    isLoading = false,
+                    currentApiBaseUrl = "https://api.example.invalid",
+                    verificationToken = null,
+                    registerStatus = null,
+                    message = null,
+                    onSaveApiBaseUrl = {},
+                    onRegister = { _, _ -> },
+                    onVerify = { _, _ -> },
+                    onLogin = { _, _ -> },
+                    onForgotPassword = {}
+                )
+            }
+        }
+        files.forEach { assertTrue("${it.name} was not written", it.isFile && it.length() > 0) }
+    }
 }

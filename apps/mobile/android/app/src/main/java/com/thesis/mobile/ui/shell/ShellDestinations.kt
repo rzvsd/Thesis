@@ -9,6 +9,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import com.thesis.mobile.ui.navigation.Destination
 import com.thesis.mobile.ui.navigation.warRoomsInEarningsWindow
@@ -60,7 +64,9 @@ internal fun ShellContentScope.Content(entry: NavEntry, padding: PaddingValues) 
             ticker = state.selectedTicker.orEmpty(),
             recentHistory = state.reportHistory,
             watchlist = state.watchlist,
-            errorMessage = state.deepDiveError,
+            // A build or an open always pushes its own entry (DeepDiveRunning, Report), which shows its error;
+            // the shared deepDiveError must not replace this root's field and recent list (same as Search).
+            errorMessage = null,
             onTickerChange = actions::onTickerChange,
             onRunReport = { actions.onRunDeepDive(state.selectedTicker.orEmpty()) },
             onOpenReport = { reportId -> actions.onOpenReport(reportId) },
@@ -109,23 +115,26 @@ internal fun ShellContentScope.Content(entry: NavEntry, padding: PaddingValues) 
                 onOpenReport = actions::onOpenHistoryItem
             )
         }
-        is Destination.Report -> ReportEntry(destination.reportId, classic = false, padding = padding)
-        is Destination.ReportClassic -> ReportEntry(destination.reportId, classic = true, padding = padding)
-        // Loading only while a build runs: an entry restored after the job ended shows the search with its
-        // error (or empty) instead of spinning forever; back or Run starts over.
+        is Destination.Report -> ReportEntry(entry, destination.reportId, classic = false, padding = padding)
+        is Destination.ReportClassic -> ReportEntry(entry, destination.reportId, classic = true, padding = padding)
+        // Loading only while a build runs. MainViewModel drops a running entry restored after its job ended
+        // (dropIdleRunningEntries); should one still show with no job, it falls back to the search with the
+        // build's error (or empty) instead of spinning forever.
         is Destination.DeepDiveRunning -> DeepDiveScreenFor(
             report = null,
             isLoading = state.isDeepDiveRunning,
             padding = padding,
-            classic = false
+            classic = false,
+            onRetry = { actions.onRetryDeepDive(state.selectedTicker?.ifBlank { null } ?: destination.ticker) }
         )
         is Destination.WarRoom -> {
             val id = destination.warRoomId
             LaunchedEffect(entry.entryId) {
                 if (id != null && state.warRoom?.warRoomId != id) actions.onEnsureWarRoom(id)
+                // Silent: no "loaded" snackbar every 2 minutes and no paywall from a background refresh.
                 while (true) {
                     delay(WAR_ROOM_REFRESH_MS)
-                    actions.onRefreshWarRoom()
+                    actions.onAutoRefreshWarRoom()
                 }
             }
             WarRoomScreen(
@@ -265,29 +274,48 @@ private fun ShellContentScope.TodayRoot(padding: PaddingValues) {
 }
 
 /**
- * A `Report(id)` entry. The ViewModel holds one open report; when it holds another one (after a recreate, or a
- * second report opened on another tab) the entry asks for its own once.
+ * A `Report(id)` entry. The ViewModel holds one open report; when it holds another one (after a recreate, a
+ * second report opened on another tab, or a build started from a screen pushed over this one) the entry asks
+ * for its own again.
+ *
+ * The base layer keeps a report composed under pushed screens, so a key on `reportId` alone is not enough: the
+ * effect also re-runs when the entry comes back on top, when the held report changes, and when an open
+ * finishes. It asks only while the entry is on top and no open is in flight, and at most once per held report,
+ * so a failed open shows its error (with a retry that opens this report again) instead of retrying in a loop.
  */
 @Composable
-private fun ShellContentScope.ReportEntry(reportId: String, classic: Boolean, padding: PaddingValues) {
+private fun ShellContentScope.ReportEntry(entry: NavEntry, reportId: String, classic: Boolean, padding: PaddingValues) {
     val report = state.deepDiveReport?.takeIf { it.reportId == reportId }
-    LaunchedEffect(reportId) {
-        if (state.deepDiveReport?.reportId != reportId && !state.isOpeningReport) actions.onEnsureReport(reportId)
+    val onTop = navigator.tabTop.entryId == entry.entryId
+    val heldId = state.deepDiveReport?.reportId
+    var askedWhileHolding by remember(reportId) { mutableStateOf<String?>(NOT_ASKED) }
+    LaunchedEffect(reportId, onTop, heldId, state.isOpeningReport) {
+        if (onTop && heldId != reportId && !state.isOpeningReport && askedWhileHolding != (heldId ?: NONE_HELD)) {
+            askedWhileHolding = heldId ?: NONE_HELD
+            actions.onEnsureReport(reportId)
+        }
     }
     DeepDiveScreenFor(
         report = report,
         isLoading = report == null && (state.isOpeningReport || state.deepDiveError == null),
         padding = padding,
-        classic = classic
+        classic = classic,
+        // The error card's button opens this stored report again; it never starts a new build (principle 11).
+        onRetry = { actions.onEnsureReport(reportId) }
     )
 }
+
+private const val NOT_ASKED = "\u0000not-asked"
+private const val NONE_HELD = "\u0000none"
+
 
 @Composable
 private fun ShellContentScope.DeepDiveScreenFor(
     report: com.thesis.mobile.model.DeepDiveReportView?,
     isLoading: Boolean,
     padding: PaddingValues,
-    classic: Boolean
+    classic: Boolean,
+    onRetry: () -> Unit
 ) {
     DeepDiveScreen(
         report = report,
@@ -297,7 +325,7 @@ private fun ShellContentScope.DeepDiveScreenFor(
         recentHistory = state.reportHistory,
         watchlist = state.watchlist,
         onTickerChange = actions::onTickerChange,
-        onRunReport = { actions.onRunDeepDive(state.selectedTicker.orEmpty()) },
+        onRunReport = onRetry,
         userTier = state.userProfile?.tier,
         reportNoteDraft = state.reportNoteDraft,
         noteUpdatedAt = state.reportNote?.updatedAt,

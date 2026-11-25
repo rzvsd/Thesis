@@ -1353,10 +1353,15 @@ class MainViewModel(
 
     // Picks up polling a Deep Dive that was still running when the screen or app closed.
     private fun resumeDeepDiveIfRunning() {
-        val jobId = deepDiveResumePrefs.getString(KEY_RESUME_JOB_ID, null) ?: return
+        val jobId = deepDiveResumePrefs.getString(KEY_RESUME_JOB_ID, null)
+        if (jobId == null) {
+            dropIdleRunningEntries()
+            return
+        }
         val startedAt = deepDiveResumePrefs.getLong(KEY_RESUME_STARTED_AT, 0L)
         if (System.currentTimeMillis() - startedAt > DEEP_DIVE_MAX_WAIT_MS) {
             clearDeepDiveInFlight()
+            dropIdleRunningEntries()
             return
         }
         if (deepDivePoll?.isActive == true) return
@@ -1373,9 +1378,20 @@ class MainViewModel(
             val error = runAuthorizedWithRefresh { pollDeepDiveJob(jobId) }
             if (error != null) {
                 clearDeepDiveInFlight()
-                publish(state.copy(isDeepDiveRunning = false, message = toMessage(error)))
+                // The restored running entry shows the failure (with Retry) rather than an empty search.
+                val message = toMessage(error)
+                publish(state.copy(isDeepDiveRunning = false, message = message, deepDiveError = message))
             }
         }
+    }
+
+    /**
+     * A `DeepDiveRunning` entry restored (process death, recreate) with no job left to follow would only show a
+     * second copy of the Research search: remove it, so back and the tab show what was under it.
+     */
+    private fun dropIdleRunningEntries() {
+        if (state.isDeepDiveRunning) return
+        navigator.removeWhere { it is Destination.DeepDiveRunning }
     }
 
     private fun saveDeepDiveInFlight(jobId: String, ticker: String) {
@@ -1511,21 +1527,34 @@ class MainViewModel(
         publish(state.copy(lastViewedReport = null))
     }
 
-    fun openWarRoom(warRoomId: String) {
+    /**
+     * Loads a War Room. [announce] = false is the open War Room's background auto-refresh: no message (so no
+     * snackbar every 2 minutes), no `war_room_viewed` event, and a failure keeps the loaded War Room on screen
+     * without an error or the paywall.
+     */
+    fun openWarRoom(warRoomId: String, announce: Boolean = true) {
         val normalizedWarRoomId = warRoomId.trim()
         if (normalizedWarRoomId.isBlank()) {
-            publish(state.copy(message = "Open a War Room first."))
+            if (announce) publish(state.copy(message = "Open a War Room first."))
             return
         }
 
         viewModelScope.launch {
-            publish(state.copy(isWarRoomLoading = true, message = null, warRoomError = null))
+            if (announce) {
+                publish(state.copy(isWarRoomLoading = true, message = null, warRoomError = null))
+            } else {
+                publish(state.copy(isWarRoomLoading = true))
+            }
             val error = runAuthorizedWithRefresh {
                 val warRoom = client.getWarRoom(
                     state.apiBaseUrl,
                     requireTokens().accessToken,
                     normalizedWarRoomId
                 )
+                if (!announce) {
+                    publish(state.copy(warRoom = warRoom, warRoomError = null))
+                    return@runAuthorizedWithRefresh
+                }
                 publish(
                     state.copy(
                         warRoom = warRoom,
@@ -1541,6 +1570,10 @@ class MainViewModel(
                         "phase_count" to warRoom.phases.size
                     )
                 )
+            }
+            if (error != null && !announce) {
+                publish(state.copy(isWarRoomLoading = false))
+                return@launch
             }
             if (error != null) {
                 val message = toMessage(error)
@@ -1562,12 +1595,14 @@ class MainViewModel(
         }
     }
 
-    fun refreshWarRoom() {
+    fun refreshWarRoom(announce: Boolean = true) {
         val warRoomId = state.warRoom?.warRoomId?.trim().orEmpty()
         if (warRoomId.isBlank()) {
             return
         }
-        openWarRoom(warRoomId)
+        // A background refresh never stacks on a load that is still running.
+        if (!announce && state.isWarRoomLoading) return
+        openWarRoom(warRoomId, announce)
     }
 
     private fun maybeRefreshScenarioStressTemplates() {
@@ -2560,7 +2595,13 @@ class MainViewModel(
         refreshTab(tab, force = false)
     }
 
-    override fun onBack(): Boolean = navigator.back(::onEntryPopped)
+    override fun onBack(): Boolean {
+        // Back from another tab's root switches to Today: that leaves Names or Inbox, so move its marker.
+        val previousTab = navigator.currentTab
+        val handled = navigator.back(::onEntryPopped)
+        noteTabLeft(previousTab, navigator.currentTab)
+        return handled
+    }
 
     override fun onOpenYou() {
         if (navigator.modalStack.lastOrNull()?.destination != Destination.You) navigator.openModal(Destination.You)
@@ -2599,6 +2640,21 @@ class MainViewModel(
         selectTicker(symbol)
         navigator.push(Destination.DeepDiveRunning(symbol))
         runDeepDive()
+    }
+
+    override fun onRetryDeepDive(ticker: String) {
+        val symbol = ticker.trim().uppercase()
+        if (symbol.isBlank()) {
+            publish(state.copy(message = "Select a ticker first."))
+            return
+        }
+        if (navigator.modalStack.isEmpty() && navigator.tabTop.destination is Destination.DeepDiveRunning) {
+            selectTicker(symbol)
+            navigator.replaceTop(Destination.DeepDiveRunning(symbol))
+            runDeepDive()
+        } else {
+            onRunDeepDive(symbol)
+        }
     }
 
     override fun onOpenResearchFor(ticker: String) {
@@ -2698,6 +2754,7 @@ class MainViewModel(
     override fun onNotify(message: String) = notifyUser(message)
     override fun onRefreshPageToken(onResult: (String?) -> Unit) = refreshAccessTokenForPage(onResult)
     override fun onRefreshWarRoom() = refreshWarRoom()
+    override fun onAutoRefreshWarRoom() = refreshWarRoom(announce = false)
     override fun onRefreshScenarioTemplates() = refreshScenarioStressTemplates(force = true)
     override fun onSelectScenarioTemplate(scenarioId: String) = selectScenarioStressTemplate(scenarioId)
     override fun onRunScenarioStress(scenarioId: String?) = runScenarioStress(scenarioId)

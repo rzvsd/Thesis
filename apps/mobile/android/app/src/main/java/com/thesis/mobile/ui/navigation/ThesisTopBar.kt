@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.icons.Icons
@@ -20,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.thesis.mobile.model.AlertLedgerItemView
 import com.thesis.mobile.ui.theme.ThesisColors
@@ -43,7 +45,7 @@ fun ThesisTopBar(
             .fillMaxWidth()
             .background(ThesisColors.Background)
             .statusBarsPadding()
-            .height(56.dp)
+            .heightIn(min = 56.dp)
             .padding(start = ThesisDimens.ScreenPaddingHorizontal, end = ThesisDimens.SpacingSm),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -81,7 +83,7 @@ fun ThesisBackTopBar(title: String, onBack: () -> Unit) {
             .fillMaxWidth()
             .background(ThesisColors.Background)
             .statusBarsPadding()
-            .height(56.dp)
+            .heightIn(min = 56.dp)
             .padding(horizontal = ThesisDimens.SpacingXs),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -97,7 +99,8 @@ fun ThesisBackTopBar(title: String, onBack: () -> Unit) {
             style = ThesisTypography.titleMedium.copy(fontWeight = FontWeight.Medium),
             color = ThesisColors.TextPrimary,
             maxLines = 1,
-            modifier = Modifier.semantics { heading() }
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f, fill = false).semantics { heading() }
         )
     }
 }

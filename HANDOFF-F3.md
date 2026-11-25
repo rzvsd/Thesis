@@ -31,30 +31,47 @@ Changes F3 needs in files it does not own, and the contract it leaves for PR-3. 
   Reason: ui/platform is F2's; it is not on F3's base. **Open acceptance item:** "ThesisBackHandler /
   ThesisPredictiveBackHandler for every push" stays open until this swap lands in the PR-1 integration; until then
   back works but shows no predictive preview.
-- Literals in F3's shell chrome that the kit and tokens replace (design-lint 7.2 counts them; `ThesisSpace`,
-  `ThesisType`, `ThesisMotion` are not on F3's base fa8b6fc). Swap them in the F1/F2 merge follow-up, or in M3
-  (PR-2), then `design-lint --update-baseline` for the new files:
+- **Blocking item of the F1/F2 integration merge** (not a later follow-up): literals in F3's shell chrome that
+  the kit and tokens replace (design-lint 7.2, rubric T1/T2/M2, counts them; `ThesisSpace`, `ThesisType`,
+  `ThesisMotion` are not on F3's base fa8b6fc). Swap them when F1/F2 merge, then re-run
+  `design-lint --update-baseline` for the new files:
   - `ui/shell/ThesisShell.kt`: `24.dp` (shared-axis shift) and `32.dp` (modal rise) → `ThesisMotion`/`ThesisSpace`
     tokens; every `tween(...)` with `LinearOutSlowInEasing`/`FastOutLinearInEasing` in `tabTransition` and
     `modalTransition` → `ThesisMotion` specs (`EaseEnter`/`EaseExit`; durations already match 4.5).
-  - `ui/navigation/ThesisTopBar.kt`: `.height(56.dp)` (root and back bars); `titleMedium.copy(fontWeight = ...)`
+  - `ui/navigation/ThesisTopBar.kt`: `.heightIn(min = 56.dp)` (root and back bars; a minimum so a 2.0x title is
+    not clipped; the back-bar title is one line with an ellipsis); `titleMedium.copy(fontWeight = ...)`
     in `ThesisBackTopBar` and `labelLarge.copy(...)` in `SubScreenBackRow` → kit `ThesisTopBar(TopBarSpec)`
     (`barTitle`). The brand already uses `labelSmall` (= `eyebrow` after F1) in `Primary` (= `accent`).
-  - `ui/navigation/ThesisBottomBar.kt`: `BAR_HEIGHT = 64.dp` (min height), icon `22.dp` (spec: 24), dot `6.dp` +
-    `offset(2.dp)`, spacer `4.dp`, `labelSmall.copy(fontWeight = ...)` → kit `ThesisBottomBar` with `navLabel`.
+  - `ui/navigation/ThesisBottomBar.kt`: `BAR_HEIGHT = 64.dp` (min height), icon `24.dp` (now the spec value, still
+    a literal), dot `6.dp` + `offset(2.dp)`, spacer `4.dp` → kit `ThesisBottomBar` with `navLabel`. The label
+    already uses `labelMedium` (the slot F1 maps to Sans 500 12/16, i.e. `navLabel`), not `labelSmall` (which
+    F1 maps to the tracked `eyebrow`), and selection is ink vs muted only (no `.copy(fontWeight)` swap). Check
+    after the F1 merge that the tab labels did not turn into kickers.
     Keep the A4 behaviour: minimum (not fixed) item height, one-line label, label size capped in dp at 1.3x
     (`cappedForBar`; four labels cannot fit "Research" at 2.0x on 360 dp without breaking the word). This is a
     documented deviation from 2.3's "other styles scale freely" for this one label; `ThesisType.capped` can
     take it over.
   - `ui/shell/ShellDestinations.kt`: the War Room refresh loop `delay(WAR_ROOM_REFRESH_MS)` is a third poll next
-    to the two allow-listed `MainViewModel` polls: add it to the design-lint allowlist (it is the 5.5 War Room
-    auto-refresh, cancelled when the entry leaves composition) or move it into the ViewModel in PR-3.
+    to the two allow-listed `MainViewModel` polls: **add it to the design-lint allowlist** when the tool lands (it
+    is the 5.5 War Room auto-refresh, cancelled when the entry leaves composition) or move it into the ViewModel
+    in PR-3. It calls `onAutoRefreshWarRoom()` = `refreshWarRoom(announce = false)`: no "War Room loaded."
+    snackbar, no `war_room_viewed` event, no paywall, and a failure keeps the loaded War Room on screen.
 - Icons: the Research tab uses `Icons.AutoMirrored.Filled.ManageSearch` (2.8: Research = `manage_search`; the
   magnifier is the top bar's Search). Swap for the `ThesisIcons` glyph when F2 lands.
 - `ui/navigation/ThesisTopBar.kt` / `ThesisBottomBar.kt`: F3 rewired them functionally (4 tabs with the Inbox
   "new" dot, no gold indicator; root bar = brand + Search + avatar; `ThesisBackTopBar` for pushed screens without
   a header). The kit's `ThesisTopBar(TopBarSpec)` / `ThesisBottomBar` restyle them; keep the call shapes used in
   `ui/shell/ThesisShell.kt` or update them there.
+
+## 2b. For WP-C/WP-D (report screens)
+
+- `components/EmptyStateView.kt` `DeepDiveUnavailableState` / `screens/DeepDiveScreen.kt`: on a `Report(id)` entry
+  whose open failed (render `shell-report-failed`), the shell now wires the error card's button to
+  `onEnsureReport(id)` (open the stored report again), not to a new build. The label still reads
+  "Retry Deep Dive"; add a label parameter (for example `retryLabel`, passed through `DeepDiveScreen`) so the
+  shell can say "Open report again" (principle 11). On a failed `DeepDiveRunning` entry the button runs the build
+  again through `onRetryDeepDive(ticker)`, which replaces the entry instead of stacking a second one.
+- `EmptyStateActionButton`: the pill's label is clipped vertically at 2.0x (fixed height); use a minimum height.
 
 ## 3. For F1 (theme)
 
@@ -82,7 +99,16 @@ Changes F3 needs in files it does not own, and the contract it leaves for PR-3. 
 - `InboxScreen` (WP-A/WP-B, not F3): at 2.0x on 360 dp its filter row is a fixed `Row`, so "Earnings" breaks
   letter by letter (render `shell-inbox-360-scale2.0`); 5.x `ChipRow` (scrolling `LazyRow`) fixes it.
 
-## 4. For WP-A (Today/Pulse, PR-3)
+## 4. For WP-A (Today/Pulse, PR-3) and WP-B (Names/Inbox)
+
+Screen bodies that break at 360 dp x 2.0 (rule 6.0.6) under shell chrome that holds. Pre-existing, not F3's:
+- `PulseScreen` header (WP-A): the date stacks one letter per line down the right edge and pushes the content off
+  screen (render `shell-today-pulse-360-scale2.0`).
+- `HomeScreen` Macro Stress card (WP-A): the title breaks mid-word ("Mac / ro / Stres / s") next to the score
+  (render `shell-today-360-scale2.0`).
+- `NamesScreen` filter chips (WP-B): "Catalysts Soon" breaks mid-word (render `shell-names-360-scale2.0`).
+- `InboxScreen` filter chips (WP-B): "System" breaks letter by letter even at 412 dp x 1.0 (render `shell-inbox`);
+  see also 3b. A scrolling `ChipRow` fixes all three chip rows.
 
 - `PulseScreen.kt:691`: replace the regex over section prose with `pulse.tape` (`MarketTapeView`:
   indices + cross-asset, value, daily change, %, unit, family, direction, as-of; includes the dollar index).
@@ -104,6 +130,12 @@ Destinations `Name`, `CompareReports`, `CompareNames` and `Search` exist (codec,
 placeholder until WP-B/WP-E add their screens to `ui/shell/ShellDestinations.kt`.
 
 ## 6. For the owner
+
+- **Open acceptance item:** predictive back ("ThesisBackHandler / ThesisPredictiveBackHandler for every push",
+  4.5 scale .90 + 8 dp shift). Back works through a plain `BackHandler` gated on `navigator.canGoBack`, but shows no
+  preview until F2's `ui/platform/Back.kt` merges (section 2). At PR-1 integration: swap the handler for
+  `ThesisBackHandler`, wrap the tab layer in `ThesisPredictiveBackHandler` with commit = `actions.onBack()`, keep
+  the `canGoBack` gating.
 
 - `.github/workflows/**`: not touched (needs your OK). Nothing in F3 requires a workflow change; the new
   `src/testDebug` Room migration test runs under the existing `testDebugUnitTest`.

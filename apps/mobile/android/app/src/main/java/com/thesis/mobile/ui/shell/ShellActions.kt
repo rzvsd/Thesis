@@ -39,6 +39,12 @@ interface ShellActions {
     /** Pushes `DeepDiveRunning(ticker)` and starts the build; the entry becomes `Report(id)` when it is ready. */
     fun onRunDeepDive(ticker: String) {}
 
+    /**
+     * Run again from a `DeepDiveRunning` entry whose build failed: the entry is replaced by a new running entry
+     * (no second copy on the stack) and the build starts.
+     */
+    fun onRetryDeepDive(ticker: String) {}
+
     /** Research tab root with [ticker] in the field (no build). */
     fun onOpenResearchFor(ticker: String) {}
 
@@ -94,6 +100,9 @@ interface ShellActions {
     fun onNotify(message: String) {}
     fun onRefreshPageToken(onResult: (String?) -> Unit) { onResult(null) }
     fun onRefreshWarRoom() {}
+
+    /** The open War Room's 2-minute auto-refresh (5.5): no "loaded" message, no paywall on failure. */
+    fun onAutoRefreshWarRoom() {}
     fun onRefreshScenarioTemplates() {}
     fun onSelectScenarioTemplate(scenarioId: String) {}
     fun onRunScenarioStress(scenarioId: String?) {}

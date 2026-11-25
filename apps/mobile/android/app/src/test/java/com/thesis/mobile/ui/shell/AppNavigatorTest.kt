@@ -331,6 +331,22 @@ class AppNavigatorTest {
     }
 
     @Test
+    fun removeWhereDropsMatchingEntriesFromEveryStackButNeverARoot() {
+        val nav = AppNavigator()
+        nav.selectTab(ShellTab.Research)
+        nav.push(Destination.DeepDiveRunning("AAPL"))
+        nav.push(Destination.ScenarioStress())
+        nav.selectTab(ShellTab.Today)
+        nav.push(Destination.DeepDiveRunning("MSFT"))
+        val removed = nav.removeWhere { it is Destination.DeepDiveRunning }
+        assertEquals(2, removed)
+        assertEquals(listOf(Destination.Research, Destination.ScenarioStress()), destinations(nav, ShellTab.Research))
+        assertEquals(listOf(Destination.Today), destinations(nav, ShellTab.Today))
+        assertEquals(NavMove.Replace, nav.lastMove)
+        assertEquals("roots are never removed", 0, nav.removeWhere { it == Destination.Today })
+    }
+
+    @Test
     fun lastMoveTellsTheShellWhichTransitionToPlay() {
         val nav = AppNavigator()
         nav.push(Destination.Pulse())

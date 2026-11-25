@@ -181,6 +181,28 @@ class AppNavigator(private val store: NavigatorStateStore? = null) {
         return replaced
     }
 
+    /**
+     * Removes, from every stack, each entry (never a tab root) whose destination matches [predicate]. For example a
+     * `DeepDiveRunning` entry restored after its job ended. Returns the number removed.
+     */
+    fun removeWhere(predicate: (Destination) -> Boolean): Int {
+        var removed = 0
+        val all = stacks.values + listOf(modalStack)
+        all.forEach { stack ->
+            for (index in stack.indices.reversed()) {
+                val isRoot = stack !== modalStack && index == 0
+                if (isRoot || !predicate(stack[index].destination)) continue
+                stack.removeAt(index)
+                removed++
+            }
+        }
+        if (removed > 0) {
+            lastMove = NavMove.Replace
+            persist()
+        }
+        return removed
+    }
+
     /** Every entry id on any stack (the shell drops saved UI state of the others). */
     fun liveEntryIds(): Set<String> =
         (stacks.values.flatMap { it.toList() } + modalStack.toList()).mapTo(HashSet()) { it.entryId }

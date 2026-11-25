@@ -37,7 +37,6 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.TextUnit
@@ -115,15 +114,15 @@ fun ThesisBottomBar(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center
                 ) {
-                    val labelStyle = ThesisTypography.labelSmall.cappedForBar(LocalDensity.current).copy(
-                        fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal
-                    )
+                    // labelMedium is the M3 slot F1 maps to Sans 500 12/16 (2.x, = `navLabel`); labelSmall would
+                    // become the tracked `eyebrow`. Selection is ink vs muted only (2.x/5 row 4), no weight swap.
+                    val labelStyle = ThesisTypography.labelMedium.cappedForBar(LocalDensity.current)
                     Box {
                         Icon(
                             imageVector = item.icon,
                             contentDescription = null,
                             tint = itemColor,
-                            modifier = Modifier.size(22.dp)
+                            modifier = Modifier.size(24.dp)
                         )
                         if (item.showDot) {
                             Box(

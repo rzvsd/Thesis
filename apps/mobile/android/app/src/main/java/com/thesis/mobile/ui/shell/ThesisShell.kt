@@ -17,10 +17,15 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -28,13 +33,16 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.SaveableStateHolder
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import com.thesis.mobile.ui.UiState
@@ -56,7 +64,8 @@ import com.thesis.mobile.ui.theme.ThesisColors
  * Layers, bottom to top: root `bg` → the report base layer (a `Report` entry on the current tab stays composed
  * under screens pushed over it, so its WebView keeps scroll and session) → the tab layer (`AnimatedContent` over
  * the current tab's top entry, 4.5 transitions, each entry's saved state keyed by its `entryId`) → the modal
- * layer (You, Search, Paywall destinations) → the paywall sheet → snackbars. Back is the caller's
+ * layer (You, Search, Paywall destinations) → the paywall sheet → snackbars (one host, last child of the root,
+ * so messages raised while You, Search or the paywall is open are seen: 5.5 layer order). Back is the caller's
  * (`BackHandler` in `ThesisApp`, enabled while [AppNavigator.canGoBack]).
  */
 @OptIn(ExperimentalLayoutApi::class)
@@ -74,11 +83,14 @@ fun ThesisShell(
     val shiftPx = with(LocalDensity.current) { 24.dp.roundToPx() }
     val modalRisePx = with(LocalDensity.current) { 32.dp.roundToPx() }
     var sampleDismissed by rememberSaveable { mutableStateOf(false) }
+    var bottomBarHeightPx by remember { mutableIntStateOf(0) }
 
     val tabTop = navigator.tabTop
     val modalTop = navigator.modalStack.lastOrNull()
     val currentStack = navigator.stack(navigator.currentTab)
     val reportBase = currentStack.lastOrNull { it.destination is Destination.Report }
+    val paywallOpen = !state.paywallFeature.isNullOrBlank()
+    val bottomBarShown = !tabTop.destination.hidesBottomBar
 
     // Drop the saved UI state of entries that left every stack.
     val liveIds = navigator.liveEntryIds()
@@ -101,7 +113,6 @@ fun ThesisShell(
     Box(modifier = modifier.fillMaxSize().background(ThesisColors.Background)) {
         Scaffold(
             containerColor = ThesisColors.Background,
-            snackbarHost = { SnackbarHost(snackbarHostState) },
             topBar = {
                 when (topBarFor(tabTop.destination, state)) {
                     ShellTopBar.Root -> ThesisTopBar(
@@ -118,13 +129,14 @@ fun ThesisShell(
                 }
             },
             bottomBar = {
-                if (!tabTop.destination.hidesBottomBar) {
+                if (bottomBarShown) {
                     ThesisBottomBar(
                         items = shellNavItems(inboxHasNew = state.hasNewInboxItems),
                         selectedTag = navigator.selectedTab?.name,
                         onSelect = { tag ->
                             ShellTab.entries.firstOrNull { it.name == tag }?.let(actions::onSelectTab)
-                        }
+                        },
+                        modifier = Modifier.onSizeChanged { bottomBarHeightPx = it.height }
                     )
                 }
             }
@@ -183,7 +195,7 @@ fun ThesisShell(
             }
         }
 
-        if (!state.paywallFeature.isNullOrBlank()) {
+        if (paywallOpen) {
             PaywallScreen(
                 alerts = state.alertLedger,
                 watchlist = state.watchlist,
@@ -195,7 +207,34 @@ fun ThesisShell(
                 onDismiss = actions::onDismissPaywall
             )
         }
+
+        // Above every layer: the bottom bar is visible (and the snackbar sits on it) only on a tab entry with no
+        // modal or paywall over it; otherwise the snackbar sits on the navigation bar or the keyboard.
+        ShellSnackbarHost(
+            hostState = snackbarHostState,
+            barHeightPx = { if (bottomBarShown && modalTop == null && !paywallOpen) bottomBarHeightPx else 0 }
+        )
     }
+}
+
+/**
+ * The shell's only snackbar host, bottom-aligned above the bottom bar when it shows, else above the navigation
+ * bar or the keyboard. Its own composable, so keyboard animation frames recompose only this host.
+ */
+@Composable
+private fun BoxScope.ShellSnackbarHost(hostState: SnackbarHostState, barHeightPx: () -> Int) {
+    val density = LocalDensity.current
+    val bottomPx = maxOf(
+        WindowInsets.ime.getBottom(density),
+        WindowInsets.navigationBars.getBottom(density),
+        barHeightPx()
+    )
+    SnackbarHost(
+        hostState = hostState,
+        modifier = Modifier
+            .align(Alignment.BottomCenter)
+            .padding(bottom = with(density) { bottomPx.toDp() })
+    )
 }
 
 /** An entry drawn opaque on `bg`, with its own saved state (scroll, fields) keyed by `entryId`. */
@@ -225,7 +264,8 @@ internal fun topBarFor(destination: Destination, state: UiState): ShellTopBar = 
 }
 
 internal fun titleOf(destination: Destination, state: UiState): String = when (destination) {
-    is Destination.WarRoom -> state.warRoom?.ticker?.let { "$it War Room" } ?: "War Room"
+    // The War Room screen carries its own "War Room" headline and ticker; the bar only goes back (rubric V3).
+    is Destination.WarRoom -> ""
     is Destination.ScenarioStress -> "Scenario Stress"
     // The placeholder body carries the ticker as its headline; the bar only goes back (rubric V3).
     is Destination.Name -> ""
