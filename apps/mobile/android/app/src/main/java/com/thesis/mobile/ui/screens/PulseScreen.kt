@@ -90,6 +90,7 @@ import com.thesis.mobile.ui.today.PulseBrief
 import com.thesis.mobile.ui.today.PulseChapter
 import com.thesis.mobile.ui.today.PulseText
 import com.thesis.mobile.ui.today.TapeModel
+import com.thesis.mobile.ui.today.inert
 import com.thesis.mobile.ui.today.parseDay
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -131,7 +132,7 @@ fun PulseScreen(
     isExporting: Boolean = false,
     /** Monitor readings, for the state squares on Your names. */
     monitorSnapshots: List<ThesisMonitorSnapshotView> = emptyList(),
-    /** Opens a name; without it a name row opens a Deep Dive on it (the old behaviour). */
+    /** Opens a name; without it the name rows are plain text (a tap never starts a Deep Dive build). */
     onOpenName: ((String) -> Unit)? = null,
     /** Copies the brief as text; without it the system clipboard is used directly. */
     onCopyText: ((String) -> Unit)? = null,
@@ -168,7 +169,6 @@ fun PulseScreen(
         haptics.confirm()
     }
     val openSource: (String) -> Unit = { url -> if (onOpenSource != null) onOpenSource(url) else runCatching { uri.openUri(url) } }
-    val openName: (String) -> Unit = { t -> if (onOpenName != null) onOpenName(t) else onRunDeepDive(t) }
 
     val density = LocalDensity.current
     var barHeightPx by remember { mutableIntStateOf(0) }
@@ -227,7 +227,7 @@ fun PulseScreen(
                     monitorSnapshots = monitorSnapshots,
                     initialChapter = initialChapter,
                     onCopyTable = { copyText(TapeModel.tsv(pulse?.tape)) },
-                    onOpenName = openName,
+                    onOpenName = onOpenName,
                     onOpenSource = openSource,
                 )
             }
@@ -269,7 +269,7 @@ private fun Brief(
     monitorSnapshots: List<ThesisMonitorSnapshotView>,
     initialChapter: ChapterKind?,
     onCopyTable: () -> Unit,
-    onOpenName: (String) -> Unit,
+    onOpenName: ((String) -> Unit)?,
     onOpenSource: (String) -> Unit,
 ) {
     val p = LocalThesisPalette.current
@@ -338,7 +338,7 @@ private fun Brief(
                         style = ThesisType.capped(ThesisType.heroLine),
                         color = LocalThesisPalette.current.ink,
                     )
-                    if (generated != null || brief.partial) {
+                    if (generated != null || brief.heroPartial) {
                         FlowRow(
                             horizontalArrangement = Arrangement.spacedBy(ThesisSpace.s),
                             verticalArrangement = Arrangement.spacedBy(ThesisSpace.xs),
@@ -346,7 +346,8 @@ private fun Brief(
                             if (generated != null) {
                                 Text(generated, style = ThesisType.caption, color = LocalThesisPalette.current.muted)
                             }
-                            if (brief.partial) StatusBadge(TodayCopy.PARTIAL_COVERAGE, Tone.Attention)
+                            // Only when no chapter says it in its own header (once per screen).
+                            if (brief.heroPartial) StatusBadge(TodayCopy.PARTIAL_COVERAGE, Tone.Attention)
                         }
                     }
                 }
@@ -422,7 +423,7 @@ private fun Chapter(
     chapter: PulseChapter,
     monitorSnapshots: List<ThesisMonitorSnapshotView>,
     onCopyTable: () -> Unit,
-    onOpenName: (String) -> Unit,
+    onOpenName: ((String) -> Unit)?,
     onOpenSource: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -458,22 +459,29 @@ private fun Chapter(
                     chapter.names.forEach { mention ->
                         row(LeadingRowDividerInset) {
                             val state = states[mention.ticker]?.state
+                            val stateWord = TodayCopy.stateWord(state)
                             TickerRow(
                                 ticker = mention.ticker,
                                 stateTone = thesisStateTone(state),
-                                stateLabel = TodayCopy.stateWord(state),
+                                stateLabel = stateWord,
                                 line2 = mention.sentence,
-                                onClick = { onOpenName(mention.ticker) },
+                                onClick = { onOpenName?.invoke(mention.ticker) },
+                                modifier = if (onOpenName == null) {
+                                    Modifier.inert(listOf(mention.ticker, stateWord, mention.sentence).joinToString(", "))
+                                } else {
+                                    Modifier
+                                },
                             )
                         }
                     }
                 }
             }
             ChapterKind.Watch -> {
+                // A story list: neutral marks (gold is never a bullet, principle 3).
                 Column(verticalArrangement = Arrangement.spacedBy(ThesisSpace.m)) {
                     chapter.items.forEach { item ->
                         Row(horizontalArrangement = Arrangement.spacedBy(ThesisSpace.m)) {
-                            Box(Modifier.padding(top = ThesisSpace.s)) { StatusSquare(p.accent) }
+                            Box(Modifier.padding(top = ThesisSpace.s)) { StatusSquare(p.muted) }
                             Text(item, style = ThesisType.story, color = p.ink)
                         }
                     }

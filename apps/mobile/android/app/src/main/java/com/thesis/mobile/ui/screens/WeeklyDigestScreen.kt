@@ -1,7 +1,6 @@
 package com.thesis.mobile.ui.screens
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
@@ -12,12 +11,11 @@ import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.layout.SubcomposeLayout
+import androidx.compose.ui.unit.Dp
 import com.thesis.mobile.model.AlertLedgerItemView
 import com.thesis.mobile.model.PulseReportView
 import com.thesis.mobile.model.ReportSummaryView
@@ -34,6 +32,10 @@ import com.thesis.mobile.ui.components.LeadingRowDividerInset
 import com.thesis.mobile.ui.components.PressableCard
 import com.thesis.mobile.ui.components.RowGroup
 import com.thesis.mobile.ui.components.ScreenHeader
+import com.thesis.mobile.ui.components.SkeletonKpiGrid
+import com.thesis.mobile.ui.components.SkeletonRow
+import com.thesis.mobile.ui.components.SkeletonText
+import com.thesis.mobile.ui.components.rememberTopBarCollapsed
 import com.thesis.mobile.ui.components.SectionHeader
 import com.thesis.mobile.ui.components.ThesisTopBar
 import com.thesis.mobile.ui.components.TickerRow
@@ -41,8 +43,8 @@ import com.thesis.mobile.ui.copy.TodayCopy
 import com.thesis.mobile.ui.format.Fmt
 import com.thesis.mobile.ui.format.LocalFmt
 import com.thesis.mobile.ui.icons.ThesisIcons
-import com.thesis.mobile.ui.motion.rememberDataEntranceCoordinator
-import com.thesis.mobile.ui.motion.staggeredEntrance
+import com.thesis.mobile.ui.motion.ShimmerHost
+import com.thesis.mobile.ui.motion.rememberShowSkeleton
 import com.thesis.mobile.ui.theme.LocalThesisPalette
 import com.thesis.mobile.ui.theme.ThesisSpace
 import com.thesis.mobile.ui.theme.ThesisType
@@ -54,6 +56,7 @@ import com.thesis.mobile.ui.today.DigestModel
 import com.thesis.mobile.ui.today.LocalTodayClock
 import com.thesis.mobile.ui.today.PulseBrief
 import com.thesis.mobile.ui.today.PulseText
+import com.thesis.mobile.ui.today.inert
 
 /*
  * The weekly digest, "This week" (docs/app-redesign/DESIGN-DIRECTION.md 5.8): built only from data the app already
@@ -85,6 +88,12 @@ fun WeeklyDigestScreen(
     onOpenName: ((String) -> Unit)? = null,
     onOpenInbox: ((category: String) -> Unit)? = null,
     onOpenPulse: (() -> Unit)? = null,
+    /**
+     * The cached state the digest is built from is still loading (the shell's first load after launch): with
+     * nothing to show yet, a skeleton instead of "Nothing to sum up yet". The digest has no error state of its
+     * own: it never fetches, it only reads what the other screens already loaded.
+     */
+    loading: Boolean = false,
 ) {
     val fmt = LocalFmt.current
     val clock = LocalTodayClock.current
@@ -107,14 +116,25 @@ fun WeeklyDigestScreen(
             pulseDate = pulse?.cycleEnd,
         )
     }
-    val density = LocalDensity.current
-    var barHeightPx by remember { mutableIntStateOf(0) }
-    val barHeight = with(density) { barHeightPx.toDp() }
-    val coordinator = rememberDataEntranceCoordinator(dataKey = model.end)
-    val entrance: Modifier.(Int) -> Modifier = { i -> staggeredEntrance(i, coordinator) }
+    // Nothing for the skeleton's grace period, then the skeleton while the cached state is still arriving.
+    val showSkeleton = rememberShowSkeleton(loading = loading && model.isEmpty)
+    val list = rememberLazyListState()
+    val collapsed by rememberTopBarCollapsed(list)
 
-    Box(Modifier.fillMaxSize()) {
+    // A pushed screen arrives whole with the push transition: no entrance stagger here (spec 4.3 rule 2).
+    BarOverContent(
+        bar = {
+            ThesisTopBar(
+                title = TodayCopy.DIGEST_TITLE,
+                subtitle = fmt.weekRange(model.start, model.end),
+                onBack = onBack,
+                collapsed = collapsed,
+                titleAlwaysVisible = true,
+            )
+        },
+    ) { barHeight ->
         LazyColumn(
+            state = list,
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(
                 top = barHeight,
@@ -126,36 +146,68 @@ fun WeeklyDigestScreen(
                     title = TodayCopy.THIS_WEEK,
                     deck = if (model.isEmpty) null else model.lede,
                     modifier = Modifier
-                        .entrance(0)
                         .padding(horizontal = ThesisSpace.gutter)
                         .padding(top = ThesisSpace.headerTop),
                 )
             }
-            if (model.isEmpty) {
-                item(key = "empty") {
+            when {
+                !model.isEmpty -> digest(model, onOpenDashboard, onOpenReport, onOpenName, onOpenInbox, onOpenPulse)
+                showSkeleton -> item(key = "loading") { DigestSkeleton() }
+                loading -> Unit
+                else -> item(key = "empty") {
                     EmptyState(
                         sentence = TodayCopy.DIGEST_NO_DATA,
                         how = TodayCopy.DIGEST_NO_DATA_HOW,
                         modifier = Modifier.padding(ThesisSpace.gutter),
                     )
                 }
-            } else {
-                digest(model, entrance, onOpenDashboard, onOpenReport, onOpenName, onOpenInbox, onOpenPulse)
             }
         }
-        ThesisTopBar(
-            modifier = Modifier.onSizeChanged { barHeightPx = it.height },
-            title = TodayCopy.DIGEST_TITLE,
-            subtitle = fmt.weekRange(model.start, model.end),
-            onBack = onBack,
-            titleAlwaysVisible = true,
-        )
+    }
+}
+
+/**
+ * The top bar over the list, measured before the list so the list's top padding is right on the first frame (a
+ * pushed screen that arrives whole must not settle by a bar's height after its first paint).
+ */
+@Composable
+private fun BarOverContent(bar: @Composable () -> Unit, content: @Composable (Dp) -> Unit) {
+    SubcomposeLayout(Modifier.fillMaxSize()) { constraints ->
+        val loose = constraints.copy(minWidth = 0, minHeight = 0)
+        val bars = subcompose(DigestSlot.Bar, bar).map { it.measure(loose) }
+        val barHeight = bars.maxOfOrNull { it.height } ?: 0
+        val body = subcompose(DigestSlot.Body) { content(barHeight.toDp()) }.map { it.measure(constraints) }
+        layout(constraints.maxWidth, constraints.maxHeight) {
+            body.forEach { it.place(0, 0) }
+            bars.forEach { it.place(0, 0) }
+        }
+    }
+}
+
+private enum class DigestSlot { Bar, Body }
+
+/** No cached state yet: the KPI grid and two sections in skeleton form, under the header. */
+@Composable
+private fun DigestSkeleton() {
+    ShimmerHost {
+        Column(
+            Modifier
+                .padding(horizontal = ThesisSpace.gutter)
+                .padding(top = ThesisSpace.headerToSection),
+            verticalArrangement = Arrangement.spacedBy(ThesisSpace.sectionGapData),
+        ) {
+            SkeletonKpiGrid(featured = true)
+            Column(verticalArrangement = Arrangement.spacedBy(ThesisSpace.xs)) {
+                SkeletonText(ThesisType.kicker, widthFraction = 0.3f)
+                SkeletonText(ThesisType.headline, widthFraction = 0.75f)
+            }
+            Column { repeat(2) { SkeletonRow() } }
+        }
     }
 }
 
 private fun LazyListScope.digest(
     model: DigestModel,
-    entrance: Modifier.(Int) -> Modifier,
     onOpenDashboard: () -> Unit,
     onOpenReport: ((String, String) -> Unit)?,
     onOpenName: ((String) -> Unit)?,
@@ -188,33 +240,35 @@ private fun LazyListScope.digest(
                 reference = TodayCopy.LAST_7_DAYS,
             ),
         )
+        // The screen's one featured grid: serif figures, as the Deep Dive KPI strip (V1).
         KpiGrid(
             items = items,
+            featured = true,
             modifier = Modifier
-                .entrance(1)
                 .padding(horizontal = ThesisSpace.gutter)
                 .padding(top = ThesisSpace.headerToSection),
         )
     }
 
     item(key = "filings") {
-        Section(Modifier.entrance(2)) {
+        Section {
             SectionHeader(kicker = TodayCopy.FILINGS_KICKER, headline = TodayCopy.filingsHeadline(model.filings.size))
             if (model.filings.isNotEmpty()) {
                 RowGroup {
                     model.filings.forEach { f ->
                         row(LeadingRowDividerInset) {
+                            val open: (() -> Unit)? = when {
+                                f.reportId != null && onOpenReport != null -> { { onOpenReport(f.reportId, f.ticker) } }
+                                onOpenName != null -> { { onOpenName(f.ticker) } }
+                                else -> null
+                            }
                             TickerRow(
                                 ticker = f.ticker,
                                 stateTone = f.tone,
                                 stateLabel = f.stateLabel,
                                 line2 = f.sub,
-                                onClick = {
-                                    when {
-                                        f.reportId != null && onOpenReport != null -> onOpenReport(f.reportId, f.ticker)
-                                        onOpenName != null -> onOpenName(f.ticker)
-                                    }
-                                },
+                                onClick = { open?.invoke() },
+                                modifier = if (open == null) Modifier.inert(spoken(f.ticker, f.stateLabel, f.sub)) else Modifier,
                             )
                         }
                     }
@@ -226,7 +280,7 @@ private fun LazyListScope.digest(
     val macro = model.macro
     if (macro != null) {
         item(key = "macro") {
-            Section(Modifier.entrance(3)) {
+            Section {
                 SectionHeader(kicker = TodayCopy.MACRO_KICKER, headline = macro.title)
                 PressableCard(onClick = onOpenDashboard, onClickLabel = TodayCopy.OPEN_MACRO) {
                     val p = LocalThesisPalette.current
@@ -248,7 +302,7 @@ private fun LazyListScope.digest(
     }
 
     item(key = "states") {
-        Section(Modifier.entrance(4)) {
+        Section {
             SectionHeader(kicker = TodayCopy.STATE_KICKER, headline = TodayCopy.stateChangesHeadline(model.stateChanges?.size))
             val rows = model.stateChanges.orEmpty()
             if (rows.isNotEmpty()) {
@@ -261,6 +315,7 @@ private fun LazyListScope.digest(
                                 stateLabel = r.stateLabel,
                                 line2 = r.line2,
                                 onClick = { onOpenName?.invoke(r.ticker) },
+                                modifier = if (onOpenName == null) Modifier.inert(spoken(r.ticker, r.stateLabel, r.line2)) else Modifier,
                             )
                         }
                     }
@@ -270,7 +325,7 @@ private fun LazyListScope.digest(
     }
 
     item(key = "alerts") {
-        Section(Modifier.entrance(5)) {
+        Section {
             SectionHeader(
                 kicker = TodayCopy.ALERTS_KICKER,
                 headline = TodayCopy.alertsHeadline(model.alertsTotal, model.alerts.firstOrNull()?.label),
@@ -283,7 +338,7 @@ private fun LazyListScope.digest(
                                 color = alertCategoryColor(c.category),
                                 label = c.label,
                                 count = c.count,
-                                onClick = { onOpenInbox?.invoke(c.category) },
+                                onClick = onOpenInbox?.let { open -> { open(c.category) } },
                             )
                         }
                     }
@@ -295,11 +350,14 @@ private fun LazyListScope.digest(
     val pulseLine = model.pulseLine
     if (pulseLine != null) {
         item(key = "pulse") {
-            Section(Modifier.entrance(6)) {
+            Section {
                 SectionHeader(kicker = TodayCopy.LATEST_PULSE_KICKER, headline = PulseText.oneSentence(pulseLine))
-                RowGroup {
-                    row(LeadingRowDividerInset) {
-                        ActionRow(icon = ThesisIcons.Pulse, title = TodayCopy.OPEN_PULSE, onClick = { onOpenPulse?.invoke() })
+                // The row only when it can open the Pulse.
+                if (onOpenPulse != null) {
+                    RowGroup {
+                        row(LeadingRowDividerInset) {
+                            ActionRow(icon = ThesisIcons.Pulse, title = TodayCopy.OPEN_PULSE, onClick = onOpenPulse)
+                        }
                     }
                 }
             }
@@ -307,10 +365,13 @@ private fun LazyListScope.digest(
     }
 }
 
+/** What TalkBack reads for a row that opens nothing: "MSFT, Watch, Intact → Watch, Mon". */
+private fun spoken(vararg parts: String?): String = parts.filterNotNull().filter { it.isNotBlank() }.joinToString(", ")
+
 @Composable
-private fun Section(modifier: Modifier, content: @Composable () -> Unit) {
+private fun Section(content: @Composable () -> Unit) {
     Column(
-        modifier
+        Modifier
             .padding(horizontal = ThesisSpace.gutter)
             .padding(top = ThesisSpace.sectionGapData),
         verticalArrangement = Arrangement.spacedBy(ThesisSpace.m),

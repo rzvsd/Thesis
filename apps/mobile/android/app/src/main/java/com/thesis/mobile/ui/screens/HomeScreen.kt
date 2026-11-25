@@ -2,6 +2,7 @@ package com.thesis.mobile.ui.screens
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -20,12 +21,16 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.unit.Constraints
 import com.thesis.mobile.model.AlertLedgerItemView
 import com.thesis.mobile.model.LastViewedReport
 import com.thesis.mobile.model.PulseReportView
 import com.thesis.mobile.model.SentimentSnapshotView
 import com.thesis.mobile.model.SnapshotDelta
 import com.thesis.mobile.model.ThesisMonitorSnapshotView
+import com.thesis.mobile.ui.RefreshFailureKind
 import com.thesis.mobile.ui.charts.kit.ChartMath
 import com.thesis.mobile.ui.charts.kit.Sparkline
 import com.thesis.mobile.ui.components.ActionRow
@@ -80,6 +85,9 @@ import com.thesis.mobile.ui.today.PulseBrief
 import com.thesis.mobile.ui.today.PulseChapterRow
 import com.thesis.mobile.ui.today.PulseText
 import com.thesis.mobile.ui.today.TapeModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import java.time.Instant
 import java.time.LocalDate
 
@@ -137,10 +145,29 @@ fun HomeScreen(
     onOpenPulseAt: ((ChapterKind) -> Unit)? = null,
     /** When the next issue is expected ("06:30"), for the no-Pulse state; null when not known. */
     pulseExpectedAt: String? = null,
+    /** Reloads macro stress (`onRefreshMacro`): the macro card's "Try again" and, with [onRetryPulse], the pull. */
+    onRetryMacro: (() -> Unit)? = null,
+    /**
+     * Why the last Pulse refresh failed, when it did: the cached-copy banner and the error state say "offline"
+     * only for [RefreshFailureKind.OFFLINE]. Null when unknown (the banner then says "Couldn’t refresh").
+     */
+    pulseFailure: RefreshFailureKind? = null,
 ) {
     val fmt = LocalFmt.current
     val clock = LocalTodayClock.current
-    val now = remember(clock, pulse?.reportId, refreshing) { clock.instant() }
+    // The eyebrow's market phase and the greeting follow the clock: re-read on every refresh and new issue, and
+    // at each minute boundary while Home is composed (09:30 turns PRE-MARKET into MARKET OPEN without a refresh).
+    // The wait runs off the composition's dispatcher: it is wall-clock time, and a UI test's idle check (which
+    // drives that dispatcher's virtual time) would otherwise advance it minute after minute and never go idle.
+    var now by remember(clock) { mutableStateOf(clock.instant()) }
+    LaunchedEffect(clock, pulse?.reportId, refreshing) {
+        now = clock.instant()
+        while (true) {
+            val wait = MINUTE_MS - now.toEpochMilli().mod(MINUTE_MS)
+            withContext(Dispatchers.Default) { delay(wait) }
+            now = clock.instant()
+        }
+    }
     val today = remember(now, clock) { now.atZone(clock.zone).toLocalDate() }
 
     val brief = remember(pulse, watchlist) { pulse?.let { PulseBrief.from(it, watchlist) } }
@@ -167,7 +194,9 @@ fun HomeScreen(
                 refreshing = refreshing && pulled,
                 onRefresh = {
                     pulled = true
+                    // Home shows both: the pull reloads the Pulse and macro stress (spec 5.6).
                     onRetryPulse()
+                    onRetryMacro?.invoke()
                 },
                 indicatorTop = padding.calculateTopPadding(),
             ) {
@@ -176,7 +205,8 @@ fun HomeScreen(
                     brief = brief,
                     pulse = pulse,
                     pulseError = pulseError,
-                    offline = pulseLoadedFromCache,
+                    fromCache = pulseLoadedFromCache,
+                    pulseFailure = pulseFailure,
                     names = names,
                     macro = macro,
                     sentimentError = sentimentError,
@@ -187,6 +217,7 @@ fun HomeScreen(
                     pulseExpectedAt = pulseExpectedAt,
                     onManageNames = onManageNames,
                     onRetryPulse = onRetryPulse,
+                    onRetryMacro = onRetryMacro,
                     onOpenMacro = onOpenMacroStressDashboard,
                     onOpenPulse = onOpenPulseBrief,
                     onOpenPulseAt = openPulseAt,
@@ -204,7 +235,8 @@ private fun HomeList(
     brief: PulseBrief?,
     pulse: PulseReportView?,
     pulseError: String?,
-    offline: Boolean,
+    fromCache: Boolean,
+    pulseFailure: RefreshFailureKind?,
     names: NamesSummary,
     macro: MacroSummary?,
     sentimentError: String?,
@@ -215,6 +247,7 @@ private fun HomeList(
     pulseExpectedAt: String?,
     onManageNames: () -> Unit,
     onRetryPulse: () -> Unit,
+    onRetryMacro: (() -> Unit)?,
     onOpenMacro: () -> Unit,
     onOpenPulse: () -> Unit,
     onOpenPulseAt: (ChapterKind) -> Unit,
@@ -231,8 +264,8 @@ private fun HomeList(
     val generated = brief?.generatedAt
     val header = HeaderText(
         eyebrow = TodayCopy.eyebrow(fmt.marketDate(today), phase?.let(::phaseWord)),
-        title = brief?.morningLine?.ifBlank { null }?.let { PulseText.oneSentence(it, 160) }
-            ?: TodayCopy.greeting(now.atZone(clock.zone).hour),
+        morningLine = brief?.morningLine?.ifBlank { null },
+        greeting = TodayCopy.greeting(now.atZone(clock.zone).hour),
         meta = generated?.let { at ->
             if (at.atZone(clock.zone).toLocalDate() == today) TodayCopy.asOf(fmt.time(at)) else fmt.asOf(at)
         },
@@ -251,15 +284,11 @@ private fun HomeList(
                     .padding(top = ThesisSpace.headerTop, bottom = ThesisSpace.l),
                 verticalArrangement = Arrangement.spacedBy(ThesisSpace.l),
             ) {
-                ScreenHeader(
-                    title = header.title,
-                    eyebrow = header.eyebrow,
-                    meta = header.meta,
-                    refreshing = headerRefreshing,
-                    compact = true,
-                )
-                if (offline && pulse != null) {
-                    InlineBanner(TodayCopy.offlineShowing(generated?.let(fmt::time)), tone = BannerTone.Neutral)
+                HomeHeader(header, headerRefreshing)
+                if (fromCache && pulse != null) {
+                    val shown = generated?.let(fmt::time)
+                    val text = if (pulseFailure == RefreshFailureKind.OFFLINE) TodayCopy.offlineShowing(shown) else TodayCopy.staleShowing(shown)
+                    InlineBanner(text, tone = BannerTone.Neutral)
                 }
             }
         }
@@ -268,11 +297,24 @@ private fun HomeList(
             // Always composed (a block never gains its entrance node after its first paint); empty when no tape.
             Box(Modifier.entrance(HomeBlock.TAPE)) {
                 if (tape.isNotEmpty()) {
-                    TapeRow(
-                        items = tape,
-                        caption = tapeCaption(brief, phase, today, fmt, clock),
-                        onClick = { onOpenPulseAt(ChapterKind.Markets) },
-                    )
+                    val caption = tapeCaption(brief, phase, today, fmt, clock)
+                    // Past 1.3x the caption alone would fill the visible width: it moves above the instruments.
+                    val largeText = LocalDensity.current.fontScale > ThesisType.MAX_DISPLAY_SCALE
+                    Column(verticalArrangement = Arrangement.spacedBy(ThesisSpace.xs)) {
+                        if (largeText) {
+                            Text(
+                                caption,
+                                modifier = Modifier.padding(horizontal = ThesisSpace.gutter),
+                                style = ThesisType.caption,
+                                color = LocalThesisPalette.current.muted,
+                            )
+                        }
+                        TapeRow(
+                            items = tape,
+                            caption = if (largeText) null else caption,
+                            onClick = { onOpenPulseAt(ChapterKind.Markets) },
+                        )
+                    }
                 }
             }
         }
@@ -285,13 +327,14 @@ private fun HomeList(
 
         item(key = "macro") {
             Box(Modifier.entrance(HomeBlock.MACRO).padding(top = ThesisSpace.sectionGapData)) {
-                MacroBlock(macro, sentimentError, onOpenMacro, onRetryPulse)
+                MacroBlock(macro, sentimentError, onOpenMacro, onRetryMacro)
             }
         }
 
         pulseBlock(
             brief = brief,
             pulseError = pulseError,
+            offline = pulseFailure == RefreshFailureKind.OFFLINE,
             morningBriefing = morningBriefing,
             pulseExpectedAt = pulseExpectedAt,
             entrance = { Modifier.entrance(HomeBlock.PULSE) },
@@ -303,7 +346,44 @@ private fun HomeList(
     }
 }
 
-private data class HeaderText(val eyebrow: String, val title: String, val meta: String?)
+private data class HeaderText(val eyebrow: String, val morningLine: String?, val greeting: String, val meta: String?)
+
+/** Lines Home's headline may take (spec 5.6: the morning line in `headline`, max 2 lines). */
+private const val HEADLINE_LINES = 2
+
+private const val MINUTE_MS = 60_000L
+
+/**
+ * The header with the morning line shortened to what fits two `headline` lines at this width and font scale: the
+ * whole first sentence when it fits, else the sentence cut at its last clause boundary that fits (never mid-word,
+ * never an ellipsis). Measured, not counted: a character budget cannot know the width, the font or the scale.
+ */
+@Composable
+private fun HomeHeader(header: HeaderText, refreshing: Boolean) {
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val measurer = rememberTextMeasurer()
+        val style = ThesisType.capped(ThesisType.headline)
+        val width = constraints.maxWidth
+        val title = remember(header.morningLine, header.greeting, width, style, measurer) {
+            val line = header.morningLine ?: return@remember header.greeting
+            PulseText.fitHeadline(line) { candidate ->
+                !measurer.measure(
+                    candidate,
+                    style = style,
+                    maxLines = HEADLINE_LINES,
+                    constraints = Constraints(maxWidth = width),
+                ).hasVisualOverflow
+            }
+        }
+        ScreenHeader(
+            title = title,
+            eyebrow = header.eyebrow,
+            meta = header.meta,
+            refreshing = refreshing,
+            compact = true,
+        )
+    }
+}
 
 private fun phaseWord(phase: MarketPhase): String = when (phase) {
     MarketPhase.PreMarket -> TodayCopy.PHASE_PRE_MARKET
@@ -374,10 +454,11 @@ private fun NamesBlock(names: NamesSummary, onManageNames: () -> Unit, onOpenNam
 // ---- Macro stress -----------------------------------------------------------------------------------------------------
 
 @Composable
-private fun MacroBlock(macro: MacroSummary?, error: String?, onOpen: () -> Unit, onRetry: () -> Unit) {
+private fun MacroBlock(macro: MacroSummary?, error: String?, onOpen: () -> Unit, onRetry: (() -> Unit)?) {
     val p = LocalThesisPalette.current
     Box(Modifier.padding(horizontal = ThesisSpace.gutter)) {
         when {
+            // "Try again" only when it reloads macro stress itself (never the Pulse under this label).
             macro == null && error != null -> ErrorState(title = TodayCopy.MACRO_FAILED, onRetry = onRetry)
             macro == null -> ThesisCard(eyebrow = TodayCopy.MACRO_EYEBROW, title = TodayCopy.MACRO_NO_READING) {
                 Text(TodayCopy.MACRO_NO_READING_HOW, style = ThesisType.bodySmall, color = p.ink2)
@@ -424,6 +505,7 @@ private const val HOME_CHAPTERS = 4
 private fun LazyListScope.pulseBlock(
     brief: PulseBrief?,
     pulseError: String?,
+    offline: Boolean,
     morningBriefing: AlertLedgerItemView?,
     pulseExpectedAt: String?,
     entrance: @Composable () -> Modifier,
@@ -442,23 +524,29 @@ private fun LazyListScope.pulseBlock(
             when {
                 brief != null -> {
                     SectionHeader(kicker = TodayCopy.PULSE_KICKER, headline = brief.leadConclusion)
-                    val chapters = brief.chapters.filter { it.kind != ChapterKind.Sources }.take(HOME_CHAPTERS)
+                    // Each row says something the headline above does not: the chapter the lead conclusion came from
+                    // shows its next sentence instead (rubric V3).
+                    val chapters = brief.chapters
+                        .filter { it.kind != ChapterKind.Sources }
+                        .mapNotNull { c -> c.rowSentence(brief.leadConclusion)?.let { c to it } }
+                        .take(HOME_CHAPTERS)
                     RowGroup {
                         if (morningBriefing != null) {
-                            row(LeadingRowDividerInset) {
+                            // No icon: every title in the group starts on one edge with the chapter rows.
+                            row {
                                 ActionRow(
-                                    icon = ThesisIcons.Pulse,
+                                    icon = null,
                                     title = morningBriefing.title.trim().ifBlank { TodayCopy.MORNING_BRIEFING },
                                     caption = briefingCaption(morningBriefing),
                                     onClick = { onOpenMorningBriefing(morningBriefing) },
                                 )
                             }
                         }
-                        chapters.forEach { chapter ->
+                        chapters.forEach { (chapter, sentence) ->
                             row {
                                 PulseChapterRow(
                                     title = chapter.label,
-                                    sentence = PulseText.oneSentence(chapter.title),
+                                    sentence = PulseText.oneSentence(sentence),
                                     partial = chapter.partial,
                                     onClick = { onOpenPulseAt(chapter.kind) },
                                 )
@@ -469,7 +557,7 @@ private fun LazyListScope.pulseBlock(
                 }
                 pulseError != null -> {
                     Kicker(TodayCopy.PULSE_KICKER)
-                    if (pulseError.contains("No internet connection", ignoreCase = true)) {
+                    if (offline) {
                         ErrorState(title = StateCopy.OFFLINE_TITLE, cause = StateCopy.OFFLINE_CAUSE, onRetry = onRetry)
                     } else {
                         ErrorState(title = KitCopy.couldNotLoad(TodayCopy.PULSE_SUBJECT), onRetry = onRetry)

@@ -116,6 +116,37 @@ class TapeAndTextTest {
     }
 
     @Test
+    fun pressureLevelsAndCoverageNotesAreNotStoryText() {
+        assertEquals(
+            "Macro pressure is elevated: CPI-U All Items, Treasury 10Y.",
+            PulseText.clean("Macro pressure is elevated: CPI-U All Items (high), Treasury 10Y (medium)."),
+        )
+        val (story, notes) = PulseText.splitCoverage(PulseText.clean("Issuer filing coverage this cycle: AAPL, MSFT."))
+        assertEquals(emptyList<String>(), story)
+        assertEquals(listOf("Issuer filing coverage this cycle: AAPL, MSFT."), notes)
+    }
+
+    @Test
+    fun aHeadlineIsShortenedAtAClauseNeverMidWord() {
+        val line = "Stocks rose for a third day as Treasury yields eased and credit spreads tightened."
+        assertEquals(
+            listOf(line, "Stocks rose for a third day as Treasury yields eased.", "Stocks rose for a third day."),
+            PulseText.headlineForms(line),
+        )
+        // The longest form that fits wins; nothing fits -> the shortest form, still a whole clause.
+        assertEquals("Stocks rose for a third day as Treasury yields eased.", PulseText.fitHeadline(line) { it.length <= 60 })
+        assertEquals(line, PulseText.fitHeadline(line) { true })
+        assertEquals("Stocks rose for a third day.", PulseText.fitHeadline(line) { false })
+        // Cuts that would leave almost nothing are not offered.
+        assertEquals(listOf("Oil rose as supply fell."), PulseText.headlineForms("Oil rose as supply fell."))
+        // A comma inside a number is not a clause boundary.
+        assertEquals(
+            listOf("The S&P 500 closed at 5,525.21 after a quiet session.", "The S&P 500 closed at 5,525.21."),
+            PulseText.headlineForms("The S&P 500 closed at 5,525.21 after a quiet session."),
+        )
+    }
+
+    @Test
     fun oneSentenceCutsAtAWordBoundary() {
         assertEquals("Short.", PulseText.oneSentence("Short. Second."))
         val long = "word ".repeat(40).trim() + "."

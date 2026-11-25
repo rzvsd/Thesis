@@ -1,6 +1,7 @@
 package com.thesis.mobile.ui.copy
 
 import com.thesis.mobile.ui.format.Fmt
+import com.thesis.mobile.ui.today.TapeLine
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -35,6 +36,10 @@ object TodayCopy {
 
     /** Above loaded content while offline: "Offline · showing 07:02". */
     fun offlineShowing(time: String?): String = if (time == null) "Offline · showing the last copy" else "Offline · showing $time"
+
+    /** Above loaded content when a refresh failed for any other reason: "Couldn’t refresh · showing 07:02". */
+    fun staleShowing(time: String?): String =
+        if (time == null) "Couldn’t refresh · showing the last copy" else "Couldn’t refresh · showing $time"
 
     // ---- Home: tape ---------------------------------------------------------------------------------------------
 
@@ -201,10 +206,17 @@ object TodayCopy {
 
     /** Chapter headlines used only when the issue gives no sentence of its own. */
     fun marketsFallback(n: Int): String = "${Fmt.count(n, "market", "markets")} on today’s tape"
+    /**
+     * The Markets headline when the issue's only markets sentence is already the morning line: the levels of the
+     * broad index and the 10-year from the tape ("S&P 500 5,525.21 (+0.7%), 10-year Treasury yield 4.29% (−3 bps).").
+     * Null without tape lines.
+     */
+    fun marketsLevels(lines: List<TapeLine>): String? =
+        lines.takeIf { it.isNotEmpty() }?.joinToString(", ", postfix = ".") { "${it.name} ${it.level} (${it.change})" }
+
     const val CHANGED_FALLBACK = "What the inputs show since the last issue"
     fun namesInBrief(n: Int): String =
         if (n == 1) "One of your names is in today’s brief" else "$n of your names are in today’s brief"
-    fun watchHeadline(n: Int): String = "${Fmt.count(n, "item", "items")} to watch"
     fun headlinesHeadline(n: Int): String = "${Fmt.count(n, "headline", "headlines")} with a source"
     fun sourcesHeadline(n: Int): String = "Every figure traces to ${Fmt.count(n, "source", "sources")}"
 

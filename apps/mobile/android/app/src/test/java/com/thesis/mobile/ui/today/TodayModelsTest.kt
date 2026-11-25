@@ -151,6 +151,19 @@ class TodayModelsTest {
     }
 
     @Test
+    fun withNoNamesTheDigestListsNoFilings() {
+        val d = DigestBuilder.build(
+            digestDate = "2026-11-24", clock = clock, fmt = fmt,
+            watchlist = emptyList(),
+            monitorSnapshots = listOf(snap("AAPL", "intact", 78.0, "2026-11-20T21:00:00Z")),
+            sentimentCurrent = null, sentimentHistory = emptyList(), alerts = emptyList(), weeklyDeltas = null,
+            reportSummaries = emptyMap(), pulseLine = null, pulseDate = null,
+        )
+        assertEquals(emptyList<String>(), d.filings.map { it.ticker })
+        assertEquals(0, d.total)
+    }
+
+    @Test
     fun theDigestLedeLeavesOutWhatItDoesNotKnow() {
         assertEquals("0 alerts.", TodayCopy.digestLede(null, 0, null, 0, 0))
         assertEquals("Macro stress held level; none of your names filed; 0 alerts.", TodayCopy.digestLede(0.2, 0, null, 0, 4))

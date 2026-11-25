@@ -17,6 +17,8 @@ object PulseText {
     private val Whitespace = Regex("\\s+")
     private val SnakeParen = Regex("\\s*\\(([a-z0-9]+_)+[a-z0-9]+\\)")
     private val PressureTag = Regex("\\s*\\[(low|medium|high|elevated|moderate|none)]", RegexOption.IGNORE_CASE)
+    // The same levels in parentheses after a series name ("CPI-U All Items (high), Treasury 10Y (medium)").
+    private val PressureParen = Regex("\\s*\\((low|medium|high|elevated|moderate|none)\\)", RegexOption.IGNORE_CASE)
     private val IsoDayParen = Regex("\\((\\d{4})-(\\d{2})-(\\d{2})\\)")
     private val IsoMonthParen = Regex("\\((\\d{4})-(\\d{2})\\)")
     private val IsoQuarterParen = Regex("\\((\\d{4})-Q([1-4])\\)")
@@ -28,7 +30,9 @@ object PulseText {
         Regex("(?<=[.!?])(?<![A-Z]\\.[A-Z]\\.)(?<!\\b(?:Inc|Corp|Co|vs|Mr|Ms|Dr|St|No)\\.)\\s+(?=[A-Z0-9“\"(])")
     private val CoverageNote = Regex("^(coverage note|coverage)\\s*:\\s*", RegexOption.IGNORE_CASE)
     // Sentences about the pipeline's run rather than the markets ("... in the approved free live path for this run").
-    private val PipelineNote = Regex("(?i)\\b(live path|for this run|in this run|this cycle's run|optional in M\\d+)\\b")
+    // "Issuer filing coverage this cycle: AAPL, MSFT." is a note about what the run read, not news.
+    private val PipelineNote =
+        Regex("(?i)\\b(live path|for this run|in this run|this cycle's run|coverage this cycle|optional in M\\d+)\\b")
     private val UpperPrefix = Regex("^([A-Z][A-Z0-9_.]{0,30})\\s+[-–]\\s+")
 
     private val DayMonth = DateTimeFormatter.ofPattern("d MMM", Locale.US)
@@ -40,6 +44,7 @@ object PulseText {
         if (s.isEmpty()) return s
         s = s.replace(SnakeParen, "")
         s = s.replace(PressureTag, "")
+        s = s.replace(PressureParen, "")
         s = s.replace(DataIncomplete) { m -> "${m.groupValues[2].replace('_', ' ')} ${incompleteWord(m.groupValues[1])}" }
         s = s.replace(IsoDayParen) { m ->
             runCatching {
@@ -121,6 +126,36 @@ object PulseText {
         if (first.length <= limit) return first
         val cut = first.take(limit).substringBeforeLast(' ').trimEnd(',', ';', ':')
         return "$cut…"
+    }
+
+    // Where a headline can be shortened: after a clause, before a conjunction ("..., as yields eased").
+    private val ClauseBreak = Regex("[;,:](?=\\s)|\\s[—–]\\s|\\s(?=(?:as|while|after|but|although|though|and|amid)\\s)")
+
+    /**
+     * Shorter forms of [sentence] for a headline with a fixed number of lines (spec 5.6: "shortened to one
+     * sentence ... max 2 lines"): the sentence itself, then the sentence cut at each clause boundary, longest first,
+     * each ending with a full stop. Cuts shorter than [minLength] characters are left out (too little is left to
+     * say anything). Nothing is invented: every form is a leading part of the sentence.
+     */
+    fun headlineForms(sentence: String, minLength: Int = 24): List<String> {
+        val s = sentence.replace(Whitespace, " ").trim()
+        if (s.isEmpty()) return emptyList()
+        val cuts = ClauseBreak.findAll(s)
+            .map { it.range.first }
+            .filter { it >= minLength }
+            .map { s.substring(0, it).trimEnd(' ', ',', ';', ':', '—', '–', '.') + "." }
+            .sortedByDescending { it.length }
+            .toList()
+        return (listOf(s) + cuts).distinct()
+    }
+
+    /**
+     * The longest form of [text]'s first sentence ([headlineForms]) that [fits]; the shortest form when none does
+     * (the Text's own line cap is then only a guard). Home measures [fits] against the real width and font scale.
+     */
+    fun fitHeadline(text: String, fits: (String) -> Boolean): String {
+        val forms = headlineForms(sentences(clean(text)).firstOrNull() ?: text)
+        return forms.firstOrNull(fits) ?: forms.lastOrNull().orEmpty()
     }
 
     /** The host of a URL ("www.sec.gov" -> "sec.gov"), for source captions. */

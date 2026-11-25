@@ -3,6 +3,7 @@ package com.thesis.mobile.preview.fixtures
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.remember
 import com.thesis.mobile.model.AlertLedgerItemView
 import com.thesis.mobile.model.BriefingContextView
 import com.thesis.mobile.model.DeepDiveChangeSummaryView
@@ -18,8 +19,11 @@ import com.thesis.mobile.model.SentimentSnapshotView
 import com.thesis.mobile.model.SnapshotDelta
 import com.thesis.mobile.model.SnapshotPoint
 import com.thesis.mobile.model.ThesisMonitorSnapshotView
+import com.thesis.mobile.ui.RefreshFailureKind
 import com.thesis.mobile.ui.format.Fmt
 import com.thesis.mobile.ui.format.LocalFmt
+import com.thesis.mobile.ui.motion.EntranceRegistry
+import com.thesis.mobile.ui.motion.ProvideEntranceScope
 import com.thesis.mobile.ui.screens.HomeScreen
 import com.thesis.mobile.ui.screens.PulseScreen
 import com.thesis.mobile.ui.screens.WeeklyDigestScreen
@@ -277,6 +281,15 @@ fun TodayLocals(content: @Composable () -> Unit) {
     CompositionLocalProvider(LocalTodayClock provides TodayFixtures.clock, LocalFmt provides TodayFixtures.fmt, content = content)
 }
 
+/**
+ * A fresh entrance registry per composition: the default one is process-wide, so in a suite an earlier render
+ * would already have played this issue's stagger and the motion frames would show the settled screen.
+ */
+@Composable
+private fun FreshEntrances(scope: String, content: @Composable () -> Unit) {
+    ProvideEntranceScope(remember { EntranceRegistry() }, scope, content)
+}
+
 // ---- Screen states ----------------------------------------------------------------------------------------------------
 
 enum class HomeState { Loaded, Loading, Empty, Error, Offline }
@@ -288,7 +301,22 @@ fun TodayHome(
     onOpenName: (String) -> Unit = {},
     onManageNames: () -> Unit = {},
     onOpenPulseAt: (ChapterKind) -> Unit = {},
+    onRetryPulse: () -> Unit = {},
+    onRetryMacro: () -> Unit = {},
 ) = TodayLocals {
+    FreshEntrances("today-home") { TodayHomeContent(state, padding, onOpenName, onManageNames, onOpenPulseAt, onRetryPulse, onRetryMacro) }
+}
+
+@Composable
+private fun TodayHomeContent(
+    state: HomeState,
+    padding: PaddingValues,
+    onOpenName: (String) -> Unit,
+    onManageNames: () -> Unit,
+    onOpenPulseAt: (ChapterKind) -> Unit,
+    onRetryPulse: () -> Unit,
+    onRetryMacro: () -> Unit,
+) {
     val f = TodayFixtures
     val loaded = state == HomeState.Loaded || state == HomeState.Offline
     HomeScreen(
@@ -306,7 +334,7 @@ fun TodayHome(
         onOpenHistory = {},
         onRunDeepDive = {},
         onManageNames = onManageNames,
-        onRetryPulse = {},
+        onRetryPulse = onRetryPulse,
         onOpenMacroStressDashboard = {},
         onOpenWeeklyDigest = {},
         onOpenPulseBrief = {},
@@ -316,6 +344,8 @@ fun TodayHome(
         onOpenName = onOpenName,
         onOpenPulseAt = onOpenPulseAt,
         pulseExpectedAt = if (state == HomeState.Empty) "06:30" else null,
+        onRetryMacro = onRetryMacro,
+        pulseFailure = if (state == HomeState.Offline) RefreshFailureKind.OFFLINE else null,
     )
 }
 
@@ -327,31 +357,35 @@ fun TodayPulse(
     initialChapter: ChapterKind? = null,
     onOpenSource: (String) -> Unit = {},
     onCopyText: (String) -> Unit = {},
+    onOpenName: (String) -> Unit = {},
 ) = TodayLocals {
     val f = TodayFixtures
-    PulseScreen(
-        pulse = when (state) {
-            PulseState.Loaded, PulseState.Exporting -> f.richPulse
-            PulseState.Real -> f.realPulse
-            else -> null
-        },
-        watchlist = f.watchlist,
-        onBack = {},
-        onRunDeepDive = {},
-        onExportPdf = {},
-        onRefresh = {},
-        loading = state == PulseState.Loading,
-        error = if (state == PulseState.Error) "HTTP 503" else null,
-        isExporting = state == PulseState.Exporting,
-        monitorSnapshots = f.snapshots,
-        onOpenSource = onOpenSource,
-        onCopyText = onCopyText,
-        initialChapter = initialChapter,
-    )
+    FreshEntrances("today-pulse") {
+        PulseScreen(
+            pulse = when (state) {
+                PulseState.Loaded, PulseState.Exporting -> f.richPulse
+                PulseState.Real -> f.realPulse
+                else -> null
+            },
+            watchlist = f.watchlist,
+            onBack = {},
+            onRunDeepDive = {},
+            onExportPdf = {},
+            onRefresh = {},
+            loading = state == PulseState.Loading,
+            error = if (state == PulseState.Error) "HTTP 503" else null,
+            isExporting = state == PulseState.Exporting,
+            monitorSnapshots = f.snapshots,
+            onOpenSource = onOpenSource,
+            onCopyText = onCopyText,
+            initialChapter = initialChapter,
+            onOpenName = onOpenName,
+        )
+    }
 }
 
 @Composable
-fun TodayDigest(empty: Boolean = false) = TodayLocals {
+fun TodayDigest(empty: Boolean = false, loading: Boolean = false, wired: Boolean = true) = TodayLocals {
     val f = TodayFixtures
     WeeklyDigestScreen(
         digestDate = "2026-11-24",
@@ -365,5 +399,10 @@ fun TodayDigest(empty: Boolean = false) = TodayLocals {
         alerts = if (empty) emptyList() else f.alerts,
         stateChanges = if (empty) null else f.weeklyDeltas,
         reportSummaries = f.reportSummaries,
+        onOpenReport = if (wired) { _, _ -> } else null,
+        onOpenName = if (wired) { _ -> } else null,
+        onOpenInbox = if (wired) { _ -> } else null,
+        onOpenPulse = if (wired) { {} } else null,
+        loading = loading,
     )
 }

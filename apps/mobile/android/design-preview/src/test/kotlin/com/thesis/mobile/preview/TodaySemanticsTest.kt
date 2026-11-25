@@ -3,29 +3,39 @@ package com.thesis.mobile.preview
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.performSemanticsAction
+import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import com.thesis.mobile.preview.fixtures.HomeState
 import com.thesis.mobile.preview.fixtures.PulseState
 import com.thesis.mobile.preview.fixtures.TodayDigest
 import com.thesis.mobile.preview.fixtures.TodayHome
 import com.thesis.mobile.preview.fixtures.TodayPulse
+import com.thesis.mobile.ui.copy.KitCopy
 import com.thesis.mobile.ui.copy.TodayCopy
 import com.thesis.mobile.ui.theme.ThemeMode
 import com.thesis.mobile.ui.theme.ThesisTheme
 import com.thesis.mobile.ui.today.ChapterKind
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -43,12 +53,21 @@ class TodaySemanticsTest {
     /** The screen's list (the tape and the pills scroll sideways). */
     private val vertical = hasScrollAction() and SemanticsMatcher.keyIsDefined(SemanticsProperties.VerticalScrollAxisRange)
 
-    private fun set(widthDp: Int = 412, heightDp: Int = 915, content: @Composable () -> Unit) {
+    private fun set(widthDp: Int = 412, heightDp: Int = 915, fontScale: Float? = null, content: @Composable () -> Unit) {
         rule.setContent {
-            ThesisTheme(mode = ThemeMode.Dark) {
-                Box(Modifier.size(widthDp.dp, heightDp.dp)) { content() }
+            val density = LocalDensity.current
+            CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale ?: density.fontScale)) {
+                ThesisTheme(mode = ThemeMode.Dark) {
+                    Box(Modifier.size(widthDp.dp, heightDp.dp)) { content() }
+                }
             }
         }
+    }
+
+    private fun SemanticsNodeInteraction.textLayout(): TextLayoutResult {
+        val results = mutableListOf<TextLayoutResult>()
+        performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(results) }
+        return results.single()
     }
 
     // ---- Home ----------------------------------------------------------------------------------------------------
@@ -61,6 +80,31 @@ class TodaySemanticsTest {
         rule.onNodeWithText("1 of your names changed since your last visit").assertIsHeading()
         rule.onNodeWithText(TodayCopy.NAMES_ACTION).assertRole(Role.Button)
         rule.onNodeWithText("NVDA").assertRole(Role.Button)
+    }
+
+    // The morning line at 360 dp, 1.0x and 2.0x (the headline is capped at 1.3x): shortened at a clause, never cut
+    // mid-word, never ellipsized.
+    @Test fun theMorningLineFitsTwoLinesAt360() = assertMorningLineFits(1f)
+
+    @Test fun theMorningLineFitsTwoLinesAt360And2x() = assertMorningLineFits(2f)
+
+    private fun assertMorningLineFits(scale: Float) {
+        set(widthDp = 360, heightDp = 780, fontScale = scale) { TodayHome(HomeState.Loaded) }
+        val node = rule.onNodeWithText("Stocks rose for a third day", substring = true)
+        val text = node.fetchSemanticsNode().config[SemanticsProperties.Text].joinToString("")
+        assertFalse("\"$text\" overflows at ${scale}x", node.textLayout().hasVisualOverflow)
+        assertTrue("\"$text\" at ${scale}x", text.endsWith("."))
+        assertFalse(text, text.contains("…"))
+    }
+
+    @Test
+    fun theMacroCardRetriesMacroStressAndNotThePulse() {
+        var pulse = 0
+        var macro = 0
+        set { TodayHome(HomeState.Error, onRetryPulse = { pulse++ }, onRetryMacro = { macro++ }) }
+        rule.onAllNodesWithText(KitCopy.TRY_AGAIN)[0].performClick()
+        assertEquals(1, macro)
+        assertEquals(0, pulse)
     }
 
     @Test
@@ -153,5 +197,20 @@ class TodaySemanticsTest {
         rule.assertAllTouchTargetsAtLeast()
         rule.onNodeWithText(TodayCopy.THIS_WEEK).assertIsHeading()
         rule.onNodeWithText(TodayCopy.filingsHeadline(2)).assertIsHeading()
+    }
+
+    @Test
+    fun anUnwiredDigestRowIsNotAButton() {
+        set(heightDp = 2400) { TodayDigest(wired = false) }
+        val buttons = rule.onAllNodes(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Button)).fetchSemanticsNodes()
+        // Back and the macro card (it always opens Macro Stress); rows with nowhere to go read as text.
+        val labels = buttons.map { n ->
+            (n.config.getOrElse(SemanticsProperties.Text) { emptyList() }.map { it.text } +
+                n.config.getOrElse(SemanticsProperties.ContentDescription) { emptyList() }).joinToString(" ")
+        }
+        assertEquals(labels.toString(), 2, buttons.size)
+        listOf("AAPL", "MSFT", "Thesis drift").forEach { word -> assertTrue(labels.toString(), labels.none { it.contains(word) }) }
+        rule.onNodeWithContentDescription("AAPL", substring = true).assertExists()
+        rule.onNodeWithText(TodayCopy.OPEN_PULSE).assertDoesNotExist()
     }
 }

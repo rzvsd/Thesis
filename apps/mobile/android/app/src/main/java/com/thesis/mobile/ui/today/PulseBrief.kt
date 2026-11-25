@@ -2,6 +2,7 @@ package com.thesis.mobile.ui.today
 
 import androidx.compose.runtime.Immutable
 import com.thesis.mobile.model.EvidenceView
+import com.thesis.mobile.model.MarketTapeFamily
 import com.thesis.mobile.model.PulseReportView
 import com.thesis.mobile.model.SectionView
 import com.thesis.mobile.ui.copy.TodayCopy
@@ -55,7 +56,37 @@ data class PulseChapter(
     val notes: List<String> = emptyList(),
     val signal: String? = null,
     val noise: String? = null,
-)
+) {
+    /**
+     * The chapter in one sentence for a row under a headline that already says [shown] (Home's Today's Pulse: the
+     * lead conclusion is the What changed headline). The title when it differs, else the chapter's next sentence;
+     * null when the chapter has nothing else to say (the row is then left out rather than repeat the headline).
+     */
+    fun rowSentence(shown: String?): String? {
+        if (title != shown) return title
+        val next = paragraphs.firstOrNull()?.text?.let { PulseText.sentences(it).firstOrNull() }
+            ?: items.firstOrNull()
+            ?: names.firstOrNull()?.let { "${it.ticker}: ${it.sentence}" }
+            ?: headlines.firstOrNull()?.title
+        return next?.takeIf { it != shown }
+    }
+
+    /** This chapter with its headline replaced by its next sentence (that sentence leaves the paragraphs). */
+    internal fun promoteNextSentence(fallback: String): PulseChapter {
+        val first = paragraphs.firstOrNull() ?: return copy(title = fallback)
+        val sentences = PulseText.sentences(first.text)
+        val head = sentences.firstOrNull() ?: return copy(title = fallback)
+        val rest = sentences.drop(1)
+        val remaining = buildList {
+            if (rest.isNotEmpty()) {
+                val (lead, tail) = PulseText.leadAndRest(rest)
+                add(Paragraph(lead, tail))
+            }
+            addAll(paragraphs.drop(1))
+        }
+        return copy(title = head, paragraphs = remaining)
+    }
+}
 
 @Immutable
 data class PulseBrief(
@@ -75,6 +106,12 @@ data class PulseBrief(
     val partial: Boolean,
 ) {
     fun chapter(kind: ChapterKind): PulseChapter? = chapters.firstOrNull { it.kind == kind }
+
+    /**
+     * The hero carries the "Partial coverage" badge only when no chapter carries it: an incomplete chapter says so
+     * in its own header, and the same caveat twice within one screen is noise (rubric V3).
+     */
+    val heroPartial: Boolean get() = partial && chapters.none { it.partial }
 
     /** Plain text of the brief ("Copy as text"): the morning line, then each chapter's headline and content. */
     fun asText(heading: String): String = buildString {
@@ -236,12 +273,15 @@ data class PulseBrief(
             }
             val watchChapter = if (watchItems.isNotEmpty()) {
                 val items = watchItems.distinct()
+                // A list with no sentence of its own leads with its first item ("Durable goods orders, Wed
+                // 08:30."), a fact rather than a count; the rest stay in the list.
+                val title = watchTitle ?: items.first()
                 PulseChapter(
                     kind = ChapterKind.Watch,
                     label = TodayCopy.CHAPTER_WATCH,
-                    title = watchTitle ?: TodayCopy.watchHeadline(items.size),
+                    title = title,
                     partial = watch.any(::isPartial),
-                    items = items,
+                    items = if (watchTitle == null) items.drop(1) else items,
                 )
             } else {
                 null
@@ -291,7 +331,7 @@ data class PulseBrief(
                 null
             }
 
-            val chapters = listOfNotNull(markets, whatChanged, names, watchChapter, headlinesChapter, sourcesChapter)
+            val built = listOfNotNull(markets, whatChanged, names, watchChapter, headlinesChapter, sourcesChapter)
 
             // Morning line: the issue's own, else the first sentence of the tape, what changed or macro stress.
             val morningLine = listOf(
@@ -303,7 +343,19 @@ data class PulseBrief(
                 whatChanged?.title?.takeIf { dedupedChanged.isNotEmpty() }.orEmpty(),
                 PulseText.firstSentence(macro?.body),
                 markets?.title?.takeIf { tapeStory.first.isNotEmpty() }.orEmpty(),
-            ).firstOrNull { it.isNotBlank() && it != morningLine } ?: TodayCopy.briefChapters(chapters.size)
+            ).firstOrNull { it.isNotBlank() && it != morningLine } ?: TodayCopy.briefChapters(built.size)
+
+            // A chapter whose headline became the morning line leads with its next sentence instead, so the hero and
+            // chapter 01 never print the same sentence (rubric V3). Markets with nothing more to say leads with
+            // its levels, read from the tape.
+            val chapters = built.map { c ->
+                if (morningLine.isBlank() || c.title != morningLine) return@map c
+                when (c.kind) {
+                    ChapterKind.Markets -> c.promoteNextSentence(TodayCopy.marketsLevels(marketsLead(tapeLines)) ?: TodayCopy.marketsFallback(tapeLines.size))
+                    ChapterKind.Changed -> c.promoteNextSentence(TodayCopy.CHANGED_FALLBACK)
+                    else -> c
+                }
+            }
 
             val upshot = upshotSection?.body?.let { PulseText.clean(it) }?.ifBlank { null }
 
@@ -319,6 +371,12 @@ data class PulseBrief(
                 partial = sections.any(::isPartial) || pulse.tape?.coverageState?.lowercase() == "partial",
             )
         }
+
+        /** The broad index and the 10-year (else the first rate) the Markets headline reads its levels from. */
+        private fun marketsLead(lines: List<TapeLine>): List<TapeLine> = listOfNotNull(
+            lines.firstOrNull { it.family == MarketTapeFamily.CoreIndex },
+            lines.firstOrNull { it.id.uppercase() == "DGS10" } ?: lines.firstOrNull { it.family == MarketTapeFamily.Rates },
+        )
 
         private fun normalized(s: String?): String = s.orEmpty().lowercase().replace('_', ' ').trim()
 

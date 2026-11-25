@@ -36,8 +36,42 @@ class PulseBriefTest {
     @Test
     fun theMorningLineAndLeadConclusionAreSentencesOfTheIssue() {
         assertEquals("US risk assets were broadly higher on the day.", brief.morningLine)
-        assertEquals("Macro pressure is elevated: CPI-U All Items (high), Treasury 10Y (medium).", brief.leadConclusion)
+        assertEquals("Macro pressure is elevated: CPI-U All Items, Treasury 10Y.", brief.leadConclusion)
         assertFalse(brief.leadConclusion == brief.morningLine)
+    }
+
+    @Test
+    fun theMorningLineIsNotRepeatedAsAChapterHeadline() {
+        // The issue's only markets sentence became the morning line: Markets leads with its levels instead.
+        val markets = brief.chapter(ChapterKind.Markets)!!
+        assertFalse(markets.title == brief.morningLine)
+        assertTrue(markets.title, markets.title.startsWith("S&P 500 "))
+        brief.chapters.forEach { assertFalse(it.title, it.title == brief.morningLine) }
+    }
+
+    @Test
+    fun partialCoverageIsSaidOnceOnTheIncompleteChapter() {
+        assertTrue(brief.chapter(ChapterKind.Markets)!!.partial)
+        assertFalse(brief.heroPartial)
+    }
+
+    @Test
+    fun aHomeRowNeverRepeatsTheHeadlineAboveIt() {
+        val p = pulse.copy(
+            sections = listOf(
+                SectionView("what_changed", "What changed", "Ten-year yields fell for a fourth session. The curve steepened."),
+                SectionView("what_to_watch", "What to watch", "1. Durable goods orders, Wed 08:30. 2. FOMC minutes, Wed 14:00."),
+            ) + pulse.sections,
+        )
+        val b = PulseBrief.from(p, emptyList())
+        val changed = b.chapter(ChapterKind.Changed)!!
+        assertEquals("Ten-year yields fell for a fourth session.", changed.title)
+        assertEquals("The curve steepened.", changed.rowSentence(changed.title))
+        assertEquals(changed.title, changed.rowSentence("Something else."))
+        // A list with no sentence of its own leads with its first item, not a count.
+        val watch = b.chapter(ChapterKind.Watch)!!
+        assertEquals("Durable goods orders, Wed 08:30.", watch.title)
+        assertEquals(listOf("FOMC minutes, Wed 14:00."), watch.items)
     }
 
     @Test

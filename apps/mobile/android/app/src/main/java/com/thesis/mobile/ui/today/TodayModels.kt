@@ -290,7 +290,8 @@ object DigestBuilder {
             return !d.isBefore(start) && !d.isAfter(end)
         }
         val tickers = watchlist.map { it.trim().uppercase() }.filter { it.isNotEmpty() }.toSet()
-        val followed = monitorSnapshots.filter { tickers.isEmpty() || it.ticker.trim().uppercase() in tickers }
+        // Strictly the names the reader follows: with an empty watchlist nothing is "among your names".
+        val followed = monitorSnapshots.filter { it.ticker.trim().uppercase() in tickers }
 
         val filings = followed
             .mapNotNull { s -> parseInstant(s.reportGeneratedAt)?.takeIf(::inWeek)?.let { s to it } }
