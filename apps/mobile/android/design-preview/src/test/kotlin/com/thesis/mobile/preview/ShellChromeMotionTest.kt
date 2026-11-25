@@ -9,6 +9,8 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.getBoundsInRoot
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.unit.Dp
@@ -23,6 +25,7 @@ import com.thesis.mobile.ui.components.pageBackground
 import com.thesis.mobile.ui.components.showThesisSnackbar
 import com.thesis.mobile.ui.navigation.Destination
 import com.thesis.mobile.ui.navigation.ShellTab
+import com.thesis.mobile.ui.platform.PreviewBack
 import com.thesis.mobile.ui.shell.AppNavigator
 import com.thesis.mobile.ui.shell.ShellActions
 import com.thesis.mobile.ui.shell.ShellPlatform
@@ -33,6 +36,7 @@ import com.thesis.mobile.ui.theme.ThesisTheme
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -204,6 +208,31 @@ class ShellChromeMotionTest {
         assertEquals("Today is still leaving: its icons stay", true, calls.lastOrNull())
         rule.mainClock.advanceTimeBy(200)
         assertEquals("History is in front", false, calls.lastOrNull())
+        rule.mainClock.autoAdvance = true
+    }
+
+    @Test
+    fun aClosedPageReselectedBeforeItHasLeftSettlesItsBackPreview() {
+        // 4.5: a committed back from a tab root (Names → Today) keeps the .90 preview into the page's exit. If the
+        // user re-selects Names inside that 90 ms exit, AnimatedContent reuses the leaving page (it never leaves the
+        // composition), so the shell must settle the preview itself: Names ends at full size with the shared bar.
+        val navigator = AppNavigator()
+        setShell(navigator)
+        rule.runOnIdle { navigator.selectTab(ShellTab.Names) }
+        rule.waitForIdle()
+        val name = rule.onAllNodes(hasText("AAPL")).onFirst()
+        val rest = name.getBoundsInRoot()
+        rule.mainClock.autoAdvance = false
+        rule.runOnIdle { runBlocking { assertTrue(PreviewBack.press()) } }
+        assertEquals("back from the Names root goes to Today", ShellTab.Today, navigator.currentTab)
+        rule.mainClock.advanceTimeBy(32)
+        rule.runOnIdle { navigator.selectTab(ShellTab.Names) }
+        // Frame by frame: the settle is a spring driven by the frame clock (one long advance is one frame here).
+        repeat(120) { rule.mainClock.advanceTimeByFrame() }
+        val now = name.getBoundsInRoot()
+        assertEquals("Names is back at full size", rest.width.value, now.width.value, 0.5f)
+        assertEquals("and in place", rest.left.value, now.left.value, 0.5f)
+        assertEquals("one bar is read", 1, rule.onAllNodes(search).fetchSemanticsNodes().size)
         rule.mainClock.autoAdvance = true
     }
 }

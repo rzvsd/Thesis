@@ -212,6 +212,28 @@ fun rememberEntranceCoordinator(resetKey: Any? = null): EntranceCoordinator {
 }
 
 /**
+ * [rememberEntranceCoordinator] for a screen that paints before its data identity is known (Home and Pulse before
+ * the Pulse issue has loaded: cold start, fresh login, retry or pull-to-refresh from the error or empty state).
+ *
+ * Apply [staggeredEntrance] with this coordinator from the first paint, unconditionally: a block must never gain an
+ * entrance node after it was painted without one, because a new node starts hidden (4.3 rules 2 and 5). While
+ * [dataKey] is null the window is closed before any block attaches, so nothing staggers. Once this composition has
+ * painted without data, the data arriving later never staggers either: the blocks already on screen settle in place
+ * (the element's update sees a new coordinator: no blank) and the blocks the data brings appear at once. A screen
+ * opened with its data already loaded staggers once per [dataKey], as with [rememberEntranceCoordinator].
+ */
+@Composable
+fun rememberDataEntranceCoordinator(dataKey: Any?): EntranceCoordinator {
+    val coordinator = rememberEntranceCoordinator(resetKey = dataKey)
+    // Not state: it is only read in this composition, and setting it must not recompose.
+    val paintedWithoutData = remember { BooleanArray(1) }
+    if (dataKey == null) paintedWithoutData[0] = true
+    // Closing is idempotent and happens before the apply phase attaches or updates any entrance node.
+    if (paintedWithoutData[0]) coordinator.close()
+    return coordinator
+}
+
+/**
  * First-open entrance: the item rises [offset] (8 dp) and fades in over `Enter` (320 ms, `EaseEnter`), 35 ms after
  * the previous one (cap 8 steps). Only keys claimed within the coordinator's window animate, each at most once;
  * everything else (scrolled in later, returning from a tab, recomposed after disposal) appears at once. Under

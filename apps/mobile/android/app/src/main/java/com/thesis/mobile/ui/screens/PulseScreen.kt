@@ -48,7 +48,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.thesis.mobile.model.PulseReportView
 import com.thesis.mobile.model.SectionView
-import com.thesis.mobile.ui.motion.rememberEntranceCoordinator
+import com.thesis.mobile.ui.motion.rememberDataEntranceCoordinator
 import com.thesis.mobile.ui.motion.staggeredEntrance
 import com.thesis.mobile.ui.theme.HeadingFont
 import com.thesis.mobile.ui.theme.ThesisColors
@@ -79,10 +79,9 @@ fun PulseScreen(
     val dateLabel = remember { LocalDate.now().format(DateTimeFormatter.ofPattern("EEEE, MMM d")) }
     // First-open entrance (4.3 rule 2): the first 8 blocks stagger once per issue and entry; never on a refresh,
     // a pop back or a recreation. Nothing staggers before the issue has loaded.
-    val coordinator = pulse?.reportId?.let { rememberEntranceCoordinator(resetKey = it) }
-    val entrance: (Int) -> Modifier = { order ->
-        if (coordinator != null) Modifier.staggeredEntrance(order, coordinator) else Modifier
-    }
+    // The modifier is applied from the first paint, so blocks drawn before the issue never blank when it lands.
+    val coordinator = rememberDataEntranceCoordinator(dataKey = pulse?.reportId)
+    val entrance: (Int) -> Modifier = { order -> Modifier.staggeredEntrance(order, coordinator) }
     var isRefreshing by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val pullRefreshState = rememberPullRefreshState(

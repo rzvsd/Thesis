@@ -1349,6 +1349,15 @@ full render sweep → rubric review → PR into `rebuild`.
   `MigrationTestHelper` androidTest (or have the JVM test compare the SQL with the exported JSON), so an entity
   field added without a migration edit fails CI instead of crashing after the upgrade.
 
+**Carried from the PR-2 review** (add to the named WP checklists):
+- WP-G, WP-INT: the Paywall still opens as a platform `Dialog` (platform window animation, no 4.5 modal rise, no
+  reduced-motion path), the one known exception to M3's "no hard cuts left in `ThesisShell`". WP-G makes it the
+  full-screen destination of 5.23; WP-INT then opens it on the modal stack and deletes the shell's Dialog branch
+  (HANDOFF-M3 item 9).
+- WP-K: the collapsed bar's 92% page slice shows saturated content under it as a muted block (Home's gold
+  "Dashboard" behind THESIS, Inbox chip labels). Re-check after WP-A removes the gold button; if it still reads as
+  clutter, raise the slice opacity or fade content under the bar, checked against Deep Dive's sticky chip-nav bar.
+
 ### 6.4 PR-4 (after the redesign, WP-INT)
 `compose-bom:2025.04.00` (with it, `rememberIsResumed()` and `CoveredBackScope()` in `ThesisApp.kt` move from the
 deprecated `androidx.compose.ui.platform.LocalLifecycleOwner` to `androidx.lifecycle.compose.LocalLifecycleOwner`),

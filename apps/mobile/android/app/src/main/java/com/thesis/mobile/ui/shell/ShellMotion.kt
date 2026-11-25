@@ -304,7 +304,8 @@ internal val PREDICTIVE_BACK_SHIFT: Dp = ThesisMotion.BackShift
  * - Commit ([commit]): the pop runs and the leaving page keeps its previewed transform into its exit transition,
  *   which is visible to its end (shared-axis X draws nothing over it until it has gone); then the page under it
  *   comes in at full size. The preview ends when the leaving page leaves the composition ([onLeft]); if the back
- *   did not take the page off screen, it settles back instead.
+ *   did not take the page off screen, or the page is back on top before it has left ([onTopAgain]), it settles
+ *   back instead.
  * - Cancel ([cancel]): the page settles back to full size with `spatialSlow`.
  *
  * Read only in the draw phase ([backPreview]), so a gesture never recomposes the page.
@@ -320,10 +321,14 @@ internal class BackPreview {
 
     private var settleJob: Job? = null
 
+    /** A gesture is in progress (between [start] and its [commit] or [cancel]). */
+    private var gestureRunning = false
+
     /** The gesture started on [id]: any settle still running from the last gesture stops where it is. */
     fun start(id: String) {
         settleJob?.cancel()
         settleJob = null
+        gestureRunning = true
         if (entryId != id) progress = 0f
         entryId = id
     }
@@ -335,10 +340,23 @@ internal class BackPreview {
 
     /** Back committed. [stillOnScreen]: the back left [entryId] in place (nothing to exit), so settle it back. */
     fun commit(scope: CoroutineScope, stillOnScreen: Boolean) {
+        gestureRunning = false
         if (stillOnScreen) settle(scope)
     }
 
-    fun cancel(scope: CoroutineScope) = settle(scope)
+    fun cancel(scope: CoroutineScope) {
+        gestureRunning = false
+        settle(scope)
+    }
+
+    /**
+     * [id] is the top page again. If it is the page a committed back was closing and it has not left yet (its tab
+     * re-selected inside the exit: AnimatedContent reuses the leaving page, so [onLeft] never runs), the preview
+     * settles back to full size here instead of staying at .90 and keeping the shared root bar off.
+     */
+    fun onTopAgain(id: String, scope: CoroutineScope) {
+        if (!gestureRunning && entryId == id && settleJob?.isActive != true) settle(scope)
+    }
 
     /** The entry [id] left the composition: if it was the previewed page, the preview is over. */
     fun onLeft(id: String) {

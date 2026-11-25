@@ -68,8 +68,9 @@ committed with the branch; the integrator also pastes it into the PR description
      again. **Land items 8 and 9 in the same PR as M1** (round-2 review), so the deprecated `StaggeredEntrance` /
      `RevealAnimation` sites on Home, Pulse and Deep Dive get per-entry behaviour from the start.
 10. **`ThesisShell` transitions**
-    - Change: build the `AnimatedContent` specs from `ThesisTransitions.sharedAxisX(forward, reduced, PushOffset px)`,
-      `fadeThrough(reduced)` and `modalRise(open, reduced, ModalOffset px)`.
+    - Change: build the push / pop `AnimatedContent` specs from `ThesisTransitions.sharedAxisX(forward, reduced,
+      PushOffset px)`. (Integration: the kit's `fadeThrough` and `modalRise` were removed; the tab fade-through and
+      the modal rise/fall live in the shell, `ui/shell/ShellMotion.kt`, as 4.5 now reads.)
     - Change: use `ContainerTransformHost` (or `containerReveal` + `predictiveBackPreview` directly) for
       list → detail. Rows mark their bounds with `Modifier.captureBounds(rememberBoundsCapture())`.
     - Known trade-off with the 4.5 values: the outgoing screen fades with `EaseExit`, which holds early, while the

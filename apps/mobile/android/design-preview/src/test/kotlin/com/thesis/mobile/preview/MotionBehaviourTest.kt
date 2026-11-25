@@ -3,6 +3,7 @@ package com.thesis.mobile.preview
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -51,15 +52,22 @@ import com.thesis.mobile.ui.motion.RollingNumber
 import com.thesis.mobile.ui.motion.ScrollSpyState
 import com.thesis.mobile.ui.motion.ThesisMotion
 import com.thesis.mobile.ui.motion.ThesisPullRefresh
+import com.thesis.mobile.ui.motion.rememberDataEntranceCoordinator
 import com.thesis.mobile.ui.motion.rememberEntranceCoordinator
 import com.thesis.mobile.ui.motion.rememberScrollSpy
 import com.thesis.mobile.ui.motion.rememberShowSkeleton
 import com.thesis.mobile.ui.motion.staggeredEntrance
+import com.thesis.mobile.model.PulseReportView
+import com.thesis.mobile.preview.fixtures.ShellFixtures
+import com.thesis.mobile.ui.copy.Phase4Copy
 import com.thesis.mobile.ui.platform.PreviewBack
+import com.thesis.mobile.ui.screens.HomeScreen
 import com.thesis.mobile.ui.theme.ThemeMode
 import com.thesis.mobile.ui.theme.ThesisTheme
 import com.thesis.mobile.ui.theme.ThesisType
 import com.thesis.mobile.ui.theme.tnum
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -587,5 +595,75 @@ class MotionBehaviourTest {
         val slot = with(rule.density) { 40.dp.roundToPx() }
         assertTrue("fits its 40 dp slot: $width px of $slot", width <= slot)
         assertTrue("not collapsed: $width px", width > slot * 3 / 4)
+    }
+
+    @Test
+    fun dataArrivingAfterTheFirstPaintNeverBlanksWhatIsOnScreen() {
+        val registry = EntranceRegistry()
+        var issue by mutableStateOf<String?>(null)
+        rule.mainClock.autoAdvance = false
+        theme {
+            ProvideEntranceScope(registry, "home-entry") {
+                val coordinator = rememberDataEntranceCoordinator(issue)
+                Column {
+                    // Painted before the issue (header, macro card) and brought by the issue (what moved).
+                    Box(Modifier.size(48.dp).testTag("header").staggeredEntrance(0, coordinator).background(red))
+                    if (issue != null) {
+                        Box(Modifier.size(48.dp).testTag("moved").staggeredEntrance(4, coordinator).background(red))
+                    }
+                }
+            }
+        }
+        // No issue yet: nothing staggers, the header is opaque on its first frame.
+        rule.mainClock.advanceTimeByFrame()
+        assertEquals(red.toArgb(), rule.onNodeWithTag("header").centre().toArgb())
+        rule.mainClock.advanceTimeBy(1_000)
+
+        change { issue = "issue-1" } // the cold-start fetch (or a retry from the error state) lands
+        repeat(40) {
+            assertEquals("frame $it", red.toArgb(), rule.onNodeWithTag("header").centre().toArgb())
+            assertEquals("frame $it", red.toArgb(), rule.onNodeWithTag("moved").centre().toArgb())
+            rule.mainClock.advanceTimeByFrame()
+        }
+        change { issue = "issue-2" } // and a later refresh never staggers either
+        repeat(20) {
+            assertEquals("frame $it", red.toArgb(), rule.onNodeWithTag("header").centre().toArgb())
+            rule.mainClock.advanceTimeByFrame()
+        }
+    }
+
+    @Test
+    fun homeKeepsItsBlocksWhenThePulseIssueLoadsAfterTheFirstPaint() {
+        var pulse by mutableStateOf<PulseReportView?>(null)
+        rule.mainClock.autoAdvance = false
+        theme {
+            ProvideEntranceScope(EntranceRegistry(), "home-entry") {
+                HomeScreen(
+                    pulse = pulse, pulseLoadedFromCache = false, pulseFreshnessText = null, sentimentCurrent = null,
+                    sentimentHistory = emptyList(), sentimentError = null, watchlist = listOf("AAPL", "MSFT"),
+                    monitorSnapshots = emptyList(), padding = PaddingValues(), onOpenHistory = {},
+                    onRunDeepDive = {}, onManageNames = {}, onRetryPulse = {}, onOpenMacroStressDashboard = {},
+                    onOpenWeeklyDigest = {}, onOpenPulseBrief = {},
+                )
+            }
+        }
+        val date = LocalDate.now().format(DateTimeFormatter.ofPattern("EEEE, MMM d")).uppercase()
+        rule.mainClock.advanceTimeBy(1_000)
+        // Header (block 0) and the Macro Stress card (block 1) are on screen before the issue.
+        val header = rule.onNodeWithText(date).captureToImage().toPixelMap()
+        val macro = rule.onNodeWithText(Phase4Copy.todayMacroStressSourceNote).captureToImage().toPixelMap()
+        fun sameAs(expected: androidx.compose.ui.graphics.PixelMap, node: SemanticsNodeInteraction): Boolean {
+            val now = node.captureToImage().toPixelMap()
+            if (now.width != expected.width || now.height != expected.height) return false
+            for (x in 0 until now.width) for (y in 0 until now.height) if (now[x, y] != expected[x, y]) return false
+            return true
+        }
+
+        change { pulse = ShellFixtures.pulse }
+        repeat(30) {
+            assertTrue("header blanked at frame $it", sameAs(header, rule.onNodeWithText(date)))
+            assertTrue("macro card blanked at frame $it", sameAs(macro, rule.onNodeWithText(Phase4Copy.todayMacroStressSourceNote)))
+            rule.mainClock.advanceTimeByFrame()
+        }
     }
 }

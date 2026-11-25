@@ -60,9 +60,10 @@ import com.thesis.mobile.model.ThesisMonitorSnapshotView
 import com.thesis.mobile.ui.components.EmptyState
 import com.thesis.mobile.ui.components.ErrorState
 import com.thesis.mobile.ui.motion.RollingNumber
-import com.thesis.mobile.ui.motion.rememberEntranceCoordinator
+import com.thesis.mobile.ui.motion.rememberDataEntranceCoordinator
 import com.thesis.mobile.ui.motion.staggeredEntrance
 import com.thesis.mobile.ui.copy.Phase4Copy
+import com.thesis.mobile.ui.format.Fmt
 import com.thesis.mobile.ui.theme.HeadingFont
 import com.thesis.mobile.ui.shell.exceptTop
 import com.thesis.mobile.ui.theme.ThesisColors
@@ -120,10 +121,9 @@ fun HomeScreen(
     val pulseLead = derivePulseLead(pulse, phase)
     // First-open entrance (4.3 rule 2): Home's first 8 blocks stagger once per Pulse issue and entry, never on a
     // tab return, a pop back, a refresh or a recreation. Nothing staggers before an issue has loaded.
-    val coordinator = pulse?.reportId?.let { rememberEntranceCoordinator(resetKey = it) }
-    val entrance: (Int) -> Modifier = { order ->
-        if (coordinator != null) Modifier.staggeredEntrance(order, coordinator) else Modifier
-    }
+    // The modifier is applied from the first paint, so blocks drawn before the issue never blank when it lands.
+    val coordinator = rememberDataEntranceCoordinator(dataKey = pulse?.reportId)
+    val entrance: (Int) -> Modifier = { order -> Modifier.staggeredEntrance(order, coordinator) }
     val pulseTimestamp = pulse?.generatedAt?.let(::formatTimestamp)
     val lastViewedTicker = lastViewedReport?.takeIf { it.type == "DEEP_DIVE" }?.label
     val insight = deriveInsight(pulse, watchlist, monitorSnapshots, lastViewedTicker)
@@ -453,7 +453,7 @@ private fun MacroStressSummaryCard(
     } else {
         null
     }
-    val scoreValue = current?.score?.toInt()
+    val scoreValue = current?.score
     val marketDate = current?.marketDate
 
     val shape = RoundedCornerShape(ThesisDimens.CardCornerRadius)
@@ -505,7 +505,8 @@ private fun MacroStressSummaryCard(
                     if (scoreValue != null) {
                         RollingNumber(
                             value = scoreValue,
-                            format = { it.toString() },
+                            // C1: the app formatter, so the rolled figure matches a static score (61.5 -> "62").
+                            format = { Fmt.score(it) },
                             style = ThesisTypography.displayLarge.copy(
                                 fontFamily = HeadingFont,
                                 fontWeight = FontWeight.Normal

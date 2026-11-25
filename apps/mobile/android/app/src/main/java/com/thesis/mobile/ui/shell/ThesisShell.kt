@@ -181,6 +181,9 @@ fun ThesisShell(
             throw cancelled
         }
     }
+    // A committed back's page that comes back to the top before it has left the composition settles its preview.
+    val topEntryId = navigator.top.entryId
+    LaunchedEffect(topEntryId) { backPreview.onTopAgain(topEntryId, backScope) }
     ThesisBackHandler(enabled = paywallOpen) { actions.onDismissPaywall() }
 
     // The tab roots' shared bar: the entries composed in the tab layer (and those still moving), and the root whose

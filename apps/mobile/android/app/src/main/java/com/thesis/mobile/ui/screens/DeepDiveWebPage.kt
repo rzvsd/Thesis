@@ -135,11 +135,12 @@ private class WebViewHolder {
      * ([WebView.onPause] leaves JavaScript and other WebViews alone); uncovered: restore both. Only on a change.
      */
     fun applyCovered(view: WebView, covered: Boolean) {
-        view.importantForAccessibility = if (covered) {
+        val target = if (covered) {
             View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
         } else {
             View.IMPORTANT_FOR_ACCESSIBILITY_AUTO
         }
+        if (view.importantForAccessibility != target) view.importantForAccessibility = target
         if (covered && pausedView !== view) {
             view.onPause()
             pausedView = view

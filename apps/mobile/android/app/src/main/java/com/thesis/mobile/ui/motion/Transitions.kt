@@ -10,17 +10,15 @@ import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.ui.unit.IntSize
 
 /*
- * Content and navigation transitions (docs/app-redesign/DESIGN-DIRECTION.md 4.4, 4.5, 4.8). The shell (WP-INT) and
- * the kit build their AnimatedContent transitions from these, so every value comes from ThesisMotion and the
+ * Content and navigation transitions (docs/app-redesign/DESIGN-DIRECTION.md 4.4, 4.5, 4.8). The shell's push / pop
+ * and the kit build their AnimatedContent transitions from these, so every value comes from ThesisMotion and the
  * reduced-motion path is the same everywhere: a 150 ms crossfade with no travel and no scale.
  *
  * Depth runs along X (the predictive-back axis); vertical travel is for modal destinations only.
@@ -66,35 +64,9 @@ object ThesisTransitions {
     /** [sharedAxisX]'s outgoing timing. */
     fun <T> sharedAxisOutSpec(): FiniteAnimationSpec<T> = tween(SharedAxisInDelay, easing = ThesisMotion.EaseExit)
 
-    // ---- Tabs and modal destinations (4.5) --------------------------------------------------------------------
-
-    /** Tab fade-through: out 90 ms `EaseExit`; in fade + scale .985 -> 1, 210 ms after 90 ms, `EaseEnter`. */
-    fun fadeThrough(reduced: Boolean): ContentTransform {
-        if (reduced) return reducedCrossfade()
-        val enter = tween<Float>(ThesisMotion.TabIn, delayMillis = ThesisMotion.TabOut, easing = ThesisMotion.EaseEnter)
-        return (fadeIn(enter) + scaleIn(enter, initialScale = ThesisMotion.TabScaleFrom)) togetherWith
-            fadeOut(tween(ThesisMotion.TabOut, easing = ThesisMotion.EaseExit))
-    }
-
-    /**
-     * Modal rise (Paywall, You, Search): opening rises [risePx] ([ThesisMotion.ModalOffset]) with a fade over 300 ms;
-     * closing sinks back over 240 ms. The screen underneath stays put.
-     */
-    fun modalRise(open: Boolean, reduced: Boolean, risePx: Int): ContentTransform {
-        if (reduced) return reducedCrossfade()
-        val transform = if (open) {
-            (slideInVertically(tween(ThesisMotion.Screen, easing = ThesisMotion.EaseEnter)) { risePx } +
-                fadeIn(tween(ThesisMotion.Screen, easing = ThesisMotion.EaseEnter))) togetherWith
-                fadeOut(tween(ThesisMotion.ScreenOut, easing = ThesisMotion.EaseExit))
-        } else {
-            fadeIn(tween(ThesisMotion.ScreenOut, easing = ThesisMotion.EaseStandard)) togetherWith
-                (slideOutVertically(tween(ThesisMotion.ScreenOut, easing = ThesisMotion.EaseExit)) { risePx } +
-                    fadeOut(tween(ThesisMotion.ScreenOut, easing = ThesisMotion.EaseExit)))
-        }
-        // The modal is always the upper layer: above the screen when it opens, still above it while it closes.
-        transform.targetContentZIndex = if (open) 1f else -1f
-        return transform
-    }
+    // Tabs and modal destinations (4.5) have no kit spec: the shell owns them (ui/shell/ShellMotion.kt: the tab
+    // fade-through, which scales the page but never the glow (4.3.4), and the modal rise/fall, which covers the
+    // page instead of double-exposing it). Build those transitions there, not from a second copy here.
 
     // ---- Content states (#27, 4.4) ----------------------------------------------------------------------------
 

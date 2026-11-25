@@ -48,7 +48,8 @@ import kotlin.math.roundToInt
 /**
  * Shell motion frames (PR-2 M3, DESIGN-DIRECTION 4.5 and 4.4): mid-transition captures of each navigation move,
  * the predictive-back exit, the report base layer sliding under a push, the modal stack, reduced motion, the
- * snackbar riding the bottom bar, and the top bar's scroll reveal. `shell-motion-*` in screens.out.
+ * snackbar riding the bottom bar, and the top bar's scroll reveal. `shell-motion-*` in screens.out. Dark by default;
+ * push, predictive back and the You rise/fall render in light too.
  */
 class ShellMotionRenders {
 
@@ -61,6 +62,9 @@ class ShellMotionRenders {
             sections = listOf(SectionView(sectionId = "summary", title = "Summary", body = "Revenue grew 6% on Services.")),
         )
     )
+
+    /** Rubric L1: the moves whose frames depend on the palette (cover, rise/fall, back preview) render in both. */
+    private val bothThemes = listOf(PreviewTheme.DARK, PreviewTheme.LIGHT)
 
     private fun actionsFor(navigator: AppNavigator) = object : ShellActions {
         override fun onBack(): Boolean = navigator.back()
@@ -127,7 +131,7 @@ class ShellMotionRenders {
     private val sequenceMs = listOf(0L, 20L, 60L, 120L, 200L, 260L)
 
     @Test fun pushHistory() = sequenceMs.forEach { ms ->
-        frame("shell-motion-push-${ms}ms", ms) { it.push(Destination.History()) }
+        frame("shell-motion-push-${ms}ms", ms, themes = bothThemes) { it.push(Destination.History()) }
     }
 
     @Test fun popHistory() = sequenceMs.forEach { ms ->
@@ -175,7 +179,9 @@ class ShellMotionRenders {
     // page under it comes in at full size
 
     @Test fun predictiveBackExit() = sequenceMs.forEach { ms ->
-        frame("shell-motion-predictive-back-${ms}ms", ms, setup = { push(Destination.History()) }) { PreviewBack.press() }
+        frame("shell-motion-predictive-back-${ms}ms", ms, themes = bothThemes, setup = { push(Destination.History()) }) {
+            PreviewBack.press()
+        }
     }
 
     @Test fun predictiveBackExitFromRightEdge() = frame(
@@ -187,11 +193,15 @@ class ShellMotionRenders {
     // The page background covers Names first (150 ms), then You's content rises and fades in
     // (150 ms after 150); on close the content goes first, then the background. The two pages' text never overlaps.
     @Test fun youRises() = listOf(20L, 60L, 120L, 160L, 200L).forEach { ms ->
-        frame("shell-motion-you-rise-${ms}ms", ms, setup = { selectTab(ShellTab.Names) }) { it.openModal(Destination.You) }
+        frame("shell-motion-you-rise-${ms}ms", ms, themes = bothThemes, setup = { selectTab(ShellTab.Names) }) {
+            it.openModal(Destination.You)
+        }
     }
 
     @Test fun youFalls() = listOf(60L, 100L, 150L).forEach { ms ->
-        frame("shell-motion-you-fall-${ms}ms", ms, setup = { selectTab(ShellTab.Names); openModal(Destination.You) }) { it.pop() }
+        frame("shell-motion-you-fall-${ms}ms", ms, themes = bothThemes, setup = { selectTab(ShellTab.Names); openModal(Destination.You) }) {
+            it.pop()
+        }
     }
 
     /** You → Appearance: the old page slides and fades out (90 ms) over the modal floor; no tab layer, no ghosts. */

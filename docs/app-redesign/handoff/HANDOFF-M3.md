@@ -1,6 +1,6 @@
 # HANDOFF-M3 (PR-2, shell motion): changes needed in files M3 does not own
 
-Not committed. File, change, reason. Paths are relative to `apps/mobile/android/app/src/main/java/com/thesis/mobile/`.
+File, change, reason. Paths are relative to `apps/mobile/android/app/src/main/java/com/thesis/mobile/`.
 
 ## For the kit owners (ui/theme, ui/platform, ui/components; WP-K in PR-3)
 
@@ -134,3 +134,15 @@ wording updated; one shared-axis X; `PREDICTIVE_BACK_*` point at `ThesisMotion.B
 `ThesisSnackbarHost` draws `ThesisSnackbar` itself; the shell uses it again).
 Deferred to PR-3: 4 (no screen opens on a HeroBand yet), 5 for pushed screens (their PR-3 redesign), 9 (needs WP-G's
 full-screen Paywall).
+
+**Known exception to the M3 exit criteria** (state it in the PR-2 description): "no hard cuts left in `ThesisShell`"
+and "reduced-motion path uses crossfades" hold for every entry except the Paywall, which still opens as a platform
+`Dialog` (the platform's window animation, no 4.5 modal rise, no reduced-motion path). Item 9 moves it onto the modal
+stack once WP-G's full-screen Paywall (5.23) lands; it is on the WP-G and WP-INT checklists in DESIGN-DIRECTION 6.3
+("Carried from the PR-2 review").
+
+Review round 1 polish for WP-K (no change in PR-2): the collapsed bar's 92% page slice lets saturated content show
+through as a muted block (Home's filled gold "Dashboard" behind THESIS in `shell-motion-today-scrolled-light`, chip
+labels in `shell-motion-inbox-scrolled-dark`). Removing the gold button outside a HeroBand (WP-A, carried from PR-1)
+takes the worst case away; WP-K then re-checks the slice against Deep Dive's sticky chip-nav bar and raises its
+opacity or fades content under the bar if it still reads as clutter.
