@@ -4,7 +4,10 @@ package com.thesis.mobile.ui.platform
 
 import androidx.compose.runtime.Composable
 
-/** Dark system-bar icons when [light]. Previews draw no system bars, so this does nothing. */
+/**
+ * Dark system-bar icons when [light]; [statusBarLight] overrides the status bar alone (light icons over a HeroBand).
+ * Previews draw no system bars, so this does nothing.
+ */
 @Composable
 @Suppress("UNUSED_PARAMETER")
-fun SystemBarAppearance(light: Boolean) = Unit
+fun SystemBarAppearance(light: Boolean, statusBarLight: Boolean = light) = Unit

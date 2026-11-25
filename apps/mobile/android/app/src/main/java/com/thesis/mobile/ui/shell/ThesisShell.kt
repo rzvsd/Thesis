@@ -2,7 +2,6 @@ package com.thesis.mobile.ui.shell
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.SizeTransform
-import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
@@ -26,10 +25,7 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarData
-import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.SnackbarVisuals
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
@@ -55,12 +51,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.platform.AccessibilityManager
-import androidx.compose.ui.platform.LocalAccessibilityManager
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.clearAndSetSemantics
-import androidx.compose.ui.semantics.dismiss
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.IntOffset
 import com.thesis.mobile.ui.UiState
 import com.thesis.mobile.ui.components.BottomBarItem
@@ -68,7 +60,8 @@ import com.thesis.mobile.ui.components.LoadingHairline
 import com.thesis.mobile.ui.components.LocalPageBackgroundCache
 import com.thesis.mobile.ui.components.ProvidePageBackground
 import com.thesis.mobile.ui.components.ThesisBottomBar
-import com.thesis.mobile.ui.components.ThesisSnackbar
+import com.thesis.mobile.ui.components.ThesisSnackbarHost
+import com.thesis.mobile.ui.motion.ProvideEntranceScope
 import com.thesis.mobile.ui.motion.ThesisMotion
 import com.thesis.mobile.ui.navigation.Destination
 import com.thesis.mobile.ui.navigation.ShellRootTopBar
@@ -78,9 +71,7 @@ import com.thesis.mobile.ui.navigation.shellNavItems
 import com.thesis.mobile.ui.platform.ThesisBackHandler
 import com.thesis.mobile.ui.platform.ThesisPredictiveBackHandler
 import com.thesis.mobile.ui.screens.PaywallScreen
-import com.thesis.mobile.ui.theme.Kit
 import com.thesis.mobile.ui.theme.LocalReducedMotion
-import com.thesis.mobile.ui.theme.ThesisSpace
 import kotlin.math.roundToInt
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
@@ -408,7 +399,11 @@ private fun ShellContentScope.EntryFrame(entry: NavEntry, inModal: Boolean, bott
                     .imePadding()
                     .nestedScroll(chrome.nestedScroll)
             ) {
-                Content(entry, padding)
+                // First-open entrances are scoped to this entry (4.3 rule 2): they never replay on a tab return,
+                // a pop back to it or a recreation, and die with the entry.
+                ProvideEntranceScope(navigator.entranceRegistry, entry.entryId) {
+                    Content(entry, padding)
+                }
             }
         }
     }
@@ -558,97 +553,25 @@ private fun BoxScope.ShellBottomBar(
 }
 
 /**
- * The shell's only snackbar host (3 #23, 4.4), bottom-aligned above the bottom bar ([barPx], animated), the
- * navigation bar or the keyboard, whichever is highest. The lift is read in the layout phase, so keyboard and bar
- * animation frames only move the host.
- *
- * It draws the kit's [ThesisSnackbar] itself instead of going through Material3's `SnackbarHost`, whose own
- * fade-and-scale (from .8, which 4.3.8 rules out) would run on top of the kit's motion and ignore reduced motion.
- * Each snackbar rises 12 dp and fades in over 220 ms (`EaseEnter`) and fades out over 150 ms (`EaseExit`) when it
- * times out, its action is tapped or it is dismissed; under reduced motion (4.8) it shows and hides at once.
- * Messages go through `showThesisSnackbar`, which this host times out ([snackbarTimeoutMillis]).
+ * The shell's only snackbar host (3 #23, 4.4): the kit's [ThesisSnackbarHost] (12 dp rise and fade, its own
+ * time-outs, reduced motion), bottom-aligned above the bottom bar ([barPx], animated), the navigation bar or the
+ * keyboard, whichever is highest. The lift is read in the layout phase, so keyboard and bar animation frames only
+ * move the host.
  */
 @Composable
 private fun BoxScope.ShellSnackbarHost(hostState: SnackbarHostState, barPx: () -> Float) {
     val ime = WindowInsets.ime
     val navigationBars = WindowInsets.navigationBars
-    val reduced = LocalReducedMotion.current
-    val accessibility = LocalAccessibilityManager.current
-    val current = hostState.currentSnackbarData
-    // The snackbar on screen: the current one, or the one before while it fades out.
-    var shown by remember { mutableStateOf<SnackbarData?>(null) }
-    val progress = remember { Animatable(0f) }
-    val scope = rememberCoroutineScope()
-    val hide: suspend () -> Unit = {
-        if (reduced) {
-            progress.snapTo(0f)
-        } else {
-            progress.animateTo(0f, motionSpec(ThesisMotion.Quick, easing = ThesisMotion.EaseExit))
-        }
-    }
-    LaunchedEffect(current) {
-        if (shown != null && shown !== current) hide()
-        shown = current
-        val data = current ?: return@LaunchedEffect
-        if (reduced) {
-            progress.snapTo(1f)
-        } else {
-            progress.snapTo(0f)
-            progress.animateTo(1f, motionSpec(ThesisMotion.Dialog, easing = ThesisMotion.EaseEnter))
-        }
-        val timeout = snackbarTimeoutMillis(data.visuals, accessibility) ?: return@LaunchedEffect
-        delay(timeout)
-        hide()
-        data.dismiss()
-    }
-    val data = shown ?: return
-    val rise = with(LocalDensity.current) { ThesisMotion.SnackbarOffset.toPx() }
-    Box(
-        Modifier
+    ThesisSnackbarHost(
+        hostState = hostState,
+        modifier = Modifier
             .align(Alignment.BottomCenter)
             .offset {
                 val lift = maxOf(ime.getBottom(this), navigationBars.getBottom(this), barPx().roundToInt())
                 IntOffset(0, -lift)
             }
-            .padding(ThesisSpace.l)
-            .semantics {
-                dismiss {
-                    scope.launch { hide(); data.dismiss() }
-                    true
-                }
-            }
-    ) {
-        ThesisSnackbar(
-            message = data.visuals.message,
-            actionLabel = data.visuals.actionLabel,
-            onAction = { scope.launch { hide(); data.performAction() } },
-            modifier = Modifier.graphicsLayer {
-                val shownFraction = progress.value
-                alpha = shownFraction
-                translationY = (1f - shownFraction) * rise
-            }
-        )
-    }
+    )
 }
-
-/**
- * How long [visuals] stays up, stretched to the user's accessibility timeout ("Time to take action") as
- * Material3's own host does; null: until dismissed. `showThesisSnackbar` posts `Indefinite` messages that this
- * host times out itself: 4 s, or 8 s with an action (3 #23). `Short` and `Long` keep Material3's 4 s and 10 s.
- */
-internal fun snackbarTimeoutMillis(visuals: SnackbarVisuals, accessibility: AccessibilityManager?): Long? {
-    val hasAction = visuals.actionLabel != null
-    val base = when (visuals.duration) {
-        SnackbarDuration.Short -> SNACKBAR_SHORT_MS
-        SnackbarDuration.Long -> SNACKBAR_LONG_MS
-        SnackbarDuration.Indefinite -> if (hasAction) Kit.SNACKBAR_ACTION_MS else Kit.SNACKBAR_MS
-    }
-    return accessibility?.calculateRecommendedTimeoutMillis(base, containsText = true, containsControls = hasAction) ?: base
-}
-
-/** Material3's `SnackbarDuration.Short` and `Long`, for a message posted with plain `showSnackbar`. */
-private const val SNACKBAR_SHORT_MS = 4_000L
-private const val SNACKBAR_LONG_MS = 10_000L
 
 internal enum class ShellTopBar { Root, Back, None }
 

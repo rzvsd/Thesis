@@ -123,3 +123,15 @@ committed with the branch; the integrator also pastes it into the PR description
     strip travel (roll at most about 3 positions and crossfade the rest), or scale the duration with distance up to
     about 500 ms. `RollingNumber` follows 4.2 as written until 4.2 changes (`RollPlan.build` is the one place to
     change).
+
+## Integration status (WP-INT, redesign/pr2)
+
+Done in the PR-2 integration: 1-3 (`LoadingHairline`, `LiveDot`, `SkeletonBlock` on the motion kit's phases and
+`shimmerSweep`), 4 (`StateCrossfade` uses `ThesisTransitions.stateCrossfade`), 5 (`ThesisRefreshBox` delegates to
+`ThesisPullRefresh`; `RefreshArc` deleted, the kit sheet shows `RefreshHairline`), 6, 7, 8 (`AppNavigator.entranceRegistry`,
+pruned on every change, persisted as `nav.entrances`, cleared on log out), 9 (`ProvideEntranceScope` per entry in
+`EntryFrame`), 10 for shared-axis X (one sequenced spec, `ThesisTransitions.sharedAxisX`, 90 ms out then 210 ms in;
+the shell calls it), 11, 12 (Home and Pulse: `Modifier.staggeredEntrance(order, rememberEntranceCoordinator(reportId))`,
+first 8 blocks, nothing before the issue loads; Home's score is a `RollingNumber`), 14, 15, 16.
+Deferred to PR-3: 10 container transform (rows must capture bounds first), 13 (screens are not on `RowGroup` yet),
+17 and 18 (spec owner questions, unchanged).

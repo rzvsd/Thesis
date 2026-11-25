@@ -22,18 +22,20 @@ private tailrec fun Context.findActivity(): Activity? = when (this) {
 }
 
 /**
- * Dark status- and navigation-bar icons when [light] (paper), light icons otherwise (graphite). Applied after every
- * successful composition. Does nothing in a layout preview or when the view is not hosted by an Activity (a
- * dialog window's context, a test host), instead of failing on a cast.
+ * Dark status- and navigation-bar icons when [light] (paper), light icons otherwise (graphite). [statusBarLight]
+ * overrides the status bar alone: false over a HeroBand at rest, whose ground is dark in both themes (2.7); the
+ * navigation bar keeps the theme's icons. Applied after every successful composition. Does nothing in a layout
+ * preview or when the view is not hosted by an Activity (a dialog window's context, a test host), instead of
+ * failing on a cast.
  */
 @Composable
-fun SystemBarAppearance(light: Boolean) {
+fun SystemBarAppearance(light: Boolean, statusBarLight: Boolean = light) {
     val view = LocalView.current
     if (!view.isInEditMode) {
         SideEffect {
             val window = view.context.findActivity()?.window ?: return@SideEffect
             val controller = WindowCompat.getInsetsController(window, view)
-            controller.isAppearanceLightStatusBars = light
+            controller.isAppearanceLightStatusBars = statusBarLight
             controller.isAppearanceLightNavigationBars = light
         }
     }

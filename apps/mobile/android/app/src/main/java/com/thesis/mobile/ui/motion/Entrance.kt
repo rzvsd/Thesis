@@ -49,6 +49,8 @@ class EntranceCoordinator internal constructor(
     val resetKey: Any?,
     private val windowMillis: Long = ThesisMotion.EntranceWindow,
     alreadyPlayed: Boolean = false,
+    /** Called once, on the first key this coordinator grants an entrance (so its owner can persist "played"). */
+    private val onFirstPlay: () -> Unit = {},
 ) {
     private val seen = HashSet<Any>()
     private var nextOrder = 0
@@ -68,7 +70,9 @@ class EntranceCoordinator internal constructor(
      * [key] as seen, so a second claim of the same key always returns [NO_ENTRANCE].
      */
     fun claim(key: Any): Int {
+        val first = seen.isEmpty()
         if (!seen.add(key)) return NO_ENTRANCE
+        if (first && !closed) onFirstPlay()
         if (closed) return NO_ENTRANCE
         return nextOrder++
     }
@@ -125,6 +129,12 @@ class EntranceRegistry {
     private val restoredPlayed = HashMap<String, String>()
 
     /**
+     * Called when a coordinator starts its first entrance (its "played" marker changes): the navigator persists
+     * [saveState] then, so a process death right after Home's first stagger does not replay it on restore.
+     */
+    var onPlayed: (() -> Unit)? = null
+
+    /**
      * The coordinator for [scope] and [resetKey]: the same instance while both are unchanged; a fresh one (empty
      * seen-set, new window) when [resetKey] changes, e.g. a new Pulse issue.
      */
@@ -132,7 +142,8 @@ class EntranceRegistry {
         val existing = coordinators[scope]
         if (existing != null && existing.resetKey == resetKey) return existing
         val played = restoredPlayed.remove(scope)?.let { it == resetKey.toString() } ?: false
-        return EntranceCoordinator(resetKey, alreadyPlayed = played).also { coordinators[scope] = it }
+        return EntranceCoordinator(resetKey, alreadyPlayed = played, onFirstPlay = { onPlayed?.invoke() })
+            .also { coordinators[scope] = it }
     }
 
     /** Forgets [scope] (its entry was popped): a new entry for the same screen animates again. */

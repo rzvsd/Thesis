@@ -41,6 +41,7 @@ import com.thesis.mobile.model.HoldingsImportResultView
 import com.thesis.mobile.model.ThesisMonitorSnapshotView
 import com.thesis.mobile.ui.copy.Phase4Copy
 import com.thesis.mobile.ui.theme.HeadingFont
+import com.thesis.mobile.ui.shell.exceptTop
 import com.thesis.mobile.ui.theme.ThesisColors
 import com.thesis.mobile.ui.theme.ThesisDimens
 import com.thesis.mobile.ui.theme.ThesisTypography
@@ -129,13 +130,16 @@ fun NamesScreen(
         unfocusedLabelColor = ThesisColors.TextMuted
     )
 
+    // The list scrolls under the shell's top bar (4.4): the bar's height goes into the content padding.
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .padding(padding),
+            .padding(padding.exceptTop()),
         contentPadding = PaddingValues(
-            horizontal = ThesisDimens.ScreenPaddingHorizontal,
-            vertical = ThesisDimens.SpacingLg
+            start = ThesisDimens.ScreenPaddingHorizontal,
+            end = ThesisDimens.ScreenPaddingHorizontal,
+            top = padding.calculateTopPadding() + ThesisDimens.SpacingLg,
+            bottom = ThesisDimens.SpacingLg
         ),
         verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingLg)
     ) {

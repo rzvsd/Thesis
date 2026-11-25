@@ -443,4 +443,31 @@ class AppNavigatorTest {
         assertEquals(listOf(Destination.Names, Destination.Report("r1", "AAPL")), destinations(nav, ShellTab.Names))
         assertFalse(nav.isInCurrentStack { it is Destination.DeepDiveRunning })
     }
+
+    /**
+     * 4.3 rule 2 (HANDOFF-M1 item 8): the navigator owns the entrance registry. An entry's first-open entrance is
+     * remembered across a simulated recreate, and a popped entry's scope is dropped, so a new entry for the same
+     * screen animates again.
+     */
+    @Test
+    fun entrancesSurviveARecreateAndDieWithTheirEntry() {
+        val store = MapNavigatorStateStore()
+        val nav = AppNavigator(store)
+        val today = nav.tabTop.entryId
+        val pulse = nav.push(Destination.Pulse(null)).entryId
+        // Home and Pulse play their first-open stagger (one key claimed each, for the issue "i1").
+        assertTrue(nav.entranceRegistry.coordinator(today, "i1").claim("hero") >= 0)
+        assertTrue(nav.entranceRegistry.coordinator(pulse, "i1").claim("hero") >= 0)
+
+        val recreated = AppNavigator(store)
+        // Same issue: already played, nothing animates again; a new issue does.
+        assertEquals(-1, recreated.entranceRegistry.coordinator(today, "i1").claim("hero"))
+        assertEquals(-1, recreated.entranceRegistry.coordinator(pulse, "i1").claim("hero"))
+
+        recreated.pop()
+        val again = recreated.push(Destination.Pulse(null)).entryId
+        assertTrue(again != pulse)
+        assertTrue(recreated.entranceRegistry.coordinator(again, "i1").claim("hero") >= 0)
+        assertEquals(setOf(today, again).size, recreated.entranceRegistry.size)
+    }
 }

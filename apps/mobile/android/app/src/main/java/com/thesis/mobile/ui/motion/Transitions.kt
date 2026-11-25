@@ -30,26 +30,41 @@ object ThesisTransitions {
     // ---- Shared axis X (push / pop within a tab, Auth <-> Password reset) -------------------------------------
 
     /**
-     * Shared-axis X push ([forward] = true) or pop: the new screen slides in 24 dp from the leading side with a fade
-     * over `Screen` (300 ms, `EaseEnter`); the old one slides 24 dp the other way and fades out over 180 ms
-     * (`EaseExit`). Pop mirrors it. [shiftPx] is [ThesisMotion.PushOffset] in px. Reduced motion: 150 ms crossfade.
+     * Shared-axis X push ([forward] = true) or pop, in sequence within `Screen` (300 ms, 4.5): the old screen slides
+     * 24 dp away and fades out first (`TabOut` 90 ms, `EaseExit`), then the new one slides in 24 dp from the leading
+     * side and fades in (`TabIn` 210 ms after 90, `EaseEnter`). The new screen is drawn over the old one but stays
+     * transparent until the old one has gone, so the two never double-expose (4.5 "nothing double-exposes") and the
+     * old screen's exit, or a predictive back's .90 preview, is seen to its end. Pop mirrors it. [shiftPx] is
+     * [ThesisMotion.PushOffset] in px. Reduced motion: 150 ms crossfade. The shell's push and pop and
+     * Auth <-> Password reset all use this one spec.
      */
     fun sharedAxisX(forward: Boolean, reduced: Boolean, shiftPx: Int): ContentTransform =
         if (reduced) reducedCrossfade() else sharedAxisXEnter(forward, shiftPx) togetherWith sharedAxisXExit(forward, shiftPx)
 
-    /** The incoming half of [sharedAxisX]. */
+    /** The incoming half of [sharedAxisX]: 210 ms `EaseEnter`, after the outgoing half's 90 ms. */
     fun sharedAxisXEnter(forward: Boolean, shiftPx: Int): EnterTransition {
         val direction = if (forward) 1 else -1
-        return slideInHorizontally(tween(ThesisMotion.Screen, easing = ThesisMotion.EaseEnter)) { direction * shiftPx } +
-            fadeIn(tween(ThesisMotion.Screen, easing = ThesisMotion.EaseEnter))
+        return slideInHorizontally(sharedAxisInSpec()) { direction * shiftPx } + fadeIn(sharedAxisInSpec())
     }
 
-    /** The outgoing half of [sharedAxisX]. */
+    /** The outgoing half of [sharedAxisX]: 90 ms `EaseExit`. */
     fun sharedAxisXExit(forward: Boolean, shiftPx: Int): ExitTransition {
         val direction = if (forward) 1 else -1
-        return slideOutHorizontally(tween(ThesisMotion.PushOut, easing = ThesisMotion.EaseExit)) { -direction * shiftPx } +
-            fadeOut(tween(ThesisMotion.PushOut, easing = ThesisMotion.EaseExit))
+        return slideOutHorizontally(sharedAxisOutSpec()) { -direction * shiftPx } + fadeOut(sharedAxisOutSpec())
     }
+
+    /** How long the incoming half of [sharedAxisX] waits: the outgoing half's whole exit (`TabOut`, 90 ms). */
+    const val SharedAxisInDelay: Int = ThesisMotion.TabOut
+
+    /** How long the incoming half of [sharedAxisX] runs once it starts (`TabIn`, 210 ms): 300 ms in all. */
+    const val SharedAxisIn: Int = ThesisMotion.TabIn
+
+    /** [sharedAxisX]'s incoming timing (also the shell's report-layer uncover). */
+    fun <T> sharedAxisInSpec(): FiniteAnimationSpec<T> =
+        tween(SharedAxisIn, delayMillis = SharedAxisInDelay, easing = ThesisMotion.EaseEnter)
+
+    /** [sharedAxisX]'s outgoing timing. */
+    fun <T> sharedAxisOutSpec(): FiniteAnimationSpec<T> = tween(SharedAxisInDelay, easing = ThesisMotion.EaseExit)
 
     // ---- Tabs and modal destinations (4.5) --------------------------------------------------------------------
 

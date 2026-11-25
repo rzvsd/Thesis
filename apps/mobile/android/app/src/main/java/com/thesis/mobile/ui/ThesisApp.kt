@@ -2,7 +2,6 @@ package com.thesis.mobile.ui
 
 import android.app.Activity
 import android.content.Context
-import android.content.ContextWrapper
 import android.content.Intent
 import android.provider.Settings
 import android.text.format.DateFormat
@@ -22,8 +21,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.NonRestartableComposable
-import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
@@ -34,8 +31,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLifecycleOwner
-import androidx.compose.ui.platform.LocalView
-import androidx.core.view.WindowCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -124,31 +119,26 @@ fun ThesisApp(
     val fmt = remember(context) {
         Fmt(Clock.systemDefaultZone(), ZoneId.systemDefault(), DateFormat.is24HourFormat(context))
     }
-    // The theme ORs the in-app toggle with the system animator scale (4.8).
+    val surface = when {
+        uiState.showWelcome -> AppSurface.Onboarding
+        uiState.tokens == null -> AppSurface.SignIn
+        else -> AppSurface.Shell
+    }
+    // Status bar icons (2.7, 5.1): light over a HeroBand at rest in both themes, else the theme's. The shell
+    // reports its page in front; Onboarding, Auth and Password reset report through their own ScreenChrome.
+    val surfaceKey = when (surface) {
+        AppSurface.Onboarding -> SURFACE_ONBOARDING
+        AppSurface.SignIn -> if (showPasswordReset) SURFACE_PASSWORD_RESET else SURFACE_AUTH
+        AppSurface.Shell -> null
+    }
+    val overHero = if (surfaceKey == null) shellOverHero else surfaceChromes[surfaceKey]?.overHero == true
+    // The theme ORs the in-app toggle with the system animator scale (4.8) and owns the system-bar call.
     ThesisTheme(
         mode = appearance.themeMode,
         upDown = appearance.upDown,
-        reduceMotion = appearance.reduceMotion
+        reduceMotion = appearance.reduceMotion,
+        statusBarOverHero = overHero
     ) {
-        val surface = when {
-            uiState.showWelcome -> AppSurface.Onboarding
-            uiState.tokens == null -> AppSurface.SignIn
-            else -> AppSurface.Shell
-        }
-        // After ThesisTheme's own system-bar SideEffect (the theme's palette), in the scope that re-runs whenever
-        // the theme body does: a new content lambda, or a change of palette or reduced motion (both read here),
-        // so the hero override always wins. Ordering dependency: this works only while ThesisTheme calls
-        // SystemBarAppearance before `content`, in its own restart scope. It goes once the theme takes a
-        // `statusBarOverHero` parameter itself (HANDOFF-M3 items 1-2, kit WP).
-        val palette = LocalThesisPalette.current
-        LocalReducedMotion.current
-        val surfaceKey = when (surface) {
-            AppSurface.Onboarding -> SURFACE_ONBOARDING
-            AppSurface.SignIn -> if (showPasswordReset) SURFACE_PASSWORD_RESET else SURFACE_AUTH
-            AppSurface.Shell -> null
-        }
-        val overHero = if (surfaceKey == null) shellOverHero else surfaceChromes[surfaceKey]?.overHero == true
-        StatusBarIconsOverHero(view = LocalView.current, lightTheme = palette.isLight, overHero = overHero)
         // One window-sized page background for every surface (2.7); the shell reuses it.
         CompositionLocalProvider(LocalFmt provides fmt) {
             ProvidePageBackground {
@@ -256,31 +246,6 @@ private fun SurfaceChrome(key: String, chromes: MutableMap<String, ScreenChrome>
         onDispose { if (chromes[key] === chrome) chromes.remove(key) }
     }
     CompositionLocalProvider(LocalScreenChrome provides chrome, content = content)
-}
-
-/**
- * Status bar icons (2.7, 5.1): light over a HeroBand at rest in both themes ([overHero]), else the theme's (dark
- * on paper, light on graphite). Only the status bar: the navigation bar keeps the theme's icons. Must be called
- * in the scope of ThesisTheme's content, after the theme applied its own appearance; non-restartable (so never
- * skipped), it re-applies every time that scope runs.
- */
-@Composable
-@NonRestartableComposable
-private fun StatusBarIconsOverHero(view: android.view.View, lightTheme: Boolean, overHero: Boolean) {
-    val lightIcons = lightTheme && !overHero
-    if (!view.isInEditMode) {
-        SideEffect {
-            val window = view.context.findActivity()?.window ?: return@SideEffect
-            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = lightIcons
-        }
-    }
-}
-
-/** The Activity behind [this] context, unwrapping ContextWrappers; null if none. */
-private tailrec fun Context.findActivity(): Activity? = when (this) {
-    is Activity -> this
-    is ContextWrapper -> baseContext.findActivity()
-    else -> null
 }
 
 /**

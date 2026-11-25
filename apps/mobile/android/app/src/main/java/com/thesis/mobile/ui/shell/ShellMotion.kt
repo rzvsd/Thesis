@@ -7,8 +7,6 @@ import androidx.compose.animation.core.FiniteAnimationSpec
 import androidx.compose.animation.core.animate
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
@@ -19,6 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.Dp
 import com.thesis.mobile.ui.motion.ThesisMotion
+import com.thesis.mobile.ui.motion.ThesisTransitions
 import com.thesis.mobile.ui.platform.BackSwipeEdge
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -177,20 +176,19 @@ internal val SHARED_AXIS_SHIFT: Dp = ThesisMotion.PushOffset
  * How long the incoming page of shared-axis X waits: the outgoing page's whole exit (`TabOut`, 90 ms), so the two
  * pages are never both visible. With the incoming half ([SHARED_AXIS_IN]) the move takes `Screen`, 300 ms.
  */
-internal const val SHARED_AXIS_IN_DELAY: Int = ThesisMotion.TabOut
+internal const val SHARED_AXIS_IN_DELAY: Int = ThesisTransitions.SharedAxisInDelay
 
 /** How long the incoming half of shared-axis X runs once it starts (`TabIn`, 210 ms). */
-internal const val SHARED_AXIS_IN: Int = ThesisMotion.TabIn
+internal const val SHARED_AXIS_IN: Int = ThesisTransitions.SharedAxisIn
 
 /**
  * The incoming half of shared-axis X (210 ms `EaseEnter` after [SHARED_AXIS_IN_DELAY]), also used for the report
  * base layer's uncover when the page over the report is popped.
  */
-internal fun <T> sharedAxisInSpec(): FiniteAnimationSpec<T> =
-    motionSpec(SHARED_AXIS_IN, delayMillis = SHARED_AXIS_IN_DELAY, easing = ThesisMotion.EaseEnter)
+internal fun <T> sharedAxisInSpec(): FiniteAnimationSpec<T> = ThesisTransitions.sharedAxisInSpec()
 
 /** The outgoing half of shared-axis X (90 ms `EaseExit`). */
-internal fun <T> sharedAxisOutSpec(): FiniteAnimationSpec<T> = motionSpec(SHARED_AXIS_IN_DELAY, easing = ThesisMotion.EaseExit)
+internal fun <T> sharedAxisOutSpec(): FiniteAnimationSpec<T> = ThesisTransitions.sharedAxisOutSpec()
 
 /**
  * When, in [this] move, the page in front changes for the status bar's icons (2.7): once the page that leaves has
@@ -214,18 +212,15 @@ internal val ShellTransition.frontChangeMillis: Int
  * A 150 ms crossfade when motion is reduced.
  */
 internal fun sharedAxisX(forward: Boolean, reducedMotion: Boolean, shiftPx: Int): ContentTransform =
-    if (reducedMotion) reducedCrossfade() else sharedAxisXOf(forward, shiftPx)
+    ThesisTransitions.sharedAxisX(forward, reducedMotion, shiftPx)
 
 /**
- * Shared-axis X, in sequence within 300 ms: forward, the old page leaves toward −[shiftPx] with a fade (90 ms
- * `EaseExit`), then the new page comes in from +[shiftPx] with a fade (210 ms `EaseEnter`); backward mirrors it.
- * The new page is drawn over the old one but is fully transparent until the old one has gone.
+ * Shared-axis X, in sequence within 300 ms ([ThesisTransitions.sharedAxisX], the one spec of the app): the old
+ * page leaves toward ∓[shiftPx] with a fade (90 ms `EaseExit`), then the new page comes in from ±[shiftPx] with a
+ * fade (210 ms `EaseEnter`). The new page is drawn over the old one but is fully transparent until the old one has gone.
  */
-private fun sharedAxisXOf(forward: Boolean, shiftPx: Int): ContentTransform {
-    val direction = if (forward) 1 else -1
-    return (slideInHorizontally(sharedAxisInSpec()) { direction * shiftPx } + fadeIn(sharedAxisInSpec()))
-        .togetherWith(slideOutHorizontally(sharedAxisOutSpec()) { -direction * shiftPx } + fadeOut(sharedAxisOutSpec()))
-}
+private fun sharedAxisXOf(forward: Boolean, shiftPx: Int): ContentTransform =
+    ThesisTransitions.sharedAxisX(forward, reduced = false, shiftPx = shiftPx)
 
 /**
  * How a modal page's content moves inside the page while the page itself only fades ([ShellTransition.Rise],
@@ -298,8 +293,8 @@ internal fun <T> motionSpec(durationMillis: Int, delayMillis: Int = 0, easing: E
     ThesisMotion.timed(reduced = false, durationMillis = durationMillis, delayMillis = delayMillis, easing = easing)
 
 /** Predictive back preview (4.5): the page scales to this and shifts [PREDICTIVE_BACK_SHIFT] at full progress. */
-internal const val PREDICTIVE_BACK_SCALE = 0.90f
-internal val PREDICTIVE_BACK_SHIFT: Dp = ThesisMotion.EnterOffset
+internal const val PREDICTIVE_BACK_SCALE = ThesisMotion.BackScaleTo
+internal val PREDICTIVE_BACK_SHIFT: Dp = ThesisMotion.BackShift
 
 /**
  * The predictive-back preview (4.5 "Any push/transform"): while the gesture runs, the page it would close (the

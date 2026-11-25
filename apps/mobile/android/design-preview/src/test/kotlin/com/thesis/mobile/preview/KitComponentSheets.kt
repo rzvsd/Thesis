@@ -14,6 +14,7 @@ import androidx.compose.foundation.interaction.PressInteraction
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -36,6 +37,7 @@ import com.thesis.mobile.ui.components.ChartReadout
 import com.thesis.mobile.ui.components.ChipRow
 import com.thesis.mobile.ui.components.CompactRowDividerInset
 import com.thesis.mobile.ui.components.CompareColumn
+import com.thesis.mobile.ui.motion.RefreshHairline
 import com.thesis.mobile.ui.components.CompareRow
 import com.thesis.mobile.ui.components.CompareTable
 import com.thesis.mobile.ui.components.CompareTableModel
@@ -73,7 +75,6 @@ import com.thesis.mobile.ui.components.PlanCard
 import com.thesis.mobile.ui.components.PressableCard
 import com.thesis.mobile.ui.components.PrimaryButton
 import com.thesis.mobile.ui.components.QuietBackground
-import com.thesis.mobile.ui.components.RefreshArc
 import com.thesis.mobile.ui.components.ReportChange
 import com.thesis.mobile.ui.components.ReportDock
 import com.thesis.mobile.ui.components.ReportTopBar
@@ -595,11 +596,12 @@ object KitComponentSheets {
             StateCrossfade<String>(Loadable.Failed("No connection."), onRetry = noop) { Text(it) }
             StateCrossfade(Loadable.Ready("Ready: the content itself.")) { Text(it, style = ThesisType.body, color = LocalThesisPalette.current.ink) }
         }
-        Specimen("RefreshArc", "pulled 40% / armed / refreshing") {
-            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                RefreshArc(progress = { 0.4f }, refreshing = false)
-                RefreshArc(progress = { 1f }, refreshing = false)
-                RefreshArc(progress = { 1f }, refreshing = true)
+        Specimen("RefreshHairline", "pulled 40% / armed / refreshing") {
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                val still = remember { mutableFloatStateOf(0.3f) }
+                RefreshHairline(pullProgress = { 0.4f }, refreshing = false, phase = still)
+                RefreshHairline(pullProgress = { 1f }, refreshing = false, phase = still)
+                RefreshHairline(pullProgress = { 0f }, refreshing = true, phase = still)
             }
         }
     }

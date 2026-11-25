@@ -1,6 +1,10 @@
 package com.thesis.mobile.ui.shell
 
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.calculateEndPadding
+import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.Stable
@@ -16,6 +20,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.Dp
 import com.thesis.mobile.ui.theme.ThesisSpace
 
@@ -131,3 +136,20 @@ fun HeroUnderBars(collapsed: Boolean? = null) {
     }
     SideEffect { chrome.ownCollapsed = collapsed }
 }
+
+/**
+ * The shell's [PaddingValues] for an entry, without the top: a screen whose content scrolls under the top bar
+ * (4.4 "Top bar: scroll under") pads its container with this and puts `calculateTopPadding()` into its list's
+ * `contentPadding`, so rows pass under the bar's 92% background instead of being clipped at its bottom edge.
+ */
+@Composable
+@ReadOnlyComposable
+fun PaddingValues.exceptTop(): PaddingValues {
+    val direction = LocalLayoutDirection.current
+    return PaddingValues(
+        start = calculateStartPadding(direction),
+        end = calculateEndPadding(direction),
+        bottom = calculateBottomPadding()
+    )
+}
+

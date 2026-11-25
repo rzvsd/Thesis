@@ -48,7 +48,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.thesis.mobile.model.PulseReportView
 import com.thesis.mobile.model.SectionView
-import com.thesis.mobile.ui.animations.StaggeredEntrance
+import com.thesis.mobile.ui.motion.rememberEntranceCoordinator
+import com.thesis.mobile.ui.motion.staggeredEntrance
 import com.thesis.mobile.ui.theme.HeadingFont
 import com.thesis.mobile.ui.theme.ThesisColors
 import com.thesis.mobile.ui.theme.ThesisDimens
@@ -76,6 +77,12 @@ fun PulseScreen(
     val brief = remember(pulse, watchlist) { buildPulseBrief(sections, watchlist) }
     val generatedAt = pulse?.generatedAt?.let(::formatBriefTimestamp)
     val dateLabel = remember { LocalDate.now().format(DateTimeFormatter.ofPattern("EEEE, MMM d")) }
+    // First-open entrance (4.3 rule 2): the first 8 blocks stagger once per issue and entry; never on a refresh,
+    // a pop back or a recreation. Nothing staggers before the issue has loaded.
+    val coordinator = pulse?.reportId?.let { rememberEntranceCoordinator(resetKey = it) }
+    val entrance: (Int) -> Modifier = { order ->
+        if (coordinator != null) Modifier.staggeredEntrance(order, coordinator) else Modifier
+    }
     var isRefreshing by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val pullRefreshState = rememberPullRefreshState(
@@ -106,7 +113,7 @@ fun PulseScreen(
             verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingXl)
         ) {
             item {
-                StaggeredEntrance(index = 0) {
+                Box(entrance(0)) {
                     BriefTopBar(
                         dateLabel = dateLabel,
                         generatedAt = generatedAt,
@@ -118,14 +125,14 @@ fun PulseScreen(
             }
 
             item {
-                StaggeredEntrance(index = 1) {
+                Box(entrance(1)) {
                     MorningLineCard(brief.morningLine)
                 }
             }
 
             brief.tape?.let { section ->
                 item {
-                    StaggeredEntrance(index = 2) {
+                    Box(entrance(2)) {
                         BriefSection(
                             eyebrow = "YESTERDAY",
                             title = "What happened",
@@ -137,7 +144,7 @@ fun PulseScreen(
             }
 
             item {
-                StaggeredEntrance(index = 3) {
+                Box(entrance(3)) {
                     BriefSection(
                         eyebrow = "DELTA",
                         title = "What changed",
@@ -148,7 +155,7 @@ fun PulseScreen(
             }
 
             item {
-                StaggeredEntrance(index = 4) {
+                Box(entrance(4)) {
                     BriefSection(
                         eyebrow = "READ",
                         title = "The interesting bit",
@@ -159,7 +166,7 @@ fun PulseScreen(
 
             if (brief.nameRows.isNotEmpty()) {
                 item {
-                    StaggeredEntrance(index = 5) {
+                    Box(entrance(5)) {
                         YourNamesBrief(
                             rows = brief.nameRows,
                             comment = brief.namesComment,
@@ -171,7 +178,7 @@ fun PulseScreen(
 
             if (brief.watchRows.isNotEmpty()) {
                 item {
-                    StaggeredEntrance(index = 6) {
+                    Box(entrance(6)) {
                         BriefSection(
                             eyebrow = "WATCH",
                             title = "Things to watch",
@@ -184,7 +191,7 @@ fun PulseScreen(
 
             if (brief.headlineRows.isNotEmpty()) {
                 item {
-                    StaggeredEntrance(index = 7) {
+                    Box(entrance(7)) {
                         BriefSection(
                             eyebrow = "HEADLINES",
                             title = "Worth knowing",
@@ -196,13 +203,13 @@ fun PulseScreen(
             }
 
             item {
-                StaggeredEntrance(index = 8) {
+                Box {
                     SignalNoiseCard(signal = brief.signal, noise = brief.noise)
                 }
             }
 
             item {
-                StaggeredEntrance(index = 9) {
+                Box {
                     SourcesFooter(sources = brief.sources, omissions = brief.omissions)
                 }
             }

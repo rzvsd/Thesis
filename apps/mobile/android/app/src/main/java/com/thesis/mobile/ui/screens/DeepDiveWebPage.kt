@@ -14,6 +14,7 @@ import android.os.Handler
 import android.os.Looper
 import android.print.PrintAttributes
 import android.print.PrintManager
+import android.view.View
 import android.webkit.RenderProcessGoneDetail
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
@@ -42,6 +43,7 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import com.thesis.mobile.ui.shell.LocalEntryCovered
 import com.thesis.mobile.ui.theme.ThesisColors
 
 /**
@@ -50,6 +52,10 @@ import com.thesis.mobile.ui.theme.ThesisColors
  * Links to other pages open in the external browser; in-page anchors stay here. A failed main-frame
  * load calls [onMainFrameFailed] with the HTTP status (null for a network or renderer failure) so the
  * caller can refresh the token and retry, or show the native report screen instead.
+ *
+ * The shell keeps the report composed under pages pushed over it and under modals ([LocalEntryCovered]). While it
+ * is covered, the WebView's own View tree leaves the accessibility tree (the shell clears only the Compose
+ * semantics, which an `AndroidView`'s children do not follow) and the page's animations are paused.
  */
 @Composable
 internal fun DeepDiveWebPage(
@@ -64,6 +70,7 @@ internal fun DeepDiveWebPage(
     var isLoading by remember(pageUrl) { mutableStateOf(true) }
     var canGoBack by remember(pageUrl) { mutableStateOf(false) }
     val currentOnFailed by rememberUpdatedState(onMainFrameFailed)
+    val covered = LocalEntryCovered.current
 
     // Back goes back within the page (for example after following an in-page anchor) before it leaves.
     BackHandler(enabled = canGoBack) {
@@ -97,10 +104,12 @@ internal fun DeepDiveWebPage(
                     if (holder.webView === webView) {
                         holder.webView = null
                     }
+                    holder.forget(webView)
                     printer?.let { if (it.webView === webView) it.webView = null }
                     webView.stopLoading()
                     webView.destroy()
                 },
+                update = { webView -> holder.applyCovered(webView, covered) },
                 modifier = Modifier.fillMaxSize()
             )
         }
@@ -119,6 +128,31 @@ internal fun DeepDiveWebPage(
 
 private class WebViewHolder {
     var webView: WebView? = null
+    private var pausedView: WebView? = null
+
+    /**
+     * Covered by another page or a modal: hide the WebView's View tree from TalkBack and pause its animations
+     * ([WebView.onPause] leaves JavaScript and other WebViews alone); uncovered: restore both. Only on a change.
+     */
+    fun applyCovered(view: WebView, covered: Boolean) {
+        view.importantForAccessibility = if (covered) {
+            View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
+        } else {
+            View.IMPORTANT_FOR_ACCESSIBILITY_AUTO
+        }
+        if (covered && pausedView !== view) {
+            view.onPause()
+            pausedView = view
+        } else if (!covered && pausedView === view) {
+            view.onResume()
+            pausedView = null
+        }
+    }
+
+    /** [view] is being destroyed: drop the reference. */
+    fun forget(view: WebView) {
+        if (pausedView === view) pausedView = null
+    }
 }
 
 /**

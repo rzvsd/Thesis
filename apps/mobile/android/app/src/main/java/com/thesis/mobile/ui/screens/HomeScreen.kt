@@ -59,11 +59,12 @@ import com.thesis.mobile.model.SentimentSnapshotView
 import com.thesis.mobile.model.ThesisMonitorSnapshotView
 import com.thesis.mobile.ui.components.EmptyState
 import com.thesis.mobile.ui.components.ErrorState
-import com.thesis.mobile.ui.animations.AnimatedCounter
-import com.thesis.mobile.ui.animations.RevealAnimation
-import com.thesis.mobile.ui.animations.StaggeredEntrance
+import com.thesis.mobile.ui.motion.RollingNumber
+import com.thesis.mobile.ui.motion.rememberEntranceCoordinator
+import com.thesis.mobile.ui.motion.staggeredEntrance
 import com.thesis.mobile.ui.copy.Phase4Copy
 import com.thesis.mobile.ui.theme.HeadingFont
+import com.thesis.mobile.ui.shell.exceptTop
 import com.thesis.mobile.ui.theme.ThesisColors
 import com.thesis.mobile.ui.theme.ThesisDimens
 import com.thesis.mobile.ui.theme.ThesisSpace
@@ -117,6 +118,12 @@ fun HomeScreen(
         buildTodayPlan(phase, visiblePulseSections)
     }
     val pulseLead = derivePulseLead(pulse, phase)
+    // First-open entrance (4.3 rule 2): Home's first 8 blocks stagger once per Pulse issue and entry, never on a
+    // tab return, a pop back, a refresh or a recreation. Nothing staggers before an issue has loaded.
+    val coordinator = pulse?.reportId?.let { rememberEntranceCoordinator(resetKey = it) }
+    val entrance: (Int) -> Modifier = { order ->
+        if (coordinator != null) Modifier.staggeredEntrance(order, coordinator) else Modifier
+    }
     val pulseTimestamp = pulse?.generatedAt?.let(::formatTimestamp)
     val lastViewedTicker = lastViewedReport?.takeIf { it.type == "DEEP_DIVE" }?.label
     val insight = deriveInsight(pulse, watchlist, monitorSnapshots, lastViewedTicker)
@@ -135,10 +142,11 @@ fun HomeScreen(
         }
     )
 
+    // The list scrolls under the shell's top bar (4.4): the bar's height goes into the content padding.
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .padding(padding)
+            .padding(padding.exceptTop())
             .pullRefresh(pullRefreshState)
     ) {
         LazyColumn(
@@ -146,10 +154,13 @@ fun HomeScreen(
                 .fillMaxSize()
                 .padding(horizontal = ThesisDimens.ScreenPaddingHorizontal),
             verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSection),
-            contentPadding = PaddingValues(bottom = ThesisDimens.ScreenPaddingBottom)
+            contentPadding = PaddingValues(
+                top = padding.calculateTopPadding(),
+                bottom = ThesisDimens.ScreenPaddingBottom
+            )
         ) {
             item {
-                StaggeredEntrance(index = 0, baseDelayMs = 50L) {
+                Box(entrance(0)) {
                     Spacer(modifier = Modifier.height(ThesisDimens.ScreenPaddingTop))
                     Column {
                         Text(
@@ -193,7 +204,7 @@ fun HomeScreen(
             }
 
             item {
-                StaggeredEntrance(index = 1) {
+                Box(entrance(1)) {
                     MacroStressSummaryCard(
                         current = sentimentCurrent,
                         history = sentimentHistory,
@@ -206,7 +217,7 @@ fun HomeScreen(
 
             if (morningBriefing != null) {
                 item {
-                    StaggeredEntrance(index = 2) {
+                    Box(entrance(2)) {
                         MorningBriefingCard(
                             alert = morningBriefing,
                             onOpen = { onOpenMorningBriefing(morningBriefing) }
@@ -217,7 +228,7 @@ fun HomeScreen(
 
             if (lastViewedReport != null && onResumeLastViewed != null && onDismissResume != null) {
                 item {
-                    StaggeredEntrance(index = 3) {
+                    Box(entrance(3)) {
                         ResumeCard(
                             title = resumeTitle(lastViewedReport),
                             onResume = { onResumeLastViewed(lastViewedReport) },
@@ -265,7 +276,7 @@ fun HomeScreen(
 
                 else -> {
                     item {
-                        StaggeredEntrance(index = 4) {
+                        Box(entrance(4)) {
                             WhatMovedSection(
                                 subtitle = todayPlan.subtitle,
                                 sections = todayPlan.prioritySections.take(4)
@@ -276,7 +287,7 @@ fun HomeScreen(
             }
 
             item {
-                StaggeredEntrance(index = 5) {
+                Box(entrance(5)) {
                     YourNamesSection(
                         watchlist = watchlist,
                         pulse = pulse,
@@ -289,7 +300,7 @@ fun HomeScreen(
 
             if (insight != null) {
                 item {
-                    StaggeredEntrance(index = 6) {
+                    Box(entrance(6)) {
                         InsightAlertSection(insight = insight, onRunDeepDive = onRunDeepDive)
                     }
                 }
@@ -302,7 +313,7 @@ fun HomeScreen(
             }
 
             item {
-                StaggeredEntrance(index = 7) {
+                Box(entrance(7)) {
                     BottomLinksSection(
                         showFullPulse = showFullPulse,
                         onToggleFullPulse = { showFullPulse = !showFullPulse },
@@ -316,7 +327,7 @@ fun HomeScreen(
         PullRefreshIndicator(
             refreshing = isRefreshing,
             state = pullRefreshState,
-            modifier = Modifier.align(Alignment.TopCenter),
+            modifier = Modifier.align(Alignment.TopCenter).padding(top = padding.calculateTopPadding()),
             backgroundColor = ThesisColors.Surface,
             contentColor = ThesisColors.Primary
         )
@@ -489,17 +500,17 @@ private fun MacroStressSummaryCard(
                 )
             }
             Column(horizontalAlignment = Alignment.End) {
-                RevealAnimation(delayMs = 200L) {
+                // 4.6: final on first paint; after a refresh the new score rolls in the direction of the change.
+                run {
                     if (scoreValue != null) {
-                        AnimatedCounter(
-                            targetValue = scoreValue,
+                        RollingNumber(
+                            value = scoreValue,
+                            format = { it.toString() },
                             style = ThesisTypography.displayLarge.copy(
                                 fontFamily = HeadingFont,
                                 fontWeight = FontWeight.Normal
                             ),
-                            color = ThesisColors.TextPrimary,
-                            durationMs = 900,
-                            delayMs = 100L
+                            color = ThesisColors.TextPrimary
                         )
                     } else {
                         Text(

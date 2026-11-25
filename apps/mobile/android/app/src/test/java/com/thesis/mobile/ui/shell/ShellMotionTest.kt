@@ -1,5 +1,6 @@
 package com.thesis.mobile.ui.shell
 
+import com.thesis.mobile.ui.components.snackbarTimeoutMillis
 import com.thesis.mobile.ui.motion.ThesisMotion
 import com.thesis.mobile.ui.navigation.Destination
 import com.thesis.mobile.ui.platform.BackSwipeEdge

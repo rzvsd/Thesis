@@ -118,14 +118,16 @@ fun ThesisMaterialTheme(palette: ThesisPalette, content: @Composable () -> Unit)
  * system animator scale (0 = "Remove animations"), so [LocalReducedMotion] is true for either (section 4.8).
  *
  * The activity draws edge to edge (`enableEdgeToEdge()` in MainActivity, 5.1): the bars stay transparent and
- * only their icon appearance follows the palette ([SystemBarAppearance], ui/platform). Over a HeroBand at rest the
- * shell overrides it (2.7, PR-2).
+ * only their icon appearance follows the palette ([SystemBarAppearance], ui/platform). [statusBarOverHero]: a
+ * HeroBand at rest is under the status bar (the shell or a pre-login surface reports it, 2.7), so the status bar's
+ * icons turn light in both themes; the navigation bar keeps the theme's.
  */
 @Composable
 fun ThesisTheme(
     mode: ThemeMode = ThemeMode.Dark,
     upDown: UpDownScheme = UpDownScheme.Classic,
     reduceMotion: Boolean = false,
+    statusBarOverHero: Boolean = false,
     content: @Composable () -> Unit
 ) {
     val dark = when (mode) {
@@ -135,7 +137,7 @@ fun ThesisTheme(
     }
     val palette = remember(dark, upDown) { (if (dark) InkDark else PaperLight).withUpDown(upDown) }
     // The Android window calls live in ui/platform (section 4 preamble: android.* only there).
-    SystemBarAppearance(light = palette.isLight)
+    SystemBarAppearance(light = palette.isLight, statusBarLight = palette.isLight && !statusBarOverHero)
 
     val reduced = reduceMotion || rememberSystemReducedMotion()
     CompositionLocalProvider(LocalReducedMotion provides reduced) {
