@@ -101,7 +101,7 @@ interface ShellActions {
     fun onRefreshPageToken(onResult: (String?) -> Unit) { onResult(null) }
     fun onRefreshWarRoom() {}
 
-    /** The open War Room's 2-minute auto-refresh (5.5): no "loaded" message, no paywall on failure. */
+    /** The open War Room's auto-refresh (5.5/5.19, every 60 s while Live): no "loaded" message, no paywall on failure. */
     fun onAutoRefreshWarRoom() {}
     fun onRefreshScenarioTemplates() {}
     fun onSelectScenarioTemplate(scenarioId: String) {}
@@ -147,5 +147,18 @@ class ShellPlatform(
         onDismiss: () -> Unit
     ) -> Unit = { _, _, _ -> },
     val macroStressDashboard: @androidx.compose.runtime.Composable (onBack: () -> Unit) -> Unit = {},
-    val deleteAccountSection: @androidx.compose.runtime.Composable () -> Unit = {}
+    val deleteAccountSection: @androidx.compose.runtime.Composable () -> Unit = {},
+    /** The Activity is RESUMED (in front of the user). Timers such as the War Room auto-refresh run only then. */
+    val isResumed: Boolean = true,
+    /**
+     * Draws [content] with the system back handlers registered inside it switched off while `covered` is true.
+     * The shell wraps the report base layer in it: the report's WebView registers `BackHandler(canGoBack)` (go back
+     * within the page), and while a pushed screen, a modal or the paywall covers the report, system back must
+     * reach the shell, not rewind the hidden page. Android provides a detached `OnBackPressedDispatcher` while
+     * covered; previews have no back dispatcher and just draw [content].
+     */
+    val backScope: @androidx.compose.runtime.Composable (
+        covered: Boolean,
+        content: @androidx.compose.runtime.Composable () -> Unit
+    ) -> Unit = { _, content -> content() }
 )

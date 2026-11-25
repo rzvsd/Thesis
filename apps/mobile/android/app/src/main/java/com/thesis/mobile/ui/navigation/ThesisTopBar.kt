@@ -75,7 +75,7 @@ fun ThesisTopBar(
     }
 }
 
-/** Top bar of a pushed screen that has no header of its own: back arrow and title. */
+/** Top bar of a pushed screen that has no header of its own: back arrow and title (none when [title] is blank). */
 @Composable
 fun ThesisBackTopBar(title: String, onBack: () -> Unit) {
     Row(
@@ -94,14 +94,17 @@ fun ThesisBackTopBar(title: String, onBack: () -> Unit) {
                 tint = ThesisColors.TextPrimary
             )
         }
-        Text(
-            text = title,
-            style = ThesisTypography.titleMedium.copy(fontWeight = FontWeight.Medium),
-            color = ThesisColors.TextPrimary,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f, fill = false).semantics { heading() }
-        )
+        // No title (the screen carries its own headline): no Text at all, so TalkBack meets no empty heading.
+        if (title.isNotBlank()) {
+            Text(
+                text = title,
+                style = ThesisTypography.titleMedium.copy(fontWeight = FontWeight.Medium),
+                color = ThesisColors.TextPrimary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, fill = false).semantics { heading() }
+            )
+        }
     }
 }
 

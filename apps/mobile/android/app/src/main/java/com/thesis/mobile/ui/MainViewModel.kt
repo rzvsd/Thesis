@@ -1529,7 +1529,7 @@ class MainViewModel(
 
     /**
      * Loads a War Room. [announce] = false is the open War Room's background auto-refresh: no message (so no
-     * snackbar every 2 minutes), no `war_room_viewed` event, and a failure keeps the loaded War Room on screen
+     * snackbar every minute), no `war_room_viewed` event, and a failure keeps the loaded War Room on screen
      * without an error or the paywall.
      */
     fun openWarRoom(warRoomId: String, announce: Boolean = true) {

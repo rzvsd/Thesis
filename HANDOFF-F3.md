@@ -35,9 +35,11 @@ Changes F3 needs in files it does not own, and the contract it leaves for PR-3. 
   the kit and tokens replace (design-lint 7.2, rubric T1/T2/M2, counts them; `ThesisSpace`, `ThesisType`,
   `ThesisMotion` are not on F3's base fa8b6fc). Swap them when F1/F2 merge, then re-run
   `design-lint --update-baseline` for the new files:
-  - `ui/shell/ThesisShell.kt`: `24.dp` (shared-axis shift) and `32.dp` (modal rise) → `ThesisMotion`/`ThesisSpace`
-    tokens; every `tween(...)` with `LinearOutSlowInEasing`/`FastOutLinearInEasing` in `tabTransition` and
-    `modalTransition` → `ThesisMotion` specs (`EaseEnter`/`EaseExit`; durations already match 4.5).
+  - `ui/shell/ThesisShell.kt`: `SHARED_AXIS_SHIFT = 24.dp` → `ThesisMotion.PushOffset`, `32.dp` (modal rise) →
+    `ThesisMotion.ModalOffset`; every `tween(...)` with `LinearOutSlowInEasing`/`FastOutLinearInEasing` in
+    `tabTransition`, `sharedAxisX` (also used by Auth ↔ Password reset in `ThesisApp.kt`), `modalTransition` and
+    `ShellBottomBar` (`BAR_MS = 240` = `ThesisMotion.Base`) → `ThesisMotion` specs (`EaseEnter`/`EaseExit`;
+    durations already match 4.5 and 3 #4).
   - `ui/navigation/ThesisTopBar.kt`: `.heightIn(min = 56.dp)` (root and back bars; a minimum so a 2.0x title is
     not clipped; the back-bar title is one line with an ellipsis); `titleMedium.copy(fontWeight = ...)`
     in `ThesisBackTopBar` and `labelLarge.copy(...)` in `SubScreenBackRow` → kit `ThesisTopBar(TopBarSpec)`
@@ -53,9 +55,18 @@ Changes F3 needs in files it does not own, and the contract it leaves for PR-3. 
     take it over.
   - `ui/shell/ShellDestinations.kt`: the War Room refresh loop `delay(WAR_ROOM_REFRESH_MS)` is a third poll next
     to the two allow-listed `MainViewModel` polls: **add it to the design-lint allowlist** when the tool lands (it
-    is the 5.5 War Room auto-refresh, cancelled when the entry leaves composition) or move it into the ViewModel
-    in PR-3. It calls `onAutoRefreshWarRoom()` = `refreshWarRoom(announce = false)`: no "War Room loaded."
+    is the 5.19 War Room auto-refresh: every 60 s, only while the room's status is `live`, the entry is the visible
+    top with no modal over it, and the Activity is RESUMED (`ShellPlatform.isResumed`, a lifecycle observer in
+    `ThesisApp`); any change cancels the loop) or move it into the ViewModel in PR-3. It calls `onAutoRefreshWarRoom()` = `refreshWarRoom(announce = false)`: no "War Room loaded."
     snackbar, no `war_room_viewed` event, no paywall, and a failure keeps the loaded War Room on screen.
+- `ui/shell/ThesisShell.kt` `ShellSnackbarHost` → kit `ThesisSnackbarHost` (component 23). Keep the bottom
+  offset logic (`barHeightPx`: on the bottom bar when it shows, else on the navigation bar or the IME) and the
+  host's place as the root's last child. F3 already draws an ink container with surface text, `shapes.medium`
+  (= `panel`) and 16 dp from the edges; still missing: rise 12 dp + fade enter, the `accent`-on-ink action
+  colour, 4 s / 8 s durations, `liveRegion = Polite`.
+- `ui/shell/ThesisShell.kt` `ShellBottomBar`: the wrapper that hides the bar (always composed, slides down by its
+  height + fades, `Base`; reduced motion fades only; no semantics and no taps while hidden). When the kit's
+  `ThesisBottomBar` lands, keep this wrapper around it.
 - Icons: the Research tab uses `Icons.AutoMirrored.Filled.ManageSearch` (2.8: Research = `manage_search`; the
   magnifier is the top bar's Search). Swap for the `ThesisIcons` glyph when F2 lands.
 - `ui/navigation/ThesisTopBar.kt` / `ThesisBottomBar.kt`: F3 rewired them functionally (4 tabs with the Inbox
@@ -65,6 +76,15 @@ Changes F3 needs in files it does not own, and the contract it leaves for PR-3. 
 
 ## 2b. For WP-C/WP-D (report screens)
 
+- `screens/DeepDiveWebPage.kt` `BackHandler(enabled = canGoBack)`: no change needed. The shell runs the report base
+  layer inside `ShellPlatform.backScope(covered)`: while a pushed screen, a modal or the paywall covers the report,
+  every back handler inside the report (this one, and any `PredictiveBackHandler` WP-C adds) is registered with a
+  detached `OnBackPressedDispatcher`, so system back pops the visible screen instead of rewinding the hidden page.
+  Do not read `LocalOnBackPressedDispatcherOwner` once and cache it outside composition.
+- Report pushed over a report (`onOpenHistoryReport` inside a report): the tab layer never draws a report, so the
+  leaving report builds no second WebView; but the base layer keeps one report only, so popping back to the older
+  report loads its page again (scroll starts at the top). Accepted for PR-1 (one WebView alive at a time).
+
 - `components/EmptyStateView.kt` `DeepDiveUnavailableState` / `screens/DeepDiveScreen.kt`: on a `Report(id)` entry
   whose open failed (render `shell-report-failed`), the shell now wires the error card's button to
   `onEnsureReport(id)` (open the stored report again), not to a new build. The label still reads
@@ -72,6 +92,13 @@ Changes F3 needs in files it does not own, and the contract it leaves for PR-3. 
   shell can say "Open report again" (principle 11). On a failed `DeepDiveRunning` entry the button runs the build
   again through `onRetryDeepDive(ticker)`, which replaces the entry instead of stacking a second one.
 - `EmptyStateActionButton`: the pill's label is clipped vertically at 2.0x (fixed height); use a minimum height.
+
+## 2c. For WP-E (Research root, 5.12)
+
+- `screens/DeepDiveScreen.kt` `DeepDiveSearchState` (reached through `ResearchScreen`): it shows
+  `NoDeepDivesEmptyState` ("No Deep Dives Yet") unconditionally, above a populated "Continue Research" list (renders
+  `shell-research`, `shell-research-root-error`). Pre-existing; the copy contradicts the screen (principle 11). In
+  the 5.12 redraw show the empty state only when `recentHistory` is empty.
 
 ## 3. For F1 (theme)
 
@@ -131,6 +158,16 @@ placeholder until WP-B/WP-E add their screens to `ui/shell/ShellDestinations.kt`
 
 ## 6. For the owner
 
+- **Device back checklist (R1), for the PR-1 device pass** (`AppNavigatorTest` drives only the navigator):
+  1. Report → tap a chapter chip (in-page anchor) → Stress test tool (Scenario Stress) → system back once: back on
+     the report, same scroll. Back again: the page goes back to before the anchor. Back again: leaves the report.
+  2. Same with "Pulse history" from the report (Pulse(date) pushed over it), and with You opened from the avatar
+     or a "you" deep link over a report after an anchor: one back closes the visible screen.
+  3. Paywall opened over a report after an anchor: one back closes the paywall.
+  4. Every push from every tab root (Pulse, Macro, Weekly digest, History, War Room, Scenario, running build,
+     report): one back returns; at a root other than Today back goes to Today; at Today the system takes over.
+  5. Log in → Forgot password → back: Auth again (shared-axis X), not the launcher.
+
 - **Open acceptance item:** predictive back ("ThesisBackHandler / ThesisPredictiveBackHandler for every push",
   4.5 scale .90 + 8 dp shift). Back works through a plain `BackHandler` gated on `navigator.canGoBack`, but shows no
   preview until F2's `ui/platform/Back.kt` merges (section 2). At PR-1 integration: swap the handler for
@@ -142,4 +179,5 @@ placeholder until WP-B/WP-E add their screens to `ui/shell/ShellDestinations.kt`
 - Deviation, documented: the paywall stays state-driven (`UiState.paywallFeature`, drawn above the shell, closed
   by back) rather than a `Paywall` entry on the modal stack; the `Paywall` destination exists for later use.
 - Deviation, documented: an alert whose route the app does not know lands on the Inbox tab root (there is no alert
-  detail screen to push yet).
+  detail screen to push yet). Logged in `docs/app-redesign/DESIGN-DIRECTION.md` Appendix A; when an alert detail is
+  designed, add a destination and push it from `DeepLinkRouter`.

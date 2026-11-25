@@ -72,7 +72,7 @@ class MarketTapeParserTest {
     }
 
     @Test
-    fun theApiParserAndTheOfflineCacheKeepTheTape() {
+    fun theOfflineCacheKeepsTheParsedTape() {
         // OfflineJsonCodec round trip: what the app shows offline is the same tape.
         val tape = MarketTapeParser.parse(fixture.optJSONObject("market_tape"))
         val pulse = PulseReportView(

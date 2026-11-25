@@ -34,12 +34,15 @@ import com.thesis.mobile.ui.theme.ThesisDimens
 import com.thesis.mobile.ui.theme.ThesisTypography
 import kotlinx.coroutines.delay
 
-/** How often an open War Room refreshes itself (5.5 "War Room auto-refresh"). */
-internal const val WAR_ROOM_REFRESH_MS = 2 * 60 * 1000L
+/** How often an open War Room refreshes itself while Live (5.19: every 60 s, only while Live and resumed). */
+internal const val WAR_ROOM_REFRESH_MS = 60_000L
+
+/** `WarRoomView.status` of a room whose earnings call is under way (`earningsWarRoomStates` "live"). */
+private const val WAR_ROOM_LIVE = "live"
 
 /**
- * The screen for one stack entry. [padding] is the shell scaffold's inner padding (bars and system insets);
- * screens that take no padding parameter are padded here.
+ * The screen for one stack entry. [padding] is the entry's own inner padding (its top bar, the bottom bar when
+ * its destination shows it, and system insets); screens that take no padding parameter are padded here.
  */
 @Composable
 internal fun ShellContentScope.Content(entry: NavEntry, padding: PaddingValues) {
@@ -129,16 +132,25 @@ internal fun ShellContentScope.Content(entry: NavEntry, padding: PaddingValues) 
         )
         is Destination.WarRoom -> {
             val id = destination.warRoomId
+            val warRoom = state.warRoom?.takeIf { id == null || it.warRoomId == id }
             LaunchedEffect(entry.entryId) {
                 if (id != null && state.warRoom?.warRoomId != id) actions.onEnsureWarRoom(id)
-                // Silent: no "loaded" snackbar every 2 minutes and no paywall from a background refresh.
-                while (true) {
+            }
+            // Auto-refresh (5.19): every 60 s, only while the room is Live, this entry is the visible top (no
+            // modal over it) and the Activity is resumed. Leaving any of those cancels the loop; coming back
+            // starts a new one. Silent: no "loaded" snackbar and no paywall from a background refresh.
+            val refreshing = warRoom?.status.equals(WAR_ROOM_LIVE, ignoreCase = true) &&
+                platform.isResumed &&
+                navigator.tabTop.entryId == entry.entryId &&
+                navigator.modalStack.isEmpty()
+            LaunchedEffect(entry.entryId, refreshing) {
+                while (refreshing) {
                     delay(WAR_ROOM_REFRESH_MS)
                     actions.onAutoRefreshWarRoom()
                 }
             }
             WarRoomScreen(
-                warRoom = state.warRoom?.takeIf { id == null || it.warRoomId == id },
+                warRoom = warRoom,
                 errorMessage = state.warRoomError,
                 onRefresh = actions::onRefreshWarRoom,
                 padding = padding

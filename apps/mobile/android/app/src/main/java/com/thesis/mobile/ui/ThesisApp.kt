@@ -4,7 +4,11 @@ import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.provider.Settings
+import androidx.activity.OnBackPressedDispatcher
+import androidx.activity.OnBackPressedDispatcherOwner
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -15,6 +19,7 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -24,6 +29,10 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.thesis.mobile.BuildConfig
 import com.thesis.mobile.LaunchTarget
@@ -35,13 +44,19 @@ import com.thesis.mobile.ui.screens.PasswordResetScreen
 import com.thesis.mobile.ui.screens.SampleDeepDiveScreen
 import com.thesis.mobile.ui.screens.createPulsePdfExport
 import com.thesis.mobile.ui.screens.shareExport
+import com.thesis.mobile.ui.shell.SHARED_AXIS_SHIFT
 import com.thesis.mobile.ui.shell.ShellPlatform
 import com.thesis.mobile.ui.shell.ThesisShell
+import com.thesis.mobile.ui.shell.sharedAxisX
+import com.thesis.mobile.ui.theme.LocalReducedMotion
 import com.thesis.mobile.ui.theme.ThesisColors
 import com.thesis.mobile.ui.theme.ThesisTheme
 
-/** Which top-level surface is showing: the app shell needs a session, Auth and Onboarding do not. */
-private enum class AppSurface { Onboarding, Auth, PasswordReset, Shell }
+/**
+ * Which top-level surface is showing: the app shell needs a session, Onboarding and sign-in do not. Sign-in
+ * covers Auth and Password reset, which move between each other on the shared X axis (4.5).
+ */
+private enum class AppSurface { Onboarding, SignIn, Shell }
 
 /**
  * The Activity's content (DESIGN-DIRECTION 5.5): collects [UiState], applies launch targets, provides the
@@ -88,8 +103,7 @@ fun ThesisApp(
     ) {
         val surface = when {
             uiState.showWelcome -> AppSurface.Onboarding
-            uiState.tokens == null && showPasswordReset -> AppSurface.PasswordReset
-            uiState.tokens == null -> AppSurface.Auth
+            uiState.tokens == null -> AppSurface.SignIn
             else -> AppSurface.Shell
         }
         Box(Modifier.fillMaxSize().background(ThesisColors.Background)) {
@@ -99,28 +113,57 @@ fun ThesisApp(
                     AppSurface.Onboarding -> PreLoginInsets {
                         OnboardingScreen(onComplete = mainViewModel::completeWelcome)
                     }
-                    AppSurface.PasswordReset -> PreLoginInsets {
-                        BackHandler { showPasswordReset = false }
-                        PasswordResetScreen(onDone = { showPasswordReset = false }, mainViewModel = mainViewModel)
-                    }
-                    AppSurface.Auth -> PreLoginInsets {
-                        AuthScreen(
-                            isLoading = uiState.authBusy,
-                            currentApiBaseUrl = uiState.apiBaseUrl,
-                            verificationToken = uiState.verificationToken,
-                            registerStatus = uiState.registerStatus,
-                            message = uiState.message,
-                            onSaveApiBaseUrl = mainViewModel::updateApiBaseUrl,
-                            onRegister = mainViewModel::register,
-                            onVerify = mainViewModel::verify,
-                            onLogin = mainViewModel::login,
-                            onForgotPassword = { showPasswordReset = true },
-                            showDeveloperOptions = BuildConfig.DEBUG
-                        )
-                    }
-                    // The shell applies its own insets (Scaffold padding, consumeWindowInsets, imePadding).
+                    AppSurface.SignIn -> SignInFlow(
+                        showPasswordReset = showPasswordReset,
+                        onShowPasswordReset = { showPasswordReset = it },
+                        uiState = uiState,
+                        mainViewModel = mainViewModel
+                    )
+                    // The shell applies its own insets (each entry's Scaffold padding, consumeWindowInsets, imePadding).
                     AppSurface.Shell -> LoggedInApp(uiState, mainViewModel, snackbarHostState, context)
                 }
+            }
+        }
+    }
+}
+
+/** Auth ↔ Password reset: shared-axis X, the same spec as a push and a pop in the shell (4.5). */
+@Composable
+private fun SignInFlow(
+    showPasswordReset: Boolean,
+    onShowPasswordReset: (Boolean) -> Unit,
+    uiState: UiState,
+    mainViewModel: MainViewModel
+) {
+    val reducedMotion = LocalReducedMotion.current
+    val shiftPx = with(LocalDensity.current) { SHARED_AXIS_SHIFT.roundToPx() }
+    AnimatedContent(
+        targetState = showPasswordReset,
+        modifier = Modifier.fillMaxSize(),
+        transitionSpec = { sharedAxisX(forward = targetState, reducedMotion = reducedMotion, shiftPx = shiftPx) },
+        label = "sign-in"
+    ) { reset ->
+        if (reset) {
+            PreLoginInsets {
+                // Only the visible Password reset handles back (not one that is leaving).
+                BackHandler(enabled = showPasswordReset) { onShowPasswordReset(false) }
+                PasswordResetScreen(onDone = { onShowPasswordReset(false) }, mainViewModel = mainViewModel)
+            }
+        } else {
+            PreLoginInsets {
+                AuthScreen(
+                    isLoading = uiState.authBusy,
+                    currentApiBaseUrl = uiState.apiBaseUrl,
+                    verificationToken = uiState.verificationToken,
+                    registerStatus = uiState.registerStatus,
+                    message = uiState.message,
+                    onSaveApiBaseUrl = mainViewModel::updateApiBaseUrl,
+                    onRegister = mainViewModel::register,
+                    onVerify = mainViewModel::verify,
+                    onLogin = mainViewModel::login,
+                    onForgotPassword = { onShowPasswordReset(true) },
+                    showDeveloperOptions = BuildConfig.DEBUG
+                )
             }
         }
     }
@@ -182,7 +225,9 @@ private fun LoggedInApp(
                 onBack = onBack
             )
         },
-        deleteAccountSection = { DeleteAccountSection(mainViewModel) }
+        deleteAccountSection = { DeleteAccountSection(mainViewModel) },
+        isResumed = rememberIsResumed(),
+        backScope = { covered, content -> CoveredBackScope(covered, content) }
     )
 
     ThesisShell(
@@ -192,6 +237,44 @@ private fun LoggedInApp(
         platform = platform,
         snackbarHostState = snackbarHostState
     )
+}
+
+/** True while the Activity is RESUMED: the War Room auto-refresh pauses when the app goes to the background. */
+@Composable
+private fun rememberIsResumed(): Boolean {
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    var resumed by remember(lifecycle) { mutableStateOf(lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) }
+    DisposableEffect(lifecycle) {
+        val observer = LifecycleEventObserver { _, _ ->
+            resumed = lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)
+        }
+        lifecycle.addObserver(observer)
+        onDispose { lifecycle.removeObserver(observer) }
+    }
+    return resumed
+}
+
+/**
+ * Back handlers inside [content] register with the Activity's dispatcher only while [covered] is false; while it
+ * is true they register with a detached dispatcher that nothing calls. The shell wraps the report base layer in
+ * this, so the report WebView's "back within the page" handler (registered after the shell's own) cannot take a
+ * system back meant for a screen, modal or paywall drawn over the report. Always the same provider node, so
+ * toggling [covered] moves the handlers between dispatchers without rebuilding the WebView.
+ */
+@Composable
+private fun CoveredBackScope(covered: Boolean, content: @Composable () -> Unit) {
+    val activityOwner = LocalOnBackPressedDispatcherOwner.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val detachedOwner = remember(lifecycleOwner) {
+        object : OnBackPressedDispatcherOwner {
+            override val onBackPressedDispatcher: OnBackPressedDispatcher = OnBackPressedDispatcher()
+            override val lifecycle: Lifecycle get() = lifecycleOwner.lifecycle
+        }
+    }
+    val provided = if (covered || activityOwner == null) detachedOwner else activityOwner
+    CompositionLocalProvider(LocalOnBackPressedDispatcherOwner provides provided) {
+        content()
+    }
 }
 
 /** System "Remove animations" (animator duration scale 0): reduce motion even with the in-app toggle off (4.8). */

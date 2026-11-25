@@ -14,6 +14,7 @@ import com.thesis.mobile.ui.navigation.ShellTab
 import com.thesis.mobile.ui.screens.AuthScreen
 import com.thesis.mobile.ui.shell.ShellActions
 import com.thesis.mobile.ui.shell.ThesisShell
+import kotlinx.coroutines.delay
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -122,6 +123,31 @@ class ShellRenders {
             )
         )
     )
+
+    /**
+     * Mid-transition frames (principle 8, 4.5): each entry draws its own top bar, so on a push from a root (brand
+     * bar) to Pulse (no bar) the brand bar slides out with Today and Today's content does not jump up; on a push to
+     * a running build the bottom bar slides down and fades (3 #4) instead of vanishing.
+     */
+    @Test fun pushToPulse40ms() = transition("shell-transition-pulse-40ms", ShellTab.Today, Destination.Pulse(), 40)
+    @Test fun pushToPulse120ms() = transition("shell-transition-pulse-120ms", ShellTab.Today, Destination.Pulse(), 120)
+    @Test fun pushToRunning120ms() = transition(
+        "shell-transition-running-120ms", ShellTab.Research, Destination.DeepDiveRunning("AAPL"), 120,
+        state = ShellFixtures.state.copy(isDeepDiveRunning = true, jobStatus = "running")
+    )
+
+    private fun transition(name: String, tab: ShellTab, push: Destination, atMs: Long, state: UiState = ShellFixtures.state) {
+        val pushAtMs = 96L
+        val files = renderScreen(name, settleMs = pushAtMs + atMs, frameMs = 16, themes = listOf(PreviewTheme.DARK)) {
+            val navigator = remember { ShellFixtures.navigator(tab) }
+            LaunchedEffect(Unit) {
+                delay(pushAtMs)
+                navigator.push(push)
+            }
+            ThesisShell(state = state, navigator = navigator, actions = actions, snackbarHostState = remember { SnackbarHostState() })
+        }
+        files.forEach { assertTrue("${it.name} was not written", it.isFile && it.length() > 0) }
+    }
 
     /** Auth, which F3 extracted from ThesisApp (ThesisApp adds the safeDrawing insets around it). */
     @Test fun auth() = authRender("shell-auth", 1f, PhoneSpec.WIDTH_DP)
