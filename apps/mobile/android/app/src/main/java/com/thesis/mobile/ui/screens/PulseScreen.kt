@@ -179,7 +179,8 @@ fun PulseScreen(
     val heroUnderBar by remember {
         derivedStateOf {
             val hero = list.layoutInfo.visibleItemsInfo.firstOrNull { it.index == HERO_ITEM }
-            hero == null || hero.offset + hero.size <= barHeightPx
+            // Before the first layout the hero is not in the list info yet: not collapsed (no flash of a filled bar).
+            if (hero == null) list.firstVisibleItemIndex > HERO_ITEM else hero.offset + hero.size <= barHeightPx
         }
     }
     val pillsPinned by remember {
@@ -362,7 +363,7 @@ private fun Brief(
                 )
             }
             chapters.forEachIndexed { i, chapter ->
-                item(key = chapter.kind.name) {
+                item(key = chapter.kind.name, contentType = "chapter") {
                     Column(
                         Modifier
                             .staggeredEntrance(i + 1, coordinator)
