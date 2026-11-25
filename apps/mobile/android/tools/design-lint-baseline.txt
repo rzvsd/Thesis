@@ -21,10 +21,6 @@ ui/screens/AuthScreen.kt	material-icons	5
 ui/screens/ConvictionIntelligenceCards.kt	dp-literal	1
 ui/screens/ConvictionIntelligenceCards.kt	outlined-button	2
 ui/screens/ConvictionIntelligenceCards.kt	material-icons	1
-ui/screens/DeepDiveLoadingScreen.kt	dp-literal	11
-ui/screens/DeepDiveLoadingScreen.kt	tween	11
-ui/screens/DeepDiveLoadingScreen.kt	delay	4
-ui/screens/DeepDiveLoadingScreen.kt	material-icons	1
 ui/screens/DeepDiveNativeMemo.kt	string-format	10
 ui/screens/DeepDiveNativeMemo.kt	printf-float	1
 ui/screens/DeepDivePresentationCards.kt	dp-literal	3
@@ -43,12 +39,6 @@ ui/screens/DeepDiveScreen.kt	printf-float	1
 ui/screens/DeepDiveScreen.kt	material-icons	5
 ui/screens/DeepDiveScreen.kt	deprecated-colors	1
 ui/screens/DeepDiveScreen.kt	copy-banned-word	1
-ui/screens/DeepDiveWebPage.kt	dp-literal	2
-ui/screens/DeepDiveWebPage.kt	circular-progress	1
-ui/screens/DeepDiveWebReportState.kt	dp-literal	6
-ui/screens/DeepDiveWebReportState.kt	copy-alpha	1
-ui/screens/DeepDiveWebReportState.kt	circular-progress	1
-ui/screens/DeepDiveWebReportState.kt	material-icons	2
 ui/screens/DeleteAccountSection.kt	dp-literal	1
 ui/screens/DeleteAccountSection.kt	alert-dialog	1
 ui/screens/HistoryScreen.kt	dp-literal	3
@@ -76,8 +66,6 @@ ui/screens/PaywallScreen.kt	outlined-button	1
 ui/screens/PulseScreen.kt	dp-literal	1
 ui/screens/PulseScreen.kt	delay	1
 ui/screens/PulseScreen.kt	material-icons	4
-ui/screens/ReportExport.kt	string-format	4
-ui/screens/ReportExport.kt	printf-float	3
 ui/screens/ScenarioStressScreen.kt	dp-literal	5
 ui/screens/ScenarioStressScreen.kt	copy-alpha	1
 ui/screens/ScenarioStressScreen.kt	circular-progress	2
