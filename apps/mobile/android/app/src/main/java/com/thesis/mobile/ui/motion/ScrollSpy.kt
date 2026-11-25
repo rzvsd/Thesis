@@ -62,8 +62,13 @@ class ScrollSpyState internal constructor(
         if (chapterStarts.isEmpty()) return 0
         val info = list.layoutInfo
         val viewport = info.viewportEndOffset - info.viewportStartOffset
-        if (viewport <= 0) return lastSpied.coerceIn(chapterStarts.indices)
         val first = list.firstVisibleItemIndex
+        if (viewport <= 0) {
+            // Before the first layout (a restored scroll position): the first visible item is already known, so
+            // the pills open on the right chapter instead of flashing chapter one for a frame.
+            lastSpied = chapterStarts.indexOfLast { it <= first }.coerceAtLeast(0)
+            return lastSpied
+        }
         val visible = info.visibleItemsInfo
         // A chapter is "crossed" when its start item is above the line: scrolled past, or its top above the line.
         fun crossed(chapter: Int, share: Float): Boolean {

@@ -28,6 +28,10 @@ import kotlinx.coroutines.flow.filter
  * toward its top and fades, `Base`), and [onRemoved] is called once the collapse has finished: commit the removal
  * there (or when the undo snackbar times out). Undo = take the key out of the set before committing: the item
  * expands back in place. First paint never animates. Reduced motion: a 150 ms fade, then the space closes at once.
+ *
+ * Inside a RowGroup, pass the row's container (`Modifier.rowGroupSegment(position)`) as [modifier] rather than
+ * wrapping [content] in it: the card surface then closes up with the row while only the content fades, so the
+ * page background never shows through a gap in the card.
  */
 @Composable
 fun DismissibleItem(

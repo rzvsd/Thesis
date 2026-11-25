@@ -270,6 +270,26 @@ class MotionBehaviourTest {
     }
 
     @Test
+    fun scrollSpyOpensOnTheRestoredChapterFromTheFirstFrame() {
+        val seen = mutableListOf<Int>()
+        val starts = listOf(0, 6, 12, 18)
+        rule.mainClock.autoAdvance = false
+        theme {
+            val list = rememberLazyListState(initialFirstVisibleItemIndex = 7)
+            val spy = rememberScrollSpy(list, starts)
+            seen += spy.selected
+            // 560 dp viewport: item 7 at the top, chapter III's start (item 12) at 320 dp, below the reading line.
+            LazyColumn(Modifier.fillMaxWidth().height(560.dp), state = list) {
+                items(24) { i -> Text("Item $i", Modifier.fillMaxWidth().height(64.dp)) }
+            }
+        }
+        rule.mainClock.advanceTimeByFrame()
+        rule.waitForIdle()
+        // Every composition, the very first included, shows chapter II (item 7 is inside it): no flash of chapter I.
+        assertEquals(listOf(1), seen.distinct())
+    }
+
+    @Test
     fun refreshBoxOffersARefreshActionAndAnnouncesRefreshing() {
         var refreshing by mutableStateOf(false)
         var refreshed = 0
