@@ -135,12 +135,14 @@ fun Modifier.pageBackground(p: ThesisPalette): Modifier = composed {
 enum class BarHairline { None, Top, Bottom }
 
 /**
- * Bar background: the page bitmap under this node at [ThesisSurface.BAR_ALPHA], plus a `line` hairline. [visible]
- * (0..1, read in the draw phase) fades both in, for the top bar that is transparent at rest. Without a cache it
- * falls back to `bg` at the bar alpha.
+ * Bar background: the page bitmap under this node at [opacity] (default [ThesisSurface.BAR_ALPHA]), plus a `line`
+ * hairline. [visible] (0..1, read in the draw phase) fades both in, for the top bar that is transparent at rest.
+ * Without a cache it falls back to `bg` at the same alpha. Pass [opacity] = 1 where the bar can sit over a HeroBand:
+ * at 92% the band's white title ghosts through the light bar as readable text, not as glow.
  */
 fun Modifier.barBackground(
     hairline: BarHairline = BarHairline.Bottom,
+    opacity: Float = ThesisSurface.BAR_ALPHA,
     visible: () -> Float = { 1f },
 ): Modifier = composed {
     val p = LocalThesisPalette.current
@@ -154,18 +156,23 @@ fun Modifier.barBackground(
             if (v <= 0f) return@drawBehind
             val image = cache?.bitmapFor(p, density)
             if (image == null) {
-                drawRect(p.bg, alpha = ThesisSurface.BAR_ALPHA * v)
+                drawRect(p.bg, alpha = opacity * v)
             } else {
-                drawAreaSlice(image, position - cache.areaOrigin, alpha = ThesisSurface.BAR_ALPHA * v)
+                drawAreaSlice(image, position - cache.areaOrigin, alpha = opacity * v)
             }
-            val stroke = ThesisSpace.border.toPx()
-            when (hairline) {
-                BarHairline.None -> Unit
-                BarHairline.Top -> drawRect(p.line, size = Size(size.width, stroke), alpha = v)
-                BarHairline.Bottom ->
-                    drawRect(p.line, topLeft = Offset(0f, size.height - stroke), size = Size(size.width, stroke), alpha = v)
-            }
+            drawBarHairline(p.line, hairline, alpha = v)
         }
+}
+
+/** A bar's 1 dp hairline in [color] along the [edge] of this draw scope. */
+internal fun DrawScope.drawBarHairline(color: Color, edge: BarHairline, alpha: Float = 1f) {
+    val stroke = ThesisSpace.border.toPx()
+    when (edge) {
+        BarHairline.None -> Unit
+        BarHairline.Top -> drawRect(color, size = Size(size.width, stroke), alpha = alpha)
+        BarHairline.Bottom ->
+            drawRect(color, topLeft = Offset(0f, size.height - stroke), size = Size(size.width, stroke), alpha = alpha)
+    }
 }
 
 /** Draws the part of [image] under this node, whose top-left sits at [offset] in the image's coordinates. */

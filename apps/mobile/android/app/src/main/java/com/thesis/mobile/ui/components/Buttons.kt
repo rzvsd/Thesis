@@ -117,7 +117,8 @@ fun KitButton(
             .clip(shape)
             .background(colors.fill)
             .then(if (colors.border != Color.Transparent) Modifier.border(ThesisSpace.border, colors.border, shape) else Modifier)
-            .padding(horizontal = ThesisSpace.controlPaddingH),
+            // Vertical padding inside the 40 dp minimum: at large font scales the pill grows with breathing room.
+            .padding(horizontal = ThesisSpace.controlPaddingH, vertical = ThesisSpace.s),
         contentAlignment = Alignment.Center,
     ) {
         Row(
@@ -197,7 +198,9 @@ fun DestructiveButton(
 
 /**
  * Text action ("All names", "Show table", "Try again" in a banner): accent `label` text aligned to the text edge
- * (no horizontal padding), 48 dp tall touch area, tint press without scale.
+ * (no horizontal padding), 48 dp tall touch area, tint press without scale. [trailing] = true (a row's end action:
+ * card foot, banner, section header) puts the label at the end of its touch box, so trailing actions share the
+ * right edge of their row instead of ending wherever a short label leaves the 48 dp box.
  */
 @Composable
 fun TextAction(
@@ -206,6 +209,7 @@ fun TextAction(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     style: TextStyle = ThesisType.label,
+    trailing: Boolean = false,
     interactionSource: MutableInteractionSource = remember { MutableInteractionSource() },
 ) {
     val p = LocalThesisPalette.current
@@ -214,7 +218,7 @@ fun TextAction(
             .clickable(interactionSource, indication = null, enabled = enabled, role = Role.Button, onClick = onClick)
             .sizeIn(minWidth = ThesisSpace.touchMin, minHeight = ThesisSpace.touchMin)
             .thesisPress(interactionSource, shape = ThesisShape.badge, enabled = enabled),
-        contentAlignment = Alignment.CenterStart,
+        contentAlignment = if (trailing) Alignment.CenterEnd else Alignment.CenterStart,
     ) {
         Text(text, style = style, color = if (enabled) p.accent else p.muted)
     }

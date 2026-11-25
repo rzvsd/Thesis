@@ -197,7 +197,7 @@ private fun CardFoot(footer: CardFooter) {
             )
             if (footer.actionLabel != null && footer.onAction != null) {
                 Spacer(Modifier.width(ThesisSpace.m))
-                TextAction(footer.actionLabel, footer.onAction)
+                TextAction(footer.actionLabel, footer.onAction, trailing = true)
             }
         }
     }
@@ -429,6 +429,6 @@ fun InlineBanner(
             style = ThesisType.caption,
             color = if (tone == BannerTone.Error) p.ink else p.ink2,
         )
-        if (actionLabel != null && onAction != null) TextAction(actionLabel, onAction)
+        if (actionLabel != null && onAction != null) TextAction(actionLabel, onAction, trailing = true)
     }
 }

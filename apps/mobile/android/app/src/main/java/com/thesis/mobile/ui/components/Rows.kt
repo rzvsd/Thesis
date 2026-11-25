@@ -42,6 +42,7 @@ import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -50,6 +51,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import com.thesis.mobile.ui.icons.ThesisIcons
 import com.thesis.mobile.ui.motion.ThesisMotion
@@ -201,15 +203,55 @@ fun DataRow(
             .heightIn(min = if (sub != null) ThesisSpace.rowMinComfortableTwoLine else ThesisSpace.rowMinComfortable)
             .padding(horizontal = ThesisSpace.l, vertical = ThesisSpace.rowPaddingV),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(ThesisSpace.m),
     ) {
-        Column(Modifier.weight(1f)) {
-            Text(label, style = ThesisType.body, color = p.ink)
-            if (sub != null) Text(sub, style = ThesisType.bodySmall, color = p.ink2)
+        LabelValueLayout(gap = ThesisSpace.m) {
+            Column {
+                Text(label, style = ThesisType.body, color = p.ink)
+                if (sub != null) Text(sub, style = ThesisType.bodySmall, color = p.ink2)
+            }
+            Column(horizontalAlignment = Alignment.End) {
+                Text(value, style = ThesisType.body.tnum(), color = p.ink)
+                if (delta != null) Text(delta, style = ThesisType.caption.tnum(), color = deltaTone.textColor(p))
+            }
         }
-        Column(horizontalAlignment = Alignment.End) {
-            Text(value, style = ThesisType.body.tnum(), color = p.ink)
-            if (delta != null) Text(delta, style = ThesisType.caption.tnum(), color = deltaTone.textColor(p))
+    }
+}
+
+/**
+ * A label (first child) and a value block (second child) on one line, [gap] apart: the value takes its full
+ * width, the label the rest. The label wraps between words, never inside one (2.3), and the value never wraps:
+ * when the label's longest word and the value cannot share the line (large font scale on a narrow screen), the
+ * value moves under the label, end-aligned, instead of breaking "Operating" into "Operatin / g".
+ */
+@Composable
+private fun LabelValueLayout(gap: Dp, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+    Layout(content, modifier.fillMaxWidth()) { measurables, constraints ->
+        require(measurables.size == 2) { "LabelValueLayout takes a label and a value" }
+        val (label, value) = measurables
+        val gapPx = gap.roundToPx()
+        val width = constraints.maxWidth
+        val loose = constraints.copy(minWidth = 0, minHeight = 0)
+        val valueW = value.maxIntrinsicWidth(Constraints.Infinity)
+        val labelWord = label.minIntrinsicWidth(Constraints.Infinity)
+        val oneLine = !constraints.hasBoundedWidth || labelWord + gapPx + valueW <= width
+        if (oneLine) {
+            val v = value.measure(loose)
+            val labelMax = if (constraints.hasBoundedWidth) (width - gapPx - v.width).coerceAtLeast(0) else Constraints.Infinity
+            val l = label.measure(loose.copy(maxWidth = labelMax))
+            val w = if (constraints.hasBoundedWidth) width else l.width + gapPx + v.width
+            val h = maxOf(l.height, v.height).coerceAtLeast(constraints.minHeight)
+            layout(w, h) {
+                l.placeRelative(0, (h - l.height) / 2)
+                v.placeRelative(w - v.width, (h - v.height) / 2)
+            }
+        } else {
+            val l = label.measure(loose)
+            val v = value.measure(loose)
+            val h = (l.height + v.height).coerceAtLeast(constraints.minHeight)
+            layout(width, h) {
+                l.placeRelative(0, 0)
+                v.placeRelative(width - v.width, l.height)
+            }
         }
     }
 }
@@ -389,16 +431,20 @@ fun TickerRow(
 
 /**
  * Action row (#35): a 24 dp icon (ink2), a `rowTitle` and an optional caption; the whole row is the target. No
- * chevron; [external] adds `open_in_new` for links that leave the app.
+ * chevron; [external] adds `open_in_new` for links that leave the app. An external link passes [icon] = null: its
+ * one glyph is the trailing `open_in_new`, so the row never shows the same glyph twice. [reserveLeading] keeps the
+ * empty 24 dp leading column so its title lines up with icon rows in the same group (default: only with an icon;
+ * the group's divider inset follows, 52 dp with it, 16 dp without).
  */
 @Composable
 fun ActionRow(
-    icon: ImageVector,
+    icon: ImageVector?,
     title: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     caption: String? = null,
     external: Boolean = false,
+    reserveLeading: Boolean = icon != null,
     interactionSource: MutableInteractionSource = remember { MutableInteractionSource() },
 ) {
     val p = LocalThesisPalette.current
@@ -412,10 +458,12 @@ fun ActionRow(
             .padding(horizontal = ThesisSpace.l, vertical = ThesisSpace.rowPaddingV),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.width(ThesisSpace.leadingColumn), contentAlignment = Alignment.CenterStart) {
-            Icon(icon, contentDescription = null, modifier = Modifier.size(ThesisSpace.iconL), tint = p.ink2)
+        if (icon != null || reserveLeading) {
+            Box(Modifier.width(ThesisSpace.leadingColumn), contentAlignment = Alignment.CenterStart) {
+                if (icon != null) Icon(icon, contentDescription = null, modifier = Modifier.size(ThesisSpace.iconL), tint = p.ink2)
+            }
+            Spacer(Modifier.width(ThesisSpace.leadingGap))
         }
-        Spacer(Modifier.width(ThesisSpace.leadingGap))
         Column(Modifier.weight(1f)) {
             Text(title, style = ThesisType.rowTitle, color = p.ink)
             if (caption != null) Text(caption, style = ThesisType.bodySmall, color = p.ink2)

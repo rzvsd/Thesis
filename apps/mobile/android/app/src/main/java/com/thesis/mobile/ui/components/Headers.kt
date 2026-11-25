@@ -111,7 +111,7 @@ fun SectionHeader(
                 color = p.ink,
             )
             if (actionLabel != null && onAction != null) {
-                TextAction(actionLabel, onAction, Modifier.alignByBaseline())
+                TextAction(actionLabel, onAction, Modifier.alignByBaseline(), trailing = true)
             }
         }
         if (deck != null) {

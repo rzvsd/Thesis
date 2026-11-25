@@ -3,6 +3,7 @@ package com.thesis.mobile.ui.components
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
+import com.thesis.mobile.ui.theme.ThesisSpace
 
 /**
  * Component-internal geometry that section 2.5 does not name (Deep Dive values from deep-dive-visual-language.md
@@ -67,6 +68,16 @@ internal object Kit {
     val tableColumnMin: Dp = 88.dp
     val tableCellPaddingH: Dp = 12.dp
     val tableCellPaddingV: Dp = 10.dp
+
+    /** CompareTable scroll cue: ink at this alpha, fading in at the edge where more columns wait. */
+    const val TABLE_SCROLL_SHADE_ALPHA = 0.12f
+
+    /**
+     * ThesisTextField: how far the floating label stands above the outline. Material3 1.2.1 pads an
+     * OutlinedTextField with a label by a fixed 8 dp at the top (internal `OutlinedTextFieldTopPadding`); the
+     * kit's own fill starts this far down so it lines up with the outline.
+     */
+    val fieldLabelOverhang: Dp = ThesisSpace.s
 
     /** SuggestionList: rows shown before it scrolls. */
     const val SUGGESTIONS_MAX = 6

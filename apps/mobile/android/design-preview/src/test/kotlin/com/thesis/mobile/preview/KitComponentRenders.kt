@@ -111,7 +111,7 @@ private val heroKpis = listOf(
     KpiSpec("S&P 500", "5,948.71", "+0.4%", Tone.Favourable, "vs close"),
     KpiSpec("10Y yield", "4.21%", "−3 bps", Tone.Neutral, "vs close"),
     KpiSpec("Macro stress", "58", "+6", Tone.Unfavourable, "vs 7 days ago"),
-    KpiSpec("VIX", "14.2", "−0.8", Tone.Favourable, "vs close"),
+    KpiSpec("VIX", "14.2", "−0.8", Tone.Neutral, "vs close"),
 )
 
 /** A HeroBand screen (Pulse-like) for the "at rest / collapsed" pair: the band runs under the top bar. */
@@ -155,7 +155,7 @@ private fun HeroScreen(scrolled: Boolean) {
             }
             item {
                 Upshot(
-                    ledeText("Nothing to do today.", " Both flags are known risks already in your notes.", LocalThesisPalette.current),
+                    ledeText("Nothing to do today.", "Both flags are known risks already in your notes.", LocalThesisPalette.current),
                     Modifier.padding(ThesisSpace.gutter),
                 )
             }

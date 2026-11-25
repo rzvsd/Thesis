@@ -40,6 +40,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalDensity
@@ -71,8 +72,8 @@ import com.thesis.mobile.ui.theme.heroOf
  * [collapsed] (the ScreenHeader has scrolled away) unless [titleAlwaysVisible]. Right: [actions] (at most two icon
  * actions plus the avatar on root tabs).
  *
- * At rest the bar is transparent; when [collapsed] the background bitmap @ 92% and the `line` hairline fade in over
- * 200 ms, and the title crossfades. [overHero]: while a HeroBand is under it (not collapsed) the bar reads the hero
+ * At rest the bar is transparent; when [collapsed] the background bitmap @ 92% (opaque when [overHero]) and the
+ * `line` hairline fade in over 200 ms, and the title crossfades. [overHero]: while a HeroBand is under it (not collapsed) the bar reads the hero
  * palette (heroInk icons, no fill) and crossfades to the page palette when it collapses.
  */
 @Composable
@@ -107,7 +108,8 @@ fun ThesisTopBar(
         Row(
             modifier
                 .fillMaxWidth()
-                .barBackground(BarHairline.Bottom) { background }
+                // Over a HeroBand the collapsed bar is opaque: at 92% the band's title ghosts through as text.
+                .barBackground(BarHairline.Bottom, opacity = if (overHero) 1f else ThesisSurface.BAR_ALPHA) { background }
                 .windowInsetsPadding(TopBarInsets)
                 .heightIn(min = ThesisSpace.topBar)
                 .padding(horizontal = ThesisSpace.xs),
@@ -162,7 +164,7 @@ fun ReportTopBar(
         modifier
             .fillMaxWidth()
             .background(p.surface)
-            .barBackground(BarHairline.Bottom) { 0f }
+            .drawBehind { drawBarHairline(p.line, BarHairline.Bottom) }
             .windowInsetsPadding(TopBarInsets)
             .heightIn(min = ThesisSpace.topBar)
             .padding(horizontal = ThesisSpace.xs),

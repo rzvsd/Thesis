@@ -35,6 +35,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.liveRegion
@@ -67,10 +72,11 @@ private fun fieldColors(p: ThesisPalette) = OutlinedTextFieldDefaults.colors(
     unfocusedTextColor = p.ink,
     disabledTextColor = p.muted,
     errorTextColor = p.ink,
-    focusedContainerColor = p.surface,
-    unfocusedContainerColor = p.surface,
-    disabledContainerColor = p.surface2,
-    errorContainerColor = p.surface,
+    // Transparent: ThesisTextField paints the fill itself (see there), so M3's label cutout shows surface, not page.
+    focusedContainerColor = Color.Transparent,
+    unfocusedContainerColor = Color.Transparent,
+    disabledContainerColor = Color.Transparent,
+    errorContainerColor = Color.Transparent,
     cursorColor = p.accent,
     errorCursorColor = p.neg,
     selectionColors = TextSelectionColors(handleColor = p.accent, backgroundColor = p.highlight),
@@ -102,6 +108,11 @@ private fun fieldColors(p: ThesisPalette) = OutlinedTextFieldDefaults.colors(
 
 /**
  * The kit text field (#19). [error] replaces [helper] and turns the border `neg`; it is announced (liveRegion).
+ *
+ * The `surface` fill is painted behind the outline here rather than as M3's container colour: M3 1.2 cuts the
+ * floating label's gap out of the whole container, fill included, so a filled container showed a notch of page
+ * colour around the label. The fill starts [Kit.fieldLabelOverhang] down (M3's top padding for the label) and the
+ * helper/error line sits under the field, outside the filled box. [modifier] applies to the whole (field + line).
  */
 @Composable
 fun ThesisTextField(
@@ -121,44 +132,57 @@ fun ThesisTextField(
     trailing: (@Composable () -> Unit)? = null,
 ) {
     val p = LocalThesisPalette.current
-    OutlinedTextField(
-        value = value,
-        onValueChange = onValueChange,
-        modifier = modifier
-            .fillMaxWidth()
-            .heightIn(min = ThesisSpace.fieldMinHeight),
-        enabled = enabled,
-        textStyle = MaterialTheme.typography.bodyLarge,
-        label = { Text(label) },
-        placeholder = placeholder?.let { { Text(it) } },
-        trailingIcon = trailing,
-        suffix = suffix?.let { { Text(it, style = ThesisType.body) } },
-        supportingText = when {
-            error != null -> {
-                {
-                    Row(
-                        Modifier.semantics { liveRegion = LiveRegionMode.Polite },
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(ThesisSpace.xs),
-                    ) {
-                        Icon(ThesisIcons.Small.Error, contentDescription = null, modifier = Modifier.size(ThesisSpace.iconS), tint = p.neg)
-                        Text(error, style = ThesisType.caption)
-                    }
-                }
+    val fill = if (enabled) p.surface else p.surface2
+    Column(modifier.fillMaxWidth()) {
+        OutlinedTextField(
+            value = value,
+            onValueChange = onValueChange,
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = ThesisSpace.fieldMinHeight)
+                .drawBehind {
+                    val top = Kit.fieldLabelOverhang.toPx()
+                    val radius = ThesisShape.PanelRadius.toPx()
+                    drawRoundRect(
+                        fill,
+                        topLeft = Offset(0f, top),
+                        size = Size(size.width, (size.height - top).coerceAtLeast(0f)),
+                        cornerRadius = CornerRadius(radius, radius),
+                    )
+                },
+            enabled = enabled,
+            textStyle = MaterialTheme.typography.bodyLarge,
+            label = { Text(label) },
+            placeholder = placeholder?.let { { Text(it) } },
+            trailingIcon = trailing,
+            suffix = suffix?.let { { Text(it, style = ThesisType.body) } },
+            isError = error != null,
+            visualTransformation = visualTransformation,
+            keyboardOptions = keyboardOptions,
+            keyboardActions = keyboardActions,
+            singleLine = singleLine,
+            shape = ThesisShape.panel,
+            colors = fieldColors(p),
+        )
+        when {
+            error != null -> Row(
+                Modifier
+                    .padding(start = ThesisSpace.l, top = ThesisSpace.xs, end = ThesisSpace.l)
+                    .semantics { liveRegion = LiveRegionMode.Polite },
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(ThesisSpace.xs),
+            ) {
+                Icon(ThesisIcons.Small.Error, contentDescription = null, modifier = Modifier.size(ThesisSpace.iconS), tint = p.neg)
+                Text(error, style = ThesisType.caption, color = p.neg)
             }
-            helper != null -> {
-                { Text(helper, style = ThesisType.caption) }
-            }
-            else -> null
-        },
-        isError = error != null,
-        visualTransformation = visualTransformation,
-        keyboardOptions = keyboardOptions,
-        keyboardActions = keyboardActions,
-        singleLine = singleLine,
-        shape = ThesisShape.panel,
-        colors = fieldColors(p),
-    )
+            helper != null -> Text(
+                helper,
+                Modifier.padding(start = ThesisSpace.l, top = ThesisSpace.xs, end = ThesisSpace.l),
+                style = ThesisType.caption,
+                color = if (enabled) p.ink2 else p.muted,
+            )
+        }
+    }
 }
 
 /** One suggestion under a TickerField. */

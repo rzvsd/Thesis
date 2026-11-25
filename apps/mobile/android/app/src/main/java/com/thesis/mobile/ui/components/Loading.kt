@@ -127,10 +127,11 @@ fun SkeletonCard(modifier: Modifier = Modifier, bodyLines: Int = 3) {
 /** Skeleton of a KpiGrid with [cells] tiles (#25 SkeletonKpiGrid). */
 @Composable
 fun SkeletonKpiGrid(modifier: Modifier = Modifier, cells: Int = 4, featured: Boolean = false) {
-    KpiGridLayout(cells, modifier.clearAndSetSemantics { contentDescription = "Loading" }) {
-        Column(Modifier.fillMaxWidth()) {
+    KpiGridLayout(cells, modifier.clearAndSetSemantics { contentDescription = "Loading" }) { _, _ ->
+        // Same padding and rhythm as KpiTile, so the rows have the final grid's heights.
+        KpiCellColumn(Modifier.fillMaxWidth()) {
             SkeletonText(ThesisType.caption, widthFraction = 0.6f)
-            SkeletonText(if (featured) ThesisType.kpiValue else ThesisType.statValue, widthFraction = 0.5f)
+            SkeletonText(kpiValueStyles(featured).first(), widthFraction = 0.5f)
             SkeletonText(ThesisType.caption, widthFraction = 0.4f)
         }
     }

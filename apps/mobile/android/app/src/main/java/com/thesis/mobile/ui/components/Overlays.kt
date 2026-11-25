@@ -367,6 +367,7 @@ fun ThesisSnackbar(
                 onAction,
                 Modifier.padding(horizontal = ThesisSpace.s),
                 style = ThesisType.button.copy(color = MaterialTheme.colorScheme.inversePrimary),
+                trailing = true,
             )
         }
     }

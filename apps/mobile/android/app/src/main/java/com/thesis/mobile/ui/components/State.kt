@@ -1,6 +1,9 @@
 package com.thesis.mobile.ui.components
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.core.VisibilityThreshold
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -38,6 +41,7 @@ import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.thesis.mobile.ui.motion.ThesisMotion
@@ -78,8 +82,9 @@ val Loadable<*>.kind: LoadableKind
 fun <T> Loadable<T>.valueOrNull(): T? = (this as? Loadable.Ready<T>)?.value
 
 /**
- * Crossfades between [Loadable] kinds (#27): fade out Quick, fade in Base after a 60 ms delay; a change inside
- * the same kind (Ready→Ready, a new error message) recomposes in place with no transition. Under reduced motion it
+ * Crossfades between [Loadable] kinds (#27, 4.4): fade out Quick with EaseExit, fade in Base after a 60 ms delay
+ * (EaseStandard), the size change on the `spatial` spring; a change inside the same kind (Ready→Ready, a new
+ * error message) recomposes in place with no transition. Under reduced motion it
  * swaps instantly. The slots default to the kit's skeleton, [EmptyState] and [ErrorState].
  */
 @Composable
@@ -100,8 +105,9 @@ fun <T> StateCrossfade(
         modifier = modifier,
         contentKey = { it.kind },
         transitionSpec = {
-            fadeIn(ThesisMotion.timed(reduced, ThesisMotion.Base, delayMillis = ThesisMotion.CrossfadeDelay)) togetherWith
-                fadeOut(ThesisMotion.timed(reduced, ThesisMotion.Quick))
+            val fade = fadeIn(ThesisMotion.timed(reduced, ThesisMotion.Base, delayMillis = ThesisMotion.CrossfadeDelay)) togetherWith
+                fadeOut(ThesisMotion.timed(reduced, ThesisMotion.Quick, easing = ThesisMotion.EaseExit))
+            fade using SizeTransform { _, _ -> if (reduced) snap() else ThesisMotion.spatial(IntSize.VisibilityThreshold) }
         },
         label = "state",
     ) { s ->

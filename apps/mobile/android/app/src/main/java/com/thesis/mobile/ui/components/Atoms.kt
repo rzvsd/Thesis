@@ -37,6 +37,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -258,15 +259,19 @@ fun PagerDots(count: Int, current: Int, modifier: Modifier = Modifier) {
     }
 }
 
-/** Hairline divider in `line`, starting [startInset] from the start edge. */
+/**
+ * Hairline divider in `line`, starting [startInset] from the start edge. [ThesisSpace.hairline] is `Dp.Hairline`
+ * (0 dp), which means "one physical pixel" (as in M3's Divider), so it is resolved to 1 px here.
+ */
 @Composable
 fun ThesisDivider(modifier: Modifier = Modifier, startInset: Dp = 0.dp) {
     val p = LocalThesisPalette.current
+    val thickness = if (ThesisSpace.hairline == Dp.Hairline) with(LocalDensity.current) { 1.toDp() } else ThesisSpace.hairline
     Box(
         modifier
             .fillMaxWidth()
             .padding(start = startInset)
-            .height(ThesisSpace.hairline)
+            .height(thickness)
             .background(p.line),
     )
 }

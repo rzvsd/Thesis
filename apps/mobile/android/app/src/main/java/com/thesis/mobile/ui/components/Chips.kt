@@ -117,7 +117,7 @@ fun ThesisChip(
                     style = Stroke(stroke),
                 )
             }
-            .padding(horizontal = ThesisSpace.m),
+            .padding(horizontal = ThesisSpace.m, vertical = ThesisSpace.xs),
         contentAlignment = Alignment.Center,
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {

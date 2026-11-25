@@ -15,10 +15,16 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.layoutId
@@ -31,6 +37,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.LayoutDirection
+import com.thesis.mobile.ui.format.Fmt
 import com.thesis.mobile.ui.motion.thesisPress
 import com.thesis.mobile.ui.theme.LocalThesisPalette
 import com.thesis.mobile.ui.theme.ThesisShape
@@ -49,8 +56,9 @@ import com.thesis.mobile.ui.theme.textColor
 data class CompareColumn(val period: String, val filing: String? = null, val subject: Boolean = false)
 
 /**
- * A table row: [label] (with [unit]), one value per column (already formatted; "—" for missing), an optional
- * [delta] in the basis column with its [deltaTone]; [median] rows sit on `surface2`.
+ * A table row: [label] (with [unit]), one value per column (already formatted, a missing value in one of the three
+ * words of 2.4: "Not disclosed", "n/a", "Not computed"; never a dash), an optional [delta] in the basis column with
+ * its [deltaTone]; [median] rows sit on `surface2`.
  */
 @Immutable
 data class CompareRow(
@@ -62,13 +70,17 @@ data class CompareRow(
     val median: Boolean = false,
 )
 
-/** The whole table. [deltaHeader] names the basis ("Change, bps"); when null there is no delta column. */
+/**
+ * The whole table. [deltaHeader] names the basis ("Change, bps"); when null there is no delta column. A row with no
+ * delta shows [missingDelta] (2.4: "n/a" when a change is not meaningful, "Not computed" for a gap on our side).
+ */
 @Immutable
 data class CompareTableModel(
     val columns: List<CompareColumn>,
     val rows: List<CompareRow>,
     val labelHeader: String = "",
     val deltaHeader: String? = null,
+    val missingDelta: String = Fmt.NA,
 ) {
     init {
         require(columns.size in 1..MAX_COLUMNS) { "CompareTable takes 1 to $MAX_COLUMNS value columns" }
@@ -128,11 +140,13 @@ fun CompareTable(
 ) {
     val p = LocalThesisPalette.current
     val scroll = remember { mutableFloatStateOf(0f) }
-    val maxScroll = remember { FloatRef() }
+    // Written by the measure pass, read by the scroll handler and the scroll shades (draw phase).
+    val maxScroll = remember { mutableFloatStateOf(0f) }
+    val labelWidth = remember { mutableIntStateOf(0) }
     val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
     val scrollable = rememberScrollableState { delta ->
         val signed = if (rtl) delta else -delta
-        val target = (scroll.floatValue + signed).coerceIn(0f, maxScroll.value)
+        val target = (scroll.floatValue + signed).coerceIn(0f, maxScroll.floatValue)
         val consumed = target - scroll.floatValue
         scroll.floatValue = target
         if (rtl) consumed else -consumed
@@ -146,12 +160,23 @@ fun CompareTable(
         modifier
             .fillMaxWidth()
             .kitCardShadow(p, ThesisShape.PanelRadius)
-            .border(ThesisSpace.border, p.line, ThesisShape.panel)
-            .background(p.surface, ThesisShape.panel)
-            .clipToBounds()
+            // Clip to the panel shape before the cells paint, so their opaque fills keep the 12 dp corners.
+            .clip(ThesisShape.panel)
+            .background(p.surface)
             .scrollable(scrollable, Orientation.Horizontal),
     ) {
         Layout(
+            modifier = Modifier.drawWithContent {
+                drawContent()
+                drawScrollShades(
+                    shade = p.ink.copy(alpha = Kit.TABLE_SCROLL_SHADE_ALPHA),
+                    width = Kit.tableCellPaddingH.toPx() * 2,
+                    labelEdge = labelWidth.intValue.toFloat(),
+                    before = scroll.floatValue,
+                    after = maxScroll.floatValue - scroll.floatValue,
+                    rtl = rtl,
+                )
+            },
             content = {
                 // Header: the label header and one cell per value column (period over filing).
                 HeaderLabel(model.labelHeader, Modifier.layoutId(CellId.Label(-1)))
@@ -193,7 +218,7 @@ fun CompareTable(
                     }
                     if (model.deltaHeader != null) {
                         ValueCell(
-                            text = row.delta ?: "—",
+                            text = row.delta ?: model.missingDelta,
                             color = row.deltaTone.textColor(p),
                             fill = fill,
                             label = null,
@@ -207,11 +232,31 @@ fun CompareTable(
             val byId = measurables.associateBy { it.layoutId as CellId }
             val rowsAll = (-1 until model.rows.size)
             val colMin = Kit.tableColumnMin.roundToPx()
-            val labelMax = (constraints.maxWidth * LABEL_MAX_FRACTION).toInt()
-            val labelW = rowsAll.maxOf { r -> byId.getValue(CellId.Label(r)).maxIntrinsicWidth(Constraints.Infinity) }
-                .coerceAtMost(labelMax)
+            val labelCells = rowsAll.map { r -> byId.getValue(CellId.Label(r)) }
+            // The label column takes its longest line up to LABEL_MAX_FRACTION of the width, but never less than its
+            // longest single word (a label wraps between words, never inside one: "Operatin / g" at 2.0x), and
+            // always leaves one value column in view.
+            val labelWide = labelCells.maxOf { it.maxIntrinsicWidth(Constraints.Infinity) }
+            val labelWord = labelCells.maxOf { it.minIntrinsicWidth(Constraints.Infinity) }
+            val labelW = if (constraints.hasBoundedWidth) {
+                labelWide
+                    .coerceAtMost((constraints.maxWidth * LABEL_MAX_FRACTION).toInt())
+                    .coerceAtLeast(labelWord)
+                    .coerceAtMost((constraints.maxWidth - colMin).coerceAtLeast(0))
+            } else {
+                labelWide
+            }
+            labelWidth.intValue = labelW
+            // A value column is as wide as its widest value (values never wrap). Its header takes one line when that
+            // still fits beside the labels; otherwise (2.0x on 360 dp) it takes the room there is and wraps between
+            // words, so the first column stays whole in view instead of cutting its figures at the panel edge.
+            val room = if (constraints.hasBoundedWidth) constraints.maxWidth - labelW else Int.MAX_VALUE
             val colW = IntArray(valueCols) { c ->
-                maxOf(colMin, rowsAll.maxOf { r -> byId.getValue(CellId.Value(r, c)).maxIntrinsicWidth(Constraints.Infinity) })
+                val values = model.rows.indices.maxOfOrNull { r -> byId.getValue(CellId.Value(r, c)).maxIntrinsicWidth(Constraints.Infinity) } ?: 0
+                val header = byId.getValue(CellId.Value(-1, c))
+                val headerLine = header.maxIntrinsicWidth(Constraints.Infinity)
+                val headerW = if (headerLine <= room) headerLine else maxOf(room, header.minIntrinsicWidth(Constraints.Infinity))
+                maxOf(colMin, values, headerW)
             }
             val rowH = IntArray(model.rows.size + 1) { i ->
                 val r = i - 1
@@ -221,8 +266,8 @@ fun CompareTable(
             }
             val width = constraints.maxWidth
             val valuesW = colW.sum()
-            maxScroll.value = (labelW + valuesW - width).coerceAtLeast(0).toFloat()
-            if (scroll.floatValue > maxScroll.value) scroll.floatValue = maxScroll.value
+            maxScroll.floatValue = (labelW + valuesW - width).coerceAtLeast(0).toFloat()
+            if (scroll.floatValue > maxScroll.floatValue) scroll.floatValue = maxScroll.floatValue
             val fixed = { w: Int, h: Int -> Constraints.fixed(w, h) }
             val labels = rowsAll.map { r -> byId.getValue(CellId.Label(r)).measure(fixed(labelW, rowH[r + 1])) }
             val values = rowsAll.map { r -> (0 until valueCols).map { c -> byId.getValue(CellId.Value(r, c)).measure(fixed(colW[c], rowH[r + 1])) } }
@@ -241,10 +286,37 @@ fun CompareTable(
                 }
             }
         }
+        // The outline on top of the cells, so their fills never cover it.
+        Box(Modifier.matchParentSize().border(ThesisSpace.border, p.line, ThesisShape.panel))
     }
 }
 
-private class FloatRef(var value: Float = 0f)
+/**
+ * Scroll cues for the value columns. Values are right-aligned, so a column past the edge often shows nothing in
+ * the sliver that peeks in; a soft [shade] at the end edge says "more this way" while [after] > 0, and one beside
+ * the pinned label column ([labelEdge]) while [before] > 0. Each fades in over its first [width] of scroll.
+ */
+private fun DrawScope.drawScrollShades(shade: Color, width: Float, labelEdge: Float, before: Float, after: Float, rtl: Boolean) {
+    if (width <= 0f) return
+    val clear = shade.copy(alpha = 0f)
+    fun band(x: Float, towardStart: Boolean, amount: Float) {
+        if (amount <= 0f) return
+        val colors = if (towardStart) listOf(shade, clear) else listOf(clear, shade)
+        drawRect(
+            Brush.horizontalGradient(colors, startX = x, endX = x + width),
+            topLeft = Offset(x, 0f),
+            size = Size(width, size.height),
+            alpha = (amount / width).coerceAtMost(1f),
+        )
+    }
+    if (rtl) {
+        band(0f, towardStart = true, amount = after)
+        band(size.width - labelEdge - width, towardStart = false, amount = before)
+    } else {
+        band(size.width - width, towardStart = false, amount = after)
+        band(labelEdge, towardStart = true, amount = before)
+    }
+}
 
 private const val LABEL_MAX_FRACTION = 0.42f
 

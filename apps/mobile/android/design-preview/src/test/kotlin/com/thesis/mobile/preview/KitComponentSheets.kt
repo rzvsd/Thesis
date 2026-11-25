@@ -124,6 +124,7 @@ import com.thesis.mobile.ui.components.ToggleRow
 import com.thesis.mobile.ui.components.Upshot
 import com.thesis.mobile.ui.components.defaultBottomBarItems
 import com.thesis.mobile.ui.components.ledeText
+import com.thesis.mobile.ui.format.Fmt
 import com.thesis.mobile.ui.icons.ThesisIcons
 import com.thesis.mobile.ui.theme.LocalThesisPalette
 import com.thesis.mobile.ui.theme.ThesisType
@@ -276,7 +277,7 @@ object KitComponentSheets {
                 numeral = 2,
                 label = "The business",
                 title = "Services now carry the margin",
-                lede = ledeText("Services grew 14%", " while hardware was flat, lifting gross margin to 46.2%.", LocalThesisPalette.current),
+                lede = ledeText("Services grew 14%", "while hardware was flat, lifting gross margin to 46.2%.", LocalThesisPalette.current),
                 badges = listOf(BadgeSpec("Improving", Tone.Favourable), BadgeSpec("High confidence", Tone.Neutral)),
                 source = "10-K FY2025 · filed 31 Oct 2025",
             )
@@ -334,7 +335,7 @@ object KitComponentSheets {
             PressableCard(onClick = noop, eyebrow = "Deep Dive · MSFT", title = "Cloud growth is slowing", interactionSource = pressedSource())
         }
         Specimen("Upshot / Callout / BigQuestion") {
-            Upshot(ledeText("Hold, with a closer eye on China.", " Services keep the margin up; the risk is one market.", LocalThesisPalette.current))
+            Upshot(ledeText("Services keep the margin up.", "The open question is China, one market that decides the year.", LocalThesisPalette.current))
             Callout("Figures are from the latest 10-K unless a chart says otherwise.")
             BigQuestion("Can services growth outrun the hardware cycle?")
         }
@@ -355,10 +356,10 @@ object KitComponentSheets {
 
     val data: @Composable GalleryScope.() -> Unit = {
         val kpis = listOf(
-            KpiSpec("Revenue, FY2025", "$391.0bn", "+2.0%", Tone.Favourable, "vs FY2024"),
+            KpiSpec("Revenue, FY2025", "$391B", "+2.0%", Tone.Favourable, "vs FY2024"),
             KpiSpec("Gross margin", "46.2%", "+40 bps", Tone.Favourable, "vs FY2024"),
-            KpiSpec("Free cash flow", "$108.8bn", "−9.2%", Tone.Unfavourable, "vs FY2024"),
-            KpiSpec("Net cash", "$49.6bn", null, Tone.Neutral, "at 28 Sep 2025"),
+            KpiSpec("Free cash flow", "$109B", "−9.2%", Tone.Unfavourable, "vs FY2024"),
+            KpiSpec("Net cash", "$49.6B", null, Tone.Neutral, "at 28 Sep 2025"),
         )
         Specimen("KpiTile", "default / pressed (clickable)") {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -367,29 +368,39 @@ object KitComponentSheets {
             }
         }
         Specimen("KpiGrid", "2 columns below 560 dp") { KpiGrid(kpis, onItemClick = {}) }
+        Specimen("KpiGrid, longest figures", "one style for the grid; at 2.0x on 360 dp it steps down, then goes to one column") {
+            KpiGrid(
+                listOf(
+                    KpiSpec("Loss per share, FY2025", Fmt.money(-999.99, ccy = "CAD"), "−4.1%", Tone.Unfavourable, "vs FY2024"),
+                    KpiSpec("Free cash flow", Fmt.money(-108.8e9), "−9.2%", Tone.Unfavourable, "vs FY2024"),
+                    KpiSpec("Revenue, FY2025", Fmt.money(12.3e9, ccy = "CHF"), "+2.0%", Tone.Favourable, "vs FY2024"),
+                    KpiSpec("Net debt", Fmt.money(-3.10e9, ccy = "CAD"), null, Tone.Neutral, "at 28 Sep 2025"),
+                ),
+            )
+        }
         Specimen("RowGroup + DataRow", "plain / delta / sub / pressed") {
             RowGroup {
-                row { DataRow("Revenue", "$391.0bn", delta = "+2.0%", deltaTone = Tone.Favourable) }
+                row { DataRow("Revenue", "$391B", delta = "+2.0%", deltaTone = Tone.Favourable) }
                 row { DataRow("Operating margin", "31.5%", delta = "−60 bps", deltaTone = Tone.Unfavourable, sub = "Operating income ÷ revenue") }
-                row { DataRow("Shares out", "15.1bn", onClick = noop, interactionSource = pressedSource()) }
+                row { DataRow("Shares out", "15.1B", onClick = noop, interactionSource = pressedSource()) }
             }
         }
         Specimen("TickerRow", "comfortable / with note and live / compact / pressed") {
             RowGroup {
                 row(LeadingRowDividerInset) {
-                    TickerRow("AAPL", Tone.Favourable, noop, company = "Apple", line2 = "Services carry the margin", figure = "$229.87", figureCaption = "+0.8%", figureCaptionTone = Tone.Favourable, stateLabel = "On track")
+                    TickerRow("AAPL", Tone.Favourable, noop, company = "Apple", line2 = "Services carry the margin", figure = "62", figureCaption = "+4 since Tue", figureCaptionTone = Tone.Favourable, stateLabel = "On track")
                 }
                 row(LeadingRowDividerInset) {
-                    TickerRow("NVDA", Tone.Attention, noop, company = "Nvidia", line2 = "Supply is the constraint", figure = "$141.02", figureCaption = "−2.1%", figureCaptionTone = Tone.Unfavourable, stateLabel = "Drifting", hasNote = true, live = true)
+                    TickerRow("NVDA", Tone.Attention, noop, company = "Nvidia", line2 = "Supply is the constraint", figure = "48", figureCaption = "−6 since Mon", figureCaptionTone = Tone.Unfavourable, stateLabel = "Drifting", hasNote = true, live = true)
                 }
-                row(LeadingRowDividerInset) { TickerRow("MSFT", Tone.Neutral, noop, company = "Microsoft", figure = "\$415.10", figureCaption = "+0.3%", figureCaptionTone = Tone.Favourable, compact = true) }
+                row(LeadingRowDividerInset) { TickerRow("MSFT", Tone.Neutral, noop, company = "Microsoft", figure = "55", figureCaption = "No change", figureCaptionTone = Tone.Neutral, compact = true) }
                 row(LeadingRowDividerInset) { TickerRow("AMZN", Tone.Unknown, noop, company = "Amazon", interactionSource = pressedSource()) }
             }
         }
         Specimen("ActionRow / SheetActionRow", "with caption, external / destructive, disabled") {
             RowGroup {
                 row(LeadingRowDividerInset) { ActionRow(ThesisIcons.History, "History", noop, caption = "Every report you have run") }
-                row(LeadingRowDividerInset) { ActionRow(ThesisIcons.OpenExternal, "Read the 10-K", noop, external = true) }
+                row(LeadingRowDividerInset) { ActionRow(null, "Read the 10-K", noop, external = true, reserveLeading = true) }
             }
             SheetActionRow(ThesisIcons.Share, "Share", noop)
             SheetActionRow(ThesisIcons.Remove, "Remove from names", noop, destructive = true)
@@ -483,7 +494,7 @@ object KitComponentSheets {
                     period = "FY2025",
                     filed = "31 Oct 2025",
                     derivation = "Operating income ÷ revenue",
-                    inputs = listOf("Operating income" to "$123.2bn", "Revenue" to "$391.0bn"),
+                    inputs = listOf("Operating income" to "$123B", "Revenue" to "$391B"),
                     evidence = listOf(SourceLink("Item 7, MD&A", noop)),
                 ),
             )
@@ -542,6 +553,15 @@ object KitComponentSheets {
             SkeletonRow()
             SkeletonChart()
         }
+        Specimen("SkeletonKpiGrid over KpiGrid", "same padding and row heights: the crossfade does not jump") {
+            SkeletonKpiGrid(cells = 2)
+            KpiGrid(
+                listOf(
+                    KpiSpec("Revenue, FY2025", "$391B", "+2.0%", Tone.Favourable, "vs FY2024"),
+                    KpiSpec("Gross margin", "46.2%", "+40 bps", Tone.Favourable, "vs FY2024"),
+                ),
+            )
+        }
         Specimen("LoadingHairline", "active / idle") {
             LoadingHairline(active = true)
             LoadingHairline(active = false)
@@ -571,7 +591,7 @@ object KitComponentSheets {
             CompareRow("Revenue", listOf("391.0", "383.3", "383.3"), unit = "\$bn", delta = "+2.0%", deltaTone = Tone.Favourable),
             CompareRow("Gross margin", listOf("46.2", "45.8", "44.1"), unit = "%", delta = "+40", deltaTone = Tone.Favourable),
             CompareRow("Operating margin", listOf("31.5", "32.1", "29.8"), unit = "%", delta = "−60", deltaTone = Tone.Unfavourable),
-            CompareRow("Peer median", listOf("24.0", "23.1", "—"), unit = "%", median = true),
+            CompareRow("Peer median", listOf("24.0", "23.1", Fmt.NOT_COMPUTED), unit = "%", median = true),
         ),
         labelHeader = "Metric",
         deltaHeader = "Change, bps",
@@ -597,8 +617,8 @@ object KitComponentSheets {
         Specimen("NotesTrail", "newest empty, older note offers carry forward") {
             NotesTrail(
                 entries = listOf(
-                    NoteEntry("q1", "10-Q Q1 FY2026", "30 Jan 2026", "", "Hold: services still carry the margin."),
-                    NoteEntry("fy25", "10-K FY2025", "31 Oct 2025", "Services margin is the thesis. If it falls below 70% two quarters running, I am wrong. Watching China and the DOJ case, plus the iPhone cycle into the autumn.", "Hold, with a closer eye on China."),
+                    NoteEntry("q1", "10-Q Q1 FY2026", "30 Jan 2026", "", "Services still carry the margin."),
+                    NoteEntry("fy25", "10-K FY2025", "31 Oct 2025", "Services margin is the thesis. If it falls below 70% two quarters running, I am wrong. Watching China and the DOJ case, plus the iPhone cycle into the autumn.", "Services carry the margin; China is the open question."),
                 ),
                 onCarryForward = {},
             ) { NoteBlock(it.text, {}, filing = it.filing) }
@@ -628,9 +648,9 @@ object KitComponentSheets {
         Specimen("SinceLastReport", "with changes / first report") {
             SinceLastReport(
                 SinceLastReportModel(
-                    previousView = "Buy: services growth outruns hardware.",
+                    previousView = "Services growth outruns hardware.",
                     previousFiling = "10-K FY2024 · 1 Nov 2024",
-                    currentView = "Hold: services still lead, China is the risk.",
+                    currentView = "Services still lead; China is the risk.",
                     currentFiling = "10-K FY2025 · 31 Oct 2025",
                     changes = listOf(
                         ReportChange("Greater China sales", "Down 8%", up = false, tone = Tone.Unfavourable, whyItMatters = "a fifth of revenue"),
