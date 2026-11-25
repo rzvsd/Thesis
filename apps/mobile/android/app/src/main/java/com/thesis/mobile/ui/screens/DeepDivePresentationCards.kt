@@ -402,7 +402,7 @@ internal fun Modifier.quotable(text: String, onQuote: ((String) -> Unit)?): Modi
                 onQuote(text)
             })
         }
-        .semantics {
+        .semantics(mergeDescendants = true) {
             customActions = listOf(
                 CustomAccessibilityAction(DeepDiveCopy.addToNote) {
                     onQuote(text)

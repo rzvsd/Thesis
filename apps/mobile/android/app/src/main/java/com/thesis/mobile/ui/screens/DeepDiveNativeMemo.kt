@@ -16,7 +16,7 @@ import kotlin.math.abs
 /*
  * The classic Deep Dive's data layer (docs/app-redesign/DESIGN-DIRECTION.md 5.15, 5.16): pure functions from the
  * report payload to what the screen shows. Every figure goes through [Fmt] (U+2212 minus, 3 significant figures,
- * margins in bps) and carries its period; nothing here formats with String.format. Unit tested in
+ * margins in bps) and carries its period; no raw printf-style formatting. Unit tested in
  * DeepDiveClassicModelTest.
  */
 
