@@ -814,7 +814,7 @@ private fun NameBody(
     ReportsSection(ticker = ticker, reports = detail.reports, notes = notes, zone = zone, onOpenReport = onOpenReport, onCompareReports = onCompareReports)
 }
 
-/** StatusBadge with the state and its change caption: "Was Intact on 21 Nov" or "Unchanged since 21 Nov". */
+/** StatusBadge with the state and its change caption: "Was Intact on 21 Nov" or "No state change since 21 Nov". */
 @Composable
 private fun StateLine(detail: NameDetailView, zone: ZoneId) {
     val p = LocalThesisPalette.current
@@ -829,7 +829,7 @@ private fun StateLine(detail: NameDetailView, zone: ZoneId) {
         val previous = detail.delta?.previous
         val caption = previous?.let {
             val on = fmt.shortDate(Instant.ofEpochMilli(it.takenAtMs).atZone(zone).toLocalDate())
-            if (detail.delta.stateChanged) NamesCopy.wasState(stateWordOf(it.state), on) else NamesCopy.unchangedSince(on)
+            if (detail.delta.stateChanged) NamesCopy.wasState(stateWordOf(it.state), on) else NamesCopy.stateSteadySince(on)
         }
         if (caption != null) {
             Text(caption, style = ThesisType.caption, color = p.muted, maxLines = 2, overflow = TextOverflow.Ellipsis)
@@ -869,7 +869,6 @@ internal fun monitorTiles(detail: NameDetailView, lastVisitAtMs: Long, now: Inst
         metric = ScoreCopy.MONITOR_SCORE,
         definition = ScoreCopy.MONITOR_DEFINITION,
         period = period,
-        filed = reportAt?.let { fmt.shortDate(Instant.ofEpochMilli(it).atZone(zone).toLocalDate()) },
         derivation = ScoreCopy.MONITOR_DERIVATION,
         inputs = ScoreCopy.monitorInputs(
             score = Fmt.score(score),

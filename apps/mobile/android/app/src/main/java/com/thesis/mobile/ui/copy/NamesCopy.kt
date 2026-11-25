@@ -148,9 +148,10 @@ object NamesCopy {
     const val COPIED = "Copied as a table"
     fun couldNotLoad(ticker: String): String = KitCopy.couldNotLoad(ticker)
 
-    /** State caption under the badge: "Was Intact on 21 Nov" or "Unchanged since 21 Nov". */
+    /** State caption next to the badge: "Was Intact on 21 Nov" or "No state change since 21 Nov". */
     fun wasState(previous: String, on: String): String = "Was $previous on $on"
     fun unchangedSince(on: String): String = "Unchanged since $on"
+    fun stateSteadySince(on: String): String = "No state change since $on"
 
     // KPI tiles.
     const val KPI_SCORE = "Monitor score"
