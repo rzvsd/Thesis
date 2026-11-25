@@ -16,6 +16,7 @@ import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onFirst
@@ -130,7 +131,7 @@ class MacroInboxSemanticsTest {
     @Test
     fun `mark all as seen is offered while there are new alerts`() {
         val calls = setInbox()
-        rule.onNodeWithText("3 new alerts since your last visit").assertIsDisplayed()
+        rule.onNodeWithText("3 new since your last visit").assertIsDisplayed()
         rule.onNodeWithText(InboxCopy.MARK_ALL_SEEN).performClick()
         assertEquals(1, calls.markedSeen)
     }
@@ -162,6 +163,22 @@ class MacroInboxSemanticsTest {
         // A second tap on the chosen answer sends nothing.
         useful.performClick()
         assertEquals(listOf(drift.id to "useful"), calls.feedback)
+    }
+
+    @Test
+    fun `a quieted row leaves the counts at once, and Undo puts it back`() {
+        val host = SnackbarHostState()
+        setInbox(host = host)
+        rule.onNodeWithText("3 new since your last visit").assertExists()
+        rule.quietAction(drift.title)
+        rule.waitForIdle()
+        // The row waits on its Undo, but the lede and the chips no longer count it.
+        rule.onNodeWithText("2 new since your last visit").assertExists()
+        rule.onNodeWithText("All", substring = true).assertTextContains("6", substring = true)
+        rule.runOnIdle { host.currentSnackbarData!!.performAction() }
+        rule.waitForIdle()
+        rule.onNodeWithText("3 new since your last visit").assertExists()
+        rule.onNodeWithText("All", substring = true).assertTextContains("7", substring = true)
     }
 
     @Test

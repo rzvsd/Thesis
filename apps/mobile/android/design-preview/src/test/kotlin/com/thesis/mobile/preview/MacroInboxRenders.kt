@@ -67,7 +67,13 @@ class MacroInboxRenders {
 
     @Test fun macroNarrow() = render("macro-360", widthDp = PhoneSpec.NARROW_WIDTH_DP, heightDp = PhoneSpec.FULL_PAGE_HEIGHT_DP) { Macro() }
 
-    @Test fun macroSevenDays() = render("macro-7d", themes = listOf(PreviewTheme.LIGHT)) { Macro(range = 7) }
+    /**
+     * 7D as production holds it: the ViewModel fetches only the selected range, so 7 readings and no reading a
+     * week back; the header compares with the previous reading by date (HANDOFF-F item 12 asks for 14 days).
+     */
+    @Test fun macroSevenDays() = render("macro-7d", themes = listOf(PreviewTheme.LIGHT)) {
+        Macro(range = 7, history = MacroInboxFixtures.macroRange(7))
+    }
 
     @Test fun macroLoading() = render("macro-loading", glow = false) {
         Macro(current = null, history = emptyList(), refreshing = true)
@@ -172,8 +178,11 @@ class MacroInboxRenders {
     /** After the collapse: the card has closed over the row; the snackbar offers Undo. */
     @Test fun inboxQuietDone() = scene("inbox-quiet-done", captureAtMs = SWIPE_END_MS + 900) { swipe(it) }
 
-    /** Undo: the row coming back, 160 ms after the tap. */
-    @Test fun inboxUndoMid() = scene("inbox-undo-mid", captureAtMs = UNDO_AT_MS + 160) {
+    /**
+     * Undo: the row coming back. The kit's snackbar fades out (150 ms) before it reports the action (HANDOFF-F 9e),
+     * so the row starts to expand only then: captured 150 ms into that expand.
+     */
+    @Test fun inboxUndoMid() = scene("inbox-undo-mid", captureAtMs = UNDO_AT_MS + 300) {
         swipe(it)
         tap(it, UNDO_X_DP, UNDO_Y_DP, UNDO_AT_MS)
     }

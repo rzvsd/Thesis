@@ -75,8 +75,8 @@ class MacroStressModelTest {
     @Test
     fun `without a reading a week back the change is against the previous reading, by date`() {
         val m = build(listOf(snap("2025-11-21", 50.0), snap("2025-11-24", 51.0)))
-        assertEquals("and rose 1 point since Fri 21 Nov.", m.changeClause)
-        assertEquals("vs Fri 21 Nov", m.deltaReference)
+        assertEquals("and rose 1 point since ${MacroStressModels.nb("Fri 21 Nov")}.", m.changeClause)
+        assertEquals("vs ${MacroStressModels.nb("Fri 21 Nov")}", m.deltaReference)
     }
 
     @Test
@@ -97,19 +97,40 @@ class MacroStressModelTest {
             snap("2025-11-20", 43.0),
         )
         val m = build(history, range = 7)
-        assertEquals(listOf("20 Nov", "24 Nov"), m.chart.xLabels)
+        assertEquals(listOf("20 Nov", "24 Nov").map(MacroStressModels::nb), m.chart.xLabels)
         assertEquals(listOf(LocalDate.of(2025, 11, 20), LocalDate.of(2025, 11, 24)), m.chart.dates)
 
         val month = build(history, range = 30)
-        assertEquals(listOf("10 Nov", "17 Nov", "20 Nov", "24 Nov"), month.chart.xLabels)
+        assertEquals(listOf("10 Nov", "17 Nov", "20 Nov", "24 Nov").map(MacroStressModels::nb), month.chart.xLabels)
         assertEquals(listOf(38.0, 40.0, 43.0, 46.0), month.chart.series.single().values)
         assertEquals("Stress rose from 38 to 46 over 30 days", month.chartTitle)
     }
 
     @Test
+    fun `changes are taken between the scores as shown, so the numbers on screen add up`() {
+        // 32.82 shows as 33 and 38.40 as 38: the change reads +5, not the +6 of the raw difference (5.58).
+        assertEquals(5.0, MacroStressModels.shownChange(32.82, 38.40), 0.0)
+        assertEquals(1.0, MacroStressModels.shownChange(48.5, 49.5), 0.0)
+        assertEquals(-1.0, MacroStressModels.shownChange(-0.4, -0.5), 0.0)
+        val m = build(listOf(snap("2025-11-17", 32.82), snap("2025-11-24", 38.40)))
+        assertEquals(5.0, m.delta!!, 0.0)
+        assertEquals("and rose 5 points this week.", m.changeClause)
+        assertEquals("Stress rose from 33 to 38 over 30 days", m.chartTitle)
+        assertEquals("+5", m.table!!.rows.first().delta)
+    }
+
+    @Test
+    fun `dates in the readout and the eyebrow do not break inside`() {
+        val m = build(listOf(snap("2025-11-10", 38.0), snap("2025-11-24", 46.0)))
+        assertEquals("10\u00A0Nov", m.windowStartText)
+        assertEquals("Mon\u00A024\u00A0Nov", m.asOfText)
+        assertEquals("Macro stress · as\u00A0of\u00A024\u00A0Nov", MacroStressCopy.eyebrow(MacroStressModels.nb("24 Nov")))
+    }
+
+    @Test
     fun `the readout's change names the window's first reading as its basis`() {
         val history = listOf(snap("2025-11-10", 38.0), snap("2025-11-24", 46.0))
-        assertEquals("10 Nov", build(history).windowStartText)
+        assertEquals(MacroStressModels.nb("10 Nov"), build(history).windowStartText)
         assertEquals("+8 pts since 10 Nov", MacroStressCopy.changeSinceStart(Fmt.pts(8.0), "10 Nov"))
         // One reading: no change, so no basis.
         assertNull(build(listOf(snap("2025-11-24", 46.0))).windowStartText)
@@ -153,8 +174,8 @@ class MacroStressModelTest {
         assertEquals(30.0, treasury.change!!, 1e-9)
         assertEquals(Tone.Unfavourable, treasury.changeTone)
         assertEquals("+30 pts", treasury.changeText)
-        assertTrue(treasury.spoken.endsWith("+30 pts since Fri 21 Nov"))
-        assertEquals(MacroStressCopy.changeSince("Fri 21 Nov"), m.factorDeck)
+        assertTrue(treasury.spoken.endsWith("+30 pts since ${MacroStressModels.nb("Fri 21 Nov")}"))
+        assertEquals(MacroStressCopy.changeSince(MacroStressModels.nb("Fri 21 Nov")), m.factorDeck)
     }
 
     @Test

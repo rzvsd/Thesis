@@ -17,7 +17,7 @@ object InboxCopy {
         if (newCount == 0) {
             "Nothing new since your last visit"
         } else {
-            "${Fmt.count(newCount, "new alert", "new alerts")} since your last visit"
+            "${Fmt.number(newCount.toLong())} new since your last visit"
         }
 
     /** The lede when no visit has been recorded yet. */
@@ -125,8 +125,11 @@ object InboxCopy {
 object MacroStressCopy {
     const val TITLE = "Macro Stress"
 
-    /** Header eyebrow ("MACRO STRESS · AS OF 24 NOV" once the eyebrow sets it in capitals). */
-    fun eyebrow(asOf: String?): String = if (asOf == null) "Macro stress" else "Macro stress · as of $asOf"
+    /**
+     * Header eyebrow ("MACRO STRESS · AS OF 24 NOV" once the eyebrow sets it in capitals). "as of" and the date
+     * are joined by non-breaking spaces, so a narrow line wraps before "AS OF", never leaving "NOV" alone.
+     */
+    fun eyebrow(asOf: String?): String = if (asOf == null) "Macro stress" else "Macro stress · as\u00A0of\u00A0$asOf"
 
     /** The lead clause of the header sentence: "Stress is Balanced". */
     fun leadClause(label: String): String = "Stress is $label"

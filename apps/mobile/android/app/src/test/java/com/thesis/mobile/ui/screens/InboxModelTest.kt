@@ -79,6 +79,17 @@ class InboxModelTest {
     }
 
     @Test
+    fun `the selected category keeps its chip, at 0, while its only alert waits on Undo`() {
+        val alerts = listOf(alert("a", category = "macro"), alert("b", category = "earnings"))
+        val counted = alerts.filter { it.id != "a" }
+        val filters = InboxModels.filters(counted, keep = "macro")
+        assertEquals(listOf(null, "earnings", "macro"), filters.map { it.key })
+        assertEquals(listOf(1, 1, 0), filters.map { it.count })
+        // Nothing to keep: only the categories present.
+        assertEquals(listOf(null, "earnings"), InboxModels.filters(counted).map { it.key })
+    }
+
+    @Test
     fun `groups by day newest first in the device zone`() {
         val alerts = listOf(
             alert("old", createdAt = "2025-11-20T10:00:00Z"),
@@ -146,7 +157,7 @@ class InboxModelTest {
         assertEquals(2, InboxModels.newCount(alerts, visit))
         assertTrue(InboxModels.isNew(alerts[0], visit))
         assertFalse(InboxModels.isNew(alerts[2], visit))
-        assertEquals("2 new alerts since your last visit", InboxModels.lede(alerts, visit))
+        assertEquals("2 new since your last visit", InboxModels.lede(alerts, visit))
         assertEquals("Nothing new since your last visit", InboxModels.lede(alerts, now.toEpochMilli()))
         // No visit recorded: nothing is marked new, the lede counts the alerts.
         assertEquals(0, InboxModels.newCount(alerts, null))

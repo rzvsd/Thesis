@@ -51,6 +51,7 @@ import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import com.thesis.mobile.model.AlertLedgerItemView
 import com.thesis.mobile.ui.components.BannerTone
+import com.thesis.mobile.ui.components.Callout
 import com.thesis.mobile.ui.components.ChipRow
 import com.thesis.mobile.ui.components.DayHeader
 import com.thesis.mobile.ui.components.DialogAction
@@ -65,6 +66,7 @@ import com.thesis.mobile.ui.components.SheetActionRow
 import com.thesis.mobile.ui.components.SkeletonRow
 import com.thesis.mobile.ui.components.SwipeToQuiet
 import com.thesis.mobile.ui.components.TextAction
+import com.thesis.mobile.ui.components.TextActionImpl
 import com.thesis.mobile.ui.components.ThesisChip
 import com.thesis.mobile.ui.components.ThesisDialog
 import com.thesis.mobile.ui.components.ThesisIconButton
@@ -99,7 +101,7 @@ import java.time.ZoneId
 /*
  * Inbox (docs/app-redesign/DESIGN-DIRECTION.md 5.21), a bottom tab under the shell's root bar.
  *
- * 1. ScreenHeader "Inbox" with the lede "3 new alerts since your last visit" and "Mark all as seen".
+ * 1. ScreenHeader "Inbox" with the lede "3 new since your last visit" and "Mark all as seen".
  * 2. ChipRow category filters with counts, keyed by the category key ("thesis_drift"), never the English label;
  *    a filter change fades the list in (150 ms).
  * 3. Day-grouped list: sticky DayHeaders (Today, Yesterday, then dates), AlertRows on rowGroupSegment cards.
@@ -152,12 +154,15 @@ internal object InboxModels {
         }
     }
 
-    /** All, then each category present, in [CategoryOrder], with its count. */
-    fun filters(alerts: List<AlertLedgerItemView>): List<InboxFilter> {
+    /**
+     * All, then each category present, in [CategoryOrder], with its count. [keep] (the selected category) stays
+     * as a chip, at 0, while its only alert waits on its Undo, so the selection does not jump to All and back.
+     */
+    fun filters(alerts: List<AlertLedgerItemView>, keep: String? = null): List<InboxFilter> {
         val counts = alerts.groupingBy(::categoryKey).eachCount()
-        val keys = counts.keys.sortedWith(compareBy({ CategoryOrder.indexOf(it).let { i -> if (i < 0) Int.MAX_VALUE else i } }, { it }))
+        val keys = (counts.keys + listOfNotNull(keep)).sortedWith(compareBy({ CategoryOrder.indexOf(it).let { i -> if (i < 0) Int.MAX_VALUE else i } }, { it }))
         return listOf(InboxFilter(null, InboxCopy.ALL, alerts.size)) +
-            keys.map { InboxFilter(it, InboxCopy.category(it), counts.getValue(it)) }
+            keys.map { InboxFilter(it, InboxCopy.category(it), counts[it] ?: 0) }
     }
 
     /** The alerts in category [key] (all of them for null). */
@@ -266,6 +271,8 @@ private enum class RowExit { Collapsing, Collapsed }
  * called only once the Undo snackbar has gone (or the screen leaves). [snackbarHostState] is the shell's host;
  * without one the screen draws its own above [padding]'s bottom. [refreshError] is a failed reload with alerts
  * already shown; [inboxError] (load or action) only replaces the list when there is no list to show.
+ * [inboxErrorKey] changes with every error the ViewModel reports (HANDOFF-F item 4), so a second failure with the
+ * same message still brings a refused quiet back; without it the screen reacts to a change of message only.
  */
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
@@ -294,6 +301,7 @@ fun InboxScreen(
     /** The alert to open expanded (a notification tap that lands on the Inbox). */
     initialExpandedId: String? = null,
     refreshError: String? = null,
+    inboxErrorKey: Any? = null,
     snackbarHostState: SnackbarHostState? = null,
     clock: Clock = Clock.systemDefaultZone(),
 ) {
@@ -323,7 +331,7 @@ fun InboxScreen(
     // Feedback shown before the server answers; dropped when an error comes back (the list keeps the server's).
     val feedback = remember { mutableStateMapOf<String, String>() }
     val currentAlerts by rememberUpdatedState(alerts)
-    LaunchedEffect(inboxError) {
+    LaunchedEffect(inboxError, inboxErrorKey) {
         if (!inboxError.isNullOrBlank()) {
             feedback.clear()
             // A quiet the server did not take (no mutedAt): bring the row back, so it can be quieted again.
@@ -337,13 +345,16 @@ fun InboxScreen(
     val now = clock.instant()
     val today = LocalDate.now(clock)
     val quietIds = alerts.filter { committed[it.id] == true || (InboxModels.isQuiet(it, now) && it.id !in exits) }.map { it.id }.toSet()
+    // The rows in the list: a row quieted here stays composed while its Undo shows (it comes back in place)...
     val visible = alerts.filter { it.id !in quietIds }
-    val filters = remember(visible) { InboxModels.filters(visible) }
-    val selected = category?.takeIf { key -> filters.any { it.key == key } }
+    // ...but no longer counts: the chips, the lede and the new count drop it at once, and Undo puts it back.
+    val counted = visible.filter { it.id !in exits }
+    val selected = category?.takeIf { key -> visible.any { InboxModels.categoryKey(it) == key } }
+    val filters = remember(counted, selected) { InboxModels.filters(counted, keep = selected) }
     val shown = InboxModels.filter(if (showQuiet) alerts else visible, selected)
     val days = remember(shown, today, fmt) { InboxModels.groupByDay(shown, clock.zone, today, fmt) }
-    val lede = InboxModels.lede(visible, lastInboxVisitAtMs)
-    val newCount = InboxModels.newCount(visible, lastInboxVisitAtMs)
+    val lede = InboxModels.lede(counted, lastInboxVisitAtMs)
+    val newCount = InboxModels.newCount(counted, lastInboxVisitAtMs)
 
     val quiet: (AlertLedgerItemView) -> Unit = { alert ->
         if (alert.id !in exits) {
@@ -433,7 +444,7 @@ fun InboxScreen(
                 }
                 if (visible.isNotEmpty()) {
                     item(key = "filters", contentType = "filters") {
-                        ChipRow(Modifier.padding(bottom = ThesisSpace.l)) {
+                        ChipRow(Modifier.padding(bottom = ThesisSpace.headerToSection)) {
                             items(filters.size, key = { filters[it].key ?: "all" }) { i ->
                                 val f = filters[i]
                                 ThesisChip(
@@ -656,7 +667,7 @@ private fun LazyListScope.alertDays(
             }
         }
         if (present.isNotEmpty()) {
-            item(key = "day-end-$dayKey", contentType = "day-gap") { Spacer(Modifier.height(ThesisSpace.l)) }
+            item(key = "day-end-$dayKey", contentType = "day-gap") { Spacer(Modifier.height(ThesisSpace.sectionGapData)) }
         }
     }
 }
@@ -667,7 +678,7 @@ private fun InboxHeader(lede: String?, markAllSeen: (() -> Unit)?) {
         Modifier
             .fillMaxWidth()
             .padding(horizontal = ThesisSpace.gutter)
-            .padding(top = ThesisSpace.headerTop, bottom = ThesisSpace.l),
+            .padding(top = ThesisSpace.headerTop, bottom = ThesisSpace.headerToSection),
     ) {
         ScreenHeader(title = InboxCopy.TITLE, deck = lede)
         if (markAllSeen != null) {
@@ -697,6 +708,7 @@ private fun InboxRow(
     onMore: () -> Unit,
 ) {
     val ticker = alert.ticker?.trim()?.takeIf { it.isNotEmpty() }
+    val category = InboxCopy.category(categoryKey)
     SwipeToQuiet(onQuiet = onQuiet, enabled = swipeEnabled, actionLabel = InboxCopy.QUIET_24H) {
         AlertRow(
             categoryColor = alertCategoryColor(categoryKey),
@@ -706,11 +718,13 @@ private fun InboxRow(
             onClick = onToggle,
             // Opaque, so the swipe's Quiet background shows only where the row has moved away.
             modifier = Modifier.background(LocalThesisPalette.current.surface),
-            ticker = ticker,
+            // Line 1 is never empty: an alert without a ticker (Pulse, Macro, system) carries its category there,
+            // muted and not tappable, so every row has the same rhythm. TalkBack then hears the category once.
+            ticker = ticker ?: category,
             onTickerClick = if (ticker != null && onOpenName != null) ({ onOpenName(ticker) }) else null,
             isNew = isNew,
             expanded = expanded,
-            categoryLabel = InboxCopy.category(categoryKey),
+            categoryLabel = if (ticker != null) category else null,
         ) {
             AlertDetail(
                 alert = alert,
@@ -744,9 +758,17 @@ private fun AlertDetail(
         when {
             // The summary's size, set apart by colour only (V3: three sizes a card).
             detail != null -> Text(detail, style = ThesisType.bodySmall, color = p.ink)
+            // The Pro lock, set apart from the detail text (5.21.4); its action follows the callout.
             alert.detailLocked -> Column {
-                Text(InboxCopy.PRO_LOCKED, style = ThesisType.bodySmall, color = p.ink2)
-                TextAction(InboxCopy.UNLOCK, onClick = onUnlockDetail)
+                Callout(InboxCopy.PRO_LOCKED)
+                // The card foot's inline action: its 48 dp target overhangs the line, so the action sits on the
+                // card's 8 dp rhythm instead of opening a 40 dp gap (HANDOFF-F 9f asks to make this public).
+                TextActionImpl(
+                    InboxCopy.UNLOCK,
+                    onClick = onUnlockDetail,
+                    modifier = Modifier.padding(top = ThesisSpace.s),
+                    inlineTouch = true,
+                )
             }
         }
         alert.reasonText.trim().takeIf { it.isNotEmpty() }?.let { reason ->
@@ -760,31 +782,39 @@ private fun AlertDetail(
         if (quietSince != null) {
             Text(InboxCopy.quietSince(quietSince), style = ThesisType.caption, color = p.muted)
         }
+        // One line of 48 dp targets: the feedback pair, then Open and More actions at the end. Two stacked lines of
+        // 48 dp targets left about 40 dp of air between them; a narrow row or a large font wraps Open to a line
+        // of its own.
         FlowRow(
-            modifier = Modifier
-                .fillMaxWidth()
-                .selectableGroup()
-                .semantics { contentDescription = InboxCopy.FEEDBACK_GROUP },
+            modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(ThesisSpace.s),
-            verticalArrangement = Arrangement.spacedBy(ThesisSpace.s),
+            verticalArrangement = Arrangement.Center,
         ) {
-            ThesisChip(
-                label = InboxCopy.USEFUL,
-                selected = feedback == FEEDBACK_USEFUL,
-                onClick = { onFeedback(FEEDBACK_USEFUL) },
-                role = Role.RadioButton,
-            )
-            ThesisChip(
-                label = InboxCopy.NOT_USEFUL,
-                selected = feedback == FEEDBACK_NOT_USEFUL,
-                onClick = { onFeedback(FEEDBACK_NOT_USEFUL) },
-                role = Role.RadioButton,
-            )
-        }
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            if (openLabel != null) TextAction(openLabel, onClick = onOpen, trailing = true)
+            Row(
+                Modifier
+                    .align(Alignment.CenterVertically)
+                    .selectableGroup()
+                    .semantics { contentDescription = InboxCopy.FEEDBACK_GROUP },
+                horizontalArrangement = Arrangement.spacedBy(ThesisSpace.s),
+            ) {
+                ThesisChip(
+                    label = InboxCopy.USEFUL,
+                    selected = feedback == FEEDBACK_USEFUL,
+                    onClick = { onFeedback(FEEDBACK_USEFUL) },
+                    role = Role.RadioButton,
+                )
+                ThesisChip(
+                    label = InboxCopy.NOT_USEFUL,
+                    selected = feedback == FEEDBACK_NOT_USEFUL,
+                    onClick = { onFeedback(FEEDBACK_NOT_USEFUL) },
+                    role = Role.RadioButton,
+                )
+            }
             Spacer(Modifier.weight(1f))
-            ThesisIconButton(ThesisIcons.Overflow, contentDescription = InboxCopy.MORE_ACTIONS, onClick = onMore)
+            Row(Modifier.align(Alignment.CenterVertically), verticalAlignment = Alignment.CenterVertically) {
+                if (openLabel != null) TextAction(openLabel, onClick = onOpen, trailing = true)
+                ThesisIconButton(ThesisIcons.Overflow, contentDescription = InboxCopy.MORE_ACTIONS, onClick = onMore)
+            }
         }
     }
 }

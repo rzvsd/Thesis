@@ -3,6 +3,7 @@ package com.thesis.mobile.ui.screens
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -31,13 +32,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
-import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.rememberTextMeasurer
 import com.thesis.mobile.model.SentimentSnapshotView
 import com.thesis.mobile.model.SentimentSubScoreView
 import com.thesis.mobile.ui.charts.kit.ChartCard
@@ -58,6 +59,7 @@ import com.thesis.mobile.ui.components.CardVariant
 import com.thesis.mobile.ui.components.CompareColumn
 import com.thesis.mobile.ui.components.CompareRow
 import com.thesis.mobile.ui.components.CompareTableModel
+import com.thesis.mobile.ui.components.DataRow
 import com.thesis.mobile.ui.components.EmptyState
 import com.thesis.mobile.ui.components.ErrorState
 import com.thesis.mobile.ui.components.Eyebrow
@@ -74,7 +76,6 @@ import com.thesis.mobile.ui.components.SourceInfo
 import com.thesis.mobile.ui.components.SourceSheet
 import com.thesis.mobile.ui.components.StateCrossfade
 import com.thesis.mobile.ui.components.StatusBadge
-import com.thesis.mobile.ui.components.TextAction
 import com.thesis.mobile.ui.components.ThesisCard
 import com.thesis.mobile.ui.components.ThesisIconButton
 import com.thesis.mobile.ui.components.ThesisRefreshBox
@@ -103,6 +104,8 @@ import com.thesis.mobile.ui.theme.textColor
 import com.thesis.mobile.ui.theme.tnum
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withTimeoutOrNull
+import java.math.BigDecimal
+import java.math.RoundingMode
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
 import kotlin.math.abs
@@ -117,7 +120,8 @@ import kotlin.math.abs
  * 3. Range: SegmentedControl 7D · 14D · 30D · 90D.
  * 4. Trend: the kit LineChart, featured height, y pinned 0 to 100, regime bands, dates on the x axis, scrub
  *    rewriting the card's readout, morph on a range change, draw-on once per reading date; "Show table" opens the
- *    readings (date, score, change) and they copy out as tab-separated text.
+ *    readings (date, score, change). The top bar's copy action puts them on the clipboard as tab-separated text
+ *    (until the kit's ChartCard offers "Copy as table" by its table, HANDOFF-F 9b).
  * 5. What drives it: a generated headline, one row per official input (meter 0 to 100, change since the previous
  *    reading), the source caption, and the missing inputs as a "Not seen yet" card with their reasons.
  * 6. How to read this: a collapsible explanation of the scale and the regimes.
@@ -240,8 +244,8 @@ internal object MacroStressModels {
 
         // Header: the change against a week ago (or the previous reading), rising stress Unfavourable.
         val comparison = comparison(all)
-        val delta = comparison?.let { latest.score - it.first.score }
-        val basisDate = comparison?.first?.date?.let(fmt::marketDate)
+        val delta = comparison?.let { shownChange(it.first.score, latest.score) }
+        val basisDate = comparison?.first?.date?.let { nb(fmt.marketDate(it)) }
         val weekly = comparison?.second == true && comparison.first.date == latest.date.minusDays(WEEK_DAYS)
         val changeClause = when {
             delta == null || basisDate == null -> null
@@ -258,14 +262,15 @@ internal object MacroStressModels {
         val window = all.filter { ChronoUnit.DAYS.between(it.date, latest.date) < days }
         val chart = LineChartData(
             series = listOf(ChartSeries(MacroStressCopy.SERIES, window.map { it.score }, subject = true)),
-            xLabels = window.map { fmt.shortDate(it.date) },
+            // Non-breaking, so the readout's date never splits into "24" over "Nov" at large font sizes.
+            xLabels = window.map { nb(fmt.shortDate(it.date)) },
             dates = window.map { it.date },
         )
         val first = window.first().score
         val chartTitle = if (window.size < 2) {
             MacroStressCopy.chartTitleOne(latest.score)
         } else {
-            MacroStressCopy.chartTitle(first, latest.score, days)
+            MacroStressCopy.chartTitle(shown(first), shown(latest.score), days)
         }
         val chartSummary = ChartMath.summary(
             MacroStressCopy.SERIES,
@@ -277,7 +282,7 @@ internal object MacroStressModels {
 
         // Factors: change since the previous reading that carries inputs.
         val previous = all.dropLast(1).lastOrNull { it.snapshot.subScores.isNotEmpty() }
-        val previousDate = previous?.date?.let(fmt::marketDate)
+        val previousDate = previous?.date?.let { nb(fmt.marketDate(it)) }
         val prevScores = previous?.snapshot?.subScores.orEmpty()
             .filter { it.available }
             .associate { it.inputName.trim().uppercase() to it.normalizedScore }
@@ -286,11 +291,11 @@ internal object MacroStressModels {
             factor(s, prevScores[s.inputName.trim().uppercase()], previousDate, fmt)
         }
         val missing = missing(latest.snapshot)
-        val scoreDelta = previous?.let { latest.score - it.score }
+        val scoreDelta = previous?.let { shownChange(it.score, latest.score) }
 
         return MacroStressModel(
             asOf = latest.date,
-            asOfText = fmt.marketDate(latest.date),
+            asOfText = nb(fmt.marketDate(latest.date)),
             score = score,
             label = label,
             tone = macroStressTone(score),
@@ -304,7 +309,7 @@ internal object MacroStressModels {
             chart = chart,
             chartTitle = chartTitle,
             chartSummary = chartSummary,
-            windowStartText = window.takeIf { it.size > 1 }?.first()?.date?.let(fmt::shortDate),
+            windowStartText = window.takeIf { it.size > 1 }?.first()?.date?.let { nb(fmt.shortDate(it)) },
             table = table(window, fmt),
             factors = factors,
             factorHeadline = factorHeadline(factors, scoreDelta),
@@ -314,6 +319,18 @@ internal object MacroStressModels {
             sheetInputs = factors.map { it.label to listOfNotNull(it.scoreText, pressureWord(it.score)).joinToString(", ") },
         )
     }
+
+    /** [s] with non-breaking spaces: a date ("24 Nov") that wraps as one word. */
+    fun nb(s: String): String = s.replace(' ', '\u00A0')
+
+    /** A score as the screen shows it: whole points, half away from zero (as [Fmt.score] rounds). */
+    fun shown(score: Double): Double = BigDecimal.valueOf(score).setScale(0, RoundingMode.HALF_UP).toDouble()
+
+    /**
+     * The change between two scores as the screen shows them, so the numbers on screen add up: 32.82 to 38.40
+     * reads "33" and "38", so the change reads +5, never the +6 the unrounded difference would show.
+     */
+    fun shownChange(from: Double, to: Double): Double = shown(to) - shown(from)
 
     /** "high pressure" / "medium pressure" / "low pressure" for an input's 0 to 100 rating. */
     fun pressureWord(score: Double?): String? = when {
@@ -351,7 +368,7 @@ internal object MacroStressModels {
     private fun factor(s: SentimentSubScoreView, previous: Double?, previousDate: String?, fmt: Fmt): MacroFactor {
         val score = s.normalizedScore!!.coerceIn(0.0, SCORE_MAX)
         val label = MacroStressCopy.inputLabel(s.inputName)
-        val change = previous?.takeIf { it.isFinite() }?.let { score - it }
+        val change = previous?.takeIf { it.isFinite() }?.let { shownChange(it, score) }
         // The rows show the change alone (the section deck names the date); TalkBack hears the date too.
         val changeText = change?.let { Fmt.pts(it) }
         val changeSpoken = change?.let { c -> previousDate?.let { "${Fmt.pts(c)} ${MacroStressCopy.since(it)}" } ?: Fmt.pts(c) }
@@ -424,7 +441,7 @@ internal object MacroStressModels {
         if (window.isEmpty()) return null
         val rows = window.indices.reversed().map { i ->
             val r = window[i]
-            val change = window.getOrNull(i - 1)?.let { r.score - it.score }
+            val change = window.getOrNull(i - 1)?.let { shownChange(it.score, r.score) }
             CompareRow(
                 label = fmt.marketDate(r.date),
                 values = listOf(Fmt.score(r.score)),
@@ -517,6 +534,10 @@ fun MacroStressScreen(
     var barHeightPx by remember { mutableIntStateOf(0) }
     val barHeight = with(LocalDensity.current) { barHeightPx.toDp() }
     var sheetOpen by rememberSaveable { mutableStateOf(false) }
+    val clipboard = LocalClipboardManager.current
+    val haptics = rememberHaptics()
+    // The copy action turns to a check, and says "Readings copied", until the readings change (range, refresh).
+    var copied by remember(model?.table) { mutableStateOf(false) }
 
     val loadingFirst = model == null && refreshing && sentimentError.isNullOrBlank()
     val showSkeleton = rememberShowSkeleton(loadingFirst)
@@ -578,7 +599,22 @@ fun MacroStressScreen(
             onBack = onBack,
             collapsed = collapsed,
             titleAlwaysVisible = true,
-        )
+        ) {
+            val table = model?.table
+            if (table != null) {
+                // The readings as tab-separated text, for a spreadsheet. A top bar action rather than a link floating
+                // under the collapsed chart card; it moves beside "Show table" once ChartCard offers it (HANDOFF-F 9b).
+                ThesisIconButton(
+                    icon = if (copied) ThesisIcons.Check else ThesisIcons.Copy,
+                    contentDescription = if (copied) MacroStressCopy.COPIED else MacroStressCopy.COPY_TABLE,
+                    onClick = {
+                        clipboard.setText(AnnotatedString(table.toTsv()))
+                        haptics.confirm()
+                        copied = true
+                    },
+                )
+            }
+        }
     }
 
     if (sheetOpen && model != null) {
@@ -628,7 +664,7 @@ private fun MacroBody(
 private fun MacroHeader(model: MacroStressModel, onOpenInfo: () -> Unit, modifier: Modifier = Modifier) {
     val p = LocalThesisPalette.current
     Column(modifier.fillMaxWidth()) {
-        Eyebrow(MacroStressCopy.eyebrow(model.asOf?.let { LocalFmt.current.shortDate(it) }))
+        Eyebrow(MacroStressCopy.eyebrow(model.asOf?.let { MacroStressModels.nb(LocalFmt.current.shortDate(it)) }))
         Spacer(Modifier.height(ThesisSpace.s))
         Text(
             ledeText(model.leadClause, model.changeClause, p),
@@ -695,70 +731,78 @@ private fun MacroStressModel.scoreTextSpoken(): String = "${Fmt.score(score)} ${
 @Composable
 private fun TrendSection(model: MacroStressModel, onSelectRange: (Int) -> Unit) {
     val chartState = rememberLineChartState()
-    val clipboard = LocalClipboardManager.current
-    val haptics = rememberHaptics()
-    // "Readings copied" stands until the readings change (another range, a refresh).
-    var copied by remember(model.table) { mutableStateOf(false) }
+    // The ScaleBar above already names the three regimes; band labels inside the plot would sit on the line
+    // wherever it runs through their band (HANDOFF-F 9a asks the kit to place them clear of it).
+    val bands = remember { macroStressBands().map { it.copy(label = null) } }
+    val values = model.chart.series.firstOrNull()?.values.orEmpty()
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(ThesisSpace.cardGap)) {
         SegmentedControl(
             options = MacroStressCopy.RANGES,
             selectedIndex = MacroStressRanges.indexOf(model.rangeDays).coerceAtLeast(0),
             onSelect = { i -> onSelectRange(MacroStressRanges[i]) },
         )
-        Column(Modifier.fillMaxWidth()) {
-            ChartCard(
-                title = model.chartTitle,
-                fignum = 1,
-                subtitle = MacroStressCopy.chartSubtitle(model.rangeDays),
-                source = MacroStressCopy.CHART_SOURCE,
-                table = model.table,
-                readout = {
+        ChartCard(
+            title = model.chartTitle,
+            fignum = 1,
+            subtitle = MacroStressCopy.chartSubtitle(model.rangeDays),
+            source = MacroStressCopy.CHART_SOURCE,
+            table = model.table,
+            readout = {
+                // The readout is one line (value, change, date): with the "since 26 Oct" basis that line no longer
+                // fits at large font sizes, and the kit would break the date by character. The basis then goes (the
+                // chart title already says where the window started), so the date keeps its place whole.
+                val measurer = rememberTextMeasurer()
+                BoxWithConstraints(Modifier.fillMaxWidth()) {
+                    val available = constraints.maxWidth
+                    val gap = with(LocalDensity.current) { ThesisSpace.s.roundToPx() }
+                    val withBasis = remember(model, available, measurer) {
+                        val since = model.windowStartText
+                        val last = values.lastOrNull { it?.isFinite() == true }
+                        val first = values.firstOrNull { it?.isFinite() == true }
+                        if (since == null || last == null || first == null) {
+                            false
+                        } else {
+                            val change = MacroStressCopy.changeSinceStart(Fmt.pts(MacroStressModels.shownChange(first, last)), since)
+                            val width = measurer.measure(Fmt.score(last), ThesisType.statValue).size.width +
+                                measurer.measure(change, ThesisType.caption.tnum()).size.width +
+                                measurer.measure(model.chart.xLabels.lastOrNull().orEmpty(), ThesisType.caption).size.width +
+                                2 * gap
+                            width <= available
+                        }
+                    }
                     LineChartReadout(
                         data = model.chart,
                         state = chartState,
                         valueFormat = { Fmt.score(it) },
-                        // The kit's change runs from the window's first reading (latest or scrubbed point), so it names
-                        // that basis; a two-finger window shows its own dates beside it.
+                        // The kit's change runs from the window's first reading (or a two-finger window's first), so
+                        // it names that basis; it is taken between the scores as shown, so 33 to 38 reads +5.
                         changeFormat = { d ->
-                            val start = model.windowStartText
-                            if (start == null || chartState.compareRange != null) {
-                                Fmt.pts(d)
+                            val compare = chartState.compareRange
+                            val from = if (compare != null) values.getOrNull(compare.first) else values.firstOrNull { it?.isFinite() == true }
+                            val change = from?.let { MacroStressModels.shownChange(it, it + d) } ?: d
+                            val since = model.windowStartText
+                            if (since == null || compare != null || !withBasis) {
+                                Fmt.pts(change)
                             } else {
-                                MacroStressCopy.changeSinceStart(Fmt.pts(d), start)
+                                MacroStressCopy.changeSinceStart(Fmt.pts(change), since)
                             }
                         },
-                        nowLabel = model.asOfText,
                         changeTone = ::macroStressDeltaTone,
                     )
-                },
-            ) {
-                LineChart(
-                    data = model.chart,
-                    valueFormat = { Fmt.score(it) },
-                    height = ChartHeights.Featured,
-                    bands = macroStressBands(),
-                    yRange = 0.0..SCORE_MAX,
-                    state = chartState,
-                    // Draws on once per reading date: back on Macro Stress the same day, the chart is complete (4.6).
-                    dataKey = model.asOf?.let { "macro-stress-$it" },
-                    summary = model.chartSummary,
-                )
-            }
-            val table = model.table
-            if (table != null) {
-                // Under the card's foot, at its end; the label confirms the copy (no system toast before Android 13).
-                TextAction(
-                    if (copied) MacroStressCopy.COPIED else MacroStressCopy.COPY_TABLE,
-                    onClick = {
-                        clipboard.setText(AnnotatedString(table.toTsv()))
-                        haptics.confirm()
-                        copied = true
-                    },
-                    modifier = Modifier
-                        .align(Alignment.End)
-                        .semantics { liveRegion = LiveRegionMode.Polite },
-                )
-            }
+                }
+            },
+        ) {
+            LineChart(
+                data = model.chart,
+                valueFormat = { Fmt.score(it) },
+                height = ChartHeights.Featured,
+                bands = bands,
+                yRange = 0.0..SCORE_MAX,
+                state = chartState,
+                // Draws on once per reading date: back on Macro Stress the same day, the chart is complete (4.6).
+                dataKey = model.asOf?.let { "macro-stress-$it" },
+                summary = model.chartSummary,
+            )
         }
     }
 }
@@ -796,31 +840,24 @@ private fun FactorSection(model: MacroStressModel) {
     }
 }
 
-/** One input: label and reading on the left, its 0 to 100 rating over the change on the right, a list meter below. */
+/** One input: the kit DataRow (label and reading; its 0 to 100 rating over the change), a list meter below. */
 @Composable
 private fun FactorRow(f: MacroFactor) {
-    val p = LocalThesisPalette.current
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .semantics(mergeDescendants = true) { contentDescription = f.spoken }
-            .padding(horizontal = ThesisSpace.l, vertical = ThesisSpace.rowPaddingV),
-        verticalArrangement = Arrangement.spacedBy(ThesisSpace.s),
-    ) {
-        Row(verticalAlignment = Alignment.Top) {
-            Column(Modifier.weight(1f)) {
-                Text(f.label, style = ThesisType.body, color = p.ink)
-                if (f.sub != null) Text(f.sub, style = ThesisType.bodySmall, color = p.ink2)
-            }
-            Spacer(Modifier.width(ThesisSpace.m))
-            Column(horizontalAlignment = Alignment.End) {
-                Text(f.scoreText, style = ThesisType.body.tnum(), color = p.ink)
-                if (f.changeText != null) {
-                    Text(f.changeText, style = ThesisType.caption.tnum(), color = f.changeTone.textColor(p))
-                }
-            }
-        }
-        Meter((f.score / SCORE_MAX).toFloat())
+    // One stop for TalkBack: the label, the rating, its pressure word and the change with its date.
+    Column(Modifier.fillMaxWidth().clearAndSetSemantics { contentDescription = f.spoken }) {
+        DataRow(
+            label = f.label,
+            value = f.scoreText,
+            delta = f.changeText,
+            deltaTone = f.changeTone,
+            sub = f.sub,
+        )
+        Meter(
+            (f.score / SCORE_MAX).toFloat(),
+            Modifier
+                .padding(horizontal = ThesisSpace.l)
+                .padding(bottom = ThesisSpace.rowPaddingV),
+        )
     }
 }
 
