@@ -100,7 +100,8 @@ import kotlinx.coroutines.launch
  * the root, so messages raised while You or Search is open are seen: 5.5 layer order). Every move animates: no
  * layer appears or disappears in a hard cut. A tab root's bar (brand, search, avatar) is drawn once above the tab
  * layer while the layer is on tab roots only, so a switch between two roots fades the page bodies through and the
- * identical bar stays still ([SharedRootTopBar]); in a push or pop the bar moves with its screen. The paywall is
+ * identical bar stays still ([SharedRootTopBar]); in a push or pop the bar moves with its screen, and after a pop
+ * (or a switch from a pushed page) the shell takes the root's bar over only once the root has settled. The paywall is
  * still a `Dialog` (its own window, with the platform's window animation); 5.23 (WP-G) makes it a full-screen
  * destination.
  *
@@ -191,14 +192,22 @@ fun ThesisShell(
     }
     ThesisBackHandler(enabled = paywallOpen) { actions.onDismissPaywall() }
 
-    // The tab roots' shared bar: the entries composed in the tab layer, and the root whose bar the shell draws.
+    // The tab roots' shared bar: the entries composed in the tab layer (and those still moving), and the root whose
+    // bar the shell draws. The shell takes the bar over only from a tab root at rest: after a pop or a switch from a
+    // pushed page, the root's own bar comes in with its page and hands over once that page has settled (same pixels
+    // in the same place, so the handover is invisible). Once shared, it stays shared through switches between roots.
     val tabEntries = remember { mutableStateListOf<NavEntry>() }
-    val rootBarShared by remember(navigator, backPreview) {
+    val tabMoving = remember { mutableStateListOf<String>() }
+    val onRootsOnly by remember(navigator, backPreview) {
         derivedStateOf {
             usesRootBar(navigator.tabTop.destination) && tabEntries.isNotEmpty() &&
                 tabEntries.all { usesRootBar(it.destination) } && backPreview.entryId == null
         }
     }
+    val rootsAtRest by remember { derivedStateOf { tabMoving.isEmpty() } }
+    val sharedBefore = remember { HeldFlag() }
+    val rootBarShared = onRootsOnly && (sharedBefore.value || rootsAtRest)
+    sharedBefore.value = rootBarShared
     // The bar shows the target root's chrome, or for the first frame of a switch (before the new root has
     // registered its chrome) the one it showed before, so it never drops out.
     val topChrome = chromes[tabTop.entryId]
@@ -243,7 +252,8 @@ fun ThesisShell(
                 // and a report that is leaving (another report pushed over it, a tab switch) never builds a
                 // second WebView here.
                 drawnBelow = { it.destination is Destination.Report },
-                composed = tabEntries
+                composed = tabEntries,
+                moving = tabMoving
             ) { entry ->
                 scope.EntryFrame(entry, inModal = false, bottomBarHeightPx = bottomBarHeightPx)
             }
@@ -683,6 +693,9 @@ internal fun titleOf(destination: Destination, state: UiState): String = when (d
     is Destination.Paywall -> "Thesis Pro"
     else -> ""
 }
+
+/** Whether the tab roots' bar was shared in the last composition ([ThesisShell]). Not snapshot state. */
+private class HeldFlag(var value: Boolean = false)
 
 /** Two-letter initials for the You avatar from the account email ("ana.pop@x.com" → "AP"); "Y" with none. */
 internal fun initialsOf(email: String?): String {

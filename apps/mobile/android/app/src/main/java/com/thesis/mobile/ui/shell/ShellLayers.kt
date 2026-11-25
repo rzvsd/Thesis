@@ -11,11 +11,16 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.SaveableStateHolder
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import com.thesis.mobile.ui.components.pageBackground
 import com.thesis.mobile.ui.motion.ThesisMotion
@@ -44,7 +49,8 @@ internal class ShellLayerEnv(
  * reduced motion). Entries for which [drawnBelow] is true (a `Report`, drawn by [ReportBaseLayer]) leave this
  * layer empty and transparent, so the report underneath shows and takes touches. [hidden]: a modal or the paywall
  * covers the layer, so it is out of the accessibility tree. [composed], when given, holds the entries composed in
- * the layer right now (two while one replaces the other), so the shell can tell a settled tab root from one in a move.
+ * the layer right now (two while one replaces the other), and [moving], when given, the ids of those whose enter or
+ * exit is still running, so the shell can tell a settled tab root from one in a move.
  */
 // EnterExitState and AnimatedVisibilityScope.transition: experimental in Compose 1.6, stable since 1.7.
 @OptIn(ExperimentalAnimationApi::class)
@@ -57,6 +63,7 @@ internal fun TabLayer(
     modifier: Modifier = Modifier,
     hidden: Boolean = false,
     composed: MutableList<NavEntry>? = null,
+    moving: MutableList<String>? = null,
     content: @Composable (NavEntry) -> Unit,
 ) {
     AnimatedContent(
@@ -70,6 +77,13 @@ internal fun TabLayer(
             DisposableEffect(entry.entryId) {
                 composed += entry
                 onDispose { composed.removeAll { it.entryId == entry.entryId } }
+            }
+        }
+        if (moving != null) {
+            val atRest = transition.currentState == transition.targetState
+            DisposableEffect(entry.entryId, atRest) {
+                if (!atRest) moving += entry.entryId
+                onDispose { moving.remove(entry.entryId) }
             }
         }
         if (drawnBelow(entry)) {
@@ -159,12 +173,13 @@ internal fun ReportBaseLayer(
  * layers under it.
  *
  * While one modal page replaces another, the page background is drawn under the two (the layer's own floor): the
- * leaving page slides out and fades as in a push (180 ms `EaseExit`) and the screens under the modal never show
+ * leaving page slides out and fades as in a push (90 ms `EaseExit`) and the screens under the modal never show
  * through it or through the strip the new page slides in from.
  *
  * Rise and Fall fade the page (its background) in place over the tab page and move only its content 32 dp
  * ([ModalContentMotion]): on a rise the content rises and fades in once the background covers the page under it
- * (150 ms, then the content from 150 ms), on a fall it fades out before the background, so the two pages' text never overlaps.
+ * (150 ms, the content from 120 ms, once under 1% of the page under it shows), on a fall it fades out before the
+ * background, so the two pages' text never overlaps.
  */
 // EnterExitState and AnimatedVisibilityScope.transition: experimental in Compose 1.6, stable since 1.7.
 @OptIn(ExperimentalAnimationApi::class)
@@ -267,11 +282,15 @@ private fun OpaqueEntry(
     contentScale: () -> Float = { 1f },
     content: @Composable () -> Unit,
 ) {
+    // The page's window position outside the back-preview layer (it includes a push's slide, so the background
+    // stays window-fixed while the page slides): the preview then scales the page and its background as one surface.
+    var origin by remember { mutableStateOf(Offset.Zero) }
     Box(
         Modifier
             .fillMaxSize()
+            .onGloballyPositioned { origin = it.positionInWindow() }
             .backPreview(env.backPreview, entry.entryId, env.backShiftPx, env.reducedMotion)
-            .pageBackground(LocalThesisPalette.current)
+            .pageBackground(LocalThesisPalette.current, origin = { origin })
             .pointerInput(Unit) {
                 awaitPointerEventScope {
                     while (true) awaitPointerEvent()

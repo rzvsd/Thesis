@@ -120,6 +120,37 @@ class ShellChromeMotionTest {
     }
 
     @Test
+    fun aPopToATabRootBringsItsBarInWithThePage() {
+        // 4.5: in a pop the bar moves with its screen. Today's bar comes in with Today (fading, from -24 dp) and the
+        // shell takes it over only once Today has settled: never at rest over a page that is still arriving.
+        val navigator = AppNavigator()
+        setShell(navigator)
+        val barBottom = rule.onNode(search).getBoundsInRoot().bottom + 4.dp
+        val rest = band(barBottom)
+        rule.runOnIdle { navigator.push(Destination.History()) }
+        rule.waitForIdle()
+        rule.mainClock.autoAdvance = false
+        rule.runOnIdle { navigator.pop() }
+        // History leaves in 90 ms; Today comes in over 210 ms after that. Frame by frame, as the clock only starts
+        // the animations on the first frame after the pop. Between about 120 and 210 ms Today's body is still
+        // arriving (faded, offset): its bar must be too, not drawn at rest over it.
+        var elapsed = 0L
+        while (elapsed < 208L) {
+            rule.mainClock.advanceTimeBy(16)
+            elapsed += 16
+            if (elapsed < 128L) continue
+            val diff = maxChannelDiff(rest, band(barBottom))
+            assertTrue("the root bar is at rest at $elapsed ms, ahead of its page (max channel diff $diff)", diff > 40)
+        }
+        rule.mainClock.advanceTimeBy(400)
+        rule.mainClock.autoAdvance = true
+        rule.waitForIdle()
+        val diff = maxChannelDiff(rest, band(barBottom))
+        assertTrue("the root bar settles where it was (max channel diff $diff)", diff <= 2)
+        assertEquals("one bar is read", 1, rule.onAllNodes(search).fetchSemanticsNodes().size)
+    }
+
+    @Test
     fun underReducedMotionASnackbarShowsAtOnceAtFullSize() {
         // 4.8: no rise, no fade, and no Material3 scale from .8 (4.3.8): the first frame is the resting frame.
         val navigator = AppNavigator()

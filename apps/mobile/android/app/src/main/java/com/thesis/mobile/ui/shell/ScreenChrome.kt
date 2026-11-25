@@ -64,6 +64,15 @@ class ScreenChrome internal constructor(scrolledPx: Float, private val collapseA
         }
     }
 
+    /**
+     * The content is back at its top after a programmatic scroll (`scrollToItem(0)`, a tap-tab-to-top), which does
+     * not pass through nested scroll: the bar drops its background and hairline, and over a HeroBand the status bar
+     * turns light again, at once instead of on the next drag. A screen calls it with [LocalScreenChrome].
+     */
+    fun atTop() {
+        scrolledPx = 0f
+    }
+
     /** [consumedY] < 0 when the content moved up (the user scrolled down the page). */
     internal fun onScrolled(consumedY: Float, leftoverY: Float) {
         if (consumedY != 0f) scrolledPx = (scrolledPx - consumedY).coerceAtLeast(0f)

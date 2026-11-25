@@ -37,7 +37,8 @@ import kotlinx.coroutines.launch
  *   visible to its last frame and the new page never shows over it.
  * - Rise and Fall (the modal layer, over a tab page that stays): the page's background fades in place, over the
  *   whole window, while its content rises (or falls) 32 dp; the content rises and fades in only once the background
- *   covers the page under it, and fades out before the background does ([ModalContentMotion]).
+ *   all but covers the page under it, and fades out before the background does ([ModalContentMotion]). Each hands
+ *   over with a slight overlap, so no frame shows the bare background for long.
  */
 
 /** The transitions of section 4.5, by name. Picked by [shellTransitionFor] and [modalTransitionFor]. */
@@ -64,14 +65,16 @@ internal enum class ShellTransition {
     BackwardOver,
 
     /**
-     * Open a modal destination, 300 ms in all: the page background covers the page under it (150 `EaseEnter`),
-     * then the content rises 32 dp and fades in (150 `EaseEnter`, [ModalContentMotion.Rise]).
+     * Open a modal destination, 300 ms in all: the page background covers the page under it (150 `EaseEnter`);
+     * from 120 ms, when the page under it shows at under 1%, the content rises 32 dp and fades in (180 `EaseEnter`,
+     * [ModalContentMotion.Rise]).
      */
     Rise,
 
     /**
      * Close a modal destination, 240 ms in all: the content falls 32 dp and fades out (90 `EaseExit`,
-     * [ModalContentMotion.Fall]), then the page background uncovers the page under it (150 `EaseExit`).
+     * [ModalContentMotion.Fall]), then the page background uncovers the page under it (150 `EaseStandard`, which
+     * brings that page back at once instead of after a blank moment).
      */
     Fall,
 
@@ -134,10 +137,10 @@ private fun contentTransformOf(transition: ShellTransition, px: ShellMotionPx): 
         // The page's background fades in over the whole window (it covers the tab page under it); its content
         // rises and fades in inside the page (ModalContentMotion.Rise). The initial "page" is the empty layer.
         ShellTransition.Rise ->
-            fadeIn(motionSpec(MODAL_CONTENT_DELAY, easing = ThesisMotion.EaseEnter))
+            fadeIn(motionSpec(MODAL_BACKGROUND_IN, easing = ThesisMotion.EaseEnter))
                 .togetherWith(fadeOut(motionSpec(ThesisMotion.TabOut, easing = ThesisMotion.EaseExit)))
         // The page's content falls and fades out first (ModalContentMotion.Fall, 90 ms), then its background
-        // uncovers the page under it (150 ms after 90, `EaseExit`): 240 ms in all.
+        // uncovers the page under it (150 ms after 90, `EaseStandard`): 240 ms in all.
         ShellTransition.Fall ->
             fadeIn(motionSpec(ThesisMotion.TabOut, easing = ThesisMotion.EaseStandard))
                 .togetherWith(
@@ -145,7 +148,7 @@ private fun contentTransformOf(transition: ShellTransition, px: ShellMotionPx): 
                         motionSpec(
                             ThesisMotion.ScreenOut - MODAL_FALL_CONTENT,
                             delayMillis = MODAL_FALL_CONTENT,
-                            easing = ThesisMotion.EaseExit
+                            easing = ThesisMotion.EaseStandard
                         )
                     )
                 )
@@ -192,16 +195,16 @@ internal fun <T> sharedAxisOutSpec(): FiniteAnimationSpec<T> = motionSpec(SHARED
 /**
  * When, in [this] move, the page in front changes for the status bar's icons (2.7): once the page that leaves has
  * gone (fade-through and shared-axis X: 90 ms), half way through a crossfade, once a rising modal's background
- * has covered the page under it (150 ms), or once a falling modal's background is about half gone (210 ms: 120 ms
- * into its 150 ms `EaseExit` fade, which starts at 90). Switching in the move's first frame would put the new
- * page's icons over the old one.
+ * has covered the page under it and its content starts (120 ms), or once a falling modal's background is about
+ * half gone (120 ms: 30 ms into its 150 ms `EaseStandard` fade, which starts at 90). Switching in the move's first
+ * frame would put the new page's icons over the old one.
  */
 internal val ShellTransition.frontChangeMillis: Int
     get() = when (this) {
         ShellTransition.FadeThrough, ShellTransition.Forward, ShellTransition.Backward,
         ShellTransition.ForwardOver, ShellTransition.BackwardOver -> SHARED_AXIS_IN_DELAY
         ShellTransition.Rise -> MODAL_CONTENT_DELAY
-        ShellTransition.Fall -> MODAL_FALL_CONTENT + (ThesisMotion.ScreenOut - MODAL_FALL_CONTENT) * 4 / 5
+        ShellTransition.Fall -> MODAL_FALL_CONTENT + (ThesisMotion.ScreenOut - MODAL_FALL_CONTENT) / 5
         ShellTransition.Crossfade -> ThesisMotion.Base / 2
         ShellTransition.ReducedCrossfade -> ThesisMotion.Quick / 2
     }
@@ -231,9 +234,9 @@ private fun sharedAxisXOf(forward: Boolean, shiftPx: Int): ContentTransform {
  */
 internal enum class ModalContentMotion {
     /**
-     * Rise: the content comes up from +32 dp and fades in, 150 ms after 150 (`EaseEnter`): it starts once the page
-     * background (150 ms `EaseEnter`) has covered the page under it, so no text of that page shows through, and
-     * the rise takes `Screen`, 300 ms in all.
+     * Rise: the content comes up from +32 dp and fades in, 180 ms after 120 (`EaseEnter`): it starts once the page
+     * background (150 ms `EaseEnter`) lets under 1% of the page under it through, so no text of that page shows
+     * through, and the rise takes `Screen`, 300 ms in all.
      */
     Rise,
 
@@ -270,16 +273,23 @@ internal fun modalContentOffsetSpec(motion: ModalContentMotion, entering: Boolea
 }
 
 /**
- * How long a rising modal page's background takes to cover the page under it (150 ms `EaseEnter`), and so when its
- * content starts. Measured on pixels, a 300 ms background was still letting 6-12% of the page under it through
- * when the content arrived (ShellDoubleExposureTest).
+ * How long a rising modal page's background takes to cover the page under it (150 ms `EaseEnter`). Measured on
+ * pixels, a 300 ms background was still letting 6-12% of the page under it through when the content arrived
+ * (ShellDoubleExposureTest).
  */
-internal const val MODAL_CONTENT_DELAY: Int = ThesisMotion.Quick
+internal const val MODAL_BACKGROUND_IN: Int = ThesisMotion.Quick
+
+/**
+ * When a rising modal page's content starts (120 ms): 80% into the background's `EaseEnter` fade, when the page
+ * under it shows at 0.6%, so the content overlaps the background's last 30 ms instead of following a blank page.
+ * The content then runs `PushOut` (180 ms) and the rise ends at `Screen`.
+ */
+internal const val MODAL_CONTENT_DELAY: Int = ThesisMotion.Screen - ThesisMotion.PushOut
 
 /** How long a falling modal page's content takes to drop and fade out (90 ms), before its background goes. */
 internal const val MODAL_FALL_CONTENT: Int = ThesisMotion.TabOut
 
-/** A rising modal page's content: rise and fade together, 150 ms `EaseEnter` after [MODAL_CONTENT_DELAY]. */
+/** A rising modal page's content: rise and fade together, 180 ms `EaseEnter` after [MODAL_CONTENT_DELAY]. */
 private fun <T> modalContentRiseSpec(): FiniteAnimationSpec<T> =
     motionSpec(ThesisMotion.Screen - MODAL_CONTENT_DELAY, delayMillis = MODAL_CONTENT_DELAY, easing = ThesisMotion.EaseEnter)
 

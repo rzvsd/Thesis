@@ -52,8 +52,11 @@ class ShellMotionTest {
 
     @Test
     fun aModalRiseTakesScreenAndItsContentWaitsForTheBackground() {
-        // The page background covers the page under it in 150 ms; the content starts then and the rise ends at 300.
-        assertEquals(ThesisMotion.Quick, MODAL_CONTENT_DELAY)
+        // The page background covers the page under it in 150 ms; the content starts in its last 30 ms (under 1%
+        // of the page under it left) and the rise ends at 300.
+        assertEquals(ThesisMotion.Quick, MODAL_BACKGROUND_IN)
+        assertTrue(MODAL_CONTENT_DELAY in (MODAL_BACKGROUND_IN * 3 / 4) until MODAL_BACKGROUND_IN)
+        assertEquals(ThesisMotion.Screen, MODAL_CONTENT_DELAY + ThesisMotion.PushOut)
         assertEquals(ShellTransition.Rise.frontChangeMillis, MODAL_CONTENT_DELAY)
     }
 
