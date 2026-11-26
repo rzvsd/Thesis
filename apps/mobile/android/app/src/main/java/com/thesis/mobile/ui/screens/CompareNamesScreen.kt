@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
@@ -55,12 +54,14 @@ import com.thesis.mobile.ui.components.ScreenHeader
 import com.thesis.mobile.ui.components.SegmentedControl
 import com.thesis.mobile.ui.components.SkeletonCard
 import com.thesis.mobile.ui.components.SourceInfo
+import com.thesis.mobile.ui.components.SourceLink
 import com.thesis.mobile.ui.components.SourceSheet
 import com.thesis.mobile.ui.components.TextAction
 import com.thesis.mobile.ui.components.ThesisIconButton
 import com.thesis.mobile.ui.components.rememberTopBarCollapsed
 import com.thesis.mobile.ui.copy.KitCopy
 import com.thesis.mobile.ui.copy.ResearchCopy
+import com.thesis.mobile.ui.copy.ScoreCopy
 import com.thesis.mobile.ui.format.Fmt
 import com.thesis.mobile.ui.format.LocalFmt
 import com.thesis.mobile.ui.format.Missing
@@ -183,6 +184,8 @@ internal data class CompareNameColumn(
     val fyEnd: YearMonth? = null,
     /** The name has a report that could not be loaded ([CompareNamesState.errors]): "Couldn't load", not "No report yet". */
     val loadFailed: Boolean = false,
+    /** The report the column's figures come from (its source sheet's "Open the AAPL FY2025 report"). */
+    val reportId: String? = null,
 )
 
 /**
@@ -216,6 +219,7 @@ internal fun compareNameColumns(
         subject = i == 0,
         fyEnd = fiscalYearEnds[t],
         loadFailed = summary == null && t in state.errors,
+        reportId = summary?.reportId,
     )
 }.withIndex().sortedBy { (i, c) -> if (i == 0) 0 else if (c.hasReport) 1 else 2 }.map { it.value }
 
@@ -346,8 +350,9 @@ private fun columnPeriod(column: CompareNameColumn): String = when {
 
 private fun formOf(column: CompareNameColumn): String? = when {
     !column.hasReport -> null
-    column.figures?.key?.annual != false -> ResearchCopy.FORM_10K
-    else -> ResearchCopy.FORM_10Q
+    // A summary names no form, and a 20-F or 40-F filer's annual report is not a 10-K (2.4): say what it is.
+    column.figures?.key?.annual != false -> ResearchCopy.FORM_ANNUAL
+    else -> ResearchCopy.FORM_QUARTERLY
 }
 
 /**
@@ -381,7 +386,9 @@ internal fun compareNamesTable(columns: List<CompareNameColumn>): CompareTableMo
             CompareColumn(
                 // Two header lines in one cell until the kit grows a title line (HANDOFF-E, WP-K).
                 period = "${c.ticker}\n${columnPeriod(c)}",
-                filing = formOf(c),
+                // No form line: "Latest FY" and the period already say it is the annual filing, and the header
+                // stays one line shorter on a phone. The form is in Copy as table and the source sheet.
+                filing = null,
                 subject = c.subject,
             )
         },
@@ -458,7 +465,13 @@ internal fun compareNamesHeadline(columns: List<CompareNameColumn>): String? {
 }
 
 /** What a tapped cell is and where it comes from (#47). */
-internal fun compareNamesSource(column: CompareNameColumn, metric: NameMetric, discipline: ValueDisciplineView?): SourceInfo {
+internal fun compareNamesSource(
+    column: CompareNameColumn,
+    metric: NameMetric,
+    discipline: ValueDisciplineView?,
+    /** Opens the column's report; with it the sheet ends on "Open the AAPL FY2025 report" (#47). */
+    onOpenReport: ((reportId: String, ticker: String) -> Unit)? = null,
+): SourceInfo {
     val period = column.figures?.key?.let(::periodLabel)
     val (definition, derivation) = when (metric) {
         NameMetric.Revenue -> ResearchCopy.DEF_REVENUE to null
@@ -473,7 +486,7 @@ internal fun compareNamesSource(column: CompareNameColumn, metric: NameMetric, d
     return SourceInfo(
         metric = listOfNotNull("${column.ticker} ${metricLabel(metric).replaceFirstChar { it.lowercase() }}", period).joinToString(", "),
         definition = definition,
-        form = if (column.hasReport) ResearchCopy.FORM_10K else null,
+        form = formOf(column),
         period = period,
         derivation = derivation,
         inputs = if (metric == NameMetric.Discipline) {
@@ -481,6 +494,13 @@ internal fun compareNamesSource(column: CompareNameColumn, metric: NameMetric, d
         } else {
             emptyList()
         },
+        evidence = listOfNotNull(
+            column.reportId?.let { id ->
+                onOpenReport?.let { open ->
+                    SourceLink(ScoreCopy.openSourceReport(column.ticker, period), { open(id, column.ticker) }, external = false)
+                }
+            },
+        ),
     )
 }
 
@@ -556,6 +576,8 @@ fun CompareNamesScreen(
     onBuildReport: (ticker: String) -> Unit = {},
     /** Opens Name(ticker); null hides the ticker links under the table (column headers sort, 5.26). */
     onOpenName: ((ticker: String) -> Unit)? = null,
+    /** Opens a column's report from its figure's source sheet; null leaves the sheet without the link. */
+    onOpenReport: ((reportId: String, ticker: String) -> Unit)? = null,
     initialSortMetric: NameMetric? = null,
     initialShowChart: Boolean = false,
     initialChartMode: Int = 0,
@@ -661,7 +683,7 @@ fun CompareNamesScreen(
                             pickedRow = metric
                             val col = columns[c]
                             // A name with no report has no figure to source.
-                            if (col.hasReport) source = compareNamesSource(col, metric, disciplines[col.ticker])
+                            if (col.hasReport) source = compareNamesSource(col, metric, disciplines[col.ticker], onOpenReport)
                         },
                     )
                     Spacer(Modifier.height(ThesisSpace.s))
@@ -727,28 +749,40 @@ fun CompareNamesScreen(
             }
         }
     }
-    source?.let { info -> SourceSheet(info = info, onDismissRequest = { source = null }) }
+    source?.let { info -> SourceSheet(info = info.closingOnOpen { source = null }, onDismissRequest = { source = null }) }
 }
 
 /** "Open a name" and one link per compared ticker, in the table's column order. */
+@Composable
+private fun NameLinks(columns: List<CompareNameColumn>, onOpenName: (String) -> Unit) =
+    TickerLinkLine(columns.map { it.ticker to (it.company ?: it.ticker) }, onOpenName)
+
+/**
+ * "Open a name" and one ticker link per name ([tickers]: ticker to the name TalkBack hears, "Open Apple"): the one
+ * line that opens Name for names a screen lists elsewhere (Compare names' table, Scenario Stress's bars).
+ */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun NameLinks(columns: List<CompareNameColumn>, onOpenName: (String) -> Unit) {
+internal fun TickerLinkLine(tickers: List<Pair<String, String>>, onOpenName: (String) -> Unit) {
     val p = LocalThesisPalette.current
-    Row(
+    // One flow: the caption leads the first line and the links wrap under it from the start edge, so a long list
+    // reads as a sentence, never as a caption centred beside a block of links.
+    FlowRow(
         Modifier.fillMaxWidth().padding(top = ThesisSpace.xs),
-        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(ThesisSpace.m),
     ) {
-        Text(ResearchCopy.OPEN_A_NAME, style = ThesisType.caption, color = p.muted)
-        Spacer(Modifier.width(ThesisSpace.m))
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(ThesisSpace.m)) {
-            columns.forEach { c ->
-                TextAction(
-                    c.ticker,
-                    onClick = { onOpenName(c.ticker) },
-                    modifier = Modifier.semantics { contentDescription = ResearchCopy.openNameDescription(c.company ?: c.ticker) },
-                )
-            }
+        Text(
+            ResearchCopy.OPEN_A_NAME,
+            style = ThesisType.caption,
+            color = p.muted,
+            modifier = Modifier.align(Alignment.CenterVertically),
+        )
+        tickers.forEach { (ticker, spoken) ->
+            TextAction(
+                ticker,
+                onClick = { onOpenName(ticker) },
+                modifier = Modifier.semantics { contentDescription = ResearchCopy.openNameDescription(spoken) },
+            )
         }
     }
 }

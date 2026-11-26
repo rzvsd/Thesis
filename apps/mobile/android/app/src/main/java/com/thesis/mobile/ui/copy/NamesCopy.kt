@@ -34,6 +34,8 @@ object NamesCopy {
     const val DENSITY_TO_COMFORTABLE = "Show comfortable rows"
     const val COMPARE = "Compare names"
     const val MORE = "More"
+    /** TalkBack's name for a row's long press, which opens its context sheet. */
+    const val MORE_ACTIONS = "More actions"
     const val IMPORT_CSV = "Import holdings CSV"
     const val REFRESH = "Refresh"
 

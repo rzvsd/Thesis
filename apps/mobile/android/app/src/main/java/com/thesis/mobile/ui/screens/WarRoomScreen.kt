@@ -50,6 +50,7 @@ import com.thesis.mobile.ui.components.SkeletonCard
 import com.thesis.mobile.ui.components.SkeletonRow
 import com.thesis.mobile.ui.components.StatusBadge
 import com.thesis.mobile.ui.components.ThesisCard
+import com.thesis.mobile.ui.components.TextAction
 import com.thesis.mobile.ui.components.ThesisChip
 import com.thesis.mobile.ui.components.ThesisRefreshBox
 import com.thesis.mobile.ui.components.rememberTopBarCollapsed
@@ -245,6 +246,12 @@ private fun WarRoomBody(
         eyebrow = ResearchCopy.warRoomEyebrow(room.ticker),
         title = room.title?.ifBlank { null } ?: ResearchCopy.WAR_ROOM_FALLBACK_TITLE,
     )
+    // The subject the eyebrow names, as a link to its page (5.25: every visible ticker opens Name), as Compare
+    // reports does under its header. The related tickers below are chips.
+    val subject = room.ticker?.trim()?.uppercase()?.ifBlank { null }
+    if (subject != null && onOpenName != null) {
+        TextAction(ResearchCopy.openName(subject), onClick = { onOpenName(subject) }, modifier = Modifier.padding(top = ThesisSpace.xs))
+    }
     Spacer(Modifier.height(ThesisSpace.l))
     PhaseStepper(current = current, closed = closed, live = live)
     parseInstant(room.generatedAt)?.let { at ->

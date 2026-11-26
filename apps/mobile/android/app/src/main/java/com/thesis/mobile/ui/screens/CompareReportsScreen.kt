@@ -45,6 +45,7 @@ import com.thesis.mobile.ui.components.SinceLastReport
 import com.thesis.mobile.ui.components.SinceLastReportModel
 import com.thesis.mobile.ui.components.SkeletonCard
 import com.thesis.mobile.ui.components.SourceInfo
+import com.thesis.mobile.ui.components.SourceLink
 import com.thesis.mobile.ui.components.SourceSheet
 import com.thesis.mobile.ui.components.TextAction
 import com.thesis.mobile.ui.components.ThesisCard
@@ -53,6 +54,7 @@ import com.thesis.mobile.ui.components.ThesisIconButton
 import com.thesis.mobile.ui.components.rememberTopBarCollapsed
 import com.thesis.mobile.ui.copy.KitCopy
 import com.thesis.mobile.ui.copy.ResearchCopy
+import com.thesis.mobile.ui.copy.ScoreCopy
 import com.thesis.mobile.ui.format.Fmt
 import com.thesis.mobile.ui.format.LocalFmt
 import com.thesis.mobile.ui.format.Missing
@@ -385,7 +387,13 @@ internal fun reportMetricName(metric: ReportMetric): String = when (metric) {
  * of side [col] (0 the older report, 1 the newer) of row [row], with that report's filing and the derivation of the
  * figures the app computes (growth, net cash, EPS). Null for a row or column that is not a figure.
  */
-internal fun compareReportsSource(model: CompareReportsModel, row: Int, col: Int): SourceInfo? {
+internal fun compareReportsSource(
+    model: CompareReportsModel,
+    row: Int,
+    col: Int,
+    /** Opens that side's report; with it the sheet ends on "Open the FY2025 report" (#47). */
+    onOpenReport: ((reportId: String) -> Unit)? = null,
+): SourceInfo? {
     val r = model.raw.getOrNull(row) ?: return null
     val side = when (col) {
         0 -> model.older
@@ -411,6 +419,11 @@ internal fun compareReportsSource(model: CompareReportsModel, row: Int, col: Int
         form = side.form,
         period = period,
         derivation = derivation,
+        evidence = listOfNotNull(
+            onOpenReport?.let { open ->
+                SourceLink(ScoreCopy.openSourceReport(period = period), { open(side.report.reportId) }, external = false)
+            },
+        ),
     )
 }
 
@@ -587,7 +600,7 @@ fun CompareReportsScreen(
             }
         }
     }
-    source?.let { info -> SourceSheet(info = info, onDismissRequest = { source = null }) }
+    source?.let { info -> SourceSheet(info = info.closingOnOpen { source = null }, onDismissRequest = { source = null }) }
 }
 
 @Composable
@@ -634,7 +647,7 @@ private fun ColumnScope.CompareReportsBody(
         model = model.table,
         columnNames = listOf(model.older.label, model.newer.label),
         deltaName = ResearchCopy.THE_CHANGE,
-        onCellClick = { r, c -> compareReportsSource(model, r, c)?.let(onSource) },
+        onCellClick = { r, c -> compareReportsSource(model, r, c, onOpenReport)?.let(onSource) },
     )
 
     Spacer(Modifier.height(ThesisSpace.sectionGapData))

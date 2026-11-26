@@ -50,7 +50,7 @@ val stageAppSources by tasks.registering(Sync::class) {
 }
 
 // The app's own JVM unit tests (app/src/test) run here too: all of them since PR-1 moved
-// defaultNotificationPreferences() out of MainViewModel (ui/shell/UiState.kt), so Phase4CopyTest stages too.
+// defaultNotificationPreferences() out of MainViewModel (ui/shell/UiState.kt), so NotificationDefaultsTest stages too.
 val stageAppTests by tasks.registering(Sync::class) {
     from(file("../app/src/test/java"))
     into(layout.buildDirectory.dir("app-test-src"))

@@ -56,7 +56,7 @@ class ShellTopBarTest {
 
     @Test
     fun scenarioStressDoesNotRepeatItsHeadlineInTheBar() {
-        // The screen's own headline is "Scenario Stress" (Phase4Copy.researchStressHeadline).
+        // The screen's own headline is "Scenario Stress" (ResearchCopy.STRESS_TITLE).
         assertEquals("", titleOf(Destination.ScenarioStress()))
     }
 

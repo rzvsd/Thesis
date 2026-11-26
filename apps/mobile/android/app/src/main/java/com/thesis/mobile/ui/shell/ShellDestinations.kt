@@ -105,6 +105,8 @@ internal fun ShellContentScope.Content(entry: NavEntry, padding: PaddingValues) 
                 loading = state.pulseReport == null && state.isPulseRefreshing,
                 error = state.pulseError ?: cachedFailure?.let(RefreshFailure::cachedPulseMessage),
                 refreshing = state.isPulseRefreshing,
+                isExporting = state.isExportingPulse,
+                exportDoneAt = state.pulseExportDoneAt,
                 pulseFailure = state.pulseFailureKind,
                 monitorSnapshots = state.monitorSnapshots,
                 onOpenName = { ticker -> actions.onOpenNameIn(ticker, null, null) },
@@ -382,6 +384,9 @@ private fun ShellContentScope.NamesRoot(padding: PaddingValues) {
         onCompareWith = { ticker -> compareWith = ticker },
         onExportNotes = { exportNotes() },
         onShowUndo = { message, action ->
+            // The Undo answers the row the reader just removed: it replaces any snackbar on screen instead of
+            // waiting behind it (as the Inbox's quiet and turn-off do).
+            snackbarHostState.currentSnackbarData?.dismiss()
             snackbarHostState.showThesisSnackbar(message, action) == SnackbarResult.ActionPerformed
         },
         focusAddField = navigator.namesFocusAdd,
@@ -611,7 +616,8 @@ private fun ShellContentScope.CompareNamesEntry(destination: Destination.Compare
         onRetry = { actions.onEnsureCompareNames(tickers) },
         // "Build report" opens the Research flow with the ticker in the field (no silent build).
         onBuildReport = actions::onOpenResearchFor,
-        onOpenName = { ticker -> actions.onOpenNameIn(ticker, null, null) }
+        onOpenName = { ticker -> actions.onOpenNameIn(ticker, null, null) },
+        onOpenReport = { reportId, ticker -> actions.onOpenReport(reportId, ticker) }
     )
 }
 

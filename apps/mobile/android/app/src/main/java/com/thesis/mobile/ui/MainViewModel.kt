@@ -612,7 +612,9 @@ class MainViewModel(
         }
 
         viewModelScope.launch {
-            publish(state.copy(isSavingNote = true, message = null))
+            // The message stays: autosave runs on every pause in typing, and clearing it would cancel a snackbar on
+            // screen (a Deep Dive ready with its Open, an error) while the reader writes.
+            publish(state.copy(isSavingNote = true))
             val error = runAuthorizedWithRefresh {
                 val saved = client.saveReportNote(
                     state.apiBaseUrl,
@@ -1503,7 +1505,7 @@ class MainViewModel(
             tabFreshness.invalidate(ShellTab.Research)
             // History ends its skeleton on this and shows its failed state with Try again (state.message is the
             // snackbar text withAuthorizedCall has just published; null for an upgrade prompt).
-            publish(state.copy(historyLoadError = state.message ?: LOAD_FAILED))
+            publish(state.copy(historyLoadError = state.message ?: AppMessages.LOAD_FAILED))
         }) {
             val reports = client.listReports(state.apiBaseUrl, requireTokens().accessToken)
             publish(state.copy(reportHistory = reports, reportHistoryLoaded = true, historyLoadError = null))
@@ -1888,8 +1890,12 @@ class MainViewModel(
 
     /** [onReady] writes the file off the main thread and shares it; a failure there is reported as an export failure. */
     fun exportPulsePdf(onReady: suspend (PulsePdfDownload) -> Unit) {
+        // One export at a time: a second tap while the arc runs would start a parallel download and share sheet.
+        if (state.isExportingPulse) return
+        // Marked before the request goes out, so a second tap in the same frame finds the export running.
+        publish(state.copy(isExportingPulse = true))
         viewModelScope.launch {
-            publish(state.copy(message = null))
+          try {
             var download: PulsePdfDownload? = null
             val pulse = state.pulseReport
             val exportDate = pulse?.cycleEnd?.take(10)
@@ -1930,12 +1936,16 @@ class MainViewModel(
             )
             try {
                 onReady(ready)
+                publish(state.copy(pulseExportDoneAt = System.currentTimeMillis()))
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (error: Exception) {
                 trackApiError(error)
                 publish(state.copy(message = AppMessages.PULSE_PDF_FAILED))
             }
+          } finally {
+            publish(state.copy(isExportingPulse = false))
+          }
         }
     }
 
@@ -2055,7 +2065,7 @@ class MainViewModel(
         withAuthorizedCall(onDone = ::boardFinished, onError = {
             tabFreshness.invalidate(ShellTab.Names)
             // Names ends its skeleton on this and shows its failed state with Try again.
-            publish(state.copy(watchlistLoadError = state.message ?: LOAD_FAILED))
+            publish(state.copy(watchlistLoadError = state.message ?: AppMessages.LOAD_FAILED))
         }) {
             val items = client.getWatchlist(state.apiBaseUrl, requireTokens().accessToken)
             publish(state.copy(watchlist = items, watchlistLoaded = true, watchlistLoadError = null))
@@ -2466,6 +2476,8 @@ class MainViewModel(
                 compareNames = null,
                 searchResults = null,
                 pulseFailureKind = null,
+                isExportingPulse = false,
+                pulseExportDoneAt = null,
                 inboxLoadError = null,
                 inboxLoaded = false,
                 reportSummaries = emptyMap(),
@@ -2834,9 +2846,21 @@ class MainViewModel(
 
     override fun onOpenReport(reportId: String, ticker: String?) {
         closeModalsAndForget()
-        navigator.push(Destination.Report(reportId, ticker?.trim()?.uppercase()?.ifBlank { null }))
+        navigator.push(Destination.Report(reportId, reportTicker(reportId, ticker)))
         openHistoryReport(reportId)
     }
+
+    /**
+     * The ticker a Report entry opens under: the caller's, else the history's (or the open report's) for that id. With
+     * it the entry opens under the ReportOpeningBar and keeps one chrome when the report lands (5.13); without it the
+     * bar would swap from the shell's Back bar to the report's.
+     */
+    private fun reportTicker(reportId: String, ticker: String?): String? =
+        (
+            ticker
+                ?: state.reportHistory.firstOrNull { it.reportId == reportId }?.ticker
+                ?: state.deepDiveReport?.takeIf { it.reportId == reportId }?.ticker
+            )?.trim()?.uppercase()?.ifBlank { null }
 
     override fun onEnsureReport(reportId: String) {
         if (state.deepDiveReport?.reportId != reportId) openHistoryReport(reportId)
@@ -3114,7 +3138,7 @@ class MainViewModel(
             navigator.push(Destination.Pulse(report.referenceDate?.ifBlank { null }))
             resumeLastViewed(report)
         } else {
-            navigator.push(Destination.Report(report.reportId))
+            navigator.push(Destination.Report(report.reportId, reportTicker(report.reportId, null)))
             openHistoryReport(report.reportId)
         }
     }
@@ -3380,7 +3404,7 @@ class MainViewModel(
                 }
                 // The name has a report that neither the cache nor the server gave back (offline, a failed call):
                 // its column says "Couldn't load" with Try again, never "No report yet" with "Build report".
-                if (reportId != null && summaries[symbol] == null) errors[symbol] = LOAD_FAILED
+                if (reportId != null && summaries[symbol] == null) errors[symbol] = AppMessages.LOAD_FAILED
             }
             if (state.compareNames?.tickers != symbols) return@launch
             publish(state.copy(compareNames = CompareNamesState(symbols, summaries, isLoading = false, errors = errors)))
@@ -3423,8 +3447,6 @@ class MainViewModel(
         private const val MACRO_HISTORY_MIN_DAYS = 14
         private const val WEEK_MS = 7L * 24 * 60 * 60 * 1000
         private const val RECENT_SEARCHES_MAX = 8
-        /** A load failure with no message of its own (an upgrade prompt answered it instead). */
-        private const val LOAD_FAILED = "Could not reach Thesis."
         private const val DEEP_DIVE_RESUME_PREFS = "thesis_deep_dive_resume"
         /** The analytics feature of a purchase made from a Paywall that names none. */
         private const val GENERAL_UPGRADE_FEATURE = "general_upgrade"

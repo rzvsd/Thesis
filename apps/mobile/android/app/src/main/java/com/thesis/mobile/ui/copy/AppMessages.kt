@@ -37,6 +37,10 @@ object AppMessages {
     const val REPORT_OFFLINE = "You're offline. Showing your saved copy of this report."
     const val OPEN_WAR_ROOM_FIRST = "Open a War Room first."
 
+    // ---- Loads
+    /** A load failure with no message of its own (an upgrade prompt answered it instead): Names, History, a compare column. */
+    const val LOAD_FAILED = "Could not reach Thesis."
+
     // ---- Research
     const val ENTER_TICKER = "Enter a ticker first."
     const val DEEP_DIVE_READY = "Deep Dive ready."

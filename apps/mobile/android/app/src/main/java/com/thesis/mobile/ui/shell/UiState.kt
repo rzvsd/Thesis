@@ -1,5 +1,5 @@
 // Package `com.thesis.mobile.ui` (not `.shell`) on purpose: `UiState` and `defaultNotificationPreferences` keep
-// their names, so `Phase4CopyTest` and every screen import stay valid. Lives in ui/shell so design-preview
+// their names, so `NotificationDefaultsTest` and every screen import stay valid. Lives in ui/shell so design-preview
 // compiles it (MainViewModel.kt is Android-only) and `ThesisShell` can take it.
 package com.thesis.mobile.ui
 
@@ -99,6 +99,10 @@ data class UiState(
      */
     val pulseFailureKind: RefreshFailureKind? = null,
     val isPulseRefreshing: Boolean = false,
+    /** A Pulse PDF export is running (the Pulse's PDF action shows its inline arc; a second tap is ignored). */
+    val isExportingPulse: Boolean = false,
+    /** When the last Pulse PDF export reached the share sheet (epoch ms): a change plays 4.7's "export done". */
+    val pulseExportDoneAt: Long? = null,
     val sentimentCurrent: SentimentSnapshotView? = null,
     val sentimentHistory: List<SentimentSnapshotView> = emptyList(),
     val sentimentRangeDays: Int = 30,

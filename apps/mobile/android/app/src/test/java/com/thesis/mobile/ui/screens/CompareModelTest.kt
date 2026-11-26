@@ -285,12 +285,31 @@ class CompareModelTest {
     }
 
     @Test
+    fun compareNamesSourceNamesTheFilingAndOpensTheColumnsReport() {
+        val columns = compareNameColumns(state, emptyMap())
+        val aapl = columns.first { it.ticker == "AAPL" }
+        var opened: Pair<String, String>? = null
+        val src = compareNamesSource(aapl, NameMetric.Revenue, null) { id, t -> opened = id to t }
+        assertEquals(ResearchCopy.FORM_ANNUAL, src.form)
+        val link = src.evidence.single()
+        assertEquals("Open the AAPL FY2025 report", link.label)
+        assertFalse(link.external)
+        link.onOpen()
+        assertEquals(aapl.reportId to "AAPL", opened)
+        // Without a way to open it, no link; the header carries no form line (Latest FY and the period say it).
+        assertTrue(compareNamesSource(aapl, NameMetric.Revenue, null).evidence.isEmpty())
+        assertTrue(compareNamesTable(columns).columns.all { it.filing == null })
+    }
+
+    @Test
     fun copyAsTableIsTabSeparatedWithPeriodAndFilingHeaderRows() {
         val tsv = compareNamesTsv(compareNameColumns(state, emptyMap()), fmt, zone)
         val lines = tsv.split("\n")
         assertEquals(listOf(ResearchCopy.METRIC, "AAPL", "MSFT", "NVDA", ResearchCopy.MEDIAN), lines[0].split("\t"))
         assertEquals(listOf(ResearchCopy.PERIOD, "FY2025", "FY2025", ResearchCopy.NO_REPORT_YET, ""), lines[1].split("\t"))
-        assertTrue(lines[2].startsWith(ResearchCopy.FILING + "\t" + ResearchCopy.FORM_10K))
+        // A summary names no form (a 20-F filer's annual report is not a 10-K): the line says "Annual filing".
+        assertTrue(lines[2].startsWith(ResearchCopy.FILING + "\t" + ResearchCopy.FORM_ANNUAL))
+        assertFalse(tsv.contains(ResearchCopy.FORM_10K))
         // No column has a value-discipline score here, so that row is left out (shownMetrics).
         assertEquals(3 + NameMetric.entries.size - 1, lines.size)
         lines.forEach { assertEquals(5, it.split("\t").size) }
@@ -375,6 +394,11 @@ class CompareModelTest {
             assertEquals("FY2025", src.period)
         }
         assertEquals("FY2024", compareReportsSource(m, 0, 0)!!.period)
+        var opened: String? = null
+        val link = compareReportsSource(m, 0, 1) { opened = it }!!.evidence.single()
+        assertEquals("Open the FY2025 report", link.label)
+        link.onOpen()
+        assertEquals("new", opened)
         assertNull(compareReportsSource(m, 0, 2))
         assertEquals(ResearchCopy.DERIVE_EPS, compareReportsSource(m, m.raw.indexOfFirst { it.metric == ReportMetric.Eps }, 1)!!.derivation)
     }

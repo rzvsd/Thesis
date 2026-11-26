@@ -193,6 +193,8 @@ fun DataRow(
     sub: String? = null,
     onClick: (() -> Unit)? = null,
     onLongClick: (() -> Unit)? = null,
+    /** What TalkBack calls the long press (its custom action, e.g. "Show source", "More actions"); unnamed without it. */
+    onLongClickLabel: String? = null,
     interactionSource: MutableInteractionSource = remember { MutableInteractionSource() },
 ) {
     val p = LocalThesisPalette.current
@@ -207,6 +209,7 @@ fun DataRow(
                         interactionSource = interactionSource,
                         indication = null,
                         role = Role.Button,
+                        onLongClickLabel = onLongClickLabel,
                         onLongClick = onLongClick,
                         onClick = onClick ?: {},
                     )
@@ -354,6 +357,8 @@ fun TickerRow(
     live: Boolean = false,
     compact: Boolean = false,
     onLongClick: (() -> Unit)? = null,
+    /** What TalkBack calls the long press (its custom action, e.g. "Show source", "More actions"); unnamed without it. */
+    onLongClickLabel: String? = null,
     onBoundsCaptured: ((Rect) -> Unit)? = null,
     interactionSource: MutableInteractionSource = remember { MutableInteractionSource() },
 ) {
@@ -372,6 +377,7 @@ fun TickerRow(
                         interactionSource = interactionSource,
                         indication = null,
                         role = Role.Button,
+                        onLongClickLabel = onLongClickLabel,
                         onLongClick = onLongClick?.let {
                             {
                                 haptics.longPress()

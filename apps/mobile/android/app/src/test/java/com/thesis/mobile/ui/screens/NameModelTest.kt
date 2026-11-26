@@ -142,6 +142,9 @@ class NameModelTest {
         assertEquals("32.0%", tile.value)
         assertEquals("+70 bps", tile.delta)
         assertEquals("32.0%", filingsSource(f, 2).inputs.first().second)
+        // The sheet's way out to the report the figures came from (#47), only when there is one to open.
+        assertTrue(filingsSource(f, 2).evidence.isEmpty())
+        assertEquals("Open the FY2026 report", filingsSource(f, 2) {}.evidence.single().label)
         val table = filingsTable(f)
         assertEquals(listOf("47.2%", "46.9%"), table.rows.first { it.label == "Gross margin" }.values)
         assertEquals(listOf("32.0%", "31.3%"), table.rows.first { it.label == "Operating margin" }.values)

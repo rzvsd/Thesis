@@ -22,7 +22,7 @@ This note covers the merge of `wp/pr3-A` to `wp/pr3-G`, applied in that order wi
   - `weeklyStateChanges`.
   - The derived `companyNames`, `filingPeriods` and `notedReportIds`.
 - **`ShellDestinations`.**
-  - Every screen now gets its full parameters, including WP-E's new Compare reports, Compare names and Search entries, and WP-B's Name pager.
+  - Every screen gets the parameters its WP asked for, including WP-E's new Compare reports, Compare names and Search entries, and WP-B's Name pager. (Corrected in review round 4: the Pulse's `isExporting` / `exportDoneAt` were not passed until then; its `onCopyText` / `onOpenSource` keep their defaults, the clipboard and the URI handler.)
   - `PendingScreen` is gone.
   - `DeepDiveScreenFor` passes `following`, `onFollowChange`, `openingStoredReport`, `building`, `ticker`, `jobStatus`, the `ReportOpeningBar` and `ReportHostExtras`. This covers HANDOFF-D 1 and 15 and HANDOFF-C 4.
 - **`ThesisShell`.**
@@ -324,3 +324,72 @@ Carried from Deferred, each with the change it needs:
 - `tools/gold-share.py`: 768 renders, max 7.50%, none at or above 8%.
 - Android-only files changed (not compiled here): `MainViewModel.kt`, `ThesisApp.kt`, `ReportExport.kt`; checked
   by hand against Kotlin 1.9 / coroutines (named catch parameters, `suspend` callback type, existing imports).
+
+## Review round 4
+
+- **Pulse PDF export state (major, 5.7 item 1, 4.7).** `UiState.isExportingPulse` is set before the request goes
+  out and cleared in a `finally`; `exportPulsePdf` ignores a call while it is set, so a second tap starts no second
+  download or share sheet. `UiState.pulseExportDoneAt` (epoch ms) is recorded once `onReady` has opened the share
+  sheet. The shell passes both to `PulseScreen(isExporting, exportDoneAt)`: the inline arc runs while exporting and
+  the "export done" confirm plays on success. Logout clears both. `onCopyText` / `onOpenSource` keep their defaults.
+- **Name's filings grid is the featured grid (2.3).** "From the filings" passes `featured = true` (serif
+  `kpiValue`, as the Deep Dive's KPI block); the monitor grid stays on `statValue`.
+- **No haptic on a copy (4.7, H1).** Name's two "Copy figures as table" handlers and Scenario Stress's copy drop
+  `confirm()`, as Compare names, Compare reports and Macro Stress did in round 2.
+- **Long presses are named for TalkBack (A3).** The kit's long-press rows take `onLongClickLabel` (`DataRow`,
+  `TickerRow`, `KpiTile`, the card in `Cards.kt`), applied here as WP-K. History's Deep Dive rows say "Open AAPL";
+  Names rows say "More actions" (`NamesCopy.MORE_ACTIONS`).
+- **Preview stubs match the real types.** `ReportExporter(scope, context, onFailed)` has the real constructor and
+  `DeepDivePagePrinter.isLoading` starts true, so a direct call that compiles in the harness compiles in CI.
+- **Launcher rasters.** The ten legacy `mipmap-*/ic_launcher.png` / `ic_launcher_round.png` are regenerated from
+  `ic_mark_t` (gold T on #0A0A0A, square and round, the adaptive icon's centre 72 of 108 units), so no old-mark
+  asset ships. They stay in place, so `@mipmap/ic_launcher` resolves exactly as before.
+- **Every report opens under one chrome (5.13).** `onOpenReport` and `onResumeLastViewed` fall back to the
+  history's ticker for that report id (then the open report's), so Research's recent rows, Search hits, the War
+  Room and Continue reading open under the `ReportOpeningBar` too.
+- **Note autosave keeps the snackbar.** `saveReportNote` no longer publishes `message = null`, so a "Deep Dive
+  ready" with its Open, or an error, stays while the reader types a note.
+- **`LOAD_FAILED` moves to `AppMessages`**, under the copy lint, with the other ViewModel messages.
+- **Names' Undo is not queued.** `onShowUndo` dismisses the snackbar on screen first, as the Inbox's quiet and
+  turn-off do.
+- **Source sheets open their report (#47, 1.1).** Name's filings tiles, Compare names' cells and Compare reports'
+  cells end on "Open the FY2025 report" / "Open the AAPL FY2025 report" (`ScoreCopy.openSourceReport`, an in-app
+  `SourceLink`), which closes the sheet and opens that report (`CompareNamesScreen(onOpenReport)`, wired in the
+  shell). Per-figure filing links wait for the payload (data item below).
+- **No false form on Compare names (2.4).** A summary names no form, and a 20-F or 40-F filer's annual report is
+  not a 10-K: the source sheet and Copy as table say "Annual filing" (`ResearchCopy.FORM_ANNUAL`), the deck and the
+  chart source say "annual filing", and the table header drops its form line ("Latest FY" and the period say it),
+  which also makes the header one line shorter on a phone. Compare reports keeps the report's own
+  `filingRead.form` (its 10-K fallback is unchanged: the full report carries the form).
+- **Stress scale in the house form.** "Stress score 0 to 100, higher is more exposed"; "Stress score (0 to 100)".
+- **The War Room's subject opens Name (5.25).** "Open AAPL" sits under the header, as on Compare reports.
+- **Scenario Stress "By name" no longer repeats the bars.** Only names with a break badge or sources get a row
+  (`stressRowHasDetail`); the rest are one "Open a name" line of ticker links (`TickerLinkLine`, shared with Compare
+  names).
+- **`Phase4Copy` is gone.** The four tab labels move to `ShellCopy`; the ~50 unused legacy strings and
+  `notificationFamilyLabel` are deleted. `Phase4CopyTest` becomes `NotificationDefaultsTest` (the defaults case
+  only). The spec's mentions (DESIGN-DIRECTION 5.x Notifications, 7.x test list) are for the spec owner to update.
+
+Not taken, with reasons:
+
+- **Compare names table density (two findings).** Still item 4 of the PR-4 / WP-K list, at its top. The fix
+  changes the kit `CompareTable` every Research screen uses (compact cells under one 48 dp row target, a column
+  fit that keeps the median in view), which needs its own render and semantics pass across those screens. This
+  round takes the part that is safe here: the header loses its form line.
+
+Data item added to the PR-4 list: **per-figure filing links** on `ReportSummaryView` (accession or document URL per
+figure), so a source sheet can link the filing itself and not only the report.
+
+### Verification after review round 4
+
+- `design-preview` compile (main + test): clean.
+- App unit tests (`-PappTestsOnly test`): 470 tests, 0 failures (new: the source sheets' report links on Name,
+  Compare names and Compare reports, "Annual filing" in Compare names, the By name row rule; `Phase4CopyTest`'s
+  family-label case goes with `Phase4Copy`).
+- Renders, semantics and harness tests (`-PrendersOnly test`): 680 tests, 0 failures, 1,050 renders; then the
+  Scenario Stress and Compare names renders again after the `TickerLinkLine` flow change.
+- `tools/design-lint.sh`: 0 findings in 94 files, baseline 0 rows.
+- `tools/gold-share.py`: 768 renders, max 7.50%, none at or above 8%.
+- Android-only files changed (not compiled here): `MainViewModel.kt` (export flag in `try` / `finally`,
+  `reportTicker`, `AppMessages.LOAD_FAILED`, `saveReportNote`); checked by hand against Kotlin 1.9 and the
+  existing imports (`System.currentTimeMillis`, `CancellationException` already used there).

@@ -1332,6 +1332,7 @@ private fun LazyListScope.boardBody(
                         live = row.live,
                         compact = compact,
                         onLongClick = { onContext(row.ticker) },
+                        onLongClickLabel = NamesCopy.MORE_ACTIONS,
                         onBoundsCaptured = onBounds,
                     )
                 }

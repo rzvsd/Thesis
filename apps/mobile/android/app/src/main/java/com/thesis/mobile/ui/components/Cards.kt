@@ -218,6 +218,8 @@ fun PressableCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     onLongClick: (() -> Unit)? = null,
+    /** What TalkBack calls the long press (its custom action, e.g. "Show source", "More actions"); unnamed without it. */
+    onLongClickLabel: String? = null,
     onClickLabel: String? = null,
     contentDescription: String? = null,
     onBoundsCaptured: ((Rect) -> Unit)? = null,
@@ -240,6 +242,7 @@ fun PressableCard(
                 indication = null,
                 role = Role.Button,
                 onClickLabel = onClickLabel,
+                onLongClickLabel = onLongClickLabel,
                 onLongClick = onLongClick,
                 onClick = {
                     onBoundsCaptured?.invoke(bounds)

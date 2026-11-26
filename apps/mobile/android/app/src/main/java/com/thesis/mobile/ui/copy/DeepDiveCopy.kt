@@ -288,7 +288,7 @@ object DeepDiveCopy {
         "stale" to "Out of date",
         "bug_report" to "Something is wrong",
     )
-    // ---- Conviction and coherence (sentence case; Phase4Copy stays for the screens that still use it)
+    // ---- Conviction and coherence (sentence case)
     const val convictionKicker = "Conviction"
     const val convictionTitle = "What you believed and what changed"
     const val convictionDeck = "Your journal for this name and the strongest case against the thesis."

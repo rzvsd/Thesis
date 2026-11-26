@@ -222,9 +222,9 @@ object ResearchCopy {
     }
     /** Until each column carries its fiscal year-end (HANDOFF-E), the deck does not claim the columns name it. */
     const val COMPARE_NAMES_DECK =
-        "Each company’s latest annual figures, from its own 10-K. Fiscal years can end in different months."
+        "Each company’s latest annual figures, from its own annual filing. Fiscal years can end in different months."
     const val COMPARE_NAMES_DECK_YEAR_ENDS =
-        "Each company’s latest annual figures, from its own 10-K. Year-ends differ, so every column names its own."
+        "Each company’s latest annual figures, from its own annual filing. Year-ends differ, so every column names its own."
     const val COMPARE_NAMES_TOO_FEW = "Pick at least two names to compare."
     const val COMPARE_NAMES_TOO_FEW_HOW = "Choose them on Names, or from a report’s Compare."
     const val COMPARE_NAMES_FAILED = "these names"
@@ -241,7 +241,7 @@ object ResearchCopy {
         }
     const val NO_ANNUAL_FIGURES = "No annual figures"
 
-    /** A column's filing line in "Copy as table": "10-K · built 24 Nov" (the report's date; no filed date yet). */
+    /** A column's filing line in "Copy as table": "Annual filing · built 24 Nov" (the report's date; no filed date yet). */
     fun formBuilt(form: String, built: String): String = "$form · built $built"
 
     /** A value-discipline cell: "4 of 6" signals met. */
@@ -334,7 +334,7 @@ object ResearchCopy {
         if (leader != null && firstYear != null) "$leader grew revenue the most since fiscal $firstYear" else "Revenue over the years"
     const val CHART_INDEXED_SUB = "Revenue, fiscal years, first common year = 100"
     const val CHART_SIDE_SUB = "Revenue, fiscal years, shared scale"
-    const val CHART_SOURCE = "Income statements in each company’s 10-K."
+    const val CHART_SOURCE = "Income statements in each company’s annual filing."
 
     const val DEF_REVENUE = "Total revenue for the fiscal year, as reported in the income statement."
     const val DEF_GROWTH = "Revenue for the year against the year before."
@@ -360,6 +360,12 @@ object ResearchCopy {
     const val DERIVE_DISCIPLINE = "Signals met ÷ signals available"
     const val FORM_10K = "10-K"
     const val FORM_10Q = "10-Q"
+    /**
+     * The filing when the payload does not name its form: a summary carries none, and a 20-F or 40-F filer's annual
+     * report is not a 10-K (2.4), so no form is claimed until the filing-form field lands (HANDOFF-D, deferred).
+     */
+    const val FORM_ANNUAL = "Annual filing"
+    const val FORM_QUARTERLY = "Quarterly filing"
 
     // ---- Search (5.27)
 
@@ -453,7 +459,7 @@ object ResearchCopy {
     const val KPI_AFFECTED = "Names affected"
     fun ofTotal(n: Int, total: Int): String = "${Fmt.number(n.toLong())} of ${Fmt.number(total.toLong())}"
     const val KPI_CRITICAL = "Critical"
-    const val STRESS_SCALE = "Stress score, 0–100, higher = more exposed"
+    const val STRESS_SCALE = "Stress score 0 to 100, higher is more exposed"
     fun stressSource(asOf: String): String = "Scenario Stress run · as of $asOf"
     const val BY_NAME = "By name"
     /** The By name result: how many names could see their thesis break (likely or possible). */
@@ -472,7 +478,7 @@ object ResearchCopy {
     const val BREAK_POSSIBLE = "Break possible"
     const val BREAK_UNLIKELY = "Break unlikely"
     const val TABLE_TICKER = "Name"
-    const val TABLE_SCORE = "Stress score (0–100)"
+    const val TABLE_SCORE = "Stress score (0 to 100)"
     const val TABLE_IMPACT = "Impact"
     const val TABLE_BREAK = "Thesis break"
     const val STRESS_CHART_TITLE = "Stress score by name"

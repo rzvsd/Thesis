@@ -88,6 +88,9 @@ class StressWarRoomSearchModelTest {
         assertEquals(ResearchCopy.BREAK_LIKELY, stressRowBadge(rows.getValue("NVDA"))?.text)
         assertEquals(ResearchCopy.BREAK_POSSIBLE, stressRowBadge(rows.getValue("AAPL"))?.text)
         assertNull(stressRowBadge(rows.getValue("KO")))
+        // Only a name with a badge or sources gets its own By name row; the rest are one line of ticker links.
+        assertTrue(stressRowHasDetail(rows.getValue("NVDA")))
+        assertEquals(rows.getValue("KO").evidence.isNotEmpty(), stressRowHasDetail(rows.getValue("KO")))
         // The By name headline is a result: how many names could see their thesis break.
         assertEquals(ResearchCopy.byNameHeadline(2), ResearchCopy.byNameHeadline(rows.values.count { stressRowBadge(it) != null }))
         assertEquals("2 names could see their thesis break", ResearchCopy.byNameHeadline(2))

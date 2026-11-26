@@ -82,6 +82,8 @@ fun KpiTile(
     featured: Boolean = false,
     onClick: (() -> Unit)? = null,
     onLongClick: (() -> Unit)? = null,
+    /** What TalkBack calls the long press (its custom action, e.g. "Show source", "More actions"); unnamed without it. */
+    onLongClickLabel: String? = null,
     valueStep: Int = 0,
     interactionSource: MutableInteractionSource = remember { MutableInteractionSource() },
 ) {
@@ -97,6 +99,7 @@ fun KpiTile(
                         interactionSource = interactionSource,
                         indication = null,
                         role = Role.Button,
+                        onLongClickLabel = onLongClickLabel,
                         onLongClick = onLongClick,
                         onClick = onClick ?: {},
                     )

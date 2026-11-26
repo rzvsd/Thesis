@@ -237,8 +237,8 @@ fun ScenarioStressScreen(
                     icon = if (copied) ThesisIcons.Check else ThesisIcons.Copy,
                     contentDescription = if (copied) ResearchCopy.COPIED else ResearchCopy.COPY_TABLE,
                     onClick = {
+                        // No haptic for a copy (4.7): the Copied check is the feedback.
                         clipboard.setText(AnnotatedString(stressTsv(rows)))
-                        haptics.confirm()
                         copied = true
                     },
                 )
@@ -450,14 +450,23 @@ private fun StressResults(
         Spacer(Modifier.height(ThesisSpace.sectionGapData))
         SectionHeader(kicker = ResearchCopy.BY_NAME, headline = ResearchCopy.byNameHeadline(rows.count { stressRowBadge(it) != null }))
         Spacer(Modifier.height(ThesisSpace.m))
-        ThesisCard {
-            // One column inside the card, so the rows sit 48 dp apart with a hairline, not the card's block gap.
-            Column {
-                rows.forEachIndexed { i, row ->
-                    if (i > 0) ThesisDivider()
-                    StressNameRow(row = row, onOpenName = onOpenName)
+        // Only the names with something to add to the bars above (a break badge or sources) get a row; the rest are
+        // one line of ticker links, so the list does not repeat the chart (until RankedBars takes a row tap, HANDOFF-E).
+        val (listed, plain) = rows.partition(::stressRowHasDetail)
+        if (listed.isNotEmpty()) {
+            ThesisCard {
+                // One column inside the card, so the rows sit 48 dp apart with a hairline, not the card's block gap.
+                Column {
+                    listed.forEachIndexed { i, row ->
+                        if (i > 0) ThesisDivider()
+                        StressNameRow(row = row, onOpenName = onOpenName)
+                    }
                 }
             }
+        }
+        if (plain.isNotEmpty() && onOpenName != null) {
+            if (listed.isNotEmpty()) Spacer(Modifier.height(ThesisSpace.s))
+            TickerLinkLine(plain.map { it.ticker to it.ticker }, onOpenName)
         }
     }
 
@@ -477,6 +486,9 @@ private fun StressResults(
         }
     }
 }
+
+/** A By name row earns its own line only with a break badge or sources: the bar above already says the rest. */
+internal fun stressRowHasDetail(row: StressRow): Boolean = stressRowBadge(row) != null || row.evidence.isNotEmpty()
 
 /**
  * A name's line in "By name": the ticker, its break badge (only when a break is possible or likely,

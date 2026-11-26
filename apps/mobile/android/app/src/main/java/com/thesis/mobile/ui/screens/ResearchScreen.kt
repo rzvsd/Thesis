@@ -405,6 +405,8 @@ internal fun HistoryItemRow(
     /** Opens the row's context sheet (History: "Open AAPL"); the tap keeps opening the report. */
     onLongClick: (() -> Unit)? = null,
 ) {
+    // TalkBack names the long press after the sheet's way to Name, the one thing the tap does not reach (rubric A3).
+    val longClickLabel = if (onLongClick != null && item.type == TYPE_DEEP_DIVE) item.ticker?.uppercase()?.let(ResearchCopy::openName) else null
     val deepDive = item.type == TYPE_DEEP_DIVE
     ResearchRow(
         icon = if (deepDive) ThesisIcons.DeepDive else ThesisIcons.Pulse,
@@ -417,6 +419,7 @@ internal fun HistoryItemRow(
         onBoundsCaptured = onBounds,
         selection = selection,
         onLongClick = onLongClick,
+        onLongClickLabel = longClickLabel,
         modifier = modifier,
     )
 }
@@ -450,6 +453,8 @@ internal fun ResearchRow(
     selection: RowSelection? = null,
     /** A long press opens the row's context sheet, with the `longPress()` haptic (as TickerRow does). */
     onLongClick: (() -> Unit)? = null,
+    /** What TalkBack calls the long press (its custom action); without it the action is unnamed. */
+    onLongClickLabel: String? = null,
 ) {
     val p = LocalThesisPalette.current
     val haptics = rememberHaptics()
@@ -470,6 +475,7 @@ internal fun ResearchRow(
             interactionSource = source,
             indication = null,
             role = Role.Button,
+            onLongClickLabel = onLongClickLabel,
             onLongClick = {
                 haptics.longPress()
                 onLongClick()

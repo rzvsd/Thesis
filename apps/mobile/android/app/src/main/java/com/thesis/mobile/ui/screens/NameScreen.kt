@@ -94,6 +94,7 @@ import com.thesis.mobile.ui.components.SinceLastReportModel
 import com.thesis.mobile.ui.components.SkeletonCard
 import com.thesis.mobile.ui.components.SkeletonKpiGrid
 import com.thesis.mobile.ui.components.SourceInfo
+import com.thesis.mobile.ui.components.SourceLink
 import com.thesis.mobile.ui.components.SourceSheet
 import com.thesis.mobile.ui.components.StatusBadge
 import com.thesis.mobile.ui.components.TextAction
@@ -393,7 +394,12 @@ internal fun netCashKpi(f: FilingsFigures): KpiSpec {
 }
 
 /** The SourceSheet behind each filings tile, in [filingsKpis] order. */
-fun filingsSource(f: FilingsFigures, index: Int): SourceInfo {
+fun filingsSource(
+    f: FilingsFigures,
+    index: Int,
+    /** Opens the report the figures were read from: the sheet ends on "Open the FY2025 report" (#47). */
+    onOpenReport: (() -> Unit)? = null,
+): SourceInfo {
     val prior = f.priorPeriod
     fun pair(label: String, period: String?, value: String): Pair<String, String>? =
         period?.let { "$label, $it" to value }
@@ -444,6 +450,7 @@ fun filingsSource(f: FilingsFigures, index: Int): SourceInfo {
         period = f.period,
         derivation = derivation,
         inputs = inputs,
+        evidence = listOfNotNull(onOpenReport?.let { SourceLink(ScoreCopy.openSourceReport(period = f.period), it, external = false) }),
     )
 }
 
@@ -725,8 +732,8 @@ fun NameScreen(
                         copied = false
                     },
                     onCopyTable = { f ->
+                        // No haptic for a copy (4.7): the Copied label is the feedback.
                         clipboard.setText(AnnotatedString(filingsTsv(f)))
-                        haptics.confirm()
                         copied = true
                     },
                     onSource = { source = it },
@@ -771,7 +778,7 @@ fun NameScreen(
         }
     }
 
-    source?.let { info -> SourceSheet(info = info, onDismissRequest = { source = null }) }
+    source?.let { info -> SourceSheet(info = info.closingOnOpen { source = null }, onDismissRequest = { source = null }) }
 
     if (moreOpen) {
         ThesisSheet(onDismissRequest = { moreOpen = false }, title = title.takeIf { it != symbol }?.let { "$symbol · $it" } ?: symbol) {
@@ -785,7 +792,6 @@ fun NameScreen(
                 SheetActionRow(ThesisIcons.Small.Copy, NamesCopy.COPY_FIGURES, {
                     moreOpen = false
                     clipboard.setText(AnnotatedString(filingsTsv(figures)))
-                    haptics.confirm()
                     // Visible confirmation: the snackbar when wired, and the in-section action reads "Copied as
                     // a table" if the years are showing.
                     copied = true
@@ -1079,7 +1085,9 @@ private fun NameBody(
         )
         Spacer(Modifier.height(ThesisSpace.l))
         val kpis = remember(figures) { filingsKpis(figures) }
-        KpiGrid(items = kpis, onItemClick = { onSource(filingsSource(figures, it)) })
+        // The screen's one featured grid (2.3): serif kpiValue figures, as the Deep Dive's KPI block.
+        val openSummary = summary?.reportId?.let { id -> { onOpenReport(id) } }
+        KpiGrid(items = kpis, featured = true, onItemClick = { onSource(filingsSource(figures, it, openSummary)) })
         if (figures.annual.size >= 2) {
             Spacer(Modifier.height(ThesisSpace.s))
             TextAction(if (showYears) NamesCopy.HIDE_YEARS else NamesCopy.SHOW_YEARS, onShowYears)

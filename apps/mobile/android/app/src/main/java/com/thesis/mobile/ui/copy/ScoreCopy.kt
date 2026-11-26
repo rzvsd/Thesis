@@ -91,4 +91,11 @@ object ScoreCopy {
     const val GROWTH_DEFINITION = "How much revenue changed from the fiscal year before."
     const val GROWTH_DERIVATION = "Revenue this year ÷ revenue last year − 1."
     const val SOURCE_FORM = "Annual filing"
+
+    /**
+     * A source sheet's way out to the report the figure was read from (#47), until the payload carries figure-level
+     * filing links: "Open the FY2025 report", "Open the AAPL FY2025 report" (a compare column), "Open the report".
+     */
+    fun openSourceReport(ticker: String? = null, period: String? = null): String =
+        "Open the " + listOfNotNull(ticker, period).joinToString(" ").let { if (it.isEmpty()) "report" else "$it report" }
 }

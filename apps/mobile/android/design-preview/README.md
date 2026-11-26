@@ -41,7 +41,7 @@ under `com/thesis/mobile/...` match `app/src/main/java/` one for one.
 ## Unit tests
 
 `app/src/test/java` is compiled and run here (JUnit 4, `org.json:json` standing in for Android's copy), all of it
-since PR-1 moved `defaultNotificationPreferences()` to `ui/shell/UiState.kt` (`Phase4CopyTest` included).
+since PR-1 moved `defaultNotificationPreferences()` to `ui/shell/UiState.kt` (`NotificationDefaultsTest` included).
 This does not replace CI's `:app:testDebugUnitTest`, but it runs the same test code.
 
 ## Writing a render

@@ -28,21 +28,30 @@ internal suspend fun renderReportPdf(context: Context, report: DeepDiveReportVie
 
 internal suspend fun renderShareCard(context: Context, report: DeepDiveReportView) = createShareCard(context, report)
 
-internal class ReportExporter {
+// Same constructor as the real class, so a direct ReportExporter(...) call that compiles here compiles in CI too.
+@Suppress("UNUSED_PARAMETER")
+internal class ReportExporter(
+    scope: kotlinx.coroutines.CoroutineScope,
+    context: Context,
+    onFailed: () -> Unit,
+) {
     fun fullReport(report: DeepDiveReportView) = Unit
     fun memo(report: DeepDiveReportView) = Unit
     fun shareCard(report: DeepDiveReportView) = Unit
 }
 
 @Composable
-internal fun rememberReportExporter(onFailed: () -> Unit): ReportExporter =
-    androidx.compose.runtime.remember { ReportExporter() }
+internal fun rememberReportExporter(onFailed: () -> Unit): ReportExporter {
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    return androidx.compose.runtime.remember(scope) { ReportExporter(scope, Context(), onFailed) }
+}
 
 // ---- Stand-ins for DeepDiveWebPage.kt (android.webkit.WebView). The preview draws a labelled
 // placeholder where the WebView-hosted Deep Dive 2.0 report would load.
 
 internal class DeepDivePagePrinter {
-    internal var isLoading: Boolean = false
+    // As the real one: loading until the page reports it has finished.
+    internal var isLoading: Boolean = true
     fun print(context: Context, ticker: String?): Boolean = false
 }
 

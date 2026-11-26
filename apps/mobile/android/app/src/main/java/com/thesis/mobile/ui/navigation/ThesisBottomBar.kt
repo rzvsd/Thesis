@@ -1,7 +1,7 @@
 package com.thesis.mobile.ui.navigation
 
 import com.thesis.mobile.ui.components.BottomBarItem
-import com.thesis.mobile.ui.copy.Phase4Copy
+import com.thesis.mobile.ui.copy.ShellCopy
 import com.thesis.mobile.ui.icons.ThesisIcons
 
 /**
@@ -12,12 +12,12 @@ import com.thesis.mobile.ui.icons.ThesisIcons
  * `NamesFilled` and `ResearchFilled` have no FILL 1 shape, so for those two the ink label carries selection.
  */
 fun shellNavItems(inboxHasNew: Boolean): List<BottomBarItem> = listOf(
-    BottomBarItem(ShellTab.Today.name, Phase4Copy.todayTab, ThesisIcons.Today, ThesisIcons.TodayFilled),
-    BottomBarItem(ShellTab.Names.name, Phase4Copy.namesTab, ThesisIcons.Names, ThesisIcons.NamesFilled),
-    BottomBarItem(ShellTab.Research.name, Phase4Copy.researchTab, ThesisIcons.Research, ThesisIcons.ResearchFilled),
+    BottomBarItem(ShellTab.Today.name, ShellCopy.TODAY_TAB, ThesisIcons.Today, ThesisIcons.TodayFilled),
+    BottomBarItem(ShellTab.Names.name, ShellCopy.NAMES_TAB, ThesisIcons.Names, ThesisIcons.NamesFilled),
+    BottomBarItem(ShellTab.Research.name, ShellCopy.RESEARCH_TAB, ThesisIcons.Research, ThesisIcons.ResearchFilled),
     BottomBarItem(
         ShellTab.Inbox.name,
-        Phase4Copy.inboxTab,
+        ShellCopy.INBOX_TAB,
         ThesisIcons.Inbox,
         ThesisIcons.InboxFilled,
         hasNew = inboxHasNew
