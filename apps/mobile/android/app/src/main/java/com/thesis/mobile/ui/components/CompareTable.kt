@@ -167,8 +167,11 @@ data class CompareTableModel(
 /**
  * What the table's text needs, in px and without cell padding: the label column's longest line ([labelWide]) and
  * longest word ([labelWord]); per value column (the delta column last) its widest figure ([valueWide]) and its
- * header's longest line ([headerLine]) and longest word ([headerWord]). From [rememberCompareTableNeeds] (or
- * [compareTableNeeds] with any measure, in tests).
+ * header's longest line ([headerLine]), the narrowest it wraps to in a fitting table ([headerWrap]: a period never
+ * breaks, "FY Sep-25" is one unit, though a status in its place, "No report yet", may; the filing line and the delta
+ * header break between words; each onto at most two lines)
+ * and its longest word ([headerWord], the last resort of a table that scrolls anyway, so its first column stays whole
+ * in view at 2.0x on 360 dp). From [rememberCompareTableNeeds] (or [compareTableNeeds] with any measure, in tests).
  */
 @Immutable
 class CompareTableNeeds(
@@ -176,6 +179,7 @@ class CompareTableNeeds(
     val labelWord: Int,
     val valueWide: List<Int>,
     val headerLine: List<Int>,
+    val headerWrap: List<Int>,
     val headerWord: List<Int>,
 )
 
@@ -190,14 +194,34 @@ fun compareTableNeeds(
 ): CompareTableNeeds {
     fun words(text: String, style: TextStyle) =
         text.split(' ', '\n').filter { it.isNotEmpty() }.maxOfOrNull { measure(it, style) } ?: 0
+    // The narrowest width that holds each explicit line of [text] on at most two lines, broken between words. With
+    // [periods], a line holding a figure ("FY Sep-25", "Q3 FY25") is a period and stays whole; a status in its place
+    // ("No report yet") may break.
+    fun twoLines(text: String, style: TextStyle, periods: Boolean = false) = text.split('\n').maxOf { line ->
+        val w = line.split(' ').filter { it.isNotEmpty() }
+        if (w.size < 2 || (periods && line.any { it.isDigit() })) {
+            if (line.isBlank()) 0 else measure(line.trim(), style)
+        } else {
+            // A filing line ("10-K · 31 Oct 2025") breaks after its separator, so the date stays whole.
+            val at = (1 until w.size).filter { w[it - 1] == "·" }.ifEmpty { (1 until w.size).toList() }
+            at.minOf { i ->
+                max(measure(w.subList(0, i).joinToString(" "), style), measure(w.subList(i, w.size).joinToString(" "), style))
+            }
+        }
+    }
     val labels = listOf(model.labelHeader to ThesisType.tableHead) + model.rows.map { model.labelOf(it) to labelStyleOf(it) }
     val n = model.valueColumnCount
+    // Each header text with whether it may wrap (filing lines and the delta header do; a period line only when it
+    // holds no figure).
     val headers = List(n) { c ->
         if (c < model.columns.size) {
             val col = model.columns[c]
-            listOfNotNull(headerText(col.period, sortedColumn == c) to ThesisType.tableHead, col.filing?.let { it to ThesisType.tick })
+            listOfNotNull(
+                Triple(headerText(col.period, sortedColumn == c), ThesisType.tableHead, false),
+                col.filing?.let { Triple(it, ThesisType.tick, true) },
+            )
         } else {
-            listOf(model.deltaHeader.orEmpty() to ThesisType.tableHead)
+            listOf(Triple(model.deltaHeader.orEmpty(), ThesisType.tableHead, true))
         }
     }
     return CompareTableNeeds(
@@ -206,8 +230,9 @@ fun compareTableNeeds(
         valueWide = List(n) { c ->
             model.rows.maxOfOrNull { r -> measure(cellText(model, r, c), ThesisType.tableNum) } ?: 0
         },
-        headerLine = headers.map { h -> h.maxOf { (t, s) -> if (t.isEmpty()) 0 else measure(t, s) } },
-        headerWord = headers.map { h -> h.maxOf { (t, s) -> words(t, s) } },
+        headerLine = headers.map { h -> h.maxOf { (t, s, _) -> if (t.isEmpty()) 0 else measure(t, s) } },
+        headerWrap = headers.map { h -> h.maxOf { (t, s, wraps) -> if (t.isEmpty()) 0 else if (wraps) twoLines(t, s) else twoLines(t, s, periods = true) } },
+        headerWord = headers.map { h -> h.maxOf { (t, s, _) -> words(t, s) } },
     )
 }
 
@@ -246,8 +271,8 @@ class CompareTableFit(
  * Fits [needs] into [maxWidth] px (null: unbounded, natural widths). [densities] go from comfortable to compact. The
  * first density that keeps every column in view with nothing wrapped wins (only densities with one-line headers are
  * tried for that); else the first that keeps every column in view with labels wrapping between words (down to their
- * longest word) and headers too where the density allows. The spare width is spread over the value columns. [columnFloor] keeps every value column at least that wide (48 dp when
- * its header is a sort button). When none fits, the [scrollDensity] is used with the label column capped at
+ * longest word) and headers too where the density allows. The spare width is spread over the value columns.
+ * [columnFloor] keeps every value column at least that wide (48 dp when its header is a sort button). When none fits, the [scrollDensity] is used with the label column capped at
  * [labelMaxFraction] of the width (never under its longest word, always leaving the first value column in view).
  */
 fun fitCompareTable(
@@ -264,7 +289,7 @@ fun fitCompareTable(
         val header = when {
             !d.wrapHeaders -> line
             // Wrapping between words, never narrower than the figures under it.
-            room == null -> max(needs.headerWord[c], needs.valueWide[c]) + pad
+            room == null -> max(needs.headerWrap[c], needs.valueWide[c]) + pad
             line <= room -> line
             else -> max(room, max(needs.headerWord[c], needs.valueWide[c]) + pad)
         }
@@ -670,9 +695,16 @@ private fun HeaderCell(
             color = if (accent) p.accent else p.ink,
             textAlign = TextAlign.End,
         )
-        if (filing != null) Text(filing, style = ThesisType.tick, color = p.muted, textAlign = TextAlign.End)
+        if (filing != null) Text(filing.breakingAtSeparators(), style = ThesisType.tick, color = p.muted, textAlign = TextAlign.End)
     }
 }
+
+/**
+ * A filing line that breaks only after its " · " separators ("10-K ·" over "31 Oct 2025", never "10-K · 31" over
+ * "Oct 2025"), as [compareTableNeeds] sizes it: the spaces inside each part are non-breaking.
+ */
+private fun String.breakingAtSeparators(): String =
+    if (" · " !in this) this else split(" · ").joinToString(" · ") { it.replace(' ', '\u00A0') }
 
 /** Proportional line spacing for table cells: with equal line heights, label and value baselines line up. */
 private val TableLines = LineHeightStyle(
