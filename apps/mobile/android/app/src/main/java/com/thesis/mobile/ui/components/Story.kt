@@ -52,7 +52,6 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Constraints
 import com.thesis.mobile.ui.icons.ThesisIcons
@@ -406,7 +405,8 @@ data class SinceLastReportModel(
 
 /**
  * "Since the last report" (#51): the previous view (ink2) above the current one (ink), each with its filing and
- * date; up to three changes (title, ▲/▼ icon plus text, one line on why it matters); the thesis-drift badge. With
+ * date; up to three changes (title, ▲/▼ icon plus text, then why it matters, wrapping rather than cut); the
+ * thesis-drift badge. With
  * a null [model] (first report) it shows the caption "The comparison appears after the next filing".
  */
 @Composable
@@ -418,7 +418,8 @@ fun SinceLastReport(
     val p = LocalThesisPalette.current
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(ThesisSpace.s)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Eyebrow("Since the last report", Modifier.weight(1f))
+            // The kicker colour, as the SectionHeader kickers around it on Name and in a Deep Dive.
+            Eyebrow("Since the last report", Modifier.weight(1f), color = p.accent)
             model?.drift?.let { StatusBadge(it.text, it.tone) }
         }
         if (model == null) {
@@ -487,15 +488,10 @@ private fun ChangeRow(change: ReportChange, onClick: (() -> Unit)?) {
                 Spacer(Modifier.width(ThesisSpace.xxs))
             }
             Text(change.directionLabel, style = ThesisType.caption, color = change.tone.textColor(p))
-            if (change.whyItMatters != null) {
-                Text(
-                    " · ${change.whyItMatters}",
-                    style = ThesisType.caption,
-                    color = p.ink2,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
+        }
+        // Its own line, whole: a sentence cut at the row edge loses its meaning (rubric A4, 360 dp and 2.0x).
+        if (change.whyItMatters != null) {
+            Text(change.whyItMatters, style = ThesisType.caption, color = p.ink2)
         }
     }
 }

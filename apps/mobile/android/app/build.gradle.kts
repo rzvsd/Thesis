@@ -246,7 +246,6 @@ dependencies {
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material:material")
     implementation("androidx.compose.material3:material3")
-    implementation("androidx.compose.material:material-icons-extended")
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
 
@@ -262,7 +261,6 @@ dependencies {
     implementation("com.revenuecat.purchases:purchases:9.28.1")
     implementation(platform("com.google.firebase:firebase-bom:33.9.0"))
     implementation("com.google.firebase:firebase-messaging-ktx")
-    implementation("com.patrykandpatrick.vico:compose-m3:1.15.0")
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20240303")

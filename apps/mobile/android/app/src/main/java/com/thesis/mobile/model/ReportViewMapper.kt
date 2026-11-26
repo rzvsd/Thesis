@@ -609,6 +609,9 @@ object ReportViewMapper {
         }
     }
 
+    /** A `value_discipline` object in the report payload's shape (the offline summary cache reuses it). */
+    fun valueDisciplineFrom(row: JSONObject?): ValueDisciplineView? = mapValueDiscipline(row)
+
     private fun mapValueDiscipline(row: JSONObject?): ValueDisciplineView? {
         if (row == null) {
             return null

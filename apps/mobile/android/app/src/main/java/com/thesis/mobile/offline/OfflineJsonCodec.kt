@@ -137,6 +137,7 @@ object OfflineJsonCodec {
                 "annual_history",
                 JSONArray().apply { summary.annualHistory.forEach { put(financialHistoryRowToJson(it)) } }
             )
+            .putOpt("value_discipline", valueDisciplineToJson(summary.valueDiscipline))
             .toString()
 
     fun decodeReportSummary(payload: String): ReportSummaryView? = runCatching {
@@ -171,7 +172,9 @@ object OfflineJsonCodec {
             changeSummary = changeSummary,
             annualHistory = (0 until rows.length()).mapNotNull { index ->
                 rows.optJSONObject(index)?.let(::financialHistoryRowFromJson)
-            }
+            },
+            // The report payload's own shape (valueDisciplineToJson), read by the report mapper.
+            valueDiscipline = ReportViewMapper.valueDisciplineFrom(root.optJSONObject("value_discipline"))
         )
     }.getOrNull()
 

@@ -23,7 +23,6 @@ val androidOnlyFiles = listOf(
     "com/thesis/mobile/ui/screens/SampleDeepDiveScreen.kt", // reads app assets via Context
     "com/thesis/mobile/ui/screens/DeleteAccountSection.kt", // viewModel<MainViewModel>()
     "com/thesis/mobile/ui/screens/PasswordResetScreen.kt", // viewModel<MainViewModel>()
-    "com/thesis/mobile/ui/screens/SentimentDashboardScreen.kt", // Vico charts (Android-only)
     "com/thesis/mobile/ui/theme/ThesisFonts.kt", // R.font; src/shim loads ../app/src/main/res/font/*.ttf instead
 )
 
@@ -51,7 +50,7 @@ val stageAppSources by tasks.registering(Sync::class) {
 }
 
 // The app's own JVM unit tests (app/src/test) run here too: all of them since PR-1 moved
-// defaultNotificationPreferences() out of MainViewModel (ui/shell/UiState.kt), so Phase4CopyTest stages too.
+// defaultNotificationPreferences() out of MainViewModel (ui/shell/UiState.kt), so NotificationDefaultsTest stages too.
 val stageAppTests by tasks.registering(Sync::class) {
     from(file("../app/src/test/java"))
     into(layout.buildDirectory.dir("app-test-src"))
@@ -77,7 +76,6 @@ dependencies {
     implementation("org.jetbrains.compose.foundation:foundation-desktop:$composeMpVersion")
     implementation("org.jetbrains.compose.material:material-desktop:$composeMpVersion")
     implementation("org.jetbrains.compose.material3:material3-desktop:$composeMpVersion")
-    implementation("org.jetbrains.compose.material:material-icons-extended-desktop:$composeMpVersion")
     implementation("org.jetbrains.compose.animation:animation-desktop:$composeMpVersion")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.1")
     implementation("org.json:json:20240303") // org.json ships inside the Android framework

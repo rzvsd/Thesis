@@ -53,8 +53,8 @@ object ThesisSurface {
     const val BAR_ALPHA = 0.92f
     /** Bottom dock and floating pills: `surface` at this alpha. */
     const val DOCK_ALPHA = 0.94f
-    /** DockPanel: `surface` at this alpha. */
-    const val DOCK_PANEL_ALPHA = 0.98f
+    /** DockPanel: `surface` at this alpha (opaque: the page must not ghost through the panel copy). */
+    const val DOCK_PANEL_ALPHA = 1f
     /** Long-read chapter divider: `line2` at this alpha. */
     const val CHAPTER_DIVIDER_ALPHA = 0.60f
 

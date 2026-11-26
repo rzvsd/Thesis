@@ -60,6 +60,11 @@ data class KpiSpec(
     val delta: String? = null,
     val deltaTone: Tone = Tone.Neutral,
     val reference: String? = null,
+    /**
+     * A 0..1 position on the figure's scale, drawn as the subject [Meter] (accent) under the value: the one subject
+     * meter of a page (Name's Monitor score, 0 to 100). Null: no meter.
+     */
+    val meter: Float? = null,
 )
 
 /**
@@ -77,6 +82,8 @@ fun KpiTile(
     featured: Boolean = false,
     onClick: (() -> Unit)? = null,
     onLongClick: (() -> Unit)? = null,
+    /** What TalkBack calls the long press (its custom action, e.g. "Show source", "More actions"); unnamed without it. */
+    onLongClickLabel: String? = null,
     valueStep: Int = 0,
     interactionSource: MutableInteractionSource = remember { MutableInteractionSource() },
 ) {
@@ -92,6 +99,7 @@ fun KpiTile(
                         interactionSource = interactionSource,
                         indication = null,
                         role = Role.Button,
+                        onLongClickLabel = onLongClickLabel,
                         onLongClick = onLongClick,
                         onClick = onClick ?: {},
                     )
@@ -104,6 +112,9 @@ fun KpiTile(
     ) {
         Text(spec.label, style = ThesisType.caption, color = p.ink2)
         FitFigure(spec.value, styles.subList(valueStep.coerceIn(0, styles.lastIndex), styles.size), color = p.ink)
+        if (spec.meter != null) {
+            Meter(spec.meter, Modifier.padding(vertical = ThesisSpace.xxs), subject = true)
+        }
         if (spec.delta != null || spec.reference != null) {
             Text(
                 buildAnnotatedString {

@@ -1,96 +1,127 @@
 package com.thesis.mobile.ui.screens
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.ExperimentalMaterialApi
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.filled.Insights
-import androidx.compose.material.icons.filled.TrendingUp
-import androidx.compose.material.pullrefresh.PullRefreshIndicator
-import androidx.compose.material.pullrefresh.pullRefresh
-import androidx.compose.material.pullrefresh.rememberPullRefreshState
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.ReadOnlyComposable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.unit.Constraints
 import com.thesis.mobile.model.AlertLedgerItemView
-import com.thesis.mobile.model.LastViewedReport
 import com.thesis.mobile.model.PulseReportView
-import com.thesis.mobile.model.SectionView
 import com.thesis.mobile.model.SentimentSnapshotView
+import com.thesis.mobile.model.SnapshotDelta
 import com.thesis.mobile.model.ThesisMonitorSnapshotView
+import com.thesis.mobile.ui.RefreshFailureKind
+import com.thesis.mobile.ui.charts.kit.ChartMath
+import com.thesis.mobile.ui.charts.kit.Sparkline
+import com.thesis.mobile.ui.components.ActionRow
+import com.thesis.mobile.ui.components.BannerTone
 import com.thesis.mobile.ui.components.EmptyState
 import com.thesis.mobile.ui.components.ErrorState
-import com.thesis.mobile.ui.motion.RollingNumber
-import com.thesis.mobile.ui.motion.rememberDataEntranceCoordinator
-import com.thesis.mobile.ui.motion.staggeredEntrance
-import com.thesis.mobile.ui.copy.Phase4Copy
+import com.thesis.mobile.ui.components.InlineBanner
+import com.thesis.mobile.ui.components.Kicker
+import com.thesis.mobile.ui.components.LeadingRowDividerInset
+import com.thesis.mobile.ui.components.Loadable
+import com.thesis.mobile.ui.components.PressableCard
+import com.thesis.mobile.ui.components.RowGroup
+import com.thesis.mobile.ui.components.ScreenHeader
+import com.thesis.mobile.ui.components.SecondaryButton
+import com.thesis.mobile.ui.components.SectionHeader
+import com.thesis.mobile.ui.components.SkeletonCard
+import com.thesis.mobile.ui.components.SkeletonRow
+import com.thesis.mobile.ui.components.SkeletonText
+import com.thesis.mobile.ui.components.StateCrossfade
+import com.thesis.mobile.ui.components.StatusBadge
+import com.thesis.mobile.ui.components.TapeRow
+import com.thesis.mobile.ui.components.TextAction
+import com.thesis.mobile.ui.components.ThesisCard
+import com.thesis.mobile.ui.components.ThesisRefreshBox
+import com.thesis.mobile.ui.components.TickerRow
+import com.thesis.mobile.ui.copy.KitCopy
+import com.thesis.mobile.ui.copy.StateCopy
+import com.thesis.mobile.ui.copy.TodayCopy
 import com.thesis.mobile.ui.format.Fmt
-import com.thesis.mobile.ui.theme.HeadingFont
+import com.thesis.mobile.ui.format.LocalFmt
+import com.thesis.mobile.ui.icons.ThesisIcons
+import com.thesis.mobile.ui.motion.RollingNumber
+import com.thesis.mobile.ui.motion.ShimmerHost
+import com.thesis.mobile.ui.motion.rememberDataEntranceCoordinator
+import com.thesis.mobile.ui.motion.rememberShowSkeleton
+import com.thesis.mobile.ui.motion.staggeredEntrance
 import com.thesis.mobile.ui.shell.exceptTop
-import com.thesis.mobile.ui.theme.ThesisColors
-import com.thesis.mobile.ui.theme.ThesisDimens
+import com.thesis.mobile.ui.theme.LocalThesisPalette
 import com.thesis.mobile.ui.theme.ThesisSpace
 import com.thesis.mobile.ui.theme.ThesisType
-import com.thesis.mobile.ui.theme.ThesisTypography
+import com.thesis.mobile.ui.theme.textColor
 import com.thesis.mobile.ui.theme.tnum
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
+import com.thesis.mobile.ui.today.ChapterKind
+import com.thesis.mobile.ui.today.HomeNames
+import com.thesis.mobile.ui.today.LocalTodayClock
+import com.thesis.mobile.ui.today.MacroModel
+import com.thesis.mobile.ui.today.MacroSummary
+import com.thesis.mobile.ui.today.MarketCalendar
+import com.thesis.mobile.ui.today.MarketPhase
+import com.thesis.mobile.ui.today.NameRowModel
+import com.thesis.mobile.ui.today.NamesSummary
+import com.thesis.mobile.ui.today.PulseBrief
+import com.thesis.mobile.ui.today.PulseChapterRow
+import com.thesis.mobile.ui.today.PulseText
+import com.thesis.mobile.ui.today.TapeModel
+import com.thesis.mobile.ui.today.parseDay
 import java.time.Instant
 import java.time.LocalDate
-import java.time.LocalTime
-import java.time.ZoneId
-import java.time.ZonedDateTime
-import java.time.format.DateTimeFormatter
-import com.thesis.mobile.ui.icons.ThesisIcons
-import com.thesis.mobile.ui.copy.StateCopy
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 
-@OptIn(ExperimentalMaterialApi::class)
+/*
+ * Today / Home (docs/app-redesign/DESIGN-DIRECTION.md 5.6): a briefing in five blocks under the shell's root bar:
+ * the header (date, market phase, the Pulse's morning line, one timestamp), the tape, your names, macro stress and
+ * today's Pulse. "Your names" starts above the fold on a 360 x 780 phone. Built from the kit only; every headline is
+ * a sentence generated from data (TodayCopy). Moved off Home: "Continue reading", Weekly digest and History (now in
+ * Research), the full-Pulse toggle and the Deep Dive suggestion.
+ */
+
+/** Section keys, also the stagger order. */
+private object HomeBlock {
+    const val HEADER = 0
+    const val TAPE = 1
+    const val NAMES = 2
+    const val MACRO = 3
+    const val PULSE = 4
+}
+
 @Composable
 fun HomeScreen(
     pulse: PulseReportView?,
     pulseLoadedFromCache: Boolean,
-    pulseFreshnessText: String?,
     sentimentCurrent: SentimentSnapshotView?,
     sentimentHistory: List<SentimentSnapshotView>,
     sentimentError: String?,
@@ -98,627 +129,621 @@ fun HomeScreen(
     monitorSnapshots: List<ThesisMonitorSnapshotView>,
     morningBriefing: AlertLedgerItemView? = null,
     padding: PaddingValues,
-    lastViewedReport: LastViewedReport? = null,
     pulseError: String? = null,
-    onOpenHistory: () -> Unit,
-    onRunDeepDive: (String) -> Unit,
     onManageNames: () -> Unit,
     onRetryPulse: () -> Unit,
     onOpenMacroStressDashboard: () -> Unit,
-    onOpenWeeklyDigest: () -> Unit,
     onOpenPulseBrief: () -> Unit,
     onOpenMorningBriefing: (AlertLedgerItemView) -> Unit = {},
-    onResumeLastViewed: ((LastViewedReport) -> Unit)? = null,
-    onDismissResume: (() -> Unit)? = null
+    /** `isPulseRefreshing || isMacroRefreshing` from the ViewModel (never a fake delay). */
+    refreshing: Boolean = false,
+    /** Monitor readings against the last visit ("since your last visit"), by ticker. */
+    snapshotDeltas: Map<String, SnapshotDelta> = emptyMap(),
+    /** Tickers with a note (the local notes cache): a NoteMark on their row. */
+    notedTickers: Set<String> = emptySet(),
+    /** Opens a name (container transform); without it the row opens the Names tab. */
+    onOpenName: ((String) -> Unit)? = null,
+    /**
+     * Opens a name from the tapped row's window bounds (the shell's container transform, 4.5); wins over
+     * [onOpenName] when given.
+     */
+    onOpenNameFrom: ((ticker: String, bounds: Rect?) -> Unit)? = null,
+    /** Opens the Pulse at a chapter (the tape opens Markets); without it, the Pulse at its top. */
+    onOpenPulseAt: ((ChapterKind) -> Unit)? = null,
+    /**
+     * When the next issue is expected, for the no-Pulse state ("Expected by 06:30", or "Today’s Pulse is running
+     * late / It was due by 06:30" once that time has passed); null when not known.
+     */
+    pulseExpectedAt: Instant? = null,
+    /** Reloads macro stress (`onRefreshMacro`): the macro card's "Try again" and, with [onRetryPulse], the pull. */
+    onRetryMacro: (() -> Unit)? = null,
+    /**
+     * Why the last Pulse refresh failed, when it did: the cached-copy banner and the error state say "offline"
+     * only for [RefreshFailureKind.OFFLINE]. Null when unknown (the banner then says "Couldn’t refresh").
+     */
+    pulseFailure: RefreshFailureKind? = null,
+    /**
+     * The empty names state's "Add a name": Names with the add field focused (spec 5.6). Without it, [onManageNames]
+     * (the Names tab, no focus).
+     */
+    onAddName: (() -> Unit)? = null,
 ) {
-    var showFullPulse by rememberSaveable { mutableStateOf(false) }
-    val dateLabel = remember { LocalDate.now().format(DateTimeFormatter.ofPattern("EEEE, MMM d")) }
-    val phase = remember { resolveTodayPhase() }
-    val pulseSections = pulse?.sections.orEmpty()
-    val visiblePulseSections = pulseSections.filterNot { isWatchlistOverlay(it) }
-    val todayPlan = remember(phase, visiblePulseSections) {
-        buildTodayPlan(phase, visiblePulseSections)
-    }
-    val pulseLead = derivePulseLead(pulse, phase)
-    // First-open entrance (4.3 rule 2): Home's first 8 blocks stagger once per Pulse issue and entry, never on a
-    // tab return, a pop back, a refresh or a recreation. Nothing staggers before an issue has loaded.
-    // The modifier is applied from the first paint, so blocks drawn before the issue never blank when it lands.
-    val coordinator = rememberDataEntranceCoordinator(dataKey = pulse?.reportId)
-    val entrance: (Int) -> Modifier = { order -> Modifier.staggeredEntrance(order, coordinator) }
-    val pulseTimestamp = pulse?.generatedAt?.let(::formatTimestamp)
-    val lastViewedTicker = lastViewedReport?.takeIf { it.type == "DEEP_DIVE" }?.label
-    val insight = deriveInsight(pulse, watchlist, monitorSnapshots, lastViewedTicker)
-
-    var isRefreshing by remember { mutableStateOf(false) }
-    val scope = rememberCoroutineScope()
-    val pullRefreshState = rememberPullRefreshState(
-        refreshing = isRefreshing,
-        onRefresh = {
-            isRefreshing = true
-            onRetryPulse()
-            scope.launch {
-                delay(1800L)
-                isRefreshing = false
-            }
+    val fmt = LocalFmt.current
+    val clock = LocalTodayClock.current
+    // The eyebrow's market phase and the greeting follow the clock: re-read on every refresh and new issue, and
+    // at each minute boundary while Home is composed (09:30 turns PRE-MARKET into MARKET OPEN without a refresh).
+    // The wait runs off the composition's dispatcher: it is wall-clock time, and a UI test's idle check (which
+    // drives that dispatcher's virtual time) would otherwise advance it minute after minute and never go idle.
+    var now by remember(clock) { mutableStateOf(clock.instant()) }
+    LaunchedEffect(clock, pulse?.reportId, refreshing) {
+        now = clock.instant()
+        while (true) {
+            val wait = MINUTE_MS - now.toEpochMilli().mod(MINUTE_MS)
+            withContext(Dispatchers.Default) { delay(wait) }
+            now = clock.instant()
         }
-    )
-
-    // The list scrolls under the shell's top bar (4.4): the bar's height goes into the content padding.
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(padding.exceptTop())
-            .pullRefresh(pullRefreshState)
-    ) {
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = ThesisDimens.ScreenPaddingHorizontal),
-            verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSection),
-            contentPadding = PaddingValues(
-                top = padding.calculateTopPadding(),
-                bottom = ThesisDimens.ScreenPaddingBottom
-            )
-        ) {
-            item {
-                Box(entrance(0)) {
-                    Spacer(modifier = Modifier.height(ThesisDimens.ScreenPaddingTop))
-                    Column {
-                        Text(
-                            text = dateLabel.uppercase(),
-                            style = ThesisTypography.labelSmall,
-                            color = ThesisColors.TextMuted
-                        )
-                        Spacer(modifier = Modifier.height(ThesisDimens.SpacingSm))
-                        Text(
-                            text = phase.title,
-                            style = ThesisTypography.displayLarge.copy(
-                                fontFamily = HeadingFont,
-                                fontWeight = FontWeight.Normal
-                            ),
-                            color = ThesisColors.TextPrimary
-                        )
-                        Spacer(modifier = Modifier.height(ThesisDimens.SpacingMd))
-                        Text(
-                            text = pulseLead,
-                            style = ThesisTypography.bodyLarge,
-                            color = ThesisColors.TextSecondary
-                        )
-                        if (!pulseTimestamp.isNullOrBlank()) {
-                            Spacer(modifier = Modifier.height(ThesisDimens.SpacingSm))
-                            Text(
-                                text = "Updated $pulseTimestamp",
-                                style = ThesisTypography.bodySmall,
-                                color = ThesisColors.TextMuted
-                            )
-                        }
-                        if (!pulseFreshnessText.isNullOrBlank()) {
-                            Spacer(modifier = Modifier.height(ThesisDimens.SpacingXs))
-                            Text(
-                                text = pulseFreshnessText,
-                                style = ThesisTypography.bodySmall,
-                                color = if (pulseLoadedFromCache) ThesisColors.SignalWarning else ThesisColors.TextMuted
-                            )
-                        }
-                    }
-                }
-            }
-
-            item {
-                Box(entrance(1)) {
-                    MacroStressSummaryCard(
-                        current = sentimentCurrent,
-                        history = sentimentHistory,
-                        sentimentError = sentimentError,
-                        onOpenDashboard = onOpenMacroStressDashboard,
-                        onOpenWeeklyDigest = onOpenWeeklyDigest
-                    )
-                }
-            }
-
-            if (morningBriefing != null) {
-                item {
-                    Box(entrance(2)) {
-                        MorningBriefingCard(
-                            alert = morningBriefing,
-                            onOpen = { onOpenMorningBriefing(morningBriefing) }
-                        )
-                    }
-                }
-            }
-
-            if (lastViewedReport != null && onResumeLastViewed != null && onDismissResume != null) {
-                item {
-                    Box(entrance(3)) {
-                        ResumeCard(
-                            title = resumeTitle(lastViewedReport),
-                            onResume = { onResumeLastViewed(lastViewedReport) },
-                            onDismiss = onDismissResume
-                        )
-                    }
-                }
-            }
-
-            when {
-                pulse == null && !pulseError.isNullOrBlank() -> {
-                    item {
-                        if (pulseError.contains("No internet connection", ignoreCase = true)) {
-                            ErrorState(
-                                title = StateCopy.OFFLINE_TITLE,
-                                cause = StateCopy.OFFLINE_CAUSE,
-                                onRetry = onRetryPulse
-                            )
-                        } else {
-                            ErrorState(title = StateCopy.pulseUnavailable, cause = pulseError, onRetry = onRetryPulse)
-                        }
-                    }
-                }
-
-                pulse == null && watchlist.isEmpty() -> {
-                    item { NoNamesState(onAddName = onManageNames) }
-                }
-
-                pulse == null -> {
-                    val fallbackTicker = lastViewedTicker ?: watchlist.firstOrNull()
-                    item {
-                        EmptyState(
-                            sentence = StateCopy.NO_PULSE,
-                            how = StateCopy.NO_PULSE_HOW,
-                            icon = ThesisIcons.Pulse,
-                            actionLabel = StateCopy.NO_PULSE_ACTION,
-                            onAction = {
-                                if (!fallbackTicker.isNullOrBlank()) {
-                                    onRunDeepDive(fallbackTicker)
-                                }
-                            }
-                        )
-                    }
-                }
-
-                else -> {
-                    item {
-                        Box(entrance(4)) {
-                            WhatMovedSection(
-                                subtitle = todayPlan.subtitle,
-                                sections = todayPlan.prioritySections.take(4)
-                            )
-                        }
-                    }
-                }
-            }
-
-            item {
-                Box(entrance(5)) {
-                    YourNamesSection(
-                        watchlist = watchlist,
-                        pulse = pulse,
-                        monitorSnapshots = monitorSnapshots,
-                        onManageNames = onManageNames,
-                        onRunDeepDive = onRunDeepDive
-                    )
-                }
-            }
-
-            if (insight != null) {
-                item {
-                    Box(entrance(6)) {
-                        InsightAlertSection(insight = insight, onRunDeepDive = onRunDeepDive)
-                    }
-                }
-            }
-
-            if (showFullPulse && pulse != null) {
-                item {
-                    FullPulseSection(sections = pulseSections)
-                }
-            }
-
-            item {
-                Box(entrance(7)) {
-                    BottomLinksSection(
-                        showFullPulse = showFullPulse,
-                        onToggleFullPulse = { showFullPulse = !showFullPulse },
-                        onOpenPulseBrief = onOpenPulseBrief,
-                        onOpenHistory = onOpenHistory
-                    )
-                }
-            }
-        }
-
-        PullRefreshIndicator(
-            refreshing = isRefreshing,
-            state = pullRefreshState,
-            modifier = Modifier.align(Alignment.TopCenter).padding(top = padding.calculateTopPadding()),
-            backgroundColor = ThesisColors.Surface,
-            contentColor = ThesisColors.Primary
-        )
     }
-}
+    val today = remember(now, clock) { now.atZone(clock.zone).toLocalDate() }
 
-@Composable
-private fun MorningBriefingCard(
-    alert: AlertLedgerItemView,
-    onOpen: () -> Unit
-) {
-    val shape = RoundedCornerShape(ThesisDimens.CardCornerRadius)
-    val mode = alert.briefingContext?.mode?.trim()?.lowercase()
-    val exceptionsCount = alert.briefingContext?.count ?: 0
-    val watchlistCount = alert.briefingContext?.watchlistCount ?: 0
-    val leadTicker = alert.briefingContext?.leadTicker?.trim()?.uppercase()?.ifBlank { null }
-    val related = alert.briefingContext
-        ?.relatedTickers
-        .orEmpty()
-        .filter { it.isNotBlank() }
-        .map { it.trim().uppercase() }
-    val contextLine = when {
-        mode == "no_change" && watchlistCount > 0 ->
-            "Checked $watchlistCount name(s). No thesis-level exceptions were found."
-        mode == "no_change" -> "No thesis-level exceptions were found in the latest cycle."
-        !leadTicker.isNullOrBlank() && exceptionsCount > 1 ->
-            "Lead name: $leadTicker. ${exceptionsCount - 1} more name(s) flagged."
-        !leadTicker.isNullOrBlank() -> "Lead name: $leadTicker."
-        exceptionsCount > 0 -> "$exceptionsCount name(s) need review."
-        else -> null
+    val brief = remember(pulse, watchlist) { pulse?.let { PulseBrief.from(it, watchlist) } }
+    // Keyed on the clock and the formatter too: a 24 h, locale or date setting change re-words the captions.
+    val names = remember(watchlist, monitorSnapshots, snapshotDeltas, notedTickers, today, clock, fmt) {
+        HomeNames.summary(watchlist, monitorSnapshots, snapshotDeltas, notedTickers, clock, fmt)
     }
-    val relatedLine = if (related.isNotEmpty()) {
-        "Also flagged: ${related.joinToString(separator = ", ")}"
-    } else {
-        null
-    }
-    val actionLabel = if (mode == "no_change") {
-        Phase4Copy.morningBriefingNoChangeAction
-    } else {
-        Phase4Copy.morningBriefingExceptionAction
+    val macro = remember(sentimentCurrent, sentimentHistory, fmt) { MacroModel.summary(sentimentCurrent, sentimentHistory, fmt) }
+
+    // One refresh line at a time (4.3 rule 10): the pull's own hairline when the reader pulled, else the header's.
+    // A pull is over when its refresh has started and ended; when no refresh starts within a short window (the
+    // ViewModel had nothing to do, or `refreshing` is not wired), it is over too, so a later background refresh
+    // shows the header's hairline, not the pull's.
+    var pulled by remember { mutableStateOf(false) }
+    val refreshingNow by rememberUpdatedState(refreshing)
+    LaunchedEffect(pulled) {
+        if (!pulled) return@LaunchedEffect
+        val started = withTimeoutOrNull(PULL_START_WINDOW_MS) { snapshotFlow { refreshingNow }.first { it } }
+        if (started != null) snapshotFlow { refreshingNow }.first { !it }
+        pulled = false
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(shape)
-            .background(ThesisColors.Surface)
-            .border(ThesisDimens.BorderWidth, ThesisColors.Primary.copy(alpha = 0.3f), shape)
-            .padding(ThesisDimens.CardPadding),
-        verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(
-                imageVector = Icons.Default.TrendingUp,
-                contentDescription = null,
-                tint = ThesisColors.Primary,
-                modifier = Modifier.size(16.dp)
-            )
-            Spacer(modifier = Modifier.size(ThesisDimens.SpacingSm))
-            Text(
-                text = Phase4Copy.morningBriefingEyebrow.uppercase(),
-                style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Medium),
-                color = ThesisColors.Primary
-            )
+    // No cache and a load in flight: nothing for the skeleton's grace period (no flash of empty states), then
+    // the skeleton, held for its minimum time once the data lands.
+    val noCache = refreshing && pulse == null && pulseError == null && sentimentCurrent == null
+    val showSkeleton = rememberShowSkeleton(loading = noCache)
+    val loading = noCache || showSkeleton
+    val openPulseAt: (ChapterKind) -> Unit = { kind -> onOpenPulseAt?.invoke(kind) ?: onOpenPulseBrief() }
+    val openName: (String, Rect?) -> Unit = { ticker, bounds ->
+        when {
+            onOpenNameFrom != null -> onOpenNameFrom(ticker, bounds)
+            onOpenName != null -> onOpenName(ticker)
+            else -> onManageNames()
         }
-        Text(
-            text = alert.title,
-            style = ThesisTypography.headlineLarge.copy(
-                fontFamily = HeadingFont,
-                fontWeight = FontWeight.Normal
-            ),
-            color = ThesisColors.TextPrimary
-        )
-        Text(
-            text = alert.body,
-            style = ThesisTypography.bodyMedium,
-            color = ThesisColors.TextSecondary
-        )
-        if (!contextLine.isNullOrBlank()) {
-            Text(
-                text = contextLine,
-                style = ThesisTypography.bodySmall,
-                color = ThesisColors.TextMuted
-            )
-        }
-        if (!relatedLine.isNullOrBlank()) {
-            Text(
-                text = relatedLine,
-                style = ThesisTypography.bodySmall,
-                color = ThesisColors.TextMuted
-            )
-        }
-        Button(
-            onClick = onOpen,
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(min = ThesisSpace.touchMin),
-            shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = ThesisColors.Primary,
-                contentColor = ThesisColors.TextInverse
-            )
-        ) {
-            Text(
-                text = actionLabel,
-                style = ThesisTypography.labelLarge.copy(fontWeight = FontWeight.Medium)
-            )
+    }
+
+    Box(Modifier.fillMaxSize().padding(padding.exceptTop())) {
+        StateCrossfade(state = if (loading) Loadable.Loading else Loadable.Ready(Unit), loading = { if (showSkeleton) HomeSkeleton(padding) }) {
+            ThesisRefreshBox(
+                refreshing = refreshing && pulled,
+                onRefresh = {
+                    pulled = true
+                    // Home shows both: the pull reloads the Pulse and macro stress (spec 5.6).
+                    onRetryPulse()
+                    onRetryMacro?.invoke()
+                },
+                indicatorTop = padding.calculateTopPadding(),
+            ) {
+                HomeList(
+                    padding = padding,
+                    brief = brief,
+                    pulse = pulse,
+                    pulseError = pulseError,
+                    fromCache = pulseLoadedFromCache,
+                    pulseFailure = pulseFailure,
+                    names = names,
+                    macro = macro,
+                    sentimentError = sentimentError,
+                    morningBriefing = morningBriefing,
+                    now = now,
+                    today = today,
+                    headerRefreshing = refreshing && !pulled,
+                    pulseExpectedAt = pulseExpectedAt,
+                    onManageNames = onManageNames,
+                    onAddName = onAddName ?: onManageNames,
+                    onRetryPulse = onRetryPulse,
+                    onRetryMacro = onRetryMacro,
+                    onOpenMacro = onOpenMacroStressDashboard,
+                    onOpenPulse = onOpenPulseBrief,
+                    onOpenPulseAt = openPulseAt,
+                    onOpenName = openName,
+                    onOpenMorningBriefing = onOpenMorningBriefing,
+                )
+            }
         }
     }
 }
 
 @Composable
-private fun MacroStressSummaryCard(
-    current: SentimentSnapshotView?,
-    history: List<SentimentSnapshotView>,
+private fun HomeList(
+    padding: PaddingValues,
+    brief: PulseBrief?,
+    pulse: PulseReportView?,
+    pulseError: String?,
+    fromCache: Boolean,
+    pulseFailure: RefreshFailureKind?,
+    names: NamesSummary,
+    macro: MacroSummary?,
     sentimentError: String?,
-    onOpenDashboard: () -> Unit,
-    onOpenWeeklyDigest: () -> Unit
-) {
-    val macroStressLabel = formatMacroStressLabel(current?.label)
-    val direction = if (sentimentError.isNullOrBlank()) {
-        deriveMacroStressDirection(current, history)
-    } else {
-        null
-    }
-    val scoreValue = current?.score
-    val marketDate = current?.marketDate
-
-    val shape = RoundedCornerShape(ThesisDimens.CardCornerRadius)
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(shape)
-            .background(ThesisColors.Surface)
-            .border(ThesisDimens.BorderWidth, ThesisColors.Border, shape)
-            .padding(ThesisDimens.CardPadding),
-        verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingMd)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.Top
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = Phase4Copy.todayMacroStressTitle,
-                    style = ThesisTypography.headlineLarge.copy(
-                        fontFamily = HeadingFont,
-                        fontWeight = FontWeight.Normal
-                    ),
-                    color = ThesisColors.TextPrimary
-                )
-                Spacer(modifier = Modifier.height(ThesisDimens.SpacingXs))
-                Text(
-                    text = when {
-                        !sentimentError.isNullOrBlank() -> "Temporarily unavailable"
-                        marketDate.isNullOrBlank() -> "No macro snapshot yet"
-                        else -> marketDate
-                    },
-                    style = ThesisTypography.bodySmall,
-                    color = ThesisColors.TextMuted,
-                    // A4: the date never breaks inside the number; the fallback sentences may wrap.
-                    softWrap = !sentimentError.isNullOrBlank() || marketDate.isNullOrBlank()
-                )
-                Spacer(modifier = Modifier.height(ThesisDimens.SpacingXs))
-                Text(
-                    text = Phase4Copy.todayMacroStressSourceNote,
-                    style = ThesisTypography.bodySmall,
-                    color = ThesisColors.TextMuted
-                )
-            }
-            Column(horizontalAlignment = Alignment.End) {
-                // 4.6: final on first paint; after a refresh the new score rolls in the direction of the change.
-                run {
-                    if (scoreValue != null) {
-                        RollingNumber(
-                            value = scoreValue,
-                            // C1: the app formatter, so the rolled figure matches a static score (61.5 -> "62").
-                            format = { Fmt.score(it) },
-                            // 5.6: the `figure` style; tabular digits, because the value rolls on refresh.
-                            style = ThesisType.figure.tnum(),
-                            color = ThesisColors.TextPrimary
-                        )
-                    } else {
-                        Text(
-                            text = "--",
-                            style = ThesisType.figure.tnum(),
-                            color = ThesisColors.TextPrimary
-                        )
-                    }
-                }
-                Text(
-                    text = macroStressLabel,
-                    style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Medium),
-                    color = macroStressColor(current?.label)
-                )
-            }
-        }
-
-        if (!direction.isNullOrBlank()) {
-            Text(
-                text = direction,
-                style = ThesisTypography.bodySmall,
-                color = ThesisColors.TextMuted
-            )
-        }
-        if (!sentimentError.isNullOrBlank()) {
-            Text(
-                text = sentimentError,
-                style = ThesisTypography.bodySmall,
-                color = ThesisColors.SignalWarning
-            )
-        }
-
-        HorizontalDivider(color = ThesisColors.Border, thickness = ThesisDimens.BorderWidth)
-
-        // Above the display cap (1.3x) the two labels no longer fit side by side (2.0x broke "Dashboard" mid-word):
-        // stack them, full width.
-        val stackActions = LocalDensity.current.fontScale > ThesisType.MAX_DISPLAY_SCALE
-        val dashboardButton: @Composable (Modifier) -> Unit = { modifier ->
-            Button(
-                onClick = onOpenDashboard,
-                modifier = modifier.heightIn(min = ThesisSpace.touchMin),
-                shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = ThesisColors.Primary,
-                    contentColor = ThesisColors.TextInverse
-                )
-            ) {
-                Text(
-                    text = Phase4Copy.todayMacroStressDashboardLabel,
-                    style = ThesisTypography.labelLarge.copy(fontWeight = FontWeight.Medium)
-                )
-            }
-        }
-        val digestButton: @Composable (Modifier) -> Unit = { modifier ->
-            Button(
-                onClick = onOpenWeeklyDigest,
-                modifier = modifier.heightIn(min = ThesisSpace.touchMin),
-                shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = ThesisColors.SurfaceElevated,
-                    contentColor = ThesisColors.TextPrimary
-                )
-            ) {
-                Text(
-                    text = "Weekly Digest",
-                    style = ThesisTypography.labelLarge.copy(fontWeight = FontWeight.Medium)
-                )
-            }
-        }
-        if (stackActions) {
-            Column(verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)) {
-                dashboardButton(Modifier.fillMaxWidth())
-                digestButton(Modifier.fillMaxWidth())
-            }
-        } else {
-            Row(horizontalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)) {
-                dashboardButton(Modifier.weight(1f))
-                digestButton(Modifier.weight(1f))
-            }
-        }
-    }
-}
-
-@Composable
-private fun WhatMovedSection(
-    subtitle: String,
-    sections: List<SectionView>
-) {
-    Column {
-        SectionHeader(title = "What Moved", subtitle = subtitle)
-        Spacer(modifier = Modifier.height(ThesisDimens.SpacingLg))
-        if (sections.isEmpty()) {
-            PulseInfoCard(
-                title = "Waiting on today's pulse",
-                body = "The daily cycle has not produced output yet.",
-                status = null
-            )
-            return
-        }
-        Column(verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)) {
-            sections.forEach { section ->
-                PulseInfoCard(
-                    title = section.title,
-                    body = summarizeBody(section.body),
-                    status = section.status
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun YourNamesSection(
-    watchlist: List<String>,
-    pulse: PulseReportView?,
-    monitorSnapshots: List<ThesisMonitorSnapshotView>,
+    morningBriefing: AlertLedgerItemView?,
+    now: Instant,
+    today: LocalDate,
+    headerRefreshing: Boolean,
+    pulseExpectedAt: Instant?,
     onManageNames: () -> Unit,
-    onRunDeepDive: (String) -> Unit
+    onAddName: () -> Unit,
+    onRetryPulse: () -> Unit,
+    onRetryMacro: (() -> Unit)?,
+    onOpenMacro: () -> Unit,
+    onOpenPulse: () -> Unit,
+    onOpenPulseAt: (ChapterKind) -> Unit,
+    onOpenName: (String, Rect?) -> Unit,
+    onOpenMorningBriefing: (AlertLedgerItemView) -> Unit,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingLg)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.Bottom
-        ) {
-            Text(
-                text = "My Names",
-                style = ThesisTypography.headlineLarge.copy(
-                    fontFamily = HeadingFont,
-                    fontWeight = FontWeight.Normal
-                ),
-                color = ThesisColors.TextPrimary
-            )
-            Text(
-                text = "MANAGE",
-                style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Medium),
-                color = ThesisColors.Primary,
-                modifier = Modifier
-                    .clickable { onManageNames() }
-                    .padding(ThesisDimens.SpacingMd)
-                    .semantics {
-                        contentDescription = "Manage watchlist names"
-                        role = Role.Button
-                    }
-            )
-        }
+    val fmt = LocalFmt.current
+    val clock = LocalTodayClock.current
+    // Staggers once per issue, only when Home opens on a loaded issue (4.3 rule 2).
+    val coordinator = rememberDataEntranceCoordinator(dataKey = pulse?.reportId)
+    fun Modifier.entrance(block: Int) = staggeredEntrance(block, coordinator)
 
-        if (watchlist.isEmpty()) {
-            NoNamesState(onAddName = onManageNames)
-            return
-        }
+    // The phase is New York's; it is shown only when the reader's date is New York's date too (in Tokyo at 07:00
+    // Wednesday, New York is still in Tuesday's session: "WED 25 NOV · AFTER THE CLOSE" would mislead).
+    val phase = remember(now, today) {
+        MarketCalendar.phase(now)?.takeIf { now.atZone(MarketCalendar.NewYork).toLocalDate() == today }
+    }
+    val generated = brief?.generatedAt
+    val header = HeaderText(
+        date = fmt.marketDate(today),
+        phase = phase?.let(::phaseWord),
+        morningLine = brief?.morningLine?.ifBlank { null },
+        greeting = TodayCopy.greeting(now.atZone(clock.zone).hour),
+        meta = generated?.let { at ->
+            if (at.atZone(clock.zone).toLocalDate() == today) TodayCopy.asOf(fmt.time(at)) else fmt.asOf(at)
+        },
+    )
+    // The briefing's six instruments (5.6); the Pulse's Markets chapter has the whole tape.
+    val tape = remember(pulse?.tape) { TapeModel.items(TapeModel.homeLines(TapeModel.lines(pulse?.tape))) }
 
-        val shape = RoundedCornerShape(ThesisDimens.CardCornerRadius)
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(shape)
-                .background(ThesisColors.Surface)
-                .border(ThesisDimens.BorderWidth, ThesisColors.Border, shape)
-        ) {
-            watchlist.take(5).forEachIndexed { index, ticker ->
-                val context = describeWatchlistContext(ticker, pulse, monitorSnapshots)
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { onRunDeepDive(ticker) }
-                        .padding(
-                            horizontal = ThesisDimens.CardPadding,
-                            vertical = ThesisDimens.SpacingLg
-                        )
-                        .semantics { contentDescription = "Open $ticker deep dive" },
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .width(3.dp)
-                            .height(42.dp)
-                            .clip(RoundedCornerShape(2.dp))
-                            .background(ThesisColors.Primary)
-                    )
-                    Spacer(modifier = Modifier.width(ThesisDimens.SpacingMd))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = ticker,
-                            style = ThesisTypography.headlineMedium.copy(fontWeight = FontWeight.Medium),
-                            color = ThesisColors.TextPrimary
-                        )
-                        Text(
-                            text = context,
-                            style = ThesisTypography.bodySmall,
-                            color = ThesisColors.TextMuted,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis
-                        )
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(top = padding.calculateTopPadding(), bottom = ThesisSpace.x5),
+    ) {
+        item(key = "header") {
+            Column(
+                Modifier
+                    .entrance(HomeBlock.HEADER)
+                    .padding(horizontal = ThesisSpace.gutter)
+                    .padding(top = ThesisSpace.headerTop, bottom = ThesisSpace.l),
+                verticalArrangement = Arrangement.spacedBy(ThesisSpace.l),
+            ) {
+                HomeHeader(header, headerRefreshing)
+                if (fromCache && pulse != null) {
+                    // The day too when the copy is not today's ("Offline · showing 06:30, Fri 20 Nov").
+                    val shown = generated?.let { at ->
+                        val day = at.atZone(clock.zone).toLocalDate()
+                        if (day == today) fmt.time(at) else TodayCopy.timeOnDay(fmt.time(at), fmt.marketDate(day))
                     }
-                    Spacer(modifier = Modifier.size(ThesisDimens.SpacingMd))
-                    Text(
-                        text = "OPEN",
-                        style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Medium),
-                        color = ThesisColors.Primary
-                    )
+                    val text = if (pulseFailure == RefreshFailureKind.OFFLINE) TodayCopy.offlineShowing(shown) else TodayCopy.staleShowing(shown)
+                    InlineBanner(text, tone = BannerTone.Neutral)
                 }
-                if (index < watchlist.take(5).lastIndex) {
-                    HorizontalDivider(
-                        color = ThesisColors.Border,
-                        thickness = ThesisDimens.BorderWidth,
-                        modifier = Modifier.padding(horizontal = ThesisDimens.CardPadding)
+            }
+        }
+
+        item(key = "tape") {
+            // Always composed (a block never gains its entrance node after its first paint); empty when no tape.
+            Box(Modifier.entrance(HomeBlock.TAPE)) {
+                if (tape.isNotEmpty()) {
+                    val caption = tapeCaption(brief, phase, today, fmt, clock)
+                    // Past 1.3x the caption alone would fill the visible width: it moves above the instruments.
+                    val largeText = LocalDensity.current.fontScale > ThesisType.MAX_DISPLAY_SCALE
+                    Column(verticalArrangement = Arrangement.spacedBy(ThesisSpace.xs)) {
+                        if (largeText) {
+                            Text(
+                                caption,
+                                modifier = Modifier.padding(horizontal = ThesisSpace.gutter),
+                                style = ThesisType.caption,
+                                color = LocalThesisPalette.current.muted,
+                            )
+                        }
+                        TapeRow(
+                            items = tape,
+                            caption = if (largeText) null else caption,
+                            onClick = { onOpenPulseAt(ChapterKind.Markets) },
+                        )
+                    }
+                }
+            }
+        }
+
+        item(key = "names") {
+            Box(Modifier.entrance(HomeBlock.NAMES).padding(top = ThesisSpace.sectionGapData)) {
+                NamesBlock(names, onManageNames, onAddName, onOpenName)
+            }
+        }
+
+        item(key = "macro") {
+            Box(Modifier.entrance(HomeBlock.MACRO).padding(top = ThesisSpace.sectionGapData)) {
+                MacroBlock(macro, sentimentError, onOpenMacro, onRetryMacro)
+            }
+        }
+
+        // "Today's Pulse" only over today's issue: on a weekend, a holiday or before the next issue, Home shows the
+        // last issue under its date ("Pulse · Fri 20 Nov"), never as today's.
+        val issueDay = parseDay(pulse?.cycleEnd) ?: generated?.atZone(clock.zone)?.toLocalDate()
+        val marketDay = MarketCalendar.isTradingDay(today)
+        val pulseKicker = when {
+            brief == null -> if (marketDay) TodayCopy.PULSE_KICKER else TodayCopy.PULSE_TITLE
+            issueDay == null -> TodayCopy.LATEST_PULSE_KICKER
+            issueDay == today -> TodayCopy.PULSE_KICKER
+            else -> TodayCopy.datedPulseKicker(fmt.marketDate(issueDay))
+        }
+        // The title never contradicts the line under it or the clock: "arrives before the open" only while that is
+        // still ahead; "running late" once the due time has passed; "has not arrived yet" once the market is open.
+        val openPassed = phase == MarketPhase.Open || phase == MarketPhase.AfterClose
+        val noPulse: Pair<String, String> = when {
+            !marketDay -> TodayCopy.NO_PULSE_CLOSED to TodayCopy.nextIssue(fmt.marketDate(MarketCalendar.nextTradingDay(today)))
+            pulseExpectedAt != null -> {
+                val day = pulseExpectedAt.atZone(clock.zone).toLocalDate()
+                val label = if (day == today) fmt.time(pulseExpectedAt) else TodayCopy.timeOnDay(fmt.time(pulseExpectedAt), fmt.marketDate(day))
+                when {
+                    !now.isBefore(pulseExpectedAt) -> TodayCopy.NO_PULSE_LATE to TodayCopy.runningLate(label)
+                    openPassed -> TodayCopy.NO_PULSE_YET to TodayCopy.expectedBy(label)
+                    else -> TodayCopy.NO_PULSE to TodayCopy.expectedBy(label)
+                }
+            }
+            openPassed -> TodayCopy.NO_PULSE_YET to TodayCopy.NO_PULSE_HOW
+            else -> TodayCopy.NO_PULSE to TodayCopy.NO_PULSE_HOW
+        }
+        pulseBlock(
+            kicker = pulseKicker,
+            noPulse = noPulse,
+            brief = brief,
+            pulseError = pulseError,
+            offline = pulseFailure == RefreshFailureKind.OFFLINE,
+            morningBriefing = morningBriefing,
+            entrance = { Modifier.entrance(HomeBlock.PULSE) },
+            onRetry = onRetryPulse,
+            onOpenPulse = onOpenPulse,
+            onOpenPulseAt = onOpenPulseAt,
+            onOpenMorningBriefing = onOpenMorningBriefing,
+        )
+    }
+}
+
+private data class HeaderText(val date: String, val phase: String?, val morningLine: String?, val greeting: String, val meta: String?)
+
+/** Lines Home's headline may take (spec 5.6: the morning line in `headline`, max 2 lines). */
+private const val HEADLINE_LINES = 2
+
+private const val MINUTE_MS = 60_000L
+
+/** How long a pull waits for its refresh to start before it counts as over (not motion timing). */
+private const val PULL_START_WINDOW_MS = 1_500L
+
+/**
+ * The header with the morning line shortened to what fits two `headline` lines at this width and font scale: the
+ * whole first sentence when it fits, else the sentence cut at its last clause boundary that fits (never mid-word,
+ * never an ellipsis). Measured, not counted: a character budget cannot know the width, the font or the scale.
+ */
+@Composable
+private fun HomeHeader(header: HeaderText, refreshing: Boolean) {
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val measurer = rememberTextMeasurer()
+        val style = ThesisType.capped(ThesisType.headline)
+        val width = constraints.maxWidth
+        // The eyebrow on one line when it fits, else the date over the phase (no " · " left at a line end).
+        val eyebrowStyle = ThesisType.eyebrow
+        val eyebrow = remember(header.date, header.phase, width, eyebrowStyle, measurer) {
+            val line = TodayCopy.eyebrow(header.date, header.phase)
+            val oneLine = !measurer.measure(
+                line.uppercase(),
+                style = eyebrowStyle,
+                maxLines = 1,
+                constraints = Constraints(maxWidth = width),
+            ).hasVisualOverflow
+            if (oneLine) line else TodayCopy.eyebrowStacked(header.date, header.phase)
+        }
+        val title = remember(header.morningLine, header.greeting, width, style, measurer) {
+            val line = header.morningLine ?: return@remember header.greeting
+            PulseText.fitHeadline(line) { candidate ->
+                !measurer.measure(
+                    candidate,
+                    style = style,
+                    maxLines = HEADLINE_LINES,
+                    constraints = Constraints(maxWidth = width),
+                ).hasVisualOverflow
+            }
+        }
+        ScreenHeader(
+            title = title,
+            eyebrow = eyebrow,
+            meta = header.meta,
+            refreshing = refreshing,
+            compact = true,
+        )
+    }
+}
+
+private fun phaseWord(phase: MarketPhase): String = when (phase) {
+    MarketPhase.PreMarket -> TodayCopy.PHASE_PRE_MARKET
+    MarketPhase.Open -> TodayCopy.PHASE_OPEN
+    MarketPhase.AfterClose -> TodayCopy.PHASE_AFTER_CLOSE
+}
+
+/** "Pre-market tape · as of 06:15" for today's data, "Tape · Fri 24 Apr" for an older snapshot. */
+private fun tapeCaption(brief: PulseBrief?, phase: MarketPhase?, today: LocalDate, fmt: Fmt, clock: java.time.Clock): String {
+    val retrieved = brief?.dataRetrievedAt
+    val retrievedDay = retrieved?.atZone(clock.zone)?.toLocalDate()
+    return when {
+        retrieved != null && retrievedDay == today ->
+            TodayCopy.tapeCaption(phase?.let(::phaseWord), fmt.time(retrieved), null)
+        brief?.dataDay != null -> TodayCopy.tapeCaption(null, null, fmt.marketDate(brief.dataDay))
+        retrievedDay != null -> TodayCopy.tapeCaption(null, null, fmt.marketDate(retrievedDay))
+        else -> TodayCopy.tapeCaption(null, null, null)
+    }
+}
+
+// ---- Your names -----------------------------------------------------------------------------------------------------
+
+@Composable
+private fun NamesBlock(
+    names: NamesSummary,
+    onManageNames: () -> Unit,
+    onAddName: () -> Unit,
+    onOpenName: (String, Rect?) -> Unit,
+) {
+    Column(Modifier.padding(horizontal = ThesisSpace.gutter), verticalArrangement = Arrangement.spacedBy(ThesisSpace.m)) {
+        if (names.total == 0) {
+            Kicker(TodayCopy.NAMES_KICKER)
+            EmptyState(
+                sentence = TodayCopy.NO_NAMES,
+                how = TodayCopy.NO_NAMES_HOW,
+                actionLabel = TodayCopy.ADD_NAME,
+                onAction = onAddName,
+                primaryAction = true,
+            )
+            return@Column
+        }
+        SectionHeader(
+            kicker = TodayCopy.NAMES_KICKER,
+            headline = names.headline,
+            actionLabel = TodayCopy.NAMES_ACTION,
+            onAction = onManageNames,
+        )
+        BoxWithConstraints(Modifier.fillMaxWidth()) {
+            val fitted = fitNameRows(names.rows, constraints.maxWidth)
+            RowGroup {
+                names.rows.forEachIndexed { i, r ->
+                    val (line2, caption) = fitted[i]
+                    row(LeadingRowDividerInset) {
+                        // The row's bounds, read just before the click, are where the Name page grows from.
+                        var tapped by remember { mutableStateOf<Rect?>(null) }
+                        TickerRow(
+                            ticker = r.ticker,
+                            stateTone = r.tone,
+                            onClick = { onOpenName(r.ticker, tapped) },
+                            onBoundsCaptured = { tapped = it },
+                            line2 = line2,
+                            line2MaxLines = REASON_LINES,
+                            figure = r.figure,
+                            figureCaption = caption,
+                            figureCaptionTone = r.figureCaptionTone,
+                            stateLabel = r.stateLabel,
+                            hasNote = r.hasNote,
+                        )
+                    }
+                }
+                if (names.more > 0) {
+                    row(LeadingRowDividerInset) {
+                        ActionRow(icon = null, title = TodayCopy.moreNames(names.more), onClick = onManageNames, reserveLeading = true)
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Lines a name's reason may take: [REASON_LINES] up to 1.3x; above it the kit TickerRow allows one more. */
+private const val REASON_LINES = 2
+private const val REASON_LINES_LARGE = REASON_LINES + 1
+
+/**
+ * Each row's reason line and caption, measured against the row's real width and font scale (the kit TickerRow's
+ * anatomy: 16 dp padding each side, the 24 dp leading column and its gap, then the trailing figure block up to 1.3x).
+ * The long captions ("−1 since 17 Nov", "Report · 23 days ago") stay only when every row's whole reason fits next to
+ * them; otherwise every row takes the compact one ("−1", "Report · 23d"), and if that is still too wide the report
+ * age is left out (the score stays); one level for the group, so the trailing column reads alike. Each
+ * reason is then the longest of its forms (the sentence, then cut at a clause) that fits whole: the reason keeps its
+ * meaning before the caption keeps its words. Measured, not counted: a character budget cannot know the font.
+ */
+@Composable
+private fun fitNameRows(rows: List<NameRowModel>, rowWidthPx: Int): List<Pair<String, String?>> {
+    val measurer = rememberTextMeasurer()
+    val density = LocalDensity.current
+    val large = density.fontScale > ThesisType.MAX_DISPLAY_SCALE
+    return remember(rows, rowWidthPx, density, measurer) {
+        val lineStyle = ThesisType.bodySmall
+        val figureStyle = ThesisType.body.tnum()
+        val captionStyle = ThesisType.caption.tnum()
+        val fixed = with(density) {
+            (ThesisSpace.l * 2 + ThesisSpace.leadingColumn + ThesisSpace.leadingGap).roundToPx()
+        }
+        val figureGap = with(density) { ThesisSpace.m.roundToPx() }
+        fun widthOf(text: String?, style: TextStyle): Int =
+            if (text == null) 0 else measurer.measure(text, style = style, maxLines = 1, softWrap = false).size.width
+        fun textWidth(r: NameRowModel, caption: String?): Int {
+            if (large || (r.figure == null && caption == null)) return (rowWidthPx - fixed).coerceAtLeast(1)
+            val block = maxOf(widthOf(r.figure, figureStyle), widthOf(caption, captionStyle))
+            return (rowWidthPx - fixed - figureGap - block).coerceAtLeast(1)
+        }
+        fun fits(text: String, width: Int): Boolean = !measurer.measure(
+            text,
+            style = lineStyle,
+            maxLines = if (large) REASON_LINES_LARGE else REASON_LINES,
+            constraints = Constraints(maxWidth = width),
+        ).hasVisualOverflow
+        // Captions from the most to the least said: long, compact, then without the report age (metadata; a score
+        // change is data and stays). The first level at which every whole reason fits is used for every row.
+        val levels: List<(NameRowModel) -> String?> = listOf(
+            { it.figureCaption },
+            { it.figureCaptionShort },
+            { if (it.figureCaptionIsAge) null else it.figureCaptionShort },
+        )
+        // Above 1.3x the figure block sits under the text and its caption wraps: it takes no room from the reason.
+        val level = if (large) {
+            levels.first()
+        } else {
+            levels.firstOrNull { caption -> rows.all { r -> fits(r.line2Forms.first(), textWidth(r, caption(r))) } } ?: levels.last()
+        }
+        rows.map { r ->
+            val caption = level(r)
+            val width = textWidth(r, caption)
+            (r.line2Forms.firstOrNull { fits(it, width) } ?: r.line2Forms.last()) to caption
+        }
+    }
+}
+
+// ---- Macro stress -----------------------------------------------------------------------------------------------------
+
+@Composable
+private fun MacroBlock(macro: MacroSummary?, error: String?, onOpen: () -> Unit, onRetry: (() -> Unit)?) {
+    val p = LocalThesisPalette.current
+    Box(Modifier.padding(horizontal = ThesisSpace.gutter)) {
+        when {
+            // "Try again" only when it reloads macro stress itself (never the Pulse under this label).
+            // The label sits where it does in the loaded and no-reading states, as the card's eyebrow, so a state
+            // change never moves it in or out of the card. The kit ErrorState's parts otherwise: announced politely,
+            // "Try again" with the retry icon.
+            macro == null && error != null -> ThesisCard(
+                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+                eyebrow = TodayCopy.MACRO_EYEBROW,
+                title = TodayCopy.MACRO_FAILED,
+            ) {
+                if (onRetry != null) SecondaryButton(KitCopy.TRY_AGAIN, onRetry, leadingIcon = ThesisIcons.Small.Retry)
+            }
+            macro == null -> ThesisCard(eyebrow = TodayCopy.MACRO_EYEBROW, title = TodayCopy.MACRO_NO_READING) {
+                Text(TodayCopy.MACRO_NO_READING_HOW, style = ThesisType.bodySmall, color = p.ink2)
+            }
+            else -> PressableCard(
+                onClick = onOpen,
+                onClickLabel = TodayCopy.OPEN_MACRO,
+                eyebrow = TodayCopy.MACRO_EYEBROW,
+                title = macro.title,
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(ThesisSpace.m)) {
+                    // Final on the first paint; rolls only when a refresh changes it.
+                    RollingNumber(value = macro.score, format = { Fmt.score(it) }, style = ThesisType.figure.tnum(), color = p.ink)
+                    StatusBadge(macro.label, macro.tone)
+                }
+                if (macro.deltaValue != null && macro.deltaReference != null) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(ThesisSpace.xs)) {
+                        Text(macro.deltaValue, style = ThesisType.caption.tnum(), color = macro.deltaTone.textColor(p))
+                        Text(macro.deltaReference, style = ThesisType.caption, color = p.muted)
+                    }
+                }
+                // A line needs two readings: with one (a first install), no lone dot over an empty chart.
+                if (macro.spark.count { it != null } >= 2) {
+                    Sparkline(
+                        values = macro.spark,
+                        contentDescription = ChartMath.summary(
+                            subject = TodayCopy.MACRO_SPARK_SUBJECT,
+                            values = macro.spark,
+                            format = { Fmt.score(it) },
+                            window = TodayCopy.lastDays(macro.sparkDays),
+                        ),
+                        modifier = Modifier.fillMaxWidth(),
+                        dataKey = macro.day,
+                    )
+                    Text(TodayCopy.macroScale(macro.sparkDays), style = ThesisType.caption, color = p.muted)
+                } else {
+                    // No line yet: the scale is still the figure's reference point (principle 4).
+                    Text(TodayCopy.MACRO_SCALE, style = ThesisType.caption, color = p.muted)
+                }
+            }
+        }
+    }
+}
+
+// ---- Today's Pulse ----------------------------------------------------------------------------------------------------
+
+/** Chapters Home lists (Sources is the brief's appendix, not a story row). */
+private const val HOME_CHAPTERS = 4
+
+private fun LazyListScope.pulseBlock(
+    kicker: String,
+    noPulse: Pair<String, String>,
+    brief: PulseBrief?,
+    pulseError: String?,
+    offline: Boolean,
+    morningBriefing: AlertLedgerItemView?,
+    entrance: @Composable () -> Modifier,
+    onRetry: () -> Unit,
+    onOpenPulse: () -> Unit,
+    onOpenPulseAt: (ChapterKind) -> Unit,
+    onOpenMorningBriefing: (AlertLedgerItemView) -> Unit,
+) {
+    item(key = "pulse") {
+        Column(
+            entrance()
+                .padding(top = ThesisSpace.sectionGapData)
+                .padding(horizontal = ThesisSpace.gutter),
+            verticalArrangement = Arrangement.spacedBy(ThesisSpace.m),
+        ) {
+            when {
+                brief != null -> {
+                    SectionHeader(kicker = kicker, headline = brief.leadConclusion)
+                    // Each row says something the headline above does not: the chapter the lead conclusion came from
+                    // shows its next sentence instead (rubric V3).
+                    val chapters = brief.chapters
+                        .filter { it.kind != ChapterKind.Sources }
+                        .mapNotNull { c -> c.rowSentence(brief.leadConclusion)?.let { c to it } }
+                        .take(HOME_CHAPTERS)
+                    RowGroup {
+                        if (morningBriefing != null) {
+                            // No icon: every title in the group starts on one edge with the chapter rows.
+                            row {
+                                ActionRow(
+                                    icon = null,
+                                    title = morningBriefing.title.trim().ifBlank { TodayCopy.MORNING_BRIEFING },
+                                    caption = briefingCaption(morningBriefing),
+                                    onClick = { onOpenMorningBriefing(morningBriefing) },
+                                )
+                            }
+                        }
+                        chapters.forEach { (chapter, sentence) ->
+                            row {
+                                PulseChapterRow(
+                                    title = chapter.label,
+                                    sentence = PulseText.oneSentence(sentence),
+                                    partial = chapter.partial,
+                                    onClick = { onOpenPulseAt(chapter.kind) },
+                                )
+                            }
+                        }
+                    }
+                    TextAction(TodayCopy.READ_PULSE, onOpenPulse, trailing = true)
+                }
+                pulseError != null -> {
+                    Kicker(kicker)
+                    if (offline) {
+                        ErrorState(title = StateCopy.OFFLINE_TITLE, cause = StateCopy.OFFLINE_CAUSE, onRetry = onRetry)
+                    } else {
+                        ErrorState(title = KitCopy.couldNotLoad(TodayCopy.PULSE_SUBJECT), onRetry = onRetry)
+                    }
+                }
+                else -> {
+                    Kicker(kicker)
+                    EmptyState(
+                        sentence = noPulse.first,
+                        how = noPulse.second,
+                        icon = ThesisIcons.Pulse,
                     )
                 }
             }
@@ -726,459 +751,44 @@ private fun YourNamesSection(
     }
 }
 
+private fun briefingCaption(alert: AlertLedgerItemView): String? {
+    val ctx = alert.briefingContext
+    val fromContext = ctx?.let {
+        TodayCopy.briefingContext(it.mode, it.count ?: 0, it.watchlistCount ?: 0, it.leadTicker?.trim()?.ifBlank { null })
+    }
+    return fromContext ?: alert.body.trim().ifBlank { null }?.let { PulseText.oneSentence(PulseText.clean(it)) }
+}
+
+// ---- Loading ----------------------------------------------------------------------------------------------------------
+
+/**
+ * No cache yet: the final layout in skeleton form (header, the tape's one line, three name rows in their card, the
+ * macro card), so the crossfade to the loaded screen changes no shapes.
+ */
 @Composable
-private fun InsightAlertSection(
-    insight: InsightCardModel,
-    onRunDeepDive: (String) -> Unit
-) {
-    val shape = RoundedCornerShape(ThesisDimens.CardCornerRadius)
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(shape)
-            .background(ThesisColors.SurfaceElevated)
-            .border(ThesisDimens.BorderWidth, ThesisColors.Primary.copy(alpha = 0.45f), shape)
-            .padding(ThesisDimens.CardPadding),
-        verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingMd)
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(2.dp)
-                .background(ThesisColors.Primary)
-        )
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(
-                imageVector = Icons.Default.Insights,
-                contentDescription = null,
-                tint = ThesisColors.Primary,
-                modifier = Modifier.size(16.dp)
-            )
-            Spacer(modifier = Modifier.size(ThesisDimens.SpacingSm))
-            Text(
-                text = "DESERVES A DEEPER LOOK",
-                style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Medium),
-                color = ThesisColors.Primary
-            )
-        }
-        Text(
-            text = insight.title,
-            style = ThesisTypography.headlineLarge.copy(
-                fontFamily = HeadingFont,
-                fontWeight = FontWeight.Normal
-            ),
-            color = ThesisColors.TextPrimary
-        )
-        Text(
-            text = insight.body,
-            style = ThesisTypography.bodyMedium,
-            color = ThesisColors.TextMuted
-        )
-        Button(
-            onClick = { onRunDeepDive(insight.ticker) },
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(min = ThesisSpace.touchMin),
-            shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = ThesisColors.Primary,
-                contentColor = ThesisColors.TextInverse
-            )
+private fun HomeSkeleton(padding: PaddingValues) {
+    ShimmerHost {
+        Column(
+            Modifier
+                .fillMaxSize()
+                .padding(top = padding.calculateTopPadding() + ThesisSpace.headerTop)
+                .padding(horizontal = ThesisSpace.gutter),
+            verticalArrangement = Arrangement.spacedBy(ThesisSpace.l),
         ) {
-            Text(
-                text = "Run ${insight.ticker} Deep Dive",
-                style = ThesisTypography.labelLarge.copy(fontWeight = FontWeight.Medium)
-            )
+            SkeletonText(ThesisType.eyebrow, widthFraction = 0.4f)
+            SkeletonText(ThesisType.headline, widthFraction = 0.9f, lines = 2)
+            SkeletonText(ThesisType.caption, widthFraction = 0.25f)
+            Box(Modifier.fillMaxWidth().height(ThesisSpace.tapeRow), contentAlignment = Alignment.CenterStart) {
+                SkeletonText(ThesisType.caption)
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(ThesisSpace.xs)) {
+                SkeletonText(ThesisType.kicker, widthFraction = 0.3f)
+                SkeletonText(ThesisType.headline, widthFraction = 0.75f)
+            }
+            RowGroup {
+                repeat(3) { row(LeadingRowDividerInset) { SkeletonRow() } }
+            }
+            SkeletonCard(bodyLines = 3)
         }
     }
-}
-
-@Composable
-private fun FullPulseSection(sections: List<SectionView>) {
-    Column(verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)) {
-        SectionHeader(
-            title = "Full Pulse",
-            subtitle = "Every section from the current daily briefing."
-        )
-        Spacer(modifier = Modifier.height(ThesisDimens.SpacingMd))
-        sections.forEach { section ->
-            PulseInfoCard(
-                title = section.title,
-                body = section.body.ifBlank { "No section text returned." },
-                status = section.status
-            )
-        }
-    }
-}
-
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun BottomLinksSection(
-    showFullPulse: Boolean,
-    onToggleFullPulse: () -> Unit,
-    onOpenPulseBrief: () -> Unit,
-    onOpenHistory: () -> Unit
-) {
-    // Wraps whole links onto a second line instead of breaking a word letter by letter (the tracked label
-    // style is wider since the PR-1 type remap; rubric A4).
-    FlowRow(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.Center
-    ) {
-        Text(
-            text = "MORNING BRIEF",
-            style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Medium),
-            color = ThesisColors.Primary,
-            maxLines = 1,
-            softWrap = false,
-            modifier = Modifier
-                .align(Alignment.CenterVertically)
-                .clickable { onOpenPulseBrief() }
-                .padding(ThesisDimens.SpacingMd)
-                .semantics {
-                    contentDescription = "Open the full Pulse morning brief"
-                    role = Role.Button
-                }
-        )
-        Spacer(modifier = Modifier.size(ThesisDimens.SpacingSm))
-        Text(
-            text = "/",
-            style = ThesisTypography.labelSmall,
-            color = ThesisColors.Border,
-            modifier = Modifier.align(Alignment.CenterVertically)
-        )
-        Spacer(modifier = Modifier.size(ThesisDimens.SpacingSm))
-        Text(
-            text = if (showFullPulse) "HIDE SECTIONS" else "SHOW SECTIONS",
-            style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Medium),
-            color = ThesisColors.TextMuted,
-            maxLines = 1,
-            softWrap = false,
-            modifier = Modifier
-                .align(Alignment.CenterVertically)
-                .clickable { onToggleFullPulse() }
-                .padding(ThesisDimens.SpacingMd)
-                .semantics {
-                    contentDescription = if (showFullPulse) "Hide pulse sections" else "Show pulse sections"
-                    role = Role.Button
-                }
-        )
-        Spacer(modifier = Modifier.size(ThesisDimens.SpacingSm))
-        Text(
-            text = "/",
-            style = ThesisTypography.labelSmall,
-            color = ThesisColors.Border,
-            modifier = Modifier.align(Alignment.CenterVertically)
-        )
-        Spacer(modifier = Modifier.size(ThesisDimens.SpacingSm))
-        Text(
-            text = "HISTORY",
-            style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Medium),
-            color = ThesisColors.Primary,
-            maxLines = 1,
-            softWrap = false,
-            modifier = Modifier
-                .align(Alignment.CenterVertically)
-                .clickable { onOpenHistory() }
-                .padding(ThesisDimens.SpacingMd)
-                .semantics {
-                    contentDescription = "Open report history"
-                    role = Role.Button
-                }
-        )
-    }
-}
-
-@Composable
-private fun SectionHeader(title: String, subtitle: String) {
-    Column {
-        Text(
-            text = title,
-            style = ThesisTypography.headlineLarge.copy(
-                fontFamily = HeadingFont,
-                fontWeight = FontWeight.Normal
-            ),
-            color = ThesisColors.TextPrimary
-        )
-        Spacer(modifier = Modifier.height(ThesisDimens.SpacingXs))
-        Text(
-            text = subtitle,
-            style = ThesisTypography.bodySmall,
-            color = ThesisColors.TextMuted
-        )
-    }
-}
-
-@Composable
-private fun PulseInfoCard(
-    title: String,
-    body: String,
-    status: String?
-) {
-    val shape = RoundedCornerShape(ThesisDimens.CardCornerRadius)
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(shape)
-            .background(ThesisColors.Surface)
-            .border(ThesisDimens.BorderWidth, ThesisColors.Border, shape)
-            .padding(ThesisDimens.CardPadding),
-        verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = title,
-                style = ThesisTypography.headlineMedium.copy(fontWeight = FontWeight.Medium),
-                color = ThesisColors.TextPrimary,
-                modifier = Modifier.weight(1f)
-            )
-            Spacer(modifier = Modifier.size(ThesisDimens.SpacingSm))
-            StatusPill(status = status)
-        }
-        Text(
-            text = body,
-            style = ThesisTypography.bodyMedium,
-            color = ThesisColors.TextSecondary
-        )
-    }
-}
-
-@Composable
-private fun StatusPill(status: String?) {
-    val (background, textColor, label) = when (status?.lowercase()) {
-        "complete" -> Triple(ThesisColors.SignalPositive.copy(alpha = 0.1f), ThesisColors.SignalPositive, "COMPLETE")
-        "data_incomplete" -> Triple(ThesisColors.SignalWarning.copy(alpha = 0.1f), ThesisColors.SignalWarning, "PARTIAL")
-        "data_unavailable", "failed" -> Triple(ThesisColors.SignalNegative.copy(alpha = 0.1f), ThesisColors.SignalNegative, "UNAVAILABLE")
-        else -> Triple(ThesisColors.SurfaceElevated, ThesisColors.TextMuted, status?.uppercase() ?: "LIVE")
-    }
-    Text(
-        text = label,
-        style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Medium),
-        color = textColor,
-        modifier = Modifier
-            .clip(RoundedCornerShape(ThesisDimens.SignalBadgeCorner))
-            .background(background)
-            .padding(horizontal = ThesisDimens.SpacingSm, vertical = ThesisDimens.SpacingXs)
-    )
-}
-
-@Composable
-private fun ResumeCard(title: String, onResume: () -> Unit, onDismiss: () -> Unit) {
-    val shape = RoundedCornerShape(ThesisDimens.CardCornerRadius)
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onResume() }
-            .clip(shape)
-            .background(ThesisColors.Surface)
-            .border(ThesisDimens.BorderWidth, ThesisColors.Primary.copy(alpha = 0.2f), shape)
-            .padding(horizontal = ThesisDimens.CardPadding, vertical = ThesisDimens.SpacingLg),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Icon(
-            imageVector = Icons.Default.History,
-            contentDescription = null,
-            tint = ThesisColors.Primary,
-            modifier = Modifier.size(18.dp)
-        )
-        Spacer(modifier = Modifier.size(ThesisDimens.SpacingMd))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = "Pick up where you left off",
-                style = ThesisTypography.bodySmall,
-                color = ThesisColors.TextMuted
-            )
-            Text(
-                text = title,
-                style = ThesisTypography.bodyMedium.copy(fontWeight = FontWeight.Medium),
-                color = ThesisColors.TextPrimary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
-        Text(
-            text = "DISMISS",
-            style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Medium),
-            color = ThesisColors.Primary,
-            modifier = Modifier.clickable { onDismiss() }
-        )
-    }
-}
-
-private fun resumeTitle(lastViewedReport: LastViewedReport): String =
-    when (lastViewedReport.type) {
-        "PULSE" -> "Morning Pulse"
-        else -> "${lastViewedReport.label} Deep Dive"
-    }
-
-private data class InsightCardModel(val ticker: String, val title: String, val body: String)
-
-private enum class TodayPhase(val title: String) {
-    PRE_MARKET("Pre-market"),
-    MARKET_HOURS("Market hours"),
-    AFTER_HOURS("After hours")
-}
-
-private data class TodayPlan(val subtitle: String, val prioritySections: List<SectionView>)
-
-private fun derivePulseLead(pulse: PulseReportView?, phase: TodayPhase): String {
-    if (pulse == null) return when (phase) {
-        TodayPhase.PRE_MARKET -> "Build your plan before the opening bell."
-        TodayPhase.MARKET_HOURS -> "Live market context will appear here as today unfolds."
-        TodayPhase.AFTER_HOURS -> "Review what changed and prepare for tomorrow."
-    }
-    val leadSection = pulse.sections.firstOrNull { !isWatchlistOverlay(it) } ?: return "Today's pulse is ready."
-    return "${leadSection.title}: ${summarizeBody(leadSection.body)}"
-}
-
-private fun resolveTodayPhase(now: ZonedDateTime = ZonedDateTime.now(ZoneId.of("America/New_York"))): TodayPhase {
-    val time = now.toLocalTime()
-    return when {
-        time.isBefore(LocalTime.of(9, 30)) -> TodayPhase.PRE_MARKET
-        time.isBefore(LocalTime.of(16, 0)) -> TodayPhase.MARKET_HOURS
-        else -> TodayPhase.AFTER_HOURS
-    }
-}
-
-private fun buildTodayPlan(phase: TodayPhase, sections: List<SectionView>): TodayPlan {
-    if (sections.isEmpty()) return TodayPlan("Waiting for the next Pulse cycle.", emptyList())
-    val macroStress = sections.firstOrNull { containsAny(it, "macro stress", "macro", "pressure", "fear", "greed", "sentiment") }
-    val earnings = sections.firstOrNull { containsAny(it, "earnings", "calendar") }
-    val contrarian = sections.firstOrNull { containsAny(it, "contrarian", "alert") }
-    val marketMoves = sections.firstOrNull { containsAny(it, "market", "moves", "pulse") }
-    val weeklyDigest = sections.firstOrNull { containsAny(it, "weekly", "digest") }
-    val priorityOrder = when (phase) {
-        TodayPhase.PRE_MARKET -> listOf(macroStress, earnings, contrarian, marketMoves, weeklyDigest)
-        TodayPhase.MARKET_HOURS -> listOf(marketMoves, macroStress, contrarian, earnings, weeklyDigest)
-        TodayPhase.AFTER_HOURS -> listOf(marketMoves, macroStress, earnings, weeklyDigest, contrarian)
-    }
-    val prioritized = priorityOrder.filterNotNull()
-    val remaining = sections.filterNot { prioritized.contains(it) }
-    val subtitle = when (phase) {
-        TodayPhase.PRE_MARKET -> "Macro pressure, tomorrow reports, overnight risk."
-        TodayPhase.MARKET_HOURS -> "Current moves, macro pressure, active risk."
-        TodayPhase.AFTER_HOURS -> "Closing wrap, macro pressure, tomorrow setup."
-    }
-    return TodayPlan(subtitle, prioritized + remaining)
-}
-
-private fun containsAny(section: SectionView, vararg tokens: String): Boolean {
-    val haystack = "${section.title} ${section.body}".lowercase()
-    return tokens.any { haystack.contains(it.lowercase()) }
-}
-
-private fun formatMacroStressLabel(label: String?): String = when (label?.lowercase()) {
-    "extreme_fear", "fear", "high_stress", "elevated", "elevated_pressure" -> "Elevated Pressure"
-    "neutral", "balanced", "moderate" -> "Balanced"
-    "greed", "extreme_greed", "low_stress", "risk_on", "low_pressure" -> "Contained Pressure"
-    else -> "Unavailable"
-}
-
-@Composable
-@ReadOnlyComposable
-private fun macroStressColor(label: String?): Color = when (label?.lowercase()) {
-    "extreme_fear", "fear", "high_stress", "elevated", "elevated_pressure" -> ThesisColors.SignalNegative
-    "greed", "extreme_greed", "low_stress", "risk_on", "low_pressure" -> ThesisColors.SignalPositive
-    "neutral", "balanced", "moderate" -> ThesisColors.SignalNeutral
-    else -> ThesisColors.TextMuted
-}
-
-private fun deriveMacroStressDirection(current: SentimentSnapshotView?, history: List<SentimentSnapshotView>): String {
-    if (current == null) return "No material macro change detected yet."
-    if (history.size < 2) return "No material macro change vs prior read."
-    val sorted = history.sortedByDescending { it.marketDate }
-    val baseline = sorted.firstOrNull { it.marketDate != current.marketDate } ?: sorted.getOrNull(1)
-        ?: return "No material macro change vs prior read."
-    val delta = current.score - baseline.score
-    val deltaText = kotlin.math.abs(delta).toInt()
-    return when {
-        delta > 0.5 -> "Macro pressure up $deltaText pt vs prior read."
-        delta < -0.5 -> "Macro pressure down $deltaText pt vs prior read."
-        else -> "No material macro change vs prior read."
-    }
-}
-
-private fun deriveInsight(
-    pulse: PulseReportView?,
-    watchlist: List<String>,
-    monitorSnapshots: List<ThesisMonitorSnapshotView>,
-    lastViewedTicker: String?
-): InsightCardModel? {
-    val candidateTicker = lastViewedTicker ?: watchlist.firstOrNull() ?: return null
-    val monitor = monitorSnapshots.firstOrNull { it.ticker.equals(candidateTicker, ignoreCase = true) }
-    val matchingSection = pulse?.sections?.firstOrNull { sectionContainsTicker(it, candidateTicker) }
-    val title = when {
-        monitor != null -> "$candidateTicker thesis is ${monitor.state}"
-        matchingSection != null -> "$candidateTicker appeared in ${matchingSection.title}"
-        else -> "$candidateTicker is ready for a fresh look"
-    }
-    val body = when {
-        monitor != null -> monitor.reason
-        matchingSection != null -> summarizeBody(matchingSection.body)
-        else -> "Run a current Deep Dive to connect today's pulse with the latest evidence."
-    }
-    return InsightCardModel(candidateTicker, title, body)
-}
-
-private fun describeWatchlistContext(
-    ticker: String,
-    pulse: PulseReportView?,
-    monitorSnapshots: List<ThesisMonitorSnapshotView>
-): String {
-    val monitor = monitorSnapshots.firstOrNull { it.ticker.equals(ticker, ignoreCase = true) }
-    if (monitor != null) {
-        val label = monitor.state.replaceFirstChar { it.uppercase() }
-        return "$label: ${monitor.reason}"
-    }
-    if (pulse == null) return "On your watchlist. Ready for a Deep Dive."
-    val matchingSection = pulse.sections.firstOrNull { sectionContainsTicker(it, ticker) }
-    if (matchingSection != null) return "In ${matchingSection.title.lowercase()}: ${summarizeBody(matchingSection.body)}"
-    val overlay = pulse.sections.firstOrNull(::isWatchlistOverlay)
-    if (overlay != null && sectionContainsTicker(overlay, ticker)) return summarizeBody(overlay.body)
-    return "Tracked. Ready for a Deep Dive."
-}
-
-private fun sectionContainsTicker(section: SectionView, ticker: String): Boolean {
-    val pattern = Regex("\\b${Regex.escape(ticker.uppercase())}\\b")
-    val haystack = buildString {
-        append(section.title.uppercase())
-        append(' ')
-        append(section.body.uppercase())
-        section.evidence.forEach {
-            append(' ')
-            append(it.excerpt.uppercase())
-        }
-    }
-    return pattern.containsMatchIn(haystack)
-}
-
-private fun isWatchlistOverlay(section: SectionView): Boolean = section.title.contains("watchlist", ignoreCase = true)
-
-private fun summarizeBody(body: String, limit: Int = 140): String {
-    val normalized = body.replace(Regex("\\s+"), " ").trim()
-    if (normalized.isBlank()) return "No section summary was returned."
-    val sentence = normalized.split(". ").firstOrNull().orEmpty().trim().trimEnd('.')
-    val candidate = if (sentence.isNotBlank()) sentence else normalized
-    return if (candidate.length <= limit) candidate else candidate.take(limit - 1).trimEnd() + "\u2026"
-}
-
-private fun formatTimestamp(raw: String): String = runCatching {
-    Instant.parse(raw).atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("MMM d, HH:mm"))
-}.getOrElse { raw }
-
-/** No followed names yet (the kit's EmptyState, 3 #25), with the one way forward. */
-@Composable
-private fun NoNamesState(onAddName: () -> Unit) {
-    EmptyState(
-        sentence = StateCopy.NO_NAMES,
-        how = StateCopy.noNamesHow,
-        icon = ThesisIcons.Names,
-        actionLabel = StateCopy.NO_NAMES_ACTION,
-        onAction = onAddName,
-        primaryAction = true
-    )
 }

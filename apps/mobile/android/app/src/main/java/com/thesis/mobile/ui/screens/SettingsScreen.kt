@@ -1,50 +1,30 @@
 package com.thesis.mobile.ui.screens
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.calculateEndPadding
+import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.List
-import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.filled.Newspaper
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Visibility
-import androidx.compose.material.icons.filled.VisibilityOff
-import androidx.compose.material3.AssistChip
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -53,58 +33,80 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalUriHandler
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.disabled
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.input.VisualTransformation
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import com.thesis.mobile.model.AlertLedgerItemView
+import androidx.compose.foundation.text.KeyboardOptions
 import com.thesis.mobile.model.ConvictionInsightCardView
-import com.thesis.mobile.model.ConvictionJournalEntryView
-import com.thesis.mobile.model.DeepDiveReportView
-import com.thesis.mobile.model.EvidenceView
+import com.thesis.mobile.model.NoteTrailEntry
 import com.thesis.mobile.model.NotificationPreferenceView
-import com.thesis.mobile.model.OppositeCaseReportView
-import com.thesis.mobile.model.PulseReportView
-import com.thesis.mobile.model.ReportHistoryItem
-import com.thesis.mobile.model.ScenarioStressRunView
-import com.thesis.mobile.model.ScenarioStressTemplateView
-import com.thesis.mobile.model.SectionView
 import com.thesis.mobile.model.UserProfileView
-import com.thesis.mobile.model.WarRoomView
+import com.thesis.mobile.ui.components.ActionRow
+import com.thesis.mobile.ui.components.BannerTone
+import com.thesis.mobile.ui.components.CardFooter
+import com.thesis.mobile.ui.components.DataRow
+import com.thesis.mobile.ui.components.EmptyState
+import com.thesis.mobile.ui.components.InlineBanner
 import com.thesis.mobile.ui.components.Kicker
-import com.thesis.mobile.ui.components.LegalLinks
 import com.thesis.mobile.ui.components.RowGroup
+import com.thesis.mobile.ui.components.ScreenHeader
+import com.thesis.mobile.ui.components.SecondaryButton
 import com.thesis.mobile.ui.components.SegmentedControl
+import com.thesis.mobile.ui.components.StatusBadge
+import com.thesis.mobile.ui.components.ThesisCard
+import com.thesis.mobile.ui.components.ThesisChip
+import com.thesis.mobile.ui.components.ThesisSheet
+import com.thesis.mobile.ui.components.ThesisTextField
 import com.thesis.mobile.ui.components.ToggleRow
-import com.thesis.mobile.ui.copy.Phase4Copy
-import com.thesis.mobile.ui.copy.ProductCopy
+import com.thesis.mobile.ui.components.legalPageUrl
+import com.thesis.mobile.ui.copy.AccountCopy
+import com.thesis.mobile.ui.format.Fmt
+import com.thesis.mobile.ui.format.LocalFmt
+import com.thesis.mobile.ui.icons.ThesisIcons
 import com.thesis.mobile.ui.shell.AppearancePrefs
-import com.thesis.mobile.ui.theme.HeadingFont
 import com.thesis.mobile.ui.theme.LocalThesisPalette
 import com.thesis.mobile.ui.theme.ThemeMode
-import com.thesis.mobile.ui.theme.ThesisColors
-import com.thesis.mobile.ui.theme.ThesisDimens
 import com.thesis.mobile.ui.theme.ThesisSpace
-import com.thesis.mobile.ui.theme.ThesisTheme
 import com.thesis.mobile.ui.theme.ThesisType
-import com.thesis.mobile.ui.theme.ThesisTypography
 import com.thesis.mobile.ui.theme.UpDownScheme
+import com.thesis.mobile.ui.theme.withUpDown
+import java.time.Clock
 import java.time.Instant
+import java.time.LocalDate
 import java.time.ZoneId
-import java.time.format.DateTimeFormatter
+
+/** Segment order of the Theme control (5.22: Auto · Light · Dark). Auto follows the system setting. */
+private val ThemeModeOrder = listOf(ThemeMode.System, ThemeMode.Light, ThemeMode.Dark)
+
+/** Segment order of the up/down colours control. */
+private val UpDownOrder = listOf(UpDownScheme.Classic, UpDownScheme.ColourBlind)
+
+/** Feedback flows the API accepts (`settings_subscription_<flow>`), in the order of [AccountCopy.FEEDBACK_FLOWS]. */
+private val FeedbackFlowCodes = listOf("cancel", "downgrade")
+private const val FEEDBACK_FLOW_FREE = "free"
 
 /**
- * You / Settings, extracted from `ThesisApp.kt` (DESIGN-DIRECTION 6.1), unchanged in look. Pure: purchases,
- * the system notification settings Intent, the debug API switch and the delete-account section come from the
- * caller, so design-preview can render it.
+ * You (DESIGN-DIRECTION 5.22), on the global modal stack: the ScreenHeader "You" with the account email and the plan
+ * badge, then grouped rows under kickers: Appearance (theme, up/down colours with a two-swatch preview, reduce
+ * motion), Notifications (master and per-family toggles, quiet-until captions, system settings), Security (app
+ * lock), Portfolio (import holdings), Your notes (export as Markdown), Subscription (plan, Deep Dives, See Pro or
+ * Manage, restore, refresh, cancellation feedback), Monthly review, Help and legal (terms, privacy, licences),
+ * Account (log out, delete account) and, in debug builds, Developer.
+ *
+ * Pure: the caller passes purchases, the system notification settings Intent, the notes export (share sheet or
+ * `CreateDocument`), the import panel and the Android-only delete-account section, so design-preview renders it.
+ * [onExportNotes] receives the file name and the Markdown ([NotesMarkdown]); [onLoadNotes] asks for the cached notes.
+ * Plans are chosen on the Paywall, which "See Pro" opens through [onRequireUpgrade]. [clock] dates the notes export and
+ * decides whether a quiet-until time has passed (its zone also dates the billing period end), so renders and tests
+ * pass a fixed one.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
     padding: PaddingValues,
@@ -112,7 +114,6 @@ fun SettingsScreen(
     profile: UserProfileView?,
     convictionInsights: List<ConvictionInsightCardView>,
     convictionInsightsError: String?,
-    subscriptionOffers: List<com.thesis.mobile.model.SubscriptionOfferView>,
     subscriptionActionInFlight: Boolean,
     notificationsEnabled: Boolean,
     biometricSupported: Boolean,
@@ -125,626 +126,571 @@ fun SettingsScreen(
     onSyncTier: () -> Unit,
     onRefreshConvictionInsights: () -> Unit,
     onRequireUpgrade: (String) -> Unit,
-    onRefreshOffers: () -> Unit,
-    onStartPurchase: (preferredType: String?) -> Unit,
     onRestorePurchases: () -> Unit,
     onSubmitSubscriptionFeedback: (String, String, String, Boolean) -> Unit,
     onLogout: () -> Unit,
     /** Opens the system notification settings for the app (an Intent; the caller owns it). */
     onOpenSystemNotificationSettings: () -> Unit = {},
-    /** False when no Activity is available to host the store sheet. */
-    canStartPurchase: Boolean = true,
     /** `BuildConfig.DEBUG`: shows the API base URL switch. */
     showDeveloperOptions: Boolean = false,
     /** The delete-account button and dialog (`DeleteAccountSection`, Android-only). */
     deleteAccountSection: @Composable () -> Unit = {},
-    /** You > Appearance (spec Q2: the Auto / Light / Dark setting ships in PR-1, Dark by default). */
+    /** You > Appearance (spec Q2: the Auto / Light / Dark setting, Dark by default). */
     appearance: AppearancePrefs = AppearancePrefs(),
-    onSetAppearance: (AppearancePrefs) -> Unit = {}
+    onSetAppearance: (AppearancePrefs) -> Unit = {},
+    /** The user's cached notes (`UiState.allNotes`), for Your notes. */
+    notes: List<NoteTrailEntry> = emptyList(),
+    onLoadNotes: () -> Unit = {},
+    onExportNotes: ((fileName: String, markdown: String) -> Unit)? = null,
+    /** Opens the holdings CSV import (WP-B's panel); the row is hidden while null. */
+    onImportHoldings: (() -> Unit)? = null,
+    clock: Clock = Clock.systemDefaultZone(),
 ) {
-    var baseUrl by rememberSaveable(currentApiBaseUrl) { mutableStateOf(currentApiBaseUrl) }
-    var subscriptionFeedbackFlow by rememberSaveable { mutableStateOf("cancel") }
-    var subscriptionFeedbackCode by rememberSaveable { mutableStateOf("cancel_price") }
-    var subscriptionFeedbackMessage by rememberSaveable { mutableStateOf("") }
-    val switchColors = androidx.compose.material3.SwitchDefaults.colors(
-        checkedThumbColor = ThesisColors.Primary,
-        checkedTrackColor = ThesisColors.Primary.copy(alpha = 0.2f),
-        uncheckedThumbColor = ThesisColors.TextMuted,
-        uncheckedTrackColor = ThesisColors.SurfaceElevated
-    )
+    val p = LocalThesisPalette.current
+    val fmt = LocalFmt.current
+    val uriHandler = LocalUriHandler.current
+    val dir = LocalLayoutDirection.current
+    val isPro = profile?.tier.equals("PRO", ignoreCase = true)
+    var feedbackOpen by rememberSaveable { mutableStateOf(false) }
+    var licencesOpen by rememberSaveable { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) { onLoadNotes() }
 
     LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(padding),
+        modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(
-            horizontal = ThesisDimens.ScreenPaddingHorizontal,
-            vertical = ThesisDimens.SpacingLg
+            start = padding.calculateStartPadding(dir) + ThesisSpace.gutter,
+            end = padding.calculateEndPadding(dir) + ThesisSpace.gutter,
+            top = padding.calculateTopPadding() + ThesisSpace.headerTop,
+            bottom = padding.calculateBottomPadding() + ThesisSpace.x3,
         ),
-        verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingXl)
+        verticalArrangement = Arrangement.spacedBy(ThesisSpace.xxl),
     ) {
-        item {
-            Column(verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingXs)) {
-                Text(
-                    text = Phase4Copy.youHeadline,
-                    style = ThesisTypography.headlineLarge.copy(
-                        fontFamily = HeadingFont,
-                        fontWeight = FontWeight.Normal
-                    ),
-                    color = ThesisColors.TextPrimary
-                )
-                Text(
-                    text = Phase4Copy.youSubtitle,
-                    style = ThesisTypography.bodyMedium,
-                    color = ThesisColors.TextMuted
+        item(key = "header", contentType = "header") {
+            Column(verticalArrangement = Arrangement.spacedBy(ThesisSpace.m)) {
+                ScreenHeader(title = AccountCopy.YOU_TITLE, deck = profile?.email?.takeIf { it.isNotBlank() })
+                StatusBadge(
+                    text = if (isPro) AccountCopy.PLAN_PRO else AccountCopy.PLAN_FREE,
+                    color = if (isPro) p.accent else p.muted,
                 )
             }
         }
-        item {
-            AppearanceSection(appearance = appearance, onSetAppearance = onSetAppearance)
-        }
-        item {
-            MonthlyCoherenceSection(
-                isPro = profile?.tier.equals("PRO", ignoreCase = true),
-                insights = convictionInsights,
-                errorMessage = convictionInsightsError,
-                onRefresh = onRefreshConvictionInsights,
-                onRequireUpgrade = onRequireUpgrade
-            )
-        }
-        item {
-            val shape = RoundedCornerShape(ThesisDimens.CardCornerRadius)
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(shape)
-                    .background(ThesisColors.Surface)
-                    .border(ThesisDimens.BorderWidth, ThesisColors.Border, shape)
-                    .padding(ThesisDimens.CardPadding),
-                verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)
-            ) {
-                Text(
-                    text = "DATA TRUST",
-                    style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Medium),
-                    color = ThesisColors.TextMuted
-                )
-                Text(
-                    text = "Freshness and degraded-feed warnings stay visible across Today, Names, Research, and Inbox. Thesis marks missing evidence instead of inventing certainty.",
-                    style = ThesisTypography.bodyMedium,
-                    color = ThesisColors.TextPrimary
-                )
-            }
-        }
-        item {
-            val shape = RoundedCornerShape(ThesisDimens.CardCornerRadius)
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(shape)
-                    .background(ThesisColors.Surface)
-                    .border(ThesisDimens.BorderWidth, ThesisColors.Border, shape)
-                    .padding(ThesisDimens.CardPadding),
-                verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)
-            ) {
-                Text(
-                    text = "NOTIFICATIONS",
-                    style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Medium),
-                    color = ThesisColors.TextMuted
-                )
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "Push Notifications",
-                        style = ThesisTypography.bodyMedium,
-                        color = ThesisColors.TextPrimary
+
+        section("appearance", AccountCopy.SECTION_APPEARANCE) {
+            RowGroup {
+                row {
+                    LabelledControl(AccountCopy.THEME) {
+                        SegmentedControl(
+                            options = AccountCopy.THEME_OPTIONS,
+                            selectedIndex = ThemeModeOrder.indexOf(appearance.themeMode).coerceAtLeast(0),
+                            onSelect = { i -> onSetAppearance(appearance.copy(themeMode = ThemeModeOrder[i])) },
+                        )
+                    }
+                }
+                row { UpDownRow(appearance.upDown) { scheme -> onSetAppearance(appearance.copy(upDown = scheme)) } }
+                row {
+                    ToggleRow(
+                        title = AccountCopy.REDUCE_MOTION,
+                        checked = appearance.reduceMotion,
+                        onCheckedChange = { on -> onSetAppearance(appearance.copy(reduceMotion = on)) },
+                        sub = AccountCopy.REDUCE_MOTION_SUB,
                     )
-                    Switch(
+                }
+            }
+        }
+
+        section("notifications", AccountCopy.SECTION_NOTIFICATIONS) {
+            RowGroup {
+                row {
+                    ToggleRow(
+                        title = AccountCopy.NOTIFICATIONS_MASTER,
                         checked = notificationsEnabled,
                         onCheckedChange = onSetNotifications,
-                        colors = switchColors
+                        sub = AccountCopy.NOTIFICATIONS_MASTER_SUB,
                     )
                 }
+                notificationPreferences.forEach { preference ->
+                    row {
+                        val quiet = preference.quietUntil?.let { quietUntilLabel(it, fmt, now = clock.instant(), zone = clock.zone) }
+                        ToggleRow(
+                            title = AccountCopy.notificationFamily(preference.type),
+                            checked = preference.enabled,
+                            onCheckedChange = { on -> onSetNotificationPreference(preference.type, on) },
+                            sub = when {
+                                !notificationsEnabled -> AccountCopy.NOTIFICATIONS_OFF_SUB
+                                preference.enabled && quiet != null -> AccountCopy.quietUntil(quiet)
+                                else -> null
+                            },
+                            enabled = notificationsEnabled,
+                        )
+                    }
+                }
+                row {
+                    ActionRow(
+                        icon = null,
+                        title = AccountCopy.SYSTEM_NOTIFICATIONS,
+                        onClick = onOpenSystemNotificationSettings,
+                        caption = AccountCopy.SYSTEM_NOTIFICATIONS_SUB,
+                        external = true,
+                    )
+                }
+            }
+        }
 
-                if (biometricSupported) {
-                    HorizontalDivider(color = ThesisColors.Border)
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "Biometric Lock",
-                                style = ThesisTypography.bodyMedium,
-                                color = ThesisColors.TextPrimary
-                            )
-                            Text(
-                                text = "Require fingerprint after 5 min idle",
-                                style = ThesisTypography.bodySmall,
-                                color = ThesisColors.TextMuted
-                            )
-                        }
-                        Switch(
+        if (biometricSupported) {
+            section("security", AccountCopy.SECTION_SECURITY) {
+                RowGroup {
+                    row {
+                        ToggleRow(
+                            title = AccountCopy.APP_LOCK,
                             checked = biometricLockEnabled,
                             onCheckedChange = onSetBiometricLockEnabled,
-                            colors = switchColors
+                            sub = AccountCopy.APP_LOCK_SUB,
                         )
                     }
-                }
-
-                if (notificationsEnabled) {
-                    HorizontalDivider(color = ThesisColors.Border)
-                    notificationPreferences.forEach { preference ->
-                        NotificationPreferenceRow(
-                            type = preference.type,
-                            enabled = preference.enabled,
-                            quietUntil = preference.quietUntil,
-                            notificationsEnabled = notificationsEnabled,
-                            onToggle = { enabled -> onSetNotificationPreference(preference.type, enabled) },
-                            switchColors = switchColors
-                        )
-                    }
-                }
-
-                Button(
-                    onClick = onOpenSystemNotificationSettings,
-                    shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
-                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(
-                        containerColor = ThesisColors.SurfaceElevated,
-                        contentColor = ThesisColors.TextMuted
-                    ),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(40.dp)
-                ) {
-                    Text("System Notification Settings", style = ThesisTypography.labelLarge)
                 }
             }
         }
-        item {
-            val shape = RoundedCornerShape(ThesisDimens.CardCornerRadius)
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(shape)
-                    .background(ThesisColors.Surface)
-                    .border(ThesisDimens.BorderWidth, ThesisColors.Border, shape)
-                    .padding(ThesisDimens.CardPadding),
-                verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingMd)
-            ) {
-                Text(
-                    text = "SUBSCRIPTION",
-                    style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Medium),
-                    color = ThesisColors.TextMuted
-                )
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text("Tier", style = ThesisTypography.bodyMedium, color = ThesisColors.TextPrimary)
-                    Text(
-                        text = profile?.tier ?: "FREE",
-                        style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Medium),
-                        color = ThesisColors.Primary,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(ThesisDimens.SignalBadgeCorner))
-                            .background(ThesisColors.Primary.copy(alpha = 0.1f))
-                            .padding(horizontal = ThesisDimens.SpacingSm, vertical = ThesisDimens.SpacingXs)
-                    )
-                }
-                val deepDiveLimit = profile?.dailyDeepDiveLimit ?: 1
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text("Deep Dives", style = ThesisTypography.bodyMedium, color = ThesisColors.TextPrimary)
-                    Text(
-                        if (deepDiveLimit < 0) "Unlimited" else "${profile?.deepDivesRemainingToday ?: 0} / $deepDiveLimit today",
-                        style = ThesisTypography.bodySmall,
-                        color = ThesisColors.TextMuted
-                    )
-                }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text("Names limit", style = ThesisTypography.bodyMedium, color = ThesisColors.TextPrimary)
-                    Text("${profile?.watchlistLimit ?: ProductCopy.freeWatchlistLimit}", style = ThesisTypography.bodySmall, color = ThesisColors.TextMuted)
-                }
-                if (!profile?.billingPeriodEnd.isNullOrBlank()) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text("Billing period end", style = ThesisTypography.bodyMedium, color = ThesisColors.TextPrimary)
-                        Text(profile?.billingPeriodEnd ?: "", style = ThesisTypography.bodySmall, color = ThesisColors.TextMuted)
-                    }
-                }
-                HorizontalDivider(color = ThesisColors.Border)
-                Row(horizontalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)) {
-                    Button(
-                        onClick = { if (canStartPurchase) onStartPurchase("MONTHLY") },
-                        enabled = canStartPurchase && !subscriptionActionInFlight,
-                        modifier = Modifier.weight(1f).height(40.dp),
-                        shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
-                        colors = androidx.compose.material3.ButtonDefaults.buttonColors(
-                            containerColor = ThesisColors.Primary,
-                            contentColor = ThesisColors.TextInverse
-                        )
-                    ) {
-                        Text("Monthly", style = ThesisTypography.labelLarge)
-                    }
-                    Button(
-                        onClick = { if (canStartPurchase) onStartPurchase("YEARLY") },
-                        enabled = canStartPurchase && !subscriptionActionInFlight,
-                        modifier = Modifier.weight(1f).height(40.dp),
-                        shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
-                        colors = androidx.compose.material3.ButtonDefaults.buttonColors(
-                            containerColor = ThesisColors.Primary,
-                            contentColor = ThesisColors.TextInverse
-                        )
-                    ) {
-                        Text("Yearly", style = ThesisTypography.labelLarge)
-                    }
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)) {
-                    OutlinedButton(
-                        onClick = onSyncTier,
-                        enabled = !subscriptionActionInFlight,
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
-                        border = androidx.compose.foundation.BorderStroke(
-                            ThesisDimens.BorderWidth,
-                            ThesisColors.Border
-                        )
-                    ) {
-                        Text("Refresh", color = ThesisColors.TextMuted)
-                    }
-                    OutlinedButton(
-                        onClick = onRestorePurchases,
-                        enabled = !subscriptionActionInFlight,
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
-                        border = androidx.compose.foundation.BorderStroke(
-                            ThesisDimens.BorderWidth,
-                            ThesisColors.Border
-                        )
-                    ) {
-                        Text("Restore", color = ThesisColors.TextMuted)
-                    }
-                }
-                if (subscriptionOffers.isNotEmpty()) {
-                    Text(
-                        text = "Available offers: ${subscriptionOffers.joinToString { it.title }}",
-                        style = ThesisTypography.bodySmall,
-                        color = ThesisColors.TextMuted
-                    )
-                }
-                TextButton(onClick = onRefreshOffers, enabled = !subscriptionActionInFlight) {
-                    Text("Refresh offers", color = ThesisColors.Primary)
-                }
 
-                HorizontalDivider(color = ThesisColors.Border)
-                Text(
-                    text = "FEEDBACK",
-                    style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Medium),
-                    color = ThesisColors.TextMuted
-                )
-                Text(
-                    text = "Tell us why you might cancel or downgrade so we can improve the Pro value.",
-                    style = ThesisTypography.bodySmall,
-                    color = ThesisColors.TextMuted
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)) {
-                    OutlinedButton(
-                        onClick = { subscriptionFeedbackFlow = "cancel" },
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
-                        border = androidx.compose.foundation.BorderStroke(
-                            ThesisDimens.BorderWidth,
-                            if (subscriptionFeedbackFlow == "cancel") ThesisColors.Primary else ThesisColors.Border
-                        )
-                    ) {
-                        Text(
-                            "Cancel",
-                            color = if (subscriptionFeedbackFlow == "cancel") ThesisColors.Primary else ThesisColors.TextMuted
-                        )
-                    }
-                    OutlinedButton(
-                        onClick = { subscriptionFeedbackFlow = "downgrade" },
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
-                        border = androidx.compose.foundation.BorderStroke(
-                            ThesisDimens.BorderWidth,
-                            if (subscriptionFeedbackFlow == "downgrade") ThesisColors.Primary else ThesisColors.Border
-                        )
-                    ) {
-                        Text(
-                            "Downgrade",
-                            color = if (subscriptionFeedbackFlow == "downgrade") ThesisColors.Primary else ThesisColors.TextMuted
+        if (onImportHoldings != null) {
+            section("portfolio", AccountCopy.SECTION_PORTFOLIO) {
+                RowGroup {
+                    row {
+                        ActionRow(
+                            icon = ThesisIcons.Document,
+                            title = AccountCopy.IMPORT_HOLDINGS,
+                            onClick = onImportHoldings,
+                            caption = AccountCopy.IMPORT_HOLDINGS_SUB,
                         )
                     }
                 }
+            }
+        }
 
-                val feedbackOptions = listOf(
-                    "cancel_price" to "Price",
-                    "cancel_low_value" to "Low value",
-                    "cancel_too_noisy" to "Too noisy",
-                    "cancel_other" to "Other"
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)) {
-                    feedbackOptions.take(2).forEach { (code, label) ->
-                        OutlinedButton(
-                            onClick = { subscriptionFeedbackCode = code },
-                            modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
-                            border = androidx.compose.foundation.BorderStroke(
-                                ThesisDimens.BorderWidth,
-                                if (subscriptionFeedbackCode == code) ThesisColors.Primary else ThesisColors.Border
+        // Hidden until the caller wires the export: without it [notes] is not passed either, and "None yet" would be
+        // wrong for a user who has notes.
+        if (onExportNotes != null) section("notes", AccountCopy.SECTION_NOTES) {
+            val (noteCount, nameCount) = remember(notes) { NotesMarkdown.counts(notes) }
+            RowGroup {
+                row {
+                    if (noteCount == 0) {
+                        DataRow(
+                            label = AccountCopy.EXPORT_NOTES,
+                            value = AccountCopy.NOTES_NONE,
+                            sub = AccountCopy.NOTES_NONE_SUB,
+                        )
+                    } else {
+                        ActionRow(
+                            icon = ThesisIcons.Notes,
+                            title = AccountCopy.EXPORT_NOTES,
+                            onClick = {
+                                val today = LocalDate.now(clock)
+                                onExportNotes(NotesMarkdown.fileName(today), NotesMarkdown.build(notes, today, clock.zone))
+                            },
+                            caption = AccountCopy.exportNotesSub(noteCount, nameCount),
+                        )
+                    }
+                }
+            }
+        }
+
+        section("subscription", AccountCopy.SECTION_SUBSCRIPTION) {
+            Column(verticalArrangement = Arrangement.spacedBy(ThesisSpace.m)) {
+                RowGroup {
+                    row {
+                        DataRow(
+                            label = AccountCopy.PLAN,
+                            value = if (isPro) AccountCopy.PLAN_VALUE_PRO else AccountCopy.PLAN_VALUE_FREE,
+                            sub = profile?.billingPeriodEnd?.let { periodEndLabel(it, fmt, clock.zone) }?.let(AccountCopy::periodEnds),
+                        )
+                    }
+                    if (profile != null) {
+                        row {
+                            DataRow(
+                                label = AccountCopy.DEEP_DIVES_TODAY,
+                                value = if (profile.dailyDeepDiveLimit < 0) {
+                                    AccountCopy.UNLIMITED
+                                } else {
+                                    AccountCopy.deepDivesLeft(profile.deepDivesRemainingToday, profile.dailyDeepDiveLimit)
+                                },
                             )
-                        ) {
-                            Text(
-                                label,
-                                color = if (subscriptionFeedbackCode == code) ThesisColors.Primary else ThesisColors.TextMuted
+                        }
+                        row { DataRow(label = AccountCopy.NAMES_LIMIT, value = Fmt.number(profile.watchlistLimit.toLong())) }
+                    }
+                    row {
+                        if (isPro) {
+                            ActionRow(
+                                icon = null,
+                                title = AccountCopy.MANAGE_SUBSCRIPTION,
+                                onClick = { uriHandler.openUri(AccountCopy.GOOGLE_PLAY_SUBSCRIPTIONS) },
+                                caption = AccountCopy.MANAGE_SUBSCRIPTION_SUB,
+                                external = true,
+                            )
+                        } else {
+                            ActionRow(
+                                icon = null,
+                                title = AccountCopy.SEE_PRO,
+                                onClick = { onRequireUpgrade("settings_subscription") },
+                                caption = AccountCopy.SEE_PRO_SUB,
                             )
                         }
                     }
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)) {
-                    feedbackOptions.drop(2).forEach { (code, label) ->
-                        OutlinedButton(
-                            onClick = { subscriptionFeedbackCode = code },
-                            modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
-                            border = androidx.compose.foundation.BorderStroke(
-                                ThesisDimens.BorderWidth,
-                                if (subscriptionFeedbackCode == code) ThesisColors.Primary else ThesisColors.Border
-                            )
-                        ) {
-                            Text(
-                                label,
-                                color = if (subscriptionFeedbackCode == code) ThesisColors.Primary else ThesisColors.TextMuted
-                            )
-                        }
+                    row {
+                        BusyAwareActionRow(
+                            title = AccountCopy.RESTORE_PURCHASES,
+                            onClick = onRestorePurchases,
+                            busy = subscriptionActionInFlight,
+                        )
+                    }
+                    row {
+                        BusyAwareActionRow(
+                            title = AccountCopy.REFRESH_PLAN,
+                            onClick = onSyncTier,
+                            busy = subscriptionActionInFlight,
+                        )
+                    }
+                    // Every tier, as before the redesign: the only feedback channel the app has (HANDOFF-G 14). A Free
+                    // account is asked why it has not moved to Pro, without the cancel or downgrade choice.
+                    row {
+                        ActionRow(
+                            icon = null,
+                            title = if (isPro) AccountCopy.FEEDBACK else AccountCopy.FEEDBACK_FREE,
+                            onClick = { feedbackOpen = !feedbackOpen },
+                            caption = if (isPro) AccountCopy.FEEDBACK_SUB else AccountCopy.FEEDBACK_FREE_SUB,
+                        )
                     }
                 }
-
-                OutlinedTextField(
-                    value = subscriptionFeedbackMessage,
-                    onValueChange = { subscriptionFeedbackMessage = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Optional context") },
-                    minLines = 2,
-                    maxLines = 4,
-                    shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedContainerColor = ThesisColors.SurfaceElevated,
-                        unfocusedContainerColor = ThesisColors.SurfaceElevated,
-                        focusedBorderColor = ThesisColors.Primary,
-                        unfocusedBorderColor = ThesisColors.Border,
-                        focusedTextColor = ThesisColors.TextPrimary,
-                        unfocusedTextColor = ThesisColors.TextPrimary,
-                        cursorColor = ThesisColors.Primary,
-                        focusedLabelColor = ThesisColors.Primary,
-                        unfocusedLabelColor = ThesisColors.TextMuted
+                if (feedbackOpen) {
+                    SubscriptionFeedbackCard(
+                        busy = subscriptionActionInFlight,
+                        isPro = isPro,
+                        onSubmit = { code, flow, message ->
+                            // The win-back offer is for someone leaving Pro, not for a Free account.
+                            onSubmitSubscriptionFeedback(code, "settings_subscription_$flow", message, isPro)
+                            feedbackOpen = false
+                        },
                     )
-                )
-
-                Button(
-                    onClick = {
-                        onSubmitSubscriptionFeedback(
-                            subscriptionFeedbackCode,
-                            "settings_subscription_${subscriptionFeedbackFlow}",
-                            subscriptionFeedbackMessage,
-                            true
-                        )
-                        subscriptionFeedbackMessage = ""
-                    },
-                    enabled = !subscriptionActionInFlight,
-                    shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
-                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(
-                        containerColor = ThesisColors.SurfaceElevated,
-                        contentColor = ThesisColors.TextPrimary
-                    ),
-                    modifier = Modifier.fillMaxWidth().height(40.dp)
-                ) {
-                    Text("Submit Feedback", style = ThesisTypography.labelLarge)
                 }
             }
         }
-        if (showDeveloperOptions) item {
-            val shape = RoundedCornerShape(ThesisDimens.CardCornerRadius)
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(shape)
-                    .background(ThesisColors.Surface)
-                    .border(ThesisDimens.BorderWidth, ThesisColors.Border, shape)
-                    .padding(ThesisDimens.CardPadding),
-                verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)
-            ) {
-                Text(
-                    text = "DEVELOPER",
-                    style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Medium),
-                    color = ThesisColors.TextMuted
-                )
-                OutlinedTextField(
-                    value = baseUrl,
-                    onValueChange = { baseUrl = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("API Base URL") },
-                    singleLine = true,
-                    shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedContainerColor = ThesisColors.SurfaceElevated,
-                        unfocusedContainerColor = ThesisColors.SurfaceElevated,
-                        focusedBorderColor = ThesisColors.Primary,
-                        unfocusedBorderColor = ThesisColors.Border,
-                        focusedTextColor = ThesisColors.TextPrimary,
-                        unfocusedTextColor = ThesisColors.TextPrimary,
-                        cursorColor = ThesisColors.Primary,
-                        focusedLabelColor = ThesisColors.Primary,
-                        unfocusedLabelColor = ThesisColors.TextMuted
+
+        section("review", AccountCopy.SECTION_REVIEW) {
+            MonthlyReview(
+                isPro = isPro,
+                insights = convictionInsights,
+                error = convictionInsightsError,
+                onRefresh = onRefreshConvictionInsights,
+                onSeePro = { onRequireUpgrade("conviction_intelligence") },
+            )
+        }
+
+        section("legal", AccountCopy.SECTION_LEGAL) {
+            RowGroup {
+                row {
+                    ActionRow(
+                        icon = null,
+                        title = AccountCopy.TERMS,
+                        onClick = { uriHandler.openUri(legalPageUrl(currentApiBaseUrl, "terms")) },
+                        external = true,
                     )
-                )
-                Button(
-                    onClick = { onSaveApiBaseUrl(baseUrl) },
-                    shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
-                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(
-                        containerColor = ThesisColors.SurfaceElevated,
-                        contentColor = ThesisColors.TextPrimary
-                    ),
-                    modifier = Modifier.fillMaxWidth().height(40.dp)
-                ) {
-                    Text("Save API URL")
+                }
+                row {
+                    ActionRow(
+                        icon = null,
+                        title = AccountCopy.PRIVACY,
+                        onClick = { uriHandler.openUri(legalPageUrl(currentApiBaseUrl, "privacy")) },
+                        external = true,
+                    )
+                }
+                row {
+                    ActionRow(
+                        icon = null,
+                        title = AccountCopy.LICENCES,
+                        onClick = { licencesOpen = true },
+                        caption = AccountCopy.LICENCES_SUB,
+                    )
                 }
             }
         }
-        item {
-            val shape = RoundedCornerShape(ThesisDimens.CardCornerRadius)
+
+        section("account", AccountCopy.SECTION_ACCOUNT) {
+            Column(verticalArrangement = Arrangement.spacedBy(ThesisSpace.m)) {
+                // A row like every other You action: its card and the delete button below share the text edge.
+                RowGroup {
+                    row { ActionRow(icon = ThesisIcons.SignOut, title = AccountCopy.LOG_OUT, onClick = onLogout) }
+                }
+                deleteAccountSection()
+            }
+        }
+
+        if (showDeveloperOptions) {
+            section("developer", AccountCopy.SECTION_DEVELOPER) {
+                DeveloperApi(currentApiBaseUrl = currentApiBaseUrl, onSave = onSaveApiBaseUrl)
+            }
+        }
+
+        item(key = "disclaimer", contentType = "disclaimer") {
+            Text(AccountCopy.DISCLAIMER, style = ThesisType.caption, color = p.muted)
+        }
+    }
+
+    if (licencesOpen) {
+        ThesisSheet(onDismissRequest = { licencesOpen = false }, title = AccountCopy.LICENCES) {
             Column(
-                modifier = Modifier
+                Modifier
                     .fillMaxWidth()
-                    .clip(shape)
-                    .background(ThesisColors.Surface)
-                    .border(ThesisDimens.BorderWidth, ThesisColors.Border, shape)
-                    .padding(ThesisDimens.CardPadding),
-                verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(ThesisSpace.s),
             ) {
-                Text(
-                    text = "ABOUT",
-                    style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Medium),
-                    color = ThesisColors.TextMuted
-                )
-                Text(
-                    text = "This is a research summary, not financial advice. Always do your own research.",
-                    style = ThesisTypography.bodyMedium,
-                    color = ThesisColors.TextPrimary
-                )
-                LegalLinks(apiBaseUrl = currentApiBaseUrl)
+                Text(Licences.NEWSREADER_TITLE, style = ThesisType.rowTitle, color = p.ink)
+                Text(Licences.NEWSREADER_OFL, style = ThesisType.caption, color = p.ink2)
             }
-        }
-        item {
-            Button(
-                onClick = onLogout,
-                shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
-                colors = androidx.compose.material3.ButtonDefaults.buttonColors(
-                    containerColor = ThesisColors.SignalNegative.copy(alpha = 0.16f),
-                    contentColor = ThesisColors.SignalNegative
-                ),
-                modifier = Modifier.fillMaxWidth().height(44.dp)
-            ) {
-                Text("Logout")
-            }
-        }
-        item {
-            deleteAccountSection()
         }
     }
 }
 
+/**
+ * An [ActionRow] that stands down while a store action runs ([busy]): its title and caption turn `muted` (the
+ * disabled ToggleRow's colour), TalkBack hears it as disabled, a caption says why and a tap does nothing. The kit
+ * row has no `enabled` yet (HANDOFF-G 23).
+ */
 @Composable
-private fun NotificationPreferenceRow(
-    type: String,
-    enabled: Boolean,
-    quietUntil: String?,
-    notificationsEnabled: Boolean,
-    onToggle: (Boolean) -> Unit,
-    switchColors: androidx.compose.material3.SwitchColors
-) {
-    val label = Phase4Copy.notificationFamilyLabel(type)
-    val quietUntilLabel = quietUntil?.let(::formatNotificationQuietUntil)
-
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(label, style = ThesisTypography.bodyMedium, color = ThesisColors.TextPrimary)
-            if (!notificationsEnabled) {
-                Text(
-                    Phase4Copy.notificationGlobalOffNote,
-                    style = ThesisTypography.bodySmall,
-                    color = ThesisColors.TextMuted
-                )
-            } else if (enabled && quietUntilLabel != null) {
-                Text(
-                    Phase4Copy.notificationQuietUntilNote(quietUntilLabel),
-                    style = ThesisTypography.bodySmall,
-                    color = ThesisColors.TextMuted
-                )
-            }
-        }
-        Switch(
-            checked = enabled,
-            onCheckedChange = onToggle,
-            colors = switchColors
+private fun BusyAwareActionRow(title: String, onClick: () -> Unit, busy: Boolean) {
+    if (!busy) {
+        ActionRow(icon = null, title = title, onClick = onClick)
+        return
+    }
+    val p = LocalThesisPalette.current
+    CompositionLocalProvider(LocalThesisPalette provides p.copy(ink = p.muted, ink2 = p.muted)) {
+        ActionRow(
+            icon = null,
+            title = title,
+            onClick = {},
+            modifier = Modifier.semantics { disabled() },
+            caption = AccountCopy.STORE_BUSY,
         )
     }
 }
 
-private fun formatNotificationQuietUntil(raw: String): String? {
-    val parsed = runCatching { Instant.parse(raw) }.getOrNull() ?: return null
-    if (!parsed.isAfter(Instant.now())) {
-        return null
+/** One You section: its kicker (a heading for TalkBack) above [content]. */
+private fun LazyListScope.section(key: String, kicker: String, content: @Composable () -> Unit) {
+    item(key = key, contentType = "section") {
+        Column(verticalArrangement = Arrangement.spacedBy(ThesisSpace.s)) {
+            Kicker(kicker, modifier = Modifier.semantics { heading() })
+            content()
+        }
     }
-    return parsed
-        .atZone(ZoneId.of("America/New_York"))
-        .format(DateTimeFormatter.ofPattern("MMM d, HH:mm z"))
 }
 
-/** Segment order of the Theme control (5.22: Auto · Light · Dark). Auto follows the system setting. */
-private val ThemeModeOrder = listOf(ThemeMode.System, ThemeMode.Light, ThemeMode.Dark)
-
 /**
- * You > Appearance (5.22, spec Q2), built from the kit so WP-G keeps it when it redraws You in PR-3: Theme
- * (Auto · Light · Dark), colour-blind up/down colours (Classic when off) and the in-app Reduce motion toggle. Each change
- * is stored per device at once (`SessionStore.saveAppearance`) and the theme follows on the next frame.
+ * A row holding a label above a full-width control (Theme, Up and down colours). Title and sub use the ToggleRow
+ * styles (`body`, `bodySmall`), so the Appearance rows read as one anatomy.
  */
 @Composable
-private fun AppearanceSection(appearance: AppearancePrefs, onSetAppearance: (AppearancePrefs) -> Unit) {
+private fun LabelledControl(label: String, sub: String? = null, trailing: @Composable () -> Unit = {}, control: @Composable () -> Unit) {
     val p = LocalThesisPalette.current
-    Column(verticalArrangement = Arrangement.spacedBy(ThesisSpace.s)) {
-        Kicker("Appearance")
-        RowGroup {
-            row {
-                Column(
-                    Modifier.padding(horizontal = ThesisSpace.l, vertical = ThesisSpace.rowPaddingV),
-                    verticalArrangement = Arrangement.spacedBy(ThesisSpace.s)
-                ) {
-                    Text("Theme", style = ThesisType.body, color = p.ink)
-                    SegmentedControl(
-                        options = listOf("Auto", "Light", "Dark"),
-                        selectedIndex = ThemeModeOrder.indexOf(appearance.themeMode).coerceAtLeast(0),
-                        onSelect = { i -> onSetAppearance(appearance.copy(themeMode = ThemeModeOrder[i])) }
-                    )
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = ThesisSpace.l, vertical = ThesisSpace.rowPaddingV),
+        verticalArrangement = Arrangement.spacedBy(ThesisSpace.s),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(label, style = ThesisType.body, color = p.ink)
+                if (sub != null) Text(sub, style = ThesisType.bodySmall, color = p.ink2)
+            }
+            trailing()
+        }
+        control()
+    }
+}
+
+/**
+ * Up and down colours: a Classic · Colour-blind SegmentedControl with a two-swatch preview of the chosen scheme.
+ * Where "Colour-blind" does not fit half the row (large font scales, narrow screens: A4) it falls back to a switch,
+ * which keeps the whole label.
+ */
+@Composable
+private fun UpDownRow(scheme: UpDownScheme, onSelect: (UpDownScheme) -> Unit) {
+    val sub = if (scheme == UpDownScheme.ColourBlind) AccountCopy.UP_DOWN_COLOUR_BLIND_SUB else AccountCopy.UP_DOWN_CLASSIC_SUB
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        // The control spans the row less its padding.
+        if (segmentLabelsFit(AccountCopy.UP_DOWN_OPTIONS, maxWidth - ThesisSpace.l * 2)) {
+            LabelledControl(AccountCopy.UP_DOWN, sub = sub, trailing = { UpDownPreview(scheme) }) {
+                SegmentedControl(
+                    options = AccountCopy.UP_DOWN_OPTIONS,
+                    selectedIndex = UpDownOrder.indexOf(scheme).coerceAtLeast(0),
+                    onSelect = { i -> onSelect(UpDownOrder[i]) },
+                )
+            }
+        } else {
+            Column {
+                ToggleRow(
+                    title = AccountCopy.UP_DOWN_TOGGLE,
+                    checked = scheme == UpDownScheme.ColourBlind,
+                    onCheckedChange = { on -> onSelect(if (on) UpDownScheme.ColourBlind else UpDownScheme.Classic) },
+                    sub = sub,
+                )
+                Row(Modifier.padding(start = ThesisSpace.l, end = ThesisSpace.l, bottom = ThesisSpace.rowPaddingV)) {
+                    UpDownPreview(scheme)
                 }
-            }
-            // A switch, not a two-segment control: "Colour-blind" does not fit half a 360 dp row at 2.0x (A4).
-            row {
-                ToggleRow(
-                    title = "Colour-blind colours",
-                    checked = appearance.upDown == UpDownScheme.ColourBlind,
-                    onCheckedChange = { on ->
-                        onSetAppearance(
-                            appearance.copy(upDown = if (on) UpDownScheme.ColourBlind else UpDownScheme.Classic)
-                        )
-                    },
-                    sub = "Blue for up and clay for down, instead of green and red"
-                )
-            }
-            row {
-                ToggleRow(
-                    title = "Reduce motion",
-                    checked = appearance.reduceMotion,
-                    onCheckedChange = { on -> onSetAppearance(appearance.copy(reduceMotion = on)) },
-                    sub = "Also on when the system removes animations"
-                )
             }
         }
     }
+}
+
+/** The two swatches: an up figure and a down figure in [scheme]'s text colours. Decorative (the caption says it). */
+@Composable
+private fun UpDownPreview(scheme: UpDownScheme) {
+    val p = LocalThesisPalette.current.withUpDown(scheme)
+    Row(
+        Modifier.clearAndSetSemantics { },
+        horizontalArrangement = Arrangement.spacedBy(ThesisSpace.m),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Swatch(ThesisIcons.Small.Up, Fmt.signedPct(1.2), p.upText)
+        Swatch(ThesisIcons.Small.Down, Fmt.signedPct(-0.8), p.downText)
+    }
+}
+
+@Composable
+private fun Swatch(icon: androidx.compose.ui.graphics.vector.ImageVector, text: String, color: androidx.compose.ui.graphics.Color) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Icon(icon, contentDescription = null, modifier = Modifier.size(ThesisSpace.iconS), tint = color)
+        Spacer(Modifier.width(ThesisSpace.xs))
+        Text(text, style = ThesisType.tape, color = color)
+    }
+}
+
+/**
+ * "Thinking of cancelling?" (Pro: flow, reason and an optional note) or "Not on Pro yet?" (Free: reason and note,
+ * flow `free`), sent to the API with the reason code.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun SubscriptionFeedbackCard(
+    busy: Boolean,
+    isPro: Boolean,
+    onSubmit: (code: String, flow: String, message: String) -> Unit,
+) {
+    var flow by rememberSaveable { mutableStateOf(0) }
+    var reason by rememberSaveable { mutableStateOf(AccountCopy.FEEDBACK_REASONS.first().first) }
+    var message by rememberSaveable { mutableStateOf("") }
+    ThesisCard(title = if (isPro) AccountCopy.FEEDBACK else AccountCopy.FEEDBACK_FREE) {
+        Column(verticalArrangement = Arrangement.spacedBy(ThesisSpace.m)) {
+            if (isPro) SegmentedControl(options = AccountCopy.FEEDBACK_FLOWS, selectedIndex = flow, onSelect = { flow = it })
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(ThesisSpace.s),
+                verticalArrangement = Arrangement.spacedBy(ThesisSpace.s),
+            ) {
+                AccountCopy.FEEDBACK_REASONS.forEach { (code, label) ->
+                    ThesisChip(label = label, selected = reason == code, onClick = { reason = code }, role = Role.RadioButton)
+                }
+            }
+            ThesisTextField(
+                value = message,
+                onValueChange = { message = it },
+                label = AccountCopy.FEEDBACK_MESSAGE,
+                singleLine = false,
+            )
+            SecondaryButton(
+                text = AccountCopy.FEEDBACK_SEND,
+                onClick = { onSubmit(reason, if (isPro) FeedbackFlowCodes[flow] else FEEDBACK_FLOW_FREE, message.trim()) },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !busy,
+                loading = busy,
+            )
+        }
+    }
+}
+
+/** The monthly review (Conviction intelligence): a Pro card for Free, else the latest review or its empty state. */
+@Composable
+private fun MonthlyReview(
+    isPro: Boolean,
+    insights: List<ConvictionInsightCardView>,
+    error: String?,
+    onRefresh: () -> Unit,
+    onSeePro: () -> Unit,
+) {
+    val p = LocalThesisPalette.current
+    val fmt = LocalFmt.current
+    if (!isPro) {
+        ThesisCard(
+            title = AccountCopy.REVIEW_PRO_TITLE,
+            // Names what it opens: "See Pro" is already the Subscription row's action a few rows up (V3).
+            footer = CardFooter(actionLabel = AccountCopy.REVIEW_PRO_ACTION, onAction = onSeePro),
+        ) {
+            Text(AccountCopy.REVIEW_PRO_BODY, style = ThesisType.body, color = p.ink2)
+        }
+        return
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(ThesisSpace.m)) {
+        if (!error.isNullOrBlank()) {
+            InlineBanner(text = error, tone = BannerTone.Error, actionLabel = AccountCopy.REVIEW_REFRESH, onAction = onRefresh)
+        }
+        val latest = insights.firstOrNull()
+        if (latest == null) {
+            EmptyState(
+                sentence = AccountCopy.REVIEW_EMPTY,
+                how = AccountCopy.REVIEW_EMPTY_HOW,
+                actionLabel = AccountCopy.REVIEW_REFRESH,
+                onAction = onRefresh,
+            )
+        } else {
+            val start = runCatching { LocalDate.parse(latest.periodStart.take(10)) }.getOrNull()
+            val end = runCatching { LocalDate.parse(latest.periodEnd.take(10)) }.getOrNull()
+            ThesisCard(
+                title = latest.title,
+                footer = CardFooter(actionLabel = AccountCopy.REVIEW_REFRESH, onAction = onRefresh),
+            ) {
+                // The period as a plain line under the title, not in the spaced-capitals eyebrow: the section's
+                // kicker is already the card's one kicker, and dates read as text (T2).
+                if (start != null && end != null) {
+                    Text(fmt.weekRange(start, end), style = ThesisType.bodySmall, color = p.muted)
+                }
+                if (latest.summary.isNotBlank()) Text(latest.summary, style = ThesisType.body, color = p.ink2)
+                latest.findings.forEach { finding ->
+                    Column(Modifier.heightIn(min = ThesisSpace.touchMin), verticalArrangement = Arrangement.spacedBy(ThesisSpace.xxs)) {
+                        Text(finding.title, style = ThesisType.rowTitle, color = p.ink)
+                        if (finding.summary.isNotBlank()) Text(finding.summary, style = ThesisType.bodySmall, color = p.ink2)
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Debug builds: point the app at another product-api. */
+@Composable
+private fun DeveloperApi(currentApiBaseUrl: String, onSave: (String) -> Unit) {
+    var baseUrl by rememberSaveable(currentApiBaseUrl) { mutableStateOf(currentApiBaseUrl) }
+    Column(verticalArrangement = Arrangement.spacedBy(ThesisSpace.m)) {
+        ThesisTextField(
+            value = baseUrl,
+            onValueChange = { baseUrl = it },
+            label = AccountCopy.API_BASE_URL,
+            keyboardOptions = KeyboardOptions(autoCorrect = false, keyboardType = KeyboardType.Uri, imeAction = ImeAction.Done),
+        )
+        SecondaryButton(AccountCopy.SAVE_API_URL, { onSave(baseUrl.trim()) }, enabled = baseUrl.isNotBlank())
+    }
+}
+
+/**
+ * "14:30, 26 Nov" for a quiet-until instant still in the future; null when it has passed or cannot be read. [now]
+ * and [zone] come from the screen's injected clock (never the system's), so the caption is deterministic.
+ */
+internal fun quietUntilLabel(raw: String, fmt: Fmt, now: Instant, zone: ZoneId): String? {
+    val until = runCatching { Instant.parse(raw) }.getOrNull() ?: return null
+    if (!until.isAfter(now)) return null
+    return "${fmt.time(until)}, ${fmt.shortDate(until.atZone(zone).toLocalDate())}"
+}
+
+/** The billing period end as a short date ("24 Dec"); the raw value when it is not a date the app can read. */
+internal fun periodEndLabel(raw: String, fmt: Fmt, zone: ZoneId): String? {
+    val trimmed = raw.trim().takeIf { it.isNotEmpty() } ?: return null
+    val date = runCatching { Instant.parse(trimmed).atZone(zone).toLocalDate() }.getOrNull()
+        ?: runCatching { LocalDate.parse(trimmed.take(10)) }.getOrNull()
+    return date?.let(fmt::shortDate) ?: trimmed
 }

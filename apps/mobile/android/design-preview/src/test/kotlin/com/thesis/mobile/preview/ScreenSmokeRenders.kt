@@ -128,7 +128,7 @@ class ScreenSmokeRenders {
                 userTier = "free", templates = emptyList(), selectedScenarioId = null, run = null,
                 templatesError = null, runError = null, isLoadingTemplates = false, isRunning = false,
                 watchlistCount = names.size, onRefreshTemplates = {}, onSelectTemplate = {}, onRunScenario = {},
-                onOpenTickerResearch = {}, onOpenRunFromRoute = { _, _ -> }, onRequireUpgrade = {},
+                onRequireUpgrade = {},
             )
         }
     }
@@ -168,10 +168,10 @@ class ScreenSmokeRenders {
 @androidx.compose.runtime.Composable
 private fun HomeEmpty() {
     HomeScreen(
-        pulse = null, pulseLoadedFromCache = false, pulseFreshnessText = null, sentimentCurrent = null,
+        pulse = null, pulseLoadedFromCache = false, sentimentCurrent = null,
         sentimentHistory = emptyList(), sentimentError = null, watchlist = listOf("AAPL", "MSFT", "NVDA"),
-        monitorSnapshots = emptyList(), padding = PaddingValues(), onOpenHistory = {}, onRunDeepDive = {},
-        onManageNames = {}, onRetryPulse = {}, onOpenMacroStressDashboard = {}, onOpenWeeklyDigest = {},
+        monitorSnapshots = emptyList(), padding = PaddingValues(),
+        onManageNames = {}, onRetryPulse = {}, onOpenMacroStressDashboard = {},
         onOpenPulseBrief = {},
     )
 }

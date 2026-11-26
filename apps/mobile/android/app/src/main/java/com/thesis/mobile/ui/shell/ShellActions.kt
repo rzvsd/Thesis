@@ -63,6 +63,9 @@ interface ShellActions {
      */
     fun onOpenPulse(date: String?) {}
 
+    /** Pushes the latest `Pulse` opened at [chapter] (a `ChapterKind` name: Home's chapter rows and tape). */
+    fun onOpenPulseAt(chapter: String) { onOpenPulse(null) }
+
     /**
      * A `Pulse(date)` entry is on screen (null = the latest issue). Loads its issue when the shared Pulse was last
      * asked for another day or for the latest (after process death, a Today refresh while a dated entry sat in
@@ -87,6 +90,47 @@ interface ShellActions {
      */
     fun onEnsureScenarioStress(runId: String?, scenarioId: String?) {}
     fun onOpenName(ticker: String) {}
+
+    /**
+     * Pushes `Name(ticker, pagerScope, anchor)` and loads it (snapshot, report summary, notes trail). [pagerScope] is
+     * the board order the Name pager walks; [anchor] is `Destination.Name.ANCHOR_*` or null.
+     */
+    fun onOpenNameIn(ticker: String, pagerScope: String?, anchor: String?) { onOpenName(ticker) }
+
+    /** A thesis drift alert: Name at "Since the last report" (5.21.5). */
+    fun onOpenNameAtChanges(ticker: String) {
+        onOpenNameIn(ticker, null, com.thesis.mobile.ui.navigation.Destination.Name.ANCHOR_CHANGES)
+    }
+
+    /** The Name pager: the top `Name` entry is replaced by [ticker]'s, in the same [pagerScope] (4.5, no new entry). */
+    fun onPageName(ticker: String, pagerScope: String?) {}
+
+    /** A `Name(ticker)` entry is on screen but `UiState.nameDetail` holds another ticker (restore, pager, pop). */
+    fun onEnsureName(ticker: String) {}
+
+    /** Pushes `CompareNames(tickers)` (at most four, the table's limit) and loads each name's latest report. */
+    fun onOpenCompareNames(tickers: List<String>) {}
+
+    /** A `CompareNames` entry is on screen but `UiState.compareNames` holds other tickers. */
+    fun onEnsureCompareNames(tickers: List<String>) {}
+
+    /** Pushes `CompareReports(older, newer)` and loads both reports. */
+    fun onOpenCompareReports(reportIdA: String, reportIdB: String) {}
+
+    /** A `CompareReports` entry is on screen but `UiState.compareReports` holds another pair. */
+    fun onEnsureCompareReports(reportIdA: String, reportIdB: String) {}
+
+    /** The Inbox tab, filtered to [category] (null: every alert). */
+    fun onOpenInbox(category: String?) {}
+
+    /** The Inbox tab showing only [ticker]'s alerts, under a removable chip (Name's "See alerts", 5.11 item 3). */
+    fun onOpenInboxFor(ticker: String) {}
+
+    /** The Names tab with its add field focused (Home's empty "Add a name", 5.6). */
+    fun onOpenNamesToAdd() {}
+
+    /** The Names tab with the holdings CSV import open (You > Portfolio, 5.22). */
+    fun onOpenHoldingsImport() {}
     fun onResumeLastViewed(report: LastViewedReport) {}
     fun onDismissResumeCard() {}
 
@@ -99,8 +143,34 @@ interface ShellActions {
     // ---- Names
 
     fun onRefreshNames() {}
+    /** Follow [ticker] ("Added X to Names"). The Names board's own field adds the row in place: no message there. */
     fun onAddName(ticker: String) {}
+    fun onAddNameFromBoard(ticker: String) {}
     fun onRemoveName(ticker: String) {}
+
+    /**
+     * Unfollow from outside Names (Name's follow toggle, the report bar): like [onRemoveName], and the snackbar
+     * says it once the server has the new list (Names shows its own snackbar with Undo instead).
+     */
+    fun onUnfollowName(ticker: String) { onRemoveName(ticker) }
+
+    /** Server ticker suggestions for a typed query (Names' add field, the Research field). */
+    fun onSearchTickers(query: String) {}
+
+    /** Fills `UiState.allNotes` from the notes cache. */
+    fun onLoadAllNotes() {}
+
+    /** Fills `UiState.notesTrails[ticker]`. */
+    fun onLoadNotesTrail(ticker: String) {}
+
+    /**
+     * Saves [text] as the note of [reportId] (any report, not only the open one): true once the server has it. Name's
+     * NoteBlock autosave; no snackbar (the block's footer says Saved).
+     */
+    suspend fun onSaveNoteFor(reportId: String, text: String): Boolean = false
+
+    /** The same save, fire and forget in the ViewModel's scope (Name left while an edit was pending). */
+    fun onSaveNoteOnLeave(reportId: String, text: String) {}
     suspend fun onImportHoldingsCsv(csv: String): Result<HoldingsImportResultView> =
         Result.failure(UnsupportedOperationException("preview"))
 
@@ -114,10 +184,22 @@ interface ShellActions {
     // ---- Research and the report
 
     fun onTickerChange(ticker: String) {}
+
+    /** History: reload the report list (pull to refresh, Try again). */
+    fun onRefreshHistory() {}
+
+    /** Search (5.27): local hits at once, then server tickers. Blank clears the results. */
+    fun onSearch(query: String) {}
+
+    /** A submitted search is kept among the last eight (5.27 "Recent searches when empty"). */
+    fun onAddRecentSearch(query: String) {}
+    fun onClearRecentSearches() {}
     fun onReportNoteChange(content: String) {}
     fun onSaveReportNote() {}
     fun onGenerateOppositeCase() {}
     fun onRefreshConviction() {}
+    /** Loads the conviction journal of [ticker] (Name entry and paging; Pro only, a no-op otherwise). */
+    fun onRefreshConvictionFor(ticker: String) {}
     fun onRunScenario(years: Int?, growth: Double?, wacc: Double?) {}
     fun onSubmitReportFeedback(code: String, message: String) {}
     fun onNotify(message: String) {}
@@ -136,6 +218,9 @@ interface ShellActions {
     fun onSetNotificationsEnabled(enabled: Boolean) {}
     fun onSetBiometricLock(enabled: Boolean) {}
     fun onSetNotificationPreference(type: String, enabled: Boolean) {}
+
+    /** The Inbox's "Turn off alerts like this": the preference off, confirmed by the Inbox's own snackbar. */
+    fun onDisableAlertType(type: String) { onSetNotificationPreference(type, false) }
     fun onSaveApiBaseUrl(url: String) {}
     fun onSyncTier() {}
     fun onRefreshConvictionInsights() {}
@@ -172,7 +257,11 @@ class ShellPlatform(
         onFollowName: () -> Unit,
         onDismiss: () -> Unit
     ) -> Unit = { _, _, _ -> },
-    val macroStressDashboard: @androidx.compose.runtime.Composable (onBack: () -> Unit) -> Unit = {},
+    /**
+     * Hands [text] to the system share sheet as a document named [fileName] (the notes export, 5.22; a note from
+     * Name). Previews ignore it.
+     */
+    val shareText: (fileName: String, text: String) -> Unit = { _, _ -> },
     val deleteAccountSection: @androidx.compose.runtime.Composable () -> Unit = {},
     /** The Activity is RESUMED (in front of the user). Timers such as the War Room auto-refresh run only then. */
     val isResumed: Boolean = true,

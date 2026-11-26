@@ -14,6 +14,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
@@ -101,6 +102,10 @@ fun SectionHeader(
     onAction: (() -> Unit)? = null,
 ) {
     val p = LocalThesisPalette.current
+    val action = if (actionLabel != null && onAction != null) actionLabel to onAction else null
+    // At large font sizes the action beside the headline squeezes it into a narrow column of short lines: the
+    // action moves under the headline instead (A4).
+    val stacked = action != null && LocalDensity.current.fontScale >= STACK_ACTION_FONT_SCALE
     Column(modifier.fillMaxWidth()) {
         Kicker(kicker)
         Spacer(Modifier.height(ThesisSpace.xs))
@@ -114,9 +119,13 @@ fun SectionHeader(
                 style = ThesisType.capped(ThesisType.headline),
                 color = p.ink,
             )
-            if (actionLabel != null && onAction != null) {
-                TextAction(actionLabel, onAction, Modifier.alignByBaseline(), trailing = true)
+            if (action != null && !stacked) {
+                TextAction(action.first, action.second, Modifier.alignByBaseline(), trailing = true)
             }
+        }
+        if (action != null && stacked) {
+            Spacer(Modifier.height(ThesisSpace.xs))
+            TextAction(action.first, action.second, trailing = true)
         }
         if (deck != null) {
             Spacer(Modifier.height(ThesisSpace.xs))
@@ -124,6 +133,9 @@ fun SectionHeader(
         }
     }
 }
+
+/** From this font scale up, [SectionHeader]'s action sits under the headline rather than beside it. */
+private const val STACK_ACTION_FONT_SCALE = 1.5f
 
 /** A badge in a chapter header's kicker row. */
 @Immutable

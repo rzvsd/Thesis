@@ -38,7 +38,9 @@ data class NavRoute(
  * Pure mapping from notifications, links and Inbox alerts to [NavRoute]s. It keeps the destinations the app
  * had before the redesign (5.5 "deep links unchanged"), expressed as stack entries instead of tab modes:
  * - "today": Today root, or the Weekly digest pushed on it; the Pulse for the given day is loaded.
- * - "names": Names root, focused on the ticker when there is one.
+ * - "names": Names root, focused on the ticker when there is one. A thesis-drift alert (thesis_drift,
+ *   contrarian_alert) with a ticker also pushes that Name at "Since the last report" (5.25), where the Inbox opens
+ *   the same alert, so a push and an Inbox tap land on the same page.
  * - "research": a War Room, a Scenario Stress run, a stored report, or a Deep Dive for the ticker, pushed on
  *   the Research root; nothing pushed when the link names none of these.
  * - "inbox": Inbox root. "you": You on the modal stack.
@@ -61,11 +63,7 @@ object DeepLinkRouter {
                     )
                 )
             }
-            "names" -> NavRoute(
-                tab = ShellTab.Names,
-                namesFocusTicker = normalizeTicker(target.ticker),
-                actions = listOf(landed)
-            )
+            "names" -> namesRoute(normalizeTicker(target.ticker), drift = type != null && type in DRIFT_TYPES, extra = listOf(landed))
             "research" -> researchRoute(
                 warRoomId = target.warRoomId,
                 scenarioRunId = target.scenarioRunId,
@@ -115,10 +113,16 @@ object DeepLinkRouter {
             } else {
                 NavRoute(tab = ShellTab.Today, actions = listOf(RouteAction.OpenPulse(pulseDate)))
             }
-            "names" -> NavRoute(
-                tab = ShellTab.Names,
-                namesFocusTicker = normalizeTicker(ticker) ?: relatedTickers.firstNotNullOfOrNull(::normalizeTicker)
-            )
+            "names" -> {
+                val own = normalizeTicker(ticker)
+                // As the Inbox's own route (InboxModels.route): drift by type or by category, on the alert's ticker.
+                val drift = own != null && briefing == null && isDriftAlert(alert)
+                if (drift) {
+                    namesRoute(own, drift = true, extra = emptyList())
+                } else {
+                    NavRoute(tab = ShellTab.Names, namesFocusTicker = own ?: relatedTickers.firstNotNullOfOrNull(::normalizeTicker))
+                }
+            }
             "research" -> researchRoute(
                 warRoomId = alert.warRoomId,
                 scenarioRunId = null,
@@ -160,6 +164,22 @@ object DeepLinkRouter {
         }
         return NavRoute(tab = ShellTab.Research, push = push, actions = actions + extra)
     }
+
+    /** The Names tab focused on [ticker]; a drift alert also pushes its Name at "Since the last report". */
+    private fun namesRoute(ticker: String?, drift: Boolean, extra: List<RouteAction>): NavRoute = NavRoute(
+        tab = ShellTab.Names,
+        push = if (drift && ticker != null) Destination.Name(ticker, anchor = Destination.Name.ANCHOR_CHANGES) else null,
+        namesFocusTicker = ticker,
+        actions = extra
+    )
+
+    private fun isDriftAlert(alert: AlertLedgerItemView): Boolean {
+        val type = alert.notificationType.trim().lowercase()
+        val category = alert.category.trim().lowercase().replace(' ', '_').replace('-', '_')
+        return type in DRIFT_TYPES || category == "thesis_drift" || category == "drift" || category == "thesisdrift"
+    }
+
+    private val DRIFT_TYPES = setOf("thesis_drift", "contrarian_alert")
 
     private fun normalizeTicker(raw: String?): String? = raw?.trim()?.uppercase()?.ifBlank { null }
 }

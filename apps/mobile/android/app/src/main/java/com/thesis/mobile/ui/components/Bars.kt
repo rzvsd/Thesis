@@ -12,6 +12,7 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -24,7 +25,9 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.selection.toggleable
@@ -43,6 +46,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -50,6 +54,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Constraints
 import com.thesis.mobile.ui.icons.ThesisIcons
 import com.thesis.mobile.ui.motion.ThesisMotion
 import com.thesis.mobile.ui.motion.rememberHaptics
@@ -163,8 +168,8 @@ fun ReportTopBar(
     ticker: String,
     onBack: () -> Unit,
     following: Boolean,
-    onFollowChange: (Boolean) -> Unit,
-    onOverflow: () -> Unit,
+    onFollowChange: ((Boolean) -> Unit)?,
+    onOverflow: (() -> Unit)?,
     modifier: Modifier = Modifier,
 ) {
     val p = LocalThesisPalette.current
@@ -189,7 +194,9 @@ fun ReportTopBar(
             }
             Text(ticker, style = ThesisType.capped(ThesisType.barTitle), color = p.ink, maxLines = 1)
         }
-        Box(
+        // A control with nothing wired is left out, never drawn dead (a report whose follow state is unknown, the
+        // opening skeleton's bar with no overflow yet).
+        if (onFollowChange != null) Box(
             Modifier
                 .size(ThesisSpace.touchMin)
                 .toggleable(
@@ -217,7 +224,9 @@ fun ReportTopBar(
                 )
             }
         }
-        ThesisIconButton(ThesisIcons.Overflow, contentDescription = "More options", onClick = onOverflow)
+        if (onOverflow != null) {
+            ThesisIconButton(ThesisIcons.Overflow, contentDescription = "More options", onClick = onOverflow)
+        }
     }
 }
 
@@ -364,6 +373,8 @@ data class DockItem(val label: String, val onClick: () -> Unit, val badge: Strin
  * The report dock (#48): a floating pill row (surface @ 94%, 1 dp `line2`, 48 dp, 16 dp from the edges, above the
  * navigation inset) of outline-style segments. Hides on scroll down and shows on scroll up: the caller passes
  * [visible]; the dock moves by its height + fade with the `spatial` spring.
+ * Each segment takes its label's own width (never clipped: "Conviction" at 1.3x and 2.0x) and the room left over is
+ * shared equally; when the labels do not fit the pill at all, the segments scroll sideways inside it.
  */
 @Composable
 fun ReportDock(items: List<DockItem>, modifier: Modifier = Modifier, visible: Boolean = true) {
@@ -391,22 +402,52 @@ fun ReportDock(items: List<DockItem>, modifier: Modifier = Modifier, visible: Bo
             .padding(horizontal = ThesisSpace.xs),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        items.forEach { item ->
-            val source = remember(item.label) { MutableInteractionSource() }
-            Row(
-                Modifier
-                    .weight(1f)
-                    .heightIn(min = ThesisSpace.touchMin)
-                    .clickable(source, indication = null, enabled = visible, role = Role.Button, onClick = item.onClick)
-                    .thesisPress(source, shape = ThesisShape.pill)
-                    .padding(horizontal = ThesisSpace.xs, vertical = ThesisSpace.xs),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(item.label, style = ThesisType.capped(ThesisType.button), color = p.ink, maxLines = 1)
-                if (item.badge != null) {
-                    Spacer(Modifier.width(ThesisSpace.xs))
-                    Text(item.badge, style = ThesisType.eyebrow, color = p.accent)
+        Layout(
+            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            content = {
+                items.forEach { item ->
+                    val source = remember(item.label) { MutableInteractionSource() }
+                    Row(
+                        Modifier
+                            .heightIn(min = ThesisSpace.touchMin)
+                            .widthIn(min = ThesisSpace.touchMin)
+                            .clickable(source, indication = null, enabled = visible, role = Role.Button, onClick = item.onClick)
+                            .thesisPress(source, shape = ThesisShape.pill)
+                            .padding(horizontal = ThesisSpace.s, vertical = ThesisSpace.xs),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            item.label,
+                            style = ThesisType.capped(ThesisType.button),
+                            color = p.ink,
+                            maxLines = 1,
+                            softWrap = false,
+                        )
+                        if (item.badge != null) {
+                            Spacer(Modifier.width(ThesisSpace.xs))
+                            Text(item.badge, style = ThesisType.eyebrow, color = p.accent, maxLines = 1, softWrap = false)
+                        }
+                    }
+                }
+            },
+        ) { measurables, constraints ->
+            // horizontalScroll lifts the max width; the min width is still the pill's inner width (fillMaxWidth).
+            val viewport = constraints.minWidth
+            val natural = measurables.map { it.maxIntrinsicWidth(Constraints.Infinity) }
+            val total = natural.sum()
+            val extra = if (measurables.isNotEmpty() && total < viewport) (viewport - total) / measurables.size else 0
+            val placeables = measurables.mapIndexed { i, m ->
+                val w = natural[i] + extra
+                m.measure(Constraints(minWidth = w, maxWidth = w, maxHeight = constraints.maxHeight))
+            }
+            val width = maxOf(viewport, placeables.sumOf { it.width })
+            val height = maxOf(constraints.minHeight, placeables.maxOfOrNull { it.height } ?: 0)
+            layout(width, height) {
+                var x = 0
+                placeables.forEach {
+                    it.placeRelative(x, (height - it.height) / 2)
+                    x += it.width
                 }
             }
         }

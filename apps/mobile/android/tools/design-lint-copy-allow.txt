@@ -2,4 +2,3 @@
 # Format: <path suffix>:<line> [pattern-id]   or   <path suffix>:/<substring of the line>/ [pattern-id]
 
 # "hold up" means "withstand", not a rating.
-DeepDiveNativeMemo.kt:/hold up in market scenarios/ copy-banned-word

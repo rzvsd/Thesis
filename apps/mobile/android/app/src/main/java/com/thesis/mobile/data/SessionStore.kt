@@ -186,6 +186,15 @@ class SessionStore(context: Context) {
         prefs.edit().putLong(KEY_LAST_NAMES_VISIT_AT, value).apply()
     }
 
+    /** The last submitted searches, newest first (Search, 5.27). */
+    fun getRecentSearches(): List<String> =
+        prefs.getString(KEY_RECENT_SEARCHES, null).orEmpty().split('\n').map { it.trim() }.filter { it.isNotEmpty() }
+
+    fun saveRecentSearches(values: List<String>) {
+        val joined = values.map { it.replace('\n', ' ').trim() }.filter { it.isNotEmpty() }.joinToString("\n")
+        prefs.edit().putString(KEY_RECENT_SEARCHES, joined).apply()
+    }
+
     /** Log out: the visit markers belong to the account; appearance stays with the device. */
     fun clearVisitMarkers() {
         prefs.edit().remove(KEY_LAST_INBOX_VISIT_AT).remove(KEY_LAST_NAMES_VISIT_AT).apply()
@@ -194,6 +203,7 @@ class SessionStore(context: Context) {
     companion object {
         private const val PREFS_NAME = "thesis_mobile_prefs"
         private const val KEY_ACCESS_TOKEN = "access_token"
+        private const val KEY_RECENT_SEARCHES = "recent_searches"
         private const val KEY_REFRESH_TOKEN = "refresh_token"
         private const val KEY_ACCESS_EXPIRES_AT = "access_expires_at"
         private const val KEY_REFRESH_EXPIRES_AT = "refresh_expires_at"

@@ -34,10 +34,13 @@ sealed interface Destination {
 
     // ---- Pushes inside a tab
 
-    /** The Pulse brief. [date] (YYYY-MM-DD) is a past issue; null is the latest one. */
-    data class Pulse(val date: String? = null) : Destination {
+    /**
+     * The Pulse brief. [date] (YYYY-MM-DD) is a past issue; null is the latest one. [chapter] is the chapter to open
+     * at (a `ChapterKind` name, from Home's chapter rows and tape); null opens at the top.
+     */
+    data class Pulse(val date: String? = null, val chapter: String? = null) : Destination {
         override val tag get() = "pulse"
-        override val fields get() = listOf(date)
+        override val fields get() = listOf(date, chapter)
     }
 
     data object MacroStress : Destination { override val tag = "macro_stress" }
@@ -47,10 +50,25 @@ sealed interface Destination {
         override val fields get() = listOf(date)
     }
 
-    /** One ticker (5.11, built in PR-3). [pagerScope] names the list the Name pager walks through. */
-    data class Name(val ticker: String, val pagerScope: String? = null) : Destination {
+    /**
+     * One ticker (5.11). [pagerScope] names the list the Name pager walks through. [anchor] is where it opens:
+     * [ANCHOR_NOTES] ("Your notes", to read), [ANCHOR_WRITE_NOTE] (the newest note takes focus), [ANCHOR_CHANGES]
+     * ("Since the last report"), or null (the top).
+     */
+    data class Name(val ticker: String, val pagerScope: String? = null, val anchor: String? = null) : Destination {
         override val tag get() = "name"
-        override val fields get() = listOf(ticker, pagerScope)
+        override val fields get() = listOf(ticker, pagerScope, anchor)
+
+        companion object {
+            /** The Notes view and a note search hit: Name scrolled to "Your notes", nothing focused (no keyboard). */
+            const val ANCHOR_NOTES = "notes"
+
+            /** Write a note (the board's context sheet): the newest NoteBlock takes focus, which scrolls it in. */
+            const val ANCHOR_WRITE_NOTE = "write-note"
+
+            /** A thesis drift alert: Name at its "Since the last report" block (5.21.5). */
+            const val ANCHOR_CHANGES = "since-last-report"
+        }
     }
 
     /** A stored Deep Dive report in the report host. [chapter] is the anchor to open at, when known. */
@@ -177,10 +195,10 @@ internal object DestinationCodec {
             Destination.Names.tag -> Destination.Names
             Destination.Research.tag -> Destination.Research
             Destination.Inbox.tag -> Destination.Inbox
-            "pulse" -> Destination.Pulse(opt(0))
+            "pulse" -> Destination.Pulse(opt(0), opt(1))
             Destination.MacroStress.tag -> Destination.MacroStress
             "weekly_digest" -> Destination.WeeklyDigest(opt(0))
-            "name" -> Destination.Name(req(0), opt(1))
+            "name" -> Destination.Name(req(0), opt(1), opt(2))
             "report" -> Destination.Report(req(0), opt(1), opt(2))
             "report_classic" -> Destination.ReportClassic(req(0), opt(1))
             "deep_dive_running" -> Destination.DeepDiveRunning(req(0))

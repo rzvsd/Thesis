@@ -38,9 +38,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.rememberTextMeasurer
-import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.unit.dp
-import com.thesis.mobile.ui.animations.StaggeredEntrance
 import com.thesis.mobile.ui.motion.ContainerTransformHost
 import com.thesis.mobile.ui.motion.Glyphs
 import com.thesis.mobile.ui.motion.RollPlan
@@ -59,15 +57,16 @@ import com.thesis.mobile.ui.motion.rememberShowSkeleton
 import com.thesis.mobile.ui.motion.staggeredEntrance
 import com.thesis.mobile.model.PulseReportView
 import com.thesis.mobile.preview.fixtures.ShellFixtures
-import com.thesis.mobile.ui.copy.Phase4Copy
 import com.thesis.mobile.ui.platform.PreviewBack
 import com.thesis.mobile.ui.screens.HomeScreen
+import com.thesis.mobile.ui.copy.TodayCopy
+import com.thesis.mobile.preview.fixtures.TodayFixtures
+import com.thesis.mobile.preview.fixtures.TodayLocals
 import com.thesis.mobile.ui.theme.ThemeMode
 import com.thesis.mobile.ui.theme.ThesisTheme
 import com.thesis.mobile.ui.theme.ThesisType
 import com.thesis.mobile.ui.theme.tnum
 import java.time.LocalDate
-import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -79,8 +78,7 @@ import org.junit.Test
 
 /**
  * Behaviour of the motion kit (docs/app-redesign/DESIGN-DIRECTION.md 4, 6.2 M1) on the virtual frame clock:
- * entrances never replay (also after the screen is disposed and composed again, and for the deprecated
- * StaggeredEntrance wrapper in a lazy list scrolled away and back), RollingNumber is final on first paint,
+ * entrances never replay (also after the screen is disposed and composed again), RollingNumber is final on first paint,
  * skeleton timing, DismissibleItem, scroll-spy, refresh semantics and the container transform's back.
  */
 class MotionBehaviourTest {
@@ -184,38 +182,6 @@ class MotionBehaviourTest {
         theme(reduced = true) { ProvideEntranceScope(EntranceRegistry(), "home") { Block("header", "block") } }
         rule.mainClock.advanceTimeByFrame()
         assertEquals(red.toArgb(), rule.onNodeWithTag("block").centre().toArgb())
-    }
-
-    @Suppress("DEPRECATION")
-    @Test
-    fun deprecatedStaggeredEntranceNeverReplaysOnScrollBack() {
-        val registry = EntranceRegistry()
-        rule.mainClock.autoAdvance = false
-        theme {
-            ProvideEntranceScope(registry, "pulse-entry") {
-                LazyColumn(Modifier.fillMaxSize().testTag("list")) {
-                    items(40) { i ->
-                        StaggeredEntrance(index = i) {
-                            Box(Modifier.fillMaxWidth().height(120.dp).testTag("row$i").background(red))
-                        }
-                    }
-                }
-            }
-        }
-        rule.mainClock.advanceTimeByFrame()
-        assertNotEquals(red.toArgb(), rule.onNodeWithTag("row0").centre().toArgb())
-        rule.mainClock.advanceTimeBy(1_000)
-        assertEquals(red.toArgb(), rule.onNodeWithTag("row0").centre().toArgb())
-
-        // Scroll far away (row 0 leaves composition) and back: row 0 is complete on its first frame back, and a
-        // row first composed after the window (row 30) appears at once too.
-        rule.onNodeWithTag("list").performScrollToIndex(30)
-        rule.mainClock.advanceTimeByFrame()
-        assertEquals(red.toArgb(), rule.onNodeWithTag("row30").centre().toArgb())
-        rule.onNodeWithTag("row0").assertDoesNotExist()
-        rule.onNodeWithTag("list").performScrollToIndex(0)
-        rule.mainClock.advanceTimeByFrame()
-        assertEquals(red.toArgb(), rule.onNodeWithTag("row0").centre().toArgb())
     }
 
     @Test
@@ -638,20 +604,22 @@ class MotionBehaviourTest {
         rule.mainClock.autoAdvance = false
         theme {
             ProvideEntranceScope(EntranceRegistry(), "home-entry") {
+                // WP-A: Home reads "now" from LocalTodayClock / LocalFmt; the fixed Today clock keeps the eyebrow stable.
+                TodayLocals {
                 HomeScreen(
-                    pulse = pulse, pulseLoadedFromCache = false, pulseFreshnessText = null, sentimentCurrent = null,
+                    pulse = pulse, pulseLoadedFromCache = false, sentimentCurrent = null,
                     sentimentHistory = emptyList(), sentimentError = null, watchlist = listOf("AAPL", "MSFT"),
-                    monitorSnapshots = emptyList(), padding = PaddingValues(), onOpenHistory = {},
-                    onRunDeepDive = {}, onManageNames = {}, onRetryPulse = {}, onOpenMacroStressDashboard = {},
-                    onOpenWeeklyDigest = {}, onOpenPulseBrief = {},
+                    monitorSnapshots = emptyList(), padding = PaddingValues(), onManageNames = {}, onRetryPulse = {}, onOpenMacroStressDashboard = {}, onOpenPulseBrief = {},
                 )
+                }
             }
         }
-        val date = LocalDate.now().format(DateTimeFormatter.ofPattern("EEEE, MMM d")).uppercase()
+        // The header's eyebrow (Tue 24 Nov · Pre-market under the fixed clock) and the macro card's no-reading title.
+        val date = TodayCopy.eyebrow(TodayFixtures.fmt.marketDate(LocalDate.of(2026, 11, 24)), TodayCopy.PHASE_PRE_MARKET).uppercase()
         rule.mainClock.advanceTimeBy(1_000)
         // Header (block 0) and the Macro Stress card (block 1) are on screen before the issue.
         val header = rule.onNodeWithText(date).captureToImage().toPixelMap()
-        val macro = rule.onNodeWithText(Phase4Copy.todayMacroStressSourceNote).captureToImage().toPixelMap()
+        val macro = rule.onNodeWithText(TodayCopy.MACRO_NO_READING).captureToImage().toPixelMap()
         fun sameAs(expected: androidx.compose.ui.graphics.PixelMap, node: SemanticsNodeInteraction): Boolean {
             val now = node.captureToImage().toPixelMap()
             if (now.width != expected.width || now.height != expected.height) return false
@@ -662,7 +630,7 @@ class MotionBehaviourTest {
         change { pulse = ShellFixtures.pulse }
         repeat(30) {
             assertTrue("header blanked at frame $it", sameAs(header, rule.onNodeWithText(date)))
-            assertTrue("macro card blanked at frame $it", sameAs(macro, rule.onNodeWithText(Phase4Copy.todayMacroStressSourceNote)))
+            assertTrue("macro card blanked at frame $it", sameAs(macro, rule.onNodeWithText(TodayCopy.MACRO_NO_READING)))
             rule.mainClock.advanceTimeByFrame()
         }
     }

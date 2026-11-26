@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    The Thesis "T" mark (WP-G, DESIGN-DIRECTION 5.1): a bracketed serif T in gold (#C5A059, accent on ink).
+    Launcher foreground, monochrome (themed) icon and splash icon. 108 dp adaptive canvas; the path (a 100 x 100
+    viewport, the same string as THESIS_MARK_PATH in ui/screens/ThesisMark.kt) is scaled to about 45 dp and centred,
+    so the whole mark sits inside the 66 dp safe-zone circle (its corners are 31.5 dp from the centre, under 33).
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group
+        android:scaleX="0.56"
+        android:scaleY="0.56"
+        android:translateX="26"
+        android:translateY="25.16">
+        <path
+            android:fillColor="#FFC5A059"
+            android:pathData="M10,12H90V31H88.5C87.5,24 85,20.5 78,20.5H55.5V84C55.5,87 57.5,88 62,88.5H66V91H34V88.5H38C42.5,88 44.5,87 44.5,84V20.5H22C15,20.5 12.5,24 11.5,31H10Z" />
+    </group>
+</vector>

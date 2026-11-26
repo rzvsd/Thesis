@@ -68,7 +68,6 @@ object ShellFixtures {
         tokens = AuthTokens("a", "r", "2026-11-25T00:00:00Z", "2026-12-24T00:00:00Z"),
         userProfile = UserProfileView("u1", "reader@example.invalid", "PRO", null, 25, 10, 9),
         pulseReport = pulse,
-        pulseFreshnessText = "As of 07:02",
         sentimentCurrent = SentimentSnapshotView("s1", "2026-11-23", 42.0, "Calm", calculatedAt = "2026-11-24T06:45:00Z"),
         watchlist = listOf("AAPL", "MSFT", "NVDA"),
         watchlistLoaded = true,

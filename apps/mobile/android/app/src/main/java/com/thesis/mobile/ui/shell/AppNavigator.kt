@@ -6,6 +6,7 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.SnapshotStateList
+import androidx.compose.ui.geometry.Rect
 import com.thesis.mobile.ui.motion.EntranceRegistry
 import com.thesis.mobile.ui.navigation.Destination
 import com.thesis.mobile.ui.navigation.NavRoute
@@ -57,6 +58,24 @@ class AppNavigator(private val store: NavigatorStateStore? = null) {
 
     /** Names root scrolls to and highlights this ticker (set by notifications and alerts). */
     var namesFocusTicker: String? by mutableStateOf(null)
+        private set
+
+    /**
+     * One-shot requests for the Names root, raised from other screens and cleared once Names has acted on them
+     * ([clearNamesRequests]): focus the add field (Home's empty "Add a name", 5.6) and open the holdings CSV import
+     * (You > Portfolio, 5.22). Not persisted: a request outlives no recreation.
+     */
+    var namesFocusAdd: Boolean by mutableStateOf(false)
+        private set
+    var namesOpenImport: Boolean by mutableStateOf(false)
+        private set
+
+    /** One-shot Inbox category filter (the weekly digest's alert rows), cleared once the Inbox has read it. */
+    var inboxCategory: String? by mutableStateOf(null)
+        private set
+
+    /** One-shot Inbox ticker scope (Name's "See alerts"), cleared once the Inbox has read it. */
+    var inboxTicker: String? by mutableStateOf(null)
         private set
 
     private var nextId = 0L
@@ -125,6 +144,51 @@ class AppNavigator(private val store: NavigatorStateStore? = null) {
         return changed
     }
 
+    /**
+     * The window bounds of the list row each pushed entry opened from (4.5 container transform), by `entryId`. The
+     * tab layer grows the entry's page from them on the push and shrinks it back into them on the pop. Not persisted:
+     * a restored entry moves on the shared axis.
+     */
+    private val transformOrigins = mutableMapOf<String, Rect>()
+
+    /** The origin [push] gives the entry it creates; set only for the duration of [pushFrom]. */
+    private var pendingOrigin: Rect? = null
+
+    /** Where [entryId]'s page grows from and shrinks back into; null for a shared-axis push. */
+    fun transformOrigin(entryId: String): Rect? = transformOrigins[entryId]
+
+    /** The shell's last size in px (0 before the first layout); this object outlives a rotation, the shell does not. */
+    private var windowWidthPx = 0
+    private var windowHeightPx = 0
+
+    /**
+     * The shell was laid out at [widthPx] x [heightPx]. After a rotation or a window resize the rows the origins
+     * were taken from have moved, so they are dropped: the pop of a page opened before it moves on the shared axis
+     * instead of shrinking into a stale (or off-screen) rectangle.
+     */
+    fun onWindowSize(widthPx: Int, heightPx: Int) {
+        if (windowWidthPx != 0 && (widthPx != windowWidthPx || heightPx != windowHeightPx)) clearTransformOrigins()
+        windowWidthPx = widthPx
+        windowHeightPx = heightPx
+    }
+
+    /** Drops every saved origin (see [onWindowSize]). */
+    fun clearTransformOrigins() = transformOrigins.clear()
+
+    /**
+     * Runs [open] (which pushes a list row's detail, for example `onOpenNameIn`) so that the entry it pushes grows
+     * from [origin], the tapped row's window bounds. Only pages the tab layer draws take an origin: a report is
+     * drawn by the base layer under it and keeps the shared axis.
+     */
+    fun pushFrom(origin: Rect?, open: () -> Unit) {
+        pendingOrigin = origin?.takeIf { it.width > 0f && it.height > 0f }
+        try {
+            open()
+        } finally {
+            pendingOrigin = null
+        }
+    }
+
     /** Pushes [destination]: modal destinations onto the modal stack, others onto the current tab. */
     fun push(destination: Destination): NavEntry {
         val entry = newEntry(destination)
@@ -135,7 +199,14 @@ class AppNavigator(private val store: NavigatorStateStore? = null) {
             require(ShellTab.entries.none { it.root == destination }) { "Tab roots are not pushed: $destination" }
             stacks.getValue(currentTab).add(entry)
             lastMove = NavMove.Push
+            val origin = pendingOrigin
+            if (origin != null && destination !is Destination.Report && destination !is Destination.ReportClassic) {
+                // Origins of entries that left every stack go with them.
+                transformOrigins.keys.retainAll(liveEntryIds())
+                transformOrigins[entry.entryId] = origin
+            }
         }
+        pendingOrigin = null
         persist()
         return entry
     }
@@ -264,6 +335,10 @@ class AppNavigator(private val store: NavigatorStateStore? = null) {
         return removed
     }
 
+    /** True when an entry matching [predicate] is on any tab's stack or the modal stack. */
+    fun isOnAnyStack(predicate: (Destination) -> Boolean): Boolean =
+        stacks.values.any { stack -> stack.any { predicate(it.destination) } } || modalStack.any { predicate(it.destination) }
+
     /** True when [destination] is anywhere on the current tab's stack (the report base layer needs this). */
     fun isInCurrentStack(predicate: (Destination) -> Boolean): Boolean =
         stacks.getValue(currentTab).any { predicate(it.destination) }
@@ -291,6 +366,35 @@ class AppNavigator(private val store: NavigatorStateStore? = null) {
         removed.forEach(onRemoved)
     }
 
+    fun requestNamesFocusAdd() {
+        namesFocusAdd = true
+    }
+
+    fun requestNamesImport() {
+        namesOpenImport = true
+    }
+
+    fun clearNamesRequests() {
+        namesFocusAdd = false
+        namesOpenImport = false
+    }
+
+    fun requestInboxCategory(category: String?) {
+        inboxCategory = category?.trim()?.ifBlank { null }
+    }
+
+    fun clearInboxCategory() {
+        inboxCategory = null
+    }
+
+    fun requestInboxTicker(ticker: String?) {
+        inboxTicker = ticker?.trim()?.uppercase()?.ifBlank { null }
+    }
+
+    fun clearInboxTicker() {
+        inboxTicker = null
+    }
+
     fun clearNamesFocus() {
         if (namesFocusTicker != null) {
             namesFocusTicker = null
@@ -304,6 +408,9 @@ class AppNavigator(private val store: NavigatorStateStore? = null) {
         ShellTab.entries.forEach { popToRoot(it) }
         currentTab = ShellTab.Today
         namesFocusTicker = null
+        clearNamesRequests()
+        inboxCategory = null
+        inboxTicker = null
         // A new session opens Home as a first open again.
         entranceRegistry.retainOnly(emptyList())
         persist()

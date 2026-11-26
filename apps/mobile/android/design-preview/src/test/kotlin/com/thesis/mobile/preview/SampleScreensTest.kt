@@ -17,19 +17,15 @@ class SampleScreensTest {
             HomeScreen(
                 pulse = null,
                 pulseLoadedFromCache = false,
-                pulseFreshnessText = null,
                 sentimentCurrent = null,
                 sentimentHistory = emptyList(),
                 sentimentError = null,
                 watchlist = listOf("AAPL", "MSFT", "NVDA"),
                 monitorSnapshots = emptyList(),
                 padding = PaddingValues(),
-                onOpenHistory = {},
-                onRunDeepDive = {},
                 onManageNames = {},
                 onRetryPulse = {},
                 onOpenMacroStressDashboard = {},
-                onOpenWeeklyDigest = {},
                 onOpenPulseBrief = {},
             )
         }

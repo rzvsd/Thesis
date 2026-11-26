@@ -168,14 +168,14 @@ fun RowGroup(modifier: Modifier = Modifier, content: RowGroupScope.() -> Unit) {
 val LeadingRowDividerInset: Dp = ThesisSpace.l + ThesisSpace.leadingColumn + ThesisSpace.leadingGap
 
 /**
- * Divider inset for compact [TickerRow]s: the ticker is their text edge (16) while they show aligned columns; above
- * 1.15x font scale they use the comfortable layout, whose text edge is [LeadingRowDividerInset]. Read it in the
- * composable that builds the group (RowGroupScope.row is not composable).
+ * Divider inset for compact [TickerRow]s. Their state square sits in the same 24 dp leading column as a
+ * comfortable row's, so at every font scale the ticker is the text edge at [LeadingRowDividerInset] and a board
+ * keeps one divider line when its density changes. Read it in the composable that builds the group.
  */
 val CompactRowDividerInset: Dp
     @Composable
     @ReadOnlyComposable
-    get() = if (LocalDensity.current.fontScale <= Kit.COMPACT_ALIGNED_MAX_SCALE) ThesisSpace.l else LeadingRowDividerInset
+    get() = LeadingRowDividerInset
 
 /**
  * Data row (#9): label (`body`, ink) with an optional [sub] line, and on the right the value (`body` tabular) over
@@ -193,6 +193,8 @@ fun DataRow(
     sub: String? = null,
     onClick: (() -> Unit)? = null,
     onLongClick: (() -> Unit)? = null,
+    /** What TalkBack calls the long press (its custom action, e.g. "Show source", "More actions"); unnamed without it. */
+    onLongClickLabel: String? = null,
     interactionSource: MutableInteractionSource = remember { MutableInteractionSource() },
 ) {
     val p = LocalThesisPalette.current
@@ -207,6 +209,7 @@ fun DataRow(
                         interactionSource = interactionSource,
                         indication = null,
                         role = Role.Button,
+                        onLongClickLabel = onLongClickLabel,
                         onLongClick = onLongClick,
                         onClick = onClick ?: {},
                     )
@@ -322,24 +325,29 @@ fun ToggleRow(
  * the change since the last visit ("Intact -> Watch, Tue") or the reason. Trailing: one stacked figure block,
  * [figure] (`body` tabular) over [figureCaption] (tone). No chevron, no meter.
  *
- * [compact] is the Names density option: 48 dp, one line of aligned columns (ticker, state, figure, change, note),
+ * [compact] is the Names density option: 48 dp, one line of aligned columns (state, ticker, figure, change, note:
+ * the state square keeps the leading column it has in the comfortable row),
  * up to 1.15x font scale (the ticker column grows with the font scale so a five-letter ticker never pushes the
  * state square out of its column). Above 1.15x a compact row uses the comfortable layout at the compact height;
  * above 1.3x both densities move the figure block under the text and let line 2 wrap to two lines. Divider insets:
  * [LeadingRowDividerInset] for comfortable rows, [CompactRowDividerInset] for compact ones.
  * Press: tint only (inside a RowGroup). [onLongClick] opens the context sheet with the `longPress()` haptic.
+ * [onClick] null makes the row non-interactive (no role, no press, no long press; one merged description).
  * [onBoundsCaptured] receives the row's window bounds just before [onClick] (container transform).
  * [stateLabel] ("Intact") is what TalkBack says for the square.
+ * [line2MaxLines] caps line 2 in the comfortable layout (default 1; a reason sentence passes 2). Above 1.3x the
+ * row allows one more line. The company name keeps [Kit.tickerCompanyMin] or is dropped when less is left.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun TickerRow(
     ticker: String,
     stateTone: Tone,
-    onClick: () -> Unit,
+    onClick: (() -> Unit)?,
     modifier: Modifier = Modifier,
     company: String? = null,
     line2: String? = null,
+    line2MaxLines: Int = 1,
     figure: String? = null,
     figureCaption: String? = null,
     figureCaptionTone: Tone = Tone.Neutral,
@@ -349,6 +357,8 @@ fun TickerRow(
     live: Boolean = false,
     compact: Boolean = false,
     onLongClick: (() -> Unit)? = null,
+    /** What TalkBack calls the long press (its custom action, e.g. "Show source", "More actions"); unnamed without it. */
+    onLongClickLabel: String? = null,
     onBoundsCaptured: ((Rect) -> Unit)? = null,
     interactionSource: MutableInteractionSource = remember { MutableInteractionSource() },
 ) {
@@ -358,23 +368,31 @@ fun TickerRow(
     val container = modifier
         .fillMaxWidth()
         .then(if (onBoundsCaptured != null) Modifier.onGloballyPositioned { bounds = it.boundsInWindow() } else Modifier)
-        .combinedClickable(
-            interactionSource = interactionSource,
-            indication = null,
-            role = Role.Button,
-            onLongClick = onLongClick?.let {
-                {
-                    haptics.longPress()
-                    it()
-                }
-            },
-            onClick = {
-                onBoundsCaptured?.invoke(bounds)
-                onClick()
+        .then(
+            if (onClick == null) {
+                Modifier
+            } else {
+                Modifier
+                    .combinedClickable(
+                        interactionSource = interactionSource,
+                        indication = null,
+                        role = Role.Button,
+                        onLongClickLabel = onLongClickLabel,
+                        onLongClick = onLongClick?.let {
+                            {
+                                haptics.longPress()
+                                it()
+                            }
+                        },
+                        onClick = {
+                            onBoundsCaptured?.invoke(bounds)
+                            onClick()
+                        },
+                    )
+                    .thesisPress(interactionSource)
             },
         )
         .semantics(mergeDescendants = true) { if (stateLabel != null) stateDescription = stateLabel }
-        .thesisPress(interactionSource)
 
     val leading: @Composable () -> Unit = {
         Box(Modifier.width(ThesisSpace.leadingColumn), contentAlignment = Alignment.CenterStart) {
@@ -390,14 +408,18 @@ fun TickerRow(
     val captionStyle = ThesisType.caption.tnum()
 
     if (compact && fontScale <= Kit.COMPACT_ALIGNED_MAX_SCALE) {
-        // Aligned columns: ticker, state, figure, change, note. The figure and change columns have fixed minimum
-        // widths and are right-aligned, so every compact row lines up and the two never run together.
+        // Aligned columns: state, ticker, figure, change, note. The state square keeps the comfortable row's leading
+        // column, so it reads with its ticker and a density change moves nothing sideways. The figure and change
+        // columns have fixed minimum widths and are right-aligned, so every compact row lines up and the two never
+        // run together.
         Row(
             container
                 .heightIn(min = ThesisSpace.rowMinCompact)
                 .padding(horizontal = ThesisSpace.l),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            leading()
+            Spacer(Modifier.width(ThesisSpace.leadingGap))
             Text(
                 ticker,
                 modifier = Modifier.widthIn(min = Kit.compactTickerColumn * fontScale),
@@ -405,8 +427,6 @@ fun TickerRow(
                 color = p.ink,
                 maxLines = 1,
             )
-            Spacer(Modifier.width(ThesisSpace.s))
-            leading()
             Spacer(Modifier.weight(1f))
             Text(
                 figure.orEmpty(),
@@ -452,7 +472,7 @@ fun TickerRow(
                 if (company != null) {
                     Text(
                         company,
-                        modifier = Modifier.weight(1f, fill = false),
+                        modifier = Modifier.weight(1f, fill = false).dropBelow(Kit.tickerCompanyMin),
                         style = ThesisType.bodySmall,
                         color = p.muted,
                         maxLines = 1,
@@ -467,7 +487,7 @@ fun TickerRow(
                     line2,
                     style = ThesisType.bodySmall,
                     color = p.ink2,
-                    maxLines = if (large) 2 else 1,
+                    maxLines = if (large) line2MaxLines.coerceAtLeast(1) + 1 else line2MaxLines.coerceAtLeast(1),
                     overflow = TextOverflow.Ellipsis,
                 )
             }
@@ -498,6 +518,16 @@ fun TickerRow(
                 }
             }
         }
+    }
+}
+
+/** Lays the element out normally when at least [min] is offered, and as nothing (unplaced, 0 x 0) when less is. */
+private fun Modifier.dropBelow(min: Dp): Modifier = layout { measurable, constraints ->
+    if (constraints.maxWidth < min.roundToPx()) {
+        layout(0, 0) {}
+    } else {
+        val placeable = measurable.measure(constraints)
+        layout(placeable.width, placeable.height) { placeable.place(0, 0) }
     }
 }
 
