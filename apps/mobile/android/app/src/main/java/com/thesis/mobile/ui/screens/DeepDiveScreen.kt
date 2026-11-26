@@ -1,83 +1,105 @@
 package com.thesis.mobile.ui.screens
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.animateScrollBy
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.Bolt
-import androidx.compose.material.icons.filled.HelpOutline
-import androidx.compose.material.icons.filled.PushPin
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontStyle
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import com.thesis.mobile.model.ConvictionJournalEntryView
 import com.thesis.mobile.model.DeepDiveReportView
-import com.thesis.mobile.model.EvidenceView
+import com.thesis.mobile.model.IssuerView
 import com.thesis.mobile.model.OppositeCaseReportView
 import com.thesis.mobile.model.ScenarioResultView
-import com.thesis.mobile.model.TrustMetadataView
 import com.thesis.mobile.model.ValuationDisplayView
-import com.thesis.mobile.model.toReaderOutline
-import com.thesis.mobile.ui.components.ConfidenceRing
-import com.thesis.mobile.ui.components.EvidenceDots
+import com.thesis.mobile.ui.charts.kit.RangeBar
+import com.thesis.mobile.ui.components.ActionRow
+import com.thesis.mobile.ui.components.BannerTone
+import com.thesis.mobile.ui.components.Callout
+import com.thesis.mobile.ui.components.ChapterPills
+import com.thesis.mobile.ui.components.ChipRow
+import com.thesis.mobile.ui.components.DataRow
+import com.thesis.mobile.ui.components.EmptyState
 import com.thesis.mobile.ui.components.ErrorState
-import com.thesis.mobile.ui.components.SectionAccordion
-import com.thesis.mobile.ui.components.SignalBadge
-import com.thesis.mobile.ui.components.ThesisButton
-import com.thesis.mobile.ui.charts.EvidenceRadar
-import com.thesis.mobile.ui.charts.RadarDataPoint
-import com.thesis.mobile.ui.charts.ScenarioData
-import com.thesis.mobile.ui.charts.ScenarioFanChart
-import com.thesis.mobile.ui.charts.SectionHealthItem
-import com.thesis.mobile.ui.charts.SectionHealthStrip
-import com.thesis.mobile.ui.theme.HeadingFont
-import com.thesis.mobile.ui.theme.ThesisColors
+import com.thesis.mobile.ui.components.HeroBand
+import com.thesis.mobile.ui.components.InlineBanner
+import com.thesis.mobile.ui.components.Kicker
+import com.thesis.mobile.ui.components.KpiSpec
 import com.thesis.mobile.ui.components.Loadable
+import com.thesis.mobile.ui.components.NoteBlock
+import com.thesis.mobile.ui.components.NumberField
+import com.thesis.mobile.ui.components.ReportTopBar
+import com.thesis.mobile.ui.components.RowGroup
+import com.thesis.mobile.ui.components.RunBar
+import com.thesis.mobile.ui.components.SecondaryButton
+import com.thesis.mobile.ui.components.SectionHeader
+import com.thesis.mobile.ui.components.SheetActionRow
+import com.thesis.mobile.ui.components.SkeletonCard
+import com.thesis.mobile.ui.components.SkeletonHero
 import com.thesis.mobile.ui.components.StateCrossfade
-import com.thesis.mobile.ui.theme.ThesisDimens
-import com.thesis.mobile.ui.theme.ThesisTypography
+import com.thesis.mobile.ui.components.TextAction
+import com.thesis.mobile.ui.components.ThesisChip
+import com.thesis.mobile.ui.components.ThesisSheet
+import com.thesis.mobile.ui.components.ThesisTextField
+import com.thesis.mobile.ui.components.rememberNoteAutosave
+import com.thesis.mobile.ui.copy.DeepDiveCopy
 import com.thesis.mobile.ui.copy.KitCopy
 import com.thesis.mobile.ui.copy.StateCopy
+import com.thesis.mobile.ui.format.Fmt
+import com.thesis.mobile.ui.format.LocalFmt
+import com.thesis.mobile.ui.format.Missing
+import com.thesis.mobile.ui.icons.ThesisIcons
+import com.thesis.mobile.ui.motion.rememberHaptics
+import com.thesis.mobile.ui.motion.rememberScrollSpy
+import com.thesis.mobile.ui.shell.HeroUnderBars
+import com.thesis.mobile.ui.theme.LocalReducedMotion
+import com.thesis.mobile.ui.theme.LocalThesisPalette
+import com.thesis.mobile.ui.theme.ThesisSpace
+import com.thesis.mobile.ui.theme.ThesisType
+import com.thesis.mobile.ui.theme.Tone
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * One report (a `Report(id)`, `ReportClassic(id)` or `DeepDiveRunning(ticker)` entry): the report itself, the
  * build or open in progress, or why it failed. The ticker search and recent reports are the Research root's
- * ([ResearchScreen], 5.12), extracted from here in PR-1.
+ * ([ResearchScreen], 5.12). A loaded report shows the server-rendered page when it can ([DeepDiveReportHost]),
+ * else the classic view (5.15), which reads like the page: hero, sticky chapter pills, chapters, upshots.
+ *
+ * [onFollowChange] follows or unfollows the report's name from the top bar; [following] overrides the
+ * [watchlist] lookup.
  */
 @Composable
 fun DeepDiveScreen(
@@ -111,10 +133,18 @@ fun DeepDiveScreen(
     onOpenScenarioStress: (() -> Unit)? = null,
     webPage: DeepDiveWebPageAccess? = null,
     /** Label of the error card's button: what [onRetry] does ("Open report again"); null keeps "Try again". */
-    retryLabel: String? = null
+    retryLabel: String? = null,
+    following: Boolean? = null,
+    onFollowChange: ((Boolean) -> Unit)? = null,
+    /**
+     * True when the entry opens a stored report (nothing is being generated): the loading state is the page's own
+     * skeleton, not the build screen. Defaults to the Report entry's signal (only it passes a [retryLabel]);
+     * HANDOFF-D asks WP-INT to pass it explicitly.
+     */
+    openingStoredReport: Boolean = retryLabel != null,
 ) {
     // Loading → report (or → failed) crossfades instead of swapping in one frame (#27, 4.4); a newer report for
-    // the same entry updates in place. The shell crossfades the interim back bar into the report's own bar.
+    // the same entry updates in place.
     val state: Loadable<DeepDiveReportView> = when {
         report != null -> Loadable.Ready(report)
         isLoading -> Loadable.Loading
@@ -123,12 +153,13 @@ fun DeepDiveScreen(
     StateCrossfade(
         state = state,
         modifier = Modifier.fillMaxSize(),
-        loading = { DeepDiveLoadingScreen(modifier = Modifier.padding(padding)) },
-        failed = { DeepDiveFailedState(errorMessage = errorMessage, onRetry = onRetry, retryLabel = retryLabel, padding = padding) }
+        loading = {
+            if (openingStoredReport) ReportOpeningSkeleton(padding) else DeepDiveLoadingScreen(modifier = Modifier.padding(padding))
+        },
+        failed = { DeepDiveFailedState(errorMessage = errorMessage, onRetry = onRetry, retryLabel = retryLabel, padding = padding) },
     ) { shown ->
-        DeepDiveLoaded(
-            report = shown,
-            userTier = userTier,
+        val tools = DeepDiveNativeTools(
+            isPro = userTier.equals("PRO", ignoreCase = true),
             reportNoteDraft = reportNoteDraft,
             noteUpdatedAt = noteUpdatedAt,
             isSavingNote = isSavingNote,
@@ -137,104 +168,52 @@ fun DeepDiveScreen(
             oppositeCase = oppositeCase,
             oppositeCaseError = oppositeCaseError,
             isGeneratingOppositeCase = isGeneratingOppositeCase,
+            scenarioResult = scenarioResult,
+            isRunningScenario = isRunningScenario,
             onReportNoteChange = onReportNoteChange,
             onSaveReportNote = onSaveReportNote,
             onGenerateOppositeCase = onGenerateOppositeCase,
             onRefreshConvictionTimeline = onRefreshConvictionTimeline,
-            scenarioResult = scenarioResult,
-            isRunningScenario = isRunningScenario,
             onRunScenario = onRunScenario,
             onRequireUpgrade = onRequireUpgrade,
             onSubmitReportFeedback = onSubmitReportFeedback,
             onNotify = onNotify,
-            watchlist = watchlist,
-            onBack = onBack,
-            padding = padding,
             onOpenScenarioStress = onOpenScenarioStress,
-            webPage = webPage
         )
+        val isFollowing = following ?: (shown.ticker != null && watchlist.any { it.equals(shown.ticker, ignoreCase = true) })
+        DeepDiveReportHost(shown, webPage, tools, onBack, padding) { onOpenNewView ->
+            DeepDiveClassic(
+                report = shown,
+                tools = tools,
+                following = isFollowing,
+                onFollowChange = onFollowChange ?: {},
+                onBack = onBack,
+                padding = padding,
+                onOpenNewView = onOpenNewView,
+            )
+        }
     }
 }
 
-/** A loaded report: the server-rendered page when it can load, else the native screen ([DeepDiveScreen]). */
+/**
+ * A stored report on its way (5.15, principle 3): the page's own skeleton, the hero then a card, and one honest line.
+ * No build steps: nothing is being generated.
+ */
 @Composable
-private fun DeepDiveLoaded(
-    report: DeepDiveReportView,
-    userTier: String?,
-    reportNoteDraft: String,
-    noteUpdatedAt: String?,
-    isSavingNote: Boolean,
-    convictionTimeline: List<ConvictionJournalEntryView>,
-    convictionTimelineError: String?,
-    oppositeCase: OppositeCaseReportView?,
-    oppositeCaseError: String?,
-    isGeneratingOppositeCase: Boolean,
-    onReportNoteChange: (String) -> Unit,
-    onSaveReportNote: () -> Unit,
-    onGenerateOppositeCase: () -> Unit,
-    onRefreshConvictionTimeline: () -> Unit,
-    scenarioResult: ScenarioResultView?,
-    isRunningScenario: Boolean,
-    onRunScenario: (Int?, Double?, Double?) -> Unit,
-    onRequireUpgrade: (String) -> Unit,
-    onSubmitReportFeedback: (String, String) -> Unit,
-    onNotify: (String) -> Unit,
-    watchlist: List<String>,
-    onBack: () -> Unit,
-    padding: PaddingValues,
-    onOpenScenarioStress: (() -> Unit)?,
-    webPage: DeepDiveWebPageAccess?
-) {
-    // Deep Dive 2.0: the server-rendered page when it can load, else this native screen as before.
-    val tools = DeepDiveNativeTools(
-        isPro = userTier.equals("PRO", ignoreCase = true),
-        reportNoteDraft = reportNoteDraft,
-        noteUpdatedAt = noteUpdatedAt,
-        isSavingNote = isSavingNote,
-        convictionTimeline = convictionTimeline,
-        convictionTimelineError = convictionTimelineError,
-        oppositeCase = oppositeCase,
-        oppositeCaseError = oppositeCaseError,
-        isGeneratingOppositeCase = isGeneratingOppositeCase,
-        scenarioResult = scenarioResult,
-        isRunningScenario = isRunningScenario,
-        onReportNoteChange = onReportNoteChange,
-        onSaveReportNote = onSaveReportNote,
-        onGenerateOppositeCase = onGenerateOppositeCase,
-        onRefreshConvictionTimeline = onRefreshConvictionTimeline,
-        onRunScenario = onRunScenario,
-        onRequireUpgrade = onRequireUpgrade,
-        onSubmitReportFeedback = onSubmitReportFeedback,
-        onNotify = onNotify,
-        onOpenScenarioStress = onOpenScenarioStress
-    )
-    DeepDiveReportHost(report, webPage, tools, onBack, padding) { onOpenNewView ->
-        DeepDiveReportState(
-            report = report,
-            userTier = userTier,
-            reportNoteDraft = reportNoteDraft,
-            noteUpdatedAt = noteUpdatedAt,
-            isSavingNote = isSavingNote,
-            convictionTimeline = convictionTimeline,
-            convictionTimelineError = convictionTimelineError,
-            oppositeCase = oppositeCase,
-            oppositeCaseError = oppositeCaseError,
-            isGeneratingOppositeCase = isGeneratingOppositeCase,
-            onReportNoteChange = onReportNoteChange,
-            onSaveReportNote = onSaveReportNote,
-            onGenerateOppositeCase = onGenerateOppositeCase,
-            onRefreshConvictionTimeline = onRefreshConvictionTimeline,
-            scenarioResult = scenarioResult,
-            isRunningScenario = isRunningScenario,
-            onRunScenario = onRunScenario,
-            onRequireUpgrade = onRequireUpgrade,
-            onSubmitReportFeedback = onSubmitReportFeedback,
-            onNotify = onNotify,
-            watchlist = watchlist,
-            onBack = onBack,
-            padding = padding,
-            onOpenScenarioStress = onOpenScenarioStress,
-            onOpenNewView = onOpenNewView
+private fun ReportOpeningSkeleton(padding: PaddingValues) {
+    Column(
+        Modifier
+            .fillMaxSize()
+            .padding(padding)
+            .semantics { liveRegion = LiveRegionMode.Polite },
+    ) {
+        HeroBand { SkeletonHero() }
+        ReadingColumn(Modifier.padding(top = ThesisSpace.xxl)) { SkeletonCard() }
+        Text(
+            DeepDiveCopy.openingReport,
+            Modifier.padding(ThesisSpace.gutter),
+            style = ThesisType.caption,
+            color = LocalThesisPalette.current.muted,
         )
     }
 }
@@ -244,744 +223,533 @@ private fun DeepDiveLoaded(
  * job (MainViewModel normally drops those). The button retries this entry; it never shows the ticker search.
  */
 @Composable
-private fun DeepDiveFailedState(
-    errorMessage: String?,
-    onRetry: () -> Unit,
-    retryLabel: String?,
-    padding: PaddingValues
-) {
+private fun DeepDiveFailedState(errorMessage: String?, onRetry: () -> Unit, retryLabel: String?, padding: PaddingValues) {
     Box(
-        modifier = Modifier
+        Modifier
             .fillMaxSize()
             .padding(padding)
-            .padding(ThesisDimens.ScreenPaddingHorizontal),
-        contentAlignment = Alignment.Center
+            .padding(ThesisSpace.gutter),
+        contentAlignment = Alignment.Center,
     ) {
         if (errorMessage?.contains("No internet connection", ignoreCase = true) == true) {
             ErrorState(title = StateCopy.OFFLINE_TITLE, cause = StateCopy.OFFLINE_CAUSE, onRetry = onRetry)
         } else {
-            val message = errorMessage?.ifBlank { null } ?: "This Deep Dive is no longer running."
             ErrorState(
                 title = StateCopy.deepDiveUnavailable,
-                cause = message,
+                cause = errorMessage?.ifBlank { null } ?: DeepDiveCopy.noLongerRunning,
                 retryLabel = retryLabel ?: KitCopy.TRY_AGAIN,
-                onRetry = onRetry
+                onRetry = onRetry,
             )
         }
     }
 }
 
+// -------------------------------------------------------------------------------------------------------------
+// The classic view
+// -------------------------------------------------------------------------------------------------------------
+
+private sealed interface ClassicSheet {
+    data object More : ClassicSheet
+    data class Quote(val source: QuoteSource, val text: String) : ClassicSheet
+}
+
+/**
+ * The classic report (5.15): its own ReportTopBar (the shell shows none on a loaded report), the "Classic view"
+ * banner when the new view can open, then the page. Long-press on a paragraph opens the quote sheet ("Add to note",
+ * "Copy paragraph"); the overflow opens exports and feedback.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun DeepDiveReportState(
+internal fun DeepDiveClassic(
     report: DeepDiveReportView,
-    userTier: String?,
-    reportNoteDraft: String,
-    noteUpdatedAt: String?,
-    isSavingNote: Boolean,
-    convictionTimeline: List<ConvictionJournalEntryView>,
-    convictionTimelineError: String?,
-    oppositeCase: OppositeCaseReportView?,
-    oppositeCaseError: String?,
-    isGeneratingOppositeCase: Boolean,
-    onReportNoteChange: (String) -> Unit,
-    onSaveReportNote: () -> Unit,
-    onGenerateOppositeCase: () -> Unit,
-    onRefreshConvictionTimeline: () -> Unit,
-    scenarioResult: ScenarioResultView?,
-    isRunningScenario: Boolean,
-    onRunScenario: (Int?, Double?, Double?) -> Unit,
-    onRequireUpgrade: (String) -> Unit,
-    onSubmitReportFeedback: (String, String) -> Unit,
-    onNotify: (String) -> Unit,
-    watchlist: List<String>,
+    tools: DeepDiveNativeTools,
+    following: Boolean,
+    onFollowChange: (Boolean) -> Unit,
     onBack: () -> Unit,
     padding: PaddingValues,
-    onOpenScenarioStress: (() -> Unit)?,
-    onOpenNewView: (() -> Unit)? = null
+    onOpenNewView: (() -> Unit)?,
+    fiveYear: FiveYearSeries? = null,
 ) {
-    val ticker = report.ticker ?: "Ticker"
-    val isWatched = report.ticker != null && watchlist.contains(report.ticker)
+    val p = LocalThesisPalette.current
     val context = LocalContext.current
-    val isPro = userTier.equals("PRO", ignoreCase = true)
-    val readerOutline = report.toReaderOutline()
-    val usesStructuredReader = readerOutline.usesStructuredArtifact
+    val uriHandler = LocalUriHandler.current
+    val clipboard = LocalClipboardManager.current
+    val listState = rememberLazyListState()
+    var sheet by remember { mutableStateOf<ClassicSheet?>(null) }
+    val filing = ClassicFormat.filingLabel(report.filingRead?.form, report.filingRead?.period)
+    val plan = remember(report, fiveYear) { classicPlan(report, fiveYear, withDesk = true) }
+    val kpis = remember(report, plan) { heroKpis(report, plan.fiveYear) }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(padding)
-    ) {
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(
-                top = 56.dp + ThesisDimens.ScreenPaddingTop,
-                bottom = ThesisDimens.ScreenPaddingBottom + 96.dp,
-                start = ThesisDimens.ScreenPaddingHorizontal,
-                end = ThesisDimens.ScreenPaddingHorizontal
-            ),
-            verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingXxl)
-        ) {
-            item {
-                DeepDiveStoryHeaderCard(report = report, isWatched = isWatched)
-            }
-
-            item {
-                DeepDiveReadThisFirst(report = report)
-            }
-
-            if (report.filingRead != null || report.indicatorsRead != null) {
-                item { DeepDiveNativeMemo(report = report) }
-            }
-
-            if (report.sections.isNotEmpty()) {
-                item {
-                    SectionHealthStrip(
-                        sections = report.sections.map {
-                            SectionHealthItem(label = it.title, status = it.status)
-                        }
-                    )
-                }
-            }
-
-            if (usesStructuredReader) {
-                item { DeepDiveExecutiveMemo(report = report) }
-                item { DeepDiveDueDiligence(report = report) }
-                item { DeepDiveFinancialQuality(report = report) }
-                item { DeepDiveValueDiscipline(report = report) }
-                item { DeepDiveValuationSection(report = report) }
-                item { DeepDiveRisksAndKillSwitches(report = report) }
-                item { DeepDiveEvidenceAndAppendix(report = report) }
-            } else {
-                item { DeepDiveSeeTheStory(report = report) }
-                item { DeepDiveUnderstandIt(report = report) }
-            }
-
-            if (report.sections.isNotEmpty()) {
-                item {
-                    DeepDiveProofHeading()
-                }
-                item {
-                    val maxEvidence = report.sections.maxOfOrNull { it.evidence.size }?.coerceAtLeast(1) ?: 1
-                    val radarData = report.sections
-                        .filter { it.evidence.isNotEmpty() }
-                        .take(6)
-                        .map {
-                            RadarDataPoint(
-                                label = it.title.take(10),
-                                value = it.evidence.size.toFloat() / maxEvidence.toFloat(),
-                                rawCount = it.evidence.size
-                            )
-                        }
-                    if (radarData.size >= 3) {
-                        EvidenceRadar(data = radarData)
-                    }
-                }
-            }
-
-            items(report.sections.size) { index ->
-                val section = report.sections[index]
-                SectionAccordion(
-                    title = section.title,
-                    statusText = section.status ?: "UNKNOWN",
-                    initiallyExpanded = section.status.equals("complete", ignoreCase = true),
-                    content = {
-                        Column(verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingMd)) {
-                            Text(
-                                text = section.body.ifBlank { "No section summary returned." },
-                                style = ThesisTypography.bodyMedium,
-                                color = ThesisColors.TextSecondary
-                            )
-
-                            if (section.evidence.isNotEmpty()) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    EvidenceDots(count = section.evidence.size)
-                                    Spacer(modifier = Modifier.size(ThesisDimens.SpacingSm))
-                                    Text(
-                                        text = "${section.evidence.size} sources",
-                                        style = ThesisTypography.labelSmall,
-                                        color = ThesisColors.TextMuted
-                                    )
-                                }
-
-                                EvidenceList(evidence = section.evidence)
-                            }
-                        }
-                    },
-                    modifier = Modifier.padding(bottom = ThesisDimens.SpacingSm)
-                )
-            }
-
-            item {
-                DeepDiveConvictionSection(
-                    isPro = isPro,
-                    timeline = convictionTimeline,
-                    timelineError = convictionTimelineError,
-                    oppositeCase = oppositeCase,
-                    oppositeCaseError = oppositeCaseError,
-                    isGeneratingOppositeCase = isGeneratingOppositeCase,
-                    onGenerateOppositeCase = onGenerateOppositeCase,
-                    onRefreshTimeline = onRefreshConvictionTimeline,
-                    onRequireUpgrade = onRequireUpgrade
-                )
-            }
-
-            item {
-                NotesSection(
-                    noteDraft = reportNoteDraft,
-                    noteUpdatedAt = noteUpdatedAt,
-                    isSaving = isSavingNote,
-                    onNoteChange = onReportNoteChange,
-                    onSave = onSaveReportNote
-                )
-            }
-
-            if (onOpenScenarioStress != null) {
-                item { DeepDiveStressAction(onClick = onOpenScenarioStress) }
-            }
-
-            item {
-                ScenarioSection(
-                    isPro = isPro,
-                    valuation = report.valuation,
-                    isRunning = isRunningScenario,
-                    scenarioResult = scenarioResult,
-                    onRunScenario = onRunScenario,
-                    onRequireUpgrade = onRequireUpgrade
-                )
-            }
-
-            item {
-                ReportFeedbackSection(
-                    onSubmit = onSubmitReportFeedback
-                )
-            }
-
-            item {
-                ExportSection(
-                    isPro = isPro,
-                    onRequireUpgrade = onRequireUpgrade,
-                    onNotify = onNotify,
-                    onExportPdf = {
-                        val artifact = createPdfExport(context, report, ReportExportType.FULL_REPORT)
-                        shareExport(context, artifact)
-                    },
-                    onExportCard = {
-                        val artifact = createShareCard(context, report)
-                        shareExport(context, artifact)
-                    },
-                    onExportMemo = {
-                        val artifact = createPdfExport(context, report, ReportExportType.INVESTMENT_MEMO)
-                        shareExport(context, artifact)
-                    }
-                )
-            }
-
-            item {
-                Spacer(modifier = Modifier.height(ThesisDimens.SpacingXxl))
-                Text(
-                    text = "This is a research summary, not financial advice. Always do your own research.",
-                    style = ThesisTypography.labelSmall,
-                    color = ThesisColors.TextMuted,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
+    fun requirePro(action: () -> Unit) {
+        if (!tools.isPro) {
+            tools.onRequireUpgrade("report_export")
+            return
         }
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(56.dp)
-                .background(ThesisColors.Background.copy(alpha = 0.97f))
-                .padding(horizontal = ThesisDimens.SpacingSm),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onBack) {
-                    Icon(
-                        imageVector = Icons.Default.ArrowBack,
-                        contentDescription = "Back",
-                        tint = ThesisColors.Primary
-                    )
-                }
-                Text(
-                    text = ticker,
-                    style = ThesisTypography.headlineMedium.copy(fontWeight = FontWeight.Medium),
-                    color = ThesisColors.TextPrimary
-                )
-            }
-
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)
-            ) {
-                onOpenNewView?.let { ViewTogglePill(label = DeepDiveWebCopy.newView, onClick = it) }
-                SignalBadge(signalValue = report.signalValue)
-            }
-        }
+        runCatching(action).onFailure { tools.onNotify(DeepDiveCopy.exportFailed) }
     }
-}
+    val exportPdf = { requirePro { shareExport(context, createPdfExport(context, report, ReportExportType.FULL_REPORT)) } }
+    val exportCard = { requirePro { shareExport(context, createShareCard(context, report)) } }
+    val exportMemo = { requirePro { shareExport(context, createPdfExport(context, report, ReportExportType.INVESTMENT_MEMO)) } }
 
-@Composable
-private fun HeaderSection(
-    ticker: String,
-    isWatched: Boolean,
-    schemaVersion: String,
-    isLegacy: Boolean
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.Top
-        ) {
-            Text(
-                text = ticker,
-                style = ThesisTypography.displayLarge.copy(
-                    fontFamily = HeadingFont,
-                    fontSize = 44.sp,
-                    fontWeight = FontWeight.Normal
-                ),
-                color = ThesisColors.TextPrimary
-            )
-
-            if (isWatched) {
-                Row(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(ThesisDimens.SignalBadgeCorner))
-                        .background(ThesisColors.Primary.copy(alpha = 0.1f))
-                        .border(
-                            ThesisDimens.BorderWidth,
-                            ThesisColors.Primary.copy(alpha = 0.2f),
-                            RoundedCornerShape(ThesisDimens.SignalBadgeCorner)
-                        )
-                        .padding(horizontal = ThesisDimens.SpacingSm, vertical = ThesisDimens.SpacingXs),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.AutoAwesome,
-                        contentDescription = null,
-                        tint = ThesisColors.Primary,
-                        modifier = Modifier.size(12.dp)
-                    )
-                    Spacer(modifier = Modifier.size(ThesisDimens.SpacingXs))
-                    Text(
-                        text = "IN MY NAMES",
-                        style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Medium),
-                        color = ThesisColors.Primary
+    // The entries and their lambdas are built once per report (and per Pro state, which changes which blocks
+    // exist), so a sheet, a note keystroke or a running scenario does not hand every list item new lambdas. The
+    // blocks read the tools through this state, so each recomposes only when what it reads changes.
+    val current by rememberUpdatedState(tools)
+    val hasStress = tools.onOpenScenarioStress != null
+    val items = remember(report, plan, tools.isPro, hasStress) {
+        // Free users see one Pro upsell on the page (5.15): the desk's, which names the what-if model too.
+        val whatIf = report.valuation?.takeIf { tools.isPro }
+        val ctx = ClassicContext(
+            ticker = report.ticker,
+            filing = filing,
+            onQuote = { source, text -> sheet = ClassicSheet.Quote(source, text) },
+            onOpenUrl = { url -> runCatching { uriHandler.openUri(url) } },
+            whatIf = whatIf?.let { valuation ->
+                @Composable {
+                    ScenarioSection(
+                        isPro = current.isPro,
+                        valuation = valuation,
+                        isRunning = current.isRunningScenario,
+                        scenarioResult = current.scenarioResult,
+                        onRunScenario = current.onRunScenario,
+                        onRequireUpgrade = current.onRequireUpgrade,
                     )
                 }
-            }
-        }
-
-        Text(
-            text = if (isLegacy) {
-                "Legacy report surfaced in the emergent layout"
-            } else {
-                "Evidence-backed company research"
             },
-            style = ThesisTypography.bodyMedium,
-            color = ThesisColors.TextSecondary
+            desk = deskBlocks(
+                report = report,
+                filing = filing,
+                hasStress = hasStress,
+                tools = { current },
+                exports = DeskExports(
+                    pdf = { shareExport(context, createPdfExport(context, report, ReportExportType.FULL_REPORT)) },
+                    card = { shareExport(context, createShareCard(context, report)) },
+                    memo = { shareExport(context, createPdfExport(context, report, ReportExportType.INVESTMENT_MEMO)) },
+                ),
+            ),
         )
-
-        Text(
-            text = "Schema v$schemaVersion",
-            style = ThesisTypography.labelSmall,
-            color = ThesisColors.TextMuted
-        )
+        ClassicItems().apply { addChapters(report, plan, ctx) }
     }
-}
+    val jumpHolder = remember { arrayOfNulls<(String) -> Unit>(1) }
 
-@Composable
-private fun TrustOverviewSection(trust: TrustMetadataView) {
-    val shape = RoundedCornerShape(ThesisDimens.CardCornerRadius)
-
-    Column(verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)) {
-        Text(
-            text = "Trust & Freshness",
-            style = ThesisTypography.headlineMedium.copy(fontWeight = FontWeight.Medium),
-            color = ThesisColors.TextPrimary
-        )
-
+    Column(Modifier.fillMaxSize()) {
         Box(
-            modifier = Modifier
+            Modifier
                 .fillMaxWidth()
-                .clip(shape)
-                .background(ThesisColors.Surface)
-                .border(ThesisDimens.BorderWidth, ThesisColors.Border, shape)
-                .padding(ThesisDimens.CardPadding)
+                .background(p.surface)
+                .padding(top = padding.calculateTopPadding()),
         ) {
-            Column(verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingMd)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)
-                ) {
-                    TrustBadge(
-                        label = "Freshness",
-                        value = trust.freshnessState?.uppercase() ?: "UNKNOWN",
-                        color = trustStateColor(trust.freshnessState),
-                        modifier = Modifier.weight(1f)
-                    )
-                    TrustBadge(
-                        label = "Evidence",
-                        value = "${trust.evidenceCount ?: 0}",
-                        color = ThesisColors.AccentBlue,
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)
-                ) {
-                    TrustBadge(
-                        label = "Contradiction",
-                        value = trust.contradictionState?.uppercase() ?: "UNKNOWN",
-                        color = if (trust.contradictionState.equals("present", ignoreCase = true)) {
-                            ThesisColors.SignalNegative
-                        } else {
-                            ThesisColors.SignalPositive
-                        },
-                        modifier = Modifier.weight(1f)
-                    )
-                    TrustBadge(
-                        label = "Valuation",
-                        value = trust.valuationState?.uppercase() ?: "UNKNOWN",
-                        color = when {
-                            trust.valuationState.equals("available", ignoreCase = true) -> ThesisColors.SignalPositive
-                            trust.valuationState.equals("degraded", ignoreCase = true) -> ThesisColors.SignalWarning
-                            else -> ThesisColors.TextMuted
-                        },
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-
-                trust.thesisDrift?.summary?.takeIf { it.isNotBlank() }?.let { summary ->
-                    SnapshotRow(label = "THESIS DRIFT", value = summary)
-                }
-
-                if (trust.quoteProvenance.isNotEmpty()) {
-                    val quote = trust.quoteProvenance.first()
-                    SnapshotRow(
-                        label = "QUOTE PROVENANCE",
-                        value = "\"${quote.quote}\" — ${quote.sourceName}" +
-                            (quote.sourcePeriod?.let { " ($it)" } ?: "")
-                    )
-                }
-
-                trust.missingDataNotes.firstOrNull()?.takeIf { it.isNotBlank() }?.let { note ->
-                    SnapshotRow(label = "LIMITS", value = note)
-                }
-            }
+            ReportTopBar(
+                ticker = report.ticker?.uppercase() ?: report.readerTicker(),
+                onBack = onBack,
+                following = following,
+                onFollowChange = onFollowChange,
+                onOverflow = { sheet = ClassicSheet.More },
+            )
         }
+        ClassicReportList(
+            report = report,
+            plan = plan,
+            items = items,
+            kpis = kpis,
+            sample = false,
+            listState = listState,
+            modifier = Modifier.weight(1f),
+            contentPadding = PaddingValues(bottom = padding.calculateBottomPadding() + ThesisSpace.x5),
+            beforeHero = onOpenNewView?.let { open ->
+                {
+                    InlineBanner(
+                        DeepDiveCopy.classicBanner,
+                        actionLabel = DeepDiveCopy.openNewView,
+                        onAction = open,
+                    )
+                }
+            },
+            onJump = { jump -> jumpHolder[0] = jump },
+        )
+    }
+
+    when (val s = sheet) {
+        ClassicSheet.More -> ThesisSheet(onDismissRequest = { sheet = null }, title = DeepDiveCopy.moreTitle) {
+            onOpenNewView?.let { open ->
+                SheetActionRow(ThesisIcons.DeepDive, DeepDiveCopy.openNewView, onClick = {
+                    sheet = null
+                    open()
+                })
+            }
+            SheetActionRow(ThesisIcons.ExportPdf, DeepDiveCopy.exportPdf, onClick = {
+                sheet = null
+                exportPdf()
+            })
+            SheetActionRow(ThesisIcons.Share, DeepDiveCopy.shareCard, onClick = {
+                sheet = null
+                exportCard()
+            })
+            SheetActionRow(ThesisIcons.Document, DeepDiveCopy.memoPdf, onClick = {
+                sheet = null
+                exportMemo()
+            })
+            SheetActionRow(ThesisIcons.Notes, DeepDiveCopy.reportFeedback, onClick = {
+                sheet = null
+                jumpHolder[0]?.invoke(FEEDBACK_ENTRY)
+            })
+        }
+        is ClassicSheet.Quote -> ThesisSheet(onDismissRequest = { sheet = null }, title = DeepDiveCopy.quoteSheetTitle) {
+            Text(
+                s.text,
+                Modifier.padding(horizontal = ThesisSpace.gutter, vertical = ThesisSpace.s),
+                style = ThesisType.story,
+                color = p.ink2,
+                maxLines = QUOTE_PREVIEW_LINES,
+                overflow = TextOverflow.Ellipsis,
+            )
+            SheetActionRow(ThesisIcons.Notes, DeepDiveCopy.addToNote, onClick = {
+                tools.onReportNoteChange(NoteQuotes.append(tools.reportNoteDraft, NoteQuotes.format(s.text, s.source)))
+                tools.onSaveReportNote()
+                tools.onNotify(DeepDiveCopy.addedToNote)
+                sheet = null
+            })
+            SheetActionRow(ThesisIcons.Copy, DeepDiveCopy.copyParagraph, onClick = {
+                clipboard.setText(AnnotatedString(s.text))
+                tools.onNotify(DeepDiveCopy.copied)
+                sheet = null
+            })
+        }
+        null -> Unit
     }
 }
 
+private const val QUOTE_PREVIEW_LINES = 6
+
+/** The list entry of the desk's feedback block (the overflow's "Report feedback" lands on it, not on the note). */
+private const val FEEDBACK_ENTRY = "desk-feedback"
+
+/** What the export rows run (the Pro gate is ExportSection's). */
+private class DeskExports(val pdf: () -> Unit, val card: () -> Unit, val memo: () -> Unit)
+
+/** The "Your notes" chapter's blocks; each reads the tools through [tools] when it composes. */
+private fun deskBlocks(
+    report: DeepDiveReportView,
+    filing: String?,
+    hasStress: Boolean,
+    tools: () -> DeepDiveNativeTools,
+    exports: DeskExports,
+): List<Pair<String, @Composable () -> Unit>> = buildList {
+    add(
+        "notes" to @Composable {
+            val t = tools()
+            NotesSection(
+                noteDraft = t.reportNoteDraft,
+                noteUpdatedAt = t.noteUpdatedAt,
+                isSaving = t.isSavingNote,
+                onNoteChange = t.onReportNoteChange,
+                onSave = t.onSaveReportNote,
+                filing = listOfNotNull(report.ticker?.uppercase(), filing).joinToString(" ").ifBlank { null },
+            )
+        },
+    )
+    add(
+        "conviction" to @Composable {
+            val t = tools()
+            DeepDiveConvictionSection(
+                isPro = t.isPro,
+                timeline = t.convictionTimeline,
+                timelineError = t.convictionTimelineError,
+                oppositeCase = t.oppositeCase,
+                oppositeCaseError = t.oppositeCaseError,
+                isGeneratingOppositeCase = t.isGeneratingOppositeCase,
+                onGenerateOppositeCase = t.onGenerateOppositeCase,
+                onRefreshTimeline = t.onRefreshConvictionTimeline,
+                onRequireUpgrade = t.onRequireUpgrade,
+                upsell = if (report.valuation != null) DeepDiveCopy.deskPro else DeepDiveCopy.convictionPro,
+            )
+        },
+    )
+    if (hasStress) {
+        add(
+            "stress" to @Composable {
+                ActionRow(
+                    icon = ThesisIcons.ScenarioStress,
+                    title = DeepDiveCopy.stressAction,
+                    onClick = { tools().onOpenScenarioStress?.invoke() },
+                    caption = DeepDiveCopy.stressCaption,
+                )
+            },
+        )
+    }
+    add("feedback" to @Composable { ReportFeedbackSection(onSubmit = { c, d -> tools().onSubmitReportFeedback(c, d) }) })
+    add(
+        "export" to @Composable {
+            val t = tools()
+            ExportSection(
+                isPro = t.isPro,
+                onRequireUpgrade = t.onRequireUpgrade,
+                onNotify = t.onNotify,
+                onExportPdf = exports.pdf,
+                onExportCard = exports.card,
+                onExportMemo = exports.memo,
+            )
+        },
+    )
+}
+
+private fun DeepDiveReportView.readerTicker(): String = issuer?.name ?: DeepDiveCopy.deepDive
+
+/**
+ * The page as one list: optional banner, the hero, the sticky chapter pills (with scroll-spy) when there are two
+ * chapters or more, the chapters, the disclaimer. [onJump] hands the screen a jump to one entry by its key (the
+ * overflow's "Report feedback" goes to the desk's feedback block), which lands it just below the sticky pills.
+ */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun TrustBadge(
-    label: String,
-    value: String,
-    color: Color,
-    modifier: Modifier = Modifier
+internal fun ClassicReportList(
+    report: DeepDiveReportView,
+    plan: ClassicPlan,
+    items: ClassicItems,
+    kpis: List<KpiSpec>,
+    sample: Boolean,
+    listState: LazyListState,
+    modifier: Modifier = Modifier,
+    contentPadding: PaddingValues = PaddingValues(),
+    underTopBar: Boolean = false,
+    pills: Boolean = plan.chapters.size >= 2,
+    beforeHero: (@Composable () -> Unit)? = null,
+    afterHero: (@Composable () -> Unit)? = null,
+    onJump: ((String) -> Unit) -> Unit = {},
 ) {
-    Box(
-        modifier = modifier
-            .clip(RoundedCornerShape(ThesisDimens.SignalBadgeCorner))
-            .background(color.copy(alpha = 0.12f))
-            .border(
-                ThesisDimens.BorderWidth,
-                color.copy(alpha = 0.3f),
-                RoundedCornerShape(ThesisDimens.SignalBadgeCorner)
-            )
-            .padding(horizontal = ThesisDimens.SpacingSm, vertical = ThesisDimens.SpacingSm)
-    ) {
-        Column(verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingXs)) {
-            Text(
-                text = label.uppercase(),
-                style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Medium),
-                color = ThesisColors.TextMuted
-            )
-            Text(
-                text = value,
-                style = ThesisTypography.bodyMedium.copy(fontWeight = FontWeight.Medium),
-                color = color
-            )
+    val p = LocalThesisPalette.current
+    val prefix = listOfNotNull(beforeHero, afterHero).size + 1
+    val offset = prefix + if (pills) 1 else 0
+    val starts = items.chapterStarts.map { it + offset }
+    val spy = rememberScrollSpy(listState, starts)
+    val scope = rememberCoroutineScope()
+    val reduced = LocalReducedMotion.current
+    onJump { key ->
+        val at = items.entries.indexOfFirst { it.key.substringBefore('#') == key }
+        if (at >= 0) scope.launch { listState.jumpToEntry(at + offset, reduced) }
+    }
+    LazyColumn(modifier.fillMaxSize(), state = listState, contentPadding = contentPadding) {
+        beforeHero?.let { banner ->
+            item("banner") { ReadingColumn(Modifier.padding(vertical = ThesisSpace.s)) { banner() } }
         }
-    }
-}
-
-@Composable
-@ReadOnlyComposable
-private fun trustStateColor(state: String?): Color {
-    return when {
-        state.equals("fresh", ignoreCase = true) -> ThesisColors.SignalPositive
-        state.equals("degraded", ignoreCase = true) -> ThesisColors.SignalWarning
-        state.equals("stale", ignoreCase = true) -> ThesisColors.SignalNegative
-        else -> ThesisColors.TextMuted
-    }
-}
-
-@Composable
-private fun SignalBlockSection(report: DeepDiveReportView) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)
-    ) {
-        val shape = RoundedCornerShape(ThesisDimens.CardCornerRadius)
-
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .height(140.dp)
-                .clip(shape)
-                .background(signalContainerColor(report.signalValue))
-                .border(ThesisDimens.BorderWidth, signalBorderColor(report.signalValue), shape)
-                .padding(ThesisDimens.CardPadding)
-        ) {
-            Column(
-                modifier = Modifier.fillMaxSize(),
-                verticalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(
-                    text = "SIGNAL",
-                    style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Medium),
-                    color = signalTextColor(report.signalValue)
-                )
-                SignalBadge(signalValue = report.signalValue)
-                Text(
-                    text = report.signalValue?.uppercase() ?: "NO SIGNAL",
-                    style = ThesisTypography.bodyMedium.copy(fontWeight = FontWeight.Medium),
-                    color = signalTextColor(report.signalValue)
-                )
+        item("hero") { ClassicHero(report, kpis, sample, underTopBar) }
+        afterHero?.let { block ->
+            item("after-hero") { ReadingColumn(Modifier.padding(top = ThesisSpace.l)) { block() } }
+        }
+        if (pills) {
+            stickyHeader("pills") {
+                ChapterPills(plan.chapters.map { it.label }, spy.selected, { spy.jumpTo(it) })
             }
         }
-
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .height(140.dp)
-                .clip(shape)
-                .background(ThesisColors.Surface)
-                .border(ThesisDimens.BorderWidth, ThesisColors.Border, shape)
-                .padding(ThesisDimens.CardPadding),
-            contentAlignment = Alignment.Center
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center
-            ) {
-                ConfidenceRing(
-                    score = (report.confidenceScore ?: 0.0).toFloat(),
-                    modifier = Modifier.size(56.dp)
-                )
-                Spacer(modifier = Modifier.size(ThesisDimens.SpacingMd))
-                Column {
-                    Text(
-                        text = "CONFIDENCE",
-                        style = ThesisTypography.labelSmall,
-                        color = ThesisColors.TextMuted
-                    )
-                    Text(
-                        text = report.confidenceLabel?.uppercase() ?: "UNKNOWN",
-                        style = ThesisTypography.headlineMedium.copy(fontWeight = FontWeight.Medium),
-                        color = ThesisColors.TextPrimary
-                    )
-                }
+        items.entries.forEach { entry ->
+            item(entry.key, contentType = entry.key.substringBefore('-')) {
+                ReadingColumn(Modifier.padding(top = entry.top)) { entry.content() }
+            }
+        }
+        item("footer") {
+            ReadingColumn(Modifier.padding(top = ThesisSpace.x5, bottom = ThesisSpace.xxl)) {
+                Text(DeepDiveCopy.disclaimer, style = ThesisType.caption, color = p.muted)
             }
         }
     }
 }
 
-@Composable
-private fun ResearchSnapshotCard(report: DeepDiveReportView) {
-    val shape = RoundedCornerShape(ThesisDimens.CardCornerRadius)
-
-    Column(verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)) {
-        Text(
-            text = "Research Snapshot",
-            style = ThesisTypography.headlineMedium.copy(fontWeight = FontWeight.Medium),
-            color = ThesisColors.TextPrimary
-        )
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(shape)
-                .background(ThesisColors.Surface)
-                .border(ThesisDimens.BorderWidth, ThesisColors.Border, shape)
-                .padding(ThesisDimens.CardPadding)
-        ) {
-            Column(verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingMd)) {
-                if (report.signalReasons.isNotEmpty()) {
-                    SnapshotRow(
-                        label = "WHY THIS SIGNAL",
-                        value = report.signalReasons.joinToString(separator = " | ")
-                    )
-                }
-
-                report.valuation?.let { valuation ->
-                    SnapshotRow(
-                        label = "VALUATION",
-                        value = valuationSummary(valuation)
-                    )
-                }
-
-                report.historical?.let { historical ->
-                    SnapshotRow(
-                        label = "HISTORICAL CONTEXT",
-                        value = historicalSummary(historical)
-                    )
-                }
-
-                report.confidence?.limitingFactors?.takeIf { it.isNotEmpty() }?.let { factors ->
-                    SnapshotRow(
-                        label = "LIMITING FACTORS",
-                        value = factors.joinToString(separator = " | ")
-                    )
-                }
-            }
-        }
+/**
+ * Scrolls item [index] to the top of the list (glides; jumps under reduced motion), then out from under the sticky
+ * pills, which would otherwise cover its first lines. Near the end of the list, where the item cannot reach the
+ * top, it stays where the scroll left it.
+ */
+private suspend fun LazyListState.jumpToEntry(index: Int, reduced: Boolean) {
+    if (reduced) scrollToItem(index) else animateScrollToItem(index)
+    val info = layoutInfo
+    val pills = info.visibleItemsInfo.firstOrNull { it.key == "pills" }?.size ?: return
+    val item = info.visibleItemsInfo.firstOrNull { it.index == index } ?: return
+    val under = (pills - (item.offset - info.viewportStartOffset)).toFloat()
+    if (under > 0f) {
+        if (reduced) scrollBy(-under) else animateScrollBy(-under)
     }
 }
 
-@Composable
-private fun SnapshotRow(label: String, value: String) {
-    Column(verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingXs)) {
-        Text(
-            text = label,
-            style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Medium),
-            color = ThesisColors.TextMuted
-        )
-        Text(
-            text = value,
-            style = ThesisTypography.bodyMedium,
-            color = ThesisColors.TextPrimary
-        )
-    }
-}
+// -------------------------------------------------------------------------------------------------------------
+// The sample (5.16): the same page, under Today's root bar, with the follow bar
+// -------------------------------------------------------------------------------------------------------------
 
+/**
+ * The bundled sample as the classic page: hero under the root bar ("Sample report" badge), the sample note, its
+ * chapters (no desk, no pills: the root bar sits where they would stick) and a sticky "Follow your first name"
+ * bar. [report] null while the asset is parsed (a skeleton), [failed] when it could not be read.
+ */
 @Composable
-private fun SummarySection(
-    title: String,
-    icon: ImageVector,
-    iconColor: Color,
-    content: String,
-    isCaution: Boolean = false
+internal fun SampleDeepDiveContent(
+    report: DeepDiveReportView?,
+    fiveYear: FiveYearSeries?,
+    padding: PaddingValues,
+    onFollowName: () -> Unit,
+    onDismiss: () -> Unit,
+    failed: Boolean = false,
 ) {
-    val shape = RoundedCornerShape(ThesisDimens.CardCornerRadius)
-    Column {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(bottom = ThesisDimens.SpacingSm)
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = iconColor,
-                modifier = Modifier.size(16.dp)
-            )
-            Spacer(modifier = Modifier.size(ThesisDimens.SpacingSm))
-            Text(
-                text = title.uppercase(),
-                style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Medium),
-                color = ThesisColors.TextMuted
-            )
-        }
-
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(shape)
-                .background(ThesisColors.Surface)
-                .border(
-                    ThesisDimens.BorderWidth,
-                    if (isCaution) ThesisColors.SignalWarning.copy(alpha = 0.2f) else iconColor.copy(alpha = 0.2f),
-                    shape
+    // The root bar takes its over-hero palette only while a HeroBand is under it: the page or its skeleton, never
+    // the failed state (an EmptyState on the page background).
+    if (report != null || !failed) HeroUnderBars()
+    val uriHandler = LocalUriHandler.current
+    val listState = rememberLazyListState()
+    Box(Modifier.fillMaxSize()) {
+        when {
+            report != null -> {
+                val shown = remember(report) { sampleWithIssuer(report) }
+                val plan = remember(shown, fiveYear) { classicPlan(shown, fiveYear, withDesk = false) }
+                val kpis = remember(shown, plan) { heroKpis(shown, plan.fiveYear) }
+                val items = remember(shown, plan) {
+                    val ctx = ClassicContext(
+                        ticker = shown.ticker,
+                        filing = ClassicFormat.filingLabel(shown.filingRead?.form, shown.filingRead?.period),
+                        onQuote = null,
+                        onOpenUrl = { url -> runCatching { uriHandler.openUri(url) } },
+                    )
+                    ClassicItems().apply { addChapters(shown, plan, ctx) }
+                }
+                ClassicReportList(
+                    report = shown,
+                    plan = plan,
+                    items = items,
+                    kpis = kpis,
+                    sample = true,
+                    listState = listState,
+                    contentPadding = PaddingValues(bottom = padding.calculateBottomPadding() + SAMPLE_BAR_SPACE),
+                    underTopBar = true,
+                    pills = false,
+                    afterHero = {
+                        InlineBanner(DeepDiveCopy.sampleNote, actionLabel = DeepDiveCopy.closeSample, onAction = onDismiss)
+                    },
                 )
-                .padding(ThesisDimens.CardPadding)
-        ) {
-            Text(
-                text = content,
-                style = ThesisTypography.bodyLarge,
-                color = if (isCaution) ThesisColors.TextSecondary else ThesisColors.TextPrimary,
-                fontStyle = if (isCaution) FontStyle.Italic else FontStyle.Normal
-            )
-        }
-    }
-}
-
-@Composable
-private fun EvidenceList(evidence: List<EvidenceView>) {
-    Column(verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)) {
-        evidence.forEach { item ->
-            Column {
+            }
+            failed -> Box(
+                Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .padding(ThesisSpace.gutter),
+                contentAlignment = Alignment.Center,
+            ) {
+                // Nothing to retry (the asset is in the app): the one action closes the sample, with no retry icon.
+                EmptyState(
+                    sentence = DeepDiveCopy.sampleFailed,
+                    modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+                    actionLabel = DeepDiveCopy.closeSample,
+                    onAction = onDismiss,
+                )
+            }
+            else -> Column(Modifier.fillMaxSize()) {
+                HeroBand(underTopBar = true) { SkeletonHero() }
+                ReadingColumn(Modifier.padding(top = ThesisSpace.xxl)) { SkeletonCard() }
                 Text(
-                    text = "Source: ${item.sourceName}",
-                    style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Medium),
-                    color = ThesisColors.TextPrimary
+                    DeepDiveCopy.loadingSample,
+                    Modifier.padding(ThesisSpace.gutter),
+                    style = ThesisType.caption,
+                    color = LocalThesisPalette.current.muted,
                 )
-                if (item.excerpt.isNotBlank()) {
-                    Text(
-                        text = item.excerpt,
-                        style = ThesisTypography.bodySmall,
-                        color = ThesisColors.TextMuted
-                    )
-                }
-                if (!item.url.isNullOrBlank()) {
-                    Text(
-                        text = item.url,
-                        style = ThesisTypography.labelSmall,
-                        color = ThesisColors.Primary
-                    )
-                }
             }
         }
+        RunBar(
+            label = DeepDiveCopy.followFirstName,
+            onClick = onFollowName,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = padding.calculateBottomPadding()),
+        )
     }
 }
 
+private val SAMPLE_BAR_SPACE = ThesisSpace.x5 + ThesisSpace.x4
+
+/**
+ * The bundled sample names only its ticker; the hero shows the company ("Microsoft", with "MSFT" in the meta line),
+ * as the page does. Any other report is returned as it is.
+ */
+internal fun sampleWithIssuer(report: DeepDiveReportView): DeepDiveReportView =
+    if (report.issuer?.name.isNullOrBlank() && report.ticker.equals(DeepDiveCopy.sampleTicker, ignoreCase = true)) {
+        report.copy(issuer = IssuerView(DeepDiveCopy.sampleIssuer))
+    } else {
+        report
+    }
+
+// -------------------------------------------------------------------------------------------------------------
+// Desk tools (also opened one at a time from the new view's tool row, DeepDiveWebReportState.kt)
+// -------------------------------------------------------------------------------------------------------------
+
+/**
+ * The report's note: NoteBlock with autosave. [onSave] asks the view model to save the draft; a save counts as
+ * done when [isSaving] has gone up and come down again.
+ */
 @Composable
 internal fun NotesSection(
     noteDraft: String,
     noteUpdatedAt: String?,
     isSaving: Boolean,
     onNoteChange: (String) -> Unit,
-    onSave: () -> Unit
+    onSave: () -> Unit,
+    filing: String? = null,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)) {
-        Text(
-            text = "My Notes",
-            style = ThesisTypography.headlineMedium.copy(fontWeight = FontWeight.Medium),
-            color = ThesisColors.TextPrimary
-        )
-        OutlinedTextField(
-            value = noteDraft,
-            onValueChange = onNoteChange,
-            modifier = Modifier.fillMaxWidth(),
-            minLines = 4,
-            maxLines = 8,
-            label = { Text("Add your notes for this report") },
-            shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
-            colors = deepDiveFieldColors()
-        )
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = noteUpdatedAt?.let { "Last saved: $it" } ?: "No saved note yet.",
-                style = ThesisTypography.labelSmall,
-                color = ThesisColors.TextMuted
-            )
-            ThesisButton(
-                text = if (isSaving) "Saving..." else "Save Note",
-                onClick = onSave,
-                enabled = !isSaving,
-                modifier = Modifier.fillMaxWidth().weight(0.45f, fill = false)
-            )
+    val fmt = LocalFmt.current
+    val clipboard = LocalClipboardManager.current
+    val saving by rememberUpdatedState(isSaving)
+    val save by rememberUpdatedState(onSave)
+    val autosave = rememberNoteAutosave(
+        text = noteDraft,
+        save = {
+            save()
+            withTimeoutOrNull(SAVE_START_MS) { snapshotFlow { saving }.first { it } }
+            withTimeoutOrNull(SAVE_END_MS) { snapshotFlow { saving }.first { !it } } != null
+        },
+        onLeave = { save() },
+    )
+    NoteBlock(
+        value = noteDraft,
+        onValueChange = onNoteChange,
+        filing = filing,
+        saveState = autosave.state,
+        savedAgo = parseReportInstant(noteUpdatedAt)?.let(fmt::relative),
+        onRetry = { autosave.retry() },
+        onCopy = { clipboard.setText(AnnotatedString(noteDraft)) }.takeIf { noteDraft.isNotBlank() },
+    )
+}
+
+private const val SAVE_START_MS = 2_000L
+private const val SAVE_END_MS = 20_000L
+
+/** The what-if inputs, read in percent and handed to the model as fractions. */
+internal object ScenarioInput {
+    const val MAX_YEARS = 30
+
+    private fun clean(s: String): String = s.trim().removeSuffix("%").trim().replace(Fmt.MINUS, "-").replace(',', '.')
+
+    /** Whole years from 1 to 30; null when blank or out of range. */
+    fun years(s: String): Int? = clean(s).toIntOrNull()?.takeIf { it in 1..MAX_YEARS }
+
+    /** A percent ("2.5", "2.5%", "−1"); null when it is not a number. */
+    fun percent(s: String): Double? = clean(s).toDoubleOrNull()?.takeIf { it.isFinite() }
+
+    /** A stored fraction (0.025) as the field's percent text ("2.5"). */
+    fun fieldText(fraction: Double?): String = fraction?.let { Fmt.number(it * 100.0, 1).replace(Fmt.MINUS, "-") }.orEmpty()
+
+    /** The three errors (years, growth, rate) for the fields as typed; blank fields keep the report's value. */
+    fun errors(years: String, growth: String, wacc: String): Triple<String?, String?, String?> {
+        val y = if (years.isNotBlank() && years(years) == null) DeepDiveCopy.errYears else null
+        val g = if (growth.isNotBlank() && percent(growth) == null) DeepDiveCopy.errPercent else null
+        val gv = percent(growth)
+        val wv = percent(wacc)
+        val w = when {
+            wacc.isNotBlank() && wv == null -> DeepDiveCopy.errPercent
+            gv != null && wv != null && wv <= gv -> DeepDiveCopy.errWaccAboveGrowth
+            else -> null
         }
+        return Triple(y, g, w)
     }
 }
 
+/**
+ * Change the model's assumptions (5.15 "What-if"): projection years, terminal growth and discount rate in percent,
+ * checked as typed; the result shows the report's model value, yours, and yours against the price in the report.
+ */
 @Composable
 internal fun ScenarioSection(
     isPro: Boolean,
@@ -989,243 +757,158 @@ internal fun ScenarioSection(
     isRunning: Boolean,
     scenarioResult: ScenarioResultView?,
     onRunScenario: (Int?, Double?, Double?) -> Unit,
-    onRequireUpgrade: (String) -> Unit
+    onRequireUpgrade: (String) -> Unit,
 ) {
-    var projectionYearsText by remember(valuation?.assumptions?.projectionYears) {
-        mutableStateOf(valuation?.assumptions?.projectionYears?.toString().orEmpty())
-    }
-    var terminalGrowthText by remember(valuation?.assumptions?.terminalGrowthRate) {
-        mutableStateOf(valuation?.assumptions?.terminalGrowthRate?.toString().orEmpty())
-    }
-    var waccText by remember(valuation?.assumptions?.wacc) {
-        mutableStateOf(valuation?.assumptions?.wacc?.toString().orEmpty())
-    }
-
-    LaunchedEffect(valuation?.assumptions?.projectionYears, valuation?.assumptions?.terminalGrowthRate, valuation?.assumptions?.wacc) {
-        projectionYearsText = valuation?.assumptions?.projectionYears?.toString().orEmpty()
-        terminalGrowthText = valuation?.assumptions?.terminalGrowthRate?.toString().orEmpty()
-        waccText = valuation?.assumptions?.wacc?.toString().orEmpty()
-    }
-
-    Column(verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)) {
-        Text(
-            text = "What-If Scenario",
-            style = ThesisTypography.headlineMedium.copy(fontWeight = FontWeight.Medium),
-            color = ThesisColors.TextPrimary
-        )
-        Text(
-            text = "Adjust DCF assumptions and compare outputs.",
-            style = ThesisTypography.bodySmall,
-            color = ThesisColors.TextMuted
-        )
-
+    val p = LocalThesisPalette.current
+    val haptics = rememberHaptics()
+    Column(verticalArrangement = Arrangement.spacedBy(ThesisSpace.m)) {
+        SectionHeader(kicker = DeepDiveCopy.whatIfKicker, headline = DeepDiveCopy.whatIfTitle, deck = DeepDiveCopy.whatIfDeck)
         if (valuation == null) {
-            Text(
-                text = "Valuation data unavailable.",
-                style = ThesisTypography.bodySmall,
-                color = ThesisColors.TextMuted
-            )
+            Text(DeepDiveCopy.noValuation, style = ThesisType.bodySmall, color = p.muted)
             return@Column
         }
-
-        OutlinedTextField(
-            value = projectionYearsText,
-            onValueChange = { projectionYearsText = it },
-            label = { Text("Projection years") },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
-            colors = deepDiveFieldColors()
-        )
-        OutlinedTextField(
-            value = terminalGrowthText,
-            onValueChange = { terminalGrowthText = it },
-            label = { Text("Terminal growth rate") },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
-            colors = deepDiveFieldColors()
-        )
-        OutlinedTextField(
-            value = waccText,
-            onValueChange = { waccText = it },
-            label = { Text("WACC") },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
-            colors = deepDiveFieldColors()
-        )
-
-        ThesisButton(
-            text = if (isRunning) "Running..." else "Run Scenario",
+        if (!isPro) {
+            Callout(DeepDiveCopy.proOnlyWhatIf)
+            TextAction(DeepDiveCopy.seePro, onClick = { onRequireUpgrade("what_if_scenario") }, trailing = true)
+            return@Column
+        }
+        val a = valuation.assumptions
+        var years by rememberSaveable(valuation) { mutableStateOf(a?.projectionYears?.toString().orEmpty()) }
+        var growth by rememberSaveable(valuation) { mutableStateOf(ScenarioInput.fieldText(a?.terminalGrowthRate)) }
+        var wacc by rememberSaveable(valuation) { mutableStateOf(ScenarioInput.fieldText(a?.wacc)) }
+        val (yearsError, growthError, waccError) = ScenarioInput.errors(years, growth, wacc)
+        NumberField(years, { years = it }, DeepDiveCopy.projectionYears, unit = DeepDiveCopy.years, error = yearsError)
+        NumberField(growth, { growth = it }, DeepDiveCopy.terminalGrowth, unit = "%", error = growthError)
+        NumberField(wacc, { wacc = it }, DeepDiveCopy.discountRate, unit = "%", error = waccError)
+        val valid = yearsError == null && growthError == null && waccError == null
+        SecondaryButton(
+            text = if (isRunning) DeepDiveCopy.running else DeepDiveCopy.runScenario,
             onClick = {
-                if (!isPro) {
-                    onRequireUpgrade("what_if_scenario")
-                    return@ThesisButton
+                if (!valid) {
+                    haptics.reject()
+                    return@SecondaryButton
                 }
                 onRunScenario(
-                    projectionYearsText.toIntOrNull(),
-                    terminalGrowthText.toDoubleOrNull(),
-                    waccText.toDoubleOrNull()
+                    ScenarioInput.years(years),
+                    ScenarioInput.percent(growth)?.let { it / 100.0 },
+                    ScenarioInput.percent(wacc)?.let { it / 100.0 },
                 )
             },
-            enabled = !isRunning
+            enabled = valid && !isRunning,
+            loading = isRunning,
         )
-
-        scenarioResult?.let { result ->
-            val shape = RoundedCornerShape(ThesisDimens.CardCornerRadius)
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(shape)
-                    .background(ThesisColors.Surface)
-                    .border(ThesisDimens.BorderWidth, ThesisColors.Border, shape)
-                    .padding(ThesisDimens.CardPadding)
-            ) {
-                Column(verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingXs)) {
-                    Text(
-                        text = "Scenario Result",
-                        style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Medium),
-                        color = ThesisColors.TextPrimary
-                    )
-                    val scenarioMid = result.scenario.fairValueMid
-                    if (scenarioMid != null) {
-                        ScenarioFanChart(
-                            data = ScenarioData(
-                                bullPrice = (result.scenario.fairValueHigh ?: scenarioMid).toFloat(),
-                                basePrice = scenarioMid.toFloat(),
-                                bearPrice = (result.scenario.fairValueLow ?: scenarioMid).toFloat(),
-                                currentPrice = result.base.spotPrice?.toFloat()
-                            )
-                        )
-                    }
-                    Text(
-                        text = "Base fair value: ${formatMaybeNumber(result.base.fairValueMid)}",
-                        style = ThesisTypography.bodySmall,
-                        color = ThesisColors.TextMuted
-                    )
-                    Text(
-                        text = "Scenario fair value: ${formatMaybeNumber(result.scenario.fairValueMid)}",
-                        style = ThesisTypography.bodySmall,
-                        color = ThesisColors.TextMuted
-                    )
-                    Text(
-                        text = "Implied upside: ${formatMaybePercent(result.scenario.impliedUpsidePct)}",
-                        style = ThesisTypography.bodySmall,
-                        color = ThesisColors.SignalPositive
-                    )
-                    result.deterministicModel?.let { model ->
-                        Text(
-                            text = "Model: $model",
-                            style = ThesisTypography.labelSmall,
-                            color = ThesisColors.TextMuted
-                        )
-                    }
-                    if (result.omissions.isNotEmpty()) {
-                        Text(
-                            text = "Omissions",
-                            style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Medium),
-                            color = ThesisColors.TextPrimary
-                        )
-                        result.omissions.forEach { omission ->
-                            Text(
-                                text = "- ${omission.omissionText}",
-                                style = ThesisTypography.bodySmall,
-                                color = ThesisColors.TextMuted
-                            )
-                        }
-                    }
-                }
-            }
-        }
+        scenarioResult?.let { ScenarioResultCard(it) }
     }
 }
 
+/**
+ * The what-if result, on the page under the section's header (one container: the rows' own panel, no card around
+ * it): the report's model value, yours, and the price in report with how far your value sits from it. Rows and the
+ * range bar write each value the same way (ClassicFormat.rangeMoney: whole dollars, cents only when the value has
+ * them), so "$228" never also reads "$228.00" in one block.
+ */
 @Composable
-internal fun ReportFeedbackSection(
-    onSubmit: (String, String) -> Unit
-) {
-    val options = listOf(
-        "useful" to "Useful",
-        "confusing" to "Confusing",
-        "generic" to "Too Generic",
-        "stale" to "Stale",
-        "bug_report" to "Bug Report"
-    )
-    var selectedCode by remember { mutableStateOf("useful") }
-    var feedbackMessage by remember { mutableStateOf("") }
-
-    Column(verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)) {
-        Text(
-            text = "Report Feedback",
-            style = ThesisTypography.headlineMedium.copy(fontWeight = FontWeight.Medium),
-            color = ThesisColors.TextPrimary
-        )
-        Text(
-            text = "Tell us if this report was helpful or what needs fixing.",
-            style = ThesisTypography.bodySmall,
-            color = ThesisColors.TextMuted
-        )
-
-        Row(horizontalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)) {
-            options.take(3).forEach { (code, label) ->
-                OutlinedButton(
-                    onClick = { selectedCode = code },
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
-                    border = androidx.compose.foundation.BorderStroke(
-                        ThesisDimens.BorderWidth,
-                        if (selectedCode == code) ThesisColors.Primary else ThesisColors.Border
-                    )
-                ) {
-                    Text(
-                        text = label,
-                        color = if (selectedCode == code) ThesisColors.Primary else ThesisColors.TextMuted
+private fun ScenarioResultCard(result: ScenarioResultView) {
+    val p = LocalThesisPalette.current
+    val base = result.base.fairValueMid
+    val mine = result.scenario.fairValueMid
+    val price = result.scenario.spotPrice ?: result.base.spotPrice
+    Column(Modifier.padding(top = ThesisSpace.s), verticalArrangement = Arrangement.spacedBy(ThesisSpace.m)) {
+        TitledKicker(DeepDiveCopy.modelValue, DeepDiveCopy.modelResultTitle)
+        RowGroup {
+            row { DataRow(DeepDiveCopy.baseCase, modelMoney(base)) }
+            row {
+                DataRow(
+                    label = DeepDiveCopy.yourInputs,
+                    value = modelMoney(mine),
+                    delta = if (base != null && mine != null && base != 0.0) Fmt.signedPct((mine / base - 1.0) * 100.0) else null,
+                )
+            }
+            if (price != null && mine != null && price > 0.0) {
+                val gap = (mine / price - 1.0) * 100.0
+                row {
+                    DataRow(
+                        label = DeepDiveCopy.priceInReport,
+                        value = ClassicFormat.rangeMoney(price),
+                        delta = DeepDiveCopy.yourValueGap(Fmt.signedPct(gap)),
+                        deltaTone = if (gap >= 0) Tone.Favourable else Tone.Unfavourable,
                     )
                 }
             }
         }
+        val low = result.scenario.fairValueLow
+        val high = result.scenario.fairValueHigh
+        if (low != null && high != null) {
+            RangeBar(
+                bear = low,
+                bull = high,
+                format = ClassicFormat::rangeMoney,
+                base = base,
+                price = price,
+                yourValue = mine,
+                priceLabel = DeepDiveCopy.priceInReport,
+            )
+        }
+        result.deterministicModel?.let(DeepDiveCopy::modelName)?.let {
+            Text(it, style = ThesisType.caption, color = p.muted)
+        }
+        if (result.omissions.isNotEmpty()) {
+            Column(verticalArrangement = Arrangement.spacedBy(ThesisSpace.s)) {
+                Kicker(DeepDiveCopy.leftOut)
+                result.omissions.forEach { Text(it.omissionText, style = ThesisType.bodySmall, color = p.ink2) }
+            }
+        }
+    }
+}
 
-        Row(horizontalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)) {
-            options.drop(3).forEach { (code, label) ->
-                OutlinedButton(
-                    onClick = { selectedCode = code },
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
-                    border = androidx.compose.foundation.BorderStroke(
-                        ThesisDimens.BorderWidth,
-                        if (selectedCode == code) ThesisColors.Primary else ThesisColors.Border
-                    )
-                ) {
-                    Text(
-                        text = label,
-                        color = if (selectedCode == code) ThesisColors.Primary else ThesisColors.TextMuted
+/** A model value as the range bar writes it; a value the model did not compute says so. */
+private fun modelMoney(v: Double?): String = v?.let(ClassicFormat::rangeMoney) ?: Fmt.money(null, missing = Missing.NotComputed)
+
+/** "Was this report useful?": chips with no preselection, an optional line, and Send with a sent state. */
+@Composable
+internal fun ReportFeedbackSection(onSubmit: (String, String) -> Unit) {
+    var category by rememberSaveable { mutableStateOf<String?>(null) }
+    var details by rememberSaveable { mutableStateOf("") }
+    var sent by rememberSaveable { mutableStateOf(false) }
+    Column(verticalArrangement = Arrangement.spacedBy(ThesisSpace.m)) {
+        SectionHeader(kicker = DeepDiveCopy.reportFeedback, headline = DeepDiveCopy.feedbackTitle, deck = DeepDiveCopy.feedbackDeck)
+        if (sent) {
+            InlineBanner(DeepDiveCopy.sent, tone = BannerTone.Neutral)
+            return@Column
+        }
+        ChipRow(contentPadding = PaddingValues()) {
+            DeepDiveCopy.feedbackOptions.forEach { (key, label) ->
+                item(key) {
+                    ThesisChip(
+                        label = label,
+                        selected = category == key,
+                        onClick = { category = if (category == key) null else key },
+                        role = androidx.compose.ui.semantics.Role.RadioButton,
                     )
                 }
             }
         }
-
-        OutlinedTextField(
-            value = feedbackMessage,
-            onValueChange = { feedbackMessage = it },
-            label = { Text("Optional details") },
-            modifier = Modifier.fillMaxWidth(),
-            minLines = 2,
-            maxLines = 4,
-            shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
-            colors = deepDiveFieldColors()
+        ThesisTextField(
+            value = details,
+            onValueChange = { details = it },
+            label = DeepDiveCopy.feedbackDetails,
+            singleLine = false,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
         )
-
-        ThesisButton(
-            text = "Send Feedback",
+        SecondaryButton(
+            text = DeepDiveCopy.send,
             onClick = {
-                onSubmit(selectedCode, feedbackMessage)
-                feedbackMessage = ""
-            }
+                val c = category ?: return@SecondaryButton
+                onSubmit(c, details.trim())
+                sent = true
+            },
+            enabled = category != null,
+            commit = true,
         )
     }
 }
 
+/** Export: the full report as a PDF, the share card, the memo text; Pro only, failures said plainly. */
 @Composable
 internal fun ExportSection(
     isPro: Boolean,
@@ -1233,190 +916,29 @@ internal fun ExportSection(
     onNotify: (String) -> Unit,
     onExportPdf: () -> Unit,
     onExportCard: () -> Unit,
-    onExportMemo: () -> Unit
+    onExportMemo: () -> Unit,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)) {
-        Text(
-            text = "Export",
-            style = ThesisTypography.headlineMedium.copy(fontWeight = FontWeight.Medium),
-            color = ThesisColors.TextPrimary
-        )
-        Text(
-            text = "PDF, share card, or investment memo.",
-            style = ThesisTypography.bodySmall,
-            color = ThesisColors.TextMuted
-        )
-
-        fun runExport(action: () -> Unit) {
-            if (!isPro) {
-                onRequireUpgrade("report_export")
-                return
-            }
-            runCatching { action() }
-                .onSuccess { onNotify("Export generated.") }
-                .onFailure { onNotify(it.message ?: "Export failed.") }
+    fun runExport(action: () -> Unit) {
+        if (!isPro) {
+            onRequireUpgrade("report_export")
+            return
         }
-
-        Row(horizontalArrangement = Arrangement.spacedBy(ThesisDimens.SpacingSm)) {
-            OutlinedButton(
-                onClick = { runExport(onExportPdf) },
-                modifier = Modifier.weight(1f),
-                shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
-                border = androidx.compose.foundation.BorderStroke(
-                    ThesisDimens.BorderWidth,
-                    ThesisColors.Border
-                )
-            ) {
-                Text(text = "PDF", color = ThesisColors.TextPrimary)
+        runCatching(action).onFailure { onNotify(DeepDiveCopy.exportFailed) }
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(ThesisSpace.s)) {
+        Kicker(DeepDiveCopy.exportTitle)
+        RowGroup {
+            row(LeadingInset) {
+                ActionRow(ThesisIcons.ExportPdf, DeepDiveCopy.exportPdf, { runExport(onExportPdf) }, caption = DeepDiveCopy.exportPdfCaption)
             }
-            OutlinedButton(
-                onClick = { runExport(onExportCard) },
-                modifier = Modifier.weight(1f),
-                shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
-                border = androidx.compose.foundation.BorderStroke(
-                    ThesisDimens.BorderWidth,
-                    ThesisColors.Border
-                )
-            ) {
-                Text(text = "Card", color = ThesisColors.TextPrimary)
+            row(LeadingInset) {
+                ActionRow(ThesisIcons.Share, DeepDiveCopy.shareCard, { runExport(onExportCard) }, caption = DeepDiveCopy.shareCardCaption)
             }
-            OutlinedButton(
-                onClick = { runExport(onExportMemo) },
-                modifier = Modifier.weight(1f),
-                shape = RoundedCornerShape(ThesisDimens.CardCornerRadius),
-                border = androidx.compose.foundation.BorderStroke(
-                    ThesisDimens.BorderWidth,
-                    ThesisColors.Border
-                )
-            ) {
-                Text(text = "Memo", color = ThesisColors.TextPrimary)
+            row(LeadingInset) {
+                ActionRow(ThesisIcons.Document, DeepDiveCopy.memoPdf, { runExport(onExportMemo) }, caption = DeepDiveCopy.memoCaption)
             }
         }
     }
 }
 
-private data class HighlightCard(
-    val title: String,
-    val content: String,
-    val icon: ImageVector,
-    val iconColor: Color,
-    val isCaution: Boolean = false
-)
-
-@Composable
-@ReadOnlyComposable
-private fun deriveHighlights(report: DeepDiveReportView): List<HighlightCard> {
-    val sections = report.sections.filter { it.body.isNotBlank() }
-    val lead = sections.getOrNull(0)?.body?.let(::summarize)
-        ?: "Report available. Lead section did not return a usable summary."
-    val support = sections.getOrNull(1)?.body?.let(::summarize)
-        ?: "Review modules below for supporting evidence."
-    val caution = sections
-        .filter { !it.status.isNullOrBlank() && !it.status.equals("complete", ignoreCase = true) }
-        .joinToString(separator = ", ") { it.title }
-        .ifBlank {
-            report.confidenceLabel?.let {
-                "Confidence is ${it.lowercase()}. Review evidence before acting."
-            } ?: "Confidence details limited. Review evidence."
-        }
-
-    return listOf(
-        HighlightCard(
-            title = "Lead Finding",
-            content = lead,
-            icon = Icons.Default.PushPin,
-            iconColor = ThesisColors.Primary
-        ),
-        HighlightCard(
-            title = "Supporting Context",
-            content = support,
-            icon = Icons.Default.Bolt,
-            iconColor = ThesisColors.SignalPositive
-        ),
-        HighlightCard(
-            title = "Read With Caution",
-            content = caution,
-            icon = Icons.Default.HelpOutline,
-            iconColor = ThesisColors.SignalWarning,
-            isCaution = true
-        )
-    )
-}
-
-private fun summarize(text: String, limit: Int = 180): String {
-    val normalized = text.replace(Regex("\\s+"), " ").trim()
-    if (normalized.isBlank()) {
-        return "No summary returned."
-    }
-    return if (normalized.length <= limit) {
-        normalized
-    } else {
-        normalized.take(limit - 3).trimEnd() + "..."
-    }
-}
-
-private fun valuationSummary(valuation: ValuationDisplayView): String {
-    val parts = buildList {
-        valuation.spotPrice?.let { add("Spot ${formatMaybeNumber(it)}") }
-        valuation.fairValueMid?.let { add("Fair value ${formatMaybeNumber(it)}") }
-        valuation.impliedUpsidePct?.let { add("Upside ${formatMaybePercent(it)}") }
-        valuation.degradedReason?.takeIf { it.isNotBlank() }?.let { add(it) }
-    }
-    return parts.joinToString(separator = " | ").ifBlank { "Valuation data unavailable." }
-}
-
-private fun historicalSummary(historical: com.thesis.mobile.model.HistoricalDisplayView): String {
-    val parts = buildList {
-        historical.latestPeriod?.let { add("Latest $it") }
-        historical.priorQuarterPeriod?.let { add("QoQ ref $it") }
-        historical.yearAgoPeriod?.let { add("YoY ref $it") }
-        add("${historical.financialSnapshotCount} financial snapshots")
-        add("${historical.transcriptCount} transcripts")
-    }
-    return parts.joinToString(separator = " | ")
-}
-
-private fun formatMaybeNumber(value: Double?): String {
-    return value?.let { String.format("%.2f", it) } ?: "n/a"
-}
-
-private fun formatMaybePercent(value: Double?): String {
-    return value?.let { String.format("%.2f%%", it) } ?: "n/a"
-}
-
-@Composable
-private fun deepDiveFieldColors() = OutlinedTextFieldDefaults.colors(
-    focusedContainerColor = ThesisColors.Surface,
-    unfocusedContainerColor = ThesisColors.Surface,
-    focusedBorderColor = ThesisColors.Primary,
-    unfocusedBorderColor = ThesisColors.Border,
-    focusedTextColor = ThesisColors.TextPrimary,
-    unfocusedTextColor = ThesisColors.TextPrimary,
-    cursorColor = ThesisColors.Primary,
-    focusedLabelColor = ThesisColors.Primary,
-    unfocusedLabelColor = ThesisColors.TextMuted
-)
-
-@Composable
-@ReadOnlyComposable
-private fun signalContainerColor(signal: String?): Color = when (signal?.uppercase()) {
-    "POSITIVE" -> ThesisColors.SignalPositive.copy(alpha = 0.08f)
-    "NEGATIVE" -> ThesisColors.SignalNegative.copy(alpha = 0.08f)
-    else -> ThesisColors.Surface
-}
-
-@Composable
-@ReadOnlyComposable
-private fun signalBorderColor(signal: String?): Color = when (signal?.uppercase()) {
-    "POSITIVE" -> ThesisColors.SignalPositive.copy(alpha = 0.2f)
-    "NEGATIVE" -> ThesisColors.SignalNegative.copy(alpha = 0.2f)
-    else -> ThesisColors.Border
-}
-
-@Composable
-@ReadOnlyComposable
-private fun signalTextColor(signal: String?): Color = when (signal?.uppercase()) {
-    "POSITIVE" -> ThesisColors.SignalPositive
-    "NEGATIVE" -> ThesisColors.SignalNegative
-    else -> ThesisColors.TextPrimary
-}
+private val LeadingInset = com.thesis.mobile.ui.components.LeadingRowDividerInset
