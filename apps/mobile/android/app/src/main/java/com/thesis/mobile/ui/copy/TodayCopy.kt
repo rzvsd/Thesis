@@ -7,6 +7,7 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.roundToInt
+import kotlin.math.roundToLong
 
 /**
  * Copy of the Today screens: Home, the Pulse brief and the Weekly digest (docs/app-redesign/DESIGN-DIRECTION.md
@@ -111,14 +112,18 @@ object TodayCopy {
         monitored == 0 -> "No monitor readings for your names yet"
         intact == total && total == 1 -> "Your one name is intact"
         intact == total && total == 2 -> "Both your names are intact"
-        intact == total -> "All $total of your names are intact"
-        else -> "$intact of your $total names are intact"
+        intact == total -> "All ${num(total)} of your names are intact"
+        else -> "${num(intact)} of your ${num(total)} names are intact"
     }
 
-    private fun of(n: Int, total: Int): String = if (n == total) "All $total of your names" else "$n of your names"
+    private fun of(n: Int, total: Int): String =
+        if (n == total) "All ${num(total)} of your names" else "${num(n)} of your names"
+
+    /** Counts in running copy go through [Fmt] too (grouping, U+2212), as every other number on the screen. */
+    private fun num(n: Int): String = Fmt.number(n.toLong())
 
     /** The last row of the group: "+7 more". */
-    fun moreNames(n: Int): String = "+$n more"
+    fun moreNames(n: Int): String = "+${num(n)} more"
 
     /** Line 2 of a name whose state changed: "Intact → Watch, Tue". */
     fun stateChange(from: String, to: String, day: String): String = "$from → $to, $day"
@@ -128,20 +133,16 @@ object TodayCopy {
 
     /** The signed change alone ("+4", "−1"): the compact caption when the reason line needs the room. */
     fun scoreChange(delta: Double): String {
-        val n = delta.roundToInt()
-        val sign = when {
-            n > 0 -> "+"
-            n < 0 -> Fmt.MINUS
-            else -> ""
-        }
-        return "$sign${abs(n)}"
+        // Fmt.number carries the U+2212 minus; a rise takes its "+" here (Fmt.pts would add the unit).
+        val n = delta.roundToLong()
+        return (if (n > 0) "+" else "") + Fmt.number(n)
     }
 
     /** Report age when there is no earlier reading: "Report · 23 days ago". */
     fun reportAge(relative: String): String = "Report · $relative"
 
     /** The compact report age, when the full one would crowd out a name's reason line: "Report · 23d". */
-    fun reportAgeShort(days: Long): String = if (days <= 0L) "Report · today" else "Report · ${days}d"
+    fun reportAgeShort(days: Long): String = if (days <= 0L) "Report · today" else "Report · ${Fmt.number(days)}d"
 
     const val NO_REPORT_YET = "No report yet"
     const val NO_READING_YET = "No monitor reading yet"
@@ -216,8 +217,14 @@ object TodayCopy {
      */
     fun briefChapters(n: Int): String = "This issue has ${Fmt.count(n, "chapter", "chapters")}"
 
-    /** No issue yet on a market day. */
+    /** No issue yet on a market day, while the open (and any due time) is still ahead. */
     const val NO_PULSE = "Today’s Pulse arrives before the open"
+
+    /** No issue on a market day once its due time has passed (over [runningLate]). */
+    const val NO_PULSE_LATE = "Today’s Pulse is running late"
+
+    /** No issue on a market day once the open has passed and no due time is known (or it is still ahead). */
+    const val NO_PULSE_YET = "Today’s Pulse has not arrived yet"
     const val NO_PULSE_HOW = "It reads the overnight tape, macro releases and new filings on your names."
 
     /** No issue on a weekend or an exchange holiday. */
@@ -227,10 +234,10 @@ object TodayCopy {
     fun nextIssue(day: String): String = "The next issue arrives before the open on $day."
 
     /** "Expected by 06:30" when the schedule is known and the time is still ahead. */
-    fun expectedBy(time: String): String = "Expected by $time"
+    fun expectedBy(time: String): String = "Expected by $time."
 
-    /** The scheduled time has passed and no issue has arrived: "Running late: it was due by 06:30". */
-    fun runningLate(time: String): String = "Running late: it was due by $time"
+    /** The scheduled time has passed and no issue has arrived, under [NO_PULSE_LATE]: "It was due by 06:30." */
+    fun runningLate(time: String): String = "It was due by $time."
 
     const val PULSE_SUBJECT = "today’s Pulse"
 
@@ -326,6 +333,21 @@ object TodayCopy {
         else -> "$reading, led by ${series.dropLast(1).joinToString(", ")} and ${series.last()}."
     }
 
+    /** Lists at most this many tickers in [namesRow]; the rest are counted. */
+    private const val NAMES_ROW_MAX = 3
+
+    /**
+     * Home's row for the Pulse's Your names chapter, naming the tickers: "AAPL is in this issue", "AAPL and MSFT are
+     * in this issue", "AAPL, MSFT, NVDA and 2 more are in this issue".
+     */
+    fun namesRow(tickers: List<String>): String {
+        val shown = tickers.take(NAMES_ROW_MAX)
+        val more = tickers.size - shown.size
+        val parts = if (more > 0) shown + "${Fmt.number(more.toLong())} more" else shown
+        val joined = if (parts.size == 1) parts.first() else parts.dropLast(1).joinToString(", ") + " and " + parts.last()
+        return if (tickers.size == 1) "$joined is in this issue" else "$joined are in this issue"
+    }
+
     fun namesInBrief(n: Int): String =
         if (n == 1) "1 of your names is in this issue" else "${Fmt.number(n.toLong())} of your names are in this issue"
 
@@ -396,14 +418,14 @@ object TodayCopy {
             parts += when (filings) {
                 0 -> "no new reports on your names"
                 1 -> "1 of your names has a new report"
-                else -> "$filings of your names have new reports"
+                else -> "${num(filings)} of your names have new reports"
             }
         }
         if (stateChanges != null && total > 0) {
             parts += when (stateChanges) {
                 0 -> "no name changed state"
                 1 -> "1 name changed state"
-                else -> "$stateChanges names changed state"
+                else -> "${num(stateChanges)} names changed state"
             }
         }
         parts += Fmt.count(alerts, "alert", "alerts")
@@ -421,7 +443,7 @@ object TodayCopy {
     fun filingsHeadline(n: Int): String = when (n) {
         0 -> "No new reports on your names this week"
         1 -> "1 of your names has a new report this week"
-        else -> "$n of your names have new reports this week"
+        else -> "${num(n)} of your names have new reports this week"
     }
 
     const val MACRO_KICKER = "Macro"
@@ -430,7 +452,7 @@ object TodayCopy {
         null -> "State changes appear once Thesis has a week of readings"
         0 -> "No name changed state this week"
         1 -> "1 name changed state this week"
-        else -> "$n names changed state this week"
+        else -> "${num(n)} names changed state this week"
     }
 
     const val ALERTS_KICKER = "Alerts by category"

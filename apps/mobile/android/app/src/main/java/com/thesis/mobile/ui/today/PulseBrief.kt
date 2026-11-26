@@ -75,6 +75,11 @@ data class PulseChapter(
         if (kind == ChapterKind.Watch && items.isNotEmpty() && title == TodayCopy.watchHeadline(items.size)) {
             return TodayCopy.watchRow(items.first(), items.size - 1)
         }
+        // Under the row title "Your names", "2 of your names are in this issue" leaves the reader to open the Pulse
+        // to learn which: the row names them ("AAPL and MSFT are in this issue").
+        if (kind == ChapterKind.Names && names.isNotEmpty() && title == TodayCopy.namesInBrief(names.size)) {
+            return TodayCopy.namesRow(names.map { it.ticker })
+        }
         if (title != shown) return title
         val next = paragraphs.firstOrNull()?.text?.let { PulseText.sentences(it).firstOrNull() }
             ?: items.firstOrNull()
@@ -228,10 +233,9 @@ data class PulseBrief(
             val changedSections = changed + listOfNotNull(macro) + moves
             // Prose, one block per section (a block becomes a paragraph).
             val proseBlocks = mutableListOf<List<String>>()
-            val events = mutableListOf<String>()
-            var eventKinds = emptyList<String>()
+            val events = mutableListOf<PulseText.ListEvent>()
             changed.forEach { section ->
-                val items = PulseText.listItems(section.body)
+                val items = PulseText.listEvents(section.body)
                 if (items != null) {
                     events += items
                 } else {
@@ -242,10 +246,9 @@ data class PulseBrief(
             }
             val macroLine = macro?.let { macroSentence(it, coverageNotes) }
             moves.forEach { section ->
-                val items = PulseText.listItems(section.body)
+                val items = PulseText.listEvents(section.body)
                 if (items != null) {
                     events += items
-                    eventKinds = eventKinds + PulseText.eventKinds(section.body)
                 } else {
                     val (story, notes) = PulseText.splitCoverage(PulseText.clean(section.body))
                     coverageNotes += notes
@@ -257,13 +260,15 @@ data class PulseBrief(
             // An event a "Your names" row already tells (its ticker, or the same sentence) is left out here.
             val namedTickers = mentions.map { Regex("\\b${Regex.escape(it.ticker)}\\b") }
             val namedSentences = mentions.map { it.sentence }.toSet()
-            val shownEvents = events.distinct().filterNot { e ->
-                e in namedSentences || e in storySentences || namedTickers.any { it.containsMatchIn(e) }
+            val shown = events.distinctBy { it.text }.filterNot { e ->
+                e.text in namedSentences || e.text in storySentences || namedTickers.any { it.containsMatchIn(e.text) }
             }
+            val shownEvents = shown.map { it.text }
+            // The count is of the list under it: the events "Your names" already tells are not counted either.
             val eventsHeadline = TodayCopy.eventsHeadline(
-                filings = eventKinds.count { it.contains("filing") },
-                releases = eventKinds.count { it.contains("release") },
-                total = events.distinct().size,
+                filings = shown.count { it.kind?.contains("filing") == true },
+                releases = shown.count { it.kind?.contains("release") == true },
+                total = shown.size,
             )
             val signal = signalNoise?.body?.let { extractLabelled(it, "signal") }
             val noise = signalNoise?.body?.let { extractLabelled(it, "noise") }

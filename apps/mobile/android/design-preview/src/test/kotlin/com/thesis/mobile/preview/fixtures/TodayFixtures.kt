@@ -185,8 +185,24 @@ object TodayFixtures {
         ),
     )
 
-    /** Yesterday's issue (Mon 23 Nov), as Home shows it before today's arrives: never labelled "Today’s Pulse". */
-    val previousPulse = richPulse.copy(reportId = "pulse-2026-11-23", generatedAt = "2026-11-23T11:30:00Z", cycleEnd = "2026-11-23")
+    /**
+     * Yesterday's issue (Mon 23 Nov), as Home shows it before today's arrives: never labelled "Today’s Pulse". Its
+     * tape is the one it carried, Friday's closes read Monday morning, so the tape caption takes its dated form
+     * ("Tape · Fri 20 Nov"), never today's "Pre-market tape · as of 06:15".
+     */
+    val previousPulse = run {
+        fun MarketTapeMoveView.onMonday() = copy(asOf = "2026-11-20", retrievedAt = "2026-11-23T11:15:00Z")
+        richPulse.copy(
+            reportId = "pulse-2026-11-23",
+            generatedAt = "2026-11-23T11:30:00Z",
+            cycleEnd = "2026-11-23",
+            tape = tape.copy(
+                asOf = "2026-11-20",
+                indices = tape.indices.map { it.onMonday() },
+                crossAsset = tape.crossAsset.map { it.onMonday() },
+            ),
+        )
+    }
 
     /** When today's issue was due (06:30 New York): passed by the fixture clock (07:15), so it is running late. */
     val pulseDue: Instant = Instant.parse("2026-11-24T11:30:00Z")

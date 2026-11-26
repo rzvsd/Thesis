@@ -37,7 +37,10 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.Dp
@@ -64,8 +67,8 @@ import com.thesis.mobile.ui.components.LeadingRowDividerInset
 import com.thesis.mobile.ui.components.LocalInHeroBand
 import com.thesis.mobile.ui.components.Loadable
 import com.thesis.mobile.ui.components.RowGroup
-import com.thesis.mobile.ui.components.SkeletonHero
 import com.thesis.mobile.ui.components.SkeletonRow
+import com.thesis.mobile.ui.components.SkeletonText
 import com.thesis.mobile.ui.components.StateCrossfade
 import com.thesis.mobile.ui.components.StatusBadge
 import com.thesis.mobile.ui.components.StatusSquare
@@ -191,9 +194,10 @@ fun PulseScreen(
         if (exportDoneAt != null && exportDoneAt != lastExportDone) haptics.confirm()
         lastExportDone = exportDoneAt
     }
+    // No haptic for a copy: 4.7 keeps confirm for a note saved, an export done and a Deep Dive ready. The feedback
+    // is the platform's (the shell's toast through onCopyText, or the system's clipboard notice).
     val copyText: (String) -> Unit = { text ->
         if (onCopyText != null) onCopyText(text) else clipboard.setText(AnnotatedString(text))
-        haptics.confirm()
     }
     val openSource: (String) -> Unit = { url -> if (onOpenSource != null) onOpenSource(url) else runCatching { uri.openUri(url) } }
 
@@ -282,7 +286,14 @@ fun PulseScreen(
             if (ready) {
                 Box(Modifier.size(ThesisSpace.touchMin), contentAlignment = Alignment.Center) {
                     if (isExporting) {
-                        ArcSpinner(Modifier.clearAndSetSemantics { }, size = ThesisSpace.iconS)
+                        // The PDF action gives way to the spinner: TalkBack hears why (rubric A3).
+                        ArcSpinner(
+                            Modifier.clearAndSetSemantics {
+                                contentDescription = TodayCopy.EXPORTING_PDF
+                                liveRegion = LiveRegionMode.Polite
+                            },
+                            size = ThesisSpace.iconS,
+                        )
                     } else {
                         ThesisIconButton(ThesisIcons.ExportPdf, TodayCopy.EXPORT_PDF, onExportPdf)
                     }
@@ -661,13 +672,33 @@ private fun HeadlineRow(h: Headline, time: (Instant) -> String, onOpen: (String)
     }
 }
 
-/** Loading: the hero in skeleton form, then four skeleton rows. */
+/**
+ * Loading: the final layout in skeleton form, so the crossfade changes no shapes. The hero as the loaded one is
+ * (eyebrow, the morning line's two `heroLine` lines, the meta line; no KPI grid, which the kit's SkeletonHero would
+ * draw and the brief never shows), then the first chapter: its header and four rows in their card, as Markets.
+ */
 @Composable
 private fun PulseSkeleton() {
     ShimmerHost {
         Column(Modifier.fillMaxSize()) {
-            HeroBand(underTopBar = true) { SkeletonHero() }
-            Column(Modifier.padding(ThesisSpace.gutter)) { repeat(4) { SkeletonRow() } }
+            HeroBand(underTopBar = true) {
+                SkeletonText(ThesisType.eyebrow, widthFraction = 0.4f)
+                SkeletonText(ThesisType.capped(ThesisType.heroLine), widthFraction = 0.9f, lines = 2)
+                SkeletonText(ThesisType.caption, widthFraction = 0.3f)
+            }
+            Column(
+                Modifier
+                    .padding(horizontal = ThesisSpace.gutter)
+                    .padding(top = ThesisSpace.x3),
+                verticalArrangement = Arrangement.spacedBy(ThesisSpace.l),
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(ThesisSpace.m)) {
+                    SkeletonText(ThesisType.kicker, widthFraction = 0.3f)
+                    SkeletonText(ThesisType.capped(ThesisType.title), widthFraction = 0.85f, lines = 2)
+                }
+                // Two-line rows: a market row's level sits over its change, the height of a two-line row.
+                RowGroup { repeat(4) { row { SkeletonRow() } } }
+            }
         }
     }
 }

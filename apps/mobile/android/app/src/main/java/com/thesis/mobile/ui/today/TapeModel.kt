@@ -8,6 +8,7 @@ import com.thesis.mobile.ui.components.TapeItem
 import com.thesis.mobile.ui.format.Fmt
 import com.thesis.mobile.ui.theme.Tone
 import com.thesis.mobile.ui.theme.marketTone
+import kotlin.math.abs
 
 /*
  * The market tape view model (docs/app-redesign/DESIGN-DIRECTION.md 5.5, 5.6 block 3, 5.7 chapter 01): the
@@ -121,7 +122,10 @@ object TapeModel {
         val v = move.value ?: return Fmt.NOT_DISCLOSED
         return when (move.unit?.lowercase()) {
             "percent" -> Fmt.pct(v, dp = 2)
-            "usd_per_barrel", "usd", "price", "usd_per_ounce" -> "$" + Fmt.number(v, 2)
+            // A price level in full ("$2,650.12"), not Fmt.money's compact form ("$2.65K"); the prefix is Fmt's,
+            // after the sign as money is written ("−$37.63").
+            "usd_per_barrel", "usd", "price", "usd_per_ounce" ->
+                (if (v < 0) Fmt.MINUS else "") + Fmt.currencyPrefix("USD") + Fmt.number(abs(v), 2)
             else -> Fmt.number(v, 2)
         }
     }

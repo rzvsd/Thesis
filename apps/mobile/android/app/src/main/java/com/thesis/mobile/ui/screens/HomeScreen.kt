@@ -24,6 +24,9 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.Constraints
@@ -46,6 +49,7 @@ import com.thesis.mobile.ui.components.LeadingRowDividerInset
 import com.thesis.mobile.ui.components.Loadable
 import com.thesis.mobile.ui.components.PressableCard
 import com.thesis.mobile.ui.components.RowGroup
+import com.thesis.mobile.ui.components.SecondaryButton
 import com.thesis.mobile.ui.components.ScreenHeader
 import com.thesis.mobile.ui.components.SectionHeader
 import com.thesis.mobile.ui.components.SkeletonCard
@@ -150,8 +154,8 @@ fun HomeScreen(
     /** Opens the Pulse at a chapter (the tape opens Markets); without it, the Pulse at its top. */
     onOpenPulseAt: ((ChapterKind) -> Unit)? = null,
     /**
-     * When the next issue is expected, for the no-Pulse state ("Expected by 06:30", or "Running late: it was due
-     * by 06:30" once that time has passed); null when not known.
+     * When the next issue is expected, for the no-Pulse state ("Expected by 06:30", or "Today’s Pulse is running
+     * late / It was due by 06:30" once that time has passed); null when not known.
      */
     pulseExpectedAt: Instant? = null,
     /** Reloads macro stress (`onRefreshMacro`): the macro card's "Try again" and, with [onRetryPulse], the pull. */
@@ -161,6 +165,11 @@ fun HomeScreen(
      * only for [RefreshFailureKind.OFFLINE]. Null when unknown (the banner then says "Couldn’t refresh").
      */
     pulseFailure: RefreshFailureKind? = null,
+    /**
+     * The empty names state's "Add a name": Names with the add field focused (spec 5.6). Without it, [onManageNames]
+     * (the Names tab, no focus).
+     */
+    onAddName: (() -> Unit)? = null,
 ) {
     val fmt = LocalFmt.current
     val clock = LocalTodayClock.current
@@ -235,6 +244,7 @@ fun HomeScreen(
                     headerRefreshing = refreshing && !pulled,
                     pulseExpectedAt = pulseExpectedAt,
                     onManageNames = onManageNames,
+                    onAddName = onAddName ?: onManageNames,
                     onRetryPulse = onRetryPulse,
                     onRetryMacro = onRetryMacro,
                     onOpenMacro = onOpenMacroStressDashboard,
@@ -265,6 +275,7 @@ private fun HomeList(
     headerRefreshing: Boolean,
     pulseExpectedAt: Instant?,
     onManageNames: () -> Unit,
+    onAddName: () -> Unit,
     onRetryPulse: () -> Unit,
     onRetryMacro: (() -> Unit)?,
     onOpenMacro: () -> Unit,
@@ -350,7 +361,7 @@ private fun HomeList(
 
         item(key = "names") {
             Box(Modifier.entrance(HomeBlock.NAMES).padding(top = ThesisSpace.sectionGapData)) {
-                NamesBlock(names, onManageNames, onOpenName)
+                NamesBlock(names, onManageNames, onAddName, onOpenName)
             }
         }
 
@@ -370,13 +381,21 @@ private fun HomeList(
             issueDay == today -> TodayCopy.PULSE_KICKER
             else -> TodayCopy.datedPulseKicker(fmt.marketDate(issueDay))
         }
+        // The title never contradicts the line under it or the clock: "arrives before the open" only while that is
+        // still ahead; "running late" once the due time has passed; "has not arrived yet" once the market is open.
+        val openPassed = phase == MarketPhase.Open || phase == MarketPhase.AfterClose
         val noPulse: Pair<String, String> = when {
             !marketDay -> TodayCopy.NO_PULSE_CLOSED to TodayCopy.nextIssue(fmt.marketDate(MarketCalendar.nextTradingDay(today)))
             pulseExpectedAt != null -> {
                 val day = pulseExpectedAt.atZone(clock.zone).toLocalDate()
                 val label = if (day == today) fmt.time(pulseExpectedAt) else TodayCopy.timeOnDay(fmt.time(pulseExpectedAt), fmt.marketDate(day))
-                TodayCopy.NO_PULSE to if (now.isBefore(pulseExpectedAt)) TodayCopy.expectedBy(label) else TodayCopy.runningLate(label)
+                when {
+                    !now.isBefore(pulseExpectedAt) -> TodayCopy.NO_PULSE_LATE to TodayCopy.runningLate(label)
+                    openPassed -> TodayCopy.NO_PULSE_YET to TodayCopy.expectedBy(label)
+                    else -> TodayCopy.NO_PULSE to TodayCopy.expectedBy(label)
+                }
             }
+            openPassed -> TodayCopy.NO_PULSE_YET to TodayCopy.NO_PULSE_HOW
             else -> TodayCopy.NO_PULSE to TodayCopy.NO_PULSE_HOW
         }
         pulseBlock(
@@ -471,7 +490,12 @@ private fun tapeCaption(brief: PulseBrief?, phase: MarketPhase?, today: LocalDat
 // ---- Your names -----------------------------------------------------------------------------------------------------
 
 @Composable
-private fun NamesBlock(names: NamesSummary, onManageNames: () -> Unit, onOpenName: (String) -> Unit) {
+private fun NamesBlock(
+    names: NamesSummary,
+    onManageNames: () -> Unit,
+    onAddName: () -> Unit,
+    onOpenName: (String) -> Unit,
+) {
     Column(Modifier.padding(horizontal = ThesisSpace.gutter), verticalArrangement = Arrangement.spacedBy(ThesisSpace.m)) {
         if (names.total == 0) {
             Kicker(TodayCopy.NAMES_KICKER)
@@ -479,7 +503,7 @@ private fun NamesBlock(names: NamesSummary, onManageNames: () -> Unit, onOpenNam
                 sentence = TodayCopy.NO_NAMES,
                 how = TodayCopy.NO_NAMES_HOW,
                 actionLabel = TodayCopy.ADD_NAME,
-                onAction = onManageNames,
+                onAction = onAddName,
                 primaryAction = true,
             )
             return@Column
@@ -587,10 +611,15 @@ private fun MacroBlock(macro: MacroSummary?, error: String?, onOpen: () -> Unit,
     Box(Modifier.padding(horizontal = ThesisSpace.gutter)) {
         when {
             // "Try again" only when it reloads macro stress itself (never the Pulse under this label).
-            macro == null && error != null -> Column(verticalArrangement = Arrangement.spacedBy(ThesisSpace.m)) {
-                // Labelled like the Pulse block's error: the card never stands alone without its section.
-                Kicker(TodayCopy.MACRO_EYEBROW)
-                ErrorState(title = TodayCopy.MACRO_FAILED, onRetry = onRetry)
+            // The label sits where it does in the loaded and no-reading states, as the card's eyebrow, so a state
+            // change never moves it in or out of the card. The kit ErrorState's parts otherwise: announced politely,
+            // "Try again" with the retry icon.
+            macro == null && error != null -> ThesisCard(
+                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+                eyebrow = TodayCopy.MACRO_EYEBROW,
+                title = TodayCopy.MACRO_FAILED,
+            ) {
+                if (onRetry != null) SecondaryButton(KitCopy.TRY_AGAIN, onRetry, leadingIcon = ThesisIcons.Small.Retry)
             }
             macro == null -> ThesisCard(eyebrow = TodayCopy.MACRO_EYEBROW, title = TodayCopy.MACRO_NO_READING) {
                 Text(TodayCopy.MACRO_NO_READING_HOW, style = ThesisType.bodySmall, color = p.ink2)

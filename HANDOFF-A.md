@@ -19,9 +19,13 @@ Changes needed outside WP-A's files. Each item gives the file, the change and th
    - `onOpenPulseAt = { kind -> actions.onOpenPulse(null) /* + chapter */ }`
      - Home's chapter rows and the tape open the Pulse at a chapter. To carry the chapter, add it to `Destination.Pulse` (or a one-shot field) and pass it to `PulseScreen(initialChapter = …)`.
    - `pulseExpectedAt = <Instant the next issue is due>` (an `Instant`, not a formatted string)
-     - Only when the schedule is known. It fills the no-Pulse state: "Expected by 06:30" while that time is ahead,
-       "Running late: it was due by 06:30" once it has passed. On a weekend or an exchange holiday Home says "No
+     - Only when the schedule is known. It fills the no-Pulse state: "Expected by 06:30." while that time is ahead,
+       "Today’s Pulse is running late / It was due by 06:30." once it has passed. On a weekend or an exchange holiday Home says "No
        Pulse today: US markets are closed" with the next issue's day instead, whatever is passed.
+   - `onAddName = { <Names tab with the add field focused> }` (spec 5.6)
+     - The empty names state's "Add a name". Needs a one-shot "focus the add field" flag on the Names destination
+       (WP-INT, with WP-B's Names screen reading it). Until it is passed, the button falls back to `onManageNames`
+       (the Names tab, field not focused).
    - `onRetryMacro = actions::onRefreshMacro`
      - The macro card's "Try again" reloads macro stress, and the pull runs `onRetryPulse` and `onRetryMacro`
        (spec 5.6). Until it is wired the macro error card has no retry button: before, it was bound to
@@ -46,7 +50,9 @@ Changes needed outside WP-A's files. Each item gives the file, the change and th
      - `monitorSnapshots = state.monitorSnapshots`
      - `onOpenName = actions::onOpenName`
      - `initialChapter`, see item 1
-     - Optionally `onCopyText` (a platform toast after copying). Without it the screen writes to `LocalClipboardManager` and plays the confirm haptic.
+     - Optionally `onCopyText` (a platform toast after copying). Without it the screen writes to
+       `LocalClipboardManager` (Android 13+ shows its own clipboard notice). No haptic for a copy: 4.7 keeps
+       `confirm` for a note saved, an export done and a Deep Dive ready.
      - `onOpenSource` is optional: the default is `LocalUriHandler`.
    - `PulseScreen` calls `HeroUnderBars(collapsed)` itself.
 3. **Destination.WeeklyDigest: drop the `Box(Modifier.padding(padding))` and pass `padding = padding`.**
@@ -94,7 +100,8 @@ Spec 5.6 moves three entries off Home, and Home no longer shows them. Their new 
 
 ## WP-K: kit proposals (rule 6.0.3)
 
-- **`TickerRow(line2MaxLines: Int = 1)`** (round-3 review, rubric A4). Home's "Your names" line 2 is the reason a
+- **`TickerRow(line2MaxLines: Int = 1)`** (round-3 and round-4 review, rubric A4, a starred item) — **PR-3 merge gate:
+  the integrator blocks the PR-3 merge until this lands and WP-A's follow-up below is done.** Home's "Your names" line 2 is the reason a
   name matters, a sentence. The kit sets it on one line up to 1.3x, so at 1.3x even a 34-character reason ("Customer
   concentration rose again.", about 292 dp) does not fit the 278 dp left beside a two-character caption on a 412 dp
   phone. WP-A's interim (`fitNameRows` in `HomeScreen.kt`) measures each row against the real width and font scale:
@@ -103,8 +110,17 @@ Spec 5.6 moves three entries off Home, and Home no longer shows them. Their new 
   keeps every reason whole at 412 and 360 dp at 1.0x (tested), but not at 1.3x. With the parameter, Home passes 2
   and sets `REASON_LINES = 2` in `HomeScreen.kt`; then un-ignore `nameReasonsAreWholeAt412And1_3x` and
   `...At360And1_3x` in `TodaySemanticsTest`. Above 1.3x the kit already allows 2 lines, but at 2.0x on a 360 dp
-  phone a reason still ellipsizes ("Customer / concentration rose …"); 3 lines above 1.3x would hold it. Spec 3 #11 says "1 line" for line 2: the spec owner updates it to
+  phone a reason still ellipsizes ("Customer / concentration rose …"); the kit should allow 3 lines above 1.3x
+  (`line2MaxLines` + 1 there), which holds it. Spec 3 #11 says "1 line" for line 2: the spec owner updates it to
   "up to 2 lines" for the comfortable row.
+  - WP-A's follow-up once it lands: `REASON_LINES = 2`, `REASON_LINES_LARGE = 3`, pass `line2MaxLines` from
+    `NamesBlock`, un-ignore the two tests, and let `fitNameRows` keep the long captions ("−1 since 17 Nov") at
+    412 dp and 1.0x (with two lines every reason fits beside them), so a score change is never shown without its
+    reference period. Until then the compact "−1" is anchored only by the section headline ("…changed since your
+    last visit").
+  - Why no in-scope workaround is left: both cut reasons ("Customer concentration rose again.", "Search revenue
+    held its growth rate.") have no clause to cut at; dropping words ("rose again" → "rose") changes what the
+    sentence says, and dropping the score caption hides data. A hand-built row outside the kit would fork #11.
 - **Scroll-spy reading line (`rememberScrollSpy`, optional).** The spy selects a chapter once its start crosses
   45% of the viewport. After a jump lands a short chapter under the pinned pills, the next chapter's start has
   already crossed that line. WP-A now holds the tapped (or opened-at) chapter's pill until the list moves from the
@@ -130,6 +146,24 @@ Spec 5.6 moves three entries off Home, and Home no longer shows them. Their new 
   only when incomplete. Home's Today's Pulse uses it; Research's "Recent" rows have the same anatomy.
 
 ## Notes for the PR description
+
+- **Spec owner sign-off needed (list for the PR description):** Markets "Show table" not added (below); weekly
+  digest says "New reports", not "New filings" (below); Home names use the compact caption ("−1") at 1.0x until
+  the TickerRow kit change lands (above); copy actions on the Pulse play no haptic (4.7, above).
+- **No-Pulse state on Home (5.6, honest copy):** the spec title "Today’s Pulse arrives before the open" only while
+  the open (and any due time) is still ahead; once the due time has passed, "Today’s Pulse is running late / It was
+  due by 06:30."; once the market is open with no due time known (or one still ahead), "Today’s Pulse has not
+  arrived yet".
+- **Pulse and digest skeletons:** built as the final layout, as Home's is: the Pulse hero as eyebrow, two
+  `heroLine` lines and the meta line (no `SkeletonHero`: its KPI grid is not in the brief's hero), then the first
+  chapter's header and four rows in their `RowGroup` card; the digest's rows sit in their `RowGroup` card.
+- **Home macro card:** "MACRO STRESS" is the card's eyebrow in every state (loaded, no reading, error), so a state
+  change never moves the label in or out of the card. The error state is a `ThesisCard` with that eyebrow, the
+  "Couldn’t load macro stress" title and "Try again", announced politely like the kit `ErrorState`.
+- **Home's Pulse row for Your names** names the tickers ("AAPL and MSFT are in this issue"; up to three, then
+  "and 2 more"); the Pulse chapter keeps its count headline, with the rows under it.
+- **What changed without prose:** the count headline counts the events listed under it (the events "Your names"
+  already shows are neither listed nor counted).
 
 - **Home's skeleton (5.6, deliberate deviation):** the spec lists `SkeletonHero` + skeleton tape + 3 skeleton rows.
   Home has no HeroBand, so `SkeletonHero` would mis-shape the header; the skeleton is the final layout in skeleton
@@ -173,7 +207,12 @@ Spec 5.6 moves three entries off Home, and Home no longer shows them. Their new 
 - **Weekly digest states:** loaded, empty and loading (skeleton). No error state: it is built only from cached state.
 - **design-lint:** one reviewed allowlist entry, Home's once-a-minute clock tick (`delay(wait)`), not motion timing.
 
-## Tests outside WP-A's files
+## Tests outside WP-A's files — WP-INT acknowledgment needed (rule 6.0.1)
+
+WP-INT (owner of `design-preview/**` and `tools/design-lint*`) acknowledges both edits below in the PR description:
+
+- `tools/design-lint-allow.txt`: one entry for Home's once-a-minute clock tick (`delay(wait)` in `HomeScreen.kt`),
+  wall-clock time for the eyebrow's market phase, not motion timing.
 
 - `design-preview/.../MotionBehaviourTest.kt`, test `homeKeepsItsBlocksWhenThePulseIssueLoadsAfterTheFirstPaint`.
   - What changed: this is a minimal edit. The test wraps Home in `TodayLocals` (the fixed clock), finds the header by its new eyebrow ("TUE 24 NOV · PRE-MARKET") and finds the macro card by `TodayCopy.MACRO_NO_READING`. Before, it used the old date format and `Phase4Copy.todayMacroStressSourceNote`, which Home no longer shows.

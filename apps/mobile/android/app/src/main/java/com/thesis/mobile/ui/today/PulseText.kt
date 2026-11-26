@@ -80,7 +80,13 @@ object PulseText {
      * A body as a numbered list when it is one ("1. AAPL - AAPL filed a new 8-K. 2. ..."), else null. A leading
      * subject that only repeats the item ("AAPL - AAPL filed", "BLS_CPI_U_ALL_ITEMS - CPI update") is dropped.
      */
-    fun listItems(raw: String?): List<String>? {
+    fun listItems(raw: String?): List<String>? = listEvents(raw)?.map { it.text }
+
+    /**
+     * [listItems] with each item's kind as the pipeline tags it in the item ("filing_posted"), null when untagged:
+     * a count of what a list shows can then follow the items actually shown.
+     */
+    fun listEvents(raw: String?): List<ListEvent>? {
         val text = raw?.replace(Whitespace, " ")?.trim().orEmpty()
         val markers = ListMarker.findAll(text).toList()
         if (markers.size < 2 || markers.first().groupValues[1] != "1") return null
@@ -92,9 +98,13 @@ object PulseText {
         return items.map { item ->
             val prefix = UpperPrefix.find(item)
             val stripped = if (prefix != null) item.substring(prefix.range.last + 1) else item
-            clean(stripped).trimEnd('.').trim().let { sentence -> if (sentence.isEmpty()) sentence else "$sentence." }
-        }.filter { it.length > 1 }.distinct()
+            val sentence = clean(stripped).trimEnd('.').trim().let { if (it.isEmpty()) it else "$it." }
+            ListEvent(sentence, EventKind.find(item)?.groupValues?.get(1))
+        }.filter { it.text.length > 1 }.distinctBy { it.text }
     }
+
+    /** One item of an issue's event list and its pipeline kind ("filing_posted"), when tagged. */
+    data class ListEvent(val text: String, val kind: String?)
 
     /**
      * Splits a cleaned body into story sentences and coverage notes ("Coverage note: ..."), so notes about the
@@ -115,9 +125,6 @@ object PulseText {
 
     // An event's kind, as the pipeline tags it in parentheses: "(filing_posted)", "(macro_release_published)".
     private val EventKind = Regex("\\(([a-z]+(?:_[a-z]+)+)\\)")
-
-    /** The kinds of a raw event list's items, in order ("filing_posted", "macro_release_published"). */
-    fun eventKinds(raw: String?): List<String> = EventKind.findAll(raw.orEmpty()).map { it.groupValues[1] }.toList()
 
     // Pipeline wording in coverage notes, read as reader copy (principle 11: honest, but in the reader's terms).
     private val NoteRewrites = listOf(

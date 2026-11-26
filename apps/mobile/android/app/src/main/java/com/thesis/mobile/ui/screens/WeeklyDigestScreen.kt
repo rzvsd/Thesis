@@ -187,7 +187,7 @@ private fun BarOverContent(bar: @Composable () -> Unit, content: @Composable (Dp
 
 private enum class DigestSlot { Bar, Body }
 
-/** No cached state yet: the KPI grid and two sections in skeleton form, under the header. */
+/** No cached state yet: the KPI grid and a section (header, two rows in their card) in skeleton form, under the header. */
 @Composable
 private fun DigestSkeleton() {
     ShimmerHost {
@@ -202,7 +202,8 @@ private fun DigestSkeleton() {
                 SkeletonText(ThesisType.kicker, widthFraction = 0.3f)
                 SkeletonText(ThesisType.headline, widthFraction = 0.75f)
             }
-            Column { repeat(2) { SkeletonRow() } }
+            // In their card, as the loaded lists are, so the crossfade changes no shapes.
+            RowGroup { repeat(2) { row(LeadingRowDividerInset) { SkeletonRow() } } }
         }
     }
 }

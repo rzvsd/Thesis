@@ -153,6 +153,9 @@ class TodaySemanticsTest {
     @Test
     fun anEarlierIssueIsNeverLabelledToday() {
         set { TodayHome(HomeState.PreviousIssue) }
+        // The earlier issue's tape is dated, never captioned as this morning's (the tape is read as one description).
+        rule.onNodeWithContentDescription(TodayCopy.tapeCaption(null, null, "Fri 20 Nov"), substring = true).assertExists()
+        rule.onNodeWithContentDescription("Pre-market tape", substring = true).assertDoesNotExist()
         val kicker = TodayCopy.datedPulseKicker("Mon 23 Nov").uppercase()
         rule.onNode(vertical).performScrollToNode(hasText(kicker))
         rule.onNodeWithText(kicker).assertExists()
@@ -188,8 +191,10 @@ class TodaySemanticsTest {
         rule.onNodeWithText(TodayCopy.NO_NAMES).assertExists()
         rule.onNodeWithText(TodayCopy.ADD_NAME).performClick()
         assertEquals(1, manage)
-        rule.onNode(vertical).performScrollToNode(hasText(TodayCopy.NO_PULSE))
-        rule.onNodeWithText(TodayCopy.NO_PULSE).assertExists()
+        // 07:15 with the issue due by 06:30: the title says it is late, never "arrives before the open".
+        rule.onNode(vertical).performScrollToNode(hasText(TodayCopy.NO_PULSE_LATE))
+        rule.onNodeWithText(TodayCopy.NO_PULSE_LATE).assertExists()
+        rule.onNodeWithText(TodayCopy.NO_PULSE).assertDoesNotExist()
     }
 
     @Test
