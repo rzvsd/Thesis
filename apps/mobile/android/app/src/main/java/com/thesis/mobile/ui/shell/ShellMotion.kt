@@ -94,9 +94,10 @@ internal enum class ShellTransition {
     /**
      * A back gesture scrubbing a pop within a tab (PR-4b, [TabSeek]), 300 ms in all so a commit runs on from where
      * the finger left it: the page under comes in from −24 dp and fades in (210 ms from the start, linear, since the
-     * gesture's progress is already eased) under the page on top, which keeps its .90 preview and then slides
-     * +24 dp and fades out over the last 90 ms. The page on top stays readable for most of the gesture, and the
-     * page under shows around it as it shrinks.
+     * gesture's progress is already eased) under the page on top, which keeps its .90 preview and stays opaque;
+     * over the last 180 ms (`PushOut`, `EaseExit`) it slides off toward the end edge, the pop's direction. The
+     * page under shows around the page on top while it shrinks, and is uncovered by the slide, never seen through
+     * it: no double exposure (4.5), as with the sequential halves of shared-axis X.
      */
     BackSeek,
 
@@ -203,15 +204,12 @@ private fun contentTransformOf(transition: ShellTransition, px: ShellMotionPx): 
                 targetContentZIndex = -1f,
             )
         ShellTransition.BackSeek -> {
-            val inSpec = { motionSpec<Float>(ThesisMotion.TabIn, easing = ThesisMotion.Linear) }
-            val outSpec = { motionSpec<Float>(ThesisMotion.TabOut, delayMillis = ThesisMotion.TabIn, easing = ThesisMotion.Linear) }
             ContentTransform(
-                targetContentEnter = fadeIn(inSpec()) +
+                targetContentEnter = fadeIn(motionSpec(ThesisMotion.TabIn, easing = ThesisMotion.Linear)) +
                     slideInHorizontally(motionSpec(ThesisMotion.TabIn, easing = ThesisMotion.Linear)) { -px.shiftPx },
-                initialContentExit = fadeOut(outSpec()) +
-                    slideOutHorizontally(
-                        motionSpec(ThesisMotion.TabOut, delayMillis = ThesisMotion.TabIn, easing = ThesisMotion.Linear)
-                    ) { px.shiftPx },
+                initialContentExit = slideOutHorizontally(
+                    motionSpec(ThesisMotion.PushOut, delayMillis = BACK_SEEK_OUT_DELAY, easing = ThesisMotion.EaseExit)
+                ) { width -> width },
                 targetContentZIndex = -1f,
             )
         }
@@ -232,6 +230,9 @@ internal fun <T> snapSpec(): FiniteAnimationSpec<T> = motionSpec(0, easing = The
 internal fun reducedCrossfade(): ContentTransform =
     fadeIn(motionSpec(ThesisMotion.Quick, easing = ThesisMotion.EaseStandard)) togetherWith
         fadeOut(motionSpec(ThesisMotion.Quick, easing = ThesisMotion.EaseStandard))
+
+/** When the page on top starts to slide off in [ShellTransition.BackSeek] (120 ms): it ends with the move, at `Screen`. */
+internal const val BACK_SEEK_OUT_DELAY: Int = ThesisMotion.Screen - ThesisMotion.PushOut
 
 /** The 4.5 shift of shared-axis X. */
 internal val SHARED_AXIS_SHIFT: Dp = ThesisMotion.PushOffset
@@ -270,8 +271,8 @@ internal val ShellTransition.frontChangeMillis: Int
         // Half way through the reveal, when the page covers most of the list.
         ShellTransition.ContainerIn -> ThesisMotion.Screen / 2
         ShellTransition.ContainerOut -> ThesisMotion.ScreenOut / 2
-        // When the page on top starts to leave.
-        ShellTransition.BackSeek -> ThesisMotion.TabIn
+        // Half way through the page on top's slide off.
+        ShellTransition.BackSeek -> BACK_SEEK_OUT_DELAY + ThesisMotion.PushOut / 2
         ShellTransition.Crossfade -> ThesisMotion.Base / 2
         ShellTransition.ReducedCrossfade -> ThesisMotion.Quick / 2
     }

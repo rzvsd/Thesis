@@ -18,8 +18,9 @@ import kotlinx.coroutines.launch
 /*
  * Seekable predictive back (DESIGN-DIRECTION 4.5 "Any push/transform", playbook 8c; PR-4b). The tab layer runs on a
  * SeekableTransitionState, so a back gesture over a page pushed within a tab drives the real pop transition with its
- * progress: shared-axis X (the page leaves toward +24 dp and fades, then the page under it comes in from −24 dp) or,
- * for a page opened from a row, the container transform shrinking it back into the row.
+ * progress: for a plain pop the page under comes in from −24 dp beneath the page on top, which keeps its .90
+ * preview and then slides off toward the end edge (ShellTransition.BackSeek: never seen through, no double
+ * exposure); for a page opened from a row, the container transform shrinks it back into the row.
  *
  * - Commit: the navigator pops, and the transition runs on from where the finger left it to the end (the remaining
  *   share of its duration, linear in time as the transition itself is timed).

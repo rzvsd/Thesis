@@ -148,7 +148,11 @@ internal fun TabLayer(
                     if (canTransform && shared != null) {
                         val state = with(shared) { rememberSharedContentState(TransformKey(entry.entryId)) }
                         val clip = remember { TransformClip { reveal.value } }
-                        Modifier.fillMaxSize().transformBounds(shared, this, state, clip)
+                        Modifier
+                            .fillMaxSize()
+                            .transformBounds(shared, this, state, clip)
+                            // At the row the container fades with the row's content under it (no pop at either end).
+                            .graphicsLayer { alpha = if (transforming) transformContainerAlpha(reveal.value) else 1f }
                     } else {
                         Modifier.fillMaxSize()
                     }
@@ -278,7 +282,7 @@ internal fun ReportBaseLayer(
                             }
                         )
                         .graphicsLayer {
-                            alpha = 1f - cover
+                            alpha = (1f - cover) * if (transforming) transformContainerAlpha(reveal.value) else 1f
                             if (!env.reducedMotion) translationX = -cover * env.px.shiftPx
                         }
                         // Hidden under the page above it: out of the accessibility tree too (Compose semantics).

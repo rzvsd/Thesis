@@ -57,7 +57,8 @@ import kotlin.math.roundToInt
  *   out once at its full size and scaled to the moving bounds, top-aligned and cropped (`ScaleToBounds(Crop)`): no
  *   relayout per frame and text is never stretched (the scale is uniform, about .92 at the row and 1 at rest, so the
  *   last frame equals the resting page: no jump). Corners go from the card radius to 0 ([TransformClip]); the fill
- *   goes from `surface` to `bg`, and the page's content fades in over the last 70% (TabLayer).
+ *   goes from `surface` to `bg`, the container fades in over the first 30% (and out over the last 30% of the way
+ *   back, so the row under it takes over without a pop) and the page's content fades in over the last 70%.
  * - Reduced motion (4.8) and pages with no origin (a restored stack, after a rotation) keep the crossfade or the
  *   shared axis: no placeholder, no shared bounds. A back gesture over a transformed page scrubs the shrink itself
  *   (no extra .90 scale, which would land the page off its row).
@@ -228,6 +229,14 @@ internal fun AnimatedVisibilityScope.transformScrim(under: ShellTransition?): St
 /** The content alpha of a transformed page: 0 over the first 30% of the transform, then up to 1 (4.5). */
 internal fun transformContentAlpha(progress: Float): Float =
     ((progress - ThesisMotion.TransformContentFrom) / (1f - ThesisMotion.TransformContentFrom)).coerceIn(0f, 1f)
+
+/**
+ * The alpha of a page's container in transform: it fades in over the first 30% of the move, while its content has
+ * not started yet, so the row under it gives way to the container instead of being covered in one frame; on the way
+ * back it fades over the last 30%, so the row (in place under it) takes over without a pop.
+ */
+internal fun transformContainerAlpha(progress: Float): Float =
+    (progress / ThesisMotion.TransformContentFrom).coerceIn(0f, 1f)
 
 /** The clip of a page in transform: the card radius at the row, square at rest ([progress] read at draw time). */
 internal class TransformClip(private val progress: () -> Float) : Shape {
