@@ -369,9 +369,8 @@ private fun filingLine(column: CompareNameColumn, fmt: Fmt, zone: ZoneId): Strin
  * The table (#30) for [columns] (already sorted): one column per ticker (ticker over its fiscal period, then the
  * filing line), one row per [NameMetric], and the peer median per row in the basis column ("Median"; with
  * tickers as columns, the median across them is one value per row; value discipline as the median share of
- * signals met). No row is put on `surface2`: the kit's `median` row flag means a median, and the median here is a
- * column, so the sorted row is said in the caption under the table until WP-K adds a separate row emphasis
- * (HANDOFF-E).
+ * signals met), on `surface2` (`deltaIsMedian`). No row is put on `surface2`: the kit's `median` row flag means a
+ * median row, and the median here is a column; the sorted row is said in the caption under the table.
  */
 /**
  * The rows the table shows: every metric, except value discipline when no column has a score (a summary cached
@@ -404,6 +403,8 @@ internal fun compareNamesTable(columns: List<CompareNameColumn>): CompareTableMo
         labelHeader = ResearchCopy.LATEST_FY,
         deltaHeader = ResearchCopy.MEDIAN,
         missingDelta = Fmt.NA,
+        // The median column sits on surface2, as 5.26's median row would, so it does not read as a fifth name.
+        deltaIsMedian = true,
     )
 
 /** A metric's label in "Copy as table", with the unit of its plain-number cells. */
