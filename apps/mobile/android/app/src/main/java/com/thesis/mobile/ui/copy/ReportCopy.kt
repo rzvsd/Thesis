@@ -132,7 +132,8 @@ object ReportCopy {
 
     const val EXPORT_BRAND = "THESIS"
     const val EXPORT_REPORT_TITLE = "Deep Dive"
-    const val EXPORT_MEMO_TITLE = "Investment memo"
+    /** "Research", as the report itself says it is (5.15): never advice language in what leaves the app. */
+    const val EXPORT_MEMO_TITLE = "Research memo"
     const val EXPORT_THESIS = "The thesis"
     const val EXPORT_REASONS = "Why"
     const val EXPORT_VALUATION = "Valuation"
@@ -140,12 +141,15 @@ object ReportCopy {
     const val EXPORT_CARD_NOTICE = "Research, not advice"
     const val EXPORT_NO_SUMMARY = "This report has no summary yet."
     const val SHARE_PDF_TITLE = "Share the Deep Dive PDF"
-    const val SHARE_MEMO_TITLE = "Share the investment memo"
+    const val SHARE_MEMO_TITLE = "Share the research memo"
     const val SHARE_CARD_TITLE = "Share the card"
     const val SHARE_PULSE_TITLE = "Share the Pulse PDF"
     fun pageOf(page: Int, pages: Int): String = "$page of $pages"
-    /** The memo's valuation lines: "Fair value, mid: $212.00 ($180.00 to $240.00)", "Price at the report: $198.50". */
-    fun fairValueLine(mid: String, low: String?, high: String?): String =
-        if (low != null && high != null) "Fair value, mid: $mid ($low to $high)" else "Fair value, mid: $mid"
+    /**
+     * The memo's valuation lines, in the report's own words (5.15: the model range and its base case):
+     * "Model base case: $212.00 (model range $180.00 to $240.00)", "Price at the report: $198.50".
+     */
+    fun modelRangeLine(mid: String, low: String?, high: String?): String =
+        if (low != null && high != null) "Model base case: $mid (model range $low to $high)" else "Model base case: $mid"
     fun priceAtReport(price: String): String = "Price at the report: $price"
 }

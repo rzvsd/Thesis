@@ -28,6 +28,16 @@ internal suspend fun renderReportPdf(context: Context, report: DeepDiveReportVie
 
 internal suspend fun renderShareCard(context: Context, report: DeepDiveReportView) = createShareCard(context, report)
 
+internal class ReportExporter {
+    fun fullReport(report: DeepDiveReportView) = Unit
+    fun memo(report: DeepDiveReportView) = Unit
+    fun shareCard(report: DeepDiveReportView) = Unit
+}
+
+@Composable
+internal fun rememberReportExporter(onFailed: () -> Unit): ReportExporter =
+    androidx.compose.runtime.remember { ReportExporter() }
+
 // ---- Stand-ins for DeepDiveWebPage.kt (android.webkit.WebView). The preview draws a labelled
 // placeholder where the WebView-hosted Deep Dive 2.0 report would load.
 

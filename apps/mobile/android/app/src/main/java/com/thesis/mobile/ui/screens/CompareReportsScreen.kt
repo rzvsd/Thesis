@@ -55,7 +55,6 @@ import com.thesis.mobile.ui.format.Fmt
 import com.thesis.mobile.ui.format.LocalFmt
 import com.thesis.mobile.ui.format.Missing
 import com.thesis.mobile.ui.icons.ThesisIcons
-import com.thesis.mobile.ui.motion.rememberHaptics
 import com.thesis.mobile.ui.theme.Kit
 import com.thesis.mobile.ui.theme.LocalThesisPalette
 import com.thesis.mobile.ui.theme.ThesisSpace
@@ -504,7 +503,6 @@ fun CompareReportsScreen(
     zone: ZoneId = ZoneId.systemDefault(),
 ) {
     val fmt = LocalFmt.current
-    val haptics = rememberHaptics()
     val clipboard = LocalClipboardManager.current
     val scroll = rememberScrollState()
     val collapsed by rememberTopBarCollapsed(scroll)
@@ -513,12 +511,12 @@ fun CompareReportsScreen(
     val b = state?.b
     val pair = remember(a, b, fmt, zone) { if (a != null && b != null) compareReportsModel(a, b, fmt, zone) else null }
     val ready = (pair as? ReportPair.Ready)?.model
+    // No haptic for a copy (4.7 keeps confirm for a saved note, a finished export, a ready Deep Dive): the check is the feedback.
     // Keyed on what was copied: once the pair changes the clipboard holds the old table, so the check goes.
     var copied by remember(ready) { mutableStateOf(false) }
     val copy = {
         if (ready != null) {
             clipboard.setText(AnnotatedString(compareReportsTsv(ready)))
-            haptics.confirm()
             copied = true
         }
     }

@@ -132,12 +132,16 @@ data class CompareReportsState(
     val error: String? = null
 )
 
-/** N names in one table: each ticker's latest report summary, null when it has no report yet. */
+/**
+ * N names in one table: each ticker's latest report summary, null when it has no report yet or when its report
+ * could not be loaded; [errors] holds the latter (ticker to cause), so a failed load never reads as "No report yet".
+ */
 data class CompareNamesState(
     val tickers: List<String>,
     val summaries: Map<String, ReportSummaryView?> = emptyMap(),
     val isLoading: Boolean = true,
-    val error: String? = null
+    val error: String? = null,
+    val errors: Map<String, String> = emptyMap()
 )
 
 /** Search across tickers (server), followed names, cached reports and note text. */

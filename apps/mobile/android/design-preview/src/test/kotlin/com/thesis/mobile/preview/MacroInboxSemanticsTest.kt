@@ -173,6 +173,46 @@ class MacroInboxSemanticsTest {
     }
 
     @Test
+    fun `see alerts from a Name shows that name's alerts until its chip is removed`() {
+        var request by mutableStateOf<String?>(null)
+        var handled = 0
+        rule.setContent {
+            Fixed {
+                InboxScreen(
+                    padding = PaddingValues(),
+                    alerts = alerts,
+                    inboxError = null,
+                    onRefresh = {},
+                    onOpenAlert = {},
+                    onUnlockDetail = {},
+                    onSubmitFeedback = { _, _ -> },
+                    onQuietAlertType = {},
+                    onDisableAlertType = {},
+                    tickerRequest = request,
+                    onTickerRequestHandled = {
+                        handled++
+                        request = null
+                    },
+                    clock = MacroInboxFixtures.clock,
+                )
+            }
+        }
+        rule.onNodeWithText(driftTitle).assertExists()
+        request = "aapl"
+        rule.waitForIdle()
+        rule.mainClock.advanceTimeBy(1_000)
+        rule.waitForIdle()
+        assertEquals(1, handled)
+        // NVDA's drift alert is not about AAPL: hidden while the AAPL chip is on, back once it is removed.
+        rule.onNodeWithText(driftTitle).assertDoesNotExist()
+        rule.onNodeWithContentDescription(InboxCopy.removeTickerFilter("AAPL")).performClick()
+        rule.waitForIdle()
+        rule.mainClock.advanceTimeBy(1_000)
+        rule.waitForIdle()
+        rule.onNodeWithText(driftTitle).assertExists()
+    }
+
+    @Test
     fun `mark all as seen is offered while there are new alerts`() {
         val calls = setInbox()
         rule.onNodeWithText("3 new since your last visit").assertIsDisplayed()

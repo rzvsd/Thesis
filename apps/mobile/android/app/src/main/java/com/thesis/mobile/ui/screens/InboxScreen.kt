@@ -304,6 +304,14 @@ fun InboxScreen(
      */
     categoryRequest: String? = null,
     onCategoryRequestHandled: () -> Unit = {},
+    /** Only the alerts about this ticker (its own or a related one), until its chip is removed. */
+    initialTicker: String? = null,
+    /**
+     * A ticker asked for by another screen (Name's "See alerts", 5.11 item 3): the list shows that name's alerts
+     * under a removable chip ("AAPL ×"); then [onTickerRequestHandled] is called so the caller clears it.
+     */
+    tickerRequest: String? = null,
+    onTickerRequestHandled: () -> Unit = {},
     /** The alert to open expanded (a notification tap that lands on the Inbox). */
     initialExpandedId: String? = null,
     refreshError: String? = null,
@@ -323,6 +331,15 @@ fun InboxScreen(
         if (categoryRequest != null) {
             category = categoryRequest
             onCategoryRequestHandled()
+        }
+    }
+    var ticker by rememberSaveable { mutableStateOf(initialTicker?.trim()?.uppercase()?.ifBlank { null }) }
+    LaunchedEffect(tickerRequest) {
+        if (tickerRequest != null) {
+            // A name's alerts in every category: the category filter would hide some of them.
+            ticker = tickerRequest.trim().uppercase().ifBlank { null }
+            category = null
+            onTickerRequestHandled()
         }
     }
     var expandedId by rememberSaveable { mutableStateOf(initialExpandedId) }
@@ -356,14 +373,16 @@ fun InboxScreen(
 
     val now = clock.instant()
     val today = LocalDate.now(clock)
-    val quietIds = alerts.filter { committed[it.id] == true || (InboxModels.isQuiet(it, now) && it.id !in exits) }.map { it.id }.toSet()
+    // Name's "See alerts": that name's alerts only; the rest of the Inbox (chips, lede, counts) reads within them.
+    val scoped = ticker?.let { t -> alerts.filter { it.concerns(t) } } ?: alerts
+    val quietIds = scoped.filter { committed[it.id] == true || (InboxModels.isQuiet(it, now) && it.id !in exits) }.map { it.id }.toSet()
     // The rows in the list: a row quieted here stays composed while its Undo shows (it comes back in place)...
-    val visible = alerts.filter { it.id !in quietIds }
+    val visible = scoped.filter { it.id !in quietIds }
     // ...but no longer counts: the chips, the lede and the new count drop it at once, and Undo puts it back.
     val counted = visible.filter { it.id !in exits }
     val selected = category?.takeIf { key -> visible.any { InboxModels.categoryKey(it) == key } }
     val filters = remember(counted, selected) { InboxModels.filters(counted, keep = selected) }
-    val shown = InboxModels.filter(if (showQuiet) alerts else visible, selected)
+    val shown = InboxModels.filter(if (showQuiet) scoped else visible, selected)
     val days = remember(shown, today, fmt) { InboxModels.groupByDay(shown, clock.zone, today, fmt) }
     val lede = InboxModels.lede(counted, lastInboxVisitAtMs)
     val newCount = InboxModels.newCount(counted, lastInboxVisitAtMs)
@@ -454,10 +473,24 @@ fun InboxScreen(
                         markAllSeen = if (newCount > 0) onMarkAllSeen else null,
                     )
                 }
-                if (visible.isNotEmpty()) {
+                val scopeTicker = ticker
+                if (visible.isNotEmpty() || scopeTicker != null) {
                     item(key = "filters", contentType = "filters") {
                         ChipRow(Modifier.padding(bottom = ThesisSpace.headerToSection)) {
-                            items(filters.size, key = { filters[it].key ?: "all" }) { i ->
+                            if (scopeTicker != null) {
+                                item(key = "ticker") {
+                                    val remove = InboxCopy.removeTickerFilter(scopeTicker)
+                                    ThesisChip(
+                                        label = scopeTicker,
+                                        selected = true,
+                                        onClick = { ticker = null },
+                                        modifier = Modifier.semantics { contentDescription = remove },
+                                        leadingIcon = ThesisIcons.Small.Close,
+                                        role = Role.Button,
+                                    )
+                                }
+                            }
+                            if (visible.isNotEmpty()) items(filters.size, key = { filters[it].key ?: "all" }) { i ->
                                 val f = filters[i]
                                 ThesisChip(
                                     label = f.label,
@@ -477,6 +510,15 @@ fun InboxScreen(
                             title = KitCopy.couldNotLoad(InboxCopy.LOAD_SUBJECT),
                             cause = inboxError,
                             onRetry = onRefresh,
+                            modifier = Modifier.padding(horizontal = ThesisSpace.gutter),
+                        )
+                    }
+                    scopeTicker != null && scoped.isEmpty() -> item(key = "ticker-empty", contentType = "state") {
+                        EmptyState(
+                            sentence = InboxCopy.noAlertsFor(scopeTicker),
+                            how = InboxCopy.NO_ALERTS_FOR_HOW,
+                            actionLabel = InboxCopy.SHOW_ALL,
+                            onAction = { ticker = null },
                             modifier = Modifier.padding(horizontal = ThesisSpace.gutter),
                         )
                     }
@@ -564,7 +606,7 @@ fun InboxScreen(
                     }
                 }
                 // Counted within the filter, so the footer never points at alerts the filter hides anyway.
-                val quietCount = InboxModels.filter(alerts.filter { it.id in quietIds }, selected).size
+                val quietCount = InboxModels.filter(scoped.filter { it.id in quietIds }, selected).size
                 if (quietCount > 0 && alerts.isNotEmpty()) {
                     item(key = "quiet-footer", contentType = "footer") {
                         QuietFooter(count = quietCount, showing = showQuiet, onToggle = { showQuiet = !showQuiet })

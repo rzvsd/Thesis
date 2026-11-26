@@ -129,6 +129,13 @@ object InboxCopy {
     fun filteredEmpty(category: String): String = "No ${category.lowercase()} alerts."
     const val FILTERED_EMPTY_HOW = "Other categories still have alerts."
     const val SHOW_ALL = "Show all alerts"
+
+    /** Name's "See alerts" opened the Inbox on one ticker that has none (they may have been cleared since). */
+    fun noAlertsFor(ticker: String): String = "No alerts for $ticker."
+    const val NO_ALERTS_FOR_HOW = "Alerts about this name land here when its filings or earnings move."
+
+    /** The ticker chip's spoken label: the chip shows the ticker with a close mark. */
+    fun removeTickerFilter(ticker: String): String = "$ticker alerts only. Remove filter"
     const val LOAD_SUBJECT = "the Inbox"
     const val REFRESH_FAILED = "Couldn’t refresh the Inbox. These are the alerts already loaded."
 

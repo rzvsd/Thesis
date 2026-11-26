@@ -87,7 +87,6 @@ import com.thesis.mobile.ui.icons.ThesisIcons
 import com.thesis.mobile.ui.motion.RollingNumber
 import com.thesis.mobile.ui.motion.ShimmerHost
 import com.thesis.mobile.ui.motion.ThesisMotion
-import com.thesis.mobile.ui.motion.rememberHaptics
 import com.thesis.mobile.ui.motion.rememberShowSkeleton
 import com.thesis.mobile.ui.theme.LocalReducedMotion
 import com.thesis.mobile.ui.theme.LocalThesisPalette
@@ -483,7 +482,7 @@ fun MacroStressScreen(
     val barHeight = with(LocalDensity.current) { barHeightPx.toDp() }
     var sheetOpen by rememberSaveable { mutableStateOf(false) }
     val clipboard = LocalClipboardManager.current
-    val haptics = rememberHaptics()
+    // No haptic for a copy (4.7 keeps confirm for a saved note, a finished export, a ready Deep Dive): the check is the feedback.
     // The copy action turns to a check, and says "Readings copied", until the readings change (range, refresh).
     var copied by remember(model?.table) { mutableStateOf(false) }
 
@@ -557,7 +556,6 @@ fun MacroStressScreen(
                     contentDescription = if (copied) MacroStressCopy.COPIED else MacroStressCopy.COPY_TABLE,
                     onClick = {
                         clipboard.setText(AnnotatedString(table.toTsv()))
-                        haptics.confirm()
                         copied = true
                     },
                 )

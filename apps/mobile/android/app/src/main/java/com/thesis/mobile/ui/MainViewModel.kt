@@ -168,6 +168,12 @@ class MainViewModel(
     private var loadYouInsightsWithProfile = false
 
     init {
+        // A Paywall that AppNavigator restored on the modal stack (process death) keeps its request: published
+        // before the first publish, so syncPaywallEntry does not close the restored modal again on arrival.
+        navigator.modalStack.lastOrNull { it.destination is Destination.Paywall }?.let { entry ->
+            val feature = (entry.destination as Destination.Paywall).feature
+            state = state.copy(paywallFeature = feature.ifBlank { GENERAL_UPGRADE_FEATURE })
+        }
         if (state.tokens != null) {
             loadYouInsightsWithProfile = navigator.modalStack.any { it.destination.isYouEntry() }
             PrefetchScheduler.schedule(getApplication<Application>().applicationContext)
@@ -2061,7 +2067,8 @@ class MainViewModel(
         }
     }
 
-    fun addWatchlistTicker(ticker: String) {
+    /** [announce]: say "Added X to Names" (Name, the report bar); the Names board's own field shows the row instead. */
+    fun addWatchlistTicker(ticker: String, announce: Boolean = true) {
         if (!state.watchlistFeatureEnabled) {
             publish(state.copy(message = "Watchlist is currently disabled by feature flag."))
             return
@@ -2073,7 +2080,7 @@ class MainViewModel(
                 requireTokens().accessToken,
                 normalized
             )
-            publish(state.copy(watchlist = items, message = "$normalized added to watchlist."))
+            publish(state.copy(watchlist = items, message = if (announce) NamesCopy.added(normalized) else state.message))
             trackEvent(
                 "watchlist_ticker_added",
                 mapOf("ticker" to normalized, "watchlist_size" to items.size)
@@ -2125,15 +2132,8 @@ class MainViewModel(
         }
     }
 
-    /**
-     * The feature a purchase is for, for analytics: the published one, else the open Paywall entry's (a Paywall
-     * restored from the modal stack after process death has no published feature).
-     */
-    private fun purchaseFeature(): String =
-        state.paywallFeature
-            ?: navigator.modalStack.lastOrNull { it.destination is Destination.Paywall }
-                ?.let { (it.destination as Destination.Paywall).feature.ifBlank { null } }
-            ?: "general_upgrade"
+    /** The feature a purchase is for, for analytics (init publishes a restored Paywall's feature too). */
+    private fun purchaseFeature(): String = state.paywallFeature ?: GENERAL_UPGRADE_FEATURE
 
     /** The next [UiState.watchlistRemoveFailure] for [ticker] (a new sequence number, so a repeat is a new signal). */
     private fun removeFailureFor(ticker: String): RemoveFailure =
@@ -2998,7 +2998,11 @@ class MainViewModel(
     override fun onEnsureName(ticker: String) {
         val symbol = ticker.trim().uppercase().ifBlank { return }
         val held = state.nameDetail
-        if (held == null || held.ticker != symbol || (held.summary == null && !held.isLoading)) openName(symbol)
+        // A name with no report keeps its page as it is when Name comes back on top (no reload, no notes blink):
+        // only a name whose report is now known but not read yet is opened again (refreshHeldNameDetail covers
+        // data that arrives while the page is held).
+        val stale = held != null && held.summary == null && !held.isLoading && nameReportId(symbol) != null
+        if (held == null || held.ticker != symbol || stale) openName(symbol)
     }
 
     override fun onOpenCompareNames(tickers: List<String>) {
@@ -3012,7 +3016,8 @@ class MainViewModel(
     override fun onEnsureCompareNames(tickers: List<String>) {
         val symbols = tickers.map { it.trim().uppercase() }.filter { it.isNotBlank() }.distinct().take(COMPARE_NAMES_MAX)
         val held = state.compareNames
-        if (held == null || held.tickers != symbols || (held.error != null && !held.isLoading)) loadCompareNames(symbols)
+        val failed = held != null && !held.isLoading && (held.error != null || held.errors.isNotEmpty())
+        if (held == null || held.tickers != symbols || failed) loadCompareNames(symbols)
     }
 
     override fun onOpenCompareReports(reportIdA: String, reportIdB: String) {
@@ -3034,6 +3039,11 @@ class MainViewModel(
         navigator.requestInboxCategory(category)
         onSelectTab(ShellTab.Inbox)
         navigator.popToRoot(ShellTab.Inbox, ::onEntryPopped)
+    }
+
+    override fun onOpenInboxFor(ticker: String) {
+        navigator.requestInboxTicker(ticker)
+        onOpenInbox(null)
     }
 
     override fun onOpenNamesToAdd() {
@@ -3098,6 +3108,8 @@ class MainViewModel(
         runCatchingNonCancellation {
             cacheStore.cacheReportNote(reportId, note, report = open, ticker = ticker)
         }
+        // As saveReportNote: a report with a note is kept for offline reading.
+        runCatchingNonCancellation { cacheStore.setDeepDiveNotePinned(reportId, note.content.isNotBlank()) }
         if (ticker != null) {
             val trail = runCatchingNonCancellation { cacheStore.getNotesTrail(ticker) }.getOrNull()
             if (trail != null) {
@@ -3135,6 +3147,7 @@ class MainViewModel(
     }
 
     override fun onAddName(ticker: String) = addWatchlistTicker(ticker)
+    override fun onAddNameFromBoard(ticker: String) = addWatchlistTicker(ticker, announce = false)
     override fun onRemoveName(ticker: String) = removeWatchlistTicker(ticker)
     override fun onUnfollowName(ticker: String) = removeWatchlistTicker(ticker, announce = true)
     override suspend fun onImportHoldingsCsv(csv: String): Result<HoldingsImportResultView> = importHoldingsCsv(csv)
@@ -3363,6 +3376,7 @@ class MainViewModel(
         publish(state.copy(compareNames = CompareNamesState(symbols)))
         viewModelScope.launch {
             val summaries = LinkedHashMap<String, ReportSummaryView?>()
+            val errors = LinkedHashMap<String, String>()
             for (symbol in symbols) {
                 // The open report itself when it is this name's (the report dock's "Compare with" puts the report's
                 // own ticker first, followed or not); otherwise the name's latest report (compareNamesReportId).
@@ -3374,9 +3388,12 @@ class MainViewModel(
                     else -> runCatchingNonCancellation { cacheStore.getReportSummary(reportId) }.getOrNull()
                         ?: fetchReportForCompare(reportId)?.toSummaryOrNull()
                 }
+                // The name has a report that neither the cache nor the server gave back (offline, a failed call):
+                // its column says "Couldn't load" with Try again, never "No report yet" with "Build report".
+                if (reportId != null && summaries[symbol] == null) errors[symbol] = LOAD_FAILED
             }
             if (state.compareNames?.tickers != symbols) return@launch
-            publish(state.copy(compareNames = CompareNamesState(symbols, summaries, isLoading = false)))
+            publish(state.copy(compareNames = CompareNamesState(symbols, summaries, isLoading = false, errors = errors)))
         }
     }
 
@@ -3419,6 +3436,8 @@ class MainViewModel(
         /** A load failure with no message of its own (an upgrade prompt answered it instead). */
         private const val LOAD_FAILED = "Could not reach Thesis."
         private const val DEEP_DIVE_RESUME_PREFS = "thesis_deep_dive_resume"
+        /** The analytics feature of a purchase made from a Paywall that names none. */
+        private const val GENERAL_UPGRADE_FEATURE = "general_upgrade"
         private const val KEY_RESUME_JOB_ID = "job_id"
         private const val KEY_RESUME_TICKER = "ticker"
         private const val KEY_RESUME_STARTED_AT = "started_at_ms"

@@ -216,7 +216,8 @@ fun ThesisShell(
     )
 
     ShellPageBackground(modifier) {
-        Box(Modifier.fillMaxSize()) {
+        // A rotation or a resize moves every row: the saved origins go stale, so pops fall back to the shared axis.
+        Box(Modifier.fillMaxSize().onSizeChanged { navigator.onWindowSize(it.width, it.height) }) {
             ReportBaseLayer(
                 entry = reportBase,
                 tabTopId = tabTop.entryId,

@@ -105,6 +105,7 @@ object NamesCopy {
     const val REMOVE_BODY = "Its reports and your notes stay in History and Notes. You can follow it again at any time."
     const val REMOVE_CONFIRM = "Remove"
     fun removed(ticker: String): String = "Removed $ticker from Names"
+    fun added(ticker: String): String = "Added $ticker to Names"
     const val UNDO = "Undo"
 
     // Compare selection (5.10 item 8).

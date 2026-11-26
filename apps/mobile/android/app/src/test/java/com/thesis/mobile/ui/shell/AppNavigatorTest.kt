@@ -264,6 +264,59 @@ class AppNavigatorTest {
         assertEquals("the briefing's lead route wins", Destination.DeepDiveRunning("AMD"), briefing.push)
     }
 
+    @Test
+    fun thesisDriftLandsOnNameChangesFromAPushAndFromAnAlert() {
+        // 5.25: the push and the Inbox tap land on the same page, Name at "Since the last report".
+        val changes = Destination.Name("NVDA", anchor = Destination.Name.ANCHOR_CHANGES)
+        val push = DeepLinkRouter.route(LaunchTarget(tab = "names", ticker = "nvda", notificationType = "thesis_drift"))!!
+        assertEquals(ShellTab.Names, push.tab)
+        assertEquals(changes, push.push)
+        assertEquals("NVDA", push.namesFocusTicker)
+        val contrarian = DeepLinkRouter.route(LaunchTarget(tab = "names", ticker = "nvda", notificationType = "contrarian_alert"))!!
+        assertEquals(changes, contrarian.push)
+        // Other Names links keep their destination: the board, the row pinned.
+        assertNull(DeepLinkRouter.route(LaunchTarget(tab = "names", ticker = "nvda", notificationType = "kill_switch"))!!.push)
+        assertNull(DeepLinkRouter.route(LaunchTarget(tab = "names", notificationType = "thesis_drift"))!!.push)
+
+        val alert = AlertLedgerItemView(
+            id = "a1", notificationType = "contrarian_alert", category = "thesis_drift", route = "names", ticker = "nvda",
+            title = "t", body = "b", reasonCode = "r", reasonText = "", deliveryState = "sent",
+            createdAt = "2026-11-24T07:00:00Z", updatedAt = "2026-11-24T07:00:00Z"
+        )
+        assertEquals(changes, DeepLinkRouter.routeAlert(alert).push)
+        val nav = AppNavigator()
+        nav.apply(push)
+        assertEquals(listOf(Destination.Names, changes), destinations(nav, ShellTab.Names))
+    }
+
+    @Test
+    fun inboxTickerRequestIsOneShotAndResetClearsIt() {
+        val nav = AppNavigator()
+        nav.requestInboxTicker(" aapl ")
+        assertEquals("AAPL", nav.inboxTicker)
+        nav.clearInboxTicker()
+        assertNull(nav.inboxTicker)
+        nav.requestInboxTicker("msft")
+        nav.reset()
+        assertNull(nav.inboxTicker)
+    }
+
+    @Test
+    fun aWindowSizeChangeDropsTheContainerTransformOrigins() {
+        val nav = AppNavigator()
+        nav.onWindowSize(1080, 2400)
+        val entry = run {
+            var pushed: NavEntry? = null
+            nav.pushFrom(androidx.compose.ui.geometry.Rect(0f, 400f, 1080f, 560f)) { pushed = nav.push(Destination.Name("AAPL")) }
+            pushed!!
+        }
+        assertTrue(nav.transformOrigin(entry.entryId) != null)
+        nav.onWindowSize(1080, 2400)
+        assertTrue("same size: kept", nav.transformOrigin(entry.entryId) != null)
+        nav.onWindowSize(2400, 1080)
+        assertNull("rotated: the row moved, so the pop uses the shared axis", nav.transformOrigin(entry.entryId))
+    }
+
     // ---- Recreation through the saved-state store
 
     @Test

@@ -32,7 +32,8 @@ object ResearchCopy {
     // ---- Research root (5.12)
 
     const val RESEARCH_TITLE = "Research"
-    const val RESEARCH_DECK = "Read any US-listed company from its filings."
+    /** The coverage claim is ProductCopy's, as on onboarding and the empty states (one promise everywhere). */
+    const val RESEARCH_DECK = "Read ${ProductCopy.coverage} from their filings."
     const val TICKER_LABEL = "Ticker"
     const val OPEN_REPORT = "Open report"
     const val BUILD_REPORT = "Build report"
@@ -228,6 +229,16 @@ object ResearchCopy {
     const val COMPARE_NAMES_TOO_FEW_HOW = "Choose them on Names, or from a report’s Compare."
     const val COMPARE_NAMES_FAILED = "these names"
     const val NO_REPORT_YET = "No report yet"
+    /** A compared name's column whose report exists but did not load. */
+    const val COLUMN_LOAD_FAILED = "Couldn’t load"
+
+    /** "Couldn’t load the MSFT report." / "Couldn’t load the MSFT and NVDA reports." */
+    fun columnsLoadFailed(tickers: List<String>): String =
+        if (tickers.size == 1) {
+            "Couldn’t load the ${tickers.single()} report."
+        } else {
+            "Couldn’t load the ${tickers.dropLast(1).joinToString(", ")} and ${tickers.last()} reports."
+        }
     const val NO_ANNUAL_FIGURES = "No annual figures"
 
     /** A column's filing line in "Copy as table": "10-K · built 24 Nov" (the report's date; no filed date yet). */
@@ -274,7 +285,11 @@ object ResearchCopy {
     const val ROW_GROSS = "Gross margin"
     const val ROW_OPERATING = "Operating margin"
     const val ROW_FCF = "FCF margin"
-    const val ROW_NET_CASH = "Net cash"
+    /**
+     * Signed (negative is net debt), named as Name's years table names it, so a figure reads the same on Name and in
+     * both compare tables.
+     */
+    const val ROW_NET_CASH = NamesCopy.LABEL_NET_CASH_SIGNED
     const val ROW_SHARES = "Share count, YoY"
     const val ROW_SHARES_CHANGE = "Share count change, YoY"
     const val ROW_DISCIPLINE_SIGNALS = "Value discipline, signals met"

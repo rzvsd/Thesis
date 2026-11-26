@@ -16,7 +16,13 @@ import android.text.StaticLayout
 import android.text.TextPaint
 import android.text.TextUtils
 import android.text.style.MetricAffectingSpan
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.FileProvider
 import androidx.core.content.res.ResourcesCompat
 import com.thesis.mobile.R
@@ -28,7 +34,10 @@ import com.thesis.mobile.ui.screens.report.ExportBlock
 import com.thesis.mobile.ui.screens.report.ExportPagination
 import com.thesis.mobile.ui.screens.report.ExportSlice
 import com.thesis.mobile.ui.theme.PaperLight
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -78,6 +87,57 @@ internal suspend fun renderShareCard(context: Context, report: DeepDiveReportVie
     val app = context.applicationContext
     val encoded = withContext(Dispatchers.Default) { encodeShareCard(app, report) }
     return withContext(Dispatchers.IO) { writeExport(app, encoded) }
+}
+
+/**
+ * The report host's exports (5.24), so the screens never hold an android.content.Context (6.0 rule 5). Runs one
+ * export at a time: the render builds and writes the file off the main thread ([renderReportPdf],
+ * [renderShareCard]), then the share sheet opens on the main thread; a failure calls onFailed (the "export failed"
+ * notice). A tap while an export runs is ignored.
+ */
+internal class ReportExporter(
+    private val scope: CoroutineScope,
+    private val context: Context,
+    private val onFailed: () -> Unit,
+) {
+    private var running = false
+
+    fun fullReport(report: DeepDiveReportView) {
+        launchExport { renderReportPdf(context, report, ReportExportType.FULL_REPORT) }
+    }
+
+    fun memo(report: DeepDiveReportView) {
+        launchExport { renderReportPdf(context, report, ReportExportType.INVESTMENT_MEMO) }
+    }
+
+    fun shareCard(report: DeepDiveReportView) {
+        launchExport { renderShareCard(context, report) }
+    }
+
+    private fun launchExport(render: suspend () -> ExportArtifact) {
+        if (running) return
+        running = true
+        scope.launch {
+            try {
+                shareExport(context, render())
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                onFailed()
+            } finally {
+                running = false
+            }
+        }
+    }
+}
+
+/** A [ReportExporter] bound to this composition's Context and scope; [onFailed] is read when an export fails. */
+@Composable
+internal fun rememberReportExporter(onFailed: () -> Unit): ReportExporter {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val failed by rememberUpdatedState(onFailed)
+    return remember(context, scope) { ReportExporter(scope, context) { failed() } }
 }
 
 private fun writeExport(context: Context, encoded: EncodedExport): ExportArtifact {
@@ -170,7 +230,7 @@ private fun encodeReportPdf(
             report.valuation?.let { valuation ->
                 val lines = listOfNotNull(
                     valuation.fairValueMid?.let { mid ->
-                        ReportCopy.fairValueLine(
+                        ReportCopy.modelRangeLine(
                             mid = Fmt.money(mid),
                             low = valuation.fairValueLow?.let { Fmt.money(it) },
                             high = valuation.fairValueHigh?.let { Fmt.money(it) },

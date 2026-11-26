@@ -303,7 +303,7 @@ object AccountCopy {
         "The full “what changed” on every filing alert, by push and email",
         "Earnings War Room for the names you follow",
         "Scenario Stress, What-If, Opposite Case and the conviction timeline",
-        "PDF and investment memo export",
+        "PDF and research memo export",
     )
 }
 

@@ -26,7 +26,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
 import com.thesis.mobile.model.CompareNamesState
@@ -44,7 +46,9 @@ import com.thesis.mobile.ui.components.CompareColumn
 import com.thesis.mobile.ui.components.CompareRow
 import com.thesis.mobile.ui.components.CompareTableModel
 import com.thesis.mobile.ui.components.EmptyState
+import com.thesis.mobile.ui.components.BannerTone
 import com.thesis.mobile.ui.components.ErrorState
+import com.thesis.mobile.ui.components.InlineBanner
 import com.thesis.mobile.ui.components.LeadingRowDividerInset
 import com.thesis.mobile.ui.components.RowGroup
 import com.thesis.mobile.ui.components.ScreenHeader
@@ -62,7 +66,6 @@ import com.thesis.mobile.ui.format.LocalFmt
 import com.thesis.mobile.ui.format.Missing
 import com.thesis.mobile.ui.format.PeriodKind
 import com.thesis.mobile.ui.icons.ThesisIcons
-import com.thesis.mobile.ui.motion.rememberHaptics
 import com.thesis.mobile.ui.theme.LocalThesisPalette
 import com.thesis.mobile.ui.theme.ThesisSpace
 import com.thesis.mobile.ui.theme.ThesisType
@@ -200,6 +203,8 @@ internal data class CompareNameColumn(
     val hasReport: Boolean,
     val subject: Boolean,
     val fyEnd: YearMonth? = null,
+    /** The name has a report that could not be loaded ([CompareNamesState.errors]): "Couldn't load", not "No report yet". */
+    val loadFailed: Boolean = false,
 )
 
 /**
@@ -232,6 +237,7 @@ internal fun compareNameColumns(
         hasReport = summary != null,
         subject = i == 0,
         fyEnd = fiscalYearEnds[t],
+        loadFailed = summary == null && t in state.errors,
     )
 }.withIndex().sortedBy { (i, c) -> if (i == 0) 0 else if (c.hasReport) 1 else 2 }.map { it.value }
 
@@ -334,6 +340,7 @@ internal fun periodLabel(key: FilingKey): String =
 
 /** A column's period header: "FY Sep-25" once its year-end is known, else "FY2025"; the gap word otherwise. */
 private fun columnPeriod(column: CompareNameColumn): String = when {
+    column.loadFailed -> ResearchCopy.COLUMN_LOAD_FAILED
     !column.hasReport -> ResearchCopy.NO_REPORT_YET
     column.figures == null -> ResearchCopy.NO_ANNUAL_FIGURES
     column.figures.key.annual && column.fyEnd != null ->
@@ -559,7 +566,6 @@ fun CompareNamesScreen(
 ) {
     val p = LocalThesisPalette.current
     val fmt = LocalFmt.current
-    val haptics = rememberHaptics()
     val clipboard = LocalClipboardManager.current
     val scroll = rememberScrollState()
     val collapsed by rememberTopBarCollapsed(scroll)
@@ -579,13 +585,13 @@ fun CompareNamesScreen(
     val leftOut = state?.let(::leftOutNames).orEmpty()
     val nextSort = pickedRow ?: headlineMetric(base) ?: NameMetric.Revenue
     val model = remember(columns) { if (columns.isEmpty()) null else compareNamesTable(columns) }
+    // No haptic for a copy (4.7 keeps confirm for a saved note, a finished export, a ready Deep Dive): the check is the feedback.
     // Keyed on what was copied: after a re-sort or new data the clipboard holds the old table, so the check goes.
     var copied by remember(columns) { mutableStateOf(false) }
     // Copy as table only once there are figures to copy (not in the error state, where every cell is blank).
     val canCopy = model != null && state?.isLoading == false && base.any { it.hasReport }
     val copy = {
         clipboard.setText(AnnotatedString(compareNamesTsv(columns, fmt, zone)))
-        haptics.confirm()
         copied = true
     }
 
@@ -642,9 +648,9 @@ fun CompareNamesScreen(
                 state.isLoading -> {
                     SkeletonCard(bodyLines = 6)
                 }
-                state.error != null && base.none { it.hasReport } -> ErrorState(
+                (state.error != null || state.errors.isNotEmpty()) && base.none { it.hasReport } -> ErrorState(
                     title = KitCopy.couldNotLoad(ResearchCopy.COMPARE_NAMES_FAILED),
-                    cause = state.error,
+                    cause = state.error ?: state.errors.values.first(),
                     onRetry = onRetry,
                 )
                 model != null -> {
@@ -691,7 +697,20 @@ fun CompareNamesScreen(
                         Spacer(Modifier.height(ThesisSpace.m))
                         RevenueChart(state, columns, chartMode, onMode = { chartMode = it })
                     }
-                    val missing = columns.filter { !it.hasReport }
+                    // Names whose report did not load: one line with Try again (principle 11: never "No report yet").
+                    val failed = columns.filter { it.loadFailed }
+                    if (failed.isNotEmpty()) {
+                        Spacer(Modifier.height(if (showChart) ThesisSpace.sectionGapData else ThesisSpace.m))
+                        InlineBanner(
+                            text = ResearchCopy.columnsLoadFailed(failed.map { it.ticker }),
+                            tone = BannerTone.Attention,
+                            actionLabel = KitCopy.TRY_AGAIN,
+                            onAction = onRetry,
+                            modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+                        )
+                    }
+                    // "Build report" only for a name that has none (compareNamesReportId found no report).
+                    val missing = columns.filter { !it.hasReport && !it.loadFailed }
                     if (missing.isNotEmpty()) {
                         Spacer(Modifier.height(if (showChart) ThesisSpace.sectionGapData else ThesisSpace.m))
                         RowGroup {

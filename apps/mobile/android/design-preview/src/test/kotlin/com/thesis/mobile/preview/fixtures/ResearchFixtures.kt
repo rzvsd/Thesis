@@ -192,6 +192,11 @@ object ResearchFixtures {
         ),
         isLoading = false,
     )
+    /** MSFT has a report that did not load (offline, no cached summary); NVDA has none. */
+    val compareNamesColumnFailed = compareNames.copy(
+        summaries = compareNames.summaries + ("MSFT" to null),
+        errors = mapOf("MSFT" to "No connection."),
+    )
     val compareNamesLoading = CompareNamesState(tickers = listOf("AAPL", "MSFT"), isLoading = true)
     val compareNamesError = CompareNamesState(tickers = listOf("AAPL", "MSFT"), isLoading = false, error = "No connection.")
 

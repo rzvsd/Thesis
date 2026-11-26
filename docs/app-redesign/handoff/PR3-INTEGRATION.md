@@ -80,7 +80,13 @@ These files are not compiled by the harness. They were written against Compose 1
   `NotesTrail` exposes no per-entry positions (WP-K request: an entry key to bring into view).
 - **Compare reports, a change's chapter (5.25):** a tapped change opens the newer report at its top. The change
   summary items (`DeepDiveTopChangeView`) carry no chapter, so there is nothing to pass to `Destination.Report`.
-- **Compare names, per-ticker errors (HANDOFF-E):** not added.
+- **Compare names, "Share as image" (5.26, HANDOFF-E Skipped):** the overflow has "Copy as table" only. The share
+  card's off-main-thread bitmap path (`renderShareCard`) draws the report's HeroBand, not a table; a table image
+  needs its own Android-only renderer (PR-4).
+- **Compare names table density (5.26, principle 13; WP-K):** with `onCellClick` the kit `CompareTable` raises every
+  row to 48 dp, and at 412 dp the median and the fourth ticker sit behind "Swipe the table for …". The fix is a kit
+  layout change: one 48 dp touch target per row over compact cells, and a column fit that keeps the median in view.
+  Kept for the WP-K follow-up (with D8 below), because it changes the kit table every Research screen uses.
 - **`MonthlyCoherenceSection` (HANDOFF-G 11):** kept, because renders still use it.
 - **You page clock (HANDOFF-G 19):** the shell has no clock to pass yet.
 - **Model, API and server items:** the filing form and filed date, fiscal year-ends, `valueDiscipline`, `five_year_trends`, kill-switch readings (HANDOFF-D 6), metric units (D10), the comparable report id and `thesisDrift` on summaries, and journal links (D14).
@@ -96,6 +102,14 @@ These files are not compiled by the harness. They were written against Compose 1
   - The `Fmt` helpers.
   - Skeleton fill and `StageProgress` working flag.
   - Snackbar action order and dialog scroll.
+
+## For the spec owner
+
+- **Coverage claim (5.12 lede).** The spec's Research lede says "Read any US-listed company from its filings."
+  while onboarding and the empty states use `ProductCopy.coverage` ("S&P 500 companies"), the copy file the product
+  keeps true for the live coverage. Research now reads "Read S&P 500 companies from their filings." from
+  `ProductCopy.coverage`, so one promise is made everywhere; please update the 5.12 lede to match (or change
+  `ProductCopy.coverage` when the coverage widens, and every screen follows).
 
 ## Verification at the integration commit
 
@@ -147,8 +161,8 @@ Fixes to the PR-3 review findings, in the integrator's files and, where a findin
   `material-icons-extended` leaves `app/build.gradle.kts` (and the harness).
 - **Smaller fixes.** The classic Deep Dive exports through `renderReportPdf` / `renderShareCard` off the main thread;
   Inbox rows drop the ticker the row's line 1 already shows (`InboxCopy.rowTitle`, unit-tested); Search re-issues a
-  query restored after process death; an invalid API URL on Auth shows in its status line; a restored Paywall's
-  purchases log its feature; the SessionStore KDoc is back on `clearVisitMarkers`; Research's Continue reading
+  query restored after process death; an invalid API URL on Auth shows in its status line; a restored Paywall
+  stays open and its purchases log its feature (corrected in review round 2: before that it closed on arrival); the SessionStore KDoc is back on `clearVisitMarkers`; Research's Continue reading
   resumes a past Pulse issue too; unfollowing from Name or the report bar says "Removed X from Names"; Home's
   headline says "changed state"; the what-if copy no longer says "rerun".
 
@@ -169,3 +183,55 @@ Kept as they are, with reasons:
 - Renders, semantics and harness tests (`-PrendersOnly test`): 675 tests, 0 failures; 1,042 renders, dark and light.
 - `tools/design-lint.sh`: 0 findings in 91 files, baseline 0 rows.
 - `tools/gold-share.py`: 760 renders, max 7.50%, none at or above 8%.
+
+## Review round 2
+
+- **Name's "See alerts" opens this name's alerts (major, 5.11 item 3).** `AppNavigator.inboxTicker` is a one-shot
+  request next to `inboxCategory` (`requestInboxTicker` / `clearInboxTicker`, cleared by `reset`);
+  `ShellActions.onOpenInboxFor(ticker)` sets it and opens the Inbox root. `InboxScreen(tickerRequest, initialTicker)`
+  scopes the list, chips, lede and counts to alerts that concern the ticker (own or related, as Name counts them)
+  under a removable "× NVDA" chip (spoken "NVDA alerts only. Remove filter"); a ticker with none says
+  "No alerts for X." with "Show all alerts". Renders `inbox-ticker`, `inbox-ticker-none`; semantics test.
+- **Compare names, per-ticker errors.** `CompareNamesState.errors` (ticker to cause) is set when a name has a
+  report that neither the cache nor the server gave back. Its column reads "Couldn't load", one Attention banner
+  ("Couldn't load the MSFT report.") offers Try again, and "Build report" is offered only for a name with no report.
+  Every column failed: the screen's ErrorState. Re-entry retries. Render `research-compare-names-column-failed`;
+  unit test in `CompareModelTest`.
+- **Thesis drift lands on one page.** A `names` push or Inbox-ledger route of type thesis_drift / contrarian_alert
+  (or the drift category, for alerts) with a ticker pushes `Name(ticker, ANCHOR_CHANGES)` on the Names tab (the row
+  stays pinned under it), where the Inbox's own drift route goes (5.25). Other Names links are unchanged (5.5).
+- **Restored Paywall.** `init` publishes the restored `Destination.Paywall`'s feature before the first publish, so
+  the modal stays open after process death; `purchaseFeature()` reads the published feature only.
+- **Name re-open.** `onEnsureName` reopens a held name with no summary only when a report for it is now known, so
+  coming back to a report-less Name no longer reloads it (no notes blink, no repeated `listReports`).
+- **Container transform after rotation.** The shell reports its size (`AppNavigator.onWindowSize`); a change drops
+  the saved origins, so the pop falls back to the shared axis. Unit test.
+- **Name's note pins the report offline** (`saveNoteFor` calls `setDeepDiveNotePinned`, as `saveReportNote` does).
+- **Follow says "Added X to Names"** (`NamesCopy.added`) from Name and the report bar; the Names board's own field
+  (`onAddNameFromBoard`) adds the row in place without a snackbar.
+- **DeepDiveScreen names no android.\* type (6.0 rule 5).** `ReportExporter` and `rememberReportExporter` move to
+  the Android-only `ReportExport.kt` (preview stubs in `PreviewAndroidStubs.kt`); the classic report calls
+  `exporter.fullReport / memo / shareCard(report)`.
+- **No haptic on a copy (4.7).** Compare names, Compare reports and Macro Stress drop `confirm()` on "Copy as
+  table"; the Copied check is the feedback.
+- **Home Macro stress with fewer than two readings** shows "Score 0 to 100" (the scale is its reference). The
+  `StatusBadge` stays: 5.6 item 5 lists it with the title, and it carries the band's tone.
+- **SectionHeader at large font (kit).** From font scale 1.5 the trailing action moves under the headline, so the
+  headline keeps the full width (render `today-home-360-2_0x`).
+- **One net cash convention.** Both compare tables label the signed row "Net cash (debt)", as Name's years table.
+- **Export memo in the report's words.** "Research memo"; "Model base case: $212.00 (model range $180.00 to
+  $240.00)"; the paywall's list says "research memo".
+- **Coverage.** Research's lede reads from `ProductCopy.coverage` (see "For the spec owner").
+- **History first-load failure render** uses the production shape (`loaded = true`, error), so it shows Try again.
+
+Kept for later, with reasons: "Share as image" on Compare names and the compare table's density (listed under
+Deferred).
+
+### Verification after review round 2
+
+- `design-preview` compile (main + test): clean.
+- App unit tests (`-PappTestsOnly test`): 465 tests, 0 failures (new: the drift route, the Inbox ticker request,
+  the window-size origins, the failed compare column).
+- Renders, semantics and harness tests (`-PrendersOnly test`): 679 tests, 0 failures; 1,048 renders, dark and light.
+- `tools/design-lint.sh`: 0 findings in 91 files, baseline 0 rows.
+- `tools/gold-share.py`: 766 renders, max 7.50%, none at or above 8%.

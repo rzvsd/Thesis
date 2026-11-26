@@ -123,6 +123,9 @@ interface ShellActions {
     /** The Inbox tab, filtered to [category] (null: every alert). */
     fun onOpenInbox(category: String?) {}
 
+    /** The Inbox tab showing only [ticker]'s alerts, under a removable chip (Name's "See alerts", 5.11 item 3). */
+    fun onOpenInboxFor(ticker: String) {}
+
     /** The Names tab with its add field focused (Home's empty "Add a name", 5.6). */
     fun onOpenNamesToAdd() {}
 
@@ -140,7 +143,9 @@ interface ShellActions {
     // ---- Names
 
     fun onRefreshNames() {}
+    /** Follow [ticker] ("Added X to Names"). The Names board's own field adds the row in place: no message there. */
     fun onAddName(ticker: String) {}
+    fun onAddNameFromBoard(ticker: String) {}
     fun onRemoveName(ticker: String) {}
 
     /**

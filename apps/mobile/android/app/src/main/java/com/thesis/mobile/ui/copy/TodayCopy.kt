@@ -191,6 +191,9 @@ object TodayCopy {
     /** The card's one action, spoken by TalkBack. */
     const val OPEN_MACRO = "Open Macro Stress"
 
+    /** The scale alone, when there is no line yet to give the window (fewer than two readings). */
+    const val MACRO_SCALE = "Score 0 to 100"
+
     /** "Score 0 to 100, last 30 days" (the sparkline's scale and window). */
     fun macroScale(days: Int): String = "Score 0 to 100, last $days days"
 

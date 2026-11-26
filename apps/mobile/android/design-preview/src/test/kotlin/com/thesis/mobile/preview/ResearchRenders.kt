@@ -80,7 +80,7 @@ class ResearchRenders {
     @Test fun history() { renderScreen("research-history") { History() } }
     @Test fun historyLoading() { renderScreen("research-history-loading", glow = false, settleMs = 300) { History(loaded = false, items = false) } }
     @Test fun historyEmpty() { renderScreen("research-history-empty", glow = false) { History(items = false) } }
-    @Test fun historyError() { renderScreen("research-history-error", glow = false) { History(loaded = false, items = false, error = "No connection.") } }
+    @Test fun historyError() { renderScreen("research-history-error", glow = false) { History(loaded = true, items = false, error = "No connection.") } }
     @Test fun historyStale() { renderScreen("research-history-stale", glow = false) { History(error = "No connection.") } }
     @Test fun historyNotes() { renderScreen("research-history-notes", glow = false) { History(filter = HistoryFilter.WithNotes) } }
     @Test fun historyCompare() { renderScreen("research-history-compare") { History(compare = true, picked = listOf("aapl-25")) } }
@@ -144,6 +144,8 @@ class ResearchRenders {
     @Test fun compareNamesTablet() { renderScreen("research-compare-names-tablet", widthDp = 840, glow = false) { Names() } }
     @Test fun compareNamesFull() { renderScreen("research-compare-names-full", heightDp = 2400, glow = false) { Names() } }
     // The shape the app ships: report summaries carry no value discipline unless the report had one.
+    // A name whose report did not load: "Couldn't load" with Try again, and no "Build report" for it.
+    @Test fun compareNamesColumnFailed() { renderScreen("research-compare-names-column-failed", heightDp = 2400, glow = false) { Names(F.compareNamesColumnFailed) } }
     @Test fun compareNamesNoDiscipline() { renderScreen("research-compare-names-no-discipline", glow = false) { Names(disciplines = emptyMap()) } }
 
     // ---- Search (5.27)

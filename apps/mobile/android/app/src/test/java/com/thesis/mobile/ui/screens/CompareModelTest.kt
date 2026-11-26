@@ -180,6 +180,23 @@ class CompareModelTest {
     }
 
     @Test
+    fun aNameWhoseReportDidNotLoadSaysSoAndIsNotOfferedABuild() {
+        // MSFT has a report, but neither the cache nor the server gave it back: "Couldn't load", not "No report yet".
+        val failed = state.copy(summaries = state.summaries + ("MSFT" to null), errors = mapOf("MSFT" to "Could not reach Thesis."))
+        val cols = compareNameColumns(failed, emptyMap())
+        val msft = cols.first { it.ticker == "MSFT" }
+        val nvda = cols.first { it.ticker == "NVDA" }
+        assertTrue(msft.loadFailed)
+        assertFalse(msft.hasReport)
+        assertFalse("no report, no error: a build is offered", nvda.loadFailed)
+        val table = compareNamesTable(cols)
+        assertTrue(table.columns.any { it.period == "MSFT\n${ResearchCopy.COLUMN_LOAD_FAILED}" })
+        assertTrue(table.columns.any { it.period == "NVDA\n${ResearchCopy.NO_REPORT_YET}" })
+        assertEquals("Couldn’t load the MSFT report.", ResearchCopy.columnsLoadFailed(listOf("MSFT")))
+        assertEquals("Couldn’t load the MSFT, NVDA and AMD reports.", ResearchCopy.columnsLoadFailed(listOf("MSFT", "NVDA", "AMD")))
+    }
+
+    @Test
     fun yearEndsNameTheColumnOnceKnown() {
         val cols = compareNameColumns(state, emptyMap(), mapOf("AAPL" to java.time.YearMonth.of(2025, 9)))
         val table = compareNamesTable(cols)

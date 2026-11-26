@@ -74,6 +74,10 @@ class AppNavigator(private val store: NavigatorStateStore? = null) {
     var inboxCategory: String? by mutableStateOf(null)
         private set
 
+    /** One-shot Inbox ticker scope (Name's "See alerts"), cleared once the Inbox has read it. */
+    var inboxTicker: String? by mutableStateOf(null)
+        private set
+
     private var nextId = 0L
 
     /**
@@ -152,6 +156,24 @@ class AppNavigator(private val store: NavigatorStateStore? = null) {
 
     /** Where [entryId]'s page grows from and shrinks back into; null for a shared-axis push. */
     fun transformOrigin(entryId: String): Rect? = transformOrigins[entryId]
+
+    /** The shell's last size in px (0 before the first layout); this object outlives a rotation, the shell does not. */
+    private var windowWidthPx = 0
+    private var windowHeightPx = 0
+
+    /**
+     * The shell was laid out at [widthPx] x [heightPx]. After a rotation or a window resize the rows the origins
+     * were taken from have moved, so they are dropped: the pop of a page opened before it moves on the shared axis
+     * instead of shrinking into a stale (or off-screen) rectangle.
+     */
+    fun onWindowSize(widthPx: Int, heightPx: Int) {
+        if (windowWidthPx != 0 && (widthPx != windowWidthPx || heightPx != windowHeightPx)) clearTransformOrigins()
+        windowWidthPx = widthPx
+        windowHeightPx = heightPx
+    }
+
+    /** Drops every saved origin (see [onWindowSize]). */
+    fun clearTransformOrigins() = transformOrigins.clear()
 
     /**
      * Runs [open] (which pushes a list row's detail, for example `onOpenNameIn`) so that the entry it pushes grows
@@ -361,6 +383,14 @@ class AppNavigator(private val store: NavigatorStateStore? = null) {
         inboxCategory = null
     }
 
+    fun requestInboxTicker(ticker: String?) {
+        inboxTicker = ticker?.trim()?.uppercase()?.ifBlank { null }
+    }
+
+    fun clearInboxTicker() {
+        inboxTicker = null
+    }
+
     fun clearNamesFocus() {
         if (namesFocusTicker != null) {
             namesFocusTicker = null
@@ -376,6 +406,7 @@ class AppNavigator(private val store: NavigatorStateStore? = null) {
         namesFocusTicker = null
         clearNamesRequests()
         inboxCategory = null
+        inboxTicker = null
         // A new session opens Home as a first open again.
         entranceRegistry.retainOnly(emptyList())
         persist()

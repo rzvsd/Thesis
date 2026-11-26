@@ -140,6 +140,10 @@ class MacroInboxRenders {
 
     @Test fun inboxFiltered() = render("inbox-filtered", themes = listOf(PreviewTheme.DARK)) { Inbox(category = "earnings") }
 
+    // Name's "See alerts" (5.11 item 3): that name's alerts under a removable chip; one with none says so.
+    @Test fun inboxTicker() = render("inbox-ticker") { Inbox(ticker = "NVDA") }
+    @Test fun inboxTickerNone() = render("inbox-ticker-none", glow = false) { Inbox(ticker = "GOOGL") }
+
     @Test fun inboxLoading() = render("inbox-loading", glow = false) { Inbox(alerts = emptyList(), loading = true) }
 
     @Test fun inboxEmpty() = render("inbox-empty", glow = false) { Inbox(alerts = emptyList()) }
@@ -223,6 +227,7 @@ class MacroInboxRenders {
         loading: Boolean = false,
         expanded: String? = null,
         category: String? = null,
+        ticker: String? = null,
     ) = Fixed {
         InboxScreen(
             padding = PaddingValues(),
@@ -240,6 +245,7 @@ class MacroInboxRenders {
             onOpenName = {},
             onOpenWarRoom = {},
             initialCategory = category,
+            initialTicker = ticker,
             initialExpandedId = expanded,
             refreshError = refreshError,
             clock = MacroInboxFixtures.clock,

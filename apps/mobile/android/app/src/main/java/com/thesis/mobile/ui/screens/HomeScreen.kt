@@ -663,6 +663,9 @@ private fun MacroBlock(macro: MacroSummary?, error: String?, onOpen: () -> Unit,
                         dataKey = macro.day,
                     )
                     Text(TodayCopy.macroScale(macro.sparkDays), style = ThesisType.caption, color = p.muted)
+                } else {
+                    // No line yet: the scale is still the figure's reference point (principle 4).
+                    Text(TodayCopy.MACRO_SCALE, style = ThesisType.caption, color = p.muted)
                 }
             }
         }
