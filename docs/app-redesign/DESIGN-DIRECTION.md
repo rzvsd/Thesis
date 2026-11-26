@@ -11,7 +11,8 @@ silent, follow the research files it cites. Where research files disagree with t
 - Research inputs (all in `scratchpad/research/`): `deep-dive-visual-language.md` (tokens, exact hex),
   `compose-motion-playbook.md` (motion code), `elegant-apps.md`, `financial-apps.md`, `browse-reference-sites.md`,
   `audit-foundation.md`, `audit-screens-a.md`, `audit-screens-b.md`, `toolchain/README.md`, screenshots in `dd-shots/`.
-- Hard constraints: Kotlin 1.9.24, Compose compiler 1.5.14, compose-bom **2024.06.00** (Compose 1.6.8, M3 1.2.1),
+- Hard constraints: Kotlin 1.9.24, Compose compiler 1.5.14, compose-bom **2025.04.00** (Compose 1.7.8, M3 1.3.x)
+  since PR-4a (PR-1 to PR-3 were built on 2024.06.00 = Compose 1.6.8, M3 1.2.1; never 2025.04.01+ before Kotlin 2),
   AGP 8.5.2, minSdk 26, compileSdk/targetSdk 35, no navigation-compose. No new backend in this redesign (client
   work over data the API already returns is in scope: report payloads, `market_tape`, note endpoints, local Room
   caches; Room 2.6.1 is already a dependency). No price feed exists in the app (no quote endpoint): never show or
@@ -526,7 +527,9 @@ user), `StaggeredEntrance` (after PR-3 call sites move), `EvidenceRadar`, `Scena
 Code lives in `ui/motion/`. The playbook (`compose-motion-playbook.md`) has the implementations; this section fixes
 the values and where they apply. All snippets used must be the playbook's **[1.6 OK]** versions.
 
-**What [1.6 OK] means:** it compiles on Android with this BOM. Files under `ui/` must *also* compile in the
+**What [1.6 OK] means:** it compiles on Android with this BOM. Since PR-4a the app is on Compose 1.7.8 / M3 1.3.x
+and the harness on Compose Multiplatform 1.7.3 (4.1), so [1.6 OK] snippets still compile, and 1.7 APIs are now
+allowed too (the optional upgrades in 6.4); 1.8+ APIs are not. Files under `ui/` must *also* compile in the
 harness, so they never import `android.*`, `androidx.activity.*` or `androidx.lifecycle.*` except in `ui/platform/`.
 Concretely: back handling goes through `ui/platform/Back.kt` (`ThesisBackHandler`, `ThesisPredictiveBackHandler`;
 Android implementation over `BackHandler`/`PredictiveBackHandler`/`BackEventCompat`, harness shim no-op); haptics
@@ -536,6 +539,12 @@ accordingly. Press feedback is built from `interactionSource` + draw-phase reads
 `Indication`/`IndicationInstance` class** (deprecated in 1.7).
 
 ### 4.1 Compose BOM decision: stay on 2024.06.00 for this redesign
+
+> **Status (PR-4a, done).** The app is on `compose-bom:2025.04.00` (Compose 1.7.8, M3 1.3.x) and `design-preview`
+> on Compose Multiplatform 1.7.3 (with `ui-test-junit4-desktop:1.7.3`). The rest of this section is the PR-1 to
+> PR-3 rationale, kept as history. What PR-4a changed and what it left for PR-4b: `handoff/PR4A-BOM.md`,
+> `handoff/HANDOFF-H.md`. One behaviour M3 1.3 brought: `ModalBottomSheet` is an edge-to-edge dialog window;
+> `ThesisSheet` keeps the 1.2 top edge and sets that window's bar icons (`ui/platform/SheetWindow.kt`).
 
 Decision: **no BOM bump in PR-1 to PR-3.** Bump to `compose-bom:2025.04.00` (Compose 1.7.8, still Kotlin 1.9.24 and
 compiler 1.5.14) as a separate **PR-4** after PR-3 merges. Never go to 2025.04.01+ before the Kotlin 2 migration.
@@ -1277,8 +1286,8 @@ cannot be judged in the harness.
    in dark and light, plus 1.3× and **2.0× font-scale** smoke renders, one **360 dp-wide** render, and one full-page
    render (`heightDp = 2400`). Bulk state renders may pass `-Dpreview.glow=false`; the per-screen hero render keeps
    the glow.
-7. Each WP adds semantics tests for its screens with `org.jetbrains.compose.ui:ui-test-junit4-desktop:1.6.11`
-   (`createComposeRule`; verified to run in the harness): touch bounds, `Role`, selected, heading, toggleable,
+7. Each WP adds semantics tests for its screens with `org.jetbrains.compose.ui:ui-test-junit4-desktop:1.7.3`
+   (1.6.11 before PR-4a; `createComposeRule`; verified to run in the harness): touch bounds, `Role`, selected, heading, toggleable,
    liveRegion.
 8. Unit tests that pin symbols stay green: `DeepDiveWebPolicyTest` (keep `DeepDiveWebTheme` and the policy API),
    `Phase4CopyTest`, `RefreshFailureTest`, `LaunchDestinationResolverTest` (tab strings), mapper and codec tests.
@@ -1387,6 +1396,10 @@ regression pass, harness to Compose Multiplatform 1.7.x (re-check the `androidx.
 and lifecycle substitutions), `RippleTheme` → `RippleConfiguration`, then optional: `sharedBounds` container
 transform, `animateItem`, seekable predictive back, M3 1.3 `PullToRefreshBox` and sheet IME handling (text fields
 may then move into `ThesisSheet`). Kotlin 2 + Compose 1.8+ is a separate later migration.
+
+**Status:** PR-4a (the isolated bump: BOM, harness on CMP 1.7.3, `RippleConfiguration`, `LocalLifecycleOwner`, the
+two 1.7 deprecations, the sheet window fix) is done; the optional upgrades above are PR-4b. See
+`handoff/PR4A-BOM.md` and `handoff/HANDOFF-H.md`.
 
 ---
 

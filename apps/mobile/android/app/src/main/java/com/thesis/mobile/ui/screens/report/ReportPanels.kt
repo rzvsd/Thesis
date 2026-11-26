@@ -78,7 +78,8 @@ import java.time.Instant
 /*
  * The report's sheets and panels (docs/app-redesign/DESIGN-DIRECTION.md 5.13): the overflow menu, Compare, the
  * notes panel and report feedback. Menus are sheet content (the host puts them in a ThesisSheet); anything with a
- * text field is a DockPanel (3 #20: no text fields inside a sheet on M3 1.2).
+ * text field is a DockPanel (3 #20: no text fields inside a sheet; its IME insets were unreliable on M3 1.2 and are
+ * not yet re-checked on a device on M3 1.3).
  */
 
 // ---------------------------------------------------------------------------------------------------------------

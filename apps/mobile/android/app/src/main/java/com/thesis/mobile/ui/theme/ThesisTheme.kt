@@ -12,6 +12,7 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
@@ -27,6 +28,13 @@ enum class ThemeMode { System, Light, Dark }
  * is on (section 4.8). Provided by [ThesisTheme]; this is its only definition.
  */
 val LocalReducedMotion = staticCompositionLocalOf { false }
+
+/**
+ * The status bar's icon appearance [ThesisTheme] applied: true = dark icons (paper), false = light icons (graphite,
+ * or over a HeroBand at rest in either theme, 2.7). A ThesisSheet reads it: on M3 1.3 the sheet is its own window
+ * and sets its own bar icons (ui/platform `SheetWindowBars`).
+ */
+val LocalStatusBarLight = compositionLocalOf { false }
 
 /**
  * The Material3 colour scheme for [p] (section 2.2, "Material3 bridge"). Every role is set, so M3 defaults
@@ -138,10 +146,11 @@ fun ThesisTheme(
     }
     val palette = remember(dark, upDown) { (if (dark) InkDark else PaperLight).withUpDown(upDown) }
     // The Android window calls live in ui/platform (section 4 preamble: android.* only there).
-    SystemBarAppearance(light = palette.isLight, statusBarLight = palette.isLight && !statusBarOverHero)
+    val statusBarLight = palette.isLight && !statusBarOverHero
+    SystemBarAppearance(light = palette.isLight, statusBarLight = statusBarLight)
 
     val reduced = reduceMotion || rememberSystemReducedMotion()
-    CompositionLocalProvider(LocalReducedMotion provides reduced) {
+    CompositionLocalProvider(LocalReducedMotion provides reduced, LocalStatusBarLight provides statusBarLight) {
         ThesisMaterialTheme(palette = palette, content = content)
     }
 }

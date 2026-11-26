@@ -21,12 +21,16 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
@@ -72,9 +76,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.lerp
 import androidx.compose.ui.window.Dialog
 import com.thesis.mobile.ui.motion.ThesisMotion
+import com.thesis.mobile.ui.platform.SheetWindowBars
 import com.thesis.mobile.ui.platform.ThesisBackHandler
 import com.thesis.mobile.ui.theme.Kit
 import com.thesis.mobile.ui.theme.LocalReducedMotion
+import com.thesis.mobile.ui.theme.LocalStatusBarLight
 import com.thesis.mobile.ui.theme.LocalThesisPalette
 import com.thesis.mobile.ui.theme.ThesisShape
 import com.thesis.mobile.ui.theme.ThesisSpace
@@ -87,8 +93,9 @@ import kotlin.math.roundToInt
 
 /*
  * Sheets, the dock panel, dialogs and snackbars (docs/app-redesign/DESIGN-DIRECTION.md, section 3 #20 to #23).
- * Content enters with a crossfade and an 8 dp rise (`Enter`); no stagger, no blur. On M3 1.2 a ThesisSheet is a
- * separate window with unreliable IME insets, so any panel with a text field is a DockPanel.
+ * Content enters with a crossfade and an 8 dp rise (`Enter`); no stagger, no blur. A ThesisSheet is a separate
+ * window (a popup on M3 1.2, an edge-to-edge dialog on M3 1.3) whose IME insets were unreliable on 1.2 and are not yet
+ * re-checked on a device on 1.3, so any panel with a text field is a DockPanel.
  */
 
 /** Entrance of sheet / panel content: fade + [ThesisMotion.EnterOffset] rise over `Enter`. Instant when reduced. */
@@ -160,6 +167,16 @@ fun ThesisSheetContent(
 /**
  * Bottom sheet (#20): M3 ModalBottomSheet with the `sheet` shape, `surface` container, `scrim`, the 36 x 4 handle and
  * a `subhead` [title]. Menus, sources and pickers; never a text field (use [DockPanel]).
+ *
+ * Window geometry on M3 1.3 (compose-bom 2025.04.00, PR-4a). The sheet is an edge-to-edge dialog window: the scrim
+ * covers the status and navigation bars, and M3 adds no top inset, so a tall sheet (Licences, any sheet at 2.0x) would
+ * expand under the status-bar icons. M3 1.2 kept the whole sheet inside the system bars. So:
+ * - the sheet itself is padded by the status bar (as on 1.2, its top edge stops under the status bar);
+ * - the surface runs under the navigation bar (a sheet that stopped above it would leave a strip of scrim below it)
+ *   and its content is padded by the bottom safe-drawing inset (navigation bar, or the IME when it is taller), so
+ *   the last row sits where it sat on 1.2;
+ * - the dialog window's bar icons follow the app palette and the HeroBand rule ([SheetWindowBars], ui/platform),
+ *   not the system dark setting M3 would use.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -172,18 +189,21 @@ fun ThesisSheet(
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val p = LocalThesisPalette.current
-    ModalBottomSheet(
-        onDismissRequest = onDismissRequest,
-        modifier = modifier,
-        sheetState = sheetState,
-        shape = ThesisShape.sheet,
-        containerColor = p.surface,
-        contentColor = p.ink,
-        tonalElevation = 0.dp,
-        scrimColor = p.scrim,
-        dragHandle = { SheetHandle() },
-    ) {
-        ThesisSheetContent(title = title, verticalArrangement = verticalArrangement, content = content)
+    SheetWindowBars(light = p.isLight, statusBarLight = LocalStatusBarLight.current) { inSheet ->
+        ModalBottomSheet(
+            onDismissRequest = onDismissRequest,
+            modifier = modifier.windowInsetsPadding(WindowInsets.statusBars),
+            sheetState = sheetState,
+            shape = ThesisShape.sheet,
+            containerColor = p.surface,
+            contentColor = p.ink,
+            tonalElevation = 0.dp,
+            scrimColor = p.scrim,
+            dragHandle = { SheetHandle() },
+            contentWindowInsets = { WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom) },
+        ) {
+            inSheet { ThesisSheetContent(title = title, verticalArrangement = verticalArrangement, content = content) }
+        }
     }
 }
 

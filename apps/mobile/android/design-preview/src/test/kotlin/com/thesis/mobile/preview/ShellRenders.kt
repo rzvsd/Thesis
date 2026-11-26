@@ -3,6 +3,7 @@ package com.thesis.mobile.preview
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
@@ -24,6 +25,7 @@ import com.thesis.mobile.ui.shell.ThesisShell
 import com.thesis.mobile.ui.theme.ThemeMode
 import com.thesis.mobile.ui.theme.UpDownScheme
 import kotlinx.coroutines.delay
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -47,10 +49,17 @@ class ShellRenders {
         snackbar: String? = null,
         snackbarAction: String? = null
     ) {
+        // Per rendered scene (one per theme): the message on the host at the last composition before the capture.
+        val onHost = mutableListOf<String?>()
         val files = renderScreen(name, widthDp = widthDp, heightDp = heightDp) {
             val density = LocalDensity.current
             val host = remember { SnackbarHostState() }
-            if (snackbar != null) LaunchedEffect(Unit) { host.showThesisSnackbar(snackbar, snackbarAction) }
+            if (snackbar != null) {
+                LaunchedEffect(Unit) { host.showThesisSnackbar(snackbar, snackbarAction) }
+                val slot = remember { onHost.add(null); onHost.lastIndex }
+                val message = host.currentSnackbarData?.visuals?.message
+                SideEffect { onHost[slot] = message }
+            }
             CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale)) {
                 ThesisShell(
                     state = state,
@@ -61,6 +70,10 @@ class ShellRenders {
             }
         }
         files.forEach { assertTrue("${it.name} was not written", it.isFile && it.length() > 0) }
+        // A render named "...snackbar..." must show its snackbar: fail rather than capture a frame without it.
+        if (snackbar != null) {
+            onHost.forEachIndexed { i, shown -> assertEquals("$name scene $i: snackbar on the host at capture", snackbar, shown) }
+        }
     }
 
     @Test fun today() = shell("shell-today", ShellTab.Today)

@@ -18,6 +18,8 @@ are left for PR-4b. Paths are relative to `apps/mobile/android/`.
 | `design-preview/README.md` | Versions, substitutions, ripple test. | |
 | `design-preview/.../harness/RippleConfigurationTest.kt` (new) | Pins the ripple colour/alpha under `ThesisMaterialTheme` in paper, graphite and a hero palette, and draws a pressed M3 ripple to check the pixel is `ink` at 8% over the surface. | 4.4 "no ripple on kit/screen surfaces; residual M3 ripple = the press tint". |
 | `design-preview/.../AccountSemanticsTest.kt` | `field()` matches on `EditableText` instead of the `SetText` action. | Foundation 1.7 adds `SetText` only when a field is editable (`CoreTextField`: `if (editable) setText {…}`); 1.6 added it always and refused the call. The locked email field on reset step 2 was no longer found. App behaviour is right: TalkBack still reads the field, as disabled. |
+| `ui/components/Overlays.kt` (`ThesisSheet`), `ui/platform/SheetWindow.kt` (new, Android-only) + its design-preview shim, `ui/theme/ThesisTheme.kt` (`LocalStatusBarLight`) | The sheet keeps 1.2's top edge (status-bar padding), takes explicit `contentWindowInsets`, and its dialog window's bar icons follow the app palette and the HeroBand rule. | M3 1.3 moved `ModalBottomSheet` into an edge-to-edge dialog window (WP-INT, from review; see "Bottom sheets" below). |
+| `design-preview/.../RenderScreen.kt`, `MacroInboxRenders.kt`, `ShellRenders.kt` | The capture loops run on the AWT thread and send the global snapshot's apply notifications every frame (`onUiThread`, `runEffects`); renders with a snackbar assert that it is on the host at capture. | Effect-written state reached the scene on the AWT thread in real time, so some renders (snackbars, Inbox undo) depended on timing (sweep, E). |
 
 No other androidx dependency needs a bump for Compose 1.7: activity-compose 1.9.1 (`BackHandler`,
 `PredictiveBackHandler`, `LocalOnBackPressedDispatcherOwner`) works with any Compose 1.x, lifecycle 2.8.3 is what
@@ -112,7 +114,29 @@ The 58, by cause (40 A, 6 B, 1 C, 6 D, 5 E):
   So none of the five is a regression. The device pass still checks the real gesture (checklist, Lists). The
   isolated and class reruns are in the WP-H scratchpad, `pr4a-H/r2/` (`iso-base`, `iso-head`, `class-base`,
   `class-head`). Separately, `shell-motion-push-60ms-dark` and `macro-morph-mid-dark` differed between two 1.7.3
-  full runs (one of them matches 1.6.11, so they are not among the 58).
+  full runs (one of them matches 1.6.11, so they are not among the 58). The integration review's full 1.7.3 run
+  added `kit-motion-stage-t080-dark` and `shell-motion-back-to-report-120ms-dark` (mid-animation frames that differed
+  from both the 1.6.11 run and WP-H's 1.7.3 run) and showed `shell-you-snackbar-light` and
+  `shell-research-snackbar-open-dark` without their snackbar. These are order-dependent in the same way.
+
+  **Cause and fix (WP-INT).** Not order but timing. State that an effect coroutine writes (`LaunchedEffect` setting
+  `shown` in `ThesisSnackbarHost`, the Inbox undo restoring a row, an `Animatable` target) lands in the global
+  snapshot, and on desktop Compose's `GlobalSnapshotManager` sends its apply notifications from the AWT thread
+  (skiko's `MainUIDispatcher`) in real time (checked in the CMP 1.7.3 `ui-desktop` bytecode; 1.6.11 works the same
+  way), concurrently with the capture loop on the test thread. Whether a frame saw such a write raced the loop, so
+  results moved with machine load and JIT warm-up. Measured: a probe rendering the "Deep Dive ready. / Open" shell
+  scene 200 times in one JVM missed the snackbar 33 times (with the message on the host every time), and a first
+  WP-INT full run captured `shell-inbox-snackbar-dark` and `shell-research-snackbar-open-dark` without it. The
+  capture loops (`captureFrame` in `RenderScreen.kt`, the Inbox gesture scenes in `MacroInboxRenders.kt`) now run on
+  the AWT thread (`onUiThread`), so `GlobalSnapshotManager` cannot run during a capture, and send the apply
+  notifications themselves after each frame's coroutines (`runEffects`), as Android's frame loop does. The same probe
+  then gave 200/200 snackbars and the identical frame sequence on every run. After the fix, a full suite run and a
+  separate run of `ShellRenders`, `MacroInboxRenders` and the kit and shell motion classes gave 210 pixel-identical
+  renders. Against WP-H's final 1.7.3 renders, the only changes are these scenes now settling the right way:
+  `inbox-undo-done-dark` (Undo brings the row back: All 7, 3 new), `inbox-quiet-mid-dark` and
+  `shell-you-snackbar-dark` (their snackbar now shows). Home's greeting follows the wall clock ("Good afternoon" /
+  "Good evening"), not a change. `ShellRenders` also asserts, in each
+  theme, that the snackbar's message is still on the host at the capture (a timed-out or dismissed message fails).
 
 The residual M3 ripple was also checked as a pixel: a pressed `LocalIndication` on graphite paints 39/255 over a
 22/255 surface on both 1.6.11 (`RippleTheme`) and 1.7.3 (`RippleConfiguration`), identical.
@@ -126,16 +150,17 @@ The residual M3 ripple was also checked as a pixel: a pressed `LocalIndication` 
 | Serif metrics (Newsreader) | Newsreader titles, ledes and story text keep their positions, line breaks and line heights; the serif glyphs differ only by edge antialiasing. Letter-spaced sans kickers start about 2 px earlier (sweep, B: skiko shaping, desktop only). | Android shapes text with its own engine; compare the serif headings on the phase APK. |
 | Pager (onboarding) | API source-compatible (`beyondBoundsPageCount` default 0 → `beyondViewportPageCount` 0; new `snapPosition = Start` default = old behaviour). Onboarding renders and `AccountSemanticsTest` paging tests pass. | Fling feel and snapping (1.7 `TargetedFlingBehavior`). |
 | Pull to refresh | M2 `pullRefresh` diff 1.6.11 → 1.7.3: `NestedScrollSource.Drag` renamed `UserInput`, inspectable wrapper removed; logic identical. `Refresh` renders unchanged. | Pull on Pulse, Home, Names. |
-| Bottom sheets | `ThesisSheet` resolves to the new M3 1.3 `ModalBottomSheet` overload (named args, no deprecation). | M3 1.3 adds the predictive-back shrink of the sheet on Android 14+ and moves insets to `contentWindowInsets` (default = the old `windowInsets`): check the sheet's back gesture and nav-bar padding. |
+| Bottom sheets | **Window geometry changed by M3 1.3; kept as on 1.2 where it matters (WP-INT).** Bytecode of the two jars: M3 1.2.1 ran the sheet in `ModalBottomSheetPopup`, which wrapped the whole layout (sheet and scrim) in `windowInsetsPadding(systemBarsForVisualComponents.only(Vertical))`. M3 1.3 runs it in `ModalBottomSheetDialog`, an edge-to-edge dialog window; `BottomSheetDefaults.windowInsets` is now `safeDrawing.only(Bottom)` and is only applied as padding on the sheet *content* (`contentWindowInsets`), not the old whole-layout inset, and nothing adds a top inset. Left alone, a tall sheet (Licences, any sheet at 2.0x) would expand under the status-bar icons, and the dialog window, not `SystemBarAppearance`, would own the bar icons (M3 sets them from the system dark setting, ignoring ThemeMode and the HeroBand rule). `ThesisSheet` now: pads the sheet by `WindowInsets.statusBars` (top edge stops under the status bar, as on 1.2); passes `contentWindowInsets = { safeDrawing.only(Bottom) }` explicitly (surface runs under the nav bar, its content is padded by it, so the last row sits where it did); and wraps the call in `SheetWindowBars` (ui/platform, desktop shim is a pass-through), which gives M3 a `LocalConfiguration` whose night bit matches the palette and, from inside the sheet, sets the dialog window's icons from the palette and `LocalStatusBarLight` (the HeroBand rule). The scrim now also covers both bars (M3 1.3's own look; not changed). Desktop has no insets, so the sheet renders are unchanged; compiled by the harness and by the Android proxy compile. | Predictive-back shrink of the sheet on Android 14+ (new in M3 1.3). Top edge of a tall sheet: You > Licences, and any sheet at 2.0x font: the drag handle stays below the status-bar icons. Bottom: the last row sits above the gesture/3-button nav bar, the surface colour runs under it. Icon colour with the app theme set opposite to the system theme (app Dark on a light system and the reverse): status and nav icons readable while the sheet is open and after it closes. A sheet opened over a HeroBand at rest in the light theme: light status-bar icons. |
 | WebView back | `DeepDiveWebPage` uses activity-compose `BackHandler` (unchanged version); `CoveredBackScope` now reads the new `LocalLifecycleOwner`, same object. | Back inside the report, back with a screen pushed over it. |
 | Predictive back | `ThesisPredictiveBackHandler` wraps activity-compose 1.9.1's `PredictiveBackHandler` (unchanged). Shell motion renders and `ShellChromeMotionTest` pass. | The push/pop scrub on a device. |
 | Motion | Mid-animation captures (`kit-motion-*-tNNN`, `shell-motion-sample-*-120ms`) differ by under a frame of progress; every settled frame is unchanged. No motion spec or token changed. | Feel of the push/pop and sheet motion on a device. |
-| Lists | Names rows glide with `animateItem` (placement only, fades null: the same call `animateItemPlacement` makes on 1.7); Names dismiss renders unchanged; Inbox quiet/undo renders are order-dependent in the harness on both versions and identical on 1.6.11 and 1.7.3 when run on their own (sweep, E). | Inbox: swipe a row to quiet, then Undo: the row comes back in its place and the filter counts and the "new" count return to what they were. |
+| Lists | Names rows glide with `animateItem` (placement only, fades null: the same call `animateItemPlacement` makes on 1.7); Names dismiss renders unchanged; Inbox quiet/undo renders were timing-dependent in the harness on both versions; with the capture loop on the AWT thread they are deterministic and Undo brings the row back (sweep, E). | Inbox: swipe a row to quiet, then Undo: the row comes back in its place and the filter counts and the "new" count return to what they were. |
 | Swipe to quiet (Inbox, Source) | `SwipeToQuiet` (`ui/components/Source.kt`) is the stock M3 `SwipeToDismissBox` (`confirmValueChange` plus a haptic from `snapshotFlow { targetValue }`); its anchors and thresholds come from Material3, which moves 1.2.1 → 1.3.x with this BOM. Compiles unchanged; the renders replay one swipe past the threshold and do not measure where the threshold is. | The haptic fires once, when the row crosses the threshold; releasing past it quiets the alert; releasing before it springs the row back with no haptic and no quiet. |
 
 ## Tests
 
-- design-preview, full suite on HEAD (`/opt/gradle/bin/gradle test`): BUILD SUCCESSFUL, 1156 tests, 0 failures (684 preview harness, render and semantics tests, 472 app unit tests run by the harness).
+- design-preview, full suite on HEAD (`/opt/gradle/bin/gradle test`): BUILD SUCCESSFUL, 1156 tests, 0 failures (684 preview harness, render and semantics tests, 472 app unit tests run by the harness). Re-run after the WP-INT fixes: 1156 tests, 0 failures, no Compose deprecation warning in the compile.
+- Android proxy compile (CMP 1.7.3 + android.jar + stubs, now also for `LocalConfiguration` and `DialogWindowProvider`), after the WP-INT fixes: green, including `ui/platform/SheetWindow.kt`, with no deprecation warning.
 - `tools/design-lint.sh`: OK, 0 findings, none above baseline (no screen file touched).
 - `tools/gold-share.py` on the HEAD renders: 768 images, max 7.62%, 0 at or above 8% (unchanged from before).
 
@@ -155,8 +180,9 @@ The residual M3 ripple was also checked as a pixel: a pressed `LocalIndication` 
    - `checkDebugAarMetadata` failing with `Dependency '…' requires libraries and applications that depend on it to
      compile against version 36 or later of the Android APIs` (an AAR's `minCompileSdk` above our compileSdk 35):
      same fix, pin the named artifact to the previous version.
-3. **Device pass** on a release APK for the checklist's right-hand column, especially the M3 1.3 sheet's
-   predictive-back animation (new behaviour that arrives with the BOM, not with our code) and the pager's fling.
+3. **Device pass** on a release APK for the checklist's right-hand column, especially the M3 1.3 sheet (its
+   predictive-back animation, which arrives with the BOM, and the window geometry and bar icons that `ThesisSheet`
+   and `SheetWindowBars` now set: no device has run them) and the pager's fling.
 4. Text on Android: the harness checks layout with Skia; Android line breaking for the serif can still differ by a
    word as before.
 
