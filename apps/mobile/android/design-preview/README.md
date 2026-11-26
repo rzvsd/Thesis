@@ -2,8 +2,9 @@
 
 A standalone Gradle build. It is **not** part of the Android build: `../settings.gradle.kts` does not include
 it, so `:app` is unaffected. It compiles the app's `ui/**` and `model/**` sources unchanged (a `Sync` task stages
-a filtered copy into `build/app-src`) against Compose Multiplatform Desktop 1.6.11, which is the same Compose 1.6 /
-Material3 1.2.1 code as `compose-bom:2024.06.00`. It renders composables with Skia (`ImageComposeScene`) to PNG.
+a filtered copy into `build/app-src`) against Compose Multiplatform Desktop 1.7.3, which is the same Compose 1.7 /
+Material3 1.3.1 code as the app's `compose-bom:2025.04.00` (Compose 1.7.8, Material3 1.3.x; PR-4a moved both from
+1.6.11 / 2024.06.00). Kotlin stays 1.9.24 with the Compose compiler 1.5.14. It renders composables with Skia (`ImageComposeScene`) to PNG.
 It needs only Maven Central and the Gradle Plugin Portal: no Android SDK, no Google Maven, no emulator.
 
 ## Requirements
@@ -120,7 +121,7 @@ Android-only files, so write them against the APIs on `app/build.gradle.kts`'s c
 
 - Skia's native memory grows with many tall `ImageComposeScene`s in one JVM (a whole kit sheet class was once killed
   with exit 137), so every test class except the app unit tests runs in its own forked JVM (`forkEvery = 1`).
-- Compose Desktop 1.6 can deadlock (Recomposer lock against the BroadcastFrameClock lock, with the AWT
+- Compose Desktop (seen on 1.6; keep the workaround on 1.7) can deadlock (Recomposer lock against the BroadcastFrameClock lock, with the AWT
   GlobalSnapshotManager) when a frame callback forces a LazyList remeasure, for example `animateScrollToItem`
   during a render. Set initial scroll positions by jumping on first placement (as the kit's ChapterPills does),
   not by animating.
@@ -129,5 +130,9 @@ Android-only files, so write them against the APIs on `app/build.gradle.kts`'s c
 
 Same Compose layout, Material3 components, colours, shapes, icons and animation code. Different: text is shaped
 by Skia's paragraph engine (line breaks can differ by a word), there are no system bars or insets (content starts
-at y = 0), and there is no ripple or touch state. `androidx.collection` comes from JetBrains' Maven Central copy
-(`collection-desktop:1.6.0-beta02`); `androidx.annotation` and `androidx.lifecycle` are excluded.
+at y = 0), and there is no ripple or touch state in renders (semantics tests can press: `RippleConfigurationTest`).
+`androidx.collection` comes from JetBrains' Maven Central copy (`collection-desktop:1.6.0-beta02`, which covers every
+collection API CMP 1.7.3 calls); `androidx.annotation`, `androidx.lifecycle` and `androidx.arch.core` (Google Maven
+only) are excluded. CMP 1.7's own lifecycle artifacts (`org.jetbrains.androidx.lifecycle:*:2.8.4`, Maven Central) stay
+on the classpath; only desktop windows (`ComposeContainer`) need the excluded classes, never `ImageComposeScene` or
+the test rule.
