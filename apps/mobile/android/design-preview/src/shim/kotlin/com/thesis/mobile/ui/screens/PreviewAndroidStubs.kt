@@ -28,6 +28,11 @@ internal fun createShareCard(context: Context, report: DeepDiveReportView) =
 
 internal fun shareExport(context: Context, artifact: ExportArtifact) = Unit
 
+internal suspend fun renderReportPdf(context: Context, report: DeepDiveReportView, type: ReportExportType) =
+    createPdfExport(context, report, type)
+
+internal suspend fun renderShareCard(context: Context, report: DeepDiveReportView) = createShareCard(context, report)
+
 /** Idle-state replica of the real HoldingsCsvImportAction (the file picker needs an Activity). */
 @Composable
 fun HoldingsCsvImportAction(onImportCsv: suspend (String) -> Result<HoldingsImportResultView>) {
@@ -62,7 +67,11 @@ internal fun DeepDiveWebPage(
     backgroundColor: androidx.compose.ui.graphics.Color,
     onMainFrameFailed: (Int?) -> Unit,
     modifier: Modifier = Modifier,
-    printer: DeepDivePagePrinter? = null
+    printer: DeepDivePagePrinter? = null,
+    onProgress: (Int) -> Unit = {},
+    onLoaded: () -> Unit = {},
+    onScroll: (scrollY: Int, dy: Int) -> Unit = { _, _ -> },
+    onAddToNote: ((com.thesis.mobile.ui.screens.report.PageSelection) -> Unit)? = null,
 ) {
     androidx.compose.foundation.layout.Box(
         modifier = modifier.then(Modifier.background(backgroundColor)),

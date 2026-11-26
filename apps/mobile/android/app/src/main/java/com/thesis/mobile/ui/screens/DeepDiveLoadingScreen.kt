@@ -1,325 +1,235 @@
 package com.thesis.mobile.ui.screens
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material3.Icon
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
-import com.thesis.mobile.ui.components.PlasmaOrb
-import com.thesis.mobile.ui.theme.HeadingFont
-import com.thesis.mobile.ui.theme.ThesisColors
-import com.thesis.mobile.ui.theme.ThesisDimens
-import com.thesis.mobile.ui.theme.ThesisTypography
-import kotlinx.coroutines.delay
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.Dp
+import com.thesis.mobile.ui.components.ErrorState
+import com.thesis.mobile.ui.components.Eyebrow
+import com.thesis.mobile.ui.components.HeroBand
+import com.thesis.mobile.ui.components.SectionHeader
+import com.thesis.mobile.ui.components.StageProgress
+import com.thesis.mobile.ui.components.ThesisDivider
+import com.thesis.mobile.ui.copy.ReportCopy
+import com.thesis.mobile.ui.motion.ShimmerHost
+import com.thesis.mobile.ui.motion.rememberHaptics
+import com.thesis.mobile.ui.screens.report.GenerationPhase
+import com.thesis.mobile.ui.screens.report.GenerationStages
+import com.thesis.mobile.ui.screens.report.PAGE_PROGRESS_UNKNOWN
+import com.thesis.mobile.ui.screens.report.ReportHostFrame
+import com.thesis.mobile.ui.screens.report.ReportOpeningBar
+import com.thesis.mobile.ui.screens.report.ReportPageSkeleton
+import com.thesis.mobile.ui.shell.HeroUnderBars
+import com.thesis.mobile.ui.shell.exceptTop
+import com.thesis.mobile.ui.theme.LocalThesisPalette
+import com.thesis.mobile.ui.theme.ThesisSpace
+import com.thesis.mobile.ui.theme.ThesisType
 
-private data class PipelineStepData(
-    val title: String,
-    val description: String,
-    val durationMs: Long
-)
-
-private val pipelineSteps = listOf(
-    PipelineStepData("Searching filings", "SEC 10-K, 10-Q, 8-K", 4000),
-    PipelineStepData("Analyzing fundamentals", "Revenue, margins, cash flow", 6000),
-    PipelineStepData("Reading recent news", "Headlines, earnings calls", 5000),
-    PipelineStepData("Writing synthesis", "Building your report", 3000)
-)
-
+/**
+ * What shows before a report is on screen (docs/app-redesign/DESIGN-DIRECTION.md 5.13 and 5.14).
+ *
+ * Opening a stored report ([building] false): the report's own skeleton, hero first, so the page or the classic
+ * view crossfades in without a jump. With [reportBar] the skeleton sits under the report's own bar
+ * ([ReportHostFrame]: THESIS, the ticker, on `surface`), the same chrome the host draws next, so the open has one
+ * bar throughout; the shell then shows no bar of its own for the entry (HANDOFF-C, WP-INT 6). Without it the hero
+ * runs under the shell's back bar.
+ *
+ * Building one ([building] true): the generation screen. A HeroBand under the top bar ("Deep Dive · AAPL",
+ * "Building the report"; "The report is ready" and "The build stopped" once it ends, so the heading never
+ * contradicts the state), then [StageProgress] driven by [jobStatus] alone (the server's queued, running, complete,
+ * failed; see [GenerationStages]), with no timers and no invented sub-steps. Below it the 13 chapters the report
+ * will hold, so the wait teaches the structure. "You can leave this screen" shows only while the build is queued
+ * or running. When the job completes the last ring fills with the kit's reward pulse and a confirm haptic; the
+ * caller then crossfades into the report. The title is a polite live region, so each change of phase is announced.
+ *
+ * A failed job: the hero's "The build stopped" is the one sentence that says so (no lede under it), the stages show
+ * how far the build got ("Stopped here" on the stage it reached), and an [ErrorState] says what trying again does,
+ * with [onRetry].
+ *
+ * [padding] is the shell's padding for the entry: the band runs under the status bar and the back bar (its top
+ * padding), and the rest keeps clear of the system bars. Null (a render on its own) leaves no room for bars.
+ */
 @Composable
-fun DeepDiveLoadingScreen(modifier: Modifier = Modifier) {
-    var currentStepIndex by remember { mutableIntStateOf(0) }
-    var stepsVisible by remember { mutableStateOf(false) }
-    var orbVisible by remember { mutableStateOf(false) }
-    var headerVisible by remember { mutableStateOf(false) }
-
-    LaunchedEffect(Unit) {
-        delay(200)
-        orbVisible = true
-        delay(400)
-        headerVisible = true
-        delay(300)
-        stepsVisible = true
-        for (i in pipelineSteps.indices) {
-            currentStepIndex = i
-            delay(pipelineSteps[i].durationMs)
-        }
+fun DeepDiveLoadingScreen(
+    modifier: Modifier = Modifier,
+    padding: PaddingValues? = null,
+    building: Boolean = false,
+    ticker: String? = null,
+    jobStatus: String? = null,
+    onRetry: (() -> Unit)? = null,
+    retryLabel: String? = null,
+    reportBar: ReportOpeningBar? = null,
+) {
+    val p = LocalThesisPalette.current
+    if (!building && reportBar != null) {
+        ReportHostFrame(
+            ticker = reportBar.ticker,
+            padding = padding ?: PaddingValues(),
+            onBack = reportBar.onBack,
+            following = reportBar.following,
+            onFollowChange = reportBar.onFollowChange,
+            onOverflow = reportBar.onOverflow,
+            pageLoaded = false,
+            progress = PAGE_PROGRESS_UNKNOWN,
+            dockItems = emptyList(),
+            dockVisible = false,
+            modifier = modifier,
+        ) { }
+        return
     }
-
-    val transition = rememberInfiniteTransition(label = "loading")
-    val orbPulse by transition.animateFloat(
-        initialValue = 0.85f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(3000, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "orbPulse"
-    )
-
+    val topInset = padding?.calculateTopPadding()
+    if (padding != null) HeroUnderBars()
     Box(
-        modifier = modifier
+        modifier
             .fillMaxSize()
+            .background(p.bg)
+            .then(if (padding != null) Modifier.padding(padding.exceptTop()) else Modifier),
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = ThesisDimens.ScreenPaddingHorizontal),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            AnimatedVisibility(
-                visible = headerVisible,
-                enter = fadeIn(tween(800)) + slideInVertically(tween(800)) { -20 }
-            ) {
-                Text(
-                    text = "THESIS INTELLIGENCE ENGINE",
-                    style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Medium),
-                    color = ThesisColors.TextMuted,
-                    modifier = Modifier.padding(bottom = 32.dp)
-                )
-            }
-
-            AnimatedVisibility(
-                visible = orbVisible,
-                enter = fadeIn(tween(1200))
-            ) {
-                PlasmaOrb(
-                    modifier = Modifier,
-                    size = (180 * orbPulse).dp,
-                    intensity = 0.7f + (currentStepIndex.toFloat() / pipelineSteps.size.toFloat()) * 0.3f
-                )
-            }
-
-            Spacer(modifier = Modifier.height(40.dp))
-
-            AnimatedVisibility(
-                visible = headerVisible,
-                enter = fadeIn(tween(800, delayMillis = 200)) + slideInVertically(tween(800, delayMillis = 200)) { 30 }
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        text = "Generating Intelligence",
-                        style = ThesisTypography.headlineLarge.copy(
-                            fontFamily = HeadingFont,
-                            fontWeight = FontWeight.Normal
-                        ),
-                        color = ThesisColors.TextPrimary
-                    )
-                    Spacer(modifier = Modifier.height(ThesisDimens.SpacingSm))
-                    Text(
-                        text = "Synthesizing filings, fundamentals & news",
-                        style = ThesisTypography.bodyMedium,
-                        color = ThesisColors.TextMuted,
-                        textAlign = TextAlign.Center
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(48.dp))
-
-            AnimatedVisibility(
-                visible = stepsVisible,
-                enter = fadeIn(tween(600, delayMillis = 100)) + slideInVertically(tween(600, delayMillis = 100)) { 40 }
-            ) {
-                Column(
-                    modifier = Modifier.width(280.dp),
-                    verticalArrangement = Arrangement.spacedBy(24.dp)
-                ) {
-                    pipelineSteps.forEachIndexed { index, step ->
-                        val state = when {
-                            index < currentStepIndex -> StepState.COMPLETED
-                            index == currentStepIndex -> StepState.ACTIVE
-                            else -> StepState.PENDING
-                        }
-                        PipelineStepRow(
-                            title = step.title,
-                            description = step.description,
-                            state = state,
-                            index = index
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(40.dp))
-
-            AnimatedVisibility(
-                visible = stepsVisible,
-                enter = fadeIn(tween(600, delayMillis = 400))
-            ) {
-                val etaText = when {
-                    currentStepIndex >= pipelineSteps.size - 1 -> "Finishing up..."
-                    else -> "Usually about a minute"
-                }
-                Text(
-                    text = etaText,
-                    style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Medium),
-                    color = ThesisColors.TextMuted,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(ThesisDimens.CardCornerRadius))
-                        .background(ThesisColors.Surface)
-                        .border(
-                            ThesisDimens.BorderWidth,
-                            ThesisColors.Border,
-                            RoundedCornerShape(ThesisDimens.CardCornerRadius)
-                        )
-                        .padding(horizontal = ThesisDimens.SpacingLg, vertical = ThesisDimens.SpacingSm)
-                )
+        if (building) {
+            GenerationContent(topInset = topInset, ticker = ticker, jobStatus = jobStatus, onRetry = onRetry, retryLabel = retryLabel)
+        } else {
+            ShimmerHost {
+                ReportPageSkeleton(Modifier.fillMaxSize(), heroTop = topInset)
             }
         }
     }
 }
 
-private enum class StepState { COMPLETED, ACTIVE, PENDING }
-
 @Composable
-private fun PipelineStepRow(title: String, description: String, state: StepState, index: Int) {
-    val alphaTarget = when (state) {
-        StepState.COMPLETED -> 0.45f
-        StepState.ACTIVE -> 1f
-        StepState.PENDING -> 0.25f
+private fun GenerationContent(
+    topInset: Dp?,
+    ticker: String?,
+    jobStatus: String?,
+    onRetry: (() -> Unit)?,
+    retryLabel: String?,
+) {
+    val p = LocalThesisPalette.current
+    val haptics = rememberHaptics()
+    val phase = GenerationStages.phaseOf(jobStatus)
+
+    // The stage a failed build reached (shown with "Stopped here"), and the confirm haptic once when the build
+    // completes (not on a screen that opens on a finished job).
+    var reached by remember { mutableStateOf(phase.takeIf { it != GenerationPhase.Failed } ?: GenerationPhase.Building) }
+    var previous by remember { mutableStateOf(phase) }
+    LaunchedEffect(phase) {
+        if (phase != GenerationPhase.Failed) reached = phase
+        if (phase == GenerationPhase.Ready && previous != GenerationPhase.Ready) haptics.confirm()
+        previous = phase
     }
-    val alpha by animateFloatAsState(
-        targetValue = alphaTarget,
-        animationSpec = tween(500),
-        label = "stepAlpha$index"
-    )
 
-    val transition = rememberInfiniteTransition(label = "active$index")
-    val activePulse by transition.animateFloat(
-        initialValue = 0.7f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1200, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "activePulse$index"
-    )
-
-    Row(
-        verticalAlignment = Alignment.Top,
-        modifier = Modifier.alpha(alpha)
-    ) {
-        Box(modifier = Modifier.size(24.dp), contentAlignment = Alignment.Center) {
-            when (state) {
-                StepState.COMPLETED -> {
-                    Icon(
-                        Icons.Default.CheckCircle,
-                        contentDescription = "Completed",
-                        tint = ThesisColors.SignalPositive,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                }
-
-                StepState.ACTIVE -> {
-                    Box(
-                        modifier = Modifier
-                            .size((20 * activePulse).dp)
-                            .clip(CircleShape)
-                            .background(ThesisColors.Primary)
-                    )
-                    Box(
-                        modifier = Modifier
-                            .size(8.dp)
-                            .clip(CircleShape)
-                            .background(ThesisColors.TextInverse)
-                    )
-                }
-
-                StepState.PENDING -> {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .clip(CircleShape)
-                            .background(ThesisColors.Surface)
-                            .border(ThesisDimens.BorderWidth, ThesisColors.Border, CircleShape),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(6.dp)
-                                .clip(CircleShape)
-                                .background(ThesisColors.Border)
-                        )
-                    }
-                }
+    val symbol = ticker?.trim()?.uppercase()?.ifBlank { null }
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+        HeroBand(
+            contentPadding = PaddingValues(
+                start = ThesisSpace.gutter,
+                end = ThesisSpace.gutter,
+                top = (topInset ?: ThesisSpace.headerTop) + ThesisSpace.x4,
+                bottom = ThesisSpace.x3,
+            ),
+            verticalArrangement = Arrangement.spacedBy(ThesisSpace.m),
+        ) {
+            val hero = LocalThesisPalette.current
+            Eyebrow(if (symbol != null) ReportCopy.buildingEyebrow(symbol) else ReportCopy.EXPORT_REPORT_TITLE)
+            Text(
+                when (phase) {
+                    GenerationPhase.Queued, GenerationPhase.Building -> ReportCopy.BUILDING_TITLE
+                    GenerationPhase.Ready -> ReportCopy.READY_TITLE
+                    GenerationPhase.Failed -> ReportCopy.STOPPED_TITLE
+                },
+                modifier = Modifier.semantics {
+                    heading()
+                    liveRegion = LiveRegionMode.Polite
+                },
+                style = ThesisType.title,
+                color = hero.ink,
+            )
+            if (phase != GenerationPhase.Failed) {
+                Text(ReportCopy.BUILDING_LEDE, style = ThesisType.lede, color = hero.ink2)
             }
         }
 
-        Spacer(modifier = Modifier.width(20.dp))
-
-        Column {
-            Text(
-                text = title,
-                style = ThesisTypography.bodyMedium.copy(
-                    fontWeight = if (state == StepState.ACTIVE) FontWeight.Medium else FontWeight.Normal
-                ),
-                color = when (state) {
-                    StepState.ACTIVE -> ThesisColors.Primary
-                    else -> ThesisColors.TextPrimary
-                }
-            )
-            Text(
-                text = when (state) {
-                    StepState.COMPLETED -> "COMPLETED"
-                    StepState.ACTIVE -> "PROCESSING"
-                    StepState.PENDING -> "QUEUED"
-                },
-                style = ThesisTypography.labelSmall.copy(fontWeight = FontWeight.Medium),
-                color = when (state) {
-                    StepState.COMPLETED -> ThesisColors.SignalPositive
-                    StepState.ACTIVE -> ThesisColors.Primary
-                    StepState.PENDING -> ThesisColors.TextMuted
-                }
-            )
-            if (state == StepState.ACTIVE) {
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = description,
-                    style = ThesisTypography.bodySmall,
-                    color = ThesisColors.TextMuted
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .widthIn(max = ThesisSpace.contentMaxWidth)
+                .align(Alignment.CenterHorizontally)
+                .padding(horizontal = ThesisSpace.gutter, vertical = ThesisSpace.xxl),
+            verticalArrangement = Arrangement.spacedBy(ThesisSpace.l),
+        ) {
+            StageProgress(GenerationStages.stagesFor(phase, reached))
+            if (phase == GenerationPhase.Queued || phase == GenerationPhase.Building) {
+                Text(ReportCopy.CAN_LEAVE, style = ThesisType.bodySmall, color = p.muted)
+            }
+            if (phase == GenerationPhase.Failed && onRetry != null) {
+                ErrorState(
+                    title = ReportCopy.BUILD_RETRY_TITLE,
+                    retryLabel = retryLabel ?: ReportCopy.TRY_AGAIN,
+                    onRetry = onRetry,
                 )
+            }
+        }
+
+        ChapterList(
+            Modifier
+                .fillMaxWidth()
+                .widthIn(max = ThesisSpace.contentMaxWidth)
+                .align(Alignment.CenterHorizontally)
+                .padding(start = ThesisSpace.gutter, end = ThesisSpace.gutter, top = ThesisSpace.s, bottom = ThesisSpace.x5),
+        )
+    }
+}
+
+/** "What this report will contain": the 13 chapter names, muted, numbered as the page's chapter kickers. */
+@Composable
+private fun ChapterList(modifier: Modifier = Modifier) {
+    val p = LocalThesisPalette.current
+    Column(modifier) {
+        SectionHeader(kicker = ReportCopy.CONTENTS_KICKER, headline = ReportCopy.CONTENTS_HEADLINE)
+        Column(Modifier.padding(top = ThesisSpace.l)) {
+            ReportCopy.chapters.forEachIndexed { index, name ->
+                val number = (index + 1).toString().padStart(2, '0')
+                if (index > 0) ThesisDivider()
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = ThesisSpace.m)
+                        .clearAndSetSemantics { contentDescription = ReportCopy.chapterRow(index + 1, name) },
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(ThesisSpace.m),
+                ) {
+                    Text(
+                        number,
+                        modifier = Modifier.widthIn(min = ThesisSpace.leadingColumn),
+                        style = ThesisType.heroLine,
+                        // Text under 24 sp: muted (at least 4.5:1 on bg and bg2), never the control boundary token.
+                        color = p.muted,
+                    )
+                    Text(name, style = ThesisType.body, color = p.muted)
+                }
             }
         }
     }
