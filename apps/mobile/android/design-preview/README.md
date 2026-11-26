@@ -129,7 +129,9 @@ Android-only files, so write them against the APIs on `app/build.gradle.kts`'s c
 ## How close is it to a device
 
 Same Compose layout, Material3 components, colours, shapes, icons and animation code. Different: text is shaped
-by Skia's paragraph engine (line breaks can differ by a word), there are no system bars or insets (content starts
+by Skia's paragraph engine (line breaks can differ by a word), letter-spaced text (kickers, eyebrows, badges)
+starts flush at its left edge in the harness since CMP 1.7.3 (skiko 0.8.18) while on a device, as on the old 1.6.11
+harness, it is indented by half the letter spacing (about 0.8 dp for a kicker), there are no system bars or insets (content starts
 at y = 0), and there is no ripple or touch state in renders (semantics tests can press: `RippleConfigurationTest`).
 `androidx.collection` comes from JetBrains' Maven Central copy (`collection-desktop:1.6.0-beta02`, which covers every
 collection API CMP 1.7.3 calls); `androidx.annotation`, `androidx.lifecycle` and `androidx.arch.core` (Google Maven

@@ -42,7 +42,8 @@ not apply. Material 2 (`material`, for `pullRefresh` only) follows the BOM to 1.
   `annotation-desktop:1.8.0-alpha01` from Maven Central, annotations only.
 - No screen moved to `androidOnlyFiles`: everything that compiled on 1.6.11 compiles on 1.7.3 with no source
   change. New warnings only: `KeyboardOptions(autoCorrect = …)` (8 call sites) and `animateItemPlacement`
-  (NamesScreen), both WARNING-level with unchanged behaviour (HANDOFF list for PR-4b).
+  (NamesScreen), both WARNING-level with unchanged behaviour. These, and the KDocs that still describe 1.6 / M3 1.2,
+  are listed for PR-4b in [`HANDOFF-H.md`](HANDOFF-H.md).
 
 **Android-only files.** CI is the only real compile. As a proxy, every file under `ui/`, `model/`, `data/`,
 `launch/`, `offline/`, `network/` plus `MainActivity.kt` (including `ThesisApp`, `MainViewModel`, `ui/platform/*`,
@@ -55,16 +56,20 @@ catches Compose API breaks, not activity/lifecycle signature drift.
 
 The whole design-preview suite was rendered on f757e20 (CMP 1.6.11) and on HEAD (CMP 1.7.3), and the 1050 PNGs present in
 both runs were compared pixel by pixel (largest channel difference; above 16 counts as more than antialiasing).
-Before/after pairs (before | after | mask) were kept with the run, not committed.
+Before/after pairs (before | after | mask: red = channel difference above 16, green = any difference) for one render
+of each class A-D are committed in [`pr4a-pairs/`](pr4a-pairs/) (cropped, 128 colours). The full set from the run
+(`report.tsv` plus 892 pairs) is in the WP-H scratchpad, `pr4a-H/diff-final/`, not committed (270 MB); `report.tsv`
+has one row per render with the share of pixels above 0, 16 and 64 and the box of the pixels above 16.
 
 | Result | Renders | What it is |
 |---|---|---|
 | Identical | 74 | |
 | Differences of 16 or less only | 141 | Gradient and glow dither (skiko 0.8.4 → 0.8.18). |
-| Above 16 on under 0.1% of pixels | 777 | Edge antialiasing of vector icons and glyphs: the same shapes in the same places, max channel difference under 50 (checked by crop on the Research list icon and the top-bar search icon). |
+| Above 16 on under 0.1% of pixels, none above 64 | 755 | Edge antialiasing of vector icons and glyphs: the same shapes in the same places (checked by crop on the Research list icon and the top-bar search icon). |
+| Above 16 on under 0.1% of pixels, some above 64 | 22 | Small, local and real, checked one by one with a shift search: letter-spaced kickers 1-4 px to the left (B: `inbox-fs2-light` "PULSE", `kit-type-scale` "FIGURE", `dd-classic-whole` and `dd-classic-whole-free-light` "TOP RISKS"; 6); mid-animation frames 1-2 px apart vertically (D: `kit-motion-rolling-t090/t180`; 4); one label 1 px sideways (`kit-charts-line` end label "32.0%" right, `account-you-free-full` "Free" left; 4); and strong antialiasing with no shift on rounded card corners and one glyph (`kit-cards`, `-fs130`, `-360-fs200`, `inbox-fs13-dark` and `shell-inbox-scale1.3-dark` "Mark all as seen"; 8). |
 | Above 16 on 0.1% or more, or a size change | 58 | The real changes, classified below. |
 
-The 58, by cause:
+The 58, by cause (40 A, 6 B, 1 C, 6 D, 5 E):
 
 - **A. Labelled text fields at large font scale (M3 1.3, intended upstream change).** At 1.3x / 2.0x a labelled
   `OutlinedTextField` is 2.4 dp / 8 dp taller, so everything below it moves down. Account auth and reset at
@@ -74,18 +79,36 @@ The 58, by cause:
   `Kit.fieldLabelOverhang` fix the kit's fill also showed as a band above the outline in these renders; after the fix
   fill and outline line up. Settled renders at 1.0x show no field change.
 - **B. Letter-spaced sans text on desktop.** Kickers, eyebrows and badges with letter spacing start about 2 px
-  (0.8 dp) earlier: `kit-type-scale` "FIGURE", the onboarding "PULSE" kicker at 2.0x, `kit-atoms` badges. This is
-  skiko 0.8.18 shaping; Android shapes text with its own engine, so the app is not affected by it.
+  (0.8 dp) earlier, 4 px at 2.0x: here `kit-atoms` (badges, 4 renders) and the onboarding "PULSE" kicker at 2.0x
+  (`account-onboarding-2-pulse-360-scale2.0`), and 6 more in the "some above 64" row above. This is skiko 0.8.18
+  shaping; Android shapes text with its own engine, so the app is not affected by it. It does mean the harness now
+  differs from a device here: Android (like the 1.6.11 harness) puts half the letter spacing before the first glyph,
+  so a kicker sits that much to the right of its column edge on a device, while the 1.7.3 harness draws it flush
+  (2 px further left in `kit-atoms`, 4 px at 2.0x). Noted in the design-preview README.
 - **C. The stock M3 `AlertDialog` specimen (`f1-m3`).** M3 1.3 changed the dialog container token from `Surface` to
   `SurfaceContainerHigh` (light 228,226,222 → 248,244,235; dark 20 → 28), and the 1.6 desktop also drew a scrim of
   about 10% over the dialog itself. Every dialog in the app is drawn by the kit with explicit colours, so no screen
   changes; a future stock M3 dialog or picker would pick up the new token.
-- **D. Mid-animation frames.** `kit-motion-transform-t060/t120/t180`, `kit-motion-rolling-t090`,
-  `kit-motion-stage-t160`, `shell-motion-sample-arrives/dismiss-120ms` differ by 1-2 px offsets, under one frame
-  of progress. Every settled frame of the same sequences is unchanged.
-- **E. Harness flakes, present on 1.6.11 too.** `shell-*-snackbar*`, `inbox-undo-done`, `inbox-quiet-mid`,
-  `shell-motion-push-60ms`, `macro-morph-mid`: a second 1.6.11 run differs from the first one in the same way, and
-  matches HEAD.
+- **D. Mid-animation frames.** `kit-motion-transform-t060/t120/t180` and `shell-motion-sample-arrives/dismiss-120ms`
+  (and `kit-motion-rolling-t090/t180` in the "some above 64" row) differ by 1-2 px offsets, under one frame of
+  progress. Every settled frame of the same sequences is unchanged.
+- **E. Order-dependent harness scenes, present on 1.6.11 too.** `inbox-undo-done-dark`, `inbox-quiet-mid-dark`,
+  `shell-you-snackbar-dark`, `shell-inbox-snackbar-light`, `shell-research-snackbar-open-light`. Their result depends
+  on which tests ran before them in the same JVM, not on the Compose version:
+  - Run on their own (`--tests` on the three methods `MacroInboxRenders.inboxUndoDone`, `.inboxQuietCollapseMid`,
+    `ShellRenders.snackbarOverYou`), 1.6.11 and 1.7.3 give the same pictures (no pixel above 16), equal to the
+    1.6.11 full suite: Undo brings the row back. In the 1.7.3 full suite (twice) Undo did not bring it back and the
+    `inbox-quiet-mid` and `shell-you-snackbar-dark` frames differ too.
+  - Run as two whole classes (`MacroInboxRenders`, `ShellRenders`), **1.6.11** gives that same "row not back"
+    `inbox-undo-done` and the same `shell-you-snackbar-dark` as the 1.7.3 full suite, and a `shell-you-snackbar-light`
+    that differs from both full suites. A 1.7.3 run of the two classes matches the 1.7.3 full suite.
+  - The two `-light` snackbar renders: a second 1.6.11 full run differs from the first in the same way and matches
+    HEAD.
+
+  So none of the five is a regression. The device pass still checks the real gesture (checklist, Lists). The
+  isolated and class reruns are in the WP-H scratchpad, `pr4a-H/r2/` (`iso-base`, `iso-head`, `class-base`,
+  `class-head`). Separately, `shell-motion-push-60ms-dark` and `macro-morph-mid-dark` differed between two 1.7.3
+  full runs (one of them matches 1.6.11, so they are not among the 58).
 
 The residual M3 ripple was also checked as a pixel: a pressed `LocalIndication` on graphite paints 39/255 over a
 22/255 surface on both 1.6.11 (`RippleTheme`) and 1.7.3 (`RippleConfiguration`), identical.
@@ -103,7 +126,8 @@ The residual M3 ripple was also checked as a pixel: a pressed `LocalIndication` 
 | WebView back | `DeepDiveWebPage` uses activity-compose `BackHandler` (unchanged version); `CoveredBackScope` now reads the new `LocalLifecycleOwner`, same object. | Back inside the report, back with a screen pushed over it. |
 | Predictive back | `ThesisPredictiveBackHandler` wraps activity-compose 1.9.1's `PredictiveBackHandler` (unchanged). Shell motion renders and `ShellChromeMotionTest` pass. | The push/pop scrub on a device. |
 | Motion | Mid-animation captures (`kit-motion-*-tNNN`, `shell-motion-sample-*-120ms`) differ by under a frame of progress; every settled frame is unchanged. No motion spec or token changed. | Feel of the push/pop and sheet motion on a device. |
-| Lists | `animateItemPlacement` still works (deprecated, warning); Inbox/Names dismiss renders unchanged. | |
+| Lists | `animateItemPlacement` still works (deprecated, warning); Names dismiss renders unchanged; Inbox quiet/undo renders are order-dependent in the harness on both versions and identical on 1.6.11 and 1.7.3 when run on their own (sweep, E). | Inbox: swipe a row to quiet, then Undo: the row comes back in its place and the filter counts and the "new" count return to what they were. |
+| Swipe to quiet (Inbox, Source) | `SwipeToQuiet` (`ui/components/Source.kt`) is the stock M3 `SwipeToDismissBox` (`confirmValueChange` plus a haptic from `snapshotFlow { targetValue }`); its anchors and thresholds come from Material3, which moves 1.2.1 → 1.3.x with this BOM. Compiles unchanged; the renders replay one swipe past the threshold and do not measure where the threshold is. | The haptic fires once, when the row crosses the threshold; releasing past it quiets the alert; releasing before it springs the row back with no haptic and no quiet. |
 
 ## Tests
 
@@ -118,7 +142,15 @@ The residual M3 ripple was also checked as a pixel: a pressed `LocalIndication` 
 2. **Dependency graph.** Confirm the BOM resolved as expected:
    `./gradlew :app:dependencies --configuration releaseRuntimeClasspath | grep -E "androidx.compose.(animation|foundation|ui|material3?):"`
    should show 1.7.8 for ui/foundation/animation and a 1.3.x material3; `androidx.lifecycle:*` should stay 2.8.x.
-   AGP 8.5.2 may warn that it was tested up to compileSdk 34 (unchanged from today).
+   AGP 8.5.2 may warn that it was tested up to compileSdk 34 (unchanged from today). Google Maven is blocked where
+   this PR was made, so the transitive androidx versions the BOM brings in were not resolved here. Two CI failures
+   would point at them rather than at our code:
+   - `Module was compiled with an incompatible version of Kotlin. The binary version of its metadata is 2.1.0, expected
+     version is 1.9.0` (or 2.0.0): some dependency pulled in a kotlin-stdlib or Kotlin-compiled library too new for
+     Kotlin 1.9.24. Find it with `:app:dependencies` and pin it back, or move PR-4a's BOM down a step.
+   - `checkDebugAarMetadata` failing with `Dependency '…' requires libraries and applications that depend on it to
+     compile against version 36 or later of the Android APIs` (an AAR's `minCompileSdk` above our compileSdk 35):
+     same fix, pin the named artifact to the previous version.
 3. **Device pass** on a release APK for the checklist's right-hand column, especially the M3 1.3 sheet's
    predictive-back animation (new behaviour that arrives with the BOM, not with our code) and the pager's fling.
 4. Text on Android: the harness checks layout with Skia; Android line breaking for the serif can still differ by a
