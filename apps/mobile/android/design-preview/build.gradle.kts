@@ -5,8 +5,10 @@ plugins {
 }
 
 // Versions chosen to match the Android app: Kotlin 1.9.24 + Compose compiler 1.5.14, and
-// Compose Multiplatform 1.6.11 == androidx Compose 1.6.x / Material3 1.2.1 (compose-bom 2024.06.00).
-val composeMpVersion = "1.6.11"
+// Compose Multiplatform 1.7.3 == androidx Compose 1.7.x / Material3 1.3.1 (the app's compose-bom 2025.04.00 is
+// Compose 1.7.8 / Material3 1.3.x: same API line, patch releases apart). CMP 1.7.3 still runs on Kotlin 1.9.24
+// (its runtime asks for kotlin-stdlib 1.9.24) with the 1.5.14 compiler plugin. PR-4a, DESIGN-DIRECTION 4.1 / 6.4.
+val composeMpVersion = "1.7.3"
 val composeCompilerVersion = "1.5.14"
 
 val appSrc = file("../app/src/main/java")
@@ -79,7 +81,7 @@ dependencies {
     implementation("org.jetbrains.compose.animation:animation-desktop:$composeMpVersion")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.1")
     implementation("org.json:json:20240303") // org.json ships inside the Android framework
-    runtimeOnly("org.jetbrains.skiko:skiko-awt-runtime-linux-x64:0.8.4") // Skia native for Linux x64
+    runtimeOnly("org.jetbrains.skiko:skiko-awt-runtime-linux-x64:0.8.18") // Skia native for Linux x64
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.1")
@@ -90,7 +92,11 @@ dependencies {
 configurations.all {
     resolutionStrategy.dependencySubstitution {
         // androidx.collection's JVM artifact is published only on Google Maven (dl.google.com).
-        // JetBrains published the same androidx.collection classes on Maven Central.
+        // JetBrains published the same androidx.collection classes on Maven Central. CMP 1.7.3 asks for
+        // androidx.collection 1.4.0 (through collection-internal:collection:1.7.3); the 1.6.0-beta02 copy is still
+        // the newest on Maven Central, and every androidx.collection class, field and method that the 1.7.3 jars
+        // and the compiled app sources reference exists in it (220 references, bytecode link check in PR-4a,
+        // docs/app-redesign/handoff/PR4A-BOM.md).
         val collection = "org.jetbrains.compose.collection-internal:collection-desktop:1.6.0-beta02"
         substitute(module("androidx.collection:collection-jvm")).using(module(collection))
             .because("Google Maven is not reachable from the build container")
@@ -99,8 +105,13 @@ configurations.all {
     }
     // Annotation-only artifact, Google-Maven-only; not needed to compile or run.
     exclude(group = "androidx.annotation")
-    // androidx.lifecycle JVM artifacts are Google-Maven-only too; ImageComposeScene does not use them.
+    // androidx.lifecycle JVM artifacts are Google-Maven-only too. CMP 1.7 pulls JetBrains' lifecycle 2.8.4 from
+    // Maven Central (it holds androidx.lifecycle.compose.LocalLifecycleOwner), which in turn asks for these. Only
+    // ComposeContainer (ComposeWindow / ComposePanel) touches Lifecycle/ViewModelStore classes; ImageComposeScene
+    // and the ui-test rule (CanvasLayersComposeScene) do not, so excluding them is safe for renders and tests.
     exclude(group = "androidx.lifecycle")
+    // Google-Maven-only as well: lifecycle-runtime 2.8.x asks for it for LifecycleRegistry (windows only).
+    exclude(group = "androidx.arch.core")
 }
 
 kotlin {

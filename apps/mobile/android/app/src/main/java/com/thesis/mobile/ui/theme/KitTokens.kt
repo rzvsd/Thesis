@@ -1,7 +1,9 @@
 package com.thesis.mobile.ui.theme
 
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 
 /**
  * Component-internal geometry and ratios that section 2.5 does not name (Deep Dive values from
@@ -90,11 +92,13 @@ internal object Kit {
     const val TABLE_SCROLL_SHADE_ALPHA = 0.12f
 
     /**
-     * ThesisTextField: how far the floating label stands above the outline. Material3 1.2.1 pads an
-     * OutlinedTextField with a label by a fixed 8 dp at the top (internal `OutlinedTextFieldTopPadding`); the
-     * kit's own fill starts this far down so it lines up with the outline.
+     * ThesisTextField: how far the floating label stands above the outline. Material3 pads an OutlinedTextField
+     * with a label at the top by its internal `OutlinedTextFieldTopPadding`; the kit's own fill starts this far
+     * down so it lines up with the outline. Material3 1.3 (compose-bom 2025.04.00) made that padding
+     * `BodySmallLineHeight / 2` = 8 sp, so it grows with the font scale (1.2.1 had a fixed 8 dp): kept in sp to
+     * follow it, or the fill shows as a band above the outline at 1.3x and 2.0x (PR-4a regression pass).
      */
-    val fieldLabelOverhang: Dp = ThesisSpace.s
+    val fieldLabelOverhang: TextUnit = 8.sp
 
     /** SuggestionList: rows shown before it scrolls. */
     const val SUGGESTIONS_MAX = 6
