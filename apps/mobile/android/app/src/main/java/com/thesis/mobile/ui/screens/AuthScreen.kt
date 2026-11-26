@@ -321,7 +321,7 @@ private fun EmailField(value: String, onValueChange: (String) -> Unit) {
         placeholder = AccountCopy.EMAIL_PLACEHOLDER,
         keyboardOptions = KeyboardOptions(
             capitalization = KeyboardCapitalization.None,
-            autoCorrect = false,
+            autoCorrectEnabled = false,
             keyboardType = KeyboardType.Email,
             imeAction = ImeAction.Next,
         ),
@@ -371,7 +371,7 @@ private fun VerifyStep(
         label = AccountCopy.VERIFY_CODE,
         keyboardOptions = KeyboardOptions(
             capitalization = KeyboardCapitalization.None,
-            autoCorrect = false,
+            autoCorrectEnabled = false,
             keyboardType = KeyboardType.Ascii,
             imeAction = ImeAction.Done,
         ),
@@ -406,7 +406,7 @@ private fun DeveloperApi(
                 value = value,
                 onValueChange = onValueChange,
                 label = AccountCopy.API_BASE_URL,
-                keyboardOptions = KeyboardOptions(autoCorrect = false, keyboardType = KeyboardType.Uri, imeAction = ImeAction.Done),
+                keyboardOptions = KeyboardOptions(autoCorrectEnabled = false, keyboardType = KeyboardType.Uri, imeAction = ImeAction.Done),
                 keyboardActions = KeyboardActions(onDone = { onSave() }),
             )
             SecondaryButton(AccountCopy.SAVE_API_URL, onSave, enabled = enabled)

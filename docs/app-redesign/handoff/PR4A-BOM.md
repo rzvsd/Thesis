@@ -41,15 +41,19 @@ not apply. Material 2 (`material`, for `pullRefresh` only) follows the BOM to 1.
 - **androidx.annotation.** Still excluded; `collection-desktop:1.6.0-beta02` resolves JetBrains'
   `annotation-desktop:1.8.0-alpha01` from Maven Central, annotations only.
 - No screen moved to `androidOnlyFiles`: everything that compiled on 1.6.11 compiles on 1.7.3 with no source
-  change. New warnings only: `KeyboardOptions(autoCorrect = …)` (8 call sites) and `animateItemPlacement`
-  (NamesScreen), both WARNING-level with unchanged behaviour. These, and the KDocs that still describe 1.6 / M3 1.2,
-  are listed for PR-4b in [`HANDOFF-H.md`](HANDOFF-H.md).
+  change. The bump brought two WARNING-level deprecations: `KeyboardOptions(autoCorrect = …)` (10 call sites) and
+  `animateItemPlacement` (NamesScreen). WP-INT cleared both at integration with no behaviour change:
+  `autoCorrectEnabled = false` (the deprecated constructor only forwards to it) and
+  `animateItem(fadeInSpec = null, placementSpec = ThesisMotion.spatial(), fadeOutSpec = null)` (Compose 1.7's own
+  body of `animateItemPlacement`), plus the KDocs that described 1.6 / M3 1.2 (`Inputs.kt`, `DismissibleItem.kt`,
+  `Rows.kt`). The harness now compiles with no deprecation warning. What is left for PR-4b is in
+  [`HANDOFF-H.md`](HANDOFF-H.md).
 
 **Android-only files.** CI is the only real compile. As a proxy, every file under `ui/`, `model/`, `data/`,
 `launch/`, `offline/`, `network/` plus `MainActivity.kt` (including `ThesisApp`, `MainViewModel`, `ui/platform/*`,
 `DeepDiveWebPage`) was compiled against CMP 1.7.3 with the android.jar (Robolectric android-all 15) and stubs for
 activity, lifecycle (`androidx.lifecycle.compose.LocalLifecycleOwner` with the real signature), Room, Firebase and
-RevenueCat: green, and the only deprecation left is `animateItemPlacement`. The stubs are hand-written, so this
+RevenueCat: green, and the only deprecation left was `animateItemPlacement` (cleared at integration, above). The stubs are hand-written, so this
 catches Compose API breaks, not activity/lifecycle signature drift.
 
 ## Render sweep, before and after
@@ -126,7 +130,7 @@ The residual M3 ripple was also checked as a pixel: a pressed `LocalIndication` 
 | WebView back | `DeepDiveWebPage` uses activity-compose `BackHandler` (unchanged version); `CoveredBackScope` now reads the new `LocalLifecycleOwner`, same object. | Back inside the report, back with a screen pushed over it. |
 | Predictive back | `ThesisPredictiveBackHandler` wraps activity-compose 1.9.1's `PredictiveBackHandler` (unchanged). Shell motion renders and `ShellChromeMotionTest` pass. | The push/pop scrub on a device. |
 | Motion | Mid-animation captures (`kit-motion-*-tNNN`, `shell-motion-sample-*-120ms`) differ by under a frame of progress; every settled frame is unchanged. No motion spec or token changed. | Feel of the push/pop and sheet motion on a device. |
-| Lists | `animateItemPlacement` still works (deprecated, warning); Names dismiss renders unchanged; Inbox quiet/undo renders are order-dependent in the harness on both versions and identical on 1.6.11 and 1.7.3 when run on their own (sweep, E). | Inbox: swipe a row to quiet, then Undo: the row comes back in its place and the filter counts and the "new" count return to what they were. |
+| Lists | Names rows glide with `animateItem` (placement only, fades null: the same call `animateItemPlacement` makes on 1.7); Names dismiss renders unchanged; Inbox quiet/undo renders are order-dependent in the harness on both versions and identical on 1.6.11 and 1.7.3 when run on their own (sweep, E). | Inbox: swipe a row to quiet, then Undo: the row comes back in its place and the filter counts and the "new" count return to what they were. |
 | Swipe to quiet (Inbox, Source) | `SwipeToQuiet` (`ui/components/Source.kt`) is the stock M3 `SwipeToDismissBox` (`confirmValueChange` plus a haptic from `snapshotFlow { targetValue }`); its anchors and thresholds come from Material3, which moves 1.2.1 → 1.3.x with this BOM. Compiles unchanged; the renders replay one swipe past the threshold and do not measure where the threshold is. | The haptic fires once, when the row crosses the threshold; releasing past it quiets the alert; releasing before it springs the row back with no haptic and no quiet. |
 
 ## Tests

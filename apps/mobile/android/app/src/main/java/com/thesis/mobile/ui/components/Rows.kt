@@ -97,7 +97,7 @@ enum class RowPosition {
 /**
  * Draws this row's slice of the group card (#10): `surface` fill, the outer 1 dp `line` border, top corners on the
  * first row and bottom corners on the last, and an inset hairline divider starting at [dividerInset] (the row's
- * text edge) after every row but the last. Each lazy item applies it to itself, so `animateItemPlacement` works.
+ * text edge) after every row but the last. Each lazy item applies it to itself, so `animateItem` works.
  * The last row carries the light-theme card shadow (it only shows under the bottom edge).
  */
 fun Modifier.rowGroupSegment(position: RowPosition, dividerInset: Dp = ThesisSpace.l): Modifier = composed {

@@ -123,7 +123,7 @@ fun DeleteAccountControl(
                 label = AccountCopy.DELETE_CONFIRM_LABEL,
                 keyboardOptions = KeyboardOptions(
                     capitalization = KeyboardCapitalization.Characters,
-                    autoCorrect = false,
+                    autoCorrectEnabled = false,
                     keyboardType = KeyboardType.Ascii,
                     imeAction = ImeAction.Done,
                 ),

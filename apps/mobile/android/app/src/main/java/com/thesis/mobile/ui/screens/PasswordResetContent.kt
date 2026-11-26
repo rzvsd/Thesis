@@ -144,7 +144,7 @@ fun PasswordResetContent(
                     singleLine = !codeSent,
                     keyboardOptions = KeyboardOptions(
                         capitalization = KeyboardCapitalization.None,
-                        autoCorrect = false,
+                        autoCorrectEnabled = false,
                         keyboardType = KeyboardType.Email,
                         imeAction = ImeAction.Done,
                     ),
@@ -157,7 +157,7 @@ fun PasswordResetContent(
                         label = AccountCopy.RESET_CODE,
                         keyboardOptions = KeyboardOptions(
                             capitalization = KeyboardCapitalization.None,
-                            autoCorrect = false,
+                            autoCorrectEnabled = false,
                             keyboardType = KeyboardType.Ascii,
                             imeAction = ImeAction.Next,
                         ),

@@ -236,7 +236,7 @@ fun HistoryScreen(
                             label = ResearchCopy.FILTER_FIELD,
                             keyboardOptions = KeyboardOptions(
                                 capitalization = KeyboardCapitalization.Characters,
-                                autoCorrect = false,
+                                autoCorrectEnabled = false,
                                 imeAction = ImeAction.Search,
                             ),
                             modifier = Modifier.padding(horizontal = ThesisSpace.gutter),
