@@ -704,7 +704,7 @@ internal fun sampleWithIssuer(report: DeepDiveReportView): DeepDiveReportView =
 
 /**
  * The report's note: NoteBlock with autosave. [onSave] asks the view model to save the draft; a save counts as
- * done when [isSaving] has gone up and come down again.
+ * done when [isSaving] has come down and [noteUpdatedAt] moved (a failed save leaves it, so the footer offers Try again).
  */
 @Composable
 internal fun NotesSection(
@@ -718,13 +718,16 @@ internal fun NotesSection(
     val fmt = LocalFmt.current
     val clipboard = LocalClipboardManager.current
     val saving by rememberUpdatedState(isSaving)
+    val updatedAt by rememberUpdatedState(noteUpdatedAt)
     val save by rememberUpdatedState(onSave)
     val autosave = rememberNoteAutosave(
         text = noteDraft,
         save = {
+            // A failed save also brings isSaving down, so success is the saved time moving (as the new view's host).
+            val before = updatedAt
             save()
-            withTimeoutOrNull(SAVE_START_MS) { snapshotFlow { saving }.first { it } }
-            withTimeoutOrNull(SAVE_END_MS) { snapshotFlow { saving }.first { !it } } != null
+            withTimeoutOrNull(SAVE_START_MS) { snapshotFlow { saving || updatedAt != before }.first { it } }
+            withTimeoutOrNull(SAVE_END_MS) { snapshotFlow { saving }.first { !it } } != null && updatedAt != before
         },
         onLeave = { save() },
     )

@@ -3178,6 +3178,7 @@ class MainViewModel(
     override fun onSaveReportNote() = saveReportNote()
     override fun onGenerateOppositeCase() = generateOppositeCase()
     override fun onRefreshConviction() = refreshConvictionTimeline()
+    override fun onRefreshConvictionFor(ticker: String) = refreshConvictionTimeline(ticker)
     override fun onRunScenario(years: Int?, growth: Double?, wacc: Double?) = runScenario(years, growth, wacc)
     override fun onSubmitReportFeedback(code: String, message: String) = submitReportFeedback(code, message)
     override fun onNotify(message: String) = notifyUser(message)

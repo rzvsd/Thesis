@@ -520,6 +520,12 @@ private fun ShellContentScope.NameEntry(entry: NavEntry, destination: Destinatio
     LaunchedEffect(ticker, onTop) {
         if (onTop) actions.onEnsureName(ticker)
     }
+    // The journal is one shared list (the last report's ticker), so Name loads its own; keyed on Pro so a profile
+    // that arrives after entry still loads it.
+    val isPro = state.userProfile?.tier.equals(PRO_TIER, ignoreCase = true)
+    LaunchedEffect(ticker, onTop, isPro) {
+        if (onTop && isPro) actions.onRefreshConvictionFor(ticker)
+    }
     val warRooms = warRoomsInEarningsWindow(state.alertLedger)
     val live = liveWarRoomTickers()
     val notedTickers = state.allNotes.filter { it.text.isNotBlank() }.mapNotNull { it.ticker?.trim()?.uppercase() }.toSet()
@@ -550,7 +556,7 @@ private fun ShellContentScope.NameEntry(entry: NavEntry, destination: Destinatio
         companyName = state.companyNames[ticker],
         lastVisitAtMs = state.lastNamesVisitAtMs,
         warRoomId = warRooms[ticker],
-        isPro = state.userProfile?.tier.equals(PRO_TIER, ignoreCase = true),
+        isPro = isPro,
         journal = state.convictionTimeline,
         pager = namePagerOf(order, ticker),
         warRoomLive = ticker in live,

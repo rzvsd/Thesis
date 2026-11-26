@@ -198,6 +198,8 @@ interface ShellActions {
     fun onSaveReportNote() {}
     fun onGenerateOppositeCase() {}
     fun onRefreshConviction() {}
+    /** Loads the conviction journal of [ticker] (Name entry and paging; Pro only, a no-op otherwise). */
+    fun onRefreshConvictionFor(ticker: String) {}
     fun onRunScenario(years: Int?, growth: Double?, wacc: Double?) {}
     fun onSubmitReportFeedback(code: String, message: String) {}
     fun onNotify(message: String) {}
