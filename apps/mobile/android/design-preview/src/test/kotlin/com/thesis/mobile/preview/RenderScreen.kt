@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ImageComposeScene
 import androidx.compose.ui.Modifier
@@ -25,6 +26,7 @@ import kotlinx.coroutines.test.TestCoroutineScheduler
 import org.jetbrains.skia.EncodedImageFormat
 import org.jetbrains.skia.Image
 import org.jetbrains.skia.Surface
+import java.awt.EventQueue
 import java.io.File
 import kotlin.math.roundToInt
 
@@ -148,7 +150,7 @@ internal fun captureFrame(
     frameMs: Long,
     fitHeight: Boolean,
     content: @Composable () -> Unit,
-): Image {
+): Image = onUiThread {
     val scheduler = TestCoroutineScheduler()
     val dispatcher = StandardTestDispatcher(scheduler)
     var measuredPx = -1
@@ -172,19 +174,51 @@ internal fun captureFrame(
         // keeps dozens of them alive until a GC otherwise (exit 137 on long render classes).
         var nowMs = 0L
         scene.render(0).close()
-        scheduler.runCurrent()
+        runEffects(scheduler)
         while (nowMs < settleMs) {
             nowMs += frameMs
             scheduler.advanceTimeBy(frameMs)
-            scheduler.runCurrent()
+            runEffects(scheduler)
             scene.render(nowMs * 1_000_000).close()
         }
         val image = scene.render(nowMs * 1_000_000 + 1)
-        if (!fitHeight || measuredPx <= 0 || measuredPx >= image.height) return image
-        return crop(image, image.width, measuredPx).also { image.close() }
+        if (!fitHeight || measuredPx <= 0 || measuredPx >= image.height) {
+            image
+        } else {
+            crop(image, image.width, measuredPx).also { image.close() }
+        }
     } finally {
         scene.close()
     }
+}
+
+/**
+ * Runs [block] (a whole capture loop) on the AWT event thread and returns its result.
+ *
+ * State written by an effect coroutine (a `LaunchedEffect` setting a `mutableStateOf`, `SnackbarHostState`
+ * posting a message) lands in the global snapshot. On desktop, Compose's `GlobalSnapshotManager` sends its apply
+ * notifications from the AWT thread (skiko's `MainUIDispatcher`) in real time, concurrently with a capture loop on
+ * the test thread. That race made some renders depend on timing: about 1 in 6 snackbar scenes captured no snackbar,
+ * and the Inbox undo sometimes captured the row not back (PR4A-BOM.md sweep E). With the loop on the AWT thread
+ * itself, `GlobalSnapshotManager` cannot run until the capture is done, and [runEffects] sends the notifications
+ * at fixed points of the virtual clock: the same frames every run.
+ */
+internal fun <T> onUiThread(block: () -> T): T {
+    if (EventQueue.isDispatchThread()) return block()
+    var result: Result<T>? = null
+    EventQueue.invokeAndWait { result = runCatching(block) }
+    return checkNotNull(result).getOrThrow()
+}
+
+/**
+ * Runs the coroutines due on the virtual clock, then sends the global snapshot's apply notifications, so the next
+ * frame recomposes with what those coroutines wrote (as Android's frame loop does). Call it on the [onUiThread]
+ * thread.
+ */
+@OptIn(ExperimentalCoroutinesApi::class)
+internal fun runEffects(scheduler: TestCoroutineScheduler) {
+    scheduler.runCurrent()
+    Snapshot.sendApplyNotifications()
 }
 
 private fun crop(image: Image, width: Int, height: Int): Image {

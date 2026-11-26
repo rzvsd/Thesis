@@ -228,7 +228,9 @@ android {
 }
 
 dependencies {
-    val composeBom = platform("androidx.compose:compose-bom:2024.06.00")
+    // 2025.04.00 = Compose 1.7.8 / Material3 1.3.x, the newest BOM on Compose 1.7: it still works with Kotlin 1.9.24
+    // and compiler 1.5.14. Never 2025.04.01+ (Compose 1.8) before the Kotlin 2 migration (DESIGN-DIRECTION 4.1).
+    val composeBom = platform("androidx.compose:compose-bom:2025.04.00")
     implementation(composeBom)
     androidTestImplementation(composeBom)
 
@@ -236,6 +238,9 @@ dependencies {
     implementation("androidx.appcompat:appcompat:1.7.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.3")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.3")
+    // androidx.lifecycle.compose.LocalLifecycleOwner (ThesisApp). Compose UI 1.7 already exposes it as an api
+    // dependency at 2.8.3; declared so the import does not rely on a transitive edge.
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.3")
     // MainViewModel(Application, SavedStateHandle): the navigator's stacks survive Activity recreation.
     implementation("androidx.lifecycle:lifecycle-viewmodel-savedstate:2.8.3")
     // Launch theme and installSplashScreen() (DESIGN-DIRECTION 5.1).

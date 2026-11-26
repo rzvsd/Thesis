@@ -123,10 +123,11 @@ private fun fieldColors(p: ThesisPalette) = OutlinedTextFieldDefaults.colors(
 /**
  * The kit text field (#19). [error] replaces [helper] and turns the border `neg`; it is announced (liveRegion).
  *
- * The `surface` fill is painted behind the outline here rather than as M3's container colour: M3 1.2 cuts the
- * floating label's gap out of the whole container, fill included, so a filled container showed a notch of page
- * colour around the label. The fill starts [Kit.fieldLabelOverhang] down (M3's top padding for the label) and the
- * helper/error line sits under the field, outside the filled box. [modifier] applies to the whole (field + line).
+ * The `surface` fill is painted behind the outline here rather than as M3's container colour: M3 1.2 and 1.3 cut
+ * the floating label's gap out of the whole container, fill included, so a filled container showed a notch of page
+ * colour around the label. The fill starts [Kit.fieldLabelOverhang] down (M3's top padding for the label: 8 sp
+ * since M3 1.3, 8 dp in 1.2, so it grows with the font scale) and the helper/error line sits under the field,
+ * outside the filled box. [modifier] applies to the whole (field + line).
  */
 @Composable
 fun ThesisTextField(
@@ -229,7 +230,7 @@ fun TickerField(
             error = error,
             keyboardOptions = KeyboardOptions(
                 capitalization = KeyboardCapitalization.Characters,
-                autoCorrect = false,
+                autoCorrectEnabled = false,
                 keyboardType = KeyboardType.Ascii,
                 imeAction = ImeAction.Search,
             ),
@@ -293,7 +294,7 @@ fun PasswordField(
         helper = helper,
         error = error,
         visualTransformation = if (visible) VisualTransformation.None else PasswordVisualTransformation(),
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrect = false, imeAction = imeAction),
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false, imeAction = imeAction),
         keyboardActions = keyboardActions,
         trailing = {
             ThesisIconButton(

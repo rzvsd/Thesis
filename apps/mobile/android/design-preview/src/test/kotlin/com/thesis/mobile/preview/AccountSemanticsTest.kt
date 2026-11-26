@@ -25,6 +25,7 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performScrollToNode
@@ -65,7 +66,13 @@ class AccountSemanticsTest {
         rule.setContent { ThesisTheme(mode = ThemeMode.Light) { AccountFixtures.WithFixedTime(content) } }
     }
 
-    private fun field(label: String) = rule.onNode(hasSetTextAction() and hasText(label, substring = true))
+    /**
+     * A text field by its label. Matched on EditableText, not on the SetText action: since Compose 1.7 (PR-4a,
+     * compose-bom 2025.04.00) a disabled or read-only field no longer exposes SetText, so `hasSetTextAction()` missed
+     * the locked email field on reset step 2.
+     */
+    private fun field(label: String) =
+        rule.onNode(SemanticsMatcher.keyIsDefined(SemanticsProperties.EditableText) and hasText(label, substring = true))
 
     // ---- Auth -----------------------------------------------------------------------------------------------------
 

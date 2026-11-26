@@ -671,7 +671,7 @@ private fun DeveloperApi(currentApiBaseUrl: String, onSave: (String) -> Unit) {
             value = baseUrl,
             onValueChange = { baseUrl = it },
             label = AccountCopy.API_BASE_URL,
-            keyboardOptions = KeyboardOptions(autoCorrect = false, keyboardType = KeyboardType.Uri, imeAction = ImeAction.Done),
+            keyboardOptions = KeyboardOptions(autoCorrectEnabled = false, keyboardType = KeyboardType.Uri, imeAction = ImeAction.Done),
         )
         SecondaryButton(AccountCopy.SAVE_API_URL, { onSave(baseUrl.trim()) }, enabled = baseUrl.isNotBlank())
     }

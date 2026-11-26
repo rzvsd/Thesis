@@ -1293,8 +1293,14 @@ private fun LazyListScope.boardBody(
             val position = RowPosition.of(i, shown.size)
             val inset = if (compact && !selecting) CompactRowDividerInset else LeadingRowDividerInset
             // Rows glide on sort and filter (5.10 item 6); under reduced motion (system or the in-app toggle, 4.8)
-            // they take their new places without translating (rubric M3).
-            val glide = if (LocalReducedMotion.current) Modifier else Modifier.animateItemPlacement(ThesisMotion.spatial())
+            // they take their new places without translating (rubric M3). Placement only, no fades: exactly what the
+            // deprecated `animateItemPlacement` did (Compose 1.7 implements it as this call); removals collapse in
+            // DismissibleItem.
+            val glide = if (LocalReducedMotion.current) {
+                Modifier
+            } else {
+                Modifier.animateItem(fadeInSpec = null, placementSpec = ThesisMotion.spatial(), fadeOutSpec = null)
+            }
             // The aligned compact row has no line 2: a name without a report says so in its figure column.
             val alignedCompact = compact && LocalDensity.current.fontScale <= Kit.COMPACT_ALIGNED_MAX_SCALE
             DismissibleItem(

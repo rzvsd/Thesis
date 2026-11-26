@@ -330,7 +330,7 @@ class MacroInboxRenders {
         val events = mutableListOf<Touch>().also(script).sortedBy { it.atMs }.toMutableList()
         val density = PhoneSpec.density
         themes.forEach { theme ->
-            withPreviewProperties("preview.reducedMotion" to "false", "preview.glow" to "true") {
+            withPreviewProperties("preview.reducedMotion" to "false", "preview.glow" to "true") { onUiThread {
                 val scheduler = TestCoroutineScheduler()
                 val scene = ImageComposeScene(
                     width = (PhoneSpec.WIDTH_DP * density).roundToInt(),
@@ -352,7 +352,7 @@ class MacroInboxRenders {
                 try {
                     var now = 0L
                     scene.render(0).close()
-                    scheduler.runCurrent()
+                    runEffects(scheduler)
                     while (now < captureAtMs) {
                         now += FRAME_MS
                         while (events.isNotEmpty() && events.first().atMs <= now) {
@@ -365,7 +365,7 @@ class MacroInboxRenders {
                             )
                         }
                         scheduler.advanceTimeBy(FRAME_MS)
-                        scheduler.runCurrent()
+                        runEffects(scheduler)
                         scene.render(now * 1_000_000).close()
                     }
                     val image = scene.render(now * 1_000_000 + 1)
@@ -380,7 +380,7 @@ class MacroInboxRenders {
                 } finally {
                     scene.close()
                 }
-            }
+            } }
         }
     }
 

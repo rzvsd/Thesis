@@ -21,8 +21,8 @@ import kotlinx.coroutines.flow.filter
 
 /**
  * A lazy-list item that can leave and come back (docs/app-redesign/DESIGN-DIRECTION.md 3 #42, 4.4: Remove name,
- * Quiet alert). `animateItemPlacement` (Compose 1.6) moves the survivors but does not animate the removed item;
- * this does.
+ * Quiet alert). `animateItem` (Compose 1.7) with `fadeOutSpec = null`, as the lists use it (placement only, so the
+ * bump to 1.7 changed no motion), moves the survivors but does not animate the removed item; this does.
  *
  * The screen keeps a `pendingRemoval` set and passes [removing] = key in it. The item then collapses (its content
  * fades over `Quick`; 60 ms in, the row starts shrinking toward its top over `Base`), and [onRemoved] is called

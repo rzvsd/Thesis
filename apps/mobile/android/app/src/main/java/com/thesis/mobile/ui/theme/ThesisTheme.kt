@@ -1,17 +1,18 @@
 package com.thesis.mobile.ui.theme
 
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.material.ripple.LocalRippleTheme
 import androidx.compose.material.ripple.RippleAlpha
-import androidx.compose.material.ripple.RippleTheme
 import androidx.compose.material3.ColorScheme
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LocalContentColor
+import androidx.compose.material3.LocalRippleConfiguration
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.RippleConfiguration
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
@@ -27,6 +28,13 @@ enum class ThemeMode { System, Light, Dark }
  * is on (section 4.8). Provided by [ThesisTheme]; this is its only definition.
  */
 val LocalReducedMotion = staticCompositionLocalOf { false }
+
+/**
+ * The status bar's icon appearance [ThesisTheme] applied: true = dark icons (paper), false = light icons (graphite,
+ * or over a HeroBand at rest in either theme, 2.7). A ThesisSheet reads it: on M3 1.3 the sheet is its own window
+ * and sets its own bar icons (ui/platform `SheetWindowBars`).
+ */
+val LocalStatusBarLight = compositionLocalOf { false }
 
 /**
  * The Material3 colour scheme for [p] (section 2.2, "Material3 bridge"). Every role is set, so M3 defaults
@@ -77,17 +85,16 @@ internal fun pressTintAlpha(p: ThesisPalette): Float =
 /**
  * The residual M3 ripple (Switch thumb, text fields, sheets) reads as the kit's press tint: `ink` at the
  * PressTint alpha. Kit and screen surfaces use `thesisPress` with `indication = null` instead (section 4.4).
+ * Material3 1.3 (compose-bom 2025.04.00) reads [LocalRippleConfiguration]; the 1.2 `RippleTheme` it replaces is
+ * deprecated at ERROR level. Same colour and the same alpha for every state, so the pixels do not change.
  */
-@Immutable
-private object ThesisRippleTheme : RippleTheme {
-    @Composable
-    override fun defaultColor(): Color = LocalThesisPalette.current.ink
-
-    @Composable
-    override fun rippleAlpha(): RippleAlpha {
-        val a = pressTintAlpha(LocalThesisPalette.current)
-        return RippleAlpha(draggedAlpha = a, focusedAlpha = a, hoveredAlpha = a, pressedAlpha = a)
-    }
+@OptIn(ExperimentalMaterial3Api::class)
+internal fun thesisRippleConfiguration(p: ThesisPalette): RippleConfiguration {
+    val a = pressTintAlpha(p)
+    return RippleConfiguration(
+        color = p.ink,
+        rippleAlpha = RippleAlpha(draggedAlpha = a, focusedAlpha = a, hoveredAlpha = a, pressedAlpha = a),
+    )
 }
 
 /**
@@ -95,13 +102,15 @@ private object ThesisRippleTheme : RippleTheme {
  * the ink press tint for M3 ripples and `LocalContentColor = ink`. [ThesisTheme] uses it at the root; HeroBand
  * uses it with `heroOf(p)` so M3 Switch, TextField, default Icon tint and press tint are right inside the band.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ThesisMaterialTheme(palette: ThesisPalette, content: @Composable () -> Unit) {
     val scheme = remember(palette) { schemeOf(palette) }
+    val ripple = remember(palette) { thesisRippleConfiguration(palette) }
     CompositionLocalProvider(LocalThesisPalette provides palette) {
         MaterialTheme(colorScheme = scheme, typography = ThesisTypography, shapes = ThesisMaterialShapes) {
             CompositionLocalProvider(
-                LocalRippleTheme provides ThesisRippleTheme,
+                LocalRippleConfiguration provides ripple,
                 LocalContentColor provides palette.ink,
                 content = content,
             )
@@ -137,10 +146,11 @@ fun ThesisTheme(
     }
     val palette = remember(dark, upDown) { (if (dark) InkDark else PaperLight).withUpDown(upDown) }
     // The Android window calls live in ui/platform (section 4 preamble: android.* only there).
-    SystemBarAppearance(light = palette.isLight, statusBarLight = palette.isLight && !statusBarOverHero)
+    val statusBarLight = palette.isLight && !statusBarOverHero
+    SystemBarAppearance(light = palette.isLight, statusBarLight = statusBarLight)
 
     val reduced = reduceMotion || rememberSystemReducedMotion()
-    CompositionLocalProvider(LocalReducedMotion provides reduced) {
+    CompositionLocalProvider(LocalReducedMotion provides reduced, LocalStatusBarLight provides statusBarLight) {
         ThesisMaterialTheme(palette = palette, content = content)
     }
 }
