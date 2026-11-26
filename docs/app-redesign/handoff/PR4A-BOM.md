@@ -173,10 +173,12 @@ The residual M3 ripple was also checked as a pixel: a pressed `LocalIndication` 
 `androidOnlyFiles`) has compiled against the real androidx 1.7.8 / M3 1.3.x jars; the review read them by hand and
 found no API problem, but only CI can confirm it. Merge PR-4a only when (a) CI is green on
 `testDebugUnitTest assembleDebug`, (b) the first CI run's `:app:dependencies --configuration debugCompileClasspath`
-shows Compose 1.7.8, material3 1.3.x and lifecycle 2.8.x (item 2), and (c) the device pass has ticked the Bottom
-sheets row of the checklist: a tall sheet at 2.0x stays under the status bar, the sheet's icons are right with the
+shows Compose 1.7.8, material3 1.3.x and lifecycle 2.8.x (item 2). (c) The device pass runs on the `rebuild` test
+APK after the merge (the owner chose to keep going rather than test each PR on a phone first; `rebuild` is an
+integration branch, so this never reaches `main` untested); any finding is fixed in PR-4b. The pass must tick the
+Bottom sheets row of the checklist: a tall sheet at 2.0x stays under the status bar, the sheet's icons are right with the
 app theme opposite to the system theme and over a HeroBand at rest (also after a recomposition), and the last row
-sits above the nav bar. R1 stays at 2 until then.
+sits above the nav bar. R1 stays at 2 until then, and the cutover to `main` waits for it.
 
 1. **CI compile of the Android-only files** against the real androidx 1.7.8 / M3 1.3.x jars (the proxy compile
    above used CMP 1.7.3 sources of the same line and stubs for activity/lifecycle).
