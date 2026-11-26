@@ -119,8 +119,8 @@ class DeepDiveSemanticsTest {
     @Test
     fun evidenceRowsOpenTheirWebAddress() {
         setReport()
-        scrollTo("fin 1")
-        rule.onNodeWithText("fin 1").performClick()
+        scrollTo(DeepDiveFixtures.FIRST_FINANCIAL_SOURCE)
+        rule.onNodeWithText(DeepDiveFixtures.FIRST_FINANCIAL_SOURCE).performClick()
         assertEquals(listOf("https://www.sec.gov/Archives/edgar/data/320193/aapl-2025-fin-0.htm"), opened)
     }
 

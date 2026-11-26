@@ -111,8 +111,6 @@ import com.thesis.mobile.ui.theme.LocalThesisPalette
 import com.thesis.mobile.ui.theme.ThesisSpace
 import com.thesis.mobile.ui.theme.ThesisType
 import com.thesis.mobile.ui.theme.Tone
-import java.time.LocalDate
-import java.time.OffsetDateTime
 
 /*
  * The classic Deep Dive's chapters (docs/app-redesign/DESIGN-DIRECTION.md 5.15): which chapters a report has, the
@@ -244,8 +242,11 @@ internal fun chapterHead(report: DeepDiveReportView, plan: ClassicPlan, chapter:
             lede = lede(report.memoSection("risks")?.narrative),
         )
         ClassicChapter.Evidence -> {
-            val total = report.trustMetadata?.evidenceCount ?: report.sections.sumOf { it.evidence.size }
+            // The count the chapter's own bars add up to; the trust metadata's count (the hero badge) only when no
+            // section lists its sources, so the headline never claims a total its chart does not show.
+            val perSection = report.sections.sumOf { it.evidence.size }
             val withEvidence = report.sections.count { it.evidence.isNotEmpty() }
+            val total = perSection.takeIf { it > 0 } ?: report.trustMetadata?.evidenceCount ?: 0
             ChapterHead(
                 title = if (total > 0) DeepDiveCopy.evidenceTitleCount(total, withEvidence) else DeepDiveCopy.evidenceTitle,
                 lede = lede(report.coverageTruth?.summary),
@@ -311,16 +312,6 @@ internal fun heroBadges(report: DeepDiveReportView, sample: Boolean): List<Badge
         add(BadgeSpec(DeepDiveCopy.confidenceBadge(it), Tone.Neutral))
     }
 }
-
-/** The report's date from its ISO timestamp, or null. */
-internal fun reportDate(raw: String?): LocalDate? {
-    val s = raw?.trim().orEmpty()
-    if (s.isEmpty()) return null
-    return runCatching { OffsetDateTime.parse(s).toLocalDate() }.getOrNull()
-        ?: runCatching { LocalDate.parse(s.take(ISO_DATE_LENGTH)) }.getOrNull()
-}
-
-private const val ISO_DATE_LENGTH = 10
 
 /** The filing eyebrow may wrap at 2.0x font scale; it is never cut (A4). */
 private const val EYEBROW_MAX_LINES = 4
@@ -558,7 +549,7 @@ internal fun ClassicHero(
             )
             val meta = listOfNotNull(
                 report.readerIssuerMetadataLine(),
-                reportDate(report.generatedAt ?: report.trustMetadata?.generatedAt)?.let {
+                parseIsoDate(report.generatedAt ?: report.trustMetadata?.generatedAt)?.let {
                     DeepDiveCopy.reportDated(fmt.marketDate(it))
                 },
             ).joinToString(" · ")
@@ -915,6 +906,23 @@ private fun FiveYearCard(five: FiveYearSeries, fignum: Int, key: String) {
     }
 }
 
+/**
+ * The margins card's title: the operating margin's move from its first year to its last, said as the revenue and
+ * free cash flow titles say theirs ("Operating margin up 790 bps since FY2020"), else the plain title.
+ */
+internal fun classicMarginsTitle(five: FiveYearSeries): String {
+    val op = five.operatingMargin
+    val first = op.indexOfFirst { it != null }
+    val last = op.indexOfLast { it != null }
+    if (first < 0 || last <= first) return DeepDiveCopy.marginsTitle
+    val points = op[last]!! - op[first]!!
+    return DeepDiveCopy.marginsTitleMove(
+        DeepDiveCopy.operatingMargin,
+        ClassicFormat.moved(points >= 0, Fmt.bpsFromPoints(points)),
+        Fmt.period(PeriodKind.FY, five.years[first]),
+    )
+}
+
 @Composable
 private fun MarginsCard(five: FiveYearSeries, fignum: Int, key: String) {
     val op = five.operatingMargin
@@ -927,19 +935,14 @@ private fun MarginsCard(five: FiveYearSeries, fignum: Int, key: String) {
         ChartSeries(DeepDiveCopy.grossMargin, five.grossMargin, colorIndex = if (titled) 1 else null),
         ChartSeries(DeepDiveCopy.operatingMargin, five.operatingMargin, subject = true, colorIndex = if (titled) 0 else null),
     ).filter { s -> s.values.any { it != null } }
-    val title = if (titled) {
-        val points = op[last]!! - op[first]!!
-        DeepDiveCopy.marginsTitleMove(DeepDiveCopy.operatingMargin, ClassicFormat.moved(points >= 0, Fmt.bpsFromPoints(points)))
-    } else {
-        DeepDiveCopy.marginsTitle
-    }
+    val title = classicMarginsTitle(five)
     // Selected years (gaps between them) as columns: a line across uneven gaps would draw slopes the data does not
     // have.
     ChartCard(
         title = title,
         fignum = fignum,
         subtitle = if (five.consecutive) DeepDiveCopy.fiveYearSubtitleMargins else DeepDiveCopy.fiveYearSubtitleMarginsSelected,
-        source = five.source,
+        source = five.marginsSource,
         legend = legendFor(series, bars = !five.consecutive),
         table = chartTable(five.labels, series, ::pctValue, DeepDiveCopy.fiscalYear),
     ) {

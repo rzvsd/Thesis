@@ -56,13 +56,46 @@ internal object DeepDiveFixtures {
         referenceValue = ref, deltaPct = pct, direction = dir, plainEnglish = "",
     )
 
-    private fun evidence(name: String, n: Int) = List(n) { i ->
+    /** A section's sources (name to excerpt); filings (10-K, 10-Q, proxy) have a web address, calls and releases not. */
+    private fun evidence(key: String, vararg sources: Pair<String, String>) = sources.mapIndexed { i, (name, excerpt) ->
+        val filing = name.startsWith("10-") || name.startsWith("DEF 14A")
         EvidenceView(
-            sourceName = "$name ${i + 1}",
-            excerpt = "Services revenue rose to a record, with paid subscriptions above one billion.",
-            url = if (i % 2 == 0) "https://www.sec.gov/Archives/edgar/data/320193/aapl-2025-$name-$i.htm" else null,
+            sourceName = name,
+            excerpt = excerpt,
+            url = if (filing) "https://www.sec.gov/Archives/edgar/data/320193/aapl-2025-$key-$i.htm" else null,
         )
     }
+
+    /** The first financial source's name (the semantics test opens it). */
+    const val FIRST_FINANCIAL_SOURCE = "10-K FY2025, Item 7 MD&A"
+
+    private val financialEvidence = evidence(
+        "fin",
+        FIRST_FINANCIAL_SOURCE to "Total net sales rose 6% to $416.2 billion, led by Services and iPhone.",
+        "10-K FY2025, segment note" to "Services net sales were $109.2 billion, 26% of the total.",
+        "Q4 FY2025 earnings call" to "Gross margin was 47.2% for the quarter, at the top of the guided range.",
+        "10-K FY2025, cash flow statement" to "Payments for property, plant and equipment rose to $12.7 billion.",
+        "10-Q Q3 FY2025, Item 2 MD&A" to "Products gross margin fell on currency and a less favourable mix.",
+        "Q4 FY2025 earnings release" to "Operating cash flow for the year was $111.5 billion.",
+    )
+    private val competitiveEvidence = evidence(
+        "comp",
+        "10-K FY2025, Item 1 Business" to "Markets for the company's products are highly competitive, with rapid technological change.",
+        "Q1 FY2026 earnings call" to "The installed base of active devices passed 2.35 billion.",
+        "10-K FY2025, Item 1A Risk factors" to "Competitors have imitated the design of the company's products.",
+        "10-K FY2024, Item 7 MD&A" to "Wearables, Home and Accessories net sales fell 7% on lower Watch sales.",
+    )
+    private val managementEvidence = evidence(
+        "mgmt",
+        "DEF 14A proxy statement, 2026" to "Annual cash incentives depend on net sales and operating income for the year.",
+        "10-K FY2025, Item 5 equity" to "The company repurchased $90.7 billion of its common stock in fiscal 2025.",
+    )
+    private val riskEvidence = evidence(
+        "risk",
+        "10-K FY2025, Item 3 Legal proceedings" to "App Store rules are under review by the European Commission and US courts.",
+        "10-Q Q2 FY2025, Item 1A" to "A ruling on search agreements could reduce licensing revenue.",
+        "Q3 FY2025 earnings call" to "Greater China net sales fell 8% on lower iPhone units.",
+    )
 
     val structured: DeepDiveReportView = DeepDiveReportView(
         reportId = "dd-aapl-2025",
@@ -135,7 +168,7 @@ internal object DeepDiveFixtures {
             fairValueMid = 228.0, fairValueLow = 186.0, fairValueHigh = 262.0, spotPrice = 241.5,
             assumptions = ValuationAssumptionsView("dcf", 10, 0.025, 0.085),
         ),
-        trustMetadata = TrustMetadataView(freshnessState = "fresh", evidenceCount = 14),
+        trustMetadata = TrustMetadataView(freshnessState = "fresh", evidenceCount = 15),
         killSwitchConditions = listOf(
             KillSwitchConditionView("Services growth falls below hardware growth", "services_growth", "below", "Services growth under 5% for two quarters"),
             KillSwitchConditionView("Gross margin drops", "gross_margin", "below", "Gross margin under 44%"),
@@ -152,10 +185,10 @@ internal object DeepDiveFixtures {
             omissions = "Lines the filing does not disclose are marked, never guessed.",
         ),
         sections = listOf(
-            SectionView("financial", "Financial analysis", "Revenue rose on Services; hardware flat.", "complete", evidence("fin", 6)),
-            SectionView("competitive", "Competitive position", "Ecosystem lock-in strengthened.", "complete", evidence("comp", 4)),
-            SectionView("management", "Management and governance", "Buybacks continued at a slower pace.", "partial", evidence("mgmt", 2)),
-            SectionView("risks", "Risks", "Regulation and China.", "complete", evidence("risk", 3)),
+            SectionView("financial", "Financial analysis", "Revenue rose on Services; hardware flat.", "complete", financialEvidence),
+            SectionView("competitive", "Competitive position", "Ecosystem lock-in strengthened.", "complete", competitiveEvidence),
+            SectionView("management", "Management and governance", "Buybacks continued at a slower pace.", "partial", managementEvidence),
+            SectionView("risks", "Risks", "Regulation and China.", "complete", riskEvidence),
         ),
         filingRead = FilingReadView(
             form = "10-K", period = "2025-FY", generationMode = "llm",
@@ -222,12 +255,18 @@ internal object DeepDiveFixtures {
         thesisStatement = "Pricing carries growth while volumes are flat.",
         signalValue = null, confidenceLabel = null, confidenceScore = null,
         sections = listOf(
-            SectionView("summary", "Summary", "Organic revenue grew 9% on price; unit cases were flat.", "complete", evidence("ko", 3)),
-            SectionView("risks", "Risks", "Currency and sugar taxes.", "partial", evidence("kor", 1)),
+            SectionView("summary", "Summary", "Organic revenue grew 9% on price; unit cases were flat.", "complete", evidence(
+                    "ko",
+                    "10-K 2024, Item 7 MD&A" to "Price, product and geographic mix added 10 points to organic revenue.",
+                    "10-K 2024, Item 7 unit case volume" to "Unit case volume was even with the prior year.",
+                    "Q4 2024 earnings call" to "Pricing in inflationary markets carried most of the growth.",
+                )),
+            SectionView("risks", "Risks", "Currency and sugar taxes.", "partial", evidence("kor", "10-K 2024, Item 1A Risk factors" to "Taxes on sugar-sweetened beverages could reduce demand.")),
         ),
     )
 
-    private val sampleJson: JSONObject by lazy {
+    /** The bundled asset as read from disk, before mapping. */
+    val sampleJson: JSONObject by lazy {
         // CI's :app unit tests run in the module folder; design-preview runs next to it.
         val candidates = listOf(
             File("src/main/assets/sample/deep-dive-sample-msft.json"),

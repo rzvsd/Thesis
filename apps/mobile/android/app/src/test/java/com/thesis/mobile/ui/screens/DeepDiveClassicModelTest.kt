@@ -1,9 +1,11 @@
 package com.thesis.mobile.ui.screens
 
 import com.thesis.mobile.model.FilingMetricDeltaView
+import com.thesis.mobile.model.TrustMetadataView
 import com.thesis.mobile.ui.copy.DeepDiveCopy
 import com.thesis.mobile.ui.format.Fmt
 import com.thesis.mobile.ui.theme.Tone
+import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -175,9 +177,9 @@ class DeepDiveClassicModelTest {
     @Test
     fun heroEyebrowAndBadges() {
         assertEquals("Deep Dive · from the 10-K for fiscal 2025", heroEyebrow(structured))
-        assertEquals("Deep Dive · from the 10-Q for Q4 FY25", heroEyebrow(sample))
+        assertEquals("Deep Dive · from the 10-K for fiscal 2025", heroEyebrow(sample))
         val badges = heroBadges(structured, sample = false).map { it.text }
-        assertEquals(listOf("Fresh", "Evidence 14 sources", "Confidence medium"), badges)
+        assertEquals(listOf("Fresh", "Evidence 15 sources", "Confidence medium"), badges)
         assertEquals(DeepDiveCopy.sampleBadge, heroBadges(sample, sample = true).first().text)
     }
 
@@ -423,5 +425,70 @@ class DeepDiveClassicModelTest {
         assertTrue(plan.chapters.toString(), ClassicChapter.Reading in plan.chapters)
         assertFalse(ClassicChapter.Evidence in plan.chapters)
         assertEquals("How to read the numbers", chapterHead(bare, plan, ClassicChapter.Reading).title)
+    }
+
+    /** Every string in [node] with its JSON path. */
+    private fun strings(node: Any?, path: String = "$"): List<Pair<String, String>> = when (node) {
+        is JSONObject -> node.keySet().flatMap { strings(node.opt(it), "$path.$it") }
+        is JSONArray -> (0 until node.length()).flatMap { strings(node.opt(it), "$path[$it]") }
+        is String -> listOf(path to node)
+        else -> emptyList()
+    }
+
+    @Test
+    fun sampleAssetSpeaksTheProductVocabulary() {
+        // The first-run sample shows the asset's prose as written (5.16), so the asset itself is held to C1: no
+        // SPEC 4 word (nor "cheaper" / "cheapness"), no em dash or "!", no "QOQ"/"YOY" shorthand, and no fourth
+        // quarter filed on a 10-Q.
+        val all = strings(DeepDiveFixtures.sampleJson)
+        assertTrue(all.size > 100)
+        val cheapFamily = Regex("""\bcheap""", RegexOption.IGNORE_CASE)
+        val shorthand = Regex("""\b(QOQ|YOY)\b""")
+        all.forEach { (path, text) ->
+            assertFalse("$path: $text", ClassicFormat.SPEC_BANNED.containsMatchIn(text))
+            assertFalse("$path: $text", cheapFamily.containsMatchIn(text))
+            assertFalse("$path: $text", shorthand.containsMatchIn(text))
+            assertFalse("$path: $text", text.contains('\u2014') || text.contains('!'))
+        }
+        val latest = DeepDiveFixtures.sampleJson.getJSONObject("filing_intelligence").getJSONObject("latest_filing")
+        assertFalse(latest.toString(), latest.optString("form") == "10-Q" && latest.optInt("fiscal_quarter") == 4)
+        assertEquals("Deep Dive · from the 10-K for fiscal 2025", heroEyebrow(sample))
+    }
+
+    @Test
+    fun evidenceHeadlineCountsWhatItsBarsShow() {
+        // The trust count (the hero badge) can differ from the sections' own lists; the chapter's headline sits over
+        // bars of the per-section counts, so it says their total.
+        val report = structured.copy(trustMetadata = TrustMetadataView(freshnessState = "fresh", evidenceCount = 14))
+        val plan = classicPlan(report, null, withDesk = true)
+        assertEquals(15, report.sections.sumOf { it.evidence.size })
+        assertEquals("15 sources across 4 sections", chapterHead(report, plan, ClassicChapter.Evidence).title)
+        // No section lists its sources: the trust count, worded without claiming sections.
+        val bare = report.copy(sections = report.sections.map { it.copy(evidence = emptyList()) })
+        assertEquals("14 sources back this report", chapterHead(bare, classicPlan(bare, null, withDesk = true), ClassicChapter.Evidence).title)
+    }
+
+    @Test
+    fun fiveYearCardsNameTheirOwnSourceAndPeriod() {
+        val five = FiveYearSeries.fromHistory(structured.financialAnalysis!!.annualHistory)!!
+        assertEquals(DeepDiveCopy.incomeAndCashFlow, five.source)
+        assertEquals(DeepDiveCopy.incomeStatement, five.marginsSource)
+        assertEquals("Operating margin up 790 bps since FY2020", classicMarginsTitle(five))
+        val sampleFive = DeepDiveFixtures.sampleFiveYear!!
+        assertEquals(DeepDiveCopy.filingSource, sampleFive.marginsSource)
+        assertTrue(classicMarginsTitle(sampleFive), classicMarginsTitle(sampleFive).endsWith("since FY2020"))
+    }
+
+    @Test
+    fun historyKpisToneTheirChangeBySign() {
+        // No native memo: the hero's lines come from the annual history, with no worker judgement; up reads
+        // favourable, down unfavourable, as the filing path's improved / weakened.
+        val kpis = heroKpis(structured.copy(filingRead = null), null)
+        assertEquals(listOf("Revenue, FY2025", "Operating margin, FY2025", "Free cash flow, FY2025", "Net income, FY2025"), kpis.map { it.label })
+        assertEquals(listOf(Tone.Favourable, Tone.Favourable, Tone.Unfavourable, Tone.Favourable), kpis.map { it.deltaTone })
+        assertEquals("${Fmt.MINUS}9.2%", kpis[2].delta)
+        val flat = structured.financialAnalysis!!.annualHistory.map { it.copy(operatingMargin = 0.32) }
+        val flatKpis = heroKpis(structured.copy(filingRead = null, financialAnalysis = structured.financialAnalysis!!.copy(annualHistory = flat)), null)
+        assertEquals(Tone.Neutral, flatKpis[1].deltaTone)
     }
 }

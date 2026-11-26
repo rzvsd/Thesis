@@ -191,7 +191,9 @@ internal object ClassicFormat {
  * Fiscal years for the five-year chart, oldest first, one value per year (null = a line the payload does not have
  * for that year, never interpolated). Years with no value at all are left out ([trimmed]), so a chart never shows
  * an empty slot under a year label; [consecutive] says whether the years left run without a gap (the sample has
- * FY2020, FY2022, FY2024 and FY2025 only). [source] names where it came from (the chart card's foot).
+ * FY2020, FY2022, FY2024 and FY2025 only). [source] names where the revenue and free cash flow came from and
+ * [marginsSource] where the margins came from (each chart card's foot): free cash flow is a cash flow statement line,
+ * the margins are income statement lines.
  */
 internal data class FiveYearSeries(
     val years: List<Int>,
@@ -199,7 +201,8 @@ internal data class FiveYearSeries(
     val freeCashFlow: List<Double?>,
     val grossMargin: List<Double?> = emptyList(),
     val operatingMargin: List<Double?> = emptyList(),
-    val source: String = DeepDiveCopy.incomeStatement,
+    val source: String = DeepDiveCopy.incomeAndCashFlow,
+    val marginsSource: String = DeepDiveCopy.incomeStatement,
 ) {
     val labels: List<String> get() = years.map { Fmt.period(PeriodKind.FY, it) }
 
@@ -286,6 +289,7 @@ internal data class FiveYearSeries(
                 grossMargin = series("gross_margin"),
                 operatingMargin = series("operating_margin"),
                 source = DeepDiveCopy.filingSource,
+                marginsSource = DeepDiveCopy.filingSource,
             )
             return result.takeIf { it.hasRevenue || it.hasMargins }?.trimmed()
         }
@@ -336,6 +340,21 @@ internal fun heroKpis(report: DeepDiveReportView, fiveYear: FiveYearSeries?): Li
     return if (kpis.size % 2 == 1 && kpis.size > 1) kpis.dropLast(1) else kpis
 }
 
+/** The smallest change the KPI shows: 0.1% for money lines, 1 bp (0.01 points) for margins. */
+private const val PCT_STEP = 0.1
+private const val BPS_STEP = 0.01
+
+/**
+ * The tone of a history line's change, which has no worker judgement: the hero's lines (revenue, operating margin,
+ * free cash flow, net income) read better up, so up is favourable and down unfavourable, as the filing path's
+ * "improved" / "weakened" do; a change that rounds to zero on screen ([step]) is neutral.
+ */
+private fun signTone(change: Double, step: Double): Tone = when {
+    !change.isFinite() || abs(change) < step / 2 -> Tone.Neutral
+    change > 0 -> Tone.Favourable
+    else -> Tone.Unfavourable
+}
+
 private fun historyKpis(rows: List<FinancialHistoryRowView>): List<KpiSpec> {
     val annual = rows.filter { it.fiscalQuarter == null }.sortedBy { it.fiscalYear }
     val cur = annual.lastOrNull() ?: return emptyList()
@@ -349,7 +368,7 @@ private fun historyKpis(rows: List<FinancialHistoryRowView>): List<KpiSpec> {
             label = "$label, $period",
             value = Fmt.money(now),
             delta = change?.let { Fmt.signedPct(it) },
-            deltaTone = Tone.Neutral,
+            deltaTone = change?.let { signTone(it, PCT_STEP) } ?: Tone.Neutral,
             reference = reference.takeIf { change != null },
         )
     }
@@ -360,7 +379,7 @@ private fun historyKpis(rows: List<FinancialHistoryRowView>): List<KpiSpec> {
             label = "$label, $period",
             value = Fmt.pct(now, 1),
             delta = before?.let { Fmt.bpsFromPoints(now - it) },
-            deltaTone = Tone.Neutral,
+            deltaTone = before?.let { signTone(now - it, BPS_STEP) } ?: Tone.Neutral,
             reference = reference.takeIf { before != null },
         )
     }

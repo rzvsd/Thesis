@@ -588,7 +588,9 @@ internal fun SampleDeepDiveContent(
     onDismiss: () -> Unit,
     failed: Boolean = false,
 ) {
-    HeroUnderBars()
+    // The root bar takes its over-hero palette only while a HeroBand is under it: the page or its skeleton, never
+    // the failed state (an EmptyState on the page background).
+    if (report != null || !failed) HeroUnderBars()
     val uriHandler = LocalUriHandler.current
     val listState = rememberLazyListState()
     Box(Modifier.fillMaxSize()) {
