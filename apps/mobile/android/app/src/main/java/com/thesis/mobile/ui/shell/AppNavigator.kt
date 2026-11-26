@@ -177,8 +177,8 @@ class AppNavigator(private val store: NavigatorStateStore? = null) {
 
     /**
      * Runs [open] (which pushes a list row's detail, for example `onOpenNameIn`) so that the entry it pushes grows
-     * from [origin], the tapped row's window bounds. Only pages the tab layer draws take an origin: a report is
-     * drawn by the base layer under it and keeps the shared axis.
+     * from [origin], the tapped row's window bounds. A report takes one too (PR-4b): the base layer grows it from the
+     * row in the shell's transform overlay, over the tab layer's list.
      */
     fun pushFrom(origin: Rect?, open: () -> Unit) {
         pendingOrigin = origin?.takeIf { it.width > 0f && it.height > 0f }
@@ -200,7 +200,7 @@ class AppNavigator(private val store: NavigatorStateStore? = null) {
             stacks.getValue(currentTab).add(entry)
             lastMove = NavMove.Push
             val origin = pendingOrigin
-            if (origin != null && destination !is Destination.Report && destination !is Destination.ReportClassic) {
+            if (origin != null) {
                 // Origins of entries that left every stack go with them.
                 transformOrigins.keys.retainAll(liveEntryIds())
                 transformOrigins[entry.entryId] = origin
