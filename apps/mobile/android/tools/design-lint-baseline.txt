@@ -54,12 +54,8 @@ ui/screens/DeleteAccountSection.kt	alert-dialog	1
 ui/screens/HistoryScreen.kt	dp-literal	3
 ui/screens/HistoryScreen.kt	copy-alpha	1
 ui/screens/HistoryScreen.kt	material-icons	3
-ui/screens/HoldingsCsvImport.kt	outlined-button	1
 ui/screens/InboxScreen.kt	copy-alpha	3
 ui/screens/InboxScreen.kt	outlined-button	5
-ui/screens/NamesScreen.kt	dp-literal	1
-ui/screens/NamesScreen.kt	copy-alpha	6
-ui/screens/NamesScreen.kt	outlined-button	4
 ui/screens/OnboardingScreen.kt	sp-literal	1
 ui/screens/OnboardingScreen.kt	dp-literal	15
 ui/screens/OnboardingScreen.kt	copy-alpha	2
