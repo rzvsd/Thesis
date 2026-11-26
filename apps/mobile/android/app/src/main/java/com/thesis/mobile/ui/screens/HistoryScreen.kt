@@ -134,7 +134,16 @@ fun HistoryScreen(
             if (compareMode) {
                 TextAction(ResearchCopy.COMPARE_CANCEL, onClick = leaveCompare, modifier = Modifier.padding(end = ThesisSpace.s))
             } else if (canCompare) {
-                ThesisIconButton(ThesisIcons.Compare, contentDescription = ResearchCopy.COMPARE_ACTION, onClick = { compareMode = true })
+                ThesisIconButton(
+                    ThesisIcons.Compare,
+                    contentDescription = ResearchCopy.COMPARE_ACTION,
+                    onClick = {
+                        // The chips and the field hide in compare mode, so no hidden filter may narrow the picks.
+                        filter = HistoryFilter.All
+                        query = ""
+                        compareMode = true
+                    },
+                )
             }
         },
         bottomBar = if (compareMode) {
@@ -229,7 +238,7 @@ fun HistoryScreen(
                         Spacer(Modifier.height(ThesisSpace.m))
                         InlineBanner(
                             text = ResearchCopy.HISTORY_REFRESH_FAILED,
-                            tone = BannerTone.Error,
+                            tone = BannerTone.Attention,
                             actionLabel = KitCopy.TRY_AGAIN,
                             onAction = onRefresh,
                             modifier = Modifier.padding(horizontal = ThesisSpace.gutter),
@@ -304,7 +313,7 @@ fun HistoryScreen(
                                 )
                             }
                         }
-                        item(key = "end-${day.date}", contentType = "gap") { Spacer(Modifier.height(ThesisSpace.xxl)) }
+                        item(key = "end-${day.date}", contentType = "gap") { Spacer(Modifier.height(ThesisSpace.sectionGapData)) }
                     }
                 }
             }

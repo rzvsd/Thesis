@@ -123,7 +123,8 @@ class ResearchHistoryModelTest {
 
     @Test
     fun historyMetaCountsReportsAndPulseBriefsApart() {
-        assertEquals("9 reports · 2 Pulse briefs · latest 2 h ago", ResearchCopy.historyMeta(9, 2, "2 h ago"))
+        // The time keeps together: no break inside "2 h ago" at 2.0x.
+        assertEquals("9 reports · 2 Pulse briefs · latest 2\u00A0h\u00A0ago", ResearchCopy.historyMeta(9, 2, "2 h ago"))
         assertEquals("1 report", ResearchCopy.historyMeta(1, 0, null))
         assertEquals("1 Pulse brief", ResearchCopy.historyMeta(0, 1, null))
     }

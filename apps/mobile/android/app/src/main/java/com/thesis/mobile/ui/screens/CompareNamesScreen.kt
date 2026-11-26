@@ -22,6 +22,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.AnnotatedString
 import com.thesis.mobile.model.CompareNamesState
 import com.thesis.mobile.model.FinancialHistoryRowView
@@ -197,15 +198,25 @@ internal data class CompareNameColumn(
 )
 
 /**
+ * The names the table holds: the first [CompareTableModel.MAX_COLUMNS] (the kit table takes no more). Nothing
+ * upstream caps a selection or a deep link yet (HANDOFF-E), so the screen does, and names the rest ([leftOutNames]).
+ */
+internal fun tableTickers(state: CompareNamesState): List<String> = state.tickers.take(CompareTableModel.MAX_COLUMNS)
+
+/** The names past the table's [CompareTableModel.MAX_COLUMNS], said in a caption under it. */
+internal fun leftOutNames(state: CompareNamesState): List<String> = state.tickers.drop(CompareTableModel.MAX_COLUMNS)
+
+/**
  * Columns for [state]: the subject (the first ticker) first, then the other names with a report in their ticker
- * order, then the names without one, so the figures come before the gaps on a phone. [fiscalYearEnds] maps a
- * ticker to the year-end of its latest fiscal year (HANDOFF-E: not in the payload yet).
+ * order, then the names without one, so the figures come before the gaps on a phone. At most
+ * [CompareTableModel.MAX_COLUMNS] ([tableTickers]). [fiscalYearEnds] maps a ticker to the year-end of its latest
+ * fiscal year (HANDOFF-E: not in the payload yet).
  */
 internal fun compareNameColumns(
     state: CompareNamesState,
     disciplines: Map<String, ValueDisciplineView?>,
     fiscalYearEnds: Map<String, YearMonth> = emptyMap(),
-): List<CompareNameColumn> = state.tickers.mapIndexed { i, t ->
+): List<CompareNameColumn> = tableTickers(state).mapIndexed { i, t ->
     val summary = state.summaries[t]
     CompareNameColumn(
         ticker = t,
@@ -344,11 +355,12 @@ private fun filingLine(column: CompareNameColumn, fmt: Fmt, zone: ZoneId): Strin
 /**
  * The table (#30) for [columns] (already sorted): one column per ticker (ticker over its fiscal period, then the
  * filing line), one row per [NameMetric], and the peer median per row in the basis column ("Median"; with
- * tickers as columns, the median across them is one value per row). [marked] is the row the columns are sorted
- * by (or the row picked for the next sort): it sits on `surface2`, the kit's one row emphasis (a dedicated
- * "sorted row" flag is requested from WP-K in HANDOFF-E), so the sort reads in the table, not only in its caption.
+ * tickers as columns, the median across them is one value per row; value discipline as the median share of
+ * signals met). No row is put on `surface2`: the kit's `median` row flag means a median, and the median here is a
+ * column, so the sorted row is said in the caption under the table until WP-K adds a separate row emphasis
+ * (HANDOFF-E).
  */
-internal fun compareNamesTable(columns: List<CompareNameColumn>, marked: NameMetric? = null): CompareTableModel =
+internal fun compareNamesTable(columns: List<CompareNameColumn>): CompareTableModel =
     CompareTableModel(
         columns = columns.map { c ->
             CompareColumn(
@@ -359,12 +371,11 @@ internal fun compareNamesTable(columns: List<CompareNameColumn>, marked: NameMet
             )
         },
         rows = NameMetric.entries.map { m ->
-            val med = if (m == NameMetric.Discipline) null else median(columns.mapNotNull { metricValue(it, m) })
+            val med = median(columns.mapNotNull { metricValue(it, m) })
             CompareRow(
                 label = metricShortLabel(m),
                 values = columns.map { cellText(it, m) },
                 delta = formatMetric(m, med, Missing.NotMeaningful),
-                median = m == marked,
             )
         },
         labelHeader = ResearchCopy.LATEST_FY,
@@ -403,11 +414,18 @@ internal fun compareNamesTsv(columns: List<CompareNameColumn>, fmt: Fmt, zone: Z
     lines += listOf(ResearchCopy.PERIOD) + columns.map { columnPeriod(it) } + ""
     lines += listOf(ResearchCopy.FILING) + columns.map { cell(filingLine(it, fmt, zone)) } + ""
     NameMetric.entries.forEach { m ->
-        val med = if (m == NameMetric.Discipline) null else median(columns.mapNotNull { metricValue(it, m) })
+        val med = median(columns.mapNotNull { metricValue(it, m) })
         lines += listOf(metricTsvLabel(m)) + columns.map { metricRaw(m, metricValue(it, m)) } + metricRaw(m, med)
     }
     return lines.joinToString("\n") { line -> line.joinToString("\t") { cell(it) } }
 }
+
+/**
+ * The row the screen title speaks of: operating margin when two or more names have it, else revenue when two or
+ * more have that, else null. It is also the row a column-header tap sorts by until a figure picks another.
+ */
+internal fun headlineMetric(columns: List<CompareNameColumn>): NameMetric? =
+    listOf(NameMetric.Operating, NameMetric.Revenue).firstOrNull { m -> columns.count { metricValue(it, m) != null } >= 2 }
 
 /**
  * The screen title as a result: the widest operating margin, else the largest revenue (principle 4). The group
@@ -492,6 +510,9 @@ internal fun revenueSeries(
     return RevenueSeries(years, if (years.isEmpty()) emptyList() else series)
 }
 
+/** From this font scale the top bar's one-line subtitle can no longer hold four tickers. */
+private const val LARGE_FONT_SCALE = 1.3f
+
 // ---- Screen
 
 /**
@@ -528,12 +549,12 @@ fun CompareNamesScreen(
     val clipboard = LocalClipboardManager.current
     val scroll = rememberScrollState()
     val collapsed by rememberTopBarCollapsed(scroll)
+    val fontScale = LocalDensity.current.fontScale
     var sortMetric by rememberSaveable { mutableStateOf(initialSortMetric) }
-    // The row the next header tap sorts by: the last row whose figure was tapped (revenue until one is).
+    // The row the next header tap sorts by: the last row whose figure was tapped, else the row the title speaks of.
     var pickedRow by rememberSaveable { mutableStateOf(initialSortMetric) }
     var showChart by rememberSaveable { mutableStateOf(initialShowChart) }
     var chartMode by rememberSaveable { mutableStateOf(initialChartMode) }
-    var copied by remember { mutableStateOf(false) }
     var source by remember { mutableStateOf<SourceInfo?>(null) }
 
     val tickers = state?.tickers.orEmpty()
@@ -541,8 +562,11 @@ fun CompareNamesScreen(
     val others = tickers.drop(1)
     val base = remember(state, disciplines, fiscalYearEnds) { state?.let { compareNameColumns(it, disciplines, fiscalYearEnds) }.orEmpty() }
     val columns = remember(base, sortMetric) { sortColumns(base, sortMetric) }
-    val marked = pickedRow ?: sortMetric
-    val model = remember(columns, marked) { if (columns.isEmpty()) null else compareNamesTable(columns, marked) }
+    val leftOut = state?.let(::leftOutNames).orEmpty()
+    val nextSort = pickedRow ?: headlineMetric(base) ?: NameMetric.Revenue
+    val model = remember(columns) { if (columns.isEmpty()) null else compareNamesTable(columns) }
+    // Keyed on what was copied: after a re-sort or new data the clipboard holds the old table, so the check goes.
+    var copied by remember(columns) { mutableStateOf(false) }
     // Copy as table only once there are figures to copy (not in the error state, where every cell is blank).
     val canCopy = model != null && state?.isLoading == false && base.any { it.hasReport }
     val copy = {
@@ -579,15 +603,19 @@ fun CompareNamesScreen(
         ) {
             // Fewer than two names: the empty state says so, no header with an empty title.
             if (tickers.size >= 2) {
+                val headline = if (state?.isLoading == false) compareNamesHeadline(columns) else null
                 ScreenHeader(
                     eyebrow = ResearchCopy.COMPARE_NAMES_EYEBROW,
-                    title = (if (state?.isLoading == false) compareNamesHeadline(columns) else null)
-                        ?: ResearchCopy.compareNamesTitle(subject, others),
+                    title = headline ?: ResearchCopy.compareNamesTitle(subject, others),
                     deck = if (base.any { it.hasReport } && base.filter { it.hasReport }.all { it.fyEnd != null }) {
                         ResearchCopy.COMPARE_NAMES_DECK_YEAR_ENDS
                     } else {
                         ResearchCopy.COMPARE_NAMES_DECK
                     },
+                    // At a large font scale the bar's one-line subtitle ellipsizes ("AAPL with MSFT, COST, N…"):
+                    // the header then names every compared ticker, since the title is the result, not the names.
+                    meta = ResearchCopy.compareNamesTitle(subject, others)
+                        .takeIf { headline != null && fontScale >= LARGE_FONT_SCALE },
                 )
                 Spacer(Modifier.height(ThesisSpace.headerToSection))
             }
@@ -610,7 +638,7 @@ fun CompareNamesScreen(
                         model = model,
                         columnNames = columns.map { it.ticker },
                         deltaName = ResearchCopy.THE_MEDIAN,
-                        onHeaderClick = { sortMetric = pickedRow ?: NameMetric.Revenue },
+                        onHeaderClick = { sortMetric = nextSort },
                         onCellClick = { r, c ->
                             val metric = NameMetric.entries[r]
                             pickedRow = metric
@@ -621,10 +649,14 @@ fun CompareNamesScreen(
                     )
                     Spacer(Modifier.height(ThesisSpace.s))
                     Text(
-                        sortCaption(sortMetric, pickedRow),
+                        sortCaption(sortMetric, nextSort),
                         style = ThesisType.caption,
                         color = p.muted,
                     )
+                    if (leftOut.isNotEmpty()) {
+                        Spacer(Modifier.height(ThesisSpace.xs))
+                        Text(ResearchCopy.namesLeftOut(leftOut, CompareTableModel.MAX_COLUMNS), style = ThesisType.caption, color = p.muted)
+                    }
                     Row(
                         Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(ThesisSpace.m, Alignment.End),
@@ -700,6 +732,8 @@ private fun RevenueChart(state: CompareNamesState, columns: List<CompareNameColu
                 SmallMultiples(
                     items = series.map { s -> SmallMultiple(title = s.name, values = s.values, xLabels = labels) },
                     valueFormat = { Fmt.money(it) },
+                    // The zero gridline reads "$0" beside "$200B", not "$0.00".
+                    tickFormat = { if (it == 0.0) ResearchCopy.ZERO_DOLLARS else Fmt.money(it) },
                     dataKey = columns.map { it.ticker },
                 )
             }

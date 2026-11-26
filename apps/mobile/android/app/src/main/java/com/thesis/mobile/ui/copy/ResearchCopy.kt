@@ -41,7 +41,7 @@ object ResearchCopy {
     /** What the field's action will do for [ticker], said before the tap (principle 11). */
     fun fieldHelper(ticker: String, opens: Boolean, openedAgo: String?): String =
         if (opens) {
-            "You read $ticker ${openedAgo ?: "before"}. Open report shows it again; nothing is rebuilt."
+            "You read $ticker ${openedAgo?.let(::keepTogether) ?: "before"}. Open report shows it again; nothing is rebuilt."
         } else {
             "Builds $ticker from its latest 10-K and 10-Q at the SEC, or joins a build already running."
         }
@@ -58,7 +58,7 @@ object ResearchCopy {
      */
     fun recentHeadline(openedThisWeek: Int, lastTicker: String?, lastAgo: String?): String? = when {
         openedThisWeek >= 2 -> "You opened ${Fmt.count(openedThisWeek, "report", "reports")} this week"
-        lastTicker != null && lastAgo != null -> "$lastTicker was the last report you opened, $lastAgo"
+        lastTicker != null && lastAgo != null -> "$lastTicker was the last report you opened, ${keepTogether(lastAgo)}"
         lastTicker != null -> "$lastTicker was the last report you opened"
         else -> null
     }
@@ -97,7 +97,7 @@ object ResearchCopy {
         listOfNotNull(
             Fmt.count(reports, "report", "reports").takeIf { reports > 0 || briefs == 0 },
             Fmt.count(briefs, "Pulse brief", "Pulse briefs").takeIf { briefs > 0 },
-            latestAgo?.let { "latest $it" },
+            latestAgo?.let { "latest ${keepTogether(it)}" },
         ).joinToString(" · ")
 
     const val FILTER_ALL = "All"
@@ -168,6 +168,9 @@ object ResearchCopy {
         }
         return listOfNotNull(revenue, margin).joinToString(", ").ifBlank { null }?.replaceFirstChar { it.uppercase() }
     }
+    /** "FY2025 vs FY2024: revenue up 6.4%, operating margin up 50 bps": the result with its basis first. */
+    fun withBasis(newer: String, older: String, result: String): String =
+        "$newer vs $older: ${result.replaceFirstChar { it.lowercase() }}"
     fun basis(newer: String, older: String, sameQuarter: Boolean): String =
         if (sameQuarter) "$newer vs $older, same quarter" else "$newer vs $older"
     const val KEY_FIGURES_KICKER = "Key figures"
@@ -256,6 +259,11 @@ object ResearchCopy {
     const val FILING = "Filing"
     const val LATEST_FY = "Latest FY"
     const val MEDIAN = "Median"
+    /** The zero gridline of a money axis: "$0", not "$0.00". */
+    const val ZERO_DOLLARS = "\$0"
+    /** Names past the table's [max] columns: "Not in the table: AMZN. It holds 4 names at a time." */
+    fun namesLeftOut(names: List<String>, max: Int): String =
+        "Not in the table: ${names.joinToString(", ")}. It holds ${Fmt.number(max.toLong())} names at a time."
     const val ROW_REVENUE = "Revenue"
     const val ROW_GROWTH = "Revenue growth, YoY"
     const val ROW_GROSS = "Gross margin"
@@ -288,7 +296,8 @@ object ResearchCopy {
         "Columns sorted by ${sorted.replaceFirstChar { it.lowercase() }}. Tap a column header to sort by ${picked.replaceFirstChar { it.lowercase() }}."
 
     /** A row picked, nothing sorted yet. */
-    fun pickedRow(metric: String): String = "Tap a column header to sort by ${metric.replaceFirstChar { it.lowercase() }}."
+    fun pickedRow(metric: String): String =
+        "Tap a column header to sort by ${metric.replaceFirstChar { it.lowercase() }}, or a figure to pick another row."
     const val SORT_HINT = "Tap a figure to choose a row, then a column header to sort by it."
     const val ORIGINAL_ORDER = "Original order"
     const val SHOW_CHART = "Show chart"
@@ -358,7 +367,7 @@ object ResearchCopy {
     const val STEP_PRE = "Pre-open"
     const val STEP_LIVE = "Live"
     const val STEP_POST = "After close"
-    fun updated(ago: String): String = "Updated $ago"
+    fun updated(ago: String): String = "Updated ${keepTogether(ago)}"
     const val PHASES_KICKER = "The room"
     fun phasesHeadline(written: Int, complete: Boolean): String = when {
         complete -> "All three phases are in"
@@ -422,6 +431,14 @@ object ResearchCopy {
     const val STRESS_SCALE = "Stress score, 0–100, higher = more exposed"
     fun stressSource(asOf: String): String = "Scenario Stress run · as of $asOf"
     const val BY_NAME = "By name"
+    /** The By name result: how many names could see their thesis break (likely or possible). */
+    fun byNameHeadline(breaks: Int): String = when (breaks) {
+        0 -> "No thesis looks likely to break in this scenario"
+        1 -> "1 name could see its thesis break"
+        else -> "${Fmt.number(breaks.toLong())} names could see their thesis break"
+    }
+    /** A By name row's evidence count: "1 source", "2 sources". */
+    fun sourcesCount(n: Int): String = Fmt.count(n, "source", "sources")
     fun openName(ticker: String): String = "Open $ticker"
     const val NO_EVIDENCE = "No linked evidence for this name."
     const val GUARDRAILS_KICKER = "Guardrails"

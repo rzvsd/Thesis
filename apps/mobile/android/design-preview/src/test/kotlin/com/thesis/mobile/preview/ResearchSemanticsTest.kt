@@ -3,9 +3,11 @@ package com.thesis.mobile.preview
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertIsNotSelected
@@ -17,6 +19,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performSemanticsAction
 import com.thesis.mobile.model.WarRoomView
 import com.thesis.mobile.preview.fixtures.ResearchFixtures as F
 import com.thesis.mobile.ui.copy.ResearchCopy
@@ -129,12 +132,17 @@ class ResearchSemanticsTest {
         rule.onNodeWithContentDescription(ResearchCopy.COPY_TABLE).assertExists().assertRole(Role.Button)
         // One Copy as table entry: the bar's action, not a second text action under the table.
         rule.onAllNodesWithText(ResearchCopy.COPY_TABLE).assertCountEquals(0)
-        // Column headers are headings and sort buttons; a tap sorts by the picked row (revenue until a cell is tapped).
+        // Column headers are headings and sort buttons; a tap sorts by the picked row (until a cell is tapped, the
+        // row the title speaks of: operating margin).
         val header = rule.onNode(hasText("MSFT", substring = true) and SemanticsMatcher.keyIsDefined(SemanticsProperties.Heading) and hasClickAction())
         header.assertRole(Role.Button)
-        rule.onAllNodesWithText(ResearchCopy.sortedBy(ResearchCopy.ROW_REVENUE)).assertCountEquals(0)
+        rule.onAllNodesWithText(ResearchCopy.sortedBy(ResearchCopy.ROW_OPERATING)).assertCountEquals(0)
+        // Copied, then re-sorted: the check goes, since the clipboard holds the old column order.
+        rule.onNodeWithContentDescription(ResearchCopy.COPY_TABLE).performClick()
+        rule.onNodeWithContentDescription(ResearchCopy.COPIED).assertExists()
         header.performClick()
-        rule.onNodeWithText(ResearchCopy.sortedBy(ResearchCopy.ROW_REVENUE)).assertExists()
+        rule.onNodeWithText(ResearchCopy.sortedBy(ResearchCopy.ROW_OPERATING)).assertExists()
+        rule.onNodeWithContentDescription(ResearchCopy.COPY_TABLE).assertExists()
         // A figure is a button that opens its source; a name with no report says so once, not "Not computed".
         val cells = rule.onAllNodes(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Button) and hasContentDescription("Revenue, AAPL", substring = true))
         assertTrue(cells.fetchSemanticsNodes().isNotEmpty())
@@ -152,7 +160,7 @@ class ResearchSemanticsTest {
         val figures = rule.onAllNodes(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Button) and hasContentDescription("Revenue, FY2025", substring = true))
         assertTrue(figures.fetchSemanticsNodes().isNotEmpty())
         rule.onAllNodesWithText("Edit").assertCountEquals(0)
-        // The basis is said once on screen: in the table header (the top bar subtitle names the filings).
+        // The basis alone is the table header; the title leads with it ("FY2025 vs FY2024: revenue up …").
         rule.onAllNodesWithText("FY2025 vs FY2024").assertCountEquals(1)
     }
 
@@ -175,9 +183,15 @@ class ResearchSemanticsTest {
                 onOpenTickerResearch = { built++ }, onOpenRunFromRoute = { _, _ -> }, onRequireUpgrade = {}, zone = F.zone,
             )
         }
-        // The rationale is said once (in By name), not again on the chart's bars.
-        rule.onAllNodesWithText(F.stressRun.impacts.first { it.ticker == "NVDA" }.rationale).assertCountEquals(1)
-        rule.onNodeWithText(F.stressRun.impacts.first { it.ticker == "NVDA" }.rationale).performClick()
+        // The rationale is said once (the bar's second line, 5.20), not again in By name.
+        rule.onAllNodesWithText(F.stressRun.impacts.first { it.ticker == "NVDA" }.rationale, substring = true).assertCountEquals(1)
+        // A By name row is a disclosure: a button with an Expanded/Collapsed state and no on/off toggle state.
+        val row = rule.onNode(hasContentDescription("NVDA,", substring = true) and SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Button))
+        row.assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, ResearchCopy.COLLAPSED))
+        row.assert(SemanticsMatcher.keyNotDefined(SemanticsProperties.ToggleableState))
+        // Through the action TalkBack uses (the run bar can cover the row's centre in the test window).
+        row.performSemanticsAction(SemanticsActions.OnClick)
+        row.assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, ResearchCopy.EXPANDED))
         rule.onAllNodesWithText(ResearchCopy.openName("NVDA")).assertCountEquals(0)
         assertEquals(0, built)
     }
@@ -196,6 +210,21 @@ class ResearchSemanticsTest {
         assertTrue(handled)
         rule.onAllNodesWithText(ResearchCopy.COMPARE_BANNER).assertCountEquals(0)
         rule.onNodeWithContentDescription(ResearchCopy.COMPARE_ACTION).assertExists()
+    }
+
+    @Test
+    fun enteringCompareModeClearsTheHiddenFilter() {
+        set {
+            HistoryScreen(
+                historyItems = F.history, onBack = {}, onOpenReport = {}, filingPeriods = F.filingPeriods,
+                onCompareReports = { _, _ -> }, initialFilter = com.thesis.mobile.ui.screens.HistoryFilter.Pulse, clock = F.clock,
+            )
+        }
+        rule.onAllNodesWithText("AAPL", substring = true).assertCountEquals(0)
+        rule.onNodeWithContentDescription(ResearchCopy.COMPARE_ACTION).performClick()
+        // The chips hide in compare mode, so the Pulse filter must not stay on: the Deep Dives are there to pick.
+        rule.onNodeWithText(ResearchCopy.COMPARE_BANNER).assertExists()
+        assertTrue(rule.onAllNodesWithText("AAPL", substring = true).fetchSemanticsNodes().isNotEmpty())
     }
 
     @Test

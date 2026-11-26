@@ -52,8 +52,8 @@ class StressWarRoomSearchModelTest {
         assertEquals("Cloud demand holds", rows[2].rationale)
         val bars = stressBars(rows)
         assertEquals(rows.map { it.ticker }, bars.map { it.label })
-        // Single-line bars: the rationale is said once, in "By name" (no list that repeats the chart).
-        assertTrue(bars.all { it.rationale == null })
+        // Two-line bars (5.20): the rationale is each bar's second line; "By name" repeats neither score nor rationale.
+        assertEquals(rows.map { it.rationale }, bars.map { it.rationale })
         assertEquals(Tone.Unfavourable, rows[0].tone)
         assertEquals(Tone.Neutral, rows[3].tone)
         // Only web links survive as evidence; ids are never rendered.
@@ -88,6 +88,10 @@ class StressWarRoomSearchModelTest {
         assertEquals(ResearchCopy.BREAK_LIKELY, stressRowBadge(rows.getValue("NVDA"))?.text)
         assertEquals(ResearchCopy.BREAK_POSSIBLE, stressRowBadge(rows.getValue("AAPL"))?.text)
         assertNull(stressRowBadge(rows.getValue("KO")))
+        // The By name headline is a result: how many names could see their thesis break.
+        assertEquals(ResearchCopy.byNameHeadline(2), ResearchCopy.byNameHeadline(rows.values.count { stressRowBadge(it) != null }))
+        assertEquals("2 names could see their thesis break", ResearchCopy.byNameHeadline(2))
+        assertEquals("1 source", ResearchCopy.sourcesCount(1))
     }
 
     private fun phase(p: String, status: String? = null, reportId: String? = null) =

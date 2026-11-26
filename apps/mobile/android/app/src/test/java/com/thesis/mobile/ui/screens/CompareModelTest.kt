@@ -86,15 +86,15 @@ class CompareModelTest {
         assertEquals(Fmt.signedPct((416.0 / 391.0 - 1) * 100), revenue.delta)
         val op = m.table.rows.first { it.label == ResearchCopy.ROW_OPERATING_SHORT }
         assertEquals(Fmt.bpsFromPoints(0.5), op.delta)
-        assertTrue(m.headline!!.startsWith("Revenue up"))
+        // The result leads with its basis, so each figure in the title has a period (C1).
+        assertTrue(m.headline!!.startsWith("FY2025 vs FY2024: revenue up"))
         assertTrue(m.headline!!.contains("operating margin"))
         // Header row 2 is the form only (the build dates are in the deck), so the columns fit a phone.
         assertEquals(listOf(ResearchCopy.FORM_10K, ResearchCopy.FORM_10K), m.table.columns.map { it.filing })
         assertTrue(m.deck.contains("12 Nov"))
-        // The basis is said once, in the table header, not in the title or the deck.
+        // The basis is in the title and the table header, not repeated in the deck.
         assertEquals(ResearchCopy.basis("FY2025", "FY2024", sameQuarter = false), m.table.labelHeader)
         assertFalse(m.deck.contains("FY2025"))
-        assertFalse(m.headline!!.contains("FY2025"))
     }
 
     @Test
@@ -289,11 +289,13 @@ class CompareModelTest {
     }
 
     @Test
-    fun theSortedRowIsMarkedInTheTableAndTheCaptionSaysWhatTheNextTapDoes() {
+    fun noRowWearsTheMedianTintAndTheCaptionSaysWhatTheNextTapDoes() {
         val cols = compareNameColumns(state, emptyMap())
-        val table = compareNamesTable(sortColumns(cols, NameMetric.Operating), marked = NameMetric.Operating)
-        assertEquals(listOf(ResearchCopy.ROW_OPERATING_SHORT), table.rows.filter { it.median }.map { it.label })
-        assertTrue(compareNamesTable(cols).rows.none { it.median })
+        // The kit's median row flag means a median; the median here is a column, so no row is tinted.
+        assertTrue(compareNamesTable(sortColumns(cols, NameMetric.Operating)).rows.none { it.median })
+        // Until a figure picks a row, a header tap sorts by the row the title speaks of.
+        assertEquals(NameMetric.Operating, headlineMetric(cols))
+        assertEquals(ResearchCopy.pickedRow(ResearchCopy.ROW_OPERATING), sortCaption(null, NameMetric.Operating))
         assertEquals(ResearchCopy.SORT_HINT, sortCaption(null, null))
         assertEquals(ResearchCopy.sortedBy(ResearchCopy.ROW_OPERATING), sortCaption(NameMetric.Operating, NameMetric.Operating))
         assertEquals(
@@ -357,5 +359,42 @@ class CompareModelTest {
         assertEquals("FY2024", compareReportsSource(m, 0, 0)!!.period)
         assertNull(compareReportsSource(m, 0, 2))
         assertEquals(ResearchCopy.DERIVE_EPS, compareReportsSource(m, m.raw.indexOfFirst { it.metric == ReportMetric.Eps }, 1)!!.derivation)
+    }
+
+    @Test
+    fun moreThanFourNamesKeepTheFirstFourAndNameTheRest() {
+        val five = state.copy(
+            tickers = listOf("AAPL", "MSFT", "NVDA", "COST", "AMZN"),
+            summaries = state.summaries + mapOf("COST" to summary("COST", "Costco", 275e9, 3.6), "AMZN" to summary("AMZN", "Amazon", 640e9, 10.8)),
+        )
+        val cols = compareNameColumns(five, emptyMap())
+        assertEquals(4, cols.size)
+        assertFalse(cols.any { it.ticker == "AMZN" })
+        assertEquals(listOf("AMZN"), leftOutNames(five))
+        // Building the kit table must not throw (it takes at most four value columns).
+        assertEquals(4, compareNamesTable(cols).columns.size)
+        assertTrue(ResearchCopy.namesLeftOut(leftOutNames(five), 4).contains("AMZN"))
+    }
+
+    @Test
+    fun valueDisciplineMedianIsTheMedianShareOfSignalsMet() {
+        val discipline = { score: Int, n: Int -> 
+            com.thesis.mobile.model.ValueDisciplineView(
+                score = score, maxScore = n, availableSignals = n, completeness = "full", contextLabel = "", interpretation = "",
+                doesNotProve = "", valueTrapWarning = com.thesis.mobile.model.ValueTrapWarningView(triggered = false, summary = ""),
+            )
+        }
+        val cols = compareNameColumns(state, mapOf("AAPL" to discipline(3, 6), "MSFT" to discipline(4, 5)))
+        val row = compareNamesTable(cols).rows.first { it.label == ResearchCopy.ROW_DISCIPLINE }
+        assertEquals(Fmt.pct((0.5 + 0.8) / 2 * 100.0, dp = 0), row.delta)
+    }
+
+    @Test
+    fun twoReportDatesShareOneForm() {
+        val thisYear = java.time.Instant.parse("2026-11-12T08:00:00Z")
+        val lastYear = java.time.Instant.parse("2025-11-19T08:00:00Z")
+        assertEquals("19 Nov 2025" to "12 Nov 2026", pairedDates(lastYear, thisYear, fmt, zone))
+        assertEquals(fmt.shortDate(java.time.LocalDate.of(2026, 11, 12)), pairedDates(thisYear, thisYear, fmt, zone).second)
+        assertFalse(pairedDates(thisYear, thisYear, fmt, zone).first!!.contains("2026"))
     }
 }

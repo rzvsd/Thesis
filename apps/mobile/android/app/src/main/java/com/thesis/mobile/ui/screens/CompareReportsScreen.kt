@@ -67,6 +67,8 @@ import java.math.MathContext
 import java.math.RoundingMode
 import java.time.Instant
 import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 import kotlin.math.abs
 
 // ---- Filings: what "like for like" means (shared with History)
@@ -307,7 +309,7 @@ internal fun compareReportsModel(a: DeepDiveReportView, b: DeepDiveReportView, f
     )
     val ticker = (newer.report.ticker ?: older.report.ticker).orEmpty().trim().uppercase()
     val company = newer.report.issuer?.name?.trim()?.ifBlank { null } ?: older.report.issuer?.name?.trim()?.ifBlank { null }
-    fun built(side: ReportSide) = side.at?.let { fmt.shortDate(it.atZone(zone).toLocalDate()) }
+    val (olderBuilt, newerBuilt) = pairedDates(older.at, newer.at, fmt, zone)
     return ReportPair.Ready(
         CompareReportsModel(
             ticker = ticker,
@@ -317,8 +319,9 @@ internal fun compareReportsModel(a: DeepDiveReportView, b: DeepDiveReportView, f
             basis = basis,
             table = table,
             raw = raw,
-            headline = ResearchCopy.compareReportsHeadline(revD, opD?.times(100)),
-            deck = ResearchCopy.compareReportsDeck(company ?: ticker, newer.form, built(older), built(newer)),
+            // The basis leads the result, so every figure in the title carries its period (C1).
+            headline = ResearchCopy.compareReportsHeadline(revD, opD?.times(100))?.let { ResearchCopy.withBasis(newerLabel, olderLabel, it) },
+            deck = ResearchCopy.compareReportsDeck(company ?: ticker, newer.form, olderBuilt, newerBuilt),
             since = if (sinceVerified(older, newer)) sinceLastReportOf(older, newer, fmt, zone) else null,
         ),
     )
@@ -426,6 +429,21 @@ internal fun changeDirection(raw: String?): Boolean? {
  * it, only two consecutive annual reports qualify (FY2024 then FY2025); FY2023 with FY2025 would label a
  * one-year change as a change since FY2023, and a quarterly report may have been compared with the quarter before.
  */
+private val DateWithYear = DateTimeFormatter.ofPattern("d MMM yyyy", Locale.US)
+
+/**
+ * The two reports' dates in one form: "19 Nov 2025" and "24 Nov 2026" when either falls outside the current year,
+ * else "19 Nov" and "24 Nov" ([Fmt.shortDate] drops the year only for this year, which mixes the forms in one
+ * sentence: "built 19 Nov 2025 and 24 Nov").
+ */
+internal fun pairedDates(older: Instant?, newer: Instant?, fmt: Fmt, zone: ZoneId): Pair<String?, String?> {
+    val dates = listOf(older, newer).map { it?.atZone(zone)?.toLocalDate() }
+    val short = dates.map { d -> d?.let(fmt::shortDate) }
+    val anyWithYear = dates.zip(short).any { (d, text) -> d != null && text != null && text.endsWith(d.year.toString()) }
+    val shown = if (anyWithYear) dates.map { it?.format(DateWithYear) } else short
+    return shown[0] to shown[1]
+}
+
 internal fun sinceVerified(older: ReportSide, newer: ReportSide): Boolean {
     val comparable = newer.report.trustMetadata?.thesisDrift?.comparableReportId?.trim()?.ifBlank { null }
     if (comparable != null) return comparable == older.report.reportId
@@ -435,12 +453,12 @@ internal fun sinceVerified(older: ReportSide, newer: ReportSide): Boolean {
 private fun sinceLastReportOf(older: ReportSide, newer: ReportSide, fmt: Fmt, zone: ZoneId): SinceLastReportModel? {
     val change = newer.report.changeSummary ?: return null
     val drift = newer.report.trustMetadata?.thesisDrift
-    fun line(side: ReportSide) = listOfNotNull(side.label, side.at?.let { fmt.shortDate(it.atZone(zone).toLocalDate()) }).joinToString(" · ")
+    val (olderAt, newerAt) = pairedDates(older.at, newer.at, fmt, zone)
     return SinceLastReportModel(
         previousView = change.previousView,
-        previousFiling = line(older),
+        previousFiling = listOfNotNull(older.label, olderAt).joinToString(" · "),
         currentView = change.currentView,
-        currentFiling = line(newer),
+        currentFiling = listOfNotNull(newer.label, newerAt).joinToString(" · "),
         changes = change.topChanges.take(3).map { c ->
             val up = changeDirection(c.direction)
             ReportChange(
@@ -490,12 +508,13 @@ fun CompareReportsScreen(
     val clipboard = LocalClipboardManager.current
     val scroll = rememberScrollState()
     val collapsed by rememberTopBarCollapsed(scroll)
-    var copied by remember { mutableStateOf(false) }
     var source by remember { mutableStateOf<SourceInfo?>(null) }
     val a = state?.a
     val b = state?.b
     val pair = remember(a, b, fmt, zone) { if (a != null && b != null) compareReportsModel(a, b, fmt, zone) else null }
     val ready = (pair as? ReportPair.Ready)?.model
+    // Keyed on what was copied: once the pair changes the clipboard holds the old table, so the check goes.
+    var copied by remember(ready) { mutableStateOf(false) }
     val copy = {
         if (ready != null) {
             clipboard.setText(AnnotatedString(compareReportsTsv(ready)))
@@ -607,12 +626,13 @@ private fun ColumnScope.CompareReportsBody(
     Spacer(Modifier.height(ThesisSpace.sectionGapData))
     SectionHeader(kicker = ResearchCopy.VERDICTS_KICKER, headline = ResearchCopy.VERDICTS_HEADLINE)
     Spacer(Modifier.height(ThesisSpace.m))
+    val (olderAt, newerAt) = pairedDates(model.older.at, model.newer.at, fmt, zone)
     ThesisCard {
         listOf(model.newer to true, model.older to false).forEachIndexed { i, (side, newer) ->
             if (i > 0) ThesisDivider()
             Column(verticalArrangement = Arrangement.spacedBy(ThesisSpace.xs)) {
                 Eyebrow(
-                    listOfNotNull(side.label, side.at?.let { fmt.marketDate(it.atZone(zone).toLocalDate()) }).joinToString(" · "),
+                    listOfNotNull(side.label, if (newer) newerAt else olderAt).joinToString(" · "),
                     color = if (newer) p.accent else p.muted,
                 )
                 Text(

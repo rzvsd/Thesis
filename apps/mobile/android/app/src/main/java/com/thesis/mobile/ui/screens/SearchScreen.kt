@@ -301,7 +301,7 @@ fun SearchScreen(
                             company = hit.companyName ?: hit.ticker?.let { companyNames[it.uppercase()] },
                             period = filingPeriods[hit.reportId],
                             hasNote = hit.reportId in notedReportIds,
-                            trailing = parseInstant(hit.createdAt)?.let(fmt::relative),
+                            trailing = parseInstant(hit.createdAt)?.let(fmt::relative)?.let(ResearchCopy::keepTogether),
                             onOpen = {
                                 record()
                                 onOpenReport(hit.reportId)
@@ -422,7 +422,7 @@ private fun NoteHitRow(note: NoteTrailEntry, query: String, fmt: Fmt, onOpen: ()
                 color = p.ink,
                 modifier = Modifier.weight(1f),
             )
-            parseInstant(note.updatedAt)?.let { Text(fmt.relative(it), style = ThesisType.caption, color = p.muted) }
+            parseInstant(note.updatedAt)?.let { Text(ResearchCopy.keepTogether(fmt.relative(it)), style = ThesisType.caption, color = p.muted) }
         }
         if (excerpt.lead.isEmpty()) {
             Text(excerpt.rest, style = ThesisType.story, color = p.ink2, maxLines = EXCERPT_LINES, overflow = TextOverflow.Ellipsis)

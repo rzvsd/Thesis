@@ -251,7 +251,7 @@ fun ResearchScreen(
                             company = item.ticker?.let { companyNames[it.uppercase()] },
                             period = filingPeriods[item.reportId],
                             hasNote = item.reportId in notedReportIds,
-                            trailing = parseInstant(item.createdAt)?.let(fmt::relative),
+                            trailing = parseInstant(item.createdAt)?.let(fmt::relative)?.let(ResearchCopy::keepTogether),
                             onOpen = {
                                 if (item.type == TYPE_DEEP_DIVE) onOpenReport(item.reportId) else onOpenPulse(item.createdAt.take(10))
                             },

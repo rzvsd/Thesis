@@ -1,5 +1,6 @@
 package com.thesis.mobile.ui.screens
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -16,7 +17,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -405,7 +405,7 @@ private fun PhaseCard(
     val p = LocalThesisPalette.current
     val interaction = remember { MutableInteractionSource() }
     val stepWord = step?.let(::stepLabel) ?: ResearchCopy.humanize(phase.phase)
-    val at = parseInstant(phase.updatedAt)?.let(fmt::relative)
+    val at = parseInstant(phase.updatedAt)?.let(fmt::relative)?.let(ResearchCopy::keepTogether)
     val eyebrow = listOfNotNull(stepWord, at).joinToString(" · ")
     val badge = phaseBadge(phase.status)
     ThesisCard {
@@ -414,12 +414,14 @@ private fun PhaseCard(
                 .fillMaxWidth()
                 .heightIn(min = ThesisSpace.touchMin)
                 .thesisPress(interaction)
-                .toggleable(
-                    value = expanded,
+                // A disclosure, not a switch: clickable with an Expanded/Collapsed state, so TalkBack does not also
+                // read on/off (toggleable would add a toggle state).
+                .clickable(
                     interactionSource = interaction,
                     indication = null,
                     role = Role.Button,
-                    onValueChange = { onToggle() },
+                    onClickLabel = if (expanded) ResearchCopy.HIDE else ResearchCopy.SHOW,
+                    onClick = onToggle,
                 )
                 .semantics(mergeDescendants = true) {
                     stateDescription = if (expanded) ResearchCopy.EXPANDED else ResearchCopy.COLLAPSED

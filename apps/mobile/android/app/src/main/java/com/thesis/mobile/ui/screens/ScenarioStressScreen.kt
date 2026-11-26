@@ -1,5 +1,6 @@
 package com.thesis.mobile.ui.screens
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -14,7 +15,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
-import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -28,6 +28,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
@@ -80,8 +81,9 @@ import java.time.ZoneId
  * Scenario Stress (DESIGN-DIRECTION 5.20): pick one macro shock, run it across the names you follow, and read which
  * name it touches first. Header with the names count, a Pro gate for everyone else, the scenario cards (radio
  * group), a run bar at the bottom, then the results: KPIs, ranked stress bars (descending, toned by level, scale
- * stated, one line each), a by-name list that carries each name's rationale and badges once and opens to its
- * evidence and the Name page, and guardrails as plain callouts.
+ * stated, two lines each: score, then the rationale), a by-name list that carries no figure (each score is said
+ * once, by its bar) and holds each name's break badge, its evidence and the Name page, and guardrails as plain
+ * callouts.
  * Removed: duplicated title, "Reopen run", the always-amber "Critical: 0", `%.2f` scores and the two spinners.
  */
 
@@ -150,11 +152,12 @@ private fun ScenarioStressImpactView.toRow(): StressRow {
 }
 
 /**
- * The rows as single-line bars for [RankedBars]: the rationale is said once, in "By name" under the chart, so the
- * results do not list every name twice (until the kit's bars take a row tap and a badge, HANDOFF-E).
+ * The rows as two-line bars for [RankedBars] (5.20): the score, then the rationale as the bar's second line. The
+ * "By name" list under the chart repeats neither: it holds the badges, evidence and the Name page only, until the
+ * kit's bars take a row tap and a badge (HANDOFF-E).
  */
 internal fun stressBars(rows: List<StressRow>): List<RankedBar> =
-    rows.map { RankedBar(label = it.ticker, value = it.score, valueText = it.scoreText, tone = it.tone) }
+    rows.map { RankedBar(label = it.ticker, value = it.score, valueText = it.scoreText, rationale = it.rationale, tone = it.tone) }
 
 /**
  * "Copy as table": tab-separated, a header line then one line per name in rank order. The score is a plain number
@@ -234,7 +237,7 @@ fun ScenarioStressScreen(
         actions = {
             if (isPro && run != null && rows.isNotEmpty()) {
                 ThesisIconButton(
-                    icon = ThesisIcons.Copy,
+                    icon = if (copied) ThesisIcons.Check else ThesisIcons.Copy,
                     contentDescription = if (copied) ResearchCopy.COPIED else ResearchCopy.COPY_TABLE,
                     onClick = {
                         clipboard.setText(AnnotatedString(stressTsv(rows)))
@@ -329,7 +332,13 @@ fun ScenarioStressScreen(
                 state = results,
                 onRetry = { onRunScenario(selected?.scenarioId) },
                 loading = { ResultsSkeleton() },
-                empty = { EmptyState(sentence = ResearchCopy.NO_RUN, how = ResearchCopy.NO_RUN_HOW, icon = ThesisIcons.ScenarioStress) },
+                empty = {
+                    // With no scenario on screen (none loaded, or the load failed) the how-line would point at a
+                    // list that is not there: the scenarios section above already says what happened.
+                    if (active.isNotEmpty()) {
+                        EmptyState(sentence = ResearchCopy.NO_RUN, how = ResearchCopy.NO_RUN_HOW, icon = ThesisIcons.ScenarioStress)
+                    }
+                },
                 failed = {
                     ErrorState(
                         title = ResearchCopy.RUN_FAILED,
@@ -442,12 +451,15 @@ private fun StressResults(
         }
 
         Spacer(Modifier.height(ThesisSpace.sectionGapData))
-        SectionHeader(kicker = ResearchCopy.BY_NAME, headline = ResearchCopy.names(rows.size).replaceFirstChar { it.uppercase() })
+        SectionHeader(kicker = ResearchCopy.BY_NAME, headline = ResearchCopy.byNameHeadline(rows.count { stressRowBadge(it) != null }))
         Spacer(Modifier.height(ThesisSpace.m))
         ThesisCard {
-            rows.forEachIndexed { i, row ->
-                if (i > 0) ThesisDivider()
-                StressNameRow(row = row, onOpenName = onOpenName)
+            // One column inside the card, so the rows sit 48 dp apart with a hairline, not the card's block gap.
+            Column {
+                rows.forEachIndexed { i, row ->
+                    if (i > 0) ThesisDivider()
+                    StressNameRow(row = row, onOpenName = onOpenName)
+                }
             }
         }
     }
@@ -470,9 +482,10 @@ private fun StressResults(
 }
 
 /**
- * A name's line in "By name": ticker and score (in its level's colour), the rationale, and a break badge only when
- * a break is possible or likely ([stressRowBadge]).
- * Tapping opens its evidence links and "Open AAPL" (the Name page, when [onOpenName] is set). No haptic on open:
+ * A name's line in "By name": the ticker, its break badge (only when a break is possible or likely,
+ * [stressRowBadge]) and how many sources back it (when any). No score and no rationale: the bar above says both once.
+ * Tapping opens its evidence links and "Open AAPL" (the Name page, when [onOpenName] is set). A disclosure, not a
+ * switch: clickable with an Expanded/Collapsed state, so TalkBack does not also read on/off. No haptic on open:
  * toggle() is for follow and notification switches (4.7).
  */
 @Composable
@@ -481,37 +494,45 @@ private fun StressNameRow(row: StressRow, onOpenName: ((String) -> Unit)?) {
     val uri = LocalUriHandler.current
     var open by remember(row.ticker) { mutableStateOf(false) }
     val interaction = remember { MutableInteractionSource() }
+    val badge = stressRowBadge(row)
     Column(Modifier.fillMaxWidth()) {
-        Column(
+        Row(
             Modifier
                 .fillMaxWidth()
-                .heightIn(min = ThesisSpace.rowMinComfortableTwoLine)
+                .heightIn(min = ThesisSpace.rowMinCompact)
                 .thesisPress(interaction)
-                .toggleable(
-                    value = open,
+                .clickable(
                     interactionSource = interaction,
                     indication = null,
                     role = Role.Button,
-                    onValueChange = { open = it },
+                    onClickLabel = if (open) ResearchCopy.HIDE else ResearchCopy.SHOW,
+                    onClick = { open = !open },
                 )
                 .semantics(mergeDescendants = true) {
                     stateDescription = if (open) ResearchCopy.EXPANDED else ResearchCopy.COLLAPSED
-                }
-                .padding(vertical = ThesisSpace.s),
-            verticalArrangement = Arrangement.spacedBy(ThesisSpace.xs),
+                },
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(ThesisSpace.s),
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(row.ticker, style = ThesisType.rowTitle, color = p.ink, modifier = Modifier.weight(1f))
-                // The level is said by colour on screen; TalkBack hears it in words.
-                Text(
-                    row.scoreText,
-                    style = ThesisType.tableNum,
-                    color = row.tone.textColor(p),
-                    modifier = Modifier.semantics { contentDescription = "${row.scoreText}, ${row.impact}" },
-                )
+            // The level is said by the bar's colour on screen; TalkBack hears it in words here.
+            Text(
+                row.ticker,
+                style = ThesisType.rowTitle,
+                color = p.ink,
+                modifier = Modifier.semantics { contentDescription = "${row.ticker}, ${row.impact}" },
+            )
+            badge?.let { StatusBadge(it.text, it.tone) }
+            Spacer(Modifier.weight(1f))
+            // Only a count worth reading: "No sources" on most rows would repeat down the list (the opened row says it).
+            if (row.evidence.isNotEmpty()) {
+                Text(ResearchCopy.sourcesCount(row.evidence.size), style = ThesisType.caption, color = p.muted)
             }
-            row.rationale?.let { Text(it, style = ThesisType.bodySmall, color = p.ink2) }
-            stressRowBadge(row)?.let { StatusBadge(it.text, it.tone) }
+            Text(
+                if (open) ResearchCopy.HIDE else ResearchCopy.SHOW,
+                style = ThesisType.caption,
+                color = p.accent,
+                modifier = Modifier.clearAndSetSemantics { },
+            )
         }
         if (open) {
             if (row.evidence.isEmpty()) {
