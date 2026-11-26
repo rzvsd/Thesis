@@ -1,9 +1,12 @@
 # PR-4a: compose-bom 2025.04.00 and the harness on Compose Multiplatform 1.7.3 (WP-H)
 
 This note covers the isolated Compose bump (DESIGN-DIRECTION 4.1 item 4, 6.4; playbook 1.3). No features, no motion
-changes and no upgrades to new 1.7 APIs: any regression on a device can be traced to this PR alone. The optional
-upgrades (`sharedBounds`, `animateItem`, seekable predictive back, M3 1.3 `PullToRefreshBox`, text fields in sheets)
-are left for PR-4b. Paths are relative to `apps/mobile/android/`.
+changes and no new 1.7 behaviour: any regression on a device can be traced to this PR alone. The only 1.7 API it
+calls is the one that replaces a deprecation with the same behaviour: NamesScreen's `animateItemPlacement(spec)`
+became `animateItem(fadeInSpec = null, placementSpec = spec, fadeOutSpec = null)`, which is what 1.7 runs for the old
+call. The optional upgrades (`sharedBounds`, turning on `animateItem`'s fade-in/fade-out specs, seekable predictive
+back, M3 1.3 `PullToRefreshBox`, text fields in sheets) are left for PR-4b. Paths are relative to
+`apps/mobile/android/`.
 
 ## What changed
 
@@ -150,7 +153,7 @@ The residual M3 ripple was also checked as a pixel: a pressed `LocalIndication` 
 | Serif metrics (Newsreader) | Newsreader titles, ledes and story text keep their positions, line breaks and line heights; the serif glyphs differ only by edge antialiasing. Letter-spaced sans kickers start about 2 px earlier (sweep, B: skiko shaping, desktop only). | Android shapes text with its own engine; compare the serif headings on the phase APK. |
 | Pager (onboarding) | API source-compatible (`beyondBoundsPageCount` default 0 → `beyondViewportPageCount` 0; new `snapPosition = Start` default = old behaviour). Onboarding renders and `AccountSemanticsTest` paging tests pass. | Fling feel and snapping (1.7 `TargetedFlingBehavior`). |
 | Pull to refresh | M2 `pullRefresh` diff 1.6.11 → 1.7.3: `NestedScrollSource.Drag` renamed `UserInput`, inspectable wrapper removed; logic identical. `Refresh` renders unchanged. | Pull on Pulse, Home, Names. |
-| Bottom sheets | **Window geometry changed by M3 1.3; kept as on 1.2 where it matters (WP-INT).** Bytecode of the two jars: M3 1.2.1 ran the sheet in `ModalBottomSheetPopup`, which wrapped the whole layout (sheet and scrim) in `windowInsetsPadding(systemBarsForVisualComponents.only(Vertical))`. M3 1.3 runs it in `ModalBottomSheetDialog`, an edge-to-edge dialog window; `BottomSheetDefaults.windowInsets` is now `safeDrawing.only(Bottom)` and is only applied as padding on the sheet *content* (`contentWindowInsets`), not the old whole-layout inset, and nothing adds a top inset. Left alone, a tall sheet (Licences, any sheet at 2.0x) would expand under the status-bar icons, and the dialog window, not `SystemBarAppearance`, would own the bar icons (M3 sets them from the system dark setting, ignoring ThemeMode and the HeroBand rule). `ThesisSheet` now: pads the sheet by `WindowInsets.statusBars` (top edge stops under the status bar, as on 1.2); passes `contentWindowInsets = { safeDrawing.only(Bottom) }` explicitly (surface runs under the nav bar, its content is padded by it, so the last row sits where it did); and wraps the call in `SheetWindowBars` (ui/platform, desktop shim is a pass-through), which gives M3 a `LocalConfiguration` whose night bit matches the palette and, from inside the sheet, sets the dialog window's icons from the palette and `LocalStatusBarLight` (the HeroBand rule). The scrim now also covers both bars (M3 1.3's own look; not changed). Desktop has no insets, so the sheet renders are unchanged; compiled by the harness and by the Android proxy compile. | Predictive-back shrink of the sheet on Android 14+ (new in M3 1.3). Top edge of a tall sheet: You > Licences, and any sheet at 2.0x font: the drag handle stays below the status-bar icons. Bottom: the last row sits above the gesture/3-button nav bar, the surface colour runs under it. Icon colour with the app theme set opposite to the system theme (app Dark on a light system and the reverse): status and nav icons readable while the sheet is open and after it closes. A sheet opened over a HeroBand at rest in the light theme: light status-bar icons. |
+| Bottom sheets | **Window geometry changed by M3 1.3; kept as on 1.2 where it matters (WP-INT).** Bytecode of the two jars: M3 1.2.1 ran the sheet in `ModalBottomSheetPopup`, which wrapped the whole layout (sheet and scrim) in `windowInsetsPadding(systemBarsForVisualComponents.only(Vertical))`. M3 1.3 runs it in `ModalBottomSheetDialog`, an edge-to-edge dialog window; `BottomSheetDefaults.windowInsets` is now `safeDrawing.only(Bottom)` and is only applied as padding on the sheet *content* (`contentWindowInsets`), not the old whole-layout inset, and nothing adds a top inset. Left alone, a tall sheet (Licences, any sheet at 2.0x) would expand under the status-bar icons, and the dialog window, not `SystemBarAppearance`, would own the bar icons (M3 sets them from the system dark setting, ignoring ThemeMode and the HeroBand rule). `ThesisSheet` now: pads the sheet by `WindowInsets.statusBars` (top edge stops under the status bar, as on 1.2); passes `contentWindowInsets = { safeDrawing.only(Bottom) }` explicitly (surface runs under the nav bar, its content is padded by it, so the last row sits where it did); and wraps the call in `SheetWindowBars` (ui/platform, desktop shim is a pass-through), which gives M3 a `LocalConfiguration` whose night bit matches the palette and, from inside the sheet, sets the dialog window's icons from the palette and `LocalStatusBarLight` (the HeroBand rule). The scrim now also covers both bars (M3 1.3's own look; not changed). Desktop has no insets, so the sheet renders are unchanged; compiled by the harness and by the Android proxy compile. | Predictive-back shrink of the sheet on Android 14+ (new in M3 1.3). Top edge of a tall sheet: You > Licences, and any sheet at 2.0x font: the drag handle stays below the status-bar icons. Bottom: the last row sits above the gesture/3-button nav bar, the surface colour runs under it. Icon colour with the app theme set opposite to the system theme (app Dark on a light system and the reverse): status and nav icons readable while the sheet is open and after it closes. A sheet opened over a HeroBand at rest in the light theme: light status-bar icons; then make the screen behind it recompose while the sheet stays open (for example a data load finishing behind the sheet) and check the icons stay light. In a debug build, logcat tag `SheetWindowBars` warns once if the sheet's dialog window could not be found (the HeroBand rule then falls back to M3's own icons). |
 | WebView back | `DeepDiveWebPage` uses activity-compose `BackHandler` (unchanged version); `CoveredBackScope` now reads the new `LocalLifecycleOwner`, same object. | Back inside the report, back with a screen pushed over it. |
 | Predictive back | `ThesisPredictiveBackHandler` wraps activity-compose 1.9.1's `PredictiveBackHandler` (unchanged). Shell motion renders and `ShellChromeMotionTest` pass. | The push/pop scrub on a device. |
 | Motion | Mid-animation captures (`kit-motion-*-tNNN`, `shell-motion-sample-*-120ms`) differ by under a frame of progress; every settled frame is unchanged. No motion spec or token changed. | Feel of the push/pop and sheet motion on a device. |
@@ -166,10 +169,20 @@ The residual M3 ripple was also checked as a pixel: a pressed `LocalIndication` 
 
 ## Risks only CI or a device can confirm
 
+**Merge gate.** None of the Android-only files (`ui/platform/*`, `ThesisApp`, `MainActivity`, the files in
+`androidOnlyFiles`) has compiled against the real androidx 1.7.8 / M3 1.3.x jars; the review read them by hand and
+found no API problem, but only CI can confirm it. Merge PR-4a only when (a) CI is green on
+`testDebugUnitTest assembleDebug`, (b) the first CI run's `:app:dependencies --configuration debugCompileClasspath`
+shows Compose 1.7.8, material3 1.3.x and lifecycle 2.8.x (item 2), and (c) the device pass has ticked the Bottom
+sheets row of the checklist: a tall sheet at 2.0x stays under the status bar, the sheet's icons are right with the
+app theme opposite to the system theme and over a HeroBand at rest (also after a recomposition), and the last row
+sits above the nav bar. R1 stays at 2 until then.
+
 1. **CI compile of the Android-only files** against the real androidx 1.7.8 / M3 1.3.x jars (the proxy compile
    above used CMP 1.7.3 sources of the same line and stubs for activity/lifecycle).
 2. **Dependency graph.** Confirm the BOM resolved as expected:
-   `./gradlew :app:dependencies --configuration releaseRuntimeClasspath | grep -E "androidx.compose.(animation|foundation|ui|material3?):"`
+   `./gradlew :app:dependencies --configuration debugCompileClasspath | grep -E "androidx.compose.(animation|foundation|ui|material3?):"`
+   (and the same for `releaseRuntimeClasspath`)
    should show 1.7.8 for ui/foundation/animation and a 1.3.x material3; `androidx.lifecycle:*` should stay 2.8.x.
    AGP 8.5.2 may warn that it was tested up to compileSdk 34 (unchanged from today). Google Maven is blocked where
    this PR was made, so the transitive androidx versions the BOM brings in were not resolved here. Two CI failures

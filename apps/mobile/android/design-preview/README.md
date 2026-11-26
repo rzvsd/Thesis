@@ -97,6 +97,8 @@ icons) and the kit components.
 | `ui/platform/AnimatorScale.kt` | same path | scale 0 when `preview.reducedMotion=true`, else 1 |
 | `ui/platform/CardShadow.kt` | same path | `Modifier.thesisCardShadow(...)` as a Skia blurred rounded rect (CSS box-shadow geometry) |
 | `ui/platform/RenderFlags.kt` | same path | `pageGlow` follows `preview.glow` |
+| `ui/platform/SheetWindow.kt` | same path | `SheetWindowBars` runs the sheet and its content unchanged (`inSheet` just calls the content); no system bars on desktop |
+| `ui/platform/SystemBars.kt` | same path | `SystemBarAppearance` is a no-op (no system bars on desktop) |
 
 The whole `ui/platform/` folder is excluded (`androidOnlyDirs`). The API contract for the Android side is in the
 shim files' KDoc; keep both in sync.

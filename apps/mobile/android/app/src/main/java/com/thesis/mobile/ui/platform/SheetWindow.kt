@@ -1,8 +1,11 @@
 package com.thesis.mobile.ui.platform
 
+import android.content.pm.ApplicationInfo
 import android.content.res.Configuration
+import android.util.Log
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.NonSkippableComposable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalConfiguration
@@ -26,9 +29,12 @@ import androidx.core.view.WindowCompat
  * - Around the sheet, [LocalConfiguration] carries the night bit of the app palette instead of the system's, so
  *   M3's own `isSystemInDarkTheme()` read (when it creates the dialog) agrees with the app theme.
  * - [sheet] receives `inSheet`, which must wrap the sheet's content: it restores the real configuration for the
- *   content and, after every composition, sets the sheet window's icons through its insets controller (the content's
- *   view sits in a [DialogWindowProvider]). That runs after M3's own setup and also covers the HeroBand case.
- * When the sheet's window cannot be found (not a dialog, a layout preview) nothing is set.
+ *   content and sets the sheet window's icons through its insets controller (the content's view sits in a
+ *   [DialogWindowProvider]) after every composition of the sheet's content, not only when [light] or
+ *   [statusBarLight] change (the setter is non-skippable), so it runs after M3's own setup and wins again if M3
+ *   re-applies its icons when the sheet recomposes. That also covers the HeroBand case.
+ * When the sheet's window cannot be found (not a dialog, a layout preview) nothing is set; a debuggable build logs
+ * that once (tag `SheetWindowBars`), since the HeroBand rule then silently falls back to M3's icons.
  */
 @Composable
 fun SheetWindowBars(
@@ -55,16 +61,34 @@ fun SheetWindowBars(
     }
 }
 
-/** Sets the icons of the dialog window that hosts this composition, if it is one. */
+/**
+ * Sets the icons of the dialog window that hosts this composition, if it is one. Non-skippable: its SideEffect runs
+ * every time the sheet's content recomposes, even when [light] and [statusBarLight] are unchanged.
+ */
 @Composable
+@NonSkippableComposable
 private fun SheetWindowBarIcons(light: Boolean, statusBarLight: Boolean) {
     val view = LocalView.current
     if (!view.isInEditMode) {
         SideEffect {
-            val window = (view.parent as? DialogWindowProvider)?.window ?: return@SideEffect
+            val window = (view.parent as? DialogWindowProvider)?.window
+            if (window == null) {
+                val debuggable = (view.context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
+                if (debuggable && !loggedMissingWindow) {
+                    loggedMissingWindow = true
+                    Log.w(
+                        "SheetWindowBars",
+                        "Sheet content's view parent is not a DialogWindowProvider; sheet bar icons left to Material3.",
+                    )
+                }
+                return@SideEffect
+            }
             val controller = WindowCompat.getInsetsController(window, window.decorView)
             controller.isAppearanceLightStatusBars = statusBarLight
             controller.isAppearanceLightNavigationBars = light
         }
     }
 }
+
+/** Main thread only (SideEffect). Logged once per process. */
+private var loggedMissingWindow = false

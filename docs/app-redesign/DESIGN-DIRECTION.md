@@ -1394,11 +1394,13 @@ full render sweep → rubric review → PR into `rebuild`.
 deprecated `androidx.compose.ui.platform.LocalLifecycleOwner` to `androidx.lifecycle.compose.LocalLifecycleOwner`),
 regression pass, harness to Compose Multiplatform 1.7.x (re-check the `androidx.collection`
 and lifecycle substitutions), `RippleTheme` → `RippleConfiguration`, then optional: `sharedBounds` container
-transform, `animateItem`, seekable predictive back, M3 1.3 `PullToRefreshBox` and sheet IME handling (text fields
-may then move into `ThesisSheet`). Kotlin 2 + Compose 1.8+ is a separate later migration.
+transform, `animateItem` fade specs (turning on `fadeInSpec`/`fadeOutSpec`; the placement-only move from
+`animateItemPlacement` is already in PR-4a), seekable predictive back, M3 1.3 `PullToRefreshBox` and sheet IME
+handling (text fields may then move into `ThesisSheet`). Kotlin 2 + Compose 1.8+ is a separate later migration.
 
 **Status:** PR-4a (the isolated bump: BOM, harness on CMP 1.7.3, `RippleConfiguration`, `LocalLifecycleOwner`, the
-two 1.7 deprecations, the sheet window fix) is done; the optional upgrades above are PR-4b. See
+two 1.7 deprecations, among them `animateItemPlacement` → placement-only `animateItem`, the sheet window fix) is
+done; the optional upgrades above are PR-4b. See
 `handoff/PR4A-BOM.md` and `handoff/HANDOFF-H.md`.
 
 ---
