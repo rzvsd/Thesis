@@ -8,9 +8,6 @@ ui/screens/AuthScreen.kt	circular-progress	1
 ui/screens/AuthScreen.kt	material-icons	5
 ui/screens/DeleteAccountSection.kt	dp-literal	1
 ui/screens/DeleteAccountSection.kt	alert-dialog	1
-ui/screens/HistoryScreen.kt	dp-literal	3
-ui/screens/HistoryScreen.kt	copy-alpha	1
-ui/screens/HistoryScreen.kt	material-icons	3
 ui/screens/InboxScreen.kt	copy-alpha	3
 ui/screens/InboxScreen.kt	outlined-button	5
 ui/screens/OnboardingScreen.kt	sp-literal	1
@@ -21,12 +18,6 @@ ui/screens/OnboardingScreen.kt	delay	1
 ui/screens/OnboardingScreen.kt	material-icons	5
 ui/screens/PasswordResetScreen.kt	dp-literal	3
 ui/screens/PaywallScreen.kt	outlined-button	1
-ui/screens/ScenarioStressScreen.kt	dp-literal	5
-ui/screens/ScenarioStressScreen.kt	copy-alpha	1
-ui/screens/ScenarioStressScreen.kt	circular-progress	2
-ui/screens/ScenarioStressScreen.kt	outlined-button	3
-ui/screens/ScenarioStressScreen.kt	string-format	1
-ui/screens/ScenarioStressScreen.kt	printf-float	1
 ui/screens/SentimentDashboardScreen.kt	dp-literal	12
 ui/screens/SentimentDashboardScreen.kt	shape-literal	1
 ui/screens/SentimentDashboardScreen.kt	copy-alpha	2
