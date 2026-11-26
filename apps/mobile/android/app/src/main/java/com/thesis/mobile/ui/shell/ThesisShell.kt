@@ -99,11 +99,14 @@ import kotlinx.coroutines.launch
  * a new page's once the page it replaces has gone ([rememberFrontEntryId]).
  *
  * Back (4.5): a predictive back handler, enabled while [AppNavigator.canGoBack], previews the pop on the page it
- * closes only (scale to .90, 8 dp away from the swipe edge; still under reduced motion, 4.8); on commit that page
- * slides and fades out from the previewed transform (nothing is drawn over it until it has gone), then the page
- * under it comes in at full size; a cancel settles back
- * with `spatialSlow`. The whole tree sits on one shared page
- * background (2.7).
+ * closes (scale to .90, 8 dp away from the swipe edge; still under reduced motion, 4.8). A plain pop inside the tab
+ * is also seekable (PR-4b, ShellBackSeek.kt): the gesture drives the tab layer's pop, so the page under comes in
+ * beneath the previewed page and a commit runs on from there (the page on top slides off); a page opened from a
+ * row shrinks back into it with the gesture instead of scaling. Any other back (a modal, a report, a tab root, or
+ * reduced motion) commits as before: the page slides and fades out from the previewed transform, then the page
+ * under it comes in at full size. A cancel settles back with `spatialSlow`. Pages opened from a row grow from it
+ * and shrink back into it as a shared-bounds container transform (ShellTransform.kt). The whole tree sits on one
+ * shared page background (2.7).
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
