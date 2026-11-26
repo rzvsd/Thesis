@@ -133,12 +133,15 @@ fun PasswordResetContent(
                 ResetHeader(codeSent = codeSent, email = email)
                 Spacer(Modifier.height(ThesisSpace.s))
                 ThesisTextField(
-                    value = email,
+                    // Read-only on step 2: shown with the deck's break points, so a long address wraps at "@" or
+                    // "." (2.0x on 360 dp) instead of mid-word or cut off. Editable, it is the address as typed.
+                    value = if (codeSent) breakableEmail(email) else email,
                     onValueChange = { email = it },
                     label = AccountCopy.EMAIL,
                     modifier = Modifier.autofill(AutofillHint.Email) { email = it },
                     placeholder = AccountCopy.EMAIL_PLACEHOLDER,
                     enabled = !codeSent,
+                    singleLine = !codeSent,
                     keyboardOptions = KeyboardOptions(
                         capitalization = KeyboardCapitalization.None,
                         autoCorrect = false,
@@ -223,7 +226,15 @@ private fun ResetHeader(codeSent: Boolean, email: String) {
         ScreenHeader(
             title = AccountCopy.RESET_TITLE,
             eyebrow = if (sent) AccountCopy.RESET_STEP_CODE else AccountCopy.RESET_STEP_EMAIL,
-            deck = if (sent) AccountCopy.resetDeckCode(email) else AccountCopy.RESET_DECK_EMAIL,
+            deck = if (sent) AccountCopy.resetDeckCode(breakableEmail(email)) else AccountCopy.RESET_DECK_EMAIL,
         )
     }
 }
+
+/**
+ * [email] with a zero-width break opportunity after the `@` and before each `.`, so an address wider than the line
+ * (2.0x on 360 dp) breaks as "maya.chen@" / "example.com" instead of mid-word. Display only (the deck and the
+ * read-only step-2 field); the `email` state keeps the address as typed, and the zero-width space is not drawn.
+ */
+internal fun breakableEmail(email: String): String =
+    email.trim().replace("@", "@\u200B").replace(".", "\u200B.")

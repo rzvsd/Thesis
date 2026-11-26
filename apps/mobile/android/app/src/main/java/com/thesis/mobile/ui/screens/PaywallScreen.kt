@@ -282,9 +282,9 @@ fun PaywallScreen(
 }
 
 /**
- * One "What Pro adds" line: a check (ink2) and a plain sentence. The check is the 20 dp symbol at its own optical
- * size (at 16 dp its strokes thinned to hairlines) and sits centred on the sentence's first line, whatever the font
- * scale: its box is one body line tall.
+ * One "What Pro adds" line: a 16 dp check (ink2, 5.23; the opsz 20 symbol the kit also draws at 16 dp in chips) and
+ * a plain sentence. The check sits centred on the sentence's first line, whatever the font scale: its box is one
+ * body line tall.
  */
 @Composable
 private fun BenefitLine(text: String) {
@@ -295,7 +295,7 @@ private fun BenefitLine(text: String) {
             Icon(
                 ThesisIcons.Small.Check,
                 contentDescription = null,
-                modifier = Modifier.size(ThesisSpace.iconM),
+                modifier = Modifier.size(ThesisSpace.iconS),
                 tint = p.ink2,
             )
         }

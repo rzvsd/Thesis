@@ -24,6 +24,7 @@ import com.thesis.mobile.ui.components.pageBackground
 import com.thesis.mobile.ui.shell.AppearancePrefs
 import com.thesis.mobile.ui.theme.LocalThesisPalette
 import com.thesis.mobile.ui.theme.ThesisPalette
+import com.thesis.mobile.ui.theme.ThemeMode
 import com.thesis.mobile.ui.theme.ThesisTheme
 import androidx.compose.foundation.layout.PaddingValues
 import java.time.Clock
@@ -106,11 +107,16 @@ object AccountFixtures {
         CompositionLocalProvider(LocalFmt provides fmt, content = content)
     }
 
-    /** You with fixture data; the render and semantics tests override what they look at. */
+    /**
+     * You with fixture data; the render and semantics tests override what they look at. [appearance] defaults to the
+     * render's own theme (Light on paper, Dark on ink), so the Theme segment always names the page it is drawn on.
+     */
     @Composable
     fun You(
         pro: Boolean = false,
-        appearance: AppearancePrefs = AppearancePrefs(),
+        appearance: AppearancePrefs = AppearancePrefs(
+            themeMode = if (LocalThesisPalette.current.isLight) ThemeMode.Light else ThemeMode.Dark,
+        ),
         onSetAppearance: (AppearancePrefs) -> Unit = {},
         notesList: List<NoteTrailEntry> = notes,
         onExportNotes: ((String, String) -> Unit)? = { _, _ -> },

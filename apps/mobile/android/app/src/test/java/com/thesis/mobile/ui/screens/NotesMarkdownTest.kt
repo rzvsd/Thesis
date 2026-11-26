@@ -38,7 +38,7 @@ class NotesMarkdownTest {
 
             ### Q3 FY2026 report · 23 Nov 2026
 
-            Watch the China line.
+            Watch the China line.\
             And inventory.
 
             ## AAPL
@@ -100,9 +100,10 @@ class NotesMarkdownTest {
     fun `note lines that Markdown reads as structure are escaped, plain lines are kept`() {
         val text = "# Not a heading\n## Nor this\n> not a quote\n- not a list\n* nor this\n+ nor this\n" +
             "1. not numbered\n12) nor this\n---\n===\n```\n  # indented\n-5% margin is fine\n#hashtag\nPlain line."
-        val expected = "\\# Not a heading\n\\## Nor this\n\\> not a quote\n\\- not a list\n\\* nor this\n" +
-            "\\+ nor this\n1\\. not numbered\n12\\) nor this\n\\---\n\\===\n\\```\n  \\# indented\n" +
-            "-5% margin is fine\n\\#hashtag\nPlain line."
+        // Each line but the last also ends with a hard break (a backslash), so the note keeps its lines.
+        val expected = "\\# Not a heading\\\n\\## Nor this\\\n\\> not a quote\\\n\\- not a list\\\n\\* nor this\\\n" +
+            "\\+ nor this\\\n1\\. not numbered\\\n12\\) nor this\\\n\\---\\\n\\===\\\n\\```\\\n  \\# indented\\\n" +
+            "-5% margin is fine\\\n\\#hashtag\\\nPlain line."
         assertEquals(expected, NotesMarkdown.noteBody(text))
     }
 
@@ -111,7 +112,19 @@ class NotesMarkdownTest {
         val md = NotesMarkdown.build(listOf(note("AAPL", "# My take\n> quoted", "2026-11-20T15:00:00Z")), today, zone)
         val headings = md.lines().filter { it.startsWith("#") }
         assertEquals(listOf("# Thesis notes", "## AAPL", "### FY2025 report · 20 Nov 2026"), headings)
-        assertTrue(md.contains("\\# My take\n\\> quoted"))
+        assertTrue(md.contains("\\# My take\\\n\\> quoted"))
         assertFalse(md.lines().any { it.startsWith(">") })
+    }
+
+    @Test
+    fun `a note written on separate lines keeps its lines as hard breaks, blank lines stay paragraphs`() {
+        assertEquals("Buy below 180\\\nTrim above 240", NotesMarkdown.noteBody("Buy below 180\nTrim above 240"))
+        assertEquals(
+            "Entry\\\nBuy below 180\n\nExit\\\nTrim above 240",
+            NotesMarkdown.noteBody("Entry\r\nBuy below 180\n   \nExit\nTrim above 240\n"),
+        )
+        // A backslash the note already ends a line with is shown as written, and the break still follows it.
+        assertEquals("C:\\\\\\\nnext", NotesMarkdown.noteBody("C:\\\nnext"))
+        assertEquals("One line", NotesMarkdown.noteBody("One line"))
     }
 }

@@ -204,9 +204,13 @@ class AccountRenders {
     @Test fun paywallPlansFull() = render("account-paywall-plans-full", heightDp = PhoneSpec.FULL_PAGE_HEIGHT_DP) { Paywall(ownAlert = true) }
     @Test fun paywallLoading() = render("account-paywall-loading-full", heightDp = PhoneSpec.FULL_PAGE_HEIGHT_DP) { Paywall(offers = false) }
 
-    /** No plans after the wait: the skeletons give way to an error banner with Try again. */
+    /**
+     * No plans after the wait: the skeletons give way to an error banner with Try again. The wait is a real-time
+     * timeout the harness's virtual frame clock never reaches, so the render waits zero: `withTimeoutOrNull(0)`
+     * gives up at once and the first settled frame is the stalled state.
+     */
     @Test fun paywallStalled() =
-        render("account-paywall-stalled-full", heightDp = PhoneSpec.FULL_PAGE_HEIGHT_DP, settleMs = 1_500) { Paywall(offers = false, waitMillis = 1_000) }
+        render("account-paywall-stalled-full", heightDp = PhoneSpec.FULL_PAGE_HEIGHT_DP) { Paywall(offers = false, waitMillis = 0) }
     @Test fun paywallUnavailable() = render("account-paywall-unavailable-full", heightDp = PhoneSpec.FULL_PAGE_HEIGHT_DP) { Paywall(billing = false, offers = false) }
     @Test fun paywallPurchasing() = render("account-paywall-purchasing", settleMs = 600) { Paywall(inFlight = true) }
     @Test fun paywallScale13() = render("account-paywall-scale1.3", fontScale = 1.3f) { Paywall() }

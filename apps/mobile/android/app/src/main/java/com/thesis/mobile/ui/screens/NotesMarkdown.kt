@@ -81,9 +81,30 @@ object NotesMarkdown {
         return if (date != null) "$report · $date" else report
     }
 
-    /** The note's text with every line escaped by [escapeLine]. */
-    internal fun noteBody(text: String): String =
-        text.trim().replace("\r\n", "\n").replace('\r', '\n').lines().joinToString("\n") { escapeLine(it) }
+    /**
+     * The note's text with every line escaped by [escapeLine]. The note's own line breaks survive: a line followed
+     * by another non-blank line ends with a backslash, Markdown's hard break (a lone newline would be a soft break,
+     * so "Buy below 180" / "Trim above 240" would run together as one paragraph). It is visible in a plain-text reader
+     * and survives editors that strip trailing spaces. Blank lines stay paragraph breaks.
+     */
+    internal fun noteBody(text: String): String {
+        val lines = text.trim().replace("\r\n", "\n").replace('\r', '\n').lines().map { line ->
+            if (line.isBlank()) "" else escapeLine(line)
+        }
+        return lines.mapIndexed { i, line ->
+            val next = lines.getOrNull(i + 1)
+            if (line.isNotEmpty() && !next.isNullOrEmpty()) withHardBreak(line) else line
+        }.joinToString("\n")
+    }
+
+    /**
+     * [line] followed by a hard break. A run of n backslashes the note already ends with is doubled (shown as
+     * written) before the break's own backslash, so it neither swallows the break nor disappears.
+     */
+    private fun withHardBreak(line: String): String {
+        val trailing = line.length - line.trimEnd('\\').length
+        return line + "\\".repeat(trailing + 1)
+    }
 
     /** Leading `#`, `>`, `+`, a code fence, `-`/`*` list markers and rules, and `=`/`-` underlines. */
     private val BlockMarker = Regex("""^(\s{0,3})(#|>|[-+*](?=\s|$)|`{3}|~{3}|[-*_=](?=(\s*[-*_=]){2,}\s*$)|=+\s*$)""")

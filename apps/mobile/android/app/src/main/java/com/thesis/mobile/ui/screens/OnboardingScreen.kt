@@ -243,6 +243,9 @@ private fun OnboardingPageContent(page: OnboardingPage, showing: Boolean, played
         translationY = (1f - t) * rise
     }
 
+    // The cover's T mark is the masthead of the title block: anchored one fixed step above the eyebrow, it moves
+    // with the words instead of floating in the free height above them.
+    val anchorFragment = page == OnboardingPage.Desk
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val pageHeight = maxHeight
         val scroll = rememberScrollState()
@@ -275,16 +278,17 @@ private fun OnboardingPageContent(page: OnboardingPage, showing: Boolean, played
             val fragment = measurables[0].measure(loose)
             val words = measurables[1].measure(loose)
             val top = ThesisSpace.xxl.roundToPx()
-            val gap = ThesisSpace.x4.roundToPx()
+            val gap = (if (anchorFragment) ThesisSpace.xxl else ThesisSpace.x4).roundToPx()
             val bottom = ThesisSpace.l.roundToPx()
             val page = pageHeight.roundToPx()
             val width = constraints.maxWidth
             val needed = top + fragment.height + gap + words.height + bottom
             if (needed <= page || fragment.height == 0) {
-                // It fits: the fragment above the words, the page's free height split 4 : 1 above the fragment and
-                // between it and the eyebrow, so the words sit low and the fragment floats above them.
+                // It fits: the words sit low on every page (their top at the same place whatever the fragment).
+                // A product fragment floats above them, the page's free height split 4 : 1 above it and between it
+                // and the eyebrow; the cover's mark stays on the words, [gap] above the eyebrow.
                 val free = (page - needed).coerceAtLeast(0)
-                val above = free * 4 / 5
+                val above = if (anchorFragment) free else free * 4 / 5
                 layout(width, maxOf(page, needed)) {
                     fragment.place(0, top + above)
                     words.place(0, top + above + fragment.height + gap + (free - above))

@@ -87,8 +87,10 @@ object AccountCopy {
 
     const val ONBOARDING_ADVICE_EYEBROW = "Before you start"
     const val ONBOARDING_ADVICE_TITLE = "Research, not advice"
+    // No promise of "export from You" here until the shell wires You > Your notes (HANDOFF-G 5): the page must not
+    // point to a row the user cannot find.
     const val ONBOARDING_ADVICE_LEDE = "Thesis explains what companies report and how it changed. Decisions stay " +
-        "with you. Your notes are private to your account, and you can export them from You at any time."
+        "with you, and the notes you write are private to your account."
 
     // ---- Auth (5.3) ----------------------------------------------------------------------------------------------
 
