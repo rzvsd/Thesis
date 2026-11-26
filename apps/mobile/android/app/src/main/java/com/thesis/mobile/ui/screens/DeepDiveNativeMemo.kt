@@ -56,7 +56,7 @@ internal object ClassicFormat {
     /** The period in running text: "fiscal 2025", "Q4 FY25". */
     fun periodWords(raw: String?): String? {
         val p = parsePeriod(raw) ?: return raw?.trim()?.ifBlank { null }
-        return if (p.quarter != null) Fmt.period(PeriodKind.Q, p.year, p.quarter) else "fiscal ${p.year}"
+        return if (p.quarter != null) Fmt.period(PeriodKind.Q, p.year, p.quarter) else DeepDiveCopy.fiscalYearWords(p.year)
     }
 
     /** "10-Q Q4 FY25", "10-K FY2025", or what is known of it. */
@@ -115,9 +115,25 @@ internal object ClassicFormat {
         }
     }
 
-    /** "balance_sheet" → "Balance sheet", "expensive_growth" → "Expensive growth". */
+    /** "balance_sheet" → "Balance sheet", "cash_flow_quality" → "Cash flow quality". */
     fun humanize(key: String): String =
         key.replace('_', ' ').replace('-', ' ').trim().lowercase().replaceFirstChar { it.uppercase() }
+
+    /**
+     * The value-lens chip's label: the known classification in product words ([DeepDiveCopy.valueClass]); an unknown
+     * key humanized, unless its words are on the SPEC 4 list, then [DeepDiveCopy.valueClassOther].
+     */
+    fun classificationLabel(key: String): String =
+        DeepDiveCopy.valueClass(key)
+            ?: humanize(key).takeUnless { SPEC_BANNED.containsMatchIn(it) }
+            ?: DeepDiveCopy.valueClassOther
+
+    /** SPEC 4 banned words (docs/deep-dive/SPEC.md section 4; the same list as tools/design-lint.sh). */
+    internal val SPEC_BANNED = Regex(
+        "\\b(?:buy|sell|hold|accumulate|overweight|underweight|outperform|undervalued|overvalued|cheap|expensive|" +
+            "upside|downside|target|entry|exit|stop|opportunity|attractive|bullish|bearish)\\b",
+        RegexOption.IGNORE_CASE,
+    )
 
     /**
      * The lead clause of a paragraph (its first sentence) and the rest, for the Deep Dive lede and the highlighted
@@ -161,7 +177,7 @@ internal object ClassicFormat {
 
     /** "up 8.2%" / "down 300 bps": a signed change in words for generated titles (the sign is dropped). */
     fun moved(positive: Boolean, change: String): String =
-        (if (positive) "up " else "down ") + change.trimStart('+', Fmt.MINUS.first())
+        change.trimStart('+', Fmt.MINUS.first()).let { if (positive) DeepDiveCopy.movedUp(it) else DeepDiveCopy.movedDown(it) }
 
     /** One line of plain text, never a blank string. */
     fun clean(text: String?): String? = text?.replace(Regex("\\s+"), " ")?.trim()?.ifBlank { null }
@@ -400,9 +416,10 @@ internal fun filingHeadline(deltas: List<FilingMetricDeltaView>): String {
     } ?: table.rows.firstOrNull { (it.deltaPct ?: 0.0) != 0.0 } ?: return DeepDiveCopy.filingTitle
     val change = ClassicFormat.change(line) ?: return DeepDiveCopy.filingTitle
     val basis = when (table.basis) {
-        DeltaBasis.Fiscal -> "in ${ClassicFormat.periodWords(line.currentPeriod)}"
-        DeltaBasis.Year -> "on the year"
-        DeltaBasis.Quarter -> "on the quarter"
+        DeltaBasis.Fiscal -> ClassicFormat.periodWords(line.currentPeriod)?.let(DeepDiveCopy::basisInPeriod)
+            ?: return DeepDiveCopy.filingTitle
+        DeltaBasis.Year -> DeepDiveCopy.basisOnYear
+        DeltaBasis.Quarter -> DeepDiveCopy.basisOnQuarter
     }
     return DeepDiveCopy.filingTitleMoved(line.label, ClassicFormat.moved((line.deltaPct ?: 0.0) > 0, change), basis)
 }

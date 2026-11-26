@@ -57,6 +57,15 @@ object DeepDiveCopy {
     const val findingsTitle = "What the report found"
     const val filingTitle = "What changed in the filing"
     fun filingTitleMoved(label: String, change: String, basis: String): String = "$label $change $basis"
+    /** A fiscal year in running text: "fiscal 2025". */
+    fun fiscalYearWords(year: Int): String = "fiscal $year"
+    /** A change in words for generated titles: "up 8.2%", "down 300 bps" ([change] carries no sign). */
+    fun movedUp(change: String): String = "up $change"
+    fun movedDown(change: String): String = "down $change"
+    /** The basis of a filing headline: "in fiscal 2025", "on the year", "on the quarter". */
+    fun basisInPeriod(period: String): String = "in $period"
+    const val basisOnYear = "on the year"
+    const val basisOnQuarter = "on the quarter"
     const val financialsTitle = "Five years of the business"
     fun financialsTitleGrowth(label: String, change: String, from: String): String = "$label $change since $from"
     const val valueTitle = "What the price assumes"
@@ -119,8 +128,8 @@ object DeepDiveCopy {
     const val now = "Now"
     const val before = "Before"
     fun basisLabel(basis: String): String = when (basis.lowercase()) {
-        "yoy" -> "on the year"
-        "qoq" -> "on the quarter"
+        "yoy" -> basisOnYear
+        "qoq" -> basisOnQuarter
         else -> "change"
     }
 
@@ -144,6 +153,25 @@ object DeepDiveCopy {
     const val valuationSource = "Thesis model on SEC filings"
     const val noPriceStored = "No price is stored with this report, so the range is shown without a price marker."
     const val valueLens = "Value lens"
+    /**
+     * The value lens in product words, for the closed `ValueClassification` set (packages/contracts
+     * financial-indicators.ts). Neutral vocabulary (SPEC 4): a price level is described ("at a high multiple"), never
+     * judged. Null for a key outside the set (the caller then humanizes it, or says [valueClassOther]).
+     */
+    fun valueClass(key: String): String? = when (key.trim().lowercase()) {
+        "classic_value" -> "Classic value"
+        "quality_value" -> "Quality value"
+        "quality_growth" -> "Quality growth"
+        "expensive_growth" -> "Growth at a high multiple"
+        "turnaround" -> "Turnaround"
+        "distressed" -> "Distressed"
+        "value_trap_risk" -> "Value trap risk"
+        "insufficient_data" -> "Not enough data"
+        else -> null
+    }
+
+    /** The value lens for a key outside the known set whose words cannot be shown as they are. */
+    const val valueClassOther = "Other profile"
     fun classification(label: String, confidence: String?): String =
         if (confidence.isNullOrBlank()) label else "$label, ${confidence.lowercase()} confidence"
     const val trapWarning = "Value trap warning"

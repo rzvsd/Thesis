@@ -15,16 +15,21 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasScrollToIndexAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onFirst
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.unit.dp
 import com.thesis.mobile.model.DeepDiveReportView
@@ -134,6 +139,34 @@ class DeepDiveSemanticsTest {
         rule.waitForIdle()
         assertEquals(1, note.size)
         assertTrue(note.single(), note.single().startsWith("> \"$takeaway\" (Ch. 01 Summary, AAPL 10-K FY2025)"))
+    }
+
+    @Test
+    fun upshotLongPressOpensTheQuoteSheet() {
+        setReport()
+        val takeaway = DeepDiveFixtures.structured.storyHeader!!.readerTakeaway
+        scrollTo(takeaway)
+        rule.onNodeWithText(takeaway).performTouchInput { longClick() }
+        rule.waitForIdle()
+        rule.onNodeWithText(DeepDiveCopy.quoteSheetTitle).assertExists()
+        rule.onAllNodesWithText(DeepDiveCopy.copyParagraph).onFirst().assertExists()
+        rule.onAllNodesWithText(DeepDiveCopy.addToNote).onFirst().performClick()
+        rule.waitForIdle()
+        assertEquals(1, note.size)
+        assertTrue(note.single(), note.single().startsWith("> \"$takeaway\" (Ch. 01 Summary"))
+    }
+
+    @Test
+    fun reportFeedbackLandsOnTheFeedbackBlock() {
+        setReport()
+        rule.onNodeWithContentDescription("More options").performClick()
+        rule.onNodeWithText(DeepDiveCopy.reportFeedback).performClick()
+        rule.waitForIdle()
+        val title = rule.onNodeWithText(DeepDiveCopy.feedbackTitle).assertIsDisplayed().getUnclippedBoundsInRoot()
+        // Below the sticky chapter pills, not under them.
+        val pills = rule.onAllNodes(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Tab)).onFirst()
+            .getUnclippedBoundsInRoot()
+        assertTrue("feedback title at ${title.top}, pills end at ${pills.bottom}", title.top >= pills.bottom)
     }
 
     @Composable

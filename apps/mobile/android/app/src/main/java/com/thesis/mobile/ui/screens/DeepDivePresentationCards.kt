@@ -19,6 +19,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -647,7 +648,7 @@ private fun ClassicItems.findingsBlocks(report: DeepDiveReportView, quote: ((Str
 @Composable
 private fun SectionCard(section: SectionView, quote: ((String) -> Unit)?, expandedByDefault: Boolean) {
     val p = LocalThesisPalette.current
-    var expanded by rememberSaveable(section.title) { mutableIntStateOf(if (expandedByDefault) 1 else 0) }
+    var expanded by rememberSaveable(section.title) { mutableStateOf(expandedByDefault) }
     val body = ClassicFormat.clean(section.body)
     ThesisCard(
         eyebrow = DeepDiveCopy.sectionStatus(section.status),
@@ -662,13 +663,13 @@ private fun SectionCard(section: SectionView, quote: ((String) -> Unit)?, expand
                 Modifier.quotable(body, quote),
                 style = ThesisType.body,
                 color = p.ink2,
-                maxLines = if (expanded == 1) Int.MAX_VALUE else COLLAPSED_LINES,
+                maxLines = if (expanded) Int.MAX_VALUE else COLLAPSED_LINES,
                 overflow = TextOverflow.Ellipsis,
             )
             if (body.length > COLLAPSE_CHARS) {
                 TextAction(
-                    if (expanded == 1) DeepDiveCopy.hideFull else DeepDiveCopy.readFull,
-                    onClick = { expanded = 1 - expanded },
+                    if (expanded) DeepDiveCopy.hideFull else DeepDiveCopy.readFull,
+                    onClick = { expanded = !expanded },
                 )
             }
         }
@@ -894,13 +895,16 @@ private fun pctValue(v: Double): String = Fmt.pct(v, 1)
 
 @Composable
 private fun FiveYearCard(five: FiveYearSeries, fignum: Int, key: String) {
+    // The title names free cash flow (the chapter head already says revenue), so free cash flow takes the gold slot
+    // and the readout, as the renderer gives the titled series the gold; revenue keeps its place as the first column.
+    val fcfGrowth = five.growthPct(five.freeCashFlow)
+    val titled = fcfGrowth != null
     val series = listOf(
-        ChartSeries(DeepDiveCopy.revenue, five.revenue, subject = true),
-        ChartSeries(DeepDiveCopy.freeCashFlow, five.freeCashFlow),
+        ChartSeries(DeepDiveCopy.revenue, five.revenue, subject = !titled, colorIndex = if (titled) 1 else null),
+        ChartSeries(DeepDiveCopy.freeCashFlow, five.freeCashFlow, subject = titled, colorIndex = if (titled) 0 else null),
     ).filter { s -> s.values.any { it != null } }
     ChartCard(
-        title = five.growthPct(five.freeCashFlow)?.let { growthWords(DeepDiveCopy.freeCashFlow, it) }
-            ?: DeepDiveCopy.financialsTitle,
+        title = fcfGrowth?.let { growthWords(DeepDiveCopy.freeCashFlow, it) } ?: DeepDiveCopy.financialsTitle,
         fignum = fignum,
         subtitle = if (five.consecutive) DeepDiveCopy.fiveYearSubtitleRevenue else DeepDiveCopy.fiveYearSubtitleRevenueSelected,
         source = five.source,
@@ -913,14 +917,17 @@ private fun FiveYearCard(five: FiveYearSeries, fignum: Int, key: String) {
 
 @Composable
 private fun MarginsCard(five: FiveYearSeries, fignum: Int, key: String) {
-    val series = listOf(
-        ChartSeries(DeepDiveCopy.grossMargin, five.grossMargin),
-        ChartSeries(DeepDiveCopy.operatingMargin, five.operatingMargin, subject = true),
-    ).filter { s -> s.values.any { it != null } }
     val op = five.operatingMargin
     val first = op.indexOfFirst { it != null }
     val last = op.indexOfLast { it != null }
-    val title = if (first >= 0 && last > first) {
+    // The series the title names (operating margin) is drawn gold and carries the readout; gross margin keeps its
+    // place first in each column group and in the legend.
+    val titled = first >= 0 && last > first
+    val series = listOf(
+        ChartSeries(DeepDiveCopy.grossMargin, five.grossMargin, colorIndex = if (titled) 1 else null),
+        ChartSeries(DeepDiveCopy.operatingMargin, five.operatingMargin, subject = true, colorIndex = if (titled) 0 else null),
+    ).filter { s -> s.values.any { it != null } }
+    val title = if (titled) {
         val points = op[last]!! - op[first]!!
         DeepDiveCopy.marginsTitleMove(DeepDiveCopy.operatingMargin, ClassicFormat.moved(points >= 0, Fmt.bpsFromPoints(points)))
     } else {
@@ -1068,7 +1075,7 @@ private fun ClassicItems.valueBlocks(
             Column(verticalArrangement = Arrangement.spacedBy(ThesisSpace.m)) {
                 Kicker(DeepDiveCopy.valueLens)
                 ir.classification?.takeIf { it.isNotBlank() }?.let {
-                    StatusBadge(DeepDiveCopy.classification(ClassicFormat.humanize(it), ir.classificationConfidence), Tone.Neutral)
+                    StatusBadge(DeepDiveCopy.classification(ClassicFormat.classificationLabel(it), ir.classificationConfidence), Tone.Neutral)
                 }
                 if (ir.classificationReasons.isNotEmpty()) Points(ir.classificationReasons)
                 ir.trapWarnings.forEach { Callout(it) }
@@ -1368,13 +1375,18 @@ private fun ClassicItems.evidenceBlocks(report: DeepDiveReportView, plan: Classi
         add("ev-missing") { Group(DeepDiveCopy.missingData) { Points(notes, Tone.Unknown) } }
     }
     ClassicFormat.clean(memo?.sparseDataHonestyNote)?.let { note -> add("ev-honesty") { Callout(note) } }
+    // Explainers say "How to read this report" once: on the first explainer card inside Evidence, and not at all in
+    // the Reading chapter, whose own header already says it (V3: no kicker repeating the headline).
+    var howToEyebrow: String? = if (ClassicChapter.Reading in plan.chapters) null else DeepDiveCopy.howToRead
+    fun nextHowToEyebrow(): String? = howToEyebrow.also { howToEyebrow = null }
     report.explainers?.let { explainers ->
         val lines = listOf(explainers.confidence, explainers.freshness, explainers.valuation, explainers.omissions)
             .mapNotNull(ClassicFormat::clean)
         if (lines.isNotEmpty()) {
+            val eyebrow = nextHowToEyebrow()
             add("ev-howto") {
                 val p = LocalThesisPalette.current
-                ThesisCard(eyebrow = DeepDiveCopy.howToRead) {
+                ThesisCard(eyebrow = eyebrow) {
                     Column(verticalArrangement = Arrangement.spacedBy(ThesisSpace.m)) {
                         lines.forEach { Text(it, style = ThesisType.bodySmall, color = p.ink2) }
                     }
@@ -1383,9 +1395,10 @@ private fun ClassicItems.evidenceBlocks(report: DeepDiveReportView, plan: Classi
         }
     }
     report.indicatorsRead?.education.orEmpty().forEachIndexed { i, box ->
+        val eyebrow = nextHowToEyebrow()
         add("ev-edu-$i") {
             val p = LocalThesisPalette.current
-            ThesisCard(eyebrow = DeepDiveCopy.howToRead, title = box.title) {
+            ThesisCard(eyebrow = eyebrow, title = box.title.takeIf { it.isNotBlank() }) {
                 Text(box.body, style = ThesisType.bodySmall, color = p.ink2)
                 ClassicFormat.clean(box.example)?.let {
                     Spacer(Modifier.height(ThesisSpace.s))
@@ -1428,8 +1441,8 @@ private fun TrustScorecard(panel: TrustScorecardPanelView) {
 /** The sources that open in the browser, five at first and "Show all n" for the rest. */
 @Composable
 private fun SourceList(sources: List<OpenSource>, onOpenUrl: (String) -> Unit) {
-    var showAll by rememberSaveable { mutableIntStateOf(0) }
-    val shown = if (showAll == 1) sources else sources.take(SOURCES_SHOWN)
+    var showAll by rememberSaveable { mutableStateOf(false) }
+    val shown = if (showAll) sources else sources.take(SOURCES_SHOWN)
     Group(DeepDiveCopy.openSources) {
         RowGroup {
             shown.forEach { s ->
@@ -1446,8 +1459,8 @@ private fun SourceList(sources: List<OpenSource>, onOpenUrl: (String) -> Unit) {
         }
         if (sources.size > SOURCES_SHOWN) {
             TextAction(
-                if (showAll == 1) DeepDiveCopy.showFewer else DeepDiveCopy.showAllSources(sources.size),
-                onClick = { showAll = 1 - showAll },
+                if (showAll) DeepDiveCopy.showFewer else DeepDiveCopy.showAllSources(sources.size),
+                onClick = { showAll = !showAll },
             )
         }
     }
@@ -1456,7 +1469,7 @@ private fun SourceList(sources: List<OpenSource>, onOpenUrl: (String) -> Unit) {
 @Composable
 private fun DueDiligenceCard(section: DueDiligenceSectionView) {
     val p = LocalThesisPalette.current
-    var expanded by rememberSaveable(section.sectionId) { mutableIntStateOf(0) }
+    var expanded by rememberSaveable(section.sectionId) { mutableStateOf(false) }
     val more = section.narrativeParagraphs.isNotEmpty() || section.keyPoints.isNotEmpty() || section.omissions.isNotEmpty()
     ThesisCard(
         eyebrow = DeepDiveCopy.coverageState(section.coverageState),
@@ -1465,15 +1478,15 @@ private fun DueDiligenceCard(section: DueDiligenceSectionView) {
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(ThesisSpace.m)) {
             Text(section.summary, style = ThesisType.body, color = p.ink2)
-            if (expanded == 1) {
+            if (expanded) {
                 section.narrativeParagraphs.forEach { Text(it, style = ThesisType.body, color = p.ink2) }
                 if (section.keyPoints.isNotEmpty()) Points(section.keyPoints)
                 if (section.omissions.isNotEmpty()) Points(section.omissions, Tone.Unknown)
             }
             if (more) {
                 TextAction(
-                    if (expanded == 1) DeepDiveCopy.hideFull else DeepDiveCopy.readFull,
-                    onClick = { expanded = 1 - expanded },
+                    if (expanded) DeepDiveCopy.hideFull else DeepDiveCopy.readFull,
+                    onClick = { expanded = !expanded },
                 )
             }
         }

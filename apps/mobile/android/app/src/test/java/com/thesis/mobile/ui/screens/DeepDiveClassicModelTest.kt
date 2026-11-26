@@ -217,8 +217,41 @@ class DeepDiveClassicModelTest {
         val strings = listOf(
             DeepDiveCopy.modelRange, DeepDiveCopy.modelRangeCaption, DeepDiveCopy.priceInReport, DeepDiveCopy.yourValueGap("+3.9%"),
             DeepDiveCopy.convictionPro, DeepDiveCopy.deskPro, DeepDiveCopy.sampleNote, DeepDiveCopy.disclaimer,
+            DeepDiveCopy.valueClassOther,
         ) + DeepDiveCopy.feedbackOptions.map { it.second }
         strings.forEach { assertFalse(it, banned.containsMatchIn(it)) }
+    }
+
+    @Test
+    fun valueLensLabelsAreProductWords() {
+        // The closed ValueClassification set (packages/contracts/src/financial-indicators.ts).
+        val keys = listOf(
+            "classic_value", "quality_value", "quality_growth", "expensive_growth",
+            "turnaround", "distressed", "value_trap_risk", "insufficient_data",
+        )
+        keys.forEach { key ->
+            assertNotNull(key, DeepDiveCopy.valueClass(key))
+            val label = ClassicFormat.classificationLabel(key)
+            assertFalse(label, ClassicFormat.SPEC_BANNED.containsMatchIn(label))
+            assertFalse(label, label.contains('_'))
+        }
+        assertEquals("Growth at a high multiple", ClassicFormat.classificationLabel("expensive_growth"))
+        assertEquals("Not enough data", ClassicFormat.classificationLabel("insufficient_data"))
+        assertEquals("Growth at a high multiple, medium confidence",
+            DeepDiveCopy.classification(ClassicFormat.classificationLabel("expensive_growth"), "Medium"))
+        // An unknown key is humanized, unless its words are banned.
+        assertEquals("Deep value", ClassicFormat.classificationLabel("deep_value"))
+        assertEquals(DeepDiveCopy.valueClassOther, ClassicFormat.classificationLabel("cheap_cyclical"))
+        assertEquals(DeepDiveCopy.valueClassOther, ClassicFormat.classificationLabel("overvalued"))
+    }
+
+    @Test
+    fun generatedTitleWordsComeFromTheCopy() {
+        assertEquals("up 8.2%", ClassicFormat.moved(true, "+8.2%"))
+        assertEquals("down 300 bps", ClassicFormat.moved(false, "${Fmt.MINUS}300 bps"))
+        assertEquals("fiscal 2025", ClassicFormat.periodWords("FY2025"))
+        assertEquals(DeepDiveCopy.basisOnYear, DeepDiveCopy.basisLabel("yoy"))
+        assertEquals(DeepDiveCopy.basisOnQuarter, DeepDiveCopy.basisLabel("QOQ"))
     }
 
     @Test

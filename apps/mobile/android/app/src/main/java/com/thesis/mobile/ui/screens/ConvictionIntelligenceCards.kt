@@ -44,7 +44,7 @@ private const val JOURNAL_SHOWN = 5
 private const val POINTS_SHOWN = 3
 
 /** An ISO timestamp as an instant, or null. */
-internal fun parseInstant(raw: String?): Instant? {
+internal fun parseReportInstant(raw: String?): Instant? {
     val s = raw?.trim().orEmpty()
     if (s.isEmpty()) return null
     return runCatching { Instant.parse(s) }.getOrNull() ?: runCatching { OffsetDateTime.parse(s).toInstant() }.getOrNull()
@@ -141,7 +141,7 @@ private fun JournalCard(timeline: List<ConvictionJournalEntryView>, errorMessage
                         title = item.title,
                         meta = listOfNotNull(
                             journalEventLabel(item.title, item.eventType),
-                            parseInstant(item.eventAt)?.let(fmt::relative),
+                            parseReportInstant(item.eventAt)?.let(fmt::relative),
                         ).joinToString(" · "),
                         body = item.summary.takeIf { it.isNotBlank() },
                         state = if (i == 0) TimelineState.Current else TimelineState.Done,

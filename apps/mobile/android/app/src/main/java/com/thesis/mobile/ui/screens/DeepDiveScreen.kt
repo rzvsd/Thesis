@@ -2,6 +2,8 @@ package com.thesis.mobile.ui.screens
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.animateScrollBy
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,6 +21,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -80,11 +83,13 @@ import com.thesis.mobile.ui.icons.ThesisIcons
 import com.thesis.mobile.ui.motion.rememberHaptics
 import com.thesis.mobile.ui.motion.rememberScrollSpy
 import com.thesis.mobile.ui.shell.HeroUnderBars
+import com.thesis.mobile.ui.theme.LocalReducedMotion
 import com.thesis.mobile.ui.theme.LocalThesisPalette
 import com.thesis.mobile.ui.theme.ThesisSpace
 import com.thesis.mobile.ui.theme.ThesisType
 import com.thesis.mobile.ui.theme.Tone
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 
 /**
@@ -325,7 +330,7 @@ internal fun DeepDiveClassic(
         )
         ClassicItems().apply { addChapters(report, plan, ctx) }
     }
-    val spyHolder = remember { arrayOfNulls<(Int) -> Unit>(1) }
+    val jumpHolder = remember { arrayOfNulls<(String) -> Unit>(1) }
 
     Column(Modifier.fillMaxSize()) {
         Box(
@@ -360,7 +365,7 @@ internal fun DeepDiveClassic(
                     )
                 }
             },
-            onJump = { jump -> spyHolder[0] = jump },
+            onJump = { jump -> jumpHolder[0] = jump },
         )
     }
 
@@ -386,7 +391,7 @@ internal fun DeepDiveClassic(
             })
             SheetActionRow(ThesisIcons.Notes, DeepDiveCopy.reportFeedback, onClick = {
                 sheet = null
-                spyHolder[0]?.invoke(plan.chapters.indexOf(ClassicChapter.Desk))
+                jumpHolder[0]?.invoke(FEEDBACK_ENTRY)
             })
         }
         is ClassicSheet.Quote -> ThesisSheet(onDismissRequest = { sheet = null }, title = DeepDiveCopy.quoteSheetTitle) {
@@ -415,6 +420,9 @@ internal fun DeepDiveClassic(
 }
 
 private const val QUOTE_PREVIEW_LINES = 6
+
+/** The list entry of the desk's feedback block (the overflow's "Report feedback" lands on it, not on the note). */
+private const val FEEDBACK_ENTRY = "desk-feedback"
 
 /** What the export rows run (the Pro gate is ExportSection's). */
 private class DeskExports(val pdf: () -> Unit, val card: () -> Unit, val memo: () -> Unit)
@@ -489,8 +497,8 @@ private fun DeepDiveReportView.readerTicker(): String = issuer?.name ?: DeepDive
 
 /**
  * The page as one list: optional banner, the hero, the sticky chapter pills (with scroll-spy) when there are two
- * chapters or more, the chapters, the disclaimer. [onJump] hands the screen the pills' jump (the overflow's
- * "Report feedback" goes to the desk chapter).
+ * chapters or more, the chapters, the disclaimer. [onJump] hands the screen a jump to one entry by its key (the
+ * overflow's "Report feedback" goes to the desk's feedback block), which lands it just below the sticky pills.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -507,14 +515,19 @@ internal fun ClassicReportList(
     pills: Boolean = plan.chapters.size >= 2,
     beforeHero: (@Composable () -> Unit)? = null,
     afterHero: (@Composable () -> Unit)? = null,
-    onJump: ((Int) -> Unit) -> Unit = {},
+    onJump: ((String) -> Unit) -> Unit = {},
 ) {
     val p = LocalThesisPalette.current
     val prefix = listOfNotNull(beforeHero, afterHero).size + 1
     val offset = prefix + if (pills) 1 else 0
     val starts = items.chapterStarts.map { it + offset }
     val spy = rememberScrollSpy(listState, starts)
-    onJump { spy.jumpTo(it) }
+    val scope = rememberCoroutineScope()
+    val reduced = LocalReducedMotion.current
+    onJump { key ->
+        val at = items.entries.indexOfFirst { it.key.substringBefore('#') == key }
+        if (at >= 0) scope.launch { listState.jumpToEntry(at + offset, reduced) }
+    }
     LazyColumn(modifier.fillMaxSize(), state = listState, contentPadding = contentPadding) {
         beforeHero?.let { banner ->
             item("banner") { ReadingColumn(Modifier.padding(vertical = ThesisSpace.s)) { banner() } }
@@ -538,6 +551,22 @@ internal fun ClassicReportList(
                 Text(DeepDiveCopy.disclaimer, style = ThesisType.caption, color = p.muted)
             }
         }
+    }
+}
+
+/**
+ * Scrolls item [index] to the top of the list (glides; jumps under reduced motion), then out from under the sticky
+ * pills, which would otherwise cover its first lines. Near the end of the list, where the item cannot reach the
+ * top, it stays where the scroll left it.
+ */
+private suspend fun LazyListState.jumpToEntry(index: Int, reduced: Boolean) {
+    if (reduced) scrollToItem(index) else animateScrollToItem(index)
+    val info = layoutInfo
+    val pills = info.visibleItemsInfo.firstOrNull { it.key == "pills" }?.size ?: return
+    val item = info.visibleItemsInfo.firstOrNull { it.index == index } ?: return
+    val under = (pills - (item.offset - info.viewportStartOffset)).toFloat()
+    if (under > 0f) {
+        if (reduced) scrollBy(-under) else animateScrollBy(-under)
     }
 }
 
@@ -676,7 +705,7 @@ internal fun NotesSection(
         onValueChange = onNoteChange,
         filing = filing,
         saveState = autosave.state,
-        savedAgo = parseInstant(noteUpdatedAt)?.let(fmt::relative),
+        savedAgo = parseReportInstant(noteUpdatedAt)?.let(fmt::relative),
         onRetry = { autosave.retry() },
         onCopy = { clipboard.setText(AnnotatedString(noteDraft)) }.takeIf { noteDraft.isNotBlank() },
     )
