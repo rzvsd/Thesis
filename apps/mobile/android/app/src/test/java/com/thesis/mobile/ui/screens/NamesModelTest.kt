@@ -140,6 +140,12 @@ class NamesModelTest {
     }
 
     @Test
+    fun `muted alerts are not new alerts`() {
+        val muted = inputs.copy(alerts = inputs.alerts.map { if (it.id == "a1") it.copy(mutedAt = "2026-11-24T00:00:00Z") else it })
+        assertEquals(0, buildBoardRows(muted, fmt, now).first { it.ticker == "MSFT" }.newAlerts)
+    }
+
+    @Test
     fun `filter counts match the filtered rows for every chip`() {
         val counts = boardFilterCounts(rows)
         BoardFilter.entries.forEach { f -> assertEquals(f.name, filterBoard(rows, f).size, counts[f]) }
@@ -187,7 +193,7 @@ class NamesModelTest {
             NoteTrailEntry("r1", "AAPL", "old", "2025-11-01T00:00:00Z", "FY2025", null),
             NoteTrailEntry("r2", "AAPL", "new", "2026-11-01T00:00:00Z", "FY2026", null),
             NoteTrailEntry("r3", "MSFT", "msft", "2026-10-01T00:00:00Z", "FY2026", null),
-            NoteTrailEntry("r4", "MSFT", "   ", "2026-11-20T00:00:00Z", "FY2026 Q1", null),
+            NoteTrailEntry("r4", "MSFT", "   ", "2026-11-20T00:00:00Z", "Q1 FY27", null),
         )
         val groups = groupNotes(notes)
         assertEquals(listOf("AAPL", "MSFT"), groups.map { it.ticker })

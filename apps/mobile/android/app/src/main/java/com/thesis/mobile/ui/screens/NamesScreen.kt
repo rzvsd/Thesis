@@ -362,10 +362,11 @@ fun buildBoardRows(inputs: BoardInputs, fmt: Fmt, now: Instant): List<BoardRow> 
             else -> null
         }
         val tickerAlerts = inputs.alerts.filter { it.concerns(ticker) }
+        // Muted alerts are ones the user said they do not want: not counted (Name's Alerts tile agrees).
         val newAlerts = if (inputs.lastVisitAtMs <= 0L) {
             0
         } else {
-            tickerAlerts.count { (parseMs(it.createdAt) ?: 0L) > inputs.lastVisitAtMs }
+            tickerAlerts.count { it.mutedAt == null && (parseMs(it.createdAt) ?: 0L) > inputs.lastVisitAtMs }
         }
         val earningsSoon = ticker in inputs.warRooms || tickerAlerts.any { alert ->
             alert.mutedAt == null && alert.earningsDay()?.let { day ->

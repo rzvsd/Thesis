@@ -125,6 +125,11 @@ object NamesFixtures {
         alert("a3", "GOOGL", "earnings", "GOOGL reports on 3 Dec", "2026-11-24T08:00:00Z", eventDate = "2026-12-03", warRoomId = "wr-googl"),
         alert("a4", "COST", "earnings", "COST reports on 11 Dec", "2026-11-20T08:00:00Z", eventDate = "2026-12-11"),
         alert("a5", "TSLA", "thesis", "TSLA kill switch fired", "2026-11-22T12:00:00Z"),
+        // The same AAPL alerts the Name fixture shows, so the board row ("1 new") and Name's tile agree.
+        alert("n1", "AAPL", "filing", "AAPL filed its 10-K", "2026-11-01T21:00:00Z"),
+        alert("n2", "AAPL", "thesis", "AAPL score rose 4 pts", "2026-11-24T08:00:00Z"),
+        // JPM has no report yet, but its filing alert is a fact Name still shows.
+        alert("a6", "JPM", "filing", "JPM filed a 10-Q", "2026-11-24T21:00:00Z"),
     )
 
     val warRooms = mapOf("GOOGL" to "wr-googl")
@@ -135,12 +140,16 @@ object NamesFixtures {
             "2026-11-14T09:12:00Z", "FY2026", "The thesis holds: services keep margins up.",
         ),
         NoteTrailEntry(
+            "rep-aapl-q3", "AAPL", "Services at a record again. The China drop is units, not price; watch the 10-K.",
+            "2026-08-03T08:15:00Z", "Q3 FY26", "The thesis holds; China is the open question.",
+        ),
+        NoteTrailEntry(
             "rep-aapl-2025", "AAPL", "Watching China unit sales; one more weak quarter changes the picture.",
             "2025-11-06T18:40:00Z", "FY2025", "The thesis holds with a China caveat.",
         ),
         NoteTrailEntry(
             "rep-msft", "MSFT", "Capex is the question. I want cloud growth back above 30% before adding conviction.",
-            "2026-11-13T07:30:00Z", "FY2026 Q1", "The thesis is weaker: spending runs ahead of revenue.",
+            "2026-11-13T07:30:00Z", "Q1 FY27", "The thesis is weaker: spending runs ahead of revenue.",
         ),
         NoteTrailEntry(
             "rep-cost", "COST", "Renewal rate is the tell. Fee increase landed without churn.",
@@ -203,6 +212,8 @@ object NamesFixtures {
 
     val reports = listOf(
         ReportHistoryItem("rep-aapl", "job-1", "deep_dive", "AAPL", "2026-11-13T13:00:00Z"),
+        // The 10-Q report the FY2026 report compared against (inside the server's 120-day window).
+        ReportHistoryItem("rep-aapl-q3", "job-q", "deep_dive", "AAPL", "2026-08-02T13:00:00Z"),
         ReportHistoryItem("rep-aapl-2025", "job-0", "deep_dive", "AAPL", "2025-11-05T13:00:00Z"),
     )
 
@@ -221,7 +232,7 @@ object NamesFixtures {
         delta = deltas["AAPL"],
         summary = summary,
         notesTrail = notes.filter { it.ticker == "AAPL" },
-        alerts = listOf(alert("n1", "AAPL", "filing", "AAPL filed its 10-K", "2026-11-01T21:00:00Z"), alert("n2", "AAPL", "thesis", "AAPL score rose 4 pts", "2026-11-24T08:00:00Z")),
+        alerts = alerts.filter { it.ticker == "AAPL" },
         reports = reports,
     )
 
@@ -233,12 +244,13 @@ object NamesFixtures {
         delta = null,
     )
 
-    /** A new report with no note yet while last year's report has one: Carry forward shows. */
-    val detailCarryForward = detail.copy(notesTrail = notes.filter { it.reportId == "rep-aapl-2025" })
+    /** A new report with no note yet while the earlier reports have one: Carry forward shows. */
+    val detailCarryForward = detail.copy(notesTrail = notes.filter { it.ticker == "AAPL" && it.reportId != "rep-aapl" })
 
-    /** A followed name with no report at all. */
+    /** A followed name with no report at all, but a filing alert since the last visit. */
     val detailNoReport = NameDetailView(
-        ticker = "JPM", snapshot = null, delta = null, summary = null, notesTrail = emptyList(), alerts = emptyList(), reports = emptyList(),
+        ticker = "JPM", snapshot = null, delta = null, summary = null, notesTrail = emptyList(),
+        alerts = alerts.filter { it.ticker == "JPM" }, reports = emptyList(),
     )
 
     /** GOOGL: intact, with a stored report but no cached summary, a War Room in its window and an earnings date (3 Dec). */

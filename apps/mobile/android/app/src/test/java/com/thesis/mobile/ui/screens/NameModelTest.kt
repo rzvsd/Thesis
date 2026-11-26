@@ -1,5 +1,6 @@
 package com.thesis.mobile.ui.screens
 
+import com.thesis.mobile.model.AlertLedgerItemView
 import com.thesis.mobile.model.ConvictionJournalEntryView
 import com.thesis.mobile.model.ConvictionThesisSnapshotView
 import com.thesis.mobile.model.DeepDiveChangeSummaryView
@@ -160,10 +161,10 @@ class NameModelTest {
 
     @Test
     fun `share counts read in the table's compact scale`() {
-        assertEquals("15.55B", compactCount(15_550_000_000.0))
-        assertEquals("742.3M", compactCount(742_300_000.0))
-        assertEquals("98,000", compactCount(98_000.0))
-        assertEquals(Fmt.NOT_DISCLOSED, compactCount(null))
+        assertEquals("15.55B", compactShares(15_550_000_000.0))
+        assertEquals("742.3M", compactShares(742_300_000.0))
+        assertEquals("98,000", compactShares(98_000.0))
+        assertEquals(Fmt.NOT_DISCLOSED, compactShares(null))
     }
 
     @Test
@@ -174,8 +175,35 @@ class NameModelTest {
         assertEquals(3, model.changes.size)
         assertEquals(listOf(true, false, null), model.changes.map { it.up })
         assertEquals("FY2026 · 2 Nov", model.currentFiling)
-        assertEquals("FY2025 · 5 Nov 2025", model.previousFiling)
+        // FY2025 (5 Nov 2025) is outside the server's 120-day comparison window: the server did not compare with
+        // it, so the line names no report of yours.
+        assertEquals("Previous report", model.previousFiling)
         assertNull(sinceLastReportModel(summary, emptyList(), fmt, ZoneOffset.UTC))
+    }
+
+    @Test
+    fun `the previous line names your newest earlier report only inside the comparison window and with a period`() {
+        val changes = listOf(DeepDiveTopChangeView("t", "up", "high", "why", "matters"))
+        val withChange = summary.copy(changeSummary = DeepDiveChangeSummaryView("before", "after", changes))
+        val q3 = ReportHistoryItem("rq3", "j3", "deep_dive", "AAPL", "2026-08-01T13:00:00Z")
+        val dated = detail.copy(
+            summary = withChange,
+            reports = reports + q3,
+            notesTrail = trail + NoteTrailEntry("rq3", "AAPL", "q3 note", "2026-08-02T00:00:00Z", "Q3 FY26", null),
+        )
+        assertEquals("Q3 FY26 · 1 Aug", sinceLastReportModel(withChange, nameNotes(dated), fmt, ZoneOffset.UTC)!!.previousFiling)
+        // The same report without a known period: no date alone.
+        val undated = dated.copy(notesTrail = trail)
+        assertEquals("Previous report", sinceLastReportModel(withChange, nameNotes(undated), fmt, ZoneOffset.UTC)!!.previousFiling)
+    }
+
+    @Test
+    fun `a note on a report missing from the history still opens it, never builds`() {
+        val onlyNote = NameDetailView(
+            "AAPL", null, null, null,
+            listOf(NoteTrailEntry("r-note", "AAPL", "kept", "2026-11-10T00:00:00Z", "FY2026", null)), emptyList(), emptyList(),
+        )
+        assertEquals(NameReportAction.Open("r-note"), nameReportAction(onlyNote))
     }
 
     @Test
@@ -203,10 +231,12 @@ class NameModelTest {
     fun `like-for-like pairs read the filing kind from the period`() {
         assertEquals("annual", filingKindOf("FY2026"))
         assertEquals("quarterly", filingKindOf("Q3 FY25"))
+        // Fmt.period's quarterly form (2.4), the shape the data layer writes.
+        assertEquals("quarterly", filingKindOf("Q1 FY26"))
         assertEquals(null, filingKindOf(null))
-        assertTrue(likeForLike("annual", "annual"))
-        assertTrue(likeForLike(null, "quarterly"))
-        assertFalse(likeForLike("annual", "quarterly"))
+        assertTrue(sameReportKind("annual", "annual"))
+        assertTrue(sameReportKind(null, "quarterly"))
+        assertFalse(sameReportKind("annual", "quarterly"))
     }
 
     @Test
@@ -218,6 +248,25 @@ class NameModelTest {
         val tiles = monitorTiles(detail.copy(snapshot = snapshot), 0L, Instant.parse("2026-11-25T15:00:00Z"), fmt, ZoneOffset.UTC)
         assertEquals(listOf("Monitor score", "Freshness", "Alerts on this name", "Next earnings"), tiles.map { it.first.label })
         assertEquals("Not dated yet", tiles[3].first.value)
+        // The score's Source line names the report it came from, not a bare period.
+        assertEquals("Deep Dive on the FY2026 filing", tiles[0].second.form)
+    }
+
+    @Test
+    fun `without a report the alert ledger tiles stay and muted alerts are not counted`() {
+        fun alert(id: String, created: String, muted: String? = null) = AlertLedgerItemView(
+            id = id, notificationType = "filing", category = "filing", route = "name", title = id, body = id,
+            reasonCode = "filing", reasonText = id, deliveryState = "delivered", ticker = "JPM", createdAt = created,
+            updatedAt = created, mutedAt = muted,
+        )
+        val none = NameDetailView("JPM", null, null, null, emptyList(), emptyList(), emptyList())
+        val now = Instant.parse("2026-11-25T15:00:00Z")
+        val visit = Instant.parse("2026-11-21T09:00:00Z").toEpochMilli()
+        assertTrue(monitorTiles(none, visit, now, fmt, ZoneOffset.UTC).isEmpty())
+        val filed = none.copy(alerts = listOf(alert("f1", "2026-11-24T08:00:00Z"), alert("f2", "2026-11-23T08:00:00Z", muted = "2026-11-24T00:00:00Z")))
+        val tiles = monitorTiles(filed, visit, now, fmt, ZoneOffset.UTC)
+        assertEquals(listOf("Alerts since your last visit", "Next earnings"), tiles.map { it.first.label })
+        assertEquals("1", tiles[0].first.value)
     }
 
     @Test

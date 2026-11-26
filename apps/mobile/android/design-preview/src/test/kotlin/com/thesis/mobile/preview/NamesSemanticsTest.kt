@@ -5,16 +5,23 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.assertIsNotSelected
+import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.isFocused
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipe
+import androidx.compose.ui.test.swipeLeft
+import androidx.compose.ui.test.swipeRight
 import com.thesis.mobile.model.NameDetailView
 import com.thesis.mobile.preview.fixtures.NamesFixtures
 import com.thesis.mobile.ui.copy.NamesCopy
@@ -90,6 +97,8 @@ class NamesSemanticsTest {
         seed: NameSeed = NameSeed(),
         onFollow: (Boolean) -> Unit = {},
         focusNote: Boolean = false,
+        onPrevious: () -> Unit = {},
+        onNext: () -> Unit = {},
     ) {
         rule.setContent {
             ThesisTheme(mode = ThemeMode.Light) {
@@ -107,8 +116,8 @@ class NamesSemanticsTest {
                             onFollowChange = onFollow,
                             onOpenReport = { opened += it },
                             onBuildReport = { builds++ },
-                            onPrevious = {},
-                            onNext = {},
+                            onPrevious = onPrevious,
+                            onNext = onNext,
                         )
                     }
                 }
@@ -311,12 +320,32 @@ class NamesSemanticsTest {
     fun unfollowAsksFirst() {
         val changes = mutableListOf<Boolean>()
         name(NamesFixtures.detail, onFollow = { changes += it })
-        rule.onNodeWithContentDescription(NamesCopy.unfollow("AAPL")).performClick()
+        // A follow toggle: one stable label, on while followed, its state said in words.
+        val toggle = rule.onNodeWithContentDescription(NamesCopy.follow("AAPL"))
+        toggle.assertIsOn()
+        assertEquals(NamesCopy.FOLLOWING, toggle.fetchSemanticsNode().config.getOrNull(SemanticsProperties.StateDescription))
+        toggle.performClick()
         assertTrue(changes.isEmpty())
         rule.onNodeWithText(NamesCopy.REMOVE_CONFIRM).performClick()
         rule.waitForIdle()
         assertEquals(listOf(false), changes)
         assertTrue(HapticKind.ToggleOff in PreviewHaptics.log)
+    }
+
+    @Test
+    fun swipePagesOnlyPastTheThreshold() {
+        val moves = mutableListOf<String>()
+        name(NamesFixtures.detail, onPrevious = { moves += "previous" }, onNext = { moves += "next" })
+        val page = rule.onRoot()
+        // A short drag springs back and pages nowhere.
+        page.performTouchInput { swipe(center, center.copy(x = center.x - 40f), durationMillis = 200) }
+        rule.waitForIdle()
+        assertTrue(moves.isEmpty())
+        page.performTouchInput { swipeLeft(startX = right - 10f, endX = left + 10f, durationMillis = 300) }
+        rule.waitForIdle()
+        page.performTouchInput { swipeRight(startX = left + 10f, endX = right - 10f, durationMillis = 300) }
+        rule.waitForIdle()
+        assertEquals(listOf("next", "previous"), moves)
     }
 
     @Test

@@ -152,8 +152,10 @@ object NamesCopy {
 
     fun nameEyebrow(ticker: String, following: Boolean): String =
         if (following) "$ticker · In your names" else "$ticker · Not followed"
+    /** The follow toggle's label; its state is said by [FOLLOWING] / [NOT_FOLLOWING]. */
     fun follow(ticker: String): String = "Follow $ticker"
-    fun unfollow(ticker: String): String = "Remove $ticker from Names"
+    const val FOLLOWING = "In your names"
+    const val NOT_FOLLOWING = "Not followed"
     const val COPY_FIGURES = "Copy figures as table"
     const val COPIED = "Copied as a table"
     fun couldNotLoad(ticker: String): String = KitCopy.couldNotLoad(ticker)
@@ -302,6 +304,9 @@ object NamesCopy {
     fun reportRow(date: String): String = "Deep Dive · $date"
     const val WITH_NOTE = "Your note"
     const val PREVIOUS_REPORT = "Previous report"
+    /** The Source line of a score taken from a Deep Dive: "Deep Dive on the FY2026 filing". */
+    fun reportSource(period: String?): String = if (period.isNullOrBlank()) DEEP_DIVE else "$DEEP_DIVE on the $period filing"
+    fun builtOn(date: String): String = "built $date"
     const val CHANGE_UP = "Up"
     const val CHANGE_DOWN = "Down"
     const val CHANGE_MIXED = "Mixed"

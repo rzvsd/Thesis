@@ -62,8 +62,9 @@ object ScoreCopy {
     const val EVENTS_DEFINITION = "Material events (filings, guidance, kill-switch checks) the monitor recorded " +
         "since the latest Deep Dive. The count returns to 0 when the next report for a new filing lands."
     const val ALERTS = "Alerts since your last visit"
-    const val ALERTS_DEFINITION = "Alerts for this name created after you last opened Names. Opening Names " +
-        "moves the reference point."
+    const val ALERTS_DEFINITION = "Alerts for this name created since you last left Names. Leaving Names moves " +
+        "the reference point. Muted alerts are not counted."
+    const val ALERTS_ALL_DEFINITION = "Every alert for this name in your alert ledger. Muted alerts are not counted."
     const val EARNINGS = "Next earnings"
     const val EARNINGS_DEFINITION = "The next earnings date that an earnings alert or the War Room for this name " +
         "announced. The War Room opens in the days around it."
