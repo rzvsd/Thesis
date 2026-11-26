@@ -24,6 +24,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.Constraints
 import com.thesis.mobile.model.AlertLedgerItemView
@@ -47,7 +48,6 @@ import com.thesis.mobile.ui.components.PressableCard
 import com.thesis.mobile.ui.components.RowGroup
 import com.thesis.mobile.ui.components.ScreenHeader
 import com.thesis.mobile.ui.components.SectionHeader
-import com.thesis.mobile.ui.components.SkeletonBlock
 import com.thesis.mobile.ui.components.SkeletonCard
 import com.thesis.mobile.ui.components.SkeletonRow
 import com.thesis.mobile.ui.components.SkeletonText
@@ -80,6 +80,7 @@ import com.thesis.mobile.ui.today.HomeNames
 import com.thesis.mobile.ui.today.LocalTodayClock
 import com.thesis.mobile.ui.today.MacroModel
 import com.thesis.mobile.ui.today.MacroSummary
+import com.thesis.mobile.ui.today.NameRowModel
 import com.thesis.mobile.ui.today.MarketCalendar
 import com.thesis.mobile.ui.today.MarketPhase
 import com.thesis.mobile.ui.today.NamesSummary
@@ -87,6 +88,7 @@ import com.thesis.mobile.ui.today.PulseBrief
 import com.thesis.mobile.ui.today.PulseChapterRow
 import com.thesis.mobile.ui.today.PulseText
 import com.thesis.mobile.ui.today.TapeModel
+import com.thesis.mobile.ui.today.parseDay
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
@@ -147,8 +149,11 @@ fun HomeScreen(
     onOpenName: ((String) -> Unit)? = null,
     /** Opens the Pulse at a chapter (the tape opens Markets); without it, the Pulse at its top. */
     onOpenPulseAt: ((ChapterKind) -> Unit)? = null,
-    /** When the next issue is expected ("06:30"), for the no-Pulse state; null when not known. */
-    pulseExpectedAt: String? = null,
+    /**
+     * When the next issue is expected, for the no-Pulse state ("Expected by 06:30", or "Running late: it was due
+     * by 06:30" once that time has passed); null when not known.
+     */
+    pulseExpectedAt: Instant? = null,
     /** Reloads macro stress (`onRefreshMacro`): the macro card's "Try again" and, with [onRetryPulse], the pull. */
     onRetryMacro: (() -> Unit)? = null,
     /**
@@ -175,10 +180,11 @@ fun HomeScreen(
     val today = remember(now, clock) { now.atZone(clock.zone).toLocalDate() }
 
     val brief = remember(pulse, watchlist) { pulse?.let { PulseBrief.from(it, watchlist) } }
-    val names = remember(watchlist, monitorSnapshots, snapshotDeltas, notedTickers, today) {
+    // Keyed on the clock and the formatter too: a 24 h, locale or date setting change re-words the captions.
+    val names = remember(watchlist, monitorSnapshots, snapshotDeltas, notedTickers, today, clock, fmt) {
         HomeNames.summary(watchlist, monitorSnapshots, snapshotDeltas, notedTickers, clock, fmt)
     }
-    val macro = remember(sentimentCurrent, sentimentHistory) { MacroModel.summary(sentimentCurrent, sentimentHistory, fmt) }
+    val macro = remember(sentimentCurrent, sentimentHistory, fmt) { MacroModel.summary(sentimentCurrent, sentimentHistory, fmt) }
 
     // One refresh line at a time (4.3 rule 10): the pull's own hairline when the reader pulled, else the header's.
     // A pull is over when its refresh has started and ended; when no refresh starts within a short window (the
@@ -257,7 +263,7 @@ private fun HomeList(
     now: Instant,
     today: LocalDate,
     headerRefreshing: Boolean,
-    pulseExpectedAt: String?,
+    pulseExpectedAt: Instant?,
     onManageNames: () -> Unit,
     onRetryPulse: () -> Unit,
     onRetryMacro: (() -> Unit)?,
@@ -280,7 +286,8 @@ private fun HomeList(
     }
     val generated = brief?.generatedAt
     val header = HeaderText(
-        eyebrow = TodayCopy.eyebrow(fmt.marketDate(today), phase?.let(::phaseWord)),
+        date = fmt.marketDate(today),
+        phase = phase?.let(::phaseWord),
         morningLine = brief?.morningLine?.ifBlank { null },
         greeting = TodayCopy.greeting(now.atZone(clock.zone).hour),
         meta = generated?.let { at ->
@@ -304,7 +311,11 @@ private fun HomeList(
             ) {
                 HomeHeader(header, headerRefreshing)
                 if (fromCache && pulse != null) {
-                    val shown = generated?.let(fmt::time)
+                    // The day too when the copy is not today's ("Offline · showing 06:30, Fri 20 Nov").
+                    val shown = generated?.let { at ->
+                        val day = at.atZone(clock.zone).toLocalDate()
+                        if (day == today) fmt.time(at) else TodayCopy.timeOnDay(fmt.time(at), fmt.marketDate(day))
+                    }
                     val text = if (pulseFailure == RefreshFailureKind.OFFLINE) TodayCopy.offlineShowing(shown) else TodayCopy.staleShowing(shown)
                     InlineBanner(text, tone = BannerTone.Neutral)
                 }
@@ -349,12 +360,32 @@ private fun HomeList(
             }
         }
 
+        // "Today's Pulse" only over today's issue: on a weekend, a holiday or before the next issue, Home shows the
+        // last issue under its date ("Pulse · Fri 20 Nov"), never as today's.
+        val issueDay = parseDay(pulse?.cycleEnd) ?: generated?.atZone(clock.zone)?.toLocalDate()
+        val marketDay = MarketCalendar.isTradingDay(today)
+        val pulseKicker = when {
+            brief == null -> if (marketDay) TodayCopy.PULSE_KICKER else TodayCopy.PULSE_TITLE
+            issueDay == null -> TodayCopy.LATEST_PULSE_KICKER
+            issueDay == today -> TodayCopy.PULSE_KICKER
+            else -> TodayCopy.datedPulseKicker(fmt.marketDate(issueDay))
+        }
+        val noPulse: Pair<String, String> = when {
+            !marketDay -> TodayCopy.NO_PULSE_CLOSED to TodayCopy.nextIssue(fmt.marketDate(MarketCalendar.nextTradingDay(today)))
+            pulseExpectedAt != null -> {
+                val day = pulseExpectedAt.atZone(clock.zone).toLocalDate()
+                val label = if (day == today) fmt.time(pulseExpectedAt) else TodayCopy.timeOnDay(fmt.time(pulseExpectedAt), fmt.marketDate(day))
+                TodayCopy.NO_PULSE to if (now.isBefore(pulseExpectedAt)) TodayCopy.expectedBy(label) else TodayCopy.runningLate(label)
+            }
+            else -> TodayCopy.NO_PULSE to TodayCopy.NO_PULSE_HOW
+        }
         pulseBlock(
+            kicker = pulseKicker,
+            noPulse = noPulse,
             brief = brief,
             pulseError = pulseError,
             offline = pulseFailure == RefreshFailureKind.OFFLINE,
             morningBriefing = morningBriefing,
-            pulseExpectedAt = pulseExpectedAt,
             entrance = { Modifier.entrance(HomeBlock.PULSE) },
             onRetry = onRetryPulse,
             onOpenPulse = onOpenPulse,
@@ -364,7 +395,7 @@ private fun HomeList(
     }
 }
 
-private data class HeaderText(val eyebrow: String, val morningLine: String?, val greeting: String, val meta: String?)
+private data class HeaderText(val date: String, val phase: String?, val morningLine: String?, val greeting: String, val meta: String?)
 
 /** Lines Home's headline may take (spec 5.6: the morning line in `headline`, max 2 lines). */
 private const val HEADLINE_LINES = 2
@@ -385,6 +416,18 @@ private fun HomeHeader(header: HeaderText, refreshing: Boolean) {
         val measurer = rememberTextMeasurer()
         val style = ThesisType.capped(ThesisType.headline)
         val width = constraints.maxWidth
+        // The eyebrow on one line when it fits, else the date over the phase (no " · " left at a line end).
+        val eyebrowStyle = ThesisType.eyebrow
+        val eyebrow = remember(header.date, header.phase, width, eyebrowStyle, measurer) {
+            val line = TodayCopy.eyebrow(header.date, header.phase)
+            val oneLine = !measurer.measure(
+                line.uppercase(),
+                style = eyebrowStyle,
+                maxLines = 1,
+                constraints = Constraints(maxWidth = width),
+            ).hasVisualOverflow
+            if (oneLine) line else TodayCopy.eyebrowStacked(header.date, header.phase)
+        }
         val title = remember(header.morningLine, header.greeting, width, style, measurer) {
             val line = header.morningLine ?: return@remember header.greeting
             PulseText.fitHeadline(line) { candidate ->
@@ -398,7 +441,7 @@ private fun HomeHeader(header: HeaderText, refreshing: Boolean) {
         }
         ScreenHeader(
             title = title,
-            eyebrow = header.eyebrow,
+            eyebrow = eyebrow,
             meta = header.meta,
             refreshing = refreshing,
             compact = true,
@@ -447,27 +490,91 @@ private fun NamesBlock(names: NamesSummary, onManageNames: () -> Unit, onOpenNam
             actionLabel = TodayCopy.NAMES_ACTION,
             onAction = onManageNames,
         )
-        RowGroup {
-            names.rows.forEach { r ->
-                row(LeadingRowDividerInset) {
-                    TickerRow(
-                        ticker = r.ticker,
-                        stateTone = r.tone,
-                        onClick = { onOpenName(r.ticker) },
-                        line2 = r.line2,
-                        figure = r.figure,
-                        figureCaption = r.figureCaption,
-                        figureCaptionTone = r.figureCaptionTone,
-                        stateLabel = r.stateLabel,
-                        hasNote = r.hasNote,
-                    )
+        BoxWithConstraints(Modifier.fillMaxWidth()) {
+            val fitted = fitNameRows(names.rows, constraints.maxWidth)
+            RowGroup {
+                names.rows.forEachIndexed { i, r ->
+                    val (line2, caption) = fitted[i]
+                    row(LeadingRowDividerInset) {
+                        TickerRow(
+                            ticker = r.ticker,
+                            stateTone = r.tone,
+                            onClick = { onOpenName(r.ticker) },
+                            line2 = line2,
+                            figure = r.figure,
+                            figureCaption = caption,
+                            figureCaptionTone = r.figureCaptionTone,
+                            stateLabel = r.stateLabel,
+                            hasNote = r.hasNote,
+                        )
+                    }
+                }
+                if (names.more > 0) {
+                    row(LeadingRowDividerInset) {
+                        ActionRow(icon = null, title = TodayCopy.moreNames(names.more), onClick = onManageNames, reserveLeading = true)
+                    }
                 }
             }
-            if (names.more > 0) {
-                row(LeadingRowDividerInset) {
-                    ActionRow(icon = null, title = TodayCopy.moreNames(names.more), onClick = onManageNames, reserveLeading = true)
-                }
-            }
+        }
+    }
+}
+
+/** Lines a name's reason may take: the kit TickerRow sets line 2 on one line up to 1.3x and on two above it. */
+private const val REASON_LINES = 1
+private const val REASON_LINES_LARGE = 2
+
+/**
+ * Each row's reason line and caption, measured against the row's real width and font scale (the kit TickerRow's
+ * anatomy: 16 dp padding each side, the 24 dp leading column and its gap, then the trailing figure block up to 1.3x).
+ * The long captions ("−1 since 17 Nov", "Report · 23 days ago") stay only when every row's whole reason fits next to
+ * them; otherwise every row takes the compact one ("−1", "Report · 23d"), and if that is still too wide the report
+ * age is left out (the score stays); one level for the group, so the trailing column reads alike. Each
+ * reason is then the longest of its forms (the sentence, then cut at a clause) that fits whole: the reason keeps its
+ * meaning before the caption keeps its words. Measured, not counted: a character budget cannot know the font.
+ */
+@Composable
+private fun fitNameRows(rows: List<NameRowModel>, rowWidthPx: Int): List<Pair<String, String?>> {
+    val measurer = rememberTextMeasurer()
+    val density = LocalDensity.current
+    val large = density.fontScale > ThesisType.MAX_DISPLAY_SCALE
+    return remember(rows, rowWidthPx, density, measurer) {
+        val lineStyle = ThesisType.bodySmall
+        val figureStyle = ThesisType.body.tnum()
+        val captionStyle = ThesisType.caption.tnum()
+        val fixed = with(density) {
+            (ThesisSpace.l * 2 + ThesisSpace.leadingColumn + ThesisSpace.leadingGap).roundToPx()
+        }
+        val figureGap = with(density) { ThesisSpace.m.roundToPx() }
+        fun widthOf(text: String?, style: TextStyle): Int =
+            if (text == null) 0 else measurer.measure(text, style = style, maxLines = 1, softWrap = false).size.width
+        fun textWidth(r: NameRowModel, caption: String?): Int {
+            if (large || (r.figure == null && caption == null)) return (rowWidthPx - fixed).coerceAtLeast(1)
+            val block = maxOf(widthOf(r.figure, figureStyle), widthOf(caption, captionStyle))
+            return (rowWidthPx - fixed - figureGap - block).coerceAtLeast(1)
+        }
+        fun fits(text: String, width: Int): Boolean = !measurer.measure(
+            text,
+            style = lineStyle,
+            maxLines = if (large) REASON_LINES_LARGE else REASON_LINES,
+            constraints = Constraints(maxWidth = width),
+        ).hasVisualOverflow
+        // Captions from the most to the least said: long, compact, then without the report age (metadata; a score
+        // change is data and stays). The first level at which every whole reason fits is used for every row.
+        val levels: List<(NameRowModel) -> String?> = listOf(
+            { it.figureCaption },
+            { it.figureCaptionShort },
+            { if (it.figureCaptionIsAge) null else it.figureCaptionShort },
+        )
+        // Above 1.3x the figure block sits under the text and its caption wraps: it takes no room from the reason.
+        val level = if (large) {
+            levels.first()
+        } else {
+            levels.firstOrNull { caption -> rows.all { r -> fits(r.line2Forms.first(), textWidth(r, caption(r))) } } ?: levels.last()
+        }
+        rows.map { r ->
+            val caption = level(r)
+            val width = textWidth(r, caption)
+            (r.line2Forms.firstOrNull { fits(it, width) } ?: r.line2Forms.last()) to caption
         }
     }
 }
@@ -505,18 +612,21 @@ private fun MacroBlock(macro: MacroSummary?, error: String?, onOpen: () -> Unit,
                         Text(macro.deltaReference, style = ThesisType.caption, color = p.muted)
                     }
                 }
-                Sparkline(
-                    values = macro.spark,
-                    contentDescription = ChartMath.summary(
-                        subject = TodayCopy.MACRO_SPARK_SUBJECT,
+                // A line needs two readings: with one (a first install), no lone dot over an empty chart.
+                if (macro.spark.count { it != null } >= 2) {
+                    Sparkline(
                         values = macro.spark,
-                        format = { Fmt.score(it) },
-                        window = TodayCopy.lastDays(macro.sparkDays),
-                    ),
-                    modifier = Modifier.fillMaxWidth(),
-                    dataKey = macro.day,
-                )
-                Text(TodayCopy.macroScale(macro.sparkDays), style = ThesisType.caption, color = p.muted)
+                        contentDescription = ChartMath.summary(
+                            subject = TodayCopy.MACRO_SPARK_SUBJECT,
+                            values = macro.spark,
+                            format = { Fmt.score(it) },
+                            window = TodayCopy.lastDays(macro.sparkDays),
+                        ),
+                        modifier = Modifier.fillMaxWidth(),
+                        dataKey = macro.day,
+                    )
+                    Text(TodayCopy.macroScale(macro.sparkDays), style = ThesisType.caption, color = p.muted)
+                }
             }
         }
     }
@@ -528,11 +638,12 @@ private fun MacroBlock(macro: MacroSummary?, error: String?, onOpen: () -> Unit,
 private const val HOME_CHAPTERS = 4
 
 private fun LazyListScope.pulseBlock(
+    kicker: String,
+    noPulse: Pair<String, String>,
     brief: PulseBrief?,
     pulseError: String?,
     offline: Boolean,
     morningBriefing: AlertLedgerItemView?,
-    pulseExpectedAt: String?,
     entrance: @Composable () -> Modifier,
     onRetry: () -> Unit,
     onOpenPulse: () -> Unit,
@@ -548,7 +659,7 @@ private fun LazyListScope.pulseBlock(
         ) {
             when {
                 brief != null -> {
-                    SectionHeader(kicker = TodayCopy.PULSE_KICKER, headline = brief.leadConclusion)
+                    SectionHeader(kicker = kicker, headline = brief.leadConclusion)
                     // Each row says something the headline above does not: the chapter the lead conclusion came from
                     // shows its next sentence instead (rubric V3).
                     val chapters = brief.chapters
@@ -581,7 +692,7 @@ private fun LazyListScope.pulseBlock(
                     TextAction(TodayCopy.READ_PULSE, onOpenPulse, trailing = true)
                 }
                 pulseError != null -> {
-                    Kicker(TodayCopy.PULSE_KICKER)
+                    Kicker(kicker)
                     if (offline) {
                         ErrorState(title = StateCopy.OFFLINE_TITLE, cause = StateCopy.OFFLINE_CAUSE, onRetry = onRetry)
                     } else {
@@ -589,10 +700,10 @@ private fun LazyListScope.pulseBlock(
                     }
                 }
                 else -> {
-                    Kicker(TodayCopy.PULSE_KICKER)
+                    Kicker(kicker)
                     EmptyState(
-                        sentence = TodayCopy.NO_PULSE,
-                        how = pulseExpectedAt?.let(TodayCopy::expectedBy) ?: TodayCopy.NO_PULSE_HOW,
+                        sentence = noPulse.first,
+                        how = noPulse.second,
                         icon = ThesisIcons.Pulse,
                     )
                 }
@@ -611,7 +722,10 @@ private fun briefingCaption(alert: AlertLedgerItemView): String? {
 
 // ---- Loading ----------------------------------------------------------------------------------------------------------
 
-/** No cache yet: the final layout in skeleton form (header, tape, three name rows, the macro card). */
+/**
+ * No cache yet: the final layout in skeleton form (header, the tape's one line, three name rows in their card, the
+ * macro card), so the crossfade to the loaded screen changes no shapes.
+ */
 @Composable
 private fun HomeSkeleton(padding: PaddingValues) {
     ShimmerHost {
@@ -625,13 +739,15 @@ private fun HomeSkeleton(padding: PaddingValues) {
             SkeletonText(ThesisType.eyebrow, widthFraction = 0.4f)
             SkeletonText(ThesisType.headline, widthFraction = 0.9f, lines = 2)
             SkeletonText(ThesisType.caption, widthFraction = 0.25f)
-            SkeletonBlock(Modifier.fillMaxWidth().height(ThesisSpace.tapeRow))
+            Box(Modifier.fillMaxWidth().height(ThesisSpace.tapeRow), contentAlignment = Alignment.CenterStart) {
+                SkeletonText(ThesisType.caption)
+            }
             Column(verticalArrangement = Arrangement.spacedBy(ThesisSpace.xs)) {
                 SkeletonText(ThesisType.kicker, widthFraction = 0.3f)
                 SkeletonText(ThesisType.headline, widthFraction = 0.75f)
             }
-            Column {
-                repeat(3) { SkeletonRow() }
+            RowGroup {
+                repeat(3) { row(LeadingRowDividerInset) { SkeletonRow() } }
             }
             SkeletonCard(bodyLines = 3)
         }

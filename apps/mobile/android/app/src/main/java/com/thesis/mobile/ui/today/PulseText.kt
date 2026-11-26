@@ -192,6 +192,25 @@ object PulseText {
         return (listOf(s) + cuts).distinct()
     }
 
+    // Where a row's short line can end besides a clause: before a trailing phrase ("... near 46% through the quarter").
+    private val PhraseBreak =
+        Regex("\\s(?=(?:through|for|in|on|at|to|from|over|since|despite|with|by|after|before|during|versus|vs)\\s)")
+
+    /**
+     * Shorter forms of [sentence] for a one-line row (a name's reason): [headlineForms], then the sentence cut before
+     * a trailing phrase, longest first, each ending with a full stop. Every form is a leading part of the sentence
+     * that still reads as a statement; nothing is invented and nothing ends mid-word or in an ellipsis.
+     */
+    fun rowForms(sentence: String, minLength: Int = 16): List<String> {
+        val s = sentence.replace(Whitespace, " ").trim()
+        if (s.isEmpty()) return emptyList()
+        val phrases = PhraseBreak.findAll(s)
+            .map { it.range.first }
+            .filter { it >= minLength }
+            .map { s.substring(0, it).trimEnd(' ', ',', ';', ':', '—', '–', '.') + "." }
+        return (headlineForms(s, minLength) + phrases).distinct().sortedByDescending { it.length }
+    }
+
     /**
      * The longest form of [text]'s first sentence ([headlineForms]) that [fits]; the shortest form when none does
      * (the Text's own line cap is then only a guard). Home measures [fits] against the real width and font scale.

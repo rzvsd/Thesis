@@ -6,10 +6,13 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -17,6 +20,7 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -25,6 +29,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -56,6 +61,7 @@ import com.thesis.mobile.ui.components.HighlightText
 import com.thesis.mobile.ui.components.InlineBanner
 import com.thesis.mobile.ui.components.Kicker
 import com.thesis.mobile.ui.components.LeadingRowDividerInset
+import com.thesis.mobile.ui.components.LocalInHeroBand
 import com.thesis.mobile.ui.components.Loadable
 import com.thesis.mobile.ui.components.RowGroup
 import com.thesis.mobile.ui.components.SkeletonHero
@@ -70,6 +76,7 @@ import com.thesis.mobile.ui.components.ThesisTopBar
 import com.thesis.mobile.ui.components.TickerRow
 import com.thesis.mobile.ui.components.Upshot
 import com.thesis.mobile.ui.copy.KitCopy
+import com.thesis.mobile.ui.copy.StateCopy
 import com.thesis.mobile.ui.copy.TodayCopy
 import com.thesis.mobile.ui.format.LocalFmt
 import com.thesis.mobile.ui.icons.ThesisIcons
@@ -97,6 +104,7 @@ import com.thesis.mobile.ui.today.TapeModel
 import com.thesis.mobile.ui.today.inert
 import com.thesis.mobile.ui.today.parseDay
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.time.Instant
 
@@ -143,8 +151,9 @@ fun PulseScreen(
      */
     exportDoneAt: Long? = null,
     /**
-     * Why the last refresh failed, when [error] is set and an issue is still shown: the hero's banner says
-     * "Offline · showing 06:30" for [RefreshFailureKind.OFFLINE], else "Couldn’t refresh · showing 06:30" (as Home).
+     * Why the last refresh failed, when [error] is set: with an issue shown, the hero's banner says "Offline ·
+     * showing this issue" for [RefreshFailureKind.OFFLINE], else "Couldn’t refresh · showing this issue"; with no
+     * issue, the error state says "You’re offline" for OFFLINE (as Home's Pulse block).
      */
     pulseFailure: RefreshFailureKind? = null,
     /** Monitor readings, for the state squares on Your names. */
@@ -227,20 +236,23 @@ fun PulseScreen(
                 )
             },
             failed = {
+                // Offline says so (as Home's Pulse block does); any other failure is a plain "Couldn't load".
+                val offline = pulseFailure == RefreshFailureKind.OFFLINE
                 ErrorState(
-                    title = KitCopy.couldNotLoad(TodayCopy.PULSE_ISSUE_SUBJECT),
+                    title = if (offline) StateCopy.OFFLINE_TITLE else KitCopy.couldNotLoad(TodayCopy.PULSE_ISSUE_SUBJECT),
+                    cause = if (offline) StateCopy.OFFLINE_CAUSE else null,
                     onRetry = onRefresh,
                     modifier = Modifier.padding(top = barHeight + ThesisSpace.l).padding(horizontal = ThesisSpace.gutter),
                 )
             },
         ) { b ->
             ThesisRefreshBox(refreshing = refreshing, onRefresh = onRefresh, indicatorTop = barHeight) {
-                // A refresh failed while an issue is shown: the same banner as Home, under the hero line.
-                val stale = if (error == null) {
-                    null
-                } else {
-                    val shown = b.generatedAt?.let(fmt::time)
-                    if (pulseFailure == RefreshFailureKind.OFFLINE) TodayCopy.offlineShowing(shown) else TodayCopy.staleShowing(shown)
+                // A refresh failed while an issue is shown: a banner under the hero line. The meta line right above
+                // it already gives the issue's time (and the eyebrow its date), so the banner does not repeat them.
+                val stale = when {
+                    error == null -> null
+                    pulseFailure == RefreshFailureKind.OFFLINE -> TodayCopy.OFFLINE_SHOWING_ISSUE
+                    else -> TodayCopy.STALE_SHOWING_ISSUE
                 }
                 Brief(
                     brief = b,
@@ -309,38 +321,48 @@ private fun Brief(
     val starts = remember(chapters) { chapters.indices.map { FIRST_CHAPTER_ITEM + it } }
     val spy = rememberScrollSpy(list, starts)
 
-    // A tapped pill keeps the selection while its scroll runs, and lands the chapter just under the pinned pills.
+    // A tapped pill (or the chapter the screen opened at) keeps the selection while its scroll runs and after it
+    // lands, until the reader scrolls on: the scroll-spy reads at 45% of the viewport, so after a short chapter
+    // lands under the pinned pills the next chapter's start has already crossed that line, and the spy alone would
+    // light the next pill. The landing is just under the pinned pills.
+    val showPills = chapters.size >= 2
     var pillsHeightPx by remember { mutableIntStateOf(0) }
     var pinnedChapter by remember { mutableStateOf<Int?>(null) }
     var jump by remember { mutableStateOf<Job?>(null) }
+    var jumpSeq by remember { mutableIntStateOf(0) }
     // A chapter lands with its header a 24 dp gap under the pinned pills (its own top padding minus that gap).
     fun landingOffset(index: Int): Int {
         val top = with(density) { (if (index == 0) ThesisSpace.x3 else ThesisSpace.chapterPadding).roundToPx() }
         val gap = with(density) { ThesisSpace.xxl.roundToPx() }
         return -(barHeightPx + pillsHeightPx) + top - gap
     }
-    fun jumpTo(index: Int) {
+    fun jumpTo(index: Int, instant: Boolean = reduced) {
         val target = starts.getOrNull(index) ?: return
         val offset = landingOffset(index)
         jump?.cancel()
+        val seq = ++jumpSeq
         pinnedChapter = index
         jump = scope.launch {
             try {
-                if (reduced) list.scrollToItem(target, offset) else list.animateScrollToItem(target, offset)
+                if (instant) list.scrollToItem(target, offset) else list.animateScrollToItem(target, offset)
+                // Landed: hold the selection until the list moves from here (a drag, a fling, a TalkBack scroll).
+                val landed = list.firstVisibleItemIndex to list.firstVisibleItemScrollOffset
+                snapshotFlow { list.firstVisibleItemIndex to list.firstVisibleItemScrollOffset }.first { it != landed }
             } finally {
-                pinnedChapter = null
+                // A newer jump has taken the pin over: a cancelled one must not clear it.
+                if (jumpSeq == seq) pinnedChapter = null
             }
         }
     }
     val selected = pinnedChapter ?: spy.selected
     // Opened at a chapter (Home's rows and tape): once, after the bar and the pills have been measured.
     var openedAt by remember(brief.reportId, initialChapter) { mutableStateOf(false) }
-    val measured = barHeightPx > 0 && pillsHeightPx > 0
+    val measured = barHeightPx > 0 && (pillsHeightPx > 0 || !showPills)
     LaunchedEffect(brief.reportId, initialChapter, measured) {
         val i = chapters.indexOfFirst { it.kind == initialChapter }
         if (measured && !openedAt && i >= 0) {
             openedAt = true
-            list.scrollToItem(starts[i], landingOffset(i))
+            jumpTo(i, instant = true)
         }
     }
 
@@ -380,16 +402,20 @@ private fun Brief(
                     if (staleBanner != null) InlineBanner(staleBanner, tone = BannerTone.Neutral)
                 }
             }
+            // Always an item (the chapters' list positions stay fixed); empty for a one-chapter issue, where a lone
+            // pill would navigate nowhere.
             item(key = "pills") {
-                ChapterPills(
-                    chapters = titles,
-                    selectedIndex = selected,
-                    onSelect = ::jumpTo,
-                    modifier = Modifier
-                        .onSizeChanged { pillsHeightPx = it.height }
-                        .alpha(if (pillsPinned) 0f else 1f)
-                        .then(if (pillsPinned) Modifier.clearAndSetSemantics { } else Modifier),
-                )
+                if (showPills) {
+                    ChapterPills(
+                        chapters = titles,
+                        selectedIndex = selected,
+                        onSelect = { jumpTo(it) },
+                        modifier = Modifier
+                            .onSizeChanged { pillsHeightPx = it.height }
+                            .alpha(if (pillsPinned) 0f else 1f)
+                            .then(if (pillsPinned) Modifier.clearAndSetSemantics { } else Modifier),
+                    )
+                }
             }
             chapters.forEachIndexed { i, chapter ->
                 item(key = chapter.kind.name, contentType = "chapter") {
@@ -428,17 +454,21 @@ private fun Brief(
                     verticalArrangement = Arrangement.spacedBy(ThesisSpace.s),
                 ) {
                     ChapterDivider()
-                    Eyebrow(TodayCopy.COLOPHON, Modifier.padding(top = ThesisSpace.l))
+                    // Echoes the hero's eyebrow: the kit draws the 28 dp accent rule and the accent colour for an
+                    // eyebrow in a hero band, so the colophon's eyebrow is set as one.
+                    CompositionLocalProvider(LocalInHeroBand provides true) {
+                        Eyebrow(TodayCopy.COLOPHON, Modifier.padding(top = ThesisSpace.l))
+                    }
                     if (generated != null) Text(generated, style = ThesisType.caption, color = p.muted)
                     Text(TodayCopy.DISCLAIMER, style = ThesisType.caption, color = p.muted)
                 }
             }
         }
-        if (pillsPinned) {
+        if (pillsPinned && showPills) {
             ChapterPills(
                 chapters = titles,
                 selectedIndex = selected,
-                onSelect = ::jumpTo,
+                onSelect = { jumpTo(it) },
                 modifier = Modifier.padding(top = with(LocalDensity.current) { barHeightPx.toDp() }),
             )
         }
@@ -600,8 +630,9 @@ private fun SignalNoise(signal: String?, noise: String?) {
         val wide = maxWidth >= SideBySideMin
         val blocks: List<Pair<String, String>> = listOfNotNull(signal?.let { TodayCopy.SIGNAL to it }, noise?.let { TodayCopy.NOISE to it })
         if (wide && blocks.size == 2) {
-            Row(horizontalArrangement = Arrangement.spacedBy(ThesisSpace.m)) {
-                blocks.forEach { (label, text) -> LabelledCallout(label, text, Modifier.weight(1f)) }
+            // One height for the pair (the taller one's), as the Deep Dive's card pairs.
+            Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(ThesisSpace.m)) {
+                blocks.forEach { (label, text) -> LabelledCallout(label, text, Modifier.weight(1f).fillMaxHeight(), fill = true) }
             }
         } else {
             Column(verticalArrangement = Arrangement.spacedBy(ThesisSpace.m)) {
@@ -611,11 +642,12 @@ private fun SignalNoise(signal: String?, noise: String?) {
     }
 }
 
+/** A kicker over a callout; with [fill] the callout takes the column's remaining height (a side-by-side pair). */
 @Composable
-private fun LabelledCallout(label: String, text: String, modifier: Modifier = Modifier) {
+private fun LabelledCallout(label: String, text: String, modifier: Modifier = Modifier, fill: Boolean = false) {
     Column(modifier, verticalArrangement = Arrangement.spacedBy(ThesisSpace.xs)) {
         Kicker(label)
-        Callout(text)
+        Callout(text, if (fill) Modifier.weight(1f) else Modifier)
     }
 }
 

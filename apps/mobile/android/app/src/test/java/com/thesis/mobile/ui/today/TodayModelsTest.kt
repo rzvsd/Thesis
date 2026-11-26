@@ -63,6 +63,10 @@ class TodayModelsTest {
         assertEquals("+4 since 17 Nov", aapl.figureCaption)
         assertEquals(Tone.Favourable, aapl.figureCaptionTone)
         assertEquals("AAPL reason.", aapl.line2)
+        // The compact forms Home falls back to when the reason would not fit beside the long caption.
+        assertEquals("+4", aapl.figureCaptionShort)
+        assertEquals("${Fmt.MINUS}1", jpm.figureCaptionShort)
+        assertEquals(listOf("AAPL reason."), aapl.line2Forms)
 
         val xom = s.rows[3]
         assertEquals(TodayCopy.NO_READING_YET, xom.line2)
@@ -79,6 +83,19 @@ class TodayModelsTest {
         assertEquals("Both your names are intact", TodayCopy.namesHeadline(2, 2, 0, 0, 2))
         assertEquals("No monitor readings for your names yet", TodayCopy.namesHeadline(3, 0, 0, 0, 0))
         assertEquals("Report · 23 days ago", HomeNames.summary(listOf("A"), listOf(snap("A", "intact", 70.0)), emptyMap(), emptySet(), clock, fmt).rows.single().figureCaption)
+    }
+
+    @Test
+    fun aLongReasonHasShorterFormsCutAtAClause() {
+        val long = snap("A", "intact", 70.0).copy(reason = "Services margin held near 46%, while hardware revenue slipped for a third quarter.")
+        val row = HomeNames.summary(listOf("A"), listOf(long), emptyMap(), emptySet(), clock, fmt).rows.single()
+        assertEquals("Services margin held near 46%, while hardware revenue slipped for a third quarter.", row.line2)
+        assertEquals(
+            listOf(row.line2, "Services margin held near 46%, while hardware revenue slipped.", "Services margin held near 46%."),
+            row.line2Forms,
+        )
+        // The report is 23 days old.
+        assertEquals("Report · 23d", row.figureCaptionShort)
     }
 
     // ---- macro ----------------------------------------------------------------------------------------------------
@@ -206,5 +223,13 @@ class TodayModelsTest {
         assertFalse(LocalDate.of(2027, 12, 31) in MarketCalendar.holidays(2027))
         assertEquals(LocalDate.of(2027, 3, 28), MarketCalendar.easter(2027))
         assertTrue(MarketCalendar.isTradingDay(LocalDate.of(2026, 11, 24)))
+    }
+
+    @Test
+    fun theNextIssueDaySkipsWeekendsAndHolidays() {
+        // Wed 25 Nov -> Fri 27 Nov (Thanksgiving on Thu 26); Fri 27 -> Mon 30; Sat 28 -> Mon 30.
+        assertEquals(LocalDate.of(2026, 11, 27), MarketCalendar.nextTradingDay(LocalDate.of(2026, 11, 25)))
+        assertEquals(LocalDate.of(2026, 11, 30), MarketCalendar.nextTradingDay(LocalDate.of(2026, 11, 27)))
+        assertEquals(LocalDate.of(2026, 11, 30), MarketCalendar.nextTradingDay(LocalDate.of(2026, 11, 28)))
     }
 }

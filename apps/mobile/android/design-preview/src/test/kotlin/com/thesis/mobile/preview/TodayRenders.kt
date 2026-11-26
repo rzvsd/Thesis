@@ -24,6 +24,7 @@ class TodayRenders {
     @Test fun homeEmpty() { renderScreen("today-home-empty") { TodayHome(HomeState.Empty) } }
     @Test fun homeError() { renderScreen("today-home-error") { TodayHome(HomeState.Error) } }
     @Test fun homeOffline() { renderScreen("today-home-offline") { TodayHome(HomeState.Offline) } }
+    @Test fun homePreviousIssue() { renderScreen("today-home-previous-issue", heightDp = full, glow = false) { TodayHome(HomeState.PreviousIssue) } }
     @Test fun homeScale13() { renderScreen("today-home-1_3x", fontScale = 1.3f, glow = false) { TodayHome() } }
     @Test fun homeScale20() { renderScreen("today-home-2_0x", fontScale = 2.0f, glow = false) { TodayHome() } }
     @Test fun homeNarrow() { renderScreen("today-home-360", widthDp = PhoneSpec.NARROW_WIDTH_DP, heightDp = 780, glow = false) { TodayHome() } }
@@ -45,6 +46,7 @@ class TodayRenders {
     @Test fun pulseLoading() { renderScreen("today-pulse-loading") { TodayPulse(PulseState.Loading) } }
     @Test fun pulseEmpty() { renderScreen("today-pulse-empty") { TodayPulse(PulseState.Empty) } }
     @Test fun pulseError() { renderScreen("today-pulse-error") { TodayPulse(PulseState.Error) } }
+    @Test fun pulseOffline() { renderScreen("today-pulse-offline") { TodayPulse(PulseState.Offline) } }
     @Test fun pulseExporting() { renderScreen("today-pulse-exporting", settleMs = 600) { TodayPulse(PulseState.Exporting) } }
     @Test fun pulseScrolled() { renderScreen("today-pulse-scrolled") { TodayPulse(initialChapter = ChapterKind.Changed) } }
     @Test fun pulseScale13() { renderScreen("today-pulse-1_3x", fontScale = 1.3f, glow = false) { TodayPulse() } }

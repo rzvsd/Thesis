@@ -72,10 +72,13 @@ class PulseBriefTest {
         assertEquals("Ten-year yields fell for a fourth session.", changed.title)
         assertEquals("The curve steepened.", changed.rowSentence(changed.title))
         assertEquals(changed.title, changed.rowSentence("Something else."))
-        // A list with no sentence of its own leads with its first item, not a count.
+        // A list with no sentence of its own is headed by a count, and every event stays in the list.
         val watch = b.chapter(ChapterKind.Watch)!!
-        assertEquals("Durable goods orders, Wed 08:30.", watch.title)
-        assertEquals(listOf("FOMC minutes, Wed 14:00."), watch.items)
+        assertEquals(TodayCopy.watchHeadline(2), watch.title)
+        assertEquals("2 events to watch", watch.title)
+        assertEquals(listOf("Durable goods orders, Wed 08:30.", "FOMC minutes, Wed 14:00."), watch.items)
+        // Home's row under "Watch" names the first event rather than repeating the count.
+        assertEquals("Durable goods orders, Wed 08:30; 1 more.", watch.rowSentence(b.leadConclusion))
     }
 
     @Test
@@ -141,7 +144,8 @@ class PulseBriefTest {
     fun yourNamesQuoteTheSentenceThatNamesThem() {
         val names = brief.chapter(ChapterKind.Names)!!
         assertEquals(listOf("AAPL", "MSFT"), names.names.map { it.ticker })
-        assertEquals("AAPL filed a new 8-K.", names.names.first().sentence)
+        // The row's title is the ticker: the sentence it opens does not repeat it.
+        assertEquals("Filed a new 8-K.", names.names.first().sentence)
         assertEquals(TodayCopy.namesInBrief(2), names.title)
     }
 

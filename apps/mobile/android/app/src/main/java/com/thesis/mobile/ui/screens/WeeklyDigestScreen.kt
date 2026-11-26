@@ -227,17 +227,17 @@ private fun LazyListScope.digest(
             ),
             KpiSpec(
                 label = TodayCopy.KPI_FILINGS,
-                value = model.filings.size.toString(),
+                value = Fmt.number(model.filings.size.toLong()),
                 reference = TodayCopy.amongNames(model.total),
             ),
             KpiSpec(
                 label = TodayCopy.KPI_STATE_CHANGES,
-                value = model.stateChanges?.size?.toString() ?: Fmt.NOT_COMPUTED,
+                value = model.stateChanges?.let { Fmt.number(it.size.toLong()) } ?: Fmt.NOT_COMPUTED,
                 reference = TodayCopy.LAST_7_DAYS,
             ),
             KpiSpec(
                 label = TodayCopy.KPI_ALERTS,
-                value = model.alertsTotal.toString(),
+                value = Fmt.number(model.alertsTotal.toLong()),
                 reference = TodayCopy.LAST_7_DAYS,
             ),
         )
@@ -285,18 +285,23 @@ private fun LazyListScope.digest(
                 SectionHeader(kicker = TodayCopy.MACRO_KICKER, headline = macro.title)
                 PressableCard(onClick = onOpenDashboard, onClickLabel = TodayCopy.OPEN_MACRO) {
                     val p = LocalThesisPalette.current
-                    Sparkline(
-                        values = macro.spark,
-                        contentDescription = ChartMath.summary(
-                            subject = TodayCopy.MACRO_SPARK_SUBJECT,
+                    // A line needs two readings: with one, a sentence instead of a lone dot over an empty chart.
+                    if (macro.spark.count { it != null } >= 2) {
+                        Sparkline(
                             values = macro.spark,
-                            format = { Fmt.score(it) },
-                            window = TodayCopy.LAST_7_DAYS,
-                        ),
-                        modifier = Modifier.fillMaxWidth(),
-                        dataKey = macro.day,
-                    )
-                    Text(TodayCopy.MACRO_WEEK_SCALE, style = ThesisType.caption, color = p.muted)
+                            contentDescription = ChartMath.summary(
+                                subject = TodayCopy.MACRO_SPARK_SUBJECT,
+                                values = macro.spark,
+                                format = { Fmt.score(it) },
+                                window = TodayCopy.LAST_7_DAYS,
+                            ),
+                            modifier = Modifier.fillMaxWidth(),
+                            dataKey = macro.day,
+                        )
+                        Text(TodayCopy.MACRO_WEEK_SCALE, style = ThesisType.caption, color = p.muted)
+                    } else {
+                        Text(TodayCopy.macroOneReading(Fmt.score(macro.score)), style = ThesisType.bodySmall, color = p.ink2)
+                    }
                 }
             }
         }

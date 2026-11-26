@@ -71,6 +71,10 @@ data class PulseChapter(
      * null when the chapter has nothing else to say (the row is then left out rather than repeat the headline).
      */
     fun rowSentence(shown: String?): String? {
+        // Under the row title "Watch", "3 events to watch" says little: the first event, and how many follow.
+        if (kind == ChapterKind.Watch && items.isNotEmpty() && title == TodayCopy.watchHeadline(items.size)) {
+            return TodayCopy.watchRow(items.first(), items.size - 1)
+        }
         if (title != shown) return title
         val next = paragraphs.firstOrNull()?.text?.let { PulseText.sentences(it).firstOrNull() }
             ?: items.firstOrNull()
@@ -312,15 +316,14 @@ data class PulseBrief(
             }
             val watchChapter = if (watchItems.isNotEmpty()) {
                 val items = watchItems.distinct()
-                // A list with no sentence of its own leads with its first item ("Durable goods orders, Wed
-                // 08:30."), a fact rather than a count; the rest stay in the list.
-                val title = watchTitle ?: items.first()
+                // The headline is the issue's own sentence, else a count of what is on the calendar ("3 events to
+                // watch"); either way every event stays in the list (one form, with or without prose).
                 PulseChapter(
                     kind = ChapterKind.Watch,
                     label = TodayCopy.CHAPTER_WATCH,
-                    title = title,
+                    title = watchTitle ?: TodayCopy.watchHeadline(items.size),
                     partial = watch.any(::isPartial),
-                    items = if (watchTitle == null) items.drop(1) else items,
+                    items = items,
                 )
             } else {
                 null
@@ -513,7 +516,16 @@ data class PulseBrief(
                 val sentence = sentenceIn(namesSection?.body)
                     ?: elsewhere.firstOrNull { it.startsWith(ticker) }
                     ?: elsewhere.firstOrNull()
-                sentence?.let { NameMention(ticker, PulseText.oneSentence(it)) }
+                sentence?.let { NameMention(ticker, withoutSubject(PulseText.oneSentence(it), ticker)) }
             }
+
+        /**
+         * The row's title is the ticker, so a sentence it opens drops it ("AAPL filed a new 8-K." under "AAPL" reads
+         * "Filed a new 8-K."). Only when a verb follows (a lower-case word); "AAPL: ..." or "AAPL Inc." stay whole.
+         */
+        private fun withoutSubject(sentence: String, ticker: String): String {
+            val m = Regex("^${Regex.escape(ticker)}\\s+(?=\\p{Ll})").find(sentence) ?: return sentence
+            return sentence.substring(m.range.last + 1).replaceFirstChar { it.uppercase() }
+        }
     }
 }

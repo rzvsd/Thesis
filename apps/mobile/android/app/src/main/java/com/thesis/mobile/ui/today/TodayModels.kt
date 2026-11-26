@@ -40,7 +40,12 @@ internal fun dayWord(at: Instant, clock: Clock, fmt: Fmt): String {
 
 // ---- Your names ---------------------------------------------------------------------------------------------------
 
-/** One row of Home's names group. */
+/**
+ * One row of Home's names group. [line2] is the whole reason; [line2Forms] are its shorter forms (the sentence cut
+ * at a clause, longest first, [line2] first) and [figureCaptionShort] the compact caption ("−1", "Report · 23d").
+ * Home measures them against the row's real width and font scale and shows the longest reason that fits whole,
+ * giving up the caption's long form before the reason's meaning.
+ */
 @Immutable
 data class NameRowModel(
     val ticker: String,
@@ -52,6 +57,10 @@ data class NameRowModel(
     val figureCaptionTone: Tone,
     val hasNote: Boolean,
     val changed: Boolean,
+    val line2Forms: List<String> = listOf(line2),
+    val figureCaptionShort: String? = figureCaption,
+    /** The caption is the report's age (metadata Home may leave out for room), not a score change. */
+    val figureCaptionIsAge: Boolean = false,
 )
 
 @Immutable
@@ -124,10 +133,13 @@ object HomeNames {
                     TodayCopy.stateWord(delta.current.state),
                     dayWord(Instant.ofEpochMilli(delta.current.takenAtMs), clock, fmt),
                 )
-            snapshot != null && snapshot.reason.isNotBlank() -> PulseText.oneSentence(PulseText.clean(snapshot.reason), 90)
+            snapshot != null && snapshot.reason.isNotBlank() -> reasonForms(snapshot.reason).first()
             snapshot != null -> TodayCopy.stateWord(snapshot.state)
             else -> TodayCopy.NO_READING_YET
         }
+        // A reason can be shortened at a clause; a state change or a state word cannot.
+        val isReason = !(changed && previous != null && delta != null) && snapshot != null && snapshot.reason.isNotBlank()
+        val line2Forms = if (isReason && snapshot != null) reasonForms(snapshot.reason) else listOf(line2)
         val score = snapshot?.score ?: delta?.current?.score
         val scoreChange = delta?.scoreChange
         val reportAt = parseInstant(snapshot?.reportGeneratedAt)
@@ -139,6 +151,14 @@ object HomeNames {
             snapshot != null -> TodayCopy.NO_REPORT_YET to Tone.Unknown
             else -> null to Tone.Neutral
         }
+        // The compact caption: the signed change alone (the section is about your last visit), the report age in days.
+        val captionShort = when {
+            scoreChange != null && previous != null -> TodayCopy.scoreChange(scoreChange)
+            reportAt != null -> TodayCopy.reportAgeShort(
+                ChronoUnit.DAYS.between(reportAt.atZone(clock.zone).toLocalDate(), LocalDate.now(clock)).coerceAtLeast(0L),
+            )
+            else -> caption
+        }
         return NameRowModel(
             ticker = ticker,
             tone = tone,
@@ -149,8 +169,27 @@ object HomeNames {
             figureCaptionTone = captionTone,
             hasNote = hasNote,
             changed = changed,
+            line2Forms = line2Forms,
+            figureCaptionShort = captionShort,
+            figureCaptionIsAge = !(scoreChange != null && previous != null) && reportAt != null,
         )
     }
+
+    /**
+     * A monitor reason as row text: its first sentence, then that sentence cut at each clause or before a trailing
+     * phrase ([PulseText.rowForms]), longest first, each at
+     * most [REASON_MAX_LENGTH] characters; a sentence with no clause that short is cut at a word with an ellipsis.
+     */
+    private fun reasonForms(raw: String): List<String> {
+        val first = PulseText.sentences(PulseText.clean(raw)).firstOrNull() ?: PulseText.clean(raw)
+        return PulseText.rowForms(first, minLength = REASON_MIN_LENGTH).filter { it.length <= REASON_MAX_LENGTH }
+            .ifEmpty { listOf(PulseText.oneSentence(first, REASON_MAX_LENGTH)) }
+    }
+
+    private const val REASON_MAX_LENGTH = 90
+
+    /** Shortest clause a reason is cut to ("Customer concentration rose." keeps its meaning; "Customer." does not). */
+    private const val REASON_MIN_LENGTH = 16
 
     /** A stronger monitor score is favourable; a change that rounds to 0 is neutral. */
     private fun scoreTone(delta: Double): Tone = when {

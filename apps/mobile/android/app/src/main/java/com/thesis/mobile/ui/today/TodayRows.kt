@@ -28,6 +28,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import com.thesis.mobile.ui.components.StatusBadge
 import com.thesis.mobile.ui.components.StatusSquare
 import com.thesis.mobile.ui.copy.TodayCopy
+import com.thesis.mobile.ui.format.Fmt
 import com.thesis.mobile.ui.motion.thesisPress
 import com.thesis.mobile.ui.theme.LocalThesisPalette
 import com.thesis.mobile.ui.theme.ThesisSpace
@@ -105,7 +106,7 @@ internal fun CategoryCountRow(
         Spacer(Modifier.width(ThesisSpace.leadingGap))
         Text(label, style = ThesisType.rowTitle, color = p.ink, modifier = Modifier.weight(1f))
         Spacer(Modifier.width(ThesisSpace.m))
-        Text(count.toString(), style = ThesisType.body.tnum(), color = p.ink)
+        Text(Fmt.number(count.toLong()), style = ThesisType.body.tnum(), color = p.ink)
     }
 }
 

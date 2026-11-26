@@ -185,6 +185,12 @@ object TodayFixtures {
         ),
     )
 
+    /** Yesterday's issue (Mon 23 Nov), as Home shows it before today's arrives: never labelled "Today’s Pulse". */
+    val previousPulse = richPulse.copy(reportId = "pulse-2026-11-23", generatedAt = "2026-11-23T11:30:00Z", cycleEnd = "2026-11-23")
+
+    /** When today's issue was due (06:30 New York): passed by the fixture clock (07:15), so it is running late. */
+    val pulseDue: Instant = Instant.parse("2026-11-24T11:30:00Z")
+
     // ---- Macro stress -------------------------------------------------------------------------------------------
 
     /** Market days from 26 Oct to 20 Nov, a gentle wave from about 40 to 49, then 46 on Mon 16 Nov. */
@@ -292,7 +298,7 @@ private fun FreshEntrances(scope: String, content: @Composable () -> Unit) {
 
 // ---- Screen states ----------------------------------------------------------------------------------------------------
 
-enum class HomeState { Loaded, Loading, Empty, Error, Offline }
+enum class HomeState { Loaded, Loading, Empty, Error, Offline, PreviousIssue }
 
 @Composable
 fun TodayHome(
@@ -318,9 +324,13 @@ private fun TodayHomeContent(
     onRetryMacro: () -> Unit,
 ) {
     val f = TodayFixtures
-    val loaded = state == HomeState.Loaded || state == HomeState.Offline
+    val loaded = state == HomeState.Loaded || state == HomeState.Offline || state == HomeState.PreviousIssue
     HomeScreen(
-        pulse = if (loaded) f.richPulse else null,
+        pulse = when {
+            state == HomeState.PreviousIssue -> f.previousPulse
+            loaded -> f.richPulse
+            else -> null
+        },
         pulseLoadedFromCache = state == HomeState.Offline,
         pulseFreshnessText = null,
         sentimentCurrent = if (loaded) f.sentimentCurrent else null,
@@ -343,13 +353,13 @@ private fun TodayHomeContent(
         notedTickers = f.noted,
         onOpenName = onOpenName,
         onOpenPulseAt = onOpenPulseAt,
-        pulseExpectedAt = if (state == HomeState.Empty) "06:30" else null,
+        pulseExpectedAt = if (state == HomeState.Empty) f.pulseDue else null,
         onRetryMacro = onRetryMacro,
         pulseFailure = if (state == HomeState.Offline) RefreshFailureKind.OFFLINE else null,
     )
 }
 
-enum class PulseState { Loaded, Real, Loading, Empty, Error, Exporting, Stale }
+enum class PulseState { Loaded, Real, Loading, Empty, Error, Exporting, Stale, Offline }
 
 @Composable
 fun TodayPulse(
@@ -373,8 +383,16 @@ fun TodayPulse(
             onExportPdf = {},
             onRefresh = {},
             loading = state == PulseState.Loading,
-            error = if (state == PulseState.Error || state == PulseState.Stale) "HTTP 503" else null,
-            pulseFailure = if (state == PulseState.Stale) RefreshFailureKind.SERVER else null,
+            error = when (state) {
+                PulseState.Error, PulseState.Stale -> "HTTP 503"
+                PulseState.Offline -> "Unable to resolve host"
+                else -> null
+            },
+            pulseFailure = when (state) {
+                PulseState.Stale -> RefreshFailureKind.SERVER
+                PulseState.Offline -> RefreshFailureKind.OFFLINE
+                else -> null
+            },
             isExporting = state == PulseState.Exporting,
             monitorSnapshots = f.snapshots,
             onOpenSource = onOpenSource,

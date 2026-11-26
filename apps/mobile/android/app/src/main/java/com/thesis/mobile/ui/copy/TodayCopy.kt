@@ -36,6 +36,12 @@ object TodayCopy {
      */
     fun eyebrow(date: String, phase: String?): String = listOfNotNull(date, phase).joinToString(" · ") { unbreakable(it) }
 
+    /**
+     * The eyebrow on two lines, for when one line does not hold it (2.0x on a narrow phone): the date over the
+     * phase, without the separator (a " · " left dangling at a line end reads as a missing word).
+     */
+    fun eyebrowStacked(date: String, phase: String?): String = listOfNotNull(date, phase).joinToString("\n") { unbreakable(it) }
+
     private const val NO_BREAK_SPACE = '\u00A0'
     private const val NO_BREAK_HYPHEN = '\u2011'
 
@@ -57,12 +63,22 @@ object TodayCopy {
     /** "As of 07:02, yesterday" style: the time when it is today, else the relative day. */
     fun asOfWhen(time: String, day: String?): String = if (day == null) asOf(time) else "As of $time, $day"
 
-    /** Above loaded content while offline: "Offline · showing 07:02". */
-    fun offlineShowing(time: String?): String = if (time == null) "Offline · showing the last copy" else "Offline · showing $time"
+    /**
+     * Above loaded content while offline: "Offline · showing 07:02" ([shown] carries the day when the copy is not
+     * today's: "Offline · showing 06:30, Fri 20 Nov").
+     */
+    fun offlineShowing(shown: String?): String = if (shown == null) "Offline · showing the last copy" else "Offline · showing $shown"
 
     /** Above loaded content when a refresh failed for any other reason: "Couldn’t refresh · showing 07:02". */
-    fun staleShowing(time: String?): String =
-        if (time == null) "Couldn’t refresh · showing the last copy" else "Couldn’t refresh · showing $time"
+    fun staleShowing(shown: String?): String =
+        if (shown == null) "Couldn’t refresh · showing the last copy" else "Couldn’t refresh · showing $shown"
+
+    /** The Pulse hero's banner: its meta line right above already gives the time, so the banner does not repeat it. */
+    const val OFFLINE_SHOWING_ISSUE = "Offline · showing this issue"
+    const val STALE_SHOWING_ISSUE = "Couldn’t refresh · showing this issue"
+
+    /** "06:30, Fri 20 Nov": a time with its day, for a copy that is not today's. */
+    fun timeOnDay(time: String, day: String): String = "$time, $day"
 
     // ---- Home: tape ---------------------------------------------------------------------------------------------
 
@@ -108,18 +124,24 @@ object TodayCopy {
     fun stateChange(from: String, to: String, day: String): String = "$from → $to, $day"
 
     /** Monitor score change under the score: "+4 since Tue". */
-    fun scoreSince(delta: Double, day: String): String {
+    fun scoreSince(delta: Double, day: String): String = "${scoreChange(delta)} since $day"
+
+    /** The signed change alone ("+4", "−1"): the compact caption when the reason line needs the room. */
+    fun scoreChange(delta: Double): String {
         val n = delta.roundToInt()
         val sign = when {
             n > 0 -> "+"
             n < 0 -> Fmt.MINUS
             else -> ""
         }
-        return "$sign${abs(n)} since $day"
+        return "$sign${abs(n)}"
     }
 
     /** Report age when there is no earlier reading: "Report · 23 days ago". */
     fun reportAge(relative: String): String = "Report · $relative"
+
+    /** The compact report age, when the full one would crowd out a name's reason line: "Report · 23d". */
+    fun reportAgeShort(days: Long): String = if (days <= 0L) "Report · today" else "Report · ${days}d"
 
     const val NO_REPORT_YET = "No report yet"
     const val NO_READING_YET = "No monitor reading yet"
@@ -161,7 +183,8 @@ object TodayCopy {
 
     const val MACRO_NO_READING = "Macro stress has no reading yet"
     const val MACRO_NO_READING_HOW = "The first reading appears after the next market close."
-    const val MACRO_FAILED = "Macro stress could not be loaded"
+    /** Same pattern as the Pulse block's error right below it ("Couldn’t load today’s Pulse"). */
+    val MACRO_FAILED: String = KitCopy.couldNotLoad("macro stress")
 
     /** The card's one action, spoken by TalkBack. */
     const val OPEN_MACRO = "Open Macro Stress"
@@ -177,18 +200,37 @@ object TodayCopy {
     // ---- Home: today's Pulse ------------------------------------------------------------------------------------
 
     const val PULSE_KICKER = "Today’s Pulse"
+
+    /**
+     * The kicker of an issue that is not today's (a weekend, a holiday, or before the next issue): "Pulse · Fri 20
+     * Nov". Never "Today’s Pulse" over an earlier day's issue.
+     */
+    fun datedPulseKicker(day: String): String = "Pulse · $day"
     const val READ_PULSE = "Read the full Pulse"
     const val MORNING_BRIEFING = "Morning briefing"
     const val PARTIAL_COVERAGE = "Partial coverage"
 
-    /** Fallback headline when the issue has no conclusion of its own: "Today’s brief has 5 chapters". */
-    fun briefChapters(n: Int): String = "Today’s brief has ${Fmt.count(n, "chapter", "chapters")}"
+    /**
+     * Fallback headline when the issue has no conclusion of its own: "This issue has 5 chapters" (not "today’s":
+     * Home can show an earlier day's issue).
+     */
+    fun briefChapters(n: Int): String = "This issue has ${Fmt.count(n, "chapter", "chapters")}"
 
+    /** No issue yet on a market day. */
     const val NO_PULSE = "Today’s Pulse arrives before the open"
     const val NO_PULSE_HOW = "It reads the overnight tape, macro releases and new filings on your names."
 
-    /** "Expected by 06:30" when the schedule is known. */
+    /** No issue on a weekend or an exchange holiday. */
+    const val NO_PULSE_CLOSED = "No Pulse today: US markets are closed"
+
+    /** "The next issue arrives before the open on Mon 30 Nov." */
+    fun nextIssue(day: String): String = "The next issue arrives before the open on $day."
+
+    /** "Expected by 06:30" when the schedule is known and the time is still ahead. */
     fun expectedBy(time: String): String = "Expected by $time"
+
+    /** The scheduled time has passed and no issue has arrived: "Running late: it was due by 06:30". */
+    fun runningLate(time: String): String = "Running late: it was due by $time"
 
     const val PULSE_SUBJECT = "today’s Pulse"
 
@@ -228,7 +270,7 @@ object TodayCopy {
     const val CHAPTER_SOURCES = "Sources"
 
     /** Chapter headlines used only when the issue gives no sentence of its own. */
-    fun marketsFallback(n: Int): String = "${Fmt.count(n, "market", "markets")} on today’s tape"
+    fun marketsFallback(n: Int): String = "${Fmt.count(n, "market", "markets")} on this issue’s tape"
     /**
      * The Markets headline when the issue's only markets sentence is already the morning line: the levels of the
      * broad index and the 10-year from the tape ("S&P 500 5,525.21 (+0.7%), 10-year Treasury yield 4.29% (−3 bps).").
@@ -285,7 +327,17 @@ object TodayCopy {
     }
 
     fun namesInBrief(n: Int): String =
-        if (n == 1) "1 of your names is in today’s brief" else "$n of your names are in today’s brief"
+        if (n == 1) "1 of your names is in this issue" else "${Fmt.number(n.toLong())} of your names are in this issue"
+
+    /**
+     * The Watch headline when the issue has no sentence of its own: a count of what is on the calendar ("3 events
+     * to watch"); every event stays in the list below it.
+     */
+    fun watchHeadline(n: Int): String = "${Fmt.count(n, "event", "events")} to watch"
+
+    /** Home's Watch row: the first event and how many follow ("Durable goods orders, Wed 08:30; 2 more."). */
+    fun watchRow(first: String, more: Int): String =
+        if (more <= 0) first else "${first.trimEnd('.', ' ')}; ${Fmt.number(more.toLong())} more."
 
     /**
      * The Sources headline: a plain count of what the issue links to. It makes no claim that every figure is
@@ -404,6 +456,9 @@ object TodayCopy {
     const val DIGEST_NO_DATA = "Nothing to sum up yet"
     const val DIGEST_NO_DATA_HOW = "The digest is built from your names, alerts and macro readings once they arrive."
     const val DIGEST_SUBJECT = "this week’s digest"
+
+    /** The macro card with a single reading (no line to draw yet). */
+    fun macroOneReading(score: String): String = "One reading so far, $score. The line starts with the next close."
 
     /** "Score 0 to 100, last 7 days". */
     const val MACRO_WEEK_SCALE = "Score 0 to 100, last 7 days"

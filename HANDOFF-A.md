@@ -18,8 +18,10 @@ Changes needed outside WP-A's files. Each item gives the file, the change and th
      - A name row opens Name (container transform). The fallback today is the Names tab.
    - `onOpenPulseAt = { kind -> actions.onOpenPulse(null) /* + chapter */ }`
      - Home's chapter rows and the tape open the Pulse at a chapter. To carry the chapter, add it to `Destination.Pulse` (or a one-shot field) and pass it to `PulseScreen(initialChapter = …)`.
-   - `pulseExpectedAt = "06:30"` (formatted with `LocalFmt.time`)
-     - Only when the schedule is known. It fills the no-Pulse state's "Expected by" line.
+   - `pulseExpectedAt = <Instant the next issue is due>` (an `Instant`, not a formatted string)
+     - Only when the schedule is known. It fills the no-Pulse state: "Expected by 06:30" while that time is ahead,
+       "Running late: it was due by 06:30" once it has passed. On a weekend or an exchange holiday Home says "No
+       Pulse today: US markets are closed" with the next issue's day instead, whatever is passed.
    - `onRetryMacro = actions::onRefreshMacro`
      - The macro card's "Try again" reloads macro stress, and the pull runs `onRetryPulse` and `onRetryMacro`
        (spec 5.6). Until it is wired the macro error card has no retry button: before, it was bound to
@@ -92,6 +94,24 @@ Spec 5.6 moves three entries off Home, and Home no longer shows them. Their new 
 
 ## WP-K: kit proposals (rule 6.0.3)
 
+- **`TickerRow(line2MaxLines: Int = 1)`** (round-3 review, rubric A4). Home's "Your names" line 2 is the reason a
+  name matters, a sentence. The kit sets it on one line up to 1.3x, so at 1.3x even a 34-character reason ("Customer
+  concentration rose again.", about 292 dp) does not fit the 278 dp left beside a two-character caption on a 412 dp
+  phone. WP-A's interim (`fitNameRows` in `HomeScreen.kt`) measures each row against the real width and font scale:
+  long captions, then compact ones ("−1", "Report · 23d"), then without the report age; and the reason's longest
+  form that fits whole (the sentence, then cut at a clause or before a trailing phrase, `PulseText.rowForms`). That
+  keeps every reason whole at 412 and 360 dp at 1.0x (tested), but not at 1.3x. With the parameter, Home passes 2
+  and sets `REASON_LINES = 2` in `HomeScreen.kt`; then un-ignore `nameReasonsAreWholeAt412And1_3x` and
+  `...At360And1_3x` in `TodaySemanticsTest`. Above 1.3x the kit already allows 2 lines, but at 2.0x on a 360 dp
+  phone a reason still ellipsizes ("Customer / concentration rose …"); 3 lines above 1.3x would hold it. Spec 3 #11 says "1 line" for line 2: the spec owner updates it to
+  "up to 2 lines" for the comfortable row.
+- **Scroll-spy reading line (`rememberScrollSpy`, optional).** The spy selects a chapter once its start crosses
+  45% of the viewport. After a jump lands a short chapter under the pinned pills, the next chapter's start has
+  already crossed that line. WP-A now holds the tapped (or opened-at) chapter's pill until the list moves from the
+  landing (`PulseScreen.jumpTo`), so the selection is right. Once the reader scrolls on, the spy takes over and may
+  select the next chapter after a scroll of a few pixels. A `readingLine` offset measured from below the pinned
+  pills would make the spy itself agree with the landing.
+
 - **`TickerRow(onClick: (() -> Unit)?)`**: non-interactive when null (no role, no press). WP-A's interim is
   `Modifier.inert(...)` in `ui/today/TodayRows.kt` (clears the row's semantics to one text description and consumes
   only the down event, so a drag still scrolls). With the kit change it goes away.
@@ -113,8 +133,18 @@ Spec 5.6 moves three entries off Home, and Home no longer shows them. Their new 
 
 - **Home's skeleton (5.6, deliberate deviation):** the spec lists `SkeletonHero` + skeleton tape + 3 skeleton rows.
   Home has no HeroBand, so `SkeletonHero` would mis-shape the header; the skeleton is the final layout in skeleton
-  form instead (eyebrow, two headline lines and the meta as `SkeletonText`, the tape, three rows) plus a
-  `SkeletonCard` for the macro card, so nothing jumps when the data lands.
+  form instead (eyebrow, two headline lines and the meta as `SkeletonText`, the tape as one text line in its 44 dp
+  band, three rows in their `RowGroup` card) plus a `SkeletonCard` for the macro card, so nothing jumps when the
+  data lands.
+- **Home's Pulse kicker (5.6, honesty):** "Today’s Pulse" only over today's issue. An earlier issue (a weekend, a
+  holiday, or before the next issue) is headed with its date, "Pulse · Fri 20 Nov", and the copy that said "today’s"
+  about the issue now says "this issue" ("This issue has 5 chapters", "4 markets on this issue’s tape", "2 of your
+  names are in this issue").
+- **Home's names captions (5.6, 3 #11):** "+4 since Tue" and "Report · 23 days ago" as the spec shows when the
+  reasons fit beside them; the compact "+4" and "Report · 23d" (then no report age) when they would cut a reason.
+- **Cached-copy banners:** Home says "Offline · showing 06:30" for today's copy and "Offline · showing 06:30, Fri
+  20 Nov" for an earlier one. The Pulse hero's banner says "Couldn’t refresh · showing this issue": its meta line
+  right above already gives the time, and its eyebrow the date.
 - **Home tape (5.6):** filtered to the briefing's six instruments by instrument id, else family: S&P 500, the
   Nasdaq (the Nasdaq 100 when the tape carries it, else the Composite), the 10-year, the VIX, the dollar (DXY, else
   the broad index) and WTI. The Pulse's Markets chapter keeps the whole tape.
@@ -133,7 +163,7 @@ Spec 5.6 moves three entries off Home, and Home no longer shows them. Their new 
   "Coverage" label over the notes in reader copy ("Sector leadership was not available for this issue."),
   near-duplicates dropped; sources that share a label are qualified ("SEC EDGAR · AAPL 8-K").
 
-- **Pulse, Markets, "Show table" (5.7):** not added. The `DataRow` group already is the table (instrument, level,
+- **Pulse, Markets, "Show table" (5.7) — needs the spec owner's sign-off in the PR description:** not added. The `DataRow` group already is the table (instrument, level,
   change and % change, tabular, `marketTone`); a "Show table" toggle would show the same four columns a second
   time. "Copy as table" stays (tab-separated, pastes into a spreadsheet).
 - **Home's fallback title:** "Good morning / afternoon / evening" by the local hour, not always "Good morning" (5.6):

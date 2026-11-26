@@ -51,6 +51,13 @@ object MarketCalendar {
     fun isTradingDay(day: LocalDate): Boolean =
         day.dayOfWeek != DayOfWeek.SATURDAY && day.dayOfWeek != DayOfWeek.SUNDAY && day !in holidays(day.year)
 
+    /** The first trading day after [day] (Friday 27 Nov -> Monday 30 Nov; skips holidays). */
+    fun nextTradingDay(day: LocalDate): LocalDate {
+        var next = day.plusDays(1)
+        while (!isTradingDay(next)) next = next.plusDays(1)
+        return next
+    }
+
     /** The day after Thanksgiving, and 3 July and 24 December when they are trading days: the market closes at 13:00. */
     fun isEarlyClose(day: LocalDate): Boolean {
         val thanksgiving = nth(day.year, Month.NOVEMBER, DayOfWeek.THURSDAY, 4)
