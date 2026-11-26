@@ -6,6 +6,7 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.SnapshotStateList
+import androidx.compose.ui.geometry.Rect
 import com.thesis.mobile.ui.motion.EntranceRegistry
 import com.thesis.mobile.ui.navigation.Destination
 import com.thesis.mobile.ui.navigation.NavRoute
@@ -139,6 +140,33 @@ class AppNavigator(private val store: NavigatorStateStore? = null) {
         return changed
     }
 
+    /**
+     * The window bounds of the list row each pushed entry opened from (4.5 container transform), by `entryId`. The
+     * tab layer grows the entry's page from them on the push and shrinks it back into them on the pop. Not persisted:
+     * a restored entry moves on the shared axis.
+     */
+    private val transformOrigins = mutableMapOf<String, Rect>()
+
+    /** The origin [push] gives the entry it creates; set only for the duration of [pushFrom]. */
+    private var pendingOrigin: Rect? = null
+
+    /** Where [entryId]'s page grows from and shrinks back into; null for a shared-axis push. */
+    fun transformOrigin(entryId: String): Rect? = transformOrigins[entryId]
+
+    /**
+     * Runs [open] (which pushes a list row's detail, for example `onOpenNameIn`) so that the entry it pushes grows
+     * from [origin], the tapped row's window bounds. Only pages the tab layer draws take an origin: a report is
+     * drawn by the base layer under it and keeps the shared axis.
+     */
+    fun pushFrom(origin: Rect?, open: () -> Unit) {
+        pendingOrigin = origin?.takeIf { it.width > 0f && it.height > 0f }
+        try {
+            open()
+        } finally {
+            pendingOrigin = null
+        }
+    }
+
     /** Pushes [destination]: modal destinations onto the modal stack, others onto the current tab. */
     fun push(destination: Destination): NavEntry {
         val entry = newEntry(destination)
@@ -149,7 +177,14 @@ class AppNavigator(private val store: NavigatorStateStore? = null) {
             require(ShellTab.entries.none { it.root == destination }) { "Tab roots are not pushed: $destination" }
             stacks.getValue(currentTab).add(entry)
             lastMove = NavMove.Push
+            val origin = pendingOrigin
+            if (origin != null && destination !is Destination.Report && destination !is Destination.ReportClassic) {
+                // Origins of entries that left every stack go with them.
+                transformOrigins.keys.retainAll(liveEntryIds())
+                transformOrigins[entry.entryId] = origin
+            }
         }
+        pendingOrigin = null
         persist()
         return entry
     }

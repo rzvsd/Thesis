@@ -192,7 +192,7 @@ object DeepDiveCopy {
     const val runScenario = "Run the model"
     const val running = "Running"
     const val proOnlyWhatIf = "Running the model with your own inputs is part of Thesis Pro."
-    const val noValuation = "This report has no model valuation, so there is nothing to rerun."
+    const val noValuation = "This report has no model valuation to run with your own inputs."
     const val errYears = "Use a whole number of years from 1 to 30."
     const val errPercent = "Use a percent, for example 2.5."
     const val errWaccAboveGrowth = "The discount rate has to be above terminal growth."

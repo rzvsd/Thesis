@@ -51,7 +51,9 @@ data class ReportSummaryView(
     val verdict: String?,
     val changeSummary: DeepDiveChangeSummaryView?,
     /** The last five annual rows, oldest first. */
-    val annualHistory: List<FinancialHistoryRowView>
+    val annualHistory: List<FinancialHistoryRowView>,
+    /** The report's value-discipline score (Compare names); null when the report has none or an older cache entry. */
+    val valueDiscipline: ValueDisciplineView? = null
 )
 
 /** Number of annual rows a summary keeps. */
@@ -67,7 +69,8 @@ fun DeepDiveReportView.toReportSummary(): ReportSummaryView = ReportSummaryView(
     changeSummary = changeSummary,
     annualHistory = financialAnalysis?.annualHistory.orEmpty()
         .sortedBy { it.fiscalYear }
-        .takeLast(REPORT_SUMMARY_ANNUAL_ROWS)
+        .takeLast(REPORT_SUMMARY_ANNUAL_ROWS),
+    valueDiscipline = valueDiscipline
 )
 
 /** The report's one-line conclusion: the story headline, else the thesis statement. */
@@ -77,6 +80,22 @@ fun DeepDiveReportView.verdictSentence(): String? =
 /** The latest annual period the report covers, for example "FY2025". */
 fun DeepDiveReportView.latestFilingPeriod(): String? =
     financialAnalysis?.annualHistory.orEmpty().maxByOrNull { it.fiscalYear }?.period?.trim()?.ifBlank { null }
+
+/**
+ * The report Compare names reads for [ticker]: its monitor snapshot's report (a followed name), else [openReportId]
+ * (the report being read, passed only when it is this name's), else its newest Deep Dive in [history]. So a name you
+ * do not follow, opened from Search, History or Research, still has its report in the table. Null: no report yet.
+ */
+fun compareNamesReportId(
+    ticker: String,
+    snapshots: List<ThesisMonitorSnapshotView>,
+    history: List<ReportHistoryItem>,
+    openReportId: String?
+): String? =
+    snapshots.firstOrNull { it.ticker.equals(ticker, ignoreCase = true) }?.reportId?.trim()?.ifBlank { null }
+        ?: openReportId?.trim()?.ifBlank { null }
+        ?: history.filter { it.ticker.equals(ticker, ignoreCase = true) && it.type == "deep_dive" }
+            .maxByOrNull { it.createdAt }?.reportId
 
 /** [current] against the latest reading at or before [sinceMs] in [history] (any order). */
 fun snapshotDeltaSince(current: SnapshotPoint, history: List<SnapshotPoint>, sinceMs: Long): SnapshotDelta =

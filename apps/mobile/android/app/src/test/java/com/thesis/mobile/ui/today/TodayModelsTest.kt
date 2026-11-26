@@ -49,7 +49,7 @@ class TodayModelsTest {
         val s = HomeNames.summary(watchlist, snaps, deltas, setOf("aapl"), clock, fmt)
         assertEquals(listOf("NVDA", "JPM", "MSFT", "XOM", "AAPL"), s.rows.map { it.ticker })
         assertEquals(2, s.more)
-        assertEquals("1 of your names changed since your last visit", s.headline)
+        assertEquals("1 of your names changed state since your last visit", s.headline)
 
         val jpm = s.rows[1]
         assertEquals("Intact → Watch, today", jpm.line2)

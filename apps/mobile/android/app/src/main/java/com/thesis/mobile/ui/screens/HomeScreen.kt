@@ -23,6 +23,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
@@ -48,8 +49,8 @@ import com.thesis.mobile.ui.components.LeadingRowDividerInset
 import com.thesis.mobile.ui.components.Loadable
 import com.thesis.mobile.ui.components.PressableCard
 import com.thesis.mobile.ui.components.RowGroup
-import com.thesis.mobile.ui.components.SecondaryButton
 import com.thesis.mobile.ui.components.ScreenHeader
+import com.thesis.mobile.ui.components.SecondaryButton
 import com.thesis.mobile.ui.components.SectionHeader
 import com.thesis.mobile.ui.components.SkeletonCard
 import com.thesis.mobile.ui.components.SkeletonRow
@@ -83,22 +84,22 @@ import com.thesis.mobile.ui.today.HomeNames
 import com.thesis.mobile.ui.today.LocalTodayClock
 import com.thesis.mobile.ui.today.MacroModel
 import com.thesis.mobile.ui.today.MacroSummary
-import com.thesis.mobile.ui.today.NameRowModel
 import com.thesis.mobile.ui.today.MarketCalendar
 import com.thesis.mobile.ui.today.MarketPhase
+import com.thesis.mobile.ui.today.NameRowModel
 import com.thesis.mobile.ui.today.NamesSummary
 import com.thesis.mobile.ui.today.PulseBrief
 import com.thesis.mobile.ui.today.PulseChapterRow
 import com.thesis.mobile.ui.today.PulseText
 import com.thesis.mobile.ui.today.TapeModel
 import com.thesis.mobile.ui.today.parseDay
+import java.time.Instant
+import java.time.LocalDate
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
-import java.time.Instant
-import java.time.LocalDate
 
 /*
  * Today / Home (docs/app-redesign/DESIGN-DIRECTION.md 5.6): a briefing in five blocks under the shell's root bar:
@@ -143,6 +144,11 @@ fun HomeScreen(
     notedTickers: Set<String> = emptySet(),
     /** Opens a name (container transform); without it the row opens the Names tab. */
     onOpenName: ((String) -> Unit)? = null,
+    /**
+     * Opens a name from the tapped row's window bounds (the shell's container transform, 4.5); wins over
+     * [onOpenName] when given.
+     */
+    onOpenNameFrom: ((ticker: String, bounds: Rect?) -> Unit)? = null,
     /** Opens the Pulse at a chapter (the tape opens Markets); without it, the Pulse at its top. */
     onOpenPulseAt: ((ChapterKind) -> Unit)? = null,
     /**
@@ -206,7 +212,13 @@ fun HomeScreen(
     val showSkeleton = rememberShowSkeleton(loading = noCache)
     val loading = noCache || showSkeleton
     val openPulseAt: (ChapterKind) -> Unit = { kind -> onOpenPulseAt?.invoke(kind) ?: onOpenPulseBrief() }
-    val openName: (String) -> Unit = { ticker -> onOpenName?.invoke(ticker) ?: onManageNames() }
+    val openName: (String, Rect?) -> Unit = { ticker, bounds ->
+        when {
+            onOpenNameFrom != null -> onOpenNameFrom(ticker, bounds)
+            onOpenName != null -> onOpenName(ticker)
+            else -> onManageNames()
+        }
+    }
 
     Box(Modifier.fillMaxSize().padding(padding.exceptTop())) {
         StateCrossfade(state = if (loading) Loadable.Loading else Loadable.Ready(Unit), loading = { if (showSkeleton) HomeSkeleton(padding) }) {
@@ -273,7 +285,7 @@ private fun HomeList(
     onOpenMacro: () -> Unit,
     onOpenPulse: () -> Unit,
     onOpenPulseAt: (ChapterKind) -> Unit,
-    onOpenName: (String) -> Unit,
+    onOpenName: (String, Rect?) -> Unit,
     onOpenMorningBriefing: (AlertLedgerItemView) -> Unit,
 ) {
     val fmt = LocalFmt.current
@@ -486,7 +498,7 @@ private fun NamesBlock(
     names: NamesSummary,
     onManageNames: () -> Unit,
     onAddName: () -> Unit,
-    onOpenName: (String) -> Unit,
+    onOpenName: (String, Rect?) -> Unit,
 ) {
     Column(Modifier.padding(horizontal = ThesisSpace.gutter), verticalArrangement = Arrangement.spacedBy(ThesisSpace.m)) {
         if (names.total == 0) {
@@ -512,10 +524,13 @@ private fun NamesBlock(
                 names.rows.forEachIndexed { i, r ->
                     val (line2, caption) = fitted[i]
                     row(LeadingRowDividerInset) {
+                        // The row's bounds, read just before the click, are where the Name page grows from.
+                        var tapped by remember { mutableStateOf<Rect?>(null) }
                         TickerRow(
                             ticker = r.ticker,
                             stateTone = r.tone,
-                            onClick = { onOpenName(r.ticker) },
+                            onClick = { onOpenName(r.ticker, tapped) },
+                            onBoundsCaptured = { tapped = it },
                             line2 = line2,
                             line2MaxLines = REASON_LINES,
                             figure = r.figure,

@@ -186,7 +186,6 @@ class SessionStore(context: Context) {
         prefs.edit().putLong(KEY_LAST_NAMES_VISIT_AT, value).apply()
     }
 
-    /** Log out: the visit markers belong to the account; appearance stays with the device. */
     /** The last submitted searches, newest first (Search, 5.27). */
     fun getRecentSearches(): List<String> =
         prefs.getString(KEY_RECENT_SEARCHES, null).orEmpty().split('\n').map { it.trim() }.filter { it.isNotEmpty() }
@@ -196,6 +195,7 @@ class SessionStore(context: Context) {
         prefs.edit().putString(KEY_RECENT_SEARCHES, joined).apply()
     }
 
+    /** Log out: the visit markers belong to the account; appearance stays with the device. */
     fun clearVisitMarkers() {
         prefs.edit().remove(KEY_LAST_INBOX_VISIT_AT).remove(KEY_LAST_NAMES_VISIT_AT).apply()
     }

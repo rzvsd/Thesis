@@ -25,6 +25,22 @@ object InboxCopy {
 
     const val MARK_ALL_SEEN = "Mark all as seen"
 
+    /**
+     * The row's title when line 1 already names [ticker] (rubric V3, no kicker and headline in the same words): a
+     * leading "NVDA " and a trailing " for TSLA" / " on TSLA" go ("NVDA thesis drifted on data center margin" reads
+     * "Thesis drifted on data center margin"). The full title stays in the alert's sheet. A title that would be left
+     * empty, or that names the ticker only in passing ("NVDA’s margin"), is kept as written.
+     */
+    fun rowTitle(title: String, ticker: String?): String {
+        val symbol = ticker?.trim()?.ifBlank { null } ?: return title
+        val escaped = Regex.escape(symbol)
+        val trailing = Regex("\\s+(?:for|on)\\s+$escaped\\.?$", RegexOption.IGNORE_CASE)
+        val leading = Regex("^$escaped(?:\\s*[:\u00B7-])?\\s+", RegexOption.IGNORE_CASE)
+        var out = title.trim().replace(trailing, "")
+        leading.find(out)?.let { match -> out = out.substring(match.range.last + 1).replaceFirstChar { it.uppercase() } }
+        return out.trim().ifBlank { title }
+    }
+
     /** The filter chip that shows every category. */
     const val ALL = "All"
 

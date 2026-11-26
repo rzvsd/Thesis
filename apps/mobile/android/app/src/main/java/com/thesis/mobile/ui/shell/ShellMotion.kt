@@ -1,6 +1,7 @@
 package com.thesis.mobile.ui.shell
 
 import androidx.compose.animation.ContentTransform
+import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.core.Easing
 import androidx.compose.animation.core.FiniteAnimationSpec
@@ -77,6 +78,17 @@ internal enum class ShellTransition {
      */
     Fall,
 
+    /**
+     * Container transform in (4.5, principle 8): a list row opens its detail. The page grows from the tapped row's
+     * bounds to the whole layer (300 ms `EaseStandard`) over the list, which stays put under a scrim; the page's
+     * content fades in over the last 70%. The page draws the reveal itself ([TabLayer]); the transition only keeps
+     * both pages composed for `Screen`.
+     */
+    ContainerIn,
+
+    /** Container transform out: the page shrinks back into its row (240 ms `EaseStandard`) over the list. */
+    ContainerOut,
+
     /** A replaced entry (a build becoming its report, 5.14) or a restore: 240 ms crossfade (`Base`), nothing moves. */
     Crossfade,
 
@@ -94,6 +106,23 @@ internal fun shellTransitionFor(move: NavMove, reducedMotion: Boolean): ShellTra
     move == NavMove.Push -> ShellTransition.Forward
     move == NavMove.Pop -> ShellTransition.Backward
     else -> ShellTransition.Crossfade
+}
+
+/**
+ * [shellTransitionFor], with the container transform (4.5) for a push of an entry opened from a list row
+ * ([pushedFromRow]: the entry has a transform origin) and for the pop of such an entry ([poppedToRow]). Reduced
+ * motion keeps its crossfade.
+ */
+internal fun tabTransitionFor(
+    move: NavMove,
+    reducedMotion: Boolean,
+    pushedFromRow: Boolean,
+    poppedToRow: Boolean,
+): ShellTransition = when {
+    reducedMotion -> ShellTransition.ReducedCrossfade
+    move == NavMove.Push && pushedFromRow -> ShellTransition.ContainerIn
+    move == NavMove.Pop && poppedToRow -> ShellTransition.ContainerOut
+    else -> shellTransitionFor(move, reducedMotion = false)
 }
 
 /**
@@ -151,6 +180,17 @@ private fun contentTransformOf(transition: ShellTransition, px: ShellMotionPx): 
                         )
                     )
                 )
+        // The page under stays fully visible (a fade to alpha 1 only holds it for the move's length); the page on
+        // top draws the reveal. Out, the list is drawn under the page that shrinks into it.
+        ShellTransition.ContainerIn ->
+            EnterTransition.None togetherWith
+                fadeOut(motionSpec(ThesisMotion.Screen, easing = ThesisMotion.Linear), targetAlpha = 1f)
+        ShellTransition.ContainerOut ->
+            ContentTransform(
+                targetContentEnter = EnterTransition.None,
+                initialContentExit = fadeOut(motionSpec(ThesisMotion.ScreenOut, easing = ThesisMotion.Linear), targetAlpha = 1f),
+                targetContentZIndex = -1f,
+            )
         ShellTransition.Crossfade ->
             fadeIn(motionSpec(ThesisMotion.Base, easing = ThesisMotion.EaseStandard)) togetherWith
                 fadeOut(motionSpec(ThesisMotion.Base, easing = ThesisMotion.EaseStandard))
@@ -203,6 +243,9 @@ internal val ShellTransition.frontChangeMillis: Int
         ShellTransition.ForwardOver, ShellTransition.BackwardOver -> SHARED_AXIS_IN_DELAY
         ShellTransition.Rise -> MODAL_CONTENT_DELAY
         ShellTransition.Fall -> MODAL_FALL_CONTENT + (ThesisMotion.ScreenOut - MODAL_FALL_CONTENT) / 5
+        // Half way through the reveal, when the page covers most of the list.
+        ShellTransition.ContainerIn -> ThesisMotion.Screen / 2
+        ShellTransition.ContainerOut -> ThesisMotion.ScreenOut / 2
         ShellTransition.Crossfade -> ThesisMotion.Base / 2
         ShellTransition.ReducedCrossfade -> ThesisMotion.Quick / 2
     }

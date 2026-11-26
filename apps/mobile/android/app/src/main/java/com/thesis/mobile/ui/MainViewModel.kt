@@ -1,8 +1,8 @@
 package com.thesis.mobile.ui
 
+import android.app.Activity
 import android.app.Application
 import android.content.Context
-import android.app.Activity
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.util.Base64
@@ -15,50 +15,59 @@ import com.google.firebase.messaging.FirebaseMessaging
 import com.revenuecat.purchases.PackageType
 import com.thesis.mobile.billing.RevenueCatBilling
 import com.thesis.mobile.data.SessionStore
-import com.thesis.mobile.model.AuthTokens
 import com.thesis.mobile.model.AlertLedgerItemView
+import com.thesis.mobile.model.AuthTokens
+import com.thesis.mobile.model.CompareNamesState
+import com.thesis.mobile.model.CompareReportsState
 import com.thesis.mobile.model.ConvictionInsightCardView
 import com.thesis.mobile.model.ConvictionJournalEntryView
 import com.thesis.mobile.model.DeepDiveReportView
 import com.thesis.mobile.model.HoldingsImportResultView
 import com.thesis.mobile.model.LastViewedReport
+import com.thesis.mobile.model.NameDetailView
+import com.thesis.mobile.model.NoteTrailEntry
 import com.thesis.mobile.model.NotificationPreferenceView
 import com.thesis.mobile.model.OppositeCaseReportView
 import com.thesis.mobile.model.PulseReportView
-import com.thesis.mobile.model.ReportNoteView
 import com.thesis.mobile.model.ReportHistoryItem
+import com.thesis.mobile.model.ReportNoteView
+import com.thesis.mobile.model.ReportSummaryView
 import com.thesis.mobile.model.ScenarioOverridesView
+import com.thesis.mobile.model.ScenarioResultView
 import com.thesis.mobile.model.ScenarioStressRunView
 import com.thesis.mobile.model.ScenarioStressTemplateView
-import com.thesis.mobile.model.ScenarioResultView
+import com.thesis.mobile.model.SearchResultsView
 import com.thesis.mobile.model.SentimentSnapshotView
+import com.thesis.mobile.model.SnapshotDelta
+import com.thesis.mobile.model.SnapshotPoint
 import com.thesis.mobile.model.SubscriptionOfferView
+import com.thesis.mobile.model.TAB_DATA_MAX_AGE_MS
 import com.thesis.mobile.model.ThesisMonitorSnapshotView
 import com.thesis.mobile.model.TickerSearchItem
 import com.thesis.mobile.model.UserProfileView
 import com.thesis.mobile.model.WarRoomView
-import com.thesis.mobile.model.CompareNamesState
-import com.thesis.mobile.model.CompareReportsState
-import com.thesis.mobile.model.NameDetailView
-import com.thesis.mobile.model.NoteTrailEntry
-import com.thesis.mobile.model.ReportSummaryView
-import com.thesis.mobile.model.SearchResultsView
-import com.thesis.mobile.model.SnapshotDelta
-import com.thesis.mobile.model.SnapshotPoint
-import com.thesis.mobile.model.TAB_DATA_MAX_AGE_MS
+import com.thesis.mobile.model.compareNamesReportId
 import com.thesis.mobile.model.searchLocal
 import com.thesis.mobile.model.snapshotDeltaSince
 import com.thesis.mobile.model.toReportSummary
+import com.thesis.mobile.network.ProductApiClient
+import com.thesis.mobile.network.ProductApiException
+import com.thesis.mobile.observability.MobileTelemetry
+import com.thesis.mobile.offline.OfflineCacheStore
+import com.thesis.mobile.offline.PrefetchScheduler
 import com.thesis.mobile.ui.copy.AccountCopy
+import com.thesis.mobile.ui.copy.NamesCopy
 import com.thesis.mobile.ui.navigation.DeepLinkRouter
 import com.thesis.mobile.ui.navigation.Destination
 import com.thesis.mobile.ui.navigation.LaunchTarget
 import com.thesis.mobile.ui.navigation.NavRoute
 import com.thesis.mobile.ui.navigation.RouteAction
 import com.thesis.mobile.ui.navigation.ShellTab
+import com.thesis.mobile.ui.screens.AuthStatus
+import com.thesis.mobile.ui.screens.RemoveFailure
 import com.thesis.mobile.ui.shell.AppNavigator
-import com.thesis.mobile.ui.shell.COMPARE_NAMES_MAX
 import com.thesis.mobile.ui.shell.AppearancePrefs
+import com.thesis.mobile.ui.shell.COMPARE_NAMES_MAX
 import com.thesis.mobile.ui.shell.DeepDiveStartDecision
 import com.thesis.mobile.ui.shell.NavEntry
 import com.thesis.mobile.ui.shell.NavigatorStateStore
@@ -66,12 +75,12 @@ import com.thesis.mobile.ui.shell.ShellActions
 import com.thesis.mobile.ui.shell.TabFreshness
 import com.thesis.mobile.ui.shell.decideDeepDiveStart
 import com.thesis.mobile.ui.shell.pulseEntryNeedsLoad
-import com.thesis.mobile.ui.screens.AuthStatus
-import com.thesis.mobile.network.ProductApiClient
-import com.thesis.mobile.network.ProductApiException
-import com.thesis.mobile.observability.MobileTelemetry
-import com.thesis.mobile.offline.OfflineCacheStore
-import com.thesis.mobile.offline.PrefetchScheduler
+import org.json.JSONObject
+import java.io.IOException
+import java.net.URI
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
@@ -80,12 +89,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
-import org.json.JSONObject
-import java.io.IOException
-import java.net.URI
-import java.time.Instant
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 
 data class PulsePdfDownload(
     val bytes: ByteArray,
@@ -273,11 +276,9 @@ class MainViewModel(
     fun updateApiBaseUrl(newUrl: String) {
         val normalized = normalizeApiBaseUrl(newUrl)
         if (normalized == null) {
-            publish(
-                state.copy(
-                    message = "Enter one valid Product API URL, for example http://192.168.1.114:3001"
-                )
-            )
+            val invalid = "Enter one valid Product API URL, for example http://192.168.1.114:3001"
+            // Auth shows authStatus, not message (pre-login messages are never a snackbar): publish both.
+            publish(state.copy(message = invalid, authStatus = AuthStatus(AuthStatus.Kind.Failed, invalid)))
             return
         }
 
@@ -1233,7 +1234,7 @@ class MainViewModel(
                 trackEvent(
                     "paywall_cta_clicked",
                     mapOf(
-                        "feature" to (state.paywallFeature ?: "general_upgrade"),
+                        "feature" to purchaseFeature(),
                         "package_type" to selected.packageType.name
                     )
                 )
@@ -1271,7 +1272,7 @@ class MainViewModel(
                 trackEvent(
                     "purchase_failed",
                     mapOf(
-                        "feature" to (state.paywallFeature ?: "general_upgrade"),
+                        "feature" to purchaseFeature(),
                         "reason" to (error.message ?: error::class.java.simpleName)
                     )
                 )
@@ -1498,9 +1499,15 @@ class MainViewModel(
         withAuthorizedCall(onDone = {
             historyInFlight = (historyInFlight - 1).coerceAtLeast(0)
             publish(state.copy(isHistoryLoading = historyInFlight > 0))
-        }, onError = { tabFreshness.invalidate(ShellTab.Research) }) {
+        }, onError = {
+            tabFreshness.invalidate(ShellTab.Research)
+            // History ends its skeleton on this and shows its failed state with Try again (state.message is the
+            // snackbar text withAuthorizedCall has just published; null for an upgrade prompt).
+            publish(state.copy(historyLoadError = state.message ?: LOAD_FAILED))
+        }) {
             val reports = client.listReports(state.apiBaseUrl, requireTokens().accessToken)
-            publish(state.copy(reportHistory = reports, reportHistoryLoaded = true))
+            publish(state.copy(reportHistory = reports, reportHistoryLoaded = true, historyLoadError = null))
+            refreshHeldNameDetail()
             loadReportSummaries()
             allNotes()
         }
@@ -2043,9 +2050,13 @@ class MainViewModel(
     /** [thenSnapshots]: refresh the board's snapshots after the list (false when the caller refreshes them itself). */
     fun refreshWatchlist(thenSnapshots: Boolean = true) {
         boardStarted()
-        withAuthorizedCall(onDone = ::boardFinished, onError = { tabFreshness.invalidate(ShellTab.Names) }) {
+        withAuthorizedCall(onDone = ::boardFinished, onError = {
+            tabFreshness.invalidate(ShellTab.Names)
+            // Names ends its skeleton on this and shows its failed state with Try again.
+            publish(state.copy(watchlistLoadError = state.message ?: LOAD_FAILED))
+        }) {
             val items = client.getWatchlist(state.apiBaseUrl, requireTokens().accessToken)
-            publish(state.copy(watchlist = items, watchlistLoaded = true))
+            publish(state.copy(watchlist = items, watchlistLoaded = true, watchlistLoadError = null))
             if (thenSnapshots) refreshMonitorSnapshots()
         }
     }
@@ -2085,21 +2096,27 @@ class MainViewModel(
         return Result.success(imported)
     }
 
-    fun removeWatchlistTicker(ticker: String) {
+    /** [announce]: say "Removed X from Names" once it is done (Name, the report bar); Names shows its own Undo. */
+    fun removeWatchlistTicker(ticker: String, announce: Boolean = false) {
+        val normalized = ticker.trim().uppercase()
         if (!state.watchlistFeatureEnabled) {
-            // A new list value, so the Names row that collapsed for the remove comes back.
-            publish(state.copy(watchlist = state.watchlist.toList(), message = "Watchlist is currently disabled by feature flag."))
+            publish(
+                state.copy(
+                    watchlistRemoveFailure = removeFailureFor(normalized),
+                    message = "Watchlist is currently disabled by feature flag."
+                )
+            )
             return
         }
-        withAuthorizedCall(onError = { publish(state.copy(watchlist = state.watchlist.toList())) }) {
-            val normalized = ticker.trim().uppercase()
+        // Names hid the row while its Undo snackbar showed: a refused remove brings it back.
+        withAuthorizedCall(onError = { publish(state.copy(watchlistRemoveFailure = removeFailureFor(normalized))) }) {
             val items = client.removeWatchlistTicker(
                 state.apiBaseUrl,
                 requireTokens().accessToken,
                 normalized
             )
-            // No "removed" message: Names shows its own "Removed X from Names" with Undo.
-            publish(state.copy(watchlist = items))
+            // From Names no message: the board shows its own "Removed X from Names" with Undo.
+            publish(state.copy(watchlist = items, message = if (announce) NamesCopy.removed(normalized) else state.message))
             trackEvent(
                 "watchlist_ticker_removed",
                 mapOf("ticker" to normalized, "watchlist_size" to items.size)
@@ -2107,6 +2124,20 @@ class MainViewModel(
             refreshMonitorSnapshots()
         }
     }
+
+    /**
+     * The feature a purchase is for, for analytics: the published one, else the open Paywall entry's (a Paywall
+     * restored from the modal stack after process death has no published feature).
+     */
+    private fun purchaseFeature(): String =
+        state.paywallFeature
+            ?: navigator.modalStack.lastOrNull { it.destination is Destination.Paywall }
+                ?.let { (it.destination as Destination.Paywall).feature.ifBlank { null } }
+            ?: "general_upgrade"
+
+    /** The next [UiState.watchlistRemoveFailure] for [ticker] (a new sequence number, so a repeat is a new signal). */
+    private fun removeFailureFor(ticker: String): RemoveFailure =
+        RemoveFailure(ticker, (state.watchlistRemoveFailure?.seq ?: 0) + 1)
 
     fun refreshAlertLedger() {
         state.tokens ?: return
@@ -2128,6 +2159,7 @@ class MainViewModel(
                         inboxLoaded = true
                     )
                 )
+                refreshHeldNameDetail()
             }
             if (error != null) {
                 // The ledger feeds Today's alerts, the Names board and Inbox.
@@ -2166,6 +2198,7 @@ class MainViewModel(
                 // The weekly digest's state changes: each reading against the one at or before a week ago.
                 val weekly = computeSnapshotDeltas(snapshots, System.currentTimeMillis() - WEEK_MS).values
                 publish(state.copy(weeklyStateChanges = weekly.toList().takeIf { list -> list.any { it.previous != null } }))
+                refreshHeldNameDetail()
             }
             if (error != null) tabFreshness.invalidate(ShellTab.Today, ShellTab.Names)
           } finally {
@@ -2413,6 +2446,9 @@ class MainViewModel(
                 reportHistory = emptyList(),
                 watchlistLoaded = false,
                 reportHistoryLoaded = false,
+                watchlistLoadError = null,
+                historyLoadError = null,
+                watchlistRemoveFailure = null,
                 notificationPreferences = defaultNotificationPreferences(),
                 lastViewedReport = null,
                 jobStatus = null,
@@ -3100,6 +3136,7 @@ class MainViewModel(
 
     override fun onAddName(ticker: String) = addWatchlistTicker(ticker)
     override fun onRemoveName(ticker: String) = removeWatchlistTicker(ticker)
+    override fun onUnfollowName(ticker: String) = removeWatchlistTicker(ticker, announce = true)
     override suspend fun onImportHoldingsCsv(csv: String): Result<HoldingsImportResultView> = importHoldingsCsv(csv)
 
     override fun onRefreshInbox() = refreshAlertLedger()
@@ -3189,24 +3226,9 @@ class MainViewModel(
     /** Fills [UiState.nameDetail] for [ticker]: snapshot, delta, latest report summary, notes trail, alerts. */
     fun openName(ticker: String) {
         val symbol = ticker.trim().uppercase().ifBlank { return }
-        fun assemble(summary: ReportSummaryView?, trail: List<NoteTrailEntry>, loading: Boolean) = NameDetailView(
-            ticker = symbol,
-            snapshot = state.monitorSnapshots.firstOrNull { it.ticker.equals(symbol, ignoreCase = true) },
-            delta = state.snapshotDeltas[symbol],
-            summary = summary,
-            notesTrail = trail,
-            alerts = state.alertLedger.filter { alert ->
-                alert.ticker.equals(symbol, ignoreCase = true) ||
-                    alert.relatedTickers.any { it.equals(symbol, ignoreCase = true) }
-            },
-            reports = state.reportHistory.filter { it.ticker.equals(symbol, ignoreCase = true) },
-            isLoading = loading
-        )
-        publish(state.copy(nameDetail = assemble(null, state.notesTrails[symbol].orEmpty(), loading = true)))
+        publish(state.copy(nameDetail = nameDetailFor(symbol, null, state.notesTrails[symbol].orEmpty(), loading = true)))
         viewModelScope.launch {
-            val reportId = state.monitorSnapshots.firstOrNull { it.ticker.equals(symbol, ignoreCase = true) }?.reportId
-                ?: state.reportHistory.filter { it.ticker.equals(symbol, true) && it.type == "deep_dive" }
-                    .maxByOrNull { it.createdAt }?.reportId
+            val reportId = nameReportId(symbol)
             var summary = reportId?.let { runCatchingNonCancellation { cacheStore.getReportSummary(it) }.getOrNull() }
             if (summary == null && reportId != null) {
                 runAuthorizedWithRefresh {
@@ -3217,9 +3239,52 @@ class MainViewModel(
             }
             val trail = loadNotesTrail(symbol)
             if (state.nameDetail?.ticker == symbol) {
-                publish(state.copy(nameDetail = assemble(summary, trail, loading = false)))
+                publish(state.copy(nameDetail = nameDetailFor(symbol, summary, trail, loading = false)))
+                // Opened before the snapshots or the history had arrived (a restored Name entry right after launch):
+                // the report they name now is fetched, so the page never offers "Build report" for a name that
+                // has one. Only when the first look found no report at all, so a failed fetch does not loop.
+                if (reportId == null && summary == null && nameReportId(symbol) != null) openName(symbol)
             }
         }
+    }
+
+    /** The report Name reads for [symbol]: its monitor snapshot's report, else its newest Deep Dive in the history. */
+    private fun nameReportId(symbol: String): String? =
+        state.monitorSnapshots.firstOrNull { it.ticker.equals(symbol, ignoreCase = true) }?.reportId?.ifBlank { null }
+            ?: state.reportHistory.filter { it.ticker.equals(symbol, true) && it.type == "deep_dive" }
+                .maxByOrNull { it.createdAt }?.reportId
+
+    private fun nameDetailFor(
+        symbol: String,
+        summary: ReportSummaryView?,
+        trail: List<NoteTrailEntry>,
+        loading: Boolean
+    ): NameDetailView = NameDetailView(
+        ticker = symbol,
+        snapshot = state.monitorSnapshots.firstOrNull { it.ticker.equals(symbol, ignoreCase = true) },
+        delta = state.snapshotDeltas[symbol],
+        summary = summary,
+        notesTrail = trail,
+        alerts = state.alertLedger.filter { alert ->
+            alert.ticker.equals(symbol, ignoreCase = true) ||
+                alert.relatedTickers.any { it.equals(symbol, ignoreCase = true) }
+        },
+        reports = state.reportHistory.filter { it.ticker.equals(symbol, ignoreCase = true) },
+        isLoading = loading
+    )
+
+    /**
+     * Rebuilds the held [UiState.nameDetail] after its inputs changed (snapshots, history, alerts): the page reads
+     * the new snapshot, reports and alerts, and a page that found no report fetches the one the new data names.
+     */
+    private fun refreshHeldNameDetail() {
+        val held = state.nameDetail ?: return
+        val symbol = held.ticker
+        if (!held.isLoading && held.summary == null && nameReportId(symbol) != null) {
+            openName(symbol)
+            return
+        }
+        publish(state.copy(nameDetail = nameDetailFor(symbol, held.summary, held.notesTrail, held.isLoading)))
     }
 
     private fun DeepDiveReportView.toSummaryOrNull(): ReportSummaryView? =
@@ -3299,9 +3364,13 @@ class MainViewModel(
         viewModelScope.launch {
             val summaries = LinkedHashMap<String, ReportSummaryView?>()
             for (symbol in symbols) {
-                val reportId = state.monitorSnapshots.firstOrNull { it.ticker.equals(symbol, ignoreCase = true) }?.reportId
-                summaries[symbol] = when (reportId) {
-                    null -> null
+                // The open report itself when it is this name's (the report dock's "Compare with" puts the report's
+                // own ticker first, followed or not); otherwise the name's latest report (compareNamesReportId).
+                val open = state.deepDiveReport?.takeIf { it.ticker.equals(symbol, ignoreCase = true) }
+                val reportId = compareNamesReportId(symbol, state.monitorSnapshots, state.reportHistory, open?.reportId)
+                summaries[symbol] = when {
+                    reportId == null -> null
+                    open != null && open.reportId == reportId -> open.toSummaryOrNull()
                     else -> runCatchingNonCancellation { cacheStore.getReportSummary(reportId) }.getOrNull()
                         ?: fetchReportForCompare(reportId)?.toSummaryOrNull()
                 }
@@ -3347,6 +3416,8 @@ class MainViewModel(
         private const val MACRO_HISTORY_MIN_DAYS = 14
         private const val WEEK_MS = 7L * 24 * 60 * 60 * 1000
         private const val RECENT_SEARCHES_MAX = 8
+        /** A load failure with no message of its own (an upgrade prompt answered it instead). */
+        private const val LOAD_FAILED = "Could not reach Thesis."
         private const val DEEP_DIVE_RESUME_PREFS = "thesis_deep_dive_resume"
         private const val KEY_RESUME_JOB_ID = "job_id"
         private const val KEY_RESUME_TICKER = "ticker"

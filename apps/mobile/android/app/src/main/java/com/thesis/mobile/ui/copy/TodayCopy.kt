@@ -105,8 +105,9 @@ object TodayCopy {
      */
     fun namesHeadline(total: Int, monitored: Int, changed: Int, review: Int, intact: Int): String = when {
         total == 0 -> "You don’t follow any names yet"
-        changed > 0 && total == 1 -> "Your one name changed since your last visit"
-        changed > 0 -> "${of(changed, total)} changed since your last visit"
+        // "changed state": [changed] counts state changes only, while the rows below also show score moves.
+        changed > 0 && total == 1 -> "Your one name changed state since your last visit"
+        changed > 0 -> "${of(changed, total)} changed state since your last visit"
         review > 0 && total == 1 -> "Your one name needs a review"
         review > 0 -> "${of(review, total)} ${if (review == 1) "needs" else "need"} a review"
         monitored == 0 -> "No monitor readings for your names yet"

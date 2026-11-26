@@ -73,6 +73,7 @@ import com.thesis.mobile.ui.theme.ThesisType
 import com.thesis.mobile.ui.theme.tnum
 import java.time.Clock
 import java.time.Instant
+import java.time.LocalDate
 import java.time.OffsetDateTime
 import java.time.temporal.ChronoUnit
 
@@ -87,6 +88,24 @@ internal const val TYPE_DEEP_DIVE = "deep_dive"
 
 /** `LastViewedReport.type` of a Deep Dive. */
 private const val LAST_VIEWED_DEEP_DIVE = "DEEP_DIVE"
+
+/** `LastViewedReport.type` of a Pulse issue. */
+private const val LAST_VIEWED_PULSE = "PULSE"
+
+/**
+ * The Continue reading item: the last Deep Dive, or a past Pulse issue left mid-way (one before [today]: today's
+ * issue is Home's to show) when [canResumePulse]. Null otherwise.
+ */
+internal fun continueItemOf(last: LastViewedReport?, today: LocalDate, canResumePulse: Boolean): LastViewedReport? = when {
+    last == null -> null
+    last.type.equals(LAST_VIEWED_DEEP_DIVE, ignoreCase = true) -> last
+    last.type.equals(LAST_VIEWED_PULSE, ignoreCase = true) && canResumePulse ->
+        last.takeIf { pulseDateOf(it)?.isBefore(today) == true }
+    else -> null
+}
+
+private fun pulseDateOf(item: LastViewedReport): LocalDate? =
+    item.referenceDate?.trim()?.take(10)?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
 
 /**
  * The Research tab root (DESIGN-DIRECTION 5.12): one ticker field whose action says what it will do (open the
@@ -122,6 +141,8 @@ fun ResearchScreen(
     notedReportIds: Set<String> = emptySet(),
     continueReading: LastViewedReport? = null,
     onDismissContinue: () -> Unit = {},
+    /** Resumes a past Pulse issue from Continue reading; null leaves Pulse items out (Deep Dives open by id). */
+    onResumeContinue: ((LastViewedReport) -> Unit)? = null,
     onOpenCompareNames: (() -> Unit)? = null,
     onOpenScenarioStress: (() -> Unit)? = null,
     onOpenMacroStress: (() -> Unit)? = null,
@@ -134,7 +155,10 @@ fun ResearchScreen(
     val fmt = LocalFmt.current
     val symbol = ticker.trim().uppercase()
     val stored = remember(symbol, recentHistory) { storedReportFor(symbol, recentHistory) }
-    val continueItem = continueReading?.takeIf { it.type.equals(LAST_VIEWED_DEEP_DIVE, ignoreCase = true) }
+    val continueItem = remember(continueReading, clock) {
+        continueItemOf(continueReading, LocalDate.now(clock), canResumePulse = onResumeContinue != null)
+    }
+    val continuePulse = continueItem?.type?.equals(LAST_VIEWED_PULSE, ignoreCase = true) == true
     val recent = remember(recentHistory, continueItem?.reportId) { recentRows(recentHistory, continueItem?.reportId) }
     val picks = remember(symbol, suggestions, watchlist, companyNames) {
         tickerSuggestions(symbol, suggestions, watchlist, companyNames)
@@ -230,10 +254,16 @@ fun ResearchScreen(
                             modifier = Modifier.rowGroupSegment(RowPosition.of(0, count), LeadingRowDividerInset),
                         ) {
                             ResearchRow(
-                                icon = ThesisIcons.DeepDive,
-                                title = ResearchCopy.continueReading(continueItem.label.uppercase()),
+                                icon = if (continuePulse) ThesisIcons.Pulse else ThesisIcons.DeepDive,
+                                title = if (continuePulse) {
+                                    ResearchCopy.continuePulse(pulseDateOf(continueItem)?.let(fmt::shortDate).orEmpty())
+                                } else {
+                                    ResearchCopy.continueReading(continueItem.label.uppercase())
+                                },
                                 line2 = ResearchCopy.continueCaption(fmt.relative(Instant.ofEpochMilli(continueItem.timestampMs))),
-                                onClick = { onOpenReport(continueItem.reportId) },
+                                onClick = {
+                                    if (continuePulse) onResumeContinue?.invoke(continueItem) else onOpenReport(continueItem.reportId)
+                                },
                                 trailingContent = {
                                     ThesisIconButton(
                                         ThesisIcons.Small.Close,

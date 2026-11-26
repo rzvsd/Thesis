@@ -31,6 +31,7 @@ import com.thesis.mobile.model.TickerSearchItem
 import com.thesis.mobile.model.UserProfileView
 import com.thesis.mobile.model.WarRoomView
 import com.thesis.mobile.ui.screens.AuthStatus
+import com.thesis.mobile.ui.screens.RemoveFailure
 import com.thesis.mobile.ui.shell.AppearancePrefs
 
 /**
@@ -125,6 +126,12 @@ data class UiState(
     val reportHistoryLoaded: Boolean = false,
     val isHistoryLoading: Boolean = false,
     val watchlistLoaded: Boolean = false,
+    /** The last failed watchlist load, null once one succeeds: Names ends its skeleton and offers Try again. */
+    val watchlistLoadError: String? = null,
+    /** The last failed report history load, null once one succeeds: History ends its skeleton and offers Try again. */
+    val historyLoadError: String? = null,
+    /** The last remove the server refused (Names brings the row back). */
+    val watchlistRemoveFailure: RemoveFailure? = null,
     val lastViewedReport: LastViewedReport? = null,
     val biometricSupported: Boolean = false,
     val biometricLockEnabled: Boolean = false,

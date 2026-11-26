@@ -64,6 +64,8 @@ object ResearchCopy {
     }
 
     fun continueReading(ticker: String): String = "Continue reading $ticker"
+    /** A past Pulse issue left mid-way: "Continue the Pulse of 24 Nov". */
+    fun continuePulse(date: String): String = if (date.isBlank()) "Continue the Pulse" else "Continue the Pulse of $date"
 
     /** "Where you left it, 19 h ago": the time never breaks across lines ("19 / h ago" at 2.0x). */
     fun continueCaption(ago: String): String = "Where you left it, ${keepTogether(ago)}"
@@ -207,6 +209,9 @@ object ResearchCopy {
     // ---- Compare names (5.26)
 
     const val COMPARE_NAMES_EYEBROW = "Compare names"
+    /** The caption over the ticker links under the table (5.25: every visible ticker opens its Name). */
+    const val OPEN_A_NAME = "Open a name"
+    fun openNameDescription(name: String): String = "Open $name"
     fun compareNamesSubtitle(subject: String, others: List<String>): String =
         if (others.isEmpty()) subject else "$subject with ${others.joinToString(", ")}"
     fun compareNamesTitle(subject: String, others: List<String>): String = when (others.size) {

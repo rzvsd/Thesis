@@ -58,6 +58,7 @@ class NameRenders {
                     onSeeAlerts = {},
                     onSaveNote = { _, _ -> true },
                     onCompareWith = {},
+                    onBack = {},
                 )
             }
         }

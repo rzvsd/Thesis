@@ -2,6 +2,8 @@ package com.thesis.mobile.ui.screens
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -9,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
@@ -23,6 +26,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
 import com.thesis.mobile.model.CompareNamesState
 import com.thesis.mobile.model.FinancialHistoryRowView
@@ -360,6 +365,13 @@ private fun filingLine(column: CompareNameColumn, fmt: Fmt, zone: ZoneId): Strin
  * column, so the sorted row is said in the caption under the table until WP-K adds a separate row emphasis
  * (HANDOFF-E).
  */
+/**
+ * The rows the table shows: every metric, except value discipline when no column has a score (a summary cached
+ * before it carried one): a row of "Not computed" would be untrue, since the report did compute it.
+ */
+internal fun shownMetrics(columns: List<CompareNameColumn>): List<NameMetric> =
+    if (columns.any { it.discipline != null }) NameMetric.entries else NameMetric.entries - NameMetric.Discipline
+
 internal fun compareNamesTable(columns: List<CompareNameColumn>): CompareTableModel =
     CompareTableModel(
         columns = columns.map { c ->
@@ -370,7 +382,7 @@ internal fun compareNamesTable(columns: List<CompareNameColumn>): CompareTableMo
                 subject = c.subject,
             )
         },
-        rows = NameMetric.entries.map { m ->
+        rows = shownMetrics(columns).map { m ->
             val med = median(columns.mapNotNull { metricValue(it, m) })
             CompareRow(
                 label = metricShortLabel(m),
@@ -413,7 +425,7 @@ internal fun compareNamesTsv(columns: List<CompareNameColumn>, fmt: Fmt, zone: Z
     lines += listOf(ResearchCopy.METRIC) + columns.map { it.ticker } + ResearchCopy.MEDIAN
     lines += listOf(ResearchCopy.PERIOD) + columns.map { columnPeriod(it) } + ""
     lines += listOf(ResearchCopy.FILING) + columns.map { cell(filingLine(it, fmt, zone)) } + ""
-    NameMetric.entries.forEach { m ->
+    shownMetrics(columns).forEach { m ->
         val med = median(columns.mapNotNull { metricValue(it, m) })
         lines += listOf(metricTsvLabel(m)) + columns.map { metricRaw(m, metricValue(it, m)) } + metricRaw(m, med)
     }
@@ -538,6 +550,8 @@ fun CompareNamesScreen(
     fiscalYearEnds: Map<String, YearMonth> = emptyMap(),
     onRetry: () -> Unit = {},
     onBuildReport: (ticker: String) -> Unit = {},
+    /** Opens Name(ticker); null hides the ticker links under the table (column headers sort, 5.26). */
+    onOpenName: ((ticker: String) -> Unit)? = null,
     initialSortMetric: NameMetric? = null,
     initialShowChart: Boolean = false,
     initialChartMode: Int = 0,
@@ -640,7 +654,7 @@ fun CompareNamesScreen(
                         deltaName = ResearchCopy.THE_MEDIAN,
                         onHeaderClick = { sortMetric = nextSort },
                         onCellClick = { r, c ->
-                            val metric = NameMetric.entries[r]
+                            val metric = shownMetrics(columns)[r]
                             pickedRow = metric
                             val col = columns[c]
                             // A name with no report has no figure to source.
@@ -656,6 +670,10 @@ fun CompareNamesScreen(
                     if (leftOut.isNotEmpty()) {
                         Spacer(Modifier.height(ThesisSpace.xs))
                         Text(ResearchCopy.namesLeftOut(leftOut, CompareTableModel.MAX_COLUMNS), style = ThesisType.caption, color = p.muted)
+                    }
+                    // A column header sorts (5.26), so each ticker opens its Name from here (5.25).
+                    if (onOpenName != null) {
+                        NameLinks(columns, onOpenName)
                     }
                     Row(
                         Modifier.fillMaxWidth(),
@@ -694,6 +712,29 @@ fun CompareNamesScreen(
         }
     }
     source?.let { info -> SourceSheet(info = info, onDismissRequest = { source = null }) }
+}
+
+/** "Open a name" and one link per compared ticker, in the table's column order. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun NameLinks(columns: List<CompareNameColumn>, onOpenName: (String) -> Unit) {
+    val p = LocalThesisPalette.current
+    Row(
+        Modifier.fillMaxWidth().padding(top = ThesisSpace.xs),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(ResearchCopy.OPEN_A_NAME, style = ThesisType.caption, color = p.muted)
+        Spacer(Modifier.width(ThesisSpace.m))
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(ThesisSpace.m)) {
+            columns.forEach { c ->
+                TextAction(
+                    c.ticker,
+                    onClick = { onOpenName(c.ticker) },
+                    modifier = Modifier.semantics { contentDescription = ResearchCopy.openNameDescription(c.company ?: c.ticker) },
+                )
+            }
+        }
+    }
 }
 
 /** The caption under the table: the sort in force, and what the next header tap will do. */

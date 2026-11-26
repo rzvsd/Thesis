@@ -28,6 +28,8 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -41,7 +43,11 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onPlaced
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -96,7 +102,9 @@ import com.thesis.mobile.ui.components.ThesisCheckbox
 import com.thesis.mobile.ui.components.ThesisDialog
 import com.thesis.mobile.ui.components.ThesisIconButton
 import com.thesis.mobile.ui.components.ThesisSheet
+import com.thesis.mobile.ui.components.ThesisTopBar
 import com.thesis.mobile.ui.components.rememberNoteAutosave
+import com.thesis.mobile.ui.components.rememberTopBarCollapsed
 import com.thesis.mobile.ui.components.rowGroupSegment
 import com.thesis.mobile.ui.copy.NamesCopy
 import com.thesis.mobile.ui.copy.ScoreCopy
@@ -116,6 +124,7 @@ import com.thesis.mobile.ui.theme.thesisStateTone
 import java.time.Instant
 import java.time.ZoneId
 import kotlin.math.abs
+import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
 
 /*
@@ -595,6 +604,10 @@ fun NameScreen(
     onPrevious: (() -> Unit)? = null,
     onNext: (() -> Unit)? = null,
     onShowMessage: ((String) -> Unit)? = null,
+    /** The bar's back arrow (the shell's pop). Null shows the brand instead (renders of the page alone). */
+    onBack: (() -> Unit)? = null,
+    /** Where the page opens: scrolled to a section once the detail has loaded (no focus, no keyboard). */
+    scrollTo: NameAnchor? = null,
 ) {
     val seed = LocalNameSeed.current
     val haptics = rememberHaptics()
@@ -619,6 +632,24 @@ fun NameScreen(
 
     val swipe = rememberPagerSwipe(symbol, onPrevious, onNext)
 
+    val scroll = rememberScrollState()
+    val collapsed by rememberTopBarCollapsed(scroll)
+    val density = LocalDensity.current
+    var barPx by remember { mutableIntStateOf(0) }
+    val barH = with(density) { barPx.toDp() }
+    // The anchor's position in the page (px from the content's top), reported by its section once placed. The page
+    // scrolls there once, when the detail has loaded, so the section sits right under the bar.
+    val anchorY = remember { mutableStateMapOf<NameAnchor, Int>() }
+    var anchored by rememberSaveable(scrollTo) { mutableStateOf(false) }
+    val target = scrollTo?.let { anchorY[it] }
+    val reducedScroll = LocalReducedMotion.current
+    LaunchedEffect(scrollTo, target, detail?.isLoading) {
+        if (!anchored && target != null && detail != null && !detail.isLoading) {
+            anchored = true
+            if (reducedScroll) scroll.scrollTo(target) else scroll.animateScrollTo(target)
+        }
+    }
+
     Box(
         Modifier
             .fillMaxSize()
@@ -628,27 +659,11 @@ fun NameScreen(
             Modifier
                 .fillMaxSize()
                 .then(swipe)
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(scroll)
                 .wrapDataWidth()
                 .padding(horizontal = ThesisSpace.gutter)
-                .padding(top = padding.calculateTopPadding(), bottom = ThesisSpace.x5),
+                .padding(top = barH + ThesisSpace.headerTop, bottom = ThesisSpace.x5),
         ) {
-            NameToolbar(
-                ticker = symbol,
-                following = following,
-                pager = pager,
-                onPrevious = onPrevious,
-                onNext = onNext,
-                onFollow = {
-                    if (following) {
-                        confirmRemove = true
-                    } else {
-                        haptics.toggle(true)
-                        onFollowChange(true)
-                    }
-                },
-                onMore = { moreOpen = true },
-            )
             ScreenHeader(title = title, eyebrow = NamesCopy.nameEyebrow(symbol, following))
 
             when {
@@ -664,6 +679,7 @@ fun NameScreen(
                     now = clock,
                     warRoomLive = warRoomLive,
                     focusNote = focusNote,
+                    onAnchorPlaced = { anchor, y -> if (anchorY[anchor] != y) anchorY[anchor] = y },
                     lastVisitAtMs = lastVisitAtMs,
                     warRoomId = warRoomId,
                     isPro = isPro,
@@ -692,6 +708,32 @@ fun NameScreen(
                     onCompareReports = onCompareReports,
                 )
             }
+        }
+        // One chrome row (5.11 item 1): back, the company name once the header scrolls away with the ticker under
+        // it, then the pager, the follow toggle and the overflow. The shell gives Name no bar of its own.
+        ThesisTopBar(
+            modifier = Modifier.align(Alignment.TopCenter).onSizeChanged { barPx = it.height },
+            title = title,
+            subtitle = symbol.takeIf { it != title },
+            onBack = onBack,
+            collapsed = collapsed,
+        ) {
+            NameToolbarActions(
+                ticker = symbol,
+                following = following,
+                pager = pager,
+                onPrevious = onPrevious,
+                onNext = onNext,
+                onFollow = {
+                    if (following) {
+                        confirmRemove = true
+                    } else {
+                        haptics.toggle(true)
+                        onFollowChange(true)
+                    }
+                },
+                onMore = { moreOpen = true },
+            )
         }
     }
 
@@ -841,7 +883,7 @@ private const val PAGER_FADE = 0.6f
  * mail style, never the back arrow the top bar already shows at the leading edge), then follow and overflow.
  */
 @Composable
-private fun NameToolbar(
+private fun NameToolbarActions(
     ticker: String,
     following: Boolean,
     pager: NamePager?,
@@ -851,13 +893,7 @@ private fun NameToolbar(
     onMore: () -> Unit,
 ) {
     val p = LocalThesisPalette.current
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .heightIn(min = ThesisSpace.touchMin),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Spacer(Modifier.weight(1f))
+    Row(verticalAlignment = Alignment.CenterVertically) {
         if (pager != null) {
             val previous by rememberUpdatedState(onPrevious)
             val next by rememberUpdatedState(onNext)
@@ -870,14 +906,19 @@ private fun NameToolbar(
                 },
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(
-                    NamesCopy.pagerCaption(pager.position, pager.count),
-                    modifier = Modifier
-                        .padding(end = ThesisSpace.xs)
-                        .semantics { contentDescription = NamesCopy.pagerSpoken(pager.position, pager.count) },
-                    style = ThesisType.caption,
-                    color = p.muted,
-                )
+                // Above 1.3x the caption would take the bar's title room: the position stays in TalkBack's
+                // custom actions and the arrows' enabled state.
+                if (LocalDensity.current.fontScale <= ThesisType.MAX_DISPLAY_SCALE) {
+                    Text(
+                        NamesCopy.pagerCaption(pager.position, pager.count),
+                        modifier = Modifier
+                            .padding(end = ThesisSpace.xs)
+                            .semantics { contentDescription = NamesCopy.pagerSpoken(pager.position, pager.count) },
+                        style = ThesisType.caption,
+                        color = p.muted,
+                        maxLines = 1,
+                    )
+                }
                 ThesisIconButton(ThesisIcons.Up, NamesCopy.PREVIOUS_NAME, { onPrevious?.invoke() }, enabled = onPrevious != null)
                 ThesisIconButton(ThesisIcons.Down, NamesCopy.NEXT_NAME, { onNext?.invoke() }, enabled = onNext != null)
             }
@@ -905,6 +946,15 @@ private fun NameLoading() {
     SkeletonCard()
 }
 
+/** A section Name can open at (`Destination.Name` anchors): "Since the last report" or "Your notes". */
+enum class NameAnchor { Changes, Notes }
+
+/** A zero-size mark that reports its y in the page column, for [NameScreen]'s `scrollTo`. */
+@Composable
+private fun AnchorMark(anchor: NameAnchor, onPlaced: (NameAnchor, Int) -> Unit) {
+    Spacer(Modifier.onPlaced { onPlaced(anchor, it.positionInParent().y.roundToInt()) })
+}
+
 @Composable
 private fun NameBody(
     detail: NameDetailView,
@@ -913,6 +963,7 @@ private fun NameBody(
     now: Instant,
     warRoomLive: Boolean,
     focusNote: Boolean,
+    onAnchorPlaced: (NameAnchor, Int) -> Unit,
     lastVisitAtMs: Long,
     warRoomId: String?,
     isPro: Boolean,
@@ -961,6 +1012,7 @@ private fun NameBody(
     }
 
     // ---- Since the last report (item 3)
+    AnchorMark(NameAnchor.Changes, onAnchorPlaced)
     if (summary != null) {
         val model = remember(summary, notes, fmt) { sinceLastReportModel(summary, notes, fmt, zone) }
         when {
@@ -1012,6 +1064,7 @@ private fun NameBody(
 
     // ---- Your notes (item 6)
     Spacer(Modifier.height(ThesisSpace.sectionGapReading))
+    AnchorMark(NameAnchor.Notes, onAnchorPlaced)
     NotesSection(
         ticker = ticker,
         notes = notes,
@@ -1148,6 +1201,8 @@ internal fun monitorTiles(detail: NameDetailView, lastVisitAtMs: Long, now: Inst
             change != null && abs(change) >= 0.5 && Math.round(change) != 0L -> NamesCopy.since(since)
             else -> NamesCopy.unchangedSince(since)
         },
+        // The score's place on its 0 to 100 scale (5.11 item 2, principle 4): the page's one subject meter.
+        meter = score?.let { (it / 100.0).toFloat().coerceIn(0f, 1f) },
     ) to SourceInfo(
         metric = ScoreCopy.MONITOR_SCORE,
         definition = ScoreCopy.MONITOR_DEFINITION,

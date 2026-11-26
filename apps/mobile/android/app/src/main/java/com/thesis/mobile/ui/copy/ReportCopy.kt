@@ -53,6 +53,10 @@ object ReportCopy {
     const val PICK_NAMES_HOW = "Pick up to 3 of your names."
     fun noOtherNames(ticker: String): String = "Follow other names to compare them with $ticker."
     const val PICK_A_NAME = "Pick a name"
+    /** The names picker with no subject (Research > Tools > Compare names): 2 to 4 of your names. */
+    const val PICK_NAMES_ANY_TITLE = "Compare names"
+    const val PICK_NAMES_ANY_HOW = "Pick 2 to 4 of your names."
+    const val PICK_TWO_NAMES = "Pick two names"
     fun compareNamesAction(count: Int): String = "Compare $count names"
     const val EARLIER_REPORTS_TITLE = "Compare with an earlier report"
     fun noEarlierReport(ticker: String): String =

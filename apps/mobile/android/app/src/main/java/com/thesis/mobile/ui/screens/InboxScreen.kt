@@ -298,6 +298,12 @@ fun InboxScreen(
     onOpenNameAtChanges: ((String) -> Unit)? = null,
     onOpenWarRoom: ((String) -> Unit)? = null,
     initialCategory: String? = null,
+    /**
+     * A category asked for by another screen (the weekly digest's alert rows), applied when it changes; then
+     * [onCategoryRequestHandled] is called so the caller clears it. Clearing it keeps the selection.
+     */
+    categoryRequest: String? = null,
+    onCategoryRequestHandled: () -> Unit = {},
     /** The alert to open expanded (a notification tap that lands on the Inbox). */
     initialExpandedId: String? = null,
     refreshError: String? = null,
@@ -313,6 +319,12 @@ fun InboxScreen(
     val layoutDirection = LocalLayoutDirection.current
 
     var category by rememberSaveable { mutableStateOf(initialCategory) }
+    LaunchedEffect(categoryRequest) {
+        if (categoryRequest != null) {
+            category = categoryRequest
+            onCategoryRequestHandled()
+        }
+    }
     var expandedId by rememberSaveable { mutableStateOf(initialExpandedId) }
     var showQuiet by rememberSaveable { mutableStateOf(false) }
     var menuFor by remember { mutableStateOf<AlertLedgerItemView?>(null) }
@@ -712,7 +724,8 @@ private fun InboxRow(
     SwipeToQuiet(onQuiet = onQuiet, enabled = swipeEnabled, actionLabel = InboxCopy.QUIET_24H) {
         AlertRow(
             categoryColor = alertCategoryColor(categoryKey),
-            title = alert.title,
+            // Line 1 shows the ticker: the title does not repeat it (V3). The sheet keeps the full title.
+            title = InboxCopy.rowTitle(alert.title, ticker),
             body = alert.body,
             time = time,
             onClick = onToggle,

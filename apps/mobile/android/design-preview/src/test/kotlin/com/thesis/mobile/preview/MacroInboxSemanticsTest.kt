@@ -17,14 +17,14 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextContains
+import androidx.compose.ui.test.hasScrollToNodeAction
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.hasScrollToNodeAction
-import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
 import com.thesis.mobile.model.AlertLedgerItemView
@@ -53,6 +53,10 @@ class MacroInboxSemanticsTest {
     private val alerts = MacroInboxFixtures.alerts
     private val drift = alerts.first { it.id == "a1" }
     private val earnings = alerts.first { it.id == "a2" }
+
+    // The rows' titles: line 1 carries the ticker, so the title drops it (InboxCopy.rowTitle).
+    private val driftTitle = InboxCopy.rowTitle(drift.title, drift.ticker)
+    private val earningsTitle = InboxCopy.rowTitle(earnings.title, earnings.ticker)
 
     private class Calls {
         val quiet = mutableListOf<String>()
@@ -98,6 +102,10 @@ class MacroInboxSemanticsTest {
         return calls
     }
 
+    /** The Earnings filter chip (a row title may start with "Earnings" too). */
+    private fun earningsChip() =
+        rule.onNode(hasText("Earnings", substring = true) and SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Tab))
+
     @Composable
     private fun Fixed(content: @Composable () -> Unit) {
         ThesisTheme(mode = ThemeMode.Light) {
@@ -118,14 +126,50 @@ class MacroInboxSemanticsTest {
     @Test
     fun `category chips filter by key and show the selection`() {
         setInbox()
-        val earningsChip = rule.onNodeWithText("Earnings", substring = true)
-        earningsChip.assertIsNotSelected().performClick()
+        val chip = earningsChip()
+        chip.assertIsNotSelected().performClick()
         rule.waitForIdle()
-        earningsChip.assertIsSelected()
-        rule.onNodeWithText(earnings.title).assertExists()
-        rule.onNodeWithText(drift.title).assertDoesNotExist()
+        chip.assertIsSelected()
+        rule.onNodeWithText(earningsTitle).assertExists()
+        rule.onNodeWithText(driftTitle).assertDoesNotExist()
         rule.onNodeWithText("All", substring = true).performClick()
-        rule.onNodeWithText(drift.title).assertExists()
+        rule.onNodeWithText(driftTitle).assertExists()
+    }
+
+    @Test
+    fun `a category asked for by another screen stays selected once the request is cleared`() {
+        var request by mutableStateOf<String?>(null)
+        var handled = 0
+        rule.setContent {
+            Fixed {
+                InboxScreen(
+                    padding = PaddingValues(),
+                    alerts = alerts,
+                    inboxError = null,
+                    onRefresh = {},
+                    onOpenAlert = {},
+                    onUnlockDetail = {},
+                    onSubmitFeedback = { _, _ -> },
+                    onQuietAlertType = {},
+                    onDisableAlertType = {},
+                    categoryRequest = request,
+                    onCategoryRequestHandled = {
+                        handled++
+                        request = null
+                    },
+                    clock = MacroInboxFixtures.clock,
+                )
+            }
+        }
+        earningsChip().assertIsNotSelected()
+        request = "earnings"
+        rule.waitForIdle()
+        rule.mainClock.advanceTimeBy(1_000)
+        rule.waitForIdle()
+        assertEquals(1, handled)
+        assertEquals(null, request)
+        earningsChip().assertIsSelected()
+        rule.onNodeWithText(driftTitle).assertDoesNotExist()
     }
 
     @Test
@@ -139,7 +183,7 @@ class MacroInboxSemanticsTest {
     @Test
     fun `a thesis drift alert opens the Name at its changes`() {
         val calls = setInbox()
-        rule.onNodeWithText(drift.title).performClick()
+        rule.onNodeWithText(driftTitle).performClick()
         rule.onNodeWithText("Open NVDA").performClick()
         assertEquals(listOf("NVDA"), calls.names)
         assertTrue(calls.opened.isEmpty())
@@ -170,7 +214,7 @@ class MacroInboxSemanticsTest {
         val host = SnackbarHostState()
         setInbox(host = host)
         rule.onNodeWithText("3 new since your last visit").assertExists()
-        rule.quietAction(drift.title)
+        rule.quietAction(driftTitle)
         rule.waitForIdle()
         // The row waits on its Undo, but the lede and the chips no longer count it.
         rule.onNodeWithText("2 new since your last visit").assertExists()
@@ -186,14 +230,14 @@ class MacroInboxSemanticsTest {
         // The shell's host: the test reads and answers its snackbar directly.
         val host = SnackbarHostState()
         val calls = setInbox(host = host)
-        rule.quietAction(drift.title)
+        rule.quietAction(driftTitle)
         rule.waitForIdle()
         assertEquals(InboxCopy.QUIETED, host.currentSnackbarData?.visuals?.message)
         assertEquals(InboxCopy.UNDO, host.currentSnackbarData?.visuals?.actionLabel)
         assertTrue("the mute waits for the snackbar", calls.quiet.isEmpty())
         rule.runOnIdle { host.currentSnackbarData!!.performAction() }
         rule.waitForIdle()
-        rule.onNodeWithText(drift.title).assertIsDisplayed()
+        rule.onNodeWithText(driftTitle).assertIsDisplayed()
         assertTrue("Undo never mutes", calls.quiet.isEmpty())
     }
 
@@ -201,12 +245,12 @@ class MacroInboxSemanticsTest {
     fun `quiet without Undo mutes once the snackbar goes, and the row leaves the list`() {
         val host = SnackbarHostState()
         val calls = setInbox(host = host)
-        rule.quietAction(drift.title)
+        rule.quietAction(driftTitle)
         rule.waitForIdle()
         rule.runOnIdle { host.currentSnackbarData!!.dismiss() }
         rule.waitForIdle()
         assertEquals(listOf(drift.id), calls.quiet)
-        rule.onNodeWithText(drift.title).assertDoesNotExist()
+        rule.onNodeWithText(driftTitle).assertDoesNotExist()
         rule.onAllNodes(hasScrollToNodeAction()).onFirst().performScrollToNode(hasText("2 quiet alerts hidden"))
     }
 
@@ -215,17 +259,17 @@ class MacroInboxSemanticsTest {
         val host = SnackbarHostState()
         var error by mutableStateOf<String?>(null)
         val calls = setInbox(host = host, error = { error })
-        rule.quietAction(drift.title)
+        rule.quietAction(driftTitle)
         rule.waitForIdle()
         rule.runOnIdle { host.currentSnackbarData!!.dismiss() }
         rule.waitForIdle()
         assertEquals(listOf(drift.id), calls.quiet)
-        rule.onNodeWithText(drift.title).assertDoesNotExist()
+        rule.onNodeWithText(driftTitle).assertDoesNotExist()
         // The mute failed: the ViewModel reports it, and the alert comes back without mutedAt.
         error = "Couldn’t quiet this alert."
         rule.waitForIdle()
-        rule.onNodeWithText(drift.title).assertExists()
-        rule.quietAction(drift.title)
+        rule.onNodeWithText(driftTitle).assertExists()
+        rule.quietAction(driftTitle)
         rule.waitForIdle()
         rule.runOnIdle { host.currentSnackbarData!!.dismiss() }
         rule.waitForIdle()
@@ -243,7 +287,7 @@ class MacroInboxSemanticsTest {
     fun `the screen's own snackbar shows the quiet with Undo`() {
         setInbox()
         rule.mainClock.autoAdvance = false
-        rule.quietAction(drift.title)
+        rule.quietAction(driftTitle)
         rule.mainClock.advanceTimeBy(SETTLE_MS)
         rule.onNodeWithText(InboxCopy.QUIETED).assertExists()
         rule.onNodeWithText(InboxCopy.UNDO).assertExists()
@@ -269,10 +313,10 @@ class MacroInboxSemanticsTest {
     fun `an action error leaves the list visible`() {
         var error by mutableStateOf<String?>(null)
         setInbox(error = { error })
-        rule.onNodeWithText(drift.title).assertExists()
+        rule.onNodeWithText(driftTitle).assertExists()
         error = "Couldn’t save your feedback."
         rule.waitForIdle()
-        rule.onNodeWithText(drift.title).assertExists()
+        rule.onNodeWithText(driftTitle).assertExists()
         rule.onAllNodesWithText("Couldn’t load", substring = true).assertCountEquals(0)
     }
 

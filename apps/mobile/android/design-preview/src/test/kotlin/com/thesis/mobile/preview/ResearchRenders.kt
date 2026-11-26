@@ -123,9 +123,10 @@ class ResearchRenders {
         sort: NameMetric? = null,
         chart: Boolean = false,
         mode: Int = 0,
+        disciplines: Map<String, com.thesis.mobile.model.ValueDisciplineView?> = F.disciplines,
     ) = F.Fixed {
         CompareNamesScreen(
-            state = state, onBack = {}, disciplines = F.disciplines,
+            state = state, onBack = {}, disciplines = disciplines,
             initialSortMetric = sort, initialShowChart = chart, initialChartMode = mode, zone = F.zone,
         )
     }
@@ -142,6 +143,8 @@ class ResearchRenders {
     @Test fun compareNames360() { renderScreen("research-compare-names-360", widthDp = 360, glow = false) { Names() } }
     @Test fun compareNamesTablet() { renderScreen("research-compare-names-tablet", widthDp = 840, glow = false) { Names() } }
     @Test fun compareNamesFull() { renderScreen("research-compare-names-full", heightDp = 2400, glow = false) { Names() } }
+    // The shape the app ships: report summaries carry no value discipline unless the report had one.
+    @Test fun compareNamesNoDiscipline() { renderScreen("research-compare-names-no-discipline", glow = false) { Names(disciplines = emptyMap()) } }
 
     // ---- Search (5.27)
 

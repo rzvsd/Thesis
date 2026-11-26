@@ -52,15 +52,19 @@ sealed interface Destination {
 
     /**
      * One ticker (5.11). [pagerScope] names the list the Name pager walks through. [anchor] is where it opens:
-     * [ANCHOR_NOTES] (the newest note takes focus), [ANCHOR_CHANGES] ("Since the last report"), or null (the top).
+     * [ANCHOR_NOTES] ("Your notes", to read), [ANCHOR_WRITE_NOTE] (the newest note takes focus), [ANCHOR_CHANGES]
+     * ("Since the last report"), or null (the top).
      */
     data class Name(val ticker: String, val pagerScope: String? = null, val anchor: String? = null) : Destination {
         override val tag get() = "name"
         override val fields get() = listOf(ticker, pagerScope, anchor)
 
         companion object {
-            /** Write a note, the Notes view and a note search hit: the newest NoteBlock takes focus. */
+            /** The Notes view and a note search hit: Name scrolled to "Your notes", nothing focused (no keyboard). */
             const val ANCHOR_NOTES = "notes"
+
+            /** Write a note (the board's context sheet): the newest NoteBlock takes focus, which scrolls it in. */
+            const val ANCHOR_WRITE_NOTE = "write-note"
 
             /** A thesis drift alert: Name at its "Since the last report" block (5.21.5). */
             const val ANCHOR_CHANGES = "since-last-report"

@@ -1,5 +1,6 @@
 package com.thesis.mobile.preview
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -15,10 +16,13 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.toPixelMap
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onRoot
@@ -46,7 +50,6 @@ import com.thesis.mobile.ui.shell.TabLayer
 import com.thesis.mobile.ui.shell.ThesisShell
 import com.thesis.mobile.ui.theme.ThemeMode
 import com.thesis.mobile.ui.theme.ThesisTheme
-import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
@@ -54,6 +57,7 @@ import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
+import kotlinx.coroutines.runBlocking
 
 /**
  * PR-2 M3 acceptance (DESIGN-DIRECTION 6.2): scroll position survives tab switches and Name(A) → Name(B) → back;
@@ -346,6 +350,58 @@ class ShellLayersTest {
 
         move { navigator.pop() }
         assertTrue(rule.onAllNodes(search).fetchSemanticsNodes().isNotEmpty())
+    }
+
+    /**
+     * 4.5 container transform: a Name pushed from a list row grows from the row's bounds over the list (the list
+     * still shows outside the growing page mid-move), covers the layer at rest, and shrinks back into the row on
+     * the pop. A push without an origin keeps the shared axis. Coloured pages, so the pixels are exact.
+     */
+    @Test
+    fun aNameOpenedFromARowGrowsFromItAndShrinksBackIntoIt() {
+        val navigator = AppNavigator().apply { selectTab(ShellTab.Names) }
+        val listColour = androidx.compose.ui.graphics.Color(0xFFFF0000)
+        val pageColour = androidx.compose.ui.graphics.Color(0xFF0000FF)
+        rule.mainClock.autoAdvance = false
+        rule.setContent {
+            ThesisTheme(mode = ThemeMode.Dark) {
+                val holder = rememberSaveableStateHolder()
+                val env = remember { ShellLayerEnv(holder, ShellMotionPx(63, 84), 21f, false, BackPreview()) }
+                TabLayer(
+                    target = navigator.tabTop,
+                    move = { navigator.lastMove },
+                    env = env,
+                    drawnBelow = { false },
+                    originOf = { navigator.transformOrigin(it.entryId) },
+                ) { entry ->
+                    val colour = if (entry.destination is Destination.Name) pageColour else listColour
+                    Box(Modifier.fillMaxSize().background(colour))
+                }
+            }
+        }
+        rule.mainClock.advanceTimeBy(500)
+        val size = rule.onRoot().fetchSemanticsNode().size
+        val far = { rule.onRoot().captureToImage().toPixelMap()[size.width - 2, size.height - 2] }
+        val near = { rule.onRoot().captureToImage().toPixelMap()[20, 20] }
+
+        rule.runOnIdle {
+            navigator.pushFrom(androidx.compose.ui.geometry.Rect(0f, 0f, 200f, 96f)) { navigator.push(Destination.Name("AAPL")) }
+        }
+        rule.mainClock.advanceTimeByFrame()
+        rule.mainClock.advanceTimeBy(60)
+        assertNotEquals("mid-move, the far corner still shows the list", pageColour.toArgb(), far().toArgb())
+        rule.mainClock.advanceTimeBy(500)
+        assertEquals("at rest the page covers the layer", pageColour.toArgb(), far().toArgb())
+
+        rule.runOnIdle { navigator.pop() }
+        rule.mainClock.advanceTimeByFrame()
+        rule.mainClock.advanceTimeBy(150)
+        assertNotEquals("the page shrinks toward its row: the far corner is the list again", pageColour.toArgb(), far().toArgb())
+        assertNotEquals("the row corner is still the page's", listColour.toArgb(), near().toArgb())
+        rule.mainClock.advanceTimeBy(500)
+        assertEquals(listColour.toArgb(), far().toArgb())
+        assertEquals(listColour.toArgb(), near().toArgb())
+        assertEquals("no origin left for a plain push", null, navigator.transformOrigin(navigator.push(Destination.Name("MSFT")).entryId))
     }
 
     private fun androidx.compose.ui.test.junit4.ComposeContentTestRule.onNodeWithTagSafe(tag: String) =

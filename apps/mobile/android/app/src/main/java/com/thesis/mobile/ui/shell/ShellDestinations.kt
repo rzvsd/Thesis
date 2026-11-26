@@ -12,7 +12,6 @@ import androidx.compose.material3.SnackbarResult
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -36,6 +35,7 @@ import com.thesis.mobile.ui.screens.HistoryScreen
 import com.thesis.mobile.ui.screens.HomeScreen
 import com.thesis.mobile.ui.screens.InboxScreen
 import com.thesis.mobile.ui.screens.MacroStressScreen
+import com.thesis.mobile.ui.screens.NameAnchor
 import com.thesis.mobile.ui.screens.NameScreen
 import com.thesis.mobile.ui.screens.NamesScreen
 import com.thesis.mobile.ui.screens.NotesMarkdown
@@ -50,6 +50,7 @@ import com.thesis.mobile.ui.screens.WeeklyDigestScreen
 import com.thesis.mobile.ui.screens.nameNeighbours
 import com.thesis.mobile.ui.screens.namePagerOf
 import com.thesis.mobile.ui.screens.namesBoardOrder
+import com.thesis.mobile.ui.screens.report.CompareNamesPickerSheet
 import com.thesis.mobile.ui.screens.report.ReportHostExtras
 import com.thesis.mobile.ui.screens.report.ReportOpeningBar
 import com.thesis.mobile.ui.theme.LocalReducedMotion
@@ -73,74 +74,10 @@ private const val WAR_ROOM_LIVE = "live"
 internal fun ShellContentScope.Content(entry: NavEntry, padding: PaddingValues) {
     when (val destination = entry.destination) {
         Destination.Today -> TodayRoot(padding)
-        Destination.Names -> NamesScreen(
-            padding = padding,
-            watchlist = state.watchlist,
-            monitorSnapshots = state.monitorSnapshots,
-            alerts = state.alertLedger,
-            focusTicker = navigator.namesFocusTicker,
-            onRefresh = actions::onRefreshNames,
-            onAddTicker = actions::onAddName,
-            onRemoveTicker = actions::onRemoveName,
-            warRoomByTicker = warRoomsInEarningsWindow(state.alertLedger),
-            onOpenWarRoom = actions::onOpenWarRoom,
-            onImportHoldingsCsv = { csv -> actions.onImportHoldingsCsv(csv) },
-            onRunDeepDive = actions::onRunDeepDive,
-            onOpenResearch = actions::onOpenResearchFor,
-            liveWarRooms = liveWarRoomTickers(),
-            refreshing = state.isBoardRefreshing,
-            loaded = state.watchlistLoaded,
-            snapshotDeltas = state.snapshotDeltas,
-            lastVisitAtMs = state.lastNamesVisitAtMs,
-            allNotes = state.allNotes,
-            companyNames = state.companyNames,
-            tickerSuggestions = state.tickers,
-            density = state.appearance.namesDensity,
-            onDensityChange = { actions.onSetAppearance(state.appearance.copy(namesDensity = it)) },
-            onQueryTickers = actions::onSearchTickers,
-            onLoadNotes = actions::onLoadAllNotes,
-            onOpenName = { ticker, pagerScope, _ -> actions.onOpenNameIn(ticker, pagerScope, null) },
-            onOpenNotes = { ticker -> actions.onOpenNameIn(ticker, null, Destination.Name.ANCHOR_NOTES) },
-            onOpenReport = { reportId, ticker -> actions.onOpenReport(reportId, ticker) },
-            onCompare = actions::onOpenCompareNames,
-            onExportNotes = { exportNotes() },
-            onShowUndo = { message, action ->
-                snackbarHostState.showThesisSnackbar(message, action) == SnackbarResult.ActionPerformed
-            },
-            focusAddField = navigator.namesFocusAdd,
-            openImport = navigator.namesOpenImport,
-            onRequestHandled = navigator::clearNamesRequests
-        )
+        Destination.Names -> NamesRoot(padding)
         // A build or an open always pushes its own entry (DeepDiveRunning, Report), which shows its error; the
         // root keeps its field and recent list whatever the shared deepDiveError says.
-        Destination.Research -> ResearchScreen(
-            ticker = state.selectedTicker.orEmpty(),
-            recentHistory = state.reportHistory,
-            onTickerChange = { typed ->
-                actions.onTickerChange(typed)
-                actions.onSearchTickers(typed)
-            },
-            onRunReport = { actions.onRunDeepDive(state.selectedTicker.orEmpty()) },
-            onOpenReport = { reportId -> actions.onOpenReport(reportId) },
-            onOpenPulse = { date -> actions.onOpenPulse(date) },
-            padding = padding,
-            // History on the Research stack (5.12 "See all"); the root lists only the three latest.
-            onSeeAllHistory = actions::onOpenHistory,
-            suggestions = state.tickers,
-            watchlist = state.watchlist,
-            companyNames = state.companyNames,
-            filingPeriods = state.filingPeriods,
-            notedReportIds = state.notedReportIds,
-            continueReading = state.lastViewedReport,
-            onDismissContinue = actions::onDismissResumeCard,
-            // Compare names lines up the followed names (the table takes 2 to 4); hidden with fewer than two.
-            onOpenCompareNames = state.watchlist.takeIf { it.size >= 2 }?.let { names ->
-                { actions.onOpenCompareNames(names.take(COMPARE_NAMES_MAX)) }
-            },
-            onOpenScenarioStress = actions::onOpenScenarioStress,
-            onOpenMacroStress = actions::onOpenMacroStress,
-            onOpenWeeklyDigest = { actions.onOpenWeeklyDigest(state.sentimentCurrent?.marketDate) }
-        )
+        Destination.Research -> ResearchRoot(padding)
         Destination.Inbox -> InboxRoot(padding)
         is Destination.Pulse -> {
             // Like Report(id) and WarRoom(id): a restored or revisited entry asks for its issue again (its day, or the
@@ -209,8 +146,10 @@ internal fun ShellContentScope.Content(entry: NavEntry, padding: PaddingValues) 
             onBack = { actions.onBack() },
             onOpenReport = actions::onOpenHistoryItem,
             padding = padding,
-            loaded = state.reportHistoryLoaded,
+            // A failed first load is an answer too: the skeleton ends on the failed state with Try again.
+            loaded = state.reportHistoryLoaded || state.historyLoadError != null,
             refreshing = state.isHistoryLoading && state.reportHistoryLoaded,
+            error = state.historyLoadError,
             onRefresh = actions::onRefreshHistory,
             companyNames = state.companyNames,
             filingPeriods = state.filingPeriods,
@@ -350,6 +289,126 @@ internal fun ShellContentScope.Content(entry: NavEntry, padding: PaddingValues) 
     }
 }
 
+/** The Research root (5.12), with the names picker Tools > Compare names opens when you follow more than four. */
+@Composable
+private fun ShellContentScope.ResearchRoot(padding: PaddingValues) {
+    var pickNames by rememberSaveable { mutableStateOf(false) }
+    ResearchScreen(
+        ticker = state.selectedTicker.orEmpty(),
+        recentHistory = state.reportHistory,
+        onTickerChange = { typed ->
+            actions.onTickerChange(typed)
+            actions.onSearchTickers(typed)
+        },
+        onRunReport = { actions.onRunDeepDive(state.selectedTicker.orEmpty()) },
+        onOpenReport = { reportId -> actions.onOpenReport(reportId) },
+        onOpenPulse = { date -> actions.onOpenPulse(date) },
+        padding = padding,
+        // History on the Research stack (5.12 "See all"); the root lists only the three latest.
+        onSeeAllHistory = actions::onOpenHistory,
+        suggestions = state.tickers,
+        watchlist = state.watchlist,
+        companyNames = state.companyNames,
+        filingPeriods = state.filingPeriods,
+        notedReportIds = state.notedReportIds,
+        continueReading = state.lastViewedReport,
+        onDismissContinue = actions::onDismissResumeCard,
+        onResumeContinue = actions::onResumeLastViewed,
+        // Compare names (the table takes 2 to 4): up to four followed names line up at once; with more, the names
+        // picker asks which. Hidden with fewer than two.
+        onOpenCompareNames = state.watchlist.takeIf { it.size >= 2 }?.let { names ->
+            {
+                if (names.size <= COMPARE_NAMES_MAX) actions.onOpenCompareNames(names) else pickNames = true
+            }
+        },
+        onOpenScenarioStress = actions::onOpenScenarioStress,
+        onOpenMacroStress = actions::onOpenMacroStress,
+        onOpenWeeklyDigest = { actions.onOpenWeeklyDigest(state.sentimentCurrent?.marketDate) }
+    )
+    if (pickNames) {
+        CompareNamesPickerSheet(
+            ticker = null,
+            otherNames = state.watchlist.map { it.trim().uppercase() }.filter { it.isNotEmpty() }.distinct(),
+            onDismiss = { pickNames = false },
+            onCompare = { tickers ->
+                pickNames = false
+                actions.onOpenCompareNames(tickers.take(COMPARE_NAMES_MAX))
+            }
+        )
+    }
+}
+
+/** The Names root (5.10), with the names picker its context sheet's "Compare with…" opens. */
+@Composable
+private fun ShellContentScope.NamesRoot(padding: PaddingValues) {
+    var compareWith by rememberSaveable { mutableStateOf<String?>(null) }
+    NamesScreen(
+        padding = padding,
+        watchlist = state.watchlist,
+        monitorSnapshots = state.monitorSnapshots,
+        alerts = state.alertLedger,
+        focusTicker = navigator.namesFocusTicker,
+        onRefresh = actions::onRefreshNames,
+        onAddTicker = actions::onAddName,
+        onRemoveTicker = actions::onRemoveName,
+        warRoomByTicker = warRoomsInEarningsWindow(state.alertLedger),
+        onOpenWarRoom = actions::onOpenWarRoom,
+        onImportHoldingsCsv = { csv -> actions.onImportHoldingsCsv(csv) },
+        onRunDeepDive = actions::onRunDeepDive,
+        onOpenResearch = actions::onOpenResearchFor,
+        liveWarRooms = liveWarRoomTickers(),
+        refreshing = state.isBoardRefreshing,
+        loaded = state.watchlistLoaded,
+        // A failed first load ends the skeleton with the failed state and its Try again (5.10).
+        error = state.watchlistLoadError,
+        snapshotDeltas = state.snapshotDeltas,
+        lastVisitAtMs = state.lastNamesVisitAtMs,
+        allNotes = state.allNotes,
+        companyNames = state.companyNames,
+        tickerSuggestions = state.tickers,
+        density = state.appearance.namesDensity,
+        onDensityChange = { actions.onSetAppearance(state.appearance.copy(namesDensity = it)) },
+        onQueryTickers = actions::onSearchTickers,
+        onLoadNotes = actions::onLoadAllNotes,
+        // The row's bounds: Name grows from the tapped row (4.5 container transform).
+        onOpenName = { ticker, pagerScope, bounds ->
+            navigator.pushFrom(bounds) { actions.onOpenNameIn(ticker, pagerScope, null) }
+        },
+        onOpenNotes = { ticker -> actions.onOpenNameIn(ticker, null, Destination.Name.ANCHOR_NOTES) },
+        onWriteNote = { ticker -> actions.onOpenNameIn(ticker, null, Destination.Name.ANCHOR_WRITE_NOTE) },
+        onOpenReport = { reportId, ticker -> actions.onOpenReport(reportId, ticker) },
+        onCompare = actions::onOpenCompareNames,
+        onCompareWith = { ticker -> compareWith = ticker },
+        onExportNotes = { exportNotes() },
+        onShowUndo = { message, action ->
+            snackbarHostState.showThesisSnackbar(message, action) == SnackbarResult.ActionPerformed
+        },
+        focusAddField = navigator.namesFocusAdd,
+        openImport = navigator.namesOpenImport,
+        onRequestHandled = navigator::clearNamesRequests,
+        removeFailure = state.watchlistRemoveFailure
+    )
+    CompareWithPicker(compareWith, onDismiss = { compareWith = null })
+}
+
+/**
+ * The names picker for "Compare with…" ([subject]; null shows nothing): up to three of the other followed names,
+ * then Compare names. Research > Tools passes no subject through [CompareNamesPickerSheet] directly.
+ */
+@Composable
+private fun ShellContentScope.CompareWithPicker(subject: String?, onDismiss: () -> Unit) {
+    val ticker = subject?.trim()?.uppercase()?.ifBlank { null } ?: return
+    CompareNamesPickerSheet(
+        ticker = ticker,
+        otherNames = state.watchlist.map { it.trim().uppercase() }.filter { it.isNotEmpty() && it != ticker }.distinct(),
+        onDismiss = onDismiss,
+        onCompare = { tickers ->
+            onDismiss()
+            actions.onOpenCompareNames(tickers.take(COMPARE_NAMES_MAX))
+        }
+    )
+}
+
 /** Most names Compare names lines up (the kit table's four value columns). */
 internal const val COMPARE_NAMES_MAX = 4
 
@@ -368,47 +427,49 @@ private fun ShellContentScope.exportNotes() {
     platform.shareText(NotesMarkdown.fileName(today), NotesMarkdown.build(state.allNotes, today, zone))
 }
 
-/** The Inbox root. A category asked for by another screen (the weekly digest) is read once, then cleared. */
+/**
+ * The Inbox root. A category asked for by another screen (the weekly digest) is applied by the screen, then
+ * cleared; the screen keeps the selection (no key on the one-shot value, which would rebuild it unfiltered).
+ */
 @Composable
 private fun ShellContentScope.InboxRoot(padding: PaddingValues) {
-    val category = navigator.inboxCategory
-    // A new request recomposes the Inbox with that filter (its key), then the request is cleared.
-    key(category) {
-        InboxScreen(
-            padding = padding,
-            alerts = state.alertLedger,
-            // 5.21: a failed load shows in the list (or its banner); action errors are the snackbar's only.
-            inboxError = state.inboxLoadError,
-            onRefresh = actions::onRefreshInbox,
-            onOpenAlert = actions::onOpenAlert,
-            // An alert whose route only lands back on Inbox has nothing to open (5.5 race fixes, audit A).
-            canOpenAlert = DeepLinkRouter::alertHasDestination,
-            onUnlockDetail = { actions.onRequireUpgrade("filing_change_detail") },
-            onSubmitFeedback = actions::onSubmitAlertFeedback,
-            onQuietAlertType = actions::onMuteAlert,
-            onDisableAlertType = actions::onDisableAlertType,
-            isRefreshing = state.isInboxRefreshing,
-            isLoading = !state.inboxLoaded,
-            lastInboxVisitAtMs = state.lastInboxVisitAtMs.takeIf { it > 0L },
-            onMarkAllSeen = actions::onMarkInboxSeen,
-            onOpenName = { ticker -> actions.onOpenNameIn(ticker, null, null) },
-            onOpenNameAtChanges = actions::onOpenNameAtChanges,
-            onOpenWarRoom = actions::onOpenWarRoom,
-            initialCategory = category,
-            refreshError = state.inboxLoadError?.takeIf { state.alertLedger.isNotEmpty() },
-            inboxErrorKey = state.inboxErrorSeq,
-            snackbarHostState = snackbarHostState
-        )
-    }
-    LaunchedEffect(category) {
-        if (category != null) navigator.clearInboxCategory()
-    }
+    InboxScreen(
+        padding = padding,
+        alerts = state.alertLedger,
+        // 5.21: a failed load shows in the list (or its banner); action errors are the snackbar's only.
+        inboxError = state.inboxLoadError,
+        onRefresh = actions::onRefreshInbox,
+        onOpenAlert = actions::onOpenAlert,
+        // An alert whose route only lands back on Inbox has nothing to open (5.5 race fixes, audit A).
+        canOpenAlert = DeepLinkRouter::alertHasDestination,
+        onUnlockDetail = { actions.onRequireUpgrade("filing_change_detail") },
+        onSubmitFeedback = actions::onSubmitAlertFeedback,
+        onQuietAlertType = actions::onMuteAlert,
+        onDisableAlertType = actions::onDisableAlertType,
+        isRefreshing = state.isInboxRefreshing,
+        isLoading = !state.inboxLoaded,
+        lastInboxVisitAtMs = state.lastInboxVisitAtMs.takeIf { it > 0L },
+        onMarkAllSeen = actions::onMarkInboxSeen,
+        onOpenName = { ticker -> actions.onOpenNameIn(ticker, null, null) },
+        onOpenNameAtChanges = actions::onOpenNameAtChanges,
+        onOpenWarRoom = actions::onOpenWarRoom,
+        categoryRequest = navigator.inboxCategory,
+        onCategoryRequestHandled = navigator::clearInboxCategory,
+        refreshError = state.inboxLoadError?.takeIf { state.alertLedger.isNotEmpty() },
+        inboxErrorKey = state.inboxErrorSeq,
+        snackbarHostState = snackbarHostState
+    )
 }
 
 /** Search (5.27, modal): the query lives with the entry; results come from the ViewModel's search. */
 @Composable
 private fun ShellContentScope.SearchEntry(padding: PaddingValues) {
     var query by rememberSaveable { mutableStateOf(state.searchResults?.query.orEmpty()) }
+    // A query restored after process death has no results in the new ViewModel: ask again, so the screen never
+    // waits on a search nobody started.
+    LaunchedEffect(Unit) {
+        if (query.isNotBlank() && state.searchResults?.query != query) actions.onSearch(query)
+    }
     SearchScreen(
         query = query,
         onQueryChange = { typed ->
@@ -472,6 +533,7 @@ private fun ShellContentScope.NameEntry(entry: NavEntry, destination: Destinatio
     }
     val (previous, next) = nameNeighbours(order, ticker)
     val scope = rememberCoroutineScope()
+    var compareWith by rememberSaveable { mutableStateOf<String?>(null) }
     NameScreen(
         padding = padding,
         ticker = ticker,
@@ -484,9 +546,14 @@ private fun ShellContentScope.NameEntry(entry: NavEntry, destination: Destinatio
         journal = state.convictionTimeline,
         pager = namePagerOf(order, ticker),
         warRoomLive = ticker in live,
-        focusNote = destination.anchor == Destination.Name.ANCHOR_NOTES,
+        focusNote = destination.anchor == Destination.Name.ANCHOR_WRITE_NOTE,
+        scrollTo = when (destination.anchor) {
+            Destination.Name.ANCHOR_NOTES -> NameAnchor.Notes
+            Destination.Name.ANCHOR_CHANGES -> NameAnchor.Changes
+            else -> null
+        },
         onRetry = { actions.onEnsureName(ticker) },
-        onFollowChange = { on -> if (on) actions.onAddName(ticker) else actions.onRemoveName(ticker) },
+        onFollowChange = { on -> if (on) actions.onAddName(ticker) else actions.onUnfollowName(ticker) },
         onOpenReport = { reportId -> actions.onOpenReport(reportId, ticker) },
         onBuildReport = { actions.onRunDeepDive(ticker) },
         onSaveNote = { reportId, text -> actions.onSaveNoteFor(reportId, text) },
@@ -496,10 +563,13 @@ private fun ShellContentScope.NameEntry(entry: NavEntry, destination: Destinatio
         onSeeAlerts = { actions.onOpenInbox(null) },
         onSeePro = { actions.onRequireUpgrade(FEATURE_CONVICTION) },
         onCompareReports = actions::onOpenCompareReports,
+        onCompareWith = { compareWith = ticker },
         onPrevious = previous?.let { neighbour -> { actions.onPageName(neighbour, destination.pagerScope) } },
         onNext = next?.let { neighbour -> { actions.onPageName(neighbour, destination.pagerScope) } },
-        onShowMessage = { message -> scope.launch { snackbarHostState.showThesisSnackbar(message) } }
+        onShowMessage = { message -> scope.launch { snackbarHostState.showThesisSnackbar(message) } },
+        onBack = { actions.onBack() }
     )
+    CompareWithPicker(compareWith, onDismiss = { compareWith = null })
 }
 
 /** A `CompareReports(older, newer)` entry (5.17): loads its pair when the ViewModel holds another one. */
@@ -527,13 +597,17 @@ private fun ShellContentScope.CompareReportsEntry(destination: Destination.Compa
 private fun ShellContentScope.CompareNamesEntry(destination: Destination.CompareNames, padding: PaddingValues) {
     val tickers = destination.tickers.map { it.trim().uppercase() }.filter { it.isNotEmpty() }.distinct()
     LaunchedEffect(tickers) { actions.onEnsureCompareNames(tickers) }
+    val compare = state.compareNames?.takeIf { it.tickers == tickers.take(COMPARE_NAMES_MAX) }
     CompareNamesScreen(
-        state = state.compareNames?.takeIf { it.tickers == tickers.take(COMPARE_NAMES_MAX) },
+        state = compare,
         onBack = { actions.onBack() },
         padding = padding,
+        // Each report's own score; a summary cached before it carried one has none (the row is then left out).
+        disciplines = compare?.summaries?.mapValues { (_, summary) -> summary?.valueDiscipline }.orEmpty(),
         onRetry = { actions.onEnsureCompareNames(tickers) },
         // "Build report" opens the Research flow with the ticker in the field (no silent build).
-        onBuildReport = actions::onOpenResearchFor
+        onBuildReport = actions::onOpenResearchFor,
+        onOpenName = { ticker -> actions.onOpenNameIn(ticker, null, null) }
     )
 }
 
@@ -601,7 +675,7 @@ private fun ShellContentScope.TodayHome(padding: PaddingValues) {
         refreshing = state.isPulseRefreshing || state.isMacroRefreshing,
         snapshotDeltas = state.snapshotDeltas,
         notedTickers = state.allNotes.filter { it.text.isNotBlank() }.mapNotNull { it.ticker?.trim()?.uppercase() }.toSet(),
-        onOpenName = { ticker -> actions.onOpenNameIn(ticker, null, null) },
+        onOpenNameFrom = { ticker, bounds -> navigator.pushFrom(bounds) { actions.onOpenNameIn(ticker, null, null) } },
         onOpenPulseAt = { chapter -> actions.onOpenPulseAt(chapter.name) },
         onRetryMacro = actions::onRefreshMacro,
         pulseFailure = state.pulseFailureKind,
@@ -687,7 +761,7 @@ private fun ShellContentScope.DeepDiveScreenFor(
     val symbol = ticker?.trim()?.uppercase()?.ifBlank { null }
     val following = symbol != null && state.watchlist.any { it.equals(symbol, ignoreCase = true) }
     val onFollowChange: ((Boolean) -> Unit)? = symbol?.let { t ->
-        { on: Boolean -> if (on) actions.onAddName(t) else actions.onRemoveName(t) }
+        { on: Boolean -> if (on) actions.onAddName(t) else actions.onUnfollowName(t) }
     }
     DeepDiveScreen(
         report = report,

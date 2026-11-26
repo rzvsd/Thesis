@@ -80,7 +80,7 @@ class TodaySemanticsTest {
         set { TodayHome(HomeState.Loaded) }
         rule.assertAllTouchTargetsAtLeast()
         rule.onNodeWithText("Stocks rose for a third day", substring = true).assertIsHeading()
-        rule.onNodeWithText("1 of your names changed since your last visit").assertIsHeading()
+        rule.onNodeWithText("1 of your names changed state since your last visit").assertIsHeading()
         rule.onNodeWithText(TodayCopy.NAMES_ACTION).assertRole(Role.Button)
         rule.onNodeWithText("NVDA").assertRole(Role.Button)
     }
@@ -115,7 +115,7 @@ class TodaySemanticsTest {
     fun yourNamesStartsAboveTheFoldOnA360By780Phone() {
         // As the reader sees it: under the status bar (24 dp) and the shell's root bar.
         set(widthDp = 360, heightDp = 780) { TodayHome(HomeState.Loaded, padding = PaddingValues(top = 24.dp + ThesisSpace.topBar)) }
-        val headline = rule.onNodeWithText("1 of your names changed since your last visit").getUnclippedBoundsInRoot()
+        val headline = rule.onNodeWithText("1 of your names changed state since your last visit").getUnclippedBoundsInRoot()
         assertTrue("names headline ends at ${headline.bottom}", headline.bottom < 780.dp)
         val firstRow = rule.onNodeWithText("NVDA").getUnclippedBoundsInRoot()
         assertTrue("first name row starts at ${firstRow.top}", firstRow.top < 780.dp)

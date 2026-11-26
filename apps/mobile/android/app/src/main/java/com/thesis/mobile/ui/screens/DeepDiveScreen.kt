@@ -1,5 +1,6 @@
 package com.thesis.mobile.ui.screens
 
+import android.content.Context
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.animateScrollBy
@@ -82,14 +83,16 @@ import com.thesis.mobile.ui.format.Missing
 import com.thesis.mobile.ui.icons.ThesisIcons
 import com.thesis.mobile.ui.motion.rememberHaptics
 import com.thesis.mobile.ui.motion.rememberScrollSpy
-import com.thesis.mobile.ui.shell.HeroUnderBars
 import com.thesis.mobile.ui.screens.report.ReportHostExtras
 import com.thesis.mobile.ui.screens.report.ReportOpeningBar
+import com.thesis.mobile.ui.shell.HeroUnderBars
 import com.thesis.mobile.ui.theme.LocalReducedMotion
 import com.thesis.mobile.ui.theme.LocalThesisPalette
 import com.thesis.mobile.ui.theme.ThesisSpace
 import com.thesis.mobile.ui.theme.ThesisType
 import com.thesis.mobile.ui.theme.Tone
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
@@ -306,21 +309,24 @@ internal fun DeepDiveClassic(
     val plan = remember(report, fiveYear) { classicPlan(report, fiveYear, withDesk = true) }
     val kpis = remember(report, plan) { heroKpis(report, plan.fiveYear) }
 
+    // The entries and their lambdas are built once per report (and per Pro state, which changes which blocks
+    // exist), so a sheet, a note keystroke or a running scenario does not hand every list item new lambdas. The
+    // blocks read the tools through this state, so each recomposes only when what it reads changes.
+    val current by rememberUpdatedState(tools)
+    // Exports lay out and write a whole PDF or bitmap: off the main thread (P1, 5.13), shared on it after.
+    val exportScope = rememberCoroutineScope()
+    val exporter = remember(context) { ReportExporter(exportScope, context) { current.onNotify(DeepDiveCopy.exportFailed) } }
+
     fun requirePro(action: () -> Unit) {
         if (!tools.isPro) {
             tools.onRequireUpgrade("report_export")
             return
         }
-        runCatching(action).onFailure { tools.onNotify(DeepDiveCopy.exportFailed) }
+        action()
     }
-    val exportPdf = { requirePro { shareExport(context, createPdfExport(context, report, ReportExportType.FULL_REPORT)) } }
-    val exportCard = { requirePro { shareExport(context, createShareCard(context, report)) } }
-    val exportMemo = { requirePro { shareExport(context, createPdfExport(context, report, ReportExportType.INVESTMENT_MEMO)) } }
-
-    // The entries and their lambdas are built once per report (and per Pro state, which changes which blocks
-    // exist), so a sheet, a note keystroke or a running scenario does not hand every list item new lambdas. The
-    // blocks read the tools through this state, so each recomposes only when what it reads changes.
-    val current by rememberUpdatedState(tools)
+    val exportPdf = { requirePro { exporter.run { renderReportPdf(context, report, ReportExportType.FULL_REPORT) } } }
+    val exportCard = { requirePro { exporter.run { renderShareCard(context, report) } } }
+    val exportMemo = { requirePro { exporter.run { renderReportPdf(context, report, ReportExportType.INVESTMENT_MEMO) } } }
     val hasStress = tools.onOpenScenarioStress != null
     val items = remember(report, plan, tools.isPro, hasStress) {
         // Free users see one Pro upsell on the page (5.15): the desk's, which names the what-if model too.
@@ -348,9 +354,9 @@ internal fun DeepDiveClassic(
                 hasStress = hasStress,
                 tools = { current },
                 exports = DeskExports(
-                    pdf = { shareExport(context, createPdfExport(context, report, ReportExportType.FULL_REPORT)) },
-                    card = { shareExport(context, createShareCard(context, report)) },
-                    memo = { shareExport(context, createPdfExport(context, report, ReportExportType.INVESTMENT_MEMO)) },
+                    pdf = { exporter.run { renderReportPdf(context, report, ReportExportType.FULL_REPORT) } },
+                    card = { exporter.run { renderShareCard(context, report) } },
+                    memo = { exporter.run { renderReportPdf(context, report, ReportExportType.INVESTMENT_MEMO) } },
                 ),
             ),
         )
@@ -451,6 +457,35 @@ private const val QUOTE_PREVIEW_LINES = 6
 private const val FEEDBACK_ENTRY = "desk-feedback"
 
 /** What the export rows run (the Pro gate is ExportSection's). */
+/**
+ * Runs one export at a time: [run]'s render builds and writes the file off the main thread (`renderReportPdf`,
+ * `renderShareCard`), then the share sheet opens on the main thread; a failure calls [onFailed] (the "export
+ * failed" notice). A tap while an export runs is ignored.
+ */
+private class ReportExporter(
+    private val scope: CoroutineScope,
+    private val context: Context,
+    private val onFailed: () -> Unit,
+) {
+    private var running = false
+
+    fun run(render: suspend () -> ExportArtifact) {
+        if (running) return
+        running = true
+        scope.launch {
+            try {
+                shareExport(context, render())
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                onFailed()
+            } finally {
+                running = false
+            }
+        }
+    }
+}
+
 private class DeskExports(val pdf: () -> Unit, val card: () -> Unit, val memo: () -> Unit)
 
 /** The "Your notes" chapter's blocks; each reads the tools through [tools] when it composes. */

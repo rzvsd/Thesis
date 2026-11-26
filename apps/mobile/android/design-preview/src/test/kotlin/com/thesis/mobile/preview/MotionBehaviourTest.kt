@@ -38,9 +38,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.rememberTextMeasurer
-import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.unit.dp
-import com.thesis.mobile.ui.animations.StaggeredEntrance
 import com.thesis.mobile.ui.motion.ContainerTransformHost
 import com.thesis.mobile.ui.motion.Glyphs
 import com.thesis.mobile.ui.motion.RollPlan
@@ -80,8 +78,7 @@ import org.junit.Test
 
 /**
  * Behaviour of the motion kit (docs/app-redesign/DESIGN-DIRECTION.md 4, 6.2 M1) on the virtual frame clock:
- * entrances never replay (also after the screen is disposed and composed again, and for the deprecated
- * StaggeredEntrance wrapper in a lazy list scrolled away and back), RollingNumber is final on first paint,
+ * entrances never replay (also after the screen is disposed and composed again), RollingNumber is final on first paint,
  * skeleton timing, DismissibleItem, scroll-spy, refresh semantics and the container transform's back.
  */
 class MotionBehaviourTest {
@@ -185,38 +182,6 @@ class MotionBehaviourTest {
         theme(reduced = true) { ProvideEntranceScope(EntranceRegistry(), "home") { Block("header", "block") } }
         rule.mainClock.advanceTimeByFrame()
         assertEquals(red.toArgb(), rule.onNodeWithTag("block").centre().toArgb())
-    }
-
-    @Suppress("DEPRECATION")
-    @Test
-    fun deprecatedStaggeredEntranceNeverReplaysOnScrollBack() {
-        val registry = EntranceRegistry()
-        rule.mainClock.autoAdvance = false
-        theme {
-            ProvideEntranceScope(registry, "pulse-entry") {
-                LazyColumn(Modifier.fillMaxSize().testTag("list")) {
-                    items(40) { i ->
-                        StaggeredEntrance(index = i) {
-                            Box(Modifier.fillMaxWidth().height(120.dp).testTag("row$i").background(red))
-                        }
-                    }
-                }
-            }
-        }
-        rule.mainClock.advanceTimeByFrame()
-        assertNotEquals(red.toArgb(), rule.onNodeWithTag("row0").centre().toArgb())
-        rule.mainClock.advanceTimeBy(1_000)
-        assertEquals(red.toArgb(), rule.onNodeWithTag("row0").centre().toArgb())
-
-        // Scroll far away (row 0 leaves composition) and back: row 0 is complete on its first frame back, and a
-        // row first composed after the window (row 30) appears at once too.
-        rule.onNodeWithTag("list").performScrollToIndex(30)
-        rule.mainClock.advanceTimeByFrame()
-        assertEquals(red.toArgb(), rule.onNodeWithTag("row30").centre().toArgb())
-        rule.onNodeWithTag("row0").assertDoesNotExist()
-        rule.onNodeWithTag("list").performScrollToIndex(0)
-        rule.mainClock.advanceTimeByFrame()
-        assertEquals(red.toArgb(), rule.onNodeWithTag("row0").centre().toArgb())
     }
 
     @Test

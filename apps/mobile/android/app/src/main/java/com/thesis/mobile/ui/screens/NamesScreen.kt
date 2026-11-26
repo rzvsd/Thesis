@@ -507,6 +507,12 @@ fun filterNotes(groups: List<NotesGroup>, query: String): List<NotesGroup> {
 // =====================================================================================================================
 
 /** What the system file picker handed back (HoldingsCsvImport.kt reads the file off the main thread). */
+/**
+ * A remove the server refused ([ticker], upper case). [seq] grows with each failure, so the same ticker failing twice
+ * is still a new signal: the board brings the row back (it hid it optimistically while the undo snackbar showed).
+ */
+data class RemoveFailure(val ticker: String, val seq: Int)
+
 sealed interface CsvPick {
     data class Text(val csv: String) : CsvPick
     data object Unreadable : CsvPick
@@ -571,12 +577,16 @@ fun NamesScreen(
     onLoadNotes: () -> Unit = {},
     onOpenName: (ticker: String, pagerScope: String, bounds: Rect?) -> Unit = { ticker, _, _ -> onOpenResearch(ticker) },
     onOpenNotes: (ticker: String) -> Unit = { onOpenName(it, namesPagerScope(BoardFilter.All, BoardSort.State), null) },
+    /** The context sheet's Write a note: Name with the newest note's editor focused (the Notes view only reads). */
+    onWriteNote: (ticker: String) -> Unit = onOpenNotes,
     // Until WP-INT wires it: the Deep Dive request for the ticker returns the stored report (SPEC rule 1).
     onOpenReport: (reportId: String, ticker: String) -> Unit = { _, ticker -> onRunDeepDive(ticker) },
     onCompare: ((List<String>) -> Unit)? = null,
     onCompareWith: ((String) -> Unit)? = null,
     onExportNotes: (() -> Unit)? = null,
     onShowUndo: (suspend (message: String, action: String) -> Boolean)? = null,
+    /** The last remove that failed: its row comes back on the board. */
+    removeFailure: RemoveFailure? = null,
     initialSegment: Int = 0,
     /** One-shot from another screen (Home's empty "Add a name"): the Board shows with its add field focused. */
     focusAddField: Boolean = false,
@@ -669,9 +679,11 @@ fun NamesScreen(
                     onQueryTickers = onQueryTickers,
                     onOpenName = onOpenName,
                     onOpenNotes = onOpenNotes,
+                    onWriteNote = onWriteNote,
                     onCompare = onCompare,
                     onCompareWith = onCompareWith,
                     onShowUndo = onShowUndo,
+                    removeFailure = removeFailure,
                     focusAddField = focusAddField,
                     openImport = openImport,
                     onRequestHandled = onRequestHandled,
@@ -744,6 +756,12 @@ private fun HeaderWithActions(
     }
 }
 
+/**
+ * Lines a comfortable row's reason may take: enough for a whole server reason sentence at 360 dp and 2.0x, so it
+ * never ellipsizes in practice; only a runaway text is cut.
+ */
+private const val REASON_MAX_LINES = 6
+
 /** Mutable holder for the bounds a TickerRow reports just before its click (container transform, 4.5). */
 private class BoundsHolder {
     var bounds: Rect? = null
@@ -776,9 +794,11 @@ private fun Board(
     onQueryTickers: (String) -> Unit,
     onOpenName: (String, String, Rect?) -> Unit,
     onOpenNotes: (String) -> Unit,
+    onWriteNote: (String) -> Unit,
     onCompare: ((List<String>) -> Unit)?,
     onCompareWith: ((String) -> Unit)?,
     onShowUndo: (suspend (String, String) -> Boolean)?,
+    removeFailure: RemoveFailure? = null,
     focusAddField: Boolean = false,
     openImport: Boolean = false,
     onRequestHandled: () -> Unit = {},
@@ -826,6 +846,12 @@ private fun Board(
         removing.removeAll { it !in live }
         committed.retainAll(live)
         selected = selected.filter { it in live }
+    }
+    // A remove the server refused: the row comes back, and a later remove of the same name commits again.
+    LaunchedEffect(removeFailure) {
+        val failed = removeFailure?.ticker?.trim()?.uppercase() ?: return@LaunchedEffect
+        removing -= failed
+        committed -= failed
     }
 
     fun endSelection() {
@@ -1117,7 +1143,7 @@ private fun Board(
                     when (action) {
                         NameContextAction.OpenReport -> row.reportId?.let { onOpenReport(it, row.ticker) }
                         NameContextAction.BuildReport -> onRunDeepDive(row.ticker)
-                        NameContextAction.WriteNote -> onOpenNotes(row.ticker)
+                        NameContextAction.WriteNote -> onWriteNote(row.ticker)
                         NameContextAction.CompareWith -> onCompareWith?.invoke(row.ticker)
                         NameContextAction.WarRoom -> row.warRoomId?.let(onOpenWarRoom)
                         NameContextAction.Remove -> confirmRemove = row.ticker
@@ -1288,8 +1314,9 @@ private fun LazyListScope.boardBody(
                         onClick = { onOpen(row.ticker) },
                         company = row.company,
                         line2 = row.line2,
-                        // A reason is a sentence: two lines in the comfortable row rather than cut where its meaning is.
-                        line2MaxLines = if (compact) 1 else 2,
+                        // A reason is a sentence and the row's meaning: the comfortable row wraps it whole at any
+                        // width and font size (rubric A4); REASON_MAX_LINES only bounds an unexpectedly long text.
+                        line2MaxLines = if (compact) 1 else REASON_MAX_LINES,
                         figure = row.figure,
                         // Compact columns hold the change alone, so the Δ column keeps one width; a name without
                         // a report says so in its empty figure columns (compact rows have no line 2).

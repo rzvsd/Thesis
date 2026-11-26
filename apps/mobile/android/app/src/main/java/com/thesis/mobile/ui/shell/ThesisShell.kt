@@ -243,7 +243,9 @@ fun ThesisShell(
                 // second WebView here.
                 drawnBelow = { it.destination is Destination.Report },
                 composed = tabEntries,
-                moving = tabMoving
+                moving = tabMoving,
+                // A page opened from a list row grows from it (4.5 container transform).
+                originOf = { navigator.transformOrigin(it.entryId) }
             ) { entry ->
                 scope.EntryFrame(entry, inModal = false, bottomBarHeightPx = bottomBarHeightPx)
             }
@@ -586,7 +588,7 @@ private fun topBarBelowRoot(destination: Destination, state: UiState): ShellTopB
     // These screens draw their own ThesisTopBar (title, subtitle, actions); a shell bar would be a second one.
     is Destination.Pulse, is Destination.WeeklyDigest, Destination.MacroStress, is Destination.History,
     is Destination.WarRoom, is Destination.ScenarioStress, is Destination.CompareReports,
-    is Destination.CompareNames -> ShellTopBar.None
+    is Destination.CompareNames, is Destination.Name -> ShellTopBar.None
     is Destination.Report -> reportTopBar(destination.reportId, destination.ticker, state)
     is Destination.ReportClassic -> reportTopBar(destination.reportId, destination.ticker, state)
     else -> ShellTopBar.Back
@@ -607,7 +609,7 @@ internal fun titleOf(destination: Destination): String = when (destination) {
     is Destination.WarRoom -> ""
     // Scenario Stress carries its own "Scenario Stress" headline; the bar only goes back (rubric V3).
     is Destination.ScenarioStress -> ""
-    // The placeholder body carries the ticker as its headline; the bar only goes back (rubric V3).
+    // Name draws its own bar (back, company on scroll, pager, follow, overflow: one chrome row, 5.11 item 1).
     is Destination.Name -> ""
     is Destination.CompareReports -> "Compare reports"
     is Destination.CompareNames -> "Compare names"

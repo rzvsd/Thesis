@@ -16,7 +16,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.SaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -24,7 +26,9 @@ import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import com.thesis.mobile.ui.components.pageBackground
 import com.thesis.mobile.ui.motion.ThesisMotion
+import com.thesis.mobile.ui.motion.containerReveal
 import com.thesis.mobile.ui.theme.LocalThesisPalette
+import com.thesis.mobile.ui.theme.ThesisShape
 
 /*
  * The shell's animated layers (DESIGN-DIRECTION 4.5, 5.5): the report base layer, the tab layer and the modal
@@ -64,12 +68,20 @@ internal fun TabLayer(
     hidden: Boolean = false,
     composed: MutableList<NavEntry>? = null,
     moving: MutableList<String>? = null,
+    originOf: (NavEntry) -> Rect? = { null },
     content: @Composable (NavEntry) -> Unit,
 ) {
     AnimatedContent(
         targetState = target,
         modifier = modifier.fillMaxSize().hiddenFromAccessibility(hidden),
-        transitionSpec = { shellTransitionFor(move(), env.reducedMotion).toContentTransform(env.px) },
+        transitionSpec = {
+            tabTransitionFor(
+                move(),
+                env.reducedMotion,
+                pushedFromRow = originOf(targetState) != null,
+                poppedToRow = originOf(initialState) != null,
+            ).toContentTransform(env.px)
+        },
         contentKey = { it.entryId },
         label = "tab-layer"
     ) { entry ->
@@ -96,7 +108,67 @@ internal fun TabLayer(
                 transitionSpec = { if (scaleIn && targetState == EnterExitState.Visible) fadeThroughInSpec() else snapSpec() },
                 label = "tab-content-scale"
             ) { state -> if (state == EnterExitState.PreEnter && scaleIn) ThesisMotion.TabScaleFrom else 1f }
-            OpaqueEntry(entry, env, contentScale = { contentScale.value }) { content(entry) }
+            // Container transform (4.5): a page opened from a list row grows from the row's bounds over the list
+            // and shrinks back into them on the pop. Decided once per direction, from the move that brought it in
+            // and the one that takes it out, so a later shared-axis push over it never shrinks it.
+            val origin = originOf(entry)
+            val revealIn = remember { origin != null && !env.reducedMotion && move() == NavMove.Push }
+            val leaving = transition.targetState == EnterExitState.PostExit
+            val revealOut = remember(leaving) { leaving && origin != null && !env.reducedMotion && move() == NavMove.Pop }
+            val reveal = transition.animateFloat(
+                transitionSpec = {
+                    when {
+                        targetState == EnterExitState.Visible && revealIn ->
+                            motionSpec(ThesisMotion.Screen, easing = ThesisMotion.EaseStandard)
+                        targetState == EnterExitState.PostExit && revealOut ->
+                            motionSpec(ThesisMotion.ScreenOut, easing = ThesisMotion.EaseStandard)
+                        else -> snapSpec()
+                    }
+                },
+                label = "tab-container-reveal"
+            ) { state ->
+                when (state) {
+                    EnterExitState.PreEnter -> if (revealIn) 0f else 1f
+                    EnterExitState.Visible -> 1f
+                    EnterExitState.PostExit -> if (revealOut) 0f else 1f
+                }
+            }
+            val transforming = origin != null && (revealIn || revealOut)
+            var layerTopLeft by remember { mutableStateOf(Offset.Zero) }
+            val palette = LocalThesisPalette.current
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .onGloballyPositioned { layerTopLeft = it.positionInWindow() }
+                    .then(
+                        if (transforming && origin != null) {
+                            Modifier
+                                // The list recedes under the scrim while the page grows over it.
+                                .drawBehind { drawRect(palette.scrim, alpha = reveal.value) }
+                                .containerReveal(
+                                    from = origin.translate(-layerTopLeft.x, -layerTopLeft.y),
+                                    progress = { reveal.value },
+                                    back = { 0f },
+                                    cornerFrom = ThesisShape.CardRadius,
+                                    fromColor = palette.surface,
+                                    toColor = palette.bg,
+                                )
+                        } else {
+                            Modifier
+                        }
+                    )
+            ) {
+                OpaqueEntry(
+                    entry, env,
+                    // The page's content arrives over the last 70% of the reveal (and leaves over its first 30%).
+                    contentAlpha = if (transforming) {
+                        { ((reveal.value - ThesisMotion.TransformContentFrom) / (1f - ThesisMotion.TransformContentFrom)).coerceIn(0f, 1f) }
+                    } else {
+                        { 1f }
+                    },
+                    contentScale = { contentScale.value }
+                ) { content(entry) }
+            }
         }
     }
 }

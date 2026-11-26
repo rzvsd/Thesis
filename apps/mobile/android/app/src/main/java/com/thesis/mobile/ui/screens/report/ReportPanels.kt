@@ -1,10 +1,5 @@
 package com.thesis.mobile.ui.screens.report
 
-import com.thesis.mobile.ui.screens.DeepDiveConvictionSection
-import com.thesis.mobile.model.OppositeCaseReportView
-import com.thesis.mobile.model.ConvictionJournalEntryView
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -20,10 +15,13 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.Icon
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -36,14 +34,16 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.layout
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import com.thesis.mobile.model.ConvictionJournalEntryView
 import com.thesis.mobile.model.NoteTrailEntry
+import com.thesis.mobile.model.OppositeCaseReportView
 import com.thesis.mobile.model.ReportHistoryItem
 import com.thesis.mobile.ui.components.ArcSpinner
 import com.thesis.mobile.ui.components.ChipRow
@@ -60,6 +60,7 @@ import com.thesis.mobile.ui.components.ThesisCheckbox
 import com.thesis.mobile.ui.components.ThesisChip
 import com.thesis.mobile.ui.components.ThesisDivider
 import com.thesis.mobile.ui.components.ThesisIconButton
+import com.thesis.mobile.ui.components.ThesisSheet
 import com.thesis.mobile.ui.components.ThesisTextField
 import com.thesis.mobile.ui.copy.ReportCopy
 import com.thesis.mobile.ui.format.LocalFmt
@@ -67,6 +68,7 @@ import com.thesis.mobile.ui.icons.ThesisIcons
 import com.thesis.mobile.ui.motion.ThesisMotion
 import com.thesis.mobile.ui.motion.thesisPress
 import com.thesis.mobile.ui.parseInstantMs
+import com.thesis.mobile.ui.screens.DeepDiveConvictionSection
 import com.thesis.mobile.ui.theme.LocalReducedMotion
 import com.thesis.mobile.ui.theme.LocalThesisPalette
 import com.thesis.mobile.ui.theme.ThesisSpace
@@ -207,33 +209,66 @@ private fun CompareStepHead(title: String, backLabel: String, onBack: () -> Unit
 /** How far the back glyph's 48 dp target reaches past the glyph: the head shifts left by it. */
 private val BackGlyphInset = (ThesisSpace.touchMin - ThesisSpace.iconL) / 2
 
+/**
+ * The names picker. With a subject [ticker] (the report dock, Name's "Compare with…"): up to
+ * [MAX_COMPARE_OTHERS] of [otherNames] beside it. With none (Research > Tools > Compare names): 2 to
+ * [MAX_COMPARE_OTHERS] + 1 of [otherNames]. [onBack] shows the step head (the dock's Compare steps); null when a
+ * sheet of its own titles it ([CompareNamesPickerSheet]).
+ */
 @Composable
-private fun NamesPicker(ticker: String, otherNames: List<String>, onBack: () -> Unit, onCompare: (List<String>) -> Unit) {
+internal fun NamesPicker(ticker: String?, otherNames: List<String>, onBack: (() -> Unit)?, onCompare: (List<String>) -> Unit) {
     val p = LocalThesisPalette.current
     var picked by rememberSaveable(ticker) { mutableStateOf(listOf<String>()) }
+    val maxPicks = if (ticker != null) MAX_COMPARE_OTHERS else MAX_COMPARE_OTHERS + 1
+    val minPicks = if (ticker != null) 1 else 2
     Column(verticalArrangement = Arrangement.spacedBy(ThesisSpace.s)) {
-        CompareStepHead(ReportCopy.pickNamesTitle(ticker), ReportCopy.compareBack(ticker), onBack)
-        if (otherNames.isEmpty()) {
+        if (onBack != null && ticker != null) CompareStepHead(ReportCopy.pickNamesTitle(ticker), ReportCopy.compareBack(ticker), onBack)
+        if (ticker != null && otherNames.isEmpty()) {
             Text(ReportCopy.noOtherNames(ticker), style = ThesisType.body, color = p.ink2)
             return@Column
         }
-        Text(ReportCopy.PICK_NAMES_HOW, style = ThesisType.caption, color = p.muted)
+        Text(if (ticker != null) ReportCopy.PICK_NAMES_HOW else ReportCopy.PICK_NAMES_ANY_HOW, style = ThesisType.caption, color = p.muted)
         Column {
             otherNames.forEach { name ->
                 val checked = name in picked
-                val full = picked.size >= MAX_COMPARE_OTHERS && !checked
+                val full = picked.size >= maxPicks && !checked
                 PickRow(name, checked, enabled = !full) { on ->
                     picked = if (on) picked + name else picked - name
                 }
             }
         }
         Spacer(Modifier.size(ThesisSpace.xs))
+        val count = picked.size + (if (ticker != null) 1 else 0)
         PrimaryButton(
-            text = if (picked.isEmpty()) ReportCopy.PICK_A_NAME else ReportCopy.compareNamesAction(picked.size + 1),
-            onClick = { onCompare(listOf(ticker) + picked) },
+            text = when {
+                picked.size >= minPicks -> ReportCopy.compareNamesAction(count)
+                ticker != null -> ReportCopy.PICK_A_NAME
+                else -> ReportCopy.PICK_TWO_NAMES
+            },
+            onClick = { onCompare(listOfNotNull(ticker) + picked) },
             modifier = Modifier.fillMaxWidth(),
-            enabled = picked.isNotEmpty(),
+            enabled = picked.size >= minPicks,
         )
+    }
+}
+
+/**
+ * The names picker in a sheet of its own (Name's and the Names board's "Compare with…", Research > Tools > Compare
+ * names), the same picker the report dock's Compare step shows.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun CompareNamesPickerSheet(
+    ticker: String?,
+    otherNames: List<String>,
+    onDismiss: () -> Unit,
+    onCompare: (List<String>) -> Unit,
+) {
+    ThesisSheet(
+        onDismissRequest = onDismiss,
+        title = if (ticker != null) ReportCopy.pickNamesTitle(ticker) else ReportCopy.PICK_NAMES_ANY_TITLE,
+    ) {
+        NamesPicker(ticker, otherNames, onBack = null, onCompare = onCompare)
     }
 }
 

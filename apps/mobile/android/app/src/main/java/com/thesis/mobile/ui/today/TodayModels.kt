@@ -8,6 +8,7 @@ import com.thesis.mobile.model.SnapshotDelta
 import com.thesis.mobile.model.ThesisMonitorSnapshotView
 import com.thesis.mobile.ui.copy.TodayCopy
 import com.thesis.mobile.ui.format.Fmt
+import com.thesis.mobile.ui.screens.InboxModels
 import com.thesis.mobile.ui.theme.Tone
 import com.thesis.mobile.ui.theme.macroStressDeltaTone
 import com.thesis.mobile.ui.theme.macroStressLabel
@@ -359,7 +360,9 @@ object DigestBuilder {
 
         val weekAlerts = alerts.filter { inWeek(parseInstant(it.createdAt)) }
         val byCategory = weekAlerts
-            .groupBy { it.category.trim().lowercase() }
+            // The Inbox's own key (spaces and hyphens to `_`, drift to thesis_drift, other to system), so a row's
+            // category filters the Inbox it opens.
+            .groupBy(InboxModels::categoryKey)
             .map { (k, v) -> CategoryCount(k, TodayCopy.categoryName(k), v.size) }
             .sortedWith(compareByDescending<CategoryCount> { it.count }.thenBy { it.label })
 

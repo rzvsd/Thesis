@@ -76,7 +76,6 @@ dependencies {
     implementation("org.jetbrains.compose.foundation:foundation-desktop:$composeMpVersion")
     implementation("org.jetbrains.compose.material:material-desktop:$composeMpVersion")
     implementation("org.jetbrains.compose.material3:material3-desktop:$composeMpVersion")
-    implementation("org.jetbrains.compose.material:material-icons-extended-desktop:$composeMpVersion")
     implementation("org.jetbrains.compose.animation:animation-desktop:$composeMpVersion")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.1")
     implementation("org.json:json:20240303") // org.json ships inside the Android framework

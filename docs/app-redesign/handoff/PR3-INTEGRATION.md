@@ -72,9 +72,14 @@ These files are not compiled by the harness. They were written against Compose 1
 
 ## Deferred (not in this PR)
 
-- **Name, "since-last-report" anchor (HANDOFF-F 6):** the destination carries the anchor, but Name has no scroll target for it yet, so it opens at the top.
-- **Name toolbar (HANDOFF-B 15):** it does not move into the shell bar.
-- **`onCompareWith`:** left null on Name and Names until a compare picker exists.
+- **Container transform into a report (4.5):** list rows that open a *report* (History rows, Research's recent
+  reports) keep the shared-axis push. The report WebView lives in the report base layer, under the tab layer, so a
+  page cannot grow from a row over the list there without reordering the layers; that is shell work for PR-4. Rows
+  that open Name (Names, Home) grow from the row (see "Review round 1").
+- **A note search hit's exact entry:** Name opens scrolled to "Your notes", not to the matched entry: the kit
+  `NotesTrail` exposes no per-entry positions (WP-K request: an entry key to bring into view).
+- **Compare reports, a change's chapter (5.25):** a tapped change opens the newer report at its top. The change
+  summary items (`DeepDiveTopChangeView`) carry no chapter, so there is nothing to pass to `Destination.Report`.
 - **Compare names, per-ticker errors (HANDOFF-E):** not added.
 - **`MonthlyCoherenceSection` (HANDOFF-G 11):** kept, because renders still use it.
 - **You page clock (HANDOFF-G 19):** the shell has no clock to pass yet.
@@ -103,7 +108,64 @@ These files are not compiled by the harness. They were written against Compose 1
 - `tools/design-lint.sh`: 0 findings, baseline 0 rows.
 - `tools/gold-share.py`: 758 renders, max 7.50%, none at or above 8%.
 
-## Notes for the review sweep
+## Review round 1
 
-- Names' comfortable rows now give a reason two lines; at 360 dp and at 1.3x a long reason can still ellipsize after
-  the second line (`names-loaded-360`, `names-loaded-font130`). The kit adds a third line only above 1.3x.
+Fixes to the PR-3 review findings, in the integrator's files and, where a finding needed it, the screens and kit.
+
+- **Watchlist remove failure (blocker).** `UiState.watchlistRemoveFailure` (a ticker and a sequence number) is
+  published when a remove fails, also behind the feature flag; Names drops the ticker from its collapse and commit
+  sets, so the row comes back. The `toList()` re-publish is gone.
+- **First-load failures.** `watchlistLoadError` and `historyLoadError` are set in the loads' `onError` and cleared on
+  success and logout; Names and History get them as `error`, so a failed first load ends on the failed state with
+  Try again instead of an endless skeleton.
+- **Inbox category from the weekly digest.** The Inbox applies `categoryRequest` in an effect and keeps the
+  selection when the one-shot request is cleared (no `key` on it); the digest groups by `InboxModels.categoryKey`.
+  Semantics test: the chip stays selected after the request is cleared.
+- **Name after a restore.** `refreshHeldNameDetail()` rebuilds the held `nameDetail` when snapshots, history or
+  alerts arrive, and refetches the summary when the new data names a report the first look did not find.
+- **Compare names.** `ReportSummaryView.valueDiscipline` is cached with the summary and passed to the screen; with
+  no score in any column the Discipline row is left out of the table and the TSV (render
+  `research-compare-names-no-discipline` shows that production shape). Each ticker's report falls back
+  to the open report and then the newest Deep Dive in the history (`compareNamesReportId`, unit-tested), so an
+  unfollowed subject is no longer "No report yet". An "Open a name" line of ticker links opens Name.
+- **Compare with.** The report dock's names picker is shared (`CompareNamesPickerSheet`): Name's overflow and the
+  Names context sheet open it seeded with the ticker; Research > Tools opens it when more than four names are
+  followed (up to four line up at once).
+- **Name has one chrome row.** Name draws its own `ThesisTopBar` (back, the company name once the header scrolls
+  away, the ticker under it, then the pager caption and arrows, follow and overflow); the shell gives it no bar
+  (HANDOFF-B 15). The Monitor score tile carries the subject `Meter` (0 to 100) through a new `KpiSpec.meter`.
+- **Name anchors.** `ANCHOR_NOTES` (Notes view, note search hits) scrolls to "Your notes" without focusing the
+  editor; the new `ANCHOR_WRITE_NOTE` (the board's Write a note) focuses it; `ANCHOR_CHANGES` (drift alerts)
+  scrolls to "Since the last report".
+- **Container transform (4.5) for rows that open Name.** `AppNavigator.pushFrom(origin)` records the tapped row's
+  bounds for the entry it pushes; the tab layer grows that page from the row over the list (300 ms) and shrinks it
+  back on the pop (240 ms), with the list under the scrim (`ShellTransition.ContainerIn` / `ContainerOut`; reduced
+  motion keeps the crossfade). Names and Home rows pass their bounds. Test: `ShellLayersTest`.
+- **Names reasons wrap.** Comfortable rows let the reason wrap whole (`REASON_MAX_LINES`, a runaway bound only).
+- **Dead legacy components deleted:** `SignalBadge`, `SectionAccordion`, `ConfidenceRing`, `EvidenceDots` and
+  `ui/animations/StaggeredEntrance` (its MotionBehaviourTest case goes). With the last `Icons.*` call gone,
+  `material-icons-extended` leaves `app/build.gradle.kts` (and the harness).
+- **Smaller fixes.** The classic Deep Dive exports through `renderReportPdf` / `renderShareCard` off the main thread;
+  Inbox rows drop the ticker the row's line 1 already shows (`InboxCopy.rowTitle`, unit-tested); Search re-issues a
+  query restored after process death; an invalid API URL on Auth shows in its status line; a restored Paywall's
+  purchases log its feature; the SessionStore KDoc is back on `clearVisitMarkers`; Research's Continue reading
+  resumes a past Pulse issue too; unfollowing from Name or the report bar says "Removed X from Names"; Home's
+  headline says "changed state"; the what-if copy no longer says "rerun".
+
+Kept as they are, with reasons:
+
+- **Compare reports opens a change at its chapter.** `DeepDiveTopChangeView` has no chapter, so a change opens the
+  report at the top (listed under Deferred).
+- **A note search hit opens its exact entry.** `NotesTrail` has no entry positions; the hit scrolls to "Your notes"
+  (WP-K request, listed under Deferred).
+- **Container transform into a report.** The report WebView lives in the base layer under the tab layer, so the
+  grow-from-row is done for Name only; reports keep the push (PR-4).
+
+### Verification after review round 1
+
+- `design-preview` compile (main + test): clean.
+- App unit tests (`-PappTestsOnly test`): 461 tests, 0 failures (new: `CompareNamesReportIdTest`,
+  `InboxRowTitleTest`, the Discipline-row case in `CompareModelTest`).
+- Renders, semantics and harness tests (`-PrendersOnly test`): 675 tests, 0 failures; 1,042 renders, dark and light.
+- `tools/design-lint.sh`: 0 findings in 91 files, baseline 0 rows.
+- `tools/gold-share.py`: 760 renders, max 7.50%, none at or above 8%.

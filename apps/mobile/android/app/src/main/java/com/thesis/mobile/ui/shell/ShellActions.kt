@@ -143,6 +143,12 @@ interface ShellActions {
     fun onAddName(ticker: String) {}
     fun onRemoveName(ticker: String) {}
 
+    /**
+     * Unfollow from outside Names (Name's follow toggle, the report bar): like [onRemoveName], and the snackbar
+     * says it once the server has the new list (Names shows its own snackbar with Undo instead).
+     */
+    fun onUnfollowName(ticker: String) { onRemoveName(ticker) }
+
     /** Server ticker suggestions for a typed query (Names' add field, the Research field). */
     fun onSearchTickers(query: String) {}
 

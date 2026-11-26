@@ -274,7 +274,8 @@ class CompareModelTest {
         assertEquals(listOf(ResearchCopy.METRIC, "AAPL", "MSFT", "NVDA", ResearchCopy.MEDIAN), lines[0].split("\t"))
         assertEquals(listOf(ResearchCopy.PERIOD, "FY2025", "FY2025", ResearchCopy.NO_REPORT_YET, ""), lines[1].split("\t"))
         assertTrue(lines[2].startsWith(ResearchCopy.FILING + "\t" + ResearchCopy.FORM_10K))
-        assertEquals(3 + NameMetric.entries.size, lines.size)
+        // No column has a value-discipline score here, so that row is left out (shownMetrics).
+        assertEquals(3 + NameMetric.entries.size - 1, lines.size)
         lines.forEach { assertEquals(5, it.split("\t").size) }
         // Plain numbers a spreadsheet reads as numbers, the unit in the label; no report or no figure: empty.
         val revenue = lines.first { it.startsWith(metricTsvLabel(NameMetric.Revenue) + "\t") }.split("\t")
@@ -387,6 +388,16 @@ class CompareModelTest {
         val cols = compareNameColumns(state, mapOf("AAPL" to discipline(3, 6), "MSFT" to discipline(4, 5)))
         val row = compareNamesTable(cols).rows.first { it.label == ResearchCopy.ROW_DISCIPLINE }
         assertEquals(Fmt.pct((0.5 + 0.8) / 2 * 100.0, dp = 0), row.delta)
+        assertEquals(NameMetric.entries, shownMetrics(cols))
+    }
+
+    @Test
+    fun theDisciplineRowIsLeftOutWhenNoColumnHasAScore() {
+        // The shipped shape before a summary carries its report's score: never a row of "Not computed".
+        val cols = compareNameColumns(state, emptyMap())
+        assertFalse(NameMetric.Discipline in shownMetrics(cols))
+        assertTrue(compareNamesTable(cols).rows.none { it.label == ResearchCopy.ROW_DISCIPLINE })
+        assertFalse(compareNamesTsv(cols, fmt, zone).contains(ResearchCopy.ROW_DISCIPLINE_SIGNALS))
     }
 
     @Test
