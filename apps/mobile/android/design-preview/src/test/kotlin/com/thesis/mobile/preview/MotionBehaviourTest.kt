@@ -644,9 +644,7 @@ class MotionBehaviourTest {
                 HomeScreen(
                     pulse = pulse, pulseLoadedFromCache = false, pulseFreshnessText = null, sentimentCurrent = null,
                     sentimentHistory = emptyList(), sentimentError = null, watchlist = listOf("AAPL", "MSFT"),
-                    monitorSnapshots = emptyList(), padding = PaddingValues(), onOpenHistory = {},
-                    onRunDeepDive = {}, onManageNames = {}, onRetryPulse = {}, onOpenMacroStressDashboard = {},
-                    onOpenWeeklyDigest = {}, onOpenPulseBrief = {},
+                    monitorSnapshots = emptyList(), padding = PaddingValues(), onManageNames = {}, onRetryPulse = {}, onOpenMacroStressDashboard = {}, onOpenPulseBrief = {},
                 )
                 }
             }

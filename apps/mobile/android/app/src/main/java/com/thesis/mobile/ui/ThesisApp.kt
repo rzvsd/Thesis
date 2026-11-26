@@ -11,10 +11,7 @@ import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.safeDrawing
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.runtime.Composable
@@ -45,7 +42,6 @@ import com.thesis.mobile.ui.motion.ThesisMotion
 import com.thesis.mobile.ui.platform.ThesisBackHandler
 import com.thesis.mobile.ui.screens.AuthScreen
 import com.thesis.mobile.ui.screens.DeleteAccountSection
-import com.thesis.mobile.ui.screens.MacroStressDashboardScreen
 import com.thesis.mobile.ui.screens.OnboardingScreen
 import com.thesis.mobile.ui.screens.PasswordResetScreen
 import com.thesis.mobile.ui.screens.SampleDeepDiveScreen
@@ -164,10 +160,10 @@ fun ThesisApp(
                         label = "surface"
                     ) { current ->
                         when (current) {
+                            // Onboarding, Auth and Password reset own their insets (the HeroBand runs under the
+                            // status bar, 2.7; the form keeps clear of the navigation bar and the keyboard).
                             AppSurface.Onboarding -> SurfaceChrome(SURFACE_ONBOARDING, surfaceChromes) {
-                                PreLoginInsets {
-                                    OnboardingScreen(onComplete = mainViewModel::completeWelcome)
-                                }
+                                OnboardingScreen(onComplete = mainViewModel::completeWelcome)
                             }
                             AppSurface.SignIn -> SignInFlow(
                                 showPasswordReset = showPasswordReset,
@@ -212,29 +208,27 @@ private fun SignInFlow(
     ) { reset ->
         if (reset) {
             SurfaceChrome(SURFACE_PASSWORD_RESET, surfaceChromes) {
-                PreLoginInsets {
-                    // Only the visible Password reset handles back (not one that is leaving).
-                    ThesisBackHandler(enabled = showPasswordReset) { onShowPasswordReset(false) }
-                    PasswordResetScreen(onDone = { onShowPasswordReset(false) }, mainViewModel = mainViewModel)
-                }
+                // Only the visible Password reset handles back (not one that is leaving).
+                ThesisBackHandler(enabled = showPasswordReset) { onShowPasswordReset(false) }
+                PasswordResetScreen(onDone = { onShowPasswordReset(false) }, mainViewModel = mainViewModel)
             }
         } else {
             SurfaceChrome(SURFACE_AUTH, surfaceChromes) {
-                PreLoginInsets {
-                    AuthScreen(
-                        isLoading = uiState.authBusy,
-                        currentApiBaseUrl = uiState.apiBaseUrl,
-                        verificationToken = uiState.verificationToken,
-                        registerStatus = uiState.registerStatus,
-                        message = uiState.message,
-                        onSaveApiBaseUrl = mainViewModel::updateApiBaseUrl,
-                        onRegister = mainViewModel::register,
-                        onVerify = mainViewModel::verify,
-                        onLogin = mainViewModel::login,
-                        onForgotPassword = { onShowPasswordReset(true) },
-                        showDeveloperOptions = BuildConfig.DEBUG
-                    )
-                }
+                AuthScreen(
+                    isLoading = uiState.authBusy,
+                    currentApiBaseUrl = uiState.apiBaseUrl,
+                    verificationToken = uiState.verificationToken,
+                    registerStatus = uiState.registerStatus,
+                    message = uiState.message,
+                    onSaveApiBaseUrl = mainViewModel::updateApiBaseUrl,
+                    onRegister = mainViewModel::register,
+                    onVerify = mainViewModel::verify,
+                    onLogin = mainViewModel::login,
+                    onForgotPassword = { onShowPasswordReset(true) },
+                    showDeveloperOptions = BuildConfig.DEBUG,
+                    // The ViewModel's typed result (5.3), never a guess from the message's words.
+                    status = uiState.authStatus
+                )
             }
         }
     }
@@ -256,19 +250,6 @@ private fun SurfaceChrome(key: String, chromes: MutableMap<String, ScreenChrome>
         onDispose { if (chromes[key] === chrome) chromes.remove(key) }
     }
     CompositionLocalProvider(LocalScreenChrome provides chrome, content = content)
-}
-
-/**
- * Onboarding, Auth and Password reset draw outside the shell. Under `enableEdgeToEdge()` the window no longer
- * resizes for the keyboard (API 30+), so these surfaces keep clear of the status bar, the navigation bar, the
- * display cutout and the IME themselves (`safeDrawing` includes the IME): the Log in button and the lower fields
- * rise above the keyboard, and Onboarding's bottom CTA clears a 48 dp 3-button navigation bar.
- */
-@Composable
-private fun PreLoginInsets(content: @Composable () -> Unit) {
-    Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
-        content()
-    }
 }
 
 @Composable
@@ -298,16 +279,7 @@ private fun LoggedInApp(
         sampleDeepDive = { padding, onFollowName, onDismiss ->
             SampleDeepDiveScreen(padding = padding, onFollowName = onFollowName, onDismiss = onDismiss)
         },
-        macroStressDashboard = { onBack ->
-            MacroStressDashboardScreen(
-                current = uiState.sentimentCurrent,
-                history = uiState.sentimentHistory,
-                selectedRangeDays = uiState.sentimentRangeDays,
-                sentimentError = uiState.sentimentError,
-                onSelectRange = mainViewModel::onSelectMacroRange,
-                onBack = onBack
-            )
-        },
+        shareText = { fileName, text -> shareText(context, fileName, text) },
         deleteAccountSection = { DeleteAccountSection(mainViewModel) },
         isResumed = rememberIsResumed(),
         backScope = { covered, content -> CoveredBackScope(covered, content) },
@@ -361,3 +333,19 @@ private fun CoveredBackScope(covered: Boolean, content: @Composable () -> Unit) 
     }
 }
 
+/**
+ * Hands [text] to the system share sheet as a plain-text document named [fileName] (the notes export, 5.22; a note
+ * from Name). The chooser lets the person save it to Files or send it on.
+ */
+private fun shareText(context: Context, fileName: String, text: String) {
+    val send = Intent(Intent.ACTION_SEND).apply {
+        type = "text/plain"
+        putExtra(Intent.EXTRA_SUBJECT, fileName)
+        putExtra(Intent.EXTRA_TITLE, fileName)
+        putExtra(Intent.EXTRA_TEXT, text)
+    }
+    val chooser = Intent.createChooser(send, fileName).apply {
+        if (context !is Activity) addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    }
+    runCatching { context.startActivity(chooser) }
+}

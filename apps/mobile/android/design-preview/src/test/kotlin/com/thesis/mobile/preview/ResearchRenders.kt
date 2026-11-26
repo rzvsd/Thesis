@@ -216,8 +216,7 @@ class ResearchRenders {
             isLoadingTemplates = loadingTemplates,
             isRunning = running,
             watchlistCount = names,
-            onRefreshTemplates = {}, onSelectTemplate = {}, onRunScenario = {}, onOpenTickerResearch = {},
-            onOpenRunFromRoute = { _, _ -> }, onRequireUpgrade = {},
+            onRefreshTemplates = {}, onSelectTemplate = {}, onRunScenario = {}, onRequireUpgrade = {},
             onBack = {}, onOpenName = {},
             zone = F.zone,
         )

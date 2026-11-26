@@ -24,12 +24,9 @@ class SampleScreensTest {
                 watchlist = listOf("AAPL", "MSFT", "NVDA"),
                 monitorSnapshots = emptyList(),
                 padding = PaddingValues(),
-                onOpenHistory = {},
-                onRunDeepDive = {},
                 onManageNames = {},
                 onRetryPulse = {},
                 onOpenMacroStressDashboard = {},
-                onOpenWeeklyDigest = {},
                 onOpenPulseBrief = {},
             )
         }

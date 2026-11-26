@@ -61,15 +61,17 @@ class ShellTopBarTest {
     }
 
     @Test
-    fun eachRootBarShowsOnlyItsOwnTabsRefresh() {
-        assertTrue(rootRefreshing(Destination.Today, idle.copy(isPulseRefreshing = true)))
-        assertTrue(rootRefreshing(Destination.Today, idle.copy(isMacroRefreshing = true)))
-        assertTrue(rootRefreshing(Destination.Names, idle.copy(isBoardRefreshing = true)))
+    fun onlyResearchsRootBarDrawsARefreshLine() {
+        // Research has no refresh line of its own; the bar draws it over its bottom edge.
         assertTrue(rootRefreshing(Destination.Research, idle.copy(isHistoryLoading = true)))
-        assertTrue(rootRefreshing(Destination.Inbox, idle.copy(isInboxRefreshing = true)))
-        assertFalse(rootRefreshing(Destination.Inbox, idle.copy(isBoardRefreshing = true)))
-        assertFalse(rootRefreshing(Destination.Names, idle))
-        // Pushed screens have no root bar; their own refresh signals land with their screens in PR-3.
+        assertFalse(rootRefreshing(Destination.Research, idle))
+        // Today, Names and Inbox draw their own (ScreenHeader hairline or pull line): a second one in the bar would be
+        // two infinite animations at once (4.3.10).
+        assertFalse(rootRefreshing(Destination.Today, idle.copy(isPulseRefreshing = true)))
+        assertFalse(rootRefreshing(Destination.Today, idle.copy(isMacroRefreshing = true)))
+        assertFalse(rootRefreshing(Destination.Names, idle.copy(isBoardRefreshing = true)))
+        assertFalse(rootRefreshing(Destination.Inbox, idle.copy(isInboxRefreshing = true)))
+        // Pushed screens have no root bar.
         assertFalse(rootRefreshing(Destination.Pulse(), idle.copy(isPulseRefreshing = true)))
     }
 }

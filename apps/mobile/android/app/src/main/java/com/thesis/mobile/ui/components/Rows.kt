@@ -328,18 +328,22 @@ fun ToggleRow(
  * above 1.3x both densities move the figure block under the text and let line 2 wrap to two lines. Divider insets:
  * [LeadingRowDividerInset] for comfortable rows, [CompactRowDividerInset] for compact ones.
  * Press: tint only (inside a RowGroup). [onLongClick] opens the context sheet with the `longPress()` haptic.
+ * [onClick] null makes the row non-interactive (no role, no press, no long press; one merged description).
  * [onBoundsCaptured] receives the row's window bounds just before [onClick] (container transform).
  * [stateLabel] ("Intact") is what TalkBack says for the square.
+ * [line2MaxLines] caps line 2 in the comfortable layout (default 1; a reason sentence passes 2). Above 1.3x the
+ * row allows one more line. The company name keeps [Kit.tickerCompanyMin] or is dropped when less is left.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun TickerRow(
     ticker: String,
     stateTone: Tone,
-    onClick: () -> Unit,
+    onClick: (() -> Unit)?,
     modifier: Modifier = Modifier,
     company: String? = null,
     line2: String? = null,
+    line2MaxLines: Int = 1,
     figure: String? = null,
     figureCaption: String? = null,
     figureCaptionTone: Tone = Tone.Neutral,
@@ -358,23 +362,30 @@ fun TickerRow(
     val container = modifier
         .fillMaxWidth()
         .then(if (onBoundsCaptured != null) Modifier.onGloballyPositioned { bounds = it.boundsInWindow() } else Modifier)
-        .combinedClickable(
-            interactionSource = interactionSource,
-            indication = null,
-            role = Role.Button,
-            onLongClick = onLongClick?.let {
-                {
-                    haptics.longPress()
-                    it()
-                }
-            },
-            onClick = {
-                onBoundsCaptured?.invoke(bounds)
-                onClick()
+        .then(
+            if (onClick == null) {
+                Modifier
+            } else {
+                Modifier
+                    .combinedClickable(
+                        interactionSource = interactionSource,
+                        indication = null,
+                        role = Role.Button,
+                        onLongClick = onLongClick?.let {
+                            {
+                                haptics.longPress()
+                                it()
+                            }
+                        },
+                        onClick = {
+                            onBoundsCaptured?.invoke(bounds)
+                            onClick()
+                        },
+                    )
+                    .thesisPress(interactionSource)
             },
         )
         .semantics(mergeDescendants = true) { if (stateLabel != null) stateDescription = stateLabel }
-        .thesisPress(interactionSource)
 
     val leading: @Composable () -> Unit = {
         Box(Modifier.width(ThesisSpace.leadingColumn), contentAlignment = Alignment.CenterStart) {
@@ -452,7 +463,7 @@ fun TickerRow(
                 if (company != null) {
                     Text(
                         company,
-                        modifier = Modifier.weight(1f, fill = false),
+                        modifier = Modifier.weight(1f, fill = false).dropBelow(Kit.tickerCompanyMin),
                         style = ThesisType.bodySmall,
                         color = p.muted,
                         maxLines = 1,
@@ -467,7 +478,7 @@ fun TickerRow(
                     line2,
                     style = ThesisType.bodySmall,
                     color = p.ink2,
-                    maxLines = if (large) 2 else 1,
+                    maxLines = if (large) line2MaxLines.coerceAtLeast(1) + 1 else line2MaxLines.coerceAtLeast(1),
                     overflow = TextOverflow.Ellipsis,
                 )
             }
@@ -498,6 +509,16 @@ fun TickerRow(
                 }
             }
         }
+    }
+}
+
+/** Lays the element out normally when at least [min] is offered, and as nothing (unplaced, 0 x 0) when less is. */
+private fun Modifier.dropBelow(min: Dp): Modifier = layout { measurable, constraints ->
+    if (constraints.maxWidth < min.roundToPx()) {
+        layout(0, 0) {}
+    } else {
+        val placeable = measurable.measure(constraints)
+        layout(placeable.width, placeable.height) { placeable.place(0, 0) }
     }
 }
 

@@ -578,10 +578,20 @@ fun NamesScreen(
     onExportNotes: (() -> Unit)? = null,
     onShowUndo: (suspend (message: String, action: String) -> Boolean)? = null,
     initialSegment: Int = 0,
+    /** One-shot from another screen (Home's empty "Add a name"): the Board shows with its add field focused. */
+    focusAddField: Boolean = false,
+    /** One-shot from another screen (You > Portfolio): the Board shows with the holdings CSV import open. */
+    openImport: Boolean = false,
+    /** Called once [focusAddField] or [openImport] has been acted on, so the caller clears it. */
+    onRequestHandled: () -> Unit = {},
 ) {
     val fmt = LocalFmt.current
     val reduced = LocalReducedMotion.current
     var segment by rememberSaveable { mutableStateOf(initialSegment.coerceIn(0, 1)) }
+    // A request from another screen always lands on the Board, where the field and the import live.
+    LaunchedEffect(focusAddField, openImport) {
+        if (focusAddField || openImport) segment = 0
+    }
     // Each segment keeps its saveable state (filter, sort, scroll position, typed text, compare selection) while the
     // other one shows, so a glance at Notes never resets the board (principle 8).
     val segmentStates = rememberSaveableStateHolder()
@@ -662,6 +672,9 @@ fun NamesScreen(
                     onCompare = onCompare,
                     onCompareWith = onCompareWith,
                     onShowUndo = onShowUndo,
+                    focusAddField = focusAddField,
+                    openImport = openImport,
+                    onRequestHandled = onRequestHandled,
                 )
             } else {
                 NotesView(
@@ -766,6 +779,9 @@ private fun Board(
     onCompare: ((List<String>) -> Unit)?,
     onCompareWith: ((String) -> Unit)?,
     onShowUndo: (suspend (String, String) -> Boolean)?,
+    focusAddField: Boolean = false,
+    openImport: Boolean = false,
+    onRequestHandled: () -> Unit = {},
 ) {
     val haptics = rememberHaptics()
     val scope = rememberCoroutineScope()
@@ -784,6 +800,14 @@ private fun Board(
     var confirmRemove by rememberSaveable { mutableStateOf(seed.confirmRemove) }
     var openSheet by rememberSaveable { mutableStateOf(seed.sheet) }
     var importOpen by rememberSaveable { mutableStateOf(seed.importState != null) }
+    LaunchedEffect(openImport) {
+        if (openImport) {
+            // An import still running keeps its progress when the panel opens (as from the overflow sheet).
+            if (importState !is CsvImportState.Importing) onImportState(CsvImportState.Idle)
+            importOpen = true
+            onRequestHandled()
+        }
+    }
     var importDetent by remember { mutableStateOf(DockDetent.Half) }
     // A fifth compare pick is refused; the selection caption then says why (and TalkBack reads it).
     var compareLimit by remember { mutableStateOf(false) }
@@ -956,8 +980,9 @@ private fun Board(
                         )
                         // Empty board (5.10): the field is focused, so the first thing to do is type a ticker. Run
                         // from the field's own item, so the requester is attached when it asks.
-                        LaunchedEffect(emptyAndLoaded) {
-                            if (emptyAndLoaded) runCatching { fieldFocus.requestFocus() }
+                        LaunchedEffect(emptyAndLoaded, focusAddField) {
+                            if (emptyAndLoaded || focusAddField) runCatching { fieldFocus.requestFocus() }
+                            if (focusAddField) onRequestHandled()
                         }
                     }
                 }
@@ -1263,6 +1288,8 @@ private fun LazyListScope.boardBody(
                         onClick = { onOpen(row.ticker) },
                         company = row.company,
                         line2 = row.line2,
+                        // A reason is a sentence: two lines in the comfortable row rather than cut where its meaning is.
+                        line2MaxLines = if (compact) 1 else 2,
                         figure = row.figure,
                         // Compact columns hold the change alone, so the Δ column keeps one width; a name without
                         // a report says so in its empty figure columns (compact rows have no line 2).

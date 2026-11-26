@@ -18,11 +18,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.input.pointer.PointerEventPass
-import androidx.compose.ui.input.pointer.changedToDownIgnoreConsumed
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.semantics.clearAndSetSemantics
-import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import com.thesis.mobile.ui.components.StatusBadge
@@ -126,21 +121,3 @@ internal fun PlainRow(title: String, caption: String?, modifier: Modifier = Modi
         if (caption != null) Text(caption, style = ThesisType.bodySmall, color = p.ink2)
     }
 }
-
-/**
- * For a kit row whose destination is not wired (its callback is null): TalkBack reads [description] as text, not
- * as a button, and a touch does not reach the row's own clickable (no press tint, no tap that does nothing). Only
- * the down event is consumed, so a drag that starts on the row still scrolls the list. Interim: HANDOFF-A asks
- * WP-K for a nullable `onClick` on `TickerRow`, which makes this unnecessary.
- */
-internal fun Modifier.inert(description: String): Modifier = this
-    .clearAndSetSemantics { contentDescription = description }
-    .pointerInput(Unit) {
-        awaitPointerEventScope {
-            while (true) {
-                awaitPointerEvent(PointerEventPass.Initial).changes.forEach { change ->
-                    if (change.changedToDownIgnoreConsumed()) change.consume()
-                }
-            }
-        }
-    }

@@ -59,6 +59,20 @@ class AppNavigator(private val store: NavigatorStateStore? = null) {
     var namesFocusTicker: String? by mutableStateOf(null)
         private set
 
+    /**
+     * One-shot requests for the Names root, raised from other screens and cleared once Names has acted on them
+     * ([clearNamesRequests]): focus the add field (Home's empty "Add a name", 5.6) and open the holdings CSV import
+     * (You > Portfolio, 5.22). Not persisted: a request outlives no recreation.
+     */
+    var namesFocusAdd: Boolean by mutableStateOf(false)
+        private set
+    var namesOpenImport: Boolean by mutableStateOf(false)
+        private set
+
+    /** One-shot Inbox category filter (the weekly digest's alert rows), cleared once the Inbox has read it. */
+    var inboxCategory: String? by mutableStateOf(null)
+        private set
+
     private var nextId = 0L
 
     /**
@@ -291,6 +305,27 @@ class AppNavigator(private val store: NavigatorStateStore? = null) {
         removed.forEach(onRemoved)
     }
 
+    fun requestNamesFocusAdd() {
+        namesFocusAdd = true
+    }
+
+    fun requestNamesImport() {
+        namesOpenImport = true
+    }
+
+    fun clearNamesRequests() {
+        namesFocusAdd = false
+        namesOpenImport = false
+    }
+
+    fun requestInboxCategory(category: String?) {
+        inboxCategory = category?.trim()?.ifBlank { null }
+    }
+
+    fun clearInboxCategory() {
+        inboxCategory = null
+    }
+
     fun clearNamesFocus() {
         if (namesFocusTicker != null) {
             namesFocusTicker = null
@@ -304,6 +339,8 @@ class AppNavigator(private val store: NavigatorStateStore? = null) {
         ShellTab.entries.forEach { popToRoot(it) }
         currentTab = ShellTab.Today
         namesFocusTicker = null
+        clearNamesRequests()
+        inboxCategory = null
         // A new session opens Home as a first open again.
         entranceRegistry.retainOnly(emptyList())
         persist()

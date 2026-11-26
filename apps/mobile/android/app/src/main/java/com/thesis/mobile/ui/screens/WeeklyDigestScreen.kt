@@ -56,7 +56,6 @@ import com.thesis.mobile.ui.today.DigestModel
 import com.thesis.mobile.ui.today.LocalTodayClock
 import com.thesis.mobile.ui.today.PulseBrief
 import com.thesis.mobile.ui.today.PulseText
-import com.thesis.mobile.ui.today.inert
 
 /*
  * The weekly digest, "This week" (docs/app-redesign/DESIGN-DIRECTION.md 5.8): built only from data the app already
@@ -269,8 +268,7 @@ private fun LazyListScope.digest(
                                 stateTone = f.tone,
                                 stateLabel = f.stateLabel,
                                 line2 = f.sub,
-                                onClick = { open?.invoke() },
-                                modifier = if (open == null) Modifier.inert(spoken(f.ticker, f.stateLabel, f.sub)) else Modifier,
+                                onClick = open,
                             )
                         }
                     }
@@ -321,8 +319,7 @@ private fun LazyListScope.digest(
                                 stateTone = r.tone,
                                 stateLabel = r.stateLabel,
                                 line2 = r.line2,
-                                onClick = { onOpenName?.invoke(r.ticker) },
-                                modifier = if (onOpenName == null) Modifier.inert(spoken(r.ticker, r.stateLabel, r.line2)) else Modifier,
+                                onClick = onOpenName?.let { open -> { open(r.ticker) } },
                             )
                         }
                     }
@@ -371,9 +368,6 @@ private fun LazyListScope.digest(
         }
     }
 }
-
-/** What TalkBack reads for a row that opens nothing: "MSFT, Watch, Intact → Watch, Mon". */
-private fun spoken(vararg parts: String?): String = parts.filterNotNull().filter { it.isNotBlank() }.joinToString(", ")
 
 @Composable
 private fun Section(content: @Composable () -> Unit) {

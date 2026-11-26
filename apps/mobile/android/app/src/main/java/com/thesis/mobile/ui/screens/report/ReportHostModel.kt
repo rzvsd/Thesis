@@ -21,9 +21,8 @@ data class ReportHostExtras(
     /** The report's ticker is one of the person's names (the top bar's bookmark). */
     val isFollowing: Boolean = false,
     /**
-     * Follow or unfollow the ticker (the bookmark; `toggle(on)` haptic in the kit). The kit [com.thesis.mobile.ui.components.ReportTopBar] always
-     * draws the bookmark, so WP-INT must wire this before PR-3 ships (HANDOFF-C: WP-INT 1, WP-K 4); until then
-     * the bookmark toggles nothing.
+     * Follow or unfollow the ticker (the bookmark; `toggle(on)` haptic in the kit). Null leaves the bookmark out of
+     * the kit [com.thesis.mobile.ui.components.ReportTopBar] (no dead control).
      */
     val onFollowChange: ((Boolean) -> Unit)? = null,
     /** The person's names, for "Compare with other names". */

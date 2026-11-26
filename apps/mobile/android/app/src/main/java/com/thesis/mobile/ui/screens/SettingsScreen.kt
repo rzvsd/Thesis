@@ -46,7 +46,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import com.thesis.mobile.model.ConvictionInsightCardView
 import com.thesis.mobile.model.NoteTrailEntry
 import com.thesis.mobile.model.NotificationPreferenceView
-import com.thesis.mobile.model.SubscriptionOfferView
 import com.thesis.mobile.model.UserProfileView
 import com.thesis.mobile.ui.components.ActionRow
 import com.thesis.mobile.ui.components.BannerTone
@@ -103,8 +102,7 @@ private const val FEEDBACK_FLOW_FREE = "free"
  * Pure: the caller passes purchases, the system notification settings Intent, the notes export (share sheet or
  * `CreateDocument`), the import panel and the Android-only delete-account section, so design-preview renders it.
  * [onExportNotes] receives the file name and the Markdown ([NotesMarkdown]); [onLoadNotes] asks for the cached notes.
- * [subscriptionOffers], [onRefreshOffers], [onStartPurchase] and [canStartPurchase] are kept for the callers: plans
- * are chosen on the Paywall, which "See Pro" opens through [onRequireUpgrade]. [clock] dates the notes export and
+ * Plans are chosen on the Paywall, which "See Pro" opens through [onRequireUpgrade]. [clock] dates the notes export and
  * decides whether a quiet-until time has passed (its zone also dates the billing period end), so renders and tests
  * pass a fixed one.
  */
@@ -116,7 +114,6 @@ fun SettingsScreen(
     profile: UserProfileView?,
     convictionInsights: List<ConvictionInsightCardView>,
     convictionInsightsError: String?,
-    @Suppress("UNUSED_PARAMETER") subscriptionOffers: List<SubscriptionOfferView>,
     subscriptionActionInFlight: Boolean,
     notificationsEnabled: Boolean,
     biometricSupported: Boolean,
@@ -129,15 +126,11 @@ fun SettingsScreen(
     onSyncTier: () -> Unit,
     onRefreshConvictionInsights: () -> Unit,
     onRequireUpgrade: (String) -> Unit,
-    @Suppress("UNUSED_PARAMETER") onRefreshOffers: () -> Unit,
-    @Suppress("UNUSED_PARAMETER") onStartPurchase: (preferredType: String?) -> Unit,
     onRestorePurchases: () -> Unit,
     onSubmitSubscriptionFeedback: (String, String, String, Boolean) -> Unit,
     onLogout: () -> Unit,
     /** Opens the system notification settings for the app (an Intent; the caller owns it). */
     onOpenSystemNotificationSettings: () -> Unit = {},
-    /** False when no Activity is available to host the store sheet. */
-    @Suppress("UNUSED_PARAMETER") canStartPurchase: Boolean = true,
     /** `BuildConfig.DEBUG`: shows the API base URL switch. */
     showDeveloperOptions: Boolean = false,
     /** The delete-account button and dialog (`DeleteAccountSection`, Android-only). */

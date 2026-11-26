@@ -369,8 +369,8 @@ private fun ReportWebHost(
             DockItem(
                 label = ReportCopy.DOCK_CONVICTION,
                 onClick = { if (requirePro(FEATURE_CONVICTION)) panel = ReportPanel.Conviction },
-                // No "Pro" badge yet: the kit dock wraps a badge letter by letter in a 4-segment row (HANDOFF-C,
-                // WP-K). Free accounts get the paywall on tap.
+                // 5.13 item 3, "Conviction (Pro)": a free account sees the gate before it taps.
+                badge = ReportCopy.PRO_BADGE.takeIf { !tools.isPro },
             )
         )
     }
@@ -380,8 +380,8 @@ private fun ReportWebHost(
         padding = padding,
         onBack = onBack,
         following = extras.isFollowing,
-        // The kit bar always draws the bookmark; until WP-INT passes onFollowChange it toggles nothing (HANDOFF-C).
-        onFollowChange = { on -> extras.onFollowChange?.invoke(on) },
+        // No follow callback (an unknown ticker): the kit bar leaves the bookmark out.
+        onFollowChange = extras.onFollowChange,
         onOverflow = { panel = ReportPanel.Overflow },
         pageLoaded = pageLoaded && !isRefreshingToken,
         progress = progress,

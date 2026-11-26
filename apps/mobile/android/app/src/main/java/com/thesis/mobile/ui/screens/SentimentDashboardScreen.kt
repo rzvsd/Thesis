@@ -18,15 +18,12 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onSizeChanged
@@ -102,8 +99,6 @@ import com.thesis.mobile.ui.theme.macroStressLabel
 import com.thesis.mobile.ui.theme.macroStressTone
 import com.thesis.mobile.ui.theme.textColor
 import com.thesis.mobile.ui.theme.tnum
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.withTimeoutOrNull
 import java.math.BigDecimal
 import java.math.RoundingMode
 import java.time.LocalDate
@@ -459,53 +454,6 @@ internal object MacroStressModels {
 
     private const val ISO_DATE_LENGTH = 10
 }
-
-/**
- * The previous entry point, kept so `ThesisApp.kt` compiles until WP-INT calls [MacroStressScreen] from the shell
- * with `isMacroRefreshing` (HANDOFF-F item 2). Until then it keeps its own refresh state, as the old screen did:
- * the skeleton while nothing has answered yet (at most [FIRST_LOAD_MAX_MS]), and the pull indicator until the data
- * changes or [PULL_INDICATOR_MS] passes.
- */
-@Composable
-fun MacroStressDashboardScreen(
-    current: SentimentSnapshotView?,
-    history: List<SentimentSnapshotView>,
-    selectedRangeDays: Int,
-    sentimentError: String?,
-    onSelectRange: (Int) -> Unit,
-    onBack: () -> Unit,
-    onRefresh: (() -> Unit)? = null,
-) {
-    var refreshing by remember { mutableStateOf(current == null && history.isEmpty() && sentimentError.isNullOrBlank()) }
-    var pulls by remember { mutableIntStateOf(0) }
-    val answer by rememberUpdatedState(Triple(current, history, sentimentError))
-    LaunchedEffect(pulls) {
-        if (!refreshing) return@LaunchedEffect
-        val before = answer
-        withTimeoutOrNull(if (pulls == 0) FIRST_LOAD_MAX_MS else PULL_INDICATOR_MS) {
-            snapshotFlow { answer }.first { it != before }
-        }
-        refreshing = false
-    }
-    val range = MacroStressModels.normalizeRange(selectedRangeDays)
-    MacroStressScreen(
-        current = current,
-        history = history,
-        selectedRangeDays = selectedRangeDays,
-        sentimentError = sentimentError,
-        onSelectRange = onSelectRange,
-        onBack = onBack,
-        refreshing = refreshing,
-        onRefresh = {
-            refreshing = true
-            pulls++
-            onRefresh?.invoke() ?: onSelectRange(range)
-        },
-    )
-}
-
-private const val FIRST_LOAD_MAX_MS = 10_000L
-private const val PULL_INDICATOR_MS = 1_800L
 
 /**
  * Macro Stress (5.9). [history] is the ViewModel's readings for the selected range (any order); [current] the

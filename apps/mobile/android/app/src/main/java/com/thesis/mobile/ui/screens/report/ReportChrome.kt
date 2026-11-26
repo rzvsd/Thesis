@@ -65,8 +65,10 @@ data class ReportOpeningBar(
     val ticker: String,
     val onBack: () -> Unit,
     val following: Boolean = false,
-    val onFollowChange: (Boolean) -> Unit = {},
-    val onOverflow: () -> Unit = {},
+    /** Null hides the bookmark (nothing to follow with). */
+    val onFollowChange: ((Boolean) -> Unit)? = null,
+    /** Null hides the overflow (the opening bar has nothing to offer yet). */
+    val onOverflow: (() -> Unit)? = null,
 )
 
 /** Progress (0..100) of a page load the host knows nothing about yet. */
@@ -88,8 +90,8 @@ fun ReportHostFrame(
     padding: PaddingValues,
     onBack: () -> Unit,
     following: Boolean,
-    onFollowChange: (Boolean) -> Unit,
-    onOverflow: () -> Unit,
+    onFollowChange: ((Boolean) -> Unit)?,
+    onOverflow: (() -> Unit)?,
     pageLoaded: Boolean,
     progress: Int,
     dockItems: List<DockItem>,

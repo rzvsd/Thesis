@@ -192,9 +192,8 @@ private fun hostOf(url: String): String = runCatching { URI(url).host?.removePre
 /**
  * Scenario Stress. Draws its own top bar (back, "Scenario Stress", Copy as table once a run is in); the shell gives
  * it none (HANDOFF-E). [onOpenName] opens a name's Name page ("Open NVDA" in an opened row; hidden while null).
- * [onOpenTickerResearch] (the shell wires it to a Deep Dive build) and [onOpenRunFromRoute] are kept for the shell's
- * call site only: nothing on this screen builds a report, and the "Reopen run" button is gone (5.20). With [onBack]
- * null there is no back arrow (the shell's own bar still shows until WP-INT wires it).
+ * Nothing on this screen builds a report, and the "Reopen run" button is gone (5.20). With [onBack] null there is no
+ * back arrow.
  */
 @Composable
 fun ScenarioStressScreen(
@@ -210,8 +209,6 @@ fun ScenarioStressScreen(
     onRefreshTemplates: () -> Unit,
     onSelectTemplate: (String) -> Unit,
     onRunScenario: (String?) -> Unit,
-    @Suppress("UNUSED_PARAMETER") onOpenTickerResearch: (String) -> Unit,
-    @Suppress("UNUSED_PARAMETER") onOpenRunFromRoute: (String, String?) -> Unit,
     onRequireUpgrade: (String) -> Unit,
     onBack: (() -> Unit)? = null,
     padding: PaddingValues = PaddingValues(),

@@ -113,7 +113,7 @@ class ResearchSemanticsTest {
                 userTier = "PRO", templates = F.templates, selectedScenarioId = "rates_higher_for_longer", run = F.stressRun,
                 templatesError = null, runError = null, isLoadingTemplates = false, isRunning = false,
                 watchlistCount = F.watchlist.size, onRefreshTemplates = {}, onSelectTemplate = {}, onRunScenario = {},
-                onOpenTickerResearch = {}, onOpenRunFromRoute = { _, _ -> }, onRequireUpgrade = {}, zone = F.zone,
+                onRequireUpgrade = {}, zone = F.zone,
             )
         }
         rule.onNodeWithText(F.templates[0].title).assertIsSelected()
@@ -180,7 +180,7 @@ class ResearchSemanticsTest {
                 userTier = "PRO", templates = F.templates, selectedScenarioId = "rates_higher_for_longer", run = F.stressRun,
                 templatesError = null, runError = null, isLoadingTemplates = false, isRunning = false,
                 watchlistCount = F.watchlist.size, onRefreshTemplates = {}, onSelectTemplate = {}, onRunScenario = {},
-                onOpenTickerResearch = { built++ }, onOpenRunFromRoute = { _, _ -> }, onRequireUpgrade = {}, zone = F.zone,
+                onRequireUpgrade = {}, zone = F.zone,
             )
         }
         // The rationale is said once (the bar's second line, 5.20), not again in By name.

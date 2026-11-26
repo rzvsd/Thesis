@@ -18,6 +18,7 @@ import com.thesis.mobile.model.OppositeCaseReportView
 import com.thesis.mobile.model.PulseReportView
 import com.thesis.mobile.model.ReportHistoryItem
 import com.thesis.mobile.model.ReportNoteView
+import com.thesis.mobile.model.ReportSummaryView
 import com.thesis.mobile.model.ScenarioResultView
 import com.thesis.mobile.model.ScenarioStressRunView
 import com.thesis.mobile.model.ScenarioStressTemplateView
@@ -29,6 +30,7 @@ import com.thesis.mobile.model.ThesisMonitorSnapshotView
 import com.thesis.mobile.model.TickerSearchItem
 import com.thesis.mobile.model.UserProfileView
 import com.thesis.mobile.model.WarRoomView
+import com.thesis.mobile.ui.screens.AuthStatus
 import com.thesis.mobile.ui.shell.AppearancePrefs
 
 /**
@@ -49,6 +51,8 @@ data class UiState(
     val messageAction: MessageAction? = null,
     /** Log in, register or verify in flight (Auth's buttons). */
     val authBusy: Boolean = false,
+    /** The Auth status line (5.3): a typed result, so Auth never guesses tone or mode from [message]'s words. */
+    val authStatus: AuthStatus? = null,
     val tickers: List<TickerSearchItem> = emptyList(),
     val selectedTicker: String? = null,
     val jobStatus: String? = null,
@@ -89,6 +93,11 @@ data class UiState(
     val pulseLoadedFromCache: Boolean = false,
     val pulseFreshnessText: String? = null,
     val pulseError: String? = null,
+    /**
+     * Why the last Pulse refresh failed (null on success): Home's and the Pulse's cached-copy banners say "Offline"
+     * only for [RefreshFailureKind.OFFLINE], since [pulseLoadedFromCache] is true after any failure.
+     */
+    val pulseFailureKind: RefreshFailureKind? = null,
     val isPulseRefreshing: Boolean = false,
     val sentimentCurrent: SentimentSnapshotView? = null,
     val sentimentHistory: List<SentimentSnapshotView> = emptyList(),
@@ -96,7 +105,14 @@ data class UiState(
     val sentimentError: String? = null,
     val isMacroRefreshing: Boolean = false,
     val alertLedger: List<AlertLedgerItemView> = emptyList(),
+    /** The last Inbox failure, a load or an action (mute, feedback); action errors also go to the snackbar. */
     val inboxError: String? = null,
+    /** The last failed alert ledger load (the list fetch only), null once a load succeeds (5.21). */
+    val inboxLoadError: String? = null,
+    /** Counts every reported Inbox error, so the same message twice is still a new error to the screen. */
+    val inboxErrorSeq: Int = 0,
+    /** The alert ledger has answered once (loaded or failed) this session: the Inbox skeleton ends. */
+    val inboxLoaded: Boolean = false,
     val isInboxRefreshing: Boolean = false,
     val monitorSnapshots: List<ThesisMonitorSnapshotView> = emptyList(),
     /** Watchlist or monitor snapshots refreshing (Names board). */
@@ -130,8 +146,31 @@ data class UiState(
     val allNotes: List<NoteTrailEntry> = emptyList(),
     val compareReports: CompareReportsState? = null,
     val compareNames: CompareNamesState? = null,
-    val searchResults: SearchResultsView? = null
+    val searchResults: SearchResultsView? = null,
+    /** The last eight submitted searches, newest first (SessionStore). */
+    val recentSearches: List<String> = emptyList(),
+    /**
+     * Cached report summaries by report id (company name, filing period, change summary), for the rows that name a
+     * company or a filing (Names, Research, History, Search, the weekly digest).
+     */
+    val reportSummaries: Map<String, ReportSummaryView> = emptyMap(),
+    /** Each followed name's reading now against its reading a week ago (the weekly digest's state changes). */
+    val weeklyStateChanges: List<SnapshotDelta>? = null
 ) {
+    /** Upper-case ticker to company name, from [reportSummaries]. */
+    val companyNames: Map<String, String>
+        get() = reportSummaries.values
+            .mapNotNull { s -> s.ticker?.trim()?.uppercase()?.ifBlank { null }?.let { t -> s.companyName?.trim()?.ifBlank { null }?.let { t to it } } }
+            .toMap()
+
+    /** Report id to the filing period its report read ("FY2025"), from [reportSummaries]. */
+    val filingPeriods: Map<String, String>
+        get() = reportSummaries.mapNotNull { (id, s) -> s.filingPeriod?.trim()?.ifBlank { null }?.let { id to it } }.toMap()
+
+    /** Report ids with a non-empty note ([allNotes]). */
+    val notedReportIds: Set<String>
+        get() = allNotes.filter { it.text.isNotBlank() }.map { it.reportId }.toSet()
+
     /** Deep Dive screen spinner: a report is opening or building (replaces the old global `isLoading`). */
     val isReportBusy: Boolean get() = isOpeningReport || isDeepDiveRunning
 

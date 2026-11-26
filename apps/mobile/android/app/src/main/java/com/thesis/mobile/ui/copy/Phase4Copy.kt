@@ -11,26 +11,6 @@ object Phase4Copy {
     const val todayMacroStressDashboardLabel = "Dashboard"
     const val todayMacroStressSourceNote = "Official macro pressure from rates, CPI, jobs, GDP, and oil."
 
-    const val namesHeadline = "Names"
-    const val namesSubtitle = "Monitor conviction, catalysts, and unresolved drift across every followed name."
-    const val namesTickerLabel = "Ticker"
-    const val namesAddLabel = "Add"
-    const val namesRefreshLabel = "Refresh board"
-    const val namesTrustFreshnessLabel = "TRUST FRESHNESS"
-    const val namesFocusedFromAlertPrefix = "Focused from alert:"
-    const val namesFocusedBadge = "From alert"
-    const val namesNoNamesTitle = "No names yet"
-    const val namesNoNamesBody = "Add a ticker to start tracking thesis strength, catalysts, and unresolved drift."
-    const val namesEmptySegmentTitle = "Nothing in this segment"
-    const val namesEmptySegmentBody = "Your current names do not match this priority filter."
-    const val namesNoBaselineState = "No baseline"
-    const val namesNoBaselineDetail = "Run a Deep Dive to start freshness tracking for this name."
-    const val namesNoDriftReason = "No thesis drift recorded yet."
-    const val namesNoBaselineReason = "No completed Deep Dive exists yet for this name."
-    const val namesCatalystSoonLabel = "Catalyst soon"
-    const val namesDeepDiveLabel = "Deep Dive"
-    const val namesAddNoteLabel = "Add Note"
-    const val namesRemoveLabel = "Remove"
     const val inboxHeadline = "Inbox"
     const val inboxSubtitle = "Every alert, explained, reviewable, and tunable."
     const val inboxRefreshLabel = "Refresh inbox"
@@ -79,7 +59,6 @@ object Phase4Copy {
     const val coherenceEmpty = "No monthly coherence card has been generated yet."
     const val notificationGlobalOffNote = "Global notifications are off. This preference will apply when they are re-enabled."
 
-    val namesSegments = listOf("All", "At Risk", "Catalysts Soon", "Unresolved")
     val inboxSegments = listOf("All", "Thesis Drift", "Earnings", "Macro", "System")
 
     fun notificationFamilyLabel(type: String): String =

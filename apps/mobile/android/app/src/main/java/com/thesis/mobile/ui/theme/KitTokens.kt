@@ -75,6 +75,12 @@ internal object Kit {
     val compactFigureColumn: Dp = 72.dp
     val compactCaptionColumn: Dp = 96.dp
 
+    /**
+     * Comfortable TickerRow: narrowest width the company name may take beside the ticker. Below it the name is
+     * dropped rather than measured to a sliver or nothing (rubric A4 at 360 dp with a long caption).
+     */
+    val tickerCompanyMin: Dp = 56.dp
+
     /** CompareTable: minimum value column width and cell padding. */
     val tableColumnMin: Dp = 88.dp
     val tableCellPaddingH: Dp = 12.dp

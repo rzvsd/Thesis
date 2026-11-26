@@ -15,11 +15,15 @@ class DestinationCodecTest {
         Destination.Inbox,
         Destination.Pulse(),
         Destination.Pulse("2026-11-24"),
+        Destination.Pulse(chapter = "macro"),
+        Destination.Pulse("2026-11-24", chapter = "names"),
         Destination.MacroStress,
         Destination.WeeklyDigest(),
         Destination.WeeklyDigest("2026-11-23"),
         Destination.Name("AAPL"),
         Destination.Name("BRK.B", pagerScope = "names:filter=at_risk|sort=score"),
+        Destination.Name("AAPL", anchor = Destination.Name.ANCHOR_NOTES),
+        Destination.Name("MSFT", pagerScope = "today", anchor = Destination.Name.ANCHOR_CHANGES),
         Destination.Report("rep_1"),
         Destination.Report("rep_2", ticker = "MSFT", chapter = "02-business"),
         Destination.ReportClassic("rep_3", "NVDA"),
@@ -38,6 +42,13 @@ class DestinationCodecTest {
         Destination.Paywall("filing_change_detail"),
         Destination.Search,
     )
+
+    @Test
+    fun stacksSavedBeforeTheChapterAndAnchorFieldsStillDecode() {
+        // A back stack saved by the PR-2 build has one field fewer for Pulse and Name.
+        assertEquals(Destination.Pulse("2026-11-24"), Destination.decode("pulse|2026-11-24"))
+        assertEquals(Destination.Name("AAPL", "today"), Destination.decode("name|AAPL|today"))
+    }
 
     @Test
     fun everyDestinationRoundTrips() {

@@ -20,6 +20,7 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.text.TextLayoutResult
@@ -39,7 +40,6 @@ import com.thesis.mobile.ui.today.ChapterKind
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
-import org.junit.Ignore
 import org.junit.Rule
 import org.junit.Test
 
@@ -105,7 +105,8 @@ class TodaySemanticsTest {
         var pulse = 0
         var macro = 0
         set { TodayHome(HomeState.Error, onRetryPulse = { pulse++ }, onRetryMacro = { macro++ }) }
-        rule.onAllNodesWithText(KitCopy.TRY_AGAIN)[0].performClick()
+        // The name rows' reasons take up to two lines, so the macro card can start below the test window.
+        rule.onAllNodesWithText(KitCopy.TRY_AGAIN)[0].performScrollTo().performClick()
         assertEquals(1, macro)
         assertEquals(0, pulse)
     }
@@ -125,13 +126,10 @@ class TodaySemanticsTest {
 
     @Test fun nameReasonsAreWholeAt360() = assertReasonsWhole(360, 1f)
 
-    // At 1.3x a one-sentence reason does not fit the kit TickerRow's one line 2 even beside a two-character caption
-    // ("Customer concentration rose again." needs about 292 dp of 278). HANDOFF-A asks WP-K for
-    // `TickerRow(line2MaxLines = 2)`; Home then measures for two lines and these hold.
-    @Ignore("Needs WP-K TickerRow(line2MaxLines), HANDOFF-A")
+    // At 1.3x a one-sentence reason does not fit one line beside a two-character caption ("Customer concentration
+    // rose again." needs about 292 dp of 278): Home passes `TickerRow(line2MaxLines = 2)` and measures for two lines.
     @Test fun nameReasonsAreWholeAt412And1_3x() = assertReasonsWhole(412, 1.3f)
 
-    @Ignore("Needs WP-K TickerRow(line2MaxLines), HANDOFF-A")
     @Test fun nameReasonsAreWholeAt360And1_3x() = assertReasonsWhole(360, 1.3f)
 
     private fun assertReasonsWhole(widthDp: Int, scale: Float) {
@@ -297,7 +295,8 @@ class TodaySemanticsTest {
         }
         assertEquals(labels.toString(), 2, buttons.size)
         listOf("AAPL", "MSFT", "Thesis drift").forEach { word -> assertTrue(labels.toString(), labels.none { it.contains(word) }) }
-        rule.onNodeWithContentDescription("AAPL", substring = true).assertExists()
+        // The kit row with no onClick: one merged text node, read as text.
+        assertTrue(rule.onAllNodesWithText("AAPL", substring = true).fetchSemanticsNodes().isNotEmpty())
         rule.onNodeWithText(TodayCopy.OPEN_PULSE).assertDoesNotExist()
     }
 }

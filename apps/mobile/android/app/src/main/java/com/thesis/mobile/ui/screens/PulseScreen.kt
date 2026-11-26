@@ -104,7 +104,6 @@ import com.thesis.mobile.ui.today.PulseBrief
 import com.thesis.mobile.ui.today.PulseChapter
 import com.thesis.mobile.ui.today.PulseText
 import com.thesis.mobile.ui.today.TapeModel
-import com.thesis.mobile.ui.today.inert
 import com.thesis.mobile.ui.today.parseDay
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.first
@@ -536,12 +535,7 @@ private fun Chapter(
                                 stateTone = thesisStateTone(state),
                                 stateLabel = stateWord,
                                 line2 = mention.sentence,
-                                onClick = { onOpenName?.invoke(mention.ticker) },
-                                modifier = if (onOpenName == null) {
-                                    Modifier.inert(listOf(mention.ticker, stateWord, mention.sentence).joinToString(", "))
-                                } else {
-                                    Modifier
-                                },
+                                onClick = onOpenName?.let { open -> { open(mention.ticker) } },
                             )
                         }
                     }

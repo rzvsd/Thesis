@@ -83,6 +83,8 @@ import com.thesis.mobile.ui.icons.ThesisIcons
 import com.thesis.mobile.ui.motion.rememberHaptics
 import com.thesis.mobile.ui.motion.rememberScrollSpy
 import com.thesis.mobile.ui.shell.HeroUnderBars
+import com.thesis.mobile.ui.screens.report.ReportHostExtras
+import com.thesis.mobile.ui.screens.report.ReportOpeningBar
 import com.thesis.mobile.ui.theme.LocalReducedMotion
 import com.thesis.mobile.ui.theme.LocalThesisPalette
 import com.thesis.mobile.ui.theme.ThesisSpace
@@ -142,6 +144,19 @@ fun DeepDiveScreen(
      * HANDOFF-D asks WP-INT to pass it explicitly.
      */
     openingStoredReport: Boolean = retryLabel != null,
+    /** A build of this entry's own is running: the 5.14 generation screen with its stages. */
+    building: Boolean = false,
+    /** The report's (or the build's) ticker, for the generation screen and the opening bar. */
+    ticker: String? = null,
+    /** The build's server status, which drives the 5.14 stages (own build only). */
+    jobStatus: String? = null,
+    /**
+     * The surface ReportTopBar to draw over the opening skeleton while a stored report opens (the shell then shows
+     * no bar of its own), so the open crossfades under one chrome. Null keeps the page's own skeleton.
+     */
+    reportBar: ReportOpeningBar? = null,
+    /** Follow state, report history, notes trail and compare actions for the report host (HANDOFF-C, WP-INT 1). */
+    host: ReportHostExtras = ReportHostExtras(),
 ) {
     // Loading → report (or → failed) crossfades instead of swapping in one frame (#27, 4.4); a newer report for
     // the same entry updates in place.
@@ -154,7 +169,17 @@ fun DeepDiveScreen(
         state = state,
         modifier = Modifier.fillMaxSize(),
         loading = {
-            if (openingStoredReport) ReportOpeningSkeleton(padding) else DeepDiveLoadingScreen(modifier = Modifier.padding(padding))
+            when {
+                openingStoredReport && reportBar != null -> DeepDiveLoadingScreen(padding = padding, reportBar = reportBar)
+                openingStoredReport -> ReportOpeningSkeleton(padding)
+                else -> DeepDiveLoadingScreen(
+                    padding = padding,
+                    building = building,
+                    ticker = ticker,
+                    jobStatus = jobStatus,
+                    onRetry = onRetry,
+                )
+            }
         },
         failed = { DeepDiveFailedState(errorMessage = errorMessage, onRetry = onRetry, retryLabel = retryLabel, padding = padding) },
     ) { shown ->
@@ -179,6 +204,7 @@ fun DeepDiveScreen(
             onSubmitReportFeedback = onSubmitReportFeedback,
             onNotify = onNotify,
             onOpenScenarioStress = onOpenScenarioStress,
+            host = host,
         )
         val isFollowing = following ?: (shown.ticker != null && watchlist.any { it.equals(shown.ticker, ignoreCase = true) })
         DeepDiveReportHost(shown, webPage, tools, onBack, padding) { onOpenNewView ->
@@ -186,7 +212,7 @@ fun DeepDiveScreen(
                 report = shown,
                 tools = tools,
                 following = isFollowing,
-                onFollowChange = onFollowChange ?: {},
+                onFollowChange = onFollowChange,
                 onBack = onBack,
                 padding = padding,
                 onOpenNewView = onOpenNewView,
@@ -264,7 +290,7 @@ internal fun DeepDiveClassic(
     report: DeepDiveReportView,
     tools: DeepDiveNativeTools,
     following: Boolean,
-    onFollowChange: (Boolean) -> Unit,
+    onFollowChange: ((Boolean) -> Unit)?,
     onBack: () -> Unit,
     padding: PaddingValues,
     onOpenNewView: (() -> Unit)?,

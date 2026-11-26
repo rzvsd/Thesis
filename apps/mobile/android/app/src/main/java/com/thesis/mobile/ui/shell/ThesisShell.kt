@@ -68,9 +68,7 @@ import com.thesis.mobile.ui.navigation.ShellRootTopBar
 import com.thesis.mobile.ui.navigation.ShellTab
 import com.thesis.mobile.ui.navigation.ThesisBackTopBar
 import com.thesis.mobile.ui.navigation.shellNavItems
-import com.thesis.mobile.ui.platform.ThesisBackHandler
 import com.thesis.mobile.ui.platform.ThesisPredictiveBackHandler
-import com.thesis.mobile.ui.screens.PaywallScreen
 import com.thesis.mobile.ui.theme.LocalReducedMotion
 import kotlin.math.roundToInt
 import kotlinx.coroutines.CancellationException
@@ -92,8 +90,7 @@ import kotlinx.coroutines.launch
  * layer while the layer is on tab roots only, so a switch between two roots fades the page bodies through and the
  * identical bar stays still ([SharedRootTopBar]); in a push or pop the bar moves with its screen, and after a pop
  * (or a switch from a pushed page) the shell takes the root's bar over only once the root has settled. The paywall is
- * still a `Dialog` (its own window, with the platform's window animation); 5.23 (WP-G) makes it a full-screen
- * destination.
+ * a full-screen destination on the modal stack (5.23), so it rises like any modal and honours reduced motion.
  *
  * Each entry draws its own top bar (5.5 "each screen supplies its top bar") and computes its own insets from its
  * own destination, so in a push or pop the bar moves with its screen and the leaving screen keeps its layout
@@ -105,7 +102,7 @@ import kotlinx.coroutines.launch
  * closes only (scale to .90, 8 dp away from the swipe edge; still under reduced motion, 4.8); on commit that page
  * slides and fades out from the previewed transform (nothing is drawn over it until it has gone), then the page
  * under it comes in at full size; a cancel settles back
- * with `spatialSlow`. While the paywall is open, back closes it. The whole tree sits on one shared page
+ * with `spatialSlow`. The whole tree sits on one shared page
  * background (2.7).
  */
 @OptIn(ExperimentalLayoutApi::class)
@@ -140,10 +137,10 @@ fun ThesisShell(
     val modalTop = navigator.modalStack.lastOrNull()
     val currentStack = navigator.stack(navigator.currentTab)
     val reportBase = currentStack.lastOrNull { it.destination is Destination.Report }
-    val paywallOpen = !state.paywallFeature.isNullOrBlank()
     val bottomBarShown = !tabTop.destination.hidesBottomBar
-    // A modal or the paywall is over the tab layer, the report and the bottom bar: they leave the accessibility tree.
-    val coveredByModal = modalTop != null || paywallOpen
+    // A modal (You, Search, the Paywall) is over the tab layer, the report and the bottom bar: they leave the
+    // accessibility tree.
+    val coveredByModal = modalTop != null
 
     // Drop the saved UI state of entries that left every stack.
     val liveIds = navigator.liveEntryIds()
@@ -167,7 +164,7 @@ fun ThesisShell(
     // Predictive back (4.5). Registered before the layers, so a report WebView's own "back within the page"
     // handler (registered later) wins while it has history and the report is not covered.
     val backScope = rememberCoroutineScope()
-    ThesisPredictiveBackHandler(enabled = navigator.canGoBack && !paywallOpen) { events ->
+    ThesisPredictiveBackHandler(enabled = navigator.canGoBack) { events ->
         // The page this back closes: the top modal, else the tab's top entry (a report is drawn by the base layer).
         val closing = navigator.top.entryId
         backPreview.start(closing)
@@ -183,7 +180,6 @@ fun ThesisShell(
     // A committed back's page that comes back to the top before it has left the composition settles its preview.
     val topEntryId = navigator.top.entryId
     LaunchedEffect(topEntryId) { backPreview.onTopAgain(topEntryId, backScope) }
-    ThesisBackHandler(enabled = paywallOpen) { actions.onDismissPaywall() }
 
     // The tab roots' shared bar: the entries composed in the tab layer (and those still moving), and the root whose
     // bar the shell draws. The shell takes the bar over only from a tab root at rest: after a pop or a switch from a
@@ -215,7 +211,8 @@ fun ThesisShell(
         sampleDismissed = sampleDismissed,
         onDismissSample = { sampleDismissed = true },
         chromes = chromes,
-        rootBarShared = drawSharedBar
+        rootBarShared = drawSharedBar,
+        snackbarHostState = snackbarHostState
     )
 
     ShellPageBackground(modifier) {
@@ -283,28 +280,12 @@ fun ThesisShell(
                 scope.EntryFrame(entry, inModal = true, bottomBarHeightPx = bottomBarHeightPx)
             }
 
-            if (paywallOpen) {
-                // A Dialog: its own window, with the platform's window animation and no reduced-motion path. The
-                // one entry into the shell that is not a 4.5 move: 5.23 (WP-G) makes Paywall a modal-stack
-                // destination, which rises through ModalLayer, and this branch goes (HANDOFF-M3).
-                PaywallScreen(
-                    alerts = state.alertLedger,
-                    watchlist = state.watchlist,
-                    offers = state.subscriptionOffers,
-                    actionInFlight = state.subscriptionActionInFlight,
-                    onPurchase = { preferredType -> platform.startPurchase?.invoke(preferredType) },
-                    onRestore = actions::onRestorePurchases,
-                    onRefreshOffers = actions::onRefreshOffers,
-                    onDismiss = actions::onDismissPaywall
-                )
-            }
-
             // Above every layer. The snackbar rides on the bottom bar while the bar shows on a tab entry with no
             // modal or paywall over it, and glides with the bar when it slides away or back (no jump);
             // otherwise it sits on the navigation bar or the keyboard.
             // The bar's own hide progress (same easing, so they move as one), times whether anything covers the bar.
             val barCovered by animateFloatAsState(
-                targetValue = if (modalTop != null || paywallOpen) 1f else 0f,
+                targetValue = if (modalTop != null) 1f else 0f,
                 animationSpec = ThesisMotion.timed(reducedMotion, ThesisMotion.Base),
                 label = "snackbar-bar-covered"
             )
@@ -374,7 +355,7 @@ private fun ShellPageBackground(modifier: Modifier, content: @Composable () -> U
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ShellContentScope.EntryFrame(entry: NavEntry, inModal: Boolean, bottomBarHeightPx: Int) {
-    val bar = if (inModal) ShellTopBar.Back else topBarFor(entry.destination, state)
+    val bar = if (inModal) modalTopBarFor(entry.destination) else topBarFor(entry.destination, state)
     val reserveBottomBar = !inModal && !entry.destination.hidesBottomBar && bottomBarHeightPx > 0
     val chrome = rememberScreenChrome()
     DisposableEffect(entry.entryId, chrome) {
@@ -478,7 +459,7 @@ private fun ShellContentScope.EntryTopBar(entry: NavEntry, bar: ShellTopBar, chr
                 collapsed = chrome.collapsed,
                 overHero = chrome.heroBand
             )
-            // Interim (5.5) until PR-3 puts the hairline in each root's ScreenHeader: over the bar's bottom edge,
+            // Only for a root whose screen has no refresh line of its own (Research): over the bar's bottom edge,
             // no layout shift. It fades in and out with the refresh instead of appearing and vanishing.
             // Composed while refreshing or fading out; the alpha is read in the draw phase only (4.3.9).
             val refreshing = rootRefreshing(entry.destination, state)
@@ -507,12 +488,13 @@ private fun ShellContentScope.EntryTopBar(entry: NavEntry, bar: ShellTopBar, chr
     }
 }
 
-/** Whether the tab root [destination] is refreshing its data in the background (the 5.5 refresh flags). */
+/**
+ * Whether the root bar shows a refresh hairline for the tab root [destination]. Home, Names and the Inbox draw their
+ * own refresh line (ScreenHeader hairline or pull line), so the bar draws none over them: two lines at once would be
+ * two infinite animations (4.3.10).
+ */
 internal fun rootRefreshing(destination: Destination, state: UiState): Boolean = when (destination) {
-    Destination.Today -> state.isPulseRefreshing || state.isMacroRefreshing
-    Destination.Names -> state.isBoardRefreshing
     Destination.Research -> state.isHistoryLoading
-    Destination.Inbox -> state.isInboxRefreshing
     else -> false
 }
 
@@ -577,6 +559,12 @@ private fun BoxScope.ShellSnackbarHost(hostState: SnackbarHostState, barPx: () -
 
 internal enum class ShellTopBar { Root, Back, None }
 
+/** The modal stack's bar: Search draws its own (field and back); You, its pages and the Paywall get the back bar. */
+internal fun modalTopBarFor(destination: Destination): ShellTopBar = when (destination) {
+    Destination.Search -> ShellTopBar.None
+    else -> ShellTopBar.Back
+}
+
 /**
  * Tab roots get brand + search + avatar; screens with their own header get none; the rest a back bar.
  * A report draws its own bar only once it is loaded: while it loads, fails to open, or while a build runs
@@ -595,11 +583,22 @@ internal fun usesRootBar(destination: Destination): Boolean = when (destination)
 }
 
 private fun topBarBelowRoot(destination: Destination, state: UiState): ShellTopBar = when (destination) {
-    is Destination.Pulse, is Destination.WeeklyDigest, Destination.MacroStress, is Destination.History -> ShellTopBar.None
-    is Destination.Report ->
-        if (state.deepDiveReport?.reportId == destination.reportId) ShellTopBar.None else ShellTopBar.Back
-    is Destination.ReportClassic ->
-        if (state.deepDiveReport?.reportId == destination.reportId) ShellTopBar.None else ShellTopBar.Back
+    // These screens draw their own ThesisTopBar (title, subtitle, actions); a shell bar would be a second one.
+    is Destination.Pulse, is Destination.WeeklyDigest, Destination.MacroStress, is Destination.History,
+    is Destination.WarRoom, is Destination.ScenarioStress, is Destination.CompareReports,
+    is Destination.CompareNames -> ShellTopBar.None
+    is Destination.Report -> reportTopBar(destination.reportId, destination.ticker, state)
+    is Destination.ReportClassic -> reportTopBar(destination.reportId, destination.ticker, state)
+    else -> ShellTopBar.Back
+}
+
+/**
+ * A report draws its own bar once loaded, and while it opens with a known ticker (the opening skeleton sits under
+ * the same ReportTopBar the host draws next); the shell's back bar covers an open with no ticker and a failed open.
+ */
+private fun reportTopBar(reportId: String, ticker: String?, state: UiState): ShellTopBar = when {
+    state.deepDiveReport?.reportId == reportId -> ShellTopBar.None
+    !ticker.isNullOrBlank() && reportEntryLoading(reportId, state) -> ShellTopBar.None
     else -> ShellTopBar.Back
 }
 
@@ -645,5 +644,7 @@ internal class ShellContentScope(
     /** Each composed entry's [ScreenChrome] by `entryId` (EntryFrame registers it; the status bar reads it). */
     val chromes: MutableMap<String, ScreenChrome> = mutableMapOf(),
     /** The shell draws the tab roots' bar above the tab layer ([SharedRootTopBar]): the roots' own bars hide. */
-    val rootBarShared: Boolean = false
+    val rootBarShared: Boolean = false,
+    /** The shell's only snackbar host: screens that offer Undo show it here, above the bottom bar. */
+    val snackbarHostState: SnackbarHostState = SnackbarHostState()
 )

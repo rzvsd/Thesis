@@ -31,7 +31,6 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.Constraints
 import com.thesis.mobile.model.AlertLedgerItemView
-import com.thesis.mobile.model.LastViewedReport
 import com.thesis.mobile.model.PulseReportView
 import com.thesis.mobile.model.SentimentSnapshotView
 import com.thesis.mobile.model.SnapshotDelta
@@ -118,7 +117,6 @@ private object HomeBlock {
     const val PULSE = 4
 }
 
-@Suppress("UNUSED_PARAMETER")
 @Composable
 fun HomeScreen(
     pulse: PulseReportView?,
@@ -131,18 +129,12 @@ fun HomeScreen(
     monitorSnapshots: List<ThesisMonitorSnapshotView>,
     morningBriefing: AlertLedgerItemView? = null,
     padding: PaddingValues,
-    lastViewedReport: LastViewedReport? = null,
     pulseError: String? = null,
-    onOpenHistory: () -> Unit,
-    onRunDeepDive: (String) -> Unit,
     onManageNames: () -> Unit,
     onRetryPulse: () -> Unit,
     onOpenMacroStressDashboard: () -> Unit,
-    onOpenWeeklyDigest: () -> Unit,
     onOpenPulseBrief: () -> Unit,
     onOpenMorningBriefing: (AlertLedgerItemView) -> Unit = {},
-    onResumeLastViewed: ((LastViewedReport) -> Unit)? = null,
-    onDismissResume: (() -> Unit)? = null,
     /** `isPulseRefreshing || isMacroRefreshing` from the ViewModel (never a fake delay). */
     refreshing: Boolean = false,
     /** Monitor readings against the last visit ("since your last visit"), by ticker. */
@@ -525,6 +517,7 @@ private fun NamesBlock(
                             stateTone = r.tone,
                             onClick = { onOpenName(r.ticker) },
                             line2 = line2,
+                            line2MaxLines = REASON_LINES,
                             figure = r.figure,
                             figureCaption = caption,
                             figureCaptionTone = r.figureCaptionTone,
@@ -543,9 +536,9 @@ private fun NamesBlock(
     }
 }
 
-/** Lines a name's reason may take: the kit TickerRow sets line 2 on one line up to 1.3x and on two above it. */
-private const val REASON_LINES = 1
-private const val REASON_LINES_LARGE = 2
+/** Lines a name's reason may take: [REASON_LINES] up to 1.3x; above it the kit TickerRow allows one more. */
+private const val REASON_LINES = 2
+private const val REASON_LINES_LARGE = REASON_LINES + 1
 
 /**
  * Each row's reason line and caption, measured against the row's real width and font scale (the kit TickerRow's

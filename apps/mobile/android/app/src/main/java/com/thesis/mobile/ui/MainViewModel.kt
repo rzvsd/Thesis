@@ -49,6 +49,7 @@ import com.thesis.mobile.model.TAB_DATA_MAX_AGE_MS
 import com.thesis.mobile.model.searchLocal
 import com.thesis.mobile.model.snapshotDeltaSince
 import com.thesis.mobile.model.toReportSummary
+import com.thesis.mobile.ui.copy.AccountCopy
 import com.thesis.mobile.ui.navigation.DeepLinkRouter
 import com.thesis.mobile.ui.navigation.Destination
 import com.thesis.mobile.ui.navigation.LaunchTarget
@@ -56,6 +57,7 @@ import com.thesis.mobile.ui.navigation.NavRoute
 import com.thesis.mobile.ui.navigation.RouteAction
 import com.thesis.mobile.ui.navigation.ShellTab
 import com.thesis.mobile.ui.shell.AppNavigator
+import com.thesis.mobile.ui.shell.COMPARE_NAMES_MAX
 import com.thesis.mobile.ui.shell.AppearancePrefs
 import com.thesis.mobile.ui.shell.DeepDiveStartDecision
 import com.thesis.mobile.ui.shell.NavEntry
@@ -64,6 +66,7 @@ import com.thesis.mobile.ui.shell.ShellActions
 import com.thesis.mobile.ui.shell.TabFreshness
 import com.thesis.mobile.ui.shell.decideDeepDiveStart
 import com.thesis.mobile.ui.shell.pulseEntryNeedsLoad
+import com.thesis.mobile.ui.screens.AuthStatus
 import com.thesis.mobile.network.ProductApiClient
 import com.thesis.mobile.network.ProductApiException
 import com.thesis.mobile.observability.MobileTelemetry
@@ -116,7 +119,8 @@ class MainViewModel(
         tokens = sessionStore.loadTokens(),
         appearance = sessionStore.loadAppearance(),
         lastInboxVisitAtMs = sessionStore.getLastInboxVisitAtMs(),
-        lastNamesVisitAtMs = sessionStore.getLastNamesVisitAtMs()
+        lastNamesVisitAtMs = sessionStore.getLastNamesVisitAtMs(),
+        recentSearches = sessionStore.getRecentSearches()
     )
         private set
 
@@ -132,6 +136,7 @@ class MainViewModel(
     private var historyInFlight = 0
     private var reportOpenGeneration = 0
     private var searchJob: Job? = null
+    private var tickerSuggestJob: Job? = null
 
     private var observer: ((UiState) -> Unit)? = null
 
@@ -277,7 +282,13 @@ class MainViewModel(
         }
 
         sessionStore.saveApiBaseUrl(normalized)
-        publish(state.copy(apiBaseUrl = normalized, message = "API base URL saved."))
+        publish(
+            state.copy(
+                apiBaseUrl = normalized,
+                message = "API base URL saved.",
+                authStatus = AuthStatus(AuthStatus.Kind.ApiSaved, AccountCopy.STATUS_API_SAVED)
+            )
+        )
     }
 
     fun setNotificationsEnabled(enabled: Boolean) {
@@ -331,7 +342,7 @@ class MainViewModel(
         trackEvent("biometric_lock_toggled", mapOf("enabled" to enabled))
     }
 
-    fun setNotificationPreference(notificationType: String, enabled: Boolean) {
+    fun setNotificationPreference(notificationType: String, enabled: Boolean, announce: Boolean = true) {
         val normalizedType = notificationType.trim()
         if (normalizedType.isBlank()) {
             return
@@ -348,7 +359,8 @@ class MainViewModel(
                 publish(
                     state.copy(
                         notificationPreferences = mergeNotificationPreferences(preferences),
-                        message = "Notification preference saved."
+                        // The Inbox confirms its own "turn off" with its snackbar (one message per action, 5.21).
+                        message = if (announce) "Notification preference saved." else state.message
                     )
                 )
                 trackEvent(
@@ -365,7 +377,7 @@ class MainViewModel(
 
     fun register(email: String, password: String) {
         viewModelScope.launch {
-            publish(state.copy(authBusy = true, message = null, registerStatus = null))
+            publish(state.copy(authBusy = true, message = null, registerStatus = null, authStatus = null))
             runCatching {
                 client.register(state.apiBaseUrl, email, password)
             }.onSuccess { result ->
@@ -374,7 +386,8 @@ class MainViewModel(
                         authBusy = false,
                         registerStatus = result.status,
                         verificationToken = result.verificationToken,
-                        message = "Registration created. Verify your account to continue."
+                        message = "Registration created. Verify your account to continue.",
+                        authStatus = AuthStatus(AuthStatus.Kind.VerificationSent, AccountCopy.STATUS_VERIFICATION_SENT)
                     )
                 )
                 trackEvent(
@@ -392,27 +405,36 @@ class MainViewModel(
                     )
                 )
             }.onFailure { error ->
-                publish(state.copy(authBusy = false, message = toMessage(error)))
+                publish(state.copy(authBusy = false, message = toMessage(error), authStatus = authFailure(error)))
             }
         }
     }
 
+    /** The Auth status line for a failed register, verify or log in: the error as written (5.3). */
+    private fun authFailure(error: Throwable): AuthStatus = AuthStatus(AuthStatus.Kind.Failed, toMessage(error))
+
     fun verify(email: String, token: String) {
         viewModelScope.launch {
-            publish(state.copy(authBusy = true, message = null))
+            publish(state.copy(authBusy = true, message = null, authStatus = null))
             runCatching {
                 client.verify(state.apiBaseUrl, email.trim(), token.trim())
             }.onSuccess {
-                publish(state.copy(authBusy = false, message = "Account verified. You can login now."))
+                publish(
+                    state.copy(
+                        authBusy = false,
+                        message = "Account verified. You can login now.",
+                        authStatus = AuthStatus(AuthStatus.Kind.Verified, AccountCopy.STATUS_VERIFIED)
+                    )
+                )
             }.onFailure { error ->
-                publish(state.copy(authBusy = false, message = toMessage(error)))
+                publish(state.copy(authBusy = false, message = toMessage(error), authStatus = authFailure(error)))
             }
         }
     }
 
     fun login(email: String, password: String) {
         viewModelScope.launch {
-            publish(state.copy(authBusy = true, message = null))
+            publish(state.copy(authBusy = true, message = null, authStatus = null))
             runCatching {
                 client.login(state.apiBaseUrl, email, password)
             }.onSuccess { tokens ->
@@ -424,6 +446,7 @@ class MainViewModel(
                         showWelcome = false,
                         tokens = tokens,
                         message = "Login successful.",
+                        authStatus = null,
                         pulseError = null,
                         deepDiveError = null
                     )
@@ -446,7 +469,7 @@ class MainViewModel(
                     mapOf("method" to "email_password")
                 )
             }.onFailure { error ->
-                publish(state.copy(authBusy = false, message = toMessage(error)))
+                publish(state.copy(authBusy = false, message = toMessage(error), authStatus = authFailure(error)))
             }
         }
     }
@@ -455,7 +478,7 @@ class MainViewModel(
         viewModelScope.launch {
             val current = state.tokens
             if (current == null) {
-                clearLocalSession("Logged out.")
+                clearLocalSession("Logged out.", AuthStatus(AuthStatus.Kind.SignedOut, AccountCopy.STATUS_SIGNED_OUT))
                 return@launch
             }
 
@@ -474,7 +497,7 @@ class MainViewModel(
             runCatching {
                 RevenueCatBilling.logOutSafely()
             }
-            clearLocalSession("Logged out.")
+            clearLocalSession("Logged out.", AuthStatus(AuthStatus.Kind.SignedOut, AccountCopy.STATUS_SIGNED_OUT))
         }
     }
 
@@ -497,7 +520,12 @@ class MainViewModel(
                 client.confirmPasswordReset(state.apiBaseUrl, email.trim(), token.trim(), newPassword)
             }
                 .onSuccess {
-                    publish(state.copy(message = "Password reset successful. Log in with your new password."))
+                    publish(
+                        state.copy(
+                            message = "Password reset successful. Log in with your new password.",
+                            authStatus = AuthStatus(AuthStatus.Kind.PasswordChanged, AccountCopy.STATUS_PASSWORD_CHANGED)
+                        )
+                    )
                     onResult(null)
                 }
                 .onFailure { error -> onResult(toMessage(error)) }
@@ -518,7 +546,11 @@ class MainViewModel(
                 RevenueCatBilling.logOutSafely()
             }
             clearLocalSession(
-                listOfNotNull("Account deleted successfully.", storeNotice).joinToString(" ")
+                listOfNotNull("Account deleted successfully.", storeNotice).joinToString(" "),
+                AuthStatus(
+                    AuthStatus.Kind.AccountDeleted,
+                    listOfNotNull(AccountCopy.STATUS_ACCOUNT_DELETED, storeNotice?.trim()?.ifBlank { null }).joinToString(" ")
+                )
             )
         }
     }
@@ -539,13 +571,17 @@ class MainViewModel(
         publish(state.copy(paywallFeature = null))
     }
 
+    /**
+     * Opens the Paywall (5.23) on the modal stack for [feature]. The paywall itself is the explanation, so no
+     * snackbar goes with it ([message] is kept only where a screen shows it in place, such as an error line).
+     */
+    private fun showUpgrade(feature: String) {
+        forgetClosedPaywall()
+        publish(state.copy(paywallFeature = feature))
+    }
+
     fun requestFeatureUpgrade(feature: String) {
-        publish(
-            state.copy(
-                paywallFeature = feature,
-                message = "Upgrade to Pro to use this feature."
-            )
-        )
+        showUpgrade(feature)
         trackEvent(
             "paywall_shown",
             mapOf("feature" to feature)
@@ -578,13 +614,8 @@ class MainViewModel(
                     report.reportId,
                     state.reportNoteDraft
                 )
-                publish(
-                    state.copy(
-                        reportNote = saved,
-                        reportNoteDraft = saved.content,
-                        message = "Note saved."
-                    )
-                )
+                // No snackbar: the report host's NoteBlock footer says Saving / Saved / Try again (5.13 item 4).
+                publish(state.copy(reportNote = saved, reportNoteDraft = saved.content))
                 cacheStore.setDeepDiveNotePinned(report.reportId, saved.content.isNotBlank())
                 runCatchingNonCancellation { cacheStore.cacheReportNote(report.reportId, saved, report) }
                 trackEvent(
@@ -681,7 +712,7 @@ class MainViewModel(
             }
 
             if (error != null) {
-                publish(state.copy(message = toMessage(error), inboxError = toMessage(error)))
+                publish(state.copy(message = toMessage(error), inboxError = toMessage(error), inboxErrorSeq = state.inboxErrorSeq + 1))
             }
         }
     }
@@ -700,13 +731,9 @@ class MainViewModel(
                     requireTokens().accessToken,
                     normalizedId
                 )
-                publish(
-                    state.copy(
-                        alertLedger = replaceAlertLedgerItem(updated),
-                        inboxError = null,
-                        message = "Alerts like this are quiet for 24 hours."
-                    )
-                )
+                // No success snackbar: the Inbox already said "Alerts like this are quiet for 24 hours" with Undo, and
+                // calls this only once that snackbar went without Undo (5.21, one message per action).
+                publish(state.copy(alertLedger = replaceAlertLedgerItem(updated), inboxError = null))
                 refreshNotificationPreferences()
                 trackEvent(
                     "notification_family_quieted",
@@ -719,7 +746,7 @@ class MainViewModel(
             }
 
             if (error != null) {
-                publish(state.copy(message = toMessage(error), inboxError = toMessage(error)))
+                publish(state.copy(message = toMessage(error), inboxError = toMessage(error), inboxErrorSeq = state.inboxErrorSeq + 1))
             }
         }
     }
@@ -809,12 +836,7 @@ class MainViewModel(
                 val upgrade = (error as? ProductApiException)
                     ?.takeIf { it.code == 403 && it.errorCode == "upgrade_required" }
                 if (upgrade != null) {
-                    publish(
-                        state.copy(
-                            paywallFeature = upgrade.feature ?: "what_if_scenario",
-                            message = upgrade.message
-                        )
-                    )
+                    showUpgrade(upgrade.feature ?: "what_if_scenario")
                 } else {
                     publish(state.copy(message = toMessage(error)))
                 }
@@ -935,12 +957,7 @@ class MainViewModel(
                 val upgrade = (error as? ProductApiException)
                     ?.takeIf { it.code == 403 && it.errorCode == "upgrade_required" }
                 if (upgrade != null) {
-                    publish(
-                        state.copy(
-                            paywallFeature = upgrade.feature ?: "scenario_stress",
-                            message = upgrade.message
-                        )
-                    )
+                    showUpgrade(upgrade.feature ?: "scenario_stress")
                 } else {
                     publish(state.copy(scenarioStressRunError = toMessage(error)))
                 }
@@ -997,12 +1014,7 @@ class MainViewModel(
                 val upgrade = (error as? ProductApiException)
                     ?.takeIf { it.code == 403 && it.errorCode == "upgrade_required" }
                 if (upgrade != null) {
-                    publish(
-                        state.copy(
-                            paywallFeature = upgrade.feature ?: "scenario_stress",
-                            message = upgrade.message
-                        )
-                    )
+                    showUpgrade(upgrade.feature ?: "scenario_stress")
                 } else {
                     publish(state.copy(scenarioStressRunError = toMessage(error)))
                 }
@@ -1134,13 +1146,8 @@ class MainViewModel(
                 val upgrade = (error as? ProductApiException)
                     ?.takeIf { it.code == 403 && it.errorCode == "upgrade_required" }
                 if (upgrade != null) {
-                    publish(
-                        state.copy(
-                            paywallFeature = upgrade.feature ?: "conviction_intelligence",
-                            oppositeCaseError = upgrade.message,
-                            message = upgrade.message
-                        )
-                    )
+                    publish(state.copy(oppositeCaseError = upgrade.message))
+                    showUpgrade(upgrade.feature ?: "conviction_intelligence")
                 } else {
                     publish(state.copy(oppositeCaseError = toMessage(error), message = toMessage(error)))
                 }
@@ -1326,6 +1333,27 @@ class MainViewModel(
         }
     }
 
+    /**
+     * Ticker suggestions for a typed query (Names' add field, the Research field): debounced, quiet (no snackbar),
+     * and cleared for an empty query.
+     */
+    fun suggestTickers(query: String) {
+        tickerSuggestJob?.cancel()
+        val q = query.trim()
+        if (q.isEmpty()) {
+            if (state.tickers.isNotEmpty()) publish(state.copy(tickers = emptyList()))
+            return
+        }
+        tickerSuggestJob = viewModelScope.launch {
+            delay(TICKER_SUGGEST_DEBOUNCE_MS)
+            var results = emptyList<TickerSearchItem>()
+            val error = runAuthorizedWithRefresh {
+                results = client.searchTickers(state.apiBaseUrl, requireTokens().accessToken, q)
+            }
+            if (error == null) publish(state.copy(tickers = results))
+        }
+    }
+
     fun selectTicker(symbol: String) {
         publish(state.copy(selectedTicker = symbol))
     }
@@ -1473,7 +1501,17 @@ class MainViewModel(
         }, onError = { tabFreshness.invalidate(ShellTab.Research) }) {
             val reports = client.listReports(state.apiBaseUrl, requireTokens().accessToken)
             publish(state.copy(reportHistory = reports, reportHistoryLoaded = true))
+            loadReportSummaries()
+            allNotes()
         }
+    }
+
+    /** Fills [UiState.reportSummaries] from the cache for every report in the history (company, filing period). */
+    private suspend fun loadReportSummaries() {
+        val summaries = state.reportHistory.mapNotNull { item ->
+            runCatchingNonCancellation { cacheStore.getReportSummary(item.reportId) }.getOrNull()?.let { item.reportId to it }
+        }.toMap()
+        publish(state.copy(reportSummaries = state.reportSummaries + summaries))
     }
 
     fun openHistoryReport(reportId: String) {
@@ -1711,7 +1749,8 @@ class MainViewModel(
                         pulseReport = pulse,
                         pulseLoadedFromCache = false,
                         pulseFreshnessText = formatPulseFreshness(pulse.generatedAt, fromCache = false),
-                        pulseError = null
+                        pulseError = null,
+                        pulseFailureKind = null
                     )
                 )
                 // Consumed only here, with no suspension point before rememberPulse, so a refresh
@@ -1742,6 +1781,7 @@ class MainViewModel(
                 tabFreshness.invalidate(ShellTab.Today)
                 val failureKind = RefreshFailure.classify(error, isDeviceOnline())
                 Log.w(LOG_TAG, RefreshFailure.logLine("pulse", error, failureKind))
+                publish(state.copy(pulseFailureKind = failureKind))
                 val cachedPulse = cacheStore.getCachedPulse()
                 if (cachedPulse != null) {
                     publish(
@@ -1906,10 +1946,12 @@ class MainViewModel(
                     state.apiBaseUrl,
                     requireTokens().accessToken
                 )
+                // At least two weeks whatever the range: the header compares with a reading about 7 days old
+                // ("rose 6 points this week"), which a 7-day window may not hold (5.9.2).
                 val history = client.getMacroStressHistory(
                     state.apiBaseUrl,
                     requireTokens().accessToken,
-                    normalizedDays
+                    maxOf(normalizedDays, MACRO_HISTORY_MIN_DAYS)
                 ).sortedByDescending { it.marketDate }
                 cacheStore.cacheSentiment(current, history)
                 publish(
@@ -2045,17 +2087,19 @@ class MainViewModel(
 
     fun removeWatchlistTicker(ticker: String) {
         if (!state.watchlistFeatureEnabled) {
-            publish(state.copy(message = "Watchlist is currently disabled by feature flag."))
+            // A new list value, so the Names row that collapsed for the remove comes back.
+            publish(state.copy(watchlist = state.watchlist.toList(), message = "Watchlist is currently disabled by feature flag."))
             return
         }
-        withAuthorizedCall {
+        withAuthorizedCall(onError = { publish(state.copy(watchlist = state.watchlist.toList())) }) {
             val normalized = ticker.trim().uppercase()
             val items = client.removeWatchlistTicker(
                 state.apiBaseUrl,
                 requireTokens().accessToken,
                 normalized
             )
-            publish(state.copy(watchlist = items, message = "$normalized removed from watchlist."))
+            // No "removed" message: Names shows its own "Removed X from Names" with Undo.
+            publish(state.copy(watchlist = items))
             trackEvent(
                 "watchlist_ticker_removed",
                 mapOf("ticker" to normalized, "watchlist_size" to items.size)
@@ -2079,14 +2123,24 @@ class MainViewModel(
                 publish(
                     state.copy(
                         alertLedger = alerts,
-                        inboxError = null
+                        inboxError = null,
+                        inboxLoadError = null,
+                        inboxLoaded = true
                     )
                 )
             }
             if (error != null) {
                 // The ledger feeds Today's alerts, the Names board and Inbox.
                 tabFreshness.invalidate(ShellTab.Today, ShellTab.Names, ShellTab.Inbox)
-                publish(state.copy(inboxError = toMessage(error)))
+                val message = toMessage(error)
+                publish(
+                    state.copy(
+                        inboxError = message,
+                        inboxLoadError = message,
+                        inboxErrorSeq = state.inboxErrorSeq + 1,
+                        inboxLoaded = true
+                    )
+                )
             }
           } finally {
             inboxInFlight = (inboxInFlight - 1).coerceAtLeast(0)
@@ -2109,6 +2163,9 @@ class MainViewModel(
                 // 5.5: every board refresh appends to the 90-day history; deltas compare to the last Names visit.
                 runCatchingNonCancellation { cacheStore.appendSnapshotHistory(snapshots) }
                 publish(state.copy(snapshotDeltas = computeSnapshotDeltas(snapshots, state.lastNamesVisitAtMs)))
+                // The weekly digest's state changes: each reading against the one at or before a week ago.
+                val weekly = computeSnapshotDeltas(snapshots, System.currentTimeMillis() - WEEK_MS).values
+                publish(state.copy(weeklyStateChanges = weekly.toList().takeIf { list -> list.any { it.previous != null } }))
             }
             if (error != null) tabFreshness.invalidate(ShellTab.Today, ShellTab.Names)
           } finally {
@@ -2250,12 +2307,7 @@ class MainViewModel(
                 val upgrade = (error as? ProductApiException)
                     ?.takeIf { it.code == 403 && it.errorCode == "upgrade_required" }
                 if (upgrade != null) {
-                    publish(
-                        state.copy(
-                            paywallFeature = upgrade.feature ?: "pro_features",
-                            message = upgrade.message
-                        )
-                    )
+                    showUpgrade(upgrade.feature ?: "pro_features")
                 } else {
                     publish(state.copy(message = toMessage(error)))
                 }
@@ -2278,7 +2330,10 @@ class MainViewModel(
                 if (tryRefreshToken()) {
                     block()
                 } else {
-                    clearLocalSession("Session expired. Please log in again.")
+                    clearLocalSession(
+                        "Session expired. Please log in again.",
+                        AuthStatus(AuthStatus.Kind.SessionExpired, AccountCopy.STATUS_SESSION_EXPIRED)
+                    )
                     throw ProductApiException(401, "Session expired. Please log in again.")
                 }
             } else {
@@ -2300,7 +2355,7 @@ class MainViewModel(
         capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
     }.getOrDefault(true)
 
-    private suspend fun clearLocalSession(message: String) {
+    private suspend fun clearLocalSession(message: String, authStatus: AuthStatus) {
         PrefetchScheduler.cancel(getApplication<Application>().applicationContext)
         cacheStore.clearAll()
         sessionStore.clearLastViewedReport()
@@ -2309,6 +2364,7 @@ class MainViewModel(
         activeDeepDiveJobId = null
         clearDeepDiveInFlight()
         sessionStore.clearVisitMarkers()
+        sessionStore.saveRecentSearches(emptyList())
         tabFreshness.clear()
         navigator.reset()
         val hasSeenWelcome = sessionStore.hasSeenWelcome()
@@ -2378,7 +2434,14 @@ class MainViewModel(
                 compareReports = null,
                 compareNames = null,
                 searchResults = null,
-                message = message
+                pulseFailureKind = null,
+                inboxLoadError = null,
+                inboxLoaded = false,
+                reportSummaries = emptyMap(),
+                weeklyStateChanges = null,
+                recentSearches = emptyList(),
+                message = message,
+                authStatus = authStatus
             )
         )
     }
@@ -2544,8 +2607,30 @@ class MainViewModel(
     }
 
     private fun publish(newState: UiState) {
+        val paywallBefore = state.paywallFeature
         state = newState
+        syncPaywallEntry(paywallBefore, newState.paywallFeature)
         observer?.invoke(state)
+    }
+
+    /**
+     * The Paywall is a modal-stack destination (5.23): a new upgrade request opens it, a cleared one (dismiss, a
+     * purchase or restore that made the user Pro) closes it. A Paywall closed by navigation (back, a tab, a route)
+     * clears the request in [forgetClosedPaywall].
+     */
+    private fun syncPaywallEntry(before: String?, after: String?) {
+        val open = navigator.modalStack.any { it.destination is Destination.Paywall }
+        when {
+            !after.isNullOrBlank() && after != before && !open -> navigator.openModal(Destination.Paywall(after))
+            after.isNullOrBlank() && open -> navigator.closeModals { it is Destination.Paywall }
+        }
+    }
+
+    /** The Paywall left the modal stack by navigation: the request it showed is over. */
+    private fun forgetClosedPaywall() {
+        if (state.paywallFeature != null && navigator.modalStack.none { it.destination is Destination.Paywall }) {
+            publish(state.copy(paywallFeature = null))
+        }
     }
 
     private fun replaceAlertLedgerItem(updated: AlertLedgerItemView): List<AlertLedgerItemView> {
@@ -2637,6 +2722,7 @@ class MainViewModel(
         navigator.apply(route, onRemoved = { removed ->
             if (!opensPulse || removed.destination !is Destination.Pulse) onEntryPopped(removed)
         })
+        forgetClosedPaywall()
         noteTabLeft(previousTab, navigator.currentTab)
         route.tab?.let { refreshTab(it, force = forceRefresh, skipPulse = opensPulse) }
         if (route.modal is Destination.You) refreshYou()
@@ -2688,6 +2774,7 @@ class MainViewModel(
     override fun onSelectTab(tab: ShellTab) {
         val previous = navigator.currentTab
         navigator.selectTab(tab, ::onEntryPopped)
+        forgetClosedPaywall()
         noteTabLeft(previous, tab)
         refreshTab(tab, force = false)
     }
@@ -2696,6 +2783,7 @@ class MainViewModel(
         // Back from another tab's root switches to Today: that leaves Names or Inbox, so move its marker.
         val previousTab = navigator.currentTab
         val handled = navigator.back(::onEntryPopped)
+        forgetClosedPaywall()
         noteTabLeft(previousTab, navigator.currentTab)
         return handled
     }
@@ -2711,6 +2799,7 @@ class MainViewModel(
 
     override fun onCloseModal() {
         navigator.closeModals()
+        forgetClosedPaywall()
     }
 
     override fun onOpenAlert(alert: AlertLedgerItemView) {
@@ -2849,9 +2938,140 @@ class MainViewModel(
         }
     }
 
-    override fun onOpenName(ticker: String) {
-        navigator.push(Destination.Name(ticker.trim().uppercase()))
-        openName(ticker)
+    override fun onOpenName(ticker: String) = onOpenNameIn(ticker, null, null)
+
+    override fun onOpenNameIn(ticker: String, pagerScope: String?, anchor: String?) {
+        val symbol = ticker.trim().uppercase().ifBlank { return }
+        // From Search (modal) or the Paywall's caller: the Name opens on the tab under it.
+        navigator.closeModals()
+        forgetClosedPaywall()
+        navigator.push(Destination.Name(symbol, pagerScope, anchor))
+        openName(symbol)
+    }
+
+    override fun onPageName(ticker: String, pagerScope: String?) {
+        val symbol = ticker.trim().uppercase().ifBlank { return }
+        if (navigator.tabTop.destination is Destination.Name) {
+            navigator.replaceTop(Destination.Name(symbol, pagerScope))
+        } else {
+            navigator.push(Destination.Name(symbol, pagerScope))
+        }
+        openName(symbol)
+    }
+
+    override fun onEnsureName(ticker: String) {
+        val symbol = ticker.trim().uppercase().ifBlank { return }
+        val held = state.nameDetail
+        if (held == null || held.ticker != symbol || (held.summary == null && !held.isLoading)) openName(symbol)
+    }
+
+    override fun onOpenCompareNames(tickers: List<String>) {
+        val symbols = tickers.map { it.trim().uppercase() }.filter { it.isNotBlank() }.distinct().take(COMPARE_NAMES_MAX)
+        if (symbols.isEmpty()) return
+        navigator.closeModals()
+        navigator.push(Destination.CompareNames(symbols))
+        loadCompareNames(symbols)
+    }
+
+    override fun onEnsureCompareNames(tickers: List<String>) {
+        val symbols = tickers.map { it.trim().uppercase() }.filter { it.isNotBlank() }.distinct().take(COMPARE_NAMES_MAX)
+        val held = state.compareNames
+        if (held == null || held.tickers != symbols || (held.error != null && !held.isLoading)) loadCompareNames(symbols)
+    }
+
+    override fun onOpenCompareReports(reportIdA: String, reportIdB: String) {
+        navigator.closeModals()
+        navigator.push(Destination.CompareReports(reportIdA, reportIdB))
+        loadCompare(reportIdA, reportIdB)
+    }
+
+    override fun onEnsureCompareReports(reportIdA: String, reportIdB: String) {
+        val held = state.compareReports
+        if (held == null || held.reportIdA != reportIdA || held.reportIdB != reportIdB ||
+            (held.error != null && !held.isLoading)
+        ) {
+            loadCompare(reportIdA, reportIdB)
+        }
+    }
+
+    override fun onOpenInbox(category: String?) {
+        navigator.requestInboxCategory(category)
+        onSelectTab(ShellTab.Inbox)
+        navigator.popToRoot(ShellTab.Inbox, ::onEntryPopped)
+    }
+
+    override fun onOpenNamesToAdd() {
+        navigator.requestNamesFocusAdd()
+        onSelectTab(ShellTab.Names)
+        navigator.popToRoot(ShellTab.Names, ::onEntryPopped)
+    }
+
+    override fun onOpenHoldingsImport() {
+        navigator.closeModals()
+        forgetClosedPaywall()
+        navigator.requestNamesImport()
+        onSelectTab(ShellTab.Names)
+        navigator.popToRoot(ShellTab.Names, ::onEntryPopped)
+    }
+
+    override fun onOpenPulseAt(chapter: String) {
+        navigator.closeModals()
+        navigator.push(Destination.Pulse(null, chapter))
+    }
+
+    override fun onSearchTickers(query: String) = suggestTickers(query)
+    override fun onLoadAllNotes() = allNotes()
+    override fun onLoadNotesTrail(ticker: String) = notesTrail(ticker)
+    override suspend fun onSaveNoteFor(reportId: String, text: String): Boolean = saveNoteFor(reportId, text)
+    override fun onSaveNoteOnLeave(reportId: String, text: String) {
+        viewModelScope.launch { saveNoteFor(reportId, text) }
+    }
+    override fun onRefreshHistory() = refreshReportHistory()
+    override fun onSearch(query: String) = search(query)
+
+    override fun onAddRecentSearch(query: String) {
+        val q = query.trim().ifBlank { return }
+        val updated = (listOf(q) + state.recentSearches.filterNot { it.equals(q, ignoreCase = true) }).take(RECENT_SEARCHES_MAX)
+        sessionStore.saveRecentSearches(updated)
+        publish(state.copy(recentSearches = updated))
+    }
+
+    override fun onClearRecentSearches() {
+        sessionStore.saveRecentSearches(emptyList())
+        publish(state.copy(recentSearches = emptyList()))
+    }
+
+    override fun onDisableAlertType(type: String) = setNotificationPreference(type, enabled = false, announce = false)
+
+    /**
+     * Saves [text] as the note of [reportId] (any report, Name's NoteBlock), updating the notes cache, the trail and
+     * [UiState.allNotes]. True once the server has it; no snackbar (the block's footer says Saved).
+     */
+    suspend fun saveNoteFor(reportId: String, text: String): Boolean {
+        var saved: ReportNoteView? = null
+        val error = runAuthorizedWithRefresh {
+            saved = client.saveReportNote(state.apiBaseUrl, requireTokens().accessToken, reportId, text)
+        }
+        val note = saved
+        if (error != null || note == null) return false
+        val open = state.deepDiveReport?.takeIf { it.reportId == reportId }
+        if (open != null) publish(state.copy(reportNote = note, reportNoteDraft = note.content))
+        val ticker = state.reportHistory.firstOrNull { it.reportId == reportId }?.ticker?.trim()?.uppercase()
+            ?: open?.ticker?.trim()?.uppercase()
+            ?: state.nameDetail?.ticker
+        runCatchingNonCancellation {
+            cacheStore.cacheReportNote(reportId, note, report = open, ticker = ticker)
+        }
+        if (ticker != null) {
+            val trail = runCatchingNonCancellation { cacheStore.getNotesTrail(ticker) }.getOrNull()
+            if (trail != null) {
+                val detail = state.nameDetail?.takeIf { it.ticker == ticker }?.copy(notesTrail = trail)
+                publish(state.copy(notesTrails = state.notesTrails + (ticker to trail), nameDetail = detail ?: state.nameDetail))
+            }
+        }
+        val notes = runCatchingNonCancellation { cacheStore.getAllNotes() }.getOrNull()
+        if (notes != null) publish(state.copy(allNotes = notes))
+        return true
     }
 
     override fun onResumeLastViewed(report: LastViewedReport) {
@@ -3123,6 +3343,10 @@ class MainViewModel(
     companion object {
         private const val LOG_TAG = "ThesisRefresh"
         private const val PULSE_RETRY_DELAY_MS = 600L
+        private const val TICKER_SUGGEST_DEBOUNCE_MS = 250L
+        private const val MACRO_HISTORY_MIN_DAYS = 14
+        private const val WEEK_MS = 7L * 24 * 60 * 60 * 1000
+        private const val RECENT_SEARCHES_MAX = 8
         private const val DEEP_DIVE_RESUME_PREFS = "thesis_deep_dive_resume"
         private const val KEY_RESUME_JOB_ID = "job_id"
         private const val KEY_RESUME_TICKER = "ticker"
