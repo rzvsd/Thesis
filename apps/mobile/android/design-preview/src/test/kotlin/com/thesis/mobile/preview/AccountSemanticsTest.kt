@@ -14,6 +14,7 @@ import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasScrollToNodeAction
 import androidx.compose.ui.test.hasSetTextAction
@@ -107,6 +108,68 @@ class AccountSemanticsTest {
         rule.onNodeWithText(AccountCopy.PRIVACY).assertTouchTargetAtLeast()
     }
 
+    @Test
+    fun `the legal lead is one TalkBack stop before the two links`() {
+        set { Auth() }
+        // A3: the lead flows word by word on screen, but reads as one sentence, not one stop per word.
+        rule.onAllNodesWithText(AccountCopy.LEGAL_LEAD).assertCountEquals(1)
+        AccountCopy.LEGAL_LEAD.split(' ').forEach { word -> rule.onAllNodesWithText(word).assertCountEquals(0) }
+        val lead = rule.onNodeWithText(AccountCopy.LEGAL_LEAD).fetchSemanticsNode().boundsInRoot
+        val terms = rule.onNodeWithText(AccountCopy.TERMS).fetchSemanticsNode().boundsInRoot
+        // Same line (overlapping rows: TalkBack reads left to right) or a line above.
+        assertTrue(
+            "the lead ($lead) comes before the Terms link ($terms)",
+            lead.bottom <= terms.top || (lead.top < terms.bottom && lead.left < terms.left),
+        )
+    }
+
+    @Test
+    fun `at 2_0x on 360 dp every onboarding title and lede show without scrolling`() =
+        onboardingWordsFirst(PhoneSpec.HEIGHT_DP, wholeLede = true)
+
+    @Test
+    fun `at 2_0x on a short 360 dp phone every onboarding title shows and its lede starts on screen`() =
+        onboardingWordsFirst(SHORT_PHONE_HEIGHT_DP, wholeLede = false)
+
+    /**
+     * The fragment gives way: when it and the words do not fit, the words come first and the fragment follows, so
+     * the title (and the lede, or on a short phone its start) shows on every page without scrolling.
+     */
+    @OptIn(ExperimentalTestApi::class)
+    private fun onboardingWordsFirst(heightDp: Int, wholeLede: Boolean) {
+        val density = PhoneSpec.density
+        val width = (PhoneSpec.NARROW_WIDTH_DP * density).toInt()
+        val height = (heightDp * density).toInt()
+        SkikoComposeUiTest(width = width, height = height, density = Density(density, fontScale = 2f)).runTest {
+            var page by mutableStateOf(0)
+            setContent {
+                ThesisTheme(mode = ThemeMode.Light) {
+                    androidx.compose.runtime.key(page) { OnboardingScreen(onComplete = {}, initialPage = page) }
+                }
+            }
+            listOf(
+                AccountCopy.ONBOARDING_DESK_TITLE to AccountCopy.ONBOARDING_DESK_LEDE,
+                AccountCopy.ONBOARDING_PULSE_TITLE to AccountCopy.ONBOARDING_PULSE_LEDE,
+                AccountCopy.ONBOARDING_DIVE_TITLE to AccountCopy.ONBOARDING_DIVE_LEDE,
+                AccountCopy.ONBOARDING_NAMES_TITLE to AccountCopy.ONBOARDING_NAMES_LEDE,
+                AccountCopy.ONBOARDING_ADVICE_TITLE to AccountCopy.ONBOARDING_ADVICE_LEDE,
+            ).forEachIndexed { i, (title, lede) ->
+                page = i
+                waitForIdle()
+                mainClock.advanceTimeBy(2_000)
+                for (text in listOf(title, lede)) {
+                    val node = onNodeWithText(text).fetchSemanticsNode()
+                    val b = node.boundsInWindow
+                    val whole = text == title || wholeLede
+                    assertTrue(
+                        "page ${i + 1}: \"${text.take(24)}\" (${node.size}) shows only $b in the ${width}x$height window",
+                        if (whole) b.height >= node.size.height - 1 else b.height >= node.size.height / 3,
+                    )
+                }
+            }
+        }
+    }
+
     // ---- Password reset -------------------------------------------------------------------------------------------
 
     @Test
@@ -155,33 +218,35 @@ class AccountSemanticsTest {
 
     @OptIn(ExperimentalTestApi::class)
     @Test
-    fun `at 2_0x on 360 dp the delete dialog keeps both actions on screen`() {
-        // A4: the dialog's window is the phone's (360 x 915 dp at 2.0x font), so the body has to scroll while
-        // "Delete permanently" and "Cancel" stay pinned inside the window, empty or typed.
+    fun `at 2_0x on 360 dp the delete dialog keeps the DELETE field and both actions on screen`() {
+        // A4: the dialog's window is the phone's (360 x 640 dp, a short phone, at 2.0x font), so the body has to
+        // scroll while the DELETE field, "Delete permanently" and "Cancel" stay pinned inside the window, untouched
+        // (no scrolling first), empty or typed.
         val density = PhoneSpec.density
         val width = (PhoneSpec.NARROW_WIDTH_DP * density).toInt()
-        val height = (PhoneSpec.HEIGHT_DP * density).toInt()
+        val height = (SHORT_PHONE_HEIGHT_DP * density).toInt()
         SkikoComposeUiTest(width = width, height = height, density = Density(density, fontScale = 2f)).runTest {
             setContent { ThesisTheme(mode = ThemeMode.Light) { DeleteAccountControl(onDelete = {}, initiallyOpen = true) } }
             waitForIdle()
-            fun onScreen(label: String) {
-                val node = onNode(hasClickAction() and hasText(label)).assertIsDisplayed().fetchSemanticsNode()
-                // boundsInWindow is clipped to the window: a button pushed past its edge comes back shorter than itself.
+            fun onScreen(matcher: SemanticsMatcher, label: String) {
+                val node = onNode(matcher).assertIsDisplayed().fetchSemanticsNode()
+                // boundsInWindow is clipped to the window: a node pushed past its edge comes back shorter than itself.
                 val b = node.boundsInWindow
                 assertTrue(
                     "$label (${node.size}) shows only $b in the ${width}x$height window",
                     b.height >= node.size.height - 1 && b.width >= node.size.width - 1,
                 )
             }
-            onScreen(AccountCopy.DELETE_CONFIRM)
-            onScreen(AccountCopy.DELETE_CANCEL)
-            onNode(hasSetTextAction() and hasText(AccountCopy.DELETE_CONFIRM_LABEL, substring = true))
-                .performScrollTo()
-                .performTextInput(AccountCopy.DELETE_CONFIRM_WORD)
+            val confirmField = hasSetTextAction() and hasText(AccountCopy.DELETE_CONFIRM_LABEL, substring = true)
+            onScreen(confirmField, AccountCopy.DELETE_CONFIRM_LABEL)
+            onScreen(hasClickAction() and hasText(AccountCopy.DELETE_CONFIRM), AccountCopy.DELETE_CONFIRM)
+            onScreen(hasClickAction() and hasText(AccountCopy.DELETE_CANCEL), AccountCopy.DELETE_CANCEL)
+            onNode(confirmField).performTextInput(AccountCopy.DELETE_CONFIRM_WORD)
             waitForIdle()
             onNode(hasClickAction() and hasText(AccountCopy.DELETE_CONFIRM)).assertIsEnabled()
-            onScreen(AccountCopy.DELETE_CONFIRM)
-            onScreen(AccountCopy.DELETE_CANCEL)
+            onScreen(confirmField, AccountCopy.DELETE_CONFIRM_LABEL)
+            onScreen(hasClickAction() and hasText(AccountCopy.DELETE_CONFIRM), AccountCopy.DELETE_CONFIRM)
+            onScreen(hasClickAction() and hasText(AccountCopy.DELETE_CANCEL), AccountCopy.DELETE_CANCEL)
         }
     }
 
@@ -369,6 +434,11 @@ class AccountSemanticsTest {
         rule.onNodeWithText(AccountCopy.PAYWALL_PLANS_RETRY).performScrollTo().performClick()
         rule.waitForIdle()
         assertEquals(before + 1, refreshes)
+    }
+
+    private companion object {
+        /** A short phone's window (360 x 640 dp class), shorter than the 915 dp renders. */
+        const val SHORT_PHONE_HEIGHT_DP = 640
     }
 
     private fun hasRadio() = androidx.compose.ui.test.SemanticsMatcher.expectValue(

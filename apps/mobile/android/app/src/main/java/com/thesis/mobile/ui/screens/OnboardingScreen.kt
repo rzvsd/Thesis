@@ -3,7 +3,6 @@ package com.thesis.mobile.ui.screens
 import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -39,13 +38,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.ui.graphics.BlendMode
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -53,6 +48,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Constraints
 import com.thesis.mobile.ui.components.ChapterHeader
 import com.thesis.mobile.ui.components.Eyebrow
 import com.thesis.mobile.ui.components.HeroBand
@@ -97,8 +93,10 @@ private const val CASCADE_STEPS = 3
  * a serif title and a lede, left-aligned on the gutter. Under the pager: page dots, the gold primary button
  * ("Continue", then "Get started") and "Skip" (on the last page, the research-tool disclaimer).
  *
- * Every page scrolls on its own and fills the pager's height with flexible space, so nothing is fixed: at 1.3x and
- * 2.0x font scale the text grows and the page scrolls, its bottom edge fading while more is below. Each page's elements enter once, the first time it shows:
+ * Every page scrolls on its own and fills the pager's height with flexible space, so nothing is fixed. When the
+ * fragment and the words do not fit the page (1.3x and 2.0x font scale, short screens) the eyebrow, title and lede
+ * move above the fragment, so they always show without scrolling, and the page scrolls to the fragment, its bottom
+ * edge fading while more is below. Each page's elements enter once, the first time it shows:
  * fade and an 8 dp rise, [ThesisMotion.Enter] each, [ThesisMotion.CrossfadeDelay] apart (the fragment with the
  * eyebrow, then the title, then the lede); nothing moves under
  * reduced motion. System back goes to the previous page.
@@ -248,60 +246,60 @@ private fun OnboardingPageContent(page: OnboardingPage, showing: Boolean, played
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val pageHeight = maxHeight
         val scroll = rememberScrollState()
-        Column(
-            Modifier
+        Layout(
+            content = {
+                Box(Modifier.fillMaxWidth().step(0)) { PageFragment(page) }  // with the eyebrow, at 0 ms
+                Column(Modifier.fillMaxWidth()) {
+                    Eyebrow(page.eyebrow, modifier = Modifier.step(0))
+                    Spacer(Modifier.height(ThesisSpace.m))
+                    Text(
+                        page.title,
+                        modifier = Modifier
+                            .step(1)
+                            .semantics { heading() },
+                        style = ThesisType.capped(ThesisType.title),
+                        color = p.ink,
+                    )
+                    Spacer(Modifier.height(ThesisSpace.m))
+                    Text(page.lede, modifier = Modifier.step(2), style = ThesisType.lede, color = p.ink2)
+                }
+            },
+            modifier = Modifier
                 .fillMaxWidth()
-                .fadeWhenMoreBelow(scroll, mask = p.ink)
+                .fadeWhenMoreBelow(scroll, mask = p.ink, fade = ThesisSpace.x5 + ThesisSpace.xxl)
                 .verticalScroll(scroll)
-                .heightIn(min = pageHeight)
                 .widthIn(max = ThesisSpace.contentMaxWidth)
                 .padding(horizontal = ThesisSpace.gutter),
-        ) {
-            Spacer(Modifier.height(ThesisSpace.xxl))
-            Spacer(Modifier.weight(1f))
-            Box(Modifier.fillMaxWidth().step(0)) { PageFragment(page) }  // with the eyebrow, at 0 ms
-            Spacer(Modifier.height(ThesisSpace.x4))
-            Spacer(Modifier.weight(0.25f))
-            Eyebrow(page.eyebrow, modifier = Modifier.step(0))
-            Spacer(Modifier.height(ThesisSpace.m))
-            Text(
-                page.title,
-                modifier = Modifier
-                    .step(1)
-                    .semantics { heading() },
-                style = ThesisType.capped(ThesisType.title),
-                color = p.ink,
-            )
-            Spacer(Modifier.height(ThesisSpace.m))
-            Text(page.lede, modifier = Modifier.step(2), style = ThesisType.lede, color = p.ink2)
-            Spacer(Modifier.height(ThesisSpace.l))
+        ) { measurables, constraints ->
+            val loose = constraints.copy(minHeight = 0, maxHeight = Constraints.Infinity)
+            val fragment = measurables[0].measure(loose)
+            val words = measurables[1].measure(loose)
+            val top = ThesisSpace.xxl.roundToPx()
+            val gap = ThesisSpace.x4.roundToPx()
+            val bottom = ThesisSpace.l.roundToPx()
+            val page = pageHeight.roundToPx()
+            val width = constraints.maxWidth
+            val needed = top + fragment.height + gap + words.height + bottom
+            if (needed <= page || fragment.height == 0) {
+                // It fits: the fragment above the words, the page's free height split 4 : 1 above the fragment and
+                // between it and the eyebrow, so the words sit low and the fragment floats above them.
+                val free = (page - needed).coerceAtLeast(0)
+                val above = free * 4 / 5
+                layout(width, maxOf(page, needed)) {
+                    fragment.place(0, top + above)
+                    words.place(0, top + above + fragment.height + gap + (free - above))
+                }
+            } else {
+                // It does not (large font scales, short screens): the eyebrow, title and lede come first, so they
+                // show without scrolling, and the fragment (an illustration) follows below them.
+                layout(width, maxOf(page, needed)) {
+                    words.place(0, top)
+                    fragment.place(0, top + words.height + gap)
+                }
+            }
         }
     }
 }
-
-/**
- * Fades the bottom 80 dp ([ThesisSpace.x5] + [ThesisSpace.xxl], about one lede line at 2.0x) of a scrolling page out while more of it is below (large font scales on short
- * screens), so a lede cut by the controls reads as "keeps going" rather than as truncated text. A mask on this
- * node's own layer (outside the scroll, so it stays at the viewport's bottom edge); nothing is drawn when the page
- * fits. [mask] is an opaque palette colour; only its alpha is used.
- */
-private fun Modifier.fadeWhenMoreBelow(scroll: ScrollState, mask: Color): Modifier = this
-    .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
-    .drawWithContent {
-        drawContent()
-        if (scroll.canScrollForward) {
-            val fade = (ThesisSpace.x5 + ThesisSpace.xxl).toPx()
-            drawRect(
-                // Only the mask's alpha counts ([mask] is any opaque token): DstOut keeps the content where it is clear.
-                brush = Brush.verticalGradient(
-                    colors = listOf(Color.Transparent, mask),
-                    startY = size.height - fade,
-                    endY = size.height,
-                ),
-                blendMode = BlendMode.DstOut,
-            )
-        }
-    }
 
 /** Total length of a page's cascade: the last element starts [CASCADE_STEPS] - 1 delays in and runs Enter. */
 private const val CASCADE_TOTAL_MILLIS = ThesisMotion.Enter + (CASCADE_STEPS - 1) * ThesisMotion.CrossfadeDelay

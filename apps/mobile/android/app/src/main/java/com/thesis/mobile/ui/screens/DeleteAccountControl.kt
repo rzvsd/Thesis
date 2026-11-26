@@ -96,13 +96,17 @@ fun DeleteAccountControl(
             ),
             dismiss = DialogAction(AccountCopy.DELETE_CANCEL, { showDialog = false }),
         ) {
-            // The body, the Play note and the field scroll between the title and the actions, which stay pinned
-            // (A4: at 2.0x on a 360 dp phone, or with the keyboard open, they would otherwise leave the window).
-            // The body is drawn here, not through ThesisDialog's `body`, so it can scroll (HANDOFF-G 21).
+            // Only the body and the Play note scroll; the DELETE field sits below them with the actions, so it is
+            // always on screen next to the button it unlocks (A4: at 2.0x on a 360 dp phone, or with the keyboard
+            // open, a scrolling field would leave the window and "Delete permanently" would stay disabled for no
+            // visible reason). The body fades at its foot while more of it is below. It is drawn here, not through
+            // ThesisDialog's `body`, so it can scroll (HANDOFF-G 21).
+            val bodyScroll = rememberScrollState()
             Column(
                 Modifier
                     .weight(1f, fill = false)
-                    .verticalScroll(rememberScrollState()),
+                    .fadeWhenMoreBelow(bodyScroll, mask = p.ink, fade = ThesisSpace.x4)
+                    .verticalScroll(bodyScroll),
                 verticalArrangement = Arrangement.spacedBy(ThesisSpace.m),
             ) {
                 Text(
@@ -112,18 +116,18 @@ fun DeleteAccountControl(
                     color = p.ink2,
                 )
                 Text(AccountCopy.DELETE_PLAY_NOTE, style = ThesisType.bodySmall, color = p.ink2)
-                ThesisTextField(
-                    value = confirmText,
-                    onValueChange = { confirmText = it },
-                    label = AccountCopy.DELETE_CONFIRM_LABEL,
-                    keyboardOptions = KeyboardOptions(
-                        capitalization = KeyboardCapitalization.Characters,
-                        autoCorrect = false,
-                        keyboardType = KeyboardType.Ascii,
-                        imeAction = ImeAction.Done,
-                    ),
-                )
             }
+            ThesisTextField(
+                value = confirmText,
+                onValueChange = { confirmText = it },
+                label = AccountCopy.DELETE_CONFIRM_LABEL,
+                keyboardOptions = KeyboardOptions(
+                    capitalization = KeyboardCapitalization.Characters,
+                    autoCorrect = false,
+                    keyboardType = KeyboardType.Ascii,
+                    imeAction = ImeAction.Done,
+                ),
+            )
         }
     }
 }

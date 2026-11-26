@@ -3,6 +3,7 @@ package com.thesis.mobile.ui.screens
 import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -253,23 +254,22 @@ fun PaywallScreen(
                             }
                         }
                     }
-                    if (billingEnabled) {
-                        // On the text edge with the plan cards and the legal lines (T4).
-                        TextAction(AccountCopy.PAYWALL_RESTORE, onRestore, enabled = !actionInFlight)
-                    }
                 }
 
                 // After the plans, so the first screen reaches the Yearly price (412 x 915 dp): the example shows what
                 // "what changed" looks like for whoever reads on before choosing.
                 ThesisCard(
                     eyebrow = if (alert == null) AccountCopy.PAYWALL_ALERT_SAMPLE else AccountCopy.PAYWALL_ALERT_YOURS,
-                    title = alert?.title ?: AccountCopy.PAYWALL_SAMPLE_TITLE,
+                    title = alert?.title?.let(AccountCopy::keepFormsTogether) ?: AccountCopy.PAYWALL_SAMPLE_TITLE,
                     footer = CardFooter(source = AccountCopy.PAYWALL_ALERT_FOOT),
                 ) {
-                    Text(alert?.body ?: AccountCopy.PAYWALL_SAMPLE_BODY, style = ThesisType.body, color = p.ink2)
+                    Text(alert?.body?.let(AccountCopy::keepFormsTogether) ?: AccountCopy.PAYWALL_SAMPLE_BODY, style = ThesisType.body, color = p.ink2)
                 }
 
                 Column(verticalArrangement = Arrangement.spacedBy(ThesisSpace.xs)) {
+                    // With the store's terms, on the text edge (T4): below the plans it sat on the first screen's
+                    // fold, cut by the RunBar's top edge at 412 x 915 dp.
+                    if (billingEnabled) TextAction(AccountCopy.PAYWALL_RESTORE, onRestore, enabled = !actionInFlight)
                     Text(AccountCopy.PAYWALL_LEGAL, style = ThesisType.caption, color = p.muted)
                     if (apiBaseUrl != null) LegalLinks(apiBaseUrl = apiBaseUrl)
                 }
@@ -281,20 +281,25 @@ fun PaywallScreen(
     }
 }
 
-/** One "What Pro adds" line: a 16 dp check (ink2) and a plain sentence. */
+/**
+ * One "What Pro adds" line: a check (ink2) and a plain sentence. The check is the 20 dp symbol at its own optical
+ * size (at 16 dp its strokes thinned to hairlines) and sits centred on the sentence's first line, whatever the font
+ * scale: its box is one body line tall.
+ */
 @Composable
 private fun BenefitLine(text: String) {
     val p = LocalThesisPalette.current
+    val firstLine = with(LocalDensity.current) { ThesisType.body.lineHeight.toDp() }
     Row(verticalAlignment = Alignment.Top) {
-        Icon(
-            ThesisIcons.Small.Check,
-            contentDescription = null,
-            modifier = Modifier
-                .padding(top = ThesisSpace.xxs)
-                .size(ThesisSpace.iconS),
-            tint = p.ink2,
-        )
-        Spacer(Modifier.width(ThesisSpace.m))
+        Box(Modifier.height(firstLine), contentAlignment = Alignment.Center) {
+            Icon(
+                ThesisIcons.Small.Check,
+                contentDescription = null,
+                modifier = Modifier.size(ThesisSpace.iconM),
+                tint = p.ink2,
+            )
+        }
+        Spacer(Modifier.width(ThesisSpace.s))
         Text(text, style = ThesisType.body, color = p.ink)
     }
 }

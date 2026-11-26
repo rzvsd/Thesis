@@ -90,6 +90,7 @@ private val UpDownOrder = listOf(UpDownScheme.Classic, UpDownScheme.ColourBlind)
 
 /** Feedback flows the API accepts (`settings_subscription_<flow>`), in the order of [AccountCopy.FEEDBACK_FLOWS]. */
 private val FeedbackFlowCodes = listOf("cancel", "downgrade")
+private const val FEEDBACK_FLOW_FREE = "free"
 
 /**
  * You (DESIGN-DIRECTION 5.22), on the global modal stack: the ScreenHeader "You" with the account email and the plan
@@ -172,7 +173,7 @@ fun SettingsScreen(
         ),
         verticalArrangement = Arrangement.spacedBy(ThesisSpace.xxl),
     ) {
-        item(key = "header") {
+        item(key = "header", contentType = "header") {
             Column(verticalArrangement = Arrangement.spacedBy(ThesisSpace.m)) {
                 ScreenHeader(title = AccountCopy.YOU_TITLE, deck = profile?.email?.takeIf { it.isNotBlank() })
                 StatusBadge(
@@ -355,22 +356,24 @@ fun SettingsScreen(
                             busy = subscriptionActionInFlight,
                         )
                     }
-                    if (isPro) {
-                        row {
-                            ActionRow(
-                                icon = null,
-                                title = AccountCopy.FEEDBACK,
-                                onClick = { feedbackOpen = !feedbackOpen },
-                                caption = AccountCopy.FEEDBACK_SUB,
-                            )
-                        }
+                    // Every tier, as before the redesign: the only feedback channel the app has (HANDOFF-G 14). A Free
+                    // account is asked why it has not moved to Pro, without the cancel or downgrade choice.
+                    row {
+                        ActionRow(
+                            icon = null,
+                            title = if (isPro) AccountCopy.FEEDBACK else AccountCopy.FEEDBACK_FREE,
+                            onClick = { feedbackOpen = !feedbackOpen },
+                            caption = if (isPro) AccountCopy.FEEDBACK_SUB else AccountCopy.FEEDBACK_FREE_SUB,
+                        )
                     }
                 }
-                if (isPro && feedbackOpen) {
+                if (feedbackOpen) {
                     SubscriptionFeedbackCard(
                         busy = subscriptionActionInFlight,
+                        isPro = isPro,
                         onSubmit = { code, flow, message ->
-                            onSubmitSubscriptionFeedback(code, "settings_subscription_$flow", message, true)
+                            // The win-back offer is for someone leaving Pro, not for a Free account.
+                            onSubmitSubscriptionFeedback(code, "settings_subscription_$flow", message, isPro)
                             feedbackOpen = false
                         },
                     )
@@ -433,7 +436,7 @@ fun SettingsScreen(
             }
         }
 
-        item(key = "disclaimer") {
+        item(key = "disclaimer", contentType = "disclaimer") {
             Text(AccountCopy.DISCLAIMER, style = ThesisType.caption, color = p.muted)
         }
     }
@@ -478,7 +481,7 @@ private fun BusyAwareActionRow(title: String, onClick: () -> Unit, busy: Boolean
 
 /** One You section: its kicker (a heading for TalkBack) above [content]. */
 private fun LazyListScope.section(key: String, kicker: String, content: @Composable () -> Unit) {
-    item(key = key) {
+    item(key = key, contentType = "section") {
         Column(verticalArrangement = Arrangement.spacedBy(ThesisSpace.s)) {
             Kicker(kicker, modifier = Modifier.semantics { heading() })
             content()
@@ -567,16 +570,23 @@ private fun Swatch(icon: androidx.compose.ui.graphics.vector.ImageVector, text: 
     }
 }
 
-/** "Thinking of cancelling?": flow, reason and an optional note, sent to the API with the reason code. */
+/**
+ * "Thinking of cancelling?" (Pro: flow, reason and an optional note) or "Not on Pro yet?" (Free: reason and note,
+ * flow `free`), sent to the API with the reason code.
+ */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun SubscriptionFeedbackCard(busy: Boolean, onSubmit: (code: String, flow: String, message: String) -> Unit) {
+private fun SubscriptionFeedbackCard(
+    busy: Boolean,
+    isPro: Boolean,
+    onSubmit: (code: String, flow: String, message: String) -> Unit,
+) {
     var flow by rememberSaveable { mutableStateOf(0) }
     var reason by rememberSaveable { mutableStateOf(AccountCopy.FEEDBACK_REASONS.first().first) }
     var message by rememberSaveable { mutableStateOf("") }
-    ThesisCard(title = AccountCopy.FEEDBACK) {
+    ThesisCard(title = if (isPro) AccountCopy.FEEDBACK else AccountCopy.FEEDBACK_FREE) {
         Column(verticalArrangement = Arrangement.spacedBy(ThesisSpace.m)) {
-            SegmentedControl(options = AccountCopy.FEEDBACK_FLOWS, selectedIndex = flow, onSelect = { flow = it })
+            if (isPro) SegmentedControl(options = AccountCopy.FEEDBACK_FLOWS, selectedIndex = flow, onSelect = { flow = it })
             FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(ThesisSpace.s),
                 verticalArrangement = Arrangement.spacedBy(ThesisSpace.s),
@@ -593,7 +603,7 @@ private fun SubscriptionFeedbackCard(busy: Boolean, onSubmit: (code: String, flo
             )
             SecondaryButton(
                 text = AccountCopy.FEEDBACK_SEND,
-                onClick = { onSubmit(reason, FeedbackFlowCodes[flow], message.trim()) },
+                onClick = { onSubmit(reason, if (isPro) FeedbackFlowCodes[flow] else FEEDBACK_FLOW_FREE, message.trim()) },
                 modifier = Modifier.fillMaxWidth(),
                 enabled = !busy,
                 loading = busy,
@@ -639,10 +649,14 @@ private fun MonthlyReview(
             val start = runCatching { LocalDate.parse(latest.periodStart.take(10)) }.getOrNull()
             val end = runCatching { LocalDate.parse(latest.periodEnd.take(10)) }.getOrNull()
             ThesisCard(
-                eyebrow = if (start != null && end != null) fmt.weekRange(start, end) else null,
                 title = latest.title,
                 footer = CardFooter(actionLabel = AccountCopy.REVIEW_REFRESH, onAction = onRefresh),
             ) {
+                // The period as a plain line under the title, not in the spaced-capitals eyebrow: the section's
+                // kicker is already the card's one kicker, and dates read as text (T2).
+                if (start != null && end != null) {
+                    Text(fmt.weekRange(start, end), style = ThesisType.bodySmall, color = p.muted)
+                }
                 if (latest.summary.isNotBlank()) Text(latest.summary, style = ThesisType.body, color = p.ink2)
                 latest.findings.forEach { finding ->
                     Column(Modifier.heightIn(min = ThesisSpace.touchMin), verticalArrangement = Arrangement.spacedBy(ThesisSpace.xxs)) {

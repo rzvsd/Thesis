@@ -11,6 +11,20 @@ object AccountCopy {
 
     // ---- Shared ------------------------------------------------------------------------------------------------
 
+    /**
+     * A word joiner (U+2060), put after the hyphen of a filing form ("10-K", "10-Q") so a line never breaks inside
+     * it. Not a non-breaking hyphen (U+2011): Newsreader has no glyph for that, so a serif title would draw it in a
+     * fallback font. The joiner is invisible.
+     */
+    const val FORM_JOIN = "\u2060"
+
+    /** [text] with every filing form ("10-Q", "8-K", "20-F", "S-1") kept on one line ([FORM_JOIN]); for server text. */
+    fun keepFormsTogether(text: String): String = FILING_FORM.replace(text) { m ->
+        "${m.groupValues[1]}-$FORM_JOIN${m.groupValues[2]}"
+    }
+
+    private val FILING_FORM = Regex("""\b(\d{1,2}|[SF])-([A-Z]|\d)\b""")
+
     const val BRAND = "Thesis"
     const val DISCLAIMER = "Thesis is a research tool, not financial advice."
     const val LEGAL_LEAD = "By creating an account or logging in, you agree to the"
@@ -37,7 +51,7 @@ object AccountCopy {
 
     const val ONBOARDING_DIVE_EYEBROW = "Deep Dive"
     const val ONBOARDING_DIVE_TITLE = "One report for every filing"
-    const val ONBOARDING_DIVE_LEDE = "Every 10-K and 10-Q from ${ProductCopy.coverage}, read in chapters, with the " +
+    const val ONBOARDING_DIVE_LEDE = "Every 10-${FORM_JOIN}K and 10-${FORM_JOIN}Q from ${ProductCopy.coverage}, read in chapters, with the " +
         "filing\u2019s own figures beside each finding."
     const val ONBOARDING_DIVE_CHAPTER = "Business"
     const val ONBOARDING_DIVE_CHAPTER_TITLE = "How Apple makes money"
@@ -197,6 +211,8 @@ object AccountCopy {
 
     const val FEEDBACK = "Thinking of cancelling?"
     const val FEEDBACK_SUB = "Tell us why, so Pro gets better"
+    const val FEEDBACK_FREE = "Not on Pro yet?"
+    const val FEEDBACK_FREE_SUB = "Tell us what holds you back, so Pro gets better"
     val FEEDBACK_FLOWS = listOf("Cancel", "Downgrade")
     const val FEEDBACK_MESSAGE = "Anything else (optional)"
     const val FEEDBACK_SEND = "Send feedback"
@@ -260,7 +276,7 @@ object AccountCopy {
     const val PAYWALL_PROMISE = "Know what changed in every filing of every name you follow."
     const val PAYWALL_ALERT_YOURS = "Your filing alert"
     const val PAYWALL_ALERT_SAMPLE = "Example filing alert"
-    const val PAYWALL_SAMPLE_TITLE = "AAPL filed its 10-Q"
+    const val PAYWALL_SAMPLE_TITLE = "AAPL filed its 10-${FORM_JOIN}Q"
     const val PAYWALL_SAMPLE_BODY = "3 things changed since the last Deep Dive."
     const val PAYWALL_ALERT_FOOT = "What changed is in Pro"
     const val PAYWALL_ADDS = "What Pro adds"
