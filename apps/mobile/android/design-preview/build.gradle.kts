@@ -23,7 +23,6 @@ val androidOnlyFiles = listOf(
     "com/thesis/mobile/ui/screens/SampleDeepDiveScreen.kt", // reads app assets via Context
     "com/thesis/mobile/ui/screens/DeleteAccountSection.kt", // viewModel<MainViewModel>()
     "com/thesis/mobile/ui/screens/PasswordResetScreen.kt", // viewModel<MainViewModel>()
-    "com/thesis/mobile/ui/screens/SentimentDashboardScreen.kt", // Vico charts (Android-only)
     "com/thesis/mobile/ui/theme/ThesisFonts.kt", // R.font; src/shim loads ../app/src/main/res/font/*.ttf instead
 )
 

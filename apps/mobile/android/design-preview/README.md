@@ -110,7 +110,7 @@ Their PNGs go to a temp folder, never into `screens.out`, so a `render.sh` run l
 ## Not compiled here
 
 Files listed in `androidOnlyFiles` and `androidOnlyDirs` in `build.gradle.kts` (MainViewModel, ThesisApp, the WebView
-report page, PDF export, the CSV picker, the Vico sentiment screen, two screens that call `viewModel()`,
+report page, PDF export, the CSV picker, two screens that call `viewModel()`,
 `ui/theme/ThesisFonts.kt` and `ui/platform/`). `src/shim/kotlin`
 stubs the few symbols other files need from them; the WebView is drawn as a labelled placeholder. CI compiles the
 Android-only files, so write them against the APIs on `app/build.gradle.kts`'s classpath. Keep

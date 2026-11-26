@@ -8,8 +8,6 @@ ui/screens/AuthScreen.kt	circular-progress	1
 ui/screens/AuthScreen.kt	material-icons	5
 ui/screens/DeleteAccountSection.kt	dp-literal	1
 ui/screens/DeleteAccountSection.kt	alert-dialog	1
-ui/screens/InboxScreen.kt	copy-alpha	3
-ui/screens/InboxScreen.kt	outlined-button	5
 ui/screens/OnboardingScreen.kt	sp-literal	1
 ui/screens/OnboardingScreen.kt	dp-literal	15
 ui/screens/OnboardingScreen.kt	copy-alpha	2
@@ -18,15 +16,6 @@ ui/screens/OnboardingScreen.kt	delay	1
 ui/screens/OnboardingScreen.kt	material-icons	5
 ui/screens/PasswordResetScreen.kt	dp-literal	3
 ui/screens/PaywallScreen.kt	outlined-button	1
-ui/screens/SentimentDashboardScreen.kt	dp-literal	12
-ui/screens/SentimentDashboardScreen.kt	shape-literal	1
-ui/screens/SentimentDashboardScreen.kt	copy-alpha	2
-ui/screens/SentimentDashboardScreen.kt	delay	1
-ui/screens/SentimentDashboardScreen.kt	assist-chip	1
-ui/screens/SentimentDashboardScreen.kt	string-format	1
-ui/screens/SentimentDashboardScreen.kt	printf-float	1
-ui/screens/SentimentDashboardScreen.kt	material-icons	1
-ui/screens/SentimentDashboardScreen.kt	deprecated-colors	1
 ui/screens/SettingsScreen.kt	dp-literal	6
 ui/screens/SettingsScreen.kt	copy-alpha	3
 ui/screens/SettingsScreen.kt	outlined-button	6
