@@ -168,7 +168,7 @@ class ScreenSmokeRenders {
 @androidx.compose.runtime.Composable
 private fun HomeEmpty() {
     HomeScreen(
-        pulse = null, pulseLoadedFromCache = false, pulseFreshnessText = null, sentimentCurrent = null,
+        pulse = null, pulseLoadedFromCache = false, sentimentCurrent = null,
         sentimentHistory = emptyList(), sentimentError = null, watchlist = listOf("AAPL", "MSFT", "NVDA"),
         monitorSnapshots = emptyList(), padding = PaddingValues(),
         onManageNames = {}, onRetryPulse = {}, onOpenMacroStressDashboard = {},

@@ -107,6 +107,7 @@ import com.thesis.mobile.ui.components.rememberNoteAutosave
 import com.thesis.mobile.ui.components.rememberTopBarCollapsed
 import com.thesis.mobile.ui.components.rowGroupSegment
 import com.thesis.mobile.ui.copy.NamesCopy
+import com.thesis.mobile.ui.copy.ResearchCopy
 import com.thesis.mobile.ui.copy.ScoreCopy
 import com.thesis.mobile.ui.format.Fmt
 import com.thesis.mobile.ui.format.LocalFmt
@@ -240,8 +241,11 @@ fun nameReportAction(detail: NameDetailView): NameReportAction =
     currentReportId(detail)?.let { NameReportAction.Open(it) } ?: NameReportAction.Build
 
 /**
- * The From the filings figures (5.11 item 4): the latest annual row against the one before. Margins are
- * fractions as on the wire (0.31 = 31%); null means the filing did not give the input.
+ * The From the filings figures (5.11 item 4): the latest annual row against the one before. [operatingMargin] and
+ * [priorOperatingMargin] are percents (32.0 = 32%), normalised once per report by [marginScale] ([marginScale] is
+ * the factor for the rows in [annual]: live reports store percents, some old ones fractions). Growth, FCF margin
+ * and share change are fractions (0.10 = 10%), computed here from the filing's amounts. Null means the filing did
+ * not give the input.
  */
 @Immutable
 data class FilingsFigures(
@@ -260,12 +264,17 @@ data class FilingsFigures(
     val shares: Double?,
     val priorShares: Double?,
     val annual: List<FinancialHistoryRowView>,
-)
+    val marginScale: Double = 1.0,
+) {
+    /** A history row's gross or operating margin in percent, on this report's scale. */
+    fun marginPct(raw: Double?): Double? = raw?.takeIf { it.isFinite() }?.times(marginScale)
+}
 
 private fun FinancialHistoryRowView.isAnnual(): Boolean =
     fiscalQuarter == null && !periodType.trim().lowercase().let { it.startsWith("q") || it == "quarterly" || it == "ttm" }
 
-private fun FinancialHistoryRowView.fiscalLabel(): String = period.trim().ifBlank { "FY$fiscalYear" }
+/** "FY2025" whether the payload writes "2025-FY" (live reports) or "FY2025". */
+private fun FinancialHistoryRowView.fiscalLabel(): String = periodDisplay(period) ?: "FY$fiscalYear"
 
 private fun ratio(part: Double?, whole: Double?): Double? =
     if (part == null || whole == null || whole == 0.0) null else part / whole
@@ -280,14 +289,15 @@ fun filingsFigures(history: List<FinancialHistoryRowView>): FilingsFigures? {
     val annual = history.filter { it.isAnnual() }.sortedBy { it.fiscalYear }.takeLast(5)
     val latest = annual.lastOrNull() ?: return null
     val prior = annual.dropLast(1).lastOrNull()
+    val scale = marginScale(history)
     return FilingsFigures(
         period = latest.fiscalLabel(),
         priorPeriod = prior?.fiscalLabel(),
         revenue = latest.revenue,
         priorRevenue = prior?.revenue,
         growth = change(latest.revenue, prior?.revenue),
-        operatingMargin = latest.operatingMargin,
-        priorOperatingMargin = prior?.operatingMargin,
+        operatingMargin = latest.operatingMargin?.takeIf { it.isFinite() }?.times(scale),
+        priorOperatingMargin = prior?.operatingMargin?.takeIf { it.isFinite() }?.times(scale),
         fcfMargin = ratio(latest.freeCashFlow, latest.revenue),
         priorFcfMargin = prior?.let { ratio(it.freeCashFlow, it.revenue) },
         netCash = latest.netCash(),
@@ -296,13 +306,14 @@ fun filingsFigures(history: List<FinancialHistoryRowView>): FilingsFigures? {
         shares = latest.sharesOutstanding,
         priorShares = prior?.sharesOutstanding,
         annual = annual,
+        marginScale = scale,
     )
 }
 
-/** A margin change in basis points from two fractions: 0.31 → 0.32 is "+100 bps". */
+/** A margin change in basis points from two percents: 31.0 → 32.0 is "+100 bps". */
 private fun marginDelta(now: Double?, before: Double?): Pair<String?, Tone> {
     if (now == null || before == null) return null to Tone.Neutral
-    val points = (now - before) * 100.0
+    val points = now - before
     val tone = when {
         abs(points) < 0.005 -> Tone.Neutral
         points > 0 -> Tone.Favourable
@@ -320,7 +331,7 @@ fun filingsKpis(f: FilingsFigures): List<KpiSpec> {
         else -> Tone.Unfavourable
     }
     val (opDelta, opTone) = marginDelta(f.operatingMargin, f.priorOperatingMargin)
-    val (fcfDelta, fcfTone) = marginDelta(f.fcfMargin, f.priorFcfMargin)
+    val (fcfDelta, fcfTone) = marginDelta(f.fcfMargin?.times(100.0), f.priorFcfMargin?.times(100.0))
     return listOf(
         KpiSpec(
             label = NamesCopy.labelFor(NamesCopy.LABEL_REVENUE, f.period),
@@ -335,7 +346,7 @@ fun filingsKpis(f: FilingsFigures): List<KpiSpec> {
         ),
         KpiSpec(
             label = NamesCopy.labelFor(NamesCopy.LABEL_OPERATING, f.period),
-            value = Fmt.pct(f.operatingMargin?.let { it * 100.0 }),
+            value = Fmt.pct(f.operatingMargin),
             delta = opDelta,
             deltaTone = opTone,
             reference = vs,
@@ -398,8 +409,8 @@ fun filingsSource(f: FilingsFigures, index: Int): SourceInfo {
         2 -> Quad(
             NamesCopy.LABEL_OPERATING, ScoreCopy.OPERATING_DEFINITION, ScoreCopy.OPERATING_DERIVATION,
             listOfNotNull(
-                pair(NamesCopy.LABEL_OPERATING, f.period, Fmt.pct(f.operatingMargin?.let { it * 100.0 })),
-                pair(NamesCopy.LABEL_OPERATING, prior, Fmt.pct(f.priorOperatingMargin?.let { it * 100.0 })),
+                pair(NamesCopy.LABEL_OPERATING, f.period, Fmt.pct(f.operatingMargin)),
+                pair(NamesCopy.LABEL_OPERATING, prior, Fmt.pct(f.priorOperatingMargin)),
             ),
         )
         3 -> Quad(
@@ -453,8 +464,8 @@ fun filingsTable(f: FilingsFigures): CompareTableModel {
         columns = years.mapIndexed { i, y -> CompareColumn(y.fiscalLabel(), subject = i == 0) },
         rows = listOf(
             row(NamesCopy.LABEL_REVENUE) { Fmt.money(it.revenue) },
-            row(NamesCopy.LABEL_GROSS) { Fmt.pct(it.grossMargin?.let { m -> m * 100.0 }) },
-            row(NamesCopy.LABEL_OPERATING) { Fmt.pct(it.operatingMargin?.let { m -> m * 100.0 }) },
+            row(NamesCopy.LABEL_GROSS) { Fmt.pct(f.marginPct(it.grossMargin)) },
+            row(NamesCopy.LABEL_OPERATING) { Fmt.pct(f.marginPct(it.operatingMargin)) },
             row(NamesCopy.LABEL_NET_INCOME) { Fmt.money(it.netIncome) },
             row(NamesCopy.LABEL_FCF_ABS) { Fmt.money(it.freeCashFlow) },
             row(NamesCopy.LABEL_FCF) { r -> ratio(r.freeCashFlow, r.revenue)?.let { Fmt.pct(it * 100.0) } ?: Fmt.NOT_DISCLOSED },
@@ -464,6 +475,29 @@ fun filingsTable(f: FilingsFigures): CompareTableModel {
         ),
         labelHeader = NamesCopy.TABLE_METRIC,
     )
+}
+
+/**
+ * "Copy figures as table" (principle 13): the years of [filingsTable], newest first, as tab-separated plain numbers
+ * that Excel and Sheets read as numbers, the way Compare names and Compare reports copy theirs: ASCII minus, no
+ * grouping, the unit in the row label ("Revenue (USD bn)"), an empty cell when the filing did not give the value.
+ */
+fun filingsTsv(f: FilingsFigures): String {
+    val years = f.annual.takeLast(TABLE_YEARS).reversed()
+    fun line(label: String, unit: String, dp: Int, value: (FinancialHistoryRowView) -> Double?) =
+        listOf(ResearchCopy.withUnit(label, unit)) + years.map { rawCell(value(it), dp) }
+    val lines = listOf(
+        listOf(NamesCopy.TABLE_METRIC) + years.map { it.fiscalLabel() },
+        line(NamesCopy.LABEL_REVENUE, ResearchCopy.UNIT_USD_BN, 2) { it.revenue?.div(1e9) },
+        line(NamesCopy.LABEL_GROSS, ResearchCopy.UNIT_PCT, 1) { f.marginPct(it.grossMargin) },
+        line(NamesCopy.LABEL_OPERATING, ResearchCopy.UNIT_PCT, 1) { f.marginPct(it.operatingMargin) },
+        line(NamesCopy.LABEL_NET_INCOME, ResearchCopy.UNIT_USD_BN, 2) { it.netIncome?.div(1e9) },
+        line(NamesCopy.LABEL_FCF_ABS, ResearchCopy.UNIT_USD_BN, 2) { it.freeCashFlow?.div(1e9) },
+        line(NamesCopy.LABEL_FCF, ResearchCopy.UNIT_PCT, 1) { r -> ratio(r.freeCashFlow, r.revenue)?.times(100.0) },
+        line(NamesCopy.LABEL_NET_CASH_SIGNED, ResearchCopy.UNIT_USD_BN, 2) { it.netCash()?.div(1e9) },
+        line(NamesCopy.LABEL_SHARES_ABS, ResearchCopy.UNIT_MILLIONS, 1) { it.sharesOutstanding?.div(1e6) },
+    )
+    return lines.joinToString("\n") { l -> l.joinToString("\t") { it.replace('\t', ' ').replace('\n', ' ').trim() } }
 }
 
 /**
@@ -690,8 +724,8 @@ fun NameScreen(
                         showYears = !showYears
                         copied = false
                     },
-                    onCopyTable = { table ->
-                        clipboard.setText(AnnotatedString(table.toTsv()))
+                    onCopyTable = { f ->
+                        clipboard.setText(AnnotatedString(filingsTsv(f)))
                         haptics.confirm()
                         copied = true
                     },
@@ -750,7 +784,7 @@ fun NameScreen(
             if (figures != null) {
                 SheetActionRow(ThesisIcons.Small.Copy, NamesCopy.COPY_FIGURES, {
                     moreOpen = false
-                    clipboard.setText(AnnotatedString(filingsTable(figures).toTsv()))
+                    clipboard.setText(AnnotatedString(filingsTsv(figures)))
                     haptics.confirm()
                     // Visible confirmation: the snackbar when wired, and the in-section action reads "Copied as
                     // a table" if the years are showing.
@@ -971,7 +1005,7 @@ private fun NameBody(
     showYears: Boolean,
     copied: Boolean,
     onShowYears: () -> Unit,
-    onCopyTable: (CompareTableModel) -> Unit,
+    onCopyTable: (FilingsFigures) -> Unit,
     onSource: (SourceInfo) -> Unit,
     onOpenReport: (String) -> Unit,
     onOpenReportChange: (String, Int) -> Unit,
@@ -1053,7 +1087,7 @@ private fun NameBody(
                 val table = remember(figures) { filingsTable(figures) }
                 Spacer(Modifier.height(ThesisSpace.s))
                 CompareTable(table)
-                TextAction(if (copied) NamesCopy.COPIED else NamesCopy.COPY_TABLE, { onCopyTable(table) })
+                TextAction(if (copied) NamesCopy.COPIED else NamesCopy.COPY_TABLE, { onCopyTable(figures) })
             }
         }
     }

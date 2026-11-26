@@ -94,7 +94,7 @@ class ResearchRenders {
 
     @Composable
     private fun Reports(state: com.thesis.mobile.model.CompareReportsState?) = F.Fixed {
-        CompareReportsScreen(state = state, onBack = {}, notes = F.compareNotes, onOpenChange = { _, _ -> }, zone = F.zone)
+        CompareReportsScreen(state = state, onBack = {}, notes = F.compareNotes, onOpenChange = { _, _ -> }, zone = F.zone, onOpenName = {})
     }
 
     @Test fun compareReports() { renderScreen("research-compare-reports") { Reports(F.compareReports) } }

@@ -168,14 +168,14 @@ fun RowGroup(modifier: Modifier = Modifier, content: RowGroupScope.() -> Unit) {
 val LeadingRowDividerInset: Dp = ThesisSpace.l + ThesisSpace.leadingColumn + ThesisSpace.leadingGap
 
 /**
- * Divider inset for compact [TickerRow]s: the ticker is their text edge (16) while they show aligned columns; above
- * 1.15x font scale they use the comfortable layout, whose text edge is [LeadingRowDividerInset]. Read it in the
- * composable that builds the group (RowGroupScope.row is not composable).
+ * Divider inset for compact [TickerRow]s. Their state square sits in the same 24 dp leading column as a
+ * comfortable row's, so at every font scale the ticker is the text edge at [LeadingRowDividerInset] and a board
+ * keeps one divider line when its density changes. Read it in the composable that builds the group.
  */
 val CompactRowDividerInset: Dp
     @Composable
     @ReadOnlyComposable
-    get() = if (LocalDensity.current.fontScale <= Kit.COMPACT_ALIGNED_MAX_SCALE) ThesisSpace.l else LeadingRowDividerInset
+    get() = LeadingRowDividerInset
 
 /**
  * Data row (#9): label (`body`, ink) with an optional [sub] line, and on the right the value (`body` tabular) over
@@ -322,7 +322,8 @@ fun ToggleRow(
  * the change since the last visit ("Intact -> Watch, Tue") or the reason. Trailing: one stacked figure block,
  * [figure] (`body` tabular) over [figureCaption] (tone). No chevron, no meter.
  *
- * [compact] is the Names density option: 48 dp, one line of aligned columns (ticker, state, figure, change, note),
+ * [compact] is the Names density option: 48 dp, one line of aligned columns (state, ticker, figure, change, note:
+ * the state square keeps the leading column it has in the comfortable row),
  * up to 1.15x font scale (the ticker column grows with the font scale so a five-letter ticker never pushes the
  * state square out of its column). Above 1.15x a compact row uses the comfortable layout at the compact height;
  * above 1.3x both densities move the figure block under the text and let line 2 wrap to two lines. Divider insets:
@@ -401,14 +402,18 @@ fun TickerRow(
     val captionStyle = ThesisType.caption.tnum()
 
     if (compact && fontScale <= Kit.COMPACT_ALIGNED_MAX_SCALE) {
-        // Aligned columns: ticker, state, figure, change, note. The figure and change columns have fixed minimum
-        // widths and are right-aligned, so every compact row lines up and the two never run together.
+        // Aligned columns: state, ticker, figure, change, note. The state square keeps the comfortable row's leading
+        // column, so it reads with its ticker and a density change moves nothing sideways. The figure and change
+        // columns have fixed minimum widths and are right-aligned, so every compact row lines up and the two never
+        // run together.
         Row(
             container
                 .heightIn(min = ThesisSpace.rowMinCompact)
                 .padding(horizontal = ThesisSpace.l),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            leading()
+            Spacer(Modifier.width(ThesisSpace.leadingGap))
             Text(
                 ticker,
                 modifier = Modifier.widthIn(min = Kit.compactTickerColumn * fontScale),
@@ -416,8 +421,6 @@ fun TickerRow(
                 color = p.ink,
                 maxLines = 1,
             )
-            Spacer(Modifier.width(ThesisSpace.s))
-            leading()
             Spacer(Modifier.weight(1f))
             Text(
                 figure.orEmpty(),

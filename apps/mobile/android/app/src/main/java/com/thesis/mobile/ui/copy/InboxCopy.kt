@@ -200,6 +200,9 @@ object MacroStressCopy {
     const val TABLE_DATE = "Date"
     const val TABLE_SCORE = "Score"
     const val TABLE_CHANGE = "Change, pts"
+    /** "Copy readings as table" headers: the unit in the label, as the compare tables copy theirs. */
+    const val TSV_SCORE = "Score (0 to 100)"
+    const val TSV_CHANGE = "Change (pts)"
     const val COPY_TABLE = "Copy readings as table"
     const val COPIED = "Readings copied"
 

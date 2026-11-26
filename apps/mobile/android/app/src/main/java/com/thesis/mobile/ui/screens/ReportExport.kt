@@ -89,6 +89,12 @@ internal suspend fun renderShareCard(context: Context, report: DeepDiveReportVie
     return withContext(Dispatchers.IO) { writeExport(app, encoded) }
 }
 
+/** The Pulse PDF the API returned, written on Dispatchers.IO. Call [shareExport] with the result on the main thread. */
+internal suspend fun writePulsePdfExport(context: Context, pdfBytes: ByteArray, filename: String): ExportArtifact {
+    val app = context.applicationContext
+    return withContext(Dispatchers.IO) { createPulsePdfExport(app, pdfBytes, filename) }
+}
+
 /**
  * The report host's exports (5.24), so the screens never hold an android.content.Context (6.0 rule 5). Runs one
  * export at a time: the render builds and writes the file off the main thread ([renderReportPdf],

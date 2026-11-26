@@ -219,6 +219,15 @@ class MacroStressModelTest {
     }
 
     @Test
+    fun `copy readings as table pastes plain numbers and ISO dates`() {
+        val m = build(listOf(snap("2025-11-20", 46.0), snap("2025-11-24", 40.5)))
+        val lines = m.tsv!!.split("\n").map { it.split("\t") }
+        assertEquals(listOf(MacroStressCopy.TABLE_DATE, MacroStressCopy.TSV_SCORE, MacroStressCopy.TSV_CHANGE), lines[0])
+        assertEquals(listOf("2025-11-24", "40.5", "-5.5"), lines[1])
+        assertEquals(listOf("2025-11-20", "46.0", ""), lines[2])
+    }
+
+    @Test
     fun `the readings table is newest first with toned changes`() {
         val m = build(listOf(snap("2025-11-20", 40.0), snap("2025-11-24", 46.0)))
         val table = m.table!!

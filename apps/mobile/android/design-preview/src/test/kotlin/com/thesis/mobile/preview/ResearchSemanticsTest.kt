@@ -152,8 +152,12 @@ class ResearchSemanticsTest {
 
     @Test
     fun compareReportsTargetsCopyAndRefusalsSayWhy() {
-        set { CompareReportsScreen(state = F.compareReports, onBack = {}, notes = F.compareNotes, zone = F.zone) }
+        var opened: String? = null
+        set { CompareReportsScreen(state = F.compareReports, onBack = {}, notes = F.compareNotes, zone = F.zone, onOpenName = { opened = it }) }
         rule.assertAllTouchTargetsAtLeast()
+        // The ticker the eyebrow names opens its Name page (5.25).
+        rule.onNodeWithText(ResearchCopy.openName("AAPL")).performClick()
+        assertEquals("AAPL", opened)
         rule.onNodeWithContentDescription(ResearchCopy.COPY_TABLE).assertExists().assertRole(Role.Button)
         rule.onAllNodesWithText(ResearchCopy.COPY_TABLE).assertCountEquals(0)
         // Every key figure opens its source (5.25); the notes carry no "Edit" until the shell can open the editor.

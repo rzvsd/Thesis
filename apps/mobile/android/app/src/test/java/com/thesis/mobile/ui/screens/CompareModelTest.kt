@@ -84,7 +84,7 @@ class CompareModelTest {
         val revenue = m.table.rows.first { it.label == ResearchCopy.ROW_REVENUE }
         assertEquals(listOf(Fmt.money(391e9), Fmt.money(416e9)), revenue.values)
         assertEquals(Fmt.signedPct((416.0 / 391.0 - 1) * 100), revenue.delta)
-        val op = m.table.rows.first { it.label == ResearchCopy.ROW_OPERATING_SHORT }
+        val op = m.table.rows.first { it.label == ResearchCopy.ROW_OPERATING }
         assertEquals(Fmt.bpsFromPoints(0.5), op.delta)
         // The result leads with its basis, so each figure in the title has a period (C1).
         assertTrue(m.headline!!.startsWith("FY2025 vs FY2024: revenue up"))
@@ -279,7 +279,7 @@ class CompareModelTest {
         val table = compareNamesTable(compareNameColumns(state, emptyMap()))
         assertTrue(table.columns[2].period.contains(ResearchCopy.NO_REPORT_YET))
         assertTrue(table.columns[0].subject)
-        val op = table.rows.first { it.label == ResearchCopy.ROW_OPERATING_SHORT }
+        val op = table.rows.first { it.label == ResearchCopy.ROW_OPERATING }
         assertEquals(Fmt.pct((32.0 + 45.6) / 2, dp = 1), op.delta)
         assertEquals(ResearchCopy.MEDIAN, table.deltaHeader)
     }
@@ -404,8 +404,15 @@ class CompareModelTest {
         }
         val cols = compareNameColumns(state, mapOf("AAPL" to discipline(3, 6), "MSFT" to discipline(4, 5)))
         val row = compareNamesTable(cols).rows.first { it.label == ResearchCopy.ROW_DISCIPLINE }
+        // 3 of 6 and 4 of 5 are not on one basis: every cell and the median read as the share of signals met.
         assertEquals(Fmt.pct((0.5 + 0.8) / 2 * 100.0, dp = 0), row.delta)
+        assertTrue(row.values.filter { it.isNotEmpty() }.all { it.endsWith("%") })
         assertEquals(NameMetric.entries, shownMetrics(cols))
+        // On one basis the cells say "3 of 6" and the median says the same unit.
+        val same = compareNamesTable(compareNameColumns(state, mapOf("AAPL" to discipline(3, 6), "MSFT" to discipline(4, 6))))
+            .rows.first { it.label == ResearchCopy.ROW_DISCIPLINE }
+        assertEquals("3.5 of 6", same.delta)
+        assertTrue(same.values.filter { it.isNotEmpty() }.all { it.endsWith(" of 6") })
     }
 
     @Test

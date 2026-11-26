@@ -9,8 +9,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -31,11 +33,13 @@ import com.thesis.mobile.ui.components.LeadingRowDividerInset
 import com.thesis.mobile.ui.components.RowPosition
 import com.thesis.mobile.ui.components.RunBar
 import com.thesis.mobile.ui.components.ScreenHeader
+import com.thesis.mobile.ui.components.SheetActionRow
 import com.thesis.mobile.ui.components.SkeletonRow
 import com.thesis.mobile.ui.components.TextAction
 import com.thesis.mobile.ui.components.ThesisChip
 import com.thesis.mobile.ui.components.ThesisIconButton
 import com.thesis.mobile.ui.components.ThesisRefreshBox
+import com.thesis.mobile.ui.components.ThesisSheet
 import com.thesis.mobile.ui.components.ThesisTextField
 import com.thesis.mobile.ui.components.rememberTopBarCollapsed
 import com.thesis.mobile.ui.components.rowGroupSegment
@@ -99,6 +103,8 @@ fun HistoryScreen(
     initialCompareMode: Boolean = false,
     initialPicked: List<String> = emptyList(),
     clock: Clock = Clock.systemDefaultZone(),
+    /** Opens a ticker's Name page (5.25), from a Deep Dive row's long-press sheet; the row tap opens the report. */
+    onOpenName: ((ticker: String) -> Unit)? = null,
 ) {
     val fmt = LocalFmt.current
     val listState = rememberLazyListState()
@@ -108,6 +114,8 @@ fun HistoryScreen(
     var compareMode by rememberSaveable { mutableStateOf(initialCompareMode) }
     // The picks survive a rotation with compare mode itself (report ids only).
     var picked by rememberSaveable { mutableStateOf(initialPicked) }
+    // The report whose context sheet is open (a long press on a Deep Dive row), by id so it survives a rotation.
+    var contextFor by rememberSaveable { mutableStateOf<String?>(null) }
 
     val visible = remember(historyItems, filter, query, notedReportIds, companyNames) {
         filterHistory(historyItems, filter, query, notedReportIds, companyNames)
@@ -295,6 +303,11 @@ fun HistoryScreen(
                                     trailing = instant?.let(fmt::time),
                                     onOpen = { onOpenReport(item) },
                                     onBounds = onReportBounds?.let { cb -> { r: Rect -> cb(item, r) } },
+                                    onLongClick = if (!compareMode && onOpenName != null && item.type == TYPE_DEEP_DIVE && !item.ticker.isNullOrBlank()) {
+                                        { contextFor = item.reportId }
+                                    } else {
+                                        null
+                                    },
                                     selection = if (compareMode) {
                                         RowSelection(
                                             checked = item.reportId in picked,
@@ -318,6 +331,48 @@ fun HistoryScreen(
                 }
             }
         }
+    }
+
+    // The sheet shows only while its report is listed and compare mode is off; otherwise it closes after
+    // composition, never by a state write during it.
+    val contextItem = contextFor?.let { byId[it] }?.takeIf { !compareMode }
+    LaunchedEffect(contextFor, contextItem == null) {
+        if (contextFor != null && contextItem == null) contextFor = null
+    }
+    if (contextItem != null && onOpenName != null) {
+        HistoryContextSheet(
+            item = contextItem,
+            company = contextItem.ticker?.let { companyNames[it.uppercase()] },
+            onDismiss = { contextFor = null },
+            onOpenReport = { onOpenReport(contextItem) },
+            onOpenName = onOpenName,
+        )
+    }
+}
+
+/**
+ * A Deep Dive row's context sheet: the ticker and company as the title, "Open report" and "Open AAPL" (5.25: every
+ * visible ticker opens Name). Shown only while the row exists.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun HistoryContextSheet(
+    item: ReportHistoryItem,
+    company: String?,
+    onDismiss: () -> Unit,
+    onOpenReport: () -> Unit,
+    onOpenName: (String) -> Unit,
+) {
+    val ticker = item.ticker?.trim()?.uppercase().orEmpty()
+    ThesisSheet(onDismissRequest = onDismiss, title = company?.let { "$ticker · $it" } ?: ticker) {
+        SheetActionRow(ThesisIcons.Small.DeepDive, ResearchCopy.OPEN_REPORT, {
+            onDismiss()
+            onOpenReport()
+        })
+        SheetActionRow(ThesisIcons.Names, ResearchCopy.openName(ticker), {
+            onDismiss()
+            onOpenName(ticker)
+        })
     }
 }
 

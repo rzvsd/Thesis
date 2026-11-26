@@ -1,6 +1,8 @@
 package com.thesis.mobile.ui.screens
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -400,6 +402,8 @@ internal fun HistoryItemRow(
     modifier: Modifier = Modifier,
     onBounds: ((Rect) -> Unit)? = null,
     selection: RowSelection? = null,
+    /** Opens the row's context sheet (History: "Open AAPL"); the tap keeps opening the report. */
+    onLongClick: (() -> Unit)? = null,
 ) {
     val deepDive = item.type == TYPE_DEEP_DIVE
     ResearchRow(
@@ -412,6 +416,7 @@ internal fun HistoryItemRow(
         onClick = onOpen,
         onBoundsCaptured = onBounds,
         selection = selection,
+        onLongClick = onLongClick,
         modifier = modifier,
     )
 }
@@ -428,6 +433,7 @@ internal class RowSelection(val checked: Boolean, val disabledReason: String?, v
  * row is the target, pressed with the kit tint only (inside a RowGroup), no chevron (2.8). With [selection] the row
  * is a checkbox (Role.Checkbox).
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 internal fun ResearchRow(
     icon: ImageVector?,
@@ -442,8 +448,11 @@ internal fun ResearchRow(
     trailingContent: (@Composable () -> Unit)? = null,
     onBoundsCaptured: ((Rect) -> Unit)? = null,
     selection: RowSelection? = null,
+    /** A long press opens the row's context sheet, with the `longPress()` haptic (as TickerRow does). */
+    onLongClick: (() -> Unit)? = null,
 ) {
     val p = LocalThesisPalette.current
+    val haptics = rememberHaptics()
     val source = remember { MutableInteractionSource() }
     var bounds by remember { mutableStateOf(Rect.Zero) }
     val enabled = selection?.disabledReason == null
@@ -455,6 +464,20 @@ internal fun ResearchRow(
             enabled = enabled,
             role = Role.Checkbox,
             onValueChange = selection.onToggle,
+        )
+    } else if (onLongClick != null) {
+        Modifier.combinedClickable(
+            interactionSource = source,
+            indication = null,
+            role = Role.Button,
+            onLongClick = {
+                haptics.longPress()
+                onLongClick()
+            },
+            onClick = {
+                onBoundsCaptured?.invoke(bounds)
+                onClick()
+            },
         )
     } else {
         Modifier.clickable(source, indication = null, role = Role.Button) {

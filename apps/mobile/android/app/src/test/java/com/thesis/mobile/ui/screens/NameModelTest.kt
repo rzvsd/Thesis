@@ -91,17 +91,22 @@ class NameModelTest {
         assertTrue(nameNotes(none).isEmpty())
     }
 
-    private fun year(fy: Int, revenue: Double?, op: Double?, fcf: Double?, debt: Double?, cash: Double?, shares: Double?) =
+    /** Margins in percent, as live reports store them (`percent()` in the worker's fact-pack ingest: 32.0). */
+    private fun year(
+        fy: Int, revenue: Double?, op: Double?, fcf: Double?, debt: Double?, cash: Double?, shares: Double?,
+        gross: Double? = null, net: Double? = null,
+    ) =
         FinancialHistoryRowView(
             period = "FY$fy", periodType = "annual", fiscalYear = fy, revenue = revenue, operatingMargin = op,
             freeCashFlow = fcf, debtTotal = debt, cashAndEquivalents = cash, sharesOutstanding = shares,
+            grossMargin = gross, netIncome = net,
         )
 
     @Test
     fun `filings figures compare the latest annual row with the one before, ignoring quarters`() {
         val rows = listOf(
-            year(2026, 110.0, 0.32, 22.0, 30.0, 50.0, 95.0),
-            year(2025, 100.0, 0.30, 25.0, 40.0, 30.0, 100.0),
+            year(2026, 110.0, 32.0, 22.0, 30.0, 50.0, 95.0),
+            year(2025, 100.0, 30.0, 25.0, 40.0, 30.0, 100.0),
             FinancialHistoryRowView(period = "Q1 FY2027", periodType = "quarterly", fiscalYear = 2027, fiscalQuarter = 1, revenue = 30.0),
         )
         val f = filingsFigures(rows)!!
@@ -124,6 +129,53 @@ class NameModelTest {
     }
 
     @Test
+    fun `percent margins from a live report read as percents, never x100`() {
+        // The contract fixture's shape: operating_margin 32.2 means 32.2% (deep_dive_v2/adapter.ts).
+        val rows = listOf(
+            year(2026, 431.5e9, 32.0, 120.3e9, 94.2e9, 61.0e9, 14.61e9, gross = 47.2, net = 118.4e9),
+            year(2025, 416.2e9, 31.3, 98.8e9, 98.7e9, 55.4e9, 14.84e9, gross = 46.9, net = 112.0e9),
+        )
+        val f = filingsFigures(rows)!!
+        assertEquals(32.0, f.operatingMargin!!, 1e-9)
+        val tile = filingsKpis(f)[2]
+        assertEquals("Operating margin, FY2026", tile.label)
+        assertEquals("32.0%", tile.value)
+        assertEquals("+70 bps", tile.delta)
+        assertEquals("32.0%", filingsSource(f, 2).inputs.first().second)
+        val table = filingsTable(f)
+        assertEquals(listOf("47.2%", "46.9%"), table.rows.first { it.label == "Gross margin" }.values)
+        assertEquals(listOf("32.0%", "31.3%"), table.rows.first { it.label == "Operating margin" }.values)
+    }
+
+    @Test
+    fun `legacy fraction margins are read on the report's one scale`() {
+        val rows = listOf(
+            year(2026, 431.5e9, 0.320, 120.3e9, 94.2e9, 61.0e9, 14.61e9, gross = 0.472, net = 118.4e9),
+            year(2025, 416.2e9, 0.313, 98.8e9, 98.7e9, 55.4e9, 14.84e9, gross = 0.469, net = 112.0e9),
+        )
+        val tile = filingsKpis(filingsFigures(rows)!!)[2]
+        assertEquals("32.0%", tile.value)
+        assertEquals("+70 bps", tile.delta)
+    }
+
+    @Test
+    fun `copy figures as table pastes plain numbers with the unit in the label`() {
+        val rows = listOf(
+            year(2026, 431.5e9, 32.0, 120.3e9, 94.2e9, 61.0e9, 14_610_000_000.0, gross = 47.2, net = 118.4e9),
+            year(2025, 416.2e9, 31.3, null, 98.7e9, 55.4e9, 14_840_000_000.0, gross = 46.9, net = 112.0e9),
+        )
+        val lines = filingsTsv(filingsFigures(rows)!!).split("\n").map { it.split("\t") }
+        assertEquals(listOf("Metric", "FY2026", "FY2025"), lines[0])
+        assertEquals(listOf("Revenue (USD bn)", "431.50", "416.20"), lines[1])
+        assertEquals(listOf("Operating margin (%)", "32.0", "31.3"), lines[3])
+        // A value the filing did not give is an empty cell; a negative is an ASCII minus with no grouping.
+        assertEquals(listOf("Free cash flow (USD bn)", "120.30", ""), lines[5])
+        assertEquals(listOf("Net cash (debt) (USD bn)", "-33.20", "-43.30"), lines[7])
+        assertEquals(listOf("Shares outstanding (millions)", "14610.0", "14840.0"), lines[8])
+        assertFalse(lines.flatten().any { it.contains(Fmt.MINUS) || it.contains('$') || it.contains(',') })
+    }
+
+    @Test
     fun `net cash below zero reads as net debt with the absolute amount`() {
         val debt = filingsFigures(listOf(year(2026, 100.0, null, null, 43.2e9, 10.0, null), year(2025, 90.0, null, null, 53.3e9, 10.0, null)))!!
         // Debt 43.2B, cash 10: the tile names net debt and both years read as positive amounts.
@@ -133,7 +185,7 @@ class NameModelTest {
         assertFalse(tile.reference.orEmpty().contains(Fmt.MINUS))
         assertEquals("Net debt", filingsSource(debt, 4).metric)
         // A prior year on the other side of zero is named.
-        val flip = filingsFigures(listOf(year(2026, 110.0, 0.32, 22.0, 30.0, 50.0, 95.0), year(2025, 100.0, 0.30, 25.0, 40.0, 30.0, 100.0)))!!
+        val flip = filingsFigures(listOf(year(2026, 110.0, 32.0, 22.0, 30.0, 50.0, 95.0), year(2025, 100.0, 30.0, 25.0, 40.0, 30.0, 100.0)))!!
         assertTrue(filingsKpis(flip)[4].label.startsWith("Net cash"))
         assertTrue(filingsKpis(flip)[4].reference!!.startsWith("vs net debt of "))
     }
@@ -150,7 +202,7 @@ class NameModelTest {
 
     @Test
     fun `the table shows at most four years, newest first, with the latest as subject`() {
-        val rows = (2022..2026).map { year(it, 100.0 + it, 0.3, 20.0, 10.0, 20.0, 100.0) }
+        val rows = (2022..2026).map { year(it, 100.0 + it, 30.0, 20.0, 10.0, 20.0, 100.0) }
         val table = filingsTable(filingsFigures(rows)!!)
         // Newest first: the subject column sits beside the labels, in view at 360 dp without scrolling.
         assertEquals(listOf("FY2026", "FY2025", "FY2024", "FY2023"), table.columns.map { it.period })

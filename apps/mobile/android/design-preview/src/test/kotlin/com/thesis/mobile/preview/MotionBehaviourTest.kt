@@ -607,7 +607,7 @@ class MotionBehaviourTest {
                 // WP-A: Home reads "now" from LocalTodayClock / LocalFmt; the fixed Today clock keeps the eyebrow stable.
                 TodayLocals {
                 HomeScreen(
-                    pulse = pulse, pulseLoadedFromCache = false, pulseFreshnessText = null, sentimentCurrent = null,
+                    pulse = pulse, pulseLoadedFromCache = false, sentimentCurrent = null,
                     sentimentHistory = emptyList(), sentimentError = null, watchlist = listOf("AAPL", "MSFT"),
                     monitorSnapshots = emptyList(), padding = PaddingValues(), onManageNames = {}, onRetryPulse = {}, onOpenMacroStressDashboard = {}, onOpenPulseBrief = {},
                 )

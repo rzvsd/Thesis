@@ -155,6 +155,7 @@ internal fun ShellContentScope.Content(entry: NavEntry, padding: PaddingValues) 
             filingPeriods = state.filingPeriods,
             notedReportIds = state.notedReportIds,
             onCompareReports = actions::onOpenCompareReports,
+            onOpenName = { ticker -> actions.onOpenNameIn(ticker, null, null) },
             initialFilter = HistoryFilter.entries.firstOrNull { it.name.equals(destination.filter, ignoreCase = true) }
                 ?: HistoryFilter.All
         )
@@ -590,7 +591,8 @@ private fun ShellContentScope.CompareReportsEntry(destination: Destination.Compa
         notes = ticker?.let { state.notesTrails[it] }.orEmpty(),
         onRetry = { actions.onEnsureCompareReports(a, b) },
         onOpenReport = { reportId -> actions.onOpenReport(reportId, ticker) },
-        onOpenChange = { reportId, _ -> actions.onOpenReport(reportId, ticker) }
+        onOpenChange = { reportId, _ -> actions.onOpenReport(reportId, ticker) },
+        onOpenName = { t -> actions.onOpenNameIn(t, null, null) }
     )
 }
 
@@ -660,7 +662,6 @@ private fun ShellContentScope.TodayHome(padding: PaddingValues) {
     HomeScreen(
         pulse = state.pulseReport,
         pulseLoadedFromCache = state.pulseLoadedFromCache,
-        pulseFreshnessText = state.pulseFreshnessText,
         sentimentCurrent = state.sentimentCurrent,
         sentimentHistory = state.sentimentHistory,
         sentimentError = state.sentimentError,

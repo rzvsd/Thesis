@@ -335,6 +335,10 @@ class AppNavigator(private val store: NavigatorStateStore? = null) {
         return removed
     }
 
+    /** True when an entry matching [predicate] is on any tab's stack or the modal stack. */
+    fun isOnAnyStack(predicate: (Destination) -> Boolean): Boolean =
+        stacks.values.any { stack -> stack.any { predicate(it.destination) } } || modalStack.any { predicate(it.destination) }
+
     /** True when [destination] is anywhere on the current tab's stack (the report base layer needs this). */
     fun isInCurrentStack(predicate: (Destination) -> Boolean): Boolean =
         stacks.getValue(currentTab).any { predicate(it.destination) }

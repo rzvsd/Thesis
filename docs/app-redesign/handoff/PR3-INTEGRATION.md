@@ -235,3 +235,92 @@ Deferred).
 - Renders, semantics and harness tests (`-PrendersOnly test`): 679 tests, 0 failures; 1,048 renders, dark and light.
 - `tools/design-lint.sh`: 0 findings in 91 files, baseline 0 rows.
 - `tools/gold-share.py`: 766 renders, max 7.50%, none at or above 8%.
+
+## Review round 3
+
+- **Name's margins (blocker).** Live reports store `gross_margin` / `operating_margin` as percents (the worker's
+  fact-pack `percent()`: 46.9; the contract fixture's `operating_margin: 32.2`), and Name multiplied them by 100
+  ("3,220.0%", "+7,000 bps"). `marginScale(rows)` (the renderer's per-report rule, moved from CompareNamesScreen to
+  `screens/MarginScale.kt`) now normalises them once in `filingsFigures`: `operatingMargin` /
+  `priorOperatingMargin` are percents, `FilingsFigures.marginPct()` scales the table's gross and operating rows,
+  `marginDelta` takes percent points (the FCF margin, a computed fraction, is passed x100). The source sheet,
+  "Show the last four years" and "Copy figures as table" read the same values. Name's years also read "FY2025" when
+  the payload writes "2025-FY" (`periodDisplay`). `NamesFixtures` now uses percent margins, as `ResearchFixtures`
+  and the live payload do; `NamesFixtures.contractAnnual` is the contract fixture's history, rendered as
+  `name-contract-history` (asserts "32.2%", "+40 bps"). `NameModelTest`: percent rows ("32.0%", "+70 bps"), the
+  legacy fraction shape on one scale, and the raw TSV.
+- **Classic Deep Dive margins** (`FiveYearSeries.fromHistory`, the hero's history KPIs) use `marginScale(rows)` per
+  report instead of the per-value guess, so a thin margin stored as a percent (0.8) is never drawn as 80%.
+  `ClassicFormat.marginPercent` is gone. Unit test `fiveYearMarginsUseOneScalePerReport`.
+- **Status chatter (C1, major).** Success messages are no longer sent: Loaded report from history, Loaded cached
+  report (now "You're offline. Showing your saved copy of this report."), Loaded pulse for <ISO date>, War Room
+  loaded, Login successful (log-in publishes `message = null`, so a stale "Session expired" cannot show once signed
+  in), Scenario updated / stress run complete / stress run loaded, Opposite case ready, Subscription status
+  refreshed, Search returned N result(s), Pulse PDF ready (the share sheet is the feedback), Biometric lock
+  enabled / disabled (the switch is the feedback). Every remaining user-facing string the ViewModel publishes lives
+  in `ui/copy/AppMessages.kt` in product vocabulary (Names, not watchlist or feature flag; Log in; no ISO date
+  format; no "Please retry"), so the design lint's copy pass covers them. `AuthStatus.fromMessage` matches the
+  first sentence of the same constants.
+- **Inbox scope.** A category request (Weekly digest > Alerts by category) ends a name's scope (Name > See alerts)
+  in `InboxScreen`, so the category is shown instead of silently dropped. "Mark all as seen" is offered on the
+  whole Inbox only, never inside a name's scope (it marks every alert).
+- **Pulse PDF off the main thread (P1).** `writePulsePdfExport` (ReportExport.kt) writes on Dispatchers.IO;
+  `exportPulsePdf(onReady: suspend ...)` shares back on Main and reports a failure there as "The Pulse PDF could
+  not be made."
+- **One label for operating margin.** "Op. margin" is gone from both compare tables (`ROW_OPERATING_SHORT`
+  removed); they say "Operating margin", as Name and the Deep Dive do.
+- **Value discipline in one unit.** Compare names' cells and median both read "4 of 6" / "3.5 of 6" when every name
+  has the same number of signals available; otherwise every cell and the median read as the share met ("65%"),
+  the counts in the source sheet. Unit test.
+- **Copy figures as table in plain numbers (principle 13).** Name's years (`filingsTsv`) and Macro Stress's
+  readings (`MacroStressModels.tsv`) copy as Compare names / reports do: ASCII minus, no grouping, the unit in the
+  label ("Revenue (USD bn)", "Score (0 to 100)", "Change (pts)"), an empty cell when missing, ISO dates for the
+  spreadsheet. Unit tests.
+- **Every visible ticker opens Name (5.25).** Compare reports shows "Open AAPL" under its header
+  (`onOpenName`, wired in the shell; semantics test). A History Deep Dive row's long press opens a sheet with
+  "Open report" and "Open AAPL"; the tap still opens the report (`ResearchRow.onLongClick`, `longPress()` haptic).
+- **Names compact rows.** The state square sits in the leading column, as in the comfortable rows (state, ticker,
+  figure, change, note); `CompactRowDividerInset` is now `LeadingRowDividerInset` at every scale. The spec's
+  TickerRow line (section 3, #11) is updated to match.
+- **Held Name detail.** `refreshHeldNameDetail` rebuilds or refetches only while a Name entry for the held ticker is
+  on some stack (`AppNavigator.isOnAnyStack`); `onEnsureName` brings a held name up to date when its page comes
+  back.
+- **Paywall bookkeeping.** Every navigation that closes the modals goes through `closeModalsAndForget()`
+  (`closeModals` + `forgetClosedPaywall`): Compare names / reports, Pulse, Pulse chapter, report, Deep Dive start.
+- **Dead freshness text.** `HomeScreen(pulseFreshnessText)`, `UiState.pulseFreshnessText` and
+  `formatPulseFreshness` (New York time, "Offline cache • Last updated ...") are removed.
+- **Launcher.** The ten orphaned `mipmap-*/ic_launcher_foreground.png` / `ic_launcher_background.png` are deleted.
+
+Not taken, with reasons:
+
+- **Dropping the "N new" pill on comfortable Names rows.** It counts new *alerts*, which a changed state or a score
+  delta does not say; the company name already gives way first (`dropBelow(Kit.tickerCompanyMin)`). Kept.
+- **Legacy `ic_launcher.png` / `ic_launcher_round.png`.** With minSdk 26 they are never shown, but removing the
+  only unqualified `@mipmap/ic_launcher` is a resource-resolution change no build here can verify (Google Maven is
+  blocked). Left for a build-verified cleanup.
+
+### PR-4 / WP-K tracking list (K1, M1)
+
+Carried from Deferred, each with the change it needs:
+
+1. **Report rows' container transform (4.5):** History and Research's recent reports keep the shared-axis push.
+   Needs the report base layer reordered over the tab layer during the transform (shell, PR-4).
+2. **A note search hit's exact entry:** Name opens at "Your notes". Needs `NotesTrail` entry keys (kit, WP-K) to
+   bring the matched entry into view.
+3. **A Compare reports change's chapter:** opens the newer report at its top. Needs a chapter on
+   `DeepDiveTopChangeView` (model + worker) to pass to `Destination.Report`.
+4. **Compare names at 412 dp:** the median and the fourth ticker sit behind "Swipe the table". Needs the
+   `CompareTable` column fit and one 48 dp target per row over compact cells (kit, WP-K, with D8).
+
+### Verification after review round 3
+
+- `design-preview` compile (main + test): clean.
+- App unit tests (`-PappTestsOnly test`): 470 tests, 0 failures (new: percent and legacy margins on Name, Name's
+  raw TSV, the classic Deep Dive's one margin scale, Macro Stress's raw TSV, value discipline on one basis).
+- Renders, semantics and harness tests (`-PrendersOnly test`): full run exit 0, then Name, Names, Research renders
+  and `ResearchSemanticsTest` again after the last test edits (145 tests, 0 failures); 1,050 renders on disk,
+  including the new `name-contract-history`.
+- `tools/design-lint.sh`: 0 findings in 93 files (`ui/copy/AppMessages.kt` now in the copy pass), baseline 0 rows.
+- `tools/gold-share.py`: 768 renders, max 7.50%, none at or above 8%.
+- Android-only files changed (not compiled here): `MainViewModel.kt`, `ThesisApp.kt`, `ReportExport.kt`; checked
+  by hand against Kotlin 1.9 / coroutines (named catch parameters, `suspend` callback type, existing imports).

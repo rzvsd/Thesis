@@ -247,6 +247,12 @@ object ResearchCopy {
     /** A value-discipline cell: "4 of 6" signals met. */
     fun signalsMet(met: Int, available: Int): String = "${Fmt.number(met.toLong())} of ${Fmt.number(available.toLong())}"
 
+    /** The peer median of signals met, in the cells' unit: "4 of 6", "3.5 of 6". */
+    fun signalsMetMedian(met: Double, available: Int): String {
+        val dp = if (met == kotlin.math.floor(met)) 0 else 1
+        return "${Fmt.number(met, dp)} of ${Fmt.number(available.toLong())}"
+    }
+
     private fun ofThe(n: Int): String? = when (n) {
         2 -> "of the two"
         3 -> "of the three"
@@ -301,7 +307,6 @@ object ResearchCopy {
     // Compare reports' row labels: the conventional short forms of a filings table, so the label column leaves
     // room for both years and the change on a 412 dp phone. The source sheet and the spoken row keep the meaning.
     const val ROW_GROWTH_SHORT = "Growth, YoY"
-    const val ROW_OPERATING_SHORT = "Op. margin"
     const val ROW_FCF_SHORT = "FCF"
     const val ROW_SHARES_SHORT = "Shares"
     const val ROW_SHARES_YOY_SHORT = "Shares, YoY"

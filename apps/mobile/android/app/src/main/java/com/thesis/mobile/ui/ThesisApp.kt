@@ -45,7 +45,7 @@ import com.thesis.mobile.ui.screens.DeleteAccountSection
 import com.thesis.mobile.ui.screens.OnboardingScreen
 import com.thesis.mobile.ui.screens.PasswordResetScreen
 import com.thesis.mobile.ui.screens.SampleDeepDiveScreen
-import com.thesis.mobile.ui.screens.createPulsePdfExport
+import com.thesis.mobile.ui.screens.writePulsePdfExport
 import com.thesis.mobile.ui.screens.shareExport
 import com.thesis.mobile.ui.shell.LocalScreenChrome
 import com.thesis.mobile.ui.shell.SHARED_AXIS_SHIFT
@@ -265,8 +265,9 @@ private fun LoggedInApp(
     val platform = ShellPlatform(
         startPurchase = activity?.let { host -> { preferredType -> mainViewModel.startPurchase(host, preferredType) } },
         exportPulsePdf = {
+            // The file is written on Dispatchers.IO; the share sheet opens back on the main thread.
             mainViewModel.exportPulsePdf { download ->
-                shareExport(context, createPulsePdfExport(context, download.bytes, download.filename))
+                shareExport(context, writePulsePdfExport(context, download.bytes, download.filename))
             }
         },
         openSystemNotificationSettings = {

@@ -122,7 +122,6 @@ private object HomeBlock {
 fun HomeScreen(
     pulse: PulseReportView?,
     pulseLoadedFromCache: Boolean,
-    pulseFreshnessText: String?,
     sentimentCurrent: SentimentSnapshotView?,
     sentimentHistory: List<SentimentSnapshotView>,
     sentimentError: String?,

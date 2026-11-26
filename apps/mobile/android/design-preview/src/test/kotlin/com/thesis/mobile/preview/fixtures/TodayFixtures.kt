@@ -348,7 +348,6 @@ private fun TodayHomeContent(
             else -> null
         },
         pulseLoadedFromCache = state == HomeState.Offline,
-        pulseFreshnessText = null,
         sentimentCurrent = if (loaded) f.sentimentCurrent else null,
         sentimentHistory = if (loaded) f.sentimentHistory else emptyList(),
         sentimentError = if (state == HomeState.Error) "HTTP 503" else null,

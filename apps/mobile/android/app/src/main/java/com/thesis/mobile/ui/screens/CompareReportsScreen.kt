@@ -21,6 +21,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
 import com.thesis.mobile.model.CompareReportsState
@@ -274,7 +276,7 @@ internal fun compareReportsModel(a: DeepDiveReportView, b: DeepDiveReportView, f
             delta = growthD?.let { Fmt.bpsFromPoints(it) },
         ),
         marginRow(ResearchCopy.ROW_GROSS, fo?.grossMarginPct, fn?.grossMarginPct, grossD),
-        marginRow(ResearchCopy.ROW_OPERATING_SHORT, fo?.operatingMarginPct, fn?.operatingMarginPct, opD),
+        marginRow(ResearchCopy.ROW_OPERATING, fo?.operatingMarginPct, fn?.operatingMarginPct, opD),
         CompareRow(ResearchCopy.ROW_FCF_SHORT, listOf(money(fo?.freeCashFlow), money(fn?.freeCashFlow)), delta = fcfD?.let { Fmt.signedPct(it) }, deltaTone = toneOf(fcfD)),
         CompareRow(ResearchCopy.ROW_NET_CASH, listOf(money(fo?.netCash), money(fn?.netCash)), delta = signedMoney(cashD), deltaTone = toneOf(cashD)),
         CompareRow(
@@ -501,6 +503,8 @@ fun CompareReportsScreen(
     onOpenChange: ((reportId: String, index: Int) -> Unit)? = null,
     onEditNote: ((reportId: String) -> Unit)? = null,
     zone: ZoneId = ZoneId.systemDefault(),
+    /** Opens the name's page (5.25: every visible ticker opens Name); null leaves the ticker as plain text. */
+    onOpenName: ((ticker: String) -> Unit)? = null,
 ) {
     val fmt = LocalFmt.current
     val clipboard = LocalClipboardManager.current
@@ -575,6 +579,7 @@ fun CompareReportsScreen(
                     onOpenReport = onOpenReport,
                     onOpenChange = onOpenChange,
                     onEditNote = onEditNote,
+                    onOpenName = onOpenName,
                     onSource = { source = it },
                     fmt = fmt,
                     zone = zone,
@@ -592,6 +597,7 @@ private fun ColumnScope.CompareReportsBody(
     onOpenReport: (String) -> Unit,
     onOpenChange: ((String, Int) -> Unit)?,
     onEditNote: ((String) -> Unit)?,
+    onOpenName: ((String) -> Unit)?,
     onSource: (SourceInfo) -> Unit,
     fmt: Fmt,
     zone: ZoneId,
@@ -603,6 +609,16 @@ private fun ColumnScope.CompareReportsBody(
         title = model.headline ?: model.company ?: model.ticker,
         deck = model.deck,
     )
+    if (onOpenName != null) {
+        // The ticker the eyebrow names, as a link to its page, as Compare names' "Open a name" line does.
+        TextAction(
+            ResearchCopy.openName(model.ticker),
+            onClick = { onOpenName(model.ticker) },
+            modifier = Modifier
+                .padding(top = ThesisSpace.xs)
+                .semantics { contentDescription = ResearchCopy.openNameDescription(model.company ?: model.ticker) },
+        )
+    }
     if (model.since != null) {
         Spacer(Modifier.height(ThesisSpace.headerToSection))
         SinceLastReport(

@@ -92,7 +92,6 @@ data class UiState(
     val isRunningScenario: Boolean = false,
     val pulseReport: PulseReportView? = null,
     val pulseLoadedFromCache: Boolean = false,
-    val pulseFreshnessText: String? = null,
     val pulseError: String? = null,
     /**
      * Why the last Pulse refresh failed (null on success): Home's and the Pulse's cached-copy banners say "Offline"

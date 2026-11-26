@@ -1,6 +1,7 @@
 package com.thesis.mobile.ui.screens
 
 import com.thesis.mobile.ui.copy.AccountCopy
+import com.thesis.mobile.ui.copy.AppMessages
 
 /**
  * The status line under the Auth form (DESIGN-DIRECTION 5.3): a typed result, so the screen never guesses tone or
@@ -47,14 +48,16 @@ data class AuthStatus(val kind: Kind, val text: String) {
     companion object {
         /** Known `MainViewModel` results, by the sentence each message starts with. */
         private val Known = listOf(
-            "Registration created." to Kind.VerificationSent,
-            "Account verified." to Kind.Verified,
-            "Password reset successful." to Kind.PasswordChanged,
-            "Logged out." to Kind.SignedOut,
-            "Session expired." to Kind.SessionExpired,
-            "Account deleted successfully." to Kind.AccountDeleted,
-            "API base URL saved." to Kind.ApiSaved,
-        )
+            AppMessages.REGISTERED to Kind.VerificationSent,
+            AppMessages.VERIFIED to Kind.Verified,
+            AppMessages.PASSWORD_RESET to Kind.PasswordChanged,
+            AppMessages.LOGGED_OUT to Kind.SignedOut,
+            AppMessages.SESSION_EXPIRED to Kind.SessionExpired,
+            AppMessages.ACCOUNT_DELETED to Kind.AccountDeleted,
+            AppMessages.API_SAVED to Kind.ApiSaved,
+        ).map { (message, kind) -> firstSentence(message) to kind }
+
+        private fun firstSentence(message: String): String = message.substringBefore(". ").let { if (it.endsWith(".")) it else "$it." }
 
         /** Successful log-in: the app leaves Auth, so nothing is shown. */
         private const val LOGIN_SUCCESS = "Login successful."

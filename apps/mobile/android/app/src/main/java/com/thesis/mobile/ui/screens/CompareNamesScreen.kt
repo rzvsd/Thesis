@@ -72,7 +72,6 @@ import com.thesis.mobile.ui.theme.ThesisType
 import java.time.Instant
 import java.time.YearMonth
 import java.time.ZoneId
-import kotlin.math.abs
 
 // ---- Figures from a report's history rows (shared with Compare reports)
 
@@ -103,27 +102,6 @@ internal data class PeriodFigures(
     val sharesChangePct: Figure,
     val eps: Figure,
 )
-
-/**
- * Margin scale of [rows]: live reports store percent numbers (46.9), some old ones fractions (0.469). Only when
- * every margin is within ±1, and the net margin says so, are they fractions (x100). The renderer's rule
- * (`deep_dive_v2/adapter.ts` marginScale), so the app reads a report the way its page does.
- */
-internal fun marginScale(rows: List<FinancialHistoryRowView>): Double {
-    val ms = rows.flatMap { listOfNotNull(it.grossMargin, it.operatingMargin) }.filter { it.isFinite() }
-    if (ms.isEmpty() || !ms.all { abs(it) <= 1.0 } || ms.none { abs(it) >= 0.02 }) return 1.0
-    var fraction = 0
-    var percent = 0
-    rows.forEach { r ->
-        val rev = r.revenue
-        val ni = r.netIncome
-        val m = r.operatingMargin ?: r.grossMargin
-        if (rev == null || rev <= 0.0 || ni == null || m == null) return@forEach
-        val netPct = ni / rev * 100.0
-        if (abs(m * 100.0 - netPct) < abs(m - netPct)) fraction++ else percent++
-    }
-    return if (fraction + percent == 0 || fraction > percent) 100.0 else 1.0
-}
 
 private fun FinancialHistoryRowView.key(): FilingKey =
     FilingKey(fiscalYear, if (periodType.equals("quarterly", ignoreCase = true) || periodType.startsWith("q", ignoreCase = true)) fiscalQuarter else null)
@@ -282,13 +260,12 @@ internal fun metricLabel(metric: NameMetric): String = when (metric) {
 }
 
 /**
- * The row label in the table: the conventional short forms ("Growth, YoY", "Op. margin", "Shares, YoY"), so the
+ * The row label in the table: the conventional short forms ("Growth, YoY", "Shares, YoY"; operating margin keeps its full name, as on Name and the Deep Dive), so the
  * pinned label column leaves room for a third name on a 412 dp phone. The source sheet, the sort caption and
  * "Copy as table" keep the full name ([metricLabel]).
  */
 internal fun metricShortLabel(metric: NameMetric): String = when (metric) {
     NameMetric.Growth -> ResearchCopy.ROW_GROWTH_SHORT
-    NameMetric.Operating -> ResearchCopy.ROW_OPERATING_SHORT
     NameMetric.Shares -> ResearchCopy.ROW_SHARES_YOY_SHORT
     else -> metricLabel(metric)
 }
@@ -305,15 +282,34 @@ internal fun formatMetric(metric: NameMetric, value: Double?, missing: Missing =
  * A cell's text. A name with no report leaves its cells blank (its header says "No report yet"): "Not computed"
  * is for a gap on our side in a report that exists (2.4), not for a report never built.
  */
-internal fun cellText(column: CompareNameColumn, metric: NameMetric): String {
+internal fun cellText(column: CompareNameColumn, metric: NameMetric, disciplineAsShare: Boolean = false): String {
     if (!column.hasReport) return ""
     if (column.figures == null) return Fmt.NOT_COMPUTED
     if (metric == NameMetric.Discipline) {
         val d = column.discipline ?: return Fmt.NOT_COMPUTED
+        if (disciplineAsShare) return formatMetric(metric, d.ratio, Missing.NotComputed)
         return ResearchCopy.signalsMet(d.met, d.available)
     }
     val fig = figureOf(column, metric) ?: return Fmt.NOT_COMPUTED
     return formatMetric(metric, fig.value?.takeIf { it.isFinite() }, fig.missing)
+}
+
+/**
+ * The value-discipline row reads in one unit: "4 of 6" in every cell and "3.5 of 6" as the median when every scored
+ * name has the same number of signals available; otherwise the counts are not comparable, so every cell and the
+ * median read as the share of signals met ("50%") and the counts stay in the source sheet.
+ */
+internal fun disciplineSharesOneBasis(columns: List<CompareNameColumn>): Boolean =
+    columns.mapNotNull { it.discipline?.available?.takeIf { n -> n > 0 } }.distinct().size <= 1
+
+/** The value-discipline median in the row's unit ([disciplineSharesOneBasis]); null with fewer than two scores. */
+internal fun disciplineMedianText(columns: List<CompareNameColumn>): String {
+    val scored = columns.mapNotNull { it.discipline?.takeIf { d -> d.available > 0 } }
+    if (disciplineSharesOneBasis(columns)) {
+        val med = median(scored.map { it.met.toDouble() }) ?: return Fmt.missing(Missing.NotMeaningful)
+        return ResearchCopy.signalsMetMedian(med, scored.first().available)
+    }
+    return formatMetric(NameMetric.Discipline, median(scored.mapNotNull { it.ratio }), Missing.NotMeaningful)
 }
 
 /** The median of [values] (finite only), or null with fewer than two. */
@@ -391,10 +387,11 @@ internal fun compareNamesTable(columns: List<CompareNameColumn>): CompareTableMo
         },
         rows = shownMetrics(columns).map { m ->
             val med = median(columns.mapNotNull { metricValue(it, m) })
+            val share = !disciplineSharesOneBasis(columns)
             CompareRow(
                 label = metricShortLabel(m),
-                values = columns.map { cellText(it, m) },
-                delta = formatMetric(m, med, Missing.NotMeaningful),
+                values = columns.map { cellText(it, m, disciplineAsShare = share) },
+                delta = if (m == NameMetric.Discipline) disciplineMedianText(columns) else formatMetric(m, med, Missing.NotMeaningful),
             )
         },
         labelHeader = ResearchCopy.LATEST_FY,

@@ -174,7 +174,8 @@ object NamesFixtures {
         watchlist = watchlist + listOf("V", "UNH"),
     )
 
-    // ---- Name (5.11): AAPL with two reports, a change summary, five annual rows and a note trail.
+    // ---- Name (5.11): AAPL with two reports, a change summary, five annual rows and a note trail. Margins are
+    // percents (46.9 = 46.9%), as live reports store them (the worker's fact-pack `percent()`), like ResearchFixtures.
 
     private fun year(fy: Int, revenue: Double, gross: Double, op: Double, net: Double, fcf: Double, debt: Double, cash: Double, shares: Double) =
         FinancialHistoryRowView(
@@ -184,11 +185,33 @@ object NamesFixtures {
         )
 
     val annual = listOf(
-        year(2022, 394.3e9, 0.433, 0.303, 99.8e9, 111.4e9, 120.1e9, 48.3e9, 16.07e9),
-        year(2023, 383.3e9, 0.441, 0.298, 97.0e9, 99.6e9, 111.1e9, 61.6e9, 15.55e9),
-        year(2024, 391.0e9, 0.462, 0.315, 93.7e9, 108.8e9, 106.6e9, 65.2e9, 15.12e9),
-        year(2025, 416.2e9, 0.469, 0.320, 112.0e9, 98.8e9, 98.7e9, 55.4e9, 14.84e9),
-        year(2026, 431.5e9, 0.472, 0.327, 118.4e9, 120.3e9, 94.2e9, 61.0e9, 14.61e9),
+        year(2022, 394.3e9, 43.3, 30.3, 99.8e9, 111.4e9, 120.1e9, 48.3e9, 16.07e9),
+        year(2023, 383.3e9, 44.1, 29.8, 97.0e9, 99.6e9, 111.1e9, 61.6e9, 15.55e9),
+        year(2024, 391.0e9, 46.2, 31.5, 93.7e9, 108.8e9, 106.6e9, 65.2e9, 15.12e9),
+        year(2025, 416.2e9, 46.9, 32.0, 112.0e9, 98.8e9, 98.7e9, 55.4e9, 14.84e9),
+        year(2026, 431.5e9, 47.2, 32.7, 118.4e9, 120.3e9, 94.2e9, 61.0e9, 14.61e9),
+    )
+
+    /**
+     * The contract fixture's history (supabase/functions/_lib/reports/testdata/contract_fixtures.ts), as a live
+     * report sends it: "2025-FY" periods and percent margins (operating_margin 32.2 = 32.2%).
+     */
+    val contractAnnual = listOf(
+        FinancialHistoryRowView(
+            period = "2025-FY", periodType = "annual", fiscalYear = 2025, revenue = 389e9, grossMargin = 44.0,
+            operatingMargin = 32.2, netIncome = 97e9, freeCashFlow = 107e9, debtTotal = 111e9,
+            cashAndEquivalents = 72e9, sharesOutstanding = 15.45e9,
+        ),
+        FinancialHistoryRowView(
+            period = "2024-FY", periodType = "annual", fiscalYear = 2024, revenue = 372e9, grossMargin = 43.5,
+            operatingMargin = 31.8, netIncome = 95e9, freeCashFlow = 102e9, debtTotal = 115e9,
+            cashAndEquivalents = 70e9, sharesOutstanding = 15.53e9,
+        ),
+        FinancialHistoryRowView(
+            period = "2023-FY", periodType = "annual", fiscalYear = 2023, revenue = 355e9, grossMargin = 42.8,
+            operatingMargin = 31.0, netIncome = 91e9, freeCashFlow = 98e9, debtTotal = 119e9,
+            cashAndEquivalents = 66e9, sharesOutstanding = 15.61e9,
+        ),
     )
 
     val summary = ReportSummaryView(

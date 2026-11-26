@@ -11,9 +11,11 @@ import com.thesis.mobile.ui.screens.NamePager
 import com.thesis.mobile.ui.screens.NameScreen
 import com.thesis.mobile.ui.screens.NameSeed
 import com.thesis.mobile.ui.screens.filingsFigures
+import com.thesis.mobile.ui.screens.filingsKpis
 import com.thesis.mobile.ui.screens.filingsSource
 import com.thesis.mobile.ui.screens.monitorTiles
 import java.time.ZoneOffset
+import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
@@ -74,6 +76,22 @@ class NameRenders {
     @Test fun fullPageYears() {
         renderScreen("name-full-page-years", heightDp = PhoneSpec.FULL_PAGE_HEIGHT_DP, themes = listOf(PreviewTheme.entries.first())) {
             Name(seed = NameSeed(showYears = true, selectReports = listOf("rep-aapl")))
+        }
+    }
+
+    /**
+     * The contract fixture's history, shaped as a live report sends it ("2025-FY", percent margins): From the
+     * filings reads 32.2% (+40 bps), never 3,220.0%, and the years table reads FY2025, not 2025-FY.
+     */
+    @Test fun contractHistory() {
+        val f = filingsFigures(NamesFixtures.contractAnnual)!!
+        val op = filingsKpis(f)[2]
+        assertEquals("Operating margin, FY2025", op.label)
+        assertEquals("32.2%", op.value)
+        assertEquals("+40 bps", op.delta)
+        val detail = NamesFixtures.detail.copy(summary = NamesFixtures.summary.copy(annualHistory = NamesFixtures.contractAnnual))
+        renderScreen("name-contract-history", heightDp = PhoneSpec.FULL_PAGE_HEIGHT_DP) {
+            Name(detail = detail, seed = NameSeed(showYears = true))
         }
     }
 

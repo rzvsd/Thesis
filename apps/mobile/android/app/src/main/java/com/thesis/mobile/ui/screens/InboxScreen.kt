@@ -327,13 +327,17 @@ fun InboxScreen(
     val layoutDirection = LocalLayoutDirection.current
 
     var category by rememberSaveable { mutableStateOf(initialCategory) }
+    // Declared before the category request reads it: a category asked for ends a name's scope.
+    var ticker by rememberSaveable { mutableStateOf(initialTicker?.trim()?.uppercase()?.ifBlank { null }) }
     LaunchedEffect(categoryRequest) {
         if (categoryRequest != null) {
             category = categoryRequest
+            // Weekly digest > Alerts by category after Name > See alerts: the scope would hide the category's
+            // other names (and drop the category when none of the scoped alerts has it), so the request ends it.
+            ticker = null
             onCategoryRequestHandled()
         }
     }
-    var ticker by rememberSaveable { mutableStateOf(initialTicker?.trim()?.uppercase()?.ifBlank { null }) }
     LaunchedEffect(tickerRequest) {
         if (tickerRequest != null) {
             // A name's alerts in every category: the category filter would hide some of them.
@@ -470,7 +474,8 @@ fun InboxScreen(
                 item(key = "header", contentType = "header") {
                     InboxHeader(
                         lede = lede,
-                        markAllSeen = if (newCount > 0) onMarkAllSeen else null,
+                        // Mark all as seen marks every alert: offered on the whole Inbox only, never in a name's scope.
+                        markAllSeen = if (newCount > 0 && ticker == null) onMarkAllSeen else null,
                     )
                 }
                 val scopeTicker = ticker

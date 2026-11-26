@@ -491,4 +491,18 @@ class DeepDiveClassicModelTest {
         val flatKpis = heroKpis(structured.copy(filingRead = null, financialAnalysis = structured.financialAnalysis!!.copy(annualHistory = flat)), null)
         assertEquals(Tone.Neutral, flatKpis[1].deltaTone)
     }
+
+    @Test
+    fun fiveYearMarginsUseOneScalePerReport() {
+        // Percent margins with a thin year: 0.8 is 0.8%, never 80% beside years drawn as percents.
+        fun row(year: Int, op: Double) = com.thesis.mobile.model.FinancialHistoryRowView(
+            period = "FY$year", periodType = "annual", fiscalYear = year, revenue = 100.0, operatingMargin = op, netIncome = op,
+        )
+        val series = FiveYearSeries.fromHistory(listOf(row(2023, 12.0), row(2024, 0.8), row(2025, -1.2)))!!
+        assertEquals(listOf(12.0, 0.8, -1.2), series.operatingMargin)
+        // A legacy report in fractions is scaled as a whole.
+        val legacy = FiveYearSeries.fromHistory(listOf(row(2024, 0.12).copy(netIncome = 12.0), row(2025, 0.10).copy(netIncome = 10.0)))!!
+        assertEquals(12.0, legacy.operatingMargin[0]!!, 1e-9)
+        assertEquals(10.0, legacy.operatingMargin[1]!!, 1e-9)
+    }
 }

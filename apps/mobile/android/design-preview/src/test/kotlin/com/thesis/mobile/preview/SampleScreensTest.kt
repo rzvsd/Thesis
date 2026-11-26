@@ -17,7 +17,6 @@ class SampleScreensTest {
             HomeScreen(
                 pulse = null,
                 pulseLoadedFromCache = false,
-                pulseFreshnessText = null,
                 sentimentCurrent = null,
                 sentimentHistory = emptyList(),
                 sentimentError = null,

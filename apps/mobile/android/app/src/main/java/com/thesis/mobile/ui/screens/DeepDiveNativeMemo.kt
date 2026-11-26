@@ -146,12 +146,6 @@ internal object ClassicFormat {
     }
 
     /**
-     * A margin in percent. The structured history carries margins as fractions (0.44); the native memo as percents
-     * (44.0). A margin of more than 150% is not a margin, so anything up to 1.5 is read as a fraction.
-     */
-    fun marginPercent(v: Double): Double = if (abs(v) <= 1.5) v * 100.0 else v
-
-    /**
      * Money in whole units for axis ticks and headlines, as the renderer sets them: "$0", "$186", "$1.2K",
      * "$300B", "$2.5B" (no ".00", no trailing zeros after the point).
      */
@@ -251,12 +245,15 @@ internal data class FiveYearSeries(
             val last = annual.keys.max()
             val years = ((last - SPAN + 1)..last).filter { y -> y >= annual.keys.min() }
             val byYear = years.map { annual[it] }
+            // One scale for the whole report (the renderer's rule), never a guess per value: a thin margin stored
+            // as a percent (0.8 = 0.8%) must not be drawn as 80% beside years drawn correctly.
+            val scale = marginScale(rows)
             val series = FiveYearSeries(
                 years = years,
                 revenue = byYear.map { it?.revenue },
                 freeCashFlow = byYear.map { it?.freeCashFlow },
-                grossMargin = byYear.map { it?.grossMargin?.let(ClassicFormat::marginPercent) },
-                operatingMargin = byYear.map { it?.operatingMargin?.let(ClassicFormat::marginPercent) },
+                grossMargin = byYear.map { it?.grossMargin?.takeIf { m -> m.isFinite() }?.times(scale) },
+                operatingMargin = byYear.map { it?.operatingMargin?.takeIf { m -> m.isFinite() }?.times(scale) },
             )
             return series.takeIf { it.hasRevenue || it.hasMargins }?.trimmed()
         }
@@ -361,6 +358,7 @@ private fun historyKpis(rows: List<FinancialHistoryRowView>): List<KpiSpec> {
     val prev = annual.getOrNull(annual.size - 2)?.takeIf { it.fiscalYear == cur.fiscalYear - 1 }
     val period = Fmt.period(PeriodKind.FY, cur.fiscalYear)
     val reference = prev?.let { DeepDiveCopy.vsPeriod(Fmt.period(PeriodKind.FY, it.fiscalYear)) }
+    val scale = marginScale(rows)
     fun money(label: String, now: Double?, before: Double?): KpiSpec? {
         now ?: return null
         val change = if (before != null && before > 0.0) (now / before - 1.0) * 100.0 else null
@@ -373,8 +371,8 @@ private fun historyKpis(rows: List<FinancialHistoryRowView>): List<KpiSpec> {
         )
     }
     fun margin(label: String, nowRaw: Double?, beforeRaw: Double?): KpiSpec? {
-        val now = nowRaw?.let(ClassicFormat::marginPercent) ?: return null
-        val before = beforeRaw?.let(ClassicFormat::marginPercent)
+        val now = nowRaw?.takeIf { it.isFinite() }?.times(scale) ?: return null
+        val before = beforeRaw?.takeIf { it.isFinite() }?.times(scale)
         return KpiSpec(
             label = "$label, $period",
             value = Fmt.pct(now, 1),

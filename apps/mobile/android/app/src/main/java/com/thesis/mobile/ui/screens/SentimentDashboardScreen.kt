@@ -185,6 +185,8 @@ internal data class MacroStressModel(
     /** The window's first reading date ("30 Oct"), the readout change's basis; null with one reading. */
     val windowStartText: String?,
     val table: CompareTableModel?,
+    /** "Copy readings as table": the same readings as plain numbers for a spreadsheet ([MacroStressModels.tsv]). */
+    val tsv: String?,
     val factors: List<MacroFactor>,
     val factorHeadline: String,
     val factorDeck: String?,
@@ -305,6 +307,7 @@ internal object MacroStressModels {
             chartSummary = chartSummary,
             windowStartText = window.takeIf { it.size > 1 }?.first()?.date?.let { nb(fmt.shortDate(it)) },
             table = table(window, fmt),
+            tsv = tsv(window),
             factors = factors,
             factorHeadline = factorHeadline(factors, scoreDelta),
             factorDeck = if (factors.any { it.change != null } && previousDate != null) MacroStressCopy.changeSince(previousDate) else null,
@@ -451,6 +454,23 @@ internal object MacroStressModels {
         )
     }
 
+    /**
+     * The readings of [table] for a spreadsheet, newest first: the date as ISO (which Excel and Sheets read as a
+     * date), the score and the change from the reading before as plain numbers (ASCII minus, one decimal, the unit
+     * in the header), an empty cell for the first reading's change. Compare names and Compare reports copy the same
+     * way (principle 13).
+     */
+    fun tsv(window: List<MacroReading>): String? {
+        if (window.isEmpty()) return null
+        val lines = mutableListOf(listOf(MacroStressCopy.TABLE_DATE, MacroStressCopy.TSV_SCORE, MacroStressCopy.TSV_CHANGE))
+        window.indices.reversed().forEach { i ->
+            val r = window[i]
+            val change = window.getOrNull(i - 1)?.let { r.score - it.score }
+            lines += listOf(r.date.toString(), rawCell(r.score, 1), rawCell(change, 1))
+        }
+        return lines.joinToString("\n") { it.joinToString("\t") }
+    }
+
     private const val ISO_DATE_LENGTH = 10
 }
 
@@ -547,15 +567,15 @@ fun MacroStressScreen(
             collapsed = collapsed,
             titleAlwaysVisible = true,
         ) {
-            val table = model?.table
-            if (table != null) {
+            val tsv = model?.tsv
+            if (tsv != null) {
                 // The readings as tab-separated text, for a spreadsheet. A top bar action rather than a link floating
                 // under the collapsed chart card; it moves beside "Show table" once ChartCard offers it (HANDOFF-F 9b).
                 ThesisIconButton(
                     icon = if (copied) ThesisIcons.Check else ThesisIcons.Copy,
                     contentDescription = if (copied) MacroStressCopy.COPIED else MacroStressCopy.COPY_TABLE,
                     onClick = {
-                        clipboard.setText(AnnotatedString(table.toTsv()))
+                        clipboard.setText(AnnotatedString(tsv))
                         copied = true
                     },
                 )
