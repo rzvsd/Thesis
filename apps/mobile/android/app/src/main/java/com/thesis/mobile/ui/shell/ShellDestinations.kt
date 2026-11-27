@@ -149,7 +149,8 @@ internal fun ShellContentScope.Content(entry: NavEntry, padding: PaddingValues) 
             HistoryScreen(
                 historyItems = state.reportHistory,
                 onBack = { actions.onBack() },
-                // A report (or a Pulse issue) grows from the tapped row (4.5 container transform; PR-4b).
+                // A report grows from the tapped row (4.5 container transform; PR-4b); a Pulse issue keeps the shared axis
+                // (AppNavigator drops its origin).
                 onOpenReport = { item -> navigator.pushFrom(rowBounds.take()) { actions.onOpenHistoryItem(item) } },
                 onReportBounds = { _, bounds -> rowBounds.capture(bounds) },
                 padding = padding,
@@ -311,9 +312,12 @@ private fun ShellContentScope.ResearchRoot(padding: PaddingValues) {
             actions.onSearchTickers(typed)
         },
         onRunReport = { actions.onRunDeepDive(state.selectedTicker.orEmpty()) },
-        // A recent report (or Pulse issue) grows from its row (4.5 container transform; PR-4b).
+        // A recent report grows from its row (4.5 container transform; PR-4b). A Pulse issue keeps the shared axis.
         onOpenReport = { reportId -> navigator.pushFrom(rowBounds.take()) { actions.onOpenReport(reportId) } },
-        onOpenPulse = { date -> navigator.pushFrom(rowBounds.take()) { actions.onOpenPulse(date) } },
+        onOpenPulse = { date ->
+            rowBounds.take()
+            actions.onOpenPulse(date)
+        },
         onReportBounds = { _, bounds -> rowBounds.capture(bounds) },
         padding = padding,
         // History on the Research stack (5.12 "See all"); the root lists only the three latest.

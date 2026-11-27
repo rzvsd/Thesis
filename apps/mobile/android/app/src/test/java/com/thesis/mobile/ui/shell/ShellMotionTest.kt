@@ -232,4 +232,26 @@ class ShellMotionTest {
         assertEquals("e9", preview.entryId)
         assertEquals(0f, preview.progress)
     }
+
+    @Test
+    fun theWayBackNeverShowsAnEmptyContainerNorThePageOverItsRow() {
+        // clock: 1 at rest → 0 at the row (plain time). The container is opaque while the content shows, and the
+        // content has gone exactly when the container starts to hand over to the row.
+        var clock = 1f
+        while (clock >= 0f) {
+            val content = transformContentAlphaOut(clock)
+            val container = transformContainerAlpha(progress = clock, clock = clock, out = true)
+            if (content > 0f) assertEquals("content over an opaque container at $clock", 1f, container, 0.0001f)
+            if (container >= 1f && clock > ThesisMotion.TransformHandOver + 0.001f) {
+                assertTrue("no empty slab at $clock (content $content)", content > 0f)
+            }
+            clock -= 0.01f
+        }
+        assertEquals(1f, transformContentAlphaOut(1f), 0f)
+        assertTrue("still legible half way through the time", transformContentAlphaOut(0.5f) > 0.45f)
+        assertEquals(0f, transformContentAlphaOut(ThesisMotion.TransformHandOver), 0.0001f)
+        // A held back gesture over such a page (at most TransformSeekMax of the eased way) keeps it readable.
+        val heldClock = 1f - backSeekFraction(1f, intoRow = true)
+        assertTrue(transformContentAlphaOut(heldClock) >= 0.9f)
+    }
 }

@@ -24,11 +24,11 @@ import kotlin.math.roundToInt
  * SeekableTransitionState, so a back gesture over a page pushed within a tab previews the real pop with its
  * progress, and a commit runs the rest of that pop from there:
  *
- * - A plain pop (ShellTransition.BackSeek): while the finger is down the page under comes in from 24 dp beneath
- *   the page on top, which keeps its .90 preview and never moves off; only the commit slides it off, toward the
+ * - A plain pop (ShellTransition.BackSeek): while the finger is down the page under fades in place, faintly (at
+ *   most 40%), beneath the page on top, which keeps its .90 preview and never moves off; only the commit slides it off, toward the
  *   way the finger moves ([backSeekFraction]: the gesture covers the first 40% of the move, the page under's part).
  * - A page opened from a row: the gesture shrinks it toward the row, at most 35% of the way (eased) at full
- *   progress, so the page stays whole and readable (content alpha ≥ .5) until the commit runs the shrink on.
+ *   progress, so the page stays whole and readable (content alpha ≥ .9) until the commit runs the shrink on.
  * - Cancel (or a back the app did not take): the transition goes back to the page on top with `spatialSlow` and
  *   snaps there, so nothing is left half way.
  * - The entry point stays ThesisPredictiveBackHandler in ThesisShell (registered before the layers, so a report

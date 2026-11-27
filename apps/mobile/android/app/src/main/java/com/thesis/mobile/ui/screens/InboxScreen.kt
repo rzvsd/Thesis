@@ -709,7 +709,7 @@ private fun LazyListScope.alertDays(
             // user already closes up in place (DismissibleItem), so the rows and gaps must move with the headers,
             // in the same frames, or a header would cover a row that is still gliding.
             stickyHeader(key = "day-$dayKey", contentType = "day") {
-                Box(thesisItemMotion(placement = false)) { DayHeader(day.label) }
+                DayHeader(day.label, modifier = thesisItemMotion(placement = false))
             }
             item(key = "day-top-$dayKey", contentType = "day-gap") { Spacer(thesisItemMotion(placement = false).height(ThesisSpace.s)) }
         }

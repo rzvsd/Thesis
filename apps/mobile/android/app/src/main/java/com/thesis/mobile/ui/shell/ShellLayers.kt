@@ -9,7 +9,12 @@ import androidx.compose.animation.core.updateTransition
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -27,10 +32,14 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import com.thesis.mobile.ui.components.pageBackground
 import com.thesis.mobile.ui.motion.ThesisMotion
+import com.thesis.mobile.ui.platform.RenderFlags
 import com.thesis.mobile.ui.theme.LocalThesisPalette
+import com.thesis.mobile.ui.theme.ThesisSpace
+import com.thesis.mobile.ui.theme.heroOf
 
 /*
  * The shell's animated layers (DESIGN-DIRECTION 4.5, 5.5): the report base layer, the tab layer and the modal
@@ -165,9 +174,14 @@ internal fun TabLayer(
                 ) {
                     OpaqueEntry(
                         entry, env,
-                        // The page's content arrives over the last 70% of the transform (and leaves over its first 30%).
+                        // The page's content arrives over the last 70% of the transform; on the way back it recedes
+                        // over the first 70% of the time, until the container hands over to the row.
                         contentAlpha = if (transforming) {
-                            { transformContentAlpha(reveal.value) }
+                            if (leaving) {
+                                { transformContentAlphaOut(clock.value) }
+                            } else {
+                                { transformContentAlpha(reveal.value) }
+                            }
                         } else {
                             { 1f }
                         },
@@ -209,7 +223,10 @@ internal fun TabLayer(
  *
  * A report opened from a History or Research row ([originOf], PR-4b) grows from the row over the list and shrinks
  * back into it, as a shared-bounds transform: it moves in the transform scope's overlay, so it is drawn over the
- * tab layer (where the list is) for that move only, and the WebView stays in this layer the whole time.
+ * tab layer (where the list is) for that move only, and the WebView stays in this layer the whole time. The WebView
+ * is never drawn while the bounds move (shared elements do not support View interop in the overlay): the container
+ * carries the report's own cover instead (`bg` under the top bar, then the navy hero, [drawReportCover]), and the
+ * content fades in over it in place once the bounds settle (`Quick`).
  */
 @OptIn(ExperimentalAnimationApi::class, ExperimentalSharedTransitionApi::class)
 @Composable
@@ -276,16 +293,21 @@ internal fun ReportBaseLayer(
             // Only while the move runs: at rest the report draws on the root's background again, like any report.
             val inMove = this.transition.currentState != this.transition.targetState
             val transforming = canTransform && inMove && (if (exiting) revealOut else revealIn)
-            // The WebView (an AndroidView, which shared elements do not support in the overlay) stays at alpha 0
-            // while the container grows from the row, and fades in once the bounds have settled and the report is
-            // drawn in this layer again. On the way back it leaves over the first 30% of the shrink.
-            val contentHeld = transforming && !exiting
+            // The WebView (an AndroidView, which shared elements do not support in the overlay) is never drawn in
+            // the overlay: it stays at alpha 0 while the container grows from the row or shrinks back into it, and
+            // fades in once the bounds have settled and the report is drawn in this layer again. Meanwhile the
+            // container carries the report's own cover ([drawReportCover]), which then fades out under it.
             val contentIn by animateFloatAsState(
-                targetValue = if (contentHeld) 0f else 1f,
-                animationSpec = if (contentHeld) snapSpec() else motionSpec(ThesisMotion.Quick, easing = ThesisMotion.EaseStandard),
+                targetValue = if (transforming) 0f else 1f,
+                animationSpec = if (transforming) snapSpec() else motionSpec(ThesisMotion.Quick, easing = ThesisMotion.EaseStandard),
                 label = "report-content-in"
             )
+            val coverOn = canTransform && (transforming || (revealIn && !exiting && contentIn < 1f))
             val palette = LocalThesisPalette.current
+            val hero = remember(palette) { heroOf(palette) }
+            val coverTopPx = with(LocalDensity.current) {
+                (WindowInsets.safeDrawing.only(WindowInsetsSides.Top).asPaddingValues().calculateTopPadding() + ThesisSpace.topBar).toPx()
+            }
             Box(Modifier.fillMaxSize()) {
                 Box(
                     Modifier
@@ -307,23 +329,26 @@ internal fun ReportBaseLayer(
                         // Hidden under the page above it: out of the accessibility tree too (Compose semantics).
                         .hiddenFromAccessibility(covered)
                         .backPreview(env.backPreview, report.entryId, env.backShiftPx, env.reducedMotion)
-                        .then(
-                            // The report draws on the root's page background; in transform it carries its own, from
-                            // the row's `surface` to `bg`, since it is drawn over the list.
-                            if (transforming) {
-                                Modifier
-                                    .pageBackground(palette)
-                                    .drawBehind { drawRect(palette.surface, alpha = 1f - reveal.value) }
-                            } else {
-                                Modifier
-                            }
-                        )
+                        // The report draws on the root's page background; in transform it carries its own, since
+                        // it is drawn over the list.
+                        .then(if (transforming) Modifier.pageBackground(palette) else Modifier)
                 ) {
-                    Box(
-                        Modifier.fillMaxSize().graphicsLayer {
-                            alpha = if (transforming && exiting) transformContentAlpha(reveal.value) else contentIn
-                        }
-                    ) {
+                    if (coverOn) {
+                        // The report's cover (top bar `bg`, then the navy hero), from the row's `surface` at the row;
+                        // once the bounds settle it fades out as the content fades in over it.
+                        Box(
+                            Modifier
+                                .fillMaxSize()
+                                .graphicsLayer { alpha = if (transforming) 1f else 1f - contentIn }
+                                .drawBehind {
+                                    drawReportCover(
+                                        palette, hero, coverTopPx, RenderFlags.pageGlow,
+                                        rowVeil = if (transforming) 1f - reveal.value else 0f
+                                    )
+                                }
+                        )
+                    }
+                    Box(Modifier.fillMaxSize().graphicsLayer { alpha = contentIn }) {
                         LeaveHook(report.entryId, env.backPreview)
                         env.holder.SaveableStateProvider(report.entryId) { content(report) }
                     }

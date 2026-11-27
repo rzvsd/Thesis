@@ -413,12 +413,9 @@ class ShellTransformMotionTest {
         assertEquals(onTop.argb(), centre().argb())
     }
 
-    @Test
-    fun aReportOpenedFromARowGrowsOverTheListAndShrinksBackIntoIt() {
-        val navigator = AppNavigator().apply { selectTab(ShellTab.Research) }
-        rule.mainClock.autoAdvance = false
+    private fun setReportOverList(navigator: AppNavigator, mode: ThemeMode) {
         rule.setContent {
-            ThesisTheme(mode = ThemeMode.Dark) {
+            ThesisTheme(mode = mode) {
                 val holder = rememberSaveableStateHolder()
                 val env = remember { ShellLayerEnv(holder, ShellMotionPx(63, 84), 21f, false, BackPreview()) }
                 val seek = remember { TabSeek(navigator.tabTop) }
@@ -442,6 +439,13 @@ class ShellTransformMotionTest {
                 }
             }
         }
+    }
+
+    @Test
+    fun aReportOpenedFromARowGrowsOverTheListAndShrinksBackIntoIt() {
+        val navigator = AppNavigator().apply { selectTab(ShellTab.Research) }
+        rule.mainClock.autoAdvance = false
+        setReportOverList(navigator, ThemeMode.Dark)
         rule.mainClock.advanceTimeBy(500)
         val near = { pixels()[20, 20] }
         val far = { pixels().let { it[it.width - 2, it.height - 2] } }
@@ -472,6 +476,44 @@ class ShellTransformMotionTest {
         step(600)
         assertEquals(under.argb(), far().argb())
         assertEquals(under.argb(), near().argb())
+    }
+
+    @Test
+    fun aReportGrowsAndShrinksAsItsOwnNavyCoverNeverAsABlankPage() {
+        // 2.7, 4.5: in the light theme a report's container is not cream then navy: under the top bar's `bg`
+        // it carries the report's hero, so the navy arrives with the bounds; the content (a WebView on a device)
+        // is never drawn while the bounds move, either way, and fades in over the cover once they settle.
+        val navigator = AppNavigator().apply { selectTab(ShellTab.Research) }
+        rule.mainClock.autoAdvance = false
+        setReportOverList(navigator, ThemeMode.Light)
+        rule.mainClock.advanceTimeBy(500)
+        val dp = rule.density.density
+        val inHero = { pixels().let { it[it.width / 2, ((56 + 160) * dp).toInt()] } }
+        val inTopBar = { pixels().let { it[it.width / 2, (20 * dp).toInt()] } }
+        fun Color.luma() = 0.2126f * red + 0.7152f * green + 0.0722f * blue
+        fun Color.isReport() = green > 0.8f && red < 0.2f && blue < 0.2f
+
+        rule.runOnIdle {
+            navigator.pushFrom(Rect(0f, 0f, 240f, 96f)) { navigator.push(Destination.Report("rep-AAPL", "AAPL")) }
+        }
+        step(208)
+        val hero = inHero()
+        assertTrue("the navy hero grows with the bounds ($hero)", hero.luma() < 0.3f && !hero.isReport())
+        assertTrue("the top bar's band is the page's light bg (${inTopBar()})", inTopBar().luma() > 0.7f)
+        step(ThesisMotion.Screen - 208 + 16)
+        assertTrue("settled: still the cover, the content starts at alpha 0 (${inHero()})", inHero().luma() < 0.3f)
+        step(600)
+        assertEquals("then the content over it", reportColour.argb(), inHero().argb())
+
+        rule.runOnIdle { navigator.pop() }
+        listOf(16, 48, 96).fold(0) { done, ms ->
+            step(ms - done)
+            val c = inHero()
+            assertTrue("$ms ms into the shrink the content is not drawn ($c)", !c.isReport())
+            ms
+        }
+        step(600)
+        assertEquals(under.argb(), inHero().argb())
     }
 
     // ---- animateItem fades

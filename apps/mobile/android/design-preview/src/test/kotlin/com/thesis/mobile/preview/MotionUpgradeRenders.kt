@@ -56,7 +56,11 @@ import kotlin.math.roundToInt
  * - `motion4b-seek-*`: a back gesture held at 25% and 50% over a plain push (History), over a transformed page
  *   (Name) and over a report opened from a Research row (never seekable: the .90 preview, dropped along the shrink
  *   on commit), then cancelled or committed.
- * - `motion4b-refresh`: Names pulled past the threshold, released, refreshing, done.
+ * - `motion4b-refresh` / `-refresh-pulse`: Names and Pulse (a HeroBand screen) pulled past the threshold, released,
+ *   refreshing, done.
+ * - `motion4b-name-360-fs200`: the name transform on a 360 dp phone at font scale 2 (a taller row).
+ * - `motion4b-reduced-*` (4.8): the name open and close and a committed back gesture as 150 ms crossfades
+ *   (frames at 0, 60, 120 ms), and pull to refresh with nothing moving.
  */
 @OptIn(ExperimentalTestApi::class)
 class MotionUpgradeRenders {
@@ -72,6 +76,9 @@ class MotionUpgradeRenders {
     )
 
     private val frames = listOf(0, 120, 240)
+
+    /** Reduced motion's moves are 150 ms crossfades: 0, half way, the end. */
+    private val reducedFrames = listOf(0, 60, 120)
 
     private class Run(val test: ComposeUiTest, val navigator: AppNavigator, val name: String, val theme: PreviewTheme) {
         var state by mutableStateOf<UiState>(ShellFixtures.state)
@@ -117,13 +124,16 @@ class MotionUpgradeRenders {
         name: String,
         state: UiState = ShellFixtures.state,
         setup: AppNavigator.() -> Unit = {},
+        reducedMotion: Boolean = false,
+        widthDp: Int = PhoneSpec.WIDTH_DP,
+        fontScale: Float = 1f,
         script: Run.() -> Unit,
     ) {
         if (!selected(name)) return
         val density = PhoneSpec.density
         listOf(PreviewTheme.DARK, PreviewTheme.LIGHT).forEach { theme ->
             runDesktopComposeUiTest(
-                width = (PhoneSpec.WIDTH_DP * density).roundToInt(),
+                width = (widthDp * density).roundToInt(),
                 height = (PhoneSpec.HEIGHT_DP * density).roundToInt(),
             ) {
                 val navigator = AppNavigator().apply(setup)
@@ -145,11 +155,14 @@ class MotionUpgradeRenders {
                     override fun onRefreshNames() {
                         run.state = run.state.copy(isBoardRefreshing = true)
                     }
+                    override fun onRefreshPulse() {
+                        run.state = run.state.copy(isPulseRefreshing = true)
+                    }
                 }
                 mainClock.autoAdvance = false
                 setContent {
-                    CompositionLocalProvider(LocalDensity provides Density(density, 1f)) {
-                        ThesisTheme(mode = theme.mode) {
+                    CompositionLocalProvider(LocalDensity provides Density(density, fontScale)) {
+                        ThesisTheme(mode = theme.mode, reduceMotion = reducedMotion) {
                             ProvidePageBackground {
                                 Box(Modifier.fillMaxSize().pageBackground(LocalThesisPalette.current)) {
                                     ThesisShell(
@@ -170,7 +183,9 @@ class MotionUpgradeRenders {
     }
 
     private fun Run.tapRow(text: String) {
+        val before = navigator.tabTop.entryId
         test.onAllNodesWithText(text, substring = false).onFirst().performClick()
+        check(navigator.tabTop.entryId != before) { "tapping '$text' opened nothing" }
     }
 
     // ---- Container transform
@@ -181,6 +196,25 @@ class MotionUpgradeRenders {
         test.runOnIdle { navigator.back() }
         frames("close", frames)
     }
+
+    /** 4.8: under reduced motion a row's page crossfades in 150 ms (nothing grows from the row), both ways. */
+    @Test fun reducedMotionNameOpensAndClosesAsACrossfade() =
+        shell("reduced-name", setup = { selectTab(ShellTab.Names) }, reducedMotion = true) {
+            tapRow("AAPL")
+            frames("open", reducedFrames)
+            test.runOnIdle { navigator.back() }
+            frames("close", reducedFrames)
+        }
+
+    /** The narrow phone at the largest font scale: a taller row, so other start bounds; the scale stays uniform. */
+    @Test fun nameOpensFromItsRowOnANarrowPhoneAtFontScale2() =
+        shell("name-360-fs200", setup = { selectTab(ShellTab.Names) }, widthDp = PhoneSpec.NARROW_WIDTH_DP, fontScale = 2f) {
+            // The first row on screen at this size (AAPL is below the fold).
+            tapRow("NVDA")
+            frames("open", frames)
+            test.runOnIdle { navigator.back() }
+            frames("close", frames)
+        }
 
     @Test fun recentReportOpensFromItsResearchRow() =
         shell("research-report", reportState, setup = { selectTab(ShellTab.Research) }) {
@@ -244,6 +278,14 @@ class MotionUpgradeRenders {
         frames("commit", frames)
     }
 
+    /** 4.8: no seek under reduced motion: the gesture keeps the .90 preview, the commit crossfades (150 ms). */
+    @Test fun reducedMotionBackGestureCommitsAsACrossfade() =
+        shell("reduced-seek-commit", setup = { selectTab(ShellTab.Research); push(Destination.History()) }, reducedMotion = true) {
+            val driver = holdBack()
+            test.runOnIdle { driver.commit() }
+            frames("commit", reducedFrames)
+        }
+
     @Test fun backGestureOverATransformedReportCommits() =
         shell("seek-report-commit", reportState, setup = { selectTab(ShellTab.Research) }) {
             tapRow("AAPL")
@@ -255,7 +297,7 @@ class MotionUpgradeRenders {
 
     // ---- Pull to refresh (Material3 1.3)
 
-    @Test fun namesPullToRefresh() = shell("refresh", setup = { selectTab(ShellTab.Names) }) {
+    private fun Run.pullToRefresh(done: UiState.() -> UiState, at: List<Int> = frames) {
         val list = test.onAllNodes(SemanticsMatcher.keyIsDefined(SemanticsProperties.VerticalScrollAxisRange)).onFirst()
         list.performTouchInput {
             down(Offset(centerX, top + height * 0.3f))
@@ -264,8 +306,23 @@ class MotionUpgradeRenders {
         step(32)
         capture("pulled")
         list.performTouchInput { up() }
-        frames("release", frames)
-        test.runOnIdle { state = state.copy(isBoardRefreshing = false) }
-        frames("done", frames)
+        frames("release", at)
+        test.runOnIdle { state = state.done() }
+        frames("done", at)
     }
+
+    @Test fun namesPullToRefresh() = shell("refresh", setup = { selectTab(ShellTab.Names) }) {
+        pullToRefresh({ copy(isBoardRefreshing = false) })
+    }
+
+    /** A HeroBand screen: the hairline over the navy band (Pulse, pushed on Today). */
+    @Test fun pulsePullToRefresh() = shell("refresh-pulse", setup = { push(Destination.Pulse(null)) }) {
+        pullToRefresh({ copy(isPulseRefreshing = false) })
+    }
+
+    /** 4.8: under reduced motion nothing moves; the line shows the pull in place and is static while refreshing. */
+    @Test fun reducedMotionNamesPullToRefresh() =
+        shell("reduced-refresh", setup = { selectTab(ShellTab.Names) }, reducedMotion = true) {
+            pullToRefresh({ copy(isBoardRefreshing = false) }, reducedFrames)
+        }
 }

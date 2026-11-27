@@ -7,9 +7,9 @@ import androidx.compose.animation.core.AnimationSpec
 import androidx.compose.animation.core.Easing
 import androidx.compose.animation.core.FiniteAnimationSpec
 import androidx.compose.animation.core.animate
+import androidx.compose.animation.core.keyframes
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.runtime.Stable
@@ -94,13 +94,14 @@ internal enum class ShellTransition {
 
     /**
      * A back gesture scrubbing a pop within a tab (PR-4b, [TabSeek]), 300 ms in all so a commit runs on from where
-     * the finger left it. The gesture covers the first 120 ms only ([BACK_SEEK_PREVIEW_SHARE]): the page under comes
-     * in from 24 dp and fades in (linear, since the gesture's progress is already eased) under the page on top,
-     * which keeps its .90 preview, stays opaque and stays put. The commit runs the last 180 ms (`PushOut`,
+     * the finger left it. The gesture covers the first 120 ms only ([BACK_SEEK_PREVIEW_SHARE]): the page under fades
+     * in place to [BACK_SEEK_UNDER_ALPHA] (linear, since the gesture's progress is already eased) under the page on
+     * top, which keeps its .90 preview, stays opaque and stays put. The commit runs the last 180 ms (`PushOut`,
      * `EaseExit`): the page on top slides off toward the way the finger moves (the end edge for a swipe from the
-     * left edge, the start edge for one from the right; the page under comes in the same way). The page under
-     * shows around the page on top while it shrinks, and is uncovered by the slide, never seen through it: no
-     * double exposure (4.5), as with the sequential halves of shared-axis X.
+     * left edge, the start edge for one from the right) while the page under comes up to full in its first 90 ms.
+     * The page under shows around the page on top while it shrinks, and is uncovered by the slide, never seen
+     * through it: no double exposure (4.5), as with the sequential halves of shared-axis X. (A 24 dp shift and
+     * fade-out of the page on top, the plain pop, would show the page under through it, since it is already in.)
      */
     BackSeek,
 
@@ -212,8 +213,17 @@ private fun contentTransformOf(transition: ShellTransition, px: ShellMotionPx, s
             // Toward the way the finger moves: right for a swipe from the left edge, left for one from the right.
             val way = if (swipeEdge == BackSwipeEdge.Left) 1 else -1
             ContentTransform(
-                targetContentEnter = fadeIn(motionSpec(BACK_SEEK_OUT_DELAY, easing = ThesisMotion.Linear)) +
-                    slideInHorizontally(motionSpec(BACK_SEEK_OUT_DELAY, easing = ThesisMotion.Linear)) { -way * px.shiftPx },
+                // The page under stays in place (a slide would cut its gutter text at the window edge around the
+                // .90 preview) and shows faintly while the finger is down: at most BACK_SEEK_UNDER_ALPHA, a `bg`
+                // veil over it in effect. The commit brings it up as the page on top slides off it.
+                targetContentEnter = fadeIn(
+                    keyframes {
+                        durationMillis = ThesisMotion.Screen
+                        0f at 0 using ThesisMotion.Linear
+                        BACK_SEEK_UNDER_ALPHA at BACK_SEEK_OUT_DELAY using ThesisMotion.EaseEnter
+                        1f at BACK_SEEK_OUT_DELAY + ThesisMotion.PushOut / 2
+                    }
+                ),
                 initialContentExit = slideOutHorizontally(
                     motionSpec(ThesisMotion.PushOut, delayMillis = BACK_SEEK_OUT_DELAY, easing = ThesisMotion.EaseExit)
                 ) { width -> way * width },
@@ -243,6 +253,12 @@ internal fun reducedCrossfade(): ContentTransform =
  * `Screen`. The page under comes in before it, over these 120 ms.
  */
 internal const val BACK_SEEK_OUT_DELAY: Int = ThesisMotion.Screen - ThesisMotion.PushOut
+
+/**
+ * How much of the page under shows in [ShellTransition.BackSeek] while the gesture is held (at full progress): it
+ * reads as the page the back will reveal, faint enough that its edges around the .90 preview stay quiet.
+ */
+internal const val BACK_SEEK_UNDER_ALPHA: Float = 0.4f
 
 /**
  * The share of [ShellTransition.BackSeek] a held gesture covers (.4, the page under's part): the page on top only

@@ -28,13 +28,17 @@ import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.inset
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.util.lerp
+import com.thesis.mobile.ui.components.drawHeroBackground
 import com.thesis.mobile.ui.motion.ThesisMotion
+import com.thesis.mobile.ui.theme.ThesisPalette
 import com.thesis.mobile.ui.theme.ThesisShape
 import kotlin.math.roundToInt
 
@@ -59,12 +63,14 @@ import kotlin.math.roundToInt
  *   relayout per frame and text is never stretched (the scale is uniform, about .92 at the row and 1 at rest, so the
  *   last frame equals the resting page: no jump). Corners go from the card radius to 0 ([TransformClip]); the fill
  *   goes from `surface` to `bg`, the container fades in over the first 30% and the page's content over the last
- *   70%. On the way back the content leaves over the first 30% of the shrink, and the container stays opaque
- *   until the last 15% of the time ([transformClock]), when the bounds are on the row: it then crossfades with
- *   the row in place, so no translucent ghost crosses the list or its heading.
+ *   70%. On the way back the content recedes over the first 70% of the time ([transformContentAlphaOut], eased
+ *   in, on [transformClock]) while the container stays opaque, then the container crossfades with the row in
+ *   place over the last 30%, when the bounds are within 4% of it: no empty slab mid-shrink, and no translucent
+ *   ghost crosses the list or its heading.
  * - A report (an AndroidView WebView, which shared elements do not support in the overlay) never shows its
- *   content in the overlay on the way in: only its container grows; the content fades in once the bounds have
- *   settled (ReportBaseLayer).
+ *   content in the overlay, either way: its container grows and shrinks filled with the report's own cover (the
+ *   top bar's `bg`, then the navy hero band, [drawReportCover]), so the hero arrives with the bounds and the
+ *   content fades in over it in place once they have settled (ReportBaseLayer).
  * - Reduced motion (4.8) and pages with no origin (a restored stack, after a rotation) keep the crossfade or the
  *   shared axis: no placeholder, no shared bounds. A back gesture over a transformed page previews the start of
  *   the shrink itself (no extra .90 scale, which would land the page off its row; ShellBackSeek.kt).
@@ -250,11 +256,22 @@ internal fun transformContentAlpha(progress: Float): Float =
     ((progress - ThesisMotion.TransformContentFrom) / (1f - ThesisMotion.TransformContentFrom)).coerceIn(0f, 1f)
 
 /**
+ * The content alpha of a page shrinking back into its row, on [clock] (plain time, 1 at rest → 0 at the row): it
+ * recedes over the first [ThesisMotion.TransformContentOut] of the time, eased in (1 − t²), so it stays legible while
+ * the container is large and has gone just as the container starts to hand over to the row
+ * ([transformContainerAlpha]): no frame shows an empty slab, and the page's text never overlaps the row's.
+ */
+internal fun transformContentAlphaOut(clock: Float): Float {
+    val t = ((1f - clock) / ThesisMotion.TransformContentOut).coerceIn(0f, 1f)
+    return 1f - t * t
+}
+
+/**
  * The alpha of a page's container in transform. On the way in ([out] false) it fades in over the first 30% of the
  * reveal ([progress]), while its content has not started yet, so the row under it gives way to the container
  * instead of being covered in one frame. On the way back it stays opaque while it shrinks and fades over the last
- * 15% of the time ([clock], linear), when the bounds are on the row: the row in place under it takes over without
- * a pop and without a translucent ghost crossing the list.
+ * 30% of the time ([clock], linear), when the front-loaded bounds are within 4% of the row: the row in place under
+ * it takes over without a pop and without a translucent ghost crossing the list.
  */
 internal fun transformContainerAlpha(progress: Float, clock: Float = progress, out: Boolean = false): Float =
     if (out) {
@@ -262,6 +279,21 @@ internal fun transformContainerAlpha(progress: Float, clock: Float = progress, o
     } else {
         (progress / ThesisMotion.TransformContentFrom).coerceIn(0f, 1f)
     }
+
+/**
+ * A report's container fill while it transforms (4.5, 2.7): the report's own cover instead of the plain `surface →
+ * bg` of a page, since its content (a WebView) cannot be drawn in the transform overlay. Under [topPx] (status bar +
+ * top bar) it leaves the page's `bg` (drawn by the container); from there the navy hero band ([hero] palette, the
+ * HeroBand background with its glows and gold hairline) runs [ThesisMotion.TransformReportHero] down, so the light theme never
+ * flashes cream before the navy hero. [rowVeil]: the row's `surface` over it at the row (1) → none at rest (0).
+ */
+internal fun DrawScope.drawReportCover(palette: ThesisPalette, hero: ThesisPalette, topPx: Float, glows: Boolean, rowVeil: Float) {
+    val bottom = (topPx + ThesisMotion.TransformReportHero.toPx()).coerceAtMost(size.height)
+    if (bottom > topPx) {
+        inset(left = 0f, top = topPx, right = 0f, bottom = size.height - bottom) { drawHeroBackground(hero, glows) }
+    }
+    if (rowVeil > 0f) drawRect(palette.surface, alpha = rowVeil.coerceAtMost(1f))
+}
 
 /** The clip of a page in transform: the card radius at the row, square at rest ([progress] read at draw time). */
 internal class TransformClip(private val progress: () -> Float) : Shape {
