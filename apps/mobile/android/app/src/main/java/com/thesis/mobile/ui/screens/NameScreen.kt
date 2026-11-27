@@ -690,7 +690,10 @@ fun NameScreen(
     // A note search hit's entry, when the trail holds it (else the page opens at "Your notes"); its top in the page.
     val focusNoteKey = noteKey?.takeIf { key -> scrollTo == NameAnchor.Notes && notes.any { it.reportId == key } }
     var noteEntryY by remember { mutableStateOf<Int?>(null) }
-    val target = if (focusNoteKey != null) noteEntryY else scrollTo?.let { anchorY[it] }
+    // A section's top lands `headerTop` under the bar, as the page's own header does; a note hit's entry lands
+    // `headerToSection` under it, so the entry before it (its last lines) does not sit right behind the bar's title.
+    val entryNudgePx = with(density) { (ThesisSpace.headerToSection - ThesisSpace.headerTop).roundToPx() }
+    val target = if (focusNoteKey != null) noteEntryY?.let { (it - entryNudgePx).coerceAtLeast(0) } else scrollTo?.let { anchorY[it] }
     val reducedScroll = LocalReducedMotion.current
     LaunchedEffect(scrollTo, target, detail?.isLoading) {
         if (!anchored && target != null && detail != null && !detail.isLoading) {

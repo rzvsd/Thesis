@@ -47,6 +47,9 @@ class ShellBackGestureTest {
     private val width = 360
     private val height = 760
 
+    /** The War Rooms the shell asked to load (onEnsureWarRoom), in order. */
+    private val ensuredWarRooms = mutableListOf<String>()
+
     private fun ComposeUiTest.step(ms: Int) {
         repeat((ms + 15) / 16) {
             mainClock.advanceTimeByFrame()
@@ -78,6 +81,9 @@ class ShellBackGestureTest {
                 }
                 override fun onOpenHistoryItem(item: ReportHistoryItem) {
                     navigator.push(Destination.Report(item.reportId, item.ticker))
+                }
+                override fun onEnsureWarRoom(warRoomId: String) {
+                    ensuredWarRooms += warRoomId
                 }
             }
             mainClock.autoAdvance = false
@@ -163,6 +169,62 @@ class ShellBackGestureTest {
             step(1200)
             assertEquals(Destination.Names, navigator.tabTop.destination)
             assertEquals("the page shrank into its row: the list as it rests", 0, diff(names, pixels()))
+        }
+
+    @Test
+    fun aBackOrAPushWhileACancelStillSettlesMovesOnWithoutACut() =
+        shell(setup = { selectTab(ShellTab.Research) }) { navigator ->
+            val root = pixels()
+            runOnIdle { navigator.push(Destination.History()) }
+            step(900)
+            val history = pixels()
+
+            // A quick second back, 100 ms into the cancel's settle: the pop runs on from where the settle got to.
+            val held = holdAtHalf()
+            runOnIdle { held.cancel() }
+            step(100)
+            runOnIdle { navigator.back() }
+            step(32)
+            assertTrue("the pop is still running, not cut to the page under", diff(root, pixels()) > 100)
+            step(1200)
+            assertEquals(Destination.Research, navigator.tabTop.destination)
+            assertEquals("and lands on it at rest", 0, diff(root, pixels()))
+
+            // A push, 100 ms into the cancel's settle: the settle rewinds (at most 90 ms), then the push runs.
+            runOnIdle { navigator.push(Destination.History()) }
+            step(900)
+            assertEquals(0, diff(history, pixels()))
+            val again = holdAtHalf()
+            runOnIdle { again.cancel() }
+            step(100)
+            runOnIdle { navigator.push(Destination.CompareNames(listOf("AAPL", "MSFT"))) }
+            step(32)
+            val early = pixels()
+            step(1200)
+            assertTrue(navigator.tabTop.destination is Destination.CompareNames)
+            val pushed = pixels()
+            assertTrue("32 ms in, the push has not landed in one frame", diff(pushed, early) > 100)
+        }
+
+    @Test
+    fun thePageUnderAHeldGestureLoadsNothingUntilItIsOnTop() =
+        shell(setup = { selectTab(ShellTab.Research) }) { navigator ->
+            runOnIdle { navigator.push(Destination.WarRoom("w1")) }
+            step(900)
+            runOnIdle { navigator.push(Destination.History()) }
+            step(900)
+            val before = ensuredWarRooms.toList()
+            // Held and cancelled: the War Room under is composed for the preview but asks for nothing.
+            val held = holdAtHalf()
+            runOnIdle { held.cancel() }
+            step(1200)
+            assertEquals("a cancelled gesture loads nothing under it", before, ensuredWarRooms)
+            // Committed: the War Room is on top again and ensures its room, as before PR-4b.
+            val again = holdAtHalf()
+            runOnIdle { again.commit() }
+            step(1200)
+            assertTrue(navigator.tabTop.destination is Destination.WarRoom)
+            assertEquals(before + "w1", ensuredWarRooms)
         }
 
     @Test

@@ -18,6 +18,12 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.Dp
 import com.thesis.mobile.ui.motion.ThesisMotion
@@ -505,3 +511,38 @@ internal fun Modifier.backPreview(preview: BackPreview, entryId: String, backShi
             }
         }
     }
+
+/**
+ * The page under a held back gesture ([ShellTransition.BackSeek]) shows only in the strips around [preview]'s .90
+ * page on top, so a glyph that the preview's edge cuts (a lone arc of an icon) would read as an artifact. This
+ * clears the page under's content in those strips toward the preview's edges ([strength] of the way, `DstOut`, in an
+ * offscreen layer): at the window edge the content shows as it is (at most 40%), at the preview's edge not at all.
+ * Drawn after the content, read in the draw phase only; the geometry is [backPreview]'s, about the same full-size box.
+ * [opaque] is any opaque colour: `DstOut` uses only its alpha.
+ */
+internal fun DrawScope.clearAroundBackPreview(preview: BackPreview, strength: Float, backShiftPx: Float, opaque: Color) {
+    val p = preview.progress
+    if (p <= 0f || strength <= 0f) return
+    val scale = 1f - (1f - PREDICTIVE_BACK_SCALE) * p
+    val shift = p * backShiftPx * if (preview.edge == BackSwipeEdge.Left) 1f else -1f
+    val w = size.width
+    val h = size.height
+    val left = w * (1f - scale) / 2f + shift
+    val right = left + w * scale
+    val top = h * (1f - scale) / 2f
+    val bottom = top + h * scale
+    val a = strength.coerceAtMost(1f)
+    val none = Color.Transparent
+    if (top > 0f) {
+        drawRect(Brush.verticalGradient(listOf(none, opaque), startY = 0f, endY = top), Offset.Zero, Size(w, top), alpha = a, blendMode = BlendMode.DstOut)
+    }
+    if (bottom < h) {
+        drawRect(Brush.verticalGradient(listOf(opaque, none), startY = bottom, endY = h), Offset(0f, bottom), Size(w, h - bottom), alpha = a, blendMode = BlendMode.DstOut)
+    }
+    if (left > 0f) {
+        drawRect(Brush.horizontalGradient(listOf(none, opaque), startX = 0f, endX = left), Offset.Zero, Size(left, h), alpha = a, blendMode = BlendMode.DstOut)
+    }
+    if (right < w) {
+        drawRect(Brush.horizontalGradient(listOf(opaque, none), startX = right, endX = w), Offset(right, 0f), Size(w - right, h), alpha = a, blendMode = BlendMode.DstOut)
+    }
+}

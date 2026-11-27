@@ -40,6 +40,12 @@ object ThesisMotion {
     const val Screen = 300
     /** Container transform out (section 4.5). */
     const val ScreenOut = 240
+    /**
+     * Container transform out of a report (section 4.5 report exception): its content fades out over the first
+     * frames of the shrink, over its own cover, instead of leaving in one frame. The report's WebView is drawn in the
+     * transform overlay for these 75 ms only (device gate: if that shows a blank or stale frame, set it to 0).
+     */
+    const val ReportContentOut = Quick / 2
     /** Outgoing screen of a shared-axis push (section 4.5). */
     const val PushOut = 180
     /** Tab fade-through: outgoing fade, then incoming fade + scale after it (section 4.5). */

@@ -67,10 +67,11 @@ import kotlin.math.roundToInt
  *   in, on [transformClock]) while the container stays opaque, then the container crossfades with the row in
  *   place over the last 30%, when the bounds are within 4% of it: no empty slab mid-shrink, and no translucent
  *   ghost crosses the list or its heading.
- * - A report (an AndroidView WebView, which shared elements do not support in the overlay) never shows its
- *   content in the overlay, either way: its container grows and shrinks filled with the report's own cover (the
- *   top bar's `bg`, then the navy hero band, [drawReportCover]), so the hero arrives with the bounds and the
- *   content fades in over it in place once they have settled (ReportBaseLayer).
+ * - A report (an AndroidView WebView, which shared elements do not support in the overlay) keeps its content out
+ *   of the overlay: its container grows and shrinks filled with the report's own cover (the top bar's `bg`, then
+ *   the navy hero band, [drawReportCover]), so the hero arrives with the bounds and the content fades in over it in
+ *   place once they have settled; on the way back the content fades out over the shrink's first 75 ms
+ *   (`ThesisMotion.ReportContentOut`) rather than in one frame (ReportBaseLayer).
  * - Reduced motion (4.8) and pages with no origin (a restored stack, after a rotation) keep the crossfade or the
  *   shared axis: no placeholder, no shared bounds. A back gesture over a transformed page previews the start of
  *   the shrink itself (no extra .90 scale, which would land the page off its row; ShellBackSeek.kt).

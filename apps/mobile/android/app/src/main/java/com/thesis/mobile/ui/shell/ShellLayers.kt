@@ -9,12 +9,7 @@ import androidx.compose.animation.core.updateTransition
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.WindowInsetsSides
-import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.only
-import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -26,14 +21,16 @@ import androidx.compose.runtime.saveable.SaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import com.thesis.mobile.ui.components.TopBarInsets
 import com.thesis.mobile.ui.components.pageBackground
 import com.thesis.mobile.ui.motion.ThesisMotion
 import com.thesis.mobile.ui.platform.RenderFlags
@@ -157,6 +154,14 @@ internal fun TabLayer(
                 val under = layerTransform?.takeIf { it.page.entryId != entry.entryId }
                 val scrim = transformScrim(under?.transition)
                 val palette = LocalThesisPalette.current
+                // The page under a held back gesture (a plain pop): its content is cleared toward the .90 preview's
+                // edges, so the preview never cuts a glyph of it; eased off on commit or cancel.
+                val peeked = (tabSeek.gesture as? BackGesture.Seeking)?.takeIf { !it.intoRow }?.peek?.entryId == entry.entryId
+                val clearAround = animateFloatAsState(
+                    targetValue = if (peeked && !env.reducedMotion) 1f else 0f,
+                    animationSpec = if (peeked) snapSpec() else motionSpec(ThesisMotion.Quick, easing = ThesisMotion.EaseStandard),
+                    label = "tab-clear-around-preview"
+                )
                 Box(
                     if (canTransform && shared != null) {
                         val state = with(shared) { rememberSharedContentState(TransformKey(entry.entryId)) }
@@ -191,7 +196,8 @@ internal fun TabLayer(
                             { 1f - reveal.value }
                         } else {
                             { 0f }
-                        }
+                        },
+                        clearAroundPreview = { clearAround.value },
                     ) { content(entry) }
                 }
                 if (under != null) {
@@ -224,9 +230,11 @@ internal fun TabLayer(
  * A report opened from a History or Research row ([originOf], PR-4b) grows from the row over the list and shrinks
  * back into it, as a shared-bounds transform: it moves in the transform scope's overlay, so it is drawn over the
  * tab layer (where the list is) for that move only, and the WebView stays in this layer the whole time. The WebView
- * is never drawn while the bounds move (shared elements do not support View interop in the overlay): the container
- * carries the report's own cover instead (`bg` under the top bar, then the navy hero, [drawReportCover]), and the
- * content fades in over it in place once the bounds settle (`Quick`).
+ * is kept out of the overlay (shared elements do not support View interop there): the container carries the
+ * report's own cover instead (`bg` under the top bar, then the navy hero, [drawReportCover]); the content fades in
+ * over it in place once the bounds settle (`Quick`), and on the way back fades out over the shrink's first 75 ms
+ * (`ReportContentOut`, the one window in which it is drawn in the overlay; a device-gate item) instead of leaving
+ * in one frame.
  */
 @OptIn(ExperimentalAnimationApi::class, ExperimentalSharedTransitionApi::class)
 @Composable
@@ -293,21 +301,26 @@ internal fun ReportBaseLayer(
             // Only while the move runs: at rest the report draws on the root's background again, like any report.
             val inMove = this.transition.currentState != this.transition.targetState
             val transforming = canTransform && inMove && (if (exiting) revealOut else revealIn)
-            // The WebView (an AndroidView, which shared elements do not support in the overlay) is never drawn in
-            // the overlay: it stays at alpha 0 while the container grows from the row or shrinks back into it, and
-            // fades in once the bounds have settled and the report is drawn in this layer again. Meanwhile the
-            // container carries the report's own cover ([drawReportCover]), which then fades out under it.
+            // The WebView (an AndroidView, which shared elements do not support in the overlay) is kept out of the
+            // overlay: it is at alpha 0 while the container grows from the row, and fades in once the bounds have
+            // settled and the report is drawn in this layer again. On the way back it fades out over the first
+            // `ReportContentOut` (75 ms) of the shrink, so the text does not vanish in one frame. Meanwhile the
+            // container carries the report's own cover ([drawReportCover]) under it.
             val contentIn by animateFloatAsState(
                 targetValue = if (transforming) 0f else 1f,
-                animationSpec = if (transforming) snapSpec() else motionSpec(ThesisMotion.Quick, easing = ThesisMotion.EaseStandard),
+                animationSpec = when {
+                    !transforming -> motionSpec(ThesisMotion.Quick, easing = ThesisMotion.EaseStandard)
+                    exiting -> motionSpec(ThesisMotion.ReportContentOut, easing = ThesisMotion.Linear)
+                    else -> snapSpec()
+                },
                 label = "report-content-in"
             )
             val coverOn = canTransform && (transforming || (revealIn && !exiting && contentIn < 1f))
             val palette = LocalThesisPalette.current
             val hero = remember(palette) { heroOf(palette) }
-            val coverTopPx = with(LocalDensity.current) {
-                (WindowInsets.safeDrawing.only(WindowInsetsSides.Top).asPaddingValues().calculateTopPadding() + ThesisSpace.topBar).toPx()
-            }
+            // The top bar's insets (status bar and cutout, no IME), read in the draw phase only while the cover is
+            // drawn: an IME frame on a report never recomposes this layer.
+            val topInsets = TopBarInsets
             Box(Modifier.fillMaxSize()) {
                 Box(
                     Modifier
@@ -342,7 +355,7 @@ internal fun ReportBaseLayer(
                                 .graphicsLayer { alpha = if (transforming) 1f else 1f - contentIn }
                                 .drawBehind {
                                     drawReportCover(
-                                        palette, hero, coverTopPx, RenderFlags.pageGlow,
+                                        palette, hero, topInsets.getTop(this) + ThesisSpace.topBar.toPx(), RenderFlags.pageGlow,
                                         rowVeil = if (transforming) 1f - reveal.value else 0f
                                     )
                                 }
@@ -467,7 +480,8 @@ internal fun ModalLayer(
  *
  * [contentAlpha], [contentOffsetY] and [contentScale] move the content inside the page while its background stays
  * (a modal's rise and fall, [ModalContentMotion]; fade-through's scale); [surfaceVeil] lays `surface` over the
- * background (a container transform's row colour). All are read in the draw phase only.
+ * background (a container transform's row colour); [clearAroundPreview] clears the content toward the edges of the
+ * back preview over it ([clearAroundBackPreview]). All are read in the draw phase only.
  */
 @Composable
 private fun OpaqueEntry(
@@ -477,6 +491,7 @@ private fun OpaqueEntry(
     contentOffsetY: () -> Float = { 0f },
     contentScale: () -> Float = { 1f },
     surfaceVeil: () -> Float = { 0f },
+    clearAroundPreview: () -> Float = { 0f },
     content: @Composable () -> Unit,
 ) {
     val palette = LocalThesisPalette.current
@@ -501,13 +516,22 @@ private fun OpaqueEntry(
             }
     ) {
         Box(
-            Modifier.fillMaxSize().graphicsLayer {
-                alpha = contentAlpha()
-                translationY = contentOffsetY()
-                val scale = contentScale()
-                scaleX = scale
-                scaleY = scale
-            }
+            Modifier
+                .fillMaxSize()
+                .graphicsLayer {
+                    alpha = contentAlpha()
+                    translationY = contentOffsetY()
+                    val scale = contentScale()
+                    scaleX = scale
+                    scaleY = scale
+                    // Offscreen only while the strips around a back preview are cleared (DstOut needs its own layer).
+                    compositingStrategy = if (clearAroundPreview() > 0f) CompositingStrategy.Offscreen else CompositingStrategy.Auto
+                }
+                .drawWithContent {
+                    drawContent()
+                    val clear = clearAroundPreview()
+                    if (clear > 0f) clearAroundBackPreview(env.backPreview, clear, env.backShiftPx, palette.ink)
+                }
         ) {
             LeaveHook(entry.entryId, env.backPreview)
             env.holder.SaveableStateProvider(entry.entryId) { content() }

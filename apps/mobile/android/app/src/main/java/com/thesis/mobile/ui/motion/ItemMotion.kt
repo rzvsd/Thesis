@@ -16,8 +16,12 @@ import com.thesis.mobile.ui.theme.LocalReducedMotion
  *   over `Quick`, the exit of small things, while the survivors close up. Removal by the user still collapses the
  *   row in place first (DismissibleItem), so by the time the item leaves the list it has no height left to fade.
  * - Every item glides to a new place with `spatial` (sort, filter, insertion above it).
- * - The first paint of a list never animates: Compose only fades items whose key was not in the list's previous
- *   layout, so opening a screen, switching tabs or scrolling shows items at once.
+ * - Compose only fades items whose key was not in the list's previous layout, so a list composed with its rows
+ *   already there (a tab switch, a revisit, scrolling) shows them at once. A list whose first layout held a
+ *   placeholder item instead (Names' "skeleton" item, also present, empty, during the 300 ms grace) is not a first
+ *   paint for its rows: they are new keys and fade in (`Base` after `CrossfadeDelay`), which is 4.4's skeleton →
+ *   content crossfade in place. The placeholder and state items do not use this modifier, so they leave in one
+ *   frame with no fade of their own: skeleton bars and row text never show at once.
  * - Reduced motion (4.8): items fade (`Quick`) but never travel: no placement animation.
  */
 

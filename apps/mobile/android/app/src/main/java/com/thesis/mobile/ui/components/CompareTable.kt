@@ -312,6 +312,8 @@ class CompareTableFit(
  * tried for that); else the first that keeps every column in view with labels wrapping between words (down to their
  * longest word) and headers too where the density allows: of one-line headers and wrapped ones, the shape with fewer
  * taller rows (each wrapped label is one, the header row one more when its headers wrap), one-line headers on a tie.
+ * Then a column with no figures at all may narrow to its header's longest word (two header lines more), at any
+ * density that wraps headers, when that grows strictly fewer taller rows than the shape found.
  * The spare width is spread over the value columns.
  * [columnFloor] keeps every value column at least that wide (48 dp when its header is a sort button). When none
  * fits, the [scrollDensity] is used with the label column capped at [labelMaxFraction] of the width (never under its
@@ -349,20 +351,43 @@ fun fitCompareTable(
         val room = maxWidth - cols.sum()
         if (room >= needs.labelWide + pad) return spread(d.padding, needs.labelWide + pad, cols, room)
     }
-    for (d in densities) {
+    // Taller rows of a shape: each label that wraps beside [cols], plus [headerCost] header lines.
+    fun tallerRows(d: CompareTableDensity, cols: List<Int>, headerCost: Int): Int {
         val pad = d.padding * 2
+        val label = min(needs.labelWide + pad, maxWidth - cols.sum())
+        return headerCost + needs.labelLines.count { it + pad > label }
+    }
+    fun fits(d: CompareTableDensity, cols: List<Int>) = maxWidth - cols.sum() >= needs.labelWord + d.padding * 2
+    var chosen: Triple<CompareTableDensity, List<Int>, Int>? = null
+    for (d in densities) {
         // Headers on one line, or wrapped (when the density allows): whichever grows fewer rows. A header that wraps
         // gives its width to the labels, so fewer of them wrap ("No report yet" over a column with no figures).
         val oneLine = columns(d.copy(wrapHeaders = false), null)
         val shapes = listOfNotNull(oneLine to 0, if (d.wrapHeaders) columns(d, null).takeIf { it != oneLine }?.let { it to 1 } else null)
         val best = shapes
-            .filter { (cols, _) -> maxWidth - cols.sum() >= needs.labelWord + pad }
-            .minByOrNull { (cols, headerCost) ->
-                val label = min(needs.labelWide + pad, maxWidth - cols.sum())
-                headerCost + needs.labelLines.count { it + pad > label }
-            } ?: continue
-        val room = maxWidth - best.first.sum()
-        return spread(d.padding, min(needs.labelWide + pad, room), best.first, room)
+            .filter { (cols, _) -> fits(d, cols) }
+            .map { (cols, headerCost) -> Triple(d, cols, tallerRows(d, cols, headerCost)) }
+            .minByOrNull { it.third } ?: continue
+        chosen = best
+        break
+    }
+    // Then a column with no figures at all ("No report yet" over blank cells) may go down to its header's longest
+    // word, never under the column floor: its header grows a line ("No" over "report" over "yet"), two in all over
+    // one-line headers, and the labels take the width it gives up. Taken only when that grows strictly fewer rows
+    // than the shape above (the most comfortable density on a tie), so it never trades a looser padding for more
+    // wrapped labels.
+    val bare = densities.filter { it.wrapHeaders }.mapNotNull { d ->
+        val wrapped = columns(d, null)
+        val cols = wrapped.mapIndexed { c, w ->
+            if (needs.valueWide[c] == 0) maxOf(d.columnMin, columnFloor, needs.headerWord[c] + d.padding * 2).coerceAtMost(w) else w
+        }
+        if (cols == wrapped || !fits(d, cols)) null else Triple(d, cols, tallerRows(d, cols, 2))
+    }.minByOrNull { it.third }
+    val pick = if (bare != null && (chosen == null || bare.third < chosen.third)) bare else chosen
+    if (pick != null) {
+        val (d, cols, _) = pick
+        val room = maxWidth - cols.sum()
+        return spread(d.padding, min(needs.labelWide + d.padding * 2, room), cols, room)
     }
     val d = scrollDensity
     val pad = d.padding * 2

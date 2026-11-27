@@ -5,6 +5,7 @@ import com.thesis.mobile.ui.theme.Tone
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /** Pure-model tests for the kit: CompareTable TSV, RowPosition, Loadable, SourceInfo, kit copy. */
@@ -85,6 +86,32 @@ class KitModelTest {
         val whole = fitCompareTable(needs(30), 120, tight, tight[0])
         assertEquals(30, whole.labelWidth)
         assertEquals(listOf(25, 65), whole.columnWidths)
+    }
+
+    @Test
+    fun aColumnWithNoFiguresNarrowsToItsHeadersLongestWordWhenThatKeepsLabelsWhole() {
+        // A status column over blank cells: 60 px whole, 40 px on two lines, 15 px down to its longest word.
+        val needs = CompareTableNeeds(
+            labelWide = 70,
+            labelWord = 30,
+            valueWide = listOf(20, 0),
+            headerLine = listOf(20, 60),
+            headerWrap = listOf(20, 40),
+            headerWord = listOf(20, 15),
+            labelLines = listOf(70, 70, 70, 70),
+        )
+        val tight = listOf(CompareTableDensity(padding = 0, columnMin = 0, wrapHeaders = true))
+        // Whole or two-line headers leave the labels 40 or 60 px (all four wrap); the bare column leaves them 85.
+        val fit = fitCompareTable(needs, 120, tight, tight[0])
+        assertEquals(70, fit.labelWidth)
+        assertEquals(listOf(27, 23), fit.columnWidths)
+        // Never under the column floor (a sort button's 48 dp), and a column with figures never narrows.
+        val floored = fitCompareTable(needs, 120, tight, tight[0], columnFloor = 30)
+        assertTrue(floored.columnWidths.all { it >= 30 })
+        // Only when it saves rows: with room for the labels beside the whole header, the header stays whole.
+        val roomy = fitCompareTable(needs, 160, tight, tight[0])
+        assertEquals(70, roomy.labelWidth)
+        assertEquals(listOf(25, 65), roomy.columnWidths)
     }
 
     @Test

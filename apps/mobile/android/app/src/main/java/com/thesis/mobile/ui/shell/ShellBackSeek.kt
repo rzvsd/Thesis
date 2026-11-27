@@ -30,7 +30,8 @@ import kotlin.math.roundToInt
  * - A page opened from a row: the gesture shrinks it toward the row, at most 35% of the way (eased) at full
  *   progress, so the page stays whole and readable (content alpha ≥ .9) until the commit runs the shrink on.
  * - Cancel (or a back the app did not take): the transition goes back to the page on top with `spatialSlow` and
- *   snaps there, so nothing is left half way.
+ *   snaps there, so nothing is left half way. If the navigator moves before that settle ends, the settle stops where
+ *   it is and the layer follows the new target as any interrupted move does (below).
  * - The entry point stays ThesisPredictiveBackHandler in ThesisShell (registered before the layers, so a report
  *   WebView's own back still wins while it has history and is uncovered). Only a plain pop inside the current tab,
  *   from a layer at rest, seeks ([backSeekTarget], [TabSeek.atRestOn]): a modal, a report on either side (its
@@ -139,9 +140,15 @@ internal class TabSeek(initial: NavEntry) {
             is BackGesture.Seeking -> if (g.peek.entryId != target.entryId) {
                 snapshotFlow { progress }.collect { p -> transitionState.seekTo(backSeekFraction(p, g.intoRow), g.peek) }
             }
-            is BackGesture.Cancelling -> {
+            is BackGesture.Cancelling -> if (target.entryId == transitionState.currentState.entryId) {
+                // Still on the page the gesture was over: settle back onto it.
                 settleBack(target)
                 if (gesture == g) gesture = null
+            } else {
+                // The navigator moved while the cancel settled (a quick second back, a push): the gesture is over,
+                // and the restarted effect follows the new target from wherever the settle got to (it rewinds or
+                // runs on within 90 ms, never a cut).
+                gesture = null
             }
             null -> follow(target)
         }

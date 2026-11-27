@@ -482,7 +482,8 @@ class ShellTransformMotionTest {
     fun aReportGrowsAndShrinksAsItsOwnNavyCoverNeverAsABlankPage() {
         // 2.7, 4.5: in the light theme a report's container is not cream then navy: under the top bar's `bg`
         // it carries the report's hero, so the navy arrives with the bounds; the content (a WebView on a device)
-        // is never drawn while the bounds move, either way, and fades in over the cover once they settle.
+        // is not drawn while the bounds grow and fades in over the cover once they settle. On the way back it fades
+        // out over the shrink's first `ReportContentOut` (75 ms), over the cover, instead of leaving in one frame.
         val navigator = AppNavigator().apply { selectTab(ShellTab.Research) }
         rule.mainClock.autoAdvance = false
         setReportOverList(navigator, ThemeMode.Light)
@@ -506,10 +507,13 @@ class ShellTransformMotionTest {
         assertEquals("then the content over it", reportColour.argb(), inHero().argb())
 
         rule.runOnIdle { navigator.pop() }
-        listOf(16, 48, 96).fold(0) { done, ms ->
+        val greens = (0 until 6).map { step(16); inHero().green }
+        assertTrue("the content fades out, it is not cut: $greens", greens.any { it > 0.15f && it < 0.85f })
+        assertTrue("and only ever fades: $greens", greens.zipWithNext().all { (a, b) -> b <= a + 0.01f })
+        listOf(128, 176).fold(96) { done, ms ->
             step(ms - done)
             val c = inHero()
-            assertTrue("$ms ms into the shrink the content is not drawn ($c)", !c.isReport())
+            assertTrue("$ms ms into the shrink the content is gone ($c)", c.green < 0.3f)
             ms
         }
         step(600)
