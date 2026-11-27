@@ -84,6 +84,12 @@ object ThesisMotion {
     val SnackbarOffset: Dp = 12.dp
     /** Shared-axis X push/pop. */
     val PushOffset: Dp = 24.dp
+    /**
+     * Container transform of a report: the height of the navy hero band its container carries below the top bar
+     * while it moves (its WebView is not drawn then). The Deep Dive's opening state (`HeroBand` + `SkeletonHero`)
+     * at font scale 1, so the cover lines up with what fades in over it; a loaded report's hero runs on below.
+     */
+    val TransformReportHero: Dp = 428.dp
     /** Modal destinations only (Paywall, You, Search). */
     val ModalOffset: Dp = 32.dp
     /** Pull to refresh: pull distance (after M2's 0.5 drag resistance) that arms a refresh. */
@@ -100,6 +106,19 @@ object ThesisMotion {
     const val RollMaskFraction = 0.18f
     /** Container transform: the detail fades in over the last 70% of the reveal (section 4.5). */
     const val TransformContentFrom = 0.30f
+    /**
+     * Container transform, the way back: the detail's content recedes over the first 70% of the time (eased in, so
+     * it stays legible while the container is large) and the container, opaque until then, crossfades with its row
+     * over the last 30%, when the bounds are within 4% of the row (section 4.5): no blank slab mid-shrink and no
+     * ghost over the list.
+     */
+    const val TransformContentOut = 0.70f
+    const val TransformHandOver = 1f - TransformContentOut
+    /**
+     * Predictive back over a page opened from a row: a held gesture shrinks it at most this share of the way into
+     * the row (eased), so the page stays readable until the commit runs the rest (section 4.5).
+     */
+    const val TransformSeekMax = 0.35f
     /** Predictive back preview: content scales toward this (section 4.5). */
     const val BackScaleTo = 0.90f
     /** Shimmer: band width as a share of the screen width (one continuous light across all blocks). */

@@ -18,6 +18,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Rect
 import com.thesis.mobile.ui.RefreshFailure
 import com.thesis.mobile.ui.UiState
 import com.thesis.mobile.ui.components.showThesisSnackbar
@@ -143,24 +144,30 @@ internal fun ShellContentScope.Content(entry: NavEntry, padding: PaddingValues) 
             onOpenPulse = { actions.onOpenPulse(null) },
             loading = state.sentimentCurrent == null && state.isMacroRefreshing
         )
-        is Destination.History -> HistoryScreen(
-            historyItems = state.reportHistory,
-            onBack = { actions.onBack() },
-            onOpenReport = actions::onOpenHistoryItem,
-            padding = padding,
-            // A failed first load is an answer too: the skeleton ends on the failed state with Try again.
-            loaded = state.reportHistoryLoaded || state.historyLoadError != null,
-            refreshing = state.isHistoryLoading && state.reportHistoryLoaded,
-            error = state.historyLoadError,
-            onRefresh = actions::onRefreshHistory,
-            companyNames = state.companyNames,
-            filingPeriods = state.filingPeriods,
-            notedReportIds = state.notedReportIds,
-            onCompareReports = actions::onOpenCompareReports,
-            onOpenName = { ticker -> actions.onOpenNameIn(ticker, null, null) },
-            initialFilter = HistoryFilter.entries.firstOrNull { it.name.equals(destination.filter, ignoreCase = true) }
-                ?: HistoryFilter.All
-        )
+        is Destination.History -> {
+            val rowBounds = remember { RowBounds() }
+            HistoryScreen(
+                historyItems = state.reportHistory,
+                onBack = { actions.onBack() },
+                // A report grows from the tapped row (4.5 container transform; PR-4b); a Pulse issue keeps the shared axis
+                // (AppNavigator drops its origin).
+                onOpenReport = { item -> navigator.pushFrom(rowBounds.take()) { actions.onOpenHistoryItem(item) } },
+                onReportBounds = { _, bounds -> rowBounds.capture(bounds) },
+                padding = padding,
+                // A failed first load is an answer too: the skeleton ends on the failed state with Try again.
+                loaded = state.reportHistoryLoaded || state.historyLoadError != null,
+                refreshing = state.isHistoryLoading && state.reportHistoryLoaded,
+                error = state.historyLoadError,
+                onRefresh = actions::onRefreshHistory,
+                companyNames = state.companyNames,
+                filingPeriods = state.filingPeriods,
+                notedReportIds = state.notedReportIds,
+                onCompareReports = actions::onOpenCompareReports,
+                onOpenName = { ticker -> actions.onOpenNameIn(ticker, null, null) },
+                initialFilter = HistoryFilter.entries.firstOrNull { it.name.equals(destination.filter, ignoreCase = true) }
+                    ?: HistoryFilter.All
+            )
+        }
         is Destination.Report -> ReportEntry(entry, destination.reportId, destination.ticker, classic = false, padding = padding)
         is Destination.ReportClassic ->
             ReportEntry(entry, destination.reportId, destination.ticker, classic = true, padding = padding)
@@ -296,6 +303,7 @@ internal fun ShellContentScope.Content(entry: NavEntry, padding: PaddingValues) 
 @Composable
 private fun ShellContentScope.ResearchRoot(padding: PaddingValues) {
     var pickNames by rememberSaveable { mutableStateOf(false) }
+    val rowBounds = remember { RowBounds() }
     ResearchScreen(
         ticker = state.selectedTicker.orEmpty(),
         recentHistory = state.reportHistory,
@@ -304,8 +312,13 @@ private fun ShellContentScope.ResearchRoot(padding: PaddingValues) {
             actions.onSearchTickers(typed)
         },
         onRunReport = { actions.onRunDeepDive(state.selectedTicker.orEmpty()) },
-        onOpenReport = { reportId -> actions.onOpenReport(reportId) },
-        onOpenPulse = { date -> actions.onOpenPulse(date) },
+        // A recent report grows from its row (4.5 container transform; PR-4b). A Pulse issue keeps the shared axis.
+        onOpenReport = { reportId -> navigator.pushFrom(rowBounds.take()) { actions.onOpenReport(reportId) } },
+        onOpenPulse = { date ->
+            rowBounds.take()
+            actions.onOpenPulse(date)
+        },
+        onReportBounds = { _, bounds -> rowBounds.capture(bounds) },
         padding = padding,
         // History on the Research stack (5.12 "See all"); the root lists only the three latest.
         onSeeAllHistory = actions::onOpenHistory,
@@ -861,3 +874,17 @@ internal fun noteEntryOf(anchor: String?): String? =
         ?.ifBlank { null }
 
 private const val NOTE_ENTRY_MARK = ":"
+
+/**
+ * The window bounds a row captured just before its tap ran the open callback (rows hand them over first, then
+ * open): the open takes them, once, for the container transform (4.5). A tap with none moves on the shared axis.
+ */
+internal class RowBounds {
+    private var bounds: Rect? = null
+
+    fun capture(bounds: Rect) {
+        this.bounds = bounds
+    }
+
+    fun take(): Rect? = bounds.also { bounds = null }
+}

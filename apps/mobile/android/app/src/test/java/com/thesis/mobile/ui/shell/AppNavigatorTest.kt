@@ -317,6 +317,23 @@ class AppNavigatorTest {
         assertNull("rotated: the row moved, so the pop uses the shared axis", nav.transformOrigin(entry.entryId))
     }
 
+    @Test
+    fun onlyANameOrAReportGrowsFromItsRow() {
+        val nav = AppNavigator()
+        val row = androidx.compose.ui.geometry.Rect(0f, 400f, 1080f, 560f)
+        fun from(destination: Destination): NavEntry {
+            var pushed: NavEntry? = null
+            nav.pushFrom(row) { pushed = nav.push(destination) }
+            return pushed!!
+        }
+        nav.switchTab(ShellTab.Research)
+        assertTrue(nav.transformOrigin(from(Destination.Report("rep_1", "AAPL")).entryId) != null)
+        assertTrue(nav.transformOrigin(from(Destination.ReportClassic("rep_1", "AAPL")).entryId) != null)
+        assertTrue(nav.transformOrigin(from(Destination.Name("AAPL")).entryId) != null)
+        // A Pulse issue opened from a History or Research row is a cover screen: shared axis, no origin (4.5, 2.7).
+        assertNull(nav.transformOrigin(from(Destination.Pulse("2026-11-20")).entryId))
+    }
+
     // ---- Recreation through the saved-state store
 
     @Test
