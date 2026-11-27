@@ -3,17 +3,20 @@ package com.thesis.mobile.ui.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.rememberScrollableState
 import androidx.compose.foundation.gestures.scrollable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.PressInteraction
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.FloatState
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.IntState
 import androidx.compose.runtime.getValue
@@ -30,8 +33,21 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEvent
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.IntrinsicMeasurable
+import androidx.compose.ui.layout.IntrinsicMeasureScope
 import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.layout.Measurable
+import androidx.compose.ui.layout.MeasurePolicy
+import androidx.compose.ui.layout.MeasureResult
+import androidx.compose.ui.layout.MeasureScope
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.layoutId
 import androidx.compose.ui.platform.LocalDensity
@@ -45,6 +61,7 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.text
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.rememberTextMeasurer
@@ -58,6 +75,7 @@ import androidx.compose.ui.unit.constrainHeight
 import androidx.compose.ui.unit.constrainWidth
 import androidx.compose.ui.unit.offset
 import com.thesis.mobile.ui.format.Fmt
+import com.thesis.mobile.ui.motion.ThesisMotion
 import com.thesis.mobile.ui.motion.thesisPress
 import com.thesis.mobile.ui.theme.Kit
 import com.thesis.mobile.ui.theme.LocalThesisPalette
@@ -128,6 +146,13 @@ data class CompareTableModel(
     fun labelOf(row: CompareRow): String = if (row.unit.isNullOrBlank()) row.label else "${row.label}, ${row.unit}"
 
     /**
+     * The label as drawn: [labelOf] with a non-breaking space before the unit, so a wrapped label keeps its unit with
+     * its last word ("Gross" over "margin, %", never "Revenue," over "$bn").
+     */
+    fun labelShown(row: CompareRow): String =
+        if (row.unit.isNullOrBlank()) row.label else "${row.label},\u00A0${row.unit}"
+
+    /**
      * "Copy as table": tab-separated, one line per row, header lines first (period, then filing when any column has
      * one); pastes into Excel and Sheets as cells. Tabs and line breaks inside cells become spaces.
      */
@@ -166,7 +191,7 @@ data class CompareTableModel(
 
 /**
  * What the table's text needs, in px and without cell padding: the label column's longest line ([labelWide]) and
- * longest word ([labelWord]); per value column (the delta column last) its widest figure ([valueWide]) and its
+ * longest word ([labelWord]), each row label's line ([labelLines], row order, the label header not included); per value column (the delta column last) its widest figure ([valueWide]) and its
  * header's longest line ([headerLine]), the narrowest it wraps to in a fitting table ([headerWrap]: a period never
  * breaks, "FY Sep-25" is one unit, though a status in its place, "No report yet", may; the filing line and the delta
  * header break between words; each onto at most two lines)
@@ -181,6 +206,7 @@ class CompareTableNeeds(
     val headerLine: List<Int>,
     val headerWrap: List<Int>,
     val headerWord: List<Int>,
+    val labelLines: List<Int> = emptyList(),
 )
 
 /**
@@ -203,13 +229,22 @@ fun compareTableNeeds(
             if (line.isBlank()) 0 else measure(line.trim(), style)
         } else {
             // A filing line ("10-K · 31 Oct 2025") breaks after its separator, so the date stays whole.
-            val at = (1 until w.size).filter { w[it - 1] == "·" }.ifEmpty { (1 until w.size).toList() }
-            at.minOf { i ->
-                max(measure(w.subList(0, i).joinToString(" "), style), measure(w.subList(i, w.size).joinToString(" "), style))
+            // A filing line ("10-K · 31 Oct 2025") breaks at its separator, which then goes ("10-K" over "31 Oct 2025"),
+            // so the date stays whole.
+            val seps = (1 until w.size).filter { w[it - 1] == "·" }
+            if (seps.isNotEmpty()) {
+                seps.minOf { i ->
+                    max(measure(w.subList(0, i - 1).joinToString(" "), style), measure(w.subList(i, w.size).joinToString(" "), style))
+                }
+            } else {
+                (1 until w.size).minOf { i ->
+                    max(measure(w.subList(0, i).joinToString(" "), style), measure(w.subList(i, w.size).joinToString(" "), style))
+                }
             }
         }
     }
-    val labels = listOf(model.labelHeader to ThesisType.tableHead) + model.rows.map { model.labelOf(it) to labelStyleOf(it) }
+    val rowLabels = model.rows.map { model.labelShown(it) to labelStyleOf(it) }
+    val labels = listOf(model.labelHeader to ThesisType.tableHead) + rowLabels
     val n = model.valueColumnCount
     // Each header text with whether it may wrap (filing lines and the delta header do; a period line only when it
     // holds no figure).
@@ -233,6 +268,7 @@ fun compareTableNeeds(
         headerLine = headers.map { h -> h.maxOf { (t, s, _) -> if (t.isEmpty()) 0 else measure(t, s) } },
         headerWrap = headers.map { h -> h.maxOf { (t, s, wraps) -> if (t.isEmpty()) 0 else if (wraps) twoLines(t, s) else twoLines(t, s, periods = true) } },
         headerWord = headers.map { h -> h.maxOf { (t, s, _) -> words(t, s) } },
+        labelLines = rowLabels.map { (t, s) -> if (t.isEmpty()) 0 else measure(t, s) },
     )
 }
 
@@ -271,7 +307,9 @@ class CompareTableFit(
  * Fits [needs] into [maxWidth] px (null: unbounded, natural widths). [densities] go from comfortable to compact. The
  * first density that keeps every column in view with nothing wrapped wins (only densities with one-line headers are
  * tried for that); else the first that keeps every column in view with labels wrapping between words (down to their
- * longest word) and headers too where the density allows. The spare width is spread over the value columns.
+ * longest word) and headers too where the density allows: of one-line headers and wrapped ones, the shape with fewer
+ * taller rows (each wrapped label is one, the header row one more when its headers wrap), one-line headers on a tie.
+ * The spare width is spread over the value columns.
  * [columnFloor] keeps every value column at least that wide (48 dp when its header is a sort button). When none fits, the [scrollDensity] is used with the label column capped at
  * [labelMaxFraction] of the width (never under its longest word, always leaving the first value column in view).
  */
@@ -309,12 +347,18 @@ fun fitCompareTable(
     }
     for (d in densities) {
         val pad = d.padding * 2
-        // Headers wrap only when they must: try each on one line first.
+        // Headers on one line, or wrapped (when the density allows): whichever grows fewer rows. A header that wraps
+        // gives its width to the labels, so fewer of them wrap ("No report yet" over a column with no figures).
         val oneLine = columns(d.copy(wrapHeaders = false), null)
-        val cols = if (maxWidth - oneLine.sum() >= needs.labelWord + pad || !d.wrapHeaders) oneLine else columns(d, null)
-        val room = maxWidth - cols.sum()
-        if (room < needs.labelWord + pad) continue
-        return spread(d.padding, min(needs.labelWide + pad, room), cols, room)
+        val shapes = listOfNotNull(oneLine to 0, if (d.wrapHeaders) columns(d, null).takeIf { it != oneLine }?.let { it to 1 } else null)
+        val best = shapes
+            .filter { (cols, _) -> maxWidth - cols.sum() >= needs.labelWord + pad }
+            .minByOrNull { (cols, headerCost) ->
+                val label = min(needs.labelWide + pad, maxWidth - cols.sum())
+                headerCost + needs.labelLines.count { it + pad > label }
+            } ?: continue
+        val room = maxWidth - best.first.sum()
+        return spread(d.padding, min(needs.labelWide + pad, room), best.first, room)
     }
     val d = scrollDensity
     val pad = d.padding * 2
@@ -418,6 +462,10 @@ fun CompareTable(
     val labelWidth = remember { mutableIntStateOf(0) }
     val padding = remember { mutableIntStateOf(with(density) { Kit.tableCellPaddingH.roundToPx() }) }
     val geometry = remember { TableGeometry() }
+    // Per value column, how much of its header shows (written by the placement, read by the header's draw): a column
+    // past the panel's end edge shows its header only as its widest line comes whole into view, so a lone first word
+    // ("No" of "No report yet") never peeks in beside the last column in view.
+    val headerReveal = remember(model.valueColumnCount) { List(model.valueColumnCount) { mutableFloatStateOf(1f) } }
     val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
     val scrollable = rememberScrollableState { delta ->
         val signed = if (rtl) delta else -delta
@@ -468,13 +516,14 @@ fun CompareTable(
                         fill = p.surface,
                         padding = padding,
                         onClick = click,
+                        reveal = headerReveal[c],
                         modifier = Modifier.layoutId(CellId.Value(-1, c)),
                     )
                 }
                 val deltaFill = if (model.deltaIsMedian) p.surface2 else p.surface
                 if (model.deltaHeader != null) {
                     HeaderCell(
-                        model.deltaHeader, null, false, false, deltaFill, padding, null,
+                        model.deltaHeader, null, false, false, deltaFill, padding, null, headerReveal[valueCols - 1],
                         Modifier.layoutId(CellId.Value(-1, valueCols - 1)),
                     )
                 }
@@ -487,7 +536,7 @@ fun CompareTable(
                     // A touch row is 48 dp: its first line sits centred in it, a wrapped label grows it downwards.
                     val (top, bottom) = rowPadding(interactive, labelStyle, density)
                     Text(
-                        model.labelOf(row),
+                        model.labelShown(row),
                         modifier = Modifier
                             .layoutId(CellId.Label(r))
                             .background(fill)
@@ -528,10 +577,8 @@ fun CompareTable(
                                     true
                                 }
                             },
-                            onClick = { x ->
-                                val col = if (x == null) subjectColumn else columnAt(geometry, x, rtl, model.columns.size, subjectColumn)
-                                if (col != null) cellClick?.invoke(r, col)
-                            },
+                            columnAt = { x -> if (x == null) subjectColumn else columnAt(geometry, x, rtl, model.columns.size, subjectColumn) },
+                            onClick = { col -> cellClick?.invoke(r, col) },
                             modifier = Modifier.layoutId(CellId.Target(r)),
                         )
                     }
@@ -567,6 +614,14 @@ fun CompareTable(
             layout(width, height) {
                 val off = scroll.floatValue.toInt()
                 geometry.scroll = off
+                // A header shows once its widest line is two thirds in view, fully once it is whole.
+                var end = labelW - off
+                colW.forEachIndexed { c, w ->
+                    end += w
+                    val text = min(needs.headerLine[c], w - 2 * fit.padding).coerceAtLeast(1)
+                    val inView = (width - (end - fit.padding - text)).toFloat() / text
+                    headerReveal.getOrNull(c)?.floatValue = ((inView - REVEAL_FROM) / (1f - REVEAL_FROM)).coerceIn(0f, 1f)
+                }
                 var y = 0
                 rowsAll.forEachIndexed { i, r ->
                     var x = labelW - off
@@ -584,6 +639,9 @@ fun CompareTable(
         Box(Modifier.matchParentSize().border(ThesisSpace.border, p.line, ThesisShape.panel))
     }
 }
+
+/** The share of a past-the-edge header's widest line in view at which it starts to show. */
+private const val REVEAL_FROM = 2f / 3f
 
 /** The value column under [x] (px from the table's left edge); the label column opens [subject]; the delta none. */
 private fun columnAt(g: TableGeometry, x: Float, rtl: Boolean, valueColumns: Int, subject: Int): Int? {
@@ -666,6 +724,7 @@ private fun HeaderCell(
     fill: Color,
     padding: IntState,
     onClick: (() -> Unit)?,
+    reveal: FloatState,
     modifier: Modifier,
 ) {
     val p = LocalThesisPalette.current
@@ -686,6 +745,8 @@ private fun HeaderCell(
                 heading()
                 if (sorted) contentDescription = "${CompareTableModel.spoken(period)}, sorted"
             }
+            // Only the text fades with [reveal]; the cell's fill stays.
+            .graphicsLayer { alpha = reveal.floatValue }
             .cellPadding(padding, Kit.tableCellPaddingV, Kit.tableCellPaddingV),
         horizontalAlignment = Alignment.End,
     ) {
@@ -695,16 +756,59 @@ private fun HeaderCell(
             color = if (accent) p.accent else p.ink,
             textAlign = TextAlign.End,
         )
-        if (filing != null) Text(filing.breakingAtSeparators(), style = ThesisType.tick, color = p.muted, textAlign = TextAlign.End)
+        if (filing != null) FilingLine(filing, p.muted)
     }
 }
 
 /**
- * A filing line that breaks only after its " · " separators ("10-K ·" over "31 Oct 2025", never "10-K · 31" over
- * "Oct 2025"), as [compareTableNeeds] sizes it: the spaces inside each part are non-breaking.
+ * The filing line, end-aligned: on one line when it fits ("10-K · 31 Oct 2025"), else stacked at its " · "
+ * separators, which then go ("10-K" over "31 Oct 2025"; never "10-K · 31" over "Oct 2025"), as [compareTableNeeds]
+ * sizes it. A line with no separator wraps between words. Spoken as the one line.
  */
-private fun String.breakingAtSeparators(): String =
-    if (" · " !in this) this else split(" · ").joinToString(" · ") { it.replace(' ', '\u00A0') }
+@Composable
+private fun FilingLine(filing: String, color: Color) {
+    if (" · " !in filing) {
+        Text(filing, style = ThesisType.tick, color = color, textAlign = TextAlign.End)
+        return
+    }
+    val parts = filing.split(" · ").map { it.trim().replace(' ', '\u00A0') }
+    Layout(
+        content = {
+            Text(parts.joinToString(" · "), style = ThesisType.tick, color = color, textAlign = TextAlign.End, maxLines = 1, softWrap = false)
+            Text(parts.joinToString("\n"), style = ThesisType.tick, color = color, textAlign = TextAlign.End)
+        },
+        modifier = Modifier.clearAndSetSemantics { text = AnnotatedString(filing) },
+        measurePolicy = FilingLinePolicy,
+    )
+}
+
+/** Places the one-line filing (first child) when it fits the width, else the stacked one (second). */
+private object FilingLinePolicy : MeasurePolicy {
+    private fun oneLineFits(measurables: List<IntrinsicMeasurable>, width: Int) =
+        measurables[0].maxIntrinsicWidth(Constraints.Infinity) <= width
+
+    override fun MeasureScope.measure(measurables: List<Measurable>, constraints: Constraints): MeasureResult {
+        val loose = constraints.copy(minWidth = 0, minHeight = 0)
+        val one = measurables[0].measure(loose.copy(maxWidth = Constraints.Infinity))
+        val placeable = if (one.width <= constraints.maxWidth) one else measurables[1].measure(loose)
+        return layout(constraints.constrainWidth(placeable.width), constraints.constrainHeight(placeable.height)) {
+            // End-aligned in the space given.
+            placeable.placeRelative(constraints.constrainWidth(placeable.width) - placeable.width, 0)
+        }
+    }
+
+    override fun IntrinsicMeasureScope.minIntrinsicWidth(measurables: List<IntrinsicMeasurable>, height: Int) =
+        measurables[1].minIntrinsicWidth(height)
+
+    override fun IntrinsicMeasureScope.maxIntrinsicWidth(measurables: List<IntrinsicMeasurable>, height: Int) =
+        measurables[0].maxIntrinsicWidth(height)
+
+    override fun IntrinsicMeasureScope.minIntrinsicHeight(measurables: List<IntrinsicMeasurable>, width: Int) =
+        if (oneLineFits(measurables, width)) measurables[0].minIntrinsicHeight(width) else measurables[1].minIntrinsicHeight(width)
+
+    override fun IntrinsicMeasureScope.maxIntrinsicHeight(measurables: List<IntrinsicMeasurable>, width: Int) =
+        if (oneLineFits(measurables, width)) measurables[0].maxIntrinsicHeight(width) else measurables[1].maxIntrinsicHeight(width)
+}
 
 /** Proportional line spacing for table cells: with equal line heights, label and value baselines line up. */
 private val TableLines = LineHeightStyle(
@@ -737,40 +841,59 @@ private fun ValueCell(
 }
 
 /**
- * A row's one touch target, over its cells: the kit press tint across the whole row, the tap's x handed to [onClick]
- * (null for TalkBack's and the keyboard's click, which open the subject column), one custom action per column.
+ * A row's one touch target, over its cells: the kit press tint across the whole row where a tap opens something,
+ * [columnAt] the value column under the tap's x (null x for TalkBack's and the keyboard's click: the subject column;
+ * null back for the delta column, which opens nothing and shows no press), [onClick] opens it, one custom action per
+ * column. It takes focus for a hardware keyboard or D-pad (Enter or centre opens, with the press tint while focused).
  */
 @Composable
 private fun RowTarget(
     description: String,
     actions: List<CustomAccessibilityAction>,
-    onClick: (x: Float?) -> Unit,
+    columnAt: (x: Float?) -> Int?,
+    onClick: (col: Int) -> Unit,
     modifier: Modifier,
 ) {
+    val p = LocalThesisPalette.current
     val source = remember { MutableInteractionSource() }
+    val focused by source.collectIsFocusedAsState()
+    val at by rememberUpdatedState(columnAt)
     val click by rememberUpdatedState(onClick)
+    val open = { x: Float? -> at(x)?.let { click(it) } != null }
     Box(
         modifier
             .pointerInput(source) {
                 detectTapGestures(
-                    onPress = { at ->
-                        val press = PressInteraction.Press(at)
+                    onPress = { offset ->
+                        if (at(offset.x) == null) return@detectTapGestures
+                        val press = PressInteraction.Press(offset)
                         source.emit(press)
                         val released = tryAwaitRelease()
                         source.emit(if (released) PressInteraction.Release(press) else PressInteraction.Cancel(press))
                     },
-                    onTap = { at -> click(at.x) },
+                    onTap = { offset -> open(offset.x) },
                 )
             }
+            .onKeyEvent { e ->
+                if (!e.isActivation()) return@onKeyEvent false
+                if (e.type == KeyEventType.KeyUp) open(null)
+                true
+            }
+            .focusable(interactionSource = source)
             .thesisPress(source)
+            .drawWithContent {
+                drawContent()
+                if (focused) drawRect(ThesisMotion.pressTint(p))
+            }
             .semantics {
                 role = Role.Button
                 contentDescription = description
                 customActions = actions
-                onClick(label = "Show source") {
-                    click(null)
-                    true
-                }
+                onClick(label = "Show source") { open(null) }
             },
     )
 }
+
+/** Enter, numpad Enter, D-pad centre or Space: the keys that click a focused control. */
+private fun KeyEvent.isActivation(): Boolean =
+    key == Key.Enter || key == Key.NumPadEnter || key == Key.DirectionCenter || key == Key.Spacebar

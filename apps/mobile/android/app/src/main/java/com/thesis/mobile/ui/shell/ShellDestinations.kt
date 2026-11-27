@@ -850,7 +850,7 @@ private fun ShellContentScope.DeepDiveScreenFor(
 /**
  * A note search hit's `Destination.Name` anchor: "Your notes" at one trail entry, named by its key (the report id):
  * `notes:<reportId>`. It rides in the existing anchor field, so the destination's codec and saved stacks need no
- * change (HANDOFF-K: WP-INT may move it next to `Destination.Name.ANCHOR_NOTES`).
+ * change (docs/app-redesign/handoff/HANDOFF-K.md: WP-INT may move it next to `Destination.Name.ANCHOR_NOTES`).
  */
 internal fun noteEntryAnchor(reportId: String): String = Destination.Name.ANCHOR_NOTES + NOTE_ENTRY_MARK + reportId
 

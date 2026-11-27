@@ -397,9 +397,10 @@ private fun Modifier.focusedEntry(focused: Boolean, focusKey: String?, onPlaced:
             val alpha = mark.value
             if (alpha <= 0f) return@drawBehind
             val bar = ThesisSpace.accentBar.toPx()
-            val gap = ThesisSpace.s.toPx()
+            // Hugs the entry like the Deep Dive's upshot bar, well clear of the screen edge in the 16 dp gutter.
+            val gap = ThesisSpace.xs.toPx()
             val x = if (layoutDirection == LayoutDirection.Rtl) size.width + gap else -gap - bar
-            drawRect(p.accent.copy(alpha = alpha), topLeft = Offset(x, 0f), size = Size(bar, size.height))
+            drawRect(p.accent, topLeft = Offset(x, 0f), size = Size(bar, size.height), alpha = alpha)
         }
 }
 
