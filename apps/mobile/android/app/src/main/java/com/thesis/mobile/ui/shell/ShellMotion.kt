@@ -3,11 +3,14 @@ package com.thesis.mobile.ui.shell
 import androidx.compose.animation.ContentTransform
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.core.AnimationSpec
 import androidx.compose.animation.core.Easing
 import androidx.compose.animation.core.FiniteAnimationSpec
 import androidx.compose.animation.core.animate
+import androidx.compose.animation.core.keyframes
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
@@ -15,6 +18,12 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.Dp
 import com.thesis.mobile.ui.motion.ThesisMotion
@@ -89,6 +98,19 @@ internal enum class ShellTransition {
     /** Container transform out: the page shrinks back into its row (240 ms `EaseStandard`) over the list. */
     ContainerOut,
 
+    /**
+     * A back gesture scrubbing a pop within a tab (PR-4b, [TabSeek]), 300 ms in all so a commit runs on from where
+     * the finger left it. The gesture covers the first 120 ms only ([BACK_SEEK_PREVIEW_SHARE]): the page under fades
+     * in place to [BACK_SEEK_UNDER_ALPHA] (linear, since the gesture's progress is already eased) under the page on
+     * top, which keeps its .90 preview, stays opaque and stays put. The commit runs the last 180 ms (`PushOut`,
+     * `EaseExit`): the page on top slides off toward the way the finger moves (the end edge for a swipe from the
+     * left edge, the start edge for one from the right) while the page under comes up to full in its first 90 ms.
+     * The page under shows around the page on top while it shrinks, and is uncovered by the slide, never seen
+     * through it: no double exposure (4.5), as with the sequential halves of shared-axis X. (A 24 dp shift and
+     * fade-out of the page on top, the plain pop, would show the page under through it, since it is already in.)
+     */
+    BackSeek,
+
     /** A replaced entry (a build becoming its report, 5.14) or a restore: 240 ms crossfade (`Base`), nothing moves. */
     Crossfade,
 
@@ -147,14 +169,16 @@ internal data class ShellMotionPx(val shiftPx: Int, val risePx: Int)
  * every layer is full size in every state. Rise and Fall only fade the page here: the modal layer moves and fades
  * the page's content itself ([ModalContentMotion]).
  */
-internal fun ShellTransition.toContentTransform(px: ShellMotionPx): ContentTransform =
-    contentTransformOf(this, px).withoutSizeAnimation()
+internal fun ShellTransition.toContentTransform(
+    px: ShellMotionPx,
+    swipeEdge: BackSwipeEdge = BackSwipeEdge.Left,
+): ContentTransform = contentTransformOf(this, px, swipeEdge).withoutSizeAnimation()
 
 /** Same enter and exit, no size animation and no clip (the scope's `using` exists only inside transitionSpec). */
 private fun ContentTransform.withoutSizeAnimation(): ContentTransform =
     ContentTransform(targetContentEnter, initialContentExit, targetContentZIndex, SizeTransform(clip = false))
 
-private fun contentTransformOf(transition: ShellTransition, px: ShellMotionPx): ContentTransform =
+private fun contentTransformOf(transition: ShellTransition, px: ShellMotionPx, swipeEdge: BackSwipeEdge): ContentTransform =
     when (transition) {
         // The page fades; its content's .985 → 1 scale is applied inside the page by the tab layer, so the page
         // background does not move (4.3.4).
@@ -191,6 +215,27 @@ private fun contentTransformOf(transition: ShellTransition, px: ShellMotionPx): 
                 initialContentExit = fadeOut(motionSpec(ThesisMotion.ScreenOut, easing = ThesisMotion.Linear), targetAlpha = 1f),
                 targetContentZIndex = -1f,
             )
+        ShellTransition.BackSeek -> {
+            // Toward the way the finger moves: right for a swipe from the left edge, left for one from the right.
+            val way = if (swipeEdge == BackSwipeEdge.Left) 1 else -1
+            ContentTransform(
+                // The page under stays in place (a slide would cut its gutter text at the window edge around the
+                // .90 preview) and shows faintly while the finger is down: at most BACK_SEEK_UNDER_ALPHA, a `bg`
+                // veil over it in effect. The commit brings it up as the page on top slides off it.
+                targetContentEnter = fadeIn(
+                    keyframes {
+                        durationMillis = ThesisMotion.Screen
+                        0f at 0 using ThesisMotion.Linear
+                        BACK_SEEK_UNDER_ALPHA at BACK_SEEK_OUT_DELAY using ThesisMotion.EaseEnter
+                        1f at BACK_SEEK_OUT_DELAY + ThesisMotion.PushOut / 2
+                    }
+                ),
+                initialContentExit = slideOutHorizontally(
+                    motionSpec(ThesisMotion.PushOut, delayMillis = BACK_SEEK_OUT_DELAY, easing = ThesisMotion.EaseExit)
+                ) { width -> way * width },
+                targetContentZIndex = -1f,
+            )
+        }
         ShellTransition.Crossfade ->
             fadeIn(motionSpec(ThesisMotion.Base, easing = ThesisMotion.EaseStandard)) togetherWith
                 fadeOut(motionSpec(ThesisMotion.Base, easing = ThesisMotion.EaseStandard))
@@ -208,6 +253,24 @@ internal fun <T> snapSpec(): FiniteAnimationSpec<T> = motionSpec(0, easing = The
 internal fun reducedCrossfade(): ContentTransform =
     fadeIn(motionSpec(ThesisMotion.Quick, easing = ThesisMotion.EaseStandard)) togetherWith
         fadeOut(motionSpec(ThesisMotion.Quick, easing = ThesisMotion.EaseStandard))
+
+/**
+ * When the page on top starts to slide off in [ShellTransition.BackSeek] (120 ms): it ends with the move, at
+ * `Screen`. The page under comes in before it, over these 120 ms.
+ */
+internal const val BACK_SEEK_OUT_DELAY: Int = ThesisMotion.Screen - ThesisMotion.PushOut
+
+/**
+ * How much of the page under shows in [ShellTransition.BackSeek] while the gesture is held (at full progress): it
+ * reads as the page the back will reveal, faint enough that its edges around the .90 preview stay quiet.
+ */
+internal const val BACK_SEEK_UNDER_ALPHA: Float = 0.4f
+
+/**
+ * The share of [ShellTransition.BackSeek] a held gesture covers (.4, the page under's part): the page on top only
+ * slides off once the back commits (4.5 "commit runs the pop").
+ */
+internal const val BACK_SEEK_PREVIEW_SHARE: Float = BACK_SEEK_OUT_DELAY.toFloat() / ThesisMotion.Screen
 
 /** The 4.5 shift of shared-axis X. */
 internal val SHARED_AXIS_SHIFT: Dp = ThesisMotion.PushOffset
@@ -246,6 +309,8 @@ internal val ShellTransition.frontChangeMillis: Int
         // Half way through the reveal, when the page covers most of the list.
         ShellTransition.ContainerIn -> ThesisMotion.Screen / 2
         ShellTransition.ContainerOut -> ThesisMotion.ScreenOut / 2
+        // Half way through the page on top's slide off.
+        ShellTransition.BackSeek -> BACK_SEEK_OUT_DELAY + ThesisMotion.PushOut / 2
         ShellTransition.Crossfade -> ThesisMotion.Base / 2
         ShellTransition.ReducedCrossfade -> ThesisMotion.Quick / 2
     }
@@ -348,7 +413,8 @@ internal val PREDICTIVE_BACK_SHIFT: Dp = ThesisMotion.BackShift
  *   which is visible to its end (shared-axis X draws nothing over it until it has gone); then the page under it
  *   comes in at full size. The preview ends when the leaving page leaves the composition ([onLeft]); if the back
  *   did not take the page off screen, or the page is back on top before it has left ([onTopAgain]), it settles
- *   back instead.
+ *   back instead. A page that shrinks back into its row (a report opened from a History or Research row) drops
+ *   its preview along the shrink (`ScreenOut`, `EaseStandard`, the bounds' own timing), so it lands on the row.
  * - Cancel ([cancel]): the page settles back to full size with `spatialSlow`.
  *
  * Read only in the draw phase ([backPreview]), so a gesture never recomposes the page.
@@ -381,10 +447,16 @@ internal class BackPreview {
         this.edge = edge
     }
 
-    /** Back committed. [stillOnScreen]: the back left [entryId] in place (nothing to exit), so settle it back. */
-    fun commit(scope: CoroutineScope, stillOnScreen: Boolean) {
+    /**
+     * Back committed. [stillOnScreen]: the back left [entryId] in place (nothing to exit), so settle it back.
+     * [intoRow]: the page leaves by shrinking into the row it was opened from, so the preview goes with the shrink.
+     */
+    fun commit(scope: CoroutineScope, stillOnScreen: Boolean, intoRow: Boolean = false) {
         gestureRunning = false
-        if (stillOnScreen) settle(scope)
+        when {
+            stillOnScreen -> settle(scope)
+            intoRow -> settle(scope, motionSpec(ThesisMotion.ScreenOut, easing = ThesisMotion.EaseStandard))
+        }
     }
 
     fun cancel(scope: CoroutineScope) {
@@ -411,11 +483,11 @@ internal class BackPreview {
         }
     }
 
-    private fun settle(scope: CoroutineScope) {
+    private fun settle(scope: CoroutineScope, spec: AnimationSpec<Float> = ThesisMotion.spatialSlow()) {
         val from = progress
         settleJob?.cancel()
         settleJob = scope.launch {
-            animate(from, 0f, animationSpec = ThesisMotion.spatialSlow()) { value, _ -> progress = value }
+            animate(from, 0f, animationSpec = spec) { value, _ -> progress = value }
             entryId = null
         }
     }
@@ -439,3 +511,38 @@ internal fun Modifier.backPreview(preview: BackPreview, entryId: String, backShi
             }
         }
     }
+
+/**
+ * The page under a held back gesture ([ShellTransition.BackSeek]) shows only in the strips around [preview]'s .90
+ * page on top, so a glyph that the preview's edge cuts (a lone arc of an icon) would read as an artifact. This
+ * clears the page under's content in those strips toward the preview's edges ([strength] of the way, `DstOut`, in an
+ * offscreen layer): at the window edge the content shows as it is (at most 40%), at the preview's edge not at all.
+ * Drawn after the content, read in the draw phase only; the geometry is [backPreview]'s, about the same full-size box.
+ * [opaque] is any opaque colour: `DstOut` uses only its alpha.
+ */
+internal fun DrawScope.clearAroundBackPreview(preview: BackPreview, strength: Float, backShiftPx: Float, opaque: Color) {
+    val p = preview.progress
+    if (p <= 0f || strength <= 0f) return
+    val scale = 1f - (1f - PREDICTIVE_BACK_SCALE) * p
+    val shift = p * backShiftPx * if (preview.edge == BackSwipeEdge.Left) 1f else -1f
+    val w = size.width
+    val h = size.height
+    val left = w * (1f - scale) / 2f + shift
+    val right = left + w * scale
+    val top = h * (1f - scale) / 2f
+    val bottom = top + h * scale
+    val a = strength.coerceAtMost(1f)
+    val none = Color.Transparent
+    if (top > 0f) {
+        drawRect(Brush.verticalGradient(listOf(none, opaque), startY = 0f, endY = top), Offset.Zero, Size(w, top), alpha = a, blendMode = BlendMode.DstOut)
+    }
+    if (bottom < h) {
+        drawRect(Brush.verticalGradient(listOf(opaque, none), startY = bottom, endY = h), Offset(0f, bottom), Size(w, h - bottom), alpha = a, blendMode = BlendMode.DstOut)
+    }
+    if (left > 0f) {
+        drawRect(Brush.horizontalGradient(listOf(none, opaque), startX = 0f, endX = left), Offset.Zero, Size(left, h), alpha = a, blendMode = BlendMode.DstOut)
+    }
+    if (right < w) {
+        drawRect(Brush.horizontalGradient(listOf(opaque, none), startX = right, endX = w), Offset(right, 0f), Size(w - right, h), alpha = a, blendMode = BlendMode.DstOut)
+    }
+}

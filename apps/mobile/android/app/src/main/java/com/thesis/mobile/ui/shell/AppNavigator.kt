@@ -177,8 +177,10 @@ class AppNavigator(private val store: NavigatorStateStore? = null) {
 
     /**
      * Runs [open] (which pushes a list row's detail, for example `onOpenNameIn`) so that the entry it pushes grows
-     * from [origin], the tapped row's window bounds. Only pages the tab layer draws take an origin: a report is
-     * drawn by the base layer under it and keeps the shared axis.
+     * from [origin], the tapped row's window bounds. A report takes one too (PR-4b): the base layer grows it from the
+     * row in the shell's transform overlay, over the tab layer's list. Only the details of 4.5's "List item → its
+     * detail" grow ([growsFromRow]: Name, a report); anything else a row opens (a Pulse issue from History or
+     * Research) keeps the shared axis.
      */
     fun pushFrom(origin: Rect?, open: () -> Unit) {
         pendingOrigin = origin?.takeIf { it.width > 0f && it.height > 0f }
@@ -200,7 +202,7 @@ class AppNavigator(private val store: NavigatorStateStore? = null) {
             stacks.getValue(currentTab).add(entry)
             lastMove = NavMove.Push
             val origin = pendingOrigin
-            if (origin != null && destination !is Destination.Report && destination !is Destination.ReportClassic) {
+            if (origin != null && destination.growsFromRow) {
                 // Origins of entries that left every stack go with them.
                 transformOrigins.keys.retainAll(liveEntryIds())
                 transformOrigins[entry.entryId] = origin
@@ -210,6 +212,13 @@ class AppNavigator(private val store: NavigatorStateStore? = null) {
         persist()
         return entry
     }
+
+    /**
+     * A detail that grows from its list row (4.5 container transform): Name and a report. A Pulse issue is a cover
+     * screen (its HeroBand would grow out of a light row, the flash 2.7 rules out), so it keeps the shared axis.
+     */
+    private val Destination.growsFromRow: Boolean
+        get() = this is Destination.Name || this is Destination.Report || this is Destination.ReportClassic
 
     /** Opens [destination] on the modal stack (You, Paywall, Search). */
     fun openModal(destination: Destination): NavEntry {

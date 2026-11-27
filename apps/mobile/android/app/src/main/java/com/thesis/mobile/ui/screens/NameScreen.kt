@@ -649,6 +649,11 @@ fun NameScreen(
     onBack: (() -> Unit)? = null,
     /** Where the page opens: scrolled to a section once the detail has loaded (no focus, no keyboard). */
     scrollTo: NameAnchor? = null,
+    /**
+     * With [scrollTo] at [NameAnchor.Notes]: the notes trail entry (its report id) a note search hit opens at. The
+     * page scrolls to that entry instead of the section's top, and the trail marks it once. Unknown: "Your notes".
+     */
+    noteKey: String? = null,
 ) {
     val seed = LocalNameSeed.current
     val haptics = rememberHaptics()
@@ -681,8 +686,14 @@ fun NameScreen(
     // The anchor's position in the page (px from the content's top), reported by its section once placed. The page
     // scrolls there once, when the detail has loaded, so the section sits right under the bar.
     val anchorY = remember { mutableStateMapOf<NameAnchor, Int>() }
-    var anchored by rememberSaveable(scrollTo) { mutableStateOf(false) }
-    val target = scrollTo?.let { anchorY[it] }
+    var anchored by rememberSaveable(scrollTo, noteKey) { mutableStateOf(false) }
+    // A note search hit's entry, when the trail holds it (else the page opens at "Your notes"); its top in the page.
+    val focusNoteKey = noteKey?.takeIf { key -> scrollTo == NameAnchor.Notes && notes.any { it.reportId == key } }
+    var noteEntryY by remember { mutableStateOf<Int?>(null) }
+    // A section's top lands `headerTop` under the bar, as the page's own header does; a note hit's entry lands
+    // `headerToSection` under it, so the entry before it (its last lines) does not sit right behind the bar's title.
+    val entryNudgePx = with(density) { (ThesisSpace.headerToSection - ThesisSpace.headerTop).roundToPx() }
+    val target = if (focusNoteKey != null) noteEntryY?.let { (it - entryNudgePx).coerceAtLeast(0) } else scrollTo?.let { anchorY[it] }
     val reducedScroll = LocalReducedMotion.current
     LaunchedEffect(scrollTo, target, detail?.isLoading) {
         if (!anchored && target != null && detail != null && !detail.isLoading) {
@@ -721,6 +732,8 @@ fun NameScreen(
                     warRoomLive = warRoomLive,
                     focusNote = focusNote,
                     onAnchorPlaced = { anchor, y -> if (anchorY[anchor] != y) anchorY[anchor] = y },
+                    focusNoteKey = focusNoteKey,
+                    onNoteEntryPlaced = { y -> if (noteEntryY != y) noteEntryY = y },
                     lastVisitAtMs = lastVisitAtMs,
                     warRoomId = warRoomId,
                     isPro = isPro,
@@ -1004,6 +1017,8 @@ private fun NameBody(
     warRoomLive: Boolean,
     focusNote: Boolean,
     onAnchorPlaced: (NameAnchor, Int) -> Unit,
+    focusNoteKey: String?,
+    onNoteEntryPlaced: (Int) -> Unit,
     lastVisitAtMs: Long,
     warRoomId: String?,
     isPro: Boolean,
@@ -1115,6 +1130,8 @@ private fun NameBody(
         // draft never hides, then overwrites, the stored note.
         loading = detail.isLoading,
         focus = focusNote,
+        focusKey = focusNoteKey,
+        onEntryPlaced = onNoteEntryPlaced,
         currentReportId = (action as? NameReportAction.Open)?.reportId,
         onSaveNote = onSaveNote,
         onLeaveNote = onLeaveNote,
@@ -1373,6 +1390,8 @@ private fun NotesSection(
     reportCount: Int,
     loading: Boolean,
     focus: Boolean,
+    focusKey: String?,
+    onEntryPlaced: (Int) -> Unit,
     currentReportId: String?,
     onSaveNote: suspend (String, String) -> Boolean,
     onLeaveNote: (String, String) -> Unit,
@@ -1438,8 +1457,16 @@ private fun NotesSection(
             verdict = n.verdict.takeUnless { i == 0 && n.reportId == currentReportId },
         )
     }
+    // A note search hit's entry (focusKey): its top in the page is the trail's top plus the entry's top in the trail.
+    var trailY by remember { mutableStateOf<Int?>(null) }
+    var entryTop by remember { mutableStateOf<Int?>(null) }
+    val entryY = trailY?.let { t -> entryTop?.let { t + it } }
+    LaunchedEffect(entryY) { if (entryY != null) onEntryPlaced(entryY) }
     NotesTrail(
         entries = entries,
+        modifier = Modifier.onPlaced { trailY = it.positionInParent().y.roundToInt() },
+        focusKey = focusKey,
+        onFocusPlaced = { top -> entryTop = top },
         onCarryForward = { draft = it.text },
     ) { entry ->
         key(entry.key) {

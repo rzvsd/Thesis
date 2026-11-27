@@ -99,11 +99,16 @@ import kotlinx.coroutines.launch
  * a new page's once the page it replaces has gone ([rememberFrontEntryId]).
  *
  * Back (4.5): a predictive back handler, enabled while [AppNavigator.canGoBack], previews the pop on the page it
- * closes only (scale to .90, 8 dp away from the swipe edge; still under reduced motion, 4.8); on commit that page
- * slides and fades out from the previewed transform (nothing is drawn over it until it has gone), then the page
- * under it comes in at full size; a cancel settles back
- * with `spatialSlow`. The whole tree sits on one shared page
- * background (2.7).
+ * closes (scale to .90, 8 dp away from the swipe edge; still under reduced motion, 4.8). A plain pop inside the tab
+ * is also seekable (PR-4b, ShellBackSeek.kt): the gesture drives the start of the tab layer's pop, so the page
+ * under comes in beneath the previewed page, and a commit runs on from there (only then does the page on top slide
+ * off, toward the way the finger moves); a page opened from a row starts to shrink back into it with the gesture
+ * (at most 35% of the way, so it stays readable) instead of scaling. Any other back (a modal, a report, a tab
+ * root, a layer still moving, or reduced motion) commits as before: the page slides and fades out from the
+ * previewed transform, then the page under it comes in at full size (a report opened from a row drops its preview
+ * along its shrink). A cancel settles back with `spatialSlow`. Pages opened from a row grow from it
+ * and shrink back into it as a shared-bounds container transform (ShellTransform.kt). The whole tree sits on one
+ * shared page background (2.7).
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -135,8 +140,12 @@ fun ThesisShell(
 
     val tabTop = navigator.tabTop
     val modalTop = navigator.modalStack.lastOrNull()
-    val currentStack = navigator.stack(navigator.currentTab)
-    val reportBase = currentStack.lastOrNull { it.destination is Destination.Report }
+    // The tab layer's seekable transition (PR-4b): a back gesture scrubs the pop it would run. The report base layer
+    // follows the entry the tab layer shows ([TabSeek.shown], a frame or two behind the navigator), so the two
+    // layers always move in the same frames, and a report's container transform runs in both at once.
+    val tabSeek = rememberTabSeek(tabTop)
+    val shown = tabSeek.shown
+    val reportBase = rememberShownReport(navigator, shown)
     val bottomBarShown = !tabTop.destination.hidesBottomBar
     // A modal (You, Search, the Paywall) is over the tab layer, the report and the bottom bar: they leave the
     // accessibility tree.
@@ -167,13 +176,32 @@ fun ThesisShell(
     ThesisPredictiveBackHandler(enabled = navigator.canGoBack) { events ->
         // The page this back closes: the top modal, else the tab's top entry (a report is drawn by the base layer).
         val closing = navigator.top.entryId
-        backPreview.start(closing)
+        // It shrinks back into the row it was opened from (a Name from a Names row, a report from a History row).
+        val intoRow = !reducedMotion && navigator.modalStack.isEmpty() && navigator.transformOrigin(closing) != null
+        // A plain pop inside the tab, from a layer at rest, previews the tab layer's real pop with the gesture
+        // (ShellBackSeek.kt): the page under comes in while the page on top keeps its .90 preview; a page opened
+        // from a row starts to shrink back into it instead of scaling. Anything else (a modal, a report, a tab
+        // root, a layer still moving, reduced motion) only previews the page it closes.
+        val peek = navigator.backSeekTarget(reducedMotion)?.takeIf { tabSeek.atRestOn(navigator.tabTop) }
+        val transformPop = peek != null && intoRow
+        if (!transformPop) backPreview.start(closing)
         try {
-            events.collect { event -> backPreview.update(event.progress, event.swipeEdge) }
+            events.collect { event ->
+                if (!transformPop) backPreview.update(event.progress, event.swipeEdge)
+                if (peek != null) {
+                    // Begun on the first event, which carries the swipe edge (a commit slides the page that way).
+                    if (!tabSeek.seeking) tabSeek.begin(peek, intoRow = transformPop, edge = event.swipeEdge)
+                    tabSeek.update(event.progress)
+                }
+            }
             actions.onBack()
-            backPreview.commit(backScope, stillOnScreen = navigator.top.entryId == closing)
+            val stillOnScreen = navigator.top.entryId == closing
+            if (peek != null) tabSeek.end(committed = !stillOnScreen)
+            // A page that shrinks into its row (a report: never seekable) drops its .90 preview along the shrink.
+            if (!transformPop) backPreview.commit(backScope, stillOnScreen = stillOnScreen, intoRow = intoRow)
         } catch (cancelled: CancellationException) {
-            backPreview.cancel(backScope)
+            if (peek != null) tabSeek.end(committed = false)
+            if (!transformPop) backPreview.cancel(backScope)
             throw cancelled
         }
     }
@@ -218,37 +246,44 @@ fun ThesisShell(
     ShellPageBackground(modifier) {
         // A rotation or a resize moves every row: the saved origins go stale, so pops fall back to the shared axis.
         Box(Modifier.fillMaxSize().onSizeChanged { navigator.onWindowSize(it.width, it.height) }) {
-            ReportBaseLayer(
-                entry = reportBase,
-                tabTopId = tabTop.entryId,
-                move = { navigator.lastMove },
-                env = env,
-                hidden = coveredByModal
-            ) { report ->
-                // Back handlers inside the report (the WebView's history) only while it is what the user sees.
-                val covered = report.entryId != navigator.tabTop.entryId || coveredByModal
-                CompositionLocalProvider(LocalEntryCovered provides covered) {
-                    platform.backScope(covered) {
-                        scope.EntryFrame(report, inModal = false, bottomBarHeightPx = bottomBarHeightPx)
+            // The report and tab layers share one transform scope: a page in transform is drawn over both (its
+            // overlay), under the bottom bar, the modal layer and the snackbar.
+            ShellTransformScope(Modifier.fillMaxSize()) {
+                ReportBaseLayer(
+                    entry = reportBase,
+                    tabTopId = shown.entryId,
+                    move = { navigator.lastMove },
+                    env = env,
+                    hidden = coveredByModal,
+                    // A report opened from a History or Research row grows from it over the tab layer (4.5).
+                    originOf = { navigator.transformOrigin(it.entryId) }
+                ) { report ->
+                    // Back handlers inside the report (the WebView's history) only while it is what the user sees.
+                    val covered = report.entryId != navigator.tabTop.entryId || coveredByModal
+                    CompositionLocalProvider(LocalEntryCovered provides covered) {
+                        platform.backScope(covered) {
+                            scope.EntryFrame(report, inModal = false, bottomBarHeightPx = bottomBarHeightPx)
+                        }
                     }
                 }
-            }
 
-            TabLayer(
-                target = tabTop,
-                move = { navigator.lastMove },
-                env = env,
-                hidden = coveredByModal,
-                // A report is drawn only by the base layer: on top, this layer stays empty so nothing covers it,
-                // and a report that is leaving (another report pushed over it, a tab switch) never builds a
-                // second WebView here.
-                drawnBelow = { it.destination is Destination.Report },
-                composed = tabEntries,
-                moving = tabMoving,
-                // A page opened from a list row grows from it (4.5 container transform).
-                originOf = { navigator.transformOrigin(it.entryId) }
-            ) { entry ->
-                scope.EntryFrame(entry, inModal = false, bottomBarHeightPx = bottomBarHeightPx)
+                TabLayer(
+                    target = tabTop,
+                    move = { navigator.lastMove },
+                    env = env,
+                    hidden = coveredByModal,
+                    // A report is drawn only by the base layer: on top, this layer stays empty so nothing covers it,
+                    // and a report that is leaving (another report pushed over it, a tab switch) never builds a
+                    // second WebView here.
+                    drawnBelow = { it.destination is Destination.Report },
+                    composed = tabEntries,
+                    moving = tabMoving,
+                    // A page opened from a list row grows from it (4.5 container transform).
+                    originOf = { navigator.transformOrigin(it.entryId) },
+                    seek = tabSeek
+                ) { entry ->
+                    scope.EntryFrame(entry, inModal = false, bottomBarHeightPx = bottomBarHeightPx)
+                }
             }
 
             if (drawSharedBar && sharedBar != null) {

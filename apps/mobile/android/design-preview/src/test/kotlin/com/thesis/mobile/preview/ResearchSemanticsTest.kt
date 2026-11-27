@@ -143,9 +143,12 @@ class ResearchSemanticsTest {
         header.performClick()
         rule.onNodeWithText(ResearchCopy.sortedBy(ResearchCopy.ROW_OPERATING)).assertExists()
         rule.onNodeWithContentDescription(ResearchCopy.COPY_TABLE).assertExists()
-        // A figure is a button that opens its source; a name with no report says so once, not "Not computed".
-        val cells = rule.onAllNodes(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Button) and hasContentDescription("Revenue, AAPL", substring = true))
-        assertTrue(cells.fetchSemanticsNodes().isNotEmpty())
+        // A row is one button that reads the whole row and opens a figure's source, with one action per name; a name
+        // with no report says so once, not "Not computed".
+        val row = rule.onNode(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Button) and hasContentDescription("Revenue: ", substring = true))
+        val actions = row.fetchSemanticsNode().config[SemanticsActions.CustomActions].map { it.label }
+        // Sorted by operating margin above: MSFT first.
+        assertEquals(listOf("MSFT", "AAPL", "COST"), actions.take(3).map { it.removePrefix("Source for ").substringBefore(' ') })
         rule.onAllNodesWithText(com.thesis.mobile.ui.format.Fmt.NOT_COMPUTED).assertCountEquals(0)
         rule.onAllNodesWithText(ResearchCopy.NO_REPORT_YET, substring = true).fetchSemanticsNodes().let { assertTrue(it.isNotEmpty()) }
     }
@@ -161,8 +164,11 @@ class ResearchSemanticsTest {
         rule.onNodeWithContentDescription(ResearchCopy.COPY_TABLE).assertExists().assertRole(Role.Button)
         rule.onAllNodesWithText(ResearchCopy.COPY_TABLE).assertCountEquals(0)
         // Every key figure opens its source (5.25); the notes carry no "Edit" until the shell can open the editor.
-        val figures = rule.onAllNodes(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Button) and hasContentDescription("Revenue, FY2025", substring = true))
+        val figures = rule.onAllNodes(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Button) and hasContentDescription("Revenue: ", substring = true))
         assertTrue(figures.fetchSemanticsNodes().isNotEmpty())
+        figures.fetchSemanticsNodes().forEach { node ->
+            assertTrue(node.config[SemanticsActions.CustomActions].any { it.label == "Source for FY2025" })
+        }
         rule.onAllNodesWithText("Edit").assertCountEquals(0)
         // The basis alone is the table header; the title leads with it ("FY2025 vs FY2024: revenue up …").
         rule.onAllNodesWithText("FY2025 vs FY2024").assertCountEquals(1)

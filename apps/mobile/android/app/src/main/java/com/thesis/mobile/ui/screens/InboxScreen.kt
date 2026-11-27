@@ -85,6 +85,7 @@ import com.thesis.mobile.ui.motion.ShimmerHost
 import com.thesis.mobile.ui.motion.ThesisMotion
 import com.thesis.mobile.ui.motion.rememberHaptics
 import com.thesis.mobile.ui.motion.rememberShowSkeleton
+import com.thesis.mobile.ui.motion.thesisItemMotion
 import com.thesis.mobile.ui.theme.LocalThesisPalette
 import com.thesis.mobile.ui.theme.ThesisShape
 import com.thesis.mobile.ui.theme.ThesisSpace
@@ -614,7 +615,13 @@ fun InboxScreen(
                 val quietCount = InboxModels.filter(scoped.filter { it.id in quietIds }, selected).size
                 if (quietCount > 0 && alerts.isNotEmpty()) {
                     item(key = "quiet-footer", contentType = "footer") {
-                        QuietFooter(count = quietCount, showing = showQuiet, onToggle = { showQuiet = !showQuiet })
+                        QuietFooter(
+                            count = quietCount,
+                            showing = showQuiet,
+                            onToggle = { showQuiet = !showQuiet },
+                            // Fades only, like the day items above it (see alertDays).
+                            modifier = thesisItemMotion(placement = false),
+                        )
                     }
                 }
             }
@@ -697,10 +704,14 @@ private fun LazyListScope.alertDays(
         val dayKey = day.date ?: "undated"
         // A day whose rows have all collapsed loses its header; the rows stay composed (they come back on Undo).
         if (present.isNotEmpty()) {
+            // Inbox items fade in and out (4.4 item motion) but take their new place at once (placement = false):
+            // the sticky day headers cannot glide (the list pins and moves them itself), and a row quieted by the
+            // user already closes up in place (DismissibleItem), so the rows and gaps must move with the headers,
+            // in the same frames, or a header would cover a row that is still gliding.
             stickyHeader(key = "day-$dayKey", contentType = "day") {
-                DayHeader(day.label)
+                DayHeader(day.label, modifier = thesisItemMotion(placement = false))
             }
-            item(key = "day-top-$dayKey", contentType = "day-gap") { Spacer(Modifier.height(ThesisSpace.s)) }
+            item(key = "day-top-$dayKey", contentType = "day-gap") { Spacer(thesisItemMotion(placement = false).height(ThesisSpace.s)) }
         }
         day.alerts.forEach { alert ->
             val position = when {
@@ -712,7 +723,8 @@ private fun LazyListScope.alertDays(
                 DismissibleItem(
                     removing = alert.id in exits,
                     onRemoved = { onCollapsed(alert.id) },
-                    modifier = Modifier
+                    // Alerts that Show quiet brings in or takes out fade (4.4, PR-4b); no glide (see the header).
+                    modifier = thesisItemMotion(placement = false)
                         .onSizeChanged { onExitHeight(alert.id, it.height) }
                         .padding(horizontal = ThesisSpace.gutter)
                         .rowGroupSegment(position, LeadingRowDividerInset),
@@ -726,7 +738,9 @@ private fun LazyListScope.alertDays(
             }
         }
         if (present.isNotEmpty()) {
-            item(key = "day-end-$dayKey", contentType = "day-gap") { Spacer(Modifier.height(ThesisSpace.sectionGapData)) }
+            item(key = "day-end-$dayKey", contentType = "day-gap") {
+                Spacer(thesisItemMotion(placement = false).height(ThesisSpace.sectionGapData))
+            }
         }
     }
 }
@@ -880,10 +894,10 @@ private fun AlertDetail(
 }
 
 @Composable
-private fun QuietFooter(count: Int, showing: Boolean, onToggle: () -> Unit) {
+private fun QuietFooter(count: Int, showing: Boolean, onToggle: () -> Unit, modifier: Modifier = Modifier) {
     val p = LocalThesisPalette.current
     Row(
-        Modifier
+        modifier
             .fillMaxWidth()
             .padding(horizontal = ThesisSpace.gutter),
         verticalAlignment = Alignment.CenterVertically,

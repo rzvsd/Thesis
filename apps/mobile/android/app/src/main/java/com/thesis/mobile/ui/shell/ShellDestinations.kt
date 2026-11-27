@@ -18,6 +18,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Rect
 import com.thesis.mobile.ui.RefreshFailure
 import com.thesis.mobile.ui.UiState
 import com.thesis.mobile.ui.components.showThesisSnackbar
@@ -143,24 +144,30 @@ internal fun ShellContentScope.Content(entry: NavEntry, padding: PaddingValues) 
             onOpenPulse = { actions.onOpenPulse(null) },
             loading = state.sentimentCurrent == null && state.isMacroRefreshing
         )
-        is Destination.History -> HistoryScreen(
-            historyItems = state.reportHistory,
-            onBack = { actions.onBack() },
-            onOpenReport = actions::onOpenHistoryItem,
-            padding = padding,
-            // A failed first load is an answer too: the skeleton ends on the failed state with Try again.
-            loaded = state.reportHistoryLoaded || state.historyLoadError != null,
-            refreshing = state.isHistoryLoading && state.reportHistoryLoaded,
-            error = state.historyLoadError,
-            onRefresh = actions::onRefreshHistory,
-            companyNames = state.companyNames,
-            filingPeriods = state.filingPeriods,
-            notedReportIds = state.notedReportIds,
-            onCompareReports = actions::onOpenCompareReports,
-            onOpenName = { ticker -> actions.onOpenNameIn(ticker, null, null) },
-            initialFilter = HistoryFilter.entries.firstOrNull { it.name.equals(destination.filter, ignoreCase = true) }
-                ?: HistoryFilter.All
-        )
+        is Destination.History -> {
+            val rowBounds = remember { RowBounds() }
+            HistoryScreen(
+                historyItems = state.reportHistory,
+                onBack = { actions.onBack() },
+                // A report grows from the tapped row (4.5 container transform; PR-4b); a Pulse issue keeps the shared axis
+                // (AppNavigator drops its origin).
+                onOpenReport = { item -> navigator.pushFrom(rowBounds.take()) { actions.onOpenHistoryItem(item) } },
+                onReportBounds = { _, bounds -> rowBounds.capture(bounds) },
+                padding = padding,
+                // A failed first load is an answer too: the skeleton ends on the failed state with Try again.
+                loaded = state.reportHistoryLoaded || state.historyLoadError != null,
+                refreshing = state.isHistoryLoading && state.reportHistoryLoaded,
+                error = state.historyLoadError,
+                onRefresh = actions::onRefreshHistory,
+                companyNames = state.companyNames,
+                filingPeriods = state.filingPeriods,
+                notedReportIds = state.notedReportIds,
+                onCompareReports = actions::onOpenCompareReports,
+                onOpenName = { ticker -> actions.onOpenNameIn(ticker, null, null) },
+                initialFilter = HistoryFilter.entries.firstOrNull { it.name.equals(destination.filter, ignoreCase = true) }
+                    ?: HistoryFilter.All
+            )
+        }
         is Destination.Report -> ReportEntry(entry, destination.reportId, destination.ticker, classic = false, padding = padding)
         is Destination.ReportClassic ->
             ReportEntry(entry, destination.reportId, destination.ticker, classic = true, padding = padding)
@@ -186,8 +193,11 @@ internal fun ShellContentScope.Content(entry: NavEntry, padding: PaddingValues) 
         is Destination.WarRoom -> {
             val id = destination.warRoomId
             val warRoom = state.warRoom?.takeIf { id == null || it.warRoomId == id }
-            LaunchedEffect(entry.entryId) {
-                if (id != null && state.warRoom?.warRoomId != id) actions.onEnsureWarRoom(id)
+            // Only while it is the top entry (like Pulse): the page under a held back gesture is composed too, and
+            // a cancelled gesture must not switch the one War Room the ViewModel holds.
+            val onTop = navigator.tabTop.entryId == entry.entryId
+            LaunchedEffect(entry.entryId, onTop) {
+                if (onTop && id != null && state.warRoom?.warRoomId != id) actions.onEnsureWarRoom(id)
             }
             // Auto-refresh (5.19): every 60 s, only while the room is Live, this entry is the visible top (no
             // modal over it) and the Activity is resumed. Leaving any of those cancels the loop; coming back
@@ -219,8 +229,10 @@ internal fun ShellContentScope.Content(entry: NavEntry, padding: PaddingValues) 
             // loads its templates and the run it was opened on. Keyed on the tier as well, because the profile
             // (and with it Pro) arrives after the restore; a free tier asks for nothing (no paywall from here).
             val isPro = state.userProfile?.tier.equals(PRO_TIER, ignoreCase = true)
-            LaunchedEffect(entry.entryId, isPro) {
-                if (isPro) actions.onEnsureScenarioStress(destination.runId, destination.scenarioId)
+            // Only while it is the top entry, not as the page under a held back gesture.
+            val onTop = navigator.tabTop.entryId == entry.entryId
+            LaunchedEffect(entry.entryId, isPro, onTop) {
+                if (isPro && onTop) actions.onEnsureScenarioStress(destination.runId, destination.scenarioId)
             }
             ScenarioStressScreen(
                 userTier = state.userProfile?.tier,
@@ -287,8 +299,8 @@ internal fun ShellContentScope.Content(entry: NavEntry, padding: PaddingValues) 
             apiBaseUrl = state.apiBaseUrl
         )
         is Destination.Name -> NameEntry(entry, destination, padding)
-        is Destination.CompareReports -> CompareReportsEntry(destination, padding)
-        is Destination.CompareNames -> CompareNamesEntry(destination, padding)
+        is Destination.CompareReports -> CompareReportsEntry(entry, destination, padding)
+        is Destination.CompareNames -> CompareNamesEntry(entry, destination, padding)
     }
 }
 
@@ -296,6 +308,7 @@ internal fun ShellContentScope.Content(entry: NavEntry, padding: PaddingValues) 
 @Composable
 private fun ShellContentScope.ResearchRoot(padding: PaddingValues) {
     var pickNames by rememberSaveable { mutableStateOf(false) }
+    val rowBounds = remember { RowBounds() }
     ResearchScreen(
         ticker = state.selectedTicker.orEmpty(),
         recentHistory = state.reportHistory,
@@ -304,8 +317,13 @@ private fun ShellContentScope.ResearchRoot(padding: PaddingValues) {
             actions.onSearchTickers(typed)
         },
         onRunReport = { actions.onRunDeepDive(state.selectedTicker.orEmpty()) },
-        onOpenReport = { reportId -> actions.onOpenReport(reportId) },
-        onOpenPulse = { date -> actions.onOpenPulse(date) },
+        // A recent report grows from its row (4.5 container transform; PR-4b). A Pulse issue keeps the shared axis.
+        onOpenReport = { reportId -> navigator.pushFrom(rowBounds.take()) { actions.onOpenReport(reportId) } },
+        onOpenPulse = { date ->
+            rowBounds.take()
+            actions.onOpenPulse(date)
+        },
+        onReportBounds = { _, bounds -> rowBounds.capture(bounds) },
         padding = padding,
         // History on the Research stack (5.12 "See all"); the root lists only the three latest.
         onSeeAllHistory = actions::onOpenHistory,
@@ -502,7 +520,8 @@ private fun ShellContentScope.SearchEntry(padding: PaddingValues) {
             if (ticker.isNullOrBlank()) {
                 actions.onOpenReport(reportId)
             } else {
-                actions.onOpenNameIn(ticker, null, Destination.Name.ANCHOR_NOTES)
+                // Name at "Your notes", on the matched note's own trail entry (PR-4b, WP-K).
+                actions.onOpenNameIn(ticker, null, Destination.Name.noteEntryAnchor(reportId))
             }
         },
         onSubmit = actions::onAddRecentSearch
@@ -561,11 +580,13 @@ private fun ShellContentScope.NameEntry(entry: NavEntry, destination: Destinatio
         pager = namePagerOf(order, ticker),
         warRoomLive = ticker in live,
         focusNote = destination.anchor == Destination.Name.ANCHOR_WRITE_NOTE,
-        scrollTo = when (destination.anchor) {
-            Destination.Name.ANCHOR_NOTES -> NameAnchor.Notes
-            Destination.Name.ANCHOR_CHANGES -> NameAnchor.Changes
+        scrollTo = when {
+            destination.anchor == Destination.Name.ANCHOR_NOTES -> NameAnchor.Notes
+            Destination.Name.noteEntryOf(destination.anchor) != null -> NameAnchor.Notes
+            destination.anchor == Destination.Name.ANCHOR_CHANGES -> NameAnchor.Changes
             else -> null
         },
+        noteKey = Destination.Name.noteEntryOf(destination.anchor),
         onRetry = { actions.onEnsureName(ticker) },
         onFollowChange = { on -> if (on) actions.onAddName(ticker) else actions.onUnfollowName(ticker) },
         onOpenReport = { reportId -> actions.onOpenReport(reportId, ticker) },
@@ -586,15 +607,19 @@ private fun ShellContentScope.NameEntry(entry: NavEntry, destination: Destinatio
     CompareWithPicker(compareWith, onDismiss = { compareWith = null })
 }
 
-/** A `CompareReports(older, newer)` entry (5.17): loads its pair when the ViewModel holds another one. */
+/**
+ * A `CompareReports(older, newer)` entry (5.17): loads its pair when the ViewModel holds another one. Only while it
+ * is the top entry: the page under a held back gesture is composed too, and a cancelled gesture loads nothing.
+ */
 @Composable
-private fun ShellContentScope.CompareReportsEntry(destination: Destination.CompareReports, padding: PaddingValues) {
+private fun ShellContentScope.CompareReportsEntry(entry: NavEntry, destination: Destination.CompareReports, padding: PaddingValues) {
     val a = destination.reportIdA
     val b = destination.reportIdB
-    LaunchedEffect(a, b) { actions.onEnsureCompareReports(a, b) }
+    val onTop = navigator.tabTop.entryId == entry.entryId
+    LaunchedEffect(a, b, onTop) { if (onTop) actions.onEnsureCompareReports(a, b) }
     val compare = state.compareReports?.takeIf { it.reportIdA == a && it.reportIdB == b }
     val ticker = (compare?.b?.ticker ?: compare?.a?.ticker)?.trim()?.uppercase()?.ifBlank { null }
-    LaunchedEffect(ticker) { if (ticker != null) actions.onLoadNotesTrail(ticker) }
+    LaunchedEffect(ticker, onTop) { if (ticker != null && onTop) actions.onLoadNotesTrail(ticker) }
     CompareReportsScreen(
         state = compare,
         onBack = { actions.onBack() },
@@ -607,11 +632,12 @@ private fun ShellContentScope.CompareReportsEntry(destination: Destination.Compa
     )
 }
 
-/** A `CompareNames(tickers)` entry (5.26): loads its names when the ViewModel holds others. */
+/** A `CompareNames(tickers)` entry (5.26): loads its names when the ViewModel holds others, only while on top. */
 @Composable
-private fun ShellContentScope.CompareNamesEntry(destination: Destination.CompareNames, padding: PaddingValues) {
+private fun ShellContentScope.CompareNamesEntry(entry: NavEntry, destination: Destination.CompareNames, padding: PaddingValues) {
     val tickers = destination.tickers.map { it.trim().uppercase() }.filter { it.isNotEmpty() }.distinct()
-    LaunchedEffect(tickers) { actions.onEnsureCompareNames(tickers) }
+    val onTop = navigator.tabTop.entryId == entry.entryId
+    LaunchedEffect(tickers, onTop) { if (onTop) actions.onEnsureCompareNames(tickers) }
     val compare = state.compareNames?.takeIf { it.tickers == tickers.take(COMPARE_NAMES_MAX) }
     CompareNamesScreen(
         state = compare,
@@ -842,4 +868,18 @@ private fun ShellContentScope.DeepDiveScreenFor(
             onCompareReports = actions::onOpenCompareReports
         )
     )
+}
+
+/**
+ * The window bounds a row captured just before its tap ran the open callback (rows hand them over first, then
+ * open): the open takes them, once, for the container transform (4.5). A tap with none moves on the shared axis.
+ */
+internal class RowBounds {
+    private var bounds: Rect? = null
+
+    fun capture(bounds: Rect) {
+        this.bounds = bounds
+    }
+
+    fun take(): Rect? = bounds.also { bounds = null }
 }

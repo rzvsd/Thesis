@@ -1,8 +1,13 @@
 package com.thesis.mobile.ui.components
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.MutableTransitionState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
@@ -26,8 +31,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -36,18 +43,24 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathMeasure
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.layout.onPlaced
+import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.LayoutDirection
 import com.thesis.mobile.ui.icons.ThesisIcons
 import com.thesis.mobile.ui.motion.ThesisMotion
 import com.thesis.mobile.ui.motion.rememberHaptics
@@ -57,6 +70,7 @@ import com.thesis.mobile.ui.theme.LocalThesisPalette
 import com.thesis.mobile.ui.theme.ThesisShape
 import com.thesis.mobile.ui.theme.ThesisSpace
 import com.thesis.mobile.ui.theme.ThesisType
+import kotlin.math.roundToInt
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 
@@ -293,7 +307,11 @@ fun NotePreview(
     }
 }
 
-/** One entry of a ticker's notes: the report's [filing] period, its [date], that report's [verdict] and the note. */
+/**
+ * One entry of a ticker's notes: the report's [filing] period, its [date], that report's [verdict] and the note.
+ * [key] is the entry's stable identity (the report id: one note per report), which keeps an entry's state (expanded)
+ * with it when the trail changes, and names the entry a note search hit opens at ([NotesTrail]'s `focusKey`).
+ */
 @Immutable
 data class NoteEntry(
     val key: String,
@@ -307,26 +325,122 @@ data class NoteEntry(
  * The notes trail (#52), newest first. The first entry is the newest report: its header, then [editor] (usually a
  * [NoteBlock]). Older entries are read-only previews (4 lines) that expand in place. When the newest note is empty
  * and an older one is not, that older note offers "Carry forward" ([onCarryForward] copies it into the new note).
+ *
+ * [focusKey] names the entry a note search hit opens at (5.27): an older one opens expanded, so the matched words are
+ * in view, and a 3 dp accent rule in the gutter beside it marks it once, then fades (`ThesisMotion.MarkHold` ms, then
+ * `Base`; a `Quick` crossfade under reduced motion, which keeps the rule still). [onFocusPlaced] gets the entry's
+ * top (px from the trail's top) whenever it is placed: the host scrolls there once, so the entry sits right under
+ * its bar (the page knows its bar and scroll; the trail does not).
  */
 @Composable
 fun NotesTrail(
     entries: List<NoteEntry>,
     modifier: Modifier = Modifier,
+    focusKey: String? = null,
+    onFocusPlaced: ((top: Int) -> Unit)? = null,
     onCarryForward: ((NoteEntry) -> Unit)? = null,
     editor: @Composable (NoteEntry) -> Unit,
 ) {
+    // Keys the trail has shown: an entry whose key is new after the first paint joins with the 4.4 item motion.
+    val shown = remember { HashSet<String>() }
     if (entries.isEmpty()) return
+    val firstPaint = shown.isEmpty()
+    SideEffect { entries.forEach { shown += it.key } }
     val newest = entries.first()
     val carryFrom = if (newest.text.isBlank()) entries.drop(1).firstOrNull { it.text.isNotBlank() } else null
+    val focus = focusKey?.takeIf { k -> entries.any { it.key == k } }
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(ThesisSpace.xl)) {
-        Column(verticalArrangement = Arrangement.spacedBy(ThesisSpace.s)) {
-            EntryHeader(newest)
-            editor(newest)
+        key(newest.key) {
+            JoiningEntry(
+                joins = !firstPaint && newest.key !in shown,
+                modifier = Modifier.focusedEntry(newest.key == focus, focus, onFocusPlaced),
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(ThesisSpace.s)) {
+                    EntryHeader(newest)
+                    editor(newest)
+                }
+            }
         }
         entries.drop(1).forEach { entry ->
-            OlderNote(entry, carry = if (entry == carryFrom) onCarryForward else null)
+            key(entry.key) {
+                JoiningEntry(
+                    joins = !firstPaint && entry.key !in shown,
+                    modifier = Modifier.focusedEntry(entry.key == focus, focus, onFocusPlaced),
+                ) {
+                    OlderNote(
+                        entry,
+                        carry = if (entry == carryFrom) onCarryForward else null,
+                        focused = entry.key == focus,
+                    )
+                }
+            }
         }
     }
+}
+
+/**
+ * A trail entry that [joins] after the trail's first paint (a new report's note) comes in with the 4.4 item motion,
+ * the same as `thesisItemMotion` in the lazy lists: the trail opens room for it (`spatial`) while it fades in over
+ * `Base` after `CrossfadeDelay`. Under reduced motion it fades (`Quick`) and takes its room at once. Entries already
+ * there at first paint, and every entry after its arrival, compose with no wrapper animation. [modifier] (the
+ * focused entry's mark and placement report) sits on the wrapper, outside its clip, so its position is the entry's
+ * own in the trail.
+ */
+@Composable
+private fun JoiningEntry(joins: Boolean, modifier: Modifier, content: @Composable () -> Unit) {
+    val reduced = LocalReducedMotion.current
+    val visible = remember { MutableTransitionState(!joins).apply { targetState = true } }
+    AnimatedVisibility(
+        visibleState = visible,
+        modifier = modifier,
+        enter = if (reduced) {
+            fadeIn(ThesisMotion.quick())
+        } else {
+            fadeIn(tween(ThesisMotion.Base, ThesisMotion.CrossfadeDelay, ThesisMotion.EaseStandard)) +
+                expandVertically(ThesisMotion.spatial(), expandFrom = Alignment.Top)
+        },
+        exit = ExitTransition.None,
+    ) {
+        content()
+    }
+}
+
+/**
+ * The focused entry ([focused]): reports its top to [onPlaced], and draws the
+ * accent rule in the gutter at its start edge, which fades once per [focusKey] (not again on a return to the page).
+ */
+@Composable
+private fun Modifier.focusedEntry(focused: Boolean, focusKey: String?, onPlaced: ((Int) -> Unit)?): Modifier {
+    if (!focused) return this
+    val p = LocalThesisPalette.current
+    val reduced = LocalReducedMotion.current
+    var shown by rememberSaveable(focusKey) { mutableStateOf(false) }
+    val mark = remember(focusKey) { Animatable(if (shown) 0f else 1f) }
+    val place by rememberUpdatedState(onPlaced)
+    LaunchedEffect(focusKey) {
+        if (!shown) {
+            mark.animateTo(
+                0f,
+                tween(
+                    durationMillis = if (reduced) ThesisMotion.Quick else ThesisMotion.Base,
+                    delayMillis = ThesisMotion.MarkHold,
+                    easing = ThesisMotion.EaseStandard,
+                ),
+            )
+            shown = true
+        }
+    }
+    return this
+        .onPlaced { coordinates -> place?.invoke(coordinates.positionInParent().y.roundToInt()) }
+        .drawBehind {
+            val alpha = mark.value
+            if (alpha <= 0f) return@drawBehind
+            val bar = ThesisSpace.accentBar.toPx()
+            // Hugs the entry like the Deep Dive's upshot bar, well clear of the screen edge in the 16 dp gutter.
+            val gap = ThesisSpace.xs.toPx()
+            val x = if (layoutDirection == LayoutDirection.Rtl) size.width + gap else -gap - bar
+            drawRect(p.accent, topLeft = Offset(x, 0f), size = Size(bar, size.height), alpha = alpha)
+        }
 }
 
 @Composable
@@ -339,13 +453,14 @@ private fun EntryHeader(entry: NoteEntry) {
 }
 
 @Composable
-private fun OlderNote(entry: NoteEntry, carry: ((NoteEntry) -> Unit)?) {
+private fun OlderNote(entry: NoteEntry, carry: ((NoteEntry) -> Unit)?, focused: Boolean, modifier: Modifier = Modifier) {
     val p = LocalThesisPalette.current
     val reduced = LocalReducedMotion.current
-    var expanded by rememberSaveable(entry.key) { mutableStateOf(false) }
+    // A note search hit's entry opens whole, so the matched words are in view.
+    var expanded by rememberSaveable(entry.key) { mutableStateOf(focused) }
     var clipped by remember(entry.key) { mutableStateOf(false) }
     Column(
-        Modifier
+        modifier
             .fillMaxWidth()
             .then(if (reduced) Modifier else Modifier.animateContentSize(ThesisMotion.spatial())),
         verticalArrangement = Arrangement.spacedBy(ThesisSpace.xs),
@@ -360,10 +475,11 @@ private fun OlderNote(entry: NoteEntry, carry: ((NoteEntry) -> Unit)?) {
                 color = p.ink2,
                 maxLines = if (expanded) Int.MAX_VALUE else Kit.TRAIL_PREVIEW_LINES,
                 overflow = TextOverflow.Ellipsis,
-                onTextLayout = { if (!expanded) clipped = it.hasVisualOverflow },
+                // Whether the 4-line preview cuts the note, read in either state (an entry can open expanded).
+                onTextLayout = { clipped = if (expanded) it.lineCount > Kit.TRAIL_PREVIEW_LINES else it.hasVisualOverflow },
             )
             Row(horizontalArrangement = Arrangement.spacedBy(ThesisSpace.l)) {
-                if (clipped || expanded) TextAction(if (expanded) "Show less" else "Show all", { expanded = !expanded })
+                if (clipped) TextAction(if (expanded) "Show less" else "Show all", { expanded = !expanded })
                 if (carry != null) TextAction("Carry forward", { carry(entry) })
             }
         }

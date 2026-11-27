@@ -264,14 +264,24 @@ internal fun metricLabel(metric: NameMetric): String = when (metric) {
 }
 
 /**
- * The row label in the table: the conventional short forms ("Growth, YoY", "Shares, YoY"; operating margin keeps its full name, as on Name and the Deep Dive), so the
- * pinned label column leaves room for a third name on a 412 dp phone. The source sheet, the sort caption and
- * "Copy as table" keep the full name ([metricLabel]).
+ * The row label in the table: the conventional short forms ("Growth" and "Shares", with [metricShortUnit] "YoY";
+ * operating margin keeps its full name, as on Name and the Deep Dive), so the pinned label column leaves room for a
+ * third name on a 412 dp phone. The source sheet, the sort caption and "Copy as table" keep the full name
+ * ([metricLabel]).
  */
 internal fun metricShortLabel(metric: NameMetric): String = when (metric) {
     NameMetric.Growth -> ResearchCopy.ROW_GROWTH_SHORT
-    NameMetric.Shares -> ResearchCopy.ROW_SHARES_YOY_SHORT
+    NameMetric.Shares -> ResearchCopy.ROW_SHARES_SHORT
     else -> metricLabel(metric)
+}
+
+/**
+ * The unit after a short row label ("YoY"): the table joins it with a non-breaking space ("Growth, YoY"), so a
+ * wrapped label never leaves "YoY" alone on its own line. TalkBack and the kit's copy read it with a plain space.
+ */
+internal fun metricShortUnit(metric: NameMetric): String? = when (metric) {
+    NameMetric.Growth, NameMetric.Shares -> ResearchCopy.UNIT_YOY
+    else -> null
 }
 
 /** A formatted value; one of the three words when missing (never a dash). */
@@ -369,9 +379,8 @@ private fun filingLine(column: CompareNameColumn, fmt: Fmt, zone: ZoneId): Strin
  * The table (#30) for [columns] (already sorted): one column per ticker (ticker over its fiscal period, then the
  * filing line), one row per [NameMetric], and the peer median per row in the basis column ("Median"; with
  * tickers as columns, the median across them is one value per row; value discipline as the median share of
- * signals met). No row is put on `surface2`: the kit's `median` row flag means a median, and the median here is a
- * column, so the sorted row is said in the caption under the table until WP-K adds a separate row emphasis
- * (HANDOFF-E).
+ * signals met), on `surface2` (`deltaIsMedian`). No row is put on `surface2`: the kit's `median` row flag means a
+ * median row, and the median here is a column; the sorted row is said in the caption under the table.
  */
 /**
  * The rows the table shows: every metric, except value discipline when no column has a score (a summary cached
@@ -397,6 +406,7 @@ internal fun compareNamesTable(columns: List<CompareNameColumn>): CompareTableMo
             val share = !disciplineSharesOneBasis(columns)
             CompareRow(
                 label = metricShortLabel(m),
+                unit = metricShortUnit(m),
                 values = columns.map { cellText(it, m, disciplineAsShare = share) },
                 delta = if (m == NameMetric.Discipline) disciplineMedianText(columns) else formatMetric(m, med, Missing.NotMeaningful),
             )
@@ -404,6 +414,8 @@ internal fun compareNamesTable(columns: List<CompareNameColumn>): CompareTableMo
         labelHeader = ResearchCopy.LATEST_FY,
         deltaHeader = ResearchCopy.MEDIAN,
         missingDelta = Fmt.NA,
+        // The median column sits on surface2, as 5.26's median row would, so it does not read as a fifth name.
+        deltaIsMedian = true,
     )
 
 /** A metric's label in "Copy as table", with the unit of its plain-number cells. */

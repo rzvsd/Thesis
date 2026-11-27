@@ -104,10 +104,10 @@ import com.thesis.mobile.ui.format.Fmt
 import com.thesis.mobile.ui.format.LocalFmt
 import com.thesis.mobile.ui.icons.ThesisIcons
 import com.thesis.mobile.ui.motion.DismissibleItem
-import com.thesis.mobile.ui.motion.ThesisMotion
 import com.thesis.mobile.ui.motion.ThesisTransitions
 import com.thesis.mobile.ui.motion.rememberHaptics
 import com.thesis.mobile.ui.motion.rememberShowSkeleton
+import com.thesis.mobile.ui.motion.thesisItemMotion
 import com.thesis.mobile.ui.motion.thesisPress
 import com.thesis.mobile.ui.platform.ThesisBackHandler
 import com.thesis.mobile.ui.shell.ListDensity
@@ -1292,15 +1292,10 @@ private fun LazyListScope.boardBody(
         else -> itemsIndexed(shown, key = { _, row -> row.ticker }, contentType = { _, _ -> if (compact) "row-compact" else "row" }) { i, row ->
             val position = RowPosition.of(i, shown.size)
             val inset = if (compact && !selecting) CompactRowDividerInset else LeadingRowDividerInset
-            // Rows glide on sort and filter (5.10 item 6); under reduced motion (system or the in-app toggle, 4.8)
-            // they take their new places without translating (rubric M3). Placement only, no fades: exactly what the
-            // deprecated `animateItemPlacement` did (Compose 1.7 implements it as this call); removals collapse in
-            // DismissibleItem.
-            val glide = if (LocalReducedMotion.current) {
-                Modifier
-            } else {
-                Modifier.animateItem(fadeInSpec = null, placementSpec = ThesisMotion.spatial(), fadeOutSpec = null)
-            }
+            // Rows glide on sort and filter (5.10 item 6) and fade in or out as a filter or a new name changes the
+            // set (4.4 item motion, PR-4b); under reduced motion (system or the in-app toggle, 4.8) they fade but take
+            // their new places without translating (rubric M3). A removed name collapses in DismissibleItem first.
+            val glide = thesisItemMotion()
             // The aligned compact row has no line 2: a name without a report says so in its figure column.
             val alignedCompact = compact && LocalDensity.current.fontScale <= Kit.COMPACT_ALIGNED_MAX_SCALE
             DismissibleItem(

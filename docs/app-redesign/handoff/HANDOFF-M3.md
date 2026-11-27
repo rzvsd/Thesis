@@ -126,8 +126,10 @@ File, change, reason. Paths are relative to `apps/mobile/android/app/src/main/ja
   (`scrollToItem(0)`, e.g. a future tap-tab-to-top) leaves it collapsed until the next drag. A screen that adds
   such a jump should report its state with `HeroUnderBars(collapsed = ...)`/`ownCollapsed`, or WP-INT adds a
   `ScreenChrome` reset for it.
-- Predictive back previews only the leaving page over the page background: Compose 1.6 has no seekable
-  `AnimatedContent`, so the page under it cannot be shown during the gesture (PR-4, playbook 8c).
+- ~~Predictive back previews only the leaving page over the page background: Compose 1.6 has no seekable
+  `AnimatedContent`, so the page under it cannot be shown during the gesture (PR-4, playbook 8c).~~ **Resolved in
+  PR-4b:** the shell's tab layer runs on `SeekableTransitionState`; a held back gesture shows the page under it
+  (DESIGN-DIRECTION 4.5).
 
 ## Integration status (WP-INT, redesign/pr2)
 

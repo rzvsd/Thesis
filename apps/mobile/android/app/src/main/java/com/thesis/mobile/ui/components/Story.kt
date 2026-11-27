@@ -173,10 +173,9 @@ private fun DropCapText(text: AnnotatedString, band: IntRange, style: TextStyle,
         val bandAfterCap = (band.first - 1).coerceAtLeast(0) until (band.last).coerceAtLeast(0)
         // The cap sits on the baseline of the second line beside it (DD: a two-line drop cap), or of the only line.
         val capLine = (lines - 1).coerceAtMost(1)
-        // Written for Compose 1.6, which had no public per-line baseline (1.7 adds TextLayoutResult.getLineBaseline;
-        // switching is a PR-4b clean-up). The story style has one fixed line height, so line n's baseline is the
-        // first baseline moved down by line n's top.
-        val besideBaseline = beside.firstBaseline + beside.getLineTop(capLine) - beside.getLineTop(0)
+        // Compose 1.7's per-line baseline (PR-4b; 1.6 derived it from the first baseline and the line tops, the same
+        // value for the story style's fixed line height: drop-cap renders unchanged).
+        val besideBaseline = beside.getLineBaseline(capLine)
         val capShift = (besideBaseline - capLayout.firstBaseline).roundToInt()
         Column(Modifier.semantics(mergeDescendants = true) { contentDescription = text.text }) {
             Layout(

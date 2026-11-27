@@ -323,8 +323,13 @@ class ShellLayersTest {
         assertTrue("the hero page scrolled", todayScroll() > 0f)
         assertEquals("collapsed: back to the theme's icons", false, calls.lastOrNull())
 
-        rule.onAllNodes(verticalScroll).onFirst().performTouchInput { swipeDown() }
+        // Back up by the same distance (and a little more), so the drag ends at the top instead of running on into
+        // a pull to refresh (Material3's pullToRefresh takes the rest of a drag at the top, then settles back).
+        rule.onAllNodes(verticalScroll).onFirst().performTouchInput { swipeDown(startY = bottom * 0.35f, endY = bottom * 0.8f) }
         rule.waitForIdle()
+        rule.mainClock.advanceTimeBy(1_000)
+        rule.waitForIdle()
+        assertEquals("back at the top", 0f, todayScroll(), 0.5f)
         assertEquals("back at the top: over the hero again", true, calls.lastOrNull())
 
         // A pushed screen without a HeroBand is what the status bar sits over now.

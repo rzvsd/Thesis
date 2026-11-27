@@ -303,13 +303,13 @@ Not taken, with reasons:
 
 Carried from Deferred, each with the change it needs:
 
-1. **Report rows' container transform (4.5):** History and Research's recent reports keep the shared-axis push.
-   Needs the report base layer reordered over the tab layer during the transform (shell, PR-4).
-2. **A note search hit's exact entry:** Name opens at "Your notes". Needs `NotesTrail` entry keys (kit, WP-K) to
+1. **Done in PR-4b (WP-M).** ~~Report rows' container transform (4.5): History and Research's recent reports keep
+   the shared-axis push.~~ Report rows grow into the report (`sharedBounds`, the report's cover while the bounds move).
+2. **Done in PR-4b (WP-K)**, anchor `Destination.Name.noteEntryAnchor`. ~~A note search hit's exact entry:~~ Name opens at "Your notes". Needs `NotesTrail` entry keys (kit, WP-K) to
    bring the matched entry into view.
 3. **A Compare reports change's chapter:** opens the newer report at its top. Needs a chapter on
    `DeepDiveTopChangeView` (model + worker) to pass to `Destination.Report`.
-4. **Compare names at 412 dp:** the median and the fourth ticker sit behind "Swipe the table". Needs the
+4. **Done in PR-4b (WP-K)**: every column and the median in view at 412 dp. ~~Compare names at 412 dp:~~ the median and the fourth ticker sit behind "Swipe the table". Needs the
    `CompareTable` column fit and one 48 dp target per row over compact cells (kit, WP-K, with D8).
 
 ### Verification after review round 3

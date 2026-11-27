@@ -275,6 +275,7 @@ internal fun compareReportsModel(a: DeepDiveReportView, b: DeepDiveReportView, f
         CompareRow(
             ResearchCopy.ROW_GROWTH_SHORT,
             listOf(Fmt.signedPct(v(fo?.revenueGrowthPct), missing = word(fo?.revenueGrowthPct)), Fmt.signedPct(v(fn?.revenueGrowthPct), missing = word(fn?.revenueGrowthPct))),
+            unit = ResearchCopy.UNIT_YOY,
             delta = growthD?.let { Fmt.bpsFromPoints(it) },
         ),
         marginRow(ResearchCopy.ROW_GROSS, fo?.grossMarginPct, fn?.grossMarginPct, grossD),

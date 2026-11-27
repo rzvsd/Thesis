@@ -5,6 +5,7 @@ import com.thesis.mobile.ui.theme.Tone
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /** Pure-model tests for the kit: CompareTable TSV, RowPosition, Loadable, SourceInfo, kit copy. */
@@ -49,6 +50,68 @@ class KitModelTest {
             "Revenue, \$bn: FY Sep-25 391.0, FY Sep-24 383.3, Change +2.0%",
             model.describe(model.rows[0]),
         )
+    }
+
+    @Test
+    fun aShownLabelKeepsItsUnitWithItsLastWordAndTheTsvKeepsPlainSpaces() {
+        assertEquals("Revenue,\u00A0\$bn", model.labelShown(model.rows[0]))
+        assertEquals("Revenue, \$bn", model.labelOf(model.rows[0]))
+    }
+
+    @Test
+    fun aFilingLineWrapsAtItsSeparatorWhichGoes() {
+        // Every character 1 px: "10-K · 31 Oct 2025" wraps to "10-K" over "31 Oct 2025", 11 px, the separator gone.
+        val needs = compareTableNeeds(model, null) { text, _ -> text.split('\n').maxOf { it.length } }
+        assertEquals(11, needs.headerWrap[0])
+    }
+
+    @Test
+    fun aTightFitWrapsHeadersWhenThatKeepsMoreLabelsOnOneLine() {
+        // A status header (60 px whole, 30 px wrapped) over an empty column; three labels 60 px whole, 30 px wrapped.
+        fun needs(label: Int) = CompareTableNeeds(
+            labelWide = label,
+            labelWord = 30,
+            valueWide = listOf(20, 0),
+            headerLine = listOf(20, 60),
+            headerWrap = listOf(20, 30),
+            headerWord = listOf(20, 20),
+            labelLines = listOf(label, label, label),
+        )
+        val tight = listOf(CompareTableDensity(padding = 0, columnMin = 0, wrapHeaders = true))
+        // Whole headers leave 40 px to the labels (all three wrap); the wrapped header leaves 70 (none wraps).
+        val wrapped = fitCompareTable(needs(60), 120, tight, tight[0])
+        assertEquals(60, wrapped.labelWidth)
+        assertEquals(listOf(25, 35), wrapped.columnWidths)
+        // When the wrap saves no label row, the header stays whole.
+        val whole = fitCompareTable(needs(30), 120, tight, tight[0])
+        assertEquals(30, whole.labelWidth)
+        assertEquals(listOf(25, 65), whole.columnWidths)
+    }
+
+    @Test
+    fun aColumnWithNoFiguresNarrowsToItsHeadersLongestWordWhenThatKeepsLabelsWhole() {
+        // A status column over blank cells: 60 px whole, 40 px on two lines, 15 px down to its longest word.
+        val needs = CompareTableNeeds(
+            labelWide = 70,
+            labelWord = 30,
+            valueWide = listOf(20, 0),
+            headerLine = listOf(20, 60),
+            headerWrap = listOf(20, 40),
+            headerWord = listOf(20, 15),
+            labelLines = listOf(70, 70, 70, 70),
+        )
+        val tight = listOf(CompareTableDensity(padding = 0, columnMin = 0, wrapHeaders = true))
+        // Whole or two-line headers leave the labels 40 or 60 px (all four wrap); the bare column leaves them 85.
+        val fit = fitCompareTable(needs, 120, tight, tight[0])
+        assertEquals(70, fit.labelWidth)
+        assertEquals(listOf(27, 23), fit.columnWidths)
+        // Never under the column floor (a sort button's 48 dp), and a column with figures never narrows.
+        val floored = fitCompareTable(needs, 120, tight, tight[0], columnFloor = 30)
+        assertTrue(floored.columnWidths.all { it >= 30 })
+        // Only when it saves rows: with room for the labels beside the whole header, the header stays whole.
+        val roomy = fitCompareTable(needs, 160, tight, tight[0])
+        assertEquals(70, roomy.labelWidth)
+        assertEquals(listOf(25, 65), roomy.columnWidths)
     }
 
     @Test

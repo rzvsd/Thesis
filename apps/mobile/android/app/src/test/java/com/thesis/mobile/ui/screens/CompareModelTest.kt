@@ -9,6 +9,9 @@ import com.thesis.mobile.model.FinancialHistoryRowView
 import com.thesis.mobile.model.ReportSummaryView
 import com.thesis.mobile.model.TrustMetadataView
 import com.thesis.mobile.model.TrustThesisDriftView
+import com.thesis.mobile.ui.components.CompareTableDensity
+import com.thesis.mobile.ui.components.compareTableNeeds
+import com.thesis.mobile.ui.components.fitCompareTable
 import com.thesis.mobile.ui.copy.ResearchCopy
 import com.thesis.mobile.ui.format.Fmt
 import com.thesis.mobile.ui.format.Missing
@@ -251,19 +254,39 @@ class CompareModelTest {
     }
 
     @Test
-    fun hiddenColumnsAreThoseThatDoNotFitBesideTheLabels() {
+    fun compareNamesFitsAPhoneAtCompactDensityAndScrollsOnlyWhenItMust() {
         val table = compareNamesTable(compareNameColumns(state, emptyMap()))
-        // Every text 10 px a character; padding 20, column minimum 80: label 21 chars -> 230, capped at 42%.
-        val measure = { text: String, _: androidx.compose.ui.text.TextStyle ->
-            val lines = text.split('\n')
-            TextWidth(lines.maxOf { it.length } * 10, text.split(' ', '\n').maxOf { it.length } * 10)
-        }
-        assertEquals(emptyList<Int>(), hiddenColumns(table, 2000, 80, 20, measure))
-        val narrow = hiddenColumns(table, 400, 80, 20, measure)
-        assertTrue(narrow.isNotEmpty())
-        // The median (the delta column, index columns.size) is past the edge on a narrow phone.
-        assertTrue(table.columns.size in narrow)
-        assertTrue(0 !in narrow)
+        // Every text 7 px a character (one line per explicit break).
+        val needs = compareTableNeeds(table, null) { text, _ -> text.split('\n').maxOf { it.length } * 7 }
+        val densities = listOf(
+            CompareTableDensity(padding = 12, columnMin = 88, wrapHeaders = false),
+            CompareTableDensity(padding = 12, columnMin = 0, wrapHeaders = false),
+            CompareTableDensity(padding = 8, columnMin = 0, wrapHeaders = true),
+            CompareTableDensity(padding = 6, columnMin = 0, wrapHeaders = true),
+        )
+        val scroll = densities[2]
+        // Wide: the comfortable density, the spare width spread over the value columns (flush with the end edge).
+        val wide = fitCompareTable(needs, 2000, densities, scroll)
+        assertEquals(12, wide.padding)
+        assertEquals(2000, wide.width)
+        assertTrue(wide.hidden.isEmpty())
+        // Narrower: a compact density, every column (the median too) in view, no scroll ("No report yet" on two lines).
+        // The label column's floor is "Growth, YoY", one word as drawn (its unit joins with a non-breaking space).
+        assertEquals("Growth,\u00A0YoY", table.labelShown(table.rows[1]))
+        assertEquals("Growth, YoY", table.labelOf(table.rows[1]))
+        assertEquals("Growth, YoY".length * 7, needs.labelWord)
+        val phone = fitCompareTable(needs, 350, densities, scroll)
+        assertFalse(phone.scrolls)
+        assertTrue(phone.hidden.isEmpty())
+        assertTrue(phone.padding < 12)
+        assertTrue(phone.width <= 350)
+        // A figure is never narrower than its text: each column holds its widest value plus the padding.
+        phone.columnWidths.forEachIndexed { c, w -> assertTrue(w >= needs.valueWide[c] + 2 * phone.padding) }
+        // Too narrow even then: it scrolls, the first column stays in view and the median is named as past the edge.
+        val narrow = fitCompareTable(needs, 200, densities, scroll)
+        assertTrue(narrow.scrolls)
+        assertTrue(table.columns.size in narrow.hidden)
+        assertTrue(0 !in narrow.hidden)
     }
 
     @Test
