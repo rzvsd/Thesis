@@ -95,8 +95,9 @@ import kotlin.math.min
  * one (12 dp cell padding, 88 dp column floor) down to a compact one (6 dp padding, columns as wide as their
  * figures, headers and labels wrapping between words). It takes the first at which every column is in view with
  * nothing wrapped, else the first at which it is with labels wrapped between words (a wrapped label costs a taller
- * row, so the comfortable densities try first without one). Spare width goes to the value columns, so the last one sits flush with the panel's end. Only when even the compact
- * density does not fit (360 dp at a large font scale) does the table scroll. Figures never wrap or ellipsize.
+ * row, so the comfortable densities try first without one). Spare width goes to the value columns, so the last one
+ * sits flush with the panel's end. Only when even the compact density does not fit (360 dp at a large font scale)
+ * does the table scroll. Figures never wrap or ellipsize.
  * With a cell tap, each row is one 48 dp touch target over compact cells; the tap's x picks the column.
  */
 
@@ -191,8 +192,9 @@ data class CompareTableModel(
 
 /**
  * What the table's text needs, in px and without cell padding: the label column's longest line ([labelWide]) and
- * longest word ([labelWord]), each row label's line ([labelLines], row order, the label header not included); per value column (the delta column last) its widest figure ([valueWide]) and its
- * header's longest line ([headerLine]), the narrowest it wraps to in a fitting table ([headerWrap]: a period never
+ * longest word ([labelWord]), each row label's line ([labelLines], row order, the label header not included); per
+ * value column (the delta column last) its widest figure ([valueWide]) and its header's longest line
+ * ([headerLine]), the narrowest it wraps to in a fitting table ([headerWrap]: a period never
  * breaks, "FY Sep-25" is one unit, though a status in its place, "No report yet", may; the filing line and the delta
  * header break between words; each onto at most two lines)
  * and its longest word ([headerWord], the last resort of a table that scrolls anyway, so its first column stays whole
@@ -228,7 +230,6 @@ fun compareTableNeeds(
         if (w.size < 2 || (periods && line.any { it.isDigit() })) {
             if (line.isBlank()) 0 else measure(line.trim(), style)
         } else {
-            // A filing line ("10-K · 31 Oct 2025") breaks after its separator, so the date stays whole.
             // A filing line ("10-K · 31 Oct 2025") breaks at its separator, which then goes ("10-K" over "31 Oct 2025"),
             // so the date stays whole.
             val seps = (1 until w.size).filter { w[it - 1] == "·" }
@@ -266,7 +267,9 @@ fun compareTableNeeds(
             model.rows.maxOfOrNull { r -> measure(cellText(model, r, c), ThesisType.tableNum) } ?: 0
         },
         headerLine = headers.map { h -> h.maxOf { (t, s, _) -> if (t.isEmpty()) 0 else measure(t, s) } },
-        headerWrap = headers.map { h -> h.maxOf { (t, s, wraps) -> if (t.isEmpty()) 0 else if (wraps) twoLines(t, s) else twoLines(t, s, periods = true) } },
+        headerWrap = headers.map { h ->
+            h.maxOf { (t, s, wraps) -> if (t.isEmpty()) 0 else if (wraps) twoLines(t, s) else twoLines(t, s, periods = true) }
+        },
         headerWord = headers.map { h -> h.maxOf { (t, s, _) -> words(t, s) } },
         labelLines = rowLabels.map { (t, s) -> if (t.isEmpty()) 0 else measure(t, s) },
     )
@@ -310,8 +313,9 @@ class CompareTableFit(
  * longest word) and headers too where the density allows: of one-line headers and wrapped ones, the shape with fewer
  * taller rows (each wrapped label is one, the header row one more when its headers wrap), one-line headers on a tie.
  * The spare width is spread over the value columns.
- * [columnFloor] keeps every value column at least that wide (48 dp when its header is a sort button). When none fits, the [scrollDensity] is used with the label column capped at
- * [labelMaxFraction] of the width (never under its longest word, always leaving the first value column in view).
+ * [columnFloor] keeps every value column at least that wide (48 dp when its header is a sort button). When none
+ * fits, the [scrollDensity] is used with the label column capped at [labelMaxFraction] of the width (never under its
+ * longest word, always leaving the first value column in view).
  */
 fun fitCompareTable(
     needs: CompareTableNeeds,

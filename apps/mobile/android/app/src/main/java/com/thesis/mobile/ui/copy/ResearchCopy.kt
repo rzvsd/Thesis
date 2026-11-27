@@ -304,12 +304,14 @@ object ResearchCopy {
     const val ROW_DISCIPLINE = "Value discipline"
     const val ROW_EPS = "EPS, derived"
 
-    // Compare reports' row labels: the conventional short forms of a filings table, so the label column leaves
-    // room for both years and the change on a 412 dp phone. The source sheet and the spoken row keep the meaning.
-    const val ROW_GROWTH_SHORT = "Growth, YoY"
+    // Compare reports' and Compare names' row labels: the conventional short forms of a filings table, so the label
+    // column leaves room for both years and the change on a 412 dp phone. The source sheet and the spoken row keep
+    // the meaning. "YoY" goes in the row's unit (CompareRow.unit), which the table joins to the label with a
+    // non-breaking space ("Growth, YoY" never leaves "YoY" alone on a line); spoken and copied text keep a plain one.
+    const val ROW_GROWTH_SHORT = "Growth"
     const val ROW_FCF_SHORT = "FCF"
     const val ROW_SHARES_SHORT = "Shares"
-    const val ROW_SHARES_YOY_SHORT = "Shares, YoY"
+    const val UNIT_YOY = "YoY"
     const val UP = "Up"
     const val DOWN = "Down"
     const val CHANGED = "Changed"

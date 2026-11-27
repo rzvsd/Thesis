@@ -271,11 +271,15 @@ class CompareModelTest {
         assertEquals(2000, wide.width)
         assertTrue(wide.hidden.isEmpty())
         // Narrower: a compact density, every column (the median too) in view, no scroll ("No report yet" on two lines).
-        val phone = fitCompareTable(needs, 340, densities, scroll)
+        // The label column's floor is "Growth, YoY", one word as drawn (its unit joins with a non-breaking space).
+        assertEquals("Growth,\u00A0YoY", table.labelShown(table.rows[1]))
+        assertEquals("Growth, YoY", table.labelOf(table.rows[1]))
+        assertEquals("Growth, YoY".length * 7, needs.labelWord)
+        val phone = fitCompareTable(needs, 350, densities, scroll)
         assertFalse(phone.scrolls)
         assertTrue(phone.hidden.isEmpty())
         assertTrue(phone.padding < 12)
-        assertTrue(phone.width <= 340)
+        assertTrue(phone.width <= 350)
         // A figure is never narrower than its text: each column holds its widest value plus the padding.
         phone.columnWidths.forEachIndexed { c, w -> assertTrue(w >= needs.valueWide[c] + 2 * phone.padding) }
         // Too narrow even then: it scrolls, the first column stays in view and the median is named as past the edge.

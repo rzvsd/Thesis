@@ -264,14 +264,24 @@ internal fun metricLabel(metric: NameMetric): String = when (metric) {
 }
 
 /**
- * The row label in the table: the conventional short forms ("Growth, YoY", "Shares, YoY"; operating margin keeps its full name, as on Name and the Deep Dive), so the
- * pinned label column leaves room for a third name on a 412 dp phone. The source sheet, the sort caption and
- * "Copy as table" keep the full name ([metricLabel]).
+ * The row label in the table: the conventional short forms ("Growth" and "Shares", with [metricShortUnit] "YoY";
+ * operating margin keeps its full name, as on Name and the Deep Dive), so the pinned label column leaves room for a
+ * third name on a 412 dp phone. The source sheet, the sort caption and "Copy as table" keep the full name
+ * ([metricLabel]).
  */
 internal fun metricShortLabel(metric: NameMetric): String = when (metric) {
     NameMetric.Growth -> ResearchCopy.ROW_GROWTH_SHORT
-    NameMetric.Shares -> ResearchCopy.ROW_SHARES_YOY_SHORT
+    NameMetric.Shares -> ResearchCopy.ROW_SHARES_SHORT
     else -> metricLabel(metric)
+}
+
+/**
+ * The unit after a short row label ("YoY"): the table joins it with a non-breaking space ("Growth, YoY"), so a
+ * wrapped label never leaves "YoY" alone on its own line. TalkBack and the kit's copy read it with a plain space.
+ */
+internal fun metricShortUnit(metric: NameMetric): String? = when (metric) {
+    NameMetric.Growth, NameMetric.Shares -> ResearchCopy.UNIT_YOY
+    else -> null
 }
 
 /** A formatted value; one of the three words when missing (never a dash). */
@@ -396,6 +406,7 @@ internal fun compareNamesTable(columns: List<CompareNameColumn>): CompareTableMo
             val share = !disciplineSharesOneBasis(columns)
             CompareRow(
                 label = metricShortLabel(m),
+                unit = metricShortUnit(m),
                 values = columns.map { cellText(it, m, disciplineAsShare = share) },
                 delta = if (m == NameMetric.Discipline) disciplineMedianText(columns) else formatMetric(m, med, Missing.NotMeaningful),
             )
