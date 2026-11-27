@@ -53,8 +53,9 @@ import kotlin.math.roundToInt
  * - `motion4b-name-open` / `-name-close`: a Names row grows into Name, and shrinks back into its row on back.
  * - `motion4b-research-report` / `-history-report`: a recent report row (Research) and a History row grow into
  *   the report, drawn over the list although the report lives in the base layer.
- * - `motion4b-seek-*`: a back gesture held at 50% over a plain push (History) and over a transformed page (Name),
- *   then cancelled or committed.
+ * - `motion4b-seek-*`: a back gesture held at 25% and 50% over a plain push (History), over a transformed page
+ *   (Name) and over a report opened from a Research row (never seekable: the .90 preview, dropped along the shrink
+ *   on commit), then cancelled or committed.
  * - `motion4b-refresh`: Names pulled past the threshold, released, refreshing, done.
  */
 @OptIn(ExperimentalTestApi::class)
@@ -242,6 +243,15 @@ class MotionUpgradeRenders {
         test.runOnIdle { driver.commit() }
         frames("commit", frames)
     }
+
+    @Test fun backGestureOverATransformedReportCommits() =
+        shell("seek-report-commit", reportState, setup = { selectTab(ShellTab.Research) }) {
+            tapRow("AAPL")
+            step(900)
+            val driver = holdBack()
+            test.runOnIdle { driver.commit() }
+            frames("commit", listOf(0, 60, 120, 180, 240))
+        }
 
     // ---- Pull to refresh (Material3 1.3)
 

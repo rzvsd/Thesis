@@ -23,7 +23,8 @@ import com.thesis.mobile.ui.theme.LocalReducedMotion
 
 /**
  * The 4.4 item motion for this lazy item (see the file comment). [placement] = false keeps the fades but lets the
- * item take its new place at once: for sticky headers, which the list pins and moves itself.
+ * item take its new place at once: for sticky headers, which the list pins and moves itself, and for every item of
+ * a list that has them (Inbox), so rows and headers always move in the same frames.
  */
 @Composable
 fun LazyItemScope.thesisItemMotion(placement: Boolean = true): Modifier {

@@ -100,6 +100,16 @@ object ThesisMotion {
     const val RollMaskFraction = 0.18f
     /** Container transform: the detail fades in over the last 70% of the reveal (section 4.5). */
     const val TransformContentFrom = 0.30f
+    /**
+     * Container transform, the way back: the container stays opaque while it shrinks and crossfades with its row
+     * over the last 15% of the time only, when the bounds are on the row (section 4.5, no ghost over the list).
+     */
+    const val TransformHandOver = 0.15f
+    /**
+     * Predictive back over a page opened from a row: a held gesture shrinks it at most this share of the way into
+     * the row (eased), so the page stays readable until the commit runs the rest (section 4.5).
+     */
+    const val TransformSeekMax = 0.35f
     /** Predictive back preview: content scales toward this (section 4.5). */
     const val BackScaleTo = 0.90f
     /** Shimmer: band width as a share of the screen width (one continuous light across all blocks). */

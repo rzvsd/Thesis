@@ -148,15 +148,15 @@ class ShellTransformMotionTest {
             seek.update(0.5f)
         }
         rule.mainClock.advanceTimeBy(64)
-        // Half way: the page on top is still whole (it leaves over the last 90 ms only); the page under is composed
-        // beneath it, coming in.
+        // Half way: the page on top is still whole (it only slides off, over 180 ms, once the back commits); the
+        // page under is composed beneath it, coming in.
         assertEquals(peek!!.entryId, seek.transitionState.targetState.entryId)
         assertEquals(onTop.argb(), centre().argb())
 
-        rule.runOnIdle { seek.update(0.95f) }
+        rule.runOnIdle { seek.update(1f) }
         rule.mainClock.advanceTimeBy(64)
-        val late = centre()
-        assertTrue("near the end of the gesture the page under shows through ($late)", late.red > late.blue)
+        assertEquals("a gesture held to the end never takes the page on top off", onTop.argb(), centre().argb())
+        assertEquals("it only seeks the page under's part of the pop", 0.4f, seek.transitionState.fraction, 0.01f)
 
         rule.runOnIdle { seek.end(committed = false) }
         rule.mainClock.advanceTimeByFrame()
@@ -189,8 +189,8 @@ class ShellTransformMotionTest {
         }
         rule.mainClock.advanceTimeByFrame()
         rule.mainClock.advanceTimeByFrame()
-        // 150 ms into the 300 ms pop plus two frames: the page on top has not started to leave, so nothing jumped
-        // back to the start or on to the end.
+        // 60 ms into the 300 ms pop (the gesture's half of its first 120 ms) plus two frames: the page on top has not
+        // started to leave, so nothing jumped back to the start or on to the end.
         assertEquals("the commit continues from the gesture's position", onTop.argb(), centre().argb())
         rule.mainClock.advanceTimeBy(500)
         assertNull(seek.gesture)
@@ -213,6 +213,136 @@ class ShellTransformMotionTest {
         assertNull("a report is drawn by the base layer", reportOnTop.backSeekTarget(reducedMotion = false))
         reportOnTop.push(Destination.CompareReports("rep-AAPL", "rep-AAPL-2025"))
         assertNull("nor is a report under the page", reportOnTop.backSeekTarget(reducedMotion = false))
+    }
+
+    @Test
+    fun aGestureSeeksOnlyFromALayerAtRest() {
+        val navigator = AppNavigator().apply { selectTab(ShellTab.Research) }
+        val seek = TabSeek(navigator.tabTop)
+        rule.mainClock.autoAdvance = false
+        setTabLayer(navigator, seek)
+        rule.mainClock.advanceTimeBy(500)
+        rule.runOnIdle { navigator.push(Destination.History()) }
+        step(64)
+        assertTrue("the push is still running", !seek.atRestOn(navigator.tabTop))
+        step(600)
+        assertTrue(seek.atRestOn(navigator.tabTop))
+    }
+
+    @Test
+    fun aHeldGestureSeeksTheShrinkOfATransformedPageOnlyPartWayAndItStaysReadable() {
+        val navigator = AppNavigator().apply { selectTab(ShellTab.Names) }
+        val seek = TabSeek(navigator.tabTop)
+        rule.mainClock.autoAdvance = false
+        setTabLayer(navigator, seek, withMarker = true)
+        rule.mainClock.advanceTimeBy(500)
+        rule.runOnIdle {
+            navigator.pushFrom(Rect(0f, 160f, 360f, 240f)) { navigator.push(Destination.Name("AAPL")) }
+        }
+        step(900)
+        val rest = markerBounds(pixels())!!
+        val peek = navigator.backSeekTarget(reducedMotion = false)!!
+        rule.runOnIdle { seek.begin(peek, intoRow = true) }
+        listOf(0.25f, 0.5f, 1f).forEach { p ->
+            rule.runOnIdle { seek.update(p) }
+            step(48)
+            val frame = pixels()
+            val marker = markerBounds(frame)
+            assertNotNull("at $p the page's content still shows", marker)
+            val c = frame[marker!!.center.x.toInt(), marker.center.y.toInt()]
+            // White content over the container: its red channel is about the content's alpha.
+            val minAlpha = if (p <= 0.5f) 0.6f else 0.45f
+            assertTrue("at $p the content is readable (marker $c)", c.red > minAlpha)
+            var page = 0
+            var all = 0
+            for (y in 0 until frame.height step 4) for (x in 0 until frame.width step 4) {
+                val px = frame[x, y]
+                if (px.blue > px.red || px.green > 0.45f) page++
+                all++
+            }
+            if (p <= 0.5f) assertTrue("at $p the page still covers most of the layer (${page * 100 / all}%)", page * 2 > all)
+            assertTrue("the marker shrinks toward the row, never past the preview cap", marker.width > rest.width * 0.5f)
+        }
+        // A cancel brings the page back whole.
+        rule.runOnIdle { seek.end(committed = false) }
+        step(900)
+        assertEquals(rest, markerBounds(pixels()))
+    }
+
+    // ---- Interruptions (a new move before the last one ends)
+
+    private val tabColours = mapOf(
+        ShellTab.Today to Color(0xFFFF0000),
+        ShellTab.Names to Color(0xFF00FF00),
+        ShellTab.Research to Color(0xFF0000FF),
+    )
+
+    private fun setColouredTabs(navigator: AppNavigator, seek: TabSeek) {
+        rule.setContent {
+            ThesisTheme(mode = ThemeMode.Dark) {
+                val holder = rememberSaveableStateHolder()
+                val env = remember { ShellLayerEnv(holder, ShellMotionPx(63, 84), 21f, false, BackPreview()) }
+                TabLayer(
+                    target = navigator.tabTop,
+                    move = { navigator.lastMove },
+                    env = env,
+                    drawnBelow = { false },
+                    modifier = Modifier.background(Color.Black),
+                    seek = seek,
+                ) { entry ->
+                    val colour = when (entry.destination) {
+                        is Destination.History -> Color(0xFFFFFFFF)
+                        Destination.Today -> tabColours.getValue(ShellTab.Today)
+                        Destination.Names -> tabColours.getValue(ShellTab.Names)
+                        else -> tabColours.getValue(ShellTab.Research)
+                    }
+                    Box(Modifier.fillMaxSize().background(colour))
+                }
+            }
+        }
+    }
+
+    @Test
+    fun twoQuickTabTapsNeverFlashTheTabInBetween() {
+        val navigator = AppNavigator()
+        val seek = TabSeek(navigator.tabTop)
+        rule.mainClock.autoAdvance = false
+        setColouredTabs(navigator, seek)
+        step(500)
+        rule.runOnIdle { navigator.selectTab(ShellTab.Names) }
+        step(96)
+        rule.runOnIdle { navigator.selectTab(ShellTab.Research) }
+        val greens = mutableListOf<Float>()
+        repeat(40) {
+            step(16)
+            greens += centre().green
+        }
+        assertTrue("the tab tapped past never shows in full (green per frame: $greens)", greens.all { it < 0.9f })
+        assertEquals("the second tap lands", tabColours.getValue(ShellTab.Research).argb(), centre().argb())
+        assertTrue(seek.atRestOn(navigator.tabTop))
+    }
+
+    @Test
+    fun aBackRightAfterAPushReversesItSmoothly() {
+        val navigator = AppNavigator().apply { selectTab(ShellTab.Research) }
+        val seek = TabSeek(navigator.tabTop)
+        rule.mainClock.autoAdvance = false
+        setColouredTabs(navigator, seek)
+        step(500)
+        rule.runOnIdle { navigator.push(Destination.History()) }
+        step(112)
+        val atBack = centre().red // History is white: its red channel is its share
+        rule.runOnIdle { navigator.back() }
+        val reds = mutableListOf<Float>()
+        repeat(30) {
+            step(16)
+            reds += centre().red
+        }
+        assertTrue("History never jumps to full after the back (red per frame from $atBack: $reds)", reds.all { it < 0.9f })
+        assertTrue("it never grows again after the back: $reds", reds.zipWithNext().all { (a, b) -> b <= a + 0.02f })
+        assertTrue("it leaves within 120 ms: $reds", reds[7] < 0.05f)
+        assertEquals(tabColours.getValue(ShellTab.Research).argb(), centre().argb())
+        assertTrue(seek.atRestOn(navigator.tabTop))
     }
 
     // ---- Container transform
@@ -323,8 +453,13 @@ class ShellTransformMotionTest {
         step(180)
         val nearMid = near()
         val farMid = far()
-        assertTrue("the report, in the base layer, is drawn over the list where it grows ($nearMid)", nearMid.green > nearMid.red)
+        // The report's container (its page background), in the base layer, is drawn over the list where it grows;
+        // its content (the WebView on a device) waits at alpha 0 until the bounds have settled.
+        assertTrue("the report's container covers the list where it grows ($nearMid)", nearMid.red < 0.3f)
+        assertTrue("the report's content is not drawn in the overlay ($nearMid)", nearMid.green < 0.3f)
         assertTrue("the list still shows outside the growing report ($farMid)", farMid.red > farMid.green)
+        val greens = (0 until 16).map { step(16); far().green }
+        assertTrue("then the content fades in, in place: $greens", greens.any { it > 0.05f && it < 0.95f })
         step(600)
         assertEquals("at rest the report covers the layer", reportColour.argb(), far().argb())
 

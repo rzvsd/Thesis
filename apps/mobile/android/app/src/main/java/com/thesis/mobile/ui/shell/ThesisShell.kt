@@ -100,11 +100,13 @@ import kotlinx.coroutines.launch
  *
  * Back (4.5): a predictive back handler, enabled while [AppNavigator.canGoBack], previews the pop on the page it
  * closes (scale to .90, 8 dp away from the swipe edge; still under reduced motion, 4.8). A plain pop inside the tab
- * is also seekable (PR-4b, ShellBackSeek.kt): the gesture drives the tab layer's pop, so the page under comes in
- * beneath the previewed page and a commit runs on from there (the page on top slides off); a page opened from a
- * row shrinks back into it with the gesture instead of scaling. Any other back (a modal, a report, a tab root, or
- * reduced motion) commits as before: the page slides and fades out from the previewed transform, then the page
- * under it comes in at full size. A cancel settles back with `spatialSlow`. Pages opened from a row grow from it
+ * is also seekable (PR-4b, ShellBackSeek.kt): the gesture drives the start of the tab layer's pop, so the page
+ * under comes in beneath the previewed page, and a commit runs on from there (only then does the page on top slide
+ * off, toward the way the finger moves); a page opened from a row starts to shrink back into it with the gesture
+ * (at most 35% of the way, so it stays readable) instead of scaling. Any other back (a modal, a report, a tab
+ * root, a layer still moving, or reduced motion) commits as before: the page slides and fades out from the
+ * previewed transform, then the page under it comes in at full size (a report opened from a row drops its preview
+ * along its shrink). A cancel settles back with `spatialSlow`. Pages opened from a row grow from it
  * and shrink back into it as a shared-bounds container transform (ShellTransform.kt). The whole tree sits on one
  * shared page background (2.7).
  */
@@ -174,23 +176,29 @@ fun ThesisShell(
     ThesisPredictiveBackHandler(enabled = navigator.canGoBack) { events ->
         // The page this back closes: the top modal, else the tab's top entry (a report is drawn by the base layer).
         val closing = navigator.top.entryId
-        // A plain pop inside the tab scrubs the tab layer's real pop with the gesture (ShellBackSeek.kt): the page
-        // under comes in while the page on top keeps its .90 preview; a page opened from a row shrinks back into
-        // it with the gesture instead of scaling. Anything else (a modal, a report, a tab root, reduced motion)
-        // only previews the page it closes.
-        val peek = navigator.backSeekTarget(reducedMotion)
-        val transformPop = peek != null && navigator.transformOrigin(closing) != null
+        // It shrinks back into the row it was opened from (a Name from a Names row, a report from a History row).
+        val intoRow = !reducedMotion && navigator.modalStack.isEmpty() && navigator.transformOrigin(closing) != null
+        // A plain pop inside the tab, from a layer at rest, previews the tab layer's real pop with the gesture
+        // (ShellBackSeek.kt): the page under comes in while the page on top keeps its .90 preview; a page opened
+        // from a row starts to shrink back into it instead of scaling. Anything else (a modal, a report, a tab
+        // root, a layer still moving, reduced motion) only previews the page it closes.
+        val peek = navigator.backSeekTarget(reducedMotion)?.takeIf { tabSeek.atRestOn(navigator.tabTop) }
+        val transformPop = peek != null && intoRow
         if (!transformPop) backPreview.start(closing)
-        if (peek != null) tabSeek.begin(peek)
         try {
             events.collect { event ->
                 if (!transformPop) backPreview.update(event.progress, event.swipeEdge)
-                if (peek != null) tabSeek.update(event.progress)
+                if (peek != null) {
+                    // Begun on the first event, which carries the swipe edge (a commit slides the page that way).
+                    if (!tabSeek.seeking) tabSeek.begin(peek, intoRow = transformPop, edge = event.swipeEdge)
+                    tabSeek.update(event.progress)
+                }
             }
             actions.onBack()
             val stillOnScreen = navigator.top.entryId == closing
             if (peek != null) tabSeek.end(committed = !stillOnScreen)
-            if (!transformPop) backPreview.commit(backScope, stillOnScreen = stillOnScreen)
+            // A page that shrinks into its row (a report: never seekable) drops its .90 preview along the shrink.
+            if (!transformPop) backPreview.commit(backScope, stillOnScreen = stillOnScreen, intoRow = intoRow)
         } catch (cancelled: CancellationException) {
             if (peek != null) tabSeek.end(committed = false)
             if (!transformPop) backPreview.cancel(backScope)

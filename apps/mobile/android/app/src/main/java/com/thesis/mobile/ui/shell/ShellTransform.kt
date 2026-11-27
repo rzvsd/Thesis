@@ -10,6 +10,7 @@ import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionLayout
 import androidx.compose.animation.SharedTransitionScope
+import androidx.compose.animation.core.Easing
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
@@ -57,11 +58,16 @@ import kotlin.math.roundToInt
  *   out once at its full size and scaled to the moving bounds, top-aligned and cropped (`ScaleToBounds(Crop)`): no
  *   relayout per frame and text is never stretched (the scale is uniform, about .92 at the row and 1 at rest, so the
  *   last frame equals the resting page: no jump). Corners go from the card radius to 0 ([TransformClip]); the fill
- *   goes from `surface` to `bg`, the container fades in over the first 30% (and out over the last 30% of the way
- *   back, so the row under it takes over without a pop) and the page's content fades in over the last 70%.
+ *   goes from `surface` to `bg`, the container fades in over the first 30% and the page's content over the last
+ *   70%. On the way back the content leaves over the first 30% of the shrink, and the container stays opaque
+ *   until the last 15% of the time ([transformClock]), when the bounds are on the row: it then crossfades with
+ *   the row in place, so no translucent ghost crosses the list or its heading.
+ * - A report (an AndroidView WebView, which shared elements do not support in the overlay) never shows its
+ *   content in the overlay on the way in: only its container grows; the content fades in once the bounds have
+ *   settled (ReportBaseLayer).
  * - Reduced motion (4.8) and pages with no origin (a restored stack, after a rotation) keep the crossfade or the
- *   shared axis: no placeholder, no shared bounds. A back gesture over a transformed page scrubs the shrink itself
- *   (no extra .90 scale, which would land the page off its row).
+ *   shared axis: no placeholder, no shared bounds. A back gesture over a transformed page previews the start of
+ *   the shrink itself (no extra .90 scale, which would land the page off its row; ShellBackSeek.kt).
  */
 
 /** The shell's shared-transition scope, or null outside [ShellTransformScope] (layer tests that skip it). */
@@ -182,12 +188,17 @@ internal fun TransformOrigin(
  * corner, fill and fade stay in step with them, and a seek (predictive back) moves both.
  */
 @Composable
-internal fun AnimatedVisibilityScope.transformProgress(revealIn: Boolean, revealOut: Boolean, label: String): State<Float> =
+internal fun AnimatedVisibilityScope.transformProgress(
+    revealIn: Boolean,
+    revealOut: Boolean,
+    label: String,
+    easing: Easing = ThesisMotion.EaseStandard,
+): State<Float> =
     transition.animateFloat(
         transitionSpec = {
             when {
-                targetState == EnterExitState.Visible && revealIn -> motionSpec(ThesisMotion.Screen, easing = ThesisMotion.EaseStandard)
-                targetState == EnterExitState.PostExit && revealOut -> motionSpec(ThesisMotion.ScreenOut, easing = ThesisMotion.EaseStandard)
+                targetState == EnterExitState.Visible && revealIn -> motionSpec(ThesisMotion.Screen, easing = easing)
+                targetState == EnterExitState.PostExit && revealOut -> motionSpec(ThesisMotion.ScreenOut, easing = easing)
                 else -> snapSpec()
             }
         },
@@ -199,6 +210,14 @@ internal fun AnimatedVisibilityScope.transformProgress(revealIn: Boolean, reveal
             EnterExitState.PostExit -> if (revealOut) 0f else 1f
         }
     }
+
+/**
+ * [transformProgress] in plain time (linear): the way back's container fade is timed on it, so it waits for the
+ * front-loaded bounds to reach the row instead of following them.
+ */
+@Composable
+internal fun AnimatedVisibilityScope.transformClock(revealIn: Boolean, revealOut: Boolean, label: String): State<Float> =
+    transformProgress(revealIn, revealOut, label, easing = ThesisMotion.Linear)
 
 /**
  * The scrim over the list a page grows from (or shrinks back into), on the list page's own transition: 0 → 1 while
@@ -231,12 +250,18 @@ internal fun transformContentAlpha(progress: Float): Float =
     ((progress - ThesisMotion.TransformContentFrom) / (1f - ThesisMotion.TransformContentFrom)).coerceIn(0f, 1f)
 
 /**
- * The alpha of a page's container in transform: it fades in over the first 30% of the move, while its content has
- * not started yet, so the row under it gives way to the container instead of being covered in one frame; on the way
- * back it fades over the last 30%, so the row (in place under it) takes over without a pop.
+ * The alpha of a page's container in transform. On the way in ([out] false) it fades in over the first 30% of the
+ * reveal ([progress]), while its content has not started yet, so the row under it gives way to the container
+ * instead of being covered in one frame. On the way back it stays opaque while it shrinks and fades over the last
+ * 15% of the time ([clock], linear), when the bounds are on the row: the row in place under it takes over without
+ * a pop and without a translucent ghost crossing the list.
  */
-internal fun transformContainerAlpha(progress: Float): Float =
-    (progress / ThesisMotion.TransformContentFrom).coerceIn(0f, 1f)
+internal fun transformContainerAlpha(progress: Float, clock: Float = progress, out: Boolean = false): Float =
+    if (out) {
+        (clock / ThesisMotion.TransformHandOver).coerceIn(0f, 1f)
+    } else {
+        (progress / ThesisMotion.TransformContentFrom).coerceIn(0f, 1f)
+    }
 
 /** The clip of a page in transform: the card radius at the row, square at rest ([progress] read at draw time). */
 internal class TransformClip(private val progress: () -> Float) : Shape {

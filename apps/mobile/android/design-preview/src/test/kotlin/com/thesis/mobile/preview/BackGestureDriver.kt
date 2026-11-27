@@ -48,7 +48,10 @@ internal class BackGestureDriver(private val edge: BackSwipeEdge = BackSwipeEdge
     private companion object {
         @Suppress("UNCHECKED_CAST")
         fun innermostPredictiveHandler(): (suspend (kotlinx.coroutines.flow.Flow<ThesisBackEvent>) -> Unit)? {
-            val field = PreviewBack::class.java.getDeclaredField("entries").apply { isAccessible = true }
+            // Fails loudly (never silently) if the shim's registry changes; HANDOFF-M asks WP-INT for a public hook.
+            val field = runCatching { PreviewBack::class.java.getDeclaredField("entries") }.getOrElse {
+                error("PreviewBack has no `entries` registry any more: switch BackGestureDriver to the shim's gesture hook")
+            }.apply { isAccessible = true }
             val entries = field.get(PreviewBack) as List<PreviewBack.Entry>
             val top = synchronized(entries) { entries.lastOrNull { it.enabled } } ?: return null
             return top.onPredictive

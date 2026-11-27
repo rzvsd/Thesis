@@ -103,7 +103,8 @@ internal fun TabLayer(
                     poppedToRow = originOf(initialState) != null,
                 )
                 // A back gesture scrubs a plain pop with the page under coming in beneath the page on top.
-                (if (move == ShellTransition.Backward && tabSeek.seeking) ShellTransition.BackSeek else move).toContentTransform(env.px)
+                (if (move == ShellTransition.Backward && tabSeek.seeking) ShellTransition.BackSeek else move)
+                    .toContentTransform(env.px, tabSeek.edge)
             },
             contentKey = { it.entryId },
         ) { entry ->
@@ -139,7 +140,10 @@ internal fun TabLayer(
                 val leaving = transition.targetState == EnterExitState.PostExit
                 val revealOut = remember(leaving) { leaving && canTransform && layerMove() == NavMove.Pop }
                 val reveal = transformProgress(revealIn, revealOut, label = "tab-container-reveal")
-                val transforming = canTransform && (revealIn || revealOut)
+                val clock = transformClock(revealIn, revealOut, label = "tab-container-clock")
+                // Only while the move runs (a page opened from a row is a plain page once it rests).
+                val inMove = transition.currentState != transition.targetState
+                val transforming = canTransform && inMove && (if (leaving) revealOut else revealIn)
                 // This page as the list under another page's transform: the scrim over it, and the row placeholder.
                 val under = layerTransform?.takeIf { it.page.entryId != entry.entryId }
                 val scrim = transformScrim(under?.transition)
@@ -152,7 +156,9 @@ internal fun TabLayer(
                             .fillMaxSize()
                             .transformBounds(shared, this, state, clip)
                             // At the row the container fades with the row's content under it (no pop at either end).
-                            .graphicsLayer { alpha = if (transforming) transformContainerAlpha(reveal.value) else 1f }
+                            .graphicsLayer {
+                                alpha = if (transforming) transformContainerAlpha(reveal.value, clock.value, out = leaving) else 1f
+                            }
                     } else {
                         Modifier.fillMaxSize()
                     }
@@ -266,7 +272,19 @@ internal fun ReportBaseLayer(
             val exiting = this.transition.targetState == EnterExitState.PostExit
             val revealOut = remember(exiting) { exiting && canTransform && move() == NavMove.Pop }
             val reveal = transformProgress(revealIn, revealOut, label = "report-container-reveal")
-            val transforming = canTransform && (revealIn || revealOut)
+            val clock = transformClock(revealIn, revealOut, label = "report-container-clock")
+            // Only while the move runs: at rest the report draws on the root's background again, like any report.
+            val inMove = this.transition.currentState != this.transition.targetState
+            val transforming = canTransform && inMove && (if (exiting) revealOut else revealIn)
+            // The WebView (an AndroidView, which shared elements do not support in the overlay) stays at alpha 0
+            // while the container grows from the row, and fades in once the bounds have settled and the report is
+            // drawn in this layer again. On the way back it leaves over the first 30% of the shrink.
+            val contentHeld = transforming && !exiting
+            val contentIn by animateFloatAsState(
+                targetValue = if (contentHeld) 0f else 1f,
+                animationSpec = if (contentHeld) snapSpec() else motionSpec(ThesisMotion.Quick, easing = ThesisMotion.EaseStandard),
+                label = "report-content-in"
+            )
             val palette = LocalThesisPalette.current
             Box(Modifier.fillMaxSize()) {
                 Box(
@@ -282,7 +300,8 @@ internal fun ReportBaseLayer(
                             }
                         )
                         .graphicsLayer {
-                            alpha = (1f - cover) * if (transforming) transformContainerAlpha(reveal.value) else 1f
+                            alpha = (1f - cover) *
+                                if (transforming) transformContainerAlpha(reveal.value, clock.value, out = exiting) else 1f
                             if (!env.reducedMotion) translationX = -cover * env.px.shiftPx
                         }
                         // Hidden under the page above it: out of the accessibility tree too (Compose semantics).
@@ -301,10 +320,8 @@ internal fun ReportBaseLayer(
                         )
                 ) {
                     Box(
-                        if (transforming) {
-                            Modifier.fillMaxSize().graphicsLayer { alpha = transformContentAlpha(reveal.value) }
-                        } else {
-                            Modifier.fillMaxSize()
+                        Modifier.fillMaxSize().graphicsLayer {
+                            alpha = if (transforming && exiting) transformContentAlpha(reveal.value) else contentIn
                         }
                     ) {
                         LeaveHook(report.entryId, env.backPreview)

@@ -619,7 +619,8 @@ fun InboxScreen(
                             count = quietCount,
                             showing = showQuiet,
                             onToggle = { showQuiet = !showQuiet },
-                            modifier = thesisItemMotion(),
+                            // Fades only, like the day items above it (see alertDays).
+                            modifier = thesisItemMotion(placement = false),
                         )
                     }
                 }
@@ -703,11 +704,14 @@ private fun LazyListScope.alertDays(
         val dayKey = day.date ?: "undated"
         // A day whose rows have all collapsed loses its header; the rows stay composed (they come back on Undo).
         if (present.isNotEmpty()) {
-            // Headers fade in and out with their day (4.4 item motion); the list pins and moves them itself.
+            // Inbox items fade in and out (4.4 item motion) but take their new place at once (placement = false):
+            // the sticky day headers cannot glide (the list pins and moves them itself), and a row quieted by the
+            // user already closes up in place (DismissibleItem), so the rows and gaps must move with the headers,
+            // in the same frames, or a header would cover a row that is still gliding.
             stickyHeader(key = "day-$dayKey", contentType = "day") {
                 Box(thesisItemMotion(placement = false)) { DayHeader(day.label) }
             }
-            item(key = "day-top-$dayKey", contentType = "day-gap") { Spacer(thesisItemMotion().height(ThesisSpace.s)) }
+            item(key = "day-top-$dayKey", contentType = "day-gap") { Spacer(thesisItemMotion(placement = false).height(ThesisSpace.s)) }
         }
         day.alerts.forEach { alert ->
             val position = when {
@@ -719,8 +723,8 @@ private fun LazyListScope.alertDays(
                 DismissibleItem(
                     removing = alert.id in exits,
                     onRemoved = { onCollapsed(alert.id) },
-                    // Survivors glide (`spatial`); alerts that Show quiet brings in or takes out fade (4.4, PR-4b).
-                    modifier = thesisItemMotion()
+                    // Alerts that Show quiet brings in or takes out fade (4.4, PR-4b); no glide (see the header).
+                    modifier = thesisItemMotion(placement = false)
                         .onSizeChanged { onExitHeight(alert.id, it.height) }
                         .padding(horizontal = ThesisSpace.gutter)
                         .rowGroupSegment(position, LeadingRowDividerInset),
@@ -734,7 +738,9 @@ private fun LazyListScope.alertDays(
             }
         }
         if (present.isNotEmpty()) {
-            item(key = "day-end-$dayKey", contentType = "day-gap") { Spacer(thesisItemMotion().height(ThesisSpace.sectionGapData)) }
+            item(key = "day-end-$dayKey", contentType = "day-gap") {
+                Spacer(thesisItemMotion(placement = false).height(ThesisSpace.sectionGapData))
+            }
         }
     }
 }
